@@ -1,11 +1,13 @@
 # Contribución
 
+[English](CONTRIBUTING.md) · **Español**
+
 Cómo trabajar en este repositorio: para humanos (y los agentes de IA que te ayudan).
 
 ## Orientación
 
-- **Arquitectura** (cómo está construido todo): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — lee esto primero.
-- **Reglas** para modificar las reglas, modificar `CLAUDE.md`. Claude Code carga estos archivos automáticamente en cada sesión.
+- **Arquitectura** (cómo está construido todo): [ARCHITECTURE.md](ARCHITECTURE.md) — lee esto primero.
+- **Reglas**: para modificar las reglas, modifica `CLAUDE.md`. Claude Code carga estos archivos automáticamente en cada sesión.
 
 ## Dos formas de trabajar con Claude
 
@@ -17,9 +19,9 @@ Simplemente haz tu petición. Utiliza esta opción para cualquier tarea que no i
 - cambios en un área específica («corrige esta validación del serializador», «ajusta este componente»),
 - depuración, refactorización y correcciones puntuales.
 
-### B. The `/feature` pipeline
+### B. El pipeline `/feature`
 
-Este proceso se encuentra en desarrollo, pero basicamente lo que hace es levantar varios agentes de IA para ayudarte a resolver una tarea específica. Sin embargo, puede llegar a ser más costoso si no se tiene claro la feature a implementar.
+Este proceso se encuentra en desarrollo, pero básicamente lo que hace es levantar varios agentes de IA para ayudarte a resolver una tarea específica. Sin embargo, puede llegar a ser más costoso si no se tiene clara la _feature_ a implementar.
 
 ## Reglas básicas (se aplican a todos los cambios)
 
