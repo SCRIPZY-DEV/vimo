@@ -1,6 +1,6 @@
 # Contributing
 
-**English** · [Español](CONTRIBUTING.es.md)
+**English** · [Español](/docs/CONTRIBUTING.es.md)
 
 How to work in this repository: for humans (and the AI agents helping you).
 
