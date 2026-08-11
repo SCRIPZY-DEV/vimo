@@ -1,0 +1,7 @@
+dist
+pnpm-lock.yaml
+
+# Artefactos generados por Tauri / Cargo
+src-tauri/target
+src-tauri/gen
+src-tauri/Cargo.lock
