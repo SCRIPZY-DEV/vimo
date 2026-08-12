@@ -1,0 +1,8 @@
+{
+  "pageTitle": "Vimo",
+  "titulo": "Vimo portable",
+  "descripcion": "Fundaciones listas: módulos, estilos, i18n y enrutado. Las vistas reales llegan con la migración.",
+  "temaClaro": "Tema claro",
+  "temaOscuro": "Tema oscuro",
+  "cambiarIdioma": "Cambiar idioma a {{idioma}}"
+}

@@ -1,0 +1,8 @@
+{
+  "pageTitle": "Vimo",
+  "titulo": "Vimo portable",
+  "descripcion": "Foundations ready: modules, styles, i18n and routing. The real views arrive with the migration.",
+  "temaClaro": "Light theme",
+  "temaOscuro": "Dark theme",
+  "cambiarIdioma": "Switch language to {{idioma}}"
+}
