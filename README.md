@@ -1,75 +1,110 @@
-# React + TypeScript + Vite
+# Vimo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación de escritorio que convierte un guion de texto en un video narrado completo,
+listo para publicar: voz sintetizada, imágenes generadas por IA sincronizadas con la
+narración, música de fondo y render final en MP4.
 
-Currently, two official plugins are available:
+> [!IMPORTANT]
+> **Este repositorio contiene únicamente la interfaz.** El pipeline que genera el video
+> (las 6 fases: voz, transcripción, cortes, prompts, imágenes y render) vive en un
+> **repositorio aparte** y se empaqueta dentro de la aplicación como _sidecar_ de Tauri,
+> junto con FFmpeg. La identidad del usuario se resuelve con **Supabase**. Acá no hay
+> orquestación ni llamadas a proveedores: solo la app que el usuario ve y opera.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Todo corre en la máquina del usuario: no hay servidor que desplegar. Las únicas llamadas
+remotas son a los proveedores externos, con las claves del propio usuario.
 
-## React Compiler
+Es una **reescritura desde cero** de un proyecto anterior que era un CLI monolítico en
+Node. La lógica de generación se extrajo a un servicio propio y esta capa se rehízo
+completa, con estructura modular y convenciones nuevas.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Qué hace la aplicación
 
-## Expanding the ESLint configuration
+El usuario escribe o pega su guion, elige el estilo visual y las opciones de
+generación, y la app dispara el proceso contra el sidecar mostrando el avance fase por
+fase hasta entregar el video final. El modelo es **BYO-keys**: cada usuario aporta sus
+propias claves de los servicios pagos, así que el costo variable corre por su cuenta.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+El flujo completo, paso a paso y con el reparto de responsabilidades entre la interfaz
+y el sidecar, está en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Plataformas
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Una sola base de código compilada con Tauri 2 a aplicaciones nativas de **Windows,
+macOS y Linux**.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Móvil queda fuera mientras el render dependa de FFmpeg como binario local — el porqué
+está en la [ADR-0002](docs/adr/ADR-0002-servidor-local-como-sidecar-de-tauri.md).
 
+## Requisitos
+
+- **Node.js 20+** y **pnpm**.
+- **Rust** y las dependencias nativas de Tauri, solo si vas a compilar la app de
+  escritorio. Guía oficial: <https://tauri.app/start/prerequisites/>.
+- Para el desarrollo de la interfaz sola, alcanza con Node y pnpm.
+
+## Puesta en marcha
+
+```bash
+git clone https://github.com/SCRIPZY-DEV/vimo.git
+cd vimo
+pnpm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Si pnpm pide aprobar los scripts de instalación de alguna dependencia:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+pnpm approve-builds
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Después, según lo que quieras levantar:
+
+```bash
+pnpm dev          # interfaz en el navegador (http://localhost:5173)
+pnpm tauri dev    # aplicación nativa, con recarga en caliente
+```
+
+## Comandos
+
+| Comando            | Qué hace                                                      |
+| ------------------ | ------------------------------------------------------------- |
+| `pnpm dev`         | Servidor de desarrollo de Vite en el puerto 5173              |
+| `pnpm build`       | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/` |
+| `pnpm preview`     | Sirve el bundle ya construido                                 |
+| `pnpm lint`        | ESLint sobre todo el repositorio                              |
+| `pnpm lint:fix`    | ESLint aplicando las correcciones automáticas                 |
+| `pnpm format`      | Prettier sobre todo el repositorio                            |
+| `pnpm tauri dev`   | Aplicación nativa en modo desarrollo                          |
+| `pnpm tauri build` | Compila los instaladores nativos de la plataforma actual      |
+
+Antes de dar por terminado un cambio: `pnpm format`, `pnpm lint` y `pnpm build`, en ese
+orden. Los tres deben pasar.
+
+## Estructura
 
 ```
+src/         la interfaz: módulos por dominio, router e i18n
+src-tauri/   el lado Rust: configuración de la app nativa, iconos y capabilities
+docs/        arquitectura, guía de contribución y decisiones (ADRs)
+```
+
+El detalle de cada carpeta y las reglas para agregar código están en
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) y [CLAUDE.md](CLAUDE.md).
+
+## Documentación
+
+| Documento                                          | Para qué                                        |
+| -------------------------------------------------- | ----------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)       | Cómo está construido y cómo fluye la aplicación |
+| [CLAUDE.md](CLAUDE.md)                             | Convenciones de código (obligatorias)           |
+| [docs/CONTRIBUTING.es.md](docs/CONTRIBUTING.es.md) | Ramas, Pull Requests y forma de trabajo         |
+| [docs/adr/](docs/adr/)                             | Decisiones de arquitectura y por qué se tomaron |
+
+## Estado
+
+La migración está en curso. Hoy el repositorio tiene el andamiaje (React 19, Vite,
+Tauri 2, ESLint, Prettier y las convenciones) y **todavía no** las piezas que documenta
+la arquitectura: React Router, TanStack Query, Tailwind, el cliente de Supabase y el
+`fetcher` contra el sidecar. Tampoco está empaquetado el servidor como sidecar ni
+FFmpeg. Los documentos describen hacia dónde va el proyecto; el código todavía no llegó
+ahí.
