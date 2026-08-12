@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "vimo",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "click.vimo.portable",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "vimo",
-        "width": 800,
-        "height": 600,
+        "title": "Vimo",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640,
         "resizable": true,
         "fullscreen": false
       }
