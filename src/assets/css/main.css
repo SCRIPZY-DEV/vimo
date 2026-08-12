@@ -6,9 +6,9 @@
 
 /* Transición suave al cambiar tema (claro <-> oscuro). Sólo background/border;
    evitamos color/fill/stroke porque hace que iconos y textos parpadeen feo. */
-html.tema-cambiando *,
-html.tema-cambiando *::before,
-html.tema-cambiando *::after {
+html.theme-changing *,
+html.theme-changing *::before,
+html.theme-changing *::after {
   transition:
     background-color 0.18s ease,
     border-color 0.18s ease;
