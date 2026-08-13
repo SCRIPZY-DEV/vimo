@@ -1,14 +1,30 @@
 import { useDoodleDraw } from '@/modules/common/hooks/useDoodleDraw'
 
+/** Trazo completo: transition de 1.5s + stagger máximo de 1.4s en los paths. */
+const ROCKET_DRAW_DURATION_MS = 2900
+
 interface Props {
   className?: string
   delay?: number
   loop?: boolean
   size?: number
+  /** Avisa cuando el cohete terminó de dibujarse (ignorado en modo loop). */
+  onDrawComplete?: () => void
 }
 
-const DoodleRocket = ({ className = '', delay = 500, size, loop }: Props) => {
-  const drawn = useDoodleDraw({ delayMs: delay, loop })
+const DoodleRocket = ({
+  className = '',
+  delay = 500,
+  size,
+  loop,
+  onDrawComplete,
+}: Props) => {
+  const drawn = useDoodleDraw({
+    delayMs: delay,
+    loop,
+    drawDurationMs: ROCKET_DRAW_DURATION_MS,
+    onDrawComplete,
+  })
 
   const s = (da: number, d: number) => ({
     strokeDasharray: da,
