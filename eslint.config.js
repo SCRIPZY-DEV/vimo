@@ -22,4 +22,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Kit shadcn/ui vendorizado desde la app original: exporta variantes cva
+    // junto a los componentes, patrón propio del kit que no aplicamos al
+    // código de producto.
+    files: ['src/modules/common/ui/**'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
