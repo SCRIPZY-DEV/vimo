@@ -6,10 +6,13 @@ narración, música de fondo y render final en MP4.
 
 > [!IMPORTANT]
 > **Este repositorio contiene únicamente la interfaz.** El pipeline que genera el video
-> (las 6 fases: voz, transcripción, cortes, prompts, imágenes y render) vive en un
-> **repositorio aparte** y se empaqueta dentro de la aplicación como _sidecar_ de Tauri,
-> junto con FFmpeg. La identidad del usuario se resuelve con **Supabase**. Acá no hay
-> orquestación ni llamadas a proveedores: solo la app que el usuario ve y opera.
+> (las 6 fases: voz, transcripción, cortes, prompts, imágenes y render) se ejecutará
+> desde **Rust vía `invoke()` de Tauri** — no hay servidor local: las funciones del
+> pipeline se conservan y cambia quién las invoca
+> ([ADR-0007](docs/adr/ADR-0007-invoke-reemplaza-al-servidor-local.md)). FFmpeg viaja
+> como binario invocado por Rust. La identidad del usuario se resuelve con
+> **Supabase**. Acá no hay orquestación ni llamadas a proveedores: solo la app que el
+> usuario ve y opera.
 
 Todo corre en la máquina del usuario: no hay servidor que desplegar. Las únicas llamadas
 remotas son a los proveedores externos, con las claves del propio usuario.
@@ -21,8 +24,8 @@ completa, con estructura modular y convenciones nuevas.
 ## Qué hace la aplicación
 
 El usuario escribe o pega su guion, elige el estilo visual y las opciones de
-generación, y la app dispara el proceso contra el sidecar mostrando el avance fase por
-fase hasta entregar el video final. El modelo es **BYO-keys**: cada usuario aporta sus
+generación, y la app dispara el proceso mostrando el avance fase por fase hasta
+entregar el video final. El modelo es **BYO-keys**: cada usuario aporta sus
 propias claves de los servicios pagos, así que el costo variable corre por su cuenta.
 
 El flujo completo, paso a paso y con el reparto de responsabilidades entre la interfaz
@@ -34,7 +37,9 @@ Una sola base de código compilada con Tauri 2 a aplicaciones nativas de **Windo
 macOS y Linux**.
 
 Móvil queda fuera mientras el render dependa de FFmpeg como binario local — el porqué
-está en la [ADR-0002](docs/adr/ADR-0002-servidor-local-como-sidecar-de-tauri.md).
+está en la [ADR-0002](docs/adr/ADR-0002-servidor-local-como-sidecar-de-tauri.md)
+(reemplazada por la ADR-0007 en cuanto al servidor, pero su análisis de FFmpeg sigue
+vigente).
 
 ## Requisitos
 
@@ -102,9 +107,10 @@ El detalle de cada carpeta y las reglas para agregar código están en
 
 ## Estado
 
-La migración está en curso. Hoy el repositorio tiene el andamiaje (React 19, Vite,
-Tauri 2, ESLint, Prettier y las convenciones) y **todavía no** las piezas que documenta
-la arquitectura: React Router, TanStack Query, Tailwind, el cliente de Supabase y el
-`fetcher` contra el sidecar. Tampoco está empaquetado el servidor como sidecar ni
-FFmpeg. Los documentos describen hacia dónde va el proyecto; el código todavía no llegó
-ahí.
+La migración está en curso. Hoy el repositorio tiene el andamiaje completo (React 19,
+Vite, Tauri 2, React Router con guards, TanStack Query, Tailwind, i18next) y la
+**autenticación real**: OAuth con Google en doble flujo —web y deep link `vimo://`—,
+verificación de acceso y cierre de sesión (ADR-0006). Falta migrar el pipeline de
+generación, que correrá desde Rust vía `invoke()` (ADR-0007) junto con FFmpeg. El
+detalle pieza por pieza está en la tabla §5 de
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
