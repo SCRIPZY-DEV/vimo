@@ -43,9 +43,15 @@ agrega ruido.
 
 ## Índice
 
-| ADR                                 | Título | Estado | Área |
-| ----------------------------------- | ------ | ------ | ---- |
-| _(todavía no hay ADRs registradas)_ |        |        |      |
+| ADR                                                                        | Título                                                     | Estado                   | Área         |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------ | ------------ |
+| [ADR-0007](ADR-0007-invoke-reemplaza-al-servidor-local.md)                 | invoke() de Tauri reemplaza al servidor local              | Aceptada                 | distribución |
+| [ADR-0006](ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md) | Autenticación: doble flujo OAuth y gate por loaders        | Aceptada                 | app          |
+| [ADR-0005](ADR-0005-layouts-explicitos-y-modulos-base.md)                  | Layouts explícitos (Authenticated/Guest) y módulos base    | Aceptada                 | app          |
+| [ADR-0004](ADR-0004-i18n-con-i18next.md)                                   | i18n con i18next y catálogos JSON por idioma               | Aceptada                 | app          |
+| [ADR-0003](ADR-0003-fundaciones-de-la-interfaz.md)                         | Fundaciones de la interfaz: portar la capa común original  | Aceptada (i18n → 0004)   | app          |
+| [ADR-0002](ADR-0002-servidor-local-como-sidecar-de-tauri.md)               | El servidor local se empaqueta como sidecar de Tauri       | Reemplazada por ADR-0007 | distribución |
+| [ADR-0001](ADR-0001-separacion-interfaz-y-pipeline.md)                     | Separar la interfaz del pipeline y reescribirla desde cero | Reemplazada por ADR-0002 | app          |
 
 ## Nota sobre distribución
 
