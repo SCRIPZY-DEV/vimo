@@ -1,13 +1,12 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { Suspense } from 'react'
 import { RouterProvider } from 'react-router/dom'
+import { queryClient } from '@/modules/common/queryClient'
 import { ThemeProvider } from '@/modules/common/theme/ThemeProvider'
 import { Toaster } from '@/modules/common/ui/toaster'
 import { Toaster as Sonner } from '@/modules/common/ui/sonner'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
 import { router } from '@/router'
-
-const queryClient = new QueryClient()
 
 export function App() {
   return (
