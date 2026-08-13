@@ -1,6 +1,5 @@
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
-import { HomeRoutes } from '@/modules/home/constants'
-import DoodleLaptop from '@/modules/common/doodles/DoodleLaptop'
+import { VideosRoutes } from '@/modules/videos/constants'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import DoodleScript from '@/modules/common/doodles/DoodleScript'
 import DoodleCamera from '@/modules/common/doodles/DoodleCamera'
@@ -12,16 +11,14 @@ import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
 
 /**
- * Items del menú lateral. Solo Inicio navega; el resto son maquetas
+ * Items del menú lateral. Solo Crear Video navega; el resto son maquetas
  * deshabilitadas que se irán habilitando a medida que se migren.
  */
 export const NAV_ITEMS: SidebarNavItem[] = [
-  { route: HomeRoutes.home, labelKey: 'layout.nav.inicio', Icon: DoodleLaptop },
   {
-    route: '/create',
+    route: VideosRoutes.create,
     labelKey: 'layout.nav.crear',
     Icon: DoodleWand,
-    disabled: true,
   },
   {
     route: '/library',
