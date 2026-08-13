@@ -1,13 +1,12 @@
 import { createHashRouter } from 'react-router'
 import { AuthenticatedLayout } from '@/layouts/AuthenticatedLayout/AuthenticatedLayout'
 import { GuestLayout } from '@/layouts/GuestLayout/GuestLayout'
-import { SetupRoutes } from '@/modules/setup/constants'
-import { Splash } from '@/modules/setup/views/Splash'
 
 import { requireAuthLoader } from '@/modules/auth/guards'
 import { authRoutes } from '@/modules/auth/routes'
 import { videosRoutes } from '@/modules/videos/routes'
 import { commonRoutes } from '@/modules/common/routes'
+import { setupMainRoute } from '@/modules/setup/routes'
 
 /**
  * Árbol de rutas de la app. Cada módulo declara sus paths en su `constants.ts`
@@ -19,6 +18,7 @@ import { commonRoutes } from '@/modules/common/routes'
  * resuelva rutas profundas al recargar, y la URL no es visible.
  */
 export const router = createHashRouter([
+  ...setupMainRoute,
   {
     Component: AuthenticatedLayout,
     // Gate de acceso por composición (ADR-0005): el loader decide, no el layout.
@@ -29,6 +29,5 @@ export const router = createHashRouter([
     Component: GuestLayout,
     children: [...authRoutes],
   },
-  { path: SetupRoutes.root, Component: Splash },
   ...commonRoutes,
 ])
