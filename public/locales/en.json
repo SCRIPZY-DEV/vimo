@@ -1,8 +1,78 @@
 {
-  "pageTitle": "Vimo",
-  "titulo": "Vimo portable",
-  "descripcion": "Foundations ready: modules, styles, i18n and routing. The real views arrive with the migration.",
-  "temaClaro": "Light theme",
-  "temaOscuro": "Dark theme",
-  "cambiarIdioma": "Switch language to {{idioma}}"
+  "common": {
+    "proximamente": "Coming soon"
+  },
+  "layout": {
+    "sidebar": {
+      "taglineCorto": "AI videos, in one click.",
+      "expandir": "Expand menu",
+      "colapsar": "Collapse menu",
+      "hechoEn": "Made in",
+      "creadoPor": "Created by"
+    },
+    "nav": {
+      "inicio": "Home",
+      "crear": "Create Video",
+      "biblioteca": "Library",
+      "personajes": "Characters",
+      "voces": "Voices",
+      "musica": "AI Music",
+      "costos": "Pricing",
+      "claves": "API Keys",
+      "licencia": "License",
+      "ajustes": "Settings"
+    },
+    "navbar": {
+      "temaClaro": "Light mode",
+      "temaOscuro": "Dark mode",
+      "idioma": "Language"
+    },
+    "error": {
+      "titulo": "This section couldn't be opened",
+      "descripcion": "The rest of the app keeps working: pick another section from the menu on the left, or try again here.",
+      "reintentar": "Try again",
+      "detalleTecnico": "Technical details (dev only)"
+    }
+  },
+  "login": {
+    "pageTitle": "Sign in — Vimo",
+    "bienvenida": "Welcome to {{nombre}}",
+    "tagline": "Your video factory in one click.",
+    "info": "Sign in with your Google account to activate your free 10-day trial. We only store your email — your video work never leaves your PC.",
+    "boton": "Sign in with Google",
+    "abriendo": "Opening Google...",
+    "problemas": "Trouble signing in? Write to us at"
+  },
+  "accessDenied": {
+    "pageTitle": "Access denied — Vimo",
+    "titulo": "Access for students only",
+    "descripcion": "{{nombre}} is in closed beta for course students. Your email is not on the access list.",
+    "tituloTrial": "Your trial is over",
+    "descripcionTrial": "Your 10 free days are up. To keep using {{nombre}}, activate your subscription.",
+    "sesionComo": "You signed in as",
+    "contactarSoporte": "Contact support",
+    "cambiarCuenta": "Switch account"
+  },
+  "home": {
+    "pageTitle": "Vimo",
+    "titulo": "Main panel",
+    "descripcion": "This panel becomes the center of the app as sections get migrated.",
+    "maquetas": "Mockups to review",
+    "maquetaLogin": "Sign in",
+    "maquetaAccesoDenegado": "Access denied",
+    "maquetaSplash": "Startup screen",
+    "maqueta404": "Page not found (404)"
+  },
+  "splash": {
+    "pageTitle": "Vimo",
+    "tagline": "Your video factory in one click.",
+    "preparando": "Getting everything ready...",
+    "volver": "Back to panel (mockup)"
+  },
+  "notFound": {
+    "pageTitle": "Page not found — Vimo",
+    "titulo": "This page doesn't exist",
+    "descripcion": "The link may be broken, or the section hasn't been migrated yet.",
+    "volver": "Back to home"
+  }
 }

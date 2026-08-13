@@ -1,8 +1,78 @@
 {
-  "pageTitle": "Vimo",
-  "titulo": "Vimo portátil",
-  "descripcion": "Fundações prontas: módulos, estilos, i18n e roteamento. As telas reais chegam com a migração.",
-  "temaClaro": "Tema claro",
-  "temaOscuro": "Tema escuro",
-  "cambiarIdioma": "Mudar idioma para {{idioma}}"
+  "common": {
+    "proximamente": "Em breve"
+  },
+  "layout": {
+    "sidebar": {
+      "taglineCorto": "Vídeos com IA, num clique.",
+      "expandir": "Expandir menu",
+      "colapsar": "Recolher menu",
+      "hechoEn": "Feito em",
+      "creadoPor": "Criado por"
+    },
+    "nav": {
+      "inicio": "Início",
+      "crear": "Criar Vídeo",
+      "biblioteca": "Biblioteca",
+      "personajes": "Personagens",
+      "voces": "Vozes",
+      "musica": "Música IA",
+      "costos": "Custos",
+      "claves": "Chaves API",
+      "licencia": "Licença",
+      "ajustes": "Configurações"
+    },
+    "navbar": {
+      "temaClaro": "Modo claro",
+      "temaOscuro": "Modo escuro",
+      "idioma": "Idioma"
+    },
+    "error": {
+      "titulo": "Esta seção não pôde ser aberta",
+      "descripcion": "O resto do app continua funcionando: escolha outra seção no menu à esquerda, ou tente de novo aqui.",
+      "reintentar": "Tentar de novo",
+      "detalleTecnico": "Detalhes técnicos (somente dev)"
+    }
+  },
+  "login": {
+    "pageTitle": "Entrar — Vimo",
+    "bienvenida": "Bem-vindo ao {{nombre}}",
+    "tagline": "Sua fábrica de vídeos num clique.",
+    "info": "Entre com sua conta do Google para ativar seu teste grátis de 10 dias. Só guardamos seu email — seu trabalho de vídeo nunca sai do seu PC.",
+    "boton": "Entrar com Google",
+    "abriendo": "Abrindo o Google...",
+    "problemas": "Problemas para entrar? Escreva para"
+  },
+  "accessDenied": {
+    "pageTitle": "Acesso negado — Vimo",
+    "titulo": "Acesso somente para alunos",
+    "descripcion": "O {{nombre}} está em beta fechado para alunos do curso. Seu email não está na lista de acesso.",
+    "tituloTrial": "Seu teste terminou",
+    "descripcionTrial": "Os 10 dias grátis acabaram. Para continuar usando o {{nombre}}, ative sua assinatura.",
+    "sesionComo": "Você entrou como",
+    "contactarSoporte": "Falar com o suporte",
+    "cambiarCuenta": "Trocar de conta"
+  },
+  "home": {
+    "pageTitle": "Vimo",
+    "titulo": "Painel principal",
+    "descripcion": "Este painel vira o centro do app à medida que as seções são migradas.",
+    "maquetas": "Protótipos para revisar",
+    "maquetaLogin": "Entrar",
+    "maquetaAccesoDenegado": "Acesso negado",
+    "maquetaSplash": "Tela de inicialização",
+    "maqueta404": "Página não encontrada (404)"
+  },
+  "splash": {
+    "pageTitle": "Vimo",
+    "tagline": "Sua fábrica de vídeos num clique.",
+    "preparando": "Preparando tudo...",
+    "volver": "Voltar ao painel (protótipo)"
+  },
+  "notFound": {
+    "pageTitle": "Página não encontrada — Vimo",
+    "titulo": "Esta página não existe",
+    "descripcion": "O link pode estar quebrado, ou a seção ainda não foi migrada.",
+    "volver": "Voltar ao início"
+  }
 }
