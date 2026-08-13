@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Instagram } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Instagram, LogOut } from 'lucide-react'
 import { SidebarItem } from '@/layouts/AuthenticatedLayout/components/SidebarItem'
 import {
   NAV_ITEMS,
   COLLAPSED_STORAGE_KEY,
 } from '@/layouts/AuthenticatedLayout/constants'
+import { AuthRoutesPaths } from '@/modules/auth/constants'
 import { Brand } from '@/modules/common/brand/brand'
 import { cn } from '@/modules/common/utilities/cn'
 import {
@@ -85,42 +87,76 @@ export function Sidebar() {
 
       <nav
         className={cn(
-          'flex-1 py-4',
-          collapsed ? 'flex flex-col items-center gap-1' : 'space-y-1 px-3',
+          'flex flex-1 flex-col justify-between py-4',
+          collapsed ? 'items-center' : 'px-3',
         )}
       >
         <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-          {NAV_ITEMS.map((item) => (
-            <SidebarItem key={item.route} item={item} collapsed={collapsed} />
-          ))}
+          <div
+            className={cn(
+              collapsed
+                ? 'flex flex-col items-center gap-1 self-stretch'
+                : 'space-y-1',
+            )}
+          >
+            {NAV_ITEMS.map((item) => (
+              <SidebarItem key={item.route} item={item} collapsed={collapsed} />
+            ))}
 
-          {/* Botón toggle: `self-stretch` garantiza el ancho completo del nav
-              incluso en modo colapsado (flex-col items-center). */}
-          <div className="flex justify-end self-stretch pt-3">
+            <div className="flex justify-end self-stretch pt-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={toggleCollapsed}
+                    aria-label={
+                      collapsed
+                        ? t('layout.sidebar.expandir')
+                        : t('layout.sidebar.colapsar')
+                    }
+                    className="-mr-3.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-saffron text-charcoal shadow-md transition-all hover:scale-110 hover:shadow-lg"
+                  >
+                    {collapsed ? (
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                    ) : (
+                      <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  {collapsed
+                    ? t('layout.sidebar.expandir')
+                    : t('layout.sidebar.colapsar')}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className={cn(collapsed && 'self-stretch')}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={toggleCollapsed}
-                  aria-label={
+                <Link
+                  to={AuthRoutesPaths.logout}
+                  className={cn(
+                    'flex items-center font-display text-sm font-semibold text-muted-foreground outline-none transition-colors hover:bg-coral/10 hover:text-coral',
                     collapsed
-                      ? t('layout.sidebar.expandir')
-                      : t('layout.sidebar.colapsar')
-                  }
-                  className="-mr-3.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-saffron text-charcoal shadow-md transition-all hover:scale-110 hover:shadow-lg"
-                >
-                  {collapsed ? (
-                    <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
-                  ) : (
-                    <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
+                      ? 'mx-auto h-10 w-10 justify-center rounded-xl'
+                      : 'gap-3 rounded-lg px-3 py-2.5',
                   )}
-                </button>
+                >
+                  <LogOut size={22} />
+                  {!collapsed && (
+                    <span className="overflow-hidden whitespace-nowrap">
+                      {t('layout.sidebar.cerrarSesion')}
+                    </span>
+                  )}
+                </Link>
               </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={8}>
-                {collapsed
-                  ? t('layout.sidebar.expandir')
-                  : t('layout.sidebar.colapsar')}
-              </TooltipContent>
+              {collapsed && (
+                <TooltipContent side="right" sideOffset={12}>
+                  {t('layout.sidebar.cerrarSesion')}
+                </TooltipContent>
+              )}
             </Tooltip>
           </div>
         </TooltipProvider>

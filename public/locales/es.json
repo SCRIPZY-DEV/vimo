@@ -8,10 +8,10 @@
       "expandir": "Expandir menú",
       "colapsar": "Colapsar menú",
       "hechoEn": "Hecho en",
-      "creadoPor": "Creado por"
+      "creadoPor": "Creado por",
+      "cerrarSesion": "Cerrar sesión"
     },
     "nav": {
-      "inicio": "Inicio",
       "crear": "Crear Video",
       "biblioteca": "Biblioteca",
       "personajes": "Personajes",
@@ -41,7 +41,14 @@
     "info": "Iniciá sesión con tu cuenta de Google para activar tu prueba de 10 días gratis. Solo guardamos tu email — tu trabajo de video nunca sale de tu PC.",
     "boton": "Iniciar sesión con Google",
     "abriendo": "Abriendo Google...",
-    "problemas": "¿Problemas para entrar? Escribinos a"
+    "problemas": "¿Problemas para entrar? Escribinos a",
+    "errorInicio": "No se pudo abrir Google. Probá de nuevo."
+  },
+  "callback": {
+    "pageTitle": "Conectando — Vimo",
+    "conectando": "Conectando con Google...",
+    "error": "No pudimos completar el inicio de sesión.",
+    "volverAlLogin": "Volver a intentar"
   },
   "accessDenied": {
     "pageTitle": "Acceso denegado — Vimo",
@@ -53,21 +60,15 @@
     "contactarSoporte": "Escribir a soporte",
     "cambiarCuenta": "Cambiar de cuenta"
   },
-  "home": {
-    "pageTitle": "Vimo",
-    "titulo": "Panel principal",
-    "descripcion": "Este panel se convierte en el centro de la app a medida que se migran las secciones.",
-    "maquetas": "Maquetas para revisar",
-    "maquetaLogin": "Inicio de sesión",
-    "maquetaAccesoDenegado": "Acceso denegado",
-    "maquetaSplash": "Pantalla de arranque",
-    "maqueta404": "Página no encontrada (404)"
+  "create": {
+    "pageTitle": "Crear video — Vimo",
+    "titulo": "Crear un video",
+    "descripcion": "Acá va el editor de guion. Esta sección se migra en la próxima fase."
   },
   "splash": {
     "pageTitle": "Vimo",
     "tagline": "Tu fábrica de videos en un click.",
-    "preparando": "Preparando todo...",
-    "volver": "Volver al panel (maqueta)"
+    "preparando": "Preparando todo..."
   },
   "notFound": {
     "pageTitle": "Página no encontrada — Vimo",

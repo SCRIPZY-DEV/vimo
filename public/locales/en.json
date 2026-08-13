@@ -8,10 +8,10 @@
       "expandir": "Expand menu",
       "colapsar": "Collapse menu",
       "hechoEn": "Made in",
-      "creadoPor": "Created by"
+      "creadoPor": "Created by",
+      "cerrarSesion": "Sign out"
     },
     "nav": {
-      "inicio": "Home",
       "crear": "Create Video",
       "biblioteca": "Library",
       "personajes": "Characters",
@@ -41,7 +41,14 @@
     "info": "Sign in with your Google account to activate your free 10-day trial. We only store your email — your video work never leaves your PC.",
     "boton": "Sign in with Google",
     "abriendo": "Opening Google...",
-    "problemas": "Trouble signing in? Write to us at"
+    "problemas": "Trouble signing in? Write to us at",
+    "errorInicio": "Couldn't open Google. Please try again."
+  },
+  "callback": {
+    "pageTitle": "Connecting — Vimo",
+    "conectando": "Connecting to Google...",
+    "error": "We couldn't complete the sign-in.",
+    "volverAlLogin": "Try again"
   },
   "accessDenied": {
     "pageTitle": "Access denied — Vimo",
@@ -53,21 +60,15 @@
     "contactarSoporte": "Contact support",
     "cambiarCuenta": "Switch account"
   },
-  "home": {
-    "pageTitle": "Vimo",
-    "titulo": "Main panel",
-    "descripcion": "This panel becomes the center of the app as sections get migrated.",
-    "maquetas": "Mockups to review",
-    "maquetaLogin": "Sign in",
-    "maquetaAccesoDenegado": "Access denied",
-    "maquetaSplash": "Startup screen",
-    "maqueta404": "Page not found (404)"
+  "create": {
+    "pageTitle": "Create video — Vimo",
+    "titulo": "Create a video",
+    "descripcion": "The script editor goes here. This section gets migrated in the next phase."
   },
   "splash": {
     "pageTitle": "Vimo",
     "tagline": "Your video factory in one click.",
-    "preparando": "Getting everything ready...",
-    "volver": "Back to panel (mockup)"
+    "preparando": "Getting everything ready..."
   },
   "notFound": {
     "pageTitle": "Page not found — Vimo",

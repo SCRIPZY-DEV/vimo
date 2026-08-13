@@ -8,10 +8,10 @@
       "expandir": "Expandir menu",
       "colapsar": "Recolher menu",
       "hechoEn": "Feito em",
-      "creadoPor": "Criado por"
+      "creadoPor": "Criado por",
+      "cerrarSesion": "Sair"
     },
     "nav": {
-      "inicio": "Início",
       "crear": "Criar Vídeo",
       "biblioteca": "Biblioteca",
       "personajes": "Personagens",
@@ -41,7 +41,14 @@
     "info": "Entre com sua conta do Google para ativar seu teste grátis de 10 dias. Só guardamos seu email — seu trabalho de vídeo nunca sai do seu PC.",
     "boton": "Entrar com Google",
     "abriendo": "Abrindo o Google...",
-    "problemas": "Problemas para entrar? Escreva para"
+    "problemas": "Problemas para entrar? Escreva para",
+    "errorInicio": "Não foi possível abrir o Google. Tente de novo."
+  },
+  "callback": {
+    "pageTitle": "Conectando — Vimo",
+    "conectando": "Conectando com o Google...",
+    "error": "Não foi possível concluir o login.",
+    "volverAlLogin": "Tentar de novo"
   },
   "accessDenied": {
     "pageTitle": "Acesso negado — Vimo",
@@ -53,21 +60,15 @@
     "contactarSoporte": "Falar com o suporte",
     "cambiarCuenta": "Trocar de conta"
   },
-  "home": {
-    "pageTitle": "Vimo",
-    "titulo": "Painel principal",
-    "descripcion": "Este painel vira o centro do app à medida que as seções são migradas.",
-    "maquetas": "Protótipos para revisar",
-    "maquetaLogin": "Entrar",
-    "maquetaAccesoDenegado": "Acesso negado",
-    "maquetaSplash": "Tela de inicialização",
-    "maqueta404": "Página não encontrada (404)"
+  "create": {
+    "pageTitle": "Criar vídeo — Vimo",
+    "titulo": "Criar um vídeo",
+    "descripcion": "O editor de roteiro vai aqui. Esta seção será migrada na próxima fase."
   },
   "splash": {
     "pageTitle": "Vimo",
     "tagline": "Sua fábrica de vídeos num clique.",
-    "preparando": "Preparando tudo...",
-    "volver": "Voltar ao painel (protótipo)"
+    "preparando": "Preparando tudo..."
   },
   "notFound": {
     "pageTitle": "Página não encontrada — Vimo",

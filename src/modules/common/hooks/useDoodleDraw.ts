@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Hook compartido por todos los doodles para animar el "dibujo a mano".
@@ -23,6 +23,13 @@ export interface UseDoodleDrawOptions {
   drawnHoldMs?: number
   /** Tiempo "borrado" antes de redibujar en cada ciclo (ms). */
   erasedHoldMs?: number
+  /**
+   * Duración total del trazo CSS (transition + stagger). El hook no puede
+   * medirla: cada doodle la conoce y la pasa junto con `onDrawComplete`.
+   */
+  drawDurationMs?: number
+  /** Avisa cuando el dibujo terminó (solo modo single-shot, requiere drawDurationMs). */
+  onDrawComplete?: () => void
 }
 
 export function useDoodleDraw({
@@ -30,20 +37,35 @@ export function useDoodleDraw({
   loop = false,
   drawnHoldMs = 1800,
   erasedHoldMs = 600,
+  drawDurationMs,
+  onDrawComplete,
 }: UseDoodleDrawOptions = {}): boolean {
   const [drawn, setDrawn] = useState(false)
+  // Ref para que un callback inline no reinicie la animación en cada render.
+  const onDrawCompleteRef = useRef(onDrawComplete)
+
+  useEffect(() => {
+    onDrawCompleteRef.current = onDrawComplete
+  }, [onDrawComplete])
 
   useEffect(() => {
     let cancelled = false
     const wait = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
 
     if (!loop) {
+      let completeTimer: ReturnType<typeof setTimeout> | undefined
       const t = setTimeout(() => {
-        if (!cancelled) setDrawn(true)
+        if (cancelled) return
+        setDrawn(true)
+        if (drawDurationMs === undefined) return
+        completeTimer = setTimeout(() => {
+          if (!cancelled) onDrawCompleteRef.current?.()
+        }, drawDurationMs)
       }, delayMs)
       return () => {
         cancelled = true
         clearTimeout(t)
+        if (completeTimer) clearTimeout(completeTimer)
       }
     }
 
@@ -66,7 +88,7 @@ export function useDoodleDraw({
     return () => {
       cancelled = true
     }
-  }, [delayMs, loop, drawnHoldMs, erasedHoldMs])
+  }, [delayMs, loop, drawnHoldMs, erasedHoldMs, drawDurationMs])
 
   return drawn
 }

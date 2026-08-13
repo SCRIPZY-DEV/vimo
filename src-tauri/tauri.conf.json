@@ -9,6 +9,13 @@
     "beforeDevCommand": "pnpm run dev",
     "beforeBuildCommand": "pnpm run build"
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["vimo"]
+      }
+    }
+  },
   "app": {
     "windows": [
       {
