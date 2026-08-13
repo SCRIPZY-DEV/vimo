@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import DoodleMagnifier from '@/modules/common/doodles/DoodleMagnifier'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
-import { HomeRoutes } from '@/modules/home/constants'
+import { VideosRoutes } from '@/modules/videos/constants'
 
 export function PageNotFound() {
   const { t } = useTranslation()
@@ -28,7 +28,7 @@ export function PageNotFound() {
         asChild
         className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
       >
-        <Link to={HomeRoutes.home}>
+        <Link to={VideosRoutes.create}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           {t('notFound.volver')}
         </Link>
