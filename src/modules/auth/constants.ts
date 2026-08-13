@@ -2,7 +2,6 @@ export const AuthRoutesPaths = {
   login: '/login',
   callback: '/auth/callback',
   accessDenied: '/access-denied',
-  /** Ruta-acción: su loader cierra sesión y redirige; nunca renderiza. */
   logout: '/logout',
 } as const
 
