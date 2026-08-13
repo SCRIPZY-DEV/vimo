@@ -1,0 +1,77 @@
+import { redirect } from 'react-router'
+import { queryClient } from '@/modules/common/queryClient'
+import { VideosRoutes } from '@/modules/videos/constants'
+import { authApi } from './api'
+import {
+  ACCESS_STALE_TIME_MS,
+  AuthRoutesPaths,
+  authQueryKeys,
+} from './constants'
+import type { AccessReason, AccessStatus } from './types/access'
+
+const BLOCKING_REASONS: AccessReason[] = ['no-en-allowlist', 'trial-expirado']
+
+/**
+ * Comparte el veredicto entre loaders y vistas: fetchQuery deduplica y respeta
+ * staleTime — una sola llamada a verificar-acceso cada 5 minutos.
+ */
+function resolveAccess(): Promise<AccessStatus> {
+  return queryClient.fetchQuery({
+    queryKey: authQueryKeys.access,
+    queryFn: () => authApi.verifyAccess(),
+    staleTime: ACCESS_STALE_TIME_MS,
+  })
+}
+
+/** Exige sesión con acceso vigente. */
+export async function requireAuthLoader(): Promise<Response | null> {
+  const session = await authApi.getSession()
+  if (!session) {
+    return redirect(AuthRoutesPaths.login)
+  }
+  const access = await resolveAccess()
+  if (!access.authorized && BLOCKING_REASONS.includes(access.reason)) {
+    return redirect(AuthRoutesPaths.accessDenied)
+  }
+  if (!access.authorized) {
+    return redirect(AuthRoutesPaths.login)
+  }
+  return null
+}
+
+export async function guestOnlyLoader(): Promise<Response | null> {
+  const session = await authApi.getSession()
+  if (!session) {
+    return null
+  }
+  const access = await resolveAccess()
+  if (access.authorized) {
+    return redirect(VideosRoutes.create)
+  }
+  if (BLOCKING_REASONS.includes(access.reason)) {
+    return redirect(AuthRoutesPaths.accessDenied)
+  }
+  return null
+}
+
+export async function logoutLoader(): Promise<Response> {
+  await authApi.signOut()
+  queryClient.removeQueries({ queryKey: authQueryKeys.access })
+  return redirect(AuthRoutesPaths.login)
+}
+
+/** AccessDenied es PARA logueados sin acceso; cualquier otro caso sale de acá. */
+export async function accessDeniedLoader(): Promise<Response | null> {
+  const session = await authApi.getSession()
+  if (!session) {
+    return redirect(AuthRoutesPaths.login)
+  }
+  const access = await resolveAccess()
+  if (access.authorized) {
+    return redirect(VideosRoutes.create)
+  }
+  if (!BLOCKING_REASONS.includes(access.reason)) {
+    return redirect(AuthRoutesPaths.login)
+  }
+  return null
+}
