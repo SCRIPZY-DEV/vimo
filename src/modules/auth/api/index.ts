@@ -1,8 +1,8 @@
 import type { Session } from '@supabase/supabase-js'
-import { isTauri } from '@tauri-apps/api/core'
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { supabase } from '@/modules/common/supabase/client'
+import { isNative } from '@/modules/common/utilities/isNative'
 import {
   AUTH_DEEP_LINK_URL,
   AuthRoutesPaths,
@@ -13,7 +13,6 @@ import {
 } from '../constants'
 import type { AccessStatus, VerifyAccessResponse } from '../types/access'
 
-/** Carrera contra un timeout que resuelve a un valor de respaldo. */
 function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -27,7 +26,6 @@ function withTimeout<T>(
   ])
 }
 
-/** Backup del signOut: borra las claves de sesión de Supabase del storage. */
 function clearSupabaseStorage(): void {
   const keys = Object.keys(window.localStorage)
   for (const key of keys) {
@@ -37,17 +35,11 @@ function clearSupabaseStorage(): void {
   }
 }
 
-/**
- * Única capa del módulo que habla con Supabase, con el edge de vimo.click y
- * con los plugins de Tauri (regla del repo: las APIs externas se envuelven acá).
- */
 export const authApi = {
   isNative() {
-    return isTauri()
+    return isNative()
   },
   async getSession(): Promise<Session | null> {
-    // El timeout se trata como "sin sesión": el SDK puede colgarse por
-    // contención de navigator.locks con varias pestañas abiertas.
     const result = await withTimeout(
       supabase.auth.getSession(),
       SESSION_TIMEOUT_MS,
@@ -114,6 +106,10 @@ export const authApi = {
   async verifyAccess(): Promise<AccessStatus> {
     const session = await this.getSession()
     const email = session?.user.email ?? null
+    const metadata = session?.user.user_metadata as
+      { full_name?: string; avatar_url?: string } | undefined
+    const name = metadata?.full_name ?? null
+    const avatar = metadata?.avatar_url ?? null
     if (!session?.access_token) {
       return {
         authorized: false,
@@ -122,6 +118,8 @@ export const authApi = {
         daysLeft: null,
         trialExpiresAt: null,
         email,
+        name,
+        avatar,
       }
     }
     try {
@@ -142,6 +140,8 @@ export const authApi = {
         daysLeft: body.diasRestantes ?? null,
         trialExpiresAt: body.trialExpira ?? null,
         email,
+        name,
+        avatar,
       }
     } catch {
       // Fail-open deliberado (regla del origen): sin red o con el server caído
@@ -153,6 +153,8 @@ export const authApi = {
         daysLeft: null,
         trialExpiresAt: null,
         email,
+        name,
+        avatar,
       }
     }
   },
