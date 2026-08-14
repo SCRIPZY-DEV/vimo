@@ -33,4 +33,6 @@ export interface AccessStatus {
   daysLeft: number | null
   trialExpiresAt: string | null
   email: string | null
+  name: string | null
+  avatar: string | null
 }
