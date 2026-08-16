@@ -19,8 +19,14 @@ export const authRoutes: RouteObject[] = [
     lazy: () => import('./views/AccessDenied'),
   },
   {
-    // Ruta-acción sin vista: el loader siempre redirige (ver logoutLoader).
     path: AuthRoutesPaths.logout,
     loader: logoutLoader,
+  },
+]
+
+export const authShellRoutes: RouteObject[] = [
+  {
+    path: AuthRoutesPaths.license,
+    lazy: () => import('./views/License'),
   },
 ]

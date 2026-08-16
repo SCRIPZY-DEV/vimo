@@ -1,4 +1,7 @@
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
+import { AuthRoutesPaths } from '@/modules/auth/constants'
+import { CostsRoutes } from '@/modules/costs/constants'
+import { SettingsRoutes } from '@/modules/settings/constants'
 import { VideosRoutes } from '@/modules/videos/constants'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import DoodleScript from '@/modules/common/doodles/DoodleScript'
@@ -11,8 +14,8 @@ import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
 
 /**
- * Items del menú lateral. Solo Crear Video navega; el resto son maquetas
- * deshabilitadas que se irán habilitando a medida que se migren.
+ * Items del menú lateral. Los deshabilitados son maquetas que se irán
+ * habilitando a medida que se migren sus módulos.
  */
 export const NAV_ITEMS: SidebarNavItem[] = [
   {
@@ -45,10 +48,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     disabled: true,
   },
   {
-    route: '/costs',
+    route: CostsRoutes.costs,
     labelKey: 'layout.nav.costos',
     Icon: DoodleCoin,
-    disabled: true,
   },
   {
     route: '/api-keys',
@@ -57,16 +59,14 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     disabled: true,
   },
   {
-    route: '/license',
+    route: AuthRoutesPaths.license,
     labelKey: 'layout.nav.licencia',
     Icon: DoodleTrophy,
-    disabled: true,
   },
   {
-    route: '/settings',
+    route: SettingsRoutes.settings,
     labelKey: 'layout.nav.ajustes',
     Icon: DoodleLightbulb,
-    disabled: true,
   },
 ]
 

@@ -3,8 +3,10 @@ import { AuthenticatedLayout } from '@/layouts/AuthenticatedLayout/Authenticated
 import { GuestLayout } from '@/layouts/GuestLayout/GuestLayout'
 
 import { requireAuthLoader } from '@/modules/auth/guards'
-import { authRoutes } from '@/modules/auth/routes'
+import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
 import { videosRoutes } from '@/modules/videos/routes'
+import { costsRoutes } from '@/modules/costs/routes'
+import { settingsRoutes } from '@/modules/settings/routes'
 import { commonRoutes } from '@/modules/common/routes'
 import { setupMainRoute } from '@/modules/setup/routes'
 
@@ -21,9 +23,13 @@ export const router = createHashRouter([
   ...setupMainRoute,
   {
     Component: AuthenticatedLayout,
-    // Gate de acceso por composición (ADR-0005): el loader decide, no el layout.
     loader: requireAuthLoader,
-    children: [...videosRoutes],
+    children: [
+      ...videosRoutes,
+      ...costsRoutes,
+      ...settingsRoutes,
+      ...authShellRoutes,
+    ],
   },
   {
     Component: GuestLayout,

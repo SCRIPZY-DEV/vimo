@@ -3,6 +3,7 @@ export const AuthRoutesPaths = {
   callback: '/auth/callback',
   accessDenied: '/access-denied',
   logout: '/logout',
+  license: '/license',
 } as const
 
 /** Claves de query del módulo — siempre acá, nunca arrays literales en hooks. */
