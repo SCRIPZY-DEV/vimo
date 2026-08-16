@@ -46,6 +46,9 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                        | Title                                                             | Status                   | Area         |
 | -------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ | ------------ |
+| [ADR-0010](ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)        | Pipeline as staged Node sidecar and module-by-module migration    | Aceptada                 | pipeline     |
+| [ADR-0009](ADR-0009-preferencias-nativas-y-carpeta-raiz.md)                | Native preferences via official plugins and single projects root  | Aceptada                 | app          |
+| [ADR-0008](ADR-0008-catalogo-de-costos-local.md)                           | Cost catalog as a local client dataset                            | Aceptada                 | app          |
 | [ADR-0007](ADR-0007-invoke-reemplaza-al-servidor-local.md)                 | Tauri's invoke() replaces the local server                        | Aceptada                 | distribución |
 | [ADR-0006](ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md) | Auth: dual OAuth flow (web/deep link) and router-loader gate      | Aceptada                 | app          |
 | [ADR-0005](ADR-0005-layouts-explicitos-y-modulos-base.md)                  | Explicit layouts (Authenticated/Guest) and base modules           | Aceptada                 | app          |
