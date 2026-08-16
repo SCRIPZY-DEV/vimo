@@ -49,6 +49,26 @@ export interface MusicProvider {
   notesKey: string
 }
 
+/** Fila aplanada del catálogo: proveedor × modelo × opción visible en /costs. */
+export interface ImageOptionRow {
+  key: string
+  providerLabel: string
+  modelId: ImageModelId
+  modelLabel: string
+  optionId: string
+  qualityLabel: string
+  notesKey?: string
+  priceUsd: number
+  credits?: number
+  concurrency: number
+}
+
+/** Fila del producto cartesiano opción de imagen × proveedor de voz. */
+export interface ImageVoiceComboRow extends ImageOptionRow {
+  voiceLabel: string
+  voicePricePerCharUsd: number
+}
+
 export type CostFilter = 'cheapest' | 'fastest' | 'quality'
 
 export type CostTab = 'video' | 'images' | 'voices' | 'music'
