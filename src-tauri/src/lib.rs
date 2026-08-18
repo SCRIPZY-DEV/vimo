@@ -1,14 +1,29 @@
 #[cfg(any(windows, target_os = "linux"))]
 use tauri_plugin_deep_link::DeepLinkExt;
 
+mod api_keys;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_store::Builder::default().build())
+    .plugin(tauri_plugin_store::Builder::default().build());
+
+  // Android no tiene keychain accesible desde Rust: las claves API van al
+  // Android Keystore vía el plugin local (ADR-0011).
+  #[cfg(target_os = "android")]
+  let builder = builder.plugin(tauri_plugin_secure_keys::init());
+
+  builder
+    .invoke_handler(tauri::generate_handler![
+      api_keys::commands::get_api_keys_status,
+      api_keys::commands::save_api_key,
+      api_keys::commands::delete_api_key,
+      api_keys::commands::validate_api_key,
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

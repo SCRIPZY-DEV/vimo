@@ -1,0 +1,16 @@
+# Plugin local (ADR-0011): almacenamiento seguro de claves en Android, donde el
+# crate `keyring` no tiene backend. La app lo consume solo en target android.
+[package]
+name = "tauri-plugin-secure-keys"
+version = "0.1.0"
+edition = "2021"
+links = "tauri-plugin-secure-keys"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = { version = "2" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

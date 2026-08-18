@@ -10,7 +10,15 @@
     "store:default",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://*.supabase.co/*" }]
+      "allow": [
+        { "url": "https://*.supabase.co/*" },
+        { "url": "https://deepinfra.com/*" },
+        { "url": "https://fal.ai/*" },
+        { "url": "https://evolink.ai/*" },
+        { "url": "https://www.dubvoice.ai/*" },
+        { "url": "https://elevenlabs.io/*" },
+        { "url": "https://console.deepgram.com/*" }
+      ]
     },
     {
       "identifier": "opener:allow-open-path",

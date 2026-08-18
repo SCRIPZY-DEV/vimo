@@ -1,3 +1,8 @@
+# Workspace: el plugin local comparte este target/ (ignorado) en vez de
+# generar el suyo propio dentro de plugins/.
+[workspace]
+members = ["plugins/tauri-plugin-secure-keys"]
+
 [package]
 name = "app"
 version = "0.1.0"
@@ -28,3 +33,15 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"
+thiserror = "2"
+# rustls (+ roots de Mozilla embebidas) en vez del TLS nativo para que el mismo
+# binario compile igual en Android (ADR-0011).
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"] }
+
+# El crate keyring no soporta Android: ahí la fuente es el plugin propio
+# tauri-plugin-secure-keys (Android Keystore). Ver ADR-0011.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+tauri-plugin-secure-keys = { path = "plugins/tauri-plugin-secure-keys" }

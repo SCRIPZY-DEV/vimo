@@ -134,6 +134,60 @@
       "sunoNotas": "Generates 2 variations per call so you pick your favorite. Models: suno-v5-beta (recommended) and suno-v4.5plus-beta. You can choose instrumental or with vocals. Download links are valid for 72 hours."
     }
   },
+  "apiKeys": {
+    "pageTitle": "API Keys — Vimo",
+    "titulo": "API Keys",
+    "tagline": "Connect your services to generate videos.",
+    "cifradas": "Encrypted on your device",
+    "soloEscritorio": "This section is only available in the desktop app.",
+    "faltanTitulo": "Keys missing to generate",
+    "faltanDescripcion": "Set up at least one key for: {{categorias}}.",
+    "obligatorias": "Required",
+    "opcionales": "Optional",
+    "opcionalesDescripcion": "Alternative providers: one configured key per category is enough.",
+    "configurada": "✓ configured",
+    "sinConfigurar": "not configured",
+    "configurar": "Set up",
+    "cambiar": "Change",
+    "guardar": "Save",
+    "cancelar": "Cancel",
+    "probar": "Test connection",
+    "eliminar": "Delete key",
+    "obtener": "Get key",
+    "mostrarOcultar": "Show or hide the key",
+    "guardada": "Key saved.",
+    "eliminada": "Key deleted.",
+    "validacionOk": "Connected successfully.",
+    "categoria": {
+      "llm": "script AI (DeepInfra)",
+      "image": "images (Fal.ai or Evolink)",
+      "voice": "voice (DubVoice or ElevenLabs)",
+      "transcription": "transcription (Deepgram)"
+    },
+    "descripcion": {
+      "deepinfra": "Main AI: generates the visual prompts for each scene.",
+      "fal": "Images with FLUX. The key must be Admin type.",
+      "evolink": "Images with gpt-image (pricier, more realistic). The same key works for AI music.",
+      "dubvoice": "Narrated voice with Minimax. Human quality in Spanish.",
+      "elevenlabs": "Premium voice straight from ElevenLabs.",
+      "deepgram": "Word-by-word audio transcription."
+    },
+    "badge": {
+      "falAdmin": "⚠ Admin type"
+    },
+    "errores": {
+      "keychainUnavailable": "Could not access the system's secure storage.",
+      "notFound": "There is no saved key for this provider.",
+      "emptyKey": "The key is empty.",
+      "invalidKey": "The key looks invalid or revoked. Check it is complete and has no spaces.",
+      "notAdmin": "The Fal key is not Admin type. Create a new one choosing the 'Admin' permission.",
+      "network": "Could not reach the provider. Try again in a moment.",
+      "providerError": "The provider returned an error. Check the key in its dashboard.",
+      "unknownProvider": "Unknown provider.",
+      "metadataStore": "Could not save the key status.",
+      "desconocido": "An unexpected error occurred. Try again."
+    }
+  },
   "settings": {
     "pageTitle": "Settings — Vimo",
     "titulo": "Settings",
