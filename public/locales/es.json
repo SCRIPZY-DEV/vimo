@@ -134,6 +134,60 @@
       "sunoNotas": "Genera 2 variaciones por llamada para que elijas la que más te guste. Modelos: suno-v5-beta (recomendado) y suno-v4.5plus-beta. Podés elegir instrumental o con voz. Los links de descarga son válidos por 72 horas."
     }
   },
+  "apiKeys": {
+    "pageTitle": "Claves API — Vimo",
+    "titulo": "Claves API",
+    "tagline": "Conectá tus servicios para generar videos.",
+    "cifradas": "Cifradas en tu equipo",
+    "soloEscritorio": "Esta sección solo está disponible en la app de escritorio.",
+    "faltanTitulo": "Faltan claves para poder generar",
+    "faltanDescripcion": "Configurá al menos una clave de: {{categorias}}.",
+    "obligatorias": "Obligatorias",
+    "opcionales": "Opcionales",
+    "opcionalesDescripcion": "Proveedores alternativos: con configurar uno por categoría alcanza.",
+    "configurada": "✓ configurada",
+    "sinConfigurar": "sin configurar",
+    "configurar": "Configurar",
+    "cambiar": "Cambiar",
+    "guardar": "Guardar",
+    "cancelar": "Cancelar",
+    "probar": "Probar conexión",
+    "eliminar": "Eliminar clave",
+    "obtener": "Obtener clave",
+    "mostrarOcultar": "Mostrar u ocultar la clave",
+    "guardada": "Clave guardada.",
+    "eliminada": "Clave eliminada.",
+    "validacionOk": "Conectado correctamente.",
+    "categoria": {
+      "llm": "IA de guiones (DeepInfra)",
+      "image": "imágenes (Fal.ai o Evolink)",
+      "voice": "voz (DubVoice o ElevenLabs)",
+      "transcription": "transcripción (Deepgram)"
+    },
+    "descripcion": {
+      "deepinfra": "IA principal: genera los prompts visuales de cada escena.",
+      "fal": "Imágenes con FLUX. La clave debe ser de tipo Admin.",
+      "evolink": "Imágenes con gpt-image (más caro, más realista). La misma clave sirve para la música IA.",
+      "dubvoice": "Voz narrada con Minimax. Calidad humana en español.",
+      "elevenlabs": "Voz premium directa de ElevenLabs.",
+      "deepgram": "Transcripción palabra a palabra del audio."
+    },
+    "badge": {
+      "falAdmin": "⚠ Tipo Admin"
+    },
+    "errores": {
+      "keychainUnavailable": "No se pudo acceder al almacén seguro del sistema.",
+      "notFound": "No hay una clave guardada para este proveedor.",
+      "emptyKey": "La clave está vacía.",
+      "invalidKey": "La clave parece inválida o revocada. Verificá que esté completa y sin espacios.",
+      "notAdmin": "La clave de Fal no es de tipo Admin. Generá una nueva eligiendo el permiso 'Admin'.",
+      "network": "No hubo conexión con el proveedor. Probá de nuevo en un momento.",
+      "providerError": "El proveedor respondió con un error. Verificá la clave en su panel.",
+      "unknownProvider": "Proveedor desconocido.",
+      "metadataStore": "No se pudo guardar el estado de la clave.",
+      "desconocido": "Ocurrió un error inesperado. Probá de nuevo."
+    }
+  },
   "settings": {
     "pageTitle": "Ajustes — Vimo",
     "titulo": "Ajustes",
