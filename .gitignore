@@ -25,3 +25,7 @@ dist-ssr
 *.sw?
 
 .env
+
+# Gradle (plugins Android de Tauri)
+.gradle/
+src-tauri/plugins/*/android/build/
