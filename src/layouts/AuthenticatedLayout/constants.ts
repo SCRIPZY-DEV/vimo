@@ -1,4 +1,5 @@
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
+import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import { AuthRoutesPaths } from '@/modules/auth/constants'
 import { CostsRoutes } from '@/modules/costs/constants'
 import { SettingsRoutes } from '@/modules/settings/constants'
@@ -53,10 +54,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     Icon: DoodleCoin,
   },
   {
-    route: '/api-keys',
+    route: ApiKeysRoutes.apiKeys,
     labelKey: 'layout.nav.claves',
     Icon: DoodleScript,
-    disabled: true,
   },
   {
     route: AuthRoutesPaths.license,
