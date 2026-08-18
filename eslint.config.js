@@ -23,6 +23,27 @@ export default defineConfig([
     },
   },
   {
+    // Sidecar Node (ADR-0010): globals de Node y guards ejecutables del
+    // contrato — la config llega inyectada por el PipelineJob y todo output
+    // es NDJSON del emitter, así que process.env y console están prohibidos.
+    files: ['pipeline/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-console': 'error',
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'process',
+          property: 'env',
+          message:
+            'ADR-0010: nada en pipeline/ lee process.env; la config viaja en el PipelineJob.',
+        },
+      ],
+    },
+  },
+  {
     // Kit shadcn/ui vendorizado desde la app original: exporta variantes cva
     // junto a los componentes, patrón propio del kit que no aplicamos al
     // código de producto.
