@@ -6,6 +6,7 @@ import { requireAuthLoader } from '@/modules/auth/guards'
 import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
 import { videosRoutes } from '@/modules/videos/routes'
 import { costsRoutes } from '@/modules/costs/routes'
+import { apiKeysRoutes } from '@/modules/api-keys/routes'
 import { settingsRoutes } from '@/modules/settings/routes'
 import { commonRoutes } from '@/modules/common/routes'
 import { setupMainRoute } from '@/modules/setup/routes'
@@ -27,6 +28,7 @@ export const router = createHashRouter([
     children: [
       ...videosRoutes,
       ...costsRoutes,
+      ...apiKeysRoutes,
       ...settingsRoutes,
       ...authShellRoutes,
     ],
