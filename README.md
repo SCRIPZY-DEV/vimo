@@ -5,14 +5,16 @@ listo para publicar: voz sintetizada, imágenes generadas por IA sincronizadas c
 narración, música de fondo y render final en MP4.
 
 > [!IMPORTANT]
-> **Este repositorio contiene únicamente la interfaz.** El pipeline que genera el video
-> (las 6 fases: voz, transcripción, cortes, prompts, imágenes y render) se ejecutará
-> desde **Rust vía `invoke()` de Tauri** — no hay servidor local: las funciones del
-> pipeline se conservan y cambia quién las invoca
-> ([ADR-0007](docs/adr/ADR-0007-invoke-reemplaza-al-servidor-local.md)). FFmpeg viaja
-> como binario invocado por Rust. La identidad del usuario se resuelve con
-> **Supabase**. Acá no hay orquestación ni llamadas a proveedores: solo la app que el
-> usuario ve y opera.
+> **Este repositorio contiene la interfaz (`src/`), el lado nativo (`src-tauri/`) y el
+> pipeline de generación (`pipeline/`).** El pipeline (las 6 fases: voz, transcripción,
+> cortes, prompts, imágenes y render) se reescribe guiado desde el proyecto original y
+> corre como **sidecar Node lanzado por Rust**, un proceso por job, sin servidor local
+> ni puerto: la UI lo dispara con `invoke()` y escucha el progreso por eventos de Tauri
+> ([ADR-0007](docs/adr/ADR-0007-invoke-reemplaza-al-servidor-local.md),
+> [ADR-0010](docs/adr/ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)).
+> FFmpeg viaja como binario. La identidad del usuario se resuelve con **Supabase**.
+> En `src/` no hay orquestación ni llamadas a proveedores: solo la app que el usuario
+> ve y opera.
 
 Todo corre en la máquina del usuario: no hay servidor que desplegar. Las únicas llamadas
 remotas son a los proveedores externos, con las claves del propio usuario.
@@ -79,6 +81,7 @@ pnpm tauri dev    # aplicación nativa, con recarga en caliente
 | `pnpm lint`        | ESLint sobre todo el repositorio                              |
 | `pnpm lint:fix`    | ESLint aplicando las correcciones automáticas                 |
 | `pnpm format`      | Prettier sobre todo el repositorio                            |
+| `pnpm pipeline`    | Corre el sidecar del pipeline por CLI (harness manual)        |
 | `pnpm tauri dev`   | Aplicación nativa en modo desarrollo                          |
 | `pnpm tauri build` | Compila los instaladores nativos de la plataforma actual      |
 
@@ -89,7 +92,8 @@ orden. Los tres deben pasar.
 
 ```
 src/         la interfaz: módulos por dominio, router e i18n
-src-tauri/   el lado Rust: configuración de la app nativa, iconos y capabilities
+pipeline/    el pipeline de generación: sidecar Node por stages, con los providers de IA
+src-tauri/   el lado Rust: comandos invoke, configuración nativa, iconos y capabilities
 docs/        arquitectura, guía de contribución y decisiones (ADRs)
 ```
 
@@ -110,7 +114,8 @@ El detalle de cada carpeta y las reglas para agregar código están en
 La migración está en curso. Hoy el repositorio tiene el andamiaje completo (React 19,
 Vite, Tauri 2, React Router con guards, TanStack Query, Tailwind, i18next) y la
 **autenticación real**: OAuth con Google en doble flujo —web y deep link `vimo://`—,
-verificación de acceso y cierre de sesión (ADR-0006). Falta migrar el pipeline de
-generación, que correrá desde Rust vía `invoke()` (ADR-0007) junto con FFmpeg. El
-detalle pieza por pieza está en la tabla §5 de
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+verificación de acceso y cierre de sesión (ADR-0006). El pipeline de generación está
+en migración por módulos (ADR-0010): la fundación de `pipeline/` —contratos, providers
+de LLM y música, sidecar mínimo y comandos Rust genéricos— ya está; faltan los módulos
+de pantalla (AI Music primero) y las stages con Create. El detalle pieza por pieza
+está en la tabla §5 de [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

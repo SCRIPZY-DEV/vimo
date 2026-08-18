@@ -33,7 +33,12 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"
+# Spawn del sidecar Node del pipeline desde Rust (ADR-0010); no se expone al
+# webview, por eso no hay capability shell en capabilities/default.json.
+tauri-plugin-shell = "2"
 thiserror = "2"
+# jobId de los jobs del pipeline.
+uuid = { version = "1", features = ["v4"] }
 # rustls (+ roots de Mozilla embebidas) en vez del TLS nativo para que el mismo
 # binario compile igual en Android (ADR-0011).
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"] }

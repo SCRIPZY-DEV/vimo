@@ -2,6 +2,7 @@
 use tauri_plugin_deep_link::DeepLinkExt;
 
 mod api_keys;
+mod pipeline;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,7 +11,8 @@ pub fn run() {
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_store::Builder::default().build());
+    .plugin(tauri_plugin_store::Builder::default().build())
+    .plugin(tauri_plugin_shell::init());
 
   // Android no tiene keychain accesible desde Rust: las claves API van al
   // Android Keystore vía el plugin local (ADR-0011).
@@ -18,11 +20,15 @@ pub fn run() {
   let builder = builder.plugin(tauri_plugin_secure_keys::init());
 
   builder
+    // Hijos vivos del sidecar del pipeline, para poder cancelarlos (ADR-0010).
+    .manage(pipeline::jobs::RunningJobs::default())
     .invoke_handler(tauri::generate_handler![
       api_keys::commands::get_api_keys_status,
       api_keys::commands::save_api_key,
       api_keys::commands::delete_api_key,
       api_keys::commands::validate_api_key,
+      pipeline::commands::start_pipeline_job,
+      pipeline::commands::cancel_pipeline_job,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
