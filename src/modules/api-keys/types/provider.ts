@@ -3,6 +3,11 @@ export type ApiKeyProviderId =
 
 export type ApiKeyCategory = 'llm' | 'image' | 'voice' | 'transcription'
 
+/** Opciones de useRequiredApiKeys: sin providers, exige las 4 categorías. */
+export interface RequiredApiKeysOptions {
+  providers?: ApiKeyProviderId[]
+}
+
 export interface ApiKeyProvider {
   id: ApiKeyProviderId
   category: ApiKeyCategory
