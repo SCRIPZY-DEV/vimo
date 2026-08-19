@@ -7,23 +7,20 @@ use crate::pipeline::error::PipelineError;
 use crate::pipeline::job::build_pipeline_job;
 use crate::pipeline::jobs::RunningJobs;
 
-/// Canal por el que la UI escucha los eventos del sidecar. El catálogo de
-/// eventos vive en pipeline/runner/events.ts — Rust no redeclara los tipos:
-/// parsea cada línea NDJSON y la re-emite tal cual (ADR-0010).
-const PIPELINE_EVENT_CHANNEL: &str = "pipeline://event";
-
-/// Entrada del sidecar en desarrollo: el pipeline TS corre con el Node del
-/// sistema (Node ≥ 23 ejecuta .ts por type stripping). El empaquetado como
-/// binario único (externalBin, junto a ffmpeg) llega con la distribución.
-fn sidecar_entry() -> Result<std::path::PathBuf, PipelineError> {
-    let entry = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .ok_or(PipelineError::SidecarMissing)?
-        .join("pipeline/main.ts");
-    if !entry.exists() {
-        return Err(PipelineError::SidecarMissing);
-    }
-    Ok(entry)
+/// El sidecar empaquetado como externalBin: binario único Node SEA generado
+/// por scripts/build-sidecar.mjs (corre en beforeDev/BuildCommand). Dev y
+/// producción usan el MISMO binario — el sidecar nunca depende del Node del
+/// sistema, porque una app lanzada desde Finder no hereda el PATH de la
+/// terminal. Para iterar el pipeline por CLI sigue existiendo `pnpm pipeline`.
+fn sidecar_command(
+    app: &AppHandle,
+    subcommand: &str,
+) -> Result<tauri_plugin_shell::process::Command, PipelineError> {
+    let command = app
+        .shell()
+        .sidecar("vimo-pipeline")
+        .map_err(|_| PipelineError::SidecarMissing)?;
+    Ok(command.args([subcommand]))
 }
 
 /// Comando genérico del pipeline (ADR-0010, paso 1): spawnea el sidecar con un
