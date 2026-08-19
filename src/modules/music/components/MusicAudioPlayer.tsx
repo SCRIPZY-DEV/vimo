@@ -2,19 +2,13 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pause, Play } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
+import { formatTime } from '@/modules/music/utilities/formatTime'
 
 interface MusicAudioPlayerProps {
   src: string
 }
 
 let activeAudio: HTMLAudioElement | null = null
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '0:00'
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.floor(seconds % 60)
-  return `${minutes}:${String(rest).padStart(2, '0')}`
-}
 
 export function MusicAudioPlayer({ src }: MusicAudioPlayerProps) {
   const { t } = useTranslation()
