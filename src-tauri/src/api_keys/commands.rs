@@ -63,6 +63,8 @@ pub async fn save_api_key(
     }
 
     current_source().set(&app, provider, &key)?;
+    // El pipeline cachea las claves por sesión: un cambio debe verse ya.
+    crate::pipeline::job::invalidate_api_keys_cache();
     let metadata = store::KeyMetadata {
         masked_key: mask_key(&key),
         saved_at: store::now_epoch_milliseconds(),
@@ -75,6 +77,7 @@ pub async fn save_api_key(
 pub fn delete_api_key(app: AppHandle, provider_id: String) -> Result<(), ApiKeyError> {
     let provider = Provider::from_id(&provider_id)?;
     current_source().delete(&app, provider)?;
+    crate::pipeline::job::invalidate_api_keys_cache();
     store::delete_metadata(&app, provider)
 }
 
