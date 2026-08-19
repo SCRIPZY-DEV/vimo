@@ -2,6 +2,7 @@ import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigat
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import { AuthRoutesPaths } from '@/modules/auth/constants'
 import { CostsRoutes } from '@/modules/costs/constants'
+import { MusicRoutes } from '@/modules/music/constants'
 import { SettingsRoutes } from '@/modules/settings/constants'
 import { VideosRoutes } from '@/modules/videos/constants'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
@@ -43,10 +44,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     disabled: true,
   },
   {
-    route: '/music',
+    route: MusicRoutes.music,
     labelKey: 'layout.nav.musica',
     Icon: DoodleMusicNote,
-    disabled: true,
   },
   {
     route: CostsRoutes.costs,
