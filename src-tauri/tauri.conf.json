@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm run dev",
-    "beforeBuildCommand": "pnpm run build"
+    "beforeDevCommand": "pnpm run build:sidecar && pnpm run dev",
+    "beforeBuildCommand": "pnpm run build:sidecar && pnpm run build"
   },
   "plugins": {
     "deep-link": {
@@ -29,12 +29,17 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$HOME/**"]
+      }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/vimo-pipeline"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
