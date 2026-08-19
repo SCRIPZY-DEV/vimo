@@ -1,10 +1,9 @@
 import type { JsonValue } from '../types/json.ts'
-import type { StageId } from './stage.ts'
+import type { StageId } from './stage-id.ts'
 
 // Contrato de salida del sidecar (ADR-0010): cada evento es una línea NDJSON
-// por stdout. Rust las parsea y re-emite por este canal con app.emit; la UI
-// escucha con listen(). src/ consume estos tipos SOLO con `import type`.
-export const PIPELINE_EVENT_CHANNEL = 'pipeline://event'
+// por stdout. Rust las parsea y las reenvía por el Channel del invoke que
+// lanzó el job. src/ consume estos tipos SOLO con `import type`.
 
 export interface JobStartedEvent {
   type: 'job-started'
