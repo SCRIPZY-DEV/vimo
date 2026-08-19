@@ -1,9 +1,9 @@
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { PipelineFailure } from '../runner/failure.ts'
-import type { PipelineContext } from '../runner/context.ts'
-import type { MusicHistoryEntry } from '../types/music.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
+import type { PipelineContext } from '../../runner/context.ts'
+import type { MusicHistoryEntry } from '../../types/music.ts'
 
 // Historial persistente de música: `<projectsRoot>/_history/music/<id>/` con
 // audio.mp3, cover.jpg (opcional) y metadata.json. La ubicación la decidió el

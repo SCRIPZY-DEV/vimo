@@ -1,16 +1,16 @@
-import { createDeepInfraProvider } from '../providers/llm/deepinfra.ts'
-import { generateText } from '../providers/llm/generate.ts'
+import { createDeepInfraProvider } from '../../providers/llm/deepinfra.ts'
+import { generateText } from '../../providers/llm/generate.ts'
 import {
   SUGGEST_MUSIC_PROMPT_SYSTEM,
   SUGGESTED_PROMPT_LIMIT,
   buildSuggestMusicPromptUserPrompt,
-} from '../prompts/suggest-music-prompt.ts'
-import type { PipelineContext } from '../runner/context.ts'
-import { PipelineFailure } from '../runner/failure.ts'
+} from '../../prompts/suggest-music-prompt.ts'
+import type { PipelineContext } from '../../runner/context.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
 import type {
   SuggestMusicPromptPayload,
   SuggestMusicPromptResult,
-} from '../types/music.ts'
+} from '../../types/music.ts'
 
 // Sugiere un prompt de música a partir del guion del video, vía LLM.
 export async function suggestMusicPrompt(

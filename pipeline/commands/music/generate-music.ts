@@ -1,10 +1,10 @@
-import { generateMusic } from '../providers/music/evolink.ts'
-import type { PipelineContext } from '../runner/context.ts'
-import { PipelineFailure } from '../runner/failure.ts'
+import { generateMusic } from '../../providers/music/evolink.ts'
+import type { PipelineContext } from '../../runner/context.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
 import type {
   MusicGenerationParams,
   MusicGenerationResult,
-} from '../types/music.ts'
+} from '../../types/music.ts'
 
 // Genera variaciones de música con Evolink (Suno) y reporta el avance del
 // polling como eventos `progress`; las opciones vuelven en el job-completed.

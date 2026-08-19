@@ -1,15 +1,15 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { downloadMusicAudio } from '../providers/music/evolink.ts'
-import type { PipelineContext } from '../runner/context.ts'
-import { PipelineFailure } from '../runner/failure.ts'
+import { downloadMusicAudio } from '../../providers/music/evolink.ts'
+import type { PipelineContext } from '../../runner/context.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
 import type {
   ChooseMusicPayload,
   ChooseMusicResult,
   MusicHistoryEntry,
-} from '../types/music.ts'
-import { sanitizeFileName } from '../utils/sanitize-file-name.ts'
+} from '../../types/music.ts'
+import { sanitizeFileName } from '../../utils/sanitize-file-name.ts'
 import {
   HISTORY_AUDIO_FILE,
   HISTORY_COVER_FILE,

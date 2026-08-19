@@ -1,9 +1,9 @@
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { PipelineContext } from '../runner/context.ts'
-import { PipelineFailure } from '../runner/failure.ts'
-import type { MusicHistoryDeletePayload } from '../types/music.ts'
+import type { PipelineContext } from '../../runner/context.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
+import type { MusicHistoryDeletePayload } from '../../types/music.ts'
 import { assertValidHistoryId, musicHistoryRoot } from './music-history.ts'
 
 // Elimina una pista del historial (carpeta completa: audio, cover y metadata).
