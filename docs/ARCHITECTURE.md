@@ -145,7 +145,7 @@ terminal). Para iterar el pipeline por CLI: `pnpm pipeline <subcomando>` (corre
 pipeline/
 ├── main.ts                entrada del sidecar: subcomandos, job JSON por stdin, NDJSON out
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
-├── commands/              subcomandos sueltos (música: sugerir prompt, generar, elegir, historial, créditos)
+├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (hoy: music/)
 ├── stages/                (pendiente) voice, transcription, scene-cuts, scene-prompts, images, render
 ├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink)
 ├── prompts/               prompts de sistema como plantillas versionadas
@@ -298,13 +298,15 @@ En orden, con música como ejemplo vivo de cada paso:
 
 1. **Tipos del contrato** en `pipeline/types/<dominio>.ts`: params del payload y
    forma del result (deben ser JSON serializables).
-2. **Handler** en `pipeline/commands/<nombre>.ts` con la firma
+2. **Handler** en `pipeline/commands/<dominio>/<nombre>.ts` con la firma
    `(context: PipelineContext) => Promise<result>`. Reglas del contrato (las aplica
    ESLint): nada lee `process.env` ni escribe a consola — la config viaja en el job y
    todo output pasa por `context.emitter`; los fallos se lanzan como
    `PipelineFailure` con `code` estable; las operaciones largas respetan
    `context.signal`.
-3. **Registrarlo** en la tabla `SUBCOMMANDS` de [pipeline/main.ts](../pipeline/main.ts).
+3. **Registrarlo** en el mapa `subcommands.ts` de su dominio
+   (`pipeline/commands/<dominio>/subcommands.ts`); si el dominio es nuevo, esparcir
+   su mapa en la tabla `SUBCOMMANDS` de [pipeline/main.ts](../pipeline/main.ts).
    Rust no se toca: `start_pipeline_job` es genérico.
 4. **Proveedor externo nuevo** (si lo hay): estrategia en
    `pipeline/providers/<servicio>/`. Si requiere clave propia, se agrega al catálogo
