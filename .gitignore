@@ -29,3 +29,6 @@ dist-ssr
 # Gradle (plugins Android de Tauri)
 .gradle/
 src-tauri/plugins/*/android/build/
+# Sidecar del pipeline (generado por scripts/build-sidecar.mjs)
+src-tauri/binaries/
+src-tauri/sidecar-build/
