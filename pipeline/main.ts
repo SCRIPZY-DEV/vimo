@@ -1,10 +1,11 @@
 import { createInterface, type Interface } from 'node:readline'
 
+import { musicSubcommands } from './commands/music/subcommands.ts'
 import { resolvePipelineConfig } from './config/pipeline-config.ts'
-import type { PipelineContext } from './runner/context.ts'
 import { createEmitter } from './runner/emitter.ts'
 import { PipelineFailure, toPipelineFailure } from './runner/failure.ts'
 import type { PipelineJob } from './runner/job.ts'
+import type { SubcommandHandler } from './runner/subcommand.ts'
 import type { JsonValue } from './types/json.ts'
 
 // Entrada del sidecar (ADR-0010): `vimo-pipeline <subcomando>`. La primera
@@ -12,14 +13,13 @@ import type { JsonValue } from './types/json.ts'
 // control ({"type":"cancel"} → AbortController). Todo lo que sale por stdout
 // es una línea NDJSON emitida por el emitter.
 
-type SubcommandHandler = (context: PipelineContext) => Promise<JsonValue | null>
-
+// Un dominio = una carpeta en commands/ que exporta su mapa de subcomandos.
 const SUBCOMMANDS: Record<string, SubcommandHandler> = {
   // Prueba de ida y vuelta del contrato: devuelve el payload recibido.
-  // Los subcomandos reales llegan módulo a módulo (AI Music primero).
   async ping(context) {
     return context.job.payload ?? null
   },
+  ...musicSubcommands,
 }
 
 function handleControlLine(line: string, abortController: AbortController) {
@@ -115,7 +115,10 @@ async function main(): Promise<number> {
       emitter,
       signal: abortController.signal,
     })
-    emitter.emit({ type: 'job-completed', result })
+    emitter.emit({
+      type: 'job-completed',
+      result: (result ?? null) as JsonValue,
+    })
     return 0
   } catch (error) {
     if (abortController.signal.aborted) {
@@ -141,4 +144,7 @@ async function main(): Promise<number> {
   }
 }
 
-process.exitCode = await main()
+// Sin top-level await: el bundle del sidecar (Node SEA) es CommonJS.
+void main().then((code) => {
+  process.exitCode = code
+})
