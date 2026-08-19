@@ -10,6 +10,9 @@ export interface PipelineJob {
   jobId: string
   // Carpeta del proyecto (contrato ADR-0009); no aplica a todo subcomando.
   projectDir?: string
+  // Carpeta raíz de proyectos (ADR-0009): bajo ella viven los historiales
+  // (`_history/music`). Rust la lee de los ajustes y la inyecta siempre.
+  projectsRoot?: string
   config?: PipelineConfigOverrides
   apiKeys: ApiKeys
   binaryPaths: BinaryPaths
