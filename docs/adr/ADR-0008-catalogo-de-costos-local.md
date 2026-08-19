@@ -72,6 +72,10 @@ reducirse a una referencia interna o desaparecer, y los textos de trial/precio
 en `license.*` / `accessDenied.*` cambian con el modelo. Esta ADR sigue
 vigente mientras tanto: fija dónde vive el catálogo, no el modelo de negocio.
 
+**2026-08-19:** la sección se retiró de la navegación y del router a la espera de
+esa decisión. El módulo (`src/modules/costs/`) queda intacto; ver `hidden` en
+`src/layouts/AuthenticatedLayout/constants.ts`.
+
 ## Verificación de cumplimiento
 
 - **Build:** `pnpm format && pnpm lint && pnpm build` en verde.

@@ -5,7 +5,6 @@ import { GuestLayout } from '@/layouts/GuestLayout/GuestLayout'
 import { requireAuthLoader } from '@/modules/auth/guards'
 import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
 import { videosRoutes } from '@/modules/videos/routes'
-import { costsRoutes } from '@/modules/costs/routes'
 import { musicRoutes } from '@/modules/music/routes'
 import { apiKeysRoutes } from '@/modules/api-keys/routes'
 import { settingsRoutes } from '@/modules/settings/routes'
@@ -29,7 +28,8 @@ export const router = createHashRouter([
     children: [
       ...videosRoutes,
       ...musicRoutes,
-      ...costsRoutes,
+      // `costsRoutes` va acá cuando la sección vuelva: hoy está retirada de la
+      // navegación (ver `hidden` en layouts/AuthenticatedLayout/constants.ts).
       ...apiKeysRoutes,
       ...settingsRoutes,
       ...authShellRoutes,

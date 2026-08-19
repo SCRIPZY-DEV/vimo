@@ -16,8 +16,10 @@ import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
 
 /**
- * Items del menú lateral. Los deshabilitados son maquetas que se irán
- * habilitando a medida que se migren sus módulos.
+ * Catálogo de items del menú lateral. Los deshabilitados son maquetas que se
+ * irán habilitando a medida que se migren sus módulos; los marcados con
+ * `hidden` están retirados de la navegación pero conservan su posición.
+ * Para renderizar usá `VISIBLE_NAV_ITEMS`, no este array.
  */
 export const NAV_ITEMS: SidebarNavItem[] = [
   {
@@ -52,6 +54,11 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     route: CostsRoutes.costs,
     labelKey: 'layout.nav.costos',
     Icon: DoodleCoin,
+    // Retirado de la navegación mientras se redefine el modelo de precios
+    // (ADR-0008, "Nota a futuro"). El módulo `src/modules/costs/` queda
+    // intacto y typechequeado. Para reactivar: borrar este `hidden` y
+    // devolver `costsRoutes` a `src/router/index.ts`.
+    hidden: true,
   },
   {
     route: ApiKeysRoutes.apiKeys,
@@ -69,5 +76,12 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     Icon: DoodleLightbulb,
   },
 ]
+
+/**
+ * Los items que el sidebar realmente renderiza. Se deriva una vez al importar
+ * el módulo: filtrar en el render duplicaría el criterio en cada consumidor y
+ * dejaría sin lugar donde explicar por qué falta una sección.
+ */
+export const VISIBLE_NAV_ITEMS = NAV_ITEMS.filter((item) => !item.hidden)
 
 export const COLLAPSED_STORAGE_KEY = 'vimo:sidebar-collapsed'

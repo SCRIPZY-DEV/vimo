@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Instagram, LogOut } from 'lucide-react'
 import { SidebarItem } from '@/layouts/AuthenticatedLayout/components/SidebarItem'
 import {
-  NAV_ITEMS,
+  VISIBLE_NAV_ITEMS,
   COLLAPSED_STORAGE_KEY,
 } from '@/layouts/AuthenticatedLayout/constants'
 import { AuthRoutesPaths } from '@/modules/auth/constants'
@@ -99,7 +99,7 @@ export function Sidebar() {
                 : 'space-y-1',
             )}
           >
-            {NAV_ITEMS.map((item) => (
+            {VISIBLE_NAV_ITEMS.map((item) => (
               <SidebarItem key={item.route} item={item} collapsed={collapsed} />
             ))}
 
