@@ -13,6 +13,12 @@ export type SidebarNavItem = {
   }>
   /** true mientras la sección no esté migrada: se muestra con tooltip "próximamente". */
   disabled?: boolean
+  /**
+   * true para retirar una sección terminada de la navegación sin borrar su
+   * módulo: el item no se renderiza. Distinto de `disabled`, que sí se muestra
+   * (gris, con tooltip "próximamente") porque la sección todavía no existe.
+   */
+  hidden?: boolean
 }
 
 /** Opción del selector de idioma del navbar. */
