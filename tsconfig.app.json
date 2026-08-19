@@ -8,9 +8,13 @@
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
-    /* Alias de importación: @/... -> src/... */
+    /* Alias de importación: @/... -> src/...
+       @pipeline/... -> pipeline/... SOLO para `import type` (ADR-0010): Vite
+       no resuelve este alias a propósito — un import de runtime rompe el
+       build, que es exactamente el guard. */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@pipeline/*": ["./pipeline/*"]
     },
 
     /* Bundler mode */

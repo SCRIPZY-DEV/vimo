@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pipeline": "node pipeline/main.ts",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
