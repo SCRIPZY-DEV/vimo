@@ -1,5 +1,6 @@
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::ipc::Channel;
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
