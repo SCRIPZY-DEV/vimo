@@ -14,12 +14,11 @@ justificación en [docs/adr/](adr/).
 > servidor local Hono (ADR-0002) queda **reemplazado**. El puente entre la app y el
 > sistema operativo es `invoke()` de Tauri, y el pipeline se reescribe guiado en
 > `pipeline/` como **sidecar Node por job** — sin servidor HTTP, sin puerto: Rust lo
-> lanza, le pasa el job por stdin y reenvía su progreso NDJSON como eventos de Tauri.
-> El entitlement firmado desaparece como concepto, y el `api/` de cada módulo usará
-> una utilidad dual de `common` — `isTauri()` → `invoke()`; web → `fetch` — todavía
-> **no implementada**. La sección 4 todavía describe el flujo del servidor viejo y se
-> reescribirá cuando se migre Create + stages; hasta entonces, ante conflicto mandan
-> las ADR-0007 y ADR-0010.
+> lanza, le pasa el job por stdin y reenvía su progreso NDJSON por el `Channel` del
+> invoke. El entitlement firmado desaparece como concepto. La mecánica actual y la
+> receta para extender el pipeline están en la **sección 4**. La sección 5 todavía
+> describe el flujo del servidor viejo y se reescribirá cuando se migre Create +
+> stages; hasta entonces, ante conflicto mandan las ADR-0007 y ADR-0010.
 
 ---
 
@@ -35,13 +34,14 @@ El repositorio tiene **tres carpetas de código**, una por pieza del sistema: `s
 que vive como proceso solo mientras corre un job):
 
 ```
-UI ── invoke("start_pipeline_job") ──► Rust ── spawn por job ──► sidecar vimo-pipeline
-UI ◄── listen("pipeline://…") ─────── Rust ◄── NDJSON stdout ─── (runner → stages → providers)
+UI ── invoke("start_pipeline_job" + Channel) ──► Rust ── spawn por job ──► sidecar vimo-pipeline
+UI ◄── Channel del invoke (eventos) ──────────── Rust ◄── NDJSON stdout ── (runner → stages → providers)
 ```
 
 El sidecar invoca a FFmpeg y llama a los proveedores externos (TTS · transcripción ·
-LLM · imágenes · música). La SPA solo habla con Rust vía `invoke()`/`listen()` y con
-**Supabase**, la única pieza remota propia: la identidad del usuario.
+LLM · imágenes · música). La SPA solo habla con Rust vía `invoke()` (con un `Channel`
+para los eventos de cada job) y con **Supabase**, la única pieza remota propia: la
+identidad del usuario.
 
 | Responsabilidad                               | Dónde vive                      |
 | --------------------------------------------- | ------------------------------- |
@@ -121,6 +121,7 @@ vimo/
 │   ├── CONTRIBUTING.es.md proceso de trabajo (español)
 │   └── adr/               decisiones de arquitectura
 ├── public/                archivos servidos tal cual (se copian a dist/)
+├── scripts/               build-sidecar.mjs: empaqueta el sidecar (Node SEA → externalBin)
 ├── pipeline/              el pipeline de video: sidecar Node por stages (ADR-0010)
 ├── src/                   la interfaz  ← el grueso del trabajo
 └── src-tauri/             el lado nativo y los sidecars
@@ -130,21 +131,27 @@ vimo/
 
 Paquete TypeScript puro, fuera de `src/`: la app solo puede consumir sus tipos con
 `import type` (contrato de eventos y job); el runtime lo ejecuta Rust como proceso
-hijo por job, sin servidor ni puerto. En desarrollo corre con el Node del sistema
-(`node pipeline/main.ts <subcomando>`, o `pnpm pipeline <subcomando>` para el
-harness manual); el empaquetado como binario único (`externalBin`) llega con la
-fase de distribución.
+hijo por job, sin servidor ni puerto. Se empaqueta como **binario único con Node
+SEA** (`scripts/build-sidecar.mjs`: esbuild → blob SEA → runtime Node, ~110 MB)
+en `src-tauri/binaries/vimo-pipeline-<target-triple>`, declarado como
+`externalBin`; los hooks `beforeDevCommand`/`beforeBuildCommand` lo regeneran,
+así **dev y producción usan el mismo binario** — el sidecar nunca depende del
+Node del sistema (una app lanzada desde Finder no hereda el PATH de la
+terminal). Para iterar el pipeline por CLI: `pnpm pipeline <subcomando>` (corre
+`pipeline/main.ts` con el Node local); tras editar `pipeline/`, reiniciar
+`tauri dev` regenera el binario.
 
 ```
 pipeline/
 ├── main.ts                entrada del sidecar: subcomandos, job JSON por stdin, NDJSON out
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
+├── commands/              subcomandos sueltos (música: sugerir prompt, generar, elegir, historial, créditos)
 ├── stages/                (pendiente) voice, transcription, scene-cuts, scene-prompts, images, render
 ├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink)
 ├── prompts/               prompts de sistema como plantillas versionadas
 ├── config/                PipelineConfig + ApiKeys + BinaryPaths, con defaults inyectables
 ├── types/                 tipos del dominio (json, llm, music)
-└── utils/                 (pendiente) utilidades compartidas de las stages
+└── utils/                 utilidades compartidas (sanitización de nombres de archivo)
 ```
 
 Guards del contrato (ADR-0010, aplicados también por ESLint): nada en `pipeline/`
@@ -187,11 +194,13 @@ dónde vive cada tipo de archivo, cómo se colocan las traducciones— están en
 **La cadena de datos es fija y no se saltea ningún eslabón:**
 
 ```
-componente → hook (TanStack Query) → api/ → fetcher → sidecar
+componente → hook (TanStack Query) → api/ del módulo → common/fetcher → exterior
 ```
 
-El `fetcher` de `modules/common` es el único que conoce la URL del sidecar, que llega
-desde la configuración. Ningún otro archivo de la interfaz sabe en qué puerto escucha.
+`modules/common/fetcher/` es el único borde de la interfaz con el exterior y tiene dos
+transportes: `fetcher.ts` (HTTP, legado del servidor local) y `pipeline.ts` (jobs del
+sidecar vía `invoke` + `Channel` — ver la sección 4). Ningún componente ni hook llama
+a `fetch`, `invoke` de pipeline ni `listen` directamente.
 
 ### `src-tauri/` — el lado nativo y los sidecars
 
@@ -216,7 +225,105 @@ Del lado del bundle, Tauri empaqueta `dist/` (la clave `frontendDist`), los icon
 
 ---
 
-## 4. Flujo principal: de guion a video
+## 4. El pipeline hoy: jobs, subcomandos y cómo extenderlo
+
+Esta sección describe la mecánica **vigente** (ADR-0010, materializada con AI Music):
+cómo viaja un job de punta a punta y qué piezas hay que tocar para agregar una
+operación nueva. Es la referencia para los próximos módulos (voces, characters, …).
+
+### Anatomía de un job
+
+```
+componente → hook → api/ del módulo
+                      │
+                      ▼
+        common/fetcher/pipeline.ts        startPipelineJob / runPipelineJob
+                      │
+        invoke("start_pipeline_job",      el Channel viaja DENTRO del invoke:
+                payload + Channel)        cada job tiene su propio canal
+                      │
+                      ▼
+        Rust (src-tauri/src/pipeline/)
+          commands.rs  spawnea `vimo-pipeline <subcomando>` y reenvía su
+                       stdout NDJSON por el Channel; devuelve el jobId
+          job.rs       arma el PipelineJob: claves API desde el keychain
+                       (cacheadas por sesión), projectsRoot desde Ajustes
+                      │  el job viaja por stdin (nunca por argv)
+                      ▼
+        sidecar vimo-pipeline (pipeline/)
+          main.ts      lee el job de stdin, despacha por la tabla SUBCOMMANDS
+          handler      corre con PipelineContext y emite eventos NDJSON
+                       hasta terminar en job-completed | job-failed
+```
+
+Los contratos viven en `pipeline/runner/` y Rust **no los redeclara**: arma y reenvía
+JSON tal cual (por eso `src/` puede consumirlos con `import type`).
+
+- **Entrada** — `PipelineJob` ([runner/job.ts](../pipeline/runner/job.ts)): `jobId`,
+  `projectDir?`, `projectsRoot?`, `config?`, `apiKeys`, `binaryPaths`, `payload?`.
+  Lo arma Rust ([job.rs](../src-tauri/src/pipeline/job.rs)); las claves salen del
+  keychain (ADR-0011) y **nunca pasan por el webview**.
+- **Salida** — eventos NDJSON por stdout ([runner/events.ts](../pipeline/runner/events.ts)):
+  `job-started`, `progress`, `log`, `stage-*`, y los terminales `job-completed`
+  (con `result`) o `job-failed` (con `code` estable para i18n). El emitter
+  ([runner/emitter.ts](../pipeline/runner/emitter.ts)) es la única escritura a stdout
+  de todo `pipeline/`.
+- **Cancelación** — cooperativa: `cancel_pipeline_job` escribe `{"type":"cancel"}` por
+  stdin y el sidecar aborta vía `AbortController`; si stdin ya no acepta escrituras,
+  Rust mata el proceso como fallback.
+- **Errores** — `PipelineFailure(code, message)` ([runner/failure.ts](../pipeline/runner/failure.ts)):
+  `code` es la clave estable que la UI traduce; `message` es diagnóstico para logs,
+  nunca texto user-facing.
+
+### Los dos modos de consumo en la UI
+
+[src/modules/common/fetcher/pipeline.ts](../src/modules/common/fetcher/pipeline.ts) es
+el único punto de `src/` que habla con los jobs, y expone dos primitivos:
+
+|                     | `startPipelineJob`                     | `runPipelineJob`               |
+| ------------------- | -------------------------------------- | ------------------------------ |
+| La promesa resuelve | cuando el job **arranca**              | cuando el job **termina**      |
+| Devuelve            | `PipelineJobHandle` (jobId + stop)     | el `result` final tipado       |
+| Eventos intermedios | llegan todos al callback               | se ignoran                     |
+| Errores             | evento `job-failed` al callback        | rechaza con `PipelineJobError` |
+| Cuándo usarlo       | jobs largos con progreso y cancelación | consultas y acciones puntuales |
+
+`runPipelineJob` está construido sobre `startPipelineJob`; en música, solo la
+generación usa el modo streaming — el resto (créditos, historial, sugerir prompt)
+es request/response.
+
+### Receta: agregar un subcomando nuevo
+
+En orden, con música como ejemplo vivo de cada paso:
+
+1. **Tipos del contrato** en `pipeline/types/<dominio>.ts`: params del payload y
+   forma del result (deben ser JSON serializables).
+2. **Handler** en `pipeline/commands/<nombre>.ts` con la firma
+   `(context: PipelineContext) => Promise<result>`. Reglas del contrato (las aplica
+   ESLint): nada lee `process.env` ni escribe a consola — la config viaja en el job y
+   todo output pasa por `context.emitter`; los fallos se lanzan como
+   `PipelineFailure` con `code` estable; las operaciones largas respetan
+   `context.signal`.
+3. **Registrarlo** en la tabla `SUBCOMMANDS` de [pipeline/main.ts](../pipeline/main.ts).
+   Rust no se toca: `start_pipeline_job` es genérico.
+4. **Proveedor externo nuevo** (si lo hay): estrategia en
+   `pipeline/providers/<servicio>/`. Si requiere clave propia, se agrega al catálogo
+   del módulo `api-keys` (`providers.ts`) y a `ALL_PROVIDERS` en Rust
+   (`src-tauri/src/api_keys/`): con eso la clave entra sola en `job.apiKeys`.
+5. **Lado UI**: el `api/` del módulo envuelve el subcomando con `runPipelineJob` o
+   `startPipelineJob`; el mapa `code → clave i18n` va en el `constants.ts` del módulo
+   y los textos en los **tres** catálogos de `public/locales/`.
+6. **Probar**: `pnpm pipeline <subcomando>` corre el sidecar por CLI con el Node
+   local; en la app, reiniciar `tauri dev` regenera el binario SEA.
+
+Cuando llegue Create, las fases largas se modelarán como **stages** encadenadas
+(`pipeline/runner/stage.ts` + `stages/`) dentro de un job, con checkpoint para
+reanudar; los subcomandos sueltos de `commands/` siguen siendo el camino para
+operaciones de un solo paso.
+
+---
+
+## 5. Flujo principal: de guion a video
 
 Es el único flujo del producto. La interfaz **dispara y observa**; el sidecar
 **ejecuta**. Cada paso indica qué hace cada lado.
@@ -321,27 +428,28 @@ Lo que falta fijar, y conviene hacerlo antes de implementar la vista de generaci
 
 ---
 
-## 5. Estado de la migración
+## 6. Estado de la migración
 
 Este documento describe el destino. El código todavía no llegó ahí:
 
-| Pieza                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| React 19 + TypeScript + Vite                       | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Tauri 2 con la ventana de la aplicación            | listo (identifier y tamaño de ventana propios)                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ESLint, Prettier y el alias `@/`                   | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Convenciones de código ([CLAUDE.md](../CLAUDE.md)) | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Estructura modular en `src/`                       | fundaciones + layouts listos: `router/`, `i18n/`, `layouts/` (Authenticated/Guest), `modules/common` (ui, doodles, theme, brand, fetcher, queryClient, supabase) y módulos `auth`/`videos`/`setup` (`home` eliminado)                                                                                                                                                                                                                                                |
-| Layouts y vistas base                              | Login, Callback, AccessDenied y Splash con lógica real; Create (videos) y PageNotFound maquetadas; sidebar/navbar funcionales — ADR-0005                                                                                                                                                                                                                                                                                                                             |
-| React Router, TanStack Query, Tailwind             | instalados y configurados (hash router con loaders como guards; primeras query keys: `authQueryKeys`)                                                                                                                                                                                                                                                                                                                                                                |
-| Autenticación (módulo `auth`)                      | lista — ADR-0006: OAuth Google doble flujo (web + deep link `vimo://`), verificación de acceso contra vimo.click, gate por loaders, logout, vista License. Pendiente: cold start del deep link                                                                                                                                                                                                                                                                       |
-| Módulo `costs` (catálogo local)                    | listo — ADR-0008: comparativa de precios con dataset local (`catalog.ts`), 4 tabs + filtros                                                                                                                                                                                                                                                                                                                                                                          |
-| Módulo `settings` (carpeta de proyectos)           | listo — ADR-0009: carpeta raíz única (default `~/Documents/Vimo`) con dialog/fs/store; en web se muestra deshabilitado                                                                                                                                                                                                                                                                                                                                               |
-| Módulo `api-keys` (claves de proveedores)          | listo — ADR-0011: dashboard con catálogo único (`providers.ts`), claves en el keychain del SO (`keyring`; Android vía plugin local `tauri-plugin-secure-keys`), validación en Rust con reqwest; primeros comandos `invoke` del repo (`src-tauri/src/api_keys/`); en web se muestra deshabilitado. Pendiente: probar el plugin Android en emulador (falta `tauri android init`)                                                                                       |
-| Infraestructura de i18n (`src/i18n/`)              | lista con i18next + catálogos `public/locales/{es,en,pt}.json` — ADR-0004                                                                                                                                                                                                                                                                                                                                                                                            |
-| Plugins de Tauri                                   | `deep-link`, `opener`, `dialog`, `fs`, `store` instalados y configurados (scheme `vimo`, capabilities con scope `$HOME/**`); `shell` solo del lado Rust para el spawn del sidecar (sin capability al webview)                                                                                                                                                                                                                                                        |
-| Backend local / pipeline                           | **redirigido por ADR-0007, en curso por ADR-0010**: fundación lista — `pipeline/` (contratos job/eventos, providers `llm` DeepInfra y `music` Evolink, prompts, config inyectada), sidecar mínimo con subcomando `ping`, y comandos genéricos `start_pipeline_job`/`cancel_pipeline_job` (`src-tauri/src/pipeline/`) que reenvían NDJSON → `pipeline://event`. Siguen los módulos del orden de ADR-0010 (AI Music primero); las stages y el runner llegan con Create |
-| FFmpeg empaquetado por plataforma                  | sin empezar (viajará como `externalBin` y su ruta entra al sidecar por `PipelineJob.binaryPaths` — ADR-0010)                                                                                                                                                                                                                                                                                                                                                         |
+| Pieza                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| React 19 + TypeScript + Vite                       | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Tauri 2 con la ventana de la aplicación            | listo (identifier y tamaño de ventana propios)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ESLint, Prettier y el alias `@/`                   | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Convenciones de código ([CLAUDE.md](../CLAUDE.md)) | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Estructura modular en `src/`                       | fundaciones + layouts listos: `router/`, `i18n/`, `layouts/` (Authenticated/Guest), `modules/common` (ui, doodles, theme, brand, fetcher, queryClient, supabase) y módulos `auth`/`videos`/`setup` (`home` eliminado)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Layouts y vistas base                              | Login, Callback, AccessDenied y Splash con lógica real; Create (videos) y PageNotFound maquetadas; sidebar/navbar funcionales — ADR-0005                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| React Router, TanStack Query, Tailwind             | instalados y configurados (hash router con loaders como guards; primeras query keys: `authQueryKeys`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Autenticación (módulo `auth`)                      | lista — ADR-0006: OAuth Google doble flujo (web + deep link `vimo://`), verificación de acceso contra vimo.click, gate por loaders, logout, vista License. Pendiente: cold start del deep link                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Módulo `costs` (catálogo local)                    | listo — ADR-0008: comparativa de precios con dataset local (`catalog.ts`), 4 tabs + filtros                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Módulo `settings` (carpeta de proyectos)           | listo — ADR-0009: carpeta raíz única (default `~/Documents/Vimo`) con dialog/fs/store; en web se muestra deshabilitado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Módulo `api-keys` (claves de proveedores)          | listo — ADR-0011: dashboard con catálogo único (`providers.ts`), claves en el keychain del SO (`keyring`; Android vía plugin local `tauri-plugin-secure-keys`), validación en Rust con reqwest; primeros comandos `invoke` del repo (`src-tauri/src/api_keys/`); en web se muestra deshabilitado. Pendiente: probar el plugin Android en emulador (falta `tauri android init`)                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Infraestructura de i18n (`src/i18n/`)              | lista con i18next + catálogos `public/locales/{es,en,pt}.json` — ADR-0004                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Plugins de Tauri                                   | `deep-link`, `opener`, `dialog`, `fs`, `store` instalados y configurados (scheme `vimo`, capabilities con scope `$HOME/**`); `shell` solo del lado Rust para el spawn del sidecar (sin capability al webview)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Backend local / pipeline                           | **redirigido por ADR-0007, en curso por ADR-0010**: fundación lista — `pipeline/` (contratos job/eventos, providers `llm` DeepInfra y `music` Evolink, prompts, config inyectada), sidecar con subcomandos **empaquetado como binario único Node SEA** (`externalBin`, regenerado por los hooks de dev/build), y comandos genéricos `start_pipeline_job`/`cancel_pipeline_job` (`src-tauri/src/pipeline/`) que reenvían el NDJSON por el `Channel` del invoke (un canal por job, sin canal global); la capa compartida de la UI vive en `src/modules/common/fetcher/pipeline.ts` (`startPipelineJob`/`runPipelineJob`); las claves se cachean en memoria por sesión (menos prompts del keychain). Pasos 1 y 2 (AI Music) hechos; siguen Voices/Characters/Library; las stages y el runner llegan con Create |
+| Módulo `music` (AI Music)                          | listo — ADR-0010 paso 2: pantalla completa (formulario Suno, sugerir prompt vía LLM, generación con progreso y cancelación, chooser de variaciones, historial en `<carpeta raíz>/_history/music/` con audio/cover/metadata, saldo de créditos); primeros jobs reales del sidecar (6 subcomandos en `pipeline/commands/`); asset protocol habilitado (scope `$HOME/**`) para reproducir el audio local con `convertFileSrc`                                                                                                                                                                                                                                                                                                                                                                                  |
+| FFmpeg empaquetado por plataforma                  | sin empezar (viajará como `externalBin` y su ruta entra al sidecar por `PipelineJob.binaryPaths` — ADR-0010)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 Mantené esta tabla al día: es lo que le dice a quien llega —persona o agente— qué puede
 dar por hecho y qué no.
