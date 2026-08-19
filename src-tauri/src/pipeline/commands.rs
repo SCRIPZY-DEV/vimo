@@ -25,8 +25,10 @@ fn sidecar_command(
 }
 
 /// Comando genérico del pipeline (ADR-0010, paso 1): spawnea el sidecar con un
-/// subcomando, le pasa el PipelineJob por stdin y reenvía sus eventos NDJSON a
-/// la webview. Devuelve el jobId con el que la UI filtra los eventos.
+/// subcomando, le pasa el PipelineJob por stdin y reenvía sus eventos NDJSON
+/// por el Channel del invoke — cada job tiene su propio canal, sin filtrado
+/// por jobId en la UI. El catálogo de eventos vive en pipeline/runner/events.ts;
+/// Rust no redeclara los tipos: parsea cada línea y la reenvía tal cual.
 #[tauri::command]
 pub async fn start_pipeline_job(
     app: AppHandle,
@@ -35,15 +37,12 @@ pub async fn start_pipeline_job(
     payload: Option<Value>,
     config: Option<Value>,
     project_dir: Option<String>,
+    on_event: Channel<Value>,
 ) -> Result<String, PipelineError> {
     let job_id = uuid::Uuid::new_v4().to_string();
     let job = build_pipeline_job(&app, &job_id, project_dir, config, payload);
-    let entry = sidecar_entry()?;
 
-    let (mut events, mut child) = app
-        .shell()
-        .command("node")
-        .args([entry.to_string_lossy().as_ref(), subcommand.as_str()])
+    let (mut events, mut child) = sidecar_command(&app, &subcommand)?
         .spawn()
         .map_err(|_| PipelineError::SidecarSpawn)?;
 
@@ -67,7 +66,7 @@ pub async fn start_pipeline_job(
             match event {
                 CommandEvent::Stdout(line) => match serde_json::from_slice::<Value>(&line) {
                     Ok(value) => {
-                        let _ = app_for_events.emit(PIPELINE_EVENT_CHANNEL, value);
+                        let _ = on_event.send(value);
                     }
                     Err(_) => log::warn!(
                         "sidecar stdout fuera de contrato: {}",
