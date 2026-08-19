@@ -9,7 +9,7 @@ narración, música de fondo y render final en MP4.
 > pipeline de generación (`pipeline/`).** El pipeline (las 6 fases: voz, transcripción,
 > cortes, prompts, imágenes y render) se reescribe guiado desde el proyecto original y
 > corre como **sidecar Node lanzado por Rust**, un proceso por job, sin servidor local
-> ni puerto: la UI lo dispara con `invoke()` y escucha el progreso por eventos de Tauri
+> ni puerto: la UI lo dispara con `invoke()` y recibe el progreso por el `Channel` del invoke
 > ([ADR-0007](docs/adr/ADR-0007-invoke-reemplaza-al-servidor-local.md),
 > [ADR-0010](docs/adr/ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)).
 > FFmpeg viaja como binario. La identidad del usuario se resuelve con **Supabase**.
@@ -33,6 +33,59 @@ propias claves de los servicios pagos, así que el costo variable corre por su c
 El flujo completo, paso a paso y con el reparto de responsabilidades entre la interfaz
 y el sidecar, está en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Cómo fluye la aplicación
+
+Del login al primer job, en un dibujo. La regla que lo sostiene: **la capa `api/` de
+cada módulo es el único intermediario entre la UI y Tauri** — ningún componente ni
+hook llama a `invoke`, `fetch` ni al SDK de Supabase directamente.
+
+```
+              ┌───────────────────────── webview (src/) ─────────────────────────┐
+              │                                                                  │
+              │   vista/componente → hook (TanStack Query) → api/ del módulo     │
+              │                                                    │             │
+              └────────────────────────────────────────────────────┼─────────────┘
+                        │                        │                 │
+              (1) LOGIN │              (2) CLAVES│        (3) JOBS │
+                        ▼                        ▼                 ▼
+              ┌──────────────────┐   ┌──────────────────────┐   ┌─────────────────────┐
+              │ Supabase (OAuth  │   │ Rust: api_keys       │   │ Rust: pipeline      │
+              │ Google, web +    │   │  valida la clave     │   │  arma el PipelineJob│
+              │ deep link vimo://│   │  (reqwest) y la      │   │  (claves desde el   │
+              │ ); guards en los │   │  guarda en el        │   │  keychain, nunca    │
+              │ loaders del      │   │  KEYCHAIN del SO     │   │  del webview) y     │
+              │ router           │   │  — nunca localStorage│   │  spawnea el sidecar │
+              └──────────────────┘   └──────────────────────┘   └──────────┬──────────┘
+                                                                           │ stdin: job
+                                                                           ▼
+                                                                ┌─────────────────────┐
+                                                                │ sidecar             │
+                                                                │ vimo-pipeline       │
+                                                                │  llama a los        │
+                                                                │  proveedores (LLM,  │
+                                                                │  música, …) con las │
+                                                                │  claves del usuario │
+                                                                └──────────┬──────────┘
+                                                       eventos NDJSON      │
+                                              ◄── Channel del invoke ──────┘
+                                              (progreso, resultado, error)
+```
+
+En palabras:
+
+1. **Login** — el módulo `auth` autentica contra Supabase (OAuth Google); los loaders
+   del router hacen de guard: sin sesión válida no se entra al layout autenticado.
+2. **Claves (BYO-keys)** — en Ajustes, el módulo `api-keys` manda cada clave por
+   `invoke` a Rust, que la valida contra el proveedor y la guarda en el keychain del
+   sistema operativo. La clave no vuelve a pasar por la UI.
+3. **Jobs** — cuando un módulo genera algo (música hoy, voces mañana), su `api/` usa
+   la capa común `src/modules/common/fetcher/pipeline.ts`: `invoke` lanza el job y un
+   `Channel` de Tauri trae de vuelta el progreso y el resultado. Rust inyecta las
+   claves del keychain al job por stdin; el sidecar es quien llama a los proveedores.
+
+El detalle de cada pieza está en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+(sección 4 para el pipeline).
+
 ## Plataformas
 
 Una sola base de código compilada con Tauri 2 a aplicaciones nativas de **Windows,
@@ -45,7 +98,8 @@ vigente).
 
 ## Requisitos
 
-- **Node.js 20+** y **pnpm**.
+- **Node.js 22+** y **pnpm**. Node 22 es el piso real: el sidecar del pipeline se
+  empaqueta con Node SEA y el harness CLI ejecuta TypeScript por type stripping.
 - **Rust** y las dependencias nativas de Tauri, solo si vas a compilar la app de
   escritorio. Guía oficial: <https://tauri.app/start/prerequisites/>.
 - Para el desarrollo de la interfaz sola, alcanza con Node y pnpm.
@@ -73,20 +127,46 @@ pnpm tauri dev    # aplicación nativa, con recarga en caliente
 
 ## Comandos
 
-| Comando            | Qué hace                                                      |
-| ------------------ | ------------------------------------------------------------- |
-| `pnpm dev`         | Servidor de desarrollo de Vite en el puerto 5173              |
-| `pnpm build`       | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/` |
-| `pnpm preview`     | Sirve el bundle ya construido                                 |
-| `pnpm lint`        | ESLint sobre todo el repositorio                              |
-| `pnpm lint:fix`    | ESLint aplicando las correcciones automáticas                 |
-| `pnpm format`      | Prettier sobre todo el repositorio                            |
-| `pnpm pipeline`    | Corre el sidecar del pipeline por CLI (harness manual)        |
-| `pnpm tauri dev`   | Aplicación nativa en modo desarrollo                          |
-| `pnpm tauri build` | Compila los instaladores nativos de la plataforma actual      |
+| Comando              | Qué hace                                                           |
+| -------------------- | ------------------------------------------------------------------ |
+| `pnpm dev`           | Servidor de desarrollo de Vite en el puerto 5173                   |
+| `pnpm build`         | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/`      |
+| `pnpm preview`       | Sirve el bundle ya construido                                      |
+| `pnpm lint`          | ESLint sobre todo el repositorio                                   |
+| `pnpm lint:fix`      | ESLint aplicando las correcciones automáticas                      |
+| `pnpm format`        | Prettier sobre todo el repositorio                                 |
+| `pnpm pipeline`      | Corre el sidecar del pipeline por CLI (harness manual)             |
+| `pnpm build:sidecar` | Empaqueta el sidecar como binario único (Node SEA → `externalBin`) |
+| `pnpm tauri dev`     | Aplicación nativa en modo desarrollo                               |
+| `pnpm tauri build`   | Compila los instaladores nativos de la plataforma actual           |
 
 Antes de dar por terminado un cambio: `pnpm format`, `pnpm lint` y `pnpm build`, en ese
 orden. Los tres deben pasar.
+
+## Empaquetado del sidecar del pipeline
+
+El pipeline (`pipeline/`) no corre con el Node del sistema: viaja dentro de la app
+como **binario único** generado con Node SEA (esbuild → blob SEA → runtime de Node,
+~110 MB por plataforma). Ver la sección `pipeline/` de
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+**No hay pasos manuales en el flujo normal**: `pnpm tauri dev` y `pnpm tauri build`
+regeneran el binario solos (hooks `beforeDevCommand`/`beforeBuildCommand` →
+`pnpm build:sidecar`). El comando suelto existe para regenerarlo a mano o
+diagnosticar el empaquetado.
+
+⚠️ **Los artefactos generados NO se commitean** — ya están en `.gitignore`; si git
+te los muestra como cambios, algo se rompió en el ignore, no los agregues:
+
+```
+src-tauri/binaries/        el binario final vimo-pipeline-<target-triple> (~110 MB)
+src-tauri/sidecar-build/   intermedios (bundle CJS + blob SEA)
+dist/                      bundle de la interfaz
+```
+
+Cada quien genera el binario para SU plataforma al compilar (el target triple sale
+de `rustc`, o de `TAURI_ENV_TARGET_TRIPLE` dentro de los hooks de Tauri). Detalles
+del proceso en [scripts/build-sidecar.mjs](scripts/build-sidecar.mjs).
 
 ## Estructura
 
@@ -118,4 +198,4 @@ verificación de acceso y cierre de sesión (ADR-0006). El pipeline de generaci�
 en migración por módulos (ADR-0010): la fundación de `pipeline/` —contratos, providers
 de LLM y música, sidecar mínimo y comandos Rust genéricos— ya está; faltan los módulos
 de pantalla (AI Music primero) y las stages con Create. El detalle pieza por pieza
-está en la tabla §5 de [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+está en la tabla §6 de [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

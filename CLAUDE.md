@@ -5,6 +5,9 @@ repositorio. Son las convenciones con las que se revisa el trabajo: un PR que la
 incumple se devuelve.
 
 - **Arquitectura:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — se lee primero.
+- **Pipeline:** para agregar o extender un subcomando del sidecar (nuevo módulo que
+  genera algo: voces, characters, …), seguí la receta de la **§4 de ARCHITECTURE.md**
+  — pieza por pieza, de los tipos del contrato al mapa de errores i18n.
 - **Proceso (ramas, PRs, commits):** [docs/CONTRIBUTING.es.md](docs/CONTRIBUTING.es.md).
 - **Decisiones de arquitectura:** [docs/adr/](docs/adr/) — antes de cambiar un patrón,
   revisá si hay una ADR que lo gobierne.

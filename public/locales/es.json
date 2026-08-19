@@ -134,6 +134,103 @@
       "sunoNotas": "Genera 2 variaciones por llamada para que elijas la que más te guste. Modelos: suno-v5-beta (recomendado) y suno-v4.5plus-beta. Podés elegir instrumental o con voz. Los links de descarga son válidos por 72 horas."
     }
   },
+  "music": {
+    "pageTitle": "Música IA — Vimo",
+    "titulo": "Música IA",
+    "tagline": "Generá música de fondo con IA en segundos",
+    "soloEscritorio": "La generación de música solo está disponible en la app de escritorio.",
+    "saldo": "Tu saldo",
+    "faltaClave": "Falta configurar la clave de Evolink para generar música.",
+    "irAClaves": "Ir a Claves API",
+    "generar": "Generar música",
+    "generando": "Generando música…",
+    "cancelar": "Cancelar",
+    "progresoSegundos": "Generando música… ({{seconds}}s)",
+    "creditosEstimados": "Consumirá aproximadamente {{n}} créditos",
+    "nombre": {
+      "label": "Nombre de la música (opcional)",
+      "placeholder": "ej: música espartana épica, intro suave, montaje de gimnasio…",
+      "hint": "Así la encontrás fácil después en el historial y el archivo se guarda con ese nombre."
+    },
+    "form": {
+      "prompt": "Descripción de la música",
+      "promptPlaceholder": "ej: chill lo-fi para un video de cocina, guitarra acústica relajante, música épica orquestal…",
+      "instrumental": "Solo instrumental",
+      "instrumentalHint": "(sin voz, ideal para fondos de video)",
+      "avanzado": "Modo avanzado (Suno custom_mode)",
+      "estilo": "Estilo musical",
+      "estiloPlaceholder": "ej: lo-fi, jazz, cinematic",
+      "tituloCancion": "Título de la canción",
+      "tituloCancionPlaceholder": "ej: Morning Drive",
+      "negativas": "Etiquetas negativas (evitar)",
+      "negativasPlaceholder": "ej: heavy metal, distorted guitar",
+      "generoVocal": "Género vocal",
+      "generoAuto": "Auto",
+      "generoMasculino": "Masculino",
+      "generoFemenino": "Femenino",
+      "modelo": "Modelo",
+      "variaciones": "Genera {{n}} variaciones para que elijas"
+    },
+    "sugerir": {
+      "titulo": "Sugerir prompt con IA",
+      "descripcion": "Pegá tu guion y la IA propone un prompt de música acorde al tono.",
+      "placeholder": "Pegá acá el guion del video…",
+      "boton": "Sugerir según el guion",
+      "sugiriendo": "Sugiriendo…"
+    },
+    "chooser": {
+      "titulo": "Elegí la versión que más te guste",
+      "sub": "Escuchá las {{n}} variaciones que generamos. Si ninguna te convence, regenerá para obtener nuevas.",
+      "nota": "Cada regeneración consume créditos.",
+      "regenerar": "Regenerar",
+      "opcion": "Opción {{n}}",
+      "usar": "Usar esta"
+    },
+    "resultado": {
+      "titulo": "¡Música lista!",
+      "cerrar": "Cerrar",
+      "guardada": "Se guardó en tu historial — la encontrás abajo aunque cierres y vuelvas a abrir Vimo."
+    },
+    "historial": {
+      "titulo": "Historial de música",
+      "contador_one": "{{count}} entrada",
+      "contador_other": "{{count}} entradas",
+      "recargar": "Recargar historial",
+      "buscar": "Buscar por título, prompt o estilo…",
+      "limpiar": "Limpiar búsqueda",
+      "vacio": "Tu historial está vacío. Cada música que generes se guarda acá.",
+      "sinResultados": "No hay música que coincida con la búsqueda.",
+      "sinTitulo": "Sin título",
+      "eliminar": "Eliminar",
+      "confirmarEliminar": "¿Eliminar esta música del historial?",
+      "eliminada": "Música eliminada del historial."
+    },
+    "player": {
+      "reproducir": "Reproducir",
+      "pausar": "Pausar",
+      "posicion": "Posición"
+    },
+    "errores": {
+      "network": "No se pudo conectar con el servicio de música. Revisá tu conexión.",
+      "invalidApiKey": "Evolink rechazó tu clave API. Verificala en Claves API.",
+      "providerError": "El servicio de música devolvió un error. Intentá de nuevo en unos minutos.",
+      "taskExpired": "La tarea de música expiró en el servicio. Generá de nuevo.",
+      "generationFailed": "Falló la generación de música.",
+      "timeout": "La música no se generó en 10 minutos. Intentá de nuevo.",
+      "downloadFailed": "No se pudo descargar el audio elegido.",
+      "llmNetwork": "No se pudo conectar con el servicio de IA para sugerir el prompt.",
+      "llmTimeout": "La IA tardó demasiado en responder. Intentá de nuevo.",
+      "llmRateLimited": "El servicio de IA está saturado. Esperá unos segundos y reintentá.",
+      "llmProviderError": "El servicio de IA devolvió un error. Intentá de nuevo.",
+      "missingApiKey": "Falta una clave API para esta acción. Configurala en Claves API.",
+      "missingProjectsRoot": "No hay carpeta de proyectos configurada. Revisá Ajustes.",
+      "cancelado": "Generación cancelada.",
+      "sidecar": "No se pudo iniciar el motor de generación. Reiniciá la app.",
+      "interrumpida": "La generación se interrumpió al cerrar la app. Si Evolink completó la tarea, el saldo se descontó igual — generá de nuevo con el mismo prompt o esperá unos minutos.",
+      "cooldown": "Esperá {{seconds}} segundos entre generaciones.",
+      "desconocido": "Algo salió mal. Intentá de nuevo."
+    }
+  },
   "apiKeys": {
     "pageTitle": "Claves API — Vimo",
     "titulo": "Claves API",

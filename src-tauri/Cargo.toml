@@ -26,7 +26,9 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3", features = [] }
+# protocol-asset: la UI reproduce el audio del historial de música con
+# convertFileSrc() (scope en tauri.conf.json → app.security.assetProtocol).
+tauri = { version = "2.11.3", features = ["protocol-asset"] }
 tauri-plugin-log = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-opener = "2"

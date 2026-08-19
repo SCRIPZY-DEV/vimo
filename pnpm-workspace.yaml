@@ -1,0 +1,4 @@
+# esbuild instala su binario por plataforma en postinstall; pnpm bloquea
+# build scripts por default y este es el allowlist (pnpm approve-builds).
+onlyBuiltDependencies:
+  - esbuild

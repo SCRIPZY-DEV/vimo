@@ -134,6 +134,103 @@
       "sunoNotas": "Generates 2 variations per call so you pick your favorite. Models: suno-v5-beta (recommended) and suno-v4.5plus-beta. You can choose instrumental or with vocals. Download links are valid for 72 hours."
     }
   },
+  "music": {
+    "pageTitle": "AI Music — Vimo",
+    "titulo": "AI Music",
+    "tagline": "Generate AI background music in seconds",
+    "soloEscritorio": "Music generation is only available in the desktop app.",
+    "saldo": "Your balance",
+    "faltaClave": "You need to set up your Evolink key to generate music.",
+    "irAClaves": "Go to API Keys",
+    "generar": "Generate music",
+    "generando": "Generating music…",
+    "cancelar": "Cancel",
+    "progresoSegundos": "Generating music… ({{seconds}}s)",
+    "creditosEstimados": "Will use approximately {{n}} credits",
+    "nombre": {
+      "label": "Track name (optional)",
+      "placeholder": "e.g.: epic spartan music, soft intro, gym montage…",
+      "hint": "Makes it easy to find in your history later; the file is saved under this name."
+    },
+    "form": {
+      "prompt": "Music description",
+      "promptPlaceholder": "e.g.: chill lo-fi for a cooking video, relaxing acoustic guitar, epic orchestral music…",
+      "instrumental": "Instrumental only",
+      "instrumentalHint": "(no vocals, ideal for video backgrounds)",
+      "avanzado": "Advanced mode (Suno custom_mode)",
+      "estilo": "Music style",
+      "estiloPlaceholder": "e.g.: lo-fi, jazz, cinematic",
+      "tituloCancion": "Song title",
+      "tituloCancionPlaceholder": "e.g.: Morning Drive",
+      "negativas": "Negative tags (avoid)",
+      "negativasPlaceholder": "e.g.: heavy metal, distorted guitar",
+      "generoVocal": "Vocal gender",
+      "generoAuto": "Auto",
+      "generoMasculino": "Male",
+      "generoFemenino": "Female",
+      "modelo": "Model",
+      "variaciones": "Generates {{n}} variations for you to pick from"
+    },
+    "sugerir": {
+      "titulo": "Suggest prompt with AI",
+      "descripcion": "Paste your script and the AI proposes a matching music prompt.",
+      "placeholder": "Paste your video script here…",
+      "boton": "Suggest from script",
+      "sugiriendo": "Suggesting…"
+    },
+    "chooser": {
+      "titulo": "Pick the version you like best",
+      "sub": "Listen to the {{n}} variations we generated. If none convinces you, regenerate to get new ones.",
+      "nota": "Each regeneration uses credits.",
+      "regenerar": "Regenerate",
+      "opcion": "Option {{n}}",
+      "usar": "Use this one"
+    },
+    "resultado": {
+      "titulo": "Music ready!",
+      "cerrar": "Close",
+      "guardada": "It was saved to your history — you'll find it below even after closing and reopening Vimo."
+    },
+    "historial": {
+      "titulo": "Music history",
+      "contador_one": "{{count}} entry",
+      "contador_other": "{{count}} entries",
+      "recargar": "Reload history",
+      "buscar": "Search by title, prompt or style…",
+      "limpiar": "Clear search",
+      "vacio": "Your history is empty. Every track you generate is saved here.",
+      "sinResultados": "No music matches your search.",
+      "sinTitulo": "Untitled",
+      "eliminar": "Delete",
+      "confirmarEliminar": "Delete this track from your history?",
+      "eliminada": "Track deleted from history."
+    },
+    "player": {
+      "reproducir": "Play",
+      "pausar": "Pause",
+      "posicion": "Position"
+    },
+    "errores": {
+      "network": "Could not reach the music service. Check your connection.",
+      "invalidApiKey": "Evolink rejected your API key. Check it in API Keys.",
+      "providerError": "The music service returned an error. Try again in a few minutes.",
+      "taskExpired": "The music task expired on the service. Generate again.",
+      "generationFailed": "Music generation failed.",
+      "timeout": "The music was not generated within 10 minutes. Try again.",
+      "downloadFailed": "Could not download the chosen audio.",
+      "llmNetwork": "Could not reach the AI service to suggest the prompt.",
+      "llmTimeout": "The AI took too long to respond. Try again.",
+      "llmRateLimited": "The AI service is saturated. Wait a few seconds and retry.",
+      "llmProviderError": "The AI service returned an error. Try again.",
+      "missingApiKey": "An API key is missing for this action. Set it up in API Keys.",
+      "missingProjectsRoot": "No projects folder is configured. Check Settings.",
+      "cancelado": "Generation cancelled.",
+      "sidecar": "Could not start the generation engine. Restart the app.",
+      "interrumpida": "Generation was interrupted when the app closed. If Evolink completed the task, credits were charged anyway — generate again with the same prompt or wait a few minutes.",
+      "cooldown": "Wait {{seconds}} seconds between generations.",
+      "desconocido": "Something went wrong. Try again."
+    }
+  },
   "apiKeys": {
     "pageTitle": "API Keys — Vimo",
     "titulo": "API Keys",

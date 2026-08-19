@@ -134,6 +134,103 @@
       "sunoNotas": "Gera 2 variações por chamada para você escolher a favorita. Modelos: suno-v5-beta (recomendado) e suno-v4.5plus-beta. Pode escolher instrumental ou com voz. Os links de download valem por 72 horas."
     }
   },
+  "music": {
+    "pageTitle": "Música IA — Vimo",
+    "titulo": "Música IA",
+    "tagline": "Gere música de fundo com IA em segundos",
+    "soloEscritorio": "A geração de música só está disponível no app de desktop.",
+    "saldo": "Seu saldo",
+    "faltaClave": "É preciso configurar a chave da Evolink para gerar música.",
+    "irAClaves": "Ir para Chaves API",
+    "generar": "Gerar música",
+    "generando": "Gerando música…",
+    "cancelar": "Cancelar",
+    "progresoSegundos": "Gerando música… ({{seconds}}s)",
+    "creditosEstimados": "Vai consumir aproximadamente {{n}} créditos",
+    "nombre": {
+      "label": "Nome da música (opcional)",
+      "placeholder": "ex.: música espartana épica, intro suave, montagem de academia…",
+      "hint": "Assim você a encontra fácil no histórico; o arquivo é salvo com esse nome."
+    },
+    "form": {
+      "prompt": "Descrição da música",
+      "promptPlaceholder": "ex.: chill lo-fi para um vídeo de culinária, violão relaxante, música épica orquestral…",
+      "instrumental": "Somente instrumental",
+      "instrumentalHint": "(sem voz, ideal para fundos de vídeo)",
+      "avanzado": "Modo avançado (Suno custom_mode)",
+      "estilo": "Estilo musical",
+      "estiloPlaceholder": "ex.: lo-fi, jazz, cinematic",
+      "tituloCancion": "Título da canção",
+      "tituloCancionPlaceholder": "ex.: Morning Drive",
+      "negativas": "Etiquetas negativas (evitar)",
+      "negativasPlaceholder": "ex.: heavy metal, distorted guitar",
+      "generoVocal": "Gênero vocal",
+      "generoAuto": "Auto",
+      "generoMasculino": "Masculino",
+      "generoFemenino": "Feminino",
+      "modelo": "Modelo",
+      "variaciones": "Gera {{n}} variações para você escolher"
+    },
+    "sugerir": {
+      "titulo": "Sugerir prompt com IA",
+      "descripcion": "Cole seu roteiro e a IA propõe um prompt de música no tom certo.",
+      "placeholder": "Cole aqui o roteiro do vídeo…",
+      "boton": "Sugerir pelo roteiro",
+      "sugiriendo": "Sugerindo…"
+    },
+    "chooser": {
+      "titulo": "Escolha a versão que você mais gostar",
+      "sub": "Ouça as {{n}} variações que geramos. Se nenhuma convencer, regenere para obter novas.",
+      "nota": "Cada regeneração consome créditos.",
+      "regenerar": "Regenerar",
+      "opcion": "Opção {{n}}",
+      "usar": "Usar esta"
+    },
+    "resultado": {
+      "titulo": "Música pronta!",
+      "cerrar": "Fechar",
+      "guardada": "Foi salva no seu histórico — você a encontra abaixo mesmo depois de fechar e reabrir o Vimo."
+    },
+    "historial": {
+      "titulo": "Histórico de música",
+      "contador_one": "{{count}} entrada",
+      "contador_other": "{{count}} entradas",
+      "recargar": "Recarregar histórico",
+      "buscar": "Buscar por título, prompt ou estilo…",
+      "limpiar": "Limpar busca",
+      "vacio": "Seu histórico está vazio. Cada música gerada é salva aqui.",
+      "sinResultados": "Nenhuma música corresponde à busca.",
+      "sinTitulo": "Sem título",
+      "eliminar": "Excluir",
+      "confirmarEliminar": "Excluir esta música do histórico?",
+      "eliminada": "Música excluída do histórico."
+    },
+    "player": {
+      "reproducir": "Reproduzir",
+      "pausar": "Pausar",
+      "posicion": "Posição"
+    },
+    "errores": {
+      "network": "Não foi possível conectar ao serviço de música. Verifique sua conexão.",
+      "invalidApiKey": "A Evolink rejeitou sua chave API. Verifique em Chaves API.",
+      "providerError": "O serviço de música retornou um erro. Tente novamente em alguns minutos.",
+      "taskExpired": "A tarefa de música expirou no serviço. Gere novamente.",
+      "generationFailed": "A geração de música falhou.",
+      "timeout": "A música não foi gerada em 10 minutos. Tente novamente.",
+      "downloadFailed": "Não foi possível baixar o áudio escolhido.",
+      "llmNetwork": "Não foi possível conectar ao serviço de IA para sugerir o prompt.",
+      "llmTimeout": "A IA demorou demais para responder. Tente novamente.",
+      "llmRateLimited": "O serviço de IA está saturado. Aguarde alguns segundos e tente de novo.",
+      "llmProviderError": "O serviço de IA retornou um erro. Tente novamente.",
+      "missingApiKey": "Falta uma chave API para esta ação. Configure em Chaves API.",
+      "missingProjectsRoot": "Nenhuma pasta de projetos configurada. Verifique os Ajustes.",
+      "cancelado": "Geração cancelada.",
+      "sidecar": "Não foi possível iniciar o motor de geração. Reinicie o app.",
+      "interrumpida": "A geração foi interrompida ao fechar o app. Se a Evolink completou a tarefa, os créditos foram descontados mesmo assim — gere novamente com o mesmo prompt ou aguarde alguns minutos.",
+      "cooldown": "Aguarde {{seconds}} segundos entre gerações.",
+      "desconocido": "Algo deu errado. Tente novamente."
+    }
+  },
   "apiKeys": {
     "pageTitle": "Chaves API — Vimo",
     "titulo": "Chaves API",
