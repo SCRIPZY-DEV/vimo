@@ -7,6 +7,7 @@ import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
 import { videosRoutes } from '@/modules/videos/routes'
 import { costsRoutes } from '@/modules/costs/routes'
 import { musicRoutes } from '@/modules/music/routes'
+import { voicesRoutes } from '@/modules/voices/routes'
 import { apiKeysRoutes } from '@/modules/api-keys/routes'
 import { settingsRoutes } from '@/modules/settings/routes'
 import { commonRoutes } from '@/modules/common/routes'
@@ -28,6 +29,7 @@ export const router = createHashRouter([
     loader: requireAuthLoader,
     children: [
       ...videosRoutes,
+      ...voicesRoutes,
       ...musicRoutes,
       ...costsRoutes,
       ...apiKeysRoutes,
