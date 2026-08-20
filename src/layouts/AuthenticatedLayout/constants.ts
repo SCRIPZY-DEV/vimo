@@ -5,6 +5,7 @@ import { CostsRoutes } from '@/modules/costs/constants'
 import { MusicRoutes } from '@/modules/music/constants'
 import { SettingsRoutes } from '@/modules/settings/constants'
 import { VideosRoutes } from '@/modules/videos/constants'
+import { VoicesRoutes } from '@/modules/voices/constants'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import DoodleScript from '@/modules/common/doodles/DoodleScript'
 import DoodleCamera from '@/modules/common/doodles/DoodleCamera'
@@ -38,10 +39,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     disabled: true,
   },
   {
-    route: '/voices',
+    route: VoicesRoutes.voices,
     labelKey: 'layout.nav.voces',
     Icon: DoodleVoice,
-    disabled: true,
   },
   {
     route: MusicRoutes.music,
