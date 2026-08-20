@@ -231,6 +231,94 @@
       "desconocido": "Something went wrong. Try again."
     }
   },
+  "characters": {
+    "pageTitle": "Characters",
+    "titulo": "Characters",
+    "tagline": "your cast, consistent in every video",
+    "intro": "A character stores a style-neutral identity: who they are, not how they are drawn. That is why the same character looks consistent in any video style.",
+    "crear": "New character",
+    "soloEscritorio": "Characters are stored in your projects folder: this screen works in the desktop app.",
+    "irAClaves": "Go to API keys",
+    "vacio": {
+      "titulo": "You don't have any characters yet",
+      "texto": "Create your first one: describe who they are and AI writes their identity so they look the same across your videos."
+    },
+    "tarjeta": {
+      "editar": "Edit",
+      "eliminar": "Delete character",
+      "confirmar": "Confirm"
+    },
+    "modal": {
+      "nuevo": "New character",
+      "editar": "Edit character",
+      "descripcion": "Describe who the character is. The identity is reused across all your videos.",
+      "guardar": "Save",
+      "cancelar": "Cancel"
+    },
+    "form": {
+      "nombre": "Name",
+      "nombrePlaceholder": "Father Thomas",
+      "edad": "Age",
+      "edadPlaceholder": "70 years old",
+      "rol": "Role or occupation",
+      "rolPlaceholder": "village priest",
+      "descripcion": "Identity",
+      "descripcionPlaceholder": "Hair, features, clothing and colors that make them recognizable.",
+      "descripcionHint": "Describe who they are, never the drawing style: the style is chosen when you generate each video."
+    },
+    "experto": {
+      "boton": "Write identity with AI",
+      "generando": "Writing…",
+      "ayuda": "AI rewrites the identity in English, ordered by the most recognizable traits.",
+      "completaCampos": "Fill in name, age, role and some notes so AI can write the identity.",
+      "faltaClave": "You need a DeepInfra key to use AI."
+    },
+    "preview": {
+      "titulo": "Preview by style",
+      "nota": "Each preview uses provider credits and is stored with the character.",
+      "proveedor": "Provider",
+      "modeloFal": "Fal model",
+      "generar": "Generate preview",
+      "regenerar": "Regenerate preview",
+      "cancelar": "Cancel",
+      "vacio": "You haven't generated any preview yet.",
+      "faltaClave": "You need the key for the selected provider."
+    },
+    "styles": {
+      "normal": "Normal",
+      "stickman": "POV Stickman",
+      "cartoon": "2D Cartoon",
+      "fantasy": "Magic fantasy",
+      "terror": "Horror"
+    },
+    "toasts": {
+      "creado": "Character created.",
+      "actualizado": "Character updated.",
+      "eliminado": "Character deleted."
+    },
+    "errors": {
+      "nameRequired": "Give the character a name.",
+      "descriptionTooShort": "The identity needs at least 10 characters.",
+      "notFound": "That character is no longer in your library.",
+      "invalid": "Check the character details.",
+      "imageNetwork": "We couldn't reach the image provider.",
+      "imageInvalidApiKey": "The image provider key is not valid.",
+      "imageProviderError": "The image provider returned an error. Try again in a few minutes.",
+      "imageContentPolicy": "The provider rejected the description under its content policy. Soften it and try again.",
+      "imageTimeout": "The image took too long. If the provider finishes it, you'll be able to generate it again at no extra cost.",
+      "imageDownloadFailed": "The image was generated but we couldn't download it.",
+      "llmNetwork": "We couldn't reach the AI service.",
+      "llmTimeout": "The AI service took too long.",
+      "llmRateLimited": "The AI service is busy. Wait a few seconds.",
+      "llmProviderError": "The AI service returned an error.",
+      "missingApiKey": "The provider key is not configured.",
+      "missingProjectsRoot": "Choose a projects folder in Settings.",
+      "cancelled": "Preview cancelled.",
+      "sidecar": "We couldn't start the Vimo engine. Restart the app.",
+      "interrupted": "The preview was interrupted.",
+      "unknown": "Something went wrong. Try again."
+    }
+  },
   "voices": {
     "pageTitle": "Voices",
     "titulo": "Voices",

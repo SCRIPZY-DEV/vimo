@@ -231,6 +231,94 @@
       "desconocido": "Algo deu errado. Tente novamente."
     }
   },
+  "characters": {
+    "pageTitle": "Personagens",
+    "titulo": "Personagens",
+    "tagline": "seu elenco, igual em cada vídeo",
+    "intro": "Um personagem guarda uma descrição de identidade neutra: quem ele é, não como é desenhado. Por isso o mesmo personagem fica consistente em qualquer estilo de vídeo.",
+    "crear": "Novo personagem",
+    "soloEscritorio": "Os personagens ficam na sua pasta de projetos: esta tela funciona no aplicativo de desktop.",
+    "irAClaves": "Ir para Chaves de API",
+    "vacio": {
+      "titulo": "Você ainda não tem personagens",
+      "texto": "Crie o primeiro: conte quem ele é e a IA escreve a identidade para que apareça igual em todos os seus vídeos."
+    },
+    "tarjeta": {
+      "editar": "Editar",
+      "eliminar": "Excluir personagem",
+      "confirmar": "Confirmar"
+    },
+    "modal": {
+      "nuevo": "Novo personagem",
+      "editar": "Editar personagem",
+      "descripcion": "Conte quem é o personagem. A identidade é reutilizada em todos os seus vídeos.",
+      "guardar": "Salvar",
+      "cancelar": "Cancelar"
+    },
+    "form": {
+      "nombre": "Nome",
+      "nombrePlaceholder": "Padre Tomás",
+      "edad": "Idade",
+      "edadPlaceholder": "70 anos",
+      "rol": "Papel ou ocupação",
+      "rolPlaceholder": "padre da vila",
+      "descripcion": "Identidade",
+      "descripcionPlaceholder": "Cabelo, traços, roupa e cores que o tornam reconhecível.",
+      "descripcionHint": "Descreva quem ele é, nunca o estilo de desenho: o estilo é escolhido ao gerar cada vídeo."
+    },
+    "experto": {
+      "boton": "Escrever identidade com IA",
+      "generando": "Escrevendo…",
+      "ayuda": "A IA reescreve a identidade em inglês, ordenada pelos traços mais reconhecíveis.",
+      "completaCampos": "Preencha nome, idade, papel e algumas notas para a IA escrever a identidade.",
+      "faltaClave": "Você precisa de uma chave da DeepInfra para usar a IA."
+    },
+    "preview": {
+      "titulo": "Prévia por estilo",
+      "nota": "Cada prévia consome créditos do provedor e fica salva com o personagem.",
+      "proveedor": "Provedor",
+      "modeloFal": "Modelo da Fal",
+      "generar": "Gerar prévia",
+      "regenerar": "Gerar prévia de novo",
+      "cancelar": "Cancelar",
+      "vacio": "Você ainda não gerou nenhuma prévia.",
+      "faltaClave": "Você precisa da chave do provedor escolhido."
+    },
+    "styles": {
+      "normal": "Normal",
+      "stickman": "POV Stickman",
+      "cartoon": "Cartoon 2D",
+      "fantasy": "Fantasia mágica",
+      "terror": "Terror"
+    },
+    "toasts": {
+      "creado": "Personagem criado.",
+      "actualizado": "Personagem atualizado.",
+      "eliminado": "Personagem excluído."
+    },
+    "errors": {
+      "nameRequired": "Dê um nome ao personagem.",
+      "descriptionTooShort": "A identidade precisa de pelo menos 10 caracteres.",
+      "notFound": "Esse personagem não está mais na sua biblioteca.",
+      "invalid": "Revise os dados do personagem.",
+      "imageNetwork": "Não conseguimos conectar ao provedor de imagens.",
+      "imageInvalidApiKey": "A chave do provedor de imagens não é válida.",
+      "imageProviderError": "O provedor de imagens retornou um erro. Tente de novo em alguns minutos.",
+      "imageContentPolicy": "O provedor recusou a descrição pela política de conteúdo. Suavize e tente de novo.",
+      "imageTimeout": "A imagem demorou demais. Se o provedor terminar, você poderá gerá-la de novo sem custo extra.",
+      "imageDownloadFailed": "A imagem foi gerada mas não conseguimos baixá-la.",
+      "llmNetwork": "Não conseguimos conectar ao serviço de IA.",
+      "llmTimeout": "O serviço de IA demorou demais.",
+      "llmRateLimited": "O serviço de IA está sobrecarregado. Espere alguns segundos.",
+      "llmProviderError": "O serviço de IA retornou um erro.",
+      "missingApiKey": "Falta configurar a chave do provedor.",
+      "missingProjectsRoot": "Escolha uma pasta de projetos em Ajustes.",
+      "cancelled": "Prévia cancelada.",
+      "sidecar": "Não conseguimos iniciar o motor do Vimo. Reinicie o aplicativo.",
+      "interrupted": "A prévia foi interrompida.",
+      "unknown": "Algo deu errado. Tente de novo."
+    }
+  },
   "voices": {
     "pageTitle": "Vozes",
     "titulo": "Vozes",
