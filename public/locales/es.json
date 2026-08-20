@@ -231,6 +231,94 @@
       "desconocido": "Algo salió mal. Intentá de nuevo."
     }
   },
+  "characters": {
+    "pageTitle": "Personajes",
+    "titulo": "Personajes",
+    "tagline": "tu elenco, siempre igual en cada video",
+    "intro": "Un personaje guarda una descripción de identidad neutra: quién es, no cómo se dibuja. Por eso el mismo personaje se ve consistente en cualquier estilo de video.",
+    "crear": "Nuevo personaje",
+    "soloEscritorio": "Los personajes se guardan en tu carpeta de proyectos: esta pantalla funciona en la aplicación de escritorio.",
+    "irAClaves": "Ir a Claves API",
+    "vacio": {
+      "titulo": "Todavía no tenés personajes",
+      "texto": "Creá el primero: contá quién es y la IA redacta su identidad para que se vea igual en todos tus videos."
+    },
+    "tarjeta": {
+      "editar": "Editar",
+      "eliminar": "Eliminar personaje",
+      "confirmar": "Seguro"
+    },
+    "modal": {
+      "nuevo": "Nuevo personaje",
+      "editar": "Editar personaje",
+      "descripcion": "Contá quién es el personaje. La identidad se reutiliza en todos tus videos.",
+      "guardar": "Guardar",
+      "cancelar": "Cancelar"
+    },
+    "form": {
+      "nombre": "Nombre",
+      "nombrePlaceholder": "Padre Tomás",
+      "edad": "Edad",
+      "edadPlaceholder": "70 años",
+      "rol": "Rol u ocupación",
+      "rolPlaceholder": "sacerdote de pueblo",
+      "descripcion": "Identidad",
+      "descripcionPlaceholder": "Pelo, rasgos, ropa y colores que lo hacen reconocible.",
+      "descripcionHint": "Describe quién es, nunca el estilo de dibujo: el estilo se elige al generar cada video."
+    },
+    "experto": {
+      "boton": "Redactar identidad con IA",
+      "generando": "Redactando…",
+      "ayuda": "La IA reescribe la identidad en inglés, ordenada por los rasgos más reconocibles.",
+      "completaCampos": "Completá nombre, edad, rol y unas notas para que la IA redacte la identidad.",
+      "faltaClave": "Necesitás una clave de DeepInfra para usar la IA."
+    },
+    "preview": {
+      "titulo": "Vista previa por estilo",
+      "nota": "Cada vista previa consume créditos del proveedor y queda guardada con el personaje.",
+      "proveedor": "Proveedor",
+      "modeloFal": "Modelo de Fal",
+      "generar": "Generar vista previa",
+      "regenerar": "Regenerar vista previa",
+      "cancelar": "Cancelar",
+      "vacio": "Todavía no generaste ninguna vista previa.",
+      "faltaClave": "Necesitás la clave del proveedor elegido."
+    },
+    "styles": {
+      "normal": "Normal",
+      "stickman": "POV Stickman",
+      "cartoon": "Cartoon 2D",
+      "fantasy": "Fantasía mágica",
+      "terror": "Terror"
+    },
+    "toasts": {
+      "creado": "Personaje creado.",
+      "actualizado": "Personaje actualizado.",
+      "eliminado": "Personaje eliminado."
+    },
+    "errors": {
+      "nameRequired": "Poné un nombre para el personaje.",
+      "descriptionTooShort": "La identidad necesita al menos 10 caracteres.",
+      "notFound": "Ese personaje ya no está en tu biblioteca.",
+      "invalid": "Revisá los datos del personaje.",
+      "imageNetwork": "No pudimos conectar con el proveedor de imágenes.",
+      "imageInvalidApiKey": "La clave del proveedor de imágenes no es válida.",
+      "imageProviderError": "El proveedor de imágenes devolvió un error. Probá de nuevo en unos minutos.",
+      "imageContentPolicy": "El proveedor rechazó la descripción por su política de contenido. Suavizala y probá otra vez.",
+      "imageTimeout": "La imagen tardó demasiado. Si el proveedor la termina, vas a poder generarla de nuevo sin costo extra.",
+      "imageDownloadFailed": "La imagen se generó pero no pudimos descargarla.",
+      "llmNetwork": "No pudimos conectar con el servicio de IA.",
+      "llmTimeout": "El servicio de IA tardó demasiado.",
+      "llmRateLimited": "El servicio de IA está saturado. Esperá unos segundos.",
+      "llmProviderError": "El servicio de IA devolvió un error.",
+      "missingApiKey": "Falta configurar la clave del proveedor.",
+      "missingProjectsRoot": "Elegí una carpeta de proyectos en Ajustes.",
+      "cancelled": "Vista previa cancelada.",
+      "sidecar": "No pudimos iniciar el motor de Vimo. Reiniciá la aplicación.",
+      "interrupted": "La vista previa se interrumpió.",
+      "unknown": "Algo salió mal. Probá de nuevo."
+    }
+  },
   "voices": {
     "pageTitle": "Voces",
     "titulo": "Voces",

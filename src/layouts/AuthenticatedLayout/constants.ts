@@ -1,6 +1,7 @@
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import { AuthRoutesPaths } from '@/modules/auth/constants'
+import { CharactersRoutes } from '@/modules/characters/constants'
 import { CostsRoutes } from '@/modules/costs/constants'
 import { MusicRoutes } from '@/modules/music/constants'
 import { SettingsRoutes } from '@/modules/settings/constants'
@@ -16,12 +17,6 @@ import DoodleCoin from '@/modules/common/doodles/DoodleCoin'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
 
-/**
- * Catálogo de items del menú lateral. Los deshabilitados son maquetas que se
- * irán habilitando a medida que se migren sus módulos; los marcados con
- * `hidden` están retirados de la navegación pero conservan su posición.
- * Para renderizar usá `VISIBLE_NAV_ITEMS`, no este array.
- */
 export const NAV_ITEMS: SidebarNavItem[] = [
   {
     route: VideosRoutes.create,
@@ -35,10 +30,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     disabled: true,
   },
   {
-    route: '/characters',
+    route: CharactersRoutes.characters,
     labelKey: 'layout.nav.personajes',
     Icon: DoodlePersonaje,
-    disabled: true,
   },
   {
     route: VoicesRoutes.voices,

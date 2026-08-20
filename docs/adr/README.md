@@ -46,6 +46,8 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                        | Title                                                             | Status                   | Area         |
 | -------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ | ------------ |
+| [ADR-0012](ADR-0012-primitivas-del-runner-y-contratos-cerrados.md)         | Runner primitives and closed contracts in the pipeline            | Propuesta                | pipeline     |
+| [ADR-0011](ADR-0011-claves-api-en-keychain-con-fuente-abstracta.md)        | API keys in the OS keychain behind an abstract source             | Aceptada                 | seguridad    |
 | [ADR-0010](ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)        | Pipeline as staged Node sidecar and module-by-module migration    | Aceptada                 | pipeline     |
 | [ADR-0009](ADR-0009-preferencias-nativas-y-carpeta-raiz.md)                | Native preferences via official plugins and single projects root  | Aceptada                 | app          |
 | [ADR-0008](ADR-0008-catalogo-de-costos-local.md)                           | Cost catalog as a local client dataset                            | Aceptada                 | app          |
