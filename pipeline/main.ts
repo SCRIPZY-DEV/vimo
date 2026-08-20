@@ -1,5 +1,6 @@
 import { createInterface, type Interface } from 'node:readline'
 
+import { charactersSubcommands } from './commands/characters/subcommands.ts'
 import { musicSubcommands } from './commands/music/subcommands.ts'
 import { voicesSubcommands } from './commands/voices/subcommands.ts'
 import { resolvePipelineConfig } from './config/pipeline-config.ts'
@@ -22,6 +23,7 @@ const SUBCOMMANDS: Record<string, SubcommandHandler> = {
   },
   ...musicSubcommands,
   ...voicesSubcommands,
+  ...charactersSubcommands,
 }
 
 function handleControlLine(line: string, abortController: AbortController) {
