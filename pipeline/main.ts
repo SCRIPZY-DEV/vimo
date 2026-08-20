@@ -1,6 +1,7 @@
 import { createInterface, type Interface } from 'node:readline'
 
 import { musicSubcommands } from './commands/music/subcommands.ts'
+import { voicesSubcommands } from './commands/voices/subcommands.ts'
 import { resolvePipelineConfig } from './config/pipeline-config.ts'
 import { createEmitter } from './runner/emitter.ts'
 import { PipelineFailure, toPipelineFailure } from './runner/failure.ts'
@@ -20,6 +21,7 @@ const SUBCOMMANDS: Record<string, SubcommandHandler> = {
     return context.job.payload ?? null
   },
   ...musicSubcommands,
+  ...voicesSubcommands,
 }
 
 function handleControlLine(line: string, abortController: AbortController) {
