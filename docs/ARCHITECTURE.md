@@ -145,13 +145,13 @@ terminal). Para iterar el pipeline por CLI: `pnpm pipeline <subcomando>` (corre
 pipeline/
 ├── main.ts                entrada del sidecar: subcomandos, job JSON por stdin, NDJSON out
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
-├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (hoy: music/)
+├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (hoy: music/, voices/)
 ├── stages/                (pendiente) voice, transcription, scene-cuts, scene-prompts, images, render
-├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink)
+├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge)
 ├── prompts/               prompts de sistema como plantillas versionadas
 ├── config/                PipelineConfig + ApiKeys + BinaryPaths, con defaults inyectables
-├── types/                 tipos del dominio (json, llm, music)
-└── utils/                 utilidades compartidas (sanitización de nombres de archivo)
+├── types/                 tipos del dominio (json, llm, music, voices)
+└── utils/                 utilidades compartidas (sanitización de nombres, números a palabras para TTS)
 ```
 
 Guards del contrato (ADR-0010, aplicados también por ESLint): nada en `pipeline/`
