@@ -6,6 +6,7 @@ import { requireAuthLoader } from '@/modules/auth/guards'
 import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
 import { videosRoutes } from '@/modules/videos/routes'
 import { musicRoutes } from '@/modules/music/routes'
+import { voicesRoutes } from '@/modules/voices/routes'
 import { apiKeysRoutes } from '@/modules/api-keys/routes'
 import { settingsRoutes } from '@/modules/settings/routes'
 import { commonRoutes } from '@/modules/common/routes'
@@ -27,6 +28,7 @@ export const router = createHashRouter([
     loader: requireAuthLoader,
     children: [
       ...videosRoutes,
+      ...voicesRoutes,
       ...musicRoutes,
       // `costsRoutes` va acá cuando la sección vuelva: hoy está retirada de la
       // navegación (ver `hidden` en layouts/AuthenticatedLayout/constants.ts).

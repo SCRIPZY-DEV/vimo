@@ -231,6 +231,149 @@
       "desconocido": "Algo deu errado. Tente novamente."
     }
   },
+  "voices": {
+    "pageTitle": "Vozes",
+    "titulo": "Vozes",
+    "tagline": "Explore e teste as vozes para seus vídeos",
+    "saldo": "Créditos",
+    "soloEscritorio": "O catálogo de vozes funciona no aplicativo de desktop.",
+    "faltaClave": "Falta a chave da DubVoice para listar e gerar vozes.",
+    "irAClaves": "Ir para chaves de API",
+    "cargando": "Carregando vozes… a primeira vez pode demorar um pouco.",
+    "notaEdge": "As vozes Edge não trazem amostra do provedor: ouça-as gerando (custam a metade).",
+    "tabs": {
+      "minimax": "Minimax",
+      "elevenlabs": "ElevenLabs",
+      "edge": "Edge",
+      "favorites": "Favoritas"
+    },
+    "favoritos": {
+      "vacio": "Você ainda não marcou vozes favoritas. Toque no coração de uma voz para guardá-la aqui."
+    },
+    "grilla": {
+      "contador": "Mostrando {{visible}} de {{total}} vozes"
+    },
+    "filtros": {
+      "buscar": "Buscar voz…",
+      "limpiar": "Limpar busca",
+      "idioma": "Idioma",
+      "todosIdiomas": "Todos os idiomas",
+      "idiomas": {
+        "es": "Espanhol",
+        "en": "Inglês",
+        "pt": "Português",
+        "fr": "Francês",
+        "it": "Italiano",
+        "de": "Alemão",
+        "ru": "Russo",
+        "ja": "Japonês",
+        "zh": "Chinês"
+      },
+      "genero": {
+        "todos": "Todas",
+        "male": "Masculina",
+        "female": "Feminina"
+      },
+      "acento": "Sotaque",
+      "todosAcentos": "Todos os sotaques",
+      "categoria": "Categoria",
+      "todasCategorias": "Todas as categorias",
+      "soloClones": "Só clonadas",
+      "sinResultados": "Nenhuma voz corresponde aos filtros."
+    },
+    "tarjeta": {
+      "clon": "Clone",
+      "reproducir": "Ouvir amostra",
+      "pausar": "Pausar amostra",
+      "favorito": "Adicionar aos favoritos",
+      "quitarFavorito": "Remover dos favoritos"
+    },
+    "probador": {
+      "titulo": "Testador de voz",
+      "vozElegida": "Voz escolhida: {{name}}",
+      "texto": "Texto a narrar",
+      "placeholder": "Escreva o texto que você quer ouvir com esta voz…",
+      "costoEstimado": "Custo estimado: {{n}} créditos",
+      "limiteTexto": "{{chars}} / {{limit}}",
+      "modelo": "Modelo",
+      "generar": "Gerar voz",
+      "generando": "Gerando…",
+      "cancelar": "Cancelar",
+      "progresoSegundos": "{{seconds}} s decorridos",
+      "resultado": "Resultado",
+      "cerrar": "Fechar",
+      "guardada": "A narração ficou salva no histórico."
+    },
+    "modelos": {
+      "calidad": "qualidade",
+      "velocidad": "velocidade",
+      "balance": "equilíbrio"
+    },
+    "ajustes": {
+      "titulo": "Ajustes de voz",
+      "restaurar": "Restaurar",
+      "velocidad": "Velocidade",
+      "tono": "Tom",
+      "volumen": "Volume",
+      "emocion": "Emoção",
+      "emociones": {
+        "auto": "Auto",
+        "neutral": "Neutra",
+        "happy": "Alegre",
+        "sad": "Triste",
+        "angry": "Irritada",
+        "surprised": "Surpresa",
+        "fearful": "Temerosa",
+        "disgusted": "Enojada"
+      },
+      "estabilidad": "Estabilidade",
+      "similitud": "Similaridade",
+      "estilo": "Estilo",
+      "speakerBoost": "Speaker boost"
+    },
+    "clonacion": {
+      "titulo": "Clonagem de vozes",
+      "descripcion": "Clone sua voz no painel da DubVoice; depois ela aparece na aba Minimax com o filtro \"Só clonadas\".",
+      "abrirDashboard": "Abrir DubVoice"
+    },
+    "historial": {
+      "titulo": "Histórico de vozes",
+      "contador_one": "{{count}} narração",
+      "contador_other": "{{count}} narrações",
+      "recargar": "Recarregar histórico",
+      "buscar": "Buscar no histórico…",
+      "limpiar": "Limpar busca",
+      "vacio": "Você ainda não gerou narrações.",
+      "sinResultados": "Nada corresponde à busca.",
+      "eliminar": "Excluir narração",
+      "confirmarEliminar": "Excluir esta narração do histórico?",
+      "eliminada": "Narração excluída."
+    },
+    "player": {
+      "reproducir": "Reproduzir",
+      "pausar": "Pausar",
+      "posicion": "Posição"
+    },
+    "errores": {
+      "network": "Não foi possível conectar ao serviço de vozes. Verifique sua conexão.",
+      "invalidApiKey": "Sua chave da DubVoice é inválida ou expirou. Revise-a em Chaves de API.",
+      "rateLimited": "Muitas solicitações ao serviço de vozes. Espere um momento e tente de novo.",
+      "maintenance": "O serviço de vozes está em manutenção. Tente em alguns minutos ou use outro motor.",
+      "providerError": "O serviço de vozes retornou um erro. Tente de novo em alguns minutos.",
+      "generationFailed": "A geração falhou do lado do provedor. Tente outro texto ou outra voz.",
+      "timeout": "A geração demorou demais e foi cancelada. Tente de novo.",
+      "downloadFailed": "Não foi possível baixar o áudio gerado. Tente de novo.",
+      "emptyAudio": "O provedor retornou um áudio vazio. Tente outra voz.",
+      "textTooLong": "O texto ultrapassa o limite de caracteres do motor escolhido.",
+      "invalido": "A solicitação não é válida. Recarregue a tela e tente de novo.",
+      "missingApiKey": "Falta a chave da DubVoice. Configure-a em Chaves de API.",
+      "missingProjectsRoot": "Nenhuma pasta de projetos está configurada. Verifique os Ajustes.",
+      "cancelado": "Geração cancelada.",
+      "sidecar": "Não foi possível iniciar o motor local. Reinicie o aplicativo.",
+      "interrumpida": "A geração foi interrompida ao fechar o app. Os créditos podem ter sido descontados mesmo assim.",
+      "desconocido": "Algo falhou ao gerar a voz. Tente de novo."
+    }
+  },
   "apiKeys": {
     "pageTitle": "Chaves API — Vimo",
     "titulo": "Chaves API",

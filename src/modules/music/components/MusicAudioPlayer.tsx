@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pause, Play } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
-import { formatTime } from '@/modules/music/utilities/formatTime'
+import { formatTime } from '@/modules/common/utilities/formatTime'
 
 interface MusicAudioPlayerProps {
   src: string

@@ -231,6 +231,149 @@
       "desconocido": "Something went wrong. Try again."
     }
   },
+  "voices": {
+    "pageTitle": "Voices",
+    "titulo": "Voices",
+    "tagline": "Browse and try the voices for your videos",
+    "saldo": "Credits",
+    "soloEscritorio": "The voice catalog works in the desktop app.",
+    "faltaClave": "The DubVoice key is missing to list and generate voices.",
+    "irAClaves": "Go to API keys",
+    "cargando": "Loading voices… the first time can take a while.",
+    "notaEdge": "Edge voices have no provider sample: hear them by generating (they cost half).",
+    "tabs": {
+      "minimax": "Minimax",
+      "elevenlabs": "ElevenLabs",
+      "edge": "Edge",
+      "favorites": "Favorites"
+    },
+    "favoritos": {
+      "vacio": "You haven't starred any voices yet. Tap a voice's heart to keep it here."
+    },
+    "grilla": {
+      "contador": "Showing {{visible}} of {{total}} voices"
+    },
+    "filtros": {
+      "buscar": "Search voice…",
+      "limpiar": "Clear search",
+      "idioma": "Language",
+      "todosIdiomas": "All languages",
+      "idiomas": {
+        "es": "Spanish",
+        "en": "English",
+        "pt": "Portuguese",
+        "fr": "French",
+        "it": "Italian",
+        "de": "German",
+        "ru": "Russian",
+        "ja": "Japanese",
+        "zh": "Chinese"
+      },
+      "genero": {
+        "todos": "All",
+        "male": "Male",
+        "female": "Female"
+      },
+      "acento": "Accent",
+      "todosAcentos": "All accents",
+      "categoria": "Category",
+      "todasCategorias": "All categories",
+      "soloClones": "Cloned only",
+      "sinResultados": "No voice matches the filters."
+    },
+    "tarjeta": {
+      "clon": "Clone",
+      "reproducir": "Play sample",
+      "pausar": "Pause sample",
+      "favorito": "Add to favorites",
+      "quitarFavorito": "Remove from favorites"
+    },
+    "probador": {
+      "titulo": "Voice tester",
+      "vozElegida": "Selected voice: {{name}}",
+      "texto": "Text to narrate",
+      "placeholder": "Write the text you want to hear with this voice…",
+      "costoEstimado": "Estimated cost: {{n}} credits",
+      "limiteTexto": "{{chars}} / {{limit}}",
+      "modelo": "Model",
+      "generar": "Generate voice",
+      "generando": "Generating…",
+      "cancelar": "Cancel",
+      "progresoSegundos": "{{seconds}} s elapsed",
+      "resultado": "Result",
+      "cerrar": "Close",
+      "guardada": "The narration was saved to the history."
+    },
+    "modelos": {
+      "calidad": "quality",
+      "velocidad": "speed",
+      "balance": "balance"
+    },
+    "ajustes": {
+      "titulo": "Voice settings",
+      "restaurar": "Reset",
+      "velocidad": "Speed",
+      "tono": "Pitch",
+      "volumen": "Volume",
+      "emocion": "Emotion",
+      "emociones": {
+        "auto": "Auto",
+        "neutral": "Neutral",
+        "happy": "Happy",
+        "sad": "Sad",
+        "angry": "Angry",
+        "surprised": "Surprised",
+        "fearful": "Fearful",
+        "disgusted": "Disgusted"
+      },
+      "estabilidad": "Stability",
+      "similitud": "Similarity",
+      "estilo": "Style",
+      "speakerBoost": "Speaker boost"
+    },
+    "clonacion": {
+      "titulo": "Voice cloning",
+      "descripcion": "Clone your voice from the DubVoice dashboard; it then shows up in the Minimax tab under the \"Cloned only\" filter.",
+      "abrirDashboard": "Open DubVoice"
+    },
+    "historial": {
+      "titulo": "Voice history",
+      "contador_one": "{{count}} narration",
+      "contador_other": "{{count}} narrations",
+      "recargar": "Reload history",
+      "buscar": "Search the history…",
+      "limpiar": "Clear search",
+      "vacio": "You haven't generated narrations yet.",
+      "sinResultados": "Nothing matches the search.",
+      "eliminar": "Delete narration",
+      "confirmarEliminar": "Delete this narration from the history?",
+      "eliminada": "Narration deleted."
+    },
+    "player": {
+      "reproducir": "Play",
+      "pausar": "Pause",
+      "posicion": "Position"
+    },
+    "errores": {
+      "network": "Couldn't reach the voice service. Check your connection.",
+      "invalidApiKey": "Your DubVoice key is invalid or expired. Review it in API keys.",
+      "rateLimited": "Too many requests to the voice service. Wait a moment and try again.",
+      "maintenance": "The voice service is under maintenance. Try again in a few minutes or use another engine.",
+      "providerError": "The voice service returned an error. Try again in a few minutes.",
+      "generationFailed": "The generation failed on the provider side. Try another text or voice.",
+      "timeout": "The generation took too long and was cancelled. Try again.",
+      "downloadFailed": "The generated audio couldn't be downloaded. Try again.",
+      "emptyAudio": "The provider returned empty audio. Try another voice.",
+      "textTooLong": "The text exceeds the character limit of the selected engine.",
+      "invalido": "The request is not valid. Reload the screen and try again.",
+      "missingApiKey": "The DubVoice key is missing. Set it up in API keys.",
+      "missingProjectsRoot": "No projects folder is configured. Check Settings.",
+      "cancelado": "Generation cancelled.",
+      "sidecar": "The local engine couldn't start. Restart the app.",
+      "interrumpida": "The generation was interrupted when the app closed. Credits may still have been charged.",
+      "desconocido": "Something failed while generating the voice. Try again."
+    }
+  },
   "apiKeys": {
     "pageTitle": "API Keys — Vimo",
     "titulo": "API Keys",
