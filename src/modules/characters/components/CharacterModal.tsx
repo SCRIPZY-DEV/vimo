@@ -169,6 +169,7 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
             falModel={falModel}
             generating={preview.generating}
             percent={preview.percent}
+            hasProgress={preview.hasProgress}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingProviders.length > 0}
