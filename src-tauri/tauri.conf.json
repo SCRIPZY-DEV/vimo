@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "vimo",
+  "productName": "Vimo",
   "version": "0.1.0",
   "identifier": "click.vimo.portable",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm run build:sidecar && pnpm run dev",
-    "beforeBuildCommand": "pnpm run build:sidecar && pnpm run build"
+    "beforeDevCommand": "pnpm run fetch:binaries && pnpm run build:sidecar && pnpm run dev",
+    "beforeBuildCommand": "pnpm run fetch:binaries && pnpm run build:sidecar && pnpm run build"
   },
   "plugins": {
     "deep-link": {
@@ -39,7 +39,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/vimo-pipeline"],
+    "externalBin": [
+      "binaries/vimo-pipeline",
+      "binaries/ffmpeg",
+      "binaries/yt-dlp"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
