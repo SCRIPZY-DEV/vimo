@@ -1,3 +1,4 @@
+import { matchesVoiceSearch } from '@/modules/common/utilities/matchesVoiceSearch'
 import { languageMatches } from './languageMatches'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
 import type { VoiceFilterState } from '../types/voices'
@@ -11,19 +12,14 @@ export function filterVoices(
   filters: VoiceFilterState,
   options: { serverFiltered: boolean },
 ): VoiceSummary[] {
-  const search = filters.search.trim().toLowerCase()
-
   return voices.filter((voice) => {
     if (filters.accent && voice.accent !== filters.accent) return false
     if (filters.category && voice.category !== filters.category) return false
     if (filters.onlyClones && !voice.isClone) return false
     if (options.serverFiltered) return true
 
-    if (search) {
-      const searchableText =
-        `${voice.name} ${voice.voiceId} ${voice.language ?? ''}`.toLowerCase()
-      if (!searchableText.includes(search)) return false
-    }
+    if (!matchesVoiceSearch(voice, filters.search)) return false
+
     if (
       filters.language &&
       !(voice.language && languageMatches(voice.language, filters.language))
