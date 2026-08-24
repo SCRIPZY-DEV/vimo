@@ -4,7 +4,10 @@ import type {
   ImageProviderId,
 } from '@pipeline/types/image-provider.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
-import type { CharacterFrequency } from '@pipeline/types/video-project.ts'
+import type {
+  BgmMode,
+  CharacterFrequency,
+} from '@pipeline/types/video-project.ts'
 import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
 
@@ -50,6 +53,12 @@ export const PIPELINE_STAGES: { id: StageId; labelKey: string }[] = [
   { id: 'scene-prompts', labelKey: 'create.stages.scenePrompts' },
   { id: 'images', labelKey: 'create.stages.images' },
   { id: 'render', labelKey: 'create.stages.render' },
+]
+
+// Origen de la música de fondo: generada con IA o extraída de un YouTube.
+export const BGM_MODES: { id: BgmMode; labelKey: string }[] = [
+  { id: 'evolink-ai', labelKey: 'create.music.modeAi' },
+  { id: 'youtube', labelKey: 'create.music.modeYoutube' },
 ]
 
 // Estilos visuales del video (mismo dataset que el preview de personajes).
