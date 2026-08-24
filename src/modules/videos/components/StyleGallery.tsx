@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { SelectableCard } from '@/modules/common/components/SelectableCard'
 import { Label } from '@/modules/common/ui/label'
-import { cn } from '@/modules/common/utilities/cn'
 import { VIDEO_STYLES } from '@/modules/videos/constants'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 
@@ -20,23 +20,17 @@ export function StyleGallery({ value, disabled, onChange }: StyleGalleryProps) {
         {VIDEO_STYLES.map((style) => {
           const isSelected = style.id === value
           return (
-            <button
+            <SelectableCard
               key={style.id}
-              type="button"
+              selected={isSelected}
               disabled={disabled}
               onClick={() => onChange(style.id)}
-              className={cn(
-                'rounded-xl border-2 bg-card px-3 py-3 text-center transition-colors',
-                isSelected
-                  ? 'border-saffron bg-saffron/10'
-                  : 'border-border hover:border-saffron/40',
-                disabled && 'pointer-events-none opacity-60',
-              )}
+              className="text-center"
             >
               <span className="font-display text-sm font-bold text-foreground">
                 {t(style.labelKey)}
               </span>
-            </button>
+            </SelectableCard>
           )
         })}
       </div>
