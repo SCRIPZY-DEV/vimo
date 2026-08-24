@@ -3,7 +3,7 @@ import { RotateCcw } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { Switch } from '@/modules/common/ui/switch'
 import { cn } from '@/modules/common/utilities/cn'
-import { SliderRow } from '@/modules/voices/components/SliderRow'
+import { SliderRow } from '@/modules/common/components/SliderRow'
 import {
   MINIMAX_EMOTIONS,
   VOICE_SETTINGS_DEFAULTS,
