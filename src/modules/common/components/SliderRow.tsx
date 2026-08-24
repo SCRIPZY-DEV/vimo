@@ -9,7 +9,8 @@ interface SliderRowProps {
   onChange: (value: number) => void
 }
 
-// Fila de ajuste numérico (etiqueta + range + valor) usada por VoiceSettingsPanel.
+// Fila de ajuste numérico (etiqueta + range + valor) reutilizada por los
+// paneles de ajustes de voz.
 export function SliderRow({
   id,
   label,
