@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2, Music2, RotateCcw, Sparkles, Wallet, X } from 'lucide-react'
-import { ProgressBar } from '@/modules/common/components/ProgressBar'
+import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
@@ -201,19 +201,17 @@ export function Music() {
 
         {generating && task && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between font-body text-sm text-muted-foreground">
-              <span>
-                {task.elapsedSeconds !== null
+            <LabeledProgress
+              className="space-y-2"
+              label={
+                task.elapsedSeconds !== null
                   ? t('music.progresoSegundos', {
                       seconds: task.elapsedSeconds,
                     })
-                  : t('music.generando')}
-              </span>
-              <span className="tabular-nums">
-                {Math.round(task.progressPercent)}%
-              </span>
-            </div>
-            <ProgressBar percent={task.progressPercent} />
+                  : t('music.generando')
+              }
+              percent={task.progressPercent}
+            />
             {task.estimatedCredits !== null && task.estimatedCredits > 0 && (
               <p className="font-body text-xs text-muted-foreground">
                 {t('music.creditosEstimados', { n: task.estimatedCredits })}
