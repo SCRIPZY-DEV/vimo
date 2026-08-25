@@ -1,0 +1,206 @@
+import { rm } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
+
+import { renameAtomic, writeFileAtomic } from '../../utils/atomic-fs.ts'
+import {
+  measureDurationSeconds,
+  measureExactDurationSeconds,
+} from '../../utils/media-duration.ts'
+import { FRAME_HEIGHT, FRAME_WIDTH, PAD_MARGIN_SECONDS } from './constants.ts'
+import { runRenderFfmpeg } from './render-ffmpeg.ts'
+
+// Concat de chunks + mezcla final (port de concatenarChunks +
+// mezclarAudioYColor): el demuxer concat pega los chunks SIN re-encode; la
+// mezcla padea el video a la duración REAL del audio (tpad clonando el
+// último frame — la voz jamás se corta), superpone el overlay
+// (blend=screen), aplica el filtro de color del estilo y mezcla voz + BGM.
+// La duración de salida va EXPLÍCITA con `-t` (NUNCA -shortest: con
+// filter_complex es no determinístico y recortaba la voz — bug pagado).
+
+export async function concatChunks(
+  ffmpegPath: string,
+  chunkFiles: string[],
+  outputFile: string,
+  options: {
+    totalSeconds?: number
+    onProgress?(fraction: number): void
+    signal?: AbortSignal
+  } = {},
+): Promise<void> {
+  // Rutas ABSOLUTAS con / (el demuxer resuelve relativo a la lista; en
+  // Windows los backslashes lo rompen).
+  const concatList = chunkFiles
+    .map(
+      (chunk) =>
+        `file '${resolve(chunk).replace(/\\/g, '/').replace(/'/g, "'\\''")}'`,
+    )
+    .join('\n')
+  const listFile = join(dirname(outputFile), 'concat_list.txt')
+  await writeFileAtomic(listFile, concatList)
+
+  await runRenderFfmpeg(
+    ffmpegPath,
+    [
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      listFile,
+      '-c',
+      'copy',
+      '-y',
+      outputFile,
+    ],
+    'chunk concat',
+    options,
+  )
+}
+
+export interface FinalMixInputs {
+  silentVideoFile: string
+  narrationFile: string
+  // Solo si el proyecto los tiene y el archivo es válido.
+  musicFile?: string
+  overlayFile?: string
+  // Cadena de filtros de color del estilo ("" = natural).
+  colorFilter: string
+  voiceVolume?: number
+  musicVolume?: number
+}
+
+function clampVolume(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.max(0, Math.min(2, value))
+}
+
+export async function mixFinalVideo(
+  ffmpegPath: string,
+  inputs: FinalMixInputs,
+  outputFile: string,
+  options: {
+    totalSeconds?: number
+    onProgress?(fraction: number): void
+    signal?: AbortSignal
+  } = {},
+): Promise<void> {
+  // La medición decodifica el audio ENTERO y puede tardar: 0% explícito antes
+  // para que la barra no quede muda.
+  options.onProgress?.(0)
+
+  const ffmpegInputs: string[] = ['-i', inputs.silentVideoFile]
+  const colorChain =
+    inputs.colorFilter.trim().length > 0 ? inputs.colorFilter : 'null'
+
+  ffmpegInputs.push('-i', inputs.narrationFile)
+  const voiceIndex = 1
+  let nextIndex = 2
+
+  let overlayIndex = -1
+  if (inputs.overlayFile) {
+    // Loop a nivel DEMUXER (-stream_loop -1 antes del -i): el filtro loop
+    // buffeaba cientos de frames 1080p decodificados en RAM (~2.3 GB).
+    ffmpegInputs.push('-stream_loop', '-1', '-i', inputs.overlayFile)
+    overlayIndex = nextIndex++
+  }
+
+  let musicIndex = -1
+  if (inputs.musicFile) {
+    ffmpegInputs.push('-stream_loop', '-1', '-i', inputs.musicFile)
+    musicIndex = nextIndex
+  }
+
+  // Padear el video a la duración REAL del audio: el audio maestro suele
+  // durar más que el último timestamp (cola/silencio del TTS). El audio se
+  // mide DECODIFICANDO (header VBR miente); el video mudo es CFR y su header
+  // es fiable.
+  const audioSeconds = await measureExactDurationSeconds(
+    ffmpegPath,
+    inputs.narrationFile,
+  )
+  const measuredVideoSeconds = await measureDurationSeconds(
+    ffmpegPath,
+    inputs.silentVideoFile,
+  )
+  const videoSeconds =
+    measuredVideoSeconds > 0
+      ? measuredVideoSeconds
+      : (options.totalSeconds ?? 0)
+
+  let padSeconds: number
+  if (audioSeconds > 0) {
+    padSeconds = Math.max(0, audioSeconds - videoSeconds) + PAD_MARGIN_SECONDS
+  } else {
+    // Audio inmedible (caso raro, archivo dañado): pad fijo generoso para no
+    // cortar la voz.
+    padSeconds = 8.0
+  }
+  const outputSeconds = videoSeconds + padSeconds
+
+  let filter = `[0:v]tpad=stop_mode=clone:stop_duration=${padSeconds.toFixed(3)}[vpad];`
+  if (overlayIndex >= 0) {
+    filter +=
+      `[${overlayIndex}:v]scale=${FRAME_WIDTH}:${FRAME_HEIGHT},setpts=PTS-STARTPTS[ovl];` +
+      `[vpad][ovl]blend=all_mode=screen:shortest=1[blended];` +
+      `[blended]${colorChain}[finalvideo];`
+  } else {
+    filter += `[vpad]${colorChain}[finalvideo];`
+  }
+
+  const voiceVolume = clampVolume(inputs.voiceVolume ?? 1.0, 1.0)
+  const musicVolume = clampVolume(inputs.musicVolume ?? 0.15, 0.15)
+
+  // `apad` rellena el audio con silencio para que nunca termine antes que el
+  // video; `-t` fija la duración exacta.
+  if (musicIndex >= 0) {
+    filter +=
+      `[${voiceIndex}:a]volume=${voiceVolume}[vozn];` +
+      `[${musicIndex}:a]volume=${musicVolume}[bgmlow];` +
+      `[vozn][bgmlow]amix=inputs=2:duration=first:dropout_transition=2,apad[finalaudio]`
+  } else {
+    filter += `[${voiceIndex}:a]volume=${voiceVolume},apad[finalaudio]`
+  }
+
+  // Se mezcla a un TEMPORAL y rename atómico: ffmpeg con -y TRUNCA el output
+  // al abrirlo — sin esto, un render interrumpido dejaba el video anterior
+  // (que estaba perfecto) en 0 bytes.
+  const temporaryFile = join(
+    dirname(outputFile),
+    `.${basename(outputFile)}.render-tmp.mp4`,
+  )
+  try {
+    await runRenderFfmpeg(
+      ffmpegPath,
+      [
+        ...ffmpegInputs,
+        '-filter_complex',
+        filter,
+        '-map',
+        '[finalvideo]',
+        '-map',
+        '[finalaudio]',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '23',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '192k',
+        '-t',
+        outputSeconds.toFixed(3),
+        '-y',
+        temporaryFile,
+      ],
+      'final mix',
+      options,
+    )
+    await renameAtomic(temporaryFile, outputFile)
+  } catch (error) {
+    // El temp parcial se descarta; el video anterior queda intacto.
+    await rm(temporaryFile, { force: true })
+    throw error
+  }
+}
