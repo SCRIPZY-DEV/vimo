@@ -15,7 +15,7 @@ import DoodleLightbulb from '@/modules/common/doodles/DoodleLightbulb'
 import DoodleVoice from '@/modules/common/doodles/DoodleVoice'
 import DoodleCoin from '@/modules/common/doodles/DoodleCoin'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
-import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
+import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 
 export const NAV_ITEMS: SidebarNavItem[] = [
   {
@@ -32,7 +32,7 @@ export const NAV_ITEMS: SidebarNavItem[] = [
   {
     route: CharactersRoutes.characters,
     labelKey: 'layout.nav.personajes',
-    Icon: DoodlePersonaje,
+    Icon: DoodleCharacter,
   },
   {
     route: VoicesRoutes.voices,
