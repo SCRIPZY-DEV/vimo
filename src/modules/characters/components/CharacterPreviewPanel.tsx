@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Check, ImageIcon, Loader2, Sparkles, X } from 'lucide-react'
+import { ProgressBar } from '@/modules/common/components/ProgressBar'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
@@ -180,12 +181,7 @@ export function CharacterPreviewPanel({
 
       {generating && (
         <div className="flex items-center gap-3">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-saffron transition-all"
-              style={{ width: `${Math.min(100, Math.max(4, percent))}%` }}
-            />
-          </div>
+          <ProgressBar percent={percent} minPercent={4} className="flex-1" />
           {/* Ancho fijo y tabular-nums: el número cambia sin correr la barra. */}
           {hasProgress && (
             <span className="w-10 shrink-0 text-right font-body text-sm tabular-nums text-muted-foreground">
