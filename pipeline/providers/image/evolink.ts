@@ -24,16 +24,16 @@ import { downloadImage } from './download.ts'
 // El reuso de tareas ya pagadas entre corridas (hash del pedido persistido en
 // la escena) llega con la stage `images` de Create: un preview no persiste
 // tarea, así que acá no aplica.
-const EVOLINK_BASE_URL = 'https://api.evolink.ai'
+export const EVOLINK_BASE_URL = 'https://api.evolink.ai'
 const IMAGE_MODEL = 'gpt-image-2'
 
-const ORDER_DEADLINE_MS = 210_000
+export const ORDER_DEADLINE_MS = 210_000
 const POLL_INTERVAL_MS = 5000
 const POLL_REQUEST_TIMEOUT_MS = 15_000
 const MAX_ORDERS = 3
 
 // Fallos de tarea que sí conviene re-encargar: la tarea fallida no se cobró.
-const RETRYABLE_TASK_ERRORS = new Set([
+export const RETRYABLE_TASK_ERRORS = new Set([
   'generation_failed_no_content',
   'service_error',
   'generation_timeout',
@@ -49,7 +49,7 @@ const CONTENT_POLICY_PATTERN =
 
 // Fallo de un encargo que amerita crear otro (nunca se re-encarga a ciegas:
 // solo cuando el proveedor dijo explícitamente que esta tarea falló).
-class RetryableOrderError extends Error {
+export class RetryableOrderError extends Error {
   readonly reason: string
 
   constructor(reason: string) {
@@ -59,14 +59,14 @@ class RetryableOrderError extends Error {
   }
 }
 
-function authHeaders(apiKey: string): Record<string, string> {
+export function authHeaders(apiKey: string): Record<string, string> {
   return {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   }
 }
 
-interface OrderDeadline {
+export interface OrderDeadline {
   signal: AbortSignal
   expired(): boolean
   close(): void
@@ -77,7 +77,7 @@ interface OrderDeadline {
  * cuál de los dos disparó: un plazo vencido va a verificación final, una
  * cancelación pedida sale como `cancelled`.
  */
-function startOrderDeadline(parent?: AbortSignal): OrderDeadline {
+export function startOrderDeadline(parent?: AbortSignal): OrderDeadline {
   const controller = new AbortController()
   let deadlineExpired = false
 
@@ -100,7 +100,7 @@ function startOrderDeadline(parent?: AbortSignal): OrderDeadline {
   }
 }
 
-function isContentPolicy(code: string, message: string): boolean {
+export function isContentPolicy(code: string, message: string): boolean {
   return CONTENT_POLICY_PATTERN.test(`${code} ${message}`.toLowerCase())
 }
 
@@ -118,6 +118,81 @@ function taskFailure(error: { code?: string; message?: string }): never {
     'image_provider_error',
     `Evolink task failed: [${code}] ${message.slice(0, 200)}`,
   )
+}
+
+// Creación de tarea con cuerpo A MEDIDA (calidad del proyecto, referencias
+// de personaje): la usa el carril de escenas de Create. Sin timeout propio —
+// solo el plazo del encargo y la cancelación (regla de oro de proveedores
+// pagos). Un 429 sale como `image_rate_limited` con el retry-after en el
+// mensaje para que el caller espere lo que el proveedor pide.
+export async function createEvolinkImageTask(
+  body: Record<string, unknown>,
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const response = await fetch(`${EVOLINK_BASE_URL}/v1/images/generations`, {
+    method: 'POST',
+    headers: authHeaders(apiKey),
+    body: JSON.stringify(body),
+    signal,
+  }).catch((error: unknown) => {
+    if (signal.aborted) throw error
+    throw new PipelineFailure('image_network', 'Evolink create request failed')
+  })
+
+  if (response.status === 401 || response.status === 403)
+    throw new PipelineFailure(
+      'image_invalid_api_key',
+      `Evolink rejected the API key (status=${response.status})`,
+    )
+  if (response.status === 429)
+    throw new PipelineFailure(
+      'image_rate_limited',
+      response.headers.get('retry-after') ?? '3',
+    )
+  if (!response.ok)
+    throw new PipelineFailure(
+      'image_provider_error',
+      `Evolink create failed (status=${response.status})`,
+    )
+
+  const data = (await response.json()) as EvolinkImageCreateResponse
+  if (!data.id)
+    throw new PipelineFailure(
+      'image_provider_error',
+      'Evolink create returned no task id',
+    )
+
+  return data.id
+}
+
+// Sube la referencia de un personaje a la file-API de Evolink UNA vez y
+// devuelve su URL pública (vive 72h; sobra para una corrida). null si falla:
+// el caller cae al carril normal.
+export async function uploadEvolinkReference(
+  imageDataUri: string,
+  apiKey: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      'https://files-api.evolink.ai/api/v1/files/upload/base64',
+      {
+        method: 'POST',
+        headers: authHeaders(apiKey),
+        body: JSON.stringify({
+          base64_data: imageDataUri,
+          file_name: 'character_reference.jpg',
+        }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    )
+    if (!response.ok) return null
+    const data = (await response.json()) as { data?: { file_url?: string } }
+    const url = data.data?.file_url
+    return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null
+  } catch {
+    return null
+  }
 }
 
 async function createTask(
@@ -165,7 +240,7 @@ async function createTask(
   return data.id
 }
 
-async function pollTask(
+export async function pollTask(
   taskId: string,
   apiKey: string,
   order: OrderDeadline,
@@ -242,7 +317,7 @@ function firstResultUrl(data: EvolinkImageTaskResponse): string | null {
   return null
 }
 
-interface FinalCheck {
+export interface FinalCheck {
   url?: string
   error?: { code?: string; message?: string }
 }
@@ -251,7 +326,7 @@ interface FinalCheck {
  * Verificación FINAL (regla c): una única consulta a la tarea en curso antes de
  * darla por perdida. Devuelve null si sigue viva o si no se pudo consultar.
  */
-async function inspectTask(
+export async function inspectTask(
   taskId: string,
   apiKey: string,
 ): Promise<FinalCheck | null> {
@@ -333,4 +408,18 @@ export async function generateEvolinkImage(
     'image_provider_error',
     `Evolink failed after ${MAX_ORDERS} orders (${lastReason})`,
   )
+}
+
+export type EvolinkQuality = 'low' | 'medium' | 'high'
+
+// Evolink solo expone gpt-image-2 a 16:9 1K: de la opción solo importa la
+// calidad (sufijo); sin sufijo reconocible cae a "low".
+export function evolinkQualityFromOption(
+  qualityOption: string | undefined,
+): EvolinkQuality {
+  const parts = (qualityOption ?? '').split('_')
+  const suffix = parts[parts.length - 1]
+  if (suffix === 'low' || suffix === 'medium' || suffix === 'high')
+    return suffix
+  return 'low'
 }
