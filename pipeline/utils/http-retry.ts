@@ -1,0 +1,42 @@
+// Espera antes de reintentar un 429, en orden de confianza: `retry_after` /
+// `retryIn` del body (segundos) → headers `Retry-After` / `x-ratelimit-reset`
+// (segundos) → backoff exponencial. Siempre +1s de buffer y cap de 120s
+// (criterio del origen, fijado por DubVoice y reusado por el resto).
+const RATE_LIMIT_BASE_DELAY_MS = 2000
+const RATE_LIMIT_BUFFER_MS = 1000
+const RATE_LIMIT_MAX_DELAY_MS = 120_000
+
+function secondsFromBody(bodyText: string): number | undefined {
+  try {
+    const parsed = JSON.parse(bodyText) as {
+      retry_after?: number
+      retryIn?: number
+    }
+    return parsed.retry_after ?? parsed.retryIn
+  } catch {
+    return undefined
+  }
+}
+
+function secondsFromHeaders(response: Response): number | undefined {
+  for (const header of ['retry-after', 'x-ratelimit-reset']) {
+    const seconds = Number(response.headers.get(header))
+    if (Number.isFinite(seconds) && seconds > 0) return seconds
+  }
+
+  return undefined
+}
+
+export function rateLimitDelayMs(
+  response: Response,
+  bodyText: string,
+  attempt: number,
+): number {
+  const seconds = secondsFromBody(bodyText) ?? secondsFromHeaders(response)
+  const base =
+    seconds !== undefined
+      ? seconds * 1000
+      : RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt
+
+  return Math.min(base + RATE_LIMIT_BUFFER_MS, RATE_LIMIT_MAX_DELAY_MS)
+}
