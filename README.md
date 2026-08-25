@@ -127,18 +127,21 @@ pnpm tauri dev    # aplicación nativa, con recarga en caliente
 
 ## Comandos
 
-| Comando              | Qué hace                                                           |
-| -------------------- | ------------------------------------------------------------------ |
-| `pnpm dev`           | Servidor de desarrollo de Vite en el puerto 5173                   |
-| `pnpm build`         | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/`      |
-| `pnpm preview`       | Sirve el bundle ya construido                                      |
-| `pnpm lint`          | ESLint sobre todo el repositorio                                   |
-| `pnpm lint:fix`      | ESLint aplicando las correcciones automáticas                      |
-| `pnpm format`        | Prettier sobre todo el repositorio                                 |
-| `pnpm pipeline`      | Corre el sidecar del pipeline por CLI (harness manual)             |
-| `pnpm build:sidecar` | Empaqueta el sidecar como binario único (Node SEA → `externalBin`) |
-| `pnpm tauri dev`     | Aplicación nativa en modo desarrollo                               |
-| `pnpm tauri build`   | Compila los instaladores nativos de la plataforma actual           |
+| Comando                 | Qué hace                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`              | Servidor de desarrollo de Vite en el puerto 5173                                                            |
+| `pnpm build`            | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/`                                               |
+| `pnpm preview`          | Sirve el bundle ya construido                                                                               |
+| `pnpm lint`             | ESLint sobre todo el repositorio                                                                            |
+| `pnpm lint:fix`         | ESLint aplicando las correcciones automáticas                                                               |
+| `pnpm format`           | Prettier sobre todo el repositorio                                                                          |
+| `pnpm pipeline`         | Corre el sidecar crudo: el `PipelineJob` va por stdin, a mano                                               |
+| `pnpm pipeline:harness` | Ejecuta un subcomando del sidecar armando el job por vos ([ver abajo](#probar-el-pipeline-por-cli-harness)) |
+| `pnpm build:sidecar`    | Empaqueta el sidecar como binario único (Node SEA → `externalBin`)                                          |
+| `pnpm fetch:binaries`   | Descarga ffmpeg y yt-dlp pineados a `src-tauri/binaries/`                                                   |
+| `pnpm check:locales`    | Verifica que `es`, `en` y `pt` declaren exactamente las mismas claves                                       |
+| `pnpm tauri dev`        | Aplicación nativa en modo desarrollo                                                                        |
+| `pnpm tauri build`      | Compila los instaladores nativos de la plataforma actual                                                    |
 
 Antes de dar por terminado un cambio: `pnpm format`, `pnpm lint` y `pnpm build`, en ese
 orden. Los tres deben pasar.
@@ -167,6 +170,186 @@ dist/                      bundle de la interfaz
 Cada quien genera el binario para SU plataforma al compilar (el target triple sale
 de `rustc`, o de `TAURI_ENV_TARGET_TRIPLE` dentro de los hooks de Tauri). Detalles
 del proceso en [scripts/build-sidecar.mjs](scripts/build-sidecar.mjs).
+
+## Probar el pipeline por CLI (harness)
+
+Hasta el render, nada del pipeline depende de Tauri ([ADR-0010](docs/adr/ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)):
+**cualquier subcomando del sidecar se puede ejecutar desde la terminal**, sin abrir la
+app. Es la vía rápida para probar un cambio sin pasar por el formulario.
+
+[scripts/run-pipeline-harness.mjs](scripts/run-pipeline-harness.mjs) arma a mano el
+`PipelineJob` que normalmente construye Rust —claves, raíz de proyectos, rutas de
+binarios— y se lo escribe por stdin a `node pipeline/main.ts <subcomando>`:
+
+```bash
+pnpm pipeline:harness <subcomando> [--payload '<json>'] [--root <dir>] [--keys <archivo>]
+```
+
+| Flag        | Default              | Para qué                                                               |
+| ----------- | -------------------- | ---------------------------------------------------------------------- |
+| `--payload` | sin payload          | El JSON propio del subcomando, entre comillas simples                  |
+| `--root`    | `~/Documents/Vimo`   | Raíz de proyectos (ADR-0009): debajo viven los proyectos y `_history/` |
+| `--keys`    | `.harness-keys.json` | Archivo con las claves BYO del usuario                                 |
+
+**Antes de la primera corrida:**
+
+- Las claves van en un `.harness-keys.json` en la raíz del repo (gitignoreado), con los
+  ids del catálogo de proveedores:
+
+  ```json
+  {
+    "deepinfra": "...",
+    "fal": "...",
+    "evolink": "...",
+    "dubvoice": "...",
+    "elevenlabs": "...",
+    "deepgram": "..."
+  }
+  ```
+
+  Si el archivo no existe, el harness sigue con `{}`: alcanza para todo lo que no llama a
+  un proveedor (los listados, el estado de un proyecto, crear un proyecto, `ping`).
+
+- `ffmpeg` y `yt-dlp` salen de `src-tauri/binaries/` —los **mismos** que empaqueta Tauri,
+  nunca los del PATH—. Si la carpeta está vacía: `pnpm fetch:binaries`.
+
+**Lo que sale por stdout** es una línea NDJSON por evento, idéntica a la que la UI recibe
+por el `Channel`. Todo job abre con `job-started` y cierra con `job-completed` (exit 0) o
+`job-failed` (exit 1):
+
+```
+{"type":"job-started","jobId":"harness-1770000000000"}
+{"type":"job-completed","result":{"projectId":"mi-video"},"jobId":"harness-1770000000000"}
+{"type":"job-failed","code":"invalid_payload","message":"payload.sceneCount must be an integer between 1 and 500", ...}
+```
+
+> [!NOTE]
+> El harness **no manda mensajes de control**, así que no se puede cancelar un job a
+> mitad como hace la app con `cancel_pipeline_job`. Para cortar, Ctrl-C.
+
+### Contrato
+
+`ping` devuelve el payload que recibió: la comprobación más barata de que el sidecar
+arranca y el job se parsea bien.
+
+```bash
+pnpm pipeline:harness ping --payload '{"hola":"mundo"}'
+```
+
+### Videos
+
+| Subcomando             | Claves y binarios que necesita                                                                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create-video-project` | ninguna (solo escribe disco)                                                                                                                                               |
+| `upload-narration`     | `ffmpeg`, solo si el audio no es `.mp3`                                                                                                                                    |
+| `run-video-pipeline`   | según las stages: `dubvoice`/`elevenlabs` (voz), `deepgram` (transcripción), `deepinfra` (prompts), `fal` o `evolink` (imágenes), `evolink` (BGM IA) · `ffmpeg` y `yt-dlp` |
+| `video-project-status` | ninguna                                                                                                                                                                    |
+| `confirm-scenes`       | ninguna                                                                                                                                                                    |
+| `probe-tts`            | `dubvoice`                                                                                                                                                                 |
+
+```bash
+# Crea <root>/<slug>/ con project.json en estado draft y devuelve { projectId, projectDir }.
+# name ≤ 80 · sceneCount entero 0-500 (0 = automática) · script obligatorio con narrationMode "tts".
+# styleId: normal | pov_stickman | cartoon | fantasia | terror
+pnpm pipeline:harness create-video-project --payload '{
+  "name": "Mi video de prueba",
+  "script": "Hace mil años, en un pueblo olvidado, vivía un relojero.",
+  "options": {
+    "styleId": "cartoon",
+    "sceneCount": 0,
+    "narrationMode": "tts",
+    "voiceProvider": "minimax",
+    "voiceId": "Spanish_SereneWoman",
+    "imageProvider": "evolink",
+    "useBgm": false,
+    "useOverlay": false,
+    "confirmScenes": true
+  }
+}'
+
+# Copia (o transcodifica con ffmpeg) el audio del usuario a narration.mp3. Ruta absoluta.
+pnpm pipeline:harness upload-narration --payload '{"projectId":"mi-video-de-prueba","audioPath":"/ruta/absoluta/narracion.wav"}'
+
+# El job largo. untilStage corta el recorrido y es lo que hace útil al harness:
+# voice → transcription → scene-cuts → scene-prompts → images → render.
+pnpm pipeline:harness run-video-pipeline --payload '{"projectId":"mi-video-de-prueba","untilStage":"scene-cuts"}'
+
+# Lee project.json y el resumen de escenas del disco.
+pnpm pipeline:harness video-project-status --payload '{"projectId":"mi-video-de-prueba"}'
+
+# Resuelve la pausa awaiting-scene-confirmation. sceneCount entero 1-500.
+pnpm pipeline:harness confirm-scenes --payload '{"projectId":"mi-video-de-prueba","sceneCount":12}'
+
+# Pre-flight del proveedor TTS. Nunca falla el job: responde { ok, reason }.
+pnpm pipeline:harness probe-tts --payload '{"provider":"minimax"}'
+```
+
+Relanzar `run-video-pipeline` sobre el mismo proyecto **retoma donde quedó**: cada stage
+se saltea si su artefacto en disco es válido. Ese es el mismo camino del botón «Reanudar»
+de la app.
+
+### Voces
+
+`list-voices`, `generate-voice` y `get-voice-credits` necesitan la clave `dubvoice`; los
+dos de historial solo leen y borran disco bajo `<root>/_history/voices/`.
+
+```bash
+# Catálogo unificado. filters es opcional; page solo es significativo para elevenlabs.
+pnpm pipeline:harness list-voices --payload '{"provider":"minimax","filters":{"language":"Spanish","gender":"female"}}'
+
+# Sintetiza y guarda la entrada en el historial. text ≤ 4500 chars.
+# En minimax el voiceId es SIEMPRE el id largo ("Spanish_SereneWoman"): el corto da 500.
+pnpm pipeline:harness generate-voice --payload '{"provider":"minimax","voiceId":"Spanish_SereneWoman","text":"Hola, esto es una prueba.","settings":{"speed":1,"pitch":0}}'
+
+pnpm pipeline:harness get-voice-credits
+pnpm pipeline:harness voice-history-list
+pnpm pipeline:harness voice-history-delete --payload '{"id":"<id-del-historial>"}'
+```
+
+### Música
+
+`suggest-music-prompt` usa `deepinfra`; `generate-music` y `get-music-credits`, `evolink`.
+`choose-music` solo descarga la URL que ya devolvió la generación.
+
+```bash
+# Propone un prompt de música a partir del guion (LLM).
+pnpm pipeline:harness suggest-music-prompt --payload '{"script":"Hace mil años, en un pueblo olvidado..."}'
+
+# OJO: acá el payload ES MusicGenerationParams, sin anidar bajo otra clave.
+# Emite eventos `progress` mientras Suno trabaja.
+pnpm pipeline:harness generate-music --payload '{"prompt":"epic orchestral, cinematic","instrumental":true}'
+
+# Baja la opción elegida a <root>/_history/music/<id>/. option.audioUrl sale de generate-music.
+pnpm pipeline:harness choose-music --payload '{"option":{"audioUrl":"https://.../track.mp3","title":"Take 1"},"prompt":"epic orchestral, cinematic","name":"intro epica","instrumental":true}'
+
+pnpm pipeline:harness get-music-credits
+pnpm pipeline:harness music-history-list
+pnpm pipeline:harness music-history-delete --payload '{"id":"<id-del-historial>"}'
+```
+
+### Personajes
+
+El CRUD de la biblioteca (`<root>/characters/`) no necesita claves. `suggest-character-profile`
+usa `deepinfra` y `generate-character-preview` usa `fal` o `evolink`, según el `provider`.
+
+```bash
+pnpm pipeline:harness characters-list
+
+# description ≥ 10 chars: la identidad va en inglés y NEUTRA de estilo (el estilo se
+# aplica aparte al generar cada imagen).
+pnpm pipeline:harness character-create --payload '{"name":"Elena","description":"a young watchmaker with short red hair and round glasses","age":"28","role":"protagonist"}'
+
+# Solo los campos que mandes se tocan; el id sale de characters-list.
+pnpm pipeline:harness character-update --payload '{"id":"elena-a1b2c3","role":"antagonist"}'
+pnpm pipeline:harness character-delete --payload '{"id":"elena-a1b2c3"}'
+
+# Sin clave de deepinfra (o sin datos suficientes) responde un fallback armado a mano.
+pnpm pipeline:harness suggest-character-profile --payload '{"name":"Elena","role":"watchmaker","script":"Hace mil años..."}'
+
+# Una imagen del personaje en el estilo elegido; devuelve { dataUri, finalPrompt }.
+# provider fal admite además falModel: gpt-image-2 | flux-schnell
+pnpm pipeline:harness generate-character-preview --payload '{"identityPrompt":"a young watchmaker with short red hair","styleId":"cartoon","provider":"evolink"}'
+```
 
 ## Estructura
 

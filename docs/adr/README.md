@@ -44,20 +44,21 @@ the code already explains. An ADR nobody will consult is just noise.
 
 ## Index
 
-| ADR                                                                        | Title                                                             | Status                   | Area         |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ | ------------ |
-| [ADR-0012](ADR-0012-primitivas-del-runner-y-contratos-cerrados.md)         | Runner primitives and closed contracts in the pipeline            | Propuesta                | pipeline     |
-| [ADR-0011](ADR-0011-claves-api-en-keychain-con-fuente-abstracta.md)        | API keys in the OS keychain behind an abstract source             | Aceptada                 | seguridad    |
-| [ADR-0010](ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)        | Pipeline as staged Node sidecar and module-by-module migration    | Aceptada                 | pipeline     |
-| [ADR-0009](ADR-0009-preferencias-nativas-y-carpeta-raiz.md)                | Native preferences via official plugins and single projects root  | Aceptada                 | app          |
-| [ADR-0008](ADR-0008-catalogo-de-costos-local.md)                           | Cost catalog as a local client dataset                            | Aceptada                 | app          |
-| [ADR-0007](ADR-0007-invoke-reemplaza-al-servidor-local.md)                 | Tauri's invoke() replaces the local server                        | Aceptada                 | distribución |
-| [ADR-0006](ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md) | Auth: dual OAuth flow (web/deep link) and router-loader gate      | Aceptada                 | app          |
-| [ADR-0005](ADR-0005-layouts-explicitos-y-modulos-base.md)                  | Explicit layouts (Authenticated/Guest) and base modules           | Aceptada                 | app          |
-| [ADR-0004](ADR-0004-i18n-con-i18next.md)                                   | i18n with i18next and per-language JSON catalogs                  | Aceptada                 | app          |
-| [ADR-0003](ADR-0003-fundaciones-de-la-interfaz.md)                         | Interface foundations: port the original app's common layer       | Aceptada (i18n → 0004)   | app          |
-| [ADR-0002](ADR-0002-servidor-local-como-sidecar-de-tauri.md)               | The local server ships as a Tauri sidecar                         | Reemplazada por ADR-0007 | distribución |
-| [ADR-0001](ADR-0001-separacion-interfaz-y-pipeline.md)                     | Split the interface from the pipeline and rewrite it from scratch | Reemplazada por ADR-0002 | app          |
+| ADR                                                                        | Title                                                             | Status                   | Area                          |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md)          | Create: stage runner, scene confirmation and bundled binaries     | Aceptada                 | pipeline / app / distribución |
+| [ADR-0012](ADR-0012-primitivas-del-runner-y-contratos-cerrados.md)         | Runner primitives and closed contracts in the pipeline            | Propuesta                | pipeline                      |
+| [ADR-0011](ADR-0011-claves-api-en-keychain-con-fuente-abstracta.md)        | API keys in the OS keychain behind an abstract source             | Aceptada                 | seguridad                     |
+| [ADR-0010](ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)        | Pipeline as staged Node sidecar and module-by-module migration    | Aceptada                 | pipeline                      |
+| [ADR-0009](ADR-0009-preferencias-nativas-y-carpeta-raiz.md)                | Native preferences via official plugins and single projects root  | Aceptada                 | app                           |
+| [ADR-0008](ADR-0008-catalogo-de-costos-local.md)                           | Cost catalog as a local client dataset                            | Aceptada                 | app                           |
+| [ADR-0007](ADR-0007-invoke-reemplaza-al-servidor-local.md)                 | Tauri's invoke() replaces the local server                        | Aceptada                 | distribución                  |
+| [ADR-0006](ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md) | Auth: dual OAuth flow (web/deep link) and router-loader gate      | Aceptada                 | app                           |
+| [ADR-0005](ADR-0005-layouts-explicitos-y-modulos-base.md)                  | Explicit layouts (Authenticated/Guest) and base modules           | Aceptada                 | app                           |
+| [ADR-0004](ADR-0004-i18n-con-i18next.md)                                   | i18n with i18next and per-language JSON catalogs                  | Aceptada                 | app                           |
+| [ADR-0003](ADR-0003-fundaciones-de-la-interfaz.md)                         | Interface foundations: port the original app's common layer       | Aceptada (i18n → 0004)   | app                           |
+| [ADR-0002](ADR-0002-servidor-local-como-sidecar-de-tauri.md)               | The local server ships as a Tauri sidecar                         | Reemplazada por ADR-0007 | distribución                  |
+| [ADR-0001](ADR-0001-separacion-interfaz-y-pipeline.md)                     | Split the interface from the pipeline and rewrite it from scratch | Reemplazada por ADR-0002 | app                           |
 
 ## A note on distribution
 
