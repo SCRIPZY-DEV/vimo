@@ -24,6 +24,7 @@
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$HOME/**" }]
     },
+    "opener:allow-reveal-item-in-dir",
     {
       "identifier": "fs:allow-exists",
       "allow": [{ "path": "$HOME/**" }]
