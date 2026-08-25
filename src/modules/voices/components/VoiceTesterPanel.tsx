@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, X } from 'lucide-react'
+import { ProgressBar } from '@/modules/common/components/ProgressBar'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
@@ -206,14 +207,7 @@ export function VoiceTesterPanel({
               {Math.round(task.progressPercent)}%
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-saffron transition-all"
-              style={{
-                width: `${Math.min(100, Math.max(0, task.progressPercent))}%`,
-              }}
-            />
-          </div>
+          <ProgressBar percent={task.progressPercent} />
         </div>
       )}
 
