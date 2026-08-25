@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Trash2 } from 'lucide-react'
-import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
+import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
 import { Button } from '@/modules/common/ui/button'
 import { charactersApi } from '@/modules/characters/api'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
@@ -29,17 +29,11 @@ export function CharacterCard({
       onMouseLeave={() => setConfirming(false)}
       className="flex flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card"
     >
-      <div className="flex aspect-square items-center justify-center bg-muted/40">
-        {portrait ? (
-          <img
-            src={charactersApi.imageSource(portrait.imagePath)}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <DoodlePersonaje size={72} />
-        )}
-      </div>
+      <CharacterPortrait
+        src={portrait ? charactersApi.imageSource(portrait.imagePath) : null}
+        doodleSize={72}
+        className="aspect-square"
+      />
 
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="min-w-0">
