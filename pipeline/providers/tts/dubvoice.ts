@@ -1,6 +1,6 @@
-import { setTimeout as delay } from 'node:timers/promises'
-
 import { PipelineFailure } from '../../runner/failure.ts'
+import { rateLimitDelayMs } from '../../utils/http-retry.ts'
+import { sleep } from '../../utils/sleep.ts'
 import type {
   DubvoiceAccountResponse,
   VoiceCreditsResult,
@@ -18,9 +18,6 @@ export const SYNTHESIS_TIMEOUT_MS = 300_000
 export const DOWNLOAD_TIMEOUT_MS = 120_000
 
 const RATE_LIMIT_MAX_RETRIES = 6
-const RATE_LIMIT_BASE_DELAY_MS = 2000
-const RATE_LIMIT_BUFFER_MS = 1000
-const RATE_LIMIT_MAX_DELAY_MS = 120_000
 
 export function authHeaders(apiKey: string): Record<string, string> {
   return {
@@ -48,36 +45,6 @@ export function rethrowIfCancelled(
 function isMaintenance(status: number, bodyText: string): boolean {
   if (status === 502 || status === 503 || status === 504) return true
   return /FEATURE_MAINTENANCE|maintenance|bad gateway/i.test(bodyText)
-}
-
-// Espera del 429, en orden de confianza: `retry_after`/`retryIn` del body
-// (segundos) → header `x-ratelimit-reset` (segundos) → backoff exponencial.
-// Siempre +1s de buffer y cap de 120s (mismo criterio que el origen).
-function rateLimitDelayMs(
-  bodyText: string,
-  response: Response,
-  attempt: number,
-): number {
-  let seconds: number | undefined
-  try {
-    const parsed = JSON.parse(bodyText) as {
-      retry_after?: number
-      retryIn?: number
-    }
-    seconds = parsed.retry_after ?? parsed.retryIn
-  } catch {
-    seconds = undefined
-  }
-  if (seconds === undefined) {
-    const header = Number(response.headers.get('x-ratelimit-reset'))
-    if (Number.isFinite(header) && header > 0) seconds = header
-  }
-
-  const base =
-    seconds !== undefined
-      ? seconds * 1000
-      : RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt
-  return Math.min(base + RATE_LIMIT_BUFFER_MS, RATE_LIMIT_MAX_DELAY_MS)
 }
 
 export interface DubvoiceFetchOptions {
@@ -120,9 +87,8 @@ export async function dubvoiceFetch(
           'voice_rate_limited',
           `DubVoice rate limit persisted after ${RATE_LIMIT_MAX_RETRIES} retries`,
         )
-      await delay(rateLimitDelayMs(bodyText, response, attempt), undefined, {
-        signal: options.signal,
-      })
+      await sleep(rateLimitDelayMs(response, bodyText, attempt), options.signal)
+      options.signal?.throwIfAborted()
       continue
     }
 
