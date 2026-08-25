@@ -146,7 +146,7 @@ pipeline/
 ├── main.ts                entrada del sidecar: subcomandos, job JSON por stdin, NDJSON out
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
 ├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (music/, voices/, characters/, videos/)
-├── stages/                las 6 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, render/ (ADR-0013)
+├── stages/                las 6 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, render/ (ADR-0013), y shared/ con lo que usan varias fases
 ├── project/               la carpeta de un proyecto en disco: rutas tipadas, metadata, scenes.json y referencias de personajes (ADR-0009)
 ├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM y overlay)
 ├── prompts/               prompts de sistema como datos versionados (biblia visual, director de escenas, bloques del redactor, estilos)
@@ -154,6 +154,22 @@ pipeline/
 ├── types/                 tipos del dominio (json, llm, music, voices, characters, images, scenes, video-project)
 └── utils/                 utilidades compartidas: escritura atómica, ffmpeg, duración de media, concurrencia, seguridad de contenido, época de la historia
 ```
+
+**Límites entre fases:** la carpeta de una fase es privada. Una fase importa de
+su propia carpeta, de `stages/shared/` (el LLM del job, la biblia visual y el
+saneado de prompts, que usan varias) y de las capas de abajo (`providers/`,
+`project/`, `prompts/`, `utils/`) — nunca de las tripas de otra fase. Si dos
+fases necesitan lo mismo, sube a `stages/shared/`. Se verifica con:
+
+```
+grep -rn "from '\.\./[a-z-]*/" pipeline/stages/*/*.ts | grep -v "context\|shared/"
+```
+
+Hoy quedan dos excepciones declaradas, las dos de `images/` hacia
+`scene-prompts/` (`fallback-prompt` y `regeneratePromptsForRejected`): la pasada
+de recuperación de imágenes reescribe prompts rechazados por content-policy, y
+esa capacidad es de la fase anterior. La dependencia va en el sentido del
+pipeline y no hay ciclo.
 
 Guards del contrato (ADR-0010 y ADR-0013, aplicados también por ESLint): nada en
 `pipeline/` lee `process.env` ni escribe a consola — la config viaja en el
