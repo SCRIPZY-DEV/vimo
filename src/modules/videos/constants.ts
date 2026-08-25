@@ -1,3 +1,5 @@
+import type { LucideIcon } from 'lucide-react'
+import { FileAudio, Mic } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type {
   FalImageModelId,
@@ -7,6 +9,7 @@ import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type {
   BgmMode,
   CharacterFrequency,
+  NarrationMode,
 } from '@pipeline/types/video-project.ts'
 import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
@@ -53,6 +56,27 @@ export const PIPELINE_STAGES: { id: StageId; labelKey: string }[] = [
   { id: 'scene-prompts', labelKey: 'create.stages.scenePrompts' },
   { id: 'images', labelKey: 'create.stages.images' },
   { id: 'render', labelKey: 'create.stages.render' },
+]
+
+// Origen de la narración: leída por IA o subida por la persona.
+export const NARRATION_MODES: {
+  id: NarrationMode
+  labelKey: string
+  hintKey: string
+  Icon: LucideIcon
+}[] = [
+  {
+    id: 'tts',
+    labelKey: 'create.narration.modeAi',
+    hintKey: 'create.narration.modeAiHint',
+    Icon: Mic,
+  },
+  {
+    id: 'own-audio',
+    labelKey: 'create.narration.modeUpload',
+    hintKey: 'create.narration.modeUploadHint',
+    Icon: FileAudio,
+  },
 ]
 
 // Origen de la música de fondo: generada con IA o extraída de un YouTube.
