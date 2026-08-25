@@ -2,15 +2,15 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { AudioDownload } from '../../providers/tts/dubvoice.ts'
-import { synthesizeEdge } from '../../providers/tts/edge.ts'
-import { synthesizeElevenLabs } from '../../providers/tts/elevenlabs.ts'
-import { synthesizeMinimax } from '../../providers/tts/minimax.ts'
+import {
+  TTS_PROVIDER_IDS,
+  resolveTtsProvider,
+} from '../../providers/tts/registry.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type {
   GenerateVoicePayload,
   GenerateVoiceResult,
-  VoiceProviderId,
 } from '../../types/voices.ts'
 import {
   prepareNarrationText,
@@ -24,22 +24,11 @@ import {
   type StoredVoiceMetadata,
 } from './voice-history.ts'
 
-// Cap de texto por proveedor, espejado en la UI (constants del módulo voices).
-// Minimax topa ~5000 chars por llamada; 4500 deja margen. El troceo + concat
-// con FFmpeg se difiere a la stage voice de Create (ADR-0010).
-export const VOICE_TEXT_LIMITS: Record<VoiceProviderId, number> = {
-  minimax: 4500,
-  elevenlabs: 4500,
-  edge: 4500,
-}
-
 const METADATA_TEXT_LIMIT = 1000
 const HEURISTIC_TICK_MS = 1000
 const HEURISTIC_MIN_EXPECTED_MS = 5000
 const HEURISTIC_MS_PER_CHAR = 25
 const HEURISTIC_PERCENT_CAP = 95
-
-const VOICE_PROVIDERS = new Set(['minimax', 'elevenlabs', 'edge'])
 
 function forcedNarrationLanguage(
   language?: string,
@@ -48,8 +37,9 @@ function forcedNarrationLanguage(
   return undefined
 }
 
-// Minimax y Edge son sincrónicos: el progreso es un heurístico por largo del
-// texto, cap 95% hasta que el proveedor responde (port del SSE del origen).
+// Motores sin progreso real (reportsProgress false): el avance es un
+// heurístico por largo del texto, cap 95% hasta que el proveedor responde
+// (port del SSE del origen).
 function startHeuristicProgress(context: PipelineContext, textLength: number) {
   const expectedMs = Math.max(
     HEURISTIC_MIN_EXPECTED_MS,
@@ -74,36 +64,6 @@ function startHeuristicProgress(context: PipelineContext, textLength: number) {
   return () => clearInterval(timer)
 }
 
-function synthesize(
-  context: PipelineContext,
-  payload: GenerateVoicePayload,
-  text: string,
-  apiKey: string,
-): Promise<AudioDownload> {
-  if (payload.provider === 'elevenlabs')
-    return synthesizeElevenLabs(
-      payload,
-      text,
-      apiKey,
-      context.signal,
-      (progress) => {
-        context.emitter.emit({
-          type: 'progress',
-          percent: progress.percent,
-          detail: {
-            status: progress.status,
-            elapsedSeconds: progress.elapsedSeconds,
-          },
-        })
-      },
-    ).then((audio) => ({ audio }))
-
-  if (payload.provider === 'edge')
-    return synthesizeEdge(payload, text, apiKey, context.signal)
-
-  return synthesizeMinimax(payload, text, apiKey, context.signal)
-}
-
 // Genera la narración con el motor elegido y la persiste DIRECTO en el
 // historial (a diferencia de música no hay variaciones que elegir): la entry
 // vuelve en el job-completed y la UI la reproduce vía convertFileSrc.
@@ -111,20 +71,16 @@ export async function generateVoiceCommand(
   context: PipelineContext,
 ): Promise<GenerateVoiceResult> {
   const payload = context.job.payload as GenerateVoicePayload | undefined
-  if (
-    !payload?.provider ||
-    !VOICE_PROVIDERS.has(payload.provider) ||
-    !payload.voiceId ||
-    !payload.text?.trim()
-  )
+  const provider = resolveTtsProvider(payload?.provider)
+  if (!provider || !payload?.voiceId || !payload.text?.trim())
     throw new PipelineFailure(
       'invalid_payload',
-      'payload.provider, payload.voiceId and payload.text are required',
+      `payload.provider (one of: ${TTS_PROVIDER_IDS}), payload.voiceId and payload.text are required`,
     )
-  if (payload.text.length > VOICE_TEXT_LIMITS[payload.provider])
+  if (payload.text.length > provider.requestCharLimit)
     throw new PipelineFailure(
       'voice_text_too_long',
-      `text exceeds the ${VOICE_TEXT_LIMITS[payload.provider]} character limit for ${payload.provider}`,
+      `text exceeds the ${provider.requestCharLimit} character limit for ${provider.id}`,
     )
 
   const apiKey = context.job.apiKeys.dubvoice
@@ -141,14 +97,28 @@ export async function generateVoiceCommand(
     forcedNarrationLanguage(payload.language),
   )
 
-  const usesHeuristicProgress = payload.provider !== 'elevenlabs'
-  const stopHeuristicProgress = usesHeuristicProgress
-    ? startHeuristicProgress(context, text.length)
-    : null
+  const stopHeuristicProgress = provider.reportsProgress
+    ? null
+    : startHeuristicProgress(context, text.length)
 
   let download: AudioDownload
   try {
-    download = await synthesize(context, payload, text, apiKey)
+    download = await provider.synthesize({
+      payload,
+      text,
+      apiKey,
+      signal: context.signal,
+      onProgress: (progress) => {
+        context.emitter.emit({
+          type: 'progress',
+          percent: progress.percent,
+          detail: {
+            status: progress.status,
+            elapsedSeconds: progress.elapsedSeconds,
+          },
+        })
+      },
+    })
   } finally {
     stopHeuristicProgress?.()
   }
