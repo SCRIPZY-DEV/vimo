@@ -12,11 +12,16 @@ import {
   readAudioResponse,
   type AudioDownload,
 } from './dubvoice.ts'
+import type { TtsProvider } from './provider.ts'
 import { EDGE_LIVE_VOICE_IDS } from './edge-live-voice-ids.ts'
 
 // Motor Edge TTS (Microsoft) vía DubVoice. En este endpoint SOLO funciona
 // `volume`: `rate`/`pitch` devuelven audio vacío y el campo `voice` da 400
 // (verificado en vivo en el origen — trust the wire, no la doc).
+
+// Espejo del tope de DubVoice, igual para los tres motores.
+export const EDGE_CHAR_LIMIT = 4500
+
 function normalizeVoice(voice: DubvoiceEdgeVoice): VoiceSummary | null {
   if (!voice.id) return null
 
@@ -92,4 +97,24 @@ export async function synthesizeEdge(
   )
 
   return readAudioResponse(response)
+}
+
+export const edgeProvider: TtsProvider = {
+  id: 'edge',
+  laneName: 'Edge TTS (via DubVoice)',
+  requestCharLimit: EDGE_CHAR_LIMIT,
+  chunksLongText: false,
+  reportsProgress: false,
+  listVoices({ apiKey, signal }) {
+    return listEdgeVoices(apiKey, signal).then((voices) => ({ voices }))
+  },
+  probeRequest(apiKey) {
+    return {
+      url: `${DUBVOICE_BASE_URL}/api/edge-tts`,
+      init: { headers: authHeaders(apiKey) },
+    }
+  },
+  synthesize({ payload, text, apiKey, signal }) {
+    return synthesizeEdge(payload, text, apiKey, signal)
+  },
 }

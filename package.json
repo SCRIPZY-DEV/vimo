@@ -12,6 +12,9 @@
     "format:check": "prettier --check .",
     "pipeline": "node pipeline/main.ts",
     "build:sidecar": "node scripts/build-sidecar.mjs",
+    "fetch:binaries": "node scripts/fetch-binaries.mjs",
+    "check:locales": "node scripts/check-locales.mjs",
+    "pipeline:harness": "node scripts/run-pipeline-harness.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

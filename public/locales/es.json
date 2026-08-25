@@ -62,8 +62,270 @@
   },
   "create": {
     "pageTitle": "Crear video — Vimo",
-    "titulo": "Crear un video",
-    "descripcion": "Acá va el editor de guion. Esta sección se migra en la próxima fase."
+    "title": "Crear un video",
+    "tagline": "De un guion a un video narrado, en una corrida",
+    "description": "Escribí tu guion, elegí voz y estilo, y Vimo arma el video completo.",
+    "desktopOnly": "La creación de videos solo funciona en la app de escritorio.",
+    "missingKeys": "Faltan claves de API para generar un video completo.",
+    "goToKeys": "Configurar claves",
+    "form": {
+      "nameLabel": "Nombre del video",
+      "namePlaceholder": "Ej.: La historia del Titanic",
+      "nameHint": "Se usa para la carpeta del proyecto y el archivo final.",
+      "submit": "Generar video",
+      "cancel": "Cancelar"
+    },
+    "narration": {
+      "label": "Narración",
+      "modeAi": "Voz con IA",
+      "modeAiHint": "Vimo lee tu guion con la voz que elijas.",
+      "modeUpload": "Subir mi audio",
+      "modeUploadHint": "Usá tu propia grabación como narración.",
+      "chooseFile": "Elegir audio",
+      "clearFile": "Quitar el audio elegido",
+      "noFile": "Ningún archivo elegido"
+    },
+    "script": {
+      "label": "Guion",
+      "optionalLabel": "Guion (opcional)",
+      "placeholder": "Escribí acá el texto que se va a narrar…",
+      "wordCount": "{{count}} palabras"
+    },
+    "style": {
+      "label": "Estilo visual",
+      "hint": "Define el look de todas las imágenes y el color del video final."
+    },
+    "styles": {
+      "normal": "Normal",
+      "stickman": "POV Stickman",
+      "cartoon": "Cartoon 2D",
+      "fantasy": "Fantasía mágica",
+      "terror": "Terror"
+    },
+    "scenes": {
+      "countLabel": "Cantidad de escenas",
+      "countHint": "0 = automática (una escena cada ~3 segundos).",
+      "confirmLabel": "Confirmar escenas antes de generar",
+      "confirmHint": "Vimo pausa y te muestra cuántas escenas propone."
+    },
+    "image": {
+      "provider": "Proveedor de imágenes",
+      "model": "Modelo",
+      "quality": "Calidad"
+    },
+    "quality": {
+      "low": "Baja (más barata)",
+      "medium": "Media",
+      "high": "Alta"
+    },
+    "voice": {
+      "label": "Voz de la narración",
+      "choose": "Elegir voz",
+      "change": "Cambiar voz",
+      "none": "Sin voz elegida",
+      "settings": "Ajustes de voz",
+      "pickerTitle": "Elegir una voz",
+      "pickerDescription": "Escuchá el ejemplo del proveedor y elegí la que mejor le quede a tu video.",
+      "searchPlaceholder": "Buscar por nombre o idioma…",
+      "edgeNote": "Las voces Edge no tienen ejemplo para escuchar.",
+      "empty": "No hay voces que coincidan con tu búsqueda.",
+      "loadMore": "Cargar más voces",
+      "play": "Escuchar ejemplo",
+      "pause": "Pausar ejemplo",
+      "use": "Usar esta voz",
+      "tabs": {
+        "minimax": "Minimax",
+        "elevenlabs": "ElevenLabs",
+        "edge": "Edge"
+      }
+    },
+    "voiceSettings": {
+      "title": "Ajustes de la voz",
+      "reset": "Restaurar",
+      "speed": "Velocidad",
+      "pitch": "Tono",
+      "volume": "Volumen",
+      "emotion": "Emoción",
+      "stability": "Estabilidad",
+      "similarity": "Similitud",
+      "style": "Estilo",
+      "speakerBoost": "Speaker boost",
+      "emotions": {
+        "auto": "Automática",
+        "neutral": "Neutral",
+        "happy": "Alegre",
+        "sad": "Triste",
+        "angry": "Enojada",
+        "surprised": "Sorprendida",
+        "fearful": "Temerosa",
+        "disgusted": "Disgustada"
+      }
+    },
+    "characters": {
+      "label": "Personajes recurrentes",
+      "choose": "Elegir personajes",
+      "change": "Cambiar personajes",
+      "hint": "Hasta {{max}} personajes de tu biblioteca.",
+      "remove": "Quitar personaje",
+      "modelUnsupported": "El modelo elegido no admite personajes de referencia. Usá Evolink o un modelo GPT-Image.",
+      "pickerTitle": "Elegir personajes",
+      "pickerDescription": "Podés elegir hasta {{max}} personajes; van a aparecer con su identidad en todo el video.",
+      "empty": "Todavía no tenés personajes en tu biblioteca.",
+      "noPreviewForStyle": "Sin ilustración en este estilo",
+      "use": "Usar {{count}} personaje(s)",
+      "frequency": {
+        "label": "¿Cada cuánto aparece?",
+        "rarely": "Poco",
+        "balanced": "Equilibrado",
+        "often": "Seguido",
+        "almostAlways": "Casi siempre",
+        "always": "Siempre"
+      }
+    },
+    "music": {
+      "label": "Música de fondo",
+      "modeAi": "Generar con IA",
+      "modeYoutube": "Desde YouTube",
+      "promptLabel": "Cómo suena la música",
+      "promptPlaceholder": "Ej.: lo-fi tranquilo, guitarra acústica relajante…",
+      "instrumental": "Solo instrumental (sin voces)",
+      "urlLabel": "Link de YouTube",
+      "urlPlaceholder": "https://www.youtube.com/watch?v=…",
+      "urlHint": "Vimo extrae el audio del video que le pases."
+    },
+    "overlay": {
+      "label": "Textura sobre el video",
+      "urlLabel": "Link de YouTube del overlay",
+      "urlPlaceholder": "https://www.youtube.com/watch?v=…",
+      "hint": "Se superpone en bucle sobre el video final (lluvia, partículas, grano)."
+    },
+    "stages": {
+      "voice": "Narración y música",
+      "transcription": "Transcripción",
+      "sceneCuts": "División en escenas",
+      "scenePrompts": "Prompts de cada escena",
+      "images": "Imágenes",
+      "render": "Armado del video"
+    },
+    "progress": {
+      "elapsed": "Tiempo transcurrido: {{time}}",
+      "cancel": "Cancelar",
+      "cancelConfirm": "¿Seguro? Tocá de nuevo",
+      "voice": "Generando la narración ({{chars}} caracteres)",
+      "music": "Generando la música de fondo",
+      "imagesCount": "Imágenes: {{ready}} de {{total}}",
+      "logs": "Ver detalles",
+      "render": {
+        "chunks": "Armando los tramos del video",
+        "concat": "Uniendo los tramos",
+        "final": "Mezclando audio y color"
+      }
+    },
+    "confirmScenes": {
+      "title": "¿Cuántas escenas?",
+      "description": "Tu narración dura {{duration}} y tiene {{words}} palabras.",
+      "countLabel": "Cantidad de escenas",
+      "hint": "Vimo propone {{suggested}} escenas para esta duración.",
+      "confirm": "Continuar"
+    },
+    "completed": {
+      "subtitle": "Tu video está listo.",
+      "createAnother": "Crear otro",
+      "open": "Reproducir",
+      "reveal": "Ver en la carpeta"
+    },
+    "probe": {
+      "title": "El servicio de voces no responde",
+      "retry": "Reintentar",
+      "changeVoice": "Elegir otra voz",
+      "reason": {
+        "ok": "El servicio está operativo.",
+        "maintenance": "El proveedor de voces está en mantenimiento. Probá en unos minutos o elegí otro motor.",
+        "auth": "Tu clave de voces no es válida o expiró. Revisala en Claves de API.",
+        "rate": "Demasiadas solicitudes al servicio de voces. Esperá unos segundos.",
+        "config": "Falta configurar la clave del servicio de voces.",
+        "other": "No pudimos validar el servicio de voces. Probá en unos minutos."
+      }
+    },
+    "validation": {
+      "nameRequired": "Poné un nombre al video.",
+      "scriptRequired": "Escribí el guion que se va a narrar.",
+      "voiceRequired": "Elegí la voz de la narración.",
+      "audioRequired": "Elegí el archivo de audio con tu narración.",
+      "bgmUrlRequired": "Pegá el link de YouTube de la música.",
+      "bgmPromptRequired": "Describí cómo querés que suene la música.",
+      "overlayUrlRequired": "Pegá el link de YouTube de la textura.",
+      "charactersUnsupported": "Quitá los personajes o cambiá a un modelo que los admita."
+    },
+    "errors": {
+      "resume": "Reanudar",
+      "discard": "Descartar",
+      "invalidPayload": "Revisá los datos del formulario.",
+      "projectNotFound": "Ese proyecto ya no está en tu carpeta.",
+      "projectCorrupt": "Los datos del proyecto están dañados.",
+      "projectExists": "Ya existe un proyecto con ese nombre.",
+      "characterPreviewMissing": "El personaje no tiene ilustración en el estilo elegido. Generala en Personajes.",
+      "scriptMissing": "Falta el guion del proyecto.",
+      "narrationMissing": "No encontramos tu audio. Volvé a subirlo.",
+      "narrationSourceMissing": "El archivo de audio ya no está donde lo elegiste.",
+      "narrationUnsupportedFormat": "Ese formato de audio no está soportado.",
+      "ffmpegMissing": "Falta el motor de video. Reinstalá la app.",
+      "ffmpegFailed": "El motor de video falló. Volvé a intentar.",
+      "ytdlpMissing": "Falta el descargador de YouTube. Reinstalá la app.",
+      "voiceNotConfigured": "El proyecto no tiene voz configurada.",
+      "voiceAllLanesFailed": "No pudimos generar la narración con ningún proveedor. Reintentá en unos minutos.",
+      "voiceChunking": "Cortamos la generación para no gastar créditos de más. Reintentá.",
+      "voiceNetwork": "No pudimos llegar al servicio de voces. Revisá tu conexión.",
+      "voiceInvalidApiKey": "Tu clave de voces no es válida.",
+      "voiceRateLimited": "El servicio de voces está saturado. Esperá unos segundos.",
+      "voiceMaintenance": "El servicio de voces está en mantenimiento.",
+      "voiceProviderError": "El servicio de voces devolvió un error.",
+      "voiceTimeout": "La narración tardó demasiado. Reintentá.",
+      "voiceDownloadFailed": "La voz se generó pero no la pudimos descargar.",
+      "voiceEmptyAudio": "El proveedor devolvió un audio vacío.",
+      "musicGenerationFailed": "No se pudo generar la música de fondo.",
+      "musicDownloadFailed": "No se pudo descargar la música elegida.",
+      "ytdlpInvalidUrl": "Ese link no es válido. Solo aceptamos links de YouTube.",
+      "ytdlpNeedsLogin": "YouTube pide iniciar sesión para ese video. Probá con otro.",
+      "ytdlpGeoRestricted": "Ese video tiene restricción geográfica.",
+      "ytdlpPrivateVideo": "Ese video es privado.",
+      "ytdlpVideoUnavailable": "Ese video no está disponible.",
+      "ytdlpAgeRestricted": "Ese video tiene restricción por edad.",
+      "ytdlpMembersOnly": "Ese video es solo para miembros del canal.",
+      "ytdlpCopyright": "Ese video fue removido por copyright.",
+      "ytdlpNetwork": "No hay conexión para descargar desde YouTube.",
+      "ytdlpTimeout": "La descarga desde YouTube tardó demasiado.",
+      "ytdlpUnsupportedUrl": "Ese link no está soportado.",
+      "ytdlpFailed": "No se pudo descargar desde YouTube.",
+      "transcriptionInvalidApiKey": "Tu clave de transcripción no es válida.",
+      "transcriptionRateLimited": "El servicio de transcripción está saturado.",
+      "transcriptionNetwork": "No pudimos llegar al servicio de transcripción.",
+      "transcriptionFailed": "La transcripción falló. Reintentá.",
+      "transcriptionEmpty": "La transcripción no devolvió palabras. ¿El audio está vacío?",
+      "wordsMissing": "Falta la transcripción del proyecto.",
+      "scenesMissing": "Faltan las escenas del proyecto.",
+      "llmNetwork": "No pudimos llegar al servicio de IA.",
+      "llmTimeout": "El servicio de IA tardó demasiado.",
+      "llmRateLimited": "El servicio de IA está saturado. Esperá unos segundos.",
+      "llmProviderError": "El servicio de IA devolvió un error.",
+      "imageNetwork": "No pudimos llegar al proveedor de imágenes.",
+      "imageInvalidApiKey": "Tu clave del proveedor de imágenes no es válida.",
+      "imageProviderError": "El proveedor de imágenes devolvió un error.",
+      "imageContentPolicy": "El proveedor rechazó una imagen por su política de contenido.",
+      "imageTimeout": "Una imagen tardó demasiado. Si el proveedor la termina, se aprovecha sin costo extra.",
+      "imageDownloadFailed": "La imagen se generó pero no la pudimos descargar.",
+      "imageRateLimited": "El proveedor de imágenes está saturado.",
+      "imageMissingPrompt": "Una escena quedó sin prompt de imagen.",
+      "imagesIncomplete": "Quedaron escenas sin imagen. Reanudá para reintentarlas.",
+      "renderMissingImages": "Faltan imágenes para armar el video. Reanudá para completarlas.",
+      "renderStalled": "El armado del video se quedó sin avanzar y lo detuvimos.",
+      "missingApiKey": "Falta una clave de API para esta acción.",
+      "missingProjectsRoot": "No hay carpeta de proyectos configurada. Revisá Ajustes.",
+      "cancelled": "Generación cancelada. Podés reanudarla cuando quieras.",
+      "sidecar": "No pudimos arrancar el motor de Vimo. Reiniciá la app.",
+      "interrupted": "La generación se interrumpió al cerrar la app. Reanudá: lo hecho se conserva.",
+      "unknown": "Algo salió mal. Volvé a intentar."
+    }
   },
   "license": {
     "pageTitle": "Licencia — Vimo",

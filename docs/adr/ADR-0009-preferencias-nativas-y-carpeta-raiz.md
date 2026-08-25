@@ -17,17 +17,35 @@ layout, con qué APIs nativas y dónde persiste la preferencia.
 ## Decisión
 
 **1. Una sola carpeta raíz de proyectos** (default `~/Documents/Vimo`), sin
-carpeta de salida separada. Dentro, el pipeline futuro crea una carpeta por
-proyecto — y ese es el **contrato de layout** que esta ADR fija (documentado,
-NO implementado en esta fase):
+carpeta de salida separada. Dentro, el pipeline crea una carpeta por proyecto
+— y ese es el **contrato de layout** que esta ADR fija:
 
 ```
 <root>/
+├── characters/               ← biblioteca de personajes (nombre RESERVADO)
+├── _history/                 ← historiales de voz y música (nombre RESERVADO)
 └── <slug-proyecto>/          ← nombre del video slugificado
-    ├── scenes/               ← imágenes/escenas generadas
-    ├── music/                ← música generada
-    └── <nombre>.mp4          ← video final exportado, junto a las carpetas
+    ├── project.json          ← metadata y opciones del proyecto
+    ├── script.txt            ← guion (escrito o derivado de la transcripción)
+    ├── narration.mp3         ← narración maestra
+    ├── music.mp3             ← música de fondo
+    ├── overlay.mp4           ← textura superpuesta
+    ├── words.json            ← transcripción con timestamps
+    ├── scenes.json           ← escenas con prompts y dirección
+    ├── scenes-confirmed.json ← cantidad de escenas confirmada
+    ├── visual-context.txt    ← biblia visual del video
+    ├── scenes/scene_<id>.jpg ← imágenes generadas
+    ├── characters/           ← referencias visuales de este proyecto
+    ├── cache/chunks/         ← tramos intermedios del render
+    ├── prompts.md            ← export legible de los prompts
+    └── <slug>.mp4            ← video final, junto a las carpetas
 ```
+
+> **Actualizado por [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md)**
+> al implementarlo con el módulo Create: `music/` (carpeta) pasó a ser
+> `music.mp3` (archivo) y se sumaron los artefactos intermedios que las stages
+> necesitan para poder retomar. Los nombres están en inglés, como el resto del
+> código; `characters` y `_history` son reservados a nivel raíz.
 
 **2. Plugins oficiales de Tauri, no comandos Rust propios:**
 

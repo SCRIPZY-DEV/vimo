@@ -1,0 +1,259 @@
+import { copyFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import {
+  readCharacterMetadata,
+  assertValidCharacterId,
+} from '../characters/character-library.ts'
+import { writeProjectMetadata } from '../../project/metadata.ts'
+import {
+  RESERVED_ROOT_DIRECTORIES,
+  isValidFile,
+  projectsRootOf,
+  resolveProjectPaths,
+} from '../../project/paths.ts'
+import { decodeImageDataUri } from '../../providers/image/download.ts'
+import type { PipelineContext } from '../../runner/context.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
+import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
+import type { CharacterStyleId } from '../../types/characters.ts'
+import type {
+  CreateVideoProjectPayload,
+  CreateVideoProjectResult,
+  NewVideoProjectCharacter,
+  ProjectCharacter,
+  VideoProjectMetadata,
+} from '../../types/video-project.ts'
+import { ensureDirectory } from '../../utils/atomic-fs.ts'
+import { slugifyProjectName } from '../../utils/slug.ts'
+
+// Límites del formulario, espejados en src/modules/videos/constants.ts.
+export const PROJECT_NAME_LIMIT = 80
+export const SCRIPT_CHAR_LIMIT = 100_000
+export const MAX_PROJECT_CHARACTERS = 2
+export const MAX_SCENE_COUNT = 500
+
+const MAX_REFERENCE_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_SLUG_ATTEMPTS = 50
+
+// Crea la carpeta del proyecto (ADR-0009) con project.json en estado draft,
+// el guion y las referencias de personajes resueltas. El pipeline en sí se
+// lanza aparte con run-video-pipeline: crear es barato y reversible.
+export async function createVideoProject(
+  context: PipelineContext,
+): Promise<CreateVideoProjectResult> {
+  const payload = context.job.payload as CreateVideoProjectPayload | undefined
+  validatePayload(payload)
+
+  const projectsRoot = projectsRootOf(context)
+  const projectId = await resolveAvailableSlug(projectsRoot, payload.name)
+  const paths = resolveProjectPaths(join(projectsRoot, projectId), projectId)
+
+  await ensureDirectory(paths.root)
+  await ensureDirectory(paths.scenesDirectory)
+
+  if (payload.script) await writeFile(paths.scriptFile, payload.script, 'utf8')
+
+  const characters = await storeCharacterReferences(
+    projectsRoot,
+    paths.charactersDirectory,
+    payload,
+  )
+
+  const now = new Date().toISOString()
+  const metadata: VideoProjectMetadata = {
+    id: projectId,
+    name: payload.name.trim(),
+    createdAt: now,
+    updatedAt: now,
+    state: 'draft',
+    options: { ...payload.options, characters },
+    completedStages: [],
+  }
+  await writeProjectMetadata(paths, metadata)
+
+  return { projectId, projectDir: paths.root }
+}
+
+function validatePayload(
+  payload: CreateVideoProjectPayload | undefined,
+): asserts payload is CreateVideoProjectPayload {
+  if (!payload?.name?.trim())
+    throw new PipelineFailure('invalid_payload', 'payload.name is required')
+  if (payload.name.trim().length > PROJECT_NAME_LIMIT)
+    throw new PipelineFailure('invalid_payload', 'payload.name is too long')
+
+  const options = payload.options
+  if (!options)
+    throw new PipelineFailure('invalid_payload', 'payload.options is required')
+  if (!isCharacterStyleId(options.styleId))
+    throw new PipelineFailure(
+      'invalid_payload',
+      `unknown styleId "${String(options.styleId)}"`,
+    )
+  if (options.narrationMode !== 'tts' && options.narrationMode !== 'own-audio')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.narrationMode must be tts or own-audio',
+    )
+  if (options.imageProvider !== 'fal' && options.imageProvider !== 'evolink')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.imageProvider must be fal or evolink',
+    )
+
+  const sceneCount = options.sceneCount
+  if (
+    !Number.isInteger(sceneCount) ||
+    sceneCount < 0 ||
+    sceneCount > MAX_SCENE_COUNT
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      `options.sceneCount must be an integer between 0 and ${MAX_SCENE_COUNT}`,
+    )
+
+  // Con narración TTS el guion es obligatorio; con audio propio es opcional
+  // (si falta, la Fase 3 lo reconstruye desde la transcripción).
+  const script = payload.script?.trim() ?? ''
+  if (options.narrationMode === 'tts' && !script)
+    throw new PipelineFailure('invalid_payload', 'payload.script is required')
+  if (script.length > SCRIPT_CHAR_LIMIT)
+    throw new PipelineFailure('invalid_payload', 'payload.script is too long')
+
+  if ((payload.characters?.length ?? 0) > MAX_PROJECT_CHARACTERS)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `at most ${MAX_PROJECT_CHARACTERS} characters per project`,
+    )
+}
+
+// Slug único bajo la raíz: colisión (u otro nombre reservado) → -2, -3, …
+async function resolveAvailableSlug(
+  projectsRoot: string,
+  name: string,
+): Promise<string> {
+  const base = slugifyProjectName(name) || 'video'
+
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`
+    if (RESERVED_ROOT_DIRECTORIES.has(candidate)) continue
+    const metadataFile = join(projectsRoot, candidate, 'project.json')
+    if (!(await isValidFile(metadataFile))) return candidate
+  }
+
+  throw new PipelineFailure(
+    'project_exists',
+    `could not find a free slug for "${name}"`,
+  )
+}
+
+// Deja cada referencia visual DENTRO del proyecto (foto subida o preview de
+// la biblioteca del estilo actual): el pipeline nunca vuelve a mirar la
+// biblioteca, así el proyecto es autocontenido y la biblioteca puede cambiar.
+async function storeCharacterReferences(
+  projectsRoot: string,
+  charactersDirectory: string,
+  payload: CreateVideoProjectPayload,
+): Promise<ProjectCharacter[] | undefined> {
+  const incoming = payload.characters ?? []
+  if (incoming.length === 0) return undefined
+
+  await ensureDirectory(charactersDirectory)
+
+  const stored: ProjectCharacter[] = []
+  for (const [index, character] of incoming.entries()) {
+    validateCharacter(character)
+    const referenceImageFile = await storeReferenceImage(
+      projectsRoot,
+      charactersDirectory,
+      character,
+      index,
+      payload.options.styleId,
+    )
+
+    const entry: ProjectCharacter = {
+      name: character.name.trim(),
+      description: character.description.trim(),
+      mode: character.mode,
+    }
+    if (character.characterId) entry.characterId = character.characterId
+    if (referenceImageFile) entry.referenceImageFile = referenceImageFile
+    if (character.isProtagonist) entry.isProtagonist = true
+    stored.push(entry)
+  }
+
+  return stored
+}
+
+function validateCharacter(character: NewVideoProjectCharacter): void {
+  if (!character.name?.trim() || !character.description?.trim())
+    throw new PipelineFailure(
+      'invalid_payload',
+      'each character needs name and description',
+    )
+  if (character.mode !== 'photo' && character.mode !== 'text')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'character.mode must be photo or text',
+    )
+  if (character.mode === 'photo' && !character.photoDataUri)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'photo characters need photoDataUri',
+    )
+}
+
+async function storeReferenceImage(
+  projectsRoot: string,
+  charactersDirectory: string,
+  character: NewVideoProjectCharacter,
+  index: number,
+  styleId: CharacterStyleId,
+): Promise<string | undefined> {
+  // La foto (o el preview ya generado) puede venir directa como data URI.
+  if (character.photoDataUri) {
+    const image = decodeImageDataUri(
+      character.photoDataUri,
+      MAX_REFERENCE_IMAGE_BYTES,
+    )
+    if (!image)
+      throw new PipelineFailure(
+        'invalid_payload',
+        `character ${index + 1} photoDataUri is not a valid image`,
+      )
+
+    const file = `reference_${index + 1}.${image.ext}`
+    await writeFile(join(charactersDirectory, file), image.bytes)
+    return file
+  }
+
+  // Modo texto con personaje de biblioteca: se copia el preview del estilo
+  // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el error lo
+  // dice — la UI ofrece generarlo desde el picker antes de crear.
+  if (!character.characterId) return undefined
+  assertValidCharacterId(character.characterId)
+
+  const libraryDirectory = join(
+    projectsRoot,
+    'characters',
+    character.characterId,
+  )
+  const libraryMetadata = await readCharacterMetadata(libraryDirectory)
+  const preview = libraryMetadata?.previews?.find(
+    (item) => item.styleId === styleId,
+  )
+  if (!preview)
+    throw new PipelineFailure(
+      'character_preview_missing',
+      `character "${character.characterId}" has no preview for style "${styleId}"`,
+    )
+
+  const extension = preview.file.split('.').pop() ?? 'jpg'
+  const file = `reference_${index + 1}.${extension}`
+  await copyFile(
+    join(libraryDirectory, preview.file),
+    join(charactersDirectory, file),
+  )
+  return file
+}

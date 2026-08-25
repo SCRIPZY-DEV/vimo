@@ -121,7 +121,7 @@ vimo/
 │   ├── CONTRIBUTING.es.md proceso de trabajo (español)
 │   └── adr/               decisiones de arquitectura
 ├── public/                archivos servidos tal cual (se copian a dist/)
-├── scripts/               build-sidecar.mjs: empaqueta el sidecar (Node SEA → externalBin)
+├── scripts/               build-sidecar.mjs (empaqueta el sidecar Node SEA), fetch-binaries.mjs (descarga ffmpeg/yt-dlp pineados) y check-locales.mjs (guard de los 3 catálogos)
 ├── pipeline/              el pipeline de video: sidecar Node por stages (ADR-0010)
 ├── src/                   la interfaz  ← el grueso del trabajo
 └── src-tauri/             el lado nativo y los sidecars
@@ -145,18 +145,42 @@ terminal). Para iterar el pipeline por CLI: `pnpm pipeline <subcomando>` (corre
 pipeline/
 ├── main.ts                entrada del sidecar: subcomandos, job JSON por stdin, NDJSON out
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
-├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (hoy: music/, voices/, characters/)
-├── stages/                (pendiente) voice, transcription, scene-cuts, scene-prompts, images, render
-├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge), image/ (Fal · Evolink)
-├── prompts/               prompts de sistema como plantillas versionadas
+├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (music/, voices/, characters/, videos/)
+├── stages/                las 6 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, render/ (ADR-0013), y shared/ con lo que usan varias fases
+├── project/               la carpeta de un proyecto en disco: rutas tipadas, metadata, scenes.json y referencias de personajes (ADR-0009)
+├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM y overlay)
+├── prompts/               prompts de sistema como datos versionados (biblia visual, director de escenas, bloques del redactor, estilos)
 ├── config/                PipelineConfig + ApiKeys + BinaryPaths, con defaults inyectables
-├── types/                 tipos del dominio (json, llm, music, voices, characters, images)
-└── utils/                 utilidades compartidas (sanitización de nombres, números a palabras para TTS)
+├── types/                 tipos del dominio (json, llm, music, voices, characters, images, scenes, video-project)
+└── utils/                 utilidades compartidas: escritura atómica, ffmpeg, duración de media, concurrencia, seguridad de contenido, época de la historia
 ```
 
-Guards del contrato (ADR-0010, aplicados también por ESLint): nada en `pipeline/`
-lee `process.env` ni escribe a consola — la config viaja en el `PipelineJob` y todo
-output es un evento NDJSON del emitter.
+**Límites entre fases:** la carpeta de una fase es privada. Una fase importa de
+su propia carpeta, de `stages/shared/` (el LLM del job, la biblia visual y el
+saneado de prompts, que usan varias) y de las capas de abajo (`providers/`,
+`project/`, `prompts/`, `utils/`) — nunca de las tripas de otra fase. Si dos
+fases necesitan lo mismo, sube a `stages/shared/`. Se verifica con:
+
+```
+grep -rn "from '\.\./[a-z-]*/" pipeline/stages/*/*.ts | grep -v "context\|shared/"
+```
+
+Hoy quedan dos excepciones declaradas, las dos de `images/` hacia
+`scene-prompts/` (`fallback-prompt` y `regeneratePromptsForRejected`): la pasada
+de recuperación de imágenes reescribe prompts rechazados por content-policy, y
+esa capacidad es de la fase anterior. La dependencia va en el sentido del
+pipeline y no hay ciclo.
+
+Guards del contrato (ADR-0010 y ADR-0013, aplicados también por ESLint): nada en
+`pipeline/` lee `process.env` ni escribe a consola — la config viaja en el
+`PipelineJob` y todo output es un evento NDJSON del emitter. `spawn` existe SOLO
+en `utils/ffmpeg.ts` y `providers/ytdlp/download.ts`, y siempre con la ruta que
+llegó en `binaryPaths`: una app lanzada desde Finder no hereda el PATH.
+
+Junto al sidecar viajan **ffmpeg** y **yt-dlp** como `externalBin`
+(`scripts/fetch-binaries.mjs`, con URL y SHA-256 pineados; solo
+`aarch64-apple-darwin` por ahora). Rust los resuelve junto a `current_exe` y los
+inyecta en `PipelineJob.binaryPaths` (ADR-0013).
 
 ### `src/` — la interfaz
 
@@ -174,7 +198,8 @@ src/
 │   └── GuestLayout/         full-screen para login / acceso denegado
 ├── assets/                  imágenes, fuentes y CSS global (css/main.css)
 └── modules/
-    ├── common/              lo transversal: fetcher, queryClient, supabase, UI, brand
+    ├── common/              lo transversal: fetcher, queryClient, supabase, UI, brand,
+    │                        components/ (UI compartida entre módulos)
     ├── auth/                sesión y acceso: OAuth Google, guards del router, verificación
     ├── videos/              creación de video (hoy: vista Create maquetada)
     ├── setup/               arranque: splash (entrada de la app en `/`)
@@ -327,106 +352,85 @@ operaciones de un solo paso.
 
 ## 5. Flujo principal: de guion a video
 
-Es el único flujo del producto. La interfaz **dispara y observa**; el sidecar
-**ejecuta**. Cada paso indica qué hace cada lado.
+Es el flujo central del producto y lo implementa el módulo `videos` (Create)
+sobre el runner de stages del sidecar (ADR-0013). La interfaz **dispara y
+observa**; el sidecar **ejecuta**; el disco **es el estado**.
 
-### Arranque de la aplicación
+### Forma
 
-1. Rust lanza el sidecar del servidor pasándole un **puerto libre** —nunca uno fijo—, el
-   directorio de trabajo y la ruta del binario de FFmpeg.
-2. El sidecar informa su puerto y queda escuchando en `127.0.0.1`.
-3. La interfaz **espera un health check** antes de la primera petición: el sidecar tarda
-   en levantar y disparar antes provoca fallos intermitentes.
-4. Al cerrar la aplicación, Rust detiene el sidecar. Un sidecar huérfano corriendo tras
-   el cierre es un fallo, no un detalle.
+```
+UI ── invoke("start_pipeline_job", "run-video-pipeline") ──> Rust ── spawn ──> sidecar
+UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─────── Rust <────┘
+                                    │
+                    <projectsRoot>/<slug>/  ← todo artefacto queda acá
+```
 
-Si el sidecar no arranca o no responde, la interfaz lo dice explícitamente y **no
-permite generar**. No hay modo degradado: sin sidecar no hay video.
+### Antes de arrancar
 
-### Fase 0 — Sesión y configuración
+1. **La interfaz** exige sesión iniciada y claves de API (`useRequiredApiKeys()`
+   sin argumentos: las cuatro categorías). Si falta alguna, lleva a Claves de
+   API en vez de arrancar un trabajo condenado.
+2. Reúne el formulario: nombre, guion (o audio propio), estilo, cantidad de
+   escenas, proveedor/modelo/calidad de imagen, voz y sus ajustes, personajes y
+   su frecuencia, música de fondo y overlay.
+3. **Pre-flight del proveedor de voz** (`probe-tts`): valida contra los
+   endpoints de LISTADO —no gasta créditos— y avisa antes de arrancar un
+   pipeline largo. El resultado se cachea 2 minutos en la UI.
+4. `create-video-project` crea la carpeta del proyecto con `project.json`,
+   `script.txt` y las referencias de los personajes; con audio propio,
+   `upload-narration` lo copia (o transcodifica) a `narration.mp3`.
 
-- **La interfaz** exige sesión iniciada (Supabase), reúne las entradas del formulario
-  —guion, estilo visual, número de imágenes y opciones de proveedores— y verifica que
-  estén cargadas las claves necesarias.
-- Si falta una clave, lleva al usuario a la pantalla de ajustes en lugar de arrancar un
-  trabajo que va a fallar.
+### Las seis fases
 
-La comunicación con el sidecar **no lleva autenticación**: escucha en localhost y sirve
-a un único usuario, el que ya está frente a la aplicación.
+Cada una implementa `Stage { id, skip?, run }` y el runner
+(`pipeline/runner/run-stages.ts`) las recorre emitiendo `stage-started` /
+`stage-skipped` / `stage-completed`. **Toda fase es retomable**: si su artefacto
+en disco es válido, `skip()` la saltea.
 
-### Fase 1 — Voz, música y overlay
+| Fase            | Qué hace el sidecar                                                                                         | Qué muestra la interfaz          |
+| --------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                 | `voice-progress`, `bgm-progress` |
+| `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                   | fase en curso                    |
+| `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                               | `scenes-planned` o el diálogo    |
+| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía)                              | `scene-prompt-ready` por escena  |
+| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas | `scene-image-*` sobre la grilla  |
+| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                   | `render-progress` por sub-fase   |
 
-- **El sidecar** genera en paralelo la narración con el proveedor de TTS, descarga la
-  música de fondo y, si corresponde, el video de overlay.
-- **La interfaz** muestra la fase en curso. Si la música o el overlay eran obligatorios y
-  fallaron, el trabajo se aborta con un error explícito, no con un estado ambiguo.
+La narración es **esencial** (si falla, el job muere); música y overlay son
+**opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
 
-### Fase 2 — Transcripción palabra a palabra
+### La pausa de confirmación de escenas
 
-- **El sidecar** transcribe la narración con marcas de tiempo por palabra, usando el
-  proveedor externo. Esto es lo que después permite sincronizar cada imagen con lo que se
-  está narrando.
-- **La interfaz** solo refleja el avance.
-
-### Fase 3 — Cortes por tiempo
-
-- **El sidecar** divide la duración total en N escenas de igual duración y agrupa las
-  palabras dentro de cada una según sus marcas de tiempo.
-- **La interfaz** sugiere el número de imágenes recomendado (aproximadamente una cada 3
-  segundos) y deja que el usuario lo confirme o lo cambie **antes** de disparar. Nunca a
-  mitad del proceso: no se espera una respuesta interactiva con el trabajo ya corriendo.
-
-### Fase 4 — Prompts de imagen
-
-- **El sidecar** genera, con un modelo de lenguaje, el prompt de imagen de cada escena,
-  usando el guion completo como contexto para que el fragmento no quede fuera de lugar.
-- **La interfaz** muestra el avance por escena.
-
-### Fase 5 — Generación de imágenes
-
-- **El sidecar** genera una imagen por escena con el proveedor elegido, reintentando y
-  reformulando los prompts rechazados por filtros de contenido.
-- **La interfaz** muestra cuántas escenas llevan imagen sobre el total. Es la fase más
-  larga: el progreso tiene que ser granular, no una barra indeterminada.
-
-### Fase 6 — Render final
-
-- **El sidecar** invoca a FFmpeg para ensamblar el video: movimientos de cámara,
-  concatenación, mezcla de voz y música, y el filtro de color del estilo elegido.
-- **La interfaz** muestra el avance y, al terminar, ofrece reproducir el resultado o
-  guardarlo con el diálogo nativo de Tauri.
-
-Como todo ocurre en la misma máquina, el MP4 no viaja por la red: ya está donde tiene que
-estar.
+Cuando el usuario pidió confirmar, `scene-cuts` emite
+`awaiting-scene-confirmation` y devuelve `{ pause: true }`. El job termina con
+`job-completed { status: 'awaiting-confirmation' }` — **un cierre limpio no es
+un completado**. La interfaz muestra el diálogo; al confirmar llama a
+`confirm-scenes` (que escribe `scenes-confirmed.json`) y **relanza** el job: voz
+y transcripción son cache-hit.
 
 ### Reanudar un trabajo interrumpido
 
-El estado del trabajo lo lleva el **sidecar**, en el `checkpoint` que escribe en el
-directorio de trabajo. La interfaz **no** guarda progreso propio que pueda quedar
-desincronizado.
+El estado vive en **disco**: `project.json` guarda `state` y `completedStages`,
+y cada artefacto es su propio checkpoint. La interfaz mantiene la tarea en un
+store con `localStorage` (`vimo:create:task:v1`) que sobrevive a la navegación y
+al reload.
 
-El sidecar sobrevive a recargas de la webview y a la navegación entre vistas, **pero no
-al cierre de la aplicación**: se detiene con ella y el trabajo se interrumpe. Al volver a
-abrir, la generación se retoma desde la última fase completada gracias al checkpoint.
-Conviene advertir al usuario antes de cerrar con un trabajo en curso.
+El sidecar **no** sobrevive al cierre de la app: al reabrir, una tarea que
+quedaba generando se marca interrumpida y el botón «Reanudar» relanza el mismo
+job — todo lo hecho se conserva. Una cancelación deja el proyecto en `paused`,
+igual de retomable.
 
 ### Contrato con el sidecar
 
-Lo que ya está decidido:
-
-- **Asíncrono**: el `POST` de generación devuelve un id al instante, nunca bloquea.
-- **Progreso por consultas periódicas** contra un endpoint de estado. Alcanza con
-  TanStack Query; no hace falta SSE ni WebSocket.
-- **Una generación a la vez**, sin cola ni base de datos: el `checkpoint` en disco es el
-  estado.
-- **Sin autenticación**, por ser localhost y un solo usuario.
-
-Lo que falta fijar, y conviene hacerlo antes de implementar la vista de generación:
-
-- Los nombres y las formas exactas de los endpoints.
-- La **forma de los errores por fase**, para poder mostrar mensajes útiles en lugar de un
-  «algo falló».
-- Dónde se guardan las claves del usuario en la máquina y cómo las lee la interfaz.
+- **Un proceso por job**, sin servidor HTTP, sin puerto ni ciclo de vida propio
+  (ADR-0007): Rust lo lanza y lo mata.
+- **Eventos NDJSON tipados** por el `Channel` del invoke; la UI los consume con
+  un `switch` sobre `PipelineEventPayload`.
+- **Errores con `code` estable**: cada módulo lo mapea a su clave i18n
+  (`CREATE_ERROR_MESSAGE_KEYS`); el `message` es diagnóstico, nunca texto
+  user-facing.
+- **Cancelación**: `cancel_pipeline_job` escribe `{"type":"cancel"}` por stdin →
+  `AbortController` interno, que las stages respetan en cada borde.
 
 ---
 
@@ -434,26 +438,28 @@ Lo que falta fijar, y conviene hacerlo antes de implementar la vista de generaci
 
 Este documento describe el destino. El código todavía no llegó ahí:
 
-| Pieza                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| React 19 + TypeScript + Vite                       | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Tauri 2 con la ventana de la aplicación            | listo (identifier y tamaño de ventana propios)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ESLint, Prettier y el alias `@/`                   | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Convenciones de código ([CLAUDE.md](../CLAUDE.md)) | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Estructura modular en `src/`                       | fundaciones + layouts listos: `router/`, `i18n/`, `layouts/` (Authenticated/Guest), `modules/common` (ui, doodles, theme, brand, fetcher, queryClient, supabase) y módulos `auth`/`videos`/`setup` (`home` eliminado)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Layouts y vistas base                              | Login, Callback, AccessDenied y Splash con lógica real; Create (videos) y PageNotFound maquetadas; sidebar/navbar funcionales — ADR-0005                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| React Router, TanStack Query, Tailwind             | instalados y configurados (hash router con loaders como guards; primeras query keys: `authQueryKeys`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Autenticación (módulo `auth`)                      | lista — ADR-0006: OAuth Google doble flujo (web + deep link `vimo://`), verificación de acceso contra vimo.click, gate por loaders, logout, vista License. Pendiente: cold start del deep link                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Módulo `costs` (catálogo local)                    | listo pero **retirado de la UI** — ADR-0008: comparativa de precios con dataset local (`catalog.ts`), 4 tabs + filtros. Fuera del router y del sidebar (`hidden` en `layouts/AuthenticatedLayout/constants.ts`) mientras se redefine el modelo de precios; el código sigue completo y typechequeado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Módulo `settings` (carpeta de proyectos)           | listo — ADR-0009: carpeta raíz única (default `~/Documents/Vimo`) con dialog/fs/store; en web se muestra deshabilitado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Módulo `api-keys` (claves de proveedores)          | listo — ADR-0011: dashboard con catálogo único (`providers.ts`), claves en el keychain del SO (`keyring`; Android vía plugin local `tauri-plugin-secure-keys`), validación en Rust con reqwest; primeros comandos `invoke` del repo (`src-tauri/src/api_keys/`); en web se muestra deshabilitado. Pendiente: probar el plugin Android en emulador (falta `tauri android init`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Infraestructura de i18n (`src/i18n/`)              | lista con i18next + catálogos `public/locales/{es,en,pt}.json` — ADR-0004                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Plugins de Tauri                                   | `deep-link`, `opener`, `dialog`, `fs`, `store` instalados y configurados (scheme `vimo`, capabilities con scope `$HOME/**`); `shell` solo del lado Rust para el spawn del sidecar (sin capability al webview)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Backend local / pipeline                           | **redirigido por ADR-0007, en curso por ADR-0010**: fundación lista — `pipeline/` (contratos job/eventos, providers `llm` DeepInfra, `music` Evolink, `tts` DubVoice e `image` Fal/Evolink, prompts, config inyectada), sidecar con subcomandos **empaquetado como binario único Node SEA** (`externalBin`, regenerado por los hooks de dev/build), y comandos genéricos `start_pipeline_job`/`cancel_pipeline_job` (`src-tauri/src/pipeline/`) que reenvían el NDJSON por el `Channel` del invoke (un canal por job, sin canal global); la capa compartida de la UI vive en `src/modules/common/fetcher/pipeline.ts` (`startPipelineJob`/`runPipelineJob`); las claves se cachean en memoria por sesión (menos prompts del keychain). Pasos 1 a 4 (AI Music, Voices, Characters) hechos; sigue Library; las stages y el runner llegan con Create |
-| Módulo `music` (AI Music)                          | listo — ADR-0010 paso 2: pantalla completa (formulario Suno, sugerir prompt vía LLM, generación con progreso y cancelación, chooser de variaciones, historial en `<carpeta raíz>/_history/music/` con audio/cover/metadata, saldo de créditos); primeros jobs reales del sidecar (6 subcomandos en `pipeline/commands/`); asset protocol habilitado (scope `$HOME/**`) para reproducir el audio local con `convertFileSrc`                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Módulo `voices` (Voces TTS)                        | listo — ADR-0010 paso 3: explorador de voces de DubVoice (Minimax · ElevenLabs · Edge) con filtros, favoritos e historial en `<carpeta raíz>/_history/voices/`; probador con progreso y cancelación; saldo de créditos. Las muestras suenan desde la URL del proveedor: los previews precomputados del origen (81 MB) y su síntesis con créditos no se portaron, y Edge queda sin muestra                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Módulo `characters` (Personajes)                   | listo — ADR-0010 paso 4: biblioteca de identidades en `<carpeta raíz>/characters/` (una carpeta por personaje con `metadata.json` y un preview por estilo); el "experto" redacta la identidad neutra de estilo con el LLM en tier premium, y los previews estrenan los providers de imagen (Fal · Evolink) con la regla de oro de los proveedores pagos. El modo con foto de referencia y el selector de hasta 2 personajes llegan con Create                                                                                                                                                                                                                                                                                                                                                                                                     |
-| FFmpeg empaquetado por plataforma                  | sin empezar (viajará como `externalBin` y su ruta entra al sidecar por `PipelineJob.binaryPaths` — ADR-0010)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Pieza                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| React 19 + TypeScript + Vite                       | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Tauri 2 con la ventana de la aplicación            | listo (identifier y tamaño de ventana propios)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ESLint, Prettier y el alias `@/`                   | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Convenciones de código ([CLAUDE.md](../CLAUDE.md)) | listo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Estructura modular en `src/`                       | fundaciones + layouts listos: `router/`, `i18n/`, `layouts/` (Authenticated/Guest), `modules/common` (ui, doodles, theme, brand, fetcher, queryClient, supabase) y módulos `auth`/`videos`/`setup` (`home` eliminado)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Layouts y vistas base                              | Login, Callback, AccessDenied, Splash y Create con lógica real; PageNotFound maquetada; sidebar/navbar funcionales — ADR-0005                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| React Router, TanStack Query, Tailwind             | instalados y configurados (hash router con loaders como guards; primeras query keys: `authQueryKeys`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Autenticación (módulo `auth`)                      | lista — ADR-0006: OAuth Google doble flujo (web + deep link `vimo://`), verificación de acceso contra vimo.click, gate por loaders, logout, vista License. Pendiente: cold start del deep link                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Módulo `costs` (catálogo local)                    | listo pero **retirado de la UI** — ADR-0008: comparativa de precios con dataset local (`catalog.ts`), 4 tabs + filtros. Fuera del router y del sidebar (`hidden` en `layouts/AuthenticatedLayout/constants.ts`) mientras se redefine el modelo de precios; el código sigue completo y typechequeado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Módulo `settings` (carpeta de proyectos)           | listo — ADR-0009: carpeta raíz única (default `~/Documents/Vimo`) con dialog/fs/store; en web se muestra deshabilitado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Módulo `api-keys` (claves de proveedores)          | listo — ADR-0011: dashboard con catálogo único (`providers.ts`), claves en el keychain del SO (`keyring`; Android vía plugin local `tauri-plugin-secure-keys`), validación en Rust con reqwest; primeros comandos `invoke` del repo (`src-tauri/src/api_keys/`); en web se muestra deshabilitado. Pendiente: probar el plugin Android en emulador (falta `tauri android init`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Infraestructura de i18n (`src/i18n/`)              | lista con i18next + catálogos `public/locales/{es,en,pt}.json` — ADR-0004                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Plugins de Tauri                                   | `deep-link`, `opener`, `dialog`, `fs`, `store` instalados y configurados (scheme `vimo`, capabilities con scope `$HOME/**`); `shell` solo del lado Rust para el spawn del sidecar (sin capability al webview)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Backend local / pipeline                           | **redirigido por ADR-0007, en curso por ADR-0010**: fundación lista — `pipeline/` (contratos job/eventos, providers `llm` DeepInfra, `music` Evolink, `tts` DubVoice e `image` Fal/Evolink, prompts, config inyectada), sidecar con subcomandos **empaquetado como binario único Node SEA** (`externalBin`, regenerado por los hooks de dev/build), y comandos genéricos `start_pipeline_job`/`cancel_pipeline_job` (`src-tauri/src/pipeline/`) que reenvían el NDJSON por el `Channel` del invoke (un canal por job, sin canal global); la capa compartida de la UI vive en `src/modules/common/fetcher/pipeline.ts` (`startPipelineJob`/`runPipelineJob`); las claves se cachean en memoria por sesión (menos prompts del keychain). Pasos 1 a 4 (AI Music, Voices, Characters) hechos; **Create adelantado a Library** con el runner completo (ADR-0013); sigue Library |
+| Módulo `music` (AI Music)                          | listo — ADR-0010 paso 2: pantalla completa (formulario Suno, sugerir prompt vía LLM, generación con progreso y cancelación, chooser de variaciones, historial en `<carpeta raíz>/_history/music/` con audio/cover/metadata, saldo de créditos); primeros jobs reales del sidecar (6 subcomandos en `pipeline/commands/`); asset protocol habilitado (scope `$HOME/**`) para reproducir el audio local con `convertFileSrc`                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Módulo `voices` (Voces TTS)                        | listo — ADR-0010 paso 3: explorador de voces de DubVoice (Minimax · ElevenLabs · Edge) con filtros, favoritos e historial en `<carpeta raíz>/_history/voices/`; probador con progreso y cancelación; saldo de créditos. Las muestras suenan desde la URL del proveedor: los previews precomputados del origen (81 MB) y su síntesis con créditos no se portaron, y Edge queda sin muestra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Módulo `characters` (Personajes)                   | listo — ADR-0010 paso 4: biblioteca de identidades en `<carpeta raíz>/characters/` (una carpeta por personaje con `metadata.json` y un preview por estilo); el "experto" redacta la identidad neutra de estilo con el LLM en tier premium, y los previews estrenan los providers de imagen (Fal · Evolink) con la regla de oro de los proveedores pagos. El selector de hasta 2 personajes ya vive en Create (ADR-0013); el modo con foto de referencia subida por el usuario sigue pendiente                                                                                                                                                                                                                                                                                                                                                                              |
+| FFmpeg y yt-dlp empaquetados                       | listos para **macOS arm64** — ADR-0013: `scripts/fetch-binaries.mjs` los descarga con URL y SHA-256 pineados, los firma ad-hoc y los deja como `externalBin`; Rust los resuelve junto a `current_exe` y los inyecta en `PipelineJob.binaryPaths`. Las demás plataformas (y la revisión GPL→LGPL de ffmpeg) llegan con la fase de distribución                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Módulo `videos` (Create)                           | listo — ADR-0013: pantalla completa de creación (formulario con guion o audio propio, estilo, escenas, proveedor de imagen, selector de voz y de hasta 2 personajes, música y overlay), progreso en vivo por fases con grilla de escenas, pausa de confirmación de escenas, cancelar y reanudar, y panel del video terminado. La tarea vive en un store con `localStorage` y sobrevive a navegación y reload                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Runner de stages y las 6 fases                     | listos — ADR-0013: `pipeline/runner/run-stages.ts` + `pipeline/stages/` (voice, transcription, scene-cuts, scene-prompts, images, render) con el registro declarativo en `stages/registry.ts`. Toda fase es retomable por `skip()`; los guards de gasto del origen se conservan textualmente (anti-doble-gasto del TTS, concat con re-encode, cosecha de tarea Evolink ya pagada, `-t` explícito en el render)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 Mantené esta tabla al día: es lo que le dice a quien llega —persona o agente— qué puede
 dar por hecho y qué no.

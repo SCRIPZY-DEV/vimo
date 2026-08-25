@@ -15,10 +15,15 @@ import {
   readAudioResponse,
   type AudioDownload,
 } from './dubvoice.ts'
+import type { TtsProvider } from './provider.ts'
 
 // Motor Minimax vía DubVoice. El voice_id es SIEMPRE el largo del listado
 // ("English_Abbess"): el corto ("Abbess") devuelve 500 — verificado con curl
 // en el origen contra lo que afirmaba el soporte. Trust the wire.
+// Tope del endpoint /api/minimax-tts (~5000 chars por llamada); 4500 deja
+// margen. Una narración más larga se trocea (ver la stage de narración).
+export const MINIMAX_CHAR_LIMIT = 4500
+
 const VOICES_PAGE_SIZE = 100
 const MAX_VOICES_PAGES = 50
 const DEFAULT_MODEL = 'speech-02-hd'
@@ -136,4 +141,28 @@ export async function synthesizeMinimax(
     )
 
   return { audio: await downloadAudioFromUrl(audioUrl, signal) }
+}
+
+export const minimaxProvider: TtsProvider = {
+  id: 'minimax',
+  laneName: 'DubVoice/Minimax',
+  requestCharLimit: MINIMAX_CHAR_LIMIT,
+  chunksLongText: true,
+  reportsProgress: false,
+  listVoices({ apiKey, signal }) {
+    return listMinimaxVoices(apiKey, signal).then((voices) => ({ voices }))
+  },
+  probeRequest(apiKey) {
+    return {
+      url: `${DUBVOICE_BASE_URL}/api/minimax-tts/voices`,
+      init: {
+        method: 'POST',
+        headers: authHeaders(apiKey),
+        body: JSON.stringify({ page: 1, page_size: 1 }),
+      },
+    }
+  },
+  synthesize({ payload, text, apiKey, signal }) {
+    return synthesizeMinimax(payload, text, apiKey, signal)
+  },
 }

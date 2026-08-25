@@ -1,30 +1,191 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import DoodleScript from '@/modules/common/doodles/DoodleScript'
+import { Link } from 'react-router'
+import { motion } from 'framer-motion'
+import { RotateCcw } from 'lucide-react'
+import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
+import { Button } from '@/modules/common/ui/button'
+import { ApiKeysRoutes } from '@/modules/api-keys/constants'
+import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
+import { videosApi } from '@/modules/videos/api'
+import { CompletedPanel } from '@/modules/videos/components/CompletedPanel'
+import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
+import { CreateForm } from '@/modules/videos/components/CreateForm'
+import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
+import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
+import { CREATE_FORM_INITIAL_VALUE } from '@/modules/videos/constants'
+import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
+import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
+import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
+import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
-/**
- * Pantalla principal tras autenticarse (equivale a /crear del origen).
- * MAQUETA: el editor de guion se migra en la fase del módulo videos.
- */
+// Pantalla de creación de video. Es dueña de la tarea: el formulario y los
+// paneles de progreso son presentacionales; el estado del job vive en el
+// store de `useCreateTask` (sobrevive a la navegación y al reload).
 export function Create() {
   const { t } = useTranslation()
+  const {
+    isNative,
+    missingCategories,
+    isLoading: keysLoading,
+  } = useRequiredApiKeys()
+  const { task, startCreation, confirmScenes, resume, cancel, discardTask } =
+    useCreateTask()
+  const { probe, probing } = useTtsProbe()
+
+  const [form, setForm] = useState<CreateFormValue>(CREATE_FORM_INITIAL_VALUE)
+  const [probeFailure, setProbeFailure] = useState<ProbeTtsReason | null>(null)
 
   usePageTitle(t('create.pageTitle'))
 
+  const missingKeys = isNative && !keysLoading && missingCategories.length > 0
+  const busy = task?.status === 'creating' || task?.status === 'generating'
+  const showForm = !task || task.status === 'error'
+
+  const patchForm = (patch: Partial<CreateFormValue>) => {
+    setForm((current) => ({ ...current, ...patch }))
+  }
+
+  const pickAudio = async () => {
+    const path = await videosApi.pickNarrationFile()
+    if (path) patchForm({ narrationFilePath: path })
+  }
+
+  const submit = async () => {
+    // Pre-flight del proveedor de voz: avisa antes de arrancar un pipeline
+    // largo. Solo aplica con narración por IA.
+    if (form.narrationMode === 'tts' && form.voice) {
+      const result = await probe(form.voice)
+      if (!result.ok) {
+        setProbeFailure(result.reason)
+        return
+      }
+    }
+    setProbeFailure(null)
+    await startCreation({
+      payload: createProjectPayload(form),
+      narrationFilePath:
+        form.narrationMode === 'own-audio' ? form.narrationFilePath : null,
+    })
+  }
+
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-8 py-12">
-      <div className="space-y-2">
-        <h1 className="font-display text-3xl font-extrabold text-foreground">
-          {t('create.titulo')}
-        </h1>
-        <p className="font-body text-muted-foreground">
-          {t('create.descripcion')}
+    <div className="mx-auto max-w-3xl space-y-8 px-8 py-10">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
+        <DoodleWand size={48} delay={100} />
+        <div>
+          <h1 className="font-display text-3xl font-extrabold text-foreground">
+            {t('create.title')}
+          </h1>
+          <p className="font-handwritten text-lg text-muted-foreground">
+            {t('create.tagline')}
+          </p>
+        </div>
+      </motion.div>
+
+      {!isNative && (
+        <p className="font-body text-sm text-saffron">
+          {t('create.desktopOnly')}
         </p>
-      </div>
-      <div className="flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-card py-16">
-        <DoodleScript size={90} />
-      </div>
+      )}
+
+      {missingKeys && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between gap-3 rounded-2xl border-2 border-coral/40 bg-coral/10 p-4"
+        >
+          <p className="font-body text-sm text-foreground">
+            {t('create.missingKeys')}
+          </p>
+          <Button
+            asChild
+            size="sm"
+            className="shrink-0 rounded-lg font-display"
+          >
+            <Link to={ApiKeysRoutes.apiKeys}>{t('create.goToKeys')}</Link>
+          </Button>
+        </motion.div>
+      )}
+
+      {task && task.status !== 'completed' && task.status !== 'error' && (
+        <GenerationProgress task={task} onCancel={cancel} />
+      )}
+
+      {task?.status === 'completed' && (
+        <CompletedPanel task={task} onCreateAnother={discardTask} />
+      )}
+
+      {task?.status === 'error' && (
+        <div className="space-y-3 rounded-2xl border-2 border-destructive/30 bg-destructive/10 p-4">
+          <p className="font-body text-sm text-destructive">
+            {t(task.errorKey ?? 'create.errors.unknown')}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {task.projectId && (
+              <Button
+                size="sm"
+                onClick={() => void resume()}
+                className="rounded-lg font-display font-bold"
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                {t('create.errors.resume')}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={discardTask}
+              className="rounded-lg font-display text-muted-foreground"
+            >
+              {t('create.errors.discard')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {showForm && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6"
+        >
+          <CreateForm
+            value={form}
+            disabled={!isNative || missingKeys || busy}
+            submitting={busy || probing}
+            onChange={patchForm}
+            onPickAudio={() => void pickAudio()}
+            onSubmit={() => void submit()}
+          />
+        </motion.section>
+      )}
+
+      {task?.status === 'awaitingConfirmation' && task.confirmation && (
+        <ConfirmScenesDialog
+          confirmation={task.confirmation}
+          onConfirm={(sceneCount) => void confirmScenes(sceneCount)}
+          onCancel={discardTask}
+        />
+      )}
+
+      {probeFailure && (
+        <TtsProviderDownDialog
+          reason={probeFailure}
+          onRetry={() => {
+            setProbeFailure(null)
+            void submit()
+          }}
+          onClose={() => setProbeFailure(null)}
+        />
+      )}
     </div>
   )
 }

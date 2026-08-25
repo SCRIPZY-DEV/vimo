@@ -88,9 +88,10 @@ pub fn build_pipeline_job(
         job.insert("config".into(), config);
     }
     job.insert("apiKeys".into(), Value::Object(api_keys));
-    // binaryPaths: ffmpeg/yt-dlp llegarán como externalBin con la fase de
-    // distribución; el contrato ya reserva el campo (ADR-0010).
-    job.insert("binaryPaths".into(), json!({}));
+    job.insert(
+        "binaryPaths".into(),
+        crate::pipeline::binaries::resolve_binary_paths(),
+    );
     if let Some(payload) = payload {
         job.insert("payload".into(), payload);
     }

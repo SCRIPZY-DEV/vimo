@@ -1,12 +1,13 @@
+import { matchesSearch as matchesFields } from '@/modules/common/utilities/matchesSearch'
 import type { MusicHistoryEntry } from '@pipeline/types/music.ts'
 
+// Campos buscables del historial de música: nombre, título, prompt y estilo.
 export function matchesSearch(
   entry: MusicHistoryEntry,
   search: string,
 ): boolean {
-  const needle = search.trim().toLowerCase()
-  if (!needle) return true
-  return [entry.name, entry.title, entry.prompt, entry.style]
-    .filter(Boolean)
-    .some((field) => String(field).toLowerCase().includes(needle))
+  return matchesFields(
+    [entry.name, entry.title, entry.prompt, entry.style],
+    search,
+  )
 }

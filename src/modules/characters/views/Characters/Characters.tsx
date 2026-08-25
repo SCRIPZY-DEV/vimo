@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Loader2, Plus } from 'lucide-react'
-import DoodlePersonaje from '@/modules/common/doodles/DoodlePersonaje'
+import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
@@ -43,7 +43,7 @@ export function Characters() {
         className="flex items-center justify-between gap-3"
       >
         <div className="flex items-center gap-3">
-          <DoodlePersonaje size={48} delay={100} />
+          <DoodleCharacter size={48} delay={100} />
           <div>
             <h1 className="font-display text-3xl font-extrabold text-foreground">
               {t('characters.titulo')}
@@ -92,7 +92,7 @@ export function Characters() {
           onClick={openCreate}
           className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50"
         >
-          <DoodlePersonaje size={64} />
+          <DoodleCharacter size={64} />
           <span className="font-display text-lg font-bold text-foreground">
             {t('characters.vacio.titulo')}
           </span>
