@@ -4,23 +4,16 @@ import { UserPlus, X } from 'lucide-react'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/modules/common/ui/select'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
+import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
 import {
   CHARACTER_FREQUENCIES,
   MAX_PROJECT_CHARACTERS,
   modelSupportsCharacters,
 } from '@/modules/videos/constants'
 import type { CreateFormValue } from '@/modules/videos/types/create'
-import type { CharacterFrequency } from '@pipeline/types/video-project.ts'
 
 interface CharacterSectionProps {
   value: CreateFormValue
@@ -107,29 +100,17 @@ export function CharacterSection({
       )}
 
       {value.characters.length > 0 && (
-        <div className={cn('space-y-1.5', blocked && 'opacity-60')}>
-          <Label className="font-display">
-            {t('create.characters.frequency.label')}
-          </Label>
-          <Select
-            value={value.characterFrequency}
-            disabled={blocked}
-            onValueChange={(frequency) =>
-              onChange({ characterFrequency: frequency as CharacterFrequency })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CHARACTER_FREQUENCIES.map((frequency) => (
-                <SelectItem key={frequency.id} value={frequency.id}>
-                  {t(frequency.labelKey)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <LabeledSelect
+          label={t('create.characters.frequency.label')}
+          value={value.characterFrequency}
+          options={CHARACTER_FREQUENCIES.map((frequency) => ({
+            id: frequency.id,
+            label: t(frequency.labelKey),
+          }))}
+          disabled={blocked}
+          onChange={(characterFrequency) => onChange({ characterFrequency })}
+          className={cn(blocked && 'opacity-60')}
+        />
       )}
 
       {pickerOpen && (
