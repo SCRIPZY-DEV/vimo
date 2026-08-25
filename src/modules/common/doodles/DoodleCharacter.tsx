@@ -7,7 +7,7 @@ interface Props {
   className?: string
 }
 
-const DoodlePersonaje = ({
+const DoodleCharacter = ({
   size = 48,
   delay = 0,
   className = '',
@@ -69,4 +69,4 @@ const DoodlePersonaje = ({
   )
 }
 
-export default DoodlePersonaje
+export default DoodleCharacter
