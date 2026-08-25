@@ -351,6 +351,61 @@ pnpm pipeline:harness suggest-character-profile --payload '{"name":"Elena","role
 pnpm pipeline:harness generate-character-preview --payload '{"identityPrompt":"a young watchmaker with short red hair","styleId":"cartoon","provider":"evolink"}'
 ```
 
+## Extender el pipeline
+
+### Agregar una fase a un flujo existente
+
+Una fase implementa el contrato `Stage` de
+[pipeline/runner/stage.ts](pipeline/runner/stage.ts) (`id`, `skip?`, `run`) y **el
+runner es el único que emite** `stage-started` / `stage-skipped` / `stage-completed`:
+la fase no los emite a mano.
+
+1. **La fase** en `pipeline/stages/<fase>/<fase>.ts`, exportando su `Stage`. Todo lo
+   que use solo esa fase se queda en su carpeta; si lo necesitan dos fases, va a
+   `pipeline/stages/shared/`.
+2. **El id** en [pipeline/runner/stage-id.ts](pipeline/runner/stage-id.ts): es lo que
+   viaja a la UI en los eventos.
+3. **Registrarla** en [pipeline/stages/registry.ts](pipeline/stages/registry.ts). El
+   orden del array **es** la secuencia del video:
+
+   ```ts
+   export const CREATE_VIDEO_STAGES: Stage<CreateVideoContext>[] = [
+     voiceStage,
+     transcriptionStage,
+     sceneCutsStage,
+     scenePromptsStage,
+     imagesStage,
+     renderStage,
+   ]
+   ```
+
+4. **La etiqueta i18n** de la fase en los tres catálogos de `public/locales/`
+   (`create.stages.*`) y su entrada en `PIPELINE_STAGES`
+   ([src/modules/videos/constants.ts](src/modules/videos/constants.ts)), que es lo que
+   dibuja la barra de progreso.
+
+Toda fase debe ser **retomable**: `skip()` devuelve `true` cuando su artefacto en
+disco ya es válido, y así un proyecto a medias se retoma sin repetir —ni volver a
+pagar— lo hecho. Una fase puede además pedir **pausa** devolviendo `{ pause: true }`
+(lo usa la confirmación de escenas): el job termina limpio y al relanzarlo retoma.
+
+### Agregar un flujo nuevo
+
+Un flujo es su propio array de fases con su propio contexto. Además de las fases:
+
+1. **El contexto** que comparten sus fases, extendiendo `PipelineContext`
+   (`pipeline/stages/context.ts` es el ejemplo: rutas del proyecto, metadata y
+   opciones).
+2. **Su registro** — otro array como el de arriba, con su propio nombre y tipo:
+   `export const MI_FLUJO_STAGES: Stage<MiFlujoContext>[] = [...]`.
+3. **El subcomando** que lo dispara, en `pipeline/commands/<dominio>/`, armando el
+   contexto y llamando a `runStages(MI_FLUJO_STAGES, context, hooks)` — como hace
+   [run-video-pipeline.ts](pipeline/commands/videos/run-video-pipeline.ts). El resto
+   del camino (registrar el subcomando, la UI) es la receta de subcomandos de
+   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Rust no se toca en ningún caso: `start_pipeline_job` es genérico.
+
 ## Estructura
 
 ```
