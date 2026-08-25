@@ -18,11 +18,15 @@ import {
   rethrowIfCancelled,
   requestSignal,
 } from './dubvoice.ts'
+import { synthesizeElevenLabsDirect } from './elevenlabs-direct.ts'
+import type { TtsProvider } from './provider.ts'
 
 // Motor ElevenLabs vía DubVoice: el listado pagina server-side (~12k voces,
 // bajarlas todas serían minutos) y la síntesis es ASÍNCRONA — submit → task_id
 // → polling con progreso real, hasta 10 minutos.
 export const ELEVENLABS_PAGE_SIZE = 60
+// Espejo del tope de DubVoice, igual para los tres motores.
+export const ELEVENLABS_CHAR_LIMIT = 4500
 const DEFAULT_MODEL = 'eleven_multilingual_v2'
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const POLL_REQUEST_TIMEOUT_MS = 30_000
@@ -185,4 +189,49 @@ export async function synthesizeElevenLabs(
     'voice_timeout',
     'ElevenLabs task did not complete within 10 minutes',
   )
+}
+
+export const elevenLabsProvider: TtsProvider = {
+  id: 'elevenlabs',
+  laneName: 'ElevenLabs via DubVoice',
+  requestCharLimit: ELEVENLABS_CHAR_LIMIT,
+  chunksLongText: false,
+  reportsProgress: true,
+  listVoices({ apiKey, filters, signal }) {
+    return listElevenLabsVoices(apiKey, filters, signal)
+  },
+  probeRequest(apiKey) {
+    return {
+      url: `${DUBVOICE_BASE_URL}/api/v1/voices?page_size=1`,
+      init: { headers: authHeaders(apiKey) },
+    }
+  },
+  async synthesize({ payload, text, apiKey, signal, onProgress }) {
+    const audio = await synthesizeElevenLabs(
+      payload,
+      text,
+      apiKey,
+      signal,
+      (progress) => onProgress?.(progress),
+    )
+    return { audio }
+  },
+  // Si DubVoice está caído y el usuario tiene su propia clave, se sintetiza
+  // contra api.elevenlabs.io con la MISMA voz.
+  directFallback: {
+    name: 'ElevenLabs direct (fallback)',
+    apiKeyOf(apiKeys) {
+      return apiKeys.elevenlabs
+    },
+    async synthesize({ payload, text, apiKey, signal }) {
+      const audio = await synthesizeElevenLabsDirect(
+        text,
+        payload.voiceId,
+        apiKey,
+        payload.settings,
+        signal,
+      )
+      return { audio }
+    },
+  },
 }
