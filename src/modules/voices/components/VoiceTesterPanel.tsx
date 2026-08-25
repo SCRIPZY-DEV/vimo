@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, X } from 'lucide-react'
-import { ProgressBar } from '@/modules/common/components/ProgressBar'
+import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
@@ -194,21 +194,17 @@ export function VoiceTesterPanel({
       </div>
 
       {generating && task && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between font-body text-sm text-muted-foreground">
-            <span>
-              {task.elapsedSeconds !== null
-                ? t('voices.probador.progresoSegundos', {
-                    seconds: task.elapsedSeconds,
-                  })
-                : t('voices.probador.generando')}
-            </span>
-            <span className="tabular-nums">
-              {Math.round(task.progressPercent)}%
-            </span>
-          </div>
-          <ProgressBar percent={task.progressPercent} />
-        </div>
+        <LabeledProgress
+          className="space-y-2"
+          label={
+            task.elapsedSeconds !== null
+              ? t('voices.probador.progresoSegundos', {
+                  seconds: task.elapsedSeconds,
+                })
+              : t('voices.probador.generando')
+          }
+          percent={task.progressPercent}
+        />
       )}
 
       {errorKey && (
