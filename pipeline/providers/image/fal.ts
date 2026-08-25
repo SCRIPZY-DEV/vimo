@@ -13,9 +13,9 @@ import { downloadImage } from './download.ts'
 // Provider Fal (síncrono: el POST devuelve la imagen ya generada). Port
 // acotado de fal_provider.ts a UNA imagen — la generación por escenas, con
 // caché por archivo y semáforos, llega con la stage `images` de Create.
-const FAL_BASE_URL = 'https://fal.run'
+export const FAL_BASE_URL = 'https://fal.run'
 
-const MODEL_ENDPOINTS: Record<FalImageModelId, string> = {
+export const FAL_MODEL_ENDPOINTS: Record<FalImageModelId, string> = {
   'flux-schnell': 'fal-ai/flux/schnell',
   'gpt-image-2': 'fal-ai/gpt-image-2',
 }
@@ -26,12 +26,12 @@ const ORDER_DEADLINE_MS = 210_000
 const MAX_ATTEMPTS = 5
 const RATE_LIMIT_MAX_BACKOFF_MS = 30_000
 
-const CONTENT_POLICY_PATTERN =
+export const FAL_CONTENT_POLICY_PATTERN =
   /violat|safety|content[_ ]policy|content checker|flagged|nsfw|inappropriate|moderat|could not be processed/i
 
 // El `detail` de Fal llega como string, como array de {msg} o como error/message:
 // sin normalizarlo, el regex de safety veía "[object Object]" y no matcheaba.
-function errorText(body: FalErrorResponse | null): string {
+export function falErrorText(body: FalErrorResponse | null): string {
   if (!body) return ''
 
   const parts: string[] = []
@@ -72,7 +72,7 @@ function requestBody(prompt: string, model: FalImageModelId): string {
   })
 }
 
-async function readErrorBody(
+export async function readFalErrorBody(
   response: Response,
 ): Promise<FalErrorResponse | null> {
   try {
@@ -96,7 +96,7 @@ export async function generateFalImage(
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let response: Response
     try {
-      response = await fetch(`${FAL_BASE_URL}/${MODEL_ENDPOINTS[model]}`, {
+      response = await fetch(`${FAL_BASE_URL}/${FAL_MODEL_ENDPOINTS[model]}`, {
         method: 'POST',
         headers: {
           Authorization: `Key ${options.apiKey}`,
@@ -135,13 +135,13 @@ export async function generateFalImage(
         `Fal rejected the API key (status=${response.status})`,
       )
 
-    const body = await readErrorBody(response)
-    const detail = errorText(body)
+    const body = await readFalErrorBody(response)
+    const detail = falErrorText(body)
 
     if (
       (response.status === 400 || response.status === 422) &&
       (body?.type === 'content_policy_violation' ||
-        CONTENT_POLICY_PATTERN.test(detail))
+        FAL_CONTENT_POLICY_PATTERN.test(detail))
     )
       // Reintentar el mismo prompt rechazado solo quema créditos.
       throw new PipelineFailure(
@@ -172,4 +172,39 @@ export async function generateFalImage(
     'image_provider_error',
     `Fal failed after ${MAX_ATTEMPTS} attempts (${lastError})`,
   )
+}
+
+// Convención de opción de calidad del catálogo: flux-schnell usa un preset
+// de tamaño ("landscape_16_9"); gpt-image-* usa "<W>x<H>_<quality>".
+export const DEFAULT_FLUX_SIZE = 'landscape_16_9'
+export const DEFAULT_GPT_IMAGE_OPTION = '1920x1080_low'
+
+export function falSceneRequestBody(
+  prompt: string,
+  model: FalImageModelId,
+  qualityOption: string | undefined,
+): Record<string, unknown> {
+  if (model === 'flux-schnell')
+    return {
+      prompt,
+      image_size: qualityOption?.trim() || DEFAULT_FLUX_SIZE,
+      num_inference_steps: 4,
+      num_images: 1,
+      enable_safety_checker: false,
+      output_format: 'jpeg',
+    }
+
+  const option = qualityOption?.trim() || DEFAULT_GPT_IMAGE_OPTION
+  const [sizePart, qualityPart] = option.split('_')
+  const sizeMatch = sizePart.match(/^(\d+)x(\d+)$/)
+  const imageSize = sizeMatch
+    ? { width: parseInt(sizeMatch[1], 10), height: parseInt(sizeMatch[2], 10) }
+    : sizePart
+  return {
+    prompt,
+    image_size: imageSize,
+    quality: qualityPart || 'low',
+    num_images: 1,
+    output_format: 'jpeg',
+  }
 }
