@@ -1,5 +1,11 @@
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { RenderPhase } from '@pipeline/runner/events.ts'
+import type {
+  ReplaceNarrationPayload,
+  SetProjectMusicPayload,
+  UpdateAudioMixPayload,
+} from '@pipeline/types/video-project.ts'
 
 // Tipos de las vistas de biblioteca (Library, Player, Progress, Editor).
 
@@ -16,6 +22,12 @@ export type ProjectBadge =
   | 'error'
   | 'draft'
 
+// Operaciones de audio del editor: el mismo payload del sidecar sin el
+// projectId, que lo aporta el hook del proyecto.
+export type MusicChoice = Omit<SetProjectMusicPayload, 'projectId'>
+export type NarrationReplacement = Omit<ReplaceNarrationPayload, 'projectId'>
+export type AudioMixChange = Omit<UpdateAudioMixPayload, 'projectId'>
+
 // Una escena esperando regeneración. La cola se coalesce: UN job de regen
 // por proyecto a la vez; lo encolado durante un job sale en el siguiente.
 export interface RegenQueueEntry {
@@ -26,7 +38,7 @@ export interface RegenQueueEntry {
 export interface EditorRenderState {
   jobId: string | null
   percent: number
-  phase: string
+  phase: RenderPhase
 }
 
 export interface EditorExportState {
