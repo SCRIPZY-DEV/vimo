@@ -39,3 +39,17 @@ export async function writeProjectMetadata(
     `${JSON.stringify(metadata, null, 2)}\n`,
   )
 }
+
+// Marca el video como desactualizado tras una edición — solo si HAY un video
+// que desactualizar (paridad con marcarVideoDesactualizado del origen: el
+// mp4 jamás se borra, solo se avisa). Lo limpian los jobs de render.
+export async function markVideoOutdated(
+  paths: ProjectPaths,
+  metadata: VideoProjectMetadata,
+): Promise<void> {
+  if (metadata.videoOutdated) return
+  if (!(await isValidFile(paths.videoFile))) return
+
+  metadata.videoOutdated = true
+  await writeProjectMetadata(paths, metadata)
+}

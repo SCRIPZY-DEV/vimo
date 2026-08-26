@@ -4,15 +4,19 @@ import type { SceneSummary } from '@pipeline/types/scenes.ts'
 
 interface SceneThumbnailProps {
   scene: SceneSummary
+  // Cache-buster explícito (mtime del sidecar): en Library el status queda
+  // 'ok' antes y después de regenerar y el fallback id-status no alcanza.
+  version?: number
 }
 
-export function SceneThumbnail({ scene }: SceneThumbnailProps) {
+export function SceneThumbnail({ scene, version }: SceneThumbnailProps) {
   // Cache-buster client-side: la escena regenerada conserva la misma ruta en
   // disco y el webview mostraría la imagen vieja sin él.
   if (scene.imagePath) {
+    const cacheBuster = version ?? `${scene.id}-${scene.imageStatus}`
     return (
       <img
-        src={`${videosApi.imageSource(scene.imagePath)}?v=${scene.id}-${scene.imageStatus}`}
+        src={`${videosApi.imageSource(scene.imagePath)}?v=${cacheBuster}`}
         alt=""
         className="h-full w-full object-cover"
       />

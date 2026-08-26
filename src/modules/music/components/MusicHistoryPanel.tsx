@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
 import {
   History,
   Loader2,
@@ -34,15 +35,6 @@ export function MusicHistoryPanel() {
   if (!isNative) return null
 
   const visible = entries.filter((entry) => matchesSearch(entry, search))
-
-  const formatDate = (iso: string) => {
-    return new Date(iso).toLocaleString(i18n.resolvedLanguage, {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
 
   const confirmDelete = (entry: MusicHistoryEntry) => {
     if (window.confirm(t('music.historial.confirmarEliminar'))) {
@@ -144,7 +136,7 @@ export function MusicHistoryPanel() {
                     {entry.prompt}
                   </p>
                   <p className="mt-1 font-body text-xs text-muted-foreground">
-                    {formatDate(entry.createdAt)}
+                    {formatDateTime(entry.createdAt, i18n.resolvedLanguage)}
                     {entry.style ? ` · ${entry.style}` : ''}
                   </p>
                 </div>

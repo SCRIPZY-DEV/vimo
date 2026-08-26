@@ -1,5 +1,8 @@
 {
   "common": {
+    "resume": "Resume",
+    "openVideo": "Play",
+    "revealVideo": "Show in folder",
     "proximamente": "Coming soon"
   },
   "layout": {
@@ -230,9 +233,7 @@
     },
     "completed": {
       "subtitle": "Your video is ready.",
-      "createAnother": "Create another",
-      "open": "Play",
-      "reveal": "Show in folder"
+      "createAnother": "Create another"
     },
     "probe": {
       "title": "The voice service is not responding",
@@ -258,7 +259,6 @@
       "charactersUnsupported": "Remove the characters or switch to a model that supports them."
     },
     "errors": {
-      "resume": "Resume",
       "discard": "Discard",
       "invalidPayload": "Check the form details.",
       "projectNotFound": "That project is no longer in your folder.",
@@ -325,6 +325,147 @@
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
       "interrupted": "The generation was interrupted when the app closed. Resume: everything done is kept.",
       "unknown": "Something went wrong. Try again."
+    }
+  },
+  "library": {
+    "pageTitle": "Library",
+    "title": "Library",
+    "tagline": "Your generated videos",
+    "desktopOnly": "The library is only available in the desktop app.",
+    "list": {
+      "empty": "No projects yet. Create your first video from “Create”.",
+      "refresh": "Refresh",
+      "select": "Select",
+      "cancelSelection": "Cancel",
+      "deleteSelected": "Delete ({{total}})",
+      "confirmDelete": "Delete {{total}} project(s)? The video and all its assets will be removed from disk. This cannot be undone.",
+      "deleted": "{{total}} project(s) deleted",
+      "imageCount": "{{total}} images",
+      "badge": {
+        "ready": "✓ Ready",
+        "outdated": "Outdated",
+        "generating": "Generating",
+        "awaitingConfirmation": "Confirm scenes",
+        "interrupted": "Interrupted",
+        "paused": "Paused",
+        "error": "Error",
+        "draft": "Draft"
+      }
+    },
+    "player": {
+      "backToLibrary": "Back to library",
+      "edit": "Edit",
+      "delete": "Delete",
+      "play": "Play",
+      "pause": "Pause",
+      "seek": "Video position",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "outdatedBanner": "The video is out of date with your latest edits.",
+      "outdatedCta": "Go to editor",
+      "errorIntro": "The last generation failed:",
+      "retry": "Retry from the last step",
+      "noVideo": "This project has no rendered video yet.",
+      "noVideoCta": "Keep editing"
+    },
+    "progress": {
+      "pageTitle": "Progress",
+      "interrupted": "The generation was interrupted. You can resume it: finished steps are not repeated."
+    },
+    "editor": {
+      "draftHint": "This project is a draft: nothing has been generated yet. Start the generation to edit it.",
+      "generateDraft": "Generate video",
+      "musicButton": "Music",
+      "audioButton": "Audio",
+      "dismissError": "Dismiss error",
+      "timeline": {
+        "boundary": "Drag to move the boundary between scenes",
+        "narration": "Narration",
+        "music": "Music",
+        "title": "Timeline",
+        "scenes": "Scenes",
+        "zoomIn": "Zoom in (+)",
+        "zoomOut": "Zoom out (−)",
+        "noMusic": "No music — click to add",
+        "openAudio": "Open project audio",
+        "openMusic": "Open project music"
+      },
+      "panel": {
+        "noSelection": "Pick a scene in the timeline to edit it.",
+        "sceneTitle": "Scene {{id}}",
+        "userPrompt": "Your description for the image",
+        "userPromptPlaceholder": "Describe what you want to see in this scene (optional)",
+        "promptChars": "{{used}}/{{max}}",
+        "provider": "Provider",
+        "model": "Model",
+        "quality": "Quality",
+        "characters": "Characters in this scene",
+        "creditsRemaining": "{{provider}}: {{remaining}} credits",
+        "creditsUnavailable": "{{provider}}: balance unavailable",
+        "regenerate": "Regenerate image",
+        "regenerateWithPrompt": "Regenerate with your description",
+        "lastError": "Last attempt: {{reason}}"
+      },
+      "render": {
+        "render": "Render video",
+        "rerender": "Re-render (outdated)",
+        "rerenderClean": "Re-render",
+        "cancel": "Cancel render",
+        "phase": {
+          "chunks": "Building scenes",
+          "concat": "Joining",
+          "final": "Final mix"
+        }
+      },
+      "export": {
+        "button": "Export for editing",
+        "progress": "Exporting… {{percent}}%"
+      },
+      "previewBadge": "Preview",
+      "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept."
+    },
+    "errors": {
+      "projectBusy": "A generation is already running. Wait for it to finish before starting another.",
+      "invalidAudioUrl": "The audio URL is not valid.",
+      "audioTooLarge": "The audio exceeds the maximum allowed size (50 MB).",
+      "clipsNoScenes": "The project has no timed scenes to export.",
+      "clipsNoImages": "Some scenes have no image: generate them before exporting.",
+      "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance."
+    },
+    "music": {
+      "title": "Background music",
+      "tabAi": "With AI",
+      "tabYoutube": "YouTube",
+      "tabFile": "File",
+      "prompt": "Music description",
+      "promptPlaceholder": "E.g.: epic orchestral music, tense, no vocals",
+      "suggest": "Suggest",
+      "instrumental": "Instrumental only (no vocals)",
+      "generate": "Generate 2 variations",
+      "generating": "Generating music…",
+      "chooseVariation": "Pick a variation",
+      "variation": "Variation {{number}}",
+      "useThis": "Use this one",
+      "youtubeUrl": "YouTube video URL",
+      "youtubeUrlPlaceholder": "https://www.youtube.com/watch?v=…",
+      "useYoutube": "Extract audio from the video",
+      "fileHint": "Pick an audio file from your computer (mp3, wav, ogg, m4a or aac).",
+      "pickFile": "Choose file…",
+      "remove": "Remove music from the project",
+      "updated": "Music updated"
+    },
+    "audio": {
+      "title": "Project audio",
+      "voiceVolume": "Voice volume",
+      "musicVolume": "Music volume",
+      "bgmOffset": "Music start offset",
+      "replaceNarration": "Replace narration",
+      "uploadFile": "Upload audio",
+      "resynthesize": "Another voice",
+      "replacing": "Replacing narration…",
+      "replaceHint": "The new audio is re-transcribed and scene timings are redistributed. Images are kept.",
+      "narrationReplaced": "Narration replaced",
+      "save": "Save mix"
     }
   },
   "license": {

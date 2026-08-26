@@ -106,7 +106,11 @@ export async function generateSceneWithFal(
         if (!url) {
           options.events.onProgress(scene.id, 0, 'processing')
           if (attempt === MAX_ATTEMPTS) {
-            options.events.onFailed(scene.id, 'image_provider_error')
+            options.events.onFailed(
+              scene.id,
+              'image_provider_error',
+              '200 without an image URL',
+            )
             return { scene, imageReady: false }
           }
           await sleep(2000 * attempt, options.signal)
@@ -125,7 +129,11 @@ export async function generateSceneWithFal(
       }
 
       if (response.status === 401 || response.status === 403) {
-        options.events.onFailed(scene.id, 'image_invalid_api_key')
+        options.events.onFailed(
+          scene.id,
+          'image_invalid_api_key',
+          `status=${response.status}`,
+        )
         return { scene, imageReady: false }
       }
 
@@ -149,7 +157,11 @@ export async function generateSceneWithFal(
         (errorType === 'content_policy_violation' ||
           FAL_CONTENT_POLICY_PATTERN.test(detail))
       if (isSafetyViolation) {
-        options.events.onFailed(scene.id, 'image_content_policy')
+        options.events.onFailed(
+          scene.id,
+          'image_content_policy',
+          `status=${response.status} ${detail}`,
+        )
         return { scene: { ...scene, contentRejected: true }, imageReady: false }
       }
 
@@ -159,7 +171,11 @@ export async function generateSceneWithFal(
       }
 
       if (attempt === MAX_ATTEMPTS) {
-        options.events.onFailed(scene.id, 'image_provider_error')
+        options.events.onFailed(
+          scene.id,
+          'image_provider_error',
+          `status=${response.status} ${detail}`,
+        )
         return { scene, imageReady: false }
       }
       await sleep(2000, options.signal)
@@ -169,7 +185,11 @@ export async function generateSceneWithFal(
       if (attempt === MAX_ATTEMPTS) {
         const code =
           error instanceof PipelineFailure ? error.code : 'image_provider_error'
-        options.events.onFailed(scene.id, code)
+        options.events.onFailed(
+          scene.id,
+          code,
+          error instanceof Error ? error.message : String(error),
+        )
         return { scene, imageReady: false }
       }
       await sleep(2000, options.signal)
@@ -178,7 +198,11 @@ export async function generateSceneWithFal(
     }
   }
 
-  options.events.onFailed(scene.id, 'image_attempts_exhausted')
+  options.events.onFailed(
+    scene.id,
+    'image_attempts_exhausted',
+    `${MAX_ATTEMPTS} attempts without a result`,
+  )
   return { scene, imageReady: false }
 }
 

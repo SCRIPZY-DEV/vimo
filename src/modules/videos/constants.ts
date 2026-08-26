@@ -13,16 +13,43 @@ import type {
 } from '@pipeline/types/video-project.ts'
 import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
+import type {
+  AudioMixValue,
+  ProjectBadge,
+  SceneImageChoice,
+} from './types/library'
 
 export const VideosRoutes = {
   create: '/create',
+  library: '/library',
+  libraryPlayer: '/library/:projectId',
+  libraryProgress: '/library/:projectId/progress',
+  libraryEditor: '/library/:projectId/edit',
 } as const
+
+// Rutas con :projectId resuelto (para <Link>/navigate).
+export function libraryPlayerPath(projectId: string): string {
+  return `/library/${projectId}`
+}
+
+export function libraryProgressPath(projectId: string): string {
+  return `/library/${projectId}/progress`
+}
+
+export function libraryEditorPath(projectId: string): string {
+  return `/library/${projectId}/edit`
+}
 
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
+  projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
   },
+  projectDetail(projectId: string) {
+    return ['videos', 'project', projectId, 'detail']
+  },
+  imageCredits: ['videos', 'imageCredits'],
 } as const
 
 // La tarea sobrevive navegación y reinicios: el proyecto vive en disco.
@@ -42,6 +69,81 @@ export const PROBE_CACHE_TTL_MS = 2 * 60 * 1000
 
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
+
+// Mezcla de audio del editor: defaults (espejo de final-mix.ts en el sidecar)
+// y rangos de los sliders. Los volúmenes son ganancia lineal: 1 = original.
+export const AUDIO_MIX_DEFAULTS: AudioMixValue = {
+  voiceVolume: 1,
+  musicVolume: 0.15,
+  bgmOffsetSeconds: 0,
+}
+export const VOLUME_SLIDER_MAX = 2
+export const VOLUME_SLIDER_STEP = 0.05
+export const BGM_OFFSET_MAX_SECONDS = 120
+
+// Velocidades del reproductor de la biblioteca (port del origen).
+export const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const
+export type PlaybackRate = (typeof PLAYBACK_RATES)[number]
+
+// Espejo del cap del sidecar (update-scenes.ts).
+export const MAX_USER_PROMPT_CHARS = 1000
+
+// Badges con un job en curso o a medias: desde la biblioteca navegan a Progress.
+export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
+  'generating',
+  'awaitingConfirmation',
+  'interrupted',
+  'paused',
+])
+
+// ── Timeline del editor (valores portados 1:1 del TimelineEditor del origen) ──
+
+// Duración mínima de una escena al arrastrar fronteras (piso duro del drag).
+export const MIN_SCENE_SECONDS = 1
+
+// Segundos que saltan J/L en el preview del editor.
+export const EDITOR_SEEK_STEP_SECONDS = 5
+
+// Un frame a 30fps: el paso de las flechas ←/→ (con Shift, 1 segundo).
+export const FRAME_SECONDS = 1 / 30
+
+// Niveles discretos de zoom en px por segundo; default = índice 3 (60 px/s).
+export const TIMELINE_ZOOM_LEVELS = [20, 30, 45, 60, 90, 120, 180, 240] as const
+export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
+
+export const TIMELINE_RULER_HEIGHT = 32
+export const TIMELINE_TRACK_HEIGHT = 48
+export const TIMELINE_SIDEBAR_WIDTH = 112
+
+// Candidatos de step mayor de la regla: el primero cuyo ancho en px sea >= 50.
+export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
+
+// Autoscroll que sigue al playhead: margen de borde y pausa tras interacción
+// manual del usuario (scroll/drag) para no pelearle el control.
+export const AUTOSCROLL_EDGE_PX = 80
+export const AUTOSCROLL_MANUAL_PAUSE_MS = 2500
+
+// Autoscroll por arrastre del playhead contra el borde del viewport:
+// franja sensible y velocidad lineal (px por frame de rAF).
+export const PLAYHEAD_EDGE_DRAG_PX = 56
+export const PLAYHEAD_EDGE_DRAG_MIN_SPEED = 3
+export const PLAYHEAD_EDGE_DRAG_MAX_SPEED = 22
+
+// Elementos del timeline cuyo click no debe mover el playhead. El padre lo
+// consulta con NO_SEEK_SELECTOR; los hijos lo declaran con NO_SEEK_PROPS.
+export const NO_SEEK_PROPS = { 'data-noseek': 'true' } as const
+export const NO_SEEK_SELECTOR = '[data-noseek="true"]'
+
+// Forma de onda: margen vertical total (arriba + abajo) que las barras no
+// ocupan, y altura mínima de barra para que los silencios no corten la línea.
+export const WAVEFORM_VERTICAL_PADDING = 4
+export const WAVEFORM_MIN_BAR_HEIGHT = 1
+
+// Preview: un timeupdate más viejo que el último seek por más de esto se
+// descarta (tick tardío del media, no un avance real).
+export const SEEK_TOLERANCE_SECONDS = 0.5
+// Timeline: un click a menos de esto del final lleva exactamente al cierre.
+export const TIMELINE_END_SNAP_SECONDS = 0.5
 
 // Curva sintética del progreso de voz cuando el proveedor no informa avance
 // real (Minimax y Edge no lo exponen): 90·(1−e^(−t/22)) — port del origen.
@@ -104,6 +206,9 @@ export const FAL_IMAGE_MODELS: { id: FalImageModelId; label: string }[] = [
   { id: 'gpt-image-2', label: 'GPT-Image 2' },
   { id: 'flux-schnell', label: 'Flux Schnell' },
 ]
+
+// Evolink no ofrece elección de modelo: al pasar a él, el modelo se fija acá.
+export const EVOLINK_ONLY_MODEL: FalImageModelId = 'gpt-image-2'
 
 // Opciones de calidad por proveedor. Evolink solo expone gpt-image-2 a 16:9
 // 1K, así que de la opción solo importa la calidad; en Fal el id lleva el
@@ -171,6 +276,14 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   useOverlay: false,
   overlayUrl: '',
   confirmScenes: true,
+}
+
+// Con qué se regenera una escena que no trae modelo/calidad propios: los
+// mismos defaults del formulario de creación.
+export const DEFAULT_IMAGE_CHOICE: SceneImageChoice = {
+  provider: CREATE_FORM_INITIAL_VALUE.imageProvider,
+  model: CREATE_FORM_INITIAL_VALUE.falModel,
+  quality: CREATE_FORM_INITIAL_VALUE.imageQuality,
 }
 
 // Código de error del sidecar/Rust → clave i18n del mensaje.
@@ -257,3 +370,16 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
 
 export const UNKNOWN_CREATE_ERROR_KEY = 'create.errors.unknown'
 export const INTERRUPTED_ERROR_KEY = 'create.errors.interrupted'
+
+// Mapa de errores de todo el módulo (videosApi.errorMessageKey): los de
+// Create más los propios del editor.
+export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  ...CREATE_ERROR_MESSAGE_KEYS,
+  invalid_audio_url: 'library.errors.invalidAudioUrl',
+  audio_too_large: 'library.errors.audioTooLarge',
+  clips_no_scenes: 'library.errors.clipsNoScenes',
+  clips_no_images: 'library.errors.clipsNoImages',
+  fal_admin_key_required: 'library.errors.falAdminKeyRequired',
+  music_invalid_api_key: 'create.errors.missingApiKey',
+  music_network: 'create.errors.musicGenerationFailed',
+}

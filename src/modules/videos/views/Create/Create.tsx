@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
-import { RotateCcw } from 'lucide-react'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
@@ -10,11 +9,15 @@ import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import { CompletedPanel } from '@/modules/videos/components/CompletedPanel'
+import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { CreateForm } from '@/modules/videos/components/CreateForm'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
 import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
-import { CREATE_FORM_INITIAL_VALUE } from '@/modules/videos/constants'
+import {
+  CREATE_FORM_INITIAL_VALUE,
+  UNKNOWN_CREATE_ERROR_KEY,
+} from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
@@ -123,31 +126,11 @@ export function Create() {
       )}
 
       {task?.status === 'error' && (
-        <div className="space-y-3 rounded-2xl border-2 border-destructive/30 bg-destructive/10 p-4">
-          <p className="font-body text-sm text-destructive">
-            {t(task.errorKey ?? 'create.errors.unknown')}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {task.projectId && (
-              <Button
-                size="sm"
-                onClick={() => void resume()}
-                className="rounded-lg font-display font-bold"
-              >
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                {t('create.errors.resume')}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={discardTask}
-              className="rounded-lg font-display text-muted-foreground"
-            >
-              {t('create.errors.discard')}
-            </Button>
-          </div>
-        </div>
+        <TaskErrorCard
+          message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
+          onRetry={() => void resume()}
+          onDiscard={discardTask}
+        />
       )}
 
       {showForm && (

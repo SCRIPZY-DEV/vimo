@@ -3,7 +3,7 @@ import { buildCharactersBibleBlock } from '../../prompts/reference-characters.ts
 import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
 import { isValidFile, sceneImageFile } from '../../project/paths.ts'
-import { readScenes, writeScenes } from '../../project/scenes-file.ts'
+import { readScenes, writeScenesOwned } from '../../project/scenes-file.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import type {
@@ -66,6 +66,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
   id: 'images',
 
   async skip(context) {
+    // Regeneración selectiva: las escenas objetivo se re-generan aunque su
+    // imagen exista — la fase nunca se saltea.
+    if (context.regenerateSceneIds?.size) return false
+
     const scenes = await readScenes(context.paths)
     if (!scenes) return false
     const ready = await idsWithValidImage(context, scenes)
@@ -112,20 +116,34 @@ export const imagesStage: Stage<CreateVideoContext> = {
       imageTextLanguage,
     }
 
+    // Regeneración selectiva (ADR-0014): un objetivo conserva su imagen
+    // VIEJA en disco hasta que sale la nueva, así que "tener archivo" no
+    // alcanza — cuenta como lista recién cuando este job produjo una nueva
+    // (`produced`, alimentado por onReady; un cache-hit es imposible para un
+    // objetivo forzado). Sin esto, un objetivo que falla nunca entra a las
+    // pasadas de recuperación, como sí pasa en el origen.
+    const targets = new Set(context.regenerateSceneIds ?? [])
+    const produced = new Set<number>()
+    const events = laneEvents(context, produced)
+    const isReady = (sceneId: number, withFile: Set<number>) =>
+      withFile.has(sceneId) && (!targets.has(sceneId) || produced.has(sceneId))
+
     // `contentRejected` es telemetría POR INTENTO: se resetea en las que se
     // van a (re)generar para que refleje solo lo que pase ahora.
     let alreadyReady = await idsWithValidImage(context, storedScenes)
     let scenes = applyProjectImageDefaults(
       storedScenes.map((scene) =>
-        alreadyReady.has(scene.id)
+        isReady(scene.id, alreadyReady)
           ? scene
           : { ...scene, contentRejected: false },
       ),
       context,
     )
 
-    scenes = await generateImages(scenes, generation, new Set())
-    await writeScenes(context.paths, scenes)
+    // En modo regeneración selectiva los objetivos se fuerzan desde la
+    // primera pasada; en Create el set vacío deja todo el cache intacto.
+    scenes = await generateImages(scenes, generation, targets, events)
+    await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
 
     // Pasadas de recuperación: reescriben el prompt SOLO de las rechazadas
     // por contenido (las de transporte conservan prompt y tarea pagada).
@@ -133,7 +151,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
       context.signal.throwIfAborted()
       alreadyReady = await idsWithValidImage(context, scenes)
       const missing = scenes.filter(
-        (scene) => hasText(scene) && !alreadyReady.has(scene.id),
+        (scene) => hasText(scene) && !isReady(scene.id, alreadyReady),
       )
       if (missing.length === 0) break
 
@@ -146,9 +164,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
         message: `${missing.length} scene(s) without image${rejectedCount > 0 ? ` (${rejectedCount} rejected by content policy, rewriting their prompts)` : ', retrying with the same prompt'} — pass ${pass}/${MAX_RECOVERY_PASSES}`,
       })
 
+      const readyNow = alreadyReady
       scenes = await regeneratePromptsForRejected(
         scenes,
-        (scene) => alreadyReady.has(scene.id),
+        (scene) => isReady(scene.id, readyNow),
         pass,
         {
           llm: createSceneLlm(context),
@@ -160,10 +179,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
           signal: context.signal,
         },
       )
-      await writeScenes(context.paths, scenes)
+      await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
 
       scenes = scenes.map((scene) =>
-        alreadyReady.has(scene.id)
+        isReady(scene.id, readyNow)
           ? scene
           : { ...scene, contentRejected: false },
       )
@@ -171,11 +190,15 @@ export const imagesStage: Stage<CreateVideoContext> = {
         applyProjectImageDefaults(scenes, context),
         generation,
         new Set(missing.map((scene) => scene.id)),
+        events,
       )
-      await writeScenes(context.paths, scenes)
+      await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
     }
 
-    // Gate final: el proyecto no sigue al render con huecos.
+    // Gate final: el proyecto no sigue al render con huecos. Un objetivo de
+    // regeneración que no salió NO es un hueco (su imagen vieja sigue siendo
+    // válida para el render): el subcomando lo reporta en `failed` y la UI
+    // lo muestra por escena.
     const ready = await idsWithValidImage(context, scenes)
     const stillMissing = scenes
       .filter((scene) => hasText(scene) && !ready.has(scene.id))
@@ -222,17 +245,34 @@ interface GenerationInputs {
   imageTextLanguage: string
 }
 
-function laneEvents(context: CreateVideoContext): ImageLaneEvents {
+// `produced` acumula las escenas que salieron con imagen en este job. El
+// motivo técnico de cada fallo viaja en el evento y se loguea en warn: la
+// UI muestra el código traducido y la terminal/harness conservan el detalle.
+function laneEvents(
+  context: CreateVideoContext,
+  produced: Set<number>,
+): ImageLaneEvents {
   const lastProgressAt = new Map<number, number>()
   return {
     onStarted(sceneId) {
       context.emitter.emit({ type: 'scene-image-started', sceneId })
     },
     onReady(sceneId, imagePath) {
+      produced.add(sceneId)
       context.emitter.emit({ type: 'scene-image-ready', sceneId, imagePath })
     },
-    onFailed(sceneId, code) {
-      context.emitter.emit({ type: 'scene-image-failed', sceneId, code })
+    onFailed(sceneId, code, detail) {
+      context.emitter.emit({
+        type: 'scene-image-failed',
+        sceneId,
+        code,
+        ...(detail ? { detail } : {}),
+      })
+      context.emitter.emit({
+        type: 'log',
+        level: 'warn',
+        message: `scene ${sceneId} image failed: ${code}${detail ? ` — ${detail}` : ''}`,
+      })
     },
     onProgress(sceneId, percent, status) {
       // Debounce por escena: 100 escenas × polls cada 5s saturarían el canal.
@@ -260,6 +300,7 @@ async function generateImages(
   scenes: Scene[],
   inputs: GenerationInputs,
   forceRegenerate: Set<number>,
+  events: ImageLaneEvents,
 ): Promise<Scene[]> {
   const { context, style } = inputs
   const provider = context.options.imageProvider
@@ -312,10 +353,12 @@ async function generateImages(
   const laneOptions: ImageLaneOptions = {
     paths: context.paths,
     signal: context.signal,
-    events: laneEvents(context),
+    events,
     forceRegenerate,
-    // La regeneración explícita por escena llega con Library.
-    explicitNewImage: new Set(),
+    // ÚNICO bypass de la cosecha de una tarea ya pagada: los ids que el
+    // usuario pidió regenerar explícitamente desde el editor (ADR-0014).
+    // Las pasadas de recuperación de Create siguen cosechando `imageTask`.
+    explicitNewImage: new Set(context.regenerateSceneIds ?? []),
   }
 
   // Carril de personaje: solo los personajes CON foto (los sin foto ya viajan

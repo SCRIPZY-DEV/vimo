@@ -1,7 +1,7 @@
 import type { CharacterStyleId } from './characters.ts'
 import type { FalImageModelId, ImageProviderId } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
-import type { SceneSummary } from './scenes.ts'
+import type { SceneSummary, TranscriptWord } from './scenes.ts'
 import type { StageId } from '../runner/stage-id.ts'
 import type { VoiceGenerationSettings, VoiceProviderId } from './voices.ts'
 
@@ -65,6 +65,8 @@ export interface VideoProjectOptions {
   // Mezcla final del render; defaults 1.0 (voz) y 0.15 (música).
   voiceVolume?: number
   musicVolume?: number
+  // Segundos que se saltean del arranque de la música al mezclar (Library).
+  bgmOffsetSeconds?: number
   // En el contrato por compatibilidad con Library; la UI de Create no lo
   // expone: todo job renderiza hasta el final (decisión 4 de ADR-0013).
   autoRender?: boolean
@@ -93,6 +95,10 @@ export interface VideoProjectMetadata {
   wordCount?: number
   // Clave i18n del último fallo (mismo patrón { code } de los jobs).
   errorCode?: string
+  // El video renderizado quedó atrás respecto de una edición posterior
+  // (escenas, narración o música). Nunca implica borrar el mp4: solo avisa.
+  // Lo limpian los jobs que completan un render (ADR-0014).
+  videoOutdated?: boolean
 }
 
 // ─── Contratos de los subcomandos del dominio videos ───
@@ -168,4 +174,175 @@ export interface VideoProjectStatusPayload {
 export interface VideoProjectStatusResult {
   metadata: VideoProjectMetadata
   scenes: SceneSummary[]
+}
+
+// ─── Contratos de Library (ADR-0014) ───
+
+// Una tarjeta del listado de la biblioteca. Todo lo derivable del disco se
+// deriva al listar (hasVideo, imageCount, thumbnail): la metadata puede
+// mentir tras un job interrumpido, el filesystem no.
+export interface VideoProjectListItem {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+  state: VideoProjectState
+  errorCode?: string
+  hasVideo: boolean
+  videoOutdated: boolean
+  imageCount: number
+  sceneCount?: number
+  // Imagen de la escena de menor id, si existe. mtime como cache-buster:
+  // convertFileSrc cachea por URL y la ruta no cambia al regenerar.
+  thumbnailPath?: string
+  thumbnailMtimeMs?: number
+}
+
+export interface ListVideoProjectsResult {
+  projects: VideoProjectListItem[]
+}
+
+export interface DeleteVideoProjectsPayload {
+  projectIds: string[]
+}
+
+export interface DeleteVideoProjectsResult {
+  deleted: number
+}
+
+// Vista de una escena para el editor: el resumen de la UI más los campos
+// editables persistidos en scenes.json (el formato congelado no se toca —
+// esto es una PROYECCIÓN, vive acá y no en types/scenes.ts).
+export interface SceneDetail extends SceneSummary {
+  userPrompt?: string
+  imageModel?: string
+  imageQuality?: string
+  charactersPresent?: number[]
+  imageMtimeMs?: number
+}
+
+export interface VideoProjectDetailPayload {
+  projectId: string
+}
+
+// El payload completo del editor en una sola lectura (espejo de
+// escenas-detalladas del origen). Rutas absolutas derivadas al vuelo, jamás
+// persistidas; cada media lleva su mtime como cache-buster.
+export interface VideoProjectDetailResult {
+  metadata: VideoProjectMetadata
+  scenes: SceneDetail[]
+  words: TranscriptWord[]
+  script: string
+  narrationPath?: string
+  narrationMtimeMs?: number
+  musicPath?: string
+  musicMtimeMs?: number
+  overlayPath?: string
+  videoPath?: string
+  videoMtimeMs?: number
+}
+
+// Un cambio del editor sobre UNA escena. Solo viajan los campos presentes;
+// `userPrompt: ''` limpia el prompt manual (semántica del origen).
+export interface SceneChange {
+  id: number
+  startSeconds?: number
+  endSeconds?: number
+  userPrompt?: string
+  imagePrompt?: string
+  imageModel?: string
+  imageQuality?: string
+  charactersPresent?: number[]
+}
+
+export interface UpdateScenesPayload {
+  projectId: string
+  changes: SceneChange[]
+}
+
+export interface UpdateScenesResult {
+  applied: number
+}
+
+export interface RegenerateSceneImagesPayload {
+  projectId: string
+  // `rewritePrompt` = borrar el imagePrompt para que scene-prompts lo
+  // reescriba (priorizando el userPrompt persistido); false = re-roll de la
+  // imagen con el mismo prompt.
+  scenes: { id: number; rewritePrompt: boolean }[]
+  // Override transitorio del proveedor SOLO para este job; no se persiste.
+  imageProvider?: ImageProviderId
+}
+
+export interface RegenerateSceneImagesResult {
+  regenerated: number[]
+  failed: number[]
+}
+
+export interface RenderVideoPayload {
+  projectId: string
+}
+
+export interface RenderVideoResult {
+  videoPath: string
+}
+
+export interface UpdateAudioMixPayload {
+  projectId: string
+  voiceVolume?: number
+  musicVolume?: number
+  bgmOffsetSeconds?: number
+}
+
+export type ReplaceNarrationMode = 'upload' | 'resynthesize'
+
+export interface ReplaceNarrationVoice {
+  provider: VoiceProviderId
+  voiceId: string
+  voiceName?: string
+  settings?: VoiceGenerationSettings
+}
+
+export interface ReplaceNarrationPayload {
+  projectId: string
+  mode: ReplaceNarrationMode
+  // Modo upload: ruta del audio elegido con el dialog nativo.
+  audioPath?: string
+  // Modo resynthesize: la voz nueva; sin ella se reusa la del proyecto.
+  voice?: ReplaceNarrationVoice
+}
+
+export type SetProjectMusicSource =
+  'youtube' | 'download-url' | 'file' | 'remove'
+
+export interface SetProjectMusicPayload {
+  projectId: string
+  source: SetProjectMusicSource
+  // youtube: URL del video; download-url: URL directa del audio (variación
+  // Suno elegida — la generación reusa el subcomando generate-music).
+  url?: string
+  // file: ruta local elegida con el dialog nativo.
+  audioPath?: string
+}
+
+export interface ExportClipsPayload {
+  projectId: string
+}
+
+export interface ExportClipsResult {
+  directory: string
+  clipCount: number
+}
+
+export interface ProviderCreditsStatus {
+  available: boolean
+  remaining?: number
+  currency?: string
+  // Con available false: por qué (missing_api_key, fal_admin_key_required…).
+  errorCode?: string
+}
+
+export interface ImageCreditsResult {
+  fal: ProviderCreditsStatus
+  evolink: ProviderCreditsStatus
 }

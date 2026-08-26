@@ -76,6 +76,9 @@ export interface SceneImageFailedEvent {
   sceneId: number
   // Clave estable para i18n, como el code de job-failed.
   code: string
+  // Detalle técnico del proveedor (status HTTP, mensaje): para diagnóstico,
+  // nunca se muestra crudo al usuario.
+  detail?: string
 }
 
 // Progreso de una imagen en curso (solo Evolink informa avance).

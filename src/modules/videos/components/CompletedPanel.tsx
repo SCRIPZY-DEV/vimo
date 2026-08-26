@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { FolderOpen, Play, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { videosApi } from '@/modules/videos/api'
+import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
 import type { CreateTask } from '@/modules/videos/types/create'
 
 interface CompletedPanelProps {
@@ -41,24 +42,7 @@ export function CompletedPanel({ task, onCreateAnother }: CompletedPanelProps) {
             controls
             className="w-full rounded-xl border border-border bg-black"
           />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void videosApi.openVideo(videoPath)}
-              className="rounded-xl font-display"
-            >
-              <Play className="mr-1.5 h-4 w-4" />
-              {t('create.completed.open')}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => void videosApi.revealVideo(videoPath)}
-              className="rounded-xl font-display text-muted-foreground"
-            >
-              <FolderOpen className="mr-1.5 h-4 w-4" />
-              {t('create.completed.reveal')}
-            </Button>
-          </div>
+          <VideoFileActions videoPath={videoPath} />
         </>
       )}
     </div>

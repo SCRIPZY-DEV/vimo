@@ -19,8 +19,9 @@ import { writeFileAtomic } from '../../utils/atomic-fs.ts'
 export interface ImageLaneEvents {
   onStarted(sceneId: number, attempt: number): void
   onReady(sceneId: number, imagePath: string): void
-  // `code` es una clave estable (i18n), no texto user-facing.
-  onFailed(sceneId: number, code: string): void
+  // `code` es una clave estable (i18n), no texto user-facing; `detail` es
+  // el motivo técnico del proveedor (status, mensaje) para diagnóstico.
+  onFailed(sceneId: number, code: string, detail?: string): void
   onProgress(sceneId: number, percent: number, status: string): void
 }
 

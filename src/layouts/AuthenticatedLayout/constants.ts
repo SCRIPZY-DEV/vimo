@@ -24,10 +24,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     Icon: DoodleWand,
   },
   {
-    route: '/library',
+    route: VideosRoutes.library,
     labelKey: 'layout.nav.biblioteca',
     Icon: DoodleCamera,
-    disabled: true,
   },
   {
     route: CharactersRoutes.characters,
@@ -71,11 +70,7 @@ export const NAV_ITEMS: SidebarNavItem[] = [
   },
 ]
 
-/**
- * Los items que el sidebar realmente renderiza. Se deriva una vez al importar
- * el módulo: filtrar en el render duplicaría el criterio en cada consumidor y
- * dejaría sin lugar donde explicar por qué falta una sección.
- */
+// Items que el sidebar renderiza. Se filtra una sola vez acá, no en cada consumidor.
 export const VISIBLE_NAV_ITEMS = NAV_ITEMS.filter((item) => !item.hidden)
 
 export const COLLAPSED_STORAGE_KEY = 'vimo:sidebar-collapsed'

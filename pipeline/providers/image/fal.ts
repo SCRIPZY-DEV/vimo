@@ -15,6 +15,52 @@ import { downloadImage } from './download.ts'
 // caché por archivo y semáforos, llega con la stage `images` de Create.
 export const FAL_BASE_URL = 'https://fal.run'
 
+// El billing vive en otro host que la generación.
+const FAL_BILLING_URL = 'https://api.fal.ai/v1/account/billing?expand=credits'
+const BILLING_TIMEOUT_MS = 30_000
+
+export interface FalCredits {
+  remaining: number | null
+  currency: string
+}
+
+// Saldo de la cuenta Fal (editor de Library). Requiere una key tipo ADMIN:
+// una key normal genera imágenes pero el billing devuelve 401/403 — código
+// propio para que la UI lo explique (port de /credito-fal del origen).
+export async function getFalCredits(
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<FalCredits> {
+  const timeout = AbortSignal.timeout(BILLING_TIMEOUT_MS)
+  const response = await fetch(FAL_BILLING_URL, {
+    headers: { Authorization: `Key ${apiKey}` },
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  }).catch((error: unknown) => {
+    if (signal?.aborted) throw error
+    throw new PipelineFailure('image_network', 'Fal billing request failed')
+  })
+
+  if (response.status === 401 || response.status === 403)
+    throw new PipelineFailure(
+      'fal_admin_key_required',
+      `Fal billing rejected the key (status=${response.status})`,
+    )
+  if (!response.ok)
+    throw new PipelineFailure(
+      'image_provider_error',
+      `Fal billing HTTP ${response.status}`,
+    )
+
+  const data = (await response.json()) as {
+    credits?: { current_balance?: number; currency?: string }
+  }
+  const balance = data.credits?.current_balance
+  return {
+    remaining: typeof balance === 'number' ? balance : null,
+    currency: data.credits?.currency ?? 'USD',
+  }
+}
+
 export const FAL_MODEL_ENDPOINTS: Record<FalImageModelId, string> = {
   'flux-schnell': 'fal-ai/flux/schnell',
   'gpt-image-2': 'fal-ai/gpt-image-2',

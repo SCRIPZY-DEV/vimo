@@ -4,9 +4,10 @@ import { isValidFile, sceneImageFile, type ProjectPaths } from './paths.ts'
 
 // Lectura/escritura de scenes.json (port de leerEscenasNormalizadas +
 // persistencia incremental del origen). El pipeline completo escribe el
-// archivo ENTERO tras cada escena procesada — es dueño de todas; el merge
-// por id de la regeneración selectiva llega con Library (paso 7) y vivirá
-// en este archivo.
+// archivo ENTERO tras cada escena procesada — es dueño de todas. La
+// regeneración selectiva de Library es dueña SOLO de sus escenas: persiste
+// con merge por id sobre lo que haya en disco (ADR-0014), así una edición
+// del usuario hecha durante el job no se pisa.
 
 // null = no hay escenas todavía (o el archivo no es utilizable): las fases
 // que dependen de él lo regeneran.
@@ -41,6 +42,41 @@ export async function writeScenes(
     paths.scenesFile,
     `${JSON.stringify(ordered, null, 2)}\n`,
   )
+}
+
+// Merge por id: re-lee el disco y reemplaza SOLO las escenas de `ownedIds`
+// por su versión de `changes`. El read-modify-write pegado al write achica
+// la ventana de carrera con otras escrituras (la UI garantiza un solo job
+// de regen por proyecto; esto cubre las ediciones del usuario en paralelo).
+export async function mergeScenesById(
+  paths: ProjectPaths,
+  ownedIds: Set<number>,
+  changes: Scene[],
+): Promise<Scene[]> {
+  const changesById = new Map<number, Scene>()
+  for (const scene of changes) {
+    if (ownedIds.has(scene.id)) changesById.set(scene.id, scene)
+  }
+
+  const onDisk = (await readScenes(paths)) ?? []
+  const merged = onDisk.map((scene) => changesById.get(scene.id) ?? scene)
+  await writeScenes(paths, merged)
+  return merged
+}
+
+// La escritura de las stages: sin `ownedIds` (pipeline completo) escribe el
+// archivo entero como siempre; con ellos (regeneración selectiva) persiste
+// solo lo propio vía merge.
+export async function writeScenesOwned(
+  paths: ProjectPaths,
+  scenes: Scene[],
+  ownedIds?: Set<number>,
+): Promise<void> {
+  if (!ownedIds || ownedIds.size === 0) {
+    await writeScenes(paths, scenes)
+    return
+  }
+  await mergeScenesById(paths, ownedIds, scenes)
 }
 
 // Vista para la UI: deriva el estado de la imagen de la EXISTENCIA del

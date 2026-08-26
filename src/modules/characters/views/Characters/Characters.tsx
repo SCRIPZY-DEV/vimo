@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Loader2, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
@@ -80,11 +81,7 @@ export function Characters() {
         </p>
       )}
 
-      {isLoading && (
-        <p className="py-12 text-center">
-          <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-        </p>
-      )}
+      {isLoading && <ViewSpinner className="py-12" />}
 
       {!isLoading && entries.length === 0 && isNative && (
         <button

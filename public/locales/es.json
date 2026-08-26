@@ -1,5 +1,8 @@
 {
   "common": {
+    "resume": "Reanudar",
+    "openVideo": "Reproducir",
+    "revealVideo": "Mostrar en carpeta",
     "proximamente": "Próximamente"
   },
   "layout": {
@@ -230,9 +233,7 @@
     },
     "completed": {
       "subtitle": "Tu video está listo.",
-      "createAnother": "Crear otro",
-      "open": "Reproducir",
-      "reveal": "Ver en la carpeta"
+      "createAnother": "Crear otro"
     },
     "probe": {
       "title": "El servicio de voces no responde",
@@ -258,7 +259,6 @@
       "charactersUnsupported": "Quitá los personajes o cambiá a un modelo que los admita."
     },
     "errors": {
-      "resume": "Reanudar",
       "discard": "Descartar",
       "invalidPayload": "Revisá los datos del formulario.",
       "projectNotFound": "Ese proyecto ya no está en tu carpeta.",
@@ -325,6 +325,147 @@
       "sidecar": "No pudimos arrancar el motor de Vimo. Reiniciá la app.",
       "interrupted": "La generación se interrumpió al cerrar la app. Reanudá: lo hecho se conserva.",
       "unknown": "Algo salió mal. Volvé a intentar."
+    }
+  },
+  "library": {
+    "pageTitle": "Biblioteca",
+    "title": "Biblioteca",
+    "tagline": "Tus videos generados",
+    "desktopOnly": "La biblioteca solo está disponible en la app de escritorio.",
+    "list": {
+      "empty": "Todavía no hay proyectos. Creá tu primer video desde «Crear».",
+      "refresh": "Recargar",
+      "select": "Seleccionar",
+      "cancelSelection": "Cancelar",
+      "deleteSelected": "Eliminar ({{total}})",
+      "confirmDelete": "¿Eliminar {{total}} proyecto(s)? El video y todo su material se borran del disco. Esta acción no se puede deshacer.",
+      "deleted": "{{total}} proyecto(s) eliminado(s)",
+      "imageCount": "{{total}} imágenes",
+      "badge": {
+        "ready": "✓ Listo",
+        "outdated": "Desactualizado",
+        "generating": "Generando",
+        "awaitingConfirmation": "Confirmar escenas",
+        "interrupted": "Interrumpido",
+        "paused": "Pausado",
+        "error": "Error",
+        "draft": "Borrador"
+      }
+    },
+    "player": {
+      "backToLibrary": "Volver a la biblioteca",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "play": "Reproducir",
+      "pause": "Pausar",
+      "seek": "Posición del video",
+      "mute": "Silenciar",
+      "unmute": "Activar sonido",
+      "outdatedBanner": "El video quedó desactualizado respecto de tus últimas ediciones.",
+      "outdatedCta": "Ir al editor",
+      "errorIntro": "La última generación falló:",
+      "retry": "Reintentar desde el último paso",
+      "noVideo": "Este proyecto todavía no tiene un video renderizado.",
+      "noVideoCta": "Continuar editando"
+    },
+    "progress": {
+      "pageTitle": "Progreso",
+      "interrupted": "La generación quedó interrumpida. Podés reanudarla: los pasos ya hechos no se repiten."
+    },
+    "editor": {
+      "draftHint": "Este proyecto es un borrador: todavía no se generó nada. Lanzá la generación para poder editarlo.",
+      "generateDraft": "Generar video",
+      "musicButton": "Música",
+      "audioButton": "Audio",
+      "dismissError": "Descartar error",
+      "timeline": {
+        "boundary": "Arrastrá para mover la frontera entre escenas",
+        "narration": "Narración",
+        "music": "Música",
+        "title": "Timeline",
+        "scenes": "Escenas",
+        "zoomIn": "Acercar (+)",
+        "zoomOut": "Alejar (−)",
+        "noMusic": "Sin música — clic para agregar",
+        "openAudio": "Abrir el audio del proyecto",
+        "openMusic": "Abrir la música del proyecto"
+      },
+      "panel": {
+        "noSelection": "Elegí una escena en el timeline para editarla.",
+        "sceneTitle": "Escena {{id}}",
+        "userPrompt": "Tu descripción para la imagen",
+        "userPromptPlaceholder": "Describí lo que querés ver en esta escena (opcional)",
+        "promptChars": "{{used}}/{{max}}",
+        "provider": "Proveedor",
+        "model": "Modelo",
+        "quality": "Calidad",
+        "characters": "Personajes en esta escena",
+        "creditsRemaining": "{{provider}}: {{remaining}} créditos",
+        "creditsUnavailable": "{{provider}}: saldo no disponible",
+        "regenerate": "Regenerar imagen",
+        "regenerateWithPrompt": "Regenerar con tu descripción",
+        "lastError": "Último intento: {{reason}}"
+      },
+      "render": {
+        "render": "Renderizar video",
+        "rerender": "Re-renderizar (desactualizado)",
+        "rerenderClean": "Re-renderizar",
+        "cancel": "Cancelar render",
+        "phase": {
+          "chunks": "Armando escenas",
+          "concat": "Uniendo",
+          "final": "Mezcla final"
+        }
+      },
+      "export": {
+        "button": "Exportar para editar",
+        "progress": "Exportando… {{percent}}%"
+      },
+      "previewBadge": "Vista previa",
+      "regenFailed": "No se pudo regenerar alguna escena: el motivo está en cada escena y su imagen anterior se conserva."
+    },
+    "errors": {
+      "projectBusy": "Ya hay una generación en curso. Esperá a que termine para lanzar otra.",
+      "invalidAudioUrl": "La URL del audio no es válida.",
+      "audioTooLarge": "El audio supera el tamaño máximo permitido (50 MB).",
+      "clipsNoScenes": "El proyecto no tiene escenas con tiempos para exportar.",
+      "clipsNoImages": "Hay escenas sin imagen: generalas antes de exportar.",
+      "falAdminKeyRequired": "Tu clave de Fal no es tipo Admin: generá una nueva con permiso Admin para ver el saldo."
+    },
+    "music": {
+      "title": "Música de fondo",
+      "tabAi": "Con IA",
+      "tabYoutube": "YouTube",
+      "tabFile": "Archivo",
+      "prompt": "Descripción de la música",
+      "promptPlaceholder": "Ej.: música épica orquestal, tensa, sin voces",
+      "suggest": "Sugerir",
+      "instrumental": "Solo instrumental (sin voces)",
+      "generate": "Generar 2 variaciones",
+      "generating": "Generando música…",
+      "chooseVariation": "Elegí una variación",
+      "variation": "Variación {{number}}",
+      "useThis": "Usar esta",
+      "youtubeUrl": "URL del video de YouTube",
+      "youtubeUrlPlaceholder": "https://www.youtube.com/watch?v=…",
+      "useYoutube": "Extraer audio del video",
+      "fileHint": "Elegí un audio de tu computadora (mp3, wav, ogg, m4a o aac).",
+      "pickFile": "Elegir archivo…",
+      "remove": "Quitar música del proyecto",
+      "updated": "Música actualizada"
+    },
+    "audio": {
+      "title": "Audio del proyecto",
+      "voiceVolume": "Volumen de la voz",
+      "musicVolume": "Volumen de la música",
+      "bgmOffset": "Arranque de la música",
+      "replaceNarration": "Reemplazar narración",
+      "uploadFile": "Subir audio",
+      "resynthesize": "Otra voz",
+      "replacing": "Reemplazando narración…",
+      "replaceHint": "El audio nuevo se re-transcribe y los tiempos de las escenas se reparten de nuevo. Las imágenes se conservan.",
+      "narrationReplaced": "Narración reemplazada",
+      "save": "Guardar mezcla"
     }
   },
   "license": {
