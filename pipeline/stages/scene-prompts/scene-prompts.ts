@@ -6,7 +6,7 @@ import { isValidFile } from '../../project/paths.ts'
 import {
   readScenes,
   toSceneSummary,
-  writeScenes,
+  writeScenesOwned,
 } from '../../project/scenes-file.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
@@ -99,7 +99,11 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
         onLog: (message) =>
           context.emitter.emit({ type: 'log', level: 'info', message }),
       })
-      await writeScenes(context.paths, currentScenes)
+      await writeScenesOwned(
+        context.paths,
+        currentScenes,
+        context.regenerateSceneIds,
+      )
     }
 
     // Recién acá se cobra la biblia; el bloque de identidad de los personajes
@@ -124,14 +128,22 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       async onSceneProcessed(scene) {
         const index = buffer.findIndex((item) => item.id === scene.id)
         if (index >= 0) buffer[index] = scene
-        await writeScenes(context.paths, buffer)
+        await writeScenesOwned(
+          context.paths,
+          buffer,
+          context.regenerateSceneIds,
+        )
         context.emitter.emit({
           type: 'scene-prompt-ready',
           scene: await toSceneSummary(context.paths, scene),
         })
       },
     })
-    await writeScenes(context.paths, currentScenes)
+    await writeScenesOwned(
+      context.paths,
+      currentScenes,
+      context.regenerateSceneIds,
+    )
 
     return undefined
   },
@@ -209,6 +221,6 @@ async function resolveCharacterPresence(
     level: 'info',
     message: `reference character present in ${withCharacter} of ${marked.length} scene(s)`,
   })
-  await writeScenes(context.paths, marked)
+  await writeScenesOwned(context.paths, marked, context.regenerateSceneIds)
   return marked
 }
