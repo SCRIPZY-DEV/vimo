@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
 import {
   History,
   Loader2,
@@ -34,15 +35,6 @@ export function VoiceHistoryPanel() {
   if (!isNative) return null
 
   const visible = entries.filter((entry) => matchesSearch(entry, search))
-
-  const formatDate = (iso: string) => {
-    return new Date(iso).toLocaleString(i18n.resolvedLanguage, {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
 
   const confirmDelete = (entry: VoiceHistoryEntry) => {
     if (window.confirm(t('voices.historial.confirmarEliminar'))) {
@@ -134,7 +126,8 @@ export function VoiceHistoryPanel() {
                     {entry.text}
                   </p>
                   <p className="mt-1 font-body text-xs text-muted-foreground">
-                    {formatDate(entry.createdAt)} · {entry.provider}
+                    {formatDateTime(entry.createdAt, i18n.resolvedLanguage)} ·{' '}
+                    {entry.provider}
                     {entry.model ? ` · ${entry.model}` : ''}
                   </p>
                 </div>
