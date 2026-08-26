@@ -37,9 +37,14 @@ export function libraryEditorPath(projectId: string): string {
 
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
+  projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
   },
+  projectDetail(projectId: string) {
+    return ['videos', 'project', projectId, 'detail']
+  },
+  imageCredits: ['videos', 'imageCredits'],
 } as const
 
 // La tarea sobrevive navegación y reinicios: el proyecto vive en disco.
