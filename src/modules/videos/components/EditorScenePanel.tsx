@@ -5,10 +5,8 @@ import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { ImageCreditsSummary } from '@/modules/videos/components/ImageCreditsSummary'
-import {
-  SceneModelQualityPicker,
-  type SceneImageChoice,
-} from '@/modules/videos/components/SceneModelQualityPicker'
+import { SceneModelQualityPicker } from '@/modules/videos/components/SceneModelQualityPicker'
+import type { SceneImageChoice } from '@/modules/videos/types/library'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
 import type {
