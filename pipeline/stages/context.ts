@@ -27,6 +27,11 @@ export interface CreateVideoContext extends PipelineContext {
   // llamada LLM premium acá para esconder su latencia; scene-prompts la
   // cobra con await. Solo existe si hubo guion desde el arranque.
   visualBible?: Promise<string | undefined>
+  // Regeneración selectiva (Library, ADR-0014): ids que se re-generan aunque
+  // su imagen exista. Solo lo setea regenerate-scene-images; en Create queda
+  // undefined y nada cambia. Además acota la ESCRITURA de scenes.json de las
+  // stages a estas escenas (merge por id).
+  regenerateSceneIds?: Set<number>
 }
 
 export async function buildCreateVideoContext(
