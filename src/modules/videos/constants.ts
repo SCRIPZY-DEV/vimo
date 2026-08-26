@@ -22,6 +22,19 @@ export const VideosRoutes = {
   libraryEditor: '/library/:projectId/edit',
 } as const
 
+// Rutas con :projectId resuelto (para <Link>/navigate).
+export function libraryPlayerPath(projectId: string): string {
+  return `/library/${projectId}`
+}
+
+export function libraryProgressPath(projectId: string): string {
+  return `/library/${projectId}/progress`
+}
+
+export function libraryEditorPath(projectId: string): string {
+  return `/library/${projectId}/edit`
+}
+
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
   projectStatus(projectId: string) {
