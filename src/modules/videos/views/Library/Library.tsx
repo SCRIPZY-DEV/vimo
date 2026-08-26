@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
-import { CheckSquare, Loader2, RefreshCw, Trash2, X } from 'lucide-react'
+import { CheckSquare, RefreshCw, Trash2, X } from 'lucide-react'
 import DoodleCamera from '@/modules/common/doodles/DoodleCamera'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { LibraryProjectCard } from '@/modules/videos/components/LibraryProjectCard'
@@ -160,17 +162,9 @@ export function Library() {
         </p>
       )}
 
-      {errorKey && (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-          {t(errorKey)}
-        </p>
-      )}
+      {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
-      {isLoading && (
-        <p className="py-16 text-center">
-          <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-        </p>
-      )}
+      {isLoading && <ViewSpinner />}
 
       {isNative && !isLoading && projects.length === 0 && !errorKey && (
         <p className="py-16 text-center font-body text-sm text-muted-foreground">
