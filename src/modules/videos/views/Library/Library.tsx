@@ -16,6 +16,7 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
+import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import {
   badgeNavigatesToProgress,
   projectBadge,
@@ -45,10 +46,7 @@ export function Library() {
   usePageTitle(t('library.pageTitle'))
 
   const badgeOf = (project: VideoProjectListItem) => {
-    const liveTask =
-      task?.projectId === project.id &&
-      (task.status === 'generating' || task.status === 'creating')
-    return projectBadge(project, liveTask)
+    return projectBadge(project, isTaskLiveFor(task, project.id))
   }
 
   const openProject = (project: VideoProjectListItem) => {
