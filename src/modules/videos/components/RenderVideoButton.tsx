@@ -2,10 +2,10 @@ import { useTranslation } from 'react-i18next'
 import { Clapperboard, Loader2, X } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
-import type { EditorRenderState } from '@/modules/videos/types/library'
-
-// Estado del mp4 final del proyecto, que decide la etiqueta del botón.
-export type RenderedVideoState = 'none' | 'current' | 'outdated'
+import type {
+  EditorRenderState,
+  RenderedVideoState,
+} from '@/modules/videos/types/library'
 
 interface RenderVideoButtonProps {
   render: EditorRenderState | null
