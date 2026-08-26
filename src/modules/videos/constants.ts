@@ -13,7 +13,7 @@ import type {
 } from '@pipeline/types/video-project.ts'
 import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
-import type { ProjectBadge } from './types/library'
+import type { AudioMixValue, ProjectBadge } from './types/library'
 
 export const VideosRoutes = {
   create: '/create',
@@ -65,6 +65,17 @@ export const PROBE_CACHE_TTL_MS = 2 * 60 * 1000
 
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
+
+// Mezcla de audio del editor: defaults (espejo de final-mix.ts en el sidecar)
+// y rangos de los sliders. Los volúmenes son ganancia lineal: 1 = original.
+export const AUDIO_MIX_DEFAULTS: AudioMixValue = {
+  voiceVolume: 1,
+  musicVolume: 0.15,
+  bgmOffsetSeconds: 0,
+}
+export const VOLUME_SLIDER_MAX = 2
+export const VOLUME_SLIDER_STEP = 0.05
+export const BGM_OFFSET_MAX_SECONDS = 120
 
 // Velocidades del reproductor de la biblioteca (port del origen).
 export const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const
@@ -123,6 +134,12 @@ export const NO_SEEK_SELECTOR = '[data-noseek="true"]'
 // ocupan, y altura mínima de barra para que los silencios no corten la línea.
 export const WAVEFORM_VERTICAL_PADDING = 4
 export const WAVEFORM_MIN_BAR_HEIGHT = 1
+
+// Preview: un timeupdate más viejo que el último seek por más de esto se
+// descarta (tick tardío del media, no un avance real).
+export const SEEK_TOLERANCE_SECONDS = 0.5
+// Timeline: un click a menos de esto del final lleva exactamente al cierre.
+export const TIMELINE_END_SNAP_SECONDS = 0.5
 
 // Curva sintética del progreso de voz cuando el proveedor no informa avance
 // real (Minimax y Edge no lo exponen): 90·(1−e^(−t/22)) — port del origen.
