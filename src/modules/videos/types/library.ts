@@ -27,6 +27,16 @@ export type ProjectBadge =
 export type MusicChoice = Omit<SetProjectMusicPayload, 'projectId'>
 export type NarrationReplacement = Omit<ReplaceNarrationPayload, 'projectId'>
 export type AudioMixChange = Omit<UpdateAudioMixPayload, 'projectId'>
+// La mezcla completa que edita el diálogo y previsualiza el player.
+export type AudioMixValue = Required<AudioMixChange>
+
+// API imperativa del preview del editor para los atajos y el timeline.
+export interface EditorPlayerHandle {
+  togglePlay(): void
+  toggleMute(): void
+  seekTo(seconds: number): void
+  seekWithPlay(seconds: number): void
+}
 
 // Una escena esperando regeneración. La cola se coalesce: UN job de regen
 // por proyecto a la vez; lo encolado durante un job sale en el siguiente.
