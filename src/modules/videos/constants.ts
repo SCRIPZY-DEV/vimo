@@ -257,3 +257,16 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
 
 export const UNKNOWN_CREATE_ERROR_KEY = 'create.errors.unknown'
 export const INTERRUPTED_ERROR_KEY = 'create.errors.interrupted'
+
+// Mapa de errores de todo el módulo (videosApi.errorMessageKey): los de
+// Create más los propios del editor.
+export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  ...CREATE_ERROR_MESSAGE_KEYS,
+  invalid_audio_url: 'library.errors.invalidAudioUrl',
+  audio_too_large: 'library.errors.audioTooLarge',
+  clips_no_scenes: 'library.errors.clipsNoScenes',
+  clips_no_images: 'library.errors.clipsNoImages',
+  fal_admin_key_required: 'library.errors.falAdminKeyRequired',
+  music_invalid_api_key: 'create.errors.missingApiKey',
+  music_network: 'create.errors.musicGenerationFailed',
+}
