@@ -1,5 +1,8 @@
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
-import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type {
+  FalImageModelId,
+  ImageProviderId,
+} from '@pipeline/types/image-provider.ts'
 import type { RenderPhase } from '@pipeline/runner/events.ts'
 import type {
   ReplaceNarrationPayload,
@@ -21,6 +24,17 @@ export type ProjectBadge =
   | 'paused'
   | 'error'
   | 'draft'
+
+// Estado del mp4 final del proyecto: decide la etiqueta del botón de render
+// y si el preview reproduce el video o lo simula.
+export type RenderedVideoState = 'none' | 'current' | 'outdated'
+
+// Proveedor/modelo/calidad con que se regenera la escena seleccionada.
+export interface SceneImageChoice {
+  provider: ImageProviderId
+  model: FalImageModelId
+  quality: string
+}
 
 // Operaciones de audio del editor: el mismo payload del sidecar sin el
 // projectId, que lo aporta el hook del proyecto.
