@@ -1,17 +1,18 @@
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
-import { motion } from 'framer-motion'
-import { ArrowLeft, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
-import { useToast } from '@/modules/common/hooks/useToast'
 import { Button } from '@/modules/common/ui/button'
 import { videosApi } from '@/modules/videos/api'
 import { LibraryVideoPlayer } from '@/modules/videos/components/LibraryVideoPlayer'
+import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
 import { OutdatedVideoBanner } from '@/modules/videos/components/OutdatedVideoBanner'
+import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
 import {
+  UNKNOWN_CREATE_ERROR_KEY,
   VideosRoutes,
   libraryEditorPath,
   libraryProgressPath,
@@ -26,7 +27,6 @@ import { projectBadge } from '@/modules/videos/utilities/projectBadge'
 export function LibraryPlayer() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { toast } = useToast()
   const { projectId = '' } = useParams()
   const { detail, isLoading, errorKey } = useLibraryProjectDetail(projectId)
   const { deleteProjects, deleting } = useLibraryProjects()
@@ -39,7 +39,7 @@ export function LibraryPlayer() {
   if (!detail) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 px-8 py-10">
-        <ErrorMessage>{t(errorKey ?? 'create.errors.unknown')}</ErrorMessage>
+        <ErrorMessage>{t(errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}</ErrorMessage>
         <Button asChild variant="ghost" className="rounded-lg font-display">
           <Link to={VideosRoutes.library}>
             <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -69,14 +69,7 @@ export function LibraryPlayer() {
 
   const retry = async () => {
     const started = await startPipelineForProject(projectId, metadata.name)
-    if (!started) {
-      toast({
-        description: t('library.errors.projectBusy'),
-        variant: 'destructive',
-      })
-      return
-    }
-    void navigate(libraryProgressPath(projectId))
+    if (started) void navigate(libraryProgressPath(projectId))
   }
 
   const removeProject = () => {
@@ -87,74 +80,42 @@ export function LibraryPlayer() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-8 py-10">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between gap-3"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            aria-label={t('library.player.backToLibrary')}
-            className="h-9 w-9 shrink-0 rounded-xl text-muted-foreground"
-          >
-            <Link to={VideosRoutes.library}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <h1 className="truncate font-display text-2xl font-extrabold text-foreground">
-            {metadata.name}
-          </h1>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="rounded-lg font-display"
-          >
-            <Link to={libraryEditorPath(projectId)}>
-              <Pencil className="mr-1.5 h-3.5 w-3.5" />
-              {t('library.player.edit')}
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={deleting}
-            onClick={removeProject}
-            className="rounded-lg font-display text-muted-foreground hover:text-destructive"
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            {t('library.player.delete')}
-          </Button>
-        </div>
-      </motion.div>
+      <LibraryViewHeader title={metadata.name}>
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="rounded-lg font-display"
+        >
+          <Link to={libraryEditorPath(projectId)}>
+            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+            {t('library.player.edit')}
+          </Link>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={deleting}
+          onClick={removeProject}
+          className="rounded-lg font-display text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+          {t('library.player.delete')}
+        </Button>
+      </LibraryViewHeader>
 
       {badge === 'outdated' && <OutdatedVideoBanner projectId={projectId} />}
 
       {metadata.state === 'error' && (
-        <div className="space-y-3 rounded-2xl border-2 border-destructive/30 bg-destructive/10 p-4">
-          <p className="font-body text-sm text-destructive">
-            {t('library.player.errorIntro')}{' '}
-            {t(
-              metadata.errorCode
-                ? videosApi.errorMessageKey({ code: metadata.errorCode })
-                : 'create.errors.unknown',
-            )}
-          </p>
-          <Button
-            size="sm"
-            onClick={() => void retry()}
-            className="rounded-lg font-display font-bold"
-          >
-            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-            {t('library.player.retry')}
-          </Button>
-        </div>
+        <TaskErrorCard
+          message={`${t('library.player.errorIntro')} ${t(
+            metadata.errorCode
+              ? videosApi.errorMessageKey({ code: metadata.errorCode })
+              : UNKNOWN_CREATE_ERROR_KEY,
+          )}`}
+          retryLabel={t('library.player.retry')}
+          onRetry={() => void retry()}
+        />
       )}
 
       {detail.videoPath ? (
