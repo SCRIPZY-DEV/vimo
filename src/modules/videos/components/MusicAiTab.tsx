@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, Wand2 } from 'lucide-react'
+import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
@@ -83,15 +84,11 @@ export function MusicAiTab({
         />
       </div>
 
-      <label className="flex items-center gap-2 font-body text-sm text-foreground">
-        <input
-          type="checkbox"
-          checked={instrumental}
-          onChange={(event) => setInstrumental(event.target.checked)}
-          className="accent-saffron"
-        />
-        {t('library.music.instrumental')}
-      </label>
+      <CheckboxRow
+        label={t('library.music.instrumental')}
+        checked={instrumental}
+        onChange={setInstrumental}
+      />
 
       {musicPercent !== null ? (
         <LabeledProgress
