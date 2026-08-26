@@ -139,7 +139,11 @@ export async function generateSceneWithEvolink(
           return { scene: withPendingTask(), imageReady: false }
         // La tarea se completó (COBRADA) pero la descarga no: se persiste la
         // tarea y se sale — crear otra sería pagar dos veces.
-        options.events.onFailed(scene.id, 'image_download_failed')
+        options.events.onFailed(
+          scene.id,
+          'image_download_failed',
+          'task completed but the image download failed',
+        )
         return { scene: withPendingTask(), imageReady: false }
       }
 
@@ -161,7 +165,11 @@ export async function generateSceneWithEvolink(
               options.events.onReady(scene.id, imagePath)
               return { scene: harvested(), imageReady: true }
             } catch {
-              options.events.onFailed(scene.id, 'image_download_failed')
+              options.events.onFailed(
+                scene.id,
+                'image_download_failed',
+                'final check succeeded but the image download failed',
+              )
               return { scene: withPendingTask(), imageReady: false }
             }
           }
@@ -172,7 +180,11 @@ export async function generateSceneWithEvolink(
             const code = final.error.code ?? 'unknown_error'
             const message = final.error.message ?? ''
             if (isContentPolicy(code, message)) {
-              options.events.onFailed(scene.id, 'image_content_policy')
+              options.events.onFailed(
+                scene.id,
+                'image_content_policy',
+                `${code}: ${message}`,
+              )
               return {
                 scene: {
                   ...scene,
@@ -186,7 +198,11 @@ export async function generateSceneWithEvolink(
               await sleep(2000 * attempt, options.signal)
               continue
             }
-            options.events.onFailed(scene.id, 'image_provider_error')
+            options.events.onFailed(
+              scene.id,
+              'image_provider_error',
+              `final check reported ${code}: ${message}`,
+            )
             return { scene: harvested(), imageReady: false }
           }
         }
@@ -209,7 +225,7 @@ export async function generateSceneWithEvolink(
         error instanceof PipelineFailure &&
         error.code === 'image_content_policy'
       ) {
-        options.events.onFailed(scene.id, 'image_content_policy')
+        options.events.onFailed(scene.id, 'image_content_policy', error.message)
         return {
           scene: { ...scene, contentRejected: true, imageTask: undefined },
           imageReady: false,
@@ -229,7 +245,11 @@ export async function generateSceneWithEvolink(
           await sleep(2000 * attempt, options.signal)
           continue
         }
-        options.events.onFailed(scene.id, 'image_provider_error')
+        options.events.onFailed(
+          scene.id,
+          'image_provider_error',
+          `task died on the provider side: ${describeError(error)}`,
+        )
         return { scene: harvested(), imageReady: false }
       }
 
@@ -237,7 +257,11 @@ export async function generateSceneWithEvolink(
         error instanceof PipelineFailure &&
         error.code === 'image_invalid_api_key'
       ) {
-        options.events.onFailed(scene.id, 'image_invalid_api_key')
+        options.events.onFailed(
+          scene.id,
+          'image_invalid_api_key',
+          error.message,
+        )
         return { scene: withPendingTask(), imageReady: false }
       }
 
@@ -251,7 +275,11 @@ export async function generateSceneWithEvolink(
           await sleep(2000 * attempt, options.signal)
           continue
         }
-        options.events.onFailed(scene.id, 'image_provider_error')
+        options.events.onFailed(
+          scene.id,
+          'image_provider_error',
+          `create failed: ${error.message}`,
+        )
         return { scene, imageReady: false }
       }
 
@@ -261,6 +289,7 @@ export async function generateSceneWithEvolink(
         options.events.onFailed(
           scene.id,
           error instanceof PipelineFailure ? error.code : 'image_network',
+          describeError(error),
         )
         return { scene: withPendingTask(), imageReady: false }
       }
@@ -270,8 +299,16 @@ export async function generateSceneWithEvolink(
     }
   }
 
-  options.events.onFailed(scene.id, 'image_attempts_exhausted')
+  options.events.onFailed(
+    scene.id,
+    'image_attempts_exhausted',
+    `${MAX_ORDERS} orders without a result`,
+  )
   return { scene: withPendingTask(), imageReady: false }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 export const evolinkImageLane: ImageLane = {
