@@ -12,6 +12,7 @@ import { PipelineFailure } from '../runner/failure.ts'
 // ├── words.json  scenes.json  scenes-confirmed.json  visual-context.txt
 // ├── scenes/scene_<id>.jpg      characters/reference_N.jpg
 // ├── cache/chunks/              prompts.md
+// ├── clips/clip_NN.mp4          (export para editar; regenerable, ADR-0014)
 // └── <slug>.mp4
 
 // Carpetas bajo <projectsRoot> que NO son proyectos: un proyecto no puede
@@ -34,6 +35,7 @@ export interface ProjectPaths {
   scenesDirectory: string
   charactersDirectory: string
   chunksCacheDirectory: string
+  clipsDirectory: string
   promptsExportFile: string
   videoFile: string
 }
@@ -43,6 +45,15 @@ export interface ProjectPaths {
 export function assertValidProjectId(id: string): void {
   if (!PROJECT_ID_PATTERN.test(id) || RESERVED_ROOT_DIRECTORIES.has(id))
     throw new PipelineFailure('invalid_payload', `invalid project id "${id}"`)
+}
+
+// Filtra qué carpetas de la raíz entran al listado por su nombre (minúsculas,
+// dígitos y guiones; ni `characters` ni `_history`). No abre la carpeta: si
+// de verdad es un proyecto lo dice su project.json. Las carpetas del Vimo
+// original (`Mi_Video`) no cumplen el patrón y quedan fuera a propósito
+// (ADR-0014).
+export function isProjectDirectoryName(name: string): boolean {
+  return PROJECT_ID_PATTERN.test(name) && !RESERVED_ROOT_DIRECTORIES.has(name)
 }
 
 export function projectsRootOf(context: PipelineContext): string {
@@ -82,6 +93,7 @@ export function resolveProjectPaths(
     scenesDirectory: join(projectDir, 'scenes'),
     charactersDirectory: join(projectDir, 'characters'),
     chunksCacheDirectory: join(projectDir, 'cache', 'chunks'),
+    clipsDirectory: join(projectDir, 'clips'),
     promptsExportFile: join(projectDir, 'prompts.md'),
     // El video final lleva el nombre del proyecto (ADR-0009).
     videoFile: join(projectDir, `${projectId}.mp4`),
