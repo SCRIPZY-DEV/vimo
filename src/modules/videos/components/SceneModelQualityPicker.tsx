@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
+import type { SceneImageChoice } from '@/modules/videos/types/library'
 import {
   EVOLINK_ONLY_MODEL,
   FAL_IMAGE_MODELS,
@@ -13,12 +14,6 @@ import type {
   FalImageModelId,
   ImageProviderId,
 } from '@pipeline/types/image-provider.ts'
-
-export interface SceneImageChoice {
-  provider: ImageProviderId
-  model: FalImageModelId
-  quality: string
-}
 
 interface SceneModelQualityPickerProps {
   value: SceneImageChoice
