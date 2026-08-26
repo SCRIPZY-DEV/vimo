@@ -67,6 +67,8 @@ export interface FinalMixInputs {
   colorFilter: string
   voiceVolume?: number
   musicVolume?: number
+  // Segundos que se saltean del arranque de la música (Library, ADR-0014).
+  musicOffsetSeconds?: number
 }
 
 function clampVolume(value: number, fallback: number): number {
@@ -106,6 +108,11 @@ export async function mixFinalVideo(
 
   let musicIndex = -1
   if (inputs.musicFile) {
+    // `-ss` como opción de INPUT: la primera pasada arranca en el offset;
+    // los loops siguientes vuelven al inicio del archivo.
+    const offsetSeconds = inputs.musicOffsetSeconds ?? 0
+    if (Number.isFinite(offsetSeconds) && offsetSeconds > 0)
+      ffmpegInputs.push('-ss', offsetSeconds.toFixed(3))
     ffmpegInputs.push('-stream_loop', '-1', '-i', inputs.musicFile)
     musicIndex = nextIndex
   }
