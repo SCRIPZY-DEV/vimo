@@ -16,6 +16,10 @@ import type { CreateFormValue } from './types/create'
 
 export const VideosRoutes = {
   create: '/create',
+  library: '/library',
+  libraryPlayer: '/library/:projectId',
+  libraryProgress: '/library/:projectId/progress',
+  libraryEditor: '/library/:projectId/edit',
 } as const
 
 export const videosQueryKeys = {
