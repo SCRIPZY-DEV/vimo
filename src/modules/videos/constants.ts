@@ -13,6 +13,7 @@ import type {
 } from '@pipeline/types/video-project.ts'
 import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
+import type { ProjectBadge } from './types/library'
 
 export const VideosRoutes = {
   create: '/create',
@@ -64,6 +65,53 @@ export const PROBE_CACHE_TTL_MS = 2 * 60 * 1000
 
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
+
+// Velocidades del reproductor de la biblioteca (port del origen).
+export const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const
+
+// Espejo del cap del sidecar (update-scenes.ts).
+export const MAX_USER_PROMPT_CHARS = 1000
+
+// Badges con un job en curso o a medias: desde la biblioteca navegan a Progress.
+export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
+  'generating',
+  'awaitingConfirmation',
+  'interrupted',
+  'paused',
+])
+
+// ── Timeline del editor (valores portados 1:1 del TimelineEditor del origen) ──
+
+// Duración mínima de una escena al arrastrar fronteras (piso duro del drag).
+export const MIN_SCENE_SECONDS = 1
+
+// Segundos que saltan J/L en el preview del editor.
+export const EDITOR_SEEK_STEP_SECONDS = 5
+
+// Un frame a 30fps: el paso de las flechas ←/→ (con Shift, 1 segundo).
+export const FRAME_SECONDS = 1 / 30
+
+// Niveles discretos de zoom en px por segundo; default = índice 3 (60 px/s).
+export const TIMELINE_ZOOM_LEVELS = [20, 30, 45, 60, 90, 120, 180, 240] as const
+export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
+
+export const TIMELINE_RULER_HEIGHT = 32
+export const TIMELINE_TRACK_HEIGHT = 48
+export const TIMELINE_SIDEBAR_WIDTH = 112
+
+// Candidatos de step mayor de la regla: el primero cuyo ancho en px sea >= 50.
+export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
+
+// Autoscroll que sigue al playhead: margen de borde y pausa tras interacción
+// manual del usuario (scroll/drag) para no pelearle el control.
+export const AUTOSCROLL_EDGE_PX = 80
+export const AUTOSCROLL_MANUAL_PAUSE_MS = 2500
+
+// Autoscroll por arrastre del playhead contra el borde del viewport:
+// franja sensible y velocidad lineal (px por frame de rAF).
+export const PLAYHEAD_EDGE_DRAG_PX = 56
+export const PLAYHEAD_EDGE_DRAG_MIN_SPEED = 3
+export const PLAYHEAD_EDGE_DRAG_MAX_SPEED = 22
 
 // Curva sintética del progreso de voz cuando el proveedor no informa avance
 // real (Minimax y Edge no lo exponen): 90·(1−e^(−t/22)) — port del origen.
