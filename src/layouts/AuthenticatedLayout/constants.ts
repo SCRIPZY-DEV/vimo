@@ -24,10 +24,9 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     Icon: DoodleWand,
   },
   {
-    route: '/library',
+    route: VideosRoutes.library,
     labelKey: 'layout.nav.biblioteca',
     Icon: DoodleCamera,
-    disabled: true,
   },
   {
     route: CharactersRoutes.characters,
