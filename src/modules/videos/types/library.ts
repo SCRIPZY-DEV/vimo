@@ -45,6 +45,9 @@ export interface LibraryEditorTask {
   pendingImageProvider: ImageProviderId | null
   // Estados transitorios por escena (spinner de la cola y del job).
   sceneStatus: Record<number, SceneImageStatus>
+  // Motivo (clave i18n) del último fallo por escena: sobrevive al cierre
+  // del job y se borra al reintentar esa escena.
+  sceneErrors: Record<number, string>
   // Cache-buster por escena: sube cuando llega una imagen nueva.
   sceneVersions: Record<number, number>
   render: EditorRenderState | null
