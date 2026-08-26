@@ -13,7 +13,11 @@ import type {
 } from '@pipeline/types/video-project.ts'
 import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
-import type { AudioMixValue, ProjectBadge } from './types/library'
+import type {
+  AudioMixValue,
+  ProjectBadge,
+  SceneImageChoice,
+} from './types/library'
 
 export const VideosRoutes = {
   create: '/create',
@@ -272,6 +276,14 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   useOverlay: false,
   overlayUrl: '',
   confirmScenes: true,
+}
+
+// Con qué se regenera una escena que no trae modelo/calidad propios: los
+// mismos defaults del formulario de creación.
+export const DEFAULT_IMAGE_CHOICE: SceneImageChoice = {
+  provider: CREATE_FORM_INITIAL_VALUE.imageProvider,
+  model: CREATE_FORM_INITIAL_VALUE.falModel,
+  quality: CREATE_FORM_INITIAL_VALUE.imageQuality,
 }
 
 // Código de error del sidecar/Rust → clave i18n del mensaje.
