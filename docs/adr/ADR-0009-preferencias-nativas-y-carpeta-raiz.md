@@ -37,6 +37,7 @@ carpeta de salida separada. Dentro, el pipeline crea una carpeta por proyecto
     ├── scenes/scene_<id>.jpg ← imágenes generadas
     ├── characters/           ← referencias visuales de este proyecto
     ├── cache/chunks/         ← tramos intermedios del render
+    ├── clips/                ← export "para editar" (regenerable)
     ├── prompts.md            ← export legible de los prompts
     └── <slug>.mp4            ← video final, junto a las carpetas
 ```
@@ -46,6 +47,10 @@ carpeta de salida separada. Dentro, el pipeline crea una carpeta por proyecto
 > `music.mp3` (archivo) y se sumaron los artefactos intermedios que las stages
 > necesitan para poder retomar. Los nombres están en inglés, como el resto del
 > código; `characters` y `_history` son reservados a nivel raíz.
+>
+> **Actualizado por [ADR-0014](ADR-0014-modulo-library-edicion-sobre-stages.md)**
+> con el módulo Library: se suma `clips/` (un mp4 mudo por escena + narración y
+> música), un artefacto regenerable que el export limpia y reescribe entero.
 
 **2. Plugins oficiales de Tauri, no comandos Rust propios:**
 
