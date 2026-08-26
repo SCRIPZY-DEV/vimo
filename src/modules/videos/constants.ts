@@ -68,6 +68,7 @@ export const CANCEL_CONFIRM_WINDOW_MS = 3500
 
 // Velocidades del reproductor de la biblioteca (port del origen).
 export const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const
+export type PlaybackRate = (typeof PLAYBACK_RATES)[number]
 
 // Espejo del cap del sidecar (update-scenes.ts).
 export const MAX_USER_PROMPT_CHARS = 1000
@@ -112,6 +113,16 @@ export const AUTOSCROLL_MANUAL_PAUSE_MS = 2500
 export const PLAYHEAD_EDGE_DRAG_PX = 56
 export const PLAYHEAD_EDGE_DRAG_MIN_SPEED = 3
 export const PLAYHEAD_EDGE_DRAG_MAX_SPEED = 22
+
+// Elementos del timeline cuyo click no debe mover el playhead. El padre lo
+// consulta con NO_SEEK_SELECTOR; los hijos lo declaran con NO_SEEK_PROPS.
+export const NO_SEEK_PROPS = { 'data-noseek': 'true' } as const
+export const NO_SEEK_SELECTOR = '[data-noseek="true"]'
+
+// Forma de onda: margen vertical total (arriba + abajo) que las barras no
+// ocupan, y altura mínima de barra para que los silencios no corten la línea.
+export const WAVEFORM_VERTICAL_PADDING = 4
+export const WAVEFORM_MIN_BAR_HEIGHT = 1
 
 // Curva sintética del progreso de voz cuando el proveedor no informa avance
 // real (Minimax y Edge no lo exponen): 90·(1−e^(−t/22)) — port del origen.
@@ -174,6 +185,9 @@ export const FAL_IMAGE_MODELS: { id: FalImageModelId; label: string }[] = [
   { id: 'gpt-image-2', label: 'GPT-Image 2' },
   { id: 'flux-schnell', label: 'Flux Schnell' },
 ]
+
+// Evolink no ofrece elección de modelo: al pasar a él, el modelo se fija acá.
+export const EVOLINK_ONLY_MODEL: FalImageModelId = 'gpt-image-2'
 
 // Opciones de calidad por proveedor. Evolink solo expone gpt-image-2 a 16:9
 // 1K, así que de la opción solo importa la calidad; en Fal el id lleva el
