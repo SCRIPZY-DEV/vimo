@@ -20,6 +20,7 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
+import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { projectBadge } from '@/modules/videos/utilities/projectBadge'
 
 // Detalle/reproductor de un proyecto: video final con velocidades, aviso de
@@ -51,16 +52,13 @@ export function LibraryPlayer() {
   }
 
   const metadata = detail.metadata
-  const liveTask =
-    task?.projectId === projectId &&
-    (task.status === 'generating' || task.status === 'creating')
   const badge = projectBadge(
     {
       state: metadata.state,
       hasVideo: Boolean(detail.videoPath),
       videoOutdated: metadata.videoOutdated === true,
     },
-    liveTask,
+    isTaskLiveFor(task, projectId),
   )
 
   // Un proyecto con job en curso (o pausado a mitad) se mira en Progress.
