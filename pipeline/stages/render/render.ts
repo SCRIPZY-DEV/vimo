@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
 import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import { readScenes } from '../../project/scenes-file.ts'
+import type { RenderPhase } from '../../runner/events.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
@@ -28,8 +29,6 @@ import { exportPromptsMarkdown } from './prompts-export.ts'
 // re-encode → mezcla final (audio + overlay + color del estilo). El progreso
 // global se reparte chunks 0-45% / concat 45-50% / final 50-100% (tiempos
 // medidos del origen).
-
-type RenderPhase = 'chunks' | 'concat' | 'final'
 
 function globalFraction(phase: RenderPhase, localFraction: number): number {
   const local = Math.max(0, Math.min(1, localFraction))
@@ -148,6 +147,7 @@ export const renderStage: Stage<CreateVideoContext> = {
         colorFilter: style.filterFinal,
         voiceVolume: options.voiceVolume,
         musicVolume: options.musicVolume,
+        musicOffsetSeconds: options.bgmOffsetSeconds,
       },
       context.paths.videoFile,
       {
