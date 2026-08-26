@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react'
+import i18next from 'i18next'
+import { toast } from '@/modules/common/hooks/useToast'
 import { videosApi } from '@/modules/videos/api'
 import {
   CREATE_ERROR_MESSAGE_KEYS,
@@ -344,6 +346,65 @@ async function startCreation(input: {
   await runPipeline(taskId, projectId)
 }
 
+// ¿Hay un job pesado en curso? Un solo pipeline completo a la vez en toda la
+// app (ADR-0014): Library y Create comparten este store. Exportado para que
+// el store del editor aplique la misma exclusión.
+export function hasBusyCreateTask(): boolean {
+  const status = currentTask?.status
+  return status === 'creating' || status === 'generating'
+}
+
+// Otro job pesado está corriendo: se avisa acá, una vez, y no en cada vista.
+function rejectIfBusy(): boolean {
+  if (!hasBusyCreateTask()) return false
+  toast({
+    description: i18next.t('library.errors.projectBusy'),
+    variant: 'destructive',
+  })
+  return true
+}
+
+// Arranca (o reanuda) el pipeline sobre un proyecto YA existente en disco —
+// la vía de Library para reanudar interrumpidos, reintentar errores y
+// generar borradores. Devuelve false si otro job pesado está corriendo.
+async function startPipelineForProject(
+  projectId: string,
+  projectName: string,
+): Promise<boolean> {
+  if (rejectIfBusy()) return false
+
+  stopActiveJob()
+  const taskId = newTaskId()
+  setTask(makeTask(taskId, projectId, projectName))
+  await runPipeline(taskId, projectId)
+  return true
+}
+
+// Confirma la cantidad de escenas de un proyecto SIN tarea viva (la pausa
+// sobrevivió a un reinicio: el estado quedó en disco) y relanza.
+async function confirmScenesForProject(
+  projectId: string,
+  projectName: string,
+  sceneCount: number,
+): Promise<boolean> {
+  if (rejectIfBusy()) return false
+
+  stopActiveJob()
+  const taskId = newTaskId()
+  setTask(makeTask(taskId, projectId, projectName))
+  try {
+    await videosApi.confirmScenes({ projectId, sceneCount })
+  } catch (error) {
+    patchTask(taskId, {
+      status: 'error',
+      errorKey: videosApi.errorMessageKey(error),
+    })
+    return true
+  }
+  await runPipeline(taskId, projectId)
+  return true
+}
+
 // Confirma la cantidad de escenas y relanza (fases 1-2 son cache-hit).
 async function confirmScenes(sceneCount: number): Promise<void> {
   const task = currentTask
@@ -388,6 +449,10 @@ function subscribe(listener: () => void): () => void {
   }
 }
 
+// Para el store del editor: al cerrar un pipeline completo re-despacha las
+// colas de regen que quedaron esperando por la exclusión mutua.
+export const subscribeCreateTask = subscribe
+
 function getSnapshot(): CreateTask | null {
   return currentTask
 }
@@ -395,5 +460,14 @@ function getSnapshot(): CreateTask | null {
 export function useCreateTask() {
   const task = useSyncExternalStore(subscribe, getSnapshot)
 
-  return { task, startCreation, confirmScenes, resume, cancel, discardTask }
+  return {
+    task,
+    startCreation,
+    startPipelineForProject,
+    confirmScenes,
+    confirmScenesForProject,
+    resume,
+    cancel,
+    discardTask,
+  }
 }
