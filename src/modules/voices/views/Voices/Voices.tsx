@@ -235,25 +235,23 @@ export function Voices() {
         <VoiceHistoryPanel />
       </motion.div>
 
-      {/* Anclado al borde inferior del scroll mientras haya voz elegida: el
-          probador aparece donde el usuario clickeó, sin viajar por la grilla.
-          Último hijo del contenedor para que el sticky acompañe toda la vista. */}
+      {/* Probador centrado: se cierra con la X, Esc o click fuera. */}
+      <Dialog
+        open={selectedVoice !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedVoice(null)
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto rounded-2xl">
       {selectedVoice && (
-        <div className="sticky bottom-0 z-20 pb-2">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-h-[70vh] overflow-y-auto rounded-2xl bg-background shadow-2xl"
-          >
             <VoiceTesterPanel
               key={selectedVoice.provider}
               voice={selectedVoice}
               disabled={!isNative || missingDubvoiceKey}
-              onClose={() => setSelectedVoice(null)}
             />
-          </motion.div>
-        </div>
       )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
