@@ -4,6 +4,7 @@ import { Check, ImageIcon, Loader2, Sparkles, X } from 'lucide-react'
 import { ProgressBar } from '@/modules/common/components/ProgressBar'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
+import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import {
@@ -220,6 +221,16 @@ export function CharacterPreviewPanel({
               </p>
             </li>
           ))}
+          {generating && (
+            <li className="w-[calc((100%-1.5rem)/3)] space-y-1">
+              <Skeleton className="flex aspect-square w-full items-center justify-center rounded-lg border border-border">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </Skeleton>
+              <p className="truncate text-center font-body text-xs text-muted-foreground">
+                {t('characters.preview.generando')}
+              </p>
+            </li>
+          )}
         </ul>
       ) : (
         <p className="flex items-center gap-2 font-body text-xs text-muted-foreground">
