@@ -20,6 +20,10 @@ export function SidebarItem({
   collapsed: boolean
 }) {
   const { t } = useTranslation()
+  // `isActive` se calcula acá y no con la `className` en función de NavLink:
+  // el `Slot` de Radix (TooltipTrigger asChild) concatena `className` como
+  // string y convertiría la función en texto, dejando el <a> sin clases.
+  const isActive = useMatch({ path: item.route, end: false }) !== null
 
   // Mismo padding y radio en ambos modos: al colapsar solo desaparece la
   // etiqueta y el ícono se centra, así el ritmo vertical no cambia.
