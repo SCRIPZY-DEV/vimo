@@ -38,7 +38,7 @@ export function Costs() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
       <div className="flex items-start gap-3 rounded-xl border border-saffron/30 bg-saffron/5 px-4 py-3">
         <DoodleLightbulb size={32} delay={50} className="shrink-0" />
         <p className="font-body text-sm leading-relaxed text-muted-foreground">
