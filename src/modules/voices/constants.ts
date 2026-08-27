@@ -30,7 +30,8 @@ export const VOICE_LIST_CACHE_PREFIX = 'vimo:voices:list:'
 export const VOICE_LIST_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 export const VOICE_LIST_CACHE_MAX_VOICES = 2000
 
-export const VOICE_RENDER_BATCH_SIZE = 30
+/** Voces por página en la paginación client-side (Minimax y favoritos). */
+export const VOICE_PAGE_SIZE = 30
 export const SEARCH_DEBOUNCE_MS = 300
 
 /** Espera antes de re-consultar el saldo (DubVoice descuenta async). */
@@ -128,6 +129,7 @@ export const VOICE_FILTERS_INITIAL_VALUE: VoiceFilterState = {
   accent: '',
   category: '',
   onlyClones: false,
+  onlyWithPreview: false,
 }
 
 /** Códigos de idioma del filtro (mismas 10 opciones del origen). */
