@@ -679,7 +679,8 @@
       "regenerar": "Gerar prévia de novo",
       "cancelar": "Cancelar",
       "vacio": "Você ainda não gerou nenhuma prévia.",
-      "faltaClave": "Você precisa da chave do provedor escolhido."
+      "faltaClave": "Você precisa da chave do provedor escolhido.",
+      "generando": "Gerando…"
     },
     "styles": {
       "normal": "Normal",

@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Check, ImageIcon, Loader2, Sparkles, X } from 'lucide-react'
-import { ProgressBar } from '@/modules/common/components/ProgressBar'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
+import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import {
@@ -24,8 +24,6 @@ interface CharacterPreviewPanelProps {
   provider: ImageProviderId
   falModel: FalImageModelId
   generating: boolean
-  percent: number
-  hasProgress: boolean
   errorKey: string | null
   disabled: boolean
   missingProviderKey: boolean
@@ -43,8 +41,6 @@ export function CharacterPreviewPanel({
   provider,
   falModel,
   generating,
-  percent,
-  hasProgress,
   errorKey,
   disabled,
   missingProviderKey,
@@ -60,6 +56,10 @@ export function CharacterPreviewPanel({
   const styleOf = (id: CharacterStyleId) =>
     PREVIEW_STYLES.find((style) => style.id === id)
   const activePreview = previews.find((preview) => preview.styleId === styleId)
+  // Mientras se genera, el estilo elegido muestra un skeleton en el lugar de su imagen.
+  const visiblePreviews = generating
+    ? previews.filter((preview) => preview.styleId !== styleId)
+    : previews
 
   return (
     <section className="space-y-4 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-4">
@@ -179,18 +179,6 @@ export function CharacterPreviewPanel({
         )}
       </div>
 
-      {generating && (
-        <div className="flex items-center gap-3">
-          <ProgressBar percent={percent} minPercent={4} className="flex-1" />
-          {/* Ancho fijo y tabular-nums: el número cambia sin correr la barra. */}
-          {hasProgress && (
-            <span className="w-10 shrink-0 text-right font-body text-sm tabular-nums text-muted-foreground">
-              {Math.round(percent)}%
-            </span>
-          )}
-        </div>
-      )}
-
       {missingProviderKey && (
         <p className="font-body text-xs text-coral">
           {t('characters.preview.faltaClave')}{' '}
@@ -206,10 +194,13 @@ export function CharacterPreviewPanel({
         </p>
       )}
 
-      {previews.length > 0 ? (
-        <ul className="grid grid-cols-3 gap-3">
-          {previews.map((preview) => (
-            <li key={preview.styleId} className="space-y-1">
+      {previews.length > 0 || generating ? (
+        <ul className="flex flex-wrap justify-center gap-3">
+          {visiblePreviews.map((preview) => (
+            <li
+              key={preview.styleId}
+              className="w-[calc((100%-1.5rem)/3)] space-y-1"
+            >
               <img
                 src={preview.url}
                 alt=""
@@ -220,6 +211,16 @@ export function CharacterPreviewPanel({
               </p>
             </li>
           ))}
+          {generating && (
+            <li className="w-[calc((100%-1.5rem)/3)] space-y-1">
+              <Skeleton className="flex aspect-square w-full items-center justify-center rounded-lg border border-border">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </Skeleton>
+              <p className="truncate text-center font-body text-xs text-muted-foreground">
+                {t('characters.preview.generando')}
+              </p>
+            </li>
+          )}
         </ul>
       ) : (
         <p className="flex items-center gap-2 font-body text-xs text-muted-foreground">
