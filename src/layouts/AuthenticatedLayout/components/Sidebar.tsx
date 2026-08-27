@@ -45,8 +45,10 @@ export function Sidebar() {
     <aside
       className={cn(
         // `overflow-visible` (en lugar de `overflow-y-auto`) permite que el
-        // botón saffron asome del borde derecho sin ser recortado.
-        'relative flex h-screen shrink-0 flex-col overflow-visible border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out',
+        // botón saffron asome del borde derecho sin ser recortado, y `z-10`
+        // lo mantiene por encima del `<main>` (posicionado y posterior en el
+        // DOM), que de otro modo tapa la mitad sobresaliente y captura el clic.
+        'relative z-10 flex h-screen shrink-0 flex-col overflow-visible border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out',
         collapsed ? 'w-16' : 'w-64',
       )}
       data-collapsed={collapsed}
@@ -87,18 +89,14 @@ export function Sidebar() {
 
       <nav
         className={cn(
+          // En colapsado el padding baja a `px-2` para que el ítem (padding +
+          // ícono de 22px) siga cabiendo en los 64px del aside.
           'flex flex-1 flex-col justify-between py-4',
-          collapsed ? 'items-center' : 'px-3',
+          collapsed ? 'px-2' : 'px-3',
         )}
       >
         <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-          <div
-            className={cn(
-              collapsed
-                ? 'flex flex-col items-center gap-1 self-stretch'
-                : 'space-y-1',
-            )}
-          >
+          <div className="space-y-1">
             {VISIBLE_NAV_ITEMS.map((item) => (
               <SidebarItem key={item.route} item={item} collapsed={collapsed} />
             ))}
@@ -132,16 +130,14 @@ export function Sidebar() {
             </div>
           </div>
 
-          <div className={cn(collapsed && 'self-stretch')}>
+          <div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
                   to={AuthRoutesPaths.logout}
                   className={cn(
-                    'flex items-center font-display text-sm font-semibold text-muted-foreground outline-none transition-colors hover:bg-coral/10 hover:text-coral',
-                    collapsed
-                      ? 'mx-auto h-10 w-10 justify-center rounded-xl'
-                      : 'gap-3 rounded-lg px-3 py-2.5',
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 font-display text-sm font-semibold text-muted-foreground outline-none transition-colors hover:bg-coral/10 hover:text-coral',
+                    collapsed && 'justify-center',
                   )}
                 >
                   <LogOut size={22} />
