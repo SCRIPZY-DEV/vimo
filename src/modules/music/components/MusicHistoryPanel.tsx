@@ -137,7 +137,6 @@ export function MusicHistoryPanel() {
                   </p>
                   <p className="mt-1 font-body text-xs text-muted-foreground">
                     {formatDateTime(entry.createdAt, i18n.resolvedLanguage)}
-                    {entry.style ? ` · ${entry.style}` : ''}
                   </p>
                 </div>
                 <Button

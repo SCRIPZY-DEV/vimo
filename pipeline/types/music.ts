@@ -2,12 +2,7 @@
 // (ParamsMusicaSuno, ProgresoMusica, ResultadoMusica).
 export interface MusicGenerationParams {
   prompt: string
-  customMode?: boolean
-  style?: string
-  title?: string
   instrumental?: boolean
-  negativeTags?: string
-  vocalGender?: 'm' | 'f'
 }
 
 export interface MusicProgress {
@@ -62,8 +57,6 @@ export interface ChooseMusicPayload {
   // Nombre que eligió el usuario para encontrarla en el historial.
   name?: string
   prompt: string
-  customMode?: boolean
-  style?: string
   instrumental?: boolean
 }
 
@@ -77,9 +70,7 @@ export interface MusicHistoryEntry {
   createdAt: string
   model: string
   prompt: string
-  customMode: boolean
   instrumental: boolean
-  style?: string
   title?: string
   name?: string
   durationSeconds?: number
