@@ -725,18 +725,19 @@
     "faltaClave": "The DubVoice key is missing to list and generate voices.",
     "irAClaves": "Go to API keys",
     "cargando": "Loading voices… the first time can take a while.",
-    "notaEdge": "Edge voices have no provider sample: hear them by generating (they cost half).",
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
-      "edge": "Edge",
       "favorites": "Favorites"
     },
     "favoritos": {
       "vacio": "You haven't starred any voices yet. Tap a voice's heart to keep it here."
     },
-    "grilla": {
-      "contador": "Showing {{visible}} of {{total}} voices"
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}",
+      "pageOf": "Page {{page}} of {{total}}"
     },
     "filtros": {
       "buscar": "Search voice…",
@@ -764,6 +765,7 @@
       "categoria": "Category",
       "todasCategorias": "All categories",
       "soloClones": "Cloned only",
+      "onlyWithPreview": "With sample only",
       "sinResultados": "No voice matches the filters."
     },
     "tarjeta": {

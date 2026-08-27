@@ -166,6 +166,14 @@ export function VoiceFilters({
           {t('voices.filtros.soloClones')}
         </label>
       )}
+
+      <label className="flex cursor-pointer items-center gap-2 font-body text-sm text-muted-foreground">
+        <Switch
+          checked={value.onlyWithPreview}
+          onCheckedChange={(checked) => patch({ onlyWithPreview: checked })}
+        />
+        {t('voices.filtros.onlyWithPreview')}
+      </label>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { Loader2, Wallet } from 'lucide-react'
 import DoodleVoice from '@/modules/common/doodles/DoodleVoice'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
+import { Dialog, DialogContent } from '@/modules/common/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/modules/common/ui/tabs'
 import { cn } from '@/modules/common/utilities/cn'
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
@@ -15,11 +16,13 @@ import { VoiceCloningInfoCard } from '@/modules/voices/components/VoiceCloningIn
 import { VoiceFilters } from '@/modules/voices/components/VoiceFilters'
 import { VoiceGrid } from '@/modules/voices/components/VoiceGrid'
 import { VoiceHistoryPanel } from '@/modules/voices/components/VoiceHistoryPanel'
+import { VoicePagination } from '@/modules/voices/components/VoicePagination'
 import { VoiceTesterPanel } from '@/modules/voices/components/VoiceTesterPanel'
 import {
   CREDITS_SETTLE_DELAY_MS,
   SEARCH_DEBOUNCE_MS,
   VOICE_FILTERS_INITIAL_VALUE,
+  VOICE_PAGE_SIZE,
   voicesQueryKeys,
 } from '@/modules/voices/constants'
 import { useDebouncedValue } from '@/modules/voices/hooks/useDebouncedValue'
@@ -31,9 +34,10 @@ import { useVoices } from '@/modules/voices/hooks/useVoices'
 import { filterVoices } from '@/modules/voices/utilities/filterVoices'
 import { voiceKey } from '@/modules/voices/utilities/voiceKey'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
-import type { VoiceTab } from '@/modules/voices/types/voices'
+import type { VoiceFilterState, VoiceTab } from '@/modules/voices/types/voices'
 
-const TABS: VoiceTab[] = ['minimax', 'elevenlabs', 'edge', 'favorites']
+// Edge queda fuera del catálogo visible (sin muestras del proveedor).
+const TABS: VoiceTab[] = ['minimax', 'elevenlabs', 'favorites']
 
 export function Voices() {
   const { t } = useTranslation()
@@ -51,6 +55,7 @@ export function Voices() {
 
   const [tab, setTab] = useState<VoiceTab>('minimax')
   const [filters, setFilters] = useState(VOICE_FILTERS_INITIAL_VALUE)
+  const [page, setPage] = useState(1)
   const [selectedVoice, setSelectedVoice] = useState<VoiceSummary | null>(null)
 
   usePageTitle(t('voices.pageTitle'))
@@ -58,8 +63,8 @@ export function Voices() {
   const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS)
   const effectiveFilters = { ...filters, search: debouncedSearch }
   const provider = tab === 'favorites' ? null : tab
-  const { voices, isLoading, errorKey, hasMore, loadingMore, loadMore } =
-    useVoices({ provider, filters: effectiveFilters, ready })
+  const { voices, isLoading, isFetching, errorKey, serverPaged, hasNextPage } =
+    useVoices({ provider, filters: effectiveFilters, page, ready })
 
   const missingDubvoiceKey =
     isNative && !keysLoading && missingProviders.length > 0
@@ -77,10 +82,28 @@ export function Voices() {
     return () => clearTimeout(timer)
   }, [taskStatus, queryClient])
 
+  // Cambiar de tab o de filtros vuelve a la primera página.
+  const changeTab = (value: string) => {
+    setTab(value as VoiceTab)
+    setPage(1)
+  }
+  const changeFilters = (value: VoiceFilterState) => {
+    setFilters(value)
+    setPage(1)
+  }
+
   const source = tab === 'favorites' ? favorites : voices
-  const visibleVoices = filterVoices(source, effectiveFilters, {
+  const filteredVoices = filterVoices(source, effectiveFilters, {
     serverFiltered: tab === 'elevenlabs',
   })
+  // ElevenLabs ya viene paginado del server; el resto se rebana en cliente.
+  const totalPages = serverPaged
+    ? null
+    : Math.max(1, Math.ceil(filteredVoices.length / VOICE_PAGE_SIZE))
+  const pageVoices = serverPaged
+    ? filteredVoices
+    : filteredVoices.slice((page - 1) * VOICE_PAGE_SIZE, page * VOICE_PAGE_SIZE)
+  const canGoNext = serverPaged ? hasNextPage : page < (totalPages ?? 1)
   const accents = [
     ...new Set(voices.map((voice) => voice.accent).filter(Boolean)),
   ] as string[]
@@ -93,7 +116,7 @@ export function Voices() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-8 py-10">
+    <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -161,7 +184,7 @@ export function Voices() {
           (!isNative || missingDubvoiceKey) && 'pointer-events-none opacity-60',
         )}
       >
-        <Tabs value={tab} onValueChange={(value) => setTab(value as VoiceTab)}>
+        <Tabs value={tab} onValueChange={changeTab}>
           <TabsList>
             {TABS.map((tabId) => (
               <TabsTrigger key={tabId} value={tabId}>
@@ -178,16 +201,10 @@ export function Voices() {
           <VoiceFilters
             provider={tab}
             value={filters}
-            onChange={setFilters}
+            onChange={changeFilters}
             accents={accents}
             categories={categories}
           />
-        )}
-
-        {tab === 'edge' && (
-          <p className="font-body text-xs text-muted-foreground">
-            {t('voices.notaEdge')}
-          </p>
         )}
 
         {errorKey && tab !== 'favorites' && (
@@ -205,7 +222,7 @@ export function Voices() {
           </div>
         )}
 
-        {!isLoading && visibleVoices.length === 0 && !errorKey && (
+        {!isLoading && pageVoices.length === 0 && !errorKey && (
           <p className="py-12 text-center font-body text-sm text-muted-foreground">
             {tab === 'favorites'
               ? t('voices.favoritos.vacio')
@@ -213,19 +230,25 @@ export function Voices() {
           </p>
         )}
 
-        {visibleVoices.length > 0 && (
+        {pageVoices.length > 0 && (
           <VoiceGrid
-            key={`${tab}:${JSON.stringify(effectiveFilters)}`}
-            voices={visibleVoices}
+            voices={pageVoices}
             selectedKey={selectedVoice ? voiceKey(selectedVoice) : null}
             playingUrl={playingUrl}
             isFavorite={isFavorite}
             onSelect={setSelectedVoice}
             onTogglePreview={togglePreviewFor}
             onToggleFavorite={toggleFavorite}
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            onLoadMore={loadMore}
+          />
+        )}
+
+        {!isLoading && (pageVoices.length > 0 || page > 1) && (
+          <VoicePagination
+            page={page}
+            totalPages={totalPages}
+            hasNextPage={canGoNext}
+            loading={isFetching}
+            onPageChange={setPage}
           />
         )}
       </motion.section>
@@ -240,25 +263,23 @@ export function Voices() {
         <VoiceHistoryPanel />
       </motion.div>
 
-      {/* Anclado al borde inferior del scroll mientras haya voz elegida: el
-          probador aparece donde el usuario clickeó, sin viajar por la grilla.
-          Último hijo del contenedor para que el sticky acompañe toda la vista. */}
-      {selectedVoice && (
-        <div className="sticky bottom-0 z-20 pb-2">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-h-[70vh] overflow-y-auto rounded-2xl bg-background shadow-2xl"
-          >
+      {/* Probador centrado: se cierra con la X, Esc o click fuera. */}
+      <Dialog
+        open={selectedVoice !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedVoice(null)
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto rounded-2xl">
+          {selectedVoice && (
             <VoiceTesterPanel
               key={selectedVoice.provider}
               voice={selectedVoice}
               disabled={!isNative || missingDubvoiceKey}
-              onClose={() => setSelectedVoice(null)}
             />
-          </motion.div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

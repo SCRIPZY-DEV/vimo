@@ -37,6 +37,8 @@ export interface VoiceFilterState {
   category: string
   // Solo Minimax.
   onlyClones: boolean
+  // Client-side en todos los providers: oculta las voces sin muestra de audio.
+  onlyWithPreview: boolean
 }
 
 /** Una voz marcada como favorita (persistida en localStorage). */

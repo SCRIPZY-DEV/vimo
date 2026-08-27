@@ -3,6 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, X } from 'lucide-react'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/modules/common/ui/dialog'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
@@ -24,21 +29,16 @@ import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
 interface VoiceTesterPanelProps {
   voice: VoiceSummary
   disabled: boolean
-  onClose: () => void
 }
 
 /**
  * El probador de voz: texto + modelo + ajustes → job generate-voice con
  * progreso y cancelación. El resultado queda guardado en el historial local.
- * Vive anclado al borde inferior de la vista mientras haya una voz elegida;
- * el padre lo remonta (key por provider) al cambiar de motor, así el modelo y
- * los ajustes vuelven a los defaults del provider activo.
+ * Se abre en un Dialog centrado al elegir una voz; el padre lo remonta (key
+ * por provider) al cambiar de motor, así el modelo y los ajustes vuelven a los
+ * defaults del provider activo.
  */
-export function VoiceTesterPanel({
-  voice,
-  disabled,
-  onClose,
-}: VoiceTesterPanelProps) {
+export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   const { t } = useTranslation()
   const { task, startGeneration, discardTask } = useVoiceTask()
 
@@ -72,30 +72,16 @@ export function VoiceTesterPanel({
 
   return (
     <section
-      className={cn(
-        'space-y-4 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6',
-        disabled && 'pointer-events-none opacity-60',
-      )}
+      className={cn('space-y-4', disabled && 'pointer-events-none opacity-60')}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-extrabold text-foreground">
-            {t('voices.probador.titulo')}
-          </h2>
-          <p className="font-body text-sm text-muted-foreground">
-            {t('voices.probador.vozElegida', { name: voice.name })}
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          aria-label={t('voices.probador.cerrar')}
-          className="h-7 shrink-0 rounded-lg font-display text-xs text-muted-foreground"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      <DialogHeader>
+        <DialogTitle className="font-display text-xl font-extrabold text-foreground">
+          {t('voices.probador.titulo')}
+        </DialogTitle>
+        <DialogDescription className="font-body">
+          {t('voices.probador.vozElegida', { name: voice.name })}
+        </DialogDescription>
+      </DialogHeader>
 
       <div className="space-y-1.5">
         <Label htmlFor="voice-text" className="font-display">

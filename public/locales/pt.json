@@ -725,18 +725,19 @@
     "faltaClave": "Falta a chave da DubVoice para listar e gerar vozes.",
     "irAClaves": "Ir para chaves de API",
     "cargando": "Carregando vozes… a primeira vez pode demorar um pouco.",
-    "notaEdge": "As vozes Edge não trazem amostra do provedor: ouça-as gerando (custam a metade).",
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
-      "edge": "Edge",
       "favorites": "Favoritas"
     },
     "favoritos": {
       "vacio": "Você ainda não marcou vozes favoritas. Toque no coração de uma voz para guardá-la aqui."
     },
-    "grilla": {
-      "contador": "Mostrando {{visible}} de {{total}} vozes"
+    "pagination": {
+      "previous": "Anterior",
+      "next": "Próxima",
+      "page": "Página {{page}}",
+      "pageOf": "Página {{page}} de {{total}}"
     },
     "filtros": {
       "buscar": "Buscar voz…",
@@ -764,6 +765,7 @@
       "categoria": "Categoria",
       "todasCategorias": "Todas as categorias",
       "soloClones": "Só clonadas",
+      "onlyWithPreview": "Só com amostra",
       "sinResultados": "Nenhuma voz corresponde aos filtros."
     },
     "tarjeta": {

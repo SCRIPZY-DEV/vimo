@@ -16,6 +16,7 @@ export function filterVoices(
     if (filters.accent && voice.accent !== filters.accent) return false
     if (filters.category && voice.category !== filters.category) return false
     if (filters.onlyClones && !voice.isClone) return false
+    if (filters.onlyWithPreview && !voice.previewUrl) return false
     if (options.serverFiltered) return true
 
     if (!matchesVoiceSearch(voice, filters.search)) return false
