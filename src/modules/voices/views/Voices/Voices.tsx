@@ -185,12 +185,6 @@ export function Voices() {
           />
         )}
 
-        {tab === 'edge' && (
-          <p className="font-body text-xs text-muted-foreground">
-            {t('voices.notaEdge')}
-          </p>
-        )}
-
         {errorKey && tab !== 'favorites' && (
           <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
             {t(errorKey)}
