@@ -67,7 +67,7 @@ export function LibraryProgress() {
   // ── Con tarea del store ──
   if (ownTask) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+      <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
         <LibraryViewHeader title={projectName} />
 
         {(ownTask.status === 'creating' || ownTask.status === 'generating') && (
@@ -97,7 +97,7 @@ export function LibraryProgress() {
 
   if (!status) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-8 py-10">
+      <div className="mx-auto max-w-5xl space-y-4 px-8 py-10">
         <LibraryViewHeader title={projectName} />
         <ErrorMessage>{t(errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}</ErrorMessage>
       </div>
@@ -115,7 +115,7 @@ export function LibraryProgress() {
 
   if (metadata.state === 'awaiting-confirmation') {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+      <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
         <LibraryViewHeader title={projectName} />
         {/* El mismo objeto que guarda task.confirmation, reconstruido desde disco. */}
         <ConfirmScenesDialog
@@ -134,7 +134,7 @@ export function LibraryProgress() {
   // generating (job muerto con la app) o paused: mismo remedio — reanudar;
   // las fases hechas son cache-hit y el disco se corrige.
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+    <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
       <LibraryViewHeader title={projectName} />
       <div className="space-y-3 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6">
         <p className="font-body text-sm text-muted-foreground">
