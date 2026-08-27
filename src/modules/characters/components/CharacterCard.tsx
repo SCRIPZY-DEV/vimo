@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Pencil, Trash2 } from 'lucide-react'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
 import { Button } from '@/modules/common/ui/button'
+import { cn } from '@/modules/common/utilities/cn'
 import { charactersApi } from '@/modules/characters/api'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 
@@ -24,10 +25,20 @@ export function CharacterCard({
 
   const portrait = character.previews[0]
 
+  // Toda la tarjeta abre la edición; eliminar y confirmar frenan la propagación.
+  const edit = () => {
+    if (disabled) return
+    onEdit(character)
+  }
+
   return (
     <article
+      onClick={edit}
       onMouseLeave={() => setConfirming(false)}
-      className="flex flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card"
+      className={cn(
+        'flex flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card transition-transform hover:scale-[1.02]',
+        !disabled && 'cursor-pointer',
+      )}
     >
       <CharacterPortrait
         src={portrait ? charactersApi.imageSource(portrait.imagePath) : null}
@@ -50,13 +61,16 @@ export function CharacterCard({
           {character.description}
         </p>
 
-        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+        <div className="mt-auto flex items-center gap-2 pt-2">
           <Button
             variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={() => onEdit(character)}
-            className="rounded-lg font-display"
+            onClick={(event) => {
+              event.stopPropagation()
+              edit()
+            }}
+            className="flex-1 rounded-lg font-display"
           >
             <Pencil className="mr-1.5 h-3.5 w-3.5" />
             {t('characters.tarjeta.editar')}
@@ -67,7 +81,10 @@ export function CharacterCard({
               variant="destructive"
               size="sm"
               disabled={disabled}
-              onClick={() => onDelete(character)}
+              onClick={(event) => {
+                event.stopPropagation()
+                onDelete(character)
+              }}
               className="rounded-lg font-display"
             >
               {t('characters.tarjeta.confirmar')}
@@ -77,7 +94,10 @@ export function CharacterCard({
               variant="ghost"
               size="icon"
               disabled={disabled}
-              onClick={() => setConfirming(true)}
+              onClick={(event) => {
+                event.stopPropagation()
+                setConfirming(true)
+              }}
               aria-label={t('characters.tarjeta.eliminar')}
               className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
             >
