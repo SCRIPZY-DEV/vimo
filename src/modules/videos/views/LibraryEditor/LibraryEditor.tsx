@@ -107,7 +107,7 @@ export function LibraryEditor() {
 
   if (!detail) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-8 py-10">
+      <div className="mx-auto max-w-5xl space-y-4 px-8 py-10">
         <ErrorMessage>{t(errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}</ErrorMessage>
         <Button asChild variant="ghost" className="rounded-lg font-display">
           <Link to={VideosRoutes.library}>
@@ -171,7 +171,7 @@ export function LibraryEditor() {
   // Proyecto sin escenas (borrador): no hay nada que editar todavía.
   if (workingScenes.length === 0) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-8 py-10">
+      <div className="mx-auto max-w-5xl space-y-4 px-8 py-10">
         <LibraryViewHeader title={metadata.name} />
         <div className="space-y-3 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6 text-center">
           <p className="font-body text-sm text-muted-foreground">
