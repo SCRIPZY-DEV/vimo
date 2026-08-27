@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Loader2, Music2, RotateCcw, Sparkles, Wallet, X } from 'lucide-react'
+import { Loader2, Music2, RotateCcw, Sparkles, X } from 'lucide-react'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
@@ -17,6 +17,7 @@ import { musicApi } from '@/modules/music/api'
 import { MusicForm } from '@/modules/music/components/MusicForm'
 import { musicFormToParams } from '@/modules/music/utilities/formParams'
 import { MusicAudioPlayer } from '@/modules/music/components/MusicAudioPlayer'
+import { MusicCreditsBadge } from '@/modules/music/components/MusicCreditsBadge'
 import { MusicHistoryPanel } from '@/modules/music/components/MusicHistoryPanel'
 import { MusicOptionCard } from '@/modules/music/components/MusicOptionCard'
 import { MusicPromptSuggester } from '@/modules/music/components/MusicPromptSuggester'
@@ -26,7 +27,6 @@ import {
   NAME_LIMIT,
   musicQueryKeys,
 } from '@/modules/music/constants'
-import { useMusicCredits } from '@/modules/music/hooks/useMusicCredits'
 import { useMusicTask } from '@/modules/music/hooks/useMusicTask'
 
 export function Music() {
@@ -37,7 +37,6 @@ export function Music() {
     missingProviders,
     isLoading: keysLoading,
   } = useRequiredApiKeys({ providers: ['evolink'] })
-  const { credits } = useMusicCredits()
   const { task, startGeneration, chooseOption, regenerate, discardTask } =
     useMusicTask()
 
@@ -93,21 +92,7 @@ export function Music() {
             </p>
           </div>
         </div>
-        {credits && (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-            <Wallet className="h-4 w-4 text-saffron" />
-            <div className="text-right">
-              <p className="font-body text-xs text-muted-foreground">
-                {t('music.saldo')}
-              </p>
-              <p className="font-display text-sm font-bold tabular-nums text-foreground">
-                {credits.unlimited
-                  ? '∞'
-                  : Math.floor(credits.remaining).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        )}
+        <MusicCreditsBadge />
       </motion.div>
 
       {!isNative && (
