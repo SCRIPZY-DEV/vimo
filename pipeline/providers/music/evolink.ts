@@ -22,9 +22,6 @@ const MUSIC_MODEL = 'suno-v5-beta'
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_ATTEMPTS = 120 // 120 × 5 s = 10 minutos
 const SIMPLE_PROMPT_LIMIT = 500
-const CUSTOM_PROMPT_LIMIT = 5000
-const STYLE_LIMIT = 1000
-const TITLE_LIMIT = 80
 const CREATE_TIMEOUT_MS = 60_000
 const POLL_TIMEOUT_MS = 30_000
 const DOWNLOAD_TIMEOUT_MS = 120_000
@@ -127,22 +124,12 @@ async function createTask(
   params: MusicGenerationParams,
   options: MusicGenerationOptions,
 ): Promise<{ taskId: string; estimatedCredits: number }> {
-  const customMode = params.customMode ?? false
   const body: Record<string, unknown> = {
     model: MUSIC_MODEL,
-    custom_mode: customMode,
+    custom_mode: false,
     instrumental: params.instrumental ?? true,
-    prompt: params.prompt.slice(
-      0,
-      customMode ? CUSTOM_PROMPT_LIMIT : SIMPLE_PROMPT_LIMIT,
-    ),
+    prompt: params.prompt.slice(0, SIMPLE_PROMPT_LIMIT),
   }
-  if (customMode && params.style)
-    body.style = params.style.slice(0, STYLE_LIMIT)
-  if (customMode && params.title)
-    body.title = params.title.slice(0, TITLE_LIMIT)
-  if (params.negativeTags) body.negative_tags = params.negativeTags
-  if (customMode && params.vocalGender) body.vocal_gender = params.vocalGender
 
   const response = await fetch(`${EVOLINK_BASE_URL}/v1/audios/generations`, {
     method: 'POST',
@@ -311,9 +298,12 @@ export async function getEvolinkCredits(
   return {
     // El token puede reportar créditos "infinitos" en planes enterprise: el
     // saldo real es el del usuario cuando existe (bug histórico del origen).
+    // Por lo mismo, "ilimitado" solo aplica si no hay saldo de usuario.
     remaining: user?.remaining_credits ?? token?.remaining_credits ?? 0,
     used: user?.used_credits ?? token?.used_credits ?? 0,
-    unlimited: token?.unlimited_credits ?? false,
+    unlimited:
+      user?.remaining_credits === undefined &&
+      (token?.unlimited_credits ?? false),
     userRemaining: user?.remaining_credits ?? 0,
     userUsed: user?.used_credits ?? 0,
     tokenRemaining: token?.remaining_credits ?? 0,
