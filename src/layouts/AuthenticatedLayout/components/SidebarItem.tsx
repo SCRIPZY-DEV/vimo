@@ -21,11 +21,11 @@ export function SidebarItem({
 }) {
   const { t } = useTranslation()
 
+  // Mismo padding y radio en ambos modos: al colapsar solo desaparece la
+  // etiqueta y el ícono se centra, así el ritmo vertical no cambia.
   const baseClasses = cn(
-    'flex items-center font-display text-sm font-semibold outline-none transition-colors',
-    collapsed
-      ? 'h-10 w-10 justify-center rounded-xl'
-      : 'gap-3 rounded-lg px-3 py-2.5',
+    'flex items-center gap-3 rounded-lg px-3 py-2.5 font-display text-sm font-semibold outline-none transition-colors',
+    collapsed && 'justify-center',
   )
 
   const label = !collapsed && (
@@ -43,7 +43,6 @@ export function SidebarItem({
             className={cn(
               baseClasses,
               'cursor-not-allowed text-muted-foreground/50',
-              !collapsed && 'w-full',
             )}
           >
             <item.Icon size={22} />
