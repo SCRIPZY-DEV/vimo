@@ -679,7 +679,8 @@
       "regenerar": "Regenerate preview",
       "cancelar": "Cancel",
       "vacio": "You haven't generated any preview yet.",
-      "faltaClave": "You need the key for the selected provider."
+      "faltaClave": "You need the key for the selected provider.",
+      "generando": "Generating…"
     },
     "styles": {
       "normal": "Normal",

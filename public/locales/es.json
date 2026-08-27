@@ -679,7 +679,8 @@
       "regenerar": "Regenerar vista previa",
       "cancelar": "Cancelar",
       "vacio": "Todavía no generaste ninguna vista previa.",
-      "faltaClave": "Necesitás la clave del proveedor elegido."
+      "faltaClave": "Necesitás la clave del proveedor elegido.",
+      "generando": "Generando…"
     },
     "styles": {
       "normal": "Normal",
