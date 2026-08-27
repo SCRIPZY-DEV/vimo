@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router'
+import { NavLink, useMatch } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
 import { cn } from '@/modules/common/utilities/cn'
@@ -20,6 +20,10 @@ export function SidebarItem({
   collapsed: boolean
 }) {
   const { t } = useTranslation()
+  // `isActive` se calcula acá y no con la `className` en función de NavLink:
+  // el `Slot` de Radix (TooltipTrigger asChild) concatena `className` como
+  // string y convertiría la función en texto, dejando el <a> sin clases.
+  const isActive = useMatch({ path: item.route, end: false }) !== null
 
   // Mismo padding y radio en ambos modos: al colapsar solo desaparece la
   // etiqueta y el ícono se centra, así el ritmo vertical no cambia.
@@ -61,14 +65,12 @@ export function SidebarItem({
   const link = (
     <NavLink
       to={item.route}
-      className={({ isActive }) =>
-        cn(
-          baseClasses,
-          isActive
-            ? 'bg-saffron/15 text-foreground'
-            : 'text-muted-foreground hover:bg-saffron/15 hover:text-foreground',
-        )
-      }
+      className={cn(
+        baseClasses,
+        isActive
+          ? 'bg-saffron/15 text-foreground'
+          : 'text-muted-foreground hover:bg-saffron/15 hover:text-foreground',
+      )}
     >
       <item.Icon size={22} />
       {label}
