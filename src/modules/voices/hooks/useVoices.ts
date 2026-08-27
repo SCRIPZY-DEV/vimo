@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { voicesApi } from '@/modules/voices/api'
 import { VOICE_LIST_CACHE_TTL_MS, voicesQueryKeys } from '../constants'
 import {
@@ -15,6 +15,7 @@ import type { VoiceFilterState } from '../types/voices'
 interface UseVoicesOptions {
   provider: VoiceProviderId | null
   filters: VoiceFilterState
+  page: number
   ready: boolean
 }
 
@@ -33,62 +34,53 @@ function serverFilters(
 }
 
 /**
- * Catálogo de voces del provider activo. Minimax/Edge llegan completos en un
- * job (con snapshot 24 h en localStorage — el listado Minimax son hasta 50
- * requests paginados); ElevenLabs pagina server-side y `loadMore` trae la
- * página siguiente (~12k voces, bajarlas todas serían minutos).
+ * Catálogo de voces del provider activo. Minimax llega completo en un job
+ * (con snapshot 24 h en localStorage — el listado son hasta 50 requests
+ * paginados) y se pagina en cliente. ElevenLabs pagina server-side (~12k
+ * voces): `page` pide esa página y `hasNextPage` dice si hay otra; mientras
+ * llega, se sigue mostrando la anterior para no parpadear.
  */
-export function useVoices({ provider, filters, ready }: UseVoicesOptions) {
+export function useVoices({
+  provider,
+  filters,
+  page,
+  ready,
+}: UseVoicesOptions) {
   const native = voicesApi.isNative()
   const activeProvider = provider ?? 'minimax'
-  const paged = activeProvider === 'elevenlabs'
-  const baseFilters = serverFilters(activeProvider, filters)
-  const filtersKey = paged ? JSON.stringify(baseFilters) : 'all'
-  const snapshot = paged ? null : readVoiceListSnapshot(activeProvider)
+  const serverPaged = activeProvider === 'elevenlabs'
+  const pageFilters = serverPaged
+    ? { ...serverFilters(activeProvider, filters), page }
+    : undefined
+  const filtersKey = pageFilters ? JSON.stringify(pageFilters) : 'all'
+  const snapshot = serverPaged ? null : readVoiceListSnapshot(activeProvider)
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  } = useInfiniteQuery({
+  const { data, isLoading, isFetching, isError, error } = useQuery({
     queryKey: voicesQueryKeys.list(activeProvider, filtersKey),
     enabled: native && ready && provider !== null,
     retry: false,
     staleTime: VOICE_LIST_CACHE_TTL_MS,
-    initialPageParam: 1,
+    placeholderData: keepPreviousData,
     initialData: snapshot
-      ? {
-          pages: [{ voices: snapshot.voices } satisfies ListVoicesResult],
-          pageParams: [1],
-        }
+      ? ({ voices: snapshot.voices } satisfies ListVoicesResult)
       : undefined,
     initialDataUpdatedAt: snapshot?.savedAt,
-    async queryFn({ pageParam }) {
+    async queryFn() {
       const result = await voicesApi.listVoices({
         provider: activeProvider,
-        filters: paged ? { ...baseFilters, page: pageParam } : undefined,
+        filters: pageFilters,
       })
-      if (!paged) writeVoiceListSnapshot(activeProvider, result.voices)
+      if (!serverPaged) writeVoiceListSnapshot(activeProvider, result.voices)
       return result
-    },
-    getNextPageParam(lastPage, allPages) {
-      if (!paged || !lastPage.hasMore) return undefined
-      return allPages.length + 1
     },
   })
 
   return {
-    voices: data?.pages.flatMap((page) => page.voices) ?? [],
+    voices: data?.voices ?? [],
     isLoading,
+    isFetching,
     errorKey: isError ? voicesApi.errorMessageKey(error) : null,
-    hasMore: paged && Boolean(hasNextPage),
-    loadingMore: isFetchingNextPage,
-    loadMore: () => {
-      if (paged && hasNextPage && !isFetchingNextPage) void fetchNextPage()
-    },
+    serverPaged,
+    hasNextPage: serverPaged && Boolean(data?.hasMore),
   }
 }
