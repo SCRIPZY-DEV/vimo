@@ -76,10 +76,8 @@ export async function chooseMusic(
     createdAt: new Date().toISOString(),
     model: MUSIC_MODEL,
     prompt: payload.prompt,
-    customMode: payload.customMode ?? false,
     instrumental: payload.instrumental ?? true,
   }
-  if (payload.style) metadata.style = payload.style
   if (payload.option.title) metadata.title = payload.option.title
   if (name) metadata.name = name
   if (payload.option.durationSeconds !== undefined)
