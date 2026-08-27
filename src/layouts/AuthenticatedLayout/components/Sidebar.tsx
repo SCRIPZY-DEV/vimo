@@ -45,8 +45,10 @@ export function Sidebar() {
     <aside
       className={cn(
         // `overflow-visible` (en lugar de `overflow-y-auto`) permite que el
-        // botón saffron asome del borde derecho sin ser recortado.
-        'relative flex h-screen shrink-0 flex-col overflow-visible border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out',
+        // botón saffron asome del borde derecho sin ser recortado, y `z-10`
+        // lo mantiene por encima del `<main>` (posicionado y posterior en el
+        // DOM), que de otro modo tapa la mitad sobresaliente y captura el clic.
+        'relative z-10 flex h-screen shrink-0 flex-col overflow-visible border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out',
         collapsed ? 'w-16' : 'w-64',
       )}
       data-collapsed={collapsed}
