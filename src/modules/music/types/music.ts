@@ -32,9 +32,4 @@ export interface MusicTask {
 export interface MusicFormValue {
   prompt: string
   instrumental: boolean
-  advanced: boolean
-  style: string
-  title: string
-  negativeTags: string
-  vocalGender: '' | 'm' | 'f'
 }
