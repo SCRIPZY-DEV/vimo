@@ -220,8 +220,6 @@ async function chooseOption(option: MusicOption, name?: string): Promise<void> {
       option,
       name,
       prompt: task.request.prompt,
-      customMode: task.request.customMode,
-      style: task.request.style,
       instrumental: task.request.instrumental,
     })
     patchTask(task.id, { status: 'completed', chosenEntry: entry })
