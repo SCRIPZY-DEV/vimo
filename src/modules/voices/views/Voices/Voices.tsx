@@ -33,7 +33,8 @@ import { voiceKey } from '@/modules/voices/utilities/voiceKey'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
 import type { VoiceTab } from '@/modules/voices/types/voices'
 
-const TABS: VoiceTab[] = ['minimax', 'elevenlabs', 'edge', 'favorites']
+// Edge queda fuera del catálogo visible (sin muestras del proveedor).
+const TABS: VoiceTab[] = ['minimax', 'elevenlabs', 'favorites']
 
 export function Voices() {
   const { t } = useTranslation()
