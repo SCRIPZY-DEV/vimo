@@ -39,7 +39,7 @@ export function LibraryPlayer() {
 
   if (!detail) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-8 py-10">
+      <div className="mx-auto max-w-5xl space-y-4 px-8 py-10">
         <ErrorMessage>{t(errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}</ErrorMessage>
         <Button asChild variant="ghost" className="rounded-lg font-display">
           <Link to={VideosRoutes.library}>
@@ -77,7 +77,7 @@ export function LibraryPlayer() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-8 py-10">
+    <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
       <LibraryViewHeader title={metadata.name}>
         <Button
           asChild

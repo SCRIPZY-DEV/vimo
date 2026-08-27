@@ -31,7 +31,7 @@ export function ApiKeys() {
   ).length
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-8 py-10">
+    <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
