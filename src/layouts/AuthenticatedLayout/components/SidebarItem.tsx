@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router'
+import { NavLink, useMatch } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
 import { cn } from '@/modules/common/utilities/cn'
@@ -65,14 +65,12 @@ export function SidebarItem({
   const link = (
     <NavLink
       to={item.route}
-      className={({ isActive }) =>
-        cn(
-          baseClasses,
-          isActive
-            ? 'bg-saffron/15 text-foreground'
-            : 'text-muted-foreground hover:bg-saffron/15 hover:text-foreground',
-        )
-      }
+      className={cn(
+        baseClasses,
+        isActive
+          ? 'bg-saffron/15 text-foreground'
+          : 'text-muted-foreground hover:bg-saffron/15 hover:text-foreground',
+      )}
     >
       <item.Icon size={22} />
       {label}
