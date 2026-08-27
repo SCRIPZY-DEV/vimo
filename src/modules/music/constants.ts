@@ -22,19 +22,11 @@ export const MUSIC_MODEL_LABEL = 'suno-v5-beta'
 export const MUSIC_VARIATIONS = 2
 
 export const PROMPT_LIMIT = 500
-export const PROMPT_LIMIT_CUSTOM = 5000
-export const STYLE_LIMIT = 1000
-export const SONG_TITLE_LIMIT = 80
 export const NAME_LIMIT = 60
 
 export const MUSIC_FORM_INITIAL_VALUE: MusicFormValue = {
   prompt: '',
   instrumental: true,
-  advanced: false,
-  style: '',
-  title: '',
-  negativeTags: '',
-  vocalGender: '',
 }
 
 /** Código de error del sidecar/Rust → clave i18n del mensaje. */
