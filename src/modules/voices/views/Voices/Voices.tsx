@@ -162,7 +162,7 @@ export function Voices() {
           (!isNative || missingDubvoiceKey) && 'pointer-events-none opacity-60',
         )}
       >
-        <Tabs value={tab} onValueChange={(value) => setTab(value as VoiceTab)}>
+        <Tabs value={tab} onValueChange={changeTab}>
           <TabsList>
             {TABS.map((tabId) => (
               <TabsTrigger key={tabId} value={tabId}>
@@ -179,7 +179,7 @@ export function Voices() {
           <VoiceFilters
             provider={tab}
             value={filters}
-            onChange={setFilters}
+            onChange={changeFilters}
             accents={accents}
             categories={categories}
           />
