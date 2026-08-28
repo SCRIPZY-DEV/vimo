@@ -15,39 +15,6 @@ export const IMAGE_PROVIDERS: ImageProvider[] = [
     concurrency: 10,
     models: [
       {
-        id: 'flux-schnell',
-        label: 'Flux Schnell',
-        defaultOptionId: 'landscape_16_9',
-        options: [
-          {
-            id: 'landscape_16_9',
-            label: 'Landscape 16:9',
-            priceUsd: 0.003,
-            widthPx: 1024,
-            heightPx: 576,
-            notesKey: 'costs.catalogo.nativo169',
-          },
-          {
-            id: 'landscape_4_3',
-            label: 'Landscape 4:3',
-            priceUsd: 0.003,
-            widthPx: 1024,
-            heightPx: 768,
-            notesKey: 'costs.catalogo.recorte43',
-            hiddenInCosts: true,
-          },
-          {
-            id: 'square_hd',
-            label: 'Square HD',
-            priceUsd: 0.003,
-            widthPx: 1024,
-            heightPx: 1024,
-            notesKey: 'costs.catalogo.cuadrado',
-            hiddenInCosts: true,
-          },
-        ],
-      },
-      {
         id: 'gpt-image-1.5',
         label: 'GPT-Image 1.5',
         defaultOptionId: '1536x1024_low',
