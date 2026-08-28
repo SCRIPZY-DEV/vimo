@@ -7,7 +7,10 @@ interface ErrorMessageProps {
 // Caja de error en línea (texto ya traducido).
 export function ErrorMessage({ children }: ErrorMessageProps) {
   return (
-    <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
+    <p
+      role="alert"
+      className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive"
+    >
       {children}
     </p>
   )
