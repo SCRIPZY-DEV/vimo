@@ -190,7 +190,7 @@ export function LibraryEditor() {
   }
 
   return (
-    <div className="space-y-5 px-6 py-6 pb-24">
+    <div className="flex flex-col gap-5 px-6 py-6 lg:h-full">
       <LibraryViewHeader title={metadata.name}>
         <Button
           variant="outline"
@@ -217,6 +217,13 @@ export function LibraryEditor() {
           busy={busy}
           onExport={() => void editor.editorTask.startExport(projectId)}
         />
+        <RenderVideoButton
+          render={task?.render ?? null}
+          videoState={videoState}
+          busy={busy}
+          onRender={() => void editor.editorTask.startRender(projectId)}
+          onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
+        />
       </LibraryViewHeader>
 
       {task?.errorKey && (
@@ -236,9 +243,10 @@ export function LibraryEditor() {
         </div>
       )}
 
-      {/* Fila superior: la altura la define el panel; el visor se estira a ella */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-        <div className="min-w-0 flex-1">
+      {/* Fila superior: desde lg toma toda la altura libre (≈70/30 entre visor
+          y panel); el panel scrollea por dentro si se pasa. */}
+      <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
+        <div className="min-w-0 flex-1 lg:min-h-0">
           <EditorPreviewPlayer
             scenes={workingScenes}
             sceneVersions={task?.sceneVersions ?? {}}
@@ -254,7 +262,7 @@ export function LibraryEditor() {
           />
         </div>
 
-        <div className="lg:w-[360px] lg:shrink-0">
+        <div className="lg:min-h-0 lg:w-[30%] lg:max-w-[420px] lg:shrink-0">
           <EditorScenePanel
             scene={selectedScene}
             characters={options?.characters ?? []}
@@ -274,36 +282,30 @@ export function LibraryEditor() {
         </div>
       </div>
 
-      <EditorTimeline
-        scenes={workingScenes}
-        durationSeconds={durationSeconds}
-        playheadSeconds={cursorSeconds}
-        selectedSceneId={editor.selectedSceneId}
-        sceneStatus={task?.sceneStatus ?? {}}
-        sceneErrors={task?.sceneErrors ?? {}}
-        sceneVersions={task?.sceneVersions ?? {}}
-        narrationSrc={narrationSrc}
-        musicSrc={musicSrc}
-        zoomIndex={zoomIndex}
-        onZoomChange={setZoomIndex}
-        onSelectScene={selectSceneFromTimeline}
-        onSeek={(seconds) => playerRef.current?.seekWithPlay(seconds)}
-        onScrub={(seconds) => playerRef.current?.seekTo(seconds)}
-        onScrubStart={() => setScrubbing(true)}
-        onScrubEnd={() => setScrubbing(false)}
-        onBoundaryDrag={editor.dragBoundary}
-        onBoundaryCommit={editor.commitBoundary}
-        onOpenAudio={() => setMixOpen(true)}
-        onOpenMusic={() => setMusicOpen(true)}
-      />
-
-      <RenderVideoButton
-        render={task?.render ?? null}
-        videoState={videoState}
-        busy={busy}
-        onRender={() => void editor.editorTask.startRender(projectId)}
-        onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
-      />
+      <div className="shrink-0">
+        <EditorTimeline
+          scenes={workingScenes}
+          durationSeconds={durationSeconds}
+          playheadSeconds={cursorSeconds}
+          selectedSceneId={editor.selectedSceneId}
+          sceneStatus={task?.sceneStatus ?? {}}
+          sceneErrors={task?.sceneErrors ?? {}}
+          sceneVersions={task?.sceneVersions ?? {}}
+          narrationSrc={narrationSrc}
+          musicSrc={musicSrc}
+          zoomIndex={zoomIndex}
+          onZoomChange={setZoomIndex}
+          onSelectScene={selectSceneFromTimeline}
+          onSeek={(seconds) => playerRef.current?.seekWithPlay(seconds)}
+          onScrub={(seconds) => playerRef.current?.seekTo(seconds)}
+          onScrubStart={() => setScrubbing(true)}
+          onScrubEnd={() => setScrubbing(false)}
+          onBoundaryDrag={editor.dragBoundary}
+          onBoundaryCommit={editor.commitBoundary}
+          onOpenAudio={() => setMixOpen(true)}
+          onOpenMusic={() => setMusicOpen(true)}
+        />
+      </div>
 
       <MusicDialog
         open={musicOpen}
