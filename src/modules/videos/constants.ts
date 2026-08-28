@@ -1,10 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { FileAudio, Mic } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type {
   BgmMode,
@@ -202,42 +199,21 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'fal', label: 'Fal' },
 ]
 
-export const FAL_IMAGE_MODELS: { id: FalImageModelId; label: string }[] = [
-  { id: 'gpt-image-2', label: 'GPT-Image 2' },
-  { id: 'flux-schnell', label: 'Flux Schnell' },
-]
-
-// Evolink no ofrece elección de modelo: al pasar a él, el modelo se fija acá.
-export const EVOLINK_ONLY_MODEL: FalImageModelId = 'gpt-image-2'
-
-// Opciones de calidad por proveedor. Evolink solo expone gpt-image-2 a 16:9
-// 1K, así que de la opción solo importa la calidad; en Fal el id lleva el
-// tamaño exacto (convención `<W>x<H>_<quality>` del catálogo del origen).
+// Opciones de calidad por proveedor (ambos generan con gpt-image-2, ADR-0015).
+// Evolink solo expone 16:9 1K, así que de la opción solo importa la calidad;
+// en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>` del
+// catálogo del origen).
 export const EVOLINK_QUALITY_OPTIONS: { id: string; labelKey: string }[] = [
   { id: '1024x576_low', labelKey: 'create.quality.low' },
   { id: '1024x576_medium', labelKey: 'create.quality.medium' },
   { id: '1024x576_high', labelKey: 'create.quality.high' },
 ]
 
-export const FAL_GPT_IMAGE_QUALITY_OPTIONS: { id: string; labelKey: string }[] =
-  [
-    { id: '1920x1080_low', labelKey: 'create.quality.low' },
-    { id: '1920x1080_medium', labelKey: 'create.quality.medium' },
-    { id: '1920x1080_high', labelKey: 'create.quality.high' },
-  ]
-
-// flux-schnell no tiene niveles: su "opción" es el preset de tamaño.
-export const FLUX_SIZE_OPTION = 'landscape_16_9'
-
-// Personajes con referencia visual: Evolink siempre los soporta; en Fal solo
-// los modelos gpt-image-* (flux-schnell no admite imagen de referencia).
-export function modelSupportsCharacters(
-  provider: ImageProviderId,
-  falModel: FalImageModelId,
-): boolean {
-  if (provider === 'evolink') return true
-  return falModel.startsWith('gpt-image')
-}
+export const FAL_QUALITY_OPTIONS: { id: string; labelKey: string }[] = [
+  { id: '1920x1080_low', labelKey: 'create.quality.low' },
+  { id: '1920x1080_medium', labelKey: 'create.quality.medium' },
+  { id: '1920x1080_high', labelKey: 'create.quality.high' },
+]
 
 // Frecuencias de aparición del personaje, de menor a mayor.
 export const CHARACTER_FREQUENCIES: {
@@ -262,7 +238,6 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   styleId: 'normal',
   sceneCount: 0,
   imageProvider: 'evolink',
-  falModel: 'gpt-image-2',
   imageQuality: '1024x576_low',
   voice: null,
   voiceSettings: VOICE_SETTINGS_DEFAULTS,
@@ -278,11 +253,10 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   confirmScenes: true,
 }
 
-// Con qué se regenera una escena que no trae modelo/calidad propios: los
-// mismos defaults del formulario de creación.
+// Con qué se regenera una escena que no trae calidad propia: los mismos
+// defaults del formulario de creación.
 export const DEFAULT_IMAGE_CHOICE: SceneImageChoice = {
   provider: CREATE_FORM_INITIAL_VALUE.imageProvider,
-  model: CREATE_FORM_INITIAL_VALUE.falModel,
   quality: CREATE_FORM_INITIAL_VALUE.imageQuality,
 }
 
