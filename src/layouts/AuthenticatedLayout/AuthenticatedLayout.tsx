@@ -38,7 +38,7 @@ export function AuthenticatedLayout() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="min-h-full"
+              className="h-full"
             >
               {/* Red de seguridad por pantalla: si el contenido explota, el
                   sidebar sigue vivo y el usuario navega a otra sección sin

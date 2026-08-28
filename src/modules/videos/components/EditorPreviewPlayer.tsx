@@ -99,7 +99,7 @@ export function EditorPreviewPlayer({
   }
 
   return (
-    <div className="relative aspect-video min-h-[240px] w-full overflow-hidden rounded-2xl border-2 border-border bg-black lg:aspect-auto lg:h-full">
+    <div className="relative aspect-video min-h-[240px] w-full overflow-hidden rounded-2xl border-2 border-border bg-black lg:aspect-auto lg:h-full lg:min-h-0">
       {renderStage()}
 
       {!videoMode && (
