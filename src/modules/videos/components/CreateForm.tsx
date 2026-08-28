@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
-import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
@@ -12,11 +11,7 @@ import { NarrationSection } from '@/modules/videos/components/NarrationSection'
 import { SoundtrackSection } from '@/modules/videos/components/SoundtrackSection'
 import { StyleGallery } from '@/modules/videos/components/StyleGallery'
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
-import {
-  MAX_SCENE_COUNT,
-  PROJECT_NAME_LIMIT,
-  modelSupportsCharacters,
-} from '@/modules/videos/constants'
+import { MAX_SCENE_COUNT, PROJECT_NAME_LIMIT } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -41,11 +36,7 @@ export function CreateForm({
   const { t } = useTranslation()
 
   const blockers = formBlockers(value)
-  const charactersUnsupported =
-    value.characters.length > 0 &&
-    !modelSupportsCharacters(value.imageProvider, value.falModel)
-  const canSubmit =
-    blockers.length === 0 && !charactersUnsupported && !submitting
+  const canSubmit = blockers.length === 0 && !submitting
 
   return (
     <div
@@ -150,12 +141,6 @@ export function CreateForm({
             </li>
           ))}
         </ul>
-      )}
-
-      {charactersUnsupported && (
-        <ErrorMessage>
-          {t('create.validation.charactersUnsupported')}
-        </ErrorMessage>
       )}
 
       <Button
