@@ -17,6 +17,21 @@ export const REQUIRED_CATEGORIES: ApiKeyCategory[] = [
   'transcription',
 ]
 
+// Claves que exige cada módulo. Cada requisito es una lista de alternativas:
+// basta con una configurada (Fal o Evolink). Registrar acá el módulo nuevo y
+// montar `MissingApiKeysNotice` en su vista (ARCHITECTURE §4).
+export const MODULE_API_KEY_REQUIREMENTS = {
+  videos: [
+    ['deepinfra'],
+    ['fal', 'evolink'],
+    ['dubvoice', 'elevenlabs'],
+    ['deepgram'],
+  ],
+  music: [['evolink']],
+  voices: [['dubvoice']],
+  characters: [['fal', 'evolink'], ['deepinfra']],
+} satisfies Record<string, ApiKeyRequirement[]>
+
 /** Código de error de Rust → clave i18n del mensaje. */
 export const API_KEY_ERROR_MESSAGE_KEYS: Record<ApiKeyErrorCode, string> = {
   keychain_unavailable: 'apiKeys.errores.keychainUnavailable',
