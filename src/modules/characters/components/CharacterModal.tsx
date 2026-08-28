@@ -63,8 +63,8 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
   )
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
-  const llmKeys = useRequiredApiKeys({ providers: ['deepinfra'] })
-  const providerKeys = useRequiredApiKeys({ providers: [provider] })
+  const llmKeys = useRequiredApiKeys({ requirements: [['deepinfra']] })
+  const providerKeys = useRequiredApiKeys({ requirements: [[provider]] })
 
   const identity = form.description.trim()
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
@@ -157,7 +157,7 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
             value={form}
             disabled={busy}
             suggesting={suggesting}
-            missingLlmKey={llmKeys.missingProviders.length > 0}
+            missingLlmKey={llmKeys.missingRequirements.length > 0}
             onChange={setForm}
             onSuggest={() => void suggest()}
           />
@@ -170,7 +170,7 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
             generating={preview.generating}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
-            missingProviderKey={providerKeys.missingProviders.length > 0}
+            missingProviderKey={providerKeys.missingRequirements.length > 0}
             canGenerate={identityReady}
             onStyleChange={setStyleId}
             onProviderChange={setProvider}
