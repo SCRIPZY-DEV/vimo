@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2, Wallet } from 'lucide-react'
 import DoodleVoice from '@/modules/common/doodles/DoodleVoice'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
-import { Button } from '@/modules/common/ui/button'
 import { Dialog, DialogContent } from '@/modules/common/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/modules/common/ui/tabs'
 import { cn } from '@/modules/common/utilities/cn'
-import { ApiKeysRoutes } from '@/modules/api-keys/constants'
+import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
+import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { VoiceCloningInfoCard } from '@/modules/voices/components/VoiceCloningInfoCard'
 import { VoiceFilters } from '@/modules/voices/components/VoiceFilters'
@@ -42,12 +41,9 @@ const TABS: VoiceTab[] = ['minimax', 'elevenlabs', 'favorites']
 export function Voices() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const {
-    isNative,
-    missingProviders,
-    isLoading: keysLoading,
-    ready,
-  } = useRequiredApiKeys({ providers: ['dubvoice'] })
+  const { isNative, missingKeys, ready } = useRequiredApiKeys({
+    requirements: MODULE_API_KEY_REQUIREMENTS.voices,
+  })
   const { credits } = useVoiceCredits()
   const { favorites, isFavorite, toggleFavorite } = useVoiceFavorites()
   const { playingUrl, togglePreview } = useVoicePreview()
@@ -65,9 +61,6 @@ export function Voices() {
   const provider = tab === 'favorites' ? null : tab
   const { voices, isLoading, isFetching, errorKey, serverPaged, hasNextPage } =
     useVoices({ provider, filters: effectiveFilters, page, ready })
-
-  const missingDubvoiceKey =
-    isNative && !keysLoading && missingProviders.length > 0
 
   // DubVoice descuenta créditos async al sintetizar: se refresca el saldo al
   // completar y otra vez unos segundos después (mismo patrón que música).
