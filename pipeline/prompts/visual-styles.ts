@@ -1,10 +1,9 @@
 import type { CharacterStyleId } from '../types/characters.ts'
-import type { FalImageModelId } from '../types/image-provider.ts'
 
 // Estilos visuales del pipeline (port fiel de estilos.ts del origen). Cada
 // estilo trae la plantilla del preview de personaje (PROLOGUE + STYLE), el
-// `systemPrompt` del redactor de prompts por escena, el `filterFinal` de
-// FFmpeg del render final y los modelos de imagen incompatibles. Todo el
+// `systemPrompt` del redactor de prompts por escena y el `filterFinal` de
+// FFmpeg del render final. Todo el
 // texto en inglés se copia VERBATIM del origen. Browser-safe: cero APIs de
 // Node.
 
@@ -45,9 +44,6 @@ export interface VisualStyle {
   // Cadena de filtros FFmpeg aplicada al video final como ajuste de color.
   // Vacía ("") = sin post-procesado.
   filterFinal: string
-  // Modelos de imagen incompatibles con este estilo: la UI lo deshabilita
-  // cuando el modelo activo está en la lista.
-  incompatibleModels?: FalImageModelId[]
   template?: VisualStyleTemplate
 }
 
@@ -60,7 +56,7 @@ You are a documentary/cinematic photographer. You translate a fragment of a Span
 
 ${GLOBAL_RULES}
 
-# TEMPLATE — Natural Cinematic (works on flux-schnell, gpt-image-1.5 AND gpt-image-2)
+# TEMPLATE — Natural Cinematic (works on gpt-image-1.5 AND gpt-image-2)
 
 The prompt is a single flowing paragraph (no PROLOGUE, no STYLE block, no labels). The structure inside the paragraph is:
 
@@ -94,7 +90,7 @@ You MUST follow the template below EXACTLY — the PROLOGUE and STYLE blocks are
 
 ${GLOBAL_RULES}
 
-# TEMPLATE — Stickman doll (works on gpt-image-1.5 AND gpt-image-2; NOT flux-schnell)
+# TEMPLATE — Stickman doll (works on gpt-image-1.5 AND gpt-image-2)
 
 Assemble the prompt as three blocks separated by a single space, in this exact order:
 
@@ -123,7 +119,6 @@ A simple stickman drawing: round white head with a face made of two black dot ey
 # EXAMPLE OUTPUT (narration: "El chef preparaba el banquete real en la cocina del palacio")
 {"prompt_imagen": "A simple stickman doll character drawing with a round white head, a simple drawn face, arms and legs as single black lines, white Mickey Mouse-style gloves and white rounded shoes. A stickman doll wearing a white chef's jacket, a tall white chef's hat and a black apron, round white head with a simple face: two small black dot eyes and a focused smiling mouth, arms are single thin black lines connected at the shoulders, white Mickey Mouse-style gloves at the end of each arm holding a wooden spoon, legs are single thin black lines connected at the hips, white rounded shoes at the end of each leg, standing in a grand palace kitchen with copper pots hanging from the ceiling, a large stone oven behind him, steam rising from several pans on a long wooden table, two other stickman dolls beside him chopping vegetables wearing white chef jackets and small chef hats. A simple stickman drawing: round white head with a face made of two black dot eyes and an expressive mouth, body wearing clothing that fits the scene, arms and legs drawn as single thin black lines, white Mickey Mouse-style gloves at the end of each arm, white rounded shoes at the end of each leg, clean lines, well-proportioned, friendly and expressive. The setting is colorful and clearly drawn, with soft shading on the background."}`,
     filterFinal: '',
-    incompatibleModels: ['flux-schnell'],
     template: {
       prologue:
         'A simple stickman doll character drawing with a round white head, a simple drawn face, arms and legs as single black lines, white Mickey Mouse-style gloves and white rounded shoes.',
@@ -140,7 +135,7 @@ You are an animation art director for a modern 2D cartoon TV series. You transla
 
 ${GLOBAL_RULES}
 
-# TEMPLATE — Flat 2D Cartoon (works on flux-schnell, gpt-image-1.5 AND gpt-image-2)
+# TEMPLATE — Flat 2D Cartoon (works on gpt-image-1.5 AND gpt-image-2)
 
 Assemble the prompt as two blocks separated by a single space, in this exact order:
 
@@ -176,7 +171,7 @@ You are a senior fantasy concept artist. You translate a fragment of a Spanish n
 
 ${GLOBAL_RULES}
 
-# TEMPLATE — Magical Fantasy (works on flux-schnell, gpt-image-1.5 AND gpt-image-2)
+# TEMPLATE — Magical Fantasy (works on gpt-image-1.5 AND gpt-image-2)
 
 Assemble the prompt as three blocks separated by a single space, in this exact order:
 
@@ -224,7 +219,7 @@ NEVER include in the SCENE: explicit gore, blood splatter, mutilation, viscera, 
 SUITABLE alternatives: hooded figures, dark silhouettes, abandoned places, decay, fog, dim solitary light, eerie objects (old dolls, mirrors, ajar doors), expressions of fear or emptiness (no physical injury visible), stylized non-human creatures, occult symbols (without glorification).
 Horror is built with light, composition and atmosphere — NOT with graphic violence.
 
-# TEMPLATE — Atmospheric Horror (works on flux-schnell, gpt-image-1.5 AND gpt-image-2)
+# TEMPLATE — Atmospheric Horror (works on gpt-image-1.5 AND gpt-image-2)
 
 Assemble the prompt as three blocks separated by a single space, in this exact order:
 
