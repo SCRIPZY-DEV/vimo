@@ -5,6 +5,16 @@ export const ApiKeysRoutes = {
   apiKeys: '/api-keys',
 } as const
 
+// Query param con los proveedores a enfocar al entrar a Claves API.
+export const API_KEYS_FOCUS_PARAM = 'focus'
+
+// Ruta a Claves API que abre en edición las tarjetas de esos proveedores.
+export function apiKeysFocusPath(providers: ApiKeyProviderId[]) {
+  if (providers.length === 0) return ApiKeysRoutes.apiKeys
+
+  return `${ApiKeysRoutes.apiKeys}?${API_KEYS_FOCUS_PARAM}=${providers.join(',')}`
+}
+
 export const apiKeysQueryKeys = {
   status: ['apiKeys', 'status'],
 } as const
