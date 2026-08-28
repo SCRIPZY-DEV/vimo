@@ -11,7 +11,6 @@ import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
 import {
   CHARACTER_FREQUENCIES,
   MAX_PROJECT_CHARACTERS,
-  modelSupportsCharacters,
 } from '@/modules/videos/constants'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
@@ -29,24 +28,15 @@ export function CharacterSection({
   const { t } = useTranslation()
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const supported = modelSupportsCharacters(value.imageProvider, value.falModel)
-  const blocked = disabled || !supported
-
   return (
     <div className="space-y-2">
       <Label className="font-display">{t('create.characters.label')}</Label>
-
-      {!supported && (
-        <p className="rounded-xl border border-saffron/40 bg-saffron/10 p-3 font-body text-xs text-foreground">
-          {t('create.characters.modelUnsupported')}
-        </p>
-      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="outline"
-          disabled={blocked}
+          disabled={disabled}
           onClick={() => setPickerOpen(true)}
           className="rounded-xl font-display"
         >
@@ -81,7 +71,7 @@ export function CharacterSection({
               </span>
               <button
                 type="button"
-                disabled={blocked}
+                disabled={disabled}
                 aria-label={t('create.characters.remove')}
                 onClick={() =>
                   onChange({
@@ -107,9 +97,9 @@ export function CharacterSection({
             id: frequency.id,
             label: t(frequency.labelKey),
           }))}
-          disabled={blocked}
+          disabled={disabled}
           onChange={(characterFrequency) => onChange({ characterFrequency })}
-          className={cn(blocked && 'opacity-60')}
+          className={cn(disabled && 'opacity-60')}
         />
       )}
 

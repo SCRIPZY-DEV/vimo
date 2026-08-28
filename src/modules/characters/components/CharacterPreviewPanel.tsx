@@ -8,22 +8,17 @@ import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import {
-  FAL_PREVIEW_MODELS,
   PREVIEW_PROVIDERS,
   PREVIEW_STYLES,
 } from '@/modules/characters/constants'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { PreviewView } from '@/modules/characters/types/characters'
 
 interface CharacterPreviewPanelProps {
   previews: PreviewView[]
   styleId: CharacterStyleId
   provider: ImageProviderId
-  falModel: FalImageModelId
   generating: boolean
   errorKey: string | null
   disabled: boolean
@@ -31,7 +26,6 @@ interface CharacterPreviewPanelProps {
   canGenerate: boolean
   onStyleChange: (styleId: CharacterStyleId) => void
   onProviderChange: (provider: ImageProviderId) => void
-  onFalModelChange: (model: FalImageModelId) => void
   onGenerate: () => void
   onCancel: () => void
 }
@@ -40,7 +34,6 @@ export function CharacterPreviewPanel({
   previews,
   styleId,
   provider,
-  falModel,
   generating,
   errorKey,
   disabled,
@@ -48,7 +41,6 @@ export function CharacterPreviewPanel({
   canGenerate,
   onStyleChange,
   onProviderChange,
-  onFalModelChange,
   onGenerate,
   onCancel,
 }: CharacterPreviewPanelProps) {
@@ -97,56 +89,28 @@ export function CharacterPreviewPanel({
         })}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label className="font-display">
-            {t('characters.preview.proveedor')}
-          </Label>
-          <div className="flex gap-2">
-            {PREVIEW_PROVIDERS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                disabled={disabled || generating}
-                onClick={() => onProviderChange(item.id)}
-                className={cn(
-                  'flex-1 rounded-lg border px-3 py-2 font-display text-xs font-bold transition-colors',
-                  item.id === provider
-                    ? 'border-saffron bg-saffron/20 text-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+      <div className="space-y-1.5">
+        <Label className="font-display">
+          {t('characters.preview.proveedor')}
+        </Label>
+        <div className="flex gap-2 sm:max-w-md">
+          {PREVIEW_PROVIDERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              disabled={disabled || generating}
+              onClick={() => onProviderChange(item.id)}
+              className={cn(
+                'flex-1 rounded-lg border px-3 py-2 font-display text-xs font-bold transition-colors',
+                item.id === provider
+                  ? 'border-saffron bg-saffron/20 text-foreground'
+                  : 'border-border bg-card text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
-
-        {provider === 'fal' && (
-          <div className="space-y-1.5">
-            <Label className="font-display">
-              {t('characters.preview.modeloFal')}
-            </Label>
-            <div className="flex gap-2">
-              {FAL_PREVIEW_MODELS.map((model) => (
-                <button
-                  key={model.id}
-                  type="button"
-                  disabled={disabled || generating}
-                  onClick={() => onFalModelChange(model.id)}
-                  className={cn(
-                    'flex-1 rounded-lg border px-3 py-2 font-display text-xs font-bold transition-colors',
-                    model.id === falModel
-                      ? 'border-saffron bg-saffron/20 text-foreground'
-                      : 'border-border bg-card text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {model.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="flex items-center gap-2">

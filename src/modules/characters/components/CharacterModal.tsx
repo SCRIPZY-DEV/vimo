@@ -16,7 +16,6 @@ import { CharacterPreviewPanel } from '@/modules/characters/components/Character
 import { CharacterProfileFields } from '@/modules/characters/components/CharacterProfileFields'
 import {
   CHARACTER_FORM_INITIAL_VALUE,
-  DEFAULT_FAL_PREVIEW_MODEL,
   DEFAULT_PREVIEW_PROVIDER,
   MIN_DESCRIPTION_LENGTH,
   PREVIEW_STYLES,
@@ -32,10 +31,7 @@ import type {
   CharacterStyleId,
   CharacterSummary,
 } from '@pipeline/types/characters.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { PreviewView } from '@/modules/characters/types/characters'
 
 interface CharacterModalProps {
@@ -58,9 +54,6 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
   const [styleId, setStyleId] = useState<CharacterStyleId>(PREVIEW_STYLES[0].id)
   const [provider, setProvider] = useState<ImageProviderId>(
     DEFAULT_PREVIEW_PROVIDER,
-  )
-  const [falModel, setFalModel] = useState<FalImageModelId>(
-    DEFAULT_FAL_PREVIEW_MODEL,
   )
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
@@ -94,7 +87,6 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
       identityPrompt: identity,
       styleId,
       provider,
-      falModel,
     })
     if (!dataUri) return
 
@@ -167,7 +159,6 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
             previews={previews}
             styleId={styleId}
             provider={provider}
-            falModel={falModel}
             generating={preview.generating}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
@@ -175,7 +166,6 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
             canGenerate={identityReady}
             onStyleChange={setStyleId}
             onProviderChange={setProvider}
-            onFalModelChange={setFalModel}
             onGenerate={() => void generatePreview()}
             onCancel={preview.cancel}
           />
