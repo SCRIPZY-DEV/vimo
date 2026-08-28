@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, X } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -193,11 +194,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
         />
       )}
 
-      {errorKey && (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-          {t(errorKey)}
-        </p>
-      )}
+      {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
       {entry && (
         <div className="space-y-3 rounded-xl border border-border bg-card p-4">
