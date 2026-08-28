@@ -6,9 +6,9 @@ import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import { readScenes, writeScenesOwned } from '../../project/scenes-file.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
+import {
+  IMAGE_MODEL,
+  type ImageProviderId,
 } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
@@ -221,15 +221,11 @@ function applyProjectImageDefaults(
   context: CreateVideoContext,
 ): Scene[] {
   const options = context.options
-  const defaultModel =
-    options.imageProvider === 'fal'
-      ? (options.falModel ?? 'flux-schnell')
-      : 'gpt-image-2'
   return scenes.map((scene) => {
     if (scene.imageModel && scene.imageQuality) return scene
     return {
       ...scene,
-      imageModel: scene.imageModel ?? defaultModel,
+      imageModel: scene.imageModel ?? IMAGE_MODEL,
       imageQuality: scene.imageQuality ?? options.imageQuality,
     }
   })
@@ -492,10 +488,6 @@ async function dispatchNormal(
           {
             apiKey,
             qualityOption: scene.imageQuality ?? context.options.imageQuality,
-            falModel:
-              (scene.imageModel as FalImageModelId) ??
-              context.options.falModel ??
-              'flux-schnell',
           },
           laneOptions,
         ),
