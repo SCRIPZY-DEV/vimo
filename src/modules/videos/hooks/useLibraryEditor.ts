@@ -44,12 +44,17 @@ export function useLibraryEditor(projectId: string) {
   // la descripción que el usuario está tipeando, que se conserva hasta que
   // él mismo la guarde (si no, cambiar la calidad o cerrar un job la
   // borraría y «Regenerar» haría un re-roll del prompt viejo sin avisar).
+  // En la primera carga se selecciona la primera escena para que el editor
+  // no abra vacío; en los refetches posteriores se respeta la selección del
+  // usuario (incluida la deselección con Esc).
   const detailScenes = detail?.scenes
   if (detailScenes && detailScenes !== syncedScenes) {
+    const isFirstLoad = syncedScenes === undefined
     setSyncedScenes(detailScenes)
     setWorkingScenes(
       keepUserPromptDrafts(syncedScenes, workingScenes, detailScenes),
     )
+    if (isFirstLoad) setSelectedSceneId(detailScenes[0]?.id ?? null)
   }
 
   const selectedScene =
