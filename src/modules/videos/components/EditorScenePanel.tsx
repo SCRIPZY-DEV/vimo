@@ -52,7 +52,7 @@ export function EditorScenePanel({
 
   if (!scene) {
     return (
-      <aside className="rounded-2xl border-2 border-border bg-card p-4">
+      <aside className="rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
         <p className="font-body text-sm text-muted-foreground">
           {t('library.editor.panel.noSelection')}
         </p>
@@ -66,7 +66,7 @@ export function EditorScenePanel({
   }
 
   return (
-    <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4">
+    <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
       <div>
         <p className="font-display text-sm font-bold text-foreground">
           {t('library.editor.panel.sceneTitle', { id: scene.id })}
