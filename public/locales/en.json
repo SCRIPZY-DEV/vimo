@@ -111,7 +111,6 @@
     },
     "image": {
       "provider": "Image provider",
-      "model": "Model",
       "quality": "Quality"
     },
     "quality": {
@@ -168,7 +167,6 @@
       "change": "Change characters",
       "hint": "Up to {{max}} characters from your library.",
       "remove": "Remove character",
-      "modelUnsupported": "The chosen model does not support reference characters. Use Evolink or a GPT-Image model.",
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
       "empty": "You don't have any characters in your library yet.",
@@ -253,8 +251,7 @@
       "audioRequired": "Choose the audio file with your narration.",
       "bgmUrlRequired": "Paste the YouTube link for the music.",
       "bgmPromptRequired": "Describe how you want the music to sound.",
-      "overlayUrlRequired": "Paste the YouTube link for the texture.",
-      "charactersUnsupported": "Remove the characters or switch to a model that supports them."
+      "overlayUrlRequired": "Paste the YouTube link for the texture."
     },
     "errors": {
       "discard": "Discard",
@@ -395,7 +392,6 @@
         "userPromptPlaceholder": "Describe what you want to see in this scene (optional)",
         "promptChars": "{{used}}/{{max}}",
         "provider": "Provider",
-        "model": "Model",
         "quality": "Quality",
         "characters": "Characters in this scene",
         "creditsRemaining": "{{provider}}: {{remaining}} credits",
@@ -670,7 +666,6 @@
       "titulo": "Preview by style",
       "nota": "Each preview uses provider credits and is stored with the character.",
       "proveedor": "Provider",
-      "modeloFal": "Fal model",
       "generar": "Generate preview",
       "regenerar": "Regenerate preview",
       "cancelar": "Cancel",
@@ -897,7 +892,7 @@
     },
     "descripcion": {
       "deepinfra": "Main AI: generates the visual prompts for each scene.",
-      "fal": "Images with FLUX. The key must be Admin type.",
+      "fal": "Images with gpt-image. The key must be Admin type.",
       "evolink": "Images with gpt-image (pricier, more realistic). The same key works for AI music.",
       "dubvoice": "Narrated voice with Minimax. Human quality in Spanish.",
       "elevenlabs": "Premium voice straight from ElevenLabs.",
