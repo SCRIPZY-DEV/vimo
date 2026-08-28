@@ -3,8 +3,8 @@
 // navegador no declara `types: node`. Mismo criterio que stage-id.ts vs stage.ts.
 export type ImageProviderId = 'fal' | 'evolink'
 
-// Modelos de Fal que el catálogo del origen expone (Evolink sirve un único
-// modelo, gpt-image-2, así que no necesita selector).
-export type FalImageModelId = 'gpt-image-2' | 'flux-schnell'
+// Ambos proveedores generan con gpt-image-2 (ADR-0015): no hay elección de
+// modelo. El id se estampa en cada escena como dato de diagnóstico.
+export const IMAGE_MODEL = 'gpt-image-2'
 
 export type ImageExtension = 'jpg' | 'png' | 'webp'

@@ -6,10 +6,7 @@ import {
   type ProjectPaths,
 } from '../../project/paths.ts'
 import { downloadImage } from '../../providers/image/download.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '../../types/image-provider.ts'
+import type { ImageProviderId } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
 import { writeFileAtomic } from '../../utils/atomic-fs.ts'
 
@@ -88,12 +85,10 @@ export function hashImageRequest(request: {
 // ─── Contrato del carril normal (uno por proveedor de imagen) ───
 
 // Resueltos por escena: la escena manda (una regeneración recuerda con qué se
-// hizo) y si no trae nada caen las opciones del proyecto. Cada carril lee solo
-// los campos que le aplican — Evolink ignora falModel.
+// hizo) y si no trae nada caen las opciones del proyecto.
 export interface SceneLaneInputs {
   apiKey: string
   qualityOption: string | undefined
-  falModel: FalImageModelId
 }
 
 export interface ImageLane {

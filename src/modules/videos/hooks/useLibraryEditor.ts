@@ -9,13 +9,17 @@ import {
 } from '@/modules/videos/constants'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
+import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
 import type {
   RegenQueueEntry,
   SceneImageChoice,
 } from '@/modules/videos/types/library'
-import type { FalImageModelId } from '@pipeline/types/image-provider.ts'
 import type { SceneChange } from '@pipeline/types/video-project.ts'
-import type { SceneDetail } from '@pipeline/types/video-project.ts'
+import type {
+  SceneDetail,
+  VideoProjectOptions,
+} from '@pipeline/types/video-project.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 // Núcleo del editor: el detail del disco + una copia de trabajo local de las
 // escenas (drag del timeline y textareas editan la copia; el commit persiste
@@ -132,22 +136,11 @@ export function useLibraryEditor(projectId: string) {
 
   // ── Escena seleccionada ──
 
-  const options = detail?.metadata.options
-  const imageChoice: SceneImageChoice = {
-    provider:
-      editorTask.task?.pendingImageProvider ??
-      options?.imageProvider ??
-      DEFAULT_IMAGE_CHOICE.provider,
-    // El contrato del pipeline guarda el modelo como string.
-    model:
-      (selectedScene?.imageModel as FalImageModelId | undefined) ??
-      options?.falModel ??
-      DEFAULT_IMAGE_CHOICE.model,
-    quality:
-      selectedScene?.imageQuality ??
-      options?.imageQuality ??
-      DEFAULT_IMAGE_CHOICE.quality,
-  }
+  const imageChoice = resolveImageChoice(
+    editorTask.task?.pendingImageProvider,
+    detail?.metadata.options,
+    selectedScene,
+  )
 
   // Descripción editada y todavía no guardada en disco.
   const userPromptDirty =
@@ -166,14 +159,11 @@ export function useLibraryEditor(projectId: string) {
     ])
   }
 
-  // Modelo y calidad persisten en la escena; el proveedor es un override
+  // La calidad persiste en la escena; el proveedor es un override
   // transitorio del próximo lote de regeneración (ADR-0014).
   const changeImageChoice = (choice: SceneImageChoice) => {
     editorTask.setPendingImageProvider(projectId, choice.provider)
-    updateSelectedScene({
-      imageModel: choice.model,
-      imageQuality: choice.quality,
-    })
+    updateSelectedScene({ imageQuality: choice.quality })
   }
 
   const changeCharacters = (charactersPresent: number[]) => {
@@ -246,6 +236,38 @@ export function useLibraryEditor(projectId: string) {
     commitBoundary,
     editorTask,
   }
+}
+
+// Proveedor y calidad con que se regenera la escena seleccionada, por
+// prioridad: override pendiente del editor → opciones del proyecto → default.
+// La calidad sale de la escena si la tiene (ADR-0014).
+function resolveImageChoice(
+  pendingProvider: ImageProviderId | null | undefined,
+  options: VideoProjectOptions | undefined,
+  scene: SceneDetail | null,
+): SceneImageChoice {
+  const provider = resolveImageProvider(pendingProvider, options)
+  return { provider, quality: resolveImageQuality(provider, options, scene) }
+}
+
+function resolveImageProvider(
+  pendingProvider: ImageProviderId | null | undefined,
+  options: VideoProjectOptions | undefined,
+): ImageProviderId {
+  if (pendingProvider) return pendingProvider
+  if (options) return options.imageProvider
+  return DEFAULT_IMAGE_CHOICE.provider
+}
+
+function resolveImageQuality(
+  provider: ImageProviderId,
+  options: VideoProjectOptions | undefined,
+  scene: SceneDetail | null,
+): string {
+  if (scene?.imageQuality) return normalizeQuality(provider, scene.imageQuality)
+  if (options?.imageQuality)
+    return normalizeQuality(provider, options.imageQuality)
+  return DEFAULT_IMAGE_CHOICE.quality
 }
 
 function userPromptOf(scene: SceneDetail | undefined): string {

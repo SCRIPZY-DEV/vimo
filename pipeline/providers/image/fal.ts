@@ -1,7 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
-import type { FalImageModelId } from '../../types/image-provider.ts'
 import type {
   DecodedImage,
   FalErrorResponse,
@@ -61,10 +60,8 @@ export async function getFalCredits(
   }
 }
 
-export const FAL_MODEL_ENDPOINTS: Record<FalImageModelId, string> = {
-  'flux-schnell': 'fal-ai/flux/schnell',
-  'gpt-image-2': 'fal-ai/gpt-image-2',
-}
+// Único modelo de Fal que se usa (ADR-0015).
+export const FAL_IMAGE_ENDPOINT = 'fal-ai/gpt-image-2'
 
 // Plazo largo ÚNICO (regla de oro): Fal es síncrono y cobra al generar, así
 // que nada de timeouts cortos propios — bajo carga el pedido tarda.
@@ -97,18 +94,8 @@ export function falErrorText(body: FalErrorResponse | null): string {
   return parts.join(' ')
 }
 
-function requestBody(prompt: string, model: FalImageModelId): string {
+function requestBody(prompt: string): string {
   // Siempre la opción más barata: un preview no necesita resolución de render.
-  if (model === 'flux-schnell')
-    return JSON.stringify({
-      prompt,
-      image_size: 'landscape_16_9',
-      num_inference_steps: 4,
-      num_images: 1,
-      enable_safety_checker: false,
-      output_format: 'jpeg',
-    })
-
   return JSON.stringify({
     prompt,
     image_size: { width: 1024, height: 768 },
@@ -130,7 +117,6 @@ export async function readFalErrorBody(
 
 export async function generateFalImage(
   prompt: string,
-  model: FalImageModelId,
   options: GenerateImageOptions,
 ): Promise<DecodedImage> {
   const deadline = AbortSignal.timeout(ORDER_DEADLINE_MS)
@@ -142,13 +128,13 @@ export async function generateFalImage(
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let response: Response
     try {
-      response = await fetch(`${FAL_BASE_URL}/${FAL_MODEL_ENDPOINTS[model]}`, {
+      response = await fetch(`${FAL_BASE_URL}/${FAL_IMAGE_ENDPOINT}`, {
         method: 'POST',
         headers: {
           Authorization: `Key ${options.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: requestBody(prompt, model),
+        body: requestBody(prompt),
         signal,
       })
     } catch (error) {
@@ -220,36 +206,27 @@ export async function generateFalImage(
   )
 }
 
-// Convención de opción de calidad del catálogo: flux-schnell usa un preset
-// de tamaño ("landscape_16_9"); gpt-image-* usa "<W>x<H>_<quality>".
-export const DEFAULT_FLUX_SIZE = 'landscape_16_9'
+// Convención de opción de calidad del catálogo: "<W>x<H>_<quality>".
 export const DEFAULT_GPT_IMAGE_OPTION = '1920x1080_low'
+const QUALITY_OPTION_PATTERN = /^(\d+)x(\d+)_(\w+)$/
 
+// Una opción que no siga la convención (p. ej. el preset "landscape_16_9" de
+// escenas generadas con el modelo retirado, ADR-0015) cae a la default.
 export function falSceneRequestBody(
   prompt: string,
-  model: FalImageModelId,
   qualityOption: string | undefined,
 ): Record<string, unknown> {
-  if (model === 'flux-schnell')
-    return {
-      prompt,
-      image_size: qualityOption?.trim() || DEFAULT_FLUX_SIZE,
-      num_inference_steps: 4,
-      num_images: 1,
-      enable_safety_checker: false,
-      output_format: 'jpeg',
-    }
-
   const option = qualityOption?.trim() || DEFAULT_GPT_IMAGE_OPTION
-  const [sizePart, qualityPart] = option.split('_')
-  const sizeMatch = sizePart.match(/^(\d+)x(\d+)$/)
-  const imageSize = sizeMatch
-    ? { width: parseInt(sizeMatch[1], 10), height: parseInt(sizeMatch[2], 10) }
-    : sizePart
+  const match =
+    option.match(QUALITY_OPTION_PATTERN) ??
+    DEFAULT_GPT_IMAGE_OPTION.match(QUALITY_OPTION_PATTERN)!
   return {
     prompt,
-    image_size: imageSize,
-    quality: qualityPart || 'low',
+    image_size: {
+      width: parseInt(match[1], 10),
+      height: parseInt(match[2], 10),
+    },
+    quality: match[3],
     num_images: 1,
     output_format: 'jpeg',
   }

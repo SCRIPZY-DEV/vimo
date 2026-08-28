@@ -1,27 +1,29 @@
 import {
   EVOLINK_QUALITY_OPTIONS,
-  FAL_GPT_IMAGE_QUALITY_OPTIONS,
-  FLUX_SIZE_OPTION,
+  FAL_QUALITY_OPTIONS,
 } from '@/modules/videos/constants'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 export function qualityOptionsFor(
   provider: ImageProviderId,
-  falModel: FalImageModelId,
 ): { id: string; labelKey: string }[] {
   if (provider === 'evolink') return EVOLINK_QUALITY_OPTIONS
-  // flux-schnell no tiene niveles de calidad: su opción es el preset de tamaño.
-  if (falModel === 'flux-schnell') return []
-  return FAL_GPT_IMAGE_QUALITY_OPTIONS
+  return FAL_QUALITY_OPTIONS
 }
 
-export function defaultQualityFor(
+export function defaultQualityFor(provider: ImageProviderId): string {
+  return qualityOptionsFor(provider)[0].id
+}
+
+// Una calidad guardada que el proveedor ya no ofrece (p. ej. el preset
+// "landscape_16_9" del modelo retirado, ADR-0015) cae a la default.
+export function normalizeQuality(
   provider: ImageProviderId,
-  falModel: FalImageModelId,
+  quality: string,
 ): string {
-  const options = qualityOptionsFor(provider, falModel)
-  return options[0]?.id ?? FLUX_SIZE_OPTION
+  const known = qualityOptionsFor(provider).some(
+    (option) => option.id === quality,
+  )
+  if (known) return quality
+  return defaultQualityFor(provider)
 }

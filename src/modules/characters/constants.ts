@@ -1,8 +1,5 @@
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { CharacterFormValue, LabelledOption } from './types/characters'
 
 export const CharactersRoutes = {
@@ -35,14 +32,8 @@ export const PREVIEW_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'fal', label: 'Fal' },
 ]
 
-export const FAL_PREVIEW_MODELS: { id: FalImageModelId; label: string }[] = [
-  { id: 'gpt-image-2', label: 'GPT-Image 2' },
-  { id: 'flux-schnell', label: 'Flux Schnell' },
-]
-
-// Evolink por defecto: con Fal el preview salía en FLUX y no se parecía al video
+// Evolink por defecto: es el proveedor con el que se generan los videos
 export const DEFAULT_PREVIEW_PROVIDER: ImageProviderId = 'evolink'
-export const DEFAULT_FAL_PREVIEW_MODEL: FalImageModelId = 'gpt-image-2'
 
 export const CHARACTER_FORM_INITIAL_VALUE: CharacterFormValue = {
   name: '',

@@ -2,14 +2,14 @@ import { sceneImageFile } from '../../project/paths.ts'
 import {
   FAL_BASE_URL,
   FAL_CONTENT_POLICY_PATTERN,
-  FAL_MODEL_ENDPOINTS,
+  FAL_IMAGE_ENDPOINT,
   falErrorText,
   falSceneRequestBody,
   readFalErrorBody,
 } from '../../providers/image/fal.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { sleep } from '../../utils/sleep.ts'
-import type { FalImageModelId } from '../../types/image-provider.ts'
+import { IMAGE_MODEL } from '../../types/image-provider.ts'
 import type { FalImageResponse } from '../../types/images.ts'
 import type { Scene } from '../../types/scenes.ts'
 import {
@@ -31,16 +31,11 @@ const MAX_ATTEMPTS = 5
 const ORDER_DEADLINE_MS = 210_000
 const RATE_LIMIT_MAX_BACKOFF_MS = 30_000
 const PROGRESS_TICK_MS = 500
-
 // Fal no expone progreso: estimación honesta elapsed/expected (cap 95%).
-function expectedMsForModel(model: FalImageModelId): number {
-  if (model === 'flux-schnell') return 3500
-  return 18_000
-}
+const EXPECTED_MS = 18_000
 
 export async function generateSceneWithFal(
   scene: Scene,
-  model: FalImageModelId,
   qualityOption: string | undefined,
   apiKey: string,
   options: ImageLaneOptions,
@@ -63,11 +58,10 @@ export async function generateSceneWithFal(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const startedAt = Date.now()
-    const expectedMs = expectedMsForModel(model)
     const progressTimer = setInterval(() => {
       const percent = Math.min(
         95,
-        Math.floor(((Date.now() - startedAt) / expectedMs) * 100),
+        Math.floor(((Date.now() - startedAt) / EXPECTED_MS) * 100),
       )
       options.events.onProgress(scene.id, percent, 'processing')
     }, PROGRESS_TICK_MS)
@@ -78,20 +72,17 @@ export async function generateSceneWithFal(
 
       let response: Response
       try {
-        response = await fetch(
-          `${FAL_BASE_URL}/${FAL_MODEL_ENDPOINTS[model]}`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Key ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(
-              falSceneRequestBody(scene.imagePrompt!, model, qualityOption),
-            ),
-            signal: AbortSignal.any([options.signal, deadline]),
+        response = await fetch(`${FAL_BASE_URL}/${FAL_IMAGE_ENDPOINT}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Key ${apiKey}`,
+            'Content-Type': 'application/json',
           },
-        )
+          body: JSON.stringify(
+            falSceneRequestBody(scene.imagePrompt!, qualityOption),
+          ),
+          signal: AbortSignal.any([options.signal, deadline]),
+        })
       } catch (error) {
         if (options.signal.aborted) return { scene, imageReady: false }
         if (deadline.aborted)
@@ -123,7 +114,11 @@ export async function generateSceneWithFal(
         // Modelo y opción quedan en la escena para que una regeneración
         // futura recuerde la elección.
         return {
-          scene: { ...scene, imageModel: model, imageQuality: qualityOption },
+          scene: {
+            ...scene,
+            imageModel: IMAGE_MODEL,
+            imageQuality: qualityOption,
+          },
           imageReady: true,
         }
       }
@@ -215,7 +210,6 @@ export const falImageLane: ImageLane = {
   generateScene(scene, inputs, options) {
     return generateSceneWithFal(
       scene,
-      inputs.falModel,
       inputs.qualityOption,
       inputs.apiKey,
       options,

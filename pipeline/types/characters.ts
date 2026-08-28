@@ -1,4 +1,4 @@
-import type { FalImageModelId, ImageProviderId } from './image-provider.ts'
+import type { ImageProviderId } from './image-provider.ts'
 
 // Dominio de personajes: biblioteca de identidades reutilizables entre videos.
 // La "identidad" es una descripción NEUTRA DE ESTILO (quién es el personaje,
@@ -90,8 +90,6 @@ export interface GenerateCharacterPreviewPayload {
   identityPrompt: string
   styleId: CharacterStyleId
   provider: ImageProviderId
-  // Solo se respeta con provider 'fal'.
-  falModel?: FalImageModelId
 }
 
 export interface GenerateCharacterPreviewResult {

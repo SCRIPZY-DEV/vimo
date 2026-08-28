@@ -7,7 +7,7 @@ import type {
 
 // Traduce el formulario al contrato del subcomando `create-video-project`.
 // Solo viaja lo que el modo elegido usa: un BGM apagado no manda prompt ni
-// URL, y los personajes solo van si el modelo los soporta.
+// URL.
 export function createProjectPayload(
   form: CreateFormValue,
 ): CreateVideoProjectPayload {
@@ -21,8 +21,6 @@ export function createProjectPayload(
     useOverlay: form.useOverlay,
     confirmScenes: form.confirmScenes,
   }
-
-  if (form.imageProvider === 'fal') options.falModel = form.falModel
 
   if (form.narrationMode === 'tts' && form.voice) {
     options.voiceProvider = form.voice.provider

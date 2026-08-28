@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                        | Título                                                                    | Estado                   | Área                          |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0015](ADR-0015-fal-solo-gpt-image-2.md)                               | Fal genera solo con gpt-image-2: retiro de Flux                           | Aceptada                 | providers                     |
 | [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md)          | Create: runner de stages, confirmación de escenas y binarios empaquetados | Aceptada                 | pipeline / app / distribución |
 | [ADR-0012](ADR-0012-primitivas-del-runner-y-contratos-cerrados.md)         | Primitivas del runner y contratos cerrados en el pipeline                 | Propuesta                | pipeline                      |
 | [ADR-0011](ADR-0011-claves-api-en-keychain-con-fuente-abstracta.md)        | Claves API en el keychain del SO detrás de una fuente abstracta           | Aceptada                 | seguridad                     |

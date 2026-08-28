@@ -347,7 +347,6 @@ pnpm pipeline:harness character-delete --payload '{"id":"elena-a1b2c3"}'
 pnpm pipeline:harness suggest-character-profile --payload '{"name":"Elena","role":"watchmaker","script":"Hace mil años..."}'
 
 # Una imagen del personaje en el estilo elegido; devuelve { dataUri, finalPrompt }.
-# provider fal admite además falModel: gpt-image-2 | flux-schnell
 pnpm pipeline:harness generate-character-preview --payload '{"identityPrompt":"a young watchmaker with short red hair","styleId":"cartoon","provider":"evolink"}'
 ```
 

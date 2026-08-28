@@ -111,7 +111,6 @@
     },
     "image": {
       "provider": "Proveedor de imágenes",
-      "model": "Modelo",
       "quality": "Calidad"
     },
     "quality": {
@@ -168,7 +167,6 @@
       "change": "Cambiar personajes",
       "hint": "Hasta {{max}} personajes de tu biblioteca.",
       "remove": "Quitar personaje",
-      "modelUnsupported": "El modelo elegido no admite personajes de referencia. Usá Evolink o un modelo GPT-Image.",
       "pickerTitle": "Elegir personajes",
       "pickerDescription": "Podés elegir hasta {{max}} personajes; van a aparecer con su identidad en todo el video.",
       "empty": "Todavía no tenés personajes en tu biblioteca.",
@@ -253,8 +251,7 @@
       "audioRequired": "Elegí el archivo de audio con tu narración.",
       "bgmUrlRequired": "Pegá el link de YouTube de la música.",
       "bgmPromptRequired": "Describí cómo querés que suene la música.",
-      "overlayUrlRequired": "Pegá el link de YouTube de la textura.",
-      "charactersUnsupported": "Quitá los personajes o cambiá a un modelo que los admita."
+      "overlayUrlRequired": "Pegá el link de YouTube de la textura."
     },
     "errors": {
       "discard": "Descartar",
@@ -395,7 +392,6 @@
         "userPromptPlaceholder": "Describí lo que querés ver en esta escena (opcional)",
         "promptChars": "{{used}}/{{max}}",
         "provider": "Proveedor",
-        "model": "Modelo",
         "quality": "Calidad",
         "characters": "Personajes en esta escena",
         "creditsRemaining": "{{provider}}: {{remaining}} créditos",
@@ -670,7 +666,6 @@
       "titulo": "Vista previa por estilo",
       "nota": "Cada vista previa consume créditos del proveedor y queda guardada con el personaje.",
       "proveedor": "Proveedor",
-      "modeloFal": "Modelo de Fal",
       "generar": "Generar vista previa",
       "regenerar": "Regenerar vista previa",
       "cancelar": "Cancelar",
@@ -897,7 +892,7 @@
     },
     "descripcion": {
       "deepinfra": "IA principal: genera los prompts visuales de cada escena.",
-      "fal": "Imágenes con FLUX. La clave debe ser de tipo Admin.",
+      "fal": "Imágenes con gpt-image. La clave debe ser de tipo Admin.",
       "evolink": "Imágenes con gpt-image (más caro, más realista). La misma clave sirve para la música IA.",
       "dubvoice": "Voz narrada con Minimax. Calidad humana en español.",
       "elevenlabs": "Voz premium directa de ElevenLabs.",

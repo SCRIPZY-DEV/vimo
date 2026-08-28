@@ -1,5 +1,5 @@
 import type { CharacterStyleId } from './characters.ts'
-import type { FalImageModelId, ImageProviderId } from './image-provider.ts'
+import type { ImageProviderId } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
 import type { SceneSummary, TranscriptWord } from './scenes.ts'
 import type { StageId } from '../runner/stage-id.ts'
@@ -46,8 +46,6 @@ export interface VideoProjectOptions {
   voiceName?: string
   voiceSettings?: VoiceGenerationSettings
   imageProvider: ImageProviderId
-  // Solo se respeta con imageProvider 'fal'.
-  falModel?: FalImageModelId
   imageQuality?: string
   useBgm: boolean
   bgmMode?: BgmMode

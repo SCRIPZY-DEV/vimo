@@ -83,8 +83,10 @@ esa decisión. El módulo (`src/modules/costs/`) queda intacto; ver `hidden` en
   - `grep -rn "fetch(\|useQuery" src/modules/costs` → vacío (dataset local).
   - `grep -rn "IMAGE_PROVIDERS" src/` → solo `catalog.ts` y componentes de
     `costs`.
-- **Spot-check de montos contra el origen:** video de 10 min con flux-schnell +
-  DubVoice ≈ 86 imgs × $0.003 + 7.800 chars × $0.0000119 ≈ $0.35.
+- **Spot-check de montos contra el origen:** video de 10 min con gpt-image-2
+  (Fal, 1920×1080 · Low) + DubVoice ≈ 86 imgs × $0.005 + 7.800 chars ×
+  $0.0000119 ≈ $0.52. (El ejemplo original usaba flux-schnell, retirado en
+  ADR-0015.)
 - **Regresión típica:** un componente de costos con `fetch`, o un segundo
   catálogo apareciendo en otro módulo.
 
