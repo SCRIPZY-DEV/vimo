@@ -368,9 +368,12 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
 
 ### Antes de arrancar
 
-1. **La interfaz** exige sesión iniciada y claves de API (`useRequiredApiKeys()`
-   sin argumentos: las cuatro categorías). Si falta alguna, lleva a Claves de
-   API en vez de arrancar un trabajo condenado.
+1. **La interfaz** exige sesión iniciada y claves de API
+   (`useRequiredApiKeys({ requirements: MODULE_API_KEY_REQUIREMENTS.videos })`:
+   las cuatro categorías). Si falta alguna, monta `MissingApiKeysNotice` (modal
+   con el nombre de cada clave y CTA que abre su tarjeta en Claves de API) en
+   vez de arrancar un trabajo condenado. Cada módulo registra sus claves en
+   `MODULE_API_KEY_REQUIREMENTS` (`src/modules/api-keys/constants.ts`).
 2. Reúne el formulario: nombre, guion (o audio propio), estilo, cantidad de
    escenas, proveedor/modelo/calidad de imagen, voz y sus ajustes, personajes y
    su frecuencia, música de fondo y overlay.
