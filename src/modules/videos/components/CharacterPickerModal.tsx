@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -76,11 +77,7 @@ export function CharacterPickerModal({
           </DialogDescription>
         </DialogHeader>
 
-        {errorKey && (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-            {t(errorKey)}
-          </p>
-        )}
+        {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
         {isLoading && (
           <p className="py-8 text-center">

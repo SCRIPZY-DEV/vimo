@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2, Wallet } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import DoodleVoice from '@/modules/common/doodles/DoodleVoice'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Dialog, DialogContent } from '@/modules/common/ui/dialog'
@@ -188,9 +189,7 @@ export function Voices() {
         )}
 
         {errorKey && tab !== 'favorites' && (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-            {t(errorKey)}
-          </p>
+          <ErrorMessage>{t(errorKey)}</ErrorMessage>
         )}
 
         {isLoading && tab !== 'favorites' && (

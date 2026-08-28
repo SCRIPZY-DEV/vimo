@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Pause, Play, Search } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -106,11 +107,7 @@ export function VoicePickerModal({
           </p>
         )}
 
-        {catalog.errorKey && (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-            {t(catalog.errorKey)}
-          </p>
-        )}
+        {catalog.errorKey && <ErrorMessage>{t(catalog.errorKey)}</ErrorMessage>}
 
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {catalog.isLoading && (

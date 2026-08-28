@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
@@ -152,9 +153,9 @@ export function CreateForm({
       )}
 
       {charactersUnsupported && (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
+        <ErrorMessage>
           {t('create.validation.charactersUnsupported')}
-        </p>
+        </ErrorMessage>
       )}
 
       <Button

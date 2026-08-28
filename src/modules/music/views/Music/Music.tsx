@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2, Music2, RotateCcw, Sparkles, X } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
@@ -189,9 +190,9 @@ export function Music() {
         )}
 
         {errorKey && (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
+          <ErrorMessage>
             {t(errorKey, { seconds: task?.errorSeconds ?? 0 })}
-          </p>
+          </ErrorMessage>
         )}
       </motion.section>
 
