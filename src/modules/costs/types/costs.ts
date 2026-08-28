@@ -1,4 +1,4 @@
-export type ImageModelId = 'flux-schnell' | 'gpt-image-1.5' | 'gpt-image-2'
+export type ImageModelId = 'gpt-image-1.5' | 'gpt-image-2'
 
 export interface QualityOption {
   id: string
