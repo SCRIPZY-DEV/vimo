@@ -69,8 +69,6 @@
     "tagline": "From a script to a narrated video, in one run",
     "description": "Write your script, pick a voice and a style, and Vimo builds the whole video.",
     "desktopOnly": "Video creation only works in the desktop app.",
-    "missingKeys": "Some API keys are missing to generate a full video.",
-    "goToKeys": "Set up keys",
     "form": {
       "nameLabel": "Video name",
       "namePlaceholder": "e.g.: The story of the Titanic",
@@ -548,8 +546,6 @@
       "unavailable": "Balance unavailable",
       "refresh": "Refresh balance"
     },
-    "faltaClave": "You need to set up your Evolink key to generate music.",
-    "irAClaves": "Go to API Keys",
     "generar": "Generate music",
     "generando": "Generating music…",
     "cancelar": "Cancel",
@@ -723,8 +719,6 @@
     "tagline": "Browse and try the voices for your videos",
     "saldo": "Credits",
     "soloEscritorio": "The voice catalog works in the desktop app.",
-    "faltaClave": "The DubVoice key is missing to list and generate voices.",
-    "irAClaves": "Go to API keys",
     "cargando": "Loading voices… the first time can take a while.",
     "tabs": {
       "minimax": "Minimax",
@@ -870,6 +864,15 @@
     "soloEscritorio": "This section is only available in the desktop app.",
     "faltanTitulo": "Keys missing to generate",
     "faltanDescripcion": "Set up at least one key for: {{categorias}}.",
+    "missing": {
+      "title": "API keys missing",
+      "description": "To use this section you need to set up these keys:",
+      "or": "or",
+      "banner": "Missing keys: {{keys}}",
+      "details": "See details",
+      "configure": "Set up keys",
+      "close": "Close"
+    },
     "obligatorias": "Required",
     "opcionales": "Optional",
     "opcionalesDescripcion": "Alternative providers: one configured key per category is enough.",
