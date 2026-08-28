@@ -8,10 +8,7 @@ import type {
   ProbeTtsReason,
 } from '@pipeline/types/video-project.ts'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
-import type {
-  FalImageModelId,
-  ImageProviderId,
-} from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
 
@@ -98,7 +95,6 @@ export interface CreateFormValue {
   // 0 = cantidad automática.
   sceneCount: number
   imageProvider: ImageProviderId
-  falModel: FalImageModelId
   imageQuality: string
   voice: SelectedVoice | null
   voiceSettings: VoiceSettingsFormValue
