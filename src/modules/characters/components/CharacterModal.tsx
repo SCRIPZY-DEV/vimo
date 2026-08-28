@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -179,11 +180,7 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
             onCancel={preview.cancel}
           />
 
-          {formErrorKey && (
-            <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-              {t(formErrorKey)}
-            </p>
-          )}
+          {formErrorKey && <ErrorMessage>{t(formErrorKey)}</ErrorMessage>}
         </div>
 
         <DialogFooter>
