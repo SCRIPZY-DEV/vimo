@@ -7,6 +7,9 @@ import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
+import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
+import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
+import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { CharacterCard } from '@/modules/characters/components/CharacterCard'
 import { CharacterModal } from '@/modules/characters/components/CharacterModal'
 import { useCharacterMutations } from '@/modules/characters/hooks/useCharacterMutations'
@@ -17,6 +20,9 @@ export function Characters() {
   const { t } = useTranslation()
   const { isNative, entries, isLoading, errorKey } = useCharacters()
   const { deleteCharacter } = useCharacterMutations()
+  const { missingKeys } = useRequiredApiKeys({
+    requirements: MODULE_API_KEY_REQUIREMENTS.characters,
+  })
 
   const [editing, setEditing] = useState<CharacterSummary | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -56,7 +62,7 @@ export function Characters() {
         </div>
         <Button
           size="lg"
-          disabled={!isNative}
+          disabled={!isNative || missingKeys}
           onClick={openCreate}
           className="shrink-0 rounded-xl font-display font-bold"
         >
@@ -75,6 +81,12 @@ export function Characters() {
         {t('characters.intro')}
       </p>
 
+      {missingKeys && (
+        <MissingApiKeysNotice
+          requirements={MODULE_API_KEY_REQUIREMENTS.characters}
+        />
+      )}
+
       {errorKey && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
           {t(errorKey)}
@@ -86,8 +98,9 @@ export function Characters() {
       {!isLoading && entries.length === 0 && isNative && (
         <button
           type="button"
+          disabled={missingKeys}
           onClick={openCreate}
-          className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50"
+          className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <DoodleCharacter size={64} />
           <span className="font-display text-lg font-bold text-foreground">
