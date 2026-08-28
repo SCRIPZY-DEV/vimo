@@ -1,9 +1,23 @@
-import type { ApiKeyCategory } from './types/provider'
+import type {
+  ApiKeyCategory,
+  ApiKeyProviderId,
+  ApiKeyRequirement,
+} from './types/provider'
 import type { ApiKeyErrorCode } from './types/apiKeys'
 
 export const ApiKeysRoutes = {
   apiKeys: '/api-keys',
 } as const
+
+// Query param con los proveedores a enfocar al entrar a Claves API.
+export const API_KEYS_FOCUS_PARAM = 'focus'
+
+// Ruta a Claves API que abre en edición las tarjetas de esos proveedores.
+export function apiKeysFocusPath(providers: ApiKeyProviderId[]) {
+  if (providers.length === 0) return ApiKeysRoutes.apiKeys
+
+  return `${ApiKeysRoutes.apiKeys}?${API_KEYS_FOCUS_PARAM}=${providers.join(',')}`
+}
 
 export const apiKeysQueryKeys = {
   status: ['apiKeys', 'status'],
@@ -16,6 +30,21 @@ export const REQUIRED_CATEGORIES: ApiKeyCategory[] = [
   'voice',
   'transcription',
 ]
+
+// Claves que exige cada módulo. Cada requisito es una lista de alternativas:
+// basta con una configurada (Fal o Evolink). Registrar acá el módulo nuevo y
+// montar `MissingApiKeysNotice` en su vista (ARCHITECTURE §4).
+export const MODULE_API_KEY_REQUIREMENTS = {
+  videos: [
+    ['deepinfra'],
+    ['fal', 'evolink'],
+    ['dubvoice', 'elevenlabs'],
+    ['deepgram'],
+  ],
+  music: [['evolink']],
+  voices: [['dubvoice']],
+  characters: [['fal', 'evolink'], ['deepinfra']],
+} satisfies Record<string, ApiKeyRequirement[]>
 
 /** Código de error de Rust → clave i18n del mensaje. */
 export const API_KEY_ERROR_MESSAGE_KEYS: Record<ApiKeyErrorCode, string> = {

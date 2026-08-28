@@ -5,7 +5,7 @@ import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
-import { ApiKeysRoutes } from '@/modules/api-keys/constants'
+import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import {
   AGE_LIMIT,
   DESCRIPTION_LIMIT,
@@ -129,7 +129,7 @@ export function CharacterProfileFields({
         {missingLlmKey ? (
           <p className="font-body text-xs text-coral">
             {t('characters.experto.faltaClave')}{' '}
-            <Link to={ApiKeysRoutes.apiKeys} className="underline">
+            <Link to={apiKeysFocusPath(['deepinfra'])} className="underline">
               {t('characters.irAClaves')}
             </Link>
           </p>

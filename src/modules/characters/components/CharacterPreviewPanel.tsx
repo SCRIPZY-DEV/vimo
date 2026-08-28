@@ -5,7 +5,7 @@ import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
-import { ApiKeysRoutes } from '@/modules/api-keys/constants'
+import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import {
   FAL_PREVIEW_MODELS,
   PREVIEW_PROVIDERS,
@@ -182,7 +182,7 @@ export function CharacterPreviewPanel({
       {missingProviderKey && (
         <p className="font-body text-xs text-coral">
           {t('characters.preview.faltaClave')}{' '}
-          <Link to={ApiKeysRoutes.apiKeys} className="underline">
+          <Link to={apiKeysFocusPath([provider])} className="underline">
             {t('characters.irAClaves')}
           </Link>
         </p>

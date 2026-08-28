@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
 import { motion } from 'framer-motion'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
-import { Button } from '@/modules/common/ui/button'
-import { ApiKeysRoutes } from '@/modules/api-keys/constants'
+import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
+import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import { CompletedPanel } from '@/modules/videos/components/CompletedPanel'
@@ -29,11 +28,9 @@ import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 // store de `useCreateTask` (sobrevive a la navegación y al reload).
 export function Create() {
   const { t } = useTranslation()
-  const {
-    isNative,
-    missingCategories,
-    isLoading: keysLoading,
-  } = useRequiredApiKeys()
+  const { isNative, missingKeys } = useRequiredApiKeys({
+    requirements: MODULE_API_KEY_REQUIREMENTS.videos,
+  })
   const { task, startCreation, confirmScenes, resume, cancel, discardTask } =
     useCreateTask()
   const { probe, probing } = useTtsProbe()
@@ -43,7 +40,6 @@ export function Create() {
 
   usePageTitle(t('create.pageTitle'))
 
-  const missingKeys = isNative && !keysLoading && missingCategories.length > 0
   const busy = task?.status === 'creating' || task?.status === 'generating'
   const showForm = !task || task.status === 'error'
 
@@ -99,22 +95,9 @@ export function Create() {
       )}
 
       {missingKeys && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between gap-3 rounded-2xl border-2 border-coral/40 bg-coral/10 p-4"
-        >
-          <p className="font-body text-sm text-foreground">
-            {t('create.missingKeys')}
-          </p>
-          <Button
-            asChild
-            size="sm"
-            className="shrink-0 rounded-lg font-display"
-          >
-            <Link to={ApiKeysRoutes.apiKeys}>{t('create.goToKeys')}</Link>
-          </Button>
-        </motion.div>
+        <MissingApiKeysNotice
+          requirements={MODULE_API_KEY_REQUIREMENTS.videos}
+        />
       )}
 
       {task && task.status !== 'completed' && task.status !== 'error' && (

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router'
 import { motion } from 'framer-motion'
 import { AlertCircle, KeyRound, ShieldCheck } from 'lucide-react'
 import DoodleScript from '@/modules/common/doodles/DoodleScript'
@@ -8,6 +9,7 @@ import { ApiKeyCard } from '@/modules/api-keys/components/ApiKeyCard'
 import { useApiKeys } from '@/modules/api-keys/hooks/useApiKeys'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { API_KEY_PROVIDERS } from '@/modules/api-keys/providers'
+import { API_KEYS_FOCUS_PARAM } from '@/modules/api-keys/constants'
 
 /**
  * Dashboard de claves API (ADR-0011). Sin wizard por pasos: tarjetas por
@@ -18,6 +20,7 @@ export function ApiKeys() {
   const { t } = useTranslation()
   const { isNative, statuses, isLoading } = useApiKeys()
   const { missingCategories } = useRequiredApiKeys()
+  const [searchParams] = useSearchParams()
 
   usePageTitle(t('apiKeys.pageTitle'))
 
@@ -29,6 +32,22 @@ export function ApiKeys() {
   const configuredRequired = requiredProviders.filter(
     (provider) => statusByProvider.get(provider.id)?.configured,
   ).length
+
+  // `?focus=fal,evolink` (desde un aviso de claves faltantes): esas tarjetas
+  // abren en edición; la primera sin configurar recibe scroll y foco.
+  const focusIds = new Set(
+    (searchParams.get(API_KEYS_FOCUS_PARAM) ?? '').split(','),
+  )
+  const focusedProviders = isLoading
+    ? []
+    : API_KEY_PROVIDERS.filter(
+        (provider) =>
+          focusIds.has(provider.id) &&
+          !statusByProvider.get(provider.id)?.configured,
+      )
+  const primaryFocusId = focusedProviders[0]?.id ?? null
+  const isFocused = (providerId: string) =>
+    focusedProviders.some((provider) => provider.id === providerId)
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
@@ -110,6 +129,8 @@ export function ApiKeys() {
               key={provider.id}
               provider={provider}
               status={statusByProvider.get(provider.id)}
+              focused={isFocused(provider.id)}
+              primaryFocus={provider.id === primaryFocusId}
             />
           ))}
         </motion.section>
@@ -131,6 +152,8 @@ export function ApiKeys() {
               key={provider.id}
               provider={provider}
               status={statusByProvider.get(provider.id)}
+              focused={isFocused(provider.id)}
+              primaryFocus={provider.id === primaryFocusId}
             />
           ))}
         </motion.section>

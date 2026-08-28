@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertCircle,
@@ -24,9 +24,18 @@ import type { ApiKeyProvider } from '../types/provider'
 interface ApiKeyCardProps {
   provider: ApiKeyProvider
   status?: ApiKeyStatus
+  // Llegó por `?focus=`: la tarjeta abre en edición y se resalta.
+  focused?: boolean
+  // Primera tarjeta enfocada: recibe scroll y el cursor en el input.
+  primaryFocus?: boolean
 }
 
-export function ApiKeyCard({ provider, status }: ApiKeyCardProps) {
+export function ApiKeyCard({
+  provider,
+  status,
+  focused = false,
+  primaryFocus = false,
+}: ApiKeyCardProps) {
   const { t } = useTranslation()
   const {
     saveKey,
@@ -40,16 +49,31 @@ export function ApiKeyCard({ provider, status }: ApiKeyCardProps) {
     resetFeedback,
   } = useApiKeyActions(provider.id)
 
-  const [editing, setEditing] = useState(false)
+  const [manualEditing, setManualEditing] = useState(false)
+  // Cerrar una tarjeta abierta por `?focus=` la deja cerrada hasta que el
+  // usuario la reabra a mano.
+  const [focusDismissed, setFocusDismissed] = useState(false)
   const [value, setValue] = useState('')
   const [visible, setVisible] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const configured = status?.configured ?? false
   // Las claves managed (membresía futura) no se editan a mano.
   const managed = status?.source === 'managed'
+  const focusEditing = focused && !focusDismissed && !managed
+  const editing = manualEditing || focusEditing
+
+  useEffect(() => {
+    if (!focused || !primaryFocus) return
+    containerRef.current?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    })
+  }, [focused, primaryFocus])
 
   const closeEditor = () => {
-    setEditing(false)
+    setManualEditing(false)
+    setFocusDismissed(true)
     setValue('')
     setVisible(false)
     resetFeedback()
@@ -65,9 +89,11 @@ export function ApiKeyCard({ provider, status }: ApiKeyCardProps) {
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         'rounded-2xl border-2 p-4 transition-colors',
         configured ? 'border-saffron/30 bg-saffron/5' : 'border-border bg-card',
+        focusEditing && 'ring-2 ring-coral/60',
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -116,7 +142,7 @@ export function ApiKeyCard({ provider, status }: ApiKeyCardProps) {
             <Button
               size="sm"
               variant={configured ? 'ghost' : 'default'}
-              onClick={() => setEditing(true)}
+              onClick={() => setManualEditing(true)}
               className="rounded-lg font-display font-semibold"
             >
               {configured ? t('apiKeys.cambiar') : t('apiKeys.configurar')}
@@ -150,7 +176,7 @@ export function ApiKeyCard({ provider, status }: ApiKeyCardProps) {
               onChange={(event) => setValue(event.target.value)}
               placeholder={provider.keyFormatHint}
               className="pr-12 font-mono text-xs"
-              autoFocus
+              autoFocus={manualEditing || primaryFocus}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"

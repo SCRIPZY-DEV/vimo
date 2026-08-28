@@ -69,8 +69,6 @@
     "tagline": "De um roteiro a um vídeo narrado, numa única execução",
     "description": "Escreva seu roteiro, escolha voz e estilo, e o Vimo monta o vídeo completo.",
     "desktopOnly": "A criação de vídeos só funciona no app de desktop.",
-    "missingKeys": "Faltam chaves de API para gerar um vídeo completo.",
-    "goToKeys": "Configurar chaves",
     "form": {
       "nameLabel": "Nome do vídeo",
       "namePlaceholder": "Ex.: A história do Titanic",
@@ -548,8 +546,6 @@
       "unavailable": "Saldo indisponível",
       "refresh": "Atualizar saldo"
     },
-    "faltaClave": "É preciso configurar a chave da Evolink para gerar música.",
-    "irAClaves": "Ir para Chaves API",
     "generar": "Gerar música",
     "generando": "Gerando música…",
     "cancelar": "Cancelar",
@@ -723,8 +719,6 @@
     "tagline": "Explore e teste as vozes para seus vídeos",
     "saldo": "Créditos",
     "soloEscritorio": "O catálogo de vozes funciona no aplicativo de desktop.",
-    "faltaClave": "Falta a chave da DubVoice para listar e gerar vozes.",
-    "irAClaves": "Ir para chaves de API",
     "cargando": "Carregando vozes… a primeira vez pode demorar um pouco.",
     "tabs": {
       "minimax": "Minimax",
@@ -870,6 +864,15 @@
     "soloEscritorio": "Esta seção só está disponível no app de desktop.",
     "faltanTitulo": "Faltam chaves para poder gerar",
     "faltanDescripcion": "Configure pelo menos uma chave de: {{categorias}}.",
+    "missing": {
+      "title": "Faltam chaves API",
+      "description": "Para usar esta seção você precisa configurar estas chaves:",
+      "or": "ou",
+      "banner": "Faltam chaves: {{keys}}",
+      "details": "Ver detalhes",
+      "configure": "Configurar chaves",
+      "close": "Fechar"
+    },
     "obligatorias": "Obrigatórias",
     "opcionales": "Opcionais",
     "opcionalesDescripcion": "Provedores alternativos: basta configurar um por categoria.",

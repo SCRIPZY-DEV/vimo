@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2, Music2, RotateCcw, Sparkles, X } from 'lucide-react'
@@ -11,7 +10,8 @@ import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
-import { ApiKeysRoutes } from '@/modules/api-keys/constants'
+import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
+import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { musicApi } from '@/modules/music/api'
 import { MusicForm } from '@/modules/music/components/MusicForm'
@@ -32,11 +32,9 @@ import { useMusicTask } from '@/modules/music/hooks/useMusicTask'
 export function Music() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const {
-    isNative,
-    missingProviders,
-    isLoading: keysLoading,
-  } = useRequiredApiKeys({ providers: ['evolink'] })
+  const { isNative, missingKeys } = useRequiredApiKeys({
+    requirements: MODULE_API_KEY_REQUIREMENTS.music,
+  })
   const { task, startGeneration, chooseOption, regenerate, discardTask } =
     useMusicTask()
 
@@ -53,8 +51,6 @@ export function Music() {
       : null
   const chosenEntry = task?.status === 'completed' ? task.chosenEntry : null
   const errorKey = task?.errorKey ?? null
-  const missingEvolinkKey =
-    isNative && !keysLoading && missingProviders.length > 0
 
   // Evolink descuenta créditos de forma asíncrona al completar la task: se
   // refresca el saldo al llegar las opciones y otra vez unos segundos después.
@@ -101,23 +97,10 @@ export function Music() {
         </p>
       )}
 
-      {missingEvolinkKey && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between gap-3 rounded-2xl border-2 border-coral/40 bg-coral/10 p-4"
-        >
-          <p className="font-body text-sm text-foreground">
-            {t('music.faltaClave')}
-          </p>
-          <Button
-            asChild
-            size="sm"
-            className="shrink-0 rounded-lg font-display"
-          >
-            <Link to={ApiKeysRoutes.apiKeys}>{t('music.irAClaves')}</Link>
-          </Button>
-        </motion.div>
+      {missingKeys && (
+        <MissingApiKeysNotice
+          requirements={MODULE_API_KEY_REQUIREMENTS.music}
+        />
       )}
 
       <motion.section
@@ -126,7 +109,7 @@ export function Music() {
         transition={{ delay: 0.05 }}
         className={cn(
           'space-y-4 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6',
-          (!isNative || missingEvolinkKey) && 'pointer-events-none opacity-60',
+          (!isNative || missingKeys) && 'pointer-events-none opacity-60',
         )}
       >
         <div className="space-y-1.5">
