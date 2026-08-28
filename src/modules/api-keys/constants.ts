@@ -1,4 +1,8 @@
-import type { ApiKeyCategory } from './types/provider'
+import type {
+  ApiKeyCategory,
+  ApiKeyProviderId,
+  ApiKeyRequirement,
+} from './types/provider'
 import type { ApiKeyErrorCode } from './types/apiKeys'
 
 export const ApiKeysRoutes = {
