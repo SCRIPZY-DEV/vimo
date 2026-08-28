@@ -13,12 +13,9 @@ import type {
   GenerateCharacterPreviewPayload,
   GenerateCharacterPreviewResult,
 } from '../../types/characters.ts'
-import type { FalImageModelId } from '../../types/image-provider.ts'
 import type { DecodedImage } from '../../types/images.ts'
 
 const MIN_IDENTITY_LENGTH = 10
-const FAL_MODELS: FalImageModelId[] = ['gpt-image-2', 'flux-schnell']
-const DEFAULT_FAL_MODEL: FalImageModelId = 'gpt-image-2'
 
 /**
  * Genera UNA imagen de cómo se vería el personaje en el estilo elegido. El
@@ -43,8 +40,8 @@ export async function generateCharacterPreview(
       'payload.styleId is not a known visual style',
     )
 
-  // Fail-safe del origen: solo un 'fal' explícito usa Fal. Con cualquier otro
-  // valor el preview salía en FLUX y no se parecía al video.
+  // Fail-safe del origen: solo un 'fal' explícito usa Fal; cualquier otro
+  // valor cae a Evolink.
   const provider = payload?.provider === 'fal' ? 'fal' : 'evolink'
   const apiKey = context.job.apiKeys[provider]
   if (!apiKey)
@@ -79,11 +76,7 @@ export async function generateCharacterPreview(
 
   let image: DecodedImage
   if (provider === 'fal') {
-    const falModel =
-      payload?.falModel && FAL_MODELS.includes(payload.falModel)
-        ? payload.falModel
-        : DEFAULT_FAL_MODEL
-    image = await generateFalImage(finalPrompt, falModel, options)
+    image = await generateFalImage(finalPrompt, options)
   } else {
     image = await generateEvolinkImage(finalPrompt, options)
   }
