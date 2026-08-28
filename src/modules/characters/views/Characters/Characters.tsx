@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
+import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
@@ -87,11 +88,7 @@ export function Characters() {
         />
       )}
 
-      {errorKey && (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-sm text-destructive">
-          {t(errorKey)}
-        </p>
-      )}
+      {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
       {isLoading && <ViewSpinner className="py-12" />}
 
