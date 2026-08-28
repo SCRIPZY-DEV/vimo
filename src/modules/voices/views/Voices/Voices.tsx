@@ -154,23 +154,10 @@ export function Voices() {
         </p>
       )}
 
-      {missingDubvoiceKey && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between gap-3 rounded-2xl border-2 border-coral/40 bg-coral/10 p-4"
-        >
-          <p className="font-body text-sm text-foreground">
-            {t('voices.faltaClave')}
-          </p>
-          <Button
-            asChild
-            size="sm"
-            className="shrink-0 rounded-lg font-display"
-          >
-            <Link to={ApiKeysRoutes.apiKeys}>{t('voices.irAClaves')}</Link>
-          </Button>
-        </motion.div>
+      {missingKeys && (
+        <MissingApiKeysNotice
+          requirements={MODULE_API_KEY_REQUIREMENTS.voices}
+        />
       )}
 
       <motion.section
@@ -181,7 +168,7 @@ export function Voices() {
           'space-y-4',
           !isNative &&
             'rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6',
-          (!isNative || missingDubvoiceKey) && 'pointer-events-none opacity-60',
+          (!isNative || missingKeys) && 'pointer-events-none opacity-60',
         )}
       >
         <Tabs value={tab} onValueChange={changeTab}>
@@ -275,7 +262,7 @@ export function Voices() {
             <VoiceTesterPanel
               key={selectedVoice.provider}
               voice={selectedVoice}
-              disabled={!isNative || missingDubvoiceKey}
+              disabled={!isNative || missingKeys}
             />
           )}
         </DialogContent>
