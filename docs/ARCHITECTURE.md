@@ -426,6 +426,11 @@ igual de retomable.
 
 ### Editar después de crear (Library)
 
+Con el auto-export apagado (default desde ADR-0016), **este es el flujo
+normal**: el job de Create genera voz, escenas e imágenes, deja el proyecto en
+`draft` sin render, y la UI navega directo al editor — el mp4 se arma desde el
+botón de render cuando la persona terminó de revisar.
+
 La biblioteca (ADR-0014) monta la edición sobre las **mismas stages**: la
 regeneración selectiva corre el runner sobre `[scene-prompts, images]` con los
 ids objetivo en el contexto (`regenerateSceneIds` — único caso que llena

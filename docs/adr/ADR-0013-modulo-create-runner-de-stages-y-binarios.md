@@ -81,6 +81,12 @@ cache-hit por `skip()`.
 
 ### Siempre renderizar
 
+> **Actualizada por [ADR-0016](ADR-0016-adopcion-del-rediseno-de-vimo-dev-por-ramas.md):**
+> Create expone el checkbox de auto-export (default apagado). Con
+> `autoRender: false` el job genera todo menos el render, el proyecto queda en
+> `draft` y el video se arma desde el editor. Ausente = `true` (proyectos
+> previos intactos).
+
 La UI no expone el toggle de auto-render: todo job de Create termina en el mp4.
 El campo `autoRender` queda en `VideoProjectOptions` para no romper el contrato
 cuando Library traiga el editor.
