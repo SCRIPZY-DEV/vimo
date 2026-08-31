@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, PauseCircle, Timer, X } from 'lucide-react'
+import { Loader2, Mic, Music2, PauseCircle, Timer, X } from 'lucide-react'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
+import { ProgressBar } from '@/modules/common/components/ProgressBar'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatTime } from '@/modules/common/utilities/formatTime'
@@ -56,6 +57,20 @@ export function GenerationProgress({
 
   const voice = task.voiceProgress
   const voicePercent = voiceProgressPercent(voice)
+
+  // «Una fase, un panel» (origen v1.1.0): solo el panel de la fase que corre.
+  // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
+  // disco y `stage` es null hasta el primer evento del job.
+  const completed = task.completedStages
+  const showVoicePanel =
+    voice !== null && (task.stage === 'voice' || !completed.includes('voice'))
+  const showBgmPanel =
+    task.bgmProgress !== null && task.bgmProgress.status !== 'completed'
+  const showImagesPanel =
+    completed.includes('scene-prompts') &&
+    !completed.includes('render') &&
+    task.stage !== 'render'
+  const showRenderPanel = task.renderProgress !== null
 
   return (
     <div className="space-y-5 rounded-2xl border-2 border-border bg-card p-6">
@@ -130,23 +145,39 @@ export function GenerationProgress({
         </aside>
 
         <div className="min-w-0 space-y-5">
-          {voice && (
-            <LabeledProgress
-              label={t('create.progress.voice', { chars: voice.totalChars })}
-              percent={voicePercent}
-            />
+          {showVoicePanel && voice && (
+            <div className="space-y-2 rounded-xl border-2 border-ocean/40 bg-ocean/5 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
+                  <Mic className="h-4 w-4 text-ocean" />
+                  {t('create.progress.voice', { chars: voice.totalChars })}
+                </p>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                  {Math.round(voicePercent)}%
+                </span>
+              </div>
+              <ProgressBar percent={voicePercent} />
+            </div>
           )}
 
-          {task.bgmProgress && task.bgmProgress.status !== 'completed' && (
-            <LabeledProgress
-              label={t('create.progress.music')}
-              percent={task.bgmProgress.percent}
-            />
+          {showBgmPanel && task.bgmProgress && (
+            <div className="space-y-2 rounded-xl border-2 border-ocean/40 bg-ocean/5 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
+                  <Music2 className="h-4 w-4 text-ocean" />
+                  {t('create.progress.music')}
+                </p>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                  {Math.round(task.bgmProgress.percent)}%
+                </span>
+              </div>
+              <ProgressBar percent={task.bgmProgress.percent} />
+            </div>
           )}
 
-          <SceneImagesGrid scenes={task.scenes} />
+          {showImagesPanel && <SceneImagesGrid scenes={task.scenes} />}
 
-          {task.renderProgress && (
+          {showRenderPanel && task.renderProgress && (
             <LabeledProgress
               label={t(`create.progress.render.${task.renderProgress.phase}`)}
               percent={task.renderProgress.percent}
