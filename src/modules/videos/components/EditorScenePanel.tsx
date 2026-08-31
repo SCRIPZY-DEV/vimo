@@ -8,6 +8,7 @@ import { ImageCreditsSummary } from '@/modules/videos/components/ImageCreditsSum
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
 import type { SceneImageChoice } from '@/modules/videos/types/library'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
+import { priceForQuality } from '@/modules/videos/utilities/imageQuality'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
 import type {
   ImageCreditsResult,
@@ -64,6 +65,11 @@ export function EditorScenePanel({
   const toggleCharacter = (index: number) => {
     onCharactersChange(toggleIndex(charactersPresent, index))
   }
+
+  const regenPriceUsd = priceForQuality(
+    imageChoice.provider,
+    imageChoice.quality,
+  )
 
   return (
     <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
@@ -137,6 +143,11 @@ export function EditorScenePanel({
         {userPromptDirty
           ? t('library.editor.panel.regenerateWithPrompt')
           : t('library.editor.panel.regenerate')}
+        {regenPriceUsd !== undefined && (
+          <span className="ml-1.5 font-mono text-xs tabular-nums">
+            ${regenPriceUsd.toFixed(3)}
+          </span>
+        )}
       </Button>
     </aside>
   )
