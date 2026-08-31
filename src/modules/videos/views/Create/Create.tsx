@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Brand } from '@/modules/common/brand/brand'
+import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
 import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
+import { useDefaultSceneCount } from '@/modules/settings/hooks/useDefaultSceneCount'
 import { videosApi } from '@/modules/videos/api'
 import { CompletedPanel } from '@/modules/videos/components/CompletedPanel'
 import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
@@ -24,10 +26,27 @@ import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
-// Pantalla de creación de video. Es dueña de la tarea: el formulario y los
-// paneles de progreso son presentacionales; el estado del job vive en el
-// store de `useCreateTask` (sobrevive a la navegación y al reload).
+// Pantalla de creación de video. Espera la preferencia «escenas por defecto»
+// antes de montar el formulario: el estado inicial se siembra una sola vez y
+// la lectura es de disco local (staleTime Infinity → instantánea al volver).
 export function Create() {
+  const { defaultSceneCount, isLoading } = useDefaultSceneCount()
+
+  if (isLoading) return <ViewSpinner />
+
+  return (
+    <CreateView
+      initialSceneCount={
+        defaultSceneCount ?? CREATE_FORM_INITIAL_VALUE.sceneCount
+      }
+    />
+  )
+}
+
+// Es dueña de la tarea: el formulario y los paneles de progreso son
+// presentacionales; el estado del job vive en el store de `useCreateTask`
+// (sobrevive a la navegación y al reload).
+function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
   const { t } = useTranslation()
   const { isNative, missingKeys } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.videos,
@@ -36,7 +55,10 @@ export function Create() {
     useCreateTask()
   const { probe, probing } = useTtsProbe()
 
-  const [form, setForm] = useState<CreateFormValue>(CREATE_FORM_INITIAL_VALUE)
+  const [form, setForm] = useState<CreateFormValue>(() => ({
+    ...CREATE_FORM_INITIAL_VALUE,
+    sceneCount: initialSceneCount,
+  }))
   const [probeFailure, setProbeFailure] = useState<ProbeTtsReason | null>(null)
 
   usePageTitle(t('create.pageTitle'))
