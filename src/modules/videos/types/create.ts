@@ -108,6 +108,9 @@ export interface CreateFormValue {
   useOverlay: boolean
   overlayUrl: string
   confirmScenes: boolean
+  // Con false (default), al terminar la generación se va al editor y el
+  // render se dispara desde ahí (ADR-0016).
+  autoRender: boolean
 }
 
 // Resultado cacheado del probe de TTS (por proveedor + voz).
