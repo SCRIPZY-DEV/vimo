@@ -6,9 +6,21 @@ import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 export function qualityOptionsFor(
   provider: ImageProviderId,
-): { id: string; labelKey: string }[] {
+): { id: string; labelKey: string; noteKey: string; priceUsd: number }[] {
   if (provider === 'evolink') return EVOLINK_QUALITY_OPTIONS
   return FAL_QUALITY_OPTIONS
+}
+
+// Precio USD por imagen de la opción elegida; undefined si la opción ya no
+// existe en el catálogo del proveedor.
+export function priceForQuality(
+  provider: ImageProviderId,
+  quality: string,
+): number | undefined {
+  const option = qualityOptionsFor(provider).find(
+    (candidate) => candidate.id === quality,
+  )
+  return option?.priceUsd
 }
 
 export function defaultQualityFor(provider: ImageProviderId): string {
