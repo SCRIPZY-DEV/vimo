@@ -245,7 +245,8 @@
       "waitingForYou": "está esperando você",
       "status": {
         "generating": "Gerando…",
-        "paused": "Em pausa"
+        "paused": "Em pausa",
+        "completed": "Pronto"
       },
       "audioSummary": "Duração do áudio: {{seconds}} s · {{scenes}} cenas"
     },

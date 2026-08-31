@@ -245,7 +245,8 @@
       "waitingForYou": "waiting for you",
       "status": {
         "generating": "Generating…",
-        "paused": "Paused"
+        "paused": "Paused",
+        "completed": "Done"
       },
       "audioSummary": "Audio length: {{seconds}} s · {{scenes}} scenes"
     },
