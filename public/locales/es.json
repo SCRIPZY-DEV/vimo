@@ -935,7 +935,13 @@
     "cambiada": "Carpeta actualizada.",
     "restablecida": "Se restauró la carpeta por defecto.",
     "errorNoEscribible": "No se puede escribir en esa carpeta. Elegí otra.",
-    "errorAbrir": "No se pudo abrir la carpeta."
+    "errorAbrir": "No se pudo abrir la carpeta.",
+    "escenasTitulo": "Escenas",
+    "escenasDescripcion": "Cantidad de escenas con la que arranca cada video nuevo. En Crear podés cambiarla por video.",
+    "escenasLabel": "Escenas por defecto",
+    "escenasHint": "0 = automática (una escena cada ~3 segundos).",
+    "escenasGuardada": "Preferencia guardada.",
+    "escenasError": "No se pudo guardar la preferencia."
   },
   "splash": {
     "pageTitle": "Vimo",

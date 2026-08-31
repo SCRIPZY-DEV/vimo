@@ -935,7 +935,13 @@
     "cambiada": "Pasta atualizada.",
     "restablecida": "Pasta padrão restaurada.",
     "errorNoEscribible": "Não é possível gravar nessa pasta. Escolha outra.",
-    "errorAbrir": "Não foi possível abrir a pasta."
+    "errorAbrir": "Não foi possível abrir a pasta.",
+    "escenasTitulo": "Cenas",
+    "escenasDescripcion": "Quantidade de cenas com que cada vídeo novo começa. Em Criar você pode mudar por vídeo.",
+    "escenasLabel": "Cenas padrão",
+    "escenasHint": "0 = automática (uma cena a cada ~3 segundos).",
+    "escenasGuardada": "Preferência salva.",
+    "escenasError": "Não foi possível salvar a preferência."
   },
   "splash": {
     "pageTitle": "Vimo",
