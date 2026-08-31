@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
+import { Brand } from '@/modules/common/brand/brand'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
@@ -130,6 +131,15 @@ export function Create() {
             onPickAudio={() => void pickAudio()}
             onSubmit={() => void submit()}
           />
+
+          <div className="mt-8 border-t border-border/40 pb-2 pt-8 text-center">
+            <p className="font-handwritten text-base text-muted-foreground">
+              {t('create.form.footerNote')}
+            </p>
+            <p className="mt-1 font-body text-xs text-muted-foreground/70">
+              {t('create.form.footerSupport', { email: Brand.supportEmail })}
+            </p>
+          </div>
         </motion.section>
       )}
 
