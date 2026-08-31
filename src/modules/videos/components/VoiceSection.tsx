@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mic, SlidersHorizontal } from 'lucide-react'
-import { Button } from '@/modules/common/ui/button'
+import { Mic } from 'lucide-react'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { VoicePickerModal } from '@/modules/videos/components/VoicePickerModal'
@@ -17,56 +16,60 @@ interface VoiceSectionProps {
 export function VoiceSection({ value, disabled, onChange }: VoiceSectionProps) {
   const { t } = useTranslation()
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div className="space-y-2">
-      <Label className="font-display">{t('create.voice.label')}</Label>
+      <Label className="flex items-center gap-2 font-display font-semibold">
+        <Mic className="h-4 w-4 text-saffron" />
+        {t('create.voice.label')}
+      </Label>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => setPickerOpen(true)}
-          className="rounded-xl font-display"
-        >
-          <Mic className="mr-1.5 h-4 w-4" />
-          {value.voice ? t('create.voice.change') : t('create.voice.choose')}
-        </Button>
-
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setPickerOpen(true)}
+        className={cn(
+          'w-full rounded-xl border-2 px-4 py-3 text-left transition-all',
+          value.voice
+            ? 'border-saffron bg-saffron/5'
+            : 'border-dashed border-border bg-card hover:border-saffron/40',
+        )}
+      >
         {value.voice ? (
-          <span className="min-w-0 font-body text-sm text-foreground">
-            <span className="font-display font-bold">{value.voice.name}</span>
-            <span className="ml-1.5 font-mono text-xs text-muted-foreground">
-              {value.voice.provider}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-saffron/30 font-display font-bold text-charcoal">
+              {value.voice.name.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-sm font-bold text-foreground">
+                {value.voice.name}
+              </p>
+              <p className="font-body text-xs text-muted-foreground">
+                {value.voice.provider}
+              </p>
+            </div>
+            <span className="rounded bg-saffron px-2 py-1 font-display text-[10px] font-bold text-charcoal">
+              {t('create.voice.change')}
             </span>
-          </span>
+          </div>
         ) : (
-          <span className="font-body text-sm text-muted-foreground">
-            {t('create.voice.none')}
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <Mic className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="font-display text-sm font-bold text-foreground">
+                {t('create.voice.choose')}
+              </p>
+              <p className="font-body text-xs text-muted-foreground">
+                {t('create.voice.hint')}
+              </p>
+            </div>
+          </div>
         )}
+      </button>
 
-        {value.voice && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={() => setSettingsOpen(!settingsOpen)}
-            className={cn(
-              'rounded-lg font-display text-muted-foreground',
-              settingsOpen && 'text-foreground',
-            )}
-          >
-            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-            {t('create.voice.settings')}
-          </Button>
-        )}
-      </div>
-
-      {value.voice && settingsOpen && (
+      {value.voice && (
         <VoiceSettingsFields
           provider={value.voice.provider}
           value={value.voiceSettings}
