@@ -66,6 +66,10 @@ export interface CreateTask {
   videoPath: string | null
   errorKey: string | null
   startedAt: number
+  // Cronómetro honesto (origen v1.1.0): el tiempo esperando a la persona no
+  // cuenta. pausedAt marca la pausa en curso; pausedMs acumula las cerradas.
+  pausedAt: number | null
+  pausedMs: number
 }
 
 // Un personaje elegido en el formulario (hasta 2).
