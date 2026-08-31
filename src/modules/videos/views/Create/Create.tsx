@@ -11,7 +11,6 @@ import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { useDefaultSceneCount } from '@/modules/settings/hooks/useDefaultSceneCount'
 import { videosApi } from '@/modules/videos/api'
-import { CompletedPanel } from '@/modules/videos/components/CompletedPanel'
 import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { CreateForm } from '@/modules/videos/components/CreateForm'
@@ -136,12 +135,12 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
         />
       )}
 
-      {task && task.status !== 'completed' && task.status !== 'error' && (
-        <GenerationProgress task={task} onCancel={cancel} />
-      )}
-
-      {task?.status === 'completed' && task.videoPath && (
-        <CompletedPanel task={task} onCreateAnother={discardTask} />
+      {task && task.status !== 'error' && (
+        <GenerationProgress
+          task={task}
+          onCancel={cancel}
+          onCreateAnother={discardTask}
+        />
       )}
 
       {task?.status === 'error' && (
