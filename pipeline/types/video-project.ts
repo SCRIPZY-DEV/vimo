@@ -65,8 +65,10 @@ export interface VideoProjectOptions {
   musicVolume?: number
   // Segundos que se saltean del arranque de la música al mezclar (Library).
   bgmOffsetSeconds?: number
-  // En el contrato por compatibilidad con Library; la UI de Create no lo
-  // expone: todo job renderiza hasta el final (decisión 4 de ADR-0013).
+  // Con false, el job de Create genera todo MENOS el render: el proyecto
+  // queda en borrador y el video se arma desde el editor (ADR-0016 revierte
+  // la decisión 4 de ADR-0013). Ausente = true — los proyectos previos y los
+  // re-render de Library se comportan igual que siempre.
   autoRender?: boolean
 }
 
