@@ -9,6 +9,7 @@ import {
   LOG_LINES_LIMIT,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
+import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { CreateTask } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
@@ -207,6 +208,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         stage: null,
         videoPath: result?.videoPath ?? null,
       })
+      scheduleCreditsRefresh()
       return
     }
 
