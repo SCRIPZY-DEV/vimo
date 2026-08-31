@@ -349,6 +349,10 @@
       "adminRequired": "Admin required",
       "error": "error",
       "refresh": "Refresh balances"
+    },
+    "autoRender": {
+      "label": "Auto-export the video when finished",
+      "hint": "If on, Vimo assembles the video at the end. If off, you go to the editor to review/edit before exporting."
     }
   },
   "library": {
@@ -445,7 +449,10 @@
         "progress": "Exporting… {{percent}}%"
       },
       "previewBadge": "Preview",
-      "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept."
+      "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept.",
+      "missingImagesTitle_one": "1 scene is missing its image (scene {{ids}})",
+      "missingImagesTitle_other": "{{count}} scenes are missing their image (scenes {{ids}})",
+      "missingImagesHint": "Their descriptions are saved. Tap an empty scene in the timeline and use \"Regenerate\" to create its image — or change the description if you want something else. Once they all have one, build your video."
     },
     "errors": {
       "projectBusy": "A generation is already running. Wait for it to finish before starting another.",

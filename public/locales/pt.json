@@ -349,6 +349,10 @@
       "adminRequired": "Admin necessário",
       "error": "erro",
       "refresh": "Atualizar saldos"
+    },
+    "autoRender": {
+      "label": "Exportar o vídeo automaticamente ao terminar",
+      "hint": "Se ativado, o Vimo monta o vídeo no final. Se desativado, você vai ao editor para revisar/editar antes de exportar."
     }
   },
   "library": {
@@ -445,7 +449,10 @@
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Prévia",
-      "regenFailed": "Não foi possível regenerar alguma cena: o motivo está em cada cena e a imagem anterior é mantida."
+      "regenFailed": "Não foi possível regenerar alguma cena: o motivo está em cada cena e a imagem anterior é mantida.",
+      "missingImagesTitle_one": "Falta a imagem de 1 cena (cena {{ids}})",
+      "missingImagesTitle_other": "Faltam as imagens de {{count}} cenas (cenas {{ids}})",
+      "missingImagesHint": "A descrição delas ficou salva. Toque numa cena vazia na linha do tempo e use «Regenerar» para criar a imagem — ou mude a descrição se quiser outra coisa. Quando todas tiverem, gere seu vídeo."
     },
     "errors": {
       "projectBusy": "Já há uma geração em andamento. Espere terminar antes de iniciar outra.",
