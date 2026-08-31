@@ -121,7 +121,6 @@ export function Create() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6"
         >
           <CreateForm
             value={form}
