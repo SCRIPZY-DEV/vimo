@@ -123,12 +123,21 @@
     },
     "image": {
       "provider": "Proveedor de imágenes",
-      "quality": "Calidad"
+      "quality": "Calidad",
+      "falHint": "Más opciones de calidad.",
+      "evolinkHint": "Más rápido (50 en paralelo), un solo preset."
     },
     "quality": {
-      "low": "Baja (más barata)",
-      "medium": "Media",
-      "high": "Alta"
+      "evolinkLow": "Full HD · Low",
+      "evolinkLowNote": "Sale en la forma del video (16:9 o 9:16). Más económico.",
+      "evolinkMedium": "Full HD · Medium",
+      "evolinkMediumNote": "Sale en la forma del video (16:9 o 9:16). Balance precio/calidad.",
+      "evolinkHigh": "Full HD · High",
+      "evolinkHighNote": "Sale en la forma del video (16:9 o 9:16). Máxima calidad.",
+      "falLow": "1920×1080 · Low",
+      "falMedium": "1920×1080 · Medium",
+      "falHigh": "1920×1080 · High",
+      "falNote": "16:9 nativo. Sin redimensionado."
     },
     "voice": {
       "label": "Voz para la narración",
@@ -333,6 +342,13 @@
       "sidecar": "No pudimos arrancar el motor de Vimo. Reiniciá la app.",
       "interrupted": "La generación se interrumpió al cerrar la app. Reanudá: lo hecho se conserva.",
       "unknown": "Algo salió mal. Volvé a intentar."
+    },
+    "credits": {
+      "balance": "{{amount}} cr.",
+      "configure": "configurar",
+      "adminRequired": "Admin requerido",
+      "error": "error",
+      "refresh": "Refrescar saldos"
     }
   },
   "library": {
