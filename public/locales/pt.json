@@ -86,13 +86,17 @@
       "modeUploadHint": "Use sua própria gravação como narração.",
       "chooseFile": "Escolher áudio",
       "clearFile": "Remover o áudio escolhido",
-      "noFile": "Nenhum arquivo escolhido"
+      "noFile": "Nenhum arquivo escolhido",
+      "audioLabel": "Seu áudio narrado",
+      "audioHint": "O Vimo transcreve seu áudio e usa esse texto para criar as imagens. Não precisa escrever o roteiro. Formatos: mp3, wav, m4a, aac, ogg."
     },
     "script": {
       "label": "Roteiro",
-      "optionalLabel": "Roteiro (opcional)",
+      "optionalLabel": "Roteiro do áudio (opcional, mas recomendado)",
       "placeholder": "Escreva aqui o texto que será narrado…",
-      "wordCount": "{{count}} palavras"
+      "wordCount": "{{count}} palavras",
+      "optionalPlaceholder": "Se você tem o roteiro com que gravou o áudio, cole aqui…",
+      "optionalHint": "Funciona mesmo sem ele: tiramos o texto do seu áudio. Mas se você colar, o Vimo entende melhor os personagens e o lugar, e as imagens ficam mais consistentes (como quando o Vimo faz a voz)."
     },
     "style": {
       "label": "Estilo visual",

@@ -86,13 +86,17 @@
       "modeUploadHint": "Usá tu propia grabación como narración.",
       "chooseFile": "Elegir audio",
       "clearFile": "Quitar el audio elegido",
-      "noFile": "Ningún archivo elegido"
+      "noFile": "Ningún archivo elegido",
+      "audioLabel": "Tu audio narrado",
+      "audioHint": "Vimo transcribe tu audio y usa ese texto para crear las imágenes. No hace falta que escribas el guion. Formatos: mp3, wav, m4a, aac, ogg."
     },
     "script": {
       "label": "Guion",
-      "optionalLabel": "Guion (opcional)",
+      "optionalLabel": "Guion del audio (opcional, pero recomendado)",
       "placeholder": "Escribí acá el texto que se va a narrar…",
-      "wordCount": "{{count}} palabras"
+      "wordCount": "{{count}} palabras",
+      "optionalPlaceholder": "Si tenés a mano el guion con el que grabaste el audio, pegalo acá…",
+      "optionalHint": "Sin guion igual funciona: lo sacamos de tu audio. Pero si lo pegás, Vimo entiende mejor los personajes y el lugar, y las imágenes salen más consistentes (como cuando la voz la hace Vimo)."
     },
     "style": {
       "label": "Estilo visual",
