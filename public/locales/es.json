@@ -74,7 +74,9 @@
       "namePlaceholder": "Ej.: La historia del Titanic",
       "nameHint": "Se usa para la carpeta del proyecto y el archivo final.",
       "submit": "Generar video",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "footerNote": "Tu video va a aparecer en la biblioteca cuando termine ✨",
+      "footerSupport": "Dudas o errores → {{email}}"
     },
     "narration": {
       "label": "Narración",
@@ -84,13 +86,17 @@
       "modeUploadHint": "Usá tu propia grabación como narración.",
       "chooseFile": "Elegir audio",
       "clearFile": "Quitar el audio elegido",
-      "noFile": "Ningún archivo elegido"
+      "noFile": "Ningún archivo elegido",
+      "audioLabel": "Tu audio narrado",
+      "audioHint": "Vimo transcribe tu audio y usa ese texto para crear las imágenes. No hace falta que escribas el guion. Formatos: mp3, wav, m4a, aac, ogg."
     },
     "script": {
       "label": "Guion",
-      "optionalLabel": "Guion (opcional)",
+      "optionalLabel": "Guion del audio (opcional, pero recomendado)",
       "placeholder": "Escribí acá el texto que se va a narrar…",
-      "wordCount": "{{count}} palabras"
+      "wordCount": "{{count}} palabras",
+      "optionalPlaceholder": "Si tenés a mano el guion con el que grabaste el audio, pegalo acá…",
+      "optionalHint": "Sin guion igual funciona: lo sacamos de tu audio. Pero si lo pegás, Vimo entiende mejor los personajes y el lugar, y las imágenes salen más consistentes (como cuando la voz la hace Vimo)."
     },
     "style": {
       "label": "Estilo visual",
@@ -119,11 +125,9 @@
       "high": "Alta"
     },
     "voice": {
-      "label": "Voz de la narración",
-      "choose": "Elegir voz",
-      "change": "Cambiar voz",
-      "none": "Sin voz elegida",
-      "settings": "Ajustes de voz",
+      "label": "Voz para la narración",
+      "choose": "Elegir voz…",
+      "change": "Cambiar",
       "pickerTitle": "Elegir una voz",
       "pickerDescription": "Escuchá el ejemplo del proveedor y elegí la que mejor le quede a tu video.",
       "searchPlaceholder": "Buscar por nombre o idioma…",
@@ -137,7 +141,8 @@
         "minimax": "Minimax",
         "elevenlabs": "ElevenLabs",
         "edge": "Edge"
-      }
+      },
+      "hint": "Esta voz narra todo tu video — elegila antes de generar."
     },
     "voiceSettings": {
       "title": "Ajustes de la voz",
@@ -162,10 +167,10 @@
       }
     },
     "characters": {
-      "label": "Personajes recurrentes",
-      "choose": "Elegir personajes",
-      "change": "Cambiar personajes",
-      "hint": "Hasta {{max}} personajes de tu biblioteca.",
+      "label": "Personaje de referencia (opcional)",
+      "choose": "Agregar personaje",
+      "change": "Cambiar",
+      "hint": "Sale consistente en tu video; vos elegís qué tan seguido aparece.",
       "remove": "Quitar personaje",
       "pickerTitle": "Elegir personajes",
       "pickerDescription": "Podés elegir hasta {{max}} personajes; van a aparecer con su identidad en todo el video.",
@@ -179,24 +184,26 @@
         "often": "Seguido",
         "almostAlways": "Casi siempre",
         "always": "Siempre"
-      }
+      },
+      "selectedCount_one": "{{count}} personaje",
+      "selectedCount_other": "{{count}} personajes"
     },
     "music": {
-      "label": "Música de fondo",
+      "sectionTitle": "Música y overlay (opcional)",
+      "sectionHint": "YouTube · IA",
+      "label": "Música de fondo (BGM)",
       "modeAi": "Generar con IA",
       "modeYoutube": "Desde YouTube",
       "promptLabel": "Cómo suena la música",
       "promptPlaceholder": "Ej.: lo-fi tranquilo, guitarra acústica relajante…",
       "instrumental": "Solo instrumental (sin voces)",
-      "urlLabel": "Link de YouTube",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
-      "urlHint": "Vimo extrae el audio del video que le pases."
+      "urlHint": "Se descarga con yt-dlp y se mezcla al 5% de volumen bajo la voz."
     },
     "overlay": {
-      "label": "Textura sobre el video",
-      "urlLabel": "Link de YouTube del overlay",
+      "label": "Overlay visual (avanzado)",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
-      "hint": "Se superpone en bucle sobre el video final (lluvia, partículas, grano)."
+      "hint": "Video sobreimpreso al 30%. Útil para granos, polvo, ambient."
     },
     "stages": {
       "voice": "Narración y música",

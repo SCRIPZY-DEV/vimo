@@ -3,7 +3,6 @@ import { Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
-import { Switch } from '@/modules/common/ui/switch'
 import { cn } from '@/modules/common/utilities/cn'
 import { CharacterSection } from '@/modules/videos/components/CharacterSection'
 import { ImageProviderSection } from '@/modules/videos/components/ImageProviderSection'
@@ -92,24 +91,6 @@ export function CreateForm({
             {t('create.scenes.countHint')}
           </p>
         </div>
-
-        <div className="flex items-end">
-          <label className="flex cursor-pointer items-center gap-3 pb-2">
-            <Switch
-              checked={value.confirmScenes}
-              disabled={disabled}
-              onCheckedChange={(confirmScenes) => onChange({ confirmScenes })}
-            />
-            <span className="min-w-0">
-              <span className="block font-display text-sm font-bold text-foreground">
-                {t('create.scenes.confirmLabel')}
-              </span>
-              <span className="block font-body text-xs text-muted-foreground">
-                {t('create.scenes.confirmHint')}
-              </span>
-            </span>
-          </label>
-        </div>
       </div>
 
       <ImageProviderSection
@@ -131,7 +112,7 @@ export function CreateForm({
       />
 
       {blockers.length > 0 && (
-        <ul className="space-y-1 rounded-xl border border-border bg-background p-3">
+        <ul className="space-y-1 rounded-xl border-2 border-saffron/60 bg-saffron/5 px-4 py-3">
           {blockers.map((blocker) => (
             <li
               key={blocker}
@@ -142,6 +123,26 @@ export function CreateForm({
           ))}
         </ul>
       )}
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
+        <input
+          type="checkbox"
+          checked={value.confirmScenes}
+          disabled={disabled}
+          onChange={(event) =>
+            onChange({ confirmScenes: event.target.checked })
+          }
+          className="mt-1 h-4 w-4 accent-saffron"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-sm font-semibold text-foreground">
+            {t('create.scenes.confirmLabel')}
+          </span>
+          <span className="mt-0.5 block font-body text-xs text-muted-foreground">
+            {t('create.scenes.confirmHint')}
+          </span>
+        </span>
+      </label>
 
       <Button
         size="lg"

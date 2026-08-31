@@ -74,7 +74,9 @@
       "namePlaceholder": "e.g.: The story of the Titanic",
       "nameHint": "Used for the project folder and the final file.",
       "submit": "Generate video",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "footerNote": "Your video will show up in the library when it's done ✨",
+      "footerSupport": "Questions or issues → {{email}}"
     },
     "narration": {
       "label": "Narration",
@@ -84,13 +86,17 @@
       "modeUploadHint": "Use your own recording as the narration.",
       "chooseFile": "Choose audio",
       "clearFile": "Remove the chosen audio",
-      "noFile": "No file chosen"
+      "noFile": "No file chosen",
+      "audioLabel": "Your narration audio",
+      "audioHint": "Vimo transcribes your audio and uses that text to create the images. No need to write a script. Formats: mp3, wav, m4a, aac, ogg."
     },
     "script": {
       "label": "Script",
-      "optionalLabel": "Script (optional)",
+      "optionalLabel": "Audio script (optional, but recommended)",
       "placeholder": "Write here the text to be narrated…",
-      "wordCount": "{{count}} words"
+      "wordCount": "{{count}} words",
+      "optionalPlaceholder": "If you have the script you recorded the audio from, paste it here…",
+      "optionalHint": "It still works without it — we take the text from your audio. But pasting it lets Vimo understand the characters and setting better, so the images come out more consistent (like when Vimo does the voice)."
     },
     "style": {
       "label": "Visual style",
@@ -120,10 +126,8 @@
     },
     "voice": {
       "label": "Narration voice",
-      "choose": "Pick a voice",
-      "change": "Change voice",
-      "none": "No voice chosen",
-      "settings": "Voice settings",
+      "choose": "Pick a voice…",
+      "change": "Change",
       "pickerTitle": "Pick a voice",
       "pickerDescription": "Listen to the provider's sample and pick the one that fits your video.",
       "searchPlaceholder": "Search by name or language…",
@@ -137,7 +141,8 @@
         "minimax": "Minimax",
         "elevenlabs": "ElevenLabs",
         "edge": "Edge"
-      }
+      },
+      "hint": "This voice narrates your whole video — pick one before generating."
     },
     "voiceSettings": {
       "title": "Voice settings",
@@ -162,10 +167,10 @@
       }
     },
     "characters": {
-      "label": "Recurring characters",
-      "choose": "Pick characters",
-      "change": "Change characters",
-      "hint": "Up to {{max}} characters from your library.",
+      "label": "Reference character (optional)",
+      "choose": "Add character",
+      "change": "Change",
+      "hint": "Shows up consistently in your video; you choose how often it appears.",
       "remove": "Remove character",
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
@@ -179,24 +184,26 @@
         "often": "Often",
         "almostAlways": "Almost always",
         "always": "Always"
-      }
+      },
+      "selectedCount_one": "{{count}} character",
+      "selectedCount_other": "{{count}} characters"
     },
     "music": {
-      "label": "Background music",
+      "sectionTitle": "Music and overlay (optional)",
+      "sectionHint": "YouTube · AI",
+      "label": "Background music (BGM)",
       "modeAi": "Generate with AI",
       "modeYoutube": "From YouTube",
       "promptLabel": "How the music sounds",
       "promptPlaceholder": "e.g.: chill lo-fi, relaxing acoustic guitar…",
       "instrumental": "Instrumental only (no vocals)",
-      "urlLabel": "YouTube link",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
-      "urlHint": "Vimo extracts the audio from the video you pass."
+      "urlHint": "Downloaded with yt-dlp and mixed at 5% volume under the voice."
     },
     "overlay": {
-      "label": "Texture over the video",
-      "urlLabel": "YouTube link for the overlay",
+      "label": "Visual overlay (advanced)",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
-      "hint": "Looped on top of the final video (rain, particles, grain)."
+      "hint": "Overlaid video at 30%. Useful for grain, dust, ambient."
     },
     "stages": {
       "voice": "Narration and music",

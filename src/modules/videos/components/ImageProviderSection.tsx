@@ -33,7 +33,7 @@ export function ImageProviderSection({
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-3 rounded-xl border-2 border-border bg-card p-4 md:grid-cols-2">
       <LabeledSelect
         label={t('create.image.provider')}
         value={value.imageProvider}
