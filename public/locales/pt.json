@@ -240,7 +240,14 @@
         "chunks": "Montando os trechos do vídeo",
         "concat": "Juntando os trechos",
         "final": "Mixando áudio e cor"
-      }
+      },
+      "phasesTitle": "Fases do pipeline",
+      "waitingForYou": "está esperando você",
+      "status": {
+        "generating": "Gerando…",
+        "paused": "Em pausa"
+      },
+      "audioSummary": "Duração do áudio: {{seconds}} s · {{scenes}} cenas"
     },
     "confirmScenes": {
       "title": "Quantas cenas?",

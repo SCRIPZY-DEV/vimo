@@ -240,7 +240,14 @@
         "chunks": "Rendering the video segments",
         "concat": "Joining the segments",
         "final": "Mixing audio and color"
-      }
+      },
+      "phasesTitle": "Pipeline phases",
+      "waitingForYou": "waiting for you",
+      "status": {
+        "generating": "Generating…",
+        "paused": "Paused"
+      },
+      "audioSummary": "Audio length: {{seconds}} s · {{scenes}} scenes"
     },
     "confirmScenes": {
       "title": "How many scenes?",
