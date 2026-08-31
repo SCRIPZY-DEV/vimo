@@ -65,6 +65,7 @@ function restoreTask(): CreateTask | null {
       ...stored,
       pausedAt: stored.pausedAt ?? null,
       pausedMs: stored.pausedMs ?? 0,
+      finishedAt: stored.finishedAt ?? null,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -215,6 +216,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         jobId: null,
         stage: null,
         videoPath: result?.videoPath ?? null,
+        finishedAt: Date.now(),
       })
       scheduleCreditsRefresh()
       return
@@ -286,6 +288,7 @@ function makeTask(
     startedAt: Date.now(),
     pausedAt: null,
     pausedMs: 0,
+    finishedAt: null,
   }
 }
 
