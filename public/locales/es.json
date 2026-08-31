@@ -125,11 +125,9 @@
       "high": "Alta"
     },
     "voice": {
-      "label": "Voz de la narración",
-      "choose": "Elegir voz",
-      "change": "Cambiar voz",
-      "none": "Sin voz elegida",
-      "settings": "Ajustes de voz",
+      "label": "Voz para la narración",
+      "choose": "Elegir voz…",
+      "change": "Cambiar",
       "pickerTitle": "Elegir una voz",
       "pickerDescription": "Escuchá el ejemplo del proveedor y elegí la que mejor le quede a tu video.",
       "searchPlaceholder": "Buscar por nombre o idioma…",
@@ -143,7 +141,8 @@
         "minimax": "Minimax",
         "elevenlabs": "ElevenLabs",
         "edge": "Edge"
-      }
+      },
+      "hint": "Esta voz narra todo tu video — elegila antes de generar."
     },
     "voiceSettings": {
       "title": "Ajustes de la voz",
