@@ -1,17 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserPlus, X } from 'lucide-react'
+import { UserRound, X } from 'lucide-react'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
-import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
 import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
-import {
-  CHARACTER_FREQUENCIES,
-  MAX_PROJECT_CHARACTERS,
-} from '@/modules/videos/constants'
+import { CHARACTER_FREQUENCIES } from '@/modules/videos/constants'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
 interface CharacterSectionProps {
@@ -28,27 +24,71 @@ export function CharacterSection({
   const { t } = useTranslation()
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  const firstCharacter = value.characters[0] ?? null
+  const subtitle =
+    value.characters.length > 1
+      ? t('create.characters.selectedCount', { count: value.characters.length })
+      : (firstCharacter?.description ?? '') || t('create.characters.hint')
+
   return (
     <div className="space-y-2">
-      <Label className="font-display">{t('create.characters.label')}</Label>
+      <Label className="flex items-center gap-2 font-display font-semibold">
+        <UserRound className="h-4 w-4 text-saffron" />
+        {t('create.characters.label')}
+      </Label>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => setPickerOpen(true)}
-          className="rounded-xl font-display"
-        >
-          <UserPlus className="mr-1.5 h-4 w-4" />
-          {value.characters.length > 0
-            ? t('create.characters.change')
-            : t('create.characters.choose')}
-        </Button>
-        <span className="font-body text-xs text-muted-foreground">
-          {t('create.characters.hint', { max: MAX_PROJECT_CHARACTERS })}
-        </span>
-      </div>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setPickerOpen(true)}
+        className={cn(
+          'w-full rounded-xl border-2 px-4 py-3 text-left transition-all',
+          firstCharacter
+            ? 'border-saffron bg-saffron/5'
+            : 'border-dashed border-border bg-card hover:border-saffron/40',
+        )}
+      >
+        {firstCharacter ? (
+          <div className="flex items-center gap-3">
+            <CharacterPortrait
+              src={
+                firstCharacter.previewPath
+                  ? videosApi.imageSource(firstCharacter.previewPath)
+                  : null
+              }
+              doodleSize={20}
+              className="h-10 w-10 shrink-0 overflow-hidden rounded-full"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-sm font-bold text-foreground">
+                {value.characters
+                  .map((character) => character.name)
+                  .join(' + ')}
+              </p>
+              <p className="truncate font-body text-xs text-muted-foreground">
+                {subtitle}
+              </p>
+            </div>
+            <span className="rounded bg-saffron px-2 py-1 font-display text-[10px] font-bold text-charcoal">
+              {t('create.characters.change')}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <UserRound className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="font-display text-sm font-bold text-foreground">
+                {t('create.characters.choose')}
+              </p>
+              <p className="font-body text-xs text-muted-foreground">
+                {t('create.characters.hint')}
+              </p>
+            </div>
+          </div>
+        )}
+      </button>
 
       {value.characters.length > 0 && (
         <ul className="flex flex-wrap gap-2">
