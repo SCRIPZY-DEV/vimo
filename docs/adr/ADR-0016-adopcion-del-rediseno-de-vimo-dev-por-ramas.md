@@ -36,20 +36,20 @@ Restricciones:
 una en fases pequeñas.** El roadmap completo con archivos y verificaciones por fase
 vive en el plan de trabajo acordado; este es el mapa:
 
-| # | Rama | Cambio | Pipeline |
-| --- | --- | --- | --- |
-| 0 | `docs/adr-0016-rediseno-vimo-dev` | esta ADR | no |
-| 1 | `feat/create-neutral-sections` | quitar el wrapper saffron; tarjetas neutras por sección | no |
-| 2 | `feat/create-narration-voice-restyle` | look nuevo de Narración y Voz (picker con estado dashed) | no |
-| 3 | `feat/default-scene-count-setting` | escenas por defecto como preferencia en Ajustes | no |
-| 4 | `feat/style-catalog-thumbnails` | miniaturas de los 5 estilos del catálogo | no |
-| 5 | `feat/create-costs-credits` | precios por opción + badges de créditos en Create | no |
-| 6 | `feat/auto-export` | checkbox de auto-export (default off → editor) | sí |
-| 7 | `feat/progress-redesign` | progreso en dos columnas, una-fase-un-panel, pausa honesta | leve |
-| 8 | `feat/video-format` | 16:9 / 9:16 de punta a punta (ADR propia) | sí |
-| 9 | `feat/custom-styles-basic` | estilos propios básicos (ADR propia) | sí |
-| 10 | `feat/custom-styles-verbatim` | carril verbatim + segundos por escena (ADR propia) | sí |
-| 11 | `feat/prompt-model-selector` | selector de modelo LLM + simulador de costos + personaje de la gema | sí |
+| #   | Rama                                  | Cambio                                                              | Pipeline |
+| --- | ------------------------------------- | ------------------------------------------------------------------- | -------- |
+| 0   | `docs/adr-0016-rediseno-vimo-dev`     | esta ADR                                                            | no       |
+| 1   | `feat/create-neutral-sections`        | quitar el wrapper saffron; tarjetas neutras por sección             | no       |
+| 2   | `feat/create-narration-voice-restyle` | look nuevo de Narración y Voz (picker con estado dashed)            | no       |
+| 3   | `feat/default-scene-count-setting`    | escenas por defecto como preferencia en Ajustes                     | no       |
+| 4   | `feat/style-catalog-thumbnails`       | miniaturas de los 5 estilos del catálogo                            | no       |
+| 5   | `feat/create-costs-credits`           | precios por opción + badges de créditos en Create                   | no       |
+| 6   | `feat/auto-export`                    | checkbox de auto-export (default off → editor)                      | sí       |
+| 7   | `feat/progress-redesign`              | progreso en dos columnas, una-fase-un-panel, pausa honesta          | leve     |
+| 8   | `feat/video-format`                   | 16:9 / 9:16 de punta a punta (ADR propia)                           | sí       |
+| 9   | `feat/custom-styles-basic`            | estilos propios básicos (ADR propia)                                | sí       |
+| 10  | `feat/custom-styles-verbatim`         | carril verbatim + segundos por escena (ADR propia)                  | sí       |
+| 11  | `feat/prompt-model-selector`          | selector de modelo LLM + simulador de costos + personaje de la gema | sí       |
 
 Decisiones globales que gobiernan las ramas:
 
