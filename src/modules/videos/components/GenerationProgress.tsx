@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, X } from 'lucide-react'
+import { Loader2, PauseCircle, Timer, X } from 'lucide-react'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
+import { cn } from '@/modules/common/utilities/cn'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { StageBar } from '@/modules/videos/components/StageBar'
@@ -15,6 +16,18 @@ interface GenerationProgressProps {
   onCancel: () => void
 }
 
+// Cronómetro honesto: descuenta los tramos en pausa (el tiempo que la
+// persona tarda en confirmar no cuenta como generación).
+function elapsedSeconds(task: CreateTask): number {
+  const livePause = task.pausedAt !== null ? Date.now() - task.pausedAt : 0
+  return Math.max(
+    0,
+    Math.floor(
+      (Date.now() - task.startedAt - task.pausedMs - livePause) / 1000,
+    ),
+  )
+}
+
 // El cronómetro tiene su propio tick para no re-renderizar por segundo todo
 // lo que cuelga de la tarea.
 export function GenerationProgress({
@@ -22,18 +35,15 @@ export function GenerationProgress({
   onCancel,
 }: GenerationProgressProps) {
   const { t } = useTranslation()
-  const [elapsed, setElapsed] = useState(() =>
-    Math.floor((Date.now() - task.startedAt) / 1000),
-  )
+  const [elapsed, setElapsed] = useState(() => elapsedSeconds(task))
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
-  const startedAt = task.startedAt
+  const paused = task.status === 'awaitingConfirmation'
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000))
-    }, 1000)
+    const timer = setInterval(() => setElapsed(elapsedSeconds(task)), 1000)
     return () => clearInterval(timer)
-  }, [startedAt])
+  }, [task])
 
   useEffect(() => {
     if (!confirmingCancel) return undefined
@@ -48,85 +58,120 @@ export function GenerationProgress({
   const voicePercent = voiceProgressPercent(voice)
 
   return (
-    <div className="space-y-5 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-5 w-5 animate-spin text-saffron" />
-          <div>
-            <p className="font-display text-lg font-extrabold text-foreground">
-              {task.projectName}
-            </p>
-            <p className="font-body text-sm text-muted-foreground">
-              {t('create.progress.elapsed', { time: formatTime(elapsed) })}
-            </p>
-          </div>
+    <div className="space-y-5 rounded-2xl border-2 border-border bg-card p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <p className="truncate font-display text-lg font-extrabold text-foreground">
+            {task.projectName}
+          </p>
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-display text-xs font-bold',
+              paused
+                ? 'border-saffron/60 bg-saffron/10 text-foreground'
+                : 'border-border bg-muted text-muted-foreground',
+            )}
+          >
+            {paused ? (
+              <PauseCircle className="h-3.5 w-3.5 text-saffron" />
+            ) : (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-saffron" />
+            )}
+            {paused
+              ? t('create.progress.status.paused')
+              : t('create.progress.status.generating')}
+          </span>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            if (!confirmingCancel) {
-              setConfirmingCancel(true)
-              return
-            }
-            setConfirmingCancel(false)
-            onCancel()
-          }}
-          className="rounded-lg font-display text-muted-foreground"
-        >
-          <X className="mr-1.5 h-4 w-4" />
-          {confirmingCancel
-            ? t('create.progress.cancelConfirm')
-            : t('create.progress.cancel')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 font-mono text-sm tabular-nums text-muted-foreground">
+            <Timer className="h-4 w-4" />
+            {formatTime(elapsed)}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (!confirmingCancel) {
+                setConfirmingCancel(true)
+                return
+              }
+              setConfirmingCancel(false)
+              onCancel()
+            }}
+            className="rounded-lg font-display text-muted-foreground"
+          >
+            <X className="mr-1.5 h-4 w-4" />
+            {confirmingCancel
+              ? t('create.progress.cancelConfirm')
+              : t('create.progress.cancel')}
+          </Button>
+        </div>
       </div>
 
-      <StageBar
-        currentStage={task.stage}
-        completedStages={task.completedStages}
-      />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
+        <aside className="space-y-3">
+          <h2 className="font-display text-sm font-bold text-foreground">
+            {t('create.progress.phasesTitle')}
+          </h2>
+          <StageBar
+            currentStage={task.stage}
+            completedStages={task.completedStages}
+            paused={paused}
+          />
+          {task.audioDurationSeconds !== null && (
+            <p className="rounded-lg bg-muted/40 px-3 py-2 font-body text-xs text-muted-foreground">
+              {t('create.progress.audioSummary', {
+                seconds: Math.round(task.audioDurationSeconds),
+                scenes: task.scenes.length,
+              })}
+            </p>
+          )}
+        </aside>
 
-      {voice && (
-        <LabeledProgress
-          label={t('create.progress.voice', { chars: voice.totalChars })}
-          percent={voicePercent}
-        />
-      )}
+        <div className="min-w-0 space-y-5">
+          {voice && (
+            <LabeledProgress
+              label={t('create.progress.voice', { chars: voice.totalChars })}
+              percent={voicePercent}
+            />
+          )}
 
-      {task.bgmProgress && task.bgmProgress.status !== 'completed' && (
-        <LabeledProgress
-          label={t('create.progress.music')}
-          percent={task.bgmProgress.percent}
-        />
-      )}
+          {task.bgmProgress && task.bgmProgress.status !== 'completed' && (
+            <LabeledProgress
+              label={t('create.progress.music')}
+              percent={task.bgmProgress.percent}
+            />
+          )}
 
-      <SceneImagesGrid scenes={task.scenes} />
+          <SceneImagesGrid scenes={task.scenes} />
 
-      {task.renderProgress && (
-        <LabeledProgress
-          label={t(`create.progress.render.${task.renderProgress.phase}`)}
-          percent={task.renderProgress.percent}
-        />
-      )}
+          {task.renderProgress && (
+            <LabeledProgress
+              label={t(`create.progress.render.${task.renderProgress.phase}`)}
+              percent={task.renderProgress.percent}
+            />
+          )}
 
-      {task.logs.length > 0 && (
-        <details className="rounded-xl border border-border bg-background p-3">
-          <summary className="cursor-pointer font-display text-sm text-muted-foreground">
-            {t('create.progress.logs')}
-          </summary>
-          <ul className="mt-2 space-y-0.5">
-            {task.logs.map((line, index) => (
-              <li
-                key={`${index}-${line.slice(0, 24)}`}
-                className="font-mono text-xs text-muted-foreground"
-              >
-                {line}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+          {task.logs.length > 0 && (
+            <details className="rounded-xl border border-border bg-background p-3">
+              <summary className="cursor-pointer font-display text-sm text-muted-foreground">
+                {t('create.progress.logs')}
+              </summary>
+              <ul className="mt-2 space-y-0.5">
+                {task.logs.map((line, index) => (
+                  <li
+                    key={`${index}-${line.slice(0, 24)}`}
+                    className="font-mono text-xs text-muted-foreground"
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
