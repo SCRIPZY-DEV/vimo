@@ -70,6 +70,8 @@ export interface CreateTask {
   // cuenta. pausedAt marca la pausa en curso; pausedMs acumula las cerradas.
   pausedAt: number | null
   pausedMs: number
+  // Congela el cronómetro al completar (la vista «Listo» muestra el total).
+  finishedAt: number | null
 }
 
 // Un personaje elegido en el formulario (hasta 2).
