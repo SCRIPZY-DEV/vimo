@@ -101,6 +101,14 @@ function validatePayload(
       'invalid_payload',
       'options.imageProvider must be fal or evolink',
     )
+  if (
+    options.autoRender !== undefined &&
+    typeof options.autoRender !== 'boolean'
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.autoRender must be a boolean',
+    )
 
   const sceneCount = options.sceneCount
   if (

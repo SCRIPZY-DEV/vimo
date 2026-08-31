@@ -327,6 +327,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   useOverlay: false,
   overlayUrl: '',
   confirmScenes: true,
+  autoRender: false,
 }
 
 // Con qué se regenera una escena que no trae calidad propia: los mismos

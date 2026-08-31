@@ -30,7 +30,15 @@ export async function runVideoPipeline(
     )
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
-  const stages = stagesUpTo(payload.untilStage)
+
+  // autoRender false (ADR-0016): el run completo genera todo MENOS el render
+  // y el proyecto queda en borrador para el editor. Un untilStage explícito
+  // (harness) manda sobre el filtro.
+  const fullRun = !payload.untilStage
+  const autoRender = videoContext.metadata.options.autoRender !== false
+  let stages = stagesUpTo(payload.untilStage)
+  if (fullRun && !autoRender)
+    stages = stages.filter((stage) => stage.id !== 'render')
 
   videoContext.metadata.state = 'generating'
   videoContext.metadata.errorCode = undefined
@@ -51,10 +59,11 @@ export async function runVideoPipeline(
     // state = awaiting-confirmation persistido).
     if (outcome.paused) return { status: 'awaiting-confirmation' }
 
-    // Un run parcial (untilStage, harness de ADR-0010) no marca completed.
-    const ranEverything = stages.length === CREATE_VIDEO_STAGES.length
-    if (ranEverything) {
-      videoContext.metadata.state = 'completed'
+    // Un run parcial (untilStage, harness de ADR-0010) no marca estado final.
+    // Sin auto-render el cierre es 'draft': Library lo lista como borrador y
+    // el editor lo abre directo con todo generado.
+    if (fullRun) {
+      videoContext.metadata.state = autoRender ? 'completed' : 'draft'
       await videoContext.saveMetadata()
     }
 

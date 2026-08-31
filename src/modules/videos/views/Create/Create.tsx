@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { Brand } from '@/modules/common/brand/brand'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
@@ -18,6 +19,7 @@ import { GenerationProgress } from '@/modules/videos/components/GenerationProgre
 import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
 import {
   CREATE_FORM_INITIAL_VALUE,
+  libraryEditorPath,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
@@ -54,11 +56,22 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
   const { task, startCreation, confirmScenes, resume, cancel, discardTask } =
     useCreateTask()
   const { probe, probing } = useTtsProbe()
+  const navigate = useNavigate()
 
   const [form, setForm] = useState<CreateFormValue>(() => ({
     ...CREATE_FORM_INITIAL_VALUE,
     sceneCount: initialSceneCount,
   }))
+
+  // Sin auto-export el job termina sin video: el destino natural es el
+  // editor (el proyecto quedó en borrador con todo generado, ADR-0016).
+  useEffect(() => {
+    if (task?.status !== 'completed' || task.videoPath || !task.projectId)
+      return
+    const projectId = task.projectId
+    discardTask()
+    navigate(libraryEditorPath(projectId))
+  }, [task, discardTask, navigate])
   const [probeFailure, setProbeFailure] = useState<ProbeTtsReason | null>(null)
 
   usePageTitle(t('create.pageTitle'))
@@ -127,7 +140,7 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
         <GenerationProgress task={task} onCancel={cancel} />
       )}
 
-      {task?.status === 'completed' && (
+      {task?.status === 'completed' && task.videoPath && (
         <CompletedPanel task={task} onCreateAnother={discardTask} />
       )}
 

@@ -10,6 +10,7 @@ import { clamp } from '@/modules/common/utilities/clamp'
 import { videosApi } from '@/modules/videos/api'
 import { AudioMixDialog } from '@/modules/videos/components/AudioMixDialog'
 import { EditorPreviewPlayer } from '@/modules/videos/components/EditorPreviewPlayer'
+import { MissingImagesBanner } from '@/modules/videos/components/MissingImagesBanner'
 import { EditorScenePanel } from '@/modules/videos/components/EditorScenePanel'
 import { EditorTimeline } from '@/modules/videos/components/EditorTimeline'
 import { ExportClipsButton } from '@/modules/videos/components/ExportClipsButton'
@@ -225,6 +226,12 @@ export function LibraryEditor() {
           onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
         />
       </LibraryViewHeader>
+
+      <MissingImagesBanner
+        sceneIds={workingScenes
+          .filter((scene) => !scene.imagePath)
+          .map((scene) => scene.id)}
+      />
 
       {task?.errorKey && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3">

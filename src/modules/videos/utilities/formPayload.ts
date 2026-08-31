@@ -20,6 +20,7 @@ export function createProjectPayload(
     useBgm: form.useBgm,
     useOverlay: form.useOverlay,
     confirmScenes: form.confirmScenes,
+    autoRender: form.autoRender,
   }
 
   if (form.narrationMode === 'tts' && form.voice) {
