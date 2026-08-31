@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { FileAudio, Mic } from 'lucide-react'
+import { Upload, Wand2 } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
@@ -168,13 +168,13 @@ export const NARRATION_MODES: {
     id: 'tts',
     labelKey: 'create.narration.modeAi',
     hintKey: 'create.narration.modeAiHint',
-    Icon: Mic,
+    Icon: Wand2,
   },
   {
     id: 'own-audio',
     labelKey: 'create.narration.modeUpload',
     hintKey: 'create.narration.modeUploadHint',
-    Icon: FileAudio,
+    Icon: Upload,
   },
 ]
 
