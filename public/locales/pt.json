@@ -191,21 +191,19 @@
     "music": {
       "sectionTitle": "Música e overlay (opcional)",
       "sectionHint": "YouTube · IA",
-      "label": "Música de fundo",
+      "label": "Música de fundo (BGM)",
       "modeAi": "Gerar com IA",
       "modeYoutube": "Do YouTube",
       "promptLabel": "Como soa a música",
       "promptPlaceholder": "Ex.: lo-fi tranquilo, violão relaxante…",
       "instrumental": "Só instrumental (sem vocais)",
-      "urlLabel": "Link do YouTube",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
-      "urlHint": "O Vimo extrai o áudio do vídeo que você indicar."
+      "urlHint": "Baixada com yt-dlp e misturada a 5% de volume sob a voz."
     },
     "overlay": {
-      "label": "Textura sobre o vídeo",
-      "urlLabel": "Link do YouTube do overlay",
+      "label": "Overlay visual (avançado)",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
-      "hint": "Sobreposto em loop no vídeo final (chuva, partículas, granulado)."
+      "hint": "Vídeo sobreposto a 30%. Útil para grão, poeira, ambiente."
     },
     "stages": {
       "voice": "Narração e música",
