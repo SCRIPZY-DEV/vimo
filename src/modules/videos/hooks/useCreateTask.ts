@@ -59,7 +59,13 @@ function restoreTask(): CreateTask | null {
     const raw = localStorage.getItem(CREATE_TASK_STORAGE_KEY)
     if (!raw) return null
 
-    const task = JSON.parse(raw) as CreateTask
+    const stored = JSON.parse(raw) as CreateTask
+    // Tareas persistidas antes del cronómetro con pausa: defaults.
+    const task: CreateTask = {
+      ...stored,
+      pausedAt: stored.pausedAt ?? null,
+      pausedMs: stored.pausedMs ?? 0,
+    }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
     // botón: las fases hechas son cache-hit). La pausa de confirmación y el
@@ -199,6 +205,8 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           status: 'awaitingConfirmation',
           jobId: null,
           stage: null,
+          // Arranca la pausa del cronómetro: la espera no cuenta.
+          pausedAt: Date.now(),
         })
         return
       }
@@ -276,15 +284,28 @@ function makeTask(
     videoPath: null,
     errorKey: null,
     startedAt: Date.now(),
+    pausedAt: null,
+    pausedMs: 0,
   }
 }
 
 // Lanza el job del pipeline y engancha sus eventos a la tarea.
 async function runPipeline(taskId: string, projectId: string): Promise<void> {
+  // Si venía en pausa (confirmación), el tramo pausado se acumula y el
+  // cronómetro retoma.
+  const previous = currentTask
+  const pausePatch =
+    previous?.id === taskId && previous.pausedAt !== null
+      ? {
+          pausedMs: previous.pausedMs + (Date.now() - previous.pausedAt),
+          pausedAt: null,
+        }
+      : {}
   patchTask(taskId, {
     status: 'generating',
     errorKey: null,
     confirmation: null,
+    ...pausePatch,
   })
   try {
     const job = await videosApi.startPipeline({ projectId }, (event) =>
