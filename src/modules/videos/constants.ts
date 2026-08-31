@@ -232,17 +232,64 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
 // Evolink solo expone 16:9 1K, así que de la opción solo importa la calidad;
 // en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>` del
 // catálogo del origen).
-export const EVOLINK_QUALITY_OPTIONS: { id: string; labelKey: string }[] = [
-  { id: '1024x576_low', labelKey: 'create.quality.low' },
-  { id: '1024x576_medium', labelKey: 'create.quality.medium' },
-  { id: '1024x576_high', labelKey: 'create.quality.high' },
+// Los precios (USD por imagen) vienen del catálogo del origen
+// (src/core/costos.ts); si cambian, actualizar también el catálogo
+// informativo de modules/costs/catalog.ts (ADR-0008).
+export const EVOLINK_QUALITY_OPTIONS: {
+  id: string
+  labelKey: string
+  noteKey: string
+  priceUsd: number
+}[] = [
+  {
+    id: '1024x576_low',
+    labelKey: 'create.quality.evolinkLow',
+    noteKey: 'create.quality.evolinkLowNote',
+    priceUsd: 0.0036,
+  },
+  {
+    id: '1024x576_medium',
+    labelKey: 'create.quality.evolinkMedium',
+    noteKey: 'create.quality.evolinkMediumNote',
+    priceUsd: 0.0273,
+  },
+  {
+    id: '1024x576_high',
+    labelKey: 'create.quality.evolinkHigh',
+    noteKey: 'create.quality.evolinkHighNote',
+    priceUsd: 0.1072,
+  },
 ]
 
-export const FAL_QUALITY_OPTIONS: { id: string; labelKey: string }[] = [
-  { id: '1920x1080_low', labelKey: 'create.quality.low' },
-  { id: '1920x1080_medium', labelKey: 'create.quality.medium' },
-  { id: '1920x1080_high', labelKey: 'create.quality.high' },
+export const FAL_QUALITY_OPTIONS: {
+  id: string
+  labelKey: string
+  noteKey: string
+  priceUsd: number
+}[] = [
+  {
+    id: '1920x1080_low',
+    labelKey: 'create.quality.falLow',
+    noteKey: 'create.quality.falNote',
+    priceUsd: 0.005,
+  },
+  {
+    id: '1920x1080_medium',
+    labelKey: 'create.quality.falMedium',
+    noteKey: 'create.quality.falNote',
+    priceUsd: 0.04,
+  },
+  {
+    id: '1920x1080_high',
+    labelKey: 'create.quality.falHigh',
+    noteKey: 'create.quality.falNote',
+    priceUsd: 0.158,
+  },
 ]
+
+// El proveedor tarda unos segundos en reflejar el gasto: el refetch de saldos
+// tras una generación se difiere (mismo criterio que el origen).
+export const CREDITS_REFRESH_DELAY_MS = 4000
 
 // Frecuencias de aparición del personaje, de menor a mayor.
 export const CHARACTER_FREQUENCIES: {
