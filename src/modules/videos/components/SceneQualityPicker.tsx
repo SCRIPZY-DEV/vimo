@@ -47,6 +47,8 @@ export function SceneQualityPicker({
         options={qualityOptions.map((option) => ({
           id: option.id,
           label: t(option.labelKey),
+          priceUsd: option.priceUsd,
+          note: t(option.noteKey),
         }))}
         disabled={disabled}
         onChange={(quality) => onChange({ ...value, quality })}

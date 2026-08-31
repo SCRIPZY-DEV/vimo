@@ -4,6 +4,7 @@ import {
   hasBusyCreateTask,
   subscribeCreateTask,
 } from '@/modules/videos/hooks/useCreateTask'
+import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import type {
   LibraryEditorTask,
   RegenQueueEntry,
@@ -227,6 +228,7 @@ function finishRegen(
     errorKey,
     revision: task.revision + 1,
   })
+  scheduleCreditsRefresh()
   void dispatchRegen(projectId)
 }
 
