@@ -100,14 +100,20 @@
     },
     "style": {
       "label": "Estilo visual",
-      "hint": "Define el look de todas las imágenes y el color del video final."
+      "hint": "Solo controla CÓMO se ven las imágenes (estética), no QUÉ aparece en ellas.",
+      "inUse": "En uso"
     },
     "styles": {
-      "normal": "Normal",
+      "normal": "Realista",
       "stickman": "POV Stickman",
       "cartoon": "Cartoon 2D",
       "fantasy": "Fantasía mágica",
-      "terror": "Terror"
+      "terror": "Terror",
+      "normalDesc": "Realista y cinematográfico",
+      "stickmanDesc": "Muñeco simple para historias",
+      "cartoonDesc": "Dibujo animado 2D plano",
+      "fantasyDesc": "Épico mágico, concept art",
+      "terrorDesc": "Oscuro y atmosférico"
     },
     "scenes": {
       "countLabel": "Cantidad de escenas",
