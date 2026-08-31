@@ -185,13 +185,42 @@ export const BGM_MODES: { id: BgmMode; labelKey: string }[] = [
 ]
 
 // Estilos visuales del video (mismo dataset que el preview de personajes).
-export const VIDEO_STYLES: { id: CharacterStyleId; labelKey: string }[] = [
-  { id: 'normal', labelKey: 'create.styles.normal' },
-  { id: 'pov_stickman', labelKey: 'create.styles.stickman' },
-  { id: 'cartoon', labelKey: 'create.styles.cartoon' },
-  { id: 'fantasia', labelKey: 'create.styles.fantasy' },
-  { id: 'terror', labelKey: 'create.styles.terror' },
+export const VIDEO_STYLES: {
+  id: CharacterStyleId
+  labelKey: string
+  descriptionKey: string
+}[] = [
+  {
+    id: 'normal',
+    labelKey: 'create.styles.normal',
+    descriptionKey: 'create.styles.normalDesc',
+  },
+  {
+    id: 'pov_stickman',
+    labelKey: 'create.styles.stickman',
+    descriptionKey: 'create.styles.stickmanDesc',
+  },
+  {
+    id: 'cartoon',
+    labelKey: 'create.styles.cartoon',
+    descriptionKey: 'create.styles.cartoonDesc',
+  },
+  {
+    id: 'fantasia',
+    labelKey: 'create.styles.fantasy',
+    descriptionKey: 'create.styles.fantasyDesc',
+  },
+  {
+    id: 'terror',
+    labelKey: 'create.styles.terror',
+    descriptionKey: 'create.styles.terrorDesc',
+  },
 ]
+
+// Muestras de referencia por estilo empaquetadas en public/style-references/
+// (generadas offline en el repo origen; 4 JPGs por estilo, <id>_1..4.jpg).
+export const STYLE_REFERENCE_SAMPLE_COUNT = 4
+export const STYLE_REFERENCES_BASE_PATH = '/style-references'
 
 // Proveedores de imagen; las etiquetas son marcas, no se traducen.
 export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
