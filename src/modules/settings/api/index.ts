@@ -5,8 +5,11 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { LazyStore } from '@tauri-apps/plugin-store'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
+  AUTOMATIC_SCENE_COUNT,
   DEFAULT_PROJECTS_FOLDER_NAME,
+  DEFAULT_SCENE_COUNT_STORE_KEY,
   PROJECTS_ROOT_STORE_KEY,
+  SCENE_COUNT_MAX,
   SETTINGS_STORE_FILE,
   WRITE_PROBE_FILE_NAME,
 } from '../constants'
@@ -30,6 +33,16 @@ async function defaultProjectsRoot(): Promise<string> {
 async function persistProjectsRoot(path: string): Promise<void> {
   await store.set(PROJECTS_ROOT_STORE_KEY, path)
   await store.save()
+}
+
+// Un valor fuera de rango (store editado a mano, versión vieja) cae al rango
+// válido en vez de romper el formulario de Crear.
+function clampSceneCount(value: number): number {
+  if (!Number.isFinite(value)) return AUTOMATIC_SCENE_COUNT
+  return Math.min(
+    Math.max(Math.trunc(value), AUTOMATIC_SCENE_COUNT),
+    SCENE_COUNT_MAX,
+  )
 }
 
 /**
@@ -64,5 +77,15 @@ export const settingsApi = {
     const path = await this.getProjectsRoot()
     await ensureWritableDirectory(path)
     return openPath(path)
+  },
+  async getDefaultSceneCount(): Promise<number> {
+    const stored = await store.get<number>(DEFAULT_SCENE_COUNT_STORE_KEY)
+    return clampSceneCount(stored ?? AUTOMATIC_SCENE_COUNT)
+  },
+  async setDefaultSceneCount(count: number): Promise<number> {
+    const clamped = clampSceneCount(count)
+    await store.set(DEFAULT_SCENE_COUNT_STORE_KEY, clamped)
+    await store.save()
+    return clamped
   },
 }

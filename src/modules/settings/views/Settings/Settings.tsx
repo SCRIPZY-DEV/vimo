@@ -5,6 +5,7 @@ import DoodleLightbulb from '@/modules/common/doodles/DoodleLightbulb'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
+import { SceneCountSection } from '@/modules/settings/components/SceneCountSection'
 import { useProjectsRoot } from '@/modules/settings/hooks/useProjectsRoot'
 
 /**
@@ -112,6 +113,8 @@ export function Settings() {
           </div>
         </div>
       </motion.section>
+
+      <SceneCountSection />
     </div>
   )
 }

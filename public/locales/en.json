@@ -935,7 +935,13 @@
     "cambiada": "Folder updated.",
     "restablecida": "Default folder restored.",
     "errorNoEscribible": "That folder is not writable. Pick another one.",
-    "errorAbrir": "Couldn't open the folder."
+    "errorAbrir": "Couldn't open the folder.",
+    "escenasTitulo": "Scenes",
+    "escenasDescripcion": "Scene count every new video starts with. You can override it per video in Create.",
+    "escenasLabel": "Default scenes",
+    "escenasHint": "0 = automatic (one scene every ~3 seconds).",
+    "escenasGuardada": "Preference saved.",
+    "escenasError": "Couldn't save the preference."
   },
   "splash": {
     "pageTitle": "Vimo",
