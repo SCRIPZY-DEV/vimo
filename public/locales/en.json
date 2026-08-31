@@ -167,10 +167,10 @@
       }
     },
     "characters": {
-      "label": "Recurring characters",
-      "choose": "Pick characters",
-      "change": "Change characters",
-      "hint": "Up to {{max}} characters from your library.",
+      "label": "Reference character (optional)",
+      "choose": "Add character",
+      "change": "Change",
+      "hint": "Shows up consistently in your video; you choose how often it appears.",
       "remove": "Remove character",
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
@@ -184,7 +184,9 @@
         "often": "Often",
         "almostAlways": "Almost always",
         "always": "Always"
-      }
+      },
+      "selectedCount_one": "{{count}} character",
+      "selectedCount_other": "{{count}} characters"
     },
     "music": {
       "sectionTitle": "Music and overlay (optional)",

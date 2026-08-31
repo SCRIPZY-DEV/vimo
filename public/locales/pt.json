@@ -167,10 +167,10 @@
       }
     },
     "characters": {
-      "label": "Personagens recorrentes",
-      "choose": "Escolher personagens",
-      "change": "Trocar personagens",
-      "hint": "Até {{max}} personagens da sua biblioteca.",
+      "label": "Personagem de referência (opcional)",
+      "choose": "Adicionar personagem",
+      "change": "Trocar",
+      "hint": "Aparece consistente no seu vídeo; você escolhe com que frequência.",
       "remove": "Remover personagem",
       "pickerTitle": "Escolher personagens",
       "pickerDescription": "Você pode escolher até {{max}} personagens; eles mantêm a identidade no vídeo todo.",
@@ -184,7 +184,9 @@
         "often": "Frequente",
         "almostAlways": "Quase sempre",
         "always": "Sempre"
-      }
+      },
+      "selectedCount_one": "{{count}} personagem",
+      "selectedCount_other": "{{count}} personagens"
     },
     "music": {
       "sectionTitle": "Música e overlay (opcional)",
