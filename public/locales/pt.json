@@ -74,7 +74,9 @@
       "namePlaceholder": "Ex.: A história do Titanic",
       "nameHint": "Usado para a pasta do projeto e o arquivo final.",
       "submit": "Gerar vídeo",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "footerNote": "Seu vídeo vai aparecer na biblioteca quando terminar ✨",
+      "footerSupport": "Dúvidas ou erros → {{email}}"
     },
     "narration": {
       "label": "Narração",
@@ -182,6 +184,8 @@
       }
     },
     "music": {
+      "sectionTitle": "Música e overlay (opcional)",
+      "sectionHint": "YouTube · IA",
       "label": "Música de fundo",
       "modeAi": "Gerar com IA",
       "modeYoutube": "Do YouTube",

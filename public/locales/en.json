@@ -74,7 +74,9 @@
       "namePlaceholder": "e.g.: The story of the Titanic",
       "nameHint": "Used for the project folder and the final file.",
       "submit": "Generate video",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "footerNote": "Your video will show up in the library when it's done ✨",
+      "footerSupport": "Questions or issues → {{email}}"
     },
     "narration": {
       "label": "Narration",
@@ -182,6 +184,8 @@
       }
     },
     "music": {
+      "sectionTitle": "Music and overlay (optional)",
+      "sectionHint": "YouTube · AI",
       "label": "Background music",
       "modeAi": "Generate with AI",
       "modeYoutube": "From YouTube",
