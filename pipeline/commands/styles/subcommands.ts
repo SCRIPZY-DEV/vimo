@@ -1,4 +1,5 @@
 import type { SubcommandHandler } from '../../runner/subcommand.ts'
+import { generateStyleSamples } from './generate-style-samples.ts'
 import { styleDelete } from './style-delete.ts'
 import { styleSave } from './style-save.ts'
 import { stylesList } from './styles-list.ts'
@@ -9,4 +10,5 @@ export const stylesSubcommands: Record<string, SubcommandHandler> = {
   'styles-list': stylesList,
   'style-save': styleSave,
   'style-delete': styleDelete,
+  'generate-style-samples': generateStyleSamples,
 }
