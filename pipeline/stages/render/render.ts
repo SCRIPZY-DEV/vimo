@@ -8,6 +8,7 @@ import type { RenderPhase } from '../../runner/events.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
+import { frameSizeFor, videoFormatOf } from '../../types/video-format.ts'
 import { ensureDirectory, readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { requireFfmpegPath } from '../../utils/ffmpeg.ts'
 import type { CreateVideoContext } from '../context.ts'
@@ -61,6 +62,10 @@ export const renderStage: Stage<CreateVideoContext> = {
 
     const renderScenes = await collectRenderableScenes(context, scenes)
 
+    // El formato se resuelve UNA vez y viaja por parámetro a chunks, Ken
+    // Burns y mezcla (sin campo = 16:9, byte-idéntico a siempre).
+    const frame = frameSizeFor(videoFormatOf(context.options))
+
     const chunksDirectory = context.paths.chunksCacheDirectory
     await ensureDirectory(chunksDirectory)
 
@@ -92,14 +97,14 @@ export const renderStage: Stage<CreateVideoContext> = {
       const chunkSeconds = chunkDurationSeconds(chunkScenes)
       const chunkFile = chunkFileFor(chunksDirectory, chunkIndex + 1)
 
-      const expectedManifest = await chunkManifestFor(chunkScenes, start)
+      const expectedManifest = await chunkManifestFor(chunkScenes, start, frame)
       if (await isChunkCacheValid(chunkFile, expectedManifest)) {
         renderedSeconds += chunkSeconds
         if (totalSeconds > 0)
           emitProgress('chunks', renderedSeconds / totalSeconds)
       } else {
         const secondsBeforeChunk = renderedSeconds
-        await renderChunk(ffmpegPath, chunkScenes, start, chunkFile, {
+        await renderChunk(ffmpegPath, chunkScenes, start, chunkFile, frame, {
           signal: context.signal,
           onProgress(fraction) {
             if (totalSeconds <= 0) return
@@ -142,6 +147,7 @@ export const renderStage: Stage<CreateVideoContext> = {
       {
         silentVideoFile,
         narrationFile: context.paths.narrationFile,
+        frame,
         musicFile,
         overlayFile,
         colorFilter: style.filterFinal,
