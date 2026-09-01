@@ -480,12 +480,13 @@ function rejectIfBusy(): boolean {
 async function startPipelineForProject(
   projectId: string,
   projectName: string,
+  videoFormat?: VideoFormat,
 ): Promise<boolean> {
   if (rejectIfBusy()) return false
 
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(makeTask(taskId, projectId, projectName))
+  setTask(makeTask(taskId, projectId, projectName, videoFormat))
   await runPipeline(taskId, projectId)
   return true
 }
@@ -496,12 +497,13 @@ async function confirmScenesForProject(
   projectId: string,
   projectName: string,
   sceneCount: number,
+  videoFormat?: VideoFormat,
 ): Promise<boolean> {
   if (rejectIfBusy()) return false
 
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(makeTask(taskId, projectId, projectName))
+  setTask(makeTask(taskId, projectId, projectName, videoFormat))
   try {
     await videosApi.confirmScenes({ projectId, sceneCount })
   } catch (error) {
