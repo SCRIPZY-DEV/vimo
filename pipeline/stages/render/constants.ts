@@ -1,9 +1,9 @@
 // Constantes del ensamblado (port de renderer.ts del origen). Los valores
 // vienen de mediciones reales del origen — no ajustarlos sin medir.
 
+// Las dimensiones del frame ya no viven acá: dependen del formato del
+// proyecto y viajan por parámetro (pipeline/types/video-format.ts).
 export const FPS = 25
-export const FRAME_WIDTH = 1920
-export const FRAME_HEIGHT = 1080
 
 // Movimiento de cámara "evidente pero sutil": TODA escena se mueve con un
 // zoom/paneo perceptible (sin marear).
