@@ -6,7 +6,8 @@ import {
   measureDurationSeconds,
   measureExactDurationSeconds,
 } from '../../utils/media-duration.ts'
-import { FRAME_HEIGHT, FRAME_WIDTH, PAD_MARGIN_SECONDS } from './constants.ts'
+import type { FrameSize } from '../../types/video-format.ts'
+import { PAD_MARGIN_SECONDS } from './constants.ts'
 import { runRenderFfmpeg } from './render-ffmpeg.ts'
 
 // Concat de chunks + mezcla final (port de concatenarChunks +
@@ -60,6 +61,8 @@ export async function concatChunks(
 export interface FinalMixInputs {
   silentVideoFile: string
   narrationFile: string
+  // Dimensiones del video (según el formato del proyecto).
+  frame: FrameSize
   // Solo si el proyecto los tiene y el archivo es válido.
   musicFile?: string
   overlayFile?: string
@@ -144,10 +147,20 @@ export async function mixFinalVideo(
   }
   const outputSeconds = videoSeconds + padSeconds
 
+  // Port de filtroOverlay del origen: con 1920×1080 el string queda EXACTO
+  // como siempre (byte-idéntico); con otra dimensión, un overlay 16:9
+  // escalado a secas saldría deformado → escala cubriendo y recorta.
+  const { width, height } = inputs.frame
+  const overlayScale =
+    width === 1920 && height === 1080
+      ? `scale=${width}:${height},setpts=PTS-STARTPTS`
+      : `scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+        `crop=${width}:${height},setpts=PTS-STARTPTS`
+
   let filter = `[0:v]tpad=stop_mode=clone:stop_duration=${padSeconds.toFixed(3)}[vpad];`
   if (overlayIndex >= 0) {
     filter +=
-      `[${overlayIndex}:v]scale=${FRAME_WIDTH}:${FRAME_HEIGHT},setpts=PTS-STARTPTS[ovl];` +
+      `[${overlayIndex}:v]${overlayScale}[ovl];` +
       `[vpad][ovl]blend=all_mode=screen:shortest=1[blended];` +
       `[blended]${colorChain}[finalvideo];`
   } else {
