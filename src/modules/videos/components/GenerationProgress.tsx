@@ -250,7 +250,12 @@ export function GenerationProgress({
 
           {showPromptsPanel && <PromptsGrid scenes={task.scenes} />}
 
-          {showImagesPanel && <SceneImagesGrid scenes={task.scenes} />}
+          {showImagesPanel && (
+            <SceneImagesGrid
+              scenes={task.scenes}
+              videoFormat={task.videoFormat}
+            />
+          )}
 
           {showRenderPanel && task.renderProgress && (
             <LabeledProgress

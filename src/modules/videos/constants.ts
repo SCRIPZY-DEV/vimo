@@ -1,8 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
-import { Upload, Wand2 } from 'lucide-react'
+import {
+  RectangleHorizontal,
+  RectangleVertical,
+  Upload,
+  Wand2,
+} from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type {
   BgmMode,
   CharacterFrequency,
@@ -244,6 +250,29 @@ export const VIDEO_STYLES: {
 export const STYLE_REFERENCE_SAMPLE_COUNT = 4
 export const STYLE_REFERENCES_BASE_PATH = '/style-references'
 
+// Formato del video: horizontal clásico o vertical para shorts.
+export const DEFAULT_VIDEO_FORMAT: VideoFormat = '16:9'
+
+export const VIDEO_FORMATS: {
+  id: VideoFormat
+  titleKey: string
+  detailKey: string
+  Icon: LucideIcon
+}[] = [
+  {
+    id: '16:9',
+    titleKey: 'create.format.longTitle',
+    detailKey: 'create.format.longDetail',
+    Icon: RectangleHorizontal,
+  },
+  {
+    id: '9:16',
+    titleKey: 'create.format.shortTitle',
+    detailKey: 'create.format.shortDetail',
+    Icon: RectangleVertical,
+  },
+]
+
 // Proveedores de imagen; las etiquetas son marcas, no se traducen.
 export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'evolink', label: 'Evolink' },
@@ -309,6 +338,34 @@ export const FAL_QUALITY_OPTIONS: {
   },
 ]
 
+// Variante 9:16 de Fal (OpenAI cobra portrait y landscape igual por tier).
+// Evolink no necesita lista propia: es agnóstico al formato (manda `size`).
+export const FAL_QUALITY_OPTIONS_VERTICAL: {
+  id: string
+  labelKey: string
+  noteKey: string
+  priceUsd: number
+}[] = [
+  {
+    id: '1080x1920_low',
+    labelKey: 'create.quality.falVerticalLow',
+    noteKey: 'create.quality.falVerticalNote',
+    priceUsd: 0.005,
+  },
+  {
+    id: '1080x1920_medium',
+    labelKey: 'create.quality.falVerticalMedium',
+    noteKey: 'create.quality.falVerticalNote',
+    priceUsd: 0.04,
+  },
+  {
+    id: '1080x1920_high',
+    labelKey: 'create.quality.falVerticalHigh',
+    noteKey: 'create.quality.falVerticalNote',
+    priceUsd: 0.158,
+  },
+]
+
 // El proveedor tarda unos segundos en reflejar el gasto: el refetch de saldos
 // tras una generación se difiere (mismo criterio que el origen).
 export const CREDITS_REFRESH_DELAY_MS = 4000
@@ -350,6 +407,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   overlayUrl: '',
   confirmScenes: true,
   autoRender: false,
+  videoFormat: DEFAULT_VIDEO_FORMAT,
 }
 
 // Con qué se regenera una escena que no trae calidad propia: los mismos

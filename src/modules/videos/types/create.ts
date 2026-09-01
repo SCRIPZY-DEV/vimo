@@ -9,6 +9,7 @@ import type {
 } from '@pipeline/types/video-project.ts'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
 
@@ -76,6 +77,8 @@ export interface CreateTask {
   retry: RetryView | null
   // Reintentos automáticos ya consumidos (se agota en AUTO_RETRY_MAX_ATTEMPTS).
   retryAttempts: number
+  // Formato del proyecto: la vista de progreso pinta la grilla sin refetch.
+  videoFormat: VideoFormat
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.
@@ -128,6 +131,7 @@ export interface CreateFormValue {
   // Con false (default), al terminar la generación se va al editor y el
   // render se dispara desde ahí (ADR-0016).
   autoRender: boolean
+  videoFormat: VideoFormat
 }
 
 // Resultado cacheado del probe de TTS (por proveedor + voz).

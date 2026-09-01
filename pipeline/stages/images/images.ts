@@ -11,6 +11,7 @@ import {
   type ImageProviderId,
 } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
+import { videoFormatOf } from '../../types/video-format.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
 import { detectScriptLanguage } from '../../utils/script-language.ts'
@@ -409,17 +410,20 @@ async function generateImages(
       name: inputs.characters[index].name,
       imageDataUri: inputs.characters[index].imageDataUri!,
     }))
+    const format = videoFormatOf(inputs.context.options)
     return characterLane.provider === 'evolink'
       ? generateScenesWithEvolinkReferences(
           group.scenes,
           references,
           characterLane.apiKey,
+          format,
           laneOptions,
         )
       : generateScenesWithFalReferences(
           group.scenes,
           references,
           characterLane.apiKey,
+          format,
           laneOptions,
         )
   })
@@ -488,6 +492,7 @@ async function dispatchNormal(
           {
             apiKey,
             qualityOption: scene.imageQuality ?? context.options.imageQuality,
+            format: videoFormatOf(context.options),
           },
           laneOptions,
         ),

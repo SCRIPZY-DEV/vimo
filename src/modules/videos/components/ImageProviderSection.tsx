@@ -27,7 +27,10 @@ export function ImageProviderSection({
   const { t } = useTranslation()
   const { credits, isLoading, refresh } = useImageCredits()
 
-  const qualityOptions = qualityOptionsFor(value.imageProvider)
+  const qualityOptions = qualityOptionsFor(
+    value.imageProvider,
+    value.videoFormat,
+  )
   const hintKey =
     value.imageProvider === 'fal'
       ? 'create.image.falHint'
@@ -38,7 +41,7 @@ export function ImageProviderSection({
   const changeProvider = (provider: ImageProviderId) => {
     onChange({
       imageProvider: provider,
-      imageQuality: defaultQualityFor(provider),
+      imageQuality: defaultQualityFor(provider, value.videoFormat),
     })
   }
 

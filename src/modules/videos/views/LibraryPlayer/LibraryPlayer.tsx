@@ -66,7 +66,11 @@ export function LibraryPlayer() {
     return <Navigate to={libraryProgressPath(projectId)} replace />
 
   const retry = async () => {
-    const started = await startPipelineForProject(projectId, metadata.name)
+    const started = await startPipelineForProject(
+      projectId,
+      metadata.name,
+      metadata.options.videoFormat,
+    )
     if (started) void navigate(libraryProgressPath(projectId))
   }
 
@@ -120,6 +124,7 @@ export function LibraryPlayer() {
         <>
           <LibraryVideoPlayer
             src={videosApi.videoSource(detail.videoPath, detail.videoMtimeMs)}
+            videoFormat={metadata.options.videoFormat}
           />
           <VideoFileActions videoPath={detail.videoPath} />
         </>

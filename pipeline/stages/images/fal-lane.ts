@@ -12,6 +12,7 @@ import { sleep } from '../../utils/sleep.ts'
 import { IMAGE_MODEL } from '../../types/image-provider.ts'
 import type { FalImageResponse } from '../../types/images.ts'
 import type { Scene } from '../../types/scenes.ts'
+import type { VideoFormat } from '../../types/video-format.ts'
 import {
   cachedImagePath,
   saveImageToFile,
@@ -38,6 +39,7 @@ export async function generateSceneWithFal(
   scene: Scene,
   qualityOption: string | undefined,
   apiKey: string,
+  format: VideoFormat,
   options: ImageLaneOptions,
 ): Promise<LaneResult> {
   const imagePath = sceneImageFile(options.paths, scene.id)
@@ -79,7 +81,7 @@ export async function generateSceneWithFal(
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(
-            falSceneRequestBody(scene.imagePrompt!, qualityOption),
+            falSceneRequestBody(scene.imagePrompt!, qualityOption, format),
           ),
           signal: AbortSignal.any([options.signal, deadline]),
         })
@@ -212,6 +214,7 @@ export const falImageLane: ImageLane = {
       scene,
       inputs.qualityOption,
       inputs.apiKey,
+      inputs.format,
       options,
     )
   },

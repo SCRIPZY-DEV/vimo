@@ -3,6 +3,7 @@ import type { ImageProviderId } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
 import type { SceneSummary, TranscriptWord } from './scenes.ts'
 import type { StageId } from '../runner/stage-id.ts'
+import type { VideoFormat } from './video-format.ts'
 import type { VoiceGenerationSettings, VoiceProviderId } from './voices.ts'
 
 // Dominio del proyecto de video (módulo Create, ADR-0013). Browser-safe: la
@@ -47,6 +48,9 @@ export interface VideoProjectOptions {
   voiceSettings?: VoiceGenerationSettings
   imageProvider: ImageProviderId
   imageQuality?: string
+  // 16:9 (default) o 9:16 vertical. Ausente = 16:9: los proyectos previos
+  // renderizan byte-idéntico (ver pipeline/types/video-format.ts).
+  videoFormat?: VideoFormat
   useBgm: boolean
   bgmMode?: BgmMode
   // Modo youtube: URL del video del que yt-dlp extrae el audio.
@@ -190,6 +194,8 @@ export interface VideoProjectListItem {
   errorCode?: string
   hasVideo: boolean
   videoOutdated: boolean
+  // Ausente = 16:9 (proyectos previos al selector de formato).
+  videoFormat?: VideoFormat
   imageCount: number
   sceneCount?: number
   // Imagen de la escena de menor id, si existe. mtime como cache-buster:

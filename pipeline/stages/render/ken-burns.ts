@@ -1,19 +1,19 @@
-import {
-  FPS,
-  FRAME_HEIGHT,
-  FRAME_WIDTH,
-  ZOOM_MAX,
-  ZOOM_PAN,
-} from './constants.ts'
+import type { FrameSize } from '../../types/video-format.ts'
+import { FPS, ZOOM_MAX, ZOOM_PAN } from './constants.ts'
 
 // Catálogo de 8 movimientos de cámara (Ken Burns) claramente perceptibles
 // (port de efectoCamara). La asignación es DETERMINÍSTICA por índice global
 // (mismo índice → mismo movimiento: clave para que el re-render de un chunk
 // sea byte-idéntico y el cache por manifest funcione), con un paso coprimo a
 // la cantidad de variantes para que dos escenas consecutivas NUNCA repitan
-// el mismo efecto. Sin variante estática: toda escena se mueve.
-export function cameraEffect(globalSceneIndex: number, frames: number): string {
-  const tail = `:d=${frames}:s=${FRAME_WIDTH}x${FRAME_HEIGHT}:fps=${FPS}`
+// el mismo efecto. Sin variante estática: toda escena se mueve. Del formato
+// solo cambia el `s=` de salida (port de efectoCamara con dimensiones).
+export function cameraEffect(
+  globalSceneIndex: number,
+  frames: number,
+  frame: FrameSize,
+): string {
+  const tail = `:d=${frames}:s=${frame.width}x${frame.height}:fps=${FPS}`
   const zoomDelta = (ZOOM_MAX - 1.0).toFixed(3)
   const zoomIn = `min(1.0+(${zoomDelta})*on/${frames},${ZOOM_MAX})`
   const zoomOut = `${ZOOM_MAX}-(${zoomDelta})*on/${frames}`

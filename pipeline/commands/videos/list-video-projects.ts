@@ -75,6 +75,8 @@ async function readListItem(
     imageCount: 0,
   }
   if (metadata.errorCode) item.errorCode = metadata.errorCode
+  if (metadata.options?.videoFormat)
+    item.videoFormat = metadata.options.videoFormat
   if (metadata.sceneCount !== undefined) item.sceneCount = metadata.sceneCount
 
   await attachSceneImages(paths, item)

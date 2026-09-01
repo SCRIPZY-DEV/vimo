@@ -8,6 +8,7 @@ import {
 import { downloadImage } from '../../providers/image/download.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
+import type { VideoFormat } from '../../types/video-format.ts'
 import { writeFileAtomic } from '../../utils/atomic-fs.ts'
 
 // Contrato común de los carriles de imagen (normal Fal/Evolink y personaje):
@@ -89,6 +90,9 @@ export function hashImageRequest(request: {
 export interface SceneLaneInputs {
   apiKey: string
   qualityOption: string | undefined
+  // Formato del proyecto: Fal corrige una opción horizontal colada en un
+  // proyecto vertical; Evolink lo manda como `size`.
+  format: VideoFormat
 }
 
 export interface ImageLane {

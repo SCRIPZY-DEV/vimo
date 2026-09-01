@@ -20,6 +20,7 @@ import type {
   VideoProjectOptions,
 } from '@pipeline/types/video-project.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 // Núcleo del editor: el detail del disco + una copia de trabajo local de las
 // escenas (drag del timeline y textareas editan la copia; el commit persiste
@@ -247,7 +248,11 @@ function resolveImageChoice(
   scene: SceneDetail | null,
 ): SceneImageChoice {
   const provider = resolveImageProvider(pendingProvider, options)
-  return { provider, quality: resolveImageQuality(provider, options, scene) }
+  const format = options?.videoFormat ?? '16:9'
+  return {
+    provider,
+    quality: resolveImageQuality(provider, format, options, scene),
+  }
 }
 
 function resolveImageProvider(
@@ -261,12 +266,14 @@ function resolveImageProvider(
 
 function resolveImageQuality(
   provider: ImageProviderId,
+  format: VideoFormat,
   options: VideoProjectOptions | undefined,
   scene: SceneDetail | null,
 ): string {
-  if (scene?.imageQuality) return normalizeQuality(provider, scene.imageQuality)
+  if (scene?.imageQuality)
+    return normalizeQuality(provider, scene.imageQuality, format)
   if (options?.imageQuality)
-    return normalizeQuality(provider, options.imageQuality)
+    return normalizeQuality(provider, options.imageQuality, format)
   return DEFAULT_IMAGE_CHOICE.quality
 }
 

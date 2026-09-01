@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Clapperboard, Images } from 'lucide-react'
+import { cn } from '@/modules/common/utilities/cn'
 import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
 import { videosApi } from '@/modules/videos/api'
 import { ProjectStateBadge } from '@/modules/videos/components/ProjectStateBadge'
@@ -45,7 +46,14 @@ export function LibraryProjectCard({
               project.thumbnailMtimeMs,
             )}
             alt=""
-            className="h-full w-full object-cover"
+            // Una miniatura vertical no se recorta: entra entera sobre el
+            // fondo (la tarjeta conserva su marco 16:9).
+            className={cn(
+              'h-full w-full',
+              project.videoFormat === '9:16'
+                ? 'object-contain'
+                : 'object-cover',
+            )}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

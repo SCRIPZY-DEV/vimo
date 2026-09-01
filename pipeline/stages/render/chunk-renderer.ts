@@ -7,13 +7,8 @@ import {
   renameAtomic,
   writeFileAtomic,
 } from '../../utils/atomic-fs.ts'
-import {
-  CHUNK_SIZE,
-  FPS,
-  FRAME_HEIGHT,
-  FRAME_WIDTH,
-  RENDER_CACHE_VERSION,
-} from './constants.ts'
+import type { FrameSize } from '../../types/video-format.ts'
+import { CHUNK_SIZE, FPS, RENDER_CACHE_VERSION } from './constants.ts'
 import { cameraEffect } from './ken-burns.ts'
 import { runRenderFfmpeg } from './render-ffmpeg.ts'
 
@@ -35,6 +30,10 @@ export interface RenderScene {
 interface ChunkManifest {
   v: number
   globalStartIndex: number
+  // SOLO presente en proyectos 9:16: los manifests 16:9 quedan byte-idénticos
+  // a los ya escritos, así el cache de todos los proyectos existentes sigue
+  // siendo hit sin bumpear RENDER_CACHE_VERSION.
+  format?: '9:16'
   scenes: {
     img: string
     size: number
@@ -46,6 +45,7 @@ interface ChunkManifest {
 export async function chunkManifestFor(
   scenes: RenderScene[],
   globalStartIndex: number,
+  frame: FrameSize,
 ): Promise<ChunkManifest> {
   const manifestScenes = []
   for (const scene of scenes) {
@@ -66,9 +66,15 @@ export async function chunkManifestFor(
     })
   }
 
+  // Verticalidad derivada de los píxeles (regla del origen), y el spread
+  // condicional mantiene el campo AUSENTE en 16:9 — no `undefined`, ausente:
+  // el match del cache compara el JSON serializado.
+  const vertical = frame.height > frame.width
+
   return {
     v: RENDER_CACHE_VERSION,
     globalStartIndex,
+    ...(vertical ? { format: '9:16' as const } : {}),
     scenes: manifestScenes,
   }
 }
@@ -117,6 +123,7 @@ export async function renderChunk(
   scenes: RenderScene[],
   globalStartIndex: number,
   chunkFile: string,
+  frame: FrameSize,
   options: {
     onProgress?(fraction: number): void
     signal?: AbortSignal
@@ -132,13 +139,14 @@ export async function renderChunk(
 
     inputs.push('-loop', '1', '-i', scene.imagePath)
 
-    // scale + crop centrado fuerzan 16:9 sin bandas negras: una imagen 16:9
-    // nativa pasa intacta; otras proporciones se escalan y recortan.
+    // scale + crop centrado fuerzan la forma del video sin bandas negras:
+    // una imagen de la proporción nativa pasa intacta; otras se escalan y
+    // recortan.
     filterParts.push(
-      `[${index}:v]scale=${FRAME_WIDTH}:${FRAME_HEIGHT}:force_original_aspect_ratio=increase,` +
-        `crop=${FRAME_WIDTH}:${FRAME_HEIGHT},` +
+      `[${index}:v]scale=${frame.width}:${frame.height}:force_original_aspect_ratio=increase,` +
+        `crop=${frame.width}:${frame.height},` +
         `setsar=1,` +
-        `${cameraEffect(globalStartIndex + index, frames)},` +
+        `${cameraEffect(globalStartIndex + index, frames, frame)},` +
         `trim=duration=${duration.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`,
     )
     concatInputs.push(`[v${index}]`)
@@ -183,7 +191,7 @@ export async function renderChunk(
     await renameAtomic(temporaryFile, chunkFile)
     await writeFileAtomic(
       manifestFileFor(chunkFile),
-      JSON.stringify(await chunkManifestFor(scenes, globalStartIndex)),
+      JSON.stringify(await chunkManifestFor(scenes, globalStartIndex, frame)),
     )
   } catch (error) {
     // El tmp parcial se descarta: nunca queda un chunk truncado con nombre

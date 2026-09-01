@@ -121,6 +121,8 @@ export function LibraryEditor() {
   }
 
   const metadata = detail.metadata
+  const videoFormat = metadata.options.videoFormat ?? '16:9'
+  const isShort = videoFormat === '9:16'
   const creatingHere = isTaskLiveFor(createTask, projectId)
   if (metadata.state === 'generating' && creatingHere)
     return <Navigate to={libraryProgressPath(projectId)} replace />
@@ -165,7 +167,11 @@ export function LibraryEditor() {
   }
 
   const generateDraft = async () => {
-    const started = await startPipelineForProject(projectId, metadata.name)
+    const started = await startPipelineForProject(
+      projectId,
+      metadata.name,
+      metadata.options.videoFormat,
+    )
     if (started) void navigate(libraryProgressPath(projectId))
   }
 
@@ -218,14 +224,30 @@ export function LibraryEditor() {
           busy={busy}
           onExport={() => void editor.editorTask.startExport(projectId)}
         />
-        <RenderVideoButton
-          render={task?.render ?? null}
-          videoState={videoState}
-          busy={busy}
-          onRender={() => void editor.editorTask.startRender(projectId)}
-          onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
-        />
+        {!isShort && (
+          <RenderVideoButton
+            render={task?.render ?? null}
+            videoState={videoState}
+            busy={busy}
+            onRender={() => void editor.editorTask.startRender(projectId)}
+            onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
+          />
+        )}
       </LibraryViewHeader>
+
+      {/* En shorts el botón de render flota sobre el timeline: el layout
+          vertical aleja el header del visor (port del `flotante` del origen). */}
+      {isShort && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <RenderVideoButton
+            render={task?.render ?? null}
+            videoState={videoState}
+            busy={busy}
+            onRender={() => void editor.editorTask.startRender(projectId)}
+            onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
+          />
+        </div>
+      )}
 
       <MissingImagesBanner
         sceneIds={workingScenes
@@ -274,6 +296,7 @@ export function LibraryEditor() {
             scene={selectedScene}
             characters={options?.characters ?? []}
             imageChoice={editor.imageChoice}
+            videoFormat={videoFormat}
             credits={credits}
             busy={busy}
             userPromptDirty={editor.userPromptDirty}

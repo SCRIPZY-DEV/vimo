@@ -6,14 +6,20 @@ import { MuteButton } from '@/modules/videos/components/MuteButton'
 import { PlayPauseButton } from '@/modules/videos/components/PlayPauseButton'
 import { PLAYBACK_RATES } from '@/modules/videos/constants'
 import { useVideoControls } from '@/modules/videos/hooks/useVideoControls'
+import { isVertical } from '@/modules/videos/utilities/videoFormat'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 interface LibraryVideoPlayerProps {
   src: string
+  videoFormat?: VideoFormat
 }
 
 // Reproductor del video final con velocidades (port del player del origen).
 // Presentacional puro: recibe la URL ya resuelta (convertFileSrc + mtime).
-export function LibraryVideoPlayer({ src }: LibraryVideoPlayerProps) {
+export function LibraryVideoPlayer({
+  src,
+  videoFormat = '16:9',
+}: LibraryVideoPlayerProps) {
   const { t } = useTranslation()
   const {
     playing,
@@ -30,11 +36,15 @@ export function LibraryVideoPlayer({ src }: LibraryVideoPlayerProps) {
 
   return (
     <div className="space-y-3">
+      {/* Un short a w-full saldría gigante: se limita por alto y se centra. */}
       <video
         {...videoProps}
         src={src}
         onClick={togglePlay}
-        className="w-full cursor-pointer rounded-xl border border-border bg-black"
+        className={cn(
+          'cursor-pointer rounded-xl border border-border bg-black',
+          isVertical(videoFormat) ? 'mx-auto max-h-[70vh]' : 'w-full',
+        )}
       />
 
       <div className="flex flex-wrap items-center gap-3">
