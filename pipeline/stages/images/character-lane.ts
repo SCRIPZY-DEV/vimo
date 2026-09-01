@@ -9,6 +9,7 @@ import {
 import { uploadEvolinkReference } from '../../providers/image/evolink.ts'
 import type { FalImageResponse } from '../../types/images.ts'
 import type { Scene } from '../../types/scenes.ts'
+import { frameSizeFor, type VideoFormat } from '../../types/video-format.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { generateSceneWithEvolink } from './evolink-lane.ts'
@@ -45,6 +46,7 @@ async function generateSceneWithFalEdit(
   scene: Scene,
   references: CharacterReference[],
   apiKey: string,
+  format: VideoFormat,
   options: ImageLaneOptions,
 ): Promise<LaneResult> {
   const imagePath = sceneImageFile(options.paths, scene.id)
@@ -59,7 +61,8 @@ async function generateSceneWithFalEdit(
   if (options.signal.aborted) return { scene, imageReady: false }
 
   const names = references.map((reference) => reference.name)
-  const prompt = buildReferenceIdentityLineMulti(names) + scene.imagePrompt!
+  const prompt =
+    buildReferenceIdentityLineMulti(names, format) + scene.imagePrompt!
 
   for (let attempt = 1; attempt <= FAL_MAX_ATTEMPTS; attempt++) {
     const startedAt = Date.now()
@@ -82,8 +85,8 @@ async function generateSceneWithFalEdit(
         body: JSON.stringify({
           prompt,
           image_urls: references.map((reference) => reference.imageDataUri),
-          // 16:9 nativo Full HD, mismo aspect que las imágenes normales.
-          image_size: { width: 1920, height: 1080 },
+          // El frame del proyecto, mismo aspect que las imágenes normales.
+          image_size: frameSizeFor(format),
           quality: CHARACTER_QUALITY,
           num_images: 1,
           output_format: 'jpeg',
@@ -149,13 +152,16 @@ export async function generateScenesWithFalReferences(
   scenes: Scene[],
   references: CharacterReference[],
   apiKey: string,
+  format: VideoFormat,
   options: ImageLaneOptions,
 ): Promise<LaneResult[]> {
   if (scenes.length === 0) return []
   const limit = limitConcurrency(FAL_CHARACTER_CONCURRENCY)
   return Promise.all(
     scenes.map((scene) =>
-      limit(() => generateSceneWithFalEdit(scene, references, apiKey, options)),
+      limit(() =>
+        generateSceneWithFalEdit(scene, references, apiKey, format, options),
+      ),
     ),
   )
 }
@@ -168,6 +174,7 @@ export async function generateScenesWithEvolinkReferences(
   scenes: Scene[],
   references: CharacterReference[],
   apiKey: string,
+  format: VideoFormat,
   options: ImageLaneOptions,
 ): Promise<LaneResult[]> {
   if (scenes.length === 0) return []
@@ -181,6 +188,7 @@ export async function generateScenesWithEvolinkReferences(
 
   const promptPrefix = buildReferenceIdentityLineMulti(
     references.map((reference) => reference.name),
+    format,
   )
   const limit = limitConcurrency(EVOLINK_CHARACTER_CONCURRENCY)
   return Promise.all(
@@ -191,6 +199,7 @@ export async function generateScenesWithEvolinkReferences(
           {
             qualityOption: CHARACTER_QUALITY,
             apiKey,
+            format,
             referenceUrls,
             promptPrefix,
           },

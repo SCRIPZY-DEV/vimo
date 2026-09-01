@@ -12,6 +12,7 @@ import {
 import { PipelineFailure } from '../../runner/failure.ts'
 import { sleep } from '../../utils/sleep.ts'
 import type { Scene } from '../../types/scenes.ts'
+import type { VideoFormat } from '../../types/video-format.ts'
 import {
   cachedImagePath,
   hashImageRequest,
@@ -40,6 +41,8 @@ const IMAGE_MODEL = 'gpt-image-2'
 export interface EvolinkLaneInputs {
   qualityOption: string | undefined
   apiKey: string
+  // Forma en que Evolink genera (el endpoint la recibe como `size`).
+  format: VideoFormat
   // URLs públicas de referencia (carril de personaje); vacío en el normal.
   referenceUrls?: string[]
   // Prefijo del prompt (línea de identidad del carril de personaje).
@@ -73,10 +76,13 @@ export async function generateSceneWithEvolink(
 
   const quality = evolinkQualityFromOption(inputs.qualityOption)
   const prompt = `${inputs.promptPrefix ?? ''}${scene.imagePrompt!}`
+  // El formato NO entra al hash de la tarea (doctrina E26/E27 del origen):
+  // agregarlo invalidaría tareas ya pagadas, y una tarea vive en SU escena de
+  // SU proyecto, cuyo formato jamás cambia.
   const body: Record<string, unknown> = {
     model: IMAGE_MODEL,
     prompt,
-    size: '16:9', //TODO: Implement vertical format
+    size: inputs.format,
     resolution: '1K',
     quality,
     n: 1,
@@ -321,7 +327,11 @@ export const evolinkImageLane: ImageLane = {
   generateScene(scene, inputs, options) {
     return generateSceneWithEvolink(
       scene,
-      { qualityOption: inputs.qualityOption, apiKey: inputs.apiKey },
+      {
+        qualityOption: inputs.qualityOption,
+        apiKey: inputs.apiKey,
+        format: inputs.format,
+      },
       options,
     )
   },
