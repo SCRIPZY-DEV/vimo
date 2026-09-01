@@ -7,28 +7,32 @@ import {
   qualityOptionsFor,
 } from '@/modules/videos/utilities/imageQuality'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 interface SceneQualityPickerProps {
   value: SceneImageChoice
+  videoFormat: VideoFormat
   disabled: boolean
   onChange(value: SceneImageChoice): void
 }
 
 // Proveedor + calidad para regenerar UNA escena. La calidad persiste por
 // escena; el proveedor es un override transitorio del próximo lote (ADR-0014).
+// En un short solo se ofrecen tamaños verticales (Fal).
 export function SceneQualityPicker({
   value,
+  videoFormat,
   disabled,
   onChange,
 }: SceneQualityPickerProps) {
   const { t } = useTranslation()
 
-  const qualityOptions = qualityOptionsFor(value.provider)
+  const qualityOptions = qualityOptionsFor(value.provider, videoFormat)
 
   // Los ids de calidad no se comparten entre proveedores: cambiar de
   // proveedor reajusta la calidad a la default.
   const changeProvider = (provider: ImageProviderId) => {
-    onChange({ provider, quality: defaultQualityFor(provider) })
+    onChange({ provider, quality: defaultQualityFor(provider, videoFormat) })
   }
 
   return (
