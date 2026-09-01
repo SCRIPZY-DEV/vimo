@@ -17,6 +17,7 @@ import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { CreateTask } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type {
   CreateVideoProjectPayload,
   RunVideoPipelineResult,
@@ -72,6 +73,7 @@ function restoreTask(): CreateTask | null {
       finishedAt: stored.finishedAt ?? null,
       retry: null,
       retryAttempts: stored.retryAttempts ?? 0,
+      videoFormat: stored.videoFormat ?? '16:9',
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -338,6 +340,7 @@ function makeTask(
   id: string,
   projectId: string,
   projectName: string,
+  videoFormat: VideoFormat = '16:9',
 ): CreateTask {
   return {
     id,
@@ -362,6 +365,7 @@ function makeTask(
     finishedAt: null,
     retry: null,
     retryAttempts: 0,
+    videoFormat,
   }
 }
 
@@ -412,7 +416,14 @@ async function startCreation(input: {
 }): Promise<void> {
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(makeTask(taskId, '', input.payload.name))
+  setTask(
+    makeTask(
+      taskId,
+      '',
+      input.payload.name,
+      input.payload.options.videoFormat ?? '16:9',
+    ),
+  )
 
   let projectId: string
   try {
