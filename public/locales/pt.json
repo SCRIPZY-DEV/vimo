@@ -145,7 +145,6 @@
       "change": "Trocar",
       "pickerTitle": "Escolher uma voz",
       "pickerDescription": "Ouça o exemplo do provedor e escolha a que combina com seu vídeo.",
-      "searchPlaceholder": "Buscar por nome ou idioma…",
       "edgeNote": "As vozes Edge não têm exemplo para ouvir.",
       "empty": "Nenhuma voz corresponde à sua busca.",
       "loadMore": "Carregar mais vozes",
@@ -248,14 +247,20 @@
         "paused": "Em pausa",
         "completed": "Pronto"
       },
-      "audioSummary": "Duração do áudio: {{seconds}} s · {{scenes}} cenas"
+      "audioSummary": "Duração do áudio: {{seconds}} s · {{scenes}} cenas",
+      "retry": {
+        "title": "Tentando de novo em {{seconds}} s · tentativa {{attempt}} de {{max}}"
+      }
     },
     "confirmScenes": {
       "title": "Quantas cenas?",
-      "description": "Sua narração dura {{duration}} e tem {{words}} palavras.",
+      "description": "O Vimo cortou sua narração e propõe esta quantidade de cenas. Ajuste se quiser outro ritmo.",
       "countLabel": "Quantidade de cenas",
       "hint": "O Vimo propõe {{suggested}} cenas para esta duração.",
-      "confirm": "Continuar"
+      "confirm": "Continuar",
+      "duration": "Duração",
+      "words": "Palavras",
+      "suggested": "Sugerido"
     },
     "completed": {
       "subtitle": "Seu vídeo está pronto.",
@@ -349,7 +354,8 @@
       "cancelled": "Geração cancelada. Você pode retomá-la quando quiser.",
       "sidecar": "Não conseguimos iniciar o motor do Vimo. Reinicie o app.",
       "interrupted": "A geração foi interrompida ao fechar o app. Retome: o que foi feito é preservado.",
-      "unknown": "Algo deu errado. Tente de novo."
+      "unknown": "Algo deu errado. Tente de novo.",
+      "continueInEditor": "Continuar no editor"
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -361,6 +367,18 @@
     "autoRender": {
       "label": "Exportar o vídeo automaticamente ao terminar",
       "hint": "Se ativado, o Vimo monta o vídeo no final. Se desativado, você vai ao editor para revisar/editar antes de exportar."
+    },
+    "prompts": {
+      "writingTitle": "Escrevendo {{total}} prompts, um por cena",
+      "doneTitle": "{{total}} prompts prontos, um por cena",
+      "writingSubtitle": "{{done}} de {{total}} prontos · {{percent}}%",
+      "doneSubtitle": "Um por cena, no estilo escolhido.",
+      "writingAria": "Escrevendo este prompt"
+    },
+    "viewer": {
+      "title": "Cena {{id}}",
+      "previous": "Anterior",
+      "next": "Próxima"
     }
   },
   "library": {
