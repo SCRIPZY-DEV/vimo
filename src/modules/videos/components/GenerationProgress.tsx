@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  Ban,
   Check,
   Loader2,
   Mic,
   Music2,
   PauseCircle,
   Plus,
+  RefreshCw,
   Timer,
-  X,
 } from 'lucide-react'
 import DoodleStar from '@/modules/common/doodles/DoodleStar'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
@@ -17,6 +18,7 @@ import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { videosApi } from '@/modules/videos/api'
+import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { StageBar } from '@/modules/videos/components/StageBar'
 import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
@@ -82,6 +84,8 @@ export function GenerationProgress({
     voice !== null && (task.stage === 'voice' || !completed.includes('voice'))
   const showBgmPanel =
     task.bgmProgress !== null && task.bgmProgress.status !== 'completed'
+  const showPromptsPanel =
+    completed.includes('scene-cuts') && !completed.includes('scene-prompts')
   const showImagesPanel =
     completed.includes('scene-prompts') &&
     !completed.includes('render') &&
@@ -119,8 +123,8 @@ export function GenerationProgress({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 font-mono text-sm tabular-nums text-muted-foreground">
-            <Timer className="h-4 w-4" />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 font-mono text-sm tabular-nums text-foreground">
+            <Timer className="h-4 w-4 text-saffron" />
             {formatTime(elapsed)}
           </span>
           {finished ? (
@@ -137,7 +141,7 @@ export function GenerationProgress({
             )
           ) : (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => {
                 if (!confirmingCancel) {
@@ -147,9 +151,9 @@ export function GenerationProgress({
                 setConfirmingCancel(false)
                 onCancel()
               }}
-              className="rounded-lg font-display text-muted-foreground"
+              className="rounded-full font-display"
             >
-              <X className="mr-1.5 h-4 w-4" />
+              <Ban className="mr-1.5 h-4 w-4 text-destructive" />
               {confirmingCancel
                 ? t('create.progress.cancelConfirm')
                 : t('create.progress.cancel')}
@@ -179,6 +183,24 @@ export function GenerationProgress({
         </aside>
 
         <div className="min-w-0 space-y-5">
+          {task.retry && (
+            <div className="space-y-1 rounded-xl border-2 border-saffron/40 bg-saffron/5 p-4">
+              <p className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin text-saffron" />
+                {t('create.progress.retry.title', {
+                  seconds: task.retry.secondsLeft,
+                  attempt: task.retry.attempt,
+                  max: task.retry.maxAttempts,
+                })}
+              </p>
+              {task.errorKey && (
+                <p className="line-clamp-2 pl-6 font-body text-xs text-muted-foreground">
+                  {t(task.errorKey)}
+                </p>
+              )}
+            </div>
+          )}
+
           {finished && task.videoPath && (
             <div className="space-y-3 rounded-xl border-2 border-saffron/30 p-4">
               <div className="flex items-center gap-2">
@@ -225,6 +247,8 @@ export function GenerationProgress({
               <ProgressBar percent={task.bgmProgress.percent} />
             </div>
           )}
+
+          {showPromptsPanel && <PromptsGrid scenes={task.scenes} />}
 
           {showImagesPanel && <SceneImagesGrid scenes={task.scenes} />}
 
