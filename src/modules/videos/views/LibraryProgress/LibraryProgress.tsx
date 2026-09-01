@@ -78,6 +78,11 @@ export function LibraryProgress() {
           <TaskErrorCard
             message={t(ownTask.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
             onRetry={resume}
+            onContinueInEditor={
+              ownTask.completedStages.includes('scene-prompts')
+                ? () => navigate(libraryEditorPath(projectId))
+                : undefined
+            }
           />
         )}
 

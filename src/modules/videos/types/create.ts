@@ -66,6 +66,23 @@ export interface CreateTask {
   videoPath: string | null
   errorKey: string | null
   startedAt: number
+  // Cronómetro honesto (origen v1.1.0): el tiempo esperando a la persona no
+  // cuenta. pausedAt marca la pausa en curso; pausedMs acumula las cerradas.
+  pausedAt: number | null
+  pausedMs: number
+  // Congela el cronómetro al completar (la vista «Listo» muestra el total).
+  finishedAt: number | null
+  // Cuenta regresiva del reintento automático en curso; null = no hay.
+  retry: RetryView | null
+  // Reintentos automáticos ya consumidos (se agota en AUTO_RETRY_MAX_ATTEMPTS).
+  retryAttempts: number
+}
+
+// Estado visible del reintento automático ante un fallo transitorio.
+export interface RetryView {
+  attempt: number
+  maxAttempts: number
+  secondsLeft: number
 }
 
 // Un personaje elegido en el formulario (hasta 2).

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { RotateCcw } from 'lucide-react'
+import { PenLine, RotateCcw } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 
 interface TaskErrorCardProps {
@@ -8,6 +8,9 @@ interface TaskErrorCardProps {
   // Etiqueta del botón de reintento; por defecto «Reanudar».
   retryLabel?: string
   onDiscard?(): void
+  // Rescate del origen (v1.32.0): con las escenas ya persistidas, el fallo
+  // no bloquea — se sigue en el editor y se regenera desde ahí.
+  onContinueInEditor?(): void
 }
 
 // Tarjeta de un job que falló, con reintento y (opcional) descarte.
@@ -16,6 +19,7 @@ export function TaskErrorCard({
   onRetry,
   retryLabel,
   onDiscard,
+  onContinueInEditor,
 }: TaskErrorCardProps) {
   const { t } = useTranslation()
 
@@ -31,6 +35,17 @@ export function TaskErrorCard({
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
           {retryLabel ?? t('common.resume')}
         </Button>
+        {onContinueInEditor && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onContinueInEditor}
+            className="rounded-lg font-display"
+          >
+            <PenLine className="mr-1.5 h-3.5 w-3.5" />
+            {t('create.errors.continueInEditor')}
+          </Button>
+        )}
         {onDiscard && (
           <Button
             variant="ghost"

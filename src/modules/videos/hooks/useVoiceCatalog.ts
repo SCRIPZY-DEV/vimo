@@ -7,13 +7,19 @@ import type {
 
 interface UseVoiceCatalogOptions {
   provider: VoiceProviderId
+  // Server-side solo para elevenlabs (paginado); minimax/edge llegan
+  // completos y filtran client-side.
   search: string
+  language: string
+  gender: string
   enabled: boolean
 }
 
 export function useVoiceCatalog({
   provider,
   search,
+  language,
+  gender,
   enabled,
 }: UseVoiceCatalogOptions) {
   const paged = provider === 'elevenlabs'
@@ -28,7 +34,12 @@ export function useVoiceCatalog({
     isFetchingNextPage,
     fetchNextPage,
   } = useInfiniteQuery({
-    queryKey: ['videos', 'voices', provider, paged ? trimmedSearch : 'all'],
+    queryKey: [
+      'videos',
+      'voices',
+      provider,
+      paged ? `${trimmedSearch}|${language}|${gender}` : 'all',
+    ],
     enabled,
     retry: false,
     initialPageParam: 1,
@@ -39,6 +50,8 @@ export function useVoiceCatalog({
           ? {
               page: pageParam,
               ...(trimmedSearch ? { search: trimmedSearch } : {}),
+              ...(language ? { language } : {}),
+              ...(gender ? { gender } : {}),
             }
           : undefined,
       })
@@ -58,7 +71,7 @@ export function useVoiceCatalog({
     hasNextPage: hasNextPage ?? false,
     isFetchingNextPage,
     loadMore: () => void fetchNextPage(),
-    // Minimax y Edge llegan completos: el filtro de búsqueda es client-side.
+    // Minimax y Edge llegan completos: los filtros son client-side.
     filtersAreClientSide: !paged,
   }
 }

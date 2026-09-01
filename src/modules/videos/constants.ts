@@ -64,6 +64,28 @@ export const LOG_LINES_LIMIT = 50
 // El probe de TTS se cachea acá: el sidecar es un proceso por job.
 export const PROBE_CACHE_TTL_MS = 2 * 60 * 1000
 
+// Reintento automático ante fallos transitorios (port del origen, adaptado
+// de regex-sobre-mensajes a códigos): solo las familias de red, timeout y
+// rate-limit de los providers. Un código que no esté acá es un error real.
+export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
+  'voice_network',
+  'voice_timeout',
+  'voice_rate_limited',
+  'transcription_network',
+  'transcription_rate_limited',
+  'llm_network',
+  'llm_timeout',
+  'llm_rate_limited',
+  'image_network',
+  'image_timeout',
+  'image_rate_limited',
+  'music_network',
+  'ytdlp_network',
+  'ytdlp_timeout',
+])
+export const AUTO_RETRY_MAX_ATTEMPTS = 3
+export const AUTO_RETRY_DELAY_SECONDS = 10
+
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
 

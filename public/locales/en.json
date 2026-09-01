@@ -145,7 +145,6 @@
       "change": "Change",
       "pickerTitle": "Pick a voice",
       "pickerDescription": "Listen to the provider's sample and pick the one that fits your video.",
-      "searchPlaceholder": "Search by name or language…",
       "edgeNote": "Edge voices have no sample to listen to.",
       "empty": "No voices match your search.",
       "loadMore": "Load more voices",
@@ -240,14 +239,28 @@
         "chunks": "Rendering the video segments",
         "concat": "Joining the segments",
         "final": "Mixing audio and color"
+      },
+      "phasesTitle": "Pipeline phases",
+      "waitingForYou": "waiting for you",
+      "status": {
+        "generating": "Generating…",
+        "paused": "Paused",
+        "completed": "Done"
+      },
+      "audioSummary": "Audio length: {{seconds}} s · {{scenes}} scenes",
+      "retry": {
+        "title": "Retrying in {{seconds}} s · attempt {{attempt}} of {{max}}"
       }
     },
     "confirmScenes": {
       "title": "How many scenes?",
-      "description": "Your narration is {{duration}} long and has {{words}} words.",
+      "description": "Vimo cut your narration and suggests this scene count. Adjust it if you want a different pace.",
       "countLabel": "Number of scenes",
       "hint": "Vimo suggests {{suggested}} scenes for this duration.",
-      "confirm": "Continue"
+      "confirm": "Continue",
+      "duration": "Length",
+      "words": "Words",
+      "suggested": "Suggested"
     },
     "completed": {
       "subtitle": "Your video is ready.",
@@ -341,7 +354,8 @@
       "cancelled": "Generation cancelled. You can resume it whenever you want.",
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
       "interrupted": "The generation was interrupted when the app closed. Resume: everything done is kept.",
-      "unknown": "Something went wrong. Try again."
+      "unknown": "Something went wrong. Try again.",
+      "continueInEditor": "Continue in the editor"
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -353,6 +367,18 @@
     "autoRender": {
       "label": "Auto-export the video when finished",
       "hint": "If on, Vimo assembles the video at the end. If off, you go to the editor to review/edit before exporting."
+    },
+    "prompts": {
+      "writingTitle": "Writing {{total}} prompts, one per scene",
+      "doneTitle": "{{total}} prompts ready, one per scene",
+      "writingSubtitle": "{{done}} of {{total}} ready · {{percent}}%",
+      "doneSubtitle": "One per scene, in the style you picked.",
+      "writingAria": "Writing this prompt"
+    },
+    "viewer": {
+      "title": "Scene {{id}}",
+      "previous": "Previous",
+      "next": "Next"
     }
   },
   "library": {

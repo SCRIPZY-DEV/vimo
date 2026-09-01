@@ -12,6 +12,7 @@ import {
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { formatTime } from '@/modules/common/utilities/formatTime'
+import { DataBox } from '@/modules/videos/components/DataBox'
 import { MAX_SCENE_COUNT } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
 import type { SceneConfirmationView } from '@/modules/videos/types/create'
@@ -32,18 +33,31 @@ export function ConfirmScenesDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md rounded-2xl border-2 border-saffron/40">
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <DialogTitle className="font-display text-xl font-extrabold">
             {t('create.confirmScenes.title')}
           </DialogTitle>
-          <DialogDescription>
-            {t('create.confirmScenes.description', {
-              duration: formatTime(confirmation.audioDurationSeconds),
-              words: confirmation.wordCount,
-            })}
+          <DialogDescription className="font-body leading-relaxed">
+            {t('create.confirmScenes.description')}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Los tres datos que informan la decisión, de un vistazo. */}
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-muted/40 p-3">
+          <DataBox
+            label={t('create.confirmScenes.duration')}
+            value={formatTime(confirmation.audioDurationSeconds)}
+          />
+          <DataBox
+            label={t('create.confirmScenes.words')}
+            value={String(confirmation.wordCount)}
+          />
+          <DataBox
+            label={t('create.confirmScenes.suggested')}
+            value={String(confirmation.suggestedScenes)}
+          />
+        </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="confirm-scene-count" className="font-display">
@@ -54,6 +68,7 @@ export function ConfirmScenesDialog({
             type="number"
             min={1}
             max={MAX_SCENE_COUNT}
+            autoFocus
             value={sceneCount}
             onChange={(event) =>
               setSceneCount(
@@ -63,6 +78,7 @@ export function ConfirmScenesDialog({
                 ),
               )
             }
+            className="font-mono tabular-nums"
           />
           <p className="font-body text-xs text-muted-foreground">
             {t('create.confirmScenes.hint', {
