@@ -194,6 +194,8 @@ export interface VideoProjectListItem {
   errorCode?: string
   hasVideo: boolean
   videoOutdated: boolean
+  // Ausente = 16:9 (proyectos previos al selector de formato).
+  videoFormat?: VideoFormat
   imageCount: number
   sceneCount?: number
   // Imagen de la escena de menor id, si existe. mtime como cache-buster:
