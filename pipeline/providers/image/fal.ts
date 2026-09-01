@@ -1,6 +1,10 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
+import {
+  DEFAULT_VIDEO_FORMAT,
+  type VideoFormat,
+} from '../../types/video-format.ts'
 import type {
   DecodedImage,
   FalErrorResponse,
@@ -208,18 +212,44 @@ export async function generateFalImage(
 
 // Convención de opción de calidad del catálogo: "<W>x<H>_<quality>".
 export const DEFAULT_GPT_IMAGE_OPTION = '1920x1080_low'
+export const DEFAULT_GPT_IMAGE_VERTICAL_OPTION = '1080x1920_low'
 const QUALITY_OPTION_PATTERN = /^(\d+)x(\d+)_(\w+)$/
 
+export function defaultOptionForFormat(format: VideoFormat): string {
+  if (format === '9:16') return DEFAULT_GPT_IMAGE_VERTICAL_OPTION
+  return DEFAULT_GPT_IMAGE_OPTION
+}
+
+// Corrección conservadora (port de opcionParaFormato del origen): identidad
+// total con 16:9; con 9:16, una opción horizontal colada (escena persistida
+// antes del selector, o elegida a mano) pasa a la familia vertical
+// CONSERVANDO el tier _low/_medium/_high. Una opción fuera de convención se
+// devuelve tal cual: el fallback de falSceneRequestBody la resuelve.
+export function qualityOptionForFormat(
+  option: string,
+  format: VideoFormat,
+): string {
+  if (format !== '9:16') return option
+  const match = option.match(QUALITY_OPTION_PATTERN)
+  if (!match) return option
+  const isVertical = parseInt(match[2], 10) > parseInt(match[1], 10)
+  if (isVertical) return option
+  return `1080x1920_${match[3]}`
+}
+
 // Una opción que no siga la convención (p. ej. el preset "landscape_16_9" de
-// escenas generadas con el modelo retirado, ADR-0015) cae a la default.
+// escenas generadas con el modelo retirado, ADR-0015) cae a la default del
+// formato.
 export function falSceneRequestBody(
   prompt: string,
   qualityOption: string | undefined,
+  format: VideoFormat = DEFAULT_VIDEO_FORMAT,
 ): Record<string, unknown> {
-  const option = qualityOption?.trim() || DEFAULT_GPT_IMAGE_OPTION
+  const chosen = qualityOption?.trim() || defaultOptionForFormat(format)
+  const option = qualityOptionForFormat(chosen, format)
   const match =
     option.match(QUALITY_OPTION_PATTERN) ??
-    DEFAULT_GPT_IMAGE_OPTION.match(QUALITY_OPTION_PATTERN)!
+    defaultOptionForFormat(format).match(QUALITY_OPTION_PATTERN)!
   return {
     prompt,
     image_size: {
