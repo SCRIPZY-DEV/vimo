@@ -137,7 +137,11 @@
       "falLow": "1920×1080 · Low",
       "falMedium": "1920×1080 · Medium",
       "falHigh": "1920×1080 · High",
-      "falNote": "16:9 nativo. Sin redimensionado."
+      "falNote": "16:9 nativo. Sin redimensionado.",
+      "falVerticalLow": "1080×1920 · Low",
+      "falVerticalMedium": "1080×1920 · Medium",
+      "falVerticalHigh": "1080×1920 · High",
+      "falVerticalNote": "9:16 nativo para shorts. Sin redimensionado."
     },
     "voice": {
       "label": "Voz para la narración",
@@ -379,6 +383,14 @@
       "title": "Escena {{id}}",
       "previous": "Anterior",
       "next": "Siguiente"
+    },
+    "format": {
+      "label": "Formato del video",
+      "longTitle": "Video largo",
+      "longDetail": "16:9 · horizontal",
+      "shortTitle": "Short",
+      "shortDetail": "9:16 · vertical",
+      "hint": "Las imágenes se generan con esta forma, así que el video sale completo — sin bandas negras ni recortes."
     }
   },
   "library": {
