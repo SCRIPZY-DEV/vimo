@@ -58,9 +58,16 @@ export function LibraryProgress() {
   }, [completed, navigate, projectId, queryClient])
 
   const projectName = ownTask?.projectName ?? status?.metadata.name ?? projectId
-  const resume = () => void startPipelineForProject(projectId, projectName)
+  const projectFormat = status?.metadata.options.videoFormat
+  const resume = () =>
+    void startPipelineForProject(projectId, projectName, projectFormat)
   const confirmFromDisk = (sceneCount: number) => {
-    void confirmScenesForProject(projectId, projectName, sceneCount)
+    void confirmScenesForProject(
+      projectId,
+      projectName,
+      sceneCount,
+      projectFormat,
+    )
   }
   const backToLibrary = () => void navigate(VideosRoutes.library)
 
