@@ -419,12 +419,13 @@ El detalle de cada carpeta y las reglas para agregar código están en
 
 ## Documentación
 
-| Documento                                          | Para qué                                        |
-| -------------------------------------------------- | ----------------------------------------------- |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)       | Cómo está construido y cómo fluye la aplicación |
-| [CLAUDE.md](CLAUDE.md)                             | Convenciones de código (obligatorias)           |
-| [docs/CONTRIBUTING.es.md](docs/CONTRIBUTING.es.md) | Ramas, Pull Requests y forma de trabajo         |
-| [docs/adr/](docs/adr/)                             | Decisiones de arquitectura y por qué se tomaron |
+| Documento                                          | Para qué                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)       | Cómo está construido y cómo fluye la aplicación               |
+| [docs/diagrams/](docs/diagrams/)                   | Mapa visual: diagramas del sistema, la interfaz y el pipeline |
+| [CLAUDE.md](CLAUDE.md)                             | Convenciones de código (obligatorias)                         |
+| [docs/CONTRIBUTING.es.md](docs/CONTRIBUTING.es.md) | Ramas, Pull Requests y forma de trabajo                       |
+| [docs/adr/](docs/adr/)                             | Decisiones de arquitectura y por qué se tomaron               |
 
 ## Estado
 
