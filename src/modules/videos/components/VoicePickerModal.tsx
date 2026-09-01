@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Pause, Play, Search } from 'lucide-react'
+import { Loader2, Pause, Play } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -11,12 +11,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/modules/common/ui/dialog'
-import { Input } from '@/modules/common/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/modules/common/ui/tabs'
 import { cn } from '@/modules/common/utilities/cn'
 import { useVoiceCatalog } from '@/modules/videos/hooks/useVoiceCatalog'
-import { matchesVoiceSearch } from '@/modules/common/utilities/matchesVoiceSearch'
+import { VoiceFilters } from '@/modules/voices/components/VoiceFilters'
+import { useDebouncedValue } from '@/modules/voices/hooks/useDebouncedValue'
 import { useVoicePreview } from '@/modules/voices/hooks/useVoicePreview'
+import { filterVoices } from '@/modules/voices/utilities/filterVoices'
+import {
+  SEARCH_DEBOUNCE_MS,
+  VOICE_FILTERS_INITIAL_VALUE,
+} from '@/modules/voices/constants'
 import type { SelectedVoice } from '@/modules/videos/types/create'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 
@@ -43,14 +48,32 @@ export function VoicePickerModal({
   const [provider, setProvider] = useState<VoiceProviderId>(
     current?.provider ?? 'minimax',
   )
-  const [search, setSearch] = useState('')
+  // Los mismos filtros de la sección Voces (búsqueda, idioma, género, y los
+  // extras por proveedor); se conservan al cambiar de tab.
+  const [filters, setFilters] = useState(VOICE_FILTERS_INITIAL_VALUE)
   const [selected, setSelected] = useState<SelectedVoice | null>(current)
 
-  const catalog = useVoiceCatalog({ provider, search, enabled: true })
+  const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS)
+  const effectiveFilters = { ...filters, search: debouncedSearch }
 
-  const visibleVoices = catalog.filtersAreClientSide
-    ? catalog.voices.filter((voice) => matchesVoiceSearch(voice, search))
-    : catalog.voices
+  const catalog = useVoiceCatalog({
+    provider,
+    search: debouncedSearch,
+    language: filters.language,
+    gender: filters.gender,
+    enabled: true,
+  })
+
+  const visibleVoices = filterVoices(catalog.voices, effectiveFilters, {
+    serverFiltered: !catalog.filtersAreClientSide,
+  })
+  // Opciones derivadas de lo cargado (solo ElevenLabs las trae).
+  const accents = [
+    ...new Set(catalog.voices.map((voice) => voice.accent).filter(Boolean)),
+  ] as string[]
+  const categories = [
+    ...new Set(catalog.voices.map((voice) => voice.category).filter(Boolean)),
+  ] as string[]
 
   const close = () => {
     stopPreview()
@@ -91,15 +114,13 @@ export function VoicePickerModal({
           </TabsList>
         </Tabs>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('create.voice.searchPlaceholder')}
-            className="pl-9"
-          />
-        </div>
+        <VoiceFilters
+          provider={provider}
+          value={filters}
+          onChange={setFilters}
+          accents={accents}
+          categories={categories}
+        />
 
         {provider === 'edge' && (
           <p className="font-body text-xs text-muted-foreground">
