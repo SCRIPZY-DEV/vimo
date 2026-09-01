@@ -9,6 +9,7 @@ import { ImageProviderSection } from '@/modules/videos/components/ImageProviderS
 import { NarrationSection } from '@/modules/videos/components/NarrationSection'
 import { SoundtrackSection } from '@/modules/videos/components/SoundtrackSection'
 import { StyleGallery } from '@/modules/videos/components/StyleGallery'
+import { VideoFormatSection } from '@/modules/videos/components/VideoFormatSection'
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
 import { MAX_SCENE_COUNT, PROJECT_NAME_LIMIT } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
@@ -92,6 +93,12 @@ export function CreateForm({
           </p>
         </div>
       </div>
+
+      <VideoFormatSection
+        value={value}
+        disabled={disabled}
+        onChange={onChange}
+      />
 
       <ImageProviderSection
         value={value}
