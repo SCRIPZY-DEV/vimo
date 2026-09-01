@@ -5,7 +5,8 @@ antes de tocar código.
 
 Este documento es de referencia: describe la forma del sistema. Las **reglas** para
 escribir código están en [CLAUDE.md](../CLAUDE.md), y las **decisiones** con su
-justificación en [docs/adr/](adr/).
+justificación en [docs/adr/](adr/). La misma forma del sistema, dibujada en
+diagramas, está en [docs/diagrams/](diagrams/).
 
 > [!IMPORTANT]
 > **Cambio de dirección (2026-08-13,
