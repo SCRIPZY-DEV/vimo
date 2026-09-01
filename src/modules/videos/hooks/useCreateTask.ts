@@ -3,10 +3,13 @@ import i18next from 'i18next'
 import { toast } from '@/modules/common/hooks/useToast'
 import { videosApi } from '@/modules/videos/api'
 import {
+  AUTO_RETRY_DELAY_SECONDS,
+  AUTO_RETRY_MAX_ATTEMPTS,
   CREATE_ERROR_MESSAGE_KEYS,
   CREATE_TASK_STORAGE_KEY,
   INTERRUPTED_ERROR_KEY,
   LOG_LINES_LIMIT,
+  RETRYABLE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
@@ -60,12 +63,15 @@ function restoreTask(): CreateTask | null {
     if (!raw) return null
 
     const stored = JSON.parse(raw) as CreateTask
-    // Tareas persistidas antes del cronómetro con pausa: defaults.
+    // Tareas persistidas antes del cronómetro con pausa: defaults. El
+    // reintento automático nunca sobrevive un reinicio (su timer murió).
     const task: CreateTask = {
       ...stored,
       pausedAt: stored.pausedAt ?? null,
       pausedMs: stored.pausedMs ?? 0,
       finishedAt: stored.finishedAt ?? null,
+      retry: null,
+      retryAttempts: stored.retryAttempts ?? 0,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -93,6 +99,60 @@ function newTaskId(): string {
 function stopActiveJob() {
   activeJob?.stop()
   activeJob = null
+}
+
+// ── Reintento automático ante fallos transitorios (port del origen) ──
+
+let retryTimer: ReturnType<typeof setInterval> | null = null
+
+function stopRetryTimer() {
+  if (retryTimer !== null) clearInterval(retryTimer)
+  retryTimer = null
+}
+
+// Cuenta regresiva visible; al llegar a 0 relanza el job (las fases hechas
+// son cache-hit). El timer muere con la app: al restaurar, la tarea vuelve
+// como error interrumpido normal.
+function startAutoRetry(taskId: string, projectId: string, errorKey: string) {
+  const task = currentTask
+  if (!task || task.id !== taskId) return
+
+  const attempt = task.retryAttempts + 1
+  stopRetryTimer()
+  patchTask(taskId, {
+    status: 'generating',
+    jobId: null,
+    stage: null,
+    errorKey,
+    retry: {
+      attempt,
+      maxAttempts: AUTO_RETRY_MAX_ATTEMPTS,
+      secondsLeft: AUTO_RETRY_DELAY_SECONDS,
+    },
+    retryAttempts: attempt,
+  })
+
+  retryTimer = setInterval(() => {
+    const current = currentTask
+    if (!current || current.id !== taskId || !current.retry) {
+      stopRetryTimer()
+      return
+    }
+    const secondsLeft = current.retry.secondsLeft - 1
+    if (secondsLeft > 0) {
+      patchTask(taskId, { retry: { ...current.retry, secondsLeft } })
+      return
+    }
+    stopRetryTimer()
+    patchTask(taskId, { retry: null })
+    void runPipeline(taskId, projectId)
+  }, 1000)
+}
+
+// Cancela la cuenta regresiva y deja el fallo como error normal.
+function cancelAutoRetry(taskId: string) {
+  stopRetryTimer()
+  patchTask(taskId, { status: 'error', retry: null })
 }
 
 function errorKeyFor(code: string): string {
@@ -217,13 +277,23 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         stage: null,
         videoPath: result?.videoPath ?? null,
         finishedAt: Date.now(),
+        retryAttempts: 0,
       })
       scheduleCreditsRefresh()
       return
     }
 
-    case 'job-failed':
+    case 'job-failed': {
       stopActiveJob()
+      // Fallo transitorio con reintentos disponibles → cuenta regresiva y
+      // relanzamiento automático en vez de tarjeta de error.
+      if (
+        RETRYABLE_ERROR_CODES.has(event.code) &&
+        task.retryAttempts < AUTO_RETRY_MAX_ATTEMPTS
+      ) {
+        startAutoRetry(taskId, task.projectId, errorKeyFor(event.code))
+        return
+      }
       patchTask(taskId, {
         status: 'error',
         jobId: null,
@@ -231,6 +301,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         errorKey: errorKeyFor(event.code),
       })
       return
+    }
 
     default:
       return
@@ -289,6 +360,8 @@ function makeTask(
     pausedAt: null,
     pausedMs: 0,
     finishedAt: null,
+    retry: null,
+    retryAttempts: 0,
   }
 }
 
@@ -458,13 +531,20 @@ async function resume(): Promise<void> {
 
 function cancel() {
   const task = currentTask
-  if (!task?.jobId) return
+  if (!task) return
+  // Durante la cuenta regresiva no hay job: cancelar corta el reintento.
+  if (task.retry) {
+    cancelAutoRetry(task.id)
+    return
+  }
+  if (!task.jobId) return
   void videosApi.cancelJob(task.jobId)
 }
 
 function discardTask() {
   if (currentTask?.jobId) void videosApi.cancelJob(currentTask.jobId)
   stopActiveJob()
+  stopRetryTimer()
   setTask(null)
 }
 
