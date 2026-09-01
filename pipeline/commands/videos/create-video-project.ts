@@ -109,6 +109,17 @@ function validatePayload(
       'invalid_payload',
       'options.autoRender must be a boolean',
     )
+  // Whitelist estricta (espejo del origen): cualquier otro valor es un
+  // payload inválido, no un fallback silencioso a 16:9.
+  if (
+    options.videoFormat !== undefined &&
+    options.videoFormat !== '16:9' &&
+    options.videoFormat !== '9:16'
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.videoFormat must be 16:9 or 9:16',
+    )
 
   const sceneCount = options.sceneCount
   if (
