@@ -14,6 +14,7 @@ import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { RenderScene } from '../../stages/render/chunk-renderer.ts'
 import { renderSceneClips } from '../../stages/render/scene-clips.ts'
+import { frameSizeFor, videoFormatOf } from '../../types/video-format.ts'
 import type {
   ExportClipsPayload,
   ExportClipsResult,
@@ -39,7 +40,9 @@ export async function exportClips(
     payload.projectId,
   )
   const paths = resolveProjectPaths(projectDir, payload.projectId)
-  await readProjectMetadata(paths)
+  const metadata = await readProjectMetadata(paths)
+  // Los clips salen con el frame del proyecto (16:9 sin campo, como siempre).
+  const frame = frameSizeFor(videoFormatOf(metadata.options))
   const ffmpegPath = requireFfmpegPath(context.job.binaryPaths.ffmpeg)
 
   const scenes = await readScenes(paths)
@@ -84,6 +87,7 @@ export async function exportClips(
     ffmpegPath,
     renderScenes,
     paths.clipsDirectory,
+    frame,
     {
       signal: context.signal,
       onProgress(fraction) {
