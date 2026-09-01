@@ -148,6 +148,17 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
           message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
           onRetry={() => void resume()}
           onDiscard={discardTask}
+          // Con las escenas ya persistidas (prompts hechos), el editor puede
+          // seguir: regenerar lo que falte y renderizar desde ahí.
+          onContinueInEditor={
+            task.completedStages.includes('scene-prompts')
+              ? () => {
+                  const projectId = task.projectId
+                  discardTask()
+                  navigate(libraryEditorPath(projectId))
+                }
+              : undefined
+          }
         />
       )}
 
