@@ -7,6 +7,7 @@ import { Textarea } from '@/modules/common/ui/textarea'
 import { ImageCreditsSummary } from '@/modules/videos/components/ImageCreditsSummary'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
 import type { SceneImageChoice } from '@/modules/videos/types/library'
+import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
 import { priceForQuality } from '@/modules/videos/utilities/imageQuality'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
@@ -20,6 +21,7 @@ interface EditorScenePanelProps {
   scene: SceneDetail | null
   characters: ProjectCharacter[]
   imageChoice: SceneImageChoice
+  videoFormat: VideoFormat
   credits: ImageCreditsResult | null
   busy: boolean
   userPromptDirty: boolean
@@ -39,6 +41,7 @@ export function EditorScenePanel({
   scene,
   characters,
   imageChoice,
+  videoFormat,
   credits,
   busy,
   userPromptDirty,
@@ -105,6 +108,7 @@ export function EditorScenePanel({
 
       <SceneQualityPicker
         value={imageChoice}
+        videoFormat={videoFormat}
         disabled={busy}
         onChange={onImageChoiceChange}
       />
