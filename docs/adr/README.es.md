@@ -45,6 +45,10 @@ agrega ruido.
 
 | ADR                                                                        | Título                                                                    | Estado                   | Área                          |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0019](ADR-0019-carril-verbatim-y-segundos-por-escena.md)              | Carril verbatim y segundos por escena de los estilos propios              | Aceptada                 | pipeline / app                |
+| [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md)               | Estilos visuales propios («Mi estilo»), fase básica                       | Aceptada                 | pipeline / app                |
+| [ADR-0017](ADR-0017-formato-de-video-16-9-y-9-16.md)                       | Formato de video 16:9 / 9:16 de punta a punta                             | Aceptada                 | pipeline / app                |
+| [ADR-0016](ADR-0016-adopcion-del-rediseno-de-vimo-dev-por-ramas.md)        | Adopción del rediseño de vimo_dev por ramas                               | Aceptada                 | proceso                       |
 | [ADR-0015](ADR-0015-fal-solo-gpt-image-2.md)                               | Fal genera solo con gpt-image-2: retiro de Flux                           | Aceptada                 | providers                     |
 | [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md)          | Create: runner de stages, confirmación de escenas y binarios empaquetados | Aceptada                 | pipeline / app / distribución |
 | [ADR-0012](ADR-0012-primitivas-del-runner-y-contratos-cerrados.md)         | Primitivas del runner y contratos cerrados en el pipeline                 | Propuesta                | pipeline                      |
