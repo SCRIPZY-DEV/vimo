@@ -2,6 +2,7 @@ import { createInterface, type Interface } from 'node:readline'
 
 import { charactersSubcommands } from './commands/characters/subcommands.ts'
 import { musicSubcommands } from './commands/music/subcommands.ts'
+import { stylesSubcommands } from './commands/styles/subcommands.ts'
 import { videosSubcommands } from './commands/videos/subcommands.ts'
 import { voicesSubcommands } from './commands/voices/subcommands.ts'
 import { resolvePipelineConfig } from './config/pipeline-config.ts'
@@ -25,6 +26,7 @@ const SUBCOMMANDS: Record<string, SubcommandHandler> = {
   ...musicSubcommands,
   ...voicesSubcommands,
   ...charactersSubcommands,
+  ...stylesSubcommands,
   ...videosSubcommands,
 }
 

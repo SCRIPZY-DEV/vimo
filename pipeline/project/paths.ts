@@ -17,7 +17,11 @@ import { PipelineFailure } from '../runner/failure.ts'
 
 // Carpetas bajo <projectsRoot> que NO son proyectos: un proyecto no puede
 // llamarse así (el slug colisionaría con la biblioteca o el historial).
-export const RESERVED_ROOT_DIRECTORIES = new Set(['characters', '_history'])
+export const RESERVED_ROOT_DIRECTORIES = new Set([
+  'characters',
+  '_history',
+  '_styles',
+])
 
 const PROJECT_ID_PATTERN = /^[a-z0-9-]+$/
 

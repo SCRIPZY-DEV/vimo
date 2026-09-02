@@ -290,7 +290,8 @@
       "audioRequired": "Elegí el archivo de audio con tu narración.",
       "bgmUrlRequired": "Pegá el link de YouTube de la música.",
       "bgmPromptRequired": "Describí cómo querés que suene la música.",
-      "overlayUrlRequired": "Pegá el link de YouTube de la textura."
+      "overlayUrlRequired": "Pegá el link de YouTube de la textura.",
+      "styleRequired": "Elegí (o creá) un estilo propio para generar."
     },
     "errors": {
       "discard": "Descartar",
@@ -359,7 +360,10 @@
       "sidecar": "No pudimos arrancar el motor de Vimo. Reiniciá la app.",
       "interrupted": "La generación se interrumpió al cerrar la app. Reanudá: lo hecho se conserva.",
       "unknown": "Algo salió mal. Volvé a intentar.",
-      "continueInEditor": "Continuar en el editor"
+      "continueInEditor": "Continuar en el editor",
+      "styleNotFound": "Ese estilo ya no existe en tu galería.",
+      "styleSaveFailed": "No se pudo guardar el estilo.",
+      "styleSamplesFailed": "No se pudo generar ninguna muestra. Probá de nuevo."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -391,6 +395,35 @@
       "shortTitle": "Short",
       "shortDetail": "9:16 · vertical",
       "hint": "Las imágenes se generan con esta forma, así que el video sale completo — sin bandas negras ni recortes."
+    },
+    "styleSource": {
+      "catalog": "Catálogo",
+      "catalogHint": "Los 5 estilos de Vimo.",
+      "custom": "Mi estilo",
+      "customHint": "Tu propio estilo visual."
+    },
+    "customStyles": {
+      "createCard": "Crear estilo",
+      "createTitle": "Crear estilo visual",
+      "editTitle": "Editar estilo visual",
+      "nameLabel": "Nombre del estilo",
+      "namePlaceholder": "Ej.: Acuarela nocturna",
+      "promptLabel": "El estilo (system prompt)",
+      "promptPlaceholder": "Escribí OBLIGACIONES, no permisos: qué técnica, qué paleta, qué iluminación tiene SIEMPRE cada imagen…",
+      "shotsLabel": "Planos permitidos (separados por coma)",
+      "shotsPlaceholder": "Wide shot, Close-up…",
+      "recommendedShots": "Planos recomendados",
+      "samplesTitle": "Muestras del estilo",
+      "generateSamples": "Generar 4 muestras",
+      "writingPrompts": "Escribiendo los prompts…",
+      "generatingImages": "Generando imágenes…",
+      "sampleLabel": "Muestra {{id}}",
+      "noSamples": "Sin muestras todavía. Generalas desde editar.",
+      "charsCount": "{{chars}} caracteres",
+      "edit": "Ver y editar",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Eliminar el estilo «{{name}}»? Los videos que lo usaron no se ven afectados.",
+      "save": "Listo"
     }
   },
   "library": {

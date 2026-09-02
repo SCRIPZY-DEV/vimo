@@ -16,6 +16,13 @@ import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
 import type {
+  GenerateStyleSamplesPayload,
+  StyleDeletePayload,
+  StyleSavePayload,
+  StyleSaveResult,
+  StylesListResult,
+} from '@pipeline/types/styles.ts'
+import type {
   MusicGenerationParams,
   SuggestMusicPromptResult,
 } from '@pipeline/types/music.ts'
@@ -162,6 +169,21 @@ export const videosApi = {
   },
   async openFolder(path: string): Promise<void> {
     return openPath(path)
+  },
+  async listCustomStyles(): Promise<StylesListResult> {
+    return runPipelineJob('styles-list')
+  },
+  async saveCustomStyle(payload: StyleSavePayload): Promise<StyleSaveResult> {
+    return runPipelineJob('style-save', payload)
+  },
+  async deleteCustomStyle(payload: StyleDeletePayload): Promise<void> {
+    await runPipelineJob('style-delete', payload)
+  },
+  async generateStyleSamples(
+    payload: GenerateStyleSamplesPayload,
+    onEvent: (event: PipelineEventPayload) => void,
+  ): Promise<PipelineJobHandle> {
+    return startPipelineJob('generate-style-samples', payload, onEvent)
   },
   async cancelJob(jobId: string): Promise<void> {
     return invoke('cancel_pipeline_job', { jobId })

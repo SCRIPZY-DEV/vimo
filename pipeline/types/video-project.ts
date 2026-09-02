@@ -34,11 +34,26 @@ export interface ProjectCharacter {
   isProtagonist?: boolean
 }
 
+// Estilo propio del proyecto, INLINE como snapshot (filosofía E20 de los
+// personajes: el proyecto es autocontenido) — editar o borrar la gema en la
+// galería jamás rompe una regeneración desde Library. `styleId` acá es el id
+// de galería, solo diagnóstico; `options.styleId` sigue siendo un
+// CharacterStyleId válido ('normal' cuando hay customStyle).
+export interface ProjectCustomStyle {
+  styleId: string
+  name: string
+  systemPrompt: string
+  shots?: string[]
+}
+
 // Opciones del proyecto (port con whitelist de OpcionesProyecto: solo lo que
 // el pipeline nuevo consume). Se persisten en project.json y las stages las
 // leen del contexto — nada llega por entorno (ADR-0010).
 export interface VideoProjectOptions {
   styleId: CharacterStyleId
+  // Presente = el proyecto usa un estilo propio; el resolver lo prefiere
+  // sobre styleId (pipeline/stages/shared/project-style.ts).
+  customStyle?: ProjectCustomStyle
   // 0 = automática (≈ una escena cada 3 segundos de audio).
   sceneCount: number
   narrationMode: NarrationMode

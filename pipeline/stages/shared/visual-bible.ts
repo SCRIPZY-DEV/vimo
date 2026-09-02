@@ -3,7 +3,7 @@ import {
   buildVisualBibleSystemPrompt,
   buildVisualBibleUserPrompt,
 } from '../../prompts/visual-bible.ts'
-import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
+import { resolveProjectStyle } from './project-style.ts'
 import { isValidFile } from '../../project/paths.ts'
 import { readTextWithRetry, writeFileAtomic } from '../../utils/atomic-fs.ts'
 import {
@@ -46,7 +46,7 @@ export async function loadOrGenerateVisualBible(
     })
 
     const llm = createSceneLlm(context)
-    const style = VISUAL_STYLES[context.options.styleId]
+    const style = resolveProjectStyle(context.options)
     const referenceCharacters = (context.options.characters ?? [])
       .filter((character) => character.name?.trim())
       .map((character) => ({

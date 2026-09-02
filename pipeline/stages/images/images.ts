@@ -1,6 +1,7 @@
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import { buildCharactersBibleBlock } from '../../prompts/reference-characters.ts'
 import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
+import { resolveProjectStyle } from '../shared/project-style.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
 import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import { readScenes, writeScenesOwned } from '../../project/scenes-file.ts'
@@ -86,7 +87,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     const script = (await isValidFile(context.paths.scriptFile))
       ? await readTextWithRetry(context.paths.scriptFile)
       : ''
-    const style = VISUAL_STYLES[context.options.styleId]
+    const style = resolveProjectStyle(context.options)
     const characters = await loadPipelineCharacters(
       context.paths,
       context.options.characters,

@@ -5,10 +5,12 @@ import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { CharacterSection } from '@/modules/videos/components/CharacterSection'
+import { CustomStyleGallery } from '@/modules/videos/components/CustomStyleGallery'
 import { ImageProviderSection } from '@/modules/videos/components/ImageProviderSection'
 import { NarrationSection } from '@/modules/videos/components/NarrationSection'
 import { SoundtrackSection } from '@/modules/videos/components/SoundtrackSection'
 import { StyleGallery } from '@/modules/videos/components/StyleGallery'
+import { StyleSourceTabs } from '@/modules/videos/components/StyleSourceTabs'
 import { VideoFormatSection } from '@/modules/videos/components/VideoFormatSection'
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
 import { MAX_SCENE_COUNT, PROJECT_NAME_LIMIT } from '@/modules/videos/constants'
@@ -66,11 +68,26 @@ export function CreateForm({
         onPickAudio={onPickAudio}
       />
 
-      <StyleGallery
-        value={value.styleId}
-        disabled={disabled}
-        onChange={(styleId) => onChange({ styleId })}
-      />
+      <div className="space-y-3">
+        <StyleSourceTabs
+          value={value.styleSource}
+          disabled={disabled}
+          onChange={(styleSource) => onChange({ styleSource })}
+        />
+        {value.styleSource === 'catalog' ? (
+          <StyleGallery
+            value={value.styleId}
+            disabled={disabled}
+            onChange={(styleId) => onChange({ styleId })}
+          />
+        ) : (
+          <CustomStyleGallery
+            selected={value.customStyle}
+            disabled={disabled}
+            onSelect={(customStyle) => onChange({ customStyle })}
+          />
+        )}
+      </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1.5">

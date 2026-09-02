@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
-
-const CAROUSEL_INTERVAL_MS = 1200
+import { useSampleCarousel } from '@/modules/videos/hooks/useSampleCarousel'
 
 interface StyleCardProps {
   images: string[]
@@ -25,23 +23,7 @@ export function StyleCard({
   onSelect,
 }: StyleCardProps) {
   const { t } = useTranslation()
-  const [imageIndex, setImageIndex] = useState(0)
-  const [active, setActive] = useState(false)
-
-  // Al salir (mouse o foco) el carrusel vuelve a la muestra #1.
-  const deactivate = () => {
-    setActive(false)
-    setImageIndex(0)
-  }
-
-  useEffect(() => {
-    if (!active || images.length <= 1) return
-    const timer = setInterval(
-      () => setImageIndex((index) => (index + 1) % images.length),
-      CAROUSEL_INTERVAL_MS,
-    )
-    return () => clearInterval(timer)
-  }, [active, images.length])
+  const carousel = useSampleCarousel(images.length)
 
   return (
     <div
@@ -55,10 +37,10 @@ export function StyleCard({
           onSelect()
         }
       }}
-      onMouseEnter={() => setActive(true)}
-      onMouseLeave={deactivate}
-      onFocus={() => setActive(true)}
-      onBlur={deactivate}
+      onMouseEnter={carousel.activate}
+      onMouseLeave={carousel.deactivate}
+      onFocus={carousel.activate}
+      onBlur={carousel.deactivate}
       className={cn(
         'group overflow-hidden rounded-2xl border-2 bg-card transition-all',
         !disabled &&
@@ -69,7 +51,7 @@ export function StyleCard({
       )}
     >
       <div className="relative aspect-video bg-muted">
-        {/* Imágenes apiladas con crossfade — solo la #imageIndex visible. */}
+        {/* Imágenes apiladas con crossfade — solo la activa visible. */}
         {images.map((source, index) => (
           <img
             key={source}
@@ -78,7 +60,7 @@ export function StyleCard({
             loading="lazy"
             className={cn(
               'absolute inset-0 h-full w-full object-cover transition-opacity duration-500',
-              index === imageIndex ? 'opacity-100' : 'opacity-0',
+              index === carousel.index ? 'opacity-100' : 'opacity-0',
             )}
           />
         ))}
@@ -91,7 +73,9 @@ export function StyleCard({
                 key={source}
                 className={cn(
                   'h-1.5 rounded-full shadow transition-all duration-300',
-                  index === imageIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/60',
+                  index === carousel.index
+                    ? 'w-4 bg-white'
+                    : 'w-1.5 bg-white/60',
                 )}
               />
             ))}

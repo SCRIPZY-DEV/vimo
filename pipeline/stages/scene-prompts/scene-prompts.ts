@@ -1,6 +1,6 @@
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import { buildCharactersBibleBlock } from '../../prompts/reference-characters.ts'
-import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
+import { resolveProjectStyle } from '../shared/project-style.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
 import { isValidFile } from '../../project/paths.ts'
 import {
@@ -78,7 +78,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       characters.length,
     )
 
-    const style = VISUAL_STYLES[context.options.styleId]
+    const style = resolveProjectStyle(context.options)
     const imageTextLanguage = detectScriptLanguage(script)
 
     // Director de escenas: UNA pasada que planifica el video. Idempotente:
