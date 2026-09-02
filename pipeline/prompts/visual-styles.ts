@@ -33,7 +33,11 @@ export interface VisualStyleTemplate {
 }
 
 export interface VisualStyle {
-  id: CharacterStyleId
+  // `string` (no CharacterStyleId): un estilo propio resuelve con id
+  // 'custom' — no fotorrealista y sin vetos de tratamiento, el neutro
+  // correcto para prompt-safety y el director. El record VISUAL_STYLES y
+  // isCharacterStyleId siguen cerrados al catálogo.
+  id: string
   // Nombre de display del estilo (port de `nombre` del origen). El system
   // prompt de la biblia visual lo interpola verbatim ("${style.name}" art
   // style), por eso vive acá y no solo en la UI.
