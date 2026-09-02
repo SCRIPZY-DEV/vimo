@@ -290,7 +290,8 @@
       "audioRequired": "Choose the audio file with your narration.",
       "bgmUrlRequired": "Paste the YouTube link for the music.",
       "bgmPromptRequired": "Describe how you want the music to sound.",
-      "overlayUrlRequired": "Paste the YouTube link for the texture."
+      "overlayUrlRequired": "Paste the YouTube link for the texture.",
+      "styleRequired": "Pick (or create) a custom style to generate."
     },
     "errors": {
       "discard": "Discard",
@@ -359,7 +360,10 @@
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
       "interrupted": "The generation was interrupted when the app closed. Resume: everything done is kept.",
       "unknown": "Something went wrong. Try again.",
-      "continueInEditor": "Continue in the editor"
+      "continueInEditor": "Continue in the editor",
+      "styleNotFound": "That style no longer exists in your gallery.",
+      "styleSaveFailed": "The style couldn't be saved.",
+      "styleSamplesFailed": "No sample could be generated. Try again."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -391,6 +395,35 @@
       "shortTitle": "Short",
       "shortDetail": "9:16 · vertical",
       "hint": "Images are generated in this shape, so the video comes out whole — no black bars or cropping."
+    },
+    "styleSource": {
+      "catalog": "Catalog",
+      "catalogHint": "Vimo's 5 styles.",
+      "custom": "My style",
+      "customHint": "Your own visual style."
+    },
+    "customStyles": {
+      "createCard": "Create style",
+      "createTitle": "Create visual style",
+      "editTitle": "Edit visual style",
+      "nameLabel": "Style name",
+      "namePlaceholder": "E.g.: Night watercolor",
+      "promptLabel": "The style (system prompt)",
+      "promptPlaceholder": "Write OBLIGATIONS, not permissions: which technique, palette and lighting EVERY image always has…",
+      "shotsLabel": "Allowed shots (comma separated)",
+      "shotsPlaceholder": "Wide shot, Close-up…",
+      "recommendedShots": "Recommended shots",
+      "samplesTitle": "Style samples",
+      "generateSamples": "Generate 4 samples",
+      "writingPrompts": "Writing the prompts…",
+      "generatingImages": "Generating images…",
+      "sampleLabel": "Sample {{id}}",
+      "noSamples": "No samples yet. Generate them from edit.",
+      "charsCount": "{{chars}} characters",
+      "edit": "View and edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete the style \"{{name}}\"? Videos that used it are not affected.",
+      "save": "Done"
     }
   },
   "library": {
