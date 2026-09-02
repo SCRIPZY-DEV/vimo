@@ -11,6 +11,11 @@ import type { Stage } from '../../runner/stage.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 import type { CreateVideoContext } from '../context.ts'
+import {
+  clampSecondsPerScene,
+  cutScenesBySeconds,
+  DEFAULT_SECONDS_PER_SCENE,
+} from './by-seconds.ts'
 
 // Fase 3: cortes de escena uniformes por TIEMPO (no por texto: el pipeline
 // invertido del origen — voz primero — es lo que mantiene la sincronización
@@ -20,7 +25,23 @@ import type { CreateVideoContext } from '../context.ts'
 const AUTO_SECONDS_PER_SCENE = 3
 
 interface ConfirmedScenes {
-  sceneCount: number
+  sceneCount?: number
+  secondsPerScene?: number
+}
+
+// Carril de SEGUNDOS-POR-ESCENA (estilo propio): entra solo cuando el
+// proyecto lo pide (options.secondsPerScene) o cuando la confirmación llegó
+// en segundos — un proyecto custom previo sin el campo sigue cortando
+// clásico, byte-idéntico.
+function isSecondsLane(
+  context: CreateVideoContext,
+  confirmed: ConfirmedScenes | null,
+): boolean {
+  if (!context.options.customStyle) return false
+  return (
+    context.options.secondsPerScene !== undefined ||
+    confirmed?.secondsPerScene !== undefined
+  )
 }
 
 export const sceneCutsStage: Stage<CreateVideoContext> = {
@@ -36,6 +57,10 @@ export const sceneCutsStage: Stage<CreateVideoContext> = {
 
     const scenes = await readScenes(context.paths)
     if (!scenes) return false
+
+    // Carril de segundos: el conteo objetivo sale de cortar (depende de las
+    // palabras) — la fase corre siempre y reusa su cache adentro.
+    if (isSecondsLane(context, await readConfirmedCut(context))) return false
 
     const targetCount = await resolveTargetSceneCount(context)
     if (targetCount === null) return false
@@ -62,14 +87,22 @@ export const sceneCutsStage: Stage<CreateVideoContext> = {
       if (script) await writeFile(context.paths.scriptFile, script, 'utf8')
     }
 
-    const baseCount =
-      context.options.sceneCount > 0
+    const confirmed = await readConfirmedCut(context)
+    const secondsLane = isSecondsLane(context, confirmed)
+    const baseSeconds = clampSecondsPerScene(
+      context.options.secondsPerScene ?? DEFAULT_SECONDS_PER_SCENE,
+    )
+
+    const baseCount = secondsLane
+      ? cutScenesBySeconds(words, baseSeconds, audioDurationSeconds).length
+      : context.options.sceneCount > 0
         ? context.options.sceneCount
         : Math.max(1, Math.round(audioDurationSeconds / AUTO_SECONDS_PER_SCENE))
 
     // Punto de pausa: sin confirmación en disco, el job termina LIMPIO acá.
     // confirm-scenes escribe el archivo y la UI relanza el pipeline (las
-    // fases 1-2 serán cache-hit).
+    // fases 1-2 serán cache-hit). En el carril de segundos el evento lleva
+    // el valor vigente: el diálogo pasa a modo slider.
     if (
       context.options.confirmScenes &&
       !(await isValidFile(context.paths.scenesConfirmedFile))
@@ -79,23 +112,47 @@ export const sceneCutsStage: Stage<CreateVideoContext> = {
         suggestedScenes: baseCount,
         audioDurationSeconds,
         wordCount: words.length,
+        ...(secondsLane ? { secondsPerScene: baseSeconds } : {}),
       })
       context.metadata.state = 'awaiting-confirmation'
       await context.saveMetadata()
       return { pause: true }
     }
 
-    const sceneCount = (await readConfirmedSceneCount(context)) ?? baseCount
-
-    // Cache de la fase: un corte previo con la misma cantidad y timestamps
-    // completos se reusa (conserva prompts/dirección ya generados).
+    let scenes: Scene[]
+    let reusable: boolean
     const previous = await readScenes(context.paths)
-    const reusable =
-      previous !== null &&
-      previous.length === sceneCount &&
-      previous.every((scene) => scene.startSeconds !== undefined)
+    if (secondsLane) {
+      // Red de seguridad (v1.31.1 del origen): una confirmación por CONTEO
+      // en el carril de segundos se traduce a los segundos equivalentes —
+      // nunca se mezclan los dos cortes en un mismo proyecto.
+      const seconds =
+        confirmed?.secondsPerScene !== undefined
+          ? clampSecondsPerScene(confirmed.secondsPerScene)
+          : confirmed?.sceneCount
+            ? clampSecondsPerScene(
+                Math.round(audioDurationSeconds / confirmed.sceneCount),
+              )
+            : baseSeconds
+      const fresh = cutScenesBySeconds(words, seconds, audioDurationSeconds)
+      // Cache de la fase: el corte es determinístico — mismo largo con
+      // timestamps completos = mismo corte (conserva prompts ya generados).
+      reusable =
+        previous !== null &&
+        previous.length === fresh.length &&
+        previous.every((scene) => scene.startSeconds !== undefined)
+      scenes = reusable ? previous! : fresh
+    } else {
+      const sceneCount = confirmed?.sceneCount ?? baseCount
 
-    const scenes = reusable ? previous : cutScenesByTime(words, sceneCount)
+      // Cache de la fase: un corte previo con la misma cantidad y timestamps
+      // completos se reusa (conserva prompts/dirección ya generados).
+      reusable =
+        previous !== null &&
+        previous.length === sceneCount &&
+        previous.every((scene) => scene.startSeconds !== undefined)
+      scenes = reusable ? previous! : cutScenesByTime(words, sceneCount)
+    }
     if (!reusable) await writeScenes(context.paths, scenes)
 
     context.emitter.emit({
@@ -143,23 +200,40 @@ async function resolveTargetSceneCount(
   return Math.max(1, Math.round(duration / AUTO_SECONDS_PER_SCENE))
 }
 
-async function readConfirmedSceneCount(
+async function readConfirmedCut(
   context: CreateVideoContext,
-): Promise<number | null> {
+): Promise<ConfirmedScenes | null> {
   if (!(await isValidFile(context.paths.scenesConfirmedFile))) return null
 
   try {
     const confirmed = JSON.parse(
       await readTextWithRetry(context.paths.scenesConfirmedFile),
     ) as ConfirmedScenes
-    if (Number.isInteger(confirmed.sceneCount) && confirmed.sceneCount > 0)
-      return confirmed.sceneCount
-    return null
+    const result: ConfirmedScenes = {}
+    if (
+      Number.isInteger(confirmed.sceneCount) &&
+      (confirmed.sceneCount ?? 0) > 0
+    )
+      result.sceneCount = confirmed.sceneCount
+    if (
+      Number.isInteger(confirmed.secondsPerScene) &&
+      (confirmed.secondsPerScene ?? 0) > 0
+    )
+      result.secondsPerScene = confirmed.secondsPerScene
+    if (result.sceneCount === undefined && result.secondsPerScene === undefined)
+      return null
+    return result
   } catch {
     // Archivo corrupto: se cae al cálculo automático (mismo criterio que el
     // origen — el usuario puede re-confirmar si quiere).
     return null
   }
+}
+
+async function readConfirmedSceneCount(
+  context: CreateVideoContext,
+): Promise<number | null> {
+  return (await readConfirmedCut(context))?.sceneCount ?? null
 }
 
 // Corte uniforme: ventana [i·T, (i+1)·T). La ÚLTIMA escena no tiene tope
