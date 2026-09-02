@@ -77,6 +77,11 @@ export interface VideoProjectOptions {
   // Pausar tras los cortes para que el usuario confirme la cantidad de
   // escenas (evento awaiting-scene-confirmation, ADR-0013).
   confirmScenes: boolean
+  // Carril de segundos-por-escena (solo con customStyle): la duración de
+  // cada escena en segundos [2..15] y el número sale del audio — al revés
+  // del corte clásico. Ausente = 3 en el carril; sin customStyle se ignora
+  // (los cortes clásicos siguen byte-idénticos).
+  secondsPerScene?: number
   characters?: ProjectCharacter[]
   characterFrequency?: CharacterFrequency
   // Mezcla final del render; defaults 1.0 (voz) y 0.15 (música).
@@ -170,7 +175,24 @@ export interface RunVideoPipelineResult {
 
 export interface ConfirmScenesPayload {
   projectId: string
+  // Exactamente uno de los dos: el conteo clásico, o los segundos del carril
+  // de estilo propio (una confirmación por conteo en ese carril se traduce a
+  // segundos equivalentes — red de seguridad v1.31.1 del origen).
+  sceneCount?: number
+  secondsPerScene?: number
+}
+
+export interface PreviewSceneCutsPayload {
+  projectId: string
+  secondsPerScene: number
+}
+
+// Vista previa del corte por segundos: función pura sobre words.json — la
+// MISMA implementación que después corta, así la vista previa no puede
+// mentir.
+export interface PreviewSceneCutsResult {
   sceneCount: number
+  audioDurationSeconds: number
 }
 
 export interface ProbeTtsPayload {
