@@ -11,6 +11,10 @@ import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
+import type {
+  SelectedCustomStyle,
+  StyleSource,
+} from '@/modules/videos/types/styles'
 import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
 
 export type CreateTaskStatus =
@@ -112,6 +116,10 @@ export interface CreateFormValue {
   // Ruta del audio elegido con el dialog nativo (modo own-audio).
   narrationFilePath: string | null
   styleId: CharacterStyleId
+  // Fuente del estilo: con 'custom', customStyle manda y styleId viaja como
+  // 'normal' (el contrato del pipeline lo sigue validando).
+  styleSource: StyleSource
+  customStyle: SelectedCustomStyle | null
   // 0 = cantidad automática.
   sceneCount: number
   imageProvider: ImageProviderId
