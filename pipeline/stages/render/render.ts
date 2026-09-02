@@ -1,7 +1,7 @@
 import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
+import { resolveProjectStyle } from '../shared/project-style.ts'
 import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import { readScenes } from '../../project/scenes-file.ts'
 import type { RenderPhase } from '../../runner/events.ts'
@@ -132,7 +132,7 @@ export const renderStage: Stage<CreateVideoContext> = {
 
     // 3. Mezcla final: audio + (overlay) + color del estilo.
     const options = context.options
-    const style = VISUAL_STYLES[options.styleId]
+    const style = resolveProjectStyle(options)
     const musicFile =
       options.useBgm && (await isValidFile(context.paths.musicFile))
         ? context.paths.musicFile
