@@ -11,8 +11,11 @@ import type {
 export function createProjectPayload(
   form: CreateFormValue,
 ): CreateVideoProjectPayload {
+  // Con estilo propio, styleId viaja como 'normal' (sigue siendo un id de
+  // catálogo válido para el contrato) y el snapshot va en customStyle.
+  const usesCustomStyle = form.styleSource === 'custom' && form.customStyle
   const options: VideoProjectOptions = {
-    styleId: form.styleId,
+    styleId: usesCustomStyle ? 'normal' : form.styleId,
     sceneCount: form.sceneCount,
     narrationMode: form.narrationMode,
     imageProvider: form.imageProvider,
@@ -22,6 +25,15 @@ export function createProjectPayload(
     confirmScenes: form.confirmScenes,
     autoRender: form.autoRender,
     videoFormat: form.videoFormat,
+  }
+
+  if (usesCustomStyle && form.customStyle) {
+    options.customStyle = {
+      styleId: form.customStyle.styleId,
+      name: form.customStyle.name,
+      systemPrompt: form.customStyle.systemPrompt,
+      shots: form.customStyle.shots,
+    }
   }
 
   if (form.narrationMode === 'tts' && form.voice) {
@@ -77,6 +89,11 @@ export function formBlockers(form: CreateFormValue): string[] {
   const blockers: string[] = []
 
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
+
+  // v1.35.0 del origen: la galería propia arranca vacía y sin tarjeta
+  // elegida no hay estilo con qué generar.
+  if (form.styleSource === 'custom' && !form.customStyle)
+    blockers.push('create.validation.styleRequired')
 
   if (form.narrationMode === 'tts') {
     if (!form.script.trim()) blockers.push('create.validation.scriptRequired')
