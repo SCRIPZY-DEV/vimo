@@ -16,6 +16,7 @@ import { decodeImageDataUri } from '../../providers/image/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
+import { MAX_SHOTS, SYSTEM_PROMPT_CHAR_LIMIT } from '../styles/style-store.ts'
 import type { CharacterStyleId } from '../../types/characters.ts'
 import type {
   CreateVideoProjectPayload,
@@ -120,6 +121,27 @@ function validatePayload(
       'invalid_payload',
       'options.videoFormat must be 16:9 or 9:16',
     )
+
+  // Estilo propio inline (snapshot): mismos límites que la galería. styleId
+  // se valida igual arriba — con customStyle la UI manda 'normal'.
+  const customStyle = options.customStyle
+  if (customStyle !== undefined) {
+    if (!customStyle.name?.trim() || !customStyle.systemPrompt?.trim())
+      throw new PipelineFailure(
+        'invalid_payload',
+        'options.customStyle needs name and systemPrompt',
+      )
+    if (customStyle.systemPrompt.length > SYSTEM_PROMPT_CHAR_LIMIT)
+      throw new PipelineFailure(
+        'invalid_payload',
+        `options.customStyle.systemPrompt exceeds ${SYSTEM_PROMPT_CHAR_LIMIT} characters`,
+      )
+    if ((customStyle.shots?.length ?? 0) > MAX_SHOTS)
+      throw new PipelineFailure(
+        'invalid_payload',
+        `options.customStyle allows at most ${MAX_SHOTS} shots`,
+      )
+  }
 
   const sceneCount = options.sceneCount
   if (
