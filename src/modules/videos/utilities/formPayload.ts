@@ -1,4 +1,5 @@
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
+import { readStoredSecondsPerScene } from '@/modules/videos/utilities/secondsPerSceneStorage'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type {
   CreateVideoProjectPayload,
@@ -34,6 +35,10 @@ export function createProjectPayload(
       systemPrompt: form.customStyle.systemPrompt,
       shots: form.customStyle.shots,
     }
+    // Carril de segundos-por-escena: el proyecto nace con el último valor
+    // elegido en el diálogo (o el default). El diálogo de confirmación lo
+    // ajusta con el slider; sin confirmación, este valor corta directo.
+    options.secondsPerScene = readStoredSecondsPerScene()
   }
 
   if (form.narrationMode === 'tts' && form.voice) {

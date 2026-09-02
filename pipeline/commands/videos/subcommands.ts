@@ -5,6 +5,7 @@ import { deleteVideoProjects } from './delete-video-projects.ts'
 import { exportClips } from './export-clips.ts'
 import { getImageCredits } from './get-image-credits.ts'
 import { listVideoProjects } from './list-video-projects.ts'
+import { previewSceneCuts } from './preview-scene-cuts.ts'
 import { probeTts } from './probe-tts.ts'
 import { regenerateSceneImages } from './regenerate-scene-images.ts'
 import { renderVideo } from './render-video.ts'
@@ -23,6 +24,7 @@ export const videosSubcommands: Record<string, SubcommandHandler> = {
   'run-video-pipeline': runVideoPipeline,
   'video-project-status': videoProjectStatus,
   'confirm-scenes': confirmScenes,
+  'preview-scene-cuts': previewSceneCuts,
   'probe-tts': probeTts,
   'list-video-projects': listVideoProjects,
   'delete-video-projects': deleteVideoProjects,

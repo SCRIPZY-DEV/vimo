@@ -32,6 +32,8 @@ import type {
 } from '@pipeline/types/voices.ts'
 import type {
   ConfirmScenesPayload,
+  PreviewSceneCutsPayload,
+  PreviewSceneCutsResult,
   CreateVideoProjectPayload,
   CreateVideoProjectResult,
   DeleteVideoProjectsResult,
@@ -85,6 +87,11 @@ export const videosApi = {
   },
   async confirmScenes(payload: ConfirmScenesPayload): Promise<void> {
     await runPipelineJob('confirm-scenes', payload)
+  },
+  async previewSceneCuts(
+    payload: PreviewSceneCutsPayload,
+  ): Promise<PreviewSceneCutsResult> {
+    return runPipelineJob<PreviewSceneCutsResult>('preview-scene-cuts', payload)
   },
   async probeTts(payload: ProbeTtsPayload): Promise<ProbeTtsResult> {
     return runPipelineJob<ProbeTtsResult>('probe-tts', payload)

@@ -20,6 +20,7 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
+import type { SceneCutChoice } from '@/modules/videos/types/create'
 
 // Progreso de un proyecto de la biblioteca. Con tarea viva del store muestra
 // el progreso real (mismos paneles que Create); sin ella, rehidrata desde
@@ -61,13 +62,8 @@ export function LibraryProgress() {
   const projectFormat = status?.metadata.options.videoFormat
   const resume = () =>
     void startPipelineForProject(projectId, projectName, projectFormat)
-  const confirmFromDisk = (sceneCount: number) => {
-    void confirmScenesForProject(
-      projectId,
-      projectName,
-      sceneCount,
-      projectFormat,
-    )
+  const confirmFromDisk = (choice: SceneCutChoice) => {
+    void confirmScenesForProject(projectId, projectName, choice, projectFormat)
   }
   const backToLibrary = () => void navigate(VideosRoutes.library)
 
@@ -96,7 +92,8 @@ export function LibraryProgress() {
         {ownTask.status === 'awaitingConfirmation' && ownTask.confirmation && (
           <ConfirmScenesDialog
             confirmation={ownTask.confirmation}
-            onConfirm={(sceneCount) => void confirmScenes(sceneCount)}
+            projectId={projectId}
+            onConfirm={(choice) => void confirmScenes(choice)}
             onCancel={backToLibrary}
           />
         )}
@@ -135,7 +132,14 @@ export function LibraryProgress() {
             suggestedScenes: metadata.sceneCount ?? status.scenes.length,
             audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
             wordCount: metadata.wordCount ?? 0,
+            // La pausa de un estilo propio con carril de segundos vuelve en
+            // modo slider también desde disco.
+            ...(metadata.options.customStyle &&
+            metadata.options.secondsPerScene !== undefined
+              ? { secondsPerScene: metadata.options.secondsPerScene }
+              : {}),
           }}
+          projectId={projectId}
           onConfirm={confirmFromDisk}
           onCancel={backToLibrary}
         />

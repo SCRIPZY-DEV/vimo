@@ -264,7 +264,14 @@
       "confirm": "Continuar",
       "duration": "Duração",
       "words": "Palavras",
-      "suggested": "Sugerido"
+      "suggested": "Sugerido",
+      "secondsDescription": "Com o seu estilo, você escolhe quanto dura cada cena e a quantidade sai do áudio.",
+      "secondsLabel": "Segundos por cena",
+      "secondsValue": "{{seconds}} s",
+      "secondsScenes_one": "Com essa duração sai {{count}} cena.",
+      "secondsScenes_other": "Com essa duração saem {{count}} cenas.",
+      "secondsHint": "O Vimo lembra esse valor para os seus próximos vídeos.",
+      "resulting": "Cenas"
     },
     "completed": {
       "subtitle": "Seu vídeo está pronto.",

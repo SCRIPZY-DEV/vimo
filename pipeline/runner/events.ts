@@ -123,6 +123,9 @@ export interface AwaitingSceneConfirmationEvent {
   suggestedScenes: number
   audioDurationSeconds: number
   wordCount: number
+  // Presente solo en el carril de segundos (estilo propio): el diálogo pasa
+  // a modo slider y `suggestedScenes` es el conteo que sale de ESTE valor.
+  secondsPerScene?: number
 }
 
 export interface JobCompletedEvent {

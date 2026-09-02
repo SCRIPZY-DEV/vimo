@@ -14,6 +14,10 @@ import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { ConfirmScenesPayload } from '../../types/video-project.ts'
 import { writeFileAtomic } from '../../utils/atomic-fs.ts'
+import {
+  MAX_SECONDS_PER_SCENE,
+  MIN_SECONDS_PER_SCENE,
+} from '../../stages/scene-cuts/by-seconds.ts'
 import { MAX_SCENE_COUNT } from './create-video-project.ts'
 
 // Confirma la cantidad de escenas de la pausa awaiting-scene-confirmation
@@ -28,15 +32,35 @@ export async function confirmScenes(context: PipelineContext): Promise<null> {
       'payload.projectId is required',
     )
 
+  // Exactamente UNO de los dos: el conteo clásico o los segundos del carril
+  // de estilo propio. Los dos a la vez es un llamador confundido y ninguno
+  // es una confirmación vacía.
   const sceneCount = payload.sceneCount
+  const secondsPerScene = payload.secondsPerScene
+  if ((sceneCount === undefined) === (secondsPerScene === undefined))
+    throw new PipelineFailure(
+      'invalid_payload',
+      'payload must carry exactly one of sceneCount or secondsPerScene',
+    )
   if (
-    !Number.isInteger(sceneCount) ||
-    sceneCount < 1 ||
-    sceneCount > MAX_SCENE_COUNT
+    sceneCount !== undefined &&
+    (!Number.isInteger(sceneCount) ||
+      sceneCount < 1 ||
+      sceneCount > MAX_SCENE_COUNT)
   )
     throw new PipelineFailure(
       'invalid_payload',
       `payload.sceneCount must be an integer between 1 and ${MAX_SCENE_COUNT}`,
+    )
+  if (
+    secondsPerScene !== undefined &&
+    (!Number.isInteger(secondsPerScene) ||
+      secondsPerScene < MIN_SECONDS_PER_SCENE ||
+      secondsPerScene > MAX_SECONDS_PER_SCENE)
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      `payload.secondsPerScene must be an integer between ${MIN_SECONDS_PER_SCENE} and ${MAX_SECONDS_PER_SCENE}`,
     )
 
   const projectDir = resolveProjectDir(
@@ -48,13 +72,27 @@ export async function confirmScenes(context: PipelineContext): Promise<null> {
 
   await writeFileAtomic(
     paths.scenesConfirmedFile,
-    `${JSON.stringify({ sceneCount, confirmedAt: new Date().toISOString() }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        ...(sceneCount !== undefined ? { sceneCount } : {}),
+        ...(secondsPerScene !== undefined ? { secondsPerScene } : {}),
+        confirmedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    )}\n`,
   )
 
   // Si el corte provisional tiene otra cantidad, se descarta: la Fase 3 lo
-  // rehace con la cantidad confirmada (mismo comportamiento del origen).
+  // rehace con la cantidad confirmada (mismo comportamiento del origen). En
+  // el carril de segundos el conteo resultante no se conoce acá: se descarta
+  // siempre — el corte es determinístico y la Fase 3 lo rehace al instante
+  // (en la pausa todavía no hay prompts que conservar).
   const provisionalScenes = await readScenes(paths)
-  if (provisionalScenes && provisionalScenes.length !== sceneCount)
+  if (
+    provisionalScenes &&
+    (secondsPerScene !== undefined || provisionalScenes.length !== sceneCount)
+  )
     await rm(paths.scenesFile, { force: true })
 
   metadata.state = 'generating'

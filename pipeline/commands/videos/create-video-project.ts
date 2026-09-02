@@ -17,6 +17,10 @@ import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
 import { MAX_SHOTS, SYSTEM_PROMPT_CHAR_LIMIT } from '../styles/style-store.ts'
+import {
+  MAX_SECONDS_PER_SCENE,
+  MIN_SECONDS_PER_SCENE,
+} from '../../stages/scene-cuts/by-seconds.ts'
 import type { CharacterStyleId } from '../../types/characters.ts'
 import type {
   CreateVideoProjectPayload,
@@ -153,6 +157,28 @@ function validatePayload(
       'invalid_payload',
       `options.sceneCount must be an integer between 0 and ${MAX_SCENE_COUNT}`,
     )
+
+  // Segundos-por-escena: solo tiene sentido con estilo propio (el carril por
+  // segundos vive en la Fase 3 detrás de customStyle) y dentro del rango del
+  // slider. Whitelist estricta: un valor fuera de rango es un llamador roto,
+  // no una preferencia.
+  const secondsPerScene = options.secondsPerScene
+  if (secondsPerScene !== undefined) {
+    if (customStyle === undefined)
+      throw new PipelineFailure(
+        'invalid_payload',
+        'options.secondsPerScene requires options.customStyle',
+      )
+    if (
+      !Number.isInteger(secondsPerScene) ||
+      secondsPerScene < MIN_SECONDS_PER_SCENE ||
+      secondsPerScene > MAX_SECONDS_PER_SCENE
+    )
+      throw new PipelineFailure(
+        'invalid_payload',
+        `options.secondsPerScene must be an integer between ${MIN_SECONDS_PER_SCENE} and ${MAX_SECONDS_PER_SCENE}`,
+      )
+  }
 
   // Con narración TTS el guion es obligatorio; con audio propio es opcional
   // (si falta, la Fase 3 lo reconstruye desde la transcripción).

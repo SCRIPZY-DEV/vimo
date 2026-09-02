@@ -54,6 +54,9 @@ export const videosQueryKeys = {
     return ['videos', 'project', projectId, 'detail']
   },
   imageCredits: ['videos', 'imageCredits'],
+  sceneCutPreview(projectId: string, secondsPerScene: number) {
+    return ['videos', 'project', projectId, 'sceneCutPreview', secondsPerScene]
+  },
 } as const
 
 // La tarea sobrevive navegación y reinicios: el proyecto vive en disco.
@@ -64,6 +67,14 @@ export const PROJECT_NAME_LIMIT = 80
 export const SCRIPT_CHAR_LIMIT = 100_000
 export const MAX_PROJECT_CHARACTERS = 2
 export const MAX_SCENE_COUNT = 500
+
+// Carril de segundos-por-escena de los estilos propios. Espejo de
+// pipeline/stages/scene-cuts/by-seconds.ts (el slider se mueve entre estos).
+export const SECONDS_PER_SCENE_MIN = 2
+export const SECONDS_PER_SCENE_MAX = 15
+export const SECONDS_PER_SCENE_DEFAULT = 3
+// El último valor elegido en el diálogo, recordado entre videos.
+export const SECONDS_PER_SCENE_STORAGE_KEY = 'vimo:create:secondsPerScene'
 
 // Últimas líneas de log que la vista conserva (como el origen).
 export const LOG_LINES_LIMIT = 50

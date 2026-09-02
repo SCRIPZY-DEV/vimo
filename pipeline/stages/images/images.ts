@@ -28,6 +28,10 @@ import {
 } from '../scene-prompts/fallback-prompt.ts'
 import { createSceneLlm } from '../shared/llm.ts'
 import { regeneratePromptsForRejected } from '../scene-prompts/prompt-writer.ts'
+import {
+  CONTENT_POLICY_RETRY_NOTE,
+  runVerbatimLane,
+} from '../scene-prompts/verbatim/verbatim-lane.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
 import {
   generateScenesWithEvolinkReferences,
@@ -98,9 +102,13 @@ export const imagesStage: Stage<CreateVideoContext> = {
     }))
 
     // La biblia (con el bloque de personajes) alimenta el fallback de Capa 4,
-    // el lock de época y la re-sanitización de prompts.
-    const bibleBase = await (context.visualBible ??
-      loadOrGenerateVisualBible(context, script))
+    // el lock de época y la re-sanitización de prompts. Con estilo propio NO
+    // se genera (paridad con el carril verbatim: la gema es el único contexto
+    // visual; el fallback y la sanitización aceptan biblia ausente).
+    const bibleBase = context.options.customStyle
+      ? undefined
+      : await (context.visualBible ??
+          loadOrGenerateVisualBible(context, script))
     const characterBlock = buildCharactersBibleBlock(promptCharacters)
     const visualBible = neutralizeEraInBible(
       characterBlock ? `${bibleBase ?? ''}${characterBlock}`.trim() : bibleBase,
@@ -167,20 +175,55 @@ export const imagesStage: Stage<CreateVideoContext> = {
       })
 
       const readyNow = alreadyReady
-      scenes = await regeneratePromptsForRejected(
-        scenes,
-        (scene) => isReady(scene.id, readyNow),
-        pass,
-        {
-          llm: createSceneLlm(context),
-          style,
-          fullScript: script,
-          visualBible,
-          characters: promptCharacters,
-          imageTextLanguage,
-          signal: context.signal,
-        },
-      )
+      if (context.options.customStyle) {
+        // E34 — Con estilo propio, el prompt de una escena SOLO puede
+        // escribirlo su propio carril: el re-escritor de la casa escribe en
+        // el estilo del catálogo, y usarlo acá fue exactamente el bug del
+        // origen (2026-08-18) — 7 de 15 escenas rescatadas en estilo
+        // «normal», video con estilos mezclados. Se vacía el prompt de las
+        // que hay que reescribir (el mismo gesto del flujo de regenerar) y
+        // la nota de content-policy viaja pegada al fragmento. Si el carril
+        // propio tampoco puede, la escena queda sin imagen y la corrida
+        // termina con el aviso honesto — jamás con otro estilo.
+        const toRewrite = scenes.filter(
+          (scene) =>
+            !isReady(scene.id, readyNow) &&
+            (scene.contentRejected === true ||
+              !isValidPrompt(scene.imagePrompt)),
+        )
+        if (toRewrite.length > 0) {
+          const retryNotes = new Map<number, string>()
+          for (const scene of toRewrite) {
+            if (scene.contentRejected === true)
+              retryNotes.set(scene.id, CONTENT_POLICY_RETRY_NOTE)
+          }
+          const rewriteIds = new Set(toRewrite.map((scene) => scene.id))
+          const cleared = scenes.map((scene) =>
+            rewriteIds.has(scene.id)
+              ? { ...scene, imagePrompt: '', promptIsFallback: false }
+              : scene,
+          )
+          const lane = await runVerbatimLane(context, cleared, script, {
+            retryNotes,
+          })
+          scenes = lane.scenes
+        }
+      } else {
+        scenes = await regeneratePromptsForRejected(
+          scenes,
+          (scene) => isReady(scene.id, readyNow),
+          pass,
+          {
+            llm: createSceneLlm(context),
+            style,
+            fullScript: script,
+            visualBible,
+            characters: promptCharacters,
+            imageTextLanguage,
+            signal: context.signal,
+          },
+        )
+      }
       await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
 
       scenes = scenes.map((scene) =>

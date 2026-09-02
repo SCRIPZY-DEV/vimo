@@ -20,6 +20,7 @@ import {
   needsAlwaysCure,
 } from './character-presence.ts'
 import { createSceneLlm, type SceneLlm } from '../shared/llm.ts'
+import { runVerbatimLane } from './verbatim/verbatim-lane.ts'
 import { guaranteePrompts } from './prompt-writer.ts'
 import { directScenes, scenesNeedPlan } from './scene-director.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
@@ -54,6 +55,39 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       )
 
     const script = await readScript(context)
+
+    // ── Carril VERBATIM (estilo propio, ADR-0016) ──
+    // La gema del usuario manda entera y sin envoltorio: acá se SALTEAN la
+    // biblia visual, el director de escenas y el clasificador de presencia
+    // (paridad con el origen — el estilo trae el ritmo, el guion completo es
+    // el contexto, y la presencia del sujeto la informa el propio motor). El
+    // carril de la casa queda byte-idéntico más abajo.
+    if (context.options.customStyle) {
+      const lane = await runVerbatimLane(context, scenes, script)
+      await writeScenesOwned(
+        context.paths,
+        lane.scenes,
+        context.regenerateSceneIds,
+      )
+      for (const scene of lane.scenes) {
+        if (!lane.written.has(scene.id)) continue
+        context.emitter.emit({
+          type: 'scene-prompt-ready',
+          scene: await toSceneSummary(context.paths, scene),
+        })
+      }
+      // Faltantes declaradas: no se rellenan acá con el redactor de la casa
+      // (E34 — el estilo del usuario nunca se pisa). La Capa 4 de la fase de
+      // imágenes cubre el hueco con su fallback determinístico si hace falta.
+      if (lane.missing.length > 0)
+        context.emitter.emit({
+          type: 'log',
+          level: 'warn',
+          message: `${lane.missing.length} scene(s) ended without a verbatim prompt: ${lane.missing.join(', ')}`,
+        })
+      return undefined
+    }
+
     const llm = createSceneLlm(context)
 
     // La biblia normalmente ya viene corriendo desde la Fase 1 (hoisting);

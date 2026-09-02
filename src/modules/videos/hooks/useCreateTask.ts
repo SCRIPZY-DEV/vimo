@@ -14,7 +14,7 @@ import {
 } from '@/modules/videos/constants'
 import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
-import type { CreateTask } from '@/modules/videos/types/create'
+import type { CreateTask, SceneCutChoice } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -255,6 +255,10 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           suggestedScenes: event.suggestedScenes,
           audioDurationSeconds: event.audioDurationSeconds,
           wordCount: event.wordCount,
+          // Solo el carril de segundos lo trae: cambia el diálogo a slider.
+          ...(event.secondsPerScene !== undefined
+            ? { secondsPerScene: event.secondsPerScene }
+            : {}),
         },
       })
       return
@@ -491,12 +495,12 @@ async function startPipelineForProject(
   return true
 }
 
-// Confirma la cantidad de escenas de un proyecto SIN tarea viva (la pausa
-// sobrevivió a un reinicio: el estado quedó en disco) y relanza.
+// Confirma el corte de un proyecto SIN tarea viva (la pausa sobrevivió a un
+// reinicio: el estado quedó en disco) y relanza.
 async function confirmScenesForProject(
   projectId: string,
   projectName: string,
-  sceneCount: number,
+  choice: SceneCutChoice,
   videoFormat?: VideoFormat,
 ): Promise<boolean> {
   if (rejectIfBusy()) return false
@@ -505,7 +509,7 @@ async function confirmScenesForProject(
   const taskId = newTaskId()
   setTask(makeTask(taskId, projectId, projectName, videoFormat))
   try {
-    await videosApi.confirmScenes({ projectId, sceneCount })
+    await videosApi.confirmScenes({ projectId, ...choice })
   } catch (error) {
     patchTask(taskId, {
       status: 'error',
@@ -517,14 +521,14 @@ async function confirmScenesForProject(
   return true
 }
 
-// Confirma la cantidad de escenas y relanza (fases 1-2 son cache-hit).
-async function confirmScenes(sceneCount: number): Promise<void> {
+// Confirma el corte (conteo o segundos) y relanza (fases 1-2 cache-hit).
+async function confirmScenes(choice: SceneCutChoice): Promise<void> {
   const task = currentTask
   if (!task || task.status !== 'awaitingConfirmation') return
 
   patchTask(task.id, { status: 'generating', confirmation: null })
   try {
-    await videosApi.confirmScenes({ projectId: task.projectId, sceneCount })
+    await videosApi.confirmScenes({ projectId: task.projectId, ...choice })
   } catch (error) {
     patchTask(task.id, {
       status: 'error',

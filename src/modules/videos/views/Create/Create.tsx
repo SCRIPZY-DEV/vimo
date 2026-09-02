@@ -191,7 +191,8 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
       {task?.status === 'awaitingConfirmation' && task.confirmation && (
         <ConfirmScenesDialog
           confirmation={task.confirmation}
-          onConfirm={(sceneCount) => void confirmScenes(sceneCount)}
+          projectId={task.projectId}
+          onConfirm={(choice) => void confirmScenes(choice)}
           onCancel={discardTask}
         />
       )}

@@ -264,7 +264,14 @@
       "confirm": "Continue",
       "duration": "Length",
       "words": "Words",
-      "suggested": "Suggested"
+      "suggested": "Suggested",
+      "secondsDescription": "With your style, you choose how long each scene lasts and the count comes from the audio.",
+      "secondsLabel": "Seconds per scene",
+      "secondsValue": "{{seconds}} s",
+      "secondsScenes_one": "This length yields {{count}} scene.",
+      "secondsScenes_other": "This length yields {{count}} scenes.",
+      "secondsHint": "Vimo remembers this value for your next videos.",
+      "resulting": "Scenes"
     },
     "completed": {
       "subtitle": "Your video is ready.",

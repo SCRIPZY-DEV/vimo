@@ -56,8 +56,15 @@ export const voiceStage: Stage<CreateVideoContext> = {
     // del camino crítico — lanzada acá corre escondida bajo voz + transcripción
     // + cortes. Nunca rechaza; scene-prompts la cobra con await. Con audio
     // propio el guion recién existe tras la transcripción → camino tardío.
+    // Con estilo propio no se lanza: el carril verbatim no usa biblia — la
+    // gema del usuario es el único contexto visual (paridad con el origen), y
+    // lanzarla igual sería pagar una llamada premium para tirarla.
     const script = await readScriptIfPresent(context)
-    if (context.options.narrationMode === 'tts' && script.trim())
+    if (
+      context.options.narrationMode === 'tts' &&
+      script.trim() &&
+      !context.options.customStyle
+    )
       context.visualBible = loadOrGenerateVisualBible(context, script)
 
     const narrationTask = narrationCached

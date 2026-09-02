@@ -45,7 +45,15 @@ export interface SceneConfirmationView {
   suggestedScenes: number
   audioDurationSeconds: number
   wordCount: number
+  // Presente solo en el carril de segundos (estilo propio): el diálogo pasa
+  // a modo slider con este valor vigente.
+  secondsPerScene?: number
 }
+
+// Lo que el usuario confirmó en el diálogo: el conteo clásico, o los
+// segundos por escena del carril de estilo propio.
+export type SceneCutChoice =
+  { sceneCount: number } | { secondsPerScene: number }
 
 // Una generación de video de punta a punta. Vive fuera de React (módulo
 // store) porque el layout desmonta la vista al navegar y el job sigue
