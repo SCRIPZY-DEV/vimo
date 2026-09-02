@@ -264,7 +264,14 @@
       "confirm": "Continuar",
       "duration": "Duración",
       "words": "Palabras",
-      "suggested": "Sugerido"
+      "suggested": "Sugerido",
+      "secondsDescription": "Con tu estilo, vos elegís cuánto dura cada escena y la cantidad sale del audio.",
+      "secondsLabel": "Segundos por escena",
+      "secondsValue": "{{seconds}} s",
+      "secondsScenes_one": "Con esta duración sale {{count}} escena.",
+      "secondsScenes_other": "Con esta duración salen {{count}} escenas.",
+      "secondsHint": "Vimo recuerda este valor para tus próximos videos.",
+      "resulting": "Escenas"
     },
     "completed": {
       "subtitle": "Tu video está listo.",
