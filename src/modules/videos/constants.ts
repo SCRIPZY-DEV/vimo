@@ -45,6 +45,7 @@ export function libraryEditorPath(projectId: string): string {
 
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
+  customStyles: ['videos', 'customStyles'],
   projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
@@ -250,6 +251,35 @@ export const VIDEO_STYLES: {
 export const STYLE_REFERENCE_SAMPLE_COUNT = 4
 export const STYLE_REFERENCES_BASE_PATH = '/style-references'
 
+// Rotación del carrusel de muestras al hacer hover en una tarjeta de estilo.
+export const SAMPLE_CAROUSEL_INTERVAL_MS = 1200
+
+// ── Estilos propios («Mi estilo») ──
+
+// Espejo de los límites del sidecar (pipeline/commands/styles/style-store.ts).
+export const CUSTOM_STYLE_NAME_LIMIT = 80
+export const CUSTOM_STYLE_PROMPT_LIMIT = 30_000
+export const CUSTOM_STYLE_MAX_SHOTS = 20
+
+// Planos recomendados que llena el botón del modal (verbatim del origen).
+export const RECOMMENDED_SHOTS = [
+  'Wide shot',
+  'Medium shot',
+  'Close-up',
+  'Over-the-shoulder shot',
+  'Low angle shot',
+  'High angle shot',
+  'Point-of-view shot',
+  'Two shot',
+] as const
+
+// Ids `st-<timestamp36>-<rand>`: cronológicos y dentro del STYLE_ID_PATTERN
+// del sidecar (≤ 40 chars, minúsculas).
+export function newCustomStyleId(): string {
+  const random = Math.random().toString(36).slice(2, 8)
+  return `st-${Date.now().toString(36)}-${random}`
+}
+
 // Formato del video: horizontal clásico o vertical para shorts.
 export const DEFAULT_VIDEO_FORMAT: VideoFormat = '16:9'
 
@@ -408,6 +438,8 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   confirmScenes: true,
   autoRender: false,
   videoFormat: DEFAULT_VIDEO_FORMAT,
+  styleSource: 'catalog',
+  customStyle: null,
 }
 
 // Con qué se regenera una escena que no trae calidad propia: los mismos
@@ -493,6 +525,10 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Transversales
   missing_api_key: 'create.errors.missingApiKey',
   missing_projects_root: 'create.errors.missingProjectsRoot',
+  // Estilos propios
+  style_not_found: 'create.errors.styleNotFound',
+  style_save_failed: 'create.errors.styleSaveFailed',
+  style_samples_failed: 'create.errors.styleSamplesFailed',
   cancelled: 'create.errors.cancelled',
   sidecar_missing: 'create.errors.sidecar',
   sidecar_spawn: 'create.errors.sidecar',
