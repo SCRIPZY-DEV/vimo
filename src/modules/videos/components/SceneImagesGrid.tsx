@@ -38,12 +38,15 @@ export function SceneImagesGrid({ scenes, videoFormat }: SceneImagesGridProps) {
 
   return (
     <div className="space-y-4">
+      {/* Breakpoints un escalón por encima de los del origen: el sidebar
+          vive dentro del viewport y descuenta 256px, así las columnas
+          aparecen al mismo ancho de contenido que allá. */}
       <div
         className={cn(
           'grid gap-3',
           isVertical(videoFormat)
-            ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7'
-            : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5',
+            ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7'
+            : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
         )}
       >
         {scenes.map((scene) => (

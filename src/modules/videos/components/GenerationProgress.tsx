@@ -173,7 +173,11 @@ export function GenerationProgress({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_1fr]">
+      {/* Dos columnas recién desde `xl` (y no `lg` como el origen): acá el
+          sidebar vive dentro del viewport y se lleva 256px, así que cada
+          layout aparece al mismo ancho de CONTENIDO que en el origen. En la
+          ventana mínima (1024) se apila en una columna. */}
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[280px_1fr]">
         <aside className="space-y-4">
           <h2 className="font-display text-sm font-bold text-foreground">
             {t('create.progress.phasesTitle')}
