@@ -304,9 +304,18 @@
       "footnote": "The video is stopped waiting for this: nothing is generated until you confirm."
     },
     "probe": {
-      "title": "The voice service is not responding",
+      "titles": {
+        "ok": "The voice can't be generated right now",
+        "maintenance": "Voice service under maintenance",
+        "auth": "Invalid DubVoice key",
+        "rate": "Too many requests",
+        "config": "DubVoice isn't set up",
+        "other": "The voice can't be generated right now"
+      },
+      "hint": "We let you know before starting so you don't waste time waiting on a pipeline that was going to fail. You can retry in a few minutes or pick another voice (ElevenLabs or Edge — free).",
       "retry": "Retry",
-      "changeVoice": "Pick another voice",
+      "retrying": "Retrying…",
+      "changeVoice": "Change voice",
       "reason": {
         "ok": "The service is up.",
         "maintenance": "The voice provider is under maintenance. Try again in a few minutes or pick another engine.",

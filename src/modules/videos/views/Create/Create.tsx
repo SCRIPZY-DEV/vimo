@@ -181,10 +181,10 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
       {probeFailure && (
         <TtsProviderDownDialog
           reason={probeFailure}
-          onRetry={() => {
-            setProbeFailure(null)
-            void submit()
-          }}
+          retrying={probing}
+          // Sigue abierto mientras se vuelve a probar: si el proveedor sigue
+          // caído cambia el motivo; si responde, se cierra y arranca.
+          onRetry={() => void submit()}
           onClose={() => setProbeFailure(null)}
         />
       )}

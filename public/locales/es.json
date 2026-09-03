@@ -304,9 +304,18 @@
       "footnote": "El video está detenido esperando esto: no se genera nada hasta que confirmes."
     },
     "probe": {
-      "title": "El servicio de voces no responde",
+      "titles": {
+        "ok": "No se puede generar la voz ahora",
+        "maintenance": "Servicio de voces en mantenimiento",
+        "auth": "Clave de DubVoice inválida",
+        "rate": "Demasiadas solicitudes",
+        "config": "Falta configurar DubVoice",
+        "other": "No se puede generar la voz ahora"
+      },
+      "hint": "Te avisamos antes de empezar para que no pierdas tiempo esperando un pipeline que iba a fallar. Podés reintentar en unos minutos o elegir otra voz (ElevenLabs o Edge — gratis).",
       "retry": "Reintentar",
-      "changeVoice": "Elegir otra voz",
+      "retrying": "Reintentando…",
+      "changeVoice": "Cambiar voz",
       "reason": {
         "ok": "El servicio está operativo.",
         "maintenance": "El proveedor de voces está en mantenimiento. Probá en unos minutos o elegí otro motor.",
