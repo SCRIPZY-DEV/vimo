@@ -259,7 +259,6 @@
         "title": "Gerando música com IA · Suno"
       },
       "render": {
-        "title": "Renderizando vídeo",
         "chunks": "Montando os trechos do vídeo",
         "concat": "Juntando os trechos",
         "final": "Mixando áudio e cor"

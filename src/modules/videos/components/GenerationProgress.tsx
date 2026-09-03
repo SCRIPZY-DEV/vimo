@@ -280,7 +280,9 @@ export function GenerationProgress({
           {showRenderPanel && task.renderProgress && (
             <PhaseProgressPanel
               Icon={Clapperboard}
-              title={t('create.progress.render.title')}
+              // El mismo nombre que la fase en la lista de la izquierda: con
+              // dos textos distintos la pantalla se contradecía.
+              title={t('create.stages.render')}
               percent={task.renderProgress.percent}
               hint={t(`create.progress.render.${task.renderProgress.phase}`)}
             />
