@@ -2,26 +2,34 @@ import { motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import { formatSecondsShort } from '@/modules/videos/utilities/formatElapsed'
 
-interface AudioProgressPanelProps {
+interface PhaseProgressPanelProps {
   Icon: LucideIcon
   title: string
-  elapsedSeconds: number
   percent: number
-  // Solo la voz lo muestra: qué esperar del proveedor mientras la barra sube.
+  // Voz y música lo traen del sidecar; el render no reporta tiempo propio.
+  elapsedSeconds?: number
+  // Qué esperar mientras la barra sube: el proveedor de voz, el tramo del
+  // render en curso.
   hint?: string
 }
 
-// Panel de una síntesis de audio en curso (voz o música de fondo): título,
-// tiempo · porcentaje y barra en ocean. Port de los dos paneles inline de
-// PantallaProgreso.tsx del origen, que eran el mismo markup.
-export function AudioProgressPanel({
+// Panel de la fase que corre con una barra de avance (voz, música de fondo o
+// render): título, tiempo · porcentaje y barra en ocean. Port de los dos
+// paneles inline de PantallaProgreso.tsx del origen, que eran el mismo
+// markup; el render lo reutiliza porque el origen no tiene barra para esa fase.
+export function PhaseProgressPanel({
   Icon,
   title,
-  elapsedSeconds,
   percent,
+  elapsedSeconds,
   hint,
-}: AudioProgressPanelProps) {
+}: PhaseProgressPanelProps) {
   const width = Math.min(100, Math.max(0, percent))
+  const percentLabel = `${Math.round(width)}%`
+  const meta =
+    elapsedSeconds === undefined
+      ? percentLabel
+      : `${formatSecondsShort(elapsedSeconds)} · ${percentLabel}`
 
   return (
     <motion.div
@@ -33,9 +41,7 @@ export function AudioProgressPanel({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="font-display text-sm font-semibold">{title}</p>
-          <p className="font-mono text-xs text-muted-foreground">
-            {formatSecondsShort(elapsedSeconds)} · {Math.round(width)}%
-          </p>
+          <p className="font-mono text-xs text-muted-foreground">{meta}</p>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
           <div

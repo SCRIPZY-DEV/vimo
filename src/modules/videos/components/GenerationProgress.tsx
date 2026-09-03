@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import {
   ArrowLeft,
   Ban,
+  Clapperboard,
   FolderOpen,
   Mic,
   Music2,
@@ -14,7 +15,7 @@ import DoodleStar from '@/modules/common/doodles/DoodleStar'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
-import { AudioProgressPanel } from '@/modules/videos/components/AudioProgressPanel'
+import { PhaseProgressPanel } from '@/modules/videos/components/PhaseProgressPanel'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
 import { GenerationErrorCard } from '@/modules/videos/components/GenerationErrorCard'
@@ -102,6 +103,10 @@ export function GenerationProgress({
     voice !== null && (task.stage === 'voice' || !completed.includes('voice'))
   const showBgmPanel =
     task.bgmProgress !== null && task.bgmProgress.status !== 'completed'
+  // Solo mientras el job renderiza: al retomar, `renderProgress` puede venir
+  // viejo del disco y `stage` es null hasta el primer evento.
+  const showRenderPanel =
+    generating && task.stage === 'render' && task.renderProgress !== null
   const showPromptsPanel =
     !paused &&
     completed.includes('scene-cuts') &&
@@ -250,7 +255,7 @@ export function GenerationProgress({
           )}
 
           {showVoicePanel && voice && (
-            <AudioProgressPanel
+            <PhaseProgressPanel
               Icon={Mic}
               title={t('create.progress.voice.title', {
                 provider: voice.provider,
@@ -264,11 +269,20 @@ export function GenerationProgress({
           )}
 
           {showBgmPanel && task.bgmProgress && (
-            <AudioProgressPanel
+            <PhaseProgressPanel
               Icon={Music2}
               title={t('create.progress.music.title')}
               elapsedSeconds={task.bgmProgress.elapsedSeconds}
               percent={task.bgmProgress.percent}
+            />
+          )}
+
+          {showRenderPanel && task.renderProgress && (
+            <PhaseProgressPanel
+              Icon={Clapperboard}
+              title={t('create.progress.render.title')}
+              percent={task.renderProgress.percent}
+              hint={t(`create.progress.render.${task.renderProgress.phase}`)}
             />
           )}
 

@@ -258,6 +258,12 @@
       "music": {
         "title": "Gerando música com IA · Suno"
       },
+      "render": {
+        "title": "Renderizando vídeo",
+        "chunks": "Montando os trechos do vídeo",
+        "concat": "Juntando os trechos",
+        "final": "Mixando áudio e cor"
+      },
       "retry": {
         "title": "Tentando de novo em {{seconds}}s",
         "attempt": "· tentativa {{attempt}} de {{max}}"
