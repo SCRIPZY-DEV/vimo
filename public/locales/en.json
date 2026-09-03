@@ -272,7 +272,13 @@
       },
       "savedAt": "Done! Your video was saved to",
       "imagesCount": "Images ({{ready}}/{{total}})",
-      "logs": "Show internal logs ({{count}})"
+      "logs": "Show internal logs ({{count}})",
+      "imagesEmpty": "Scenes will show up here once the generation starts...",
+      "cell": {
+        "enlarge": "Enlarge",
+        "enlargeAria": "Enlarge scene {{id}}",
+        "alt": "Scene {{id}}"
+      }
     },
     "confirmScenes": {
       "title": "How many scenes?",
@@ -406,8 +412,18 @@
     },
     "viewer": {
       "title": "Scene {{id}}",
-      "previous": "Previous",
-      "next": "Next"
+      "aria": "Scene {{id}}, {{index}} of {{total}}",
+      "position": "{{index}} of {{total}} · use the arrow keys",
+      "previous": "Previous scene",
+      "next": "Next scene",
+      "close": "Close",
+      "promptTitle": "Prompt for this scene",
+      "copy": "Copy the prompt",
+      "copied": "Copied",
+      "noPrompt": "The prompt for this scene hasn't been written yet.",
+      "generating": "This image is being generated right now",
+      "pending": "This scene hasn't had its turn yet",
+      "failed": "This image couldn't be generated."
     },
     "format": {
       "label": "Video format",

@@ -1,35 +1,29 @@
-import { AlertTriangle, ImageIcon, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { videosApi } from '@/modules/videos/api'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
 
 interface SceneThumbnailProps {
   scene: SceneSummary
-  // Cache-buster explícito (mtime del sidecar): en Library el status queda
-  // 'ok' antes y después de regenerar y el fallback id-status no alcanza.
-  version?: number
+  className?: string
 }
 
-export function SceneThumbnail({ scene, version }: SceneThumbnailProps) {
-  // Cache-buster client-side: la escena regenerada conserva la misma ruta en
-  // disco y el webview mostraría la imagen vieja sin él.
-  if (scene.imagePath) {
-    const cacheBuster = version ?? `${scene.id}-${scene.imageStatus}`
-    return (
-      <img
-        src={`${videosApi.imageSource(scene.imagePath)}?v=${cacheBuster}`}
-        alt=""
-        className="h-full w-full object-cover"
-      />
-    )
-  }
+// La imagen de una escena. Cache-buster client-side: la escena regenerada
+// conserva la misma ruta en disco y el webview mostraría la imagen vieja
+// sin él. Sin imagen no dibuja nada: el estado lo pinta quien la monta.
+export function SceneThumbnail({
+  scene,
+  className = 'h-full w-full object-cover',
+}: SceneThumbnailProps) {
+  const { t } = useTranslation()
 
-  if (scene.imageStatus === 'generating') {
-    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-  }
+  if (!scene.imagePath) return null
 
-  if (scene.imageStatus === 'error') {
-    return <AlertTriangle className="h-4 w-4 text-destructive" />
-  }
-
-  return <ImageIcon className="h-4 w-4 text-muted-foreground opacity-50" />
+  return (
+    <img
+      src={`${videosApi.imageSource(scene.imagePath)}?v=${scene.id}-${scene.imageStatus}`}
+      alt={t('create.progress.cell.alt', { id: scene.id })}
+      loading="lazy"
+      className={className}
+    />
+  )
 }

@@ -201,6 +201,17 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageStatus: 'generating',
+          imageProgress: undefined,
+        }),
+      })
+      return
+
+    // Avance de una imagen en curso (solo Evolink lo informa): la celda de
+    // la grilla muestra el porcentaje; se limpia al cerrar la imagen.
+    case 'scene-image-progress':
+      patchTask(taskId, {
+        scenes: patchScene(task.scenes, event.sceneId, {
+          imageProgress: event.percent,
         }),
       })
       return
@@ -210,6 +221,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageStatus: 'ok',
           imagePath: event.imagePath,
+          imageProgress: undefined,
         }),
       })
       return
@@ -218,6 +230,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageStatus: 'error',
+          imageProgress: undefined,
         }),
       })
       return

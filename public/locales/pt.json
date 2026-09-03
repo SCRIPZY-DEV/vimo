@@ -272,7 +272,13 @@
       },
       "savedAt": "Pronto! Seu vídeo foi salvo em",
       "imagesCount": "Imagens ({{ready}}/{{total}})",
-      "logs": "Mostrar logs internos ({{count}})"
+      "logs": "Mostrar logs internos ({{count}})",
+      "imagesEmpty": "As cenas vão aparecer aqui quando a geração começar...",
+      "cell": {
+        "enlarge": "Ampliar",
+        "enlargeAria": "Ampliar a cena {{id}}",
+        "alt": "Cena {{id}}"
+      }
     },
     "confirmScenes": {
       "title": "Quantas cenas?",
@@ -406,8 +412,18 @@
     },
     "viewer": {
       "title": "Cena {{id}}",
-      "previous": "Anterior",
-      "next": "Próxima"
+      "aria": "Cena {{id}}, {{index}} de {{total}}",
+      "position": "{{index}} de {{total}} · use as setas do teclado",
+      "previous": "Cena anterior",
+      "next": "Próxima cena",
+      "close": "Fechar",
+      "promptTitle": "Prompt desta cena",
+      "copy": "Copiar o prompt",
+      "copied": "Copiado",
+      "noPrompt": "O prompt desta cena ainda não foi escrito.",
+      "generating": "Esta imagem está sendo gerada agora",
+      "pending": "Ainda não chegou a vez desta cena",
+      "failed": "Esta imagem não pôde ser gerada."
     },
     "format": {
       "label": "Formato do vídeo",

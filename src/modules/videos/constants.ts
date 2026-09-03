@@ -117,6 +117,9 @@ export const SUPPORT_NOTE_CLASS = 'font-display text-[0.92em]'
 export const HOME_DIRECTORY_PREFIX_REGEX =
   /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)/
 
+// «Copiado» en el visor de escena: cuánto dura la confirmación.
+export const COPIED_FEEDBACK_MS = 1800
+
 // Mezcla de audio del editor: defaults (espejo de final-mix.ts en el sidecar)
 // y rangos de los sliders. Los volúmenes son ganancia lineal: 1 = original.
 export const AUDIO_MIX_DEFAULTS: AudioMixValue = {

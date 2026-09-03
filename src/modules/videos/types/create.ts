@@ -55,6 +55,11 @@ export interface SceneConfirmationView {
 export type SceneCutChoice =
   { sceneCount: number } | { secondsPerScene: number }
 
+// Escena tal como la ve la pantalla de progreso: la del contrato más el
+// avance de su imagen mientras se genera (scene-image-progress; solo
+// Evolink lo informa).
+export type SceneView = SceneSummary & { imageProgress?: number }
+
 // Una generación de video de punta a punta. Vive fuera de React (módulo
 // store) porque el layout desmonta la vista al navegar y el job sigue
 // corriendo; se persiste en localStorage porque el proyecto queda en disco y
@@ -68,7 +73,7 @@ export interface CreateTask {
   // Fase en curso; null antes de arrancar o al terminar.
   stage: StageId | null
   completedStages: StageId[]
-  scenes: SceneSummary[]
+  scenes: SceneView[]
   audioDurationSeconds: number | null
   voiceProgress: VoiceProgressView | null
   bgmProgress: BgmProgressView | null

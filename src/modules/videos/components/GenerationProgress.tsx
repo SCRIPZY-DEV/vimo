@@ -297,10 +297,22 @@ export function GenerationProgress({
           {showPromptsPanel && <PromptsGrid scenes={task.scenes} />}
 
           {showImagesPanel && (
-            <SceneImagesGrid
-              scenes={task.scenes}
-              videoFormat={task.videoFormat}
-            />
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-display text-sm font-bold text-foreground">
+                  {t('create.progress.imagesCount', {
+                    ready: task.scenes.filter(
+                      (scene) => scene.imageStatus === 'ok',
+                    ).length,
+                    total: task.scenes.length,
+                  })}
+                </h2>
+              </div>
+              <SceneImagesGrid
+                scenes={task.scenes}
+                videoFormat={task.videoFormat}
+              />
+            </div>
           )}
 
           {task.logs.length > 0 && (
