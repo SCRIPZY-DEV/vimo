@@ -10,6 +10,7 @@ import { Button } from '@/modules/common/ui/button'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
+import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import {
   UNKNOWN_CREATE_ERROR_KEY,
   VideosRoutes,
@@ -19,7 +20,10 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
-import type { SceneCutChoice } from '@/modules/videos/types/create'
+import type {
+  SceneConfirmationView,
+  SceneCutChoice,
+} from '@/modules/videos/types/create'
 
 // Progreso de un proyecto de la biblioteca. Con tarea viva del store muestra
 // el progreso real (mismos paneles que Create); sin ella, rehidrata desde
@@ -111,26 +115,36 @@ export function LibraryProgress() {
     return <Navigate to={libraryPlayerPath(projectId)} replace />
 
   if (metadata.state === 'awaiting-confirmation') {
+    // El mismo objeto que guarda task.confirmation, reconstruido desde disco.
+    // La pausa de un estilo propio con carril de segundos vuelve como el
+    // paso inline también desde disco; el resto, con el diálogo de conteo.
+    const confirmation: SceneConfirmationView = {
+      suggestedScenes: metadata.sceneCount ?? status.scenes.length,
+      audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
+      wordCount: metadata.wordCount ?? 0,
+      ...(metadata.options.customStyle &&
+      metadata.options.secondsPerScene !== undefined
+        ? { secondsPerScene: metadata.options.secondsPerScene }
+        : {}),
+    }
+
     return (
       <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
         <LibraryViewHeader title={projectName} />
-        {/* El mismo objeto que guarda task.confirmation, reconstruido desde disco. */}
-        <ConfirmScenesDialog
-          confirmation={{
-            suggestedScenes: metadata.sceneCount ?? status.scenes.length,
-            audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
-            wordCount: metadata.wordCount ?? 0,
-            // La pausa de un estilo propio con carril de segundos vuelve en
-            // modo slider también desde disco.
-            ...(metadata.options.customStyle &&
-            metadata.options.secondsPerScene !== undefined
-              ? { secondsPerScene: metadata.options.secondsPerScene }
-              : {}),
-          }}
-          projectId={projectId}
-          onConfirm={confirmFromDisk}
-          onCancel={backToLibrary}
-        />
+        {confirmation.secondsPerScene !== undefined ? (
+          <SecondsPerSceneStep
+            projectId={projectId}
+            confirmation={confirmation}
+            onConfirm={confirmFromDisk}
+          />
+        ) : (
+          <ConfirmScenesDialog
+            open
+            confirmation={confirmation}
+            onConfirm={confirmFromDisk}
+            onCancel={backToLibrary}
+          />
+        )}
       </div>
     )
   }

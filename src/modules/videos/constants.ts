@@ -75,6 +75,14 @@ export const SECONDS_PER_SCENE_MAX = 15
 export const SECONDS_PER_SCENE_DEFAULT = 3
 // El último valor elegido en el diálogo, recordado entre videos.
 export const SECONDS_PER_SCENE_STORAGE_KEY = 'vimo:create:secondsPerScene'
+// Atajos del paso de segundos por escena (las píldoras bajo el slider).
+export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10]
+// El slider dispara muchos valores seguidos y cada corte real es un job del
+// sidecar: se espera este rato antes de pedirlo.
+export const SCENE_CUT_PREVIEW_DEBOUNCE_MS = 120
+// Estimación local del corte por segundos: el resto final cuenta como escena
+// si alcanza esta fracción de una ventana (misma regla que el fragmentador).
+export const SCENE_REMAINDER_MIN_FRACTION = 0.3
 
 // Últimas líneas de log que la vista conserva (como el origen).
 export const LOG_LINES_LIMIT = 50

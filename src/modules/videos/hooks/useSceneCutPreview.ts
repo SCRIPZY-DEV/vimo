@@ -28,5 +28,10 @@ export function useSceneCutPreview(options: {
     placeholderData: keepPreviousData,
   })
 
-  return { sceneCount: query.data?.sceneCount ?? null }
+  return {
+    sceneCount: query.data?.sceneCount ?? null,
+    // false mientras la cifra sea la del valor anterior (placeholder) o no
+    // haya llegado: el paso de segundos la muestra con «≈» hasta entonces.
+    exact: query.data !== undefined && !query.isPlaceholderData,
+  }
 }

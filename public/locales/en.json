@@ -281,21 +281,27 @@
       }
     },
     "confirmScenes": {
-      "title": "How many scenes?",
-      "description": "Vimo cut your narration and suggests this scene count. Adjust it if you want a different pace.",
-      "countLabel": "Number of scenes",
-      "hint": "Vimo suggests {{suggested}} scenes for this duration.",
-      "confirm": "Continue",
-      "duration": "Length",
-      "words": "Words",
-      "suggested": "Suggested",
-      "secondsDescription": "With your style, you choose how long each scene lasts and the count comes from the audio.",
-      "secondsLabel": "Seconds per scene",
-      "secondsValue": "{{seconds}} s",
-      "secondsScenes_one": "This length yields {{count}} scene.",
-      "secondsScenes_other": "This length yields {{count}} scenes.",
-      "secondsHint": "Vimo remembers this value for your next videos.",
-      "resulting": "Scenes"
+      "title": "Confirm the scene count",
+      "description": "Vimo transcribed your narration and suggests this count. Leave it and it continues on its own; change it and the timings are recut before generating images.",
+      "duration": "Voice length",
+      "words": "Transcribed words",
+      "suggested": "Vimo suggests",
+      "countLabel": "Final count",
+      "confirm": "Confirm and continue"
+    },
+    "secondsStep": {
+      "perScene": "per scene",
+      "total_one": "scene in total",
+      "total_other": "scenes in total",
+      "sliderAria": "Seconds per scene",
+      "sliderMin": "{{seconds}} s · many short scenes",
+      "sliderMax": "{{seconds}} s · few long ones",
+      "shortcuts": "Shortcuts:",
+      "shortcut": "{{seconds}} s",
+      "explanation": "Scenes are cut by the clock, not by sentences: they follow one another and cover the whole audio, with no gaps. If a sentence starts in one image and ends in the next, that's fine — the image changes while the narration goes on.",
+      "confirm_one": "Continue with {{count}} scene of {{seconds}} s",
+      "confirm_other": "Continue with {{count}} scenes of {{seconds}} s",
+      "footnote": "The video is stopped waiting for this: nothing is generated until you confirm."
     },
     "probe": {
       "title": "The voice service is not responding",

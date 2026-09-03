@@ -281,21 +281,27 @@
       }
     },
     "confirmScenes": {
-      "title": "¿Cuántas escenas?",
-      "description": "Vimo cortó tu narración y propone esta cantidad de escenas. Ajustala si querés otro ritmo.",
-      "countLabel": "Cantidad de escenas",
-      "hint": "Vimo propone {{suggested}} escenas para esta duración.",
-      "confirm": "Continuar",
-      "duration": "Duración",
-      "words": "Palabras",
-      "suggested": "Sugerido",
-      "secondsDescription": "Con tu estilo, vos elegís cuánto dura cada escena y la cantidad sale del audio.",
-      "secondsLabel": "Segundos por escena",
-      "secondsValue": "{{seconds}} s",
-      "secondsScenes_one": "Con esta duración sale {{count}} escena.",
-      "secondsScenes_other": "Con esta duración salen {{count}} escenas.",
-      "secondsHint": "Vimo recuerda este valor para tus próximos videos.",
-      "resulting": "Escenas"
+      "title": "Confirmá cuántas escenas",
+      "description": "Vimo transcribió tu narración y propone esta cantidad. Si la dejás así, sigue automáticamente; si la cambiás, recorta los tiempos antes de generar imágenes.",
+      "duration": "Duración de la voz",
+      "words": "Palabras transcritas",
+      "suggested": "Sugerido por Vimo",
+      "countLabel": "Cantidad final",
+      "confirm": "Confirmar y continuar"
+    },
+    "secondsStep": {
+      "perScene": "dura cada escena",
+      "total_one": "escena en total",
+      "total_other": "escenas en total",
+      "sliderAria": "Segundos por escena",
+      "sliderMin": "{{seconds}} s · muchas escenas cortas",
+      "sliderMax": "{{seconds}} s · pocas y largas",
+      "shortcuts": "Atajos:",
+      "shortcut": "{{seconds}} s",
+      "explanation": "Las escenas se cortan por reloj, no por frases: van pegadas una atrás de otra y cubren todo el audio, sin huecos. Si una frase arranca en una imagen y termina en la siguiente está bien — la imagen cambia mientras la narración sigue.",
+      "confirm_one": "Seguir con {{count}} escena de {{seconds}} s",
+      "confirm_other": "Seguir con {{count}} escenas de {{seconds}} s",
+      "footnote": "El video está detenido esperando esto: no se genera nada hasta que confirmes."
     },
     "probe": {
       "title": "El servicio de voces no responde",

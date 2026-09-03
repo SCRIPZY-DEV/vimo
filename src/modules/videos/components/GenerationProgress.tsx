@@ -21,6 +21,7 @@ import { GenerationErrorCard } from '@/modules/videos/components/GenerationError
 import { ProgressStatusPill } from '@/modules/videos/components/ProgressStatusPill'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
+import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
 import {
   CANCEL_CONFIRM_WINDOW_MS,
@@ -86,6 +87,9 @@ export function GenerationProgress({
   }, [confirmingCancel])
 
   const paused = task.status === 'awaitingConfirmation'
+  // La pausa de un estilo propio pregunta SEGUNDOS por escena con el paso
+  // inline; el diálogo clásico de conteo queda para el resto.
+  const secondsLane = paused && task.confirmation?.secondsPerScene !== undefined
   const finished = task.status === 'completed'
   const failed = task.status === 'error'
   const generating = !finished && !failed
@@ -192,6 +196,15 @@ export function GenerationProgress({
         {/* `min-w-0`: sin esto la columna 1fr usa su min-content como mínimo y
             un mensaje largo la ensancha más allá del viewport. */}
         <div className="min-w-0 space-y-6">
+          {/* Va arriba de todo: el pipeline está detenido esperándolo. */}
+          {secondsLane && task.confirmation && (
+            <SecondsPerSceneStep
+              projectId={task.projectId}
+              confirmation={task.confirmation}
+              onConfirm={onConfirmScenes}
+            />
+          )}
+
           {finished && task.videoPath && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
@@ -330,14 +343,12 @@ export function GenerationProgress({
 
       {/* La confirmación de escenas sucede en el contexto visual del pipeline,
           no en una pantalla aparte (origen v0.13.37). */}
-      {paused && task.confirmation && (
-        <ConfirmScenesDialog
-          confirmation={task.confirmation}
-          projectId={task.projectId}
-          onConfirm={onConfirmScenes}
-          onCancel={onDismissConfirmation}
-        />
-      )}
+      <ConfirmScenesDialog
+        open={paused && !secondsLane}
+        confirmation={task.confirmation}
+        onConfirm={onConfirmScenes}
+        onCancel={onDismissConfirmation}
+      />
     </div>
   )
 }
