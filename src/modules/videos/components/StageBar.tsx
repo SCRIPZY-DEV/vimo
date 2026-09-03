@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Check, Circle, Loader2, PauseCircle } from 'lucide-react'
+import { Check, Loader2, PauseCircle } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { PIPELINE_STAGES } from '@/modules/videos/constants'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
@@ -12,8 +12,9 @@ interface StageBarProps {
   paused: boolean
 }
 
-// Cada fase es una card alargada: completada en saffron, en curso en ocean,
-// pendiente neutra (pedido del usuario sobre el look del origen).
+// Lista de fases (port de BarraDeFases del origen): completada en saffron,
+// en curso en ocean, en pausa en saffron pleno con «te está esperando»,
+// pendiente neutra con un punto.
 export function StageBar({
   currentStage,
   completedStages,
@@ -32,47 +33,53 @@ export function StageBar({
     <ul className="space-y-2">
       {PIPELINE_STAGES.map((stage) => {
         const done = completedStages.includes(stage.id)
-        const active = currentStage === stage.id
         const waiting = stage.id === pausedStageId
-
-        if (waiting) {
-          return (
-            <li
-              key={stage.id}
-              className="rounded-xl border-2 border-saffron bg-saffron/10 px-3 py-2.5"
-            >
-              <span className="flex items-center gap-2.5 font-body text-sm font-semibold text-foreground">
-                <PauseCircle className="h-4 w-4 shrink-0 text-saffron" />
-                {t(stage.labelKey)}
-              </span>
-              <span className="block pl-6 font-handwritten text-xs text-muted-foreground">
-                {t('create.progress.waitingForYou')}
-              </span>
-            </li>
-          )
-        }
+        const active = !done && !waiting && currentStage === stage.id
+        const pending = !done && !waiting && !active
 
         return (
           <li
             key={stage.id}
             className={cn(
-              'flex items-center gap-2.5 rounded-xl border-2 px-3 py-2.5 font-body text-sm transition-colors',
-              done &&
-                'border-saffron/60 bg-saffron/10 font-semibold text-foreground',
-              active && 'border-ocean bg-ocean/5 font-semibold text-foreground',
-              !done && !active && 'border-border bg-card text-muted-foreground',
+              'flex items-center gap-3 rounded-lg border-2 px-4 py-2.5 transition-colors',
+              done && 'border-saffron/40 bg-saffron/5',
+              active && 'border-ocean/60 bg-ocean/5',
+              waiting && 'border-saffron bg-saffron/10',
+              pending && 'border-border bg-card',
             )}
           >
-            {done ? (
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-saffron">
-                <Check className="h-3 w-3 text-charcoal" strokeWidth={3} />
-              </span>
-            ) : active ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-ocean" />
-            ) : (
-              <Circle className="h-4 w-4 shrink-0 opacity-40" />
-            )}
-            {t(stage.labelKey)}
+            <span
+              className={cn(
+                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                done && 'bg-saffron text-charcoal',
+                active && 'bg-ocean text-white',
+                waiting && 'bg-saffron text-charcoal',
+                pending && 'bg-muted text-muted-foreground',
+              )}
+            >
+              {done ? (
+                <Check className="h-4 w-4" strokeWidth={3} />
+              ) : active ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : waiting ? (
+                <PauseCircle className="h-4 w-4" />
+              ) : (
+                <span className="text-xs font-bold">·</span>
+              )}
+            </span>
+            <span
+              className={cn(
+                'font-display text-sm font-semibold',
+                pending && 'text-muted-foreground',
+              )}
+            >
+              {t(stage.labelKey)}
+              {waiting && (
+                <span className="block font-body text-xs font-normal text-saffron">
+                  {t('create.progress.waitingForYou')}
+                </span>
+              )}
+            </span>
           </li>
         )
       })}

@@ -11,15 +11,12 @@ import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { useDefaultSceneCount } from '@/modules/settings/hooks/useDefaultSceneCount'
 import { videosApi } from '@/modules/videos/api'
-import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
-import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { CreateForm } from '@/modules/videos/components/CreateForm'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
 import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
 import {
   CREATE_FORM_INITIAL_VALUE,
   libraryEditorPath,
-  UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
@@ -44,9 +41,11 @@ export function Create() {
   )
 }
 
-// Es dueña de la tarea: el formulario y los paneles de progreso son
+// Es dueña de la tarea: el formulario y la pantalla de progreso son
 // presentacionales; el estado del job vive en el store de `useCreateTask`
-// (sobrevive a la navegación y al reload).
+// (sobrevive a la navegación y al reload). Con una tarea viva, la pantalla
+// de progreso ocupa la página entera (origen): «Crear otro» la descarta y
+// vuelve al formulario.
 function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
   const { t } = useTranslation()
   const { isNative, missingKeys } = useRequiredApiKeys({
@@ -75,9 +74,6 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
 
   usePageTitle(t('create.pageTitle'))
 
-  const busy = task?.status === 'creating' || task?.status === 'generating'
-  const showForm = !task || task.status === 'error'
-
   const patchForm = (patch: Partial<CreateFormValue>) => {
     setForm((current) => ({ ...current, ...patch }))
   }
@@ -103,6 +99,29 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
       narrationFilePath:
         form.narrationMode === 'own-audio' ? form.narrationFilePath : null,
     })
+  }
+
+  if (task) {
+    return (
+      <GenerationProgress
+        task={task}
+        back={{
+          labelKey: 'create.progress.createAnother',
+          onClick: discardTask,
+        }}
+        // En la pausa no hay job que cancelar: descartar la tarea deja el
+        // proyecto pausado en disco, reanudable desde la biblioteca.
+        onCancel={task.status === 'awaitingConfirmation' ? discardTask : cancel}
+        onRetryPipeline={() => void resume()}
+        onContinueInEditor={() => {
+          const projectId = task.projectId
+          discardTask()
+          navigate(libraryEditorPath(projectId))
+        }}
+        onConfirmScenes={(choice) => void confirmScenes(choice)}
+        onDismissConfirmation={discardTask}
+      />
+    )
   }
 
   return (
@@ -135,67 +154,29 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
         />
       )}
 
-      {task && task.status !== 'error' && (
-        <GenerationProgress
-          task={task}
-          onCancel={cancel}
-          onCreateAnother={discardTask}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <CreateForm
+          value={form}
+          disabled={!isNative || missingKeys}
+          submitting={probing}
+          onChange={patchForm}
+          onPickAudio={() => void pickAudio()}
+          onSubmit={() => void submit()}
         />
-      )}
 
-      {task?.status === 'error' && (
-        <TaskErrorCard
-          message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
-          onRetry={() => void resume()}
-          onDiscard={discardTask}
-          // Con las escenas ya persistidas (prompts hechos), el editor puede
-          // seguir: regenerar lo que falte y renderizar desde ahí.
-          onContinueInEditor={
-            task.completedStages.includes('scene-prompts')
-              ? () => {
-                  const projectId = task.projectId
-                  discardTask()
-                  navigate(libraryEditorPath(projectId))
-                }
-              : undefined
-          }
-        />
-      )}
-
-      {showForm && (
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-        >
-          <CreateForm
-            value={form}
-            disabled={!isNative || missingKeys || busy}
-            submitting={busy || probing}
-            onChange={patchForm}
-            onPickAudio={() => void pickAudio()}
-            onSubmit={() => void submit()}
-          />
-
-          <div className="mt-8 border-t border-border/40 pb-2 pt-8 text-center">
-            <p className="font-handwritten text-base text-muted-foreground">
-              {t('create.form.footerNote')}
-            </p>
-            <p className="mt-1 font-body text-xs text-muted-foreground/70">
-              {t('create.form.footerSupport', { email: Brand.supportEmail })}
-            </p>
-          </div>
-        </motion.section>
-      )}
-
-      {task?.status === 'awaitingConfirmation' && task.confirmation && (
-        <ConfirmScenesDialog
-          confirmation={task.confirmation}
-          projectId={task.projectId}
-          onConfirm={(choice) => void confirmScenes(choice)}
-          onCancel={discardTask}
-        />
-      )}
+        <div className="mt-8 border-t border-border/40 pb-2 pt-8 text-center">
+          <p className="font-handwritten text-base text-muted-foreground">
+            {t('create.form.footerNote')}
+          </p>
+          <p className="mt-1 font-body text-xs text-muted-foreground/70">
+            {t('create.form.footerSupport', { email: Brand.supportEmail })}
+          </p>
+        </div>
+      </motion.section>
 
       {probeFailure && (
         <TtsProviderDownDialog

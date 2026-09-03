@@ -10,7 +10,6 @@ import { Button } from '@/modules/common/ui/button'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
-import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import {
   UNKNOWN_CREATE_ERROR_KEY,
   VideosRoutes,
@@ -67,37 +66,26 @@ export function LibraryProgress() {
   }
   const backToLibrary = () => void navigate(VideosRoutes.library)
 
-  // ── Con tarea del store ──
+  // ── Con tarea del store: la pantalla de progreso entera (origen), con la
+  // pausa, el error y el completado dentro ──
   if (ownTask) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
-        <LibraryViewHeader title={projectName} />
-
-        {(ownTask.status === 'creating' || ownTask.status === 'generating') && (
-          <GenerationProgress task={ownTask} onCancel={cancel} />
-        )}
-
-        {ownTask.status === 'error' && (
-          <TaskErrorCard
-            message={t(ownTask.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
-            onRetry={resume}
-            onContinueInEditor={
-              ownTask.completedStages.includes('scene-prompts')
-                ? () => navigate(libraryEditorPath(projectId))
-                : undefined
-            }
-          />
-        )}
-
-        {ownTask.status === 'awaitingConfirmation' && ownTask.confirmation && (
-          <ConfirmScenesDialog
-            confirmation={ownTask.confirmation}
-            projectId={projectId}
-            onConfirm={(choice) => void confirmScenes(choice)}
-            onCancel={backToLibrary}
-          />
-        )}
-      </div>
+      <GenerationProgress
+        task={ownTask}
+        back={{
+          labelKey: 'library.player.backToLibrary',
+          onClick: backToLibrary,
+        }}
+        // En la pausa no hay job que cancelar: volver deja el proyecto
+        // pausado en disco, reanudable desde acá mismo.
+        onCancel={
+          ownTask.status === 'awaitingConfirmation' ? backToLibrary : cancel
+        }
+        onRetryPipeline={resume}
+        onContinueInEditor={() => void navigate(libraryEditorPath(projectId))}
+        onConfirmScenes={(choice) => void confirmScenes(choice)}
+        onDismissConfirmation={backToLibrary}
+      />
     )
   }
 

@@ -107,6 +107,16 @@ export const AUTO_RETRY_DELAY_SECONDS = 10
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
 
+// Nota de apoyo de la pantalla de progreso: en el origen `.font-handwritten`
+// se redefine como Outfit al 92 % (pisa la config de Tailwind). Acá se acota
+// a esta pantalla para no cambiar la tipografía del resto de la app.
+export const SUPPORT_NOTE_CLASS = 'font-display text-[0.92em]'
+
+// Carpeta personal al inicio de una ruta (macOS, Linux y Windows), para
+// mostrarla como «~/…» igual que el origen.
+export const HOME_DIRECTORY_PREFIX_REGEX =
+  /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)/
+
 // Mezcla de audio del editor: defaults (espejo de final-mix.ts en el sidecar)
 // y rangos de los sliders. Los volúmenes son ganancia lineal: 1 = original.
 export const AUDIO_MIX_DEFAULTS: AudioMixValue = {

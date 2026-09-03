@@ -224,37 +224,55 @@
       "hint": "Video sobreimpreso al 30%. Útil para granos, polvo, ambient."
     },
     "stages": {
-      "voice": "Narración y música",
-      "transcription": "Transcripción",
-      "sceneCuts": "División en escenas",
-      "scenePrompts": "Prompts de cada escena",
-      "images": "Imágenes",
-      "render": "Armado del video"
+      "voice": "Sintetizando voz",
+      "transcription": "Transcribiendo audio",
+      "sceneCuts": "Dividiendo en escenas",
+      "scenePrompts": "Generando prompts con IA",
+      "images": "Generando imágenes",
+      "render": "Ensamblando video"
     },
     "progress": {
-      "elapsed": "Tiempo transcurrido: {{time}}",
+      "createAnother": "Crear otro",
       "cancel": "Cancelar",
-      "cancelConfirm": "¿Seguro? Tocá de nuevo",
-      "voice": "Generando la narración ({{chars}} caracteres)",
-      "music": "Generando la música de fondo",
-      "imagesCount": "Imágenes: {{ready}} de {{total}}",
-      "logs": "Ver detalles",
-      "render": {
-        "chunks": "Armando los tramos del video",
-        "concat": "Uniendo los tramos",
-        "final": "Mezclando audio y color"
-      },
+      "cancelConfirm": "¿Seguro? Cancelar",
+      "viewVideo": "Ver video final",
       "phasesTitle": "Fases del pipeline",
       "waitingForYou": "te está esperando",
+      "audioSummary": "Duración audio: {{seconds}}s · {{scenes}} escenas",
       "status": {
         "generating": "Generando…",
-        "paused": "En pausa",
-        "completed": "Listo"
+        "completed": "Listo",
+        "error": "Error"
       },
-      "audioSummary": "Duración audio: {{seconds}} s · {{scenes}} escenas",
+      "timer": {
+        "title": "Tiempo transcurrido desde que empezó la generación",
+        "pausedTitle": "El pipeline está detenido esperándote: este rato no cuenta como tiempo de generación",
+        "paused": "· en pausa"
+      },
+      "voice": {
+        "title": "Generando voz · {{provider}}",
+        "hintMinimax": "Minimax es sincrónico · suele tardar 5-30s para {{chars}} caracteres",
+        "hintEdge": "Edge TTS es rápido · suele tardar <5s",
+        "hintDefault": "Procesando {{chars}} caracteres"
+      },
+      "music": {
+        "title": "Generando música con IA · Suno"
+      },
       "retry": {
-        "title": "Reintentando en {{seconds}} s · intento {{attempt}} de {{max}}"
-      }
+        "title": "Reintentando en {{seconds}}s",
+        "attempt": "· intento {{attempt}} de {{max}}"
+      },
+      "error": {
+        "title": "Algo salió mal",
+        "retryFromCheckpoint": "Reintentar desde el último paso",
+        "retryRender": "Reintentar ensamblaje",
+        "retryHint": "Se conserva lo que ya se generó (audio, escenas, prompts e imágenes) y solo se reintenta lo que falló.",
+        "retryRenderHint": "Tus imágenes y todo lo demás ya están listos — solo se rehace el armado del video. No se pierde nada ni se gastan créditos.",
+        "continueHint": "Las escenas que quedaron sin imagen conservan su descripción: en el editor puedes regenerarlas una por una, o cambiar la descripción de la que no salga, y después generar tu video."
+      },
+      "savedAt": "¡Listo! Tu video se guardó en",
+      "imagesCount": "Imágenes ({{ready}}/{{total}})",
+      "logs": "Mostrar logs internos ({{count}})"
     },
     "confirmScenes": {
       "title": "¿Cuántas escenas?",
@@ -272,10 +290,6 @@
       "secondsScenes_other": "Con esta duración salen {{count}} escenas.",
       "secondsHint": "Vimo recuerda este valor para tus próximos videos.",
       "resulting": "Escenas"
-    },
-    "completed": {
-      "subtitle": "Tu video está listo.",
-      "createAnother": "Crear otro"
     },
     "probe": {
       "title": "El servicio de voces no responde",

@@ -224,37 +224,55 @@
       "hint": "Overlaid video at 30%. Useful for grain, dust, ambient."
     },
     "stages": {
-      "voice": "Narration and music",
-      "transcription": "Transcription",
-      "sceneCuts": "Scene split",
-      "scenePrompts": "Scene prompts",
-      "images": "Images",
-      "render": "Video assembly"
+      "voice": "Synthesizing voice",
+      "transcription": "Transcribing audio",
+      "sceneCuts": "Splitting into scenes",
+      "scenePrompts": "Generating prompts with AI",
+      "images": "Generating images",
+      "render": "Assembling video"
     },
     "progress": {
-      "elapsed": "Elapsed: {{time}}",
+      "createAnother": "Create another",
       "cancel": "Cancel",
-      "cancelConfirm": "Sure? Tap again",
-      "voice": "Generating the narration ({{chars}} characters)",
-      "music": "Generating the background music",
-      "imagesCount": "Images: {{ready}} of {{total}}",
-      "logs": "See details",
-      "render": {
-        "chunks": "Rendering the video segments",
-        "concat": "Joining the segments",
-        "final": "Mixing audio and color"
-      },
+      "cancelConfirm": "Sure? Cancel",
+      "viewVideo": "Watch final video",
       "phasesTitle": "Pipeline phases",
       "waitingForYou": "waiting for you",
+      "audioSummary": "Audio length: {{seconds}}s · {{scenes}} scenes",
       "status": {
         "generating": "Generating…",
-        "paused": "Paused",
-        "completed": "Done"
+        "completed": "Done",
+        "error": "Error"
       },
-      "audioSummary": "Audio length: {{seconds}} s · {{scenes}} scenes",
+      "timer": {
+        "title": "Time elapsed since the generation started",
+        "pausedTitle": "The pipeline is stopped waiting for you: this time doesn't count as generation time",
+        "paused": "· paused"
+      },
+      "voice": {
+        "title": "Generating voice · {{provider}}",
+        "hintMinimax": "Minimax is synchronous · usually takes 5-30s for {{chars}} characters",
+        "hintEdge": "Edge TTS is fast · usually takes <5s",
+        "hintDefault": "Processing {{chars}} characters"
+      },
+      "music": {
+        "title": "Generating music with AI · Suno"
+      },
       "retry": {
-        "title": "Retrying in {{seconds}} s · attempt {{attempt}} of {{max}}"
-      }
+        "title": "Retrying in {{seconds}}s",
+        "attempt": "· attempt {{attempt}} of {{max}}"
+      },
+      "error": {
+        "title": "Something went wrong",
+        "retryFromCheckpoint": "Retry from the last step",
+        "retryRender": "Retry assembly",
+        "retryHint": "What was already generated (audio, scenes, prompts and images) is kept; only what failed is retried.",
+        "retryRenderHint": "Your images and everything else are ready — only the video assembly is redone. Nothing is lost and no credits are spent.",
+        "continueHint": "Scenes left without an image keep their description: in the editor you can regenerate them one by one, or change the description of the one that fails, and then generate your video."
+      },
+      "savedAt": "Done! Your video was saved to",
+      "imagesCount": "Images ({{ready}}/{{total}})",
+      "logs": "Show internal logs ({{count}})"
     },
     "confirmScenes": {
       "title": "How many scenes?",
@@ -272,10 +290,6 @@
       "secondsScenes_other": "This length yields {{count}} scenes.",
       "secondsHint": "Vimo remembers this value for your next videos.",
       "resulting": "Scenes"
-    },
-    "completed": {
-      "subtitle": "Your video is ready.",
-      "createAnother": "Create another"
     },
     "probe": {
       "title": "The voice service is not responding",
