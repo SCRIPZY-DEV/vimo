@@ -1,5 +1,4 @@
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
-import { readStoredSecondsPerScene } from '@/modules/videos/utilities/secondsPerSceneStorage'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
 import type {
@@ -18,7 +17,9 @@ export function createProjectPayload(
   const usesCustomStyle = form.styleSource === 'custom' && form.customStyle
   const options: VideoProjectOptions = {
     styleId: usesCustomStyle ? 'normal' : form.styleId,
-    sceneCount: form.sceneCount,
+    // Con estilo propio el corte va por duración: la cantidad que quedó en el
+    // formulario no aplica y viaja como automática para no mentir el metadata.
+    sceneCount: usesCustomStyle ? 0 : form.sceneCount,
     narrationMode: form.narrationMode,
     imageProvider: form.imageProvider,
     imageQuality: form.imageQuality,
@@ -39,10 +40,10 @@ export function createProjectPayload(
         ? { character: form.customStyle.character }
         : {}),
     }
-    // Carril de segundos-por-escena: el proyecto nace con el último valor
-    // elegido en el diálogo (o el default). El diálogo de confirmación lo
-    // ajusta con el slider; sin confirmación, este valor corta directo.
-    options.secondsPerScene = readStoredSecondsPerScene()
+    // Carril de segundos-por-escena: el proyecto nace con la preferencia de
+    // Ajustes. El diálogo de confirmación lo ajusta con el slider; sin
+    // confirmación, este valor corta directo.
+    options.secondsPerScene = form.secondsPerScene
     if (form.promptModel) options.promptModel = form.promptModel
   }
 

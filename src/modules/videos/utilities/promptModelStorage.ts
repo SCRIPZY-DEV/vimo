@@ -1,8 +1,7 @@
 import { PROMPT_MODEL_STORAGE_KEY } from '@/modules/videos/constants'
 
-// El último modelo de prompts elegido, recordado entre videos (mismo patrón
-// que secondsPerSceneStorage). Sin valor o con storage bloqueado → null: el
-// pipeline usa el de la casa.
+// El último modelo de prompts elegido, recordado entre videos. Sin valor o con
+// storage bloqueado → null: el pipeline usa el de la casa.
 
 export function readStoredPromptModel(): string | null {
   try {

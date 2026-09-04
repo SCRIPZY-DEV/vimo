@@ -5,17 +5,28 @@ export const SettingsRoutes = {
 export const settingsQueryKeys = {
   projectsRoot: ['settings', 'projectsRoot'],
   defaultSceneCount: ['settings', 'defaultSceneCount'],
+  sceneDuration: ['settings', 'sceneDuration'],
 } as const
 
 export const SETTINGS_STORE_FILE = 'settings.json'
 export const PROJECTS_ROOT_STORE_KEY = 'projectsRoot'
 export const DEFAULT_SCENE_COUNT_STORE_KEY = 'defaultSceneCount'
+export const SECONDS_PER_SCENE_STORE_KEY = 'secondsPerScene'
+export const CONFIRM_SCENES_STORE_KEY = 'confirmScenes'
 
 // Espejo de MAX_SCENE_COUNT del módulo videos: se duplica a propósito para no
 // acoplar módulos. Si cambia allá, cambia acá.
 export const SCENE_COUNT_MAX = 500
 // 0 = el pipeline decide la cantidad (una escena cada ~3 segundos).
 export const AUTOMATIC_SCENE_COUNT = 0
+
+// Espejo del carril de segundos-por-escena de videos (mismo criterio: se
+// duplica para no acoplar módulos).
+export const SECONDS_PER_SCENE_MIN = 2
+export const SECONDS_PER_SCENE_MAX = 15
+export const SECONDS_PER_SCENE_DEFAULT = 3
+// Valores de un click para no arrastrar el slider hasta los más usados.
+export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10]
 
 export const DEFAULT_PROJECTS_FOLDER_NAME = 'Vimo'
 

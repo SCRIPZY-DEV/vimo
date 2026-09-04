@@ -71,11 +71,10 @@ export const MAX_SCENE_COUNT = 500
 
 // Carril de segundos-por-escena de los estilos propios. Espejo de
 // pipeline/stages/scene-cuts/by-seconds.ts (el slider se mueve entre estos).
+// El valor por defecto es una preferencia de Ajustes (useSceneDurationDefaults).
 export const SECONDS_PER_SCENE_MIN = 2
 export const SECONDS_PER_SCENE_MAX = 15
 export const SECONDS_PER_SCENE_DEFAULT = 3
-// El último valor elegido en el diálogo, recordado entre videos.
-export const SECONDS_PER_SCENE_STORAGE_KEY = 'vimo:create:secondsPerScene'
 // El último modelo de prompts elegido, recordado entre videos (decisión de
 // la rama 11: sin «modelo de siempre», solo se recuerda la última elección).
 export const PROMPT_MODEL_STORAGE_KEY = 'vimo:create:promptModel'
@@ -443,6 +442,8 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   // Create lo siembra con el último elegido (readStoredPromptModel).
   promptModel: null,
   sceneCount: 0,
+  // Create lo siembra con la preferencia de Ajustes.
+  secondsPerScene: SECONDS_PER_SCENE_DEFAULT,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
   voice: null,
