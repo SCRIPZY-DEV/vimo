@@ -16,6 +16,7 @@ import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
+import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
 import {
   CUSTOM_STYLE_NAME_LIMIT,
@@ -24,11 +25,16 @@ import {
   RECOMMENDED_SHOTS,
 } from '@/modules/videos/constants'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
-import type { StyleSample, StyleSavePayload } from '@pipeline/types/styles.ts'
+import type { CustomStyleDraft } from '@/modules/videos/types/styles'
+import type {
+  StyleCharacter,
+  StyleSample,
+  StyleSavePayload,
+} from '@pipeline/types/styles.ts'
 
 interface CustomStyleModalProps {
   styleId: string
-  initial: { name: string; systemPrompt: string; shots: string[] }
+  initial: CustomStyleDraft
   // Muestras VIVAS del estilo (derivadas de la query de la galería): se ven
   // al abrir y aparecen solas al terminar de generar, como los previews de
   // personaje.
@@ -57,6 +63,11 @@ export function CustomStyleModal({
   const [systemPrompt, setSystemPrompt] = useState(initial.systemPrompt)
   const [shots, setShots] = useState(initial.shots.join(', '))
   const [provider, setProvider] = useState<ImageProviderId>('evolink')
+  // Ausente en disco = genérico (gemas previas a ADR-0020). Viaja SIEMPRE en
+  // el payload: el guard del sidecar conserva el bloque solo cuando falta.
+  const [character, setCharacter] = useState<StyleCharacter>(
+    initial.character ?? { mode: 'generic' },
+  )
 
   const canSave = Boolean(name.trim() && systemPrompt.trim())
   const busy = saving || samples.running
@@ -70,6 +81,7 @@ export function CustomStyleModal({
         .split(',')
         .map((shot) => shot.trim())
         .filter(Boolean),
+      character,
     }
   }
 
@@ -154,6 +166,12 @@ export function CustomStyleModal({
             className="font-body"
           />
         </div>
+
+        <StyleCharacterBlock
+          value={character}
+          disabled={busy}
+          onChange={setCharacter}
+        />
 
         <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
