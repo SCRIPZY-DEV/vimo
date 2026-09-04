@@ -193,7 +193,8 @@
       "pickerTitle": "Elegir personajes",
       "pickerDescription": "Podés elegir hasta {{max}} personajes; van a aparecer con su identidad en todo el video.",
       "empty": "Todavía no tenés personajes en tu biblioteca.",
-      "noPreviewForStyle": "Sin ilustración en este estilo",
+      "noPreviewForStyle": "Sin ilustración en este estilo: irá sin imagen de referencia",
+      "noReferenceHint": "Sin referencia visual",
       "use": "Usar {{count}} personaje(s)",
       "frequency": {
         "label": "¿Cada cuánto aparece?",
@@ -207,7 +208,6 @@
       "selectedCount_other": "{{count}} personajes",
       "asksForCharacter": "Este estilo pide tu personaje: elegí uno para generar.",
       "broughtByStyle": "Lo trae tu estilo. Todos los videos con este estilo salen con él.",
-      "useFixed": "Usar a {{name}}, el personaje de este estilo",
       "fixedMissing": "El personaje predeterminado de este estilo ya no está en tu biblioteca. Editá el estilo y elegí otro.",
       "createNew": "Crear personaje nuevo",
       "createWithStyle": "Crear personaje con mi estilo"
@@ -313,7 +313,6 @@
       "projectNotFound": "Ese proyecto ya no está en tu carpeta.",
       "projectCorrupt": "Los datos del proyecto están dañados.",
       "projectExists": "Ya existe un proyecto con ese nombre.",
-      "characterPreviewMissing": "El personaje no tiene ilustración en el estilo elegido. Generala en Personajes.",
       "scriptMissing": "Falta el guion del proyecto.",
       "narrationMissing": "No encontramos tu audio. Volvé a subirlo.",
       "narrationSourceMissing": "El archivo de audio ya no está donde lo elegiste.",
@@ -842,7 +841,11 @@
       "cancelar": "Cancelar",
       "vacio": "Todavía no generaste ninguna vista previa.",
       "faltaClave": "Necesitás la clave del proveedor elegido.",
-      "generando": "Generando…"
+      "generando": "Generando…",
+      "writingPrompt": "Escribiendo el prompt…",
+      "customStyleBadge": "Estilo propio",
+      "customStyleNote": "Con un estilo propio, tu gema escribe el prompt del retrato (una llamada a la IA, necesita DeepInfra) y después se genera la imagen.",
+      "deletedStyle": "Estilo eliminado"
     },
     "styles": {
       "normal": "Normal",
@@ -860,6 +863,7 @@
       "nameRequired": "Poné un nombre para el personaje.",
       "descriptionTooShort": "La identidad necesita al menos 10 caracteres.",
       "notFound": "Ese personaje ya no está en tu biblioteca.",
+      "styleNotFound": "Ese estilo propio ya no está en tu galería. Elegí otro.",
       "invalid": "Revisá los datos del personaje.",
       "imageNetwork": "No pudimos conectar con el proveedor de imágenes.",
       "imageInvalidApiKey": "La clave del proveedor de imágenes no es válida.",
