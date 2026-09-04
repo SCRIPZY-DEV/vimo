@@ -10,6 +10,7 @@ import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKe
 import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { useDefaultSceneCount } from '@/modules/settings/hooks/useDefaultSceneCount'
+import { useSceneDurationDefaults } from '@/modules/settings/hooks/useSceneDurationDefaults'
 import { videosApi } from '@/modules/videos/api'
 import { CreateForm } from '@/modules/videos/components/CreateForm'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
@@ -26,21 +27,37 @@ import { readStoredPromptModel } from '@/modules/videos/utilities/promptModelSto
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
-// Pantalla de creación de video. Espera la preferencia «escenas por defecto»
-// antes de montar el formulario: el estado inicial se siembra una sola vez y
-// la lectura es de disco local (staleTime Infinity → instantánea al volver).
+// Pantalla de creación de video. Espera las preferencias de escenas (cantidad
+// por defecto y ritmo de los estilos propios) antes de montar el formulario: el
+// estado inicial se siembra una sola vez y la lectura es de disco local
+// (staleTime Infinity → instantánea al volver).
 export function Create() {
   const { defaultSceneCount, isLoading } = useDefaultSceneCount()
+  const { sceneDuration, isLoading: loadingSceneDuration } =
+    useSceneDurationDefaults()
 
-  if (isLoading) return <ViewSpinner />
+  if (isLoading || loadingSceneDuration) return <ViewSpinner />
 
   return (
     <CreateView
       initialSceneCount={
         defaultSceneCount ?? CREATE_FORM_INITIAL_VALUE.sceneCount
       }
+      initialSecondsPerScene={
+        sceneDuration?.secondsPerScene ??
+        CREATE_FORM_INITIAL_VALUE.secondsPerScene
+      }
+      initialConfirmScenes={
+        sceneDuration?.confirmScenes ?? CREATE_FORM_INITIAL_VALUE.confirmScenes
+      }
     />
   )
+}
+
+interface CreateViewProps {
+  initialSceneCount: number
+  initialSecondsPerScene: number
+  initialConfirmScenes: boolean
 }
 
 // Es dueña de la tarea: el formulario y la pantalla de progreso son
@@ -48,7 +65,11 @@ export function Create() {
 // (sobrevive a la navegación y al reload). Con una tarea viva, la pantalla
 // de progreso ocupa la página entera (origen): «Crear otro» la descarta y
 // vuelve al formulario.
-function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
+function CreateView({
+  initialSceneCount,
+  initialSecondsPerScene,
+  initialConfirmScenes,
+}: CreateViewProps) {
   const { t } = useTranslation()
   const { isNative, missingKeys } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.videos,
@@ -61,6 +82,8 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
   const [form, setForm] = useState<CreateFormValue>(() => ({
     ...CREATE_FORM_INITIAL_VALUE,
     sceneCount: initialSceneCount,
+    secondsPerScene: initialSecondsPerScene,
+    confirmScenes: initialConfirmScenes,
     promptModel: readStoredPromptModel(),
   }))
 

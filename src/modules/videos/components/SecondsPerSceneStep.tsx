@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PlayCircle } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
+import { useSceneDurationDefaults } from '@/modules/settings/hooks/useSceneDurationDefaults'
 import {
   SCENE_CUT_PREVIEW_DEBOUNCE_MS,
+  SECONDS_PER_SCENE_DEFAULT,
   SECONDS_PER_SCENE_MAX,
   SECONDS_PER_SCENE_MIN,
   SECONDS_PER_SCENE_SHORTCUTS,
@@ -11,10 +13,6 @@ import {
 } from '@/modules/videos/constants'
 import { useSceneCutPreview } from '@/modules/videos/hooks/useSceneCutPreview'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
-import {
-  readStoredSecondsPerScene,
-  storeSecondsPerScene,
-} from '@/modules/videos/utilities/secondsPerSceneStorage'
 import type {
   SceneConfirmationView,
   SceneCutChoice,
@@ -32,14 +30,19 @@ interface SecondsPerSceneStepProps {
 // número de escenas se mueve al instante con una estimación local («≈») y
 // lo reemplaza el corte real del sidecar apenas contesta, con la misma
 // implementación que después corta: así la vista previa no puede mentir.
+// El valor elegido pasa a ser la preferencia de Ajustes (PR #37 de dev), con
+// la que arrancan los próximos videos.
 export function SecondsPerSceneStep({
   projectId,
   confirmation,
   onConfirm,
 }: SecondsPerSceneStepProps) {
   const { t } = useTranslation()
+  const { sceneDuration, rememberSecondsPerScene } = useSceneDurationDefaults()
   const [seconds, setSeconds] = useState(
-    () => confirmation.secondsPerScene ?? readStoredSecondsPerScene(),
+    confirmation.secondsPerScene ??
+      sceneDuration?.secondsPerScene ??
+      SECONDS_PER_SCENE_DEFAULT,
   )
   // El corte real se pide con un pequeño retraso: cada valor es un job del
   // sidecar y el slider dispara muchos seguidos.
@@ -66,7 +69,7 @@ export function SecondsPerSceneStep({
       : estimateSceneCount(confirmation.audioDurationSeconds, seconds)
 
   const confirm = () => {
-    storeSecondsPerScene(seconds)
+    rememberSecondsPerScene(seconds)
     onConfirm({ secondsPerScene: seconds })
   }
 

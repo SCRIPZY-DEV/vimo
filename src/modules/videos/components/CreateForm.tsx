@@ -106,27 +106,31 @@ export function CreateForm({
         )}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="create-scene-count" className="font-display">
-            {t('create.scenes.countLabel')}
-          </Label>
-          <Input
-            id="create-scene-count"
-            type="number"
-            min={0}
-            max={MAX_SCENE_COUNT}
-            value={value.sceneCount}
-            disabled={disabled}
-            onChange={(event) =>
-              onChange({ sceneCount: clampSceneCount(event.target.value, 0) })
-            }
-          />
-          <p className="font-body text-xs text-muted-foreground">
-            {t('create.scenes.countHint')}
-          </p>
+      {/* Solo con estilo de catálogo: los videos de Mi estilo cortan por
+          duración de escena y el pipeline ignora esta cantidad. */}
+      {value.styleSource === 'catalog' && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="create-scene-count" className="font-display">
+              {t('create.scenes.countLabel')}
+            </Label>
+            <Input
+              id="create-scene-count"
+              type="number"
+              min={0}
+              max={MAX_SCENE_COUNT}
+              value={value.sceneCount}
+              disabled={disabled}
+              onChange={(event) =>
+                onChange({ sceneCount: clampSceneCount(event.target.value, 0) })
+              }
+            />
+            <p className="font-body text-xs text-muted-foreground">
+              {t('create.scenes.countHint')}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <VideoFormatSection
         value={value}

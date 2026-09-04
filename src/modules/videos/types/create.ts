@@ -171,8 +171,12 @@ export interface CreateFormValue {
   // Modelo LLM del carril verbatim (solo viaja con estilo propio). null = el
   // de la casa; se siembra con el último elegido (localStorage).
   promptModel: string | null
-  // 0 = cantidad automática.
+  // 0 = cantidad automática. Solo aplica con estilo de catálogo: con estilo
+  // propio el corte va por duración de escena.
   sceneCount: number
+  // Duración de cada escena en segundos (solo viaja con estilo propio). Se
+  // siembra con la preferencia de Ajustes.
+  secondsPerScene: number
   imageProvider: ImageProviderId
   imageQuality: string
   voice: SelectedVoice | null
