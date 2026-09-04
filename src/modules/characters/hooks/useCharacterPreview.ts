@@ -4,6 +4,8 @@ import { UNKNOWN_CHARACTERS_ERROR_KEY } from '@/modules/characters/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
+  CharacterPreviewPhase,
+  CharacterPreviewProgressDetail,
   GenerateCharacterPreviewPayload,
   GenerateCharacterPreviewResult,
 } from '@pipeline/types/characters.ts'
@@ -14,6 +16,11 @@ function previewDataUri(result: unknown): string | null {
   return preview?.dataUri ?? null
 }
 
+function progressPhase(detail: unknown): CharacterPreviewPhase | null {
+  const progress = detail as CharacterPreviewProgressDetail | null
+  return progress?.phase ?? null
+}
+
 // El estado vive en el componente y no en un store como música/voz: el preview
 // solo existe mientras el modal está abierto, y al cerrarlo se cancela el job
 export function useCharacterPreview() {
@@ -22,6 +29,8 @@ export function useCharacterPreview() {
   // No todos los proveedores informan avance (Fal no emite `progress`): sin un
   // evento real no hay porcentaje que mostrar, solo la barra.
   const [hasProgress, setHasProgress] = useState(false)
+  // Solo con estilo propio: la gema escribe el prompt antes de la imagen.
+  const [phase, setPhase] = useState<CharacterPreviewPhase | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const activeJob = useRef<PipelineJobHandle | null>(null)
 
@@ -41,6 +50,7 @@ export function useCharacterPreview() {
       setGenerating(true)
       setPercent(0)
       setHasProgress(false)
+      setPhase(null)
       setErrorKey(null)
 
       let finished = false
@@ -55,6 +65,8 @@ export function useCharacterPreview() {
 
       const handleEvent = (event: PipelineEventPayload) => {
         if (event.type === 'progress') {
+          const nextPhase = progressPhase(event.detail)
+          if (nextPhase) setPhase(nextPhase)
           if (typeof event.percent !== 'number') return
 
           setPercent(event.percent)
@@ -101,5 +113,13 @@ export function useCharacterPreview() {
     void charactersApi.cancelJob(job.jobId)
   }
 
-  return { generating, percent, hasProgress, errorKey, generate, cancel }
+  return {
+    generating,
+    percent,
+    hasProgress,
+    phase,
+    errorKey,
+    generate,
+    cancel,
+  }
 }
