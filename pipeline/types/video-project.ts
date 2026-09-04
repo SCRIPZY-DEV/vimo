@@ -1,4 +1,5 @@
 import type { CharacterStyleId } from './characters.ts'
+import type { StyleCharacter } from './styles.ts'
 import type { ImageProviderId } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
 import type { SceneSummary, TranscriptWord } from './scenes.ts'
@@ -44,6 +45,9 @@ export interface ProjectCustomStyle {
   name: string
   systemPrompt: string
   shots?: string[]
+  // Qué declaró la gema sobre su protagonista (snapshot). Ausente = el
+  // proyecto manda (comportamiento previo a ADR-0020, intacto).
+  character?: StyleCharacter
 }
 
 // Opciones del proyecto (port con whitelist de OpcionesProyecto: solo lo que
@@ -82,6 +86,11 @@ export interface VideoProjectOptions {
   // del corte clásico. Ausente = 3 en el carril; sin customStyle se ignora
   // (los cortes clásicos siguen byte-idénticos).
   secondsPerScene?: number
+  // Modelo LLM que escribe los prompts del carril verbatim (solo con
+  // customStyle). Ausente = el de la casa. NO se valida contra el catálogo:
+  // un id retirado o desconocido se degrada con aviso (resolveVerbatimModel),
+  // así un proyecto viejo sigue generando.
+  promptModel?: string
   characters?: ProjectCharacter[]
   characterFrequency?: CharacterFrequency
   // Mezcla final del render; defaults 1.0 (voz) y 0.15 (música).
@@ -123,6 +132,9 @@ export interface VideoProjectMetadata {
   // (escenas, narración o música). Nunca implica borrar el mp4: solo avisa.
   // Lo limpian los jobs que completan un render (ADR-0014).
   videoOutdated?: boolean
+  // Con qué modelo se escribieron los prompts de verdad (tras la
+  // degradación, si la hubo). Solo auditoría: no gobierna nada.
+  promptModelUsed?: { id: string; label: string }
 }
 
 // ─── Contratos de los subcomandos del dominio videos ───
