@@ -13,7 +13,7 @@ import {
   qualityWeight,
 } from '../catalogRows'
 import type { CostFilter, ImageVoiceComboRow } from '../types/costs'
-import { PriceCell } from './PriceCell'
+import { PriceCell } from '@/modules/common/components/PriceCell'
 
 function computeCell(row: ImageVoiceComboRow, durationMinutes: number) {
   const durationSeconds = durationMinutes * 60
