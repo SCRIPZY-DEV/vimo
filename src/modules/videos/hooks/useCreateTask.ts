@@ -221,10 +221,15 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, { scenes: mergeScene(task.scenes, event.scene) })
       return
 
-    // Cifras absolutas del stream del redactor: reemplazan, no suman.
+    // Cifras absolutas del stream del redactor: reemplazan, no suman. Se
+    // conserva el máximo visto — un job relanzado (reintento automático)
+    // vuelve a escribir desde cero y la barra no debe devolverse.
     case 'scene-prompts-progress':
       patchTask(taskId, {
-        promptsWritten: { ready: event.ready, total: event.total },
+        promptsWritten: {
+          ready: Math.max(task.promptsWritten?.ready ?? 0, event.ready),
+          total: event.total,
+        },
       })
       return
 
@@ -366,11 +371,18 @@ function mergeScene(
   scenes: CreateTask['scenes'],
   incoming: CreateTask['scenes'][number],
 ): CreateTask['scenes'] {
-  // Merge por id (nunca reemplazo): conserva el estado de imagen ya conocido.
+  // Merge por id (nunca reemplazo): conserva el estado de imagen ya conocido
+  // y un prompt ya visto si el evento no trae otro — el contador de prompts
+  // solo puede subir.
   const index = scenes.findIndex((scene) => scene.id === incoming.id)
   if (index < 0) return [...scenes, incoming].sort((a, b) => a.id - b.id)
+  const known = scenes[index]
   const merged = [...scenes]
-  merged[index] = { ...merged[index], ...incoming }
+  merged[index] = {
+    ...known,
+    ...incoming,
+    imagePrompt: hasPrompt(incoming) ? incoming.imagePrompt : known.imagePrompt,
+  }
   return merged
 }
 
@@ -454,12 +466,14 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
           pausedAt: null,
         }
       : {}
+  // `promptsWritten` NO se resetea: al relanzar (reintento, reanudación) el
+  // redactor arranca de cero y la barra se quedaría quieta hasta alcanzar lo
+  // ya visto — nunca vuelve atrás (regla del origen). Lo limpia la fase al
+  // completarse y cada tarea nueva nace sin él.
   patchTask(taskId, {
     status: 'generating',
     errorKey: null,
     confirmation: null,
-    // Cada run escribe su propio stream de prompts.
-    promptsWritten: null,
     ...pausePatch,
   })
 

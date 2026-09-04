@@ -176,6 +176,7 @@ export async function runVerbatimLane(
     baseUrl: context.config.llm.baseUrl,
   })
 
+  let lastReady = 0
   const result = await generateVerbatimPrompts(fragments, fullScript, {
     // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
     // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
@@ -191,10 +192,17 @@ export async function runVerbatimLane(
     // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
     // que ya traían prompt cuentan como listas, así la UI muestra
     // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.
+    // Monótono por construcción: un lote que reporta desde cero no la devuelve.
     onProgress: (ready) => {
+      const absolute = Math.min(
+        scenes.length,
+        scenes.length - pending.length + ready,
+      )
+      if (absolute <= lastReady) return
+      lastReady = absolute
       context.emitter.emit({
         type: 'scene-prompts-progress',
-        ready: scenes.length - pending.length + ready,
+        ready: absolute,
         total: scenes.length,
       })
     },

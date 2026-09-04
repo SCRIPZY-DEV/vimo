@@ -19,9 +19,13 @@ interface PromptsGridProps {
 export function PromptsGrid({ scenes, written }: PromptsGridProps) {
   if (scenes.length === 0) return null
 
-  // max(persistidos, escritos) — origen: la barra avanza mientras el modelo
-  // escribe y nunca retrocede cuando la persistencia alcanza al stream.
-  const done = Math.max(scenes.filter(hasPrompt).length, written?.ready ?? 0)
+  // max(persistidos, escritos), acotado al total — origen: la barra avanza
+  // mientras el modelo escribe y nunca retrocede cuando la persistencia
+  // alcanza al stream.
+  const done = Math.min(
+    scenes.length,
+    Math.max(scenes.filter(hasPrompt).length, written?.ready ?? 0),
+  )
 
   return (
     <div className="space-y-3">
