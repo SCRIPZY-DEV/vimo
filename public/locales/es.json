@@ -534,6 +534,8 @@
       "generateDraft": "Generar video",
       "musicButton": "Música",
       "audioButton": "Audio",
+      "musicButtonHelp": "Editar la música del video",
+      "audioButtonHelp": "Editar el audio del video",
       "dismissError": "Descartar error",
       "timeline": {
         "boundary": "Arrastrá para mover la frontera entre escenas",
@@ -566,6 +568,7 @@
         "render": "Renderizar video",
         "rerender": "Re-renderizar (desactualizado)",
         "rerenderClean": "Re-renderizar",
+        "help": "Regenera el video con los últimos cambios",
         "cancel": "Cancelar render",
         "phase": {
           "chunks": "Armando escenas",
@@ -575,6 +578,7 @@
       },
       "export": {
         "button": "Exportar para editar",
+        "help": "Genera los clips para exportarlos a editores de video",
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Vista previa",
