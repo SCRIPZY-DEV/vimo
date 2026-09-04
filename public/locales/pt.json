@@ -503,7 +503,7 @@
         "generating": "Gerando",
         "awaitingConfirmation": "Confirmar cenas",
         "interrupted": "Interrompido",
-        "paused": "Pausado",
+        "paused": "Cancelado",
         "error": "Erro",
         "draft": "Rascunho"
       }
@@ -526,7 +526,8 @@
     },
     "progress": {
       "pageTitle": "Progresso",
-      "interrupted": "A geração foi interrompida. Você pode retomá-la: os passos concluídos não se repetem."
+      "interrupted": "A geração foi interrompida. Você pode retomá-la: os passos concluídos não se repetem.",
+      "cancelled": "Você cancelou esta geração. Pode retomá-la a partir do último passo concluído, ou excluir o projeto pela biblioteca."
     },
     "editor": {
       "draftHint": "Este projeto é um rascunho: nada foi gerado ainda. Inicie a geração para poder editá-lo.",

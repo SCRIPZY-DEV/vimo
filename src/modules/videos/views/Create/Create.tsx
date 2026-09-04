@@ -16,6 +16,7 @@ import { GenerationProgress } from '@/modules/videos/components/GenerationProgre
 import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
 import {
   CREATE_FORM_INITIAL_VALUE,
+  VideosRoutes,
   libraryEditorPath,
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
@@ -109,9 +110,13 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
           labelKey: 'create.progress.createAnother',
           onClick: discardTask,
         }}
-        // En la pausa no hay job que cancelar: descartar la tarea deja el
-        // proyecto pausado en disco, reanudable desde la biblioteca.
-        onCancel={task.status === 'awaitingConfirmation' ? discardTask : cancel}
+        // Cancelar no es un error (origen v0.35.0): se va a la biblioteca en
+        // el acto y el proyecto queda ahí como cancelado, reanudable o
+        // eliminable. En la pausa no hay job: solo se descarta la tarea.
+        onCancel={() => {
+          cancel()
+          void navigate(VideosRoutes.library)
+        }}
         onRetryPipeline={() => void resume()}
         onContinueInEditor={() => {
           const projectId = task.projectId

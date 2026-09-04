@@ -3,8 +3,9 @@ import i18next from 'i18next'
 import { toast } from '@/modules/common/hooks/useToast'
 import { videosApi } from '@/modules/videos/api'
 import {
-  AUTO_RETRY_DELAY_SECONDS,
+  AUTO_RETRY_DELAYS_SECONDS,
   AUTO_RETRY_MAX_ATTEMPTS,
+  CANCEL_SETTLE_TIMEOUT_MS,
   CREATE_ERROR_MESSAGE_KEYS,
   CREATE_TASK_STORAGE_KEY,
   INTERRUPTED_ERROR_KEY,
@@ -13,10 +14,18 @@ import {
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
+import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
+import { refreshProjectQueries } from '@/modules/videos/utilities/projectRefresh'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
-import type { CreateTask, SceneCutChoice } from '@/modules/videos/types/create'
+import type {
+  CreateTask,
+  CreateTaskSeed,
+  ProjectRunOptions,
+  SceneCutChoice,
+} from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
+import type { SceneSummary } from '@pipeline/types/scenes.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type {
   CreateVideoProjectPayload,
@@ -64,6 +73,10 @@ function restoreTask(): CreateTask | null {
     if (!raw) return null
 
     const stored = JSON.parse(raw) as CreateTask
+    // Una cancelación a medio cerrar no sobrevive el reinicio: el job murió
+    // con la app y el proyecto quedó en disco como lo dejó el sidecar.
+    if (stored.cancelRequested) return null
+
     // Tareas persistidas antes del cronómetro con pausa: defaults. El
     // reintento automático nunca sobrevive un reinicio (su timer murió).
     const task: CreateTask = {
@@ -74,6 +87,8 @@ function restoreTask(): CreateTask | null {
       retry: null,
       retryAttempts: stored.retryAttempts ?? 0,
       videoFormat: stored.videoFormat ?? '16:9',
+      promptsWritten: stored.promptsWritten ?? null,
+      cancelRequested: false,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -120,6 +135,8 @@ function startAutoRetry(taskId: string, projectId: string, errorKey: string) {
   if (!task || task.id !== taskId) return
 
   const attempt = task.retryAttempts + 1
+  // Backoff creciente del origen (30 s, 90 s, 3 min).
+  const delayIndex = Math.min(attempt, AUTO_RETRY_DELAYS_SECONDS.length) - 1
   stopRetryTimer()
   patchTask(taskId, {
     status: 'generating',
@@ -129,7 +146,7 @@ function startAutoRetry(taskId: string, projectId: string, errorKey: string) {
     retry: {
       attempt,
       maxAttempts: AUTO_RETRY_MAX_ATTEMPTS,
-      secondsLeft: AUTO_RETRY_DELAY_SECONDS,
+      secondsLeft: AUTO_RETRY_DELAYS_SECONDS[delayIndex],
     },
     retryAttempts: attempt,
   })
@@ -151,12 +168,6 @@ function startAutoRetry(taskId: string, projectId: string, errorKey: string) {
   }, 1000)
 }
 
-// Cancela la cuenta regresiva y deja el fallo como error normal.
-function cancelAutoRetry(taskId: string) {
-  stopRetryTimer()
-  patchTask(taskId, { status: 'error', retry: null })
-}
-
 function errorKeyFor(code: string): string {
   return CREATE_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY
 }
@@ -170,6 +181,14 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
   const task = currentTask
   if (!task || task.id !== taskId) return
 
+  // Cancelación pedida: nada de lo que llegue cambia la pantalla (ya no se
+  // muestra); solo el cierre del job libera el turno. Cancelar no es error.
+  if (task.cancelRequested) {
+    if (event.type === 'job-completed' || event.type === 'job-failed')
+      finishCancel(taskId)
+    return
+  }
+
   switch (event.type) {
     case 'stage-started':
       patchTask(taskId, { stage: event.stageId })
@@ -179,6 +198,8 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     case 'stage-completed':
       patchTask(taskId, {
         completedStages: withStage(task.completedStages, event.stageId),
+        // El stream del redactor ya no importa con los prompts persistidos.
+        ...(event.stageId === 'scene-prompts' ? { promptsWritten: null } : {}),
       })
       return
 
@@ -188,13 +209,23 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'scenes-planned':
       patchTask(taskId, {
-        scenes: event.scenes,
+        // Merge por id, no reemplazo (origen v0.35.0): al reanudar, la grilla
+        // ya viene sembrada desde disco y un reemplazo la vaciaría hasta que
+        // lleguen los eventos.
+        scenes: mergePlannedScenes(task.scenes, event.scenes),
         audioDurationSeconds: event.audioDurationSeconds,
       })
       return
 
     case 'scene-prompt-ready':
       patchTask(taskId, { scenes: mergeScene(task.scenes, event.scene) })
+      return
+
+    // Cifras absolutas del stream del redactor: reemplazan, no suman.
+    case 'scene-prompts-progress':
+      patchTask(taskId, {
+        promptsWritten: { ready: event.ready, total: event.total },
+      })
       return
 
     case 'scene-image-started':
@@ -343,6 +374,26 @@ function mergeScene(
   return merged
 }
 
+// Las escenas recién planeadas conservan lo que la tarea ya sabía de cada
+// una (prompt e imagen) cuando el evento no lo trae: en un run fresco llegan
+// vacías y el merge equivale a un reemplazo; en un resume no borra lo sembrado.
+function mergePlannedScenes(
+  previous: CreateTask['scenes'],
+  planned: SceneSummary[],
+): CreateTask['scenes'] {
+  return planned.map((scene) => {
+    const known = previous.find((item) => item.id === scene.id)
+    if (!known) return scene
+    const knownImage = known.imageStatus === 'ok' && scene.imageStatus !== 'ok'
+    return {
+      ...scene,
+      imagePrompt: hasPrompt(scene) ? scene.imagePrompt : known.imagePrompt,
+      imageStatus: knownImage ? known.imageStatus : scene.imageStatus,
+      imagePath: knownImage ? known.imagePath : scene.imagePath,
+    }
+  })
+}
+
 function patchScene(
   scenes: CreateTask['scenes'],
   sceneId: number,
@@ -358,6 +409,7 @@ function makeTask(
   projectId: string,
   projectName: string,
   videoFormat: VideoFormat = '16:9',
+  seed?: CreateTaskSeed,
 ): CreateTask {
   return {
     id,
@@ -366,12 +418,15 @@ function makeTask(
     projectName,
     status: 'creating',
     stage: null,
-    completedStages: [],
-    scenes: [],
-    audioDurationSeconds: null,
+    // Sembrado desde disco al reanudar (origen: `hidratar`): las fases hechas
+    // y la grilla aparecen al toque; los eventos del job hacen merge encima.
+    completedStages: seed?.completedStages ?? [],
+    scenes: seed?.scenes ?? [],
+    audioDurationSeconds: seed?.audioDurationSeconds ?? null,
     voiceProgress: null,
     bgmProgress: null,
     renderProgress: null,
+    promptsWritten: null,
     confirmation: null,
     logs: [],
     videoPath: null,
@@ -383,6 +438,7 @@ function makeTask(
     retry: null,
     retryAttempts: 0,
     videoFormat,
+    cancelRequested: false,
   }
 }
 
@@ -402,8 +458,15 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
     status: 'generating',
     errorKey: null,
     confirmation: null,
+    // Cada run escribe su propio stream de prompts.
+    promptsWritten: null,
     ...pausePatch,
   })
+
+  // La tarea pudo descartarse mientras se creaba el proyecto: no se lanza
+  // un job huérfano.
+  if (currentTask?.id !== taskId) return
+
   try {
     const job = await videosApi.startPipeline({ projectId }, (event) =>
       handleEvent(taskId, event),
@@ -497,13 +560,15 @@ function rejectIfBusy(): boolean {
 async function startPipelineForProject(
   projectId: string,
   projectName: string,
-  videoFormat?: VideoFormat,
+  options: ProjectRunOptions = {},
 ): Promise<boolean> {
   if (rejectIfBusy()) return false
 
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(makeTask(taskId, projectId, projectName, videoFormat))
+  setTask(
+    makeTask(taskId, projectId, projectName, options.videoFormat, options.seed),
+  )
   await runPipeline(taskId, projectId)
   return true
 }
@@ -514,13 +579,15 @@ async function confirmScenesForProject(
   projectId: string,
   projectName: string,
   choice: SceneCutChoice,
-  videoFormat?: VideoFormat,
+  options: ProjectRunOptions = {},
 ): Promise<boolean> {
   if (rejectIfBusy()) return false
 
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(makeTask(taskId, projectId, projectName, videoFormat))
+  setTask(
+    makeTask(taskId, projectId, projectName, options.videoFormat, options.seed),
+  )
   try {
     await videosApi.confirmScenes({ projectId, ...choice })
   } catch (error) {
@@ -559,23 +626,44 @@ async function resume(): Promise<void> {
   await runPipeline(task.id, task.projectId)
 }
 
+// Cierra la cancelación: suelta el job y borra la tarea. Idempotente — la
+// llaman el cierre del job, el fallo del aviso y la red de seguridad.
+function finishCancel(taskId: string) {
+  const task = currentTask
+  if (!task || task.id !== taskId || !task.cancelRequested) return
+  stopActiveJob()
+  setTask(null)
+  // El sidecar ya dejó el proyecto en disco como `paused`: la biblioteca
+  // pasa de «Generando» a «Cancelado» sin que la persona vuelva a entrar.
+  refreshProjectQueries(task.projectId)
+}
+
+// Cancelar NO es un error (origen v0.35.0). La tarea deja de mostrarse en el
+// acto y la vista navega a la biblioteca; el job sigue ocupando el turno
+// hasta que el sidecar confirme el cierre (un solo pipeline a la vez), y en
+// disco el proyecto queda `paused`: la biblioteca lo lista como cancelado.
 function cancel() {
   const task = currentTask
   if (!task) return
-  // Durante la cuenta regresiva no hay job: cancelar corta el reintento.
-  if (task.retry) {
-    cancelAutoRetry(task.id)
+  stopRetryTimer()
+
+  // Sin job vivo (cuenta regresiva de reintento, pausa, fallo previo) no hay
+  // nada que esperar.
+  if (!task.jobId || !activeJob) {
+    stopActiveJob()
+    setTask(null)
     return
   }
-  if (!task.jobId) return
-  void videosApi.cancelJob(task.jobId)
+
+  const taskId = task.id
+  patchTask(taskId, { cancelRequested: true, retry: null })
+  videosApi.cancelJob(task.jobId).catch(() => finishCancel(taskId))
+  setTimeout(() => finishCancel(taskId), CANCEL_SETTLE_TIMEOUT_MS)
 }
 
+// «Crear otro» y cerrar la confirmación: el mismo cierre que cancelar.
 function discardTask() {
-  if (currentTask?.jobId) void videosApi.cancelJob(currentTask.jobId)
-  stopActiveJob()
-  stopRetryTimer()
-  setTask(null)
+  cancel()
 }
 
 function subscribe(listener: () => void): () => void {
@@ -594,7 +682,10 @@ function getSnapshot(): CreateTask | null {
 }
 
 export function useCreateTask() {
-  const task = useSyncExternalStore(subscribe, getSnapshot)
+  const stored = useSyncExternalStore(subscribe, getSnapshot)
+  // Con cancelación pedida la tarea ya no existe para la UI: la vista volvió
+  // a la biblioteca y el proyecto se lee desde disco.
+  const task = stored?.cancelRequested ? null : stored
 
   return {
     task,

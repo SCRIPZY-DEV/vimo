@@ -188,12 +188,14 @@ export async function runVerbatimLane(
       context.emitter.emit({ type: 'log', level: 'info', message }),
     onWarn: (message) =>
       context.emitter.emit({ type: 'log', level: 'warn', message }),
-    onProgress: (ready, total) => {
+    // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
+    // que ya traían prompt cuentan como listas, así la UI muestra
+    // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.
+    onProgress: (ready) => {
       context.emitter.emit({
-        type: 'progress',
-        stageId: 'scene-prompts',
-        percent: total > 0 ? Math.round((ready / total) * 100) : 0,
-        message: `${ready}/${total}`,
+        type: 'scene-prompts-progress',
+        ready: scenes.length - pending.length + ready,
+        total: scenes.length,
       })
     },
   })

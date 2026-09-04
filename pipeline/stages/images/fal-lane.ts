@@ -58,8 +58,10 @@ export async function generateSceneWithFal(
     return { scene, imageReady: false }
   }
 
+  // El reloj de la estimación arranca UNA vez por escena: un reintento sigue
+  // subiendo desde donde iba en vez de volver a 0 (avance monótono).
+  const startedAt = Date.now()
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const startedAt = Date.now()
     const progressTimer = setInterval(() => {
       const percent = Math.min(
         95,
@@ -95,9 +97,9 @@ export async function generateSceneWithFal(
       if (response.ok) {
         const data = (await response.json()) as FalImageResponse
         const url = data.images?.[0]?.url
-        // 200 sin URL: transitorio (cuota momentánea) → reintentar.
+        // 200 sin URL: transitorio (cuota momentánea) → reintentar, sin
+        // tocar el % (nunca se informa un retroceso).
         if (!url) {
-          options.events.onProgress(scene.id, 0, 'processing')
           if (attempt === MAX_ATTEMPTS) {
             options.events.onFailed(
               scene.id,

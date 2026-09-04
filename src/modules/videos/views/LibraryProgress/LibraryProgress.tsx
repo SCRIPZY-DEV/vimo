@@ -21,6 +21,7 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
 import type {
+  ProjectRunOptions,
   SceneConfirmationView,
   SceneCutChoice,
 } from '@/modules/videos/types/create'
@@ -62,13 +63,30 @@ export function LibraryProgress() {
   }, [completed, navigate, projectId, queryClient])
 
   const projectName = ownTask?.projectName ?? status?.metadata.name ?? projectId
-  const projectFormat = status?.metadata.options.videoFormat
+  // Semilla desde disco (origen: `hidratar`): al reanudar, las fases hechas y
+  // la grilla aparecen al toque en vez de vacías hasta el primer evento.
+  const runOptions: ProjectRunOptions = {
+    videoFormat: status?.metadata.options.videoFormat,
+    seed: status
+      ? {
+          scenes: status.scenes,
+          completedStages: status.metadata.completedStages,
+          audioDurationSeconds: status.metadata.audioDurationSeconds ?? null,
+        }
+      : undefined,
+  }
   const resume = () =>
-    void startPipelineForProject(projectId, projectName, projectFormat)
+    void startPipelineForProject(projectId, projectName, runOptions)
   const confirmFromDisk = (choice: SceneCutChoice) => {
-    void confirmScenesForProject(projectId, projectName, choice, projectFormat)
+    void confirmScenesForProject(projectId, projectName, choice, runOptions)
   }
   const backToLibrary = () => void navigate(VideosRoutes.library)
+  // Cancelar no es un error (origen v0.35.0): a la biblioteca en el acto; el
+  // proyecto queda ahí como cancelado. En la pausa no hay job que cancelar.
+  const cancelToLibrary = () => {
+    cancel()
+    backToLibrary()
+  }
 
   // ── Con tarea del store: la pantalla de progreso entera (origen), con la
   // pausa, el error y el completado dentro ──
@@ -80,11 +98,7 @@ export function LibraryProgress() {
           labelKey: 'library.player.backToLibrary',
           onClick: backToLibrary,
         }}
-        // En la pausa no hay job que cancelar: volver deja el proyecto
-        // pausado en disco, reanudable desde acá mismo.
-        onCancel={
-          ownTask.status === 'awaitingConfirmation' ? backToLibrary : cancel
-        }
+        onCancel={cancelToLibrary}
         onRetryPipeline={resume}
         onContinueInEditor={() => void navigate(libraryEditorPath(projectId))}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
@@ -149,14 +163,17 @@ export function LibraryProgress() {
     )
   }
 
-  // generating (job muerto con la app) o paused: mismo remedio — reanudar;
-  // las fases hechas son cache-hit y el disco se corrige.
+  // generating (job muerto con la app) o paused (cancelado por la persona):
+  // mismo remedio — reanudar; las fases hechas son cache-hit y el disco se
+  // corrige. Cambia solo el texto: cancelar no fue un error.
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
       <LibraryViewHeader title={projectName} />
       <div className="space-y-3 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6">
         <p className="font-body text-sm text-muted-foreground">
-          {t('library.progress.interrupted')}
+          {metadata.state === 'paused'
+            ? t('library.progress.cancelled')
+            : t('library.progress.interrupted')}
         </p>
         <Button onClick={resume} className="rounded-xl font-display font-bold">
           <RotateCcw className="mr-1.5 h-4 w-4" />

@@ -109,11 +109,16 @@ export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   'ytdlp_network',
   'ytdlp_timeout',
 ])
-export const AUTO_RETRY_MAX_ATTEMPTS = 3
-export const AUTO_RETRY_DELAY_SECONDS = 10
+// Backoff del origen (v0.11.4): 30 s, 90 s y 3 min entre intentos — el
+// pipeline retoma desde checkpoint en cada uno.
+export const AUTO_RETRY_DELAYS_SECONDS = [30, 90, 180] as const
+export const AUTO_RETRY_MAX_ATTEMPTS = AUTO_RETRY_DELAYS_SECONDS.length
 
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
+// Tras pedir cancelar, cuánto se espera el cierre del sidecar antes de dar
+// la tarea por terminada igual (red de seguridad, no el camino normal).
+export const CANCEL_SETTLE_TIMEOUT_MS = 8000
 
 // Nota de apoyo de la pantalla de progreso: en el origen `.font-handwritten`
 // se redefine como Outfit al 92 % (pisa la config de Tailwind). Acá se acota

@@ -503,7 +503,7 @@
         "generating": "Generating",
         "awaitingConfirmation": "Confirm scenes",
         "interrupted": "Interrupted",
-        "paused": "Paused",
+        "paused": "Cancelled",
         "error": "Error",
         "draft": "Draft"
       }
@@ -526,7 +526,8 @@
     },
     "progress": {
       "pageTitle": "Progress",
-      "interrupted": "The generation was interrupted. You can resume it: finished steps are not repeated."
+      "interrupted": "The generation was interrupted. You can resume it: finished steps are not repeated.",
+      "cancelled": "You cancelled this generation. You can resume it from the last finished step, or delete the project from the library."
     },
     "editor": {
       "draftHint": "This project is a draft: nothing has been generated yet. Start the generation to edit it.",

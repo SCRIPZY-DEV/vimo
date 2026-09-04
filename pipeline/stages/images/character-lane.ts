@@ -64,8 +64,10 @@ async function generateSceneWithFalEdit(
   const prompt =
     buildReferenceIdentityLineMulti(names, format) + scene.imagePrompt!
 
+  // El reloj de la estimación arranca UNA vez por escena: un reintento sigue
+  // subiendo desde donde iba en vez de volver a 0 (avance monótono).
+  const startedAt = Date.now()
   for (let attempt = 1; attempt <= FAL_MAX_ATTEMPTS; attempt++) {
-    const startedAt = Date.now()
     const progressTimer = setInterval(() => {
       const percent = Math.min(
         95,

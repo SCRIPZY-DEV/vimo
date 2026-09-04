@@ -327,7 +327,9 @@ export function GenerationProgress({
             />
           )}
 
-          {showPromptsPanel && <PromptsGrid scenes={task.scenes} />}
+          {showPromptsPanel && (
+            <PromptsGrid scenes={task.scenes} written={task.promptsWritten} />
+          )}
 
           {showImagesPanel && (
             <div>
