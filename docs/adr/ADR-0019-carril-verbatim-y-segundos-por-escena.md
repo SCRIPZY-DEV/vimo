@@ -63,8 +63,8 @@ de cada escena (el número sale del audio) en vez del conteo.
    `reasoning_effort`, margen); cliente streaming siempre, timeout por
    llamada, corte por tokens como fallo determinista y escalera de esperas
    ante 429 que no consume intentos. Sin `modelos-extra.json` ni overrides de
-   `.env` (ADR-0010 prohíbe el entorno). El selector de modelo llega en la
-   rama 11.
+   `.env` (ADR-0010 prohíbe el entorno). El selector de modelo llegó en la
+   rama 11 ([ADR-0020](ADR-0020-selector-de-modelo-y-personaje-de-la-gema.md)).
 
 ## Qué NO cambia
 
@@ -95,7 +95,8 @@ de cada escena (el número sale del audio) en vez del conteo.
   paralelo por escena de la casa (se paga a propósito: fidelidad > velocidad).
 - (−) Los avisos del motor viajan como logs en inglés por el canal de
   eventos; el aviso rico de «tu gema no define personaje» del origen queda
-  para una rama de UI posterior.
+  para una rama de UI posterior (ADR-0020 le da a la gema el modo de
+  personaje, lo que vuelve ese aviso menos frecuente, pero no lo porta).
 
 ## Verificación de cumplimiento
 
