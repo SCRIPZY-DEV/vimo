@@ -10,6 +10,7 @@ import {
   STYLE_FILE,
   STYLE_NAME_LIMIT,
   SYSTEM_PROMPT_CHAR_LIMIT,
+  assertStyleCharacter,
   assertValidStyleId,
   readStyleEntry,
   styleDirectory,
@@ -53,14 +54,25 @@ export async function styleSave(
       `at most ${MAX_SHOTS} shots per style`,
     )
 
+  if (payload.character !== undefined)
+    assertStyleCharacter(payload.character, 'payload.character')
+
   const directory = styleDirectory(context, payload.id)
   await mkdir(directory, { recursive: true })
 
   const existing = await readStyleEntry(context, payload.id)
+  // Guard v1.19.2 del origen: el bloque de personaje se CONSERVA si esta
+  // escritura no lo trae. Quien quiera cambiarlo manda el bloque nuevo (la UI
+  // siempre tiene exactamente un modo encendido, así que «volver a genérico»
+  // viaja como { mode: 'generic' }, nunca como ausencia). Sin esto, cualquier
+  // camino que guarde el estilo sin conocer el campo le borra al usuario, en
+  // silencio, la decisión que tomó sobre su protagonista.
+  const character = payload.character ?? existing?.character
   const stored: StoredStyle = {
     name,
     systemPrompt,
     shots,
+    ...(character ? { character } : {}),
     createdAt: existing?.createdAt || new Date().toISOString(),
   }
   await writeFileAtomic(
