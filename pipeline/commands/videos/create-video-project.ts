@@ -16,7 +16,11 @@ import { decodeImageDataUri } from '../../providers/image/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
-import { MAX_SHOTS, SYSTEM_PROMPT_CHAR_LIMIT } from '../styles/style-store.ts'
+import {
+  MAX_SHOTS,
+  SYSTEM_PROMPT_CHAR_LIMIT,
+  assertStyleCharacter,
+} from '../styles/style-store.ts'
 import {
   MAX_SECONDS_PER_SCENE,
   MIN_SECONDS_PER_SCENE,
@@ -37,6 +41,8 @@ export const PROJECT_NAME_LIMIT = 80
 export const SCRIPT_CHAR_LIMIT = 100_000
 export const MAX_PROJECT_CHARACTERS = 2
 export const MAX_SCENE_COUNT = 500
+// Un id de modelo es `autor/nombre`; el más largo del catálogo ronda los 45.
+export const PROMPT_MODEL_ID_LIMIT = 200
 
 const MAX_REFERENCE_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_SLUG_ATTEMPTS = 50
@@ -145,6 +151,11 @@ function validatePayload(
         'invalid_payload',
         `options.customStyle allows at most ${MAX_SHOTS} shots`,
       )
+    if (customStyle.character !== undefined)
+      assertStyleCharacter(
+        customStyle.character,
+        'options.customStyle.character',
+      )
   }
 
   const sceneCount = options.sceneCount
@@ -177,6 +188,27 @@ function validatePayload(
       throw new PipelineFailure(
         'invalid_payload',
         `options.secondsPerScene must be an integer between ${MIN_SECONDS_PER_SCENE} and ${MAX_SECONDS_PER_SCENE}`,
+      )
+  }
+
+  // Modelo de prompts: solo con estilo propio (el carril de la casa no lo
+  // lee). Sin whitelist contra el catálogo a propósito — la degradación con
+  // aviso vive en resolveVerbatimModel; acá solo se rechaza basura.
+  const promptModel = options.promptModel
+  if (promptModel !== undefined) {
+    if (customStyle === undefined)
+      throw new PipelineFailure(
+        'invalid_payload',
+        'options.promptModel requires options.customStyle',
+      )
+    if (
+      typeof promptModel !== 'string' ||
+      !promptModel.trim() ||
+      promptModel.length > PROMPT_MODEL_ID_LIMIT
+    )
+      throw new PipelineFailure(
+        'invalid_payload',
+        `options.promptModel must be a non-empty string of at most ${PROMPT_MODEL_ID_LIMIT} characters`,
       )
   }
 
