@@ -5,7 +5,10 @@ import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { newCustomStyleId } from '@/modules/videos/constants'
-import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
+import type {
+  CustomStyleDraft,
+  SelectedCustomStyle,
+} from '@/modules/videos/types/styles'
 import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
 interface CustomStyleGalleryProps {
@@ -20,6 +23,7 @@ function toSelected(style: CustomStyleSummary): SelectedCustomStyle {
     name: style.name,
     systemPrompt: style.systemPrompt,
     shots: style.shots,
+    ...(style.character ? { character: style.character } : {}),
   }
 }
 
@@ -38,7 +42,7 @@ export function CustomStyleGallery({
   // Estilo abierto en el modal; null = cerrado.
   const [editing, setEditing] = useState<{
     styleId: string
-    initial: { name: string; systemPrompt: string; shots: string[] }
+    initial: CustomStyleDraft
   } | null>(null)
 
   const openCreate = () => {
@@ -55,6 +59,7 @@ export function CustomStyleGallery({
         name: style.name,
         systemPrompt: style.systemPrompt,
         shots: style.shots,
+        ...(style.character ? { character: style.character } : {}),
       },
     })
   }
@@ -125,6 +130,7 @@ export function CustomStyleGallery({
               name: payload.name,
               systemPrompt: payload.systemPrompt,
               shots: payload.shots ?? [],
+              ...(payload.character ? { character: payload.character } : {}),
             })
           }}
           onClose={() => setEditing(null)}
