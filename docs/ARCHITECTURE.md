@@ -404,6 +404,19 @@ en disco es válido, `skip()` la saltea.
 La narración es **esencial** (si falla, el job muere); música y overlay son
 **opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
 
+**Con un estilo propio («Mi estilo», ADR-0018/0019/0020)** `scene-prompts` cambia
+de carril: la gema del usuario viaja verbatim como `system`, se saltean la biblia
+y el director, y los prompts salen por lotes con el modelo LLM elegido en Create
+(`options.promptModel`; el catálogo llega por `list-prompt-models` y el
+simulador de costos vive en `utilities/promptCost.ts`). La gema declara además
+qué hace con su protagonista (`customStyle.character`: propio, genérico o
+ninguno) y puede diseñarlo con el guion como contexto (`design-style-character`).
+Un personaje se ilustra también con la gema (`generate-character-preview` con el
+id de galería: la gema escribe el prompt del retrato por el LLM) y esa es la
+referencia que `create-video-project` copia al proyecto; si el personaje no tiene
+preview del estilo actual, va sin referencia con un aviso en el log, nunca con el
+preview de otro estilo (ADR-0021).
+
 ### La pausa de confirmación de escenas
 
 Cuando el usuario pidió confirmar, `scene-cuts` emite

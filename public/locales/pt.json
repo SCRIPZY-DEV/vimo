@@ -193,7 +193,8 @@
       "pickerTitle": "Escolher personagens",
       "pickerDescription": "Você pode escolher até {{max}} personagens; eles mantêm a identidade no vídeo todo.",
       "empty": "Você ainda não tem personagens na sua biblioteca.",
-      "noPreviewForStyle": "Sem ilustração neste estilo",
+      "noPreviewForStyle": "Sem ilustração neste estilo: irá sem imagem de referência",
+      "noReferenceHint": "Sem referência visual",
       "use": "Usar {{count}} personagem(ns)",
       "frequency": {
         "label": "Com que frequência aparecem?",
@@ -204,7 +205,12 @@
         "always": "Sempre"
       },
       "selectedCount_one": "{{count}} personagem",
-      "selectedCount_other": "{{count}} personagens"
+      "selectedCount_other": "{{count}} personagens",
+      "asksForCharacter": "Este estilo pede seu personagem: escolha um para gerar.",
+      "broughtByStyle": "Vem com seu estilo. Todos os vídeos com este estilo saem com ele.",
+      "fixedMissing": "O personagem padrão deste estilo não está mais na sua biblioteca. Edite o estilo e escolha outro.",
+      "createNew": "Criar personagem novo",
+      "createWithStyle": "Criar personagem com meu estilo"
     },
     "music": {
       "sectionTitle": "Música e overlay (opcional)",
@@ -338,7 +344,8 @@
       "bgmUrlRequired": "Cole o link do YouTube da música.",
       "bgmPromptRequired": "Descreva como quer que a música soe.",
       "overlayUrlRequired": "Cole o link do YouTube da textura.",
-      "styleRequired": "Escolha (ou crie) um estilo próprio para gerar."
+      "styleRequired": "Escolha (ou crie) um estilo próprio para gerar.",
+      "characterRequired": "Este estilo pede seu personagem: escolha um."
     },
     "errors": {
       "discard": "Descartar",
@@ -346,7 +353,6 @@
       "projectNotFound": "Esse projeto não está mais na sua pasta.",
       "projectCorrupt": "Os dados do projeto estão danificados.",
       "projectExists": "Já existe um projeto com esse nome.",
-      "characterPreviewMissing": "O personagem não tem ilustração no estilo escolhido. Gere em Personagens.",
       "scriptMissing": "Falta o roteiro do projeto.",
       "narrationMissing": "Não encontramos seu áudio. Envie de novo.",
       "narrationSourceMissing": "O arquivo de áudio não está mais onde você escolheu.",
@@ -481,6 +487,50 @@
       "delete": "Excluir",
       "deleteConfirm": "Excluir o estilo «{{name}}»? Os vídeos que o usaram não são afetados.",
       "save": "Pronto"
+    },
+    "promptModel": {
+      "title": "Com qual modelo escrevo",
+      "bands": {
+        "economic": "Econômicos",
+        "mid": "Preço médio",
+        "high": "Preço alto",
+        "noPrice": "Sem preço"
+      },
+      "speed": {
+        "fast": "RÁPIDO",
+        "medium": "MÉDIO",
+        "slow": "LENTO"
+      },
+      "simulatorTitle": "Quanto custa escrever as cenas",
+      "simulatorScenes": "{{count}} cenas com {{model}}",
+      "scenesCount": "{{count}} cenas",
+      "noPrice": "Falta o preço deste modelo",
+      "onlyPrompts": "É só o que custa escrever os textos das cenas. As imagens são cobradas à parte.",
+      "sliderLabel": "Quantas cenas o vídeo teria"
+    },
+    "styleCharacter": {
+      "title": "Seu estilo tem personagem?",
+      "helpLabel": "O que faz a opção {{option}}",
+      "own": {
+        "title": "Meu personagem",
+        "subtitle": "Você escolhe da sua biblioteca.",
+        "help": "Vamos incluir seu personagem sempre que você escolher este estilo. Pedimos no formulário, ou você deixa um fixo aqui embaixo."
+      },
+      "generic": {
+        "title": "Personagem genérico (narrativo)",
+        "subtitle": "O Vimo inventa um coerente com seu roteiro.",
+        "help": "O Vimo cria um personagem coerente com seu roteiro e o usa como narrador da história. Não precisa escolher nada."
+      },
+      "none": {
+        "title": "Sem personagem",
+        "subtitle": "Só cenas do que se narra.",
+        "help": "O vídeo é montado só com cenas do que se narra. Se o roteiro fala de pessoas, elas aparecem — o que não há é um protagonista fixo que se repete no vídeo inteiro."
+      },
+      "defaultTitle": "Personagem padrão para este estilo",
+      "defaultHint": "Deixe um dos seus personagens escolhido e todos os vídeos com este estilo saem com ele. Com «perguntar», perguntamos qual usar em cada vídeo.",
+      "defaultSelect": "Personagem",
+      "defaultAsk": "Perguntar em cada vídeo",
+      "defaultMissing": "O personagem padrão que você tinha escolhido não está mais na sua lista. Escolha outro para usar este estilo."
     }
   },
   "library": {
@@ -534,6 +584,8 @@
       "generateDraft": "Gerar vídeo",
       "musicButton": "Música",
       "audioButton": "Áudio",
+      "musicButtonHelp": "Editar a música do vídeo",
+      "audioButtonHelp": "Editar o áudio do vídeo",
       "dismissError": "Descartar erro",
       "timeline": {
         "boundary": "Arraste para mover a fronteira entre cenas",
@@ -566,6 +618,7 @@
         "render": "Renderizar vídeo",
         "rerender": "Re-renderizar (desatualizado)",
         "rerenderClean": "Re-renderizar",
+        "help": "Regenera o vídeo com as últimas alterações",
         "cancel": "Cancelar render",
         "phase": {
           "chunks": "Montando cenas",
@@ -575,6 +628,7 @@
       },
       "export": {
         "button": "Exportar para editar",
+        "help": "Gera os clipes para exportá-los a editores de vídeo",
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Prévia",
@@ -825,7 +879,9 @@
       "generando": "Escrevendo…",
       "ayuda": "A IA reescreve a identidade em inglês, ordenada pelos traços mais reconhecíveis.",
       "completaCampos": "Preencha nome, idade, papel e algumas notas para a IA escrever a identidade.",
-      "faltaClave": "Você precisa de uma chave da DeepInfra para usar a IA."
+      "faltaClave": "Você precisa de uma chave da DeepInfra para usar a IA.",
+      "withStyle": "Criar personagem com meu estilo",
+      "improve": "Melhorar descrição com IA"
     },
     "preview": {
       "titulo": "Prévia por estilo",
@@ -836,7 +892,11 @@
       "cancelar": "Cancelar",
       "vacio": "Você ainda não gerou nenhuma prévia.",
       "faltaClave": "Você precisa da chave do provedor escolhido.",
-      "generando": "Gerando…"
+      "generando": "Gerando…",
+      "writingPrompt": "Escrevendo o prompt…",
+      "customStyleBadge": "Estilo próprio",
+      "customStyleNote": "Com um estilo próprio, sua gema escreve o prompt do retrato (uma chamada à IA, precisa da DeepInfra) e depois a imagem é gerada.",
+      "deletedStyle": "Estilo excluído"
     },
     "styles": {
       "normal": "Normal",
@@ -854,6 +914,7 @@
       "nameRequired": "Dê um nome ao personagem.",
       "descriptionTooShort": "A identidade precisa de pelo menos 10 caracteres.",
       "notFound": "Esse personagem não está mais na sua biblioteca.",
+      "styleNotFound": "Esse estilo próprio não está mais na sua galeria. Escolha outro.",
       "invalid": "Revise os dados do personagem.",
       "imageNetwork": "Não conseguimos conectar ao provedor de imagens.",
       "imageInvalidApiKey": "A chave do provedor de imagens não é válida.",

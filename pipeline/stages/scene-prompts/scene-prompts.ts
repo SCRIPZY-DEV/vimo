@@ -20,7 +20,10 @@ import {
   needsAlwaysCure,
 } from './character-presence.ts'
 import { createSceneLlm, type SceneLlm } from '../shared/llm.ts'
-import { runVerbatimLane } from './verbatim/verbatim-lane.ts'
+import {
+  recordPromptModelUsed,
+  runVerbatimLane,
+} from './verbatim/verbatim-lane.ts'
 import { guaranteePrompts } from './prompt-writer.ts'
 import { directScenes, scenesNeedPlan } from './scene-director.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
@@ -69,6 +72,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
         lane.scenes,
         context.regenerateSceneIds,
       )
+      await recordPromptModelUsed(context, lane)
       for (const scene of lane.scenes) {
         if (!lane.written.has(scene.id)) continue
         context.emitter.emit({

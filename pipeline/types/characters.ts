@@ -8,8 +8,12 @@ import type { ImageProviderId } from './image-provider.ts'
 export type CharacterStyleId =
   'normal' | 'pov_stickman' | 'cartoon' | 'fantasia' | 'terror'
 
+// Clave de un preview: un id del catálogo (CharacterStyleId) o el id de
+// galería de un estilo propio (`st-…`, ver STYLE_ID_PATTERN en style-store).
+// El catálogo sigue cerrado (VISUAL_STYLES); acá solo se relaja la clave con
+// la que se guarda y busca la ilustración.
 export interface CharacterPreview {
-  styleId: CharacterStyleId
+  styleId: string
   // Ruta absoluta para que la UI la muestre vía convertFileSrc(); se deriva
   // al listar, NO se persiste en metadata.json.
   imagePath: string
@@ -28,7 +32,7 @@ export interface CharacterSummary {
 
 // ─── Contratos de los subcomandos de personajes ───
 export interface NewCharacterPreview {
-  styleId: CharacterStyleId
+  styleId: string
   // data:image/<png|jpeg|webp>;base64,… tal como lo devuelve el preview.
   dataUri: string
 }
@@ -88,7 +92,9 @@ export interface SuggestCharacterProfileResult {
 
 export interface GenerateCharacterPreviewPayload {
   identityPrompt: string
-  styleId: CharacterStyleId
+  // Catálogo → plantilla fija; estilo propio → la gema escribe el prompt
+  // (una llamada al LLM, como las muestras del estilo).
+  styleId: string
   provider: ImageProviderId
 }
 
@@ -102,4 +108,9 @@ export interface GenerateCharacterPreviewResult {
 export interface CharacterPreviewProgressDetail {
   status?: string
   elapsedSeconds?: number
+  // Solo con estilo propio: primero la gema escribe el prompt, después se
+  // genera la imagen.
+  phase?: CharacterPreviewPhase
 }
+
+export type CharacterPreviewPhase = 'prompt' | 'image'

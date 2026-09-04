@@ -1,6 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { Clapperboard, Loader2, X } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/modules/common/ui/tooltip'
 import type {
   EditorRenderState,
   RenderedVideoState,
@@ -52,14 +57,21 @@ export function RenderVideoButton({
   }
 
   return (
-    <Button
-      size="sm"
-      onClick={onRender}
-      disabled={busy}
-      className="rounded-lg font-display font-bold"
-    >
-      <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
-      {t(LABEL_KEYS[videoState])}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          size="sm"
+          onClick={onRender}
+          disabled={busy}
+          className="rounded-lg font-display font-bold"
+        >
+          <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
+          {t(LABEL_KEYS[videoState])}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-sm leading-snug">
+        {t('library.editor.render.help')}
+      </TooltipContent>
+    </Tooltip>
   )
 }

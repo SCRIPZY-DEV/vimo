@@ -193,7 +193,8 @@
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
       "empty": "You don't have any characters in your library yet.",
-      "noPreviewForStyle": "No artwork in this style",
+      "noPreviewForStyle": "No artwork in this style: it will go without a reference image",
+      "noReferenceHint": "No visual reference",
       "use": "Use {{count}} character(s)",
       "frequency": {
         "label": "How often do they appear?",
@@ -204,7 +205,12 @@
         "always": "Always"
       },
       "selectedCount_one": "{{count}} character",
-      "selectedCount_other": "{{count}} characters"
+      "selectedCount_other": "{{count}} characters",
+      "asksForCharacter": "This style asks for your character: pick one to generate.",
+      "broughtByStyle": "Brought by your style. Every video with this style comes out with it.",
+      "fixedMissing": "This style's default character is no longer in your library. Edit the style and pick another one.",
+      "createNew": "Create new character",
+      "createWithStyle": "Create character with my style"
     },
     "music": {
       "sectionTitle": "Music and overlay (optional)",
@@ -338,7 +344,8 @@
       "bgmUrlRequired": "Paste the YouTube link for the music.",
       "bgmPromptRequired": "Describe how you want the music to sound.",
       "overlayUrlRequired": "Paste the YouTube link for the texture.",
-      "styleRequired": "Pick (or create) a custom style to generate."
+      "styleRequired": "Pick (or create) a custom style to generate.",
+      "characterRequired": "This style asks for your character: pick one."
     },
     "errors": {
       "discard": "Discard",
@@ -346,7 +353,6 @@
       "projectNotFound": "That project is no longer in your folder.",
       "projectCorrupt": "The project data is damaged.",
       "projectExists": "There is already a project with that name.",
-      "characterPreviewMissing": "The character has no artwork in the chosen style. Generate it in Characters.",
       "scriptMissing": "The project script is missing.",
       "narrationMissing": "We couldn't find your audio. Upload it again.",
       "narrationSourceMissing": "The audio file is no longer where you chose it.",
@@ -481,6 +487,50 @@
       "delete": "Delete",
       "deleteConfirm": "Delete the style \"{{name}}\"? Videos that used it are not affected.",
       "save": "Done"
+    },
+    "promptModel": {
+      "title": "Which model writes the prompts",
+      "bands": {
+        "economic": "Budget",
+        "mid": "Mid-priced",
+        "high": "Premium",
+        "noPrice": "No price"
+      },
+      "speed": {
+        "fast": "FAST",
+        "medium": "MEDIUM",
+        "slow": "SLOW"
+      },
+      "simulatorTitle": "What writing the scenes costs",
+      "simulatorScenes": "{{count}} scenes with {{model}}",
+      "scenesCount": "{{count}} scenes",
+      "noPrice": "This model has no price listed",
+      "onlyPrompts": "This is only the cost of writing the scene texts. Images are billed separately.",
+      "sliderLabel": "How many scenes the video would have"
+    },
+    "styleCharacter": {
+      "title": "Does your style carry a character?",
+      "helpLabel": "What the {{option}} option does",
+      "own": {
+        "title": "My character",
+        "subtitle": "You pick it from your library.",
+        "help": "We will include your character whenever you pick this style. We'll ask for it in the form, or you can fix one below."
+      },
+      "generic": {
+        "title": "Generic character (narrative)",
+        "subtitle": "Vimo invents one coherent with your script.",
+        "help": "Vimo creates a character coherent with your script and uses it as the narrator of the story. Nothing to pick."
+      },
+      "none": {
+        "title": "No character",
+        "subtitle": "Only scenes of what is narrated.",
+        "help": "The video is built only from scenes of what is narrated. If the script mentions people, they appear — there is just no fixed protagonist repeated across the video."
+      },
+      "defaultTitle": "Default character for this style",
+      "defaultHint": "Keep one of your characters chosen and every video with this style comes out with it. With “ask”, we ask which one to use on each video.",
+      "defaultSelect": "Character",
+      "defaultAsk": "Ask on each video",
+      "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     }
   },
   "library": {
@@ -534,6 +584,8 @@
       "generateDraft": "Generate video",
       "musicButton": "Music",
       "audioButton": "Audio",
+      "musicButtonHelp": "Edit the video music",
+      "audioButtonHelp": "Edit the video audio",
       "dismissError": "Dismiss error",
       "timeline": {
         "boundary": "Drag to move the boundary between scenes",
@@ -566,6 +618,7 @@
         "render": "Render video",
         "rerender": "Re-render (outdated)",
         "rerenderClean": "Re-render",
+        "help": "Regenerates the video with the latest changes",
         "cancel": "Cancel render",
         "phase": {
           "chunks": "Building scenes",
@@ -575,6 +628,7 @@
       },
       "export": {
         "button": "Export for editing",
+        "help": "Generates the clips to export them to video editors",
         "progress": "Exporting… {{percent}}%"
       },
       "previewBadge": "Preview",
@@ -825,7 +879,9 @@
       "generando": "Writing…",
       "ayuda": "AI rewrites the identity in English, ordered by the most recognizable traits.",
       "completaCampos": "Fill in name, age, role and some notes so AI can write the identity.",
-      "faltaClave": "You need a DeepInfra key to use AI."
+      "faltaClave": "You need a DeepInfra key to use AI.",
+      "withStyle": "Create character with my style",
+      "improve": "Improve description with AI"
     },
     "preview": {
       "titulo": "Preview by style",
@@ -836,7 +892,11 @@
       "cancelar": "Cancel",
       "vacio": "You haven't generated any preview yet.",
       "faltaClave": "You need the key for the selected provider.",
-      "generando": "Generating…"
+      "generando": "Generating…",
+      "writingPrompt": "Writing the prompt…",
+      "customStyleBadge": "Custom style",
+      "customStyleNote": "With a custom style, your gem writes the portrait prompt (one AI call, needs DeepInfra) and then the image is generated.",
+      "deletedStyle": "Deleted style"
     },
     "styles": {
       "normal": "Normal",
@@ -854,6 +914,7 @@
       "nameRequired": "Give the character a name.",
       "descriptionTooShort": "The identity needs at least 10 characters.",
       "notFound": "That character is no longer in your library.",
+      "styleNotFound": "That custom style is no longer in your gallery. Pick another one.",
       "invalid": "Check the character details.",
       "imageNetwork": "We couldn't reach the image provider.",
       "imageInvalidApiKey": "The image provider key is not valid.",

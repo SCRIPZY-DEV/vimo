@@ -8,7 +8,7 @@ import {
   qualityWeight,
 } from '../catalogRows'
 import type { CostFilter } from '../types/costs'
-import { PriceCell } from './PriceCell'
+import { PriceCell } from '@/modules/common/components/PriceCell'
 
 export function ImageCostTable({ filter }: { filter: CostFilter }) {
   const { t } = useTranslation()

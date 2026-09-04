@@ -22,28 +22,51 @@ import {
 } from '@/modules/characters/constants'
 import { useCharacterMutations } from '@/modules/characters/hooks/useCharacterMutations'
 import { useCharacterPreview } from '@/modules/characters/hooks/useCharacterPreview'
+import { useCustomStyleCatalog } from '@/modules/characters/hooks/useCustomStyleCatalog'
+import { useDesignStyleCharacter } from '@/modules/characters/hooks/useDesignStyleCharacter'
 import { useSuggestCharacterProfile } from '@/modules/characters/hooks/useSuggestCharacterProfile'
 import {
   toFormValue,
   toPreviewViews,
 } from '@/modules/characters/utilities/characterDraft'
-import type {
-  CharacterStyleId,
-  CharacterSummary,
-} from '@pipeline/types/characters.ts'
+import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
-import type { PreviewView } from '@/modules/characters/types/characters'
+import type {
+  CharacterStyleContext,
+  PreviewStyleOption,
+  PreviewView,
+} from '@/modules/characters/types/characters'
 
 interface CharacterModalProps {
   character: CharacterSummary | null
+  // Desde Create con «Mi estilo»: la ficha la diseña la gema del usuario con
+  // el guion como contexto (design-style-character) en vez del experto de la
+  // casa. Ausente = el flujo de la biblioteca de siempre.
+  styleContext?: CharacterStyleContext
+  onSaved?: (character: CharacterSummary) => void
   onClose: () => void
 }
 
-export function CharacterModal({ character, onClose }: CharacterModalProps) {
+// Con guion de al menos 20 caracteres (mínimo del sidecar) la gema puede
+// diseñar al protagonista.
+const MIN_SCRIPT_LENGTH = 20
+
+export function CharacterModal({
+  character,
+  styleContext,
+  onSaved,
+  onClose,
+}: CharacterModalProps) {
   const { t } = useTranslation()
   const { createCharacter, updateCharacter, saving } = useCharacterMutations()
   const { suggestProfile, suggesting } = useSuggestCharacterProfile()
+  const {
+    designWithStyle,
+    designing,
+    errorKey: designErrorKey,
+  } = useDesignStyleCharacter()
   const preview = useCharacterPreview()
+  const { styles: customStyles } = useCustomStyleCatalog()
 
   const [form, setForm] = useState(() =>
     character ? toFormValue(character) : CHARACTER_FORM_INITIAL_VALUE,
@@ -51,26 +74,68 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
   const [previews, setPreviews] = useState<PreviewView[]>(() =>
     character ? toPreviewViews(character) : [],
   )
-  const [styleId, setStyleId] = useState<CharacterStyleId>(PREVIEW_STYLES[0].id)
+  // Desde Create con «Mi estilo» el preview arranca en esa gema.
+  const [styleId, setStyleId] = useState(
+    styleContext?.styleId ?? PREVIEW_STYLES[0].id,
+  )
   const [provider, setProvider] = useState<ImageProviderId>(
     DEFAULT_PREVIEW_PROVIDER,
   )
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
+  // Catálogo + galería propia, con el texto ya resuelto para el panel.
+  const previewStyles: PreviewStyleOption[] = [
+    ...PREVIEW_STYLES.map((style) => ({
+      id: style.id,
+      label: t(style.labelKey),
+      custom: false,
+    })),
+    ...customStyles.map((style) => ({
+      id: style.id,
+      label: style.name,
+      custom: true,
+    })),
+  ]
+  const isCustomStyle = !PREVIEW_STYLES.some((style) => style.id === styleId)
+
   const llmKeys = useRequiredApiKeys({ requirements: [['deepinfra']] })
-  const providerKeys = useRequiredApiKeys({ requirements: [[provider]] })
+  // Con estilo propio la gema escribe el prompt: hace falta también DeepInfra.
+  const providerKeys = useRequiredApiKeys({
+    requirements: isCustomStyle ? [[provider], ['deepinfra']] : [[provider]],
+  })
 
   const identity = form.description.trim()
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
-  const busy = saving || suggesting || preview.generating
+  const withStyle =
+    Boolean(styleContext?.gem.trim()) &&
+    (styleContext?.script.trim().length ?? 0) >= MIN_SCRIPT_LENGTH
+  const busy = saving || suggesting || designing || preview.generating
+
+  // Con texto ya escrito el botón lo dice claro: MEJORA ese texto; vacío,
+  // crea desde el guion con el estilo (v1.21.0 del origen).
+  const suggestLabelKey = !withStyle
+    ? 'characters.experto.boton'
+    : identity
+      ? 'characters.experto.improve'
+      : 'characters.experto.withStyle'
 
   const suggest = async () => {
-    const result = await suggestProfile({
+    const fields = {
       name: form.name,
       age: form.age,
       role: form.role,
       description: form.description,
-    }).catch(() => null)
+    }
+    const result = withStyle
+      ? await designWithStyle({
+          gem: styleContext!.gem.trim(),
+          script: styleContext!.script.trim(),
+          ...(styleContext!.promptModel
+            ? { promptModel: styleContext!.promptModel }
+            : {}),
+          ...fields,
+        }).catch(() => null)
+      : await suggestProfile(fields).catch(() => null)
     if (!result) return
 
     // Los campos que el usuario ya completó mandan; el resto se autocompleta.
@@ -128,7 +193,9 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
           previews: newPreviews,
         }).catch(() => null)
 
-    if (saved) onClose()
+    if (!saved) return
+    onSaved?.(saved)
+    onClose()
   }
 
   return (
@@ -149,17 +216,23 @@ export function CharacterModal({ character, onClose }: CharacterModalProps) {
           <CharacterProfileFields
             value={form}
             disabled={busy}
-            suggesting={suggesting}
+            suggesting={suggesting || designing}
             missingLlmKey={llmKeys.missingRequirements.length > 0}
+            suggestFromScript={withStyle}
+            suggestLabelKey={suggestLabelKey}
             onChange={setForm}
             onSuggest={() => void suggest()}
           />
 
+          {designErrorKey && <ErrorMessage>{t(designErrorKey)}</ErrorMessage>}
+
           <CharacterPreviewPanel
             previews={previews}
+            styles={previewStyles}
             styleId={styleId}
             provider={provider}
             generating={preview.generating}
+            phase={preview.phase}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingRequirements.length > 0}

@@ -1,11 +1,14 @@
 import { isValidPrompt } from '../../../prompts/prompt-limits.ts'
+import { resolveVerbatimModel } from '../../../providers/llm/model-catalog.ts'
 import { createVerbatimClient } from '../../../providers/llm/verbatim-client.ts'
 import {
   loadPipelineCharacters,
   type PipelineCharacter,
 } from '../../../project/characters.ts'
 import { PipelineFailure } from '../../../runner/failure.ts'
+import type { LlmModelProfile } from '../../../types/llm-models.ts'
 import type { Scene } from '../../../types/scenes.ts'
+import type { StyleCharacter } from '../../../types/styles.ts'
 import type { ProjectCharacter } from '../../../types/video-project.ts'
 import type { VerbatimFragment } from '../../../prompts/verbatim-messages.ts'
 import type { CreateVideoContext } from '../../context.ts'
@@ -34,25 +37,53 @@ export interface VerbatimLaneResult {
   missing: number[]
   /** Ids de escena que este pase ESCRIBIÓ (para persistir/emitir solo esas). */
   written: Set<number>
+  /** El modelo que escribió de verdad (tras la degradación, si la hubo) y lo
+   *  que movió: el llamador lo persiste como auditoría en project.json. */
+  profile: LlmModelProfile
+  inputTokens: number
+  outputTokens: number
 }
 
 /**
- * Qué hace este video con el protagonista, derivado de los personajes del
- * proyecto. Adaptación del `personajeParaElMotor` del origen: allá el modo lo
- * declara la GEMA (`estiloPersonaje`, que acá llega en la rama del selector,
- * B3-P3) y el proyecto dice cuál; acá la gema todavía no declara nada, así
- * que manda lo que el proyecto trae — con foto → `reference` (la identidad
- * viaja en la imagen que el carril de personaje ya adjunta); sin foto pero
- * con descripción → `text`; sin personajes → `generic` (la Fase 1 de la gema
- * diseña uno, lo de siempre). El modo lo decide el ARCHIVO (la referencia
- * cargada), no el campo `mode` de la metadata: un proyecto puede declarar
- * foto y haberla perdido.
+ * Qué hace este video con el protagonista. Port de `personajeParaElMotor`
+ * del origen: la GEMA declara el modo (`customStyle.character`, ADR-0020) y
+ * el proyecto dice cuál personaje.
+ *
+ *   - `none`    → sin protagonista, pase lo que pase con el proyecto.
+ *   - `generic` → la Fase 1 de la gema diseña uno; los personajes del
+ *                 proyecto se ignoran (con aviso — paridad con el origen).
+ *   - `own`     → manda lo que el proyecto trae: con foto → `reference` (la
+ *                 identidad viaja en la imagen que el carril de personaje ya
+ *                 adjunta); sin foto pero con descripción → `text`; sin
+ *                 personajes → `generic` con aviso.
+ *   - ausente   → comportamiento previo a ADR-0020, intacto: el proyecto
+ *                 manda (mismas reglas que `own`, sin aviso).
+ *
+ * El modo foto/texto lo decide el ARCHIVO (la referencia cargada), no el
+ * campo `mode` de la metadata: un proyecto puede declarar foto y haberla
+ * perdido.
  */
 export function verbatimCharacterFor(
   loaded: PipelineCharacter[],
   declared: ProjectCharacter[] | undefined,
+  styleCharacter?: StyleCharacter,
+  onWarn?: (message: string) => void,
 ): { input: VerbatimCharacterInput; index?: number } {
-  if (loaded.length === 0) return { input: { mode: 'generic' } }
+  if (styleCharacter?.mode === 'none') return { input: { mode: 'none' } }
+  if (styleCharacter?.mode === 'generic') {
+    if (loaded.length > 0)
+      onWarn?.(
+        'the style designs its own character: the project characters are ignored',
+      )
+    return { input: { mode: 'generic' } }
+  }
+  if (loaded.length === 0) {
+    if (styleCharacter?.mode === 'own')
+      onWarn?.(
+        'the style asks for your character but the project brings none: one coherent with the script is designed instead',
+      )
+    return { input: { mode: 'generic' } }
+  }
 
   const protagonistName = declared
     ?.find((character) => character.isProtagonist)
@@ -149,7 +180,15 @@ export async function runVerbatimLane(
     (scene) =>
       (scene.text?.trim().length ?? 0) > 0 && !isValidPrompt(scene.imagePrompt),
   )
-  if (pending.length === 0) return { scenes, missing: [], written: new Set() }
+  if (pending.length === 0)
+    return {
+      scenes,
+      missing: [],
+      written: new Set(),
+      profile: resolveVerbatimModel(context.options.promptModel).profile,
+      inputTokens: 0,
+      outputTokens: 0,
+    }
 
   const fragments: VerbatimFragment[] = pending.map((scene) => {
     const retryNote = options.retryNotes?.get(scene.id)?.trim()
@@ -169,6 +208,8 @@ export async function runVerbatimLane(
   const character = verbatimCharacterFor(
     loadedCharacters,
     context.options.characters,
+    customStyle.character,
+    (message) => context.emitter.emit({ type: 'log', level: 'warn', message }),
   )
 
   const client = createVerbatimClient({
@@ -182,6 +223,9 @@ export async function runVerbatimLane(
     // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
     // origen: los planos solo gobiernan el carril del catálogo).
     gem: customStyle.systemPrompt,
+    // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
+    // desconocido → el de la casa, con aviso).
+    modelId: context.options.promptModel,
     character: character.input,
     client,
     signal: context.signal,
@@ -227,5 +271,24 @@ export async function runVerbatimLane(
     ),
     missing: result.missing,
     written,
+    profile: result.profile,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
   }
+}
+
+/**
+ * Deja escrito en project.json con qué modelo salieron los prompts. Solo
+ * auditoría (soporte y una futura UI): no gobierna ninguna decisión.
+ */
+export async function recordPromptModelUsed(
+  context: CreateVideoContext,
+  lane: VerbatimLaneResult,
+): Promise<void> {
+  if (lane.written.size === 0) return
+  context.metadata.promptModelUsed = {
+    id: lane.profile.id,
+    label: lane.profile.label,
+  }
+  await context.saveMetadata()
 }

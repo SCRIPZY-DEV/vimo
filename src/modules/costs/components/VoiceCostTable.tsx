@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { VOICE_CHAR_BATCHES } from '../constants'
 import { VOICE_PROVIDERS } from '../catalog'
-import { PriceCell } from './PriceCell'
+import { PriceCell } from '@/modules/common/components/PriceCell'
 
 export function VoiceCostTable() {
   const { t, i18n } = useTranslation()

@@ -22,6 +22,7 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
+import { readStoredPromptModel } from '@/modules/videos/utilities/promptModelStorage'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
@@ -60,6 +61,7 @@ function CreateView({ initialSceneCount }: { initialSceneCount: number }) {
   const [form, setForm] = useState<CreateFormValue>(() => ({
     ...CREATE_FORM_INITIAL_VALUE,
     sceneCount: initialSceneCount,
+    promptModel: readStoredPromptModel(),
   }))
 
   // Sin auto-export el job termina sin video: el destino natural es el

@@ -27,3 +27,17 @@ export function buildPreviewScene(
 
   return `${identity} Full-body view of this exact character standing, facing the camera, on a plain neutral studio background.`
 }
+
+// Pedido al LLM cuando el estilo es PROPIO: la gema (system) no conoce al
+// personaje, así que el encuadre del preview viaja como la escena a ilustrar,
+// con el mismo formato de pedido que las muestras del estilo. Sin guion de
+// contexto: el retrato es de una sola figura sobre fondo neutro.
+export function buildCustomPreviewRequest(identityPrompt: string): string {
+  const identity = identityPrompt.trim().replace(/\s+/g, ' ')
+
+  return (
+    `SCENE TO ILLUSTRATE: a character portrait. Full-body view of this exact character standing, facing the camera, on a plain neutral studio background. ` +
+    `The character: ${identity}\n\n` +
+    `Write the image prompt for this scene, keeping the character's physical identity exactly as described.`
+  )
+}

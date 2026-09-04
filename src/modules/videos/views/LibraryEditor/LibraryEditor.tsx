@@ -6,6 +6,11 @@ import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/modules/common/ui/tooltip'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { videosApi } from '@/modules/videos/api'
 import { AudioMixDialog } from '@/modules/videos/components/AudioMixDialog'
@@ -197,26 +202,40 @@ export function LibraryEditor() {
   return (
     <div className="flex flex-col gap-5 px-6 py-6 lg:h-full">
       <LibraryViewHeader title={metadata.name}>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => setMusicOpen(true)}
-          className="rounded-lg font-display"
-        >
-          <Music2 className="mr-1.5 h-3.5 w-3.5" />
-          {t('library.editor.musicButton')}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => setMixOpen(true)}
-          className="rounded-lg font-display"
-        >
-          <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-          {t('library.editor.audioButton')}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setMusicOpen(true)}
+              className="rounded-lg font-display"
+            >
+              <Music2 className="mr-1.5 h-3.5 w-3.5" />
+              {t('library.editor.musicButton')}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-sm leading-snug">
+            {t('library.editor.musicButtonHelp')}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setMixOpen(true)}
+              className="rounded-lg font-display"
+            >
+              <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+              {t('library.editor.audioButton')}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-sm leading-snug">
+            {t('library.editor.audioButtonHelp')}
+          </TooltipContent>
+        </Tooltip>
         <ExportClipsButton
           exportState={task?.export ?? null}
           busy={busy}

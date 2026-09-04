@@ -19,6 +19,10 @@ interface CharacterProfileFieldsProps {
   disabled: boolean
   suggesting: boolean
   missingLlmKey: boolean
+  // Con guion a mano (Create + Mi estilo) la IA infiere del guion y no exige
+  // los cuatro campos; sin guion, sí (v0.43.4 del origen).
+  suggestFromScript?: boolean
+  suggestLabelKey?: string
   onChange: (value: CharacterFormValue) => void
   onSuggest: () => void
 }
@@ -28,16 +32,19 @@ export function CharacterProfileFields({
   disabled,
   suggesting,
   missingLlmKey,
+  suggestFromScript = false,
+  suggestLabelKey = 'characters.experto.boton',
   onChange,
   onSuggest,
 }: CharacterProfileFieldsProps) {
   const { t } = useTranslation()
 
   const complete =
-    Boolean(value.name.trim()) &&
-    Boolean(value.age.trim()) &&
-    Boolean(value.role.trim()) &&
-    Boolean(value.description.trim())
+    suggestFromScript ||
+    (Boolean(value.name.trim()) &&
+      Boolean(value.age.trim()) &&
+      Boolean(value.role.trim()) &&
+      Boolean(value.description.trim()))
 
   return (
     <div className="space-y-4">
@@ -122,9 +129,7 @@ export function CharacterProfileFields({
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          {suggesting
-            ? t('characters.experto.generando')
-            : t('characters.experto.boton')}
+          {suggesting ? t('characters.experto.generando') : t(suggestLabelKey)}
         </Button>
         {missingLlmKey ? (
           <p className="font-body text-xs text-coral">

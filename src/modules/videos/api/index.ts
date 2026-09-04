@@ -15,6 +15,7 @@ import {
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
+import type { ListPromptModelsResult } from '@pipeline/types/llm-models.ts'
 import type {
   GenerateStyleSamplesPayload,
   StyleDeletePayload,
@@ -191,6 +192,9 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('generate-style-samples', payload, onEvent)
+  },
+  async listPromptModels(): Promise<ListPromptModelsResult> {
+    return runPipelineJob<ListPromptModelsResult>('list-prompt-models')
   },
   async cancelJob(jobId: string): Promise<void> {
     return invoke('cancel_pipeline_job', { jobId })

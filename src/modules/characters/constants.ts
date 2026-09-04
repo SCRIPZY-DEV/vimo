@@ -8,6 +8,7 @@ export const CharactersRoutes = {
 
 export const charactersQueryKeys = {
   list: ['characters', 'list'],
+  customStyles: ['characters', 'customStyles'],
 } as const
 
 // Espejo de los límites del sidecar (pipeline/commands/characters)
@@ -17,7 +18,8 @@ export const MIN_DESCRIPTION_LENGTH = 10
 export const AGE_LIMIT = 40
 export const ROLE_LIMIT = 80
 
-// Estilos del preview de la imagen, en el orden del origen
+// Estilos del catálogo para el preview, en el orden del origen; los estilos
+// propios de la galería se agregan a continuación en el modal
 export const PREVIEW_STYLES: LabelledOption<CharacterStyleId>[] = [
   { id: 'normal', labelKey: 'characters.styles.normal' },
   { id: 'pov_stickman', labelKey: 'characters.styles.stickman' },
@@ -57,6 +59,7 @@ export const CHARACTERS_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_provider_error: 'characters.errors.llmProviderError',
   llm_empty_response: 'characters.errors.llmProviderError',
   character_not_found: 'characters.errors.notFound',
+  style_not_found: 'characters.errors.styleNotFound',
   invalid_payload: 'characters.errors.invalid',
   missing_api_key: 'characters.errors.missingApiKey',
   missing_projects_root: 'characters.errors.missingProjectsRoot',

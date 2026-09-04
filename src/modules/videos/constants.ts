@@ -46,6 +46,7 @@ export function libraryEditorPath(projectId: string): string {
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
   customStyles: ['videos', 'customStyles'],
+  promptModels: ['videos', 'promptModels'],
   projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
@@ -83,6 +84,13 @@ export const SCENE_CUT_PREVIEW_DEBOUNCE_MS = 120
 // Estimación local del corte por segundos: el resto final cuenta como escena
 // si alcanza esta fracción de una ventana (misma regla que el fragmentador).
 export const SCENE_REMAINDER_MIN_FRACTION = 0.3
+// El último modelo de prompts elegido, recordado entre videos (decisión de
+// la rama 11: sin «modelo de siempre», solo se recuerda la última elección).
+export const PROMPT_MODEL_STORAGE_KEY = 'vimo:create:promptModel'
+// Opción «preguntar en cada video» del personaje predeterminado de un estilo.
+// Radix Select no admite el valor vacío; el guion doble no puede ser un id de
+// personaje (los ids arrancan con letra o número).
+export const STYLE_CHARACTER_ASK_OPTION = '--ask--'
 
 // Últimas líneas de log que la vista conserva (como el origen).
 export const LOG_LINES_LIMIT = 50
@@ -458,6 +466,8 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   script: '',
   narrationFilePath: null,
   styleId: 'normal',
+  // Create lo siembra con el último elegido (readStoredPromptModel).
+  promptModel: null,
   sceneCount: 0,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
@@ -493,7 +503,6 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   project_not_found: 'create.errors.projectNotFound',
   project_metadata_corrupt: 'create.errors.projectCorrupt',
   project_exists: 'create.errors.projectExists',
-  character_preview_missing: 'create.errors.characterPreviewMissing',
   script_missing: 'create.errors.scriptMissing',
   narration_missing: 'create.errors.narrationMissing',
   narration_source_missing: 'create.errors.narrationSourceMissing',

@@ -12,6 +12,11 @@ import {
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
+  DesignStyleCharacterPayload,
+  DesignStyleCharacterResult,
+  StylesListResult,
+} from '@pipeline/types/styles.ts'
+import type {
   CharacterCreatePayload,
   CharacterCreateResult,
   CharacterSummary,
@@ -48,11 +53,24 @@ export const charactersApi = {
   async remove(id: string): Promise<void> {
     await runPipelineJob('character-delete', { id })
   },
+  // Galería de estilos propios, para generar previews con ellos. Envuelve el
+  // mismo subcomando que videos (precedente: listCharacters en videosApi).
+  async listCustomStyles(): Promise<StylesListResult> {
+    return runPipelineJob<StylesListResult>('styles-list')
+  },
   async suggestProfile(
     payload: SuggestCharacterProfilePayload,
   ): Promise<SuggestCharacterProfileResult> {
     return runPipelineJob<SuggestCharacterProfileResult>(
       'suggest-character-profile',
+      payload,
+    )
+  },
+  async designWithStyle(
+    payload: DesignStyleCharacterPayload,
+  ): Promise<DesignStyleCharacterResult> {
+    return runPipelineJob<DesignStyleCharacterResult>(
+      'design-style-character',
       payload,
     )
   },

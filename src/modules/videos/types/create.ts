@@ -168,6 +168,9 @@ export interface CreateFormValue {
   // 'normal' (el contrato del pipeline lo sigue validando).
   styleSource: StyleSource
   customStyle: SelectedCustomStyle | null
+  // Modelo LLM del carril verbatim (solo viaja con estilo propio). null = el
+  // de la casa; se siembra con el último elegido (localStorage).
+  promptModel: string | null
   // 0 = cantidad automática.
   sceneCount: number
   imageProvider: ImageProviderId

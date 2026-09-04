@@ -84,6 +84,9 @@ Decisiones globales que gobiernan las ramas:
   final); es el costo aceptado de la revisabilidad.
 - ⚠️ Mientras el roadmap avanza, el origen sigue moviéndose: al cerrar la rama 11
   hay que re-comparar contra `vimo_dev` y decidir si hay una segunda tanda.
+  > **Cierre del roadmap (2026-09-02):** las 12 ramas están implementadas; la 11
+  > cerró con [ADR-0020](ADR-0020-selector-de-modelo-y-personaje-de-la-gema.md).
+  > La re-comparación contra `vimo_dev` queda como tarea abierta.
 - 🔒 Ningún cambio del rediseño entra fuera de su rama del mapa; si un cambio nuevo
   del origen aparece a mitad de camino, se agrega como rama nueva al final o espera
   la re-comparación.
