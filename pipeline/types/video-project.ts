@@ -22,7 +22,8 @@ export type CharacterFrequency =
 // La referencia visual vive en `characters/` dentro del proyecto: una foto
 // subida (modo photo) o el preview del estilo actual copiado de la
 // biblioteca (modo text) — regla E20 del origen: jamás el preview de OTRO
-// estilo, rompería la identidad con las escenas vecinas.
+// estilo, rompería la identidad con las escenas vecinas. Sin preview del
+// estilo actual no hay referencia: la identidad viaja solo como texto.
 export interface ProjectCharacter {
   // Id en la biblioteca `<projectsRoot>/characters/`, si vino de ahí.
   characterId?: string

@@ -22,19 +22,18 @@ import {
 } from '@/modules/characters/constants'
 import { useCharacterMutations } from '@/modules/characters/hooks/useCharacterMutations'
 import { useCharacterPreview } from '@/modules/characters/hooks/useCharacterPreview'
+import { useCustomStyleCatalog } from '@/modules/characters/hooks/useCustomStyleCatalog'
 import { useDesignStyleCharacter } from '@/modules/characters/hooks/useDesignStyleCharacter'
 import { useSuggestCharacterProfile } from '@/modules/characters/hooks/useSuggestCharacterProfile'
 import {
   toFormValue,
   toPreviewViews,
 } from '@/modules/characters/utilities/characterDraft'
-import type {
-  CharacterStyleId,
-  CharacterSummary,
-} from '@pipeline/types/characters.ts'
+import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
   CharacterStyleContext,
+  PreviewStyleOption,
   PreviewView,
 } from '@/modules/characters/types/characters'
 
@@ -67,6 +66,7 @@ export function CharacterModal({
     errorKey: designErrorKey,
   } = useDesignStyleCharacter()
   const preview = useCharacterPreview()
+  const { styles: customStyles } = useCustomStyleCatalog()
 
   const [form, setForm] = useState(() =>
     character ? toFormValue(character) : CHARACTER_FORM_INITIAL_VALUE,
@@ -74,14 +74,35 @@ export function CharacterModal({
   const [previews, setPreviews] = useState<PreviewView[]>(() =>
     character ? toPreviewViews(character) : [],
   )
-  const [styleId, setStyleId] = useState<CharacterStyleId>(PREVIEW_STYLES[0].id)
+  // Desde Create con «Mi estilo» el preview arranca en esa gema.
+  const [styleId, setStyleId] = useState(
+    styleContext?.styleId ?? PREVIEW_STYLES[0].id,
+  )
   const [provider, setProvider] = useState<ImageProviderId>(
     DEFAULT_PREVIEW_PROVIDER,
   )
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
+  // Catálogo + galería propia, con el texto ya resuelto para el panel.
+  const previewStyles: PreviewStyleOption[] = [
+    ...PREVIEW_STYLES.map((style) => ({
+      id: style.id,
+      label: t(style.labelKey),
+      custom: false,
+    })),
+    ...customStyles.map((style) => ({
+      id: style.id,
+      label: style.name,
+      custom: true,
+    })),
+  ]
+  const isCustomStyle = !PREVIEW_STYLES.some((style) => style.id === styleId)
+
   const llmKeys = useRequiredApiKeys({ requirements: [['deepinfra']] })
-  const providerKeys = useRequiredApiKeys({ requirements: [[provider]] })
+  // Con estilo propio la gema escribe el prompt: hace falta también DeepInfra.
+  const providerKeys = useRequiredApiKeys({
+    requirements: isCustomStyle ? [[provider], ['deepinfra']] : [[provider]],
+  })
 
   const identity = form.description.trim()
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
@@ -207,9 +228,11 @@ export function CharacterModal({
 
           <CharacterPreviewPanel
             previews={previews}
+            styles={previewStyles}
             styleId={styleId}
             provider={provider}
             generating={preview.generating}
+            phase={preview.phase}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingRequirements.length > 0}

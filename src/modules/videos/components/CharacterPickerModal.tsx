@@ -27,13 +27,12 @@ import type { CharacterStyleContext } from '@/modules/characters/types/character
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
-import type {
-  CharacterStyleId,
-  CharacterSummary,
-} from '@pipeline/types/characters.ts'
+import type { CharacterSummary } from '@pipeline/types/characters.ts'
 
 interface CharacterPickerModalProps {
-  styleId: CharacterStyleId
+  // Id del catálogo o de galería (estilo propio): con qué preview se muestra
+  // cada personaje. Sin preview igual se puede elegir: irá sin referencia.
+  previewStyleKey: string
   selected: SelectedCharacter[]
   // Con «Mi estilo» en uso: el personaje nuevo se diseña con esa gema.
   styleContext?: CharacterStyleContext
@@ -42,7 +41,7 @@ interface CharacterPickerModalProps {
 }
 
 export function CharacterPickerModal({
-  styleId,
+  previewStyleKey,
   selected,
   styleContext,
   onConfirm,
@@ -58,7 +57,7 @@ export function CharacterPickerModal({
   const [creating, setCreating] = useState(false)
 
   const toSelected = (character: CharacterSummary): SelectedCharacter => {
-    const preview = findStylePreview(character, styleId)
+    const preview = findStylePreview(character, previewStyleKey)
     return {
       characterId: character.id,
       name: character.name,
@@ -142,7 +141,7 @@ export function CharacterPickerModal({
           </button>
           {characters.map((character) => {
             const isSelected = isPicked(character.id)
-            const preview = findStylePreview(character, styleId)
+            const preview = findStylePreview(character, previewStyleKey)
             return (
               <button
                 key={character.id}

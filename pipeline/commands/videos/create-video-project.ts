@@ -25,7 +25,6 @@ import {
   MAX_SECONDS_PER_SCENE,
   MIN_SECONDS_PER_SCENE,
 } from '../../stages/scene-cuts/by-seconds.ts'
-import type { CharacterStyleId } from '../../types/characters.ts'
 import type {
   CreateVideoProjectPayload,
   CreateVideoProjectResult,
@@ -66,6 +65,7 @@ export async function createVideoProject(
   if (payload.script) await writeFile(paths.scriptFile, payload.script, 'utf8')
 
   const characters = await storeCharacterReferences(
+    context,
     projectsRoot,
     paths.charactersDirectory,
     payload,
@@ -251,6 +251,7 @@ async function resolveAvailableSlug(
 // la biblioteca del estilo actual): el pipeline nunca vuelve a mirar la
 // biblioteca, así el proyecto es autocontenido y la biblioteca puede cambiar.
 async function storeCharacterReferences(
+  context: PipelineContext,
   projectsRoot: string,
   charactersDirectory: string,
   payload: CreateVideoProjectPayload,
@@ -260,15 +261,21 @@ async function storeCharacterReferences(
 
   await ensureDirectory(charactersDirectory)
 
+  // Con estilo propio el preview se busca por el id de galería de la gema
+  // (options.styleId viaja como 'normal' solo para el contrato).
+  const previewStyleKey =
+    payload.options.customStyle?.styleId ?? payload.options.styleId
+
   const stored: ProjectCharacter[] = []
   for (const [index, character] of incoming.entries()) {
     validateCharacter(character)
     const referenceImageFile = await storeReferenceImage(
+      context,
       projectsRoot,
       charactersDirectory,
       character,
       index,
-      payload.options.styleId,
+      previewStyleKey,
     )
 
     const entry: ProjectCharacter = {
@@ -304,11 +311,12 @@ function validateCharacter(character: NewVideoProjectCharacter): void {
 }
 
 async function storeReferenceImage(
+  context: PipelineContext,
   projectsRoot: string,
   charactersDirectory: string,
   character: NewVideoProjectCharacter,
   index: number,
-  styleId: CharacterStyleId,
+  previewStyleKey: string,
 ): Promise<string | undefined> {
   // La foto (o el preview ya generado) puede venir directa como data URI.
   if (character.photoDataUri) {
@@ -328,8 +336,9 @@ async function storeReferenceImage(
   }
 
   // Modo texto con personaje de biblioteca: se copia el preview del estilo
-  // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el error lo
-  // dice — la UI ofrece generarlo desde el picker antes de crear.
+  // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el personaje
+  // viaja sin referencia — su identidad va solo como texto — y queda un
+  // aviso en el log; la UI ya lo anticipa en el picker.
   if (!character.characterId) return undefined
   assertValidCharacterId(character.characterId)
 
@@ -340,13 +349,16 @@ async function storeReferenceImage(
   )
   const libraryMetadata = await readCharacterMetadata(libraryDirectory)
   const preview = libraryMetadata?.previews?.find(
-    (item) => item.styleId === styleId,
+    (item) => item.styleId === previewStyleKey,
   )
-  if (!preview)
-    throw new PipelineFailure(
-      'character_preview_missing',
-      `character "${character.characterId}" has no preview for style "${styleId}"`,
-    )
+  if (!preview) {
+    context.emitter.emit({
+      type: 'log',
+      level: 'warn',
+      message: `character "${character.characterId}" has no preview for style "${previewStyleKey}" — its identity travels as text only`,
+    })
+    return undefined
+  }
 
   const extension = preview.file.split('.').pop() ?? 'jpg'
   const file = `reference_${index + 1}.${extension}`

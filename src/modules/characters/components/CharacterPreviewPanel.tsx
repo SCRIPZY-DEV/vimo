@@ -7,24 +7,27 @@ import { Label } from '@/modules/common/ui/label'
 import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
-import {
-  PREVIEW_PROVIDERS,
-  PREVIEW_STYLES,
-} from '@/modules/characters/constants'
-import type { CharacterStyleId } from '@pipeline/types/characters.ts'
+import { PREVIEW_PROVIDERS } from '@/modules/characters/constants'
+import type { CharacterPreviewPhase } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
-import type { PreviewView } from '@/modules/characters/types/characters'
+import type {
+  PreviewStyleOption,
+  PreviewView,
+} from '@/modules/characters/types/characters'
 
 interface CharacterPreviewPanelProps {
   previews: PreviewView[]
-  styleId: CharacterStyleId
+  // Catálogo + estilos propios, en ese orden.
+  styles: PreviewStyleOption[]
+  styleId: string
   provider: ImageProviderId
   generating: boolean
+  phase: CharacterPreviewPhase | null
   errorKey: string | null
   disabled: boolean
   missingProviderKey: boolean
   canGenerate: boolean
-  onStyleChange: (styleId: CharacterStyleId) => void
+  onStyleChange: (styleId: string) => void
   onProviderChange: (provider: ImageProviderId) => void
   onGenerate: () => void
   onCancel: () => void
@@ -32,9 +35,11 @@ interface CharacterPreviewPanelProps {
 
 export function CharacterPreviewPanel({
   previews,
+  styles,
   styleId,
   provider,
   generating,
+  phase,
   errorKey,
   disabled,
   missingProviderKey,
@@ -46,13 +51,26 @@ export function CharacterPreviewPanel({
 }: CharacterPreviewPanelProps) {
   const { t } = useTranslation()
 
-  const styleOf = (id: CharacterStyleId) =>
-    PREVIEW_STYLES.find((style) => style.id === id)
+  const styleOf = (id: string) => styles.find((style) => style.id === id)
+  // Un preview cuyo estilo propio ya no está en la galería conserva la
+  // imagen: solo pierde el nombre.
+  const labelOf = (id: string) =>
+    styleOf(id)?.label ?? t('characters.preview.deletedStyle')
+  const selectedStyle = styleOf(styleId)
   const activePreview = previews.find((preview) => preview.styleId === styleId)
   // Mientras se genera, el estilo elegido muestra un skeleton en el lugar de su imagen.
   const visiblePreviews = generating
     ? previews.filter((preview) => preview.styleId !== styleId)
     : previews
+  const generatingLabelKey =
+    phase === 'prompt'
+      ? 'characters.preview.writingPrompt'
+      : 'characters.preview.generando'
+  // Las claves que faltan se piden juntas: la del proveedor y, con estilo
+  // propio, la del LLM.
+  const missingKeyProviders = selectedStyle?.custom
+    ? ['deepinfra' as const, provider]
+    : [provider]
 
   return (
     <section className="space-y-4 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-4">
@@ -66,7 +84,7 @@ export function CharacterPreviewPanel({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {PREVIEW_STYLES.map((style) => {
+        {styles.map((style) => {
           const selected = style.id === styleId
           const done = previews.some((preview) => preview.styleId === style.id)
           return (
@@ -83,11 +101,23 @@ export function CharacterPreviewPanel({
               )}
             >
               {done && <Check className="h-3.5 w-3.5" />}
-              {t(style.labelKey)}
+              {style.custom && (
+                <Sparkles
+                  aria-label={t('characters.preview.customStyleBadge')}
+                  className="h-3.5 w-3.5"
+                />
+              )}
+              {style.label}
             </button>
           )
         })}
       </div>
+
+      {selectedStyle?.custom && (
+        <p className="font-body text-xs text-muted-foreground">
+          {t('characters.preview.customStyleNote')}
+        </p>
+      )}
 
       <div className="space-y-1.5">
         <Label className="font-display">
@@ -147,7 +177,10 @@ export function CharacterPreviewPanel({
       {missingProviderKey && (
         <p className="font-body text-xs text-coral">
           {t('characters.preview.faltaClave')}{' '}
-          <Link to={apiKeysFocusPath([provider])} className="underline">
+          <Link
+            to={apiKeysFocusPath(missingKeyProviders)}
+            className="underline"
+          >
             {t('characters.irAClaves')}
           </Link>
         </p>
@@ -168,7 +201,7 @@ export function CharacterPreviewPanel({
                 className="aspect-square w-full rounded-lg border border-border object-cover"
               />
               <p className="truncate text-center font-body text-xs text-muted-foreground">
-                {t(styleOf(preview.styleId)?.labelKey ?? '')}
+                {labelOf(preview.styleId)}
               </p>
             </li>
           ))}
@@ -178,7 +211,7 @@ export function CharacterPreviewPanel({
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </Skeleton>
               <p className="truncate text-center font-body text-xs text-muted-foreground">
-                {t('characters.preview.generando')}
+                {t(generatingLabelKey)}
               </p>
             </li>
           )}

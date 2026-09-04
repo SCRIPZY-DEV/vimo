@@ -193,7 +193,8 @@
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
       "empty": "You don't have any characters in your library yet.",
-      "noPreviewForStyle": "No artwork in this style",
+      "noPreviewForStyle": "No artwork in this style: it will go without a reference image",
+      "noReferenceHint": "No visual reference",
       "use": "Use {{count}} character(s)",
       "frequency": {
         "label": "How often do they appear?",
@@ -207,7 +208,6 @@
       "selectedCount_other": "{{count}} characters",
       "asksForCharacter": "This style asks for your character: pick one to generate.",
       "broughtByStyle": "Brought by your style. Every video with this style comes out with it.",
-      "useFixed": "Use {{name}}, this style's character",
       "fixedMissing": "This style's default character is no longer in your library. Edit the style and pick another one.",
       "createNew": "Create new character",
       "createWithStyle": "Create character with my style"
@@ -313,7 +313,6 @@
       "projectNotFound": "That project is no longer in your folder.",
       "projectCorrupt": "The project data is damaged.",
       "projectExists": "There is already a project with that name.",
-      "characterPreviewMissing": "The character has no artwork in the chosen style. Generate it in Characters.",
       "scriptMissing": "The project script is missing.",
       "narrationMissing": "We couldn't find your audio. Upload it again.",
       "narrationSourceMissing": "The audio file is no longer where you chose it.",
@@ -842,7 +841,11 @@
       "cancelar": "Cancel",
       "vacio": "You haven't generated any preview yet.",
       "faltaClave": "You need the key for the selected provider.",
-      "generando": "Generating…"
+      "generando": "Generating…",
+      "writingPrompt": "Writing the prompt…",
+      "customStyleBadge": "Custom style",
+      "customStyleNote": "With a custom style, your gem writes the portrait prompt (one AI call, needs DeepInfra) and then the image is generated.",
+      "deletedStyle": "Deleted style"
     },
     "styles": {
       "normal": "Normal",
@@ -860,6 +863,7 @@
       "nameRequired": "Give the character a name.",
       "descriptionTooShort": "The identity needs at least 10 characters.",
       "notFound": "That character is no longer in your library.",
+      "styleNotFound": "That custom style is no longer in your gallery. Pick another one.",
       "invalid": "Check the character details.",
       "imageNetwork": "We couldn't reach the image provider.",
       "imageInvalidApiKey": "The image provider key is not valid.",
