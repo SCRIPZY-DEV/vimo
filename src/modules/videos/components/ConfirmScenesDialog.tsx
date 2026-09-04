@@ -12,18 +12,16 @@ import {
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { formatTime } from '@/modules/common/utilities/formatTime'
+import { useSceneDurationDefaults } from '@/modules/settings/hooks/useSceneDurationDefaults'
 import { DataBox } from '@/modules/videos/components/DataBox'
 import { useSceneCutPreview } from '@/modules/videos/hooks/useSceneCutPreview'
 import {
   MAX_SCENE_COUNT,
+  SECONDS_PER_SCENE_DEFAULT,
   SECONDS_PER_SCENE_MAX,
   SECONDS_PER_SCENE_MIN,
 } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
-import {
-  readStoredSecondsPerScene,
-  storeSecondsPerScene,
-} from '@/modules/videos/utilities/secondsPerSceneStorage'
 import type {
   SceneConfirmationView,
   SceneCutChoice,
@@ -40,8 +38,8 @@ interface ConfirmScenesDialogProps {
 // y — cuando la pausa vino del carril de segundos de un estilo propio — el
 // slider de segundos-por-escena (port reducido de PasoSegundosPorEscena del
 // origen): el usuario elige la DURACIÓN y ve en vivo cuántas escenas salen,
-// con la misma implementación que después corta. El valor elegido se
-// recuerda entre videos (localStorage).
+// con la misma implementación que después corta. El valor elegido pasa a ser
+// la preferencia de Ajustes, con la que arrancan los próximos videos.
 export function ConfirmScenesDialog({
   confirmation,
   projectId,
@@ -49,12 +47,13 @@ export function ConfirmScenesDialog({
   onCancel,
 }: ConfirmScenesDialogProps) {
   const { t } = useTranslation()
+  const { sceneDuration, rememberSecondsPerScene } = useSceneDurationDefaults()
   const secondsLane = confirmation.secondsPerScene !== undefined
   const [sceneCount, setSceneCount] = useState(confirmation.suggestedScenes)
-  const [seconds, setSeconds] = useState(() =>
-    secondsLane
-      ? (confirmation.secondsPerScene ?? readStoredSecondsPerScene())
-      : readStoredSecondsPerScene(),
+  const [seconds, setSeconds] = useState(
+    confirmation.secondsPerScene ??
+      sceneDuration?.secondsPerScene ??
+      SECONDS_PER_SCENE_DEFAULT,
   )
 
   const preview = useSceneCutPreview({
@@ -71,7 +70,7 @@ export function ConfirmScenesDialog({
       onConfirm({ sceneCount })
       return
     }
-    storeSecondsPerScene(seconds)
+    rememberSecondsPerScene(seconds)
     onConfirm({ secondsPerScene: seconds })
   }
 
