@@ -28,8 +28,15 @@ export const EVOLINK_BASE_URL = 'https://api.evolink.ai'
 const IMAGE_MODEL = 'gpt-image-2'
 
 export const ORDER_DEADLINE_MS = 210_000
-const POLL_INTERVAL_MS = 5000
+// Polling cada 2 s (el origen consultaba cada 1 s): con 5 s la imagen llegaba
+// a la grilla hasta 5 s después de que Evolink la terminara, y el porcentaje
+// real que devuelve avanzaba a saltos. Un 429 durante el polling es
+// transitorio: la tarea sigue viva y pagada, se espera lo que pida el
+// proveedor (acotado) y se vuelve a consultar la MISMA tarea.
+const POLL_INTERVAL_MS = 2000
 const POLL_REQUEST_TIMEOUT_MS = 15_000
+const POLL_RATE_LIMIT_WAIT_MS = 5000
+const POLL_RATE_LIMIT_MAX_WAIT_MS = 15_000
 const MAX_ORDERS = 3
 
 // Fallos de tarea que sí conviene re-encargar: la tarea fallida no se cobró.
@@ -276,6 +283,14 @@ export async function pollTask(
         'image_task_not_found',
         `Evolink task ${taskId} is gone`,
       )
+    // Rate limit del polling: transitorio, no un fallo de la tarea. Antes
+    // caía en el `!response.ok` de abajo y daba la escena por perdida.
+    if (response.status === 429) {
+      await delay(rateLimitWaitMs(response), undefined, {
+        signal: order.signal,
+      })
+      continue
+    }
     // 5xx es transitorio del lado de Evolink: se sigue esperando.
     if (response.status >= 500) continue
     if (!response.ok)
@@ -304,6 +319,15 @@ export async function pollTask(
       elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
     })
   }
+}
+
+// Cuánto esperar tras un 429 del polling: lo que pide `retry-after` (en
+// segundos), acotado, o un valor fijo si el header falta o no es numérico.
+function rateLimitWaitMs(response: Response): number {
+  const retryAfterSeconds = Number(response.headers.get('retry-after'))
+  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds <= 0)
+    return POLL_RATE_LIMIT_WAIT_MS
+  return Math.min(POLL_RATE_LIMIT_MAX_WAIT_MS, retryAfterSeconds * 1000)
 }
 
 function firstResultUrl(data: EvolinkImageTaskResponse): string | null {
