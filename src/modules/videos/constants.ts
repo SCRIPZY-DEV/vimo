@@ -477,7 +477,6 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   project_not_found: 'create.errors.projectNotFound',
   project_metadata_corrupt: 'create.errors.projectCorrupt',
   project_exists: 'create.errors.projectExists',
-  character_preview_missing: 'create.errors.characterPreviewMissing',
   script_missing: 'create.errors.scriptMissing',
   narration_missing: 'create.errors.narrationMissing',
   narration_source_missing: 'create.errors.narrationSourceMissing',
