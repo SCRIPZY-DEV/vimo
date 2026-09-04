@@ -6,14 +6,22 @@ import { LazyStore } from '@tauri-apps/plugin-store'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   AUTOMATIC_SCENE_COUNT,
+  CONFIRM_SCENES_STORE_KEY,
   DEFAULT_PROJECTS_FOLDER_NAME,
   DEFAULT_SCENE_COUNT_STORE_KEY,
   PROJECTS_ROOT_STORE_KEY,
   SCENE_COUNT_MAX,
+  SECONDS_PER_SCENE_DEFAULT,
+  SECONDS_PER_SCENE_MAX,
+  SECONDS_PER_SCENE_MIN,
+  SECONDS_PER_SCENE_STORE_KEY,
   SETTINGS_STORE_FILE,
   WRITE_PROBE_FILE_NAME,
 } from '../constants'
-import type { ChooseProjectsRootResult } from '../types/settings'
+import type {
+  ChooseProjectsRootResult,
+  SceneDurationDefaults,
+} from '../types/settings'
 
 const store = new LazyStore(SETTINGS_STORE_FILE)
 
@@ -42,6 +50,15 @@ function clampSceneCount(value: number): number {
   return Math.min(
     Math.max(Math.trunc(value), AUTOMATIC_SCENE_COUNT),
     SCENE_COUNT_MAX,
+  )
+}
+
+// Mismo criterio que clampSceneCount, para el carril de segundos.
+function clampSecondsPerScene(value: number): number {
+  if (!Number.isFinite(value)) return SECONDS_PER_SCENE_DEFAULT
+  return Math.min(
+    Math.max(Math.trunc(value), SECONDS_PER_SCENE_MIN),
+    SECONDS_PER_SCENE_MAX,
   )
 }
 
@@ -87,5 +104,27 @@ export const settingsApi = {
     await store.set(DEFAULT_SCENE_COUNT_STORE_KEY, clamped)
     await store.save()
     return clamped
+  },
+  async getSceneDurationDefaults(): Promise<SceneDurationDefaults> {
+    const seconds = await store.get<number>(SECONDS_PER_SCENE_STORE_KEY)
+    const confirm = await store.get<boolean>(CONFIRM_SCENES_STORE_KEY)
+    return {
+      secondsPerScene: clampSecondsPerScene(
+        seconds ?? SECONDS_PER_SCENE_DEFAULT,
+      ),
+      confirmScenes: confirm ?? true,
+    }
+  },
+  async setSceneDurationDefaults(
+    next: SceneDurationDefaults,
+  ): Promise<SceneDurationDefaults> {
+    const saved: SceneDurationDefaults = {
+      secondsPerScene: clampSecondsPerScene(next.secondsPerScene),
+      confirmScenes: next.confirmScenes,
+    }
+    await store.set(SECONDS_PER_SCENE_STORE_KEY, saved.secondsPerScene)
+    await store.set(CONFIRM_SCENES_STORE_KEY, saved.confirmScenes)
+    await store.save()
+    return saved
   },
 }
