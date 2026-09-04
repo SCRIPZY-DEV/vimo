@@ -12,6 +12,10 @@ import {
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
+  DesignStyleCharacterPayload,
+  DesignStyleCharacterResult,
+} from '@pipeline/types/styles.ts'
+import type {
   CharacterCreatePayload,
   CharacterCreateResult,
   CharacterSummary,
@@ -53,6 +57,14 @@ export const charactersApi = {
   ): Promise<SuggestCharacterProfileResult> {
     return runPipelineJob<SuggestCharacterProfileResult>(
       'suggest-character-profile',
+      payload,
+    )
+  },
+  async designWithStyle(
+    payload: DesignStyleCharacterPayload,
+  ): Promise<DesignStyleCharacterResult> {
+    return runPipelineJob<DesignStyleCharacterResult>(
+      'design-style-character',
       payload,
     )
   },
