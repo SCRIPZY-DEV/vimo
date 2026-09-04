@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Clock, PauseCircle } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatElapsed } from '@/modules/videos/utilities/formatElapsed'
-import type { CreateTask } from '@/modules/videos/types/create'
+import type {
+  CreateTask,
+  CreateTaskTiming,
+} from '@/modules/videos/types/create'
 
 interface ElapsedTimerProps {
   task: CreateTask
@@ -12,12 +15,12 @@ interface ElapsedTimerProps {
 // Cronómetro honesto (origen v1.1.0): descuenta los tramos en pausa —el
 // tiempo que la persona tarda en confirmar no cuenta— y se congela al
 // completar.
-function elapsedSeconds(task: CreateTask): number {
-  const end = task.finishedAt ?? Date.now()
-  const livePause = task.pausedAt !== null ? end - task.pausedAt : 0
+function elapsedSeconds(timing: CreateTaskTiming): number {
+  const end = timing.finishedAt ?? Date.now()
+  const livePause = timing.pausedAt !== null ? end - timing.pausedAt : 0
   return Math.max(
     0,
-    Math.floor((end - task.startedAt - task.pausedMs - livePause) / 1000),
+    Math.floor((end - timing.startedAt - timing.pausedMs - livePause) / 1000),
   )
 }
 
@@ -25,6 +28,12 @@ function elapsedSeconds(task: CreateTask): number {
 // tick para no re-renderizar por segundo todo lo que cuelga de la tarea.
 export function ElapsedTimer({ task }: ElapsedTimerProps) {
   const { t } = useTranslation()
+  // El intervalo depende solo de las marcas de tiempo, nunca de `task`: cada
+  // evento del sidecar (voz cada 1 s, imágenes cada 250 ms por escena, ffmpeg
+  // cada 500 ms) crea una tarea nueva, y un efecto atado a ella reiniciaba el
+  // intervalo antes de que llegara a disparar: el reloj quedaba clavado toda
+  // la fase y saltaba recién en la pausa, cuando paraban los eventos.
+  const { startedAt, pausedAt, pausedMs, finishedAt } = task
   const [elapsed, setElapsed] = useState(() => elapsedSeconds(task))
 
   const paused = task.status === 'awaitingConfirmation'
@@ -34,9 +43,10 @@ export function ElapsedTimer({ task }: ElapsedTimerProps) {
 
   useEffect(() => {
     if (frozen) return undefined
-    const timer = setInterval(() => setElapsed(elapsedSeconds(task)), 1000)
+    const timing = { startedAt, pausedAt, pausedMs, finishedAt }
+    const timer = setInterval(() => setElapsed(elapsedSeconds(timing)), 1000)
     return () => clearInterval(timer)
-  }, [task, frozen])
+  }, [startedAt, pausedAt, pausedMs, finishedAt, frozen])
 
   return (
     <div

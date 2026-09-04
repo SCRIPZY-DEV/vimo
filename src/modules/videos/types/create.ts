@@ -110,6 +110,14 @@ export interface CreateTask {
   cancelRequested: boolean
 }
 
+// Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
+// depende solo de ellos: la tarea entera cambia de identidad con cada evento
+// del sidecar y no sirve como dependencia de un intervalo.
+export type CreateTaskTiming = Pick<
+  CreateTask,
+  'startedAt' | 'pausedAt' | 'pausedMs' | 'finishedAt'
+>
+
 // Semilla desde disco al reanudar un proyecto (origen: `hidratar`): la grilla
 // y las fases aparecen ya hechas en vez de vacías hasta el primer evento.
 export interface CreateTaskSeed {
