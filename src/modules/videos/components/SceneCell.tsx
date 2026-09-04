@@ -52,10 +52,12 @@ export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
     >
       {ready && <SceneThumbnail scene={scene} />}
 
+      {/* `pb-6`: el bloque centrado (spinner y porcentaje) sube un poco para
+          no pisar la franja de tiempos de abajo en las tarjetas 16:9. */}
       {!ready && (
         <div
           className={cn(
-            'absolute inset-0 flex flex-col items-center justify-center gap-2',
+            'absolute inset-0 flex flex-col items-center justify-center gap-2 pb-6',
             generating && 'bg-ocean/10',
             scene.imageStatus === 'error' && 'bg-destructive/10',
           )}
@@ -96,15 +98,17 @@ export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
             hovered && 'opacity-100',
           )}
         />
+        {/* Píldora más chica que la del origen: en una tarjeta de ~200px la
+            de allá (px-4, text-sm) tapaba la celda entera. */}
         <span
           className={cn(
-            'relative flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-lg transition-all duration-200',
-            'font-display text-sm font-extrabold text-neutral-900',
+            'relative flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 shadow-lg transition-all duration-200',
+            'font-display text-xs font-extrabold text-neutral-900',
             'scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:scale-100 group-focus-within:opacity-100',
             hovered && 'scale-100 opacity-100',
           )}
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-3.5 w-3.5" />
           {t('create.progress.cell.enlarge')}
         </span>
       </button>

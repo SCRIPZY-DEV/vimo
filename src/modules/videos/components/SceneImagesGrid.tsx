@@ -38,15 +38,21 @@ export function SceneImagesGrid({ scenes, videoFormat }: SceneImagesGridProps) {
 
   return (
     <div className="space-y-4">
-      {/* Breakpoints un escalón por encima de los del origen: el sidebar
-          vive dentro del viewport y descuenta 256px, así las columnas
-          aparecen al mismo ancho de contenido que allá. */}
+      {/* La regla es la fórmula del origen (ancho disponible repartido en
+          columnas con 12px de aire y la proporción del video), no sus
+          cantidades: allá 5 columnas (16:9) o 7 (9:16) sobre 776px daban
+          tarjetas de ~145px; acá el sidebar descuenta 256px del viewport y
+          desde `xl` la columna de fases se lleva otros ~350px, así que con
+          las mismas cantidades salían tarjetas de ~112px donde «Ampliar»
+          tapaba la celda entera. Con estas, una 16:9 mide ~200px y una 9:16
+          ~130px de ancho desde una ventana de 1400px (los cortes van en px
+          porque el `2xl` de Tailwind, 1536, deja afuera la ventana típica). */}
       <div
         className={cn(
           'grid gap-3',
           isVertical(videoFormat)
-            ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7'
-            : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
+            ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-5 min-[1400px]:grid-cols-6 min-[1750px]:grid-cols-7'
+            : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-3 min-[1400px]:grid-cols-4 min-[1750px]:grid-cols-5',
         )}
       >
         {scenes.map((scene) => (

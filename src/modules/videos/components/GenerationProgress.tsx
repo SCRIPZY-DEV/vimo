@@ -125,7 +125,10 @@ export function GenerationProgress({
     : null
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-8 py-10">
+    // Fluida hasta 1600px (el origen se acota a 1152 y centra): acá el
+    // sidebar ya descuenta 256px y la pantalla se veía chica a ventana
+    // completa; las columnas y la grilla crecen con la ventana.
+    <div className="mx-auto max-w-[1600px] space-y-6 px-8 py-10">
       <div className="flex items-center justify-between">
         <div>
           <Button
@@ -181,10 +184,12 @@ export function GenerationProgress({
       {/* Dos columnas recién desde `xl` (y no `lg` como el origen): acá el
           sidebar vive dentro del viewport y se lleva 256px, así que cada
           layout aparece al mismo ancho de CONTENIDO que en el origen. En la
-          ventana mínima (1024) se apila en una columna. */}
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[280px_1fr]">
+          ventana mínima (1024) se apila en una columna. La columna de fases
+          es más ancha que los 280px del origen: a ventana completa se veía
+          diminuta. */}
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[320px_1fr]">
         <aside className="space-y-4">
-          <h2 className="font-display text-sm font-bold text-foreground">
+          <h2 className="font-display text-base font-bold text-foreground">
             {t('create.progress.phasesTitle')}
           </h2>
           <StageBar
@@ -193,7 +198,7 @@ export function GenerationProgress({
             paused={paused}
           />
           {task.audioDurationSeconds !== null && (
-            <div className="rounded-lg bg-muted/50 p-3 font-body text-xs text-muted-foreground">
+            <div className="rounded-lg bg-muted/50 p-3 font-body text-sm text-muted-foreground">
               {t('create.progress.audioSummary', {
                 seconds: task.audioDurationSeconds.toFixed(1),
                 scenes: task.scenes.length,
@@ -334,7 +339,7 @@ export function GenerationProgress({
           {showImagesPanel && (
             <div>
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-display text-sm font-bold text-foreground">
+                <h2 className="font-display text-base font-bold text-foreground">
                   {t('create.progress.imagesCount', {
                     ready: task.scenes.filter(
                       (scene) => scene.imageStatus === 'ok',

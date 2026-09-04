@@ -14,7 +14,8 @@ interface StageBarProps {
 
 // Lista de fases (port de BarraDeFases del origen): completada en saffron,
 // en curso en ocean, en pausa en saffron pleno con «te está esperando»,
-// pendiente neutra con un punto.
+// pendiente neutra con un punto. Un escalón más grande que el origen (alto,
+// ícono y texto): a ventana completa la lista se veía diminuta.
 export function StageBar({
   currentStage,
   completedStages,
@@ -41,7 +42,7 @@ export function StageBar({
           <li
             key={stage.id}
             className={cn(
-              'flex items-center gap-3 rounded-lg border-2 px-4 py-2.5 transition-colors',
+              'flex items-center gap-3 rounded-lg border-2 px-4 py-3.5 transition-colors',
               done && 'border-saffron/40 bg-saffron/5',
               active && 'border-ocean/60 bg-ocean/5',
               waiting && 'border-saffron bg-saffron/10',
@@ -50,7 +51,7 @@ export function StageBar({
           >
             <span
               className={cn(
-                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
                 done && 'bg-saffron text-charcoal',
                 active && 'bg-ocean text-white',
                 waiting && 'bg-saffron text-charcoal',
@@ -69,13 +70,13 @@ export function StageBar({
             </span>
             <span
               className={cn(
-                'font-display text-sm font-semibold',
+                'font-display text-base font-semibold',
                 pending && 'text-muted-foreground',
               )}
             >
               {t(stage.labelKey)}
               {waiting && (
-                <span className="block font-body text-xs font-normal text-saffron">
+                <span className="block font-body text-sm font-normal text-saffron">
                   {t('create.progress.waitingForYou')}
                 </span>
               )}
