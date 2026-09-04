@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UserRound, X } from 'lucide-react'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
@@ -11,6 +11,7 @@ import { CHARACTER_FREQUENCIES } from '@/modules/videos/constants'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
 import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
+import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import type {
   CreateFormValue,
   SelectedCharacter,
@@ -35,6 +36,8 @@ export function CharacterSection({
   // personaje» la sección es obligatoria y, si el estilo trae uno fijo, ese
   // personaje va sembrado y no se cambia.
   const styleCharacterMode = styleCharacterModeOf(value)
+  // El preview se busca por el estilo propio en uso o el del catálogo.
+  const previewStyleKey = previewStyleKeyOf(value)
   const fixedCharacterId =
     styleCharacterMode === 'own'
       ? value.customStyle?.character?.defaultCharacterId
@@ -50,9 +53,12 @@ export function CharacterSection({
     (character) => character.characterId === fixedCharacterId,
   )
 
-  const seedFixedCharacter = () => {
-    if (!fixedCharacter) return
-    const preview = findStylePreview(fixedCharacter, value.styleId)
+  // El personaje fijo de la gema se siembra solo, sin pedir un clic: el
+  // catálogo llega asíncrono y el formulario lo tiene el padre, así que la
+  // sincronización va en un efecto (no se puede llamar a onChange en render).
+  useEffect(() => {
+    if (!fixedCharacter || fixedSeeded || disabled) return
+    const preview = findStylePreview(fixedCharacter, previewStyleKey)
     const seeded: SelectedCharacter = {
       characterId: fixedCharacter.id,
       name: fixedCharacter.name,
@@ -60,7 +66,7 @@ export function CharacterSection({
       previewPath: preview?.imagePath ?? null,
     }
     onChange({ characters: [seeded] })
-  }
+  }, [fixedCharacter, fixedSeeded, disabled, previewStyleKey, onChange])
 
   if (styleCharacterMode === 'generic' || styleCharacterMode === 'none')
     return null
@@ -82,16 +88,6 @@ export function CharacterSection({
           <p className="font-body text-xs text-coral">
             {t('create.characters.fixedMissing')}
           </p>
-        )}
-        {fixedCharacter && !fixedSeeded && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={seedFixedCharacter}
-            className="w-full rounded-xl border-2 border-dashed border-saffron/60 bg-card px-4 py-3 text-left font-display text-sm font-bold text-foreground transition-all hover:border-saffron"
-          >
-            {t('create.characters.useFixed', { name: fixedCharacter.name })}
-          </button>
         )}
         {fixedCharacter && fixedSeeded && (
           <div className="flex items-center gap-3 rounded-xl border-2 border-saffron bg-saffron/5 px-4 py-3">
@@ -202,6 +198,11 @@ export function CharacterSection({
               <span className="font-display text-sm font-bold text-foreground">
                 {character.name}
               </span>
+              {!character.previewPath && (
+                <span className="font-body text-[11px] text-saffron">
+                  {t('create.characters.noReferenceHint')}
+                </span>
+              )}
               <button
                 type="button"
                 disabled={disabled}
@@ -238,11 +239,12 @@ export function CharacterSection({
 
       {pickerOpen && (
         <CharacterPickerModal
-          styleId={value.styleId}
+          previewStyleKey={previewStyleKey}
           selected={value.characters}
           styleContext={
             styleCharacterMode !== null && value.customStyle
               ? {
+                  styleId: value.customStyle.styleId,
                   gem: value.customStyle.systemPrompt,
                   script: value.script,
                   ...(value.promptModel
