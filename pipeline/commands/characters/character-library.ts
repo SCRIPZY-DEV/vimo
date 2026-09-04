@@ -2,7 +2,6 @@ import { readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { decodeImageDataUri } from '../../providers/image/download.ts'
-import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type {
@@ -11,9 +10,10 @@ import type {
   NewCharacterPreview,
 } from '../../types/characters.ts'
 import { sanitizeFileName } from '../../utils/sanitize-file-name.ts'
+import { isPreviewStyleKey } from './preview-style.ts'
 
 // Biblioteca de personajes: `<projectsRoot>/characters/<id>/` con metadata.json
-// y un preview por estilo. A diferencia del origen no hay index.json: una
+// y un preview por estilo (del catálogo o propio). A diferencia del origen no hay index.json: una
 // carpeta por personaje hace que una metadata corrupta se lleve solo a ese
 // personaje y que borrar sea un rm recursivo (mismo criterio que el historial
 // de música).
@@ -178,7 +178,7 @@ export async function applyNewPreviews(
   const previews = [...current]
 
   for (const preview of incoming.slice(0, MAX_PREVIEWS)) {
-    if (!isCharacterStyleId(preview.styleId)) continue
+    if (!isPreviewStyleKey(preview.styleId)) continue
     const image = decodeImageDataUri(preview.dataUri, MAX_PREVIEW_BYTES)
     if (!image) continue
 
