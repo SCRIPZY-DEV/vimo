@@ -8,6 +8,7 @@ import { CharacterSection } from '@/modules/videos/components/CharacterSection'
 import { CustomStyleGallery } from '@/modules/videos/components/CustomStyleGallery'
 import { ImageProviderSection } from '@/modules/videos/components/ImageProviderSection'
 import { NarrationSection } from '@/modules/videos/components/NarrationSection'
+import { PromptModelSection } from '@/modules/videos/components/PromptModelSection'
 import { SoundtrackSection } from '@/modules/videos/components/SoundtrackSection'
 import { StyleGallery } from '@/modules/videos/components/StyleGallery'
 import { StyleSourceTabs } from '@/modules/videos/components/StyleSourceTabs'
@@ -81,11 +82,27 @@ export function CreateForm({
             onChange={(styleId) => onChange({ styleId })}
           />
         ) : (
-          <CustomStyleGallery
-            selected={value.customStyle}
-            disabled={disabled}
-            onSelect={(customStyle) => onChange({ customStyle })}
-          />
+          <>
+            <CustomStyleGallery
+              selected={value.customStyle}
+              disabled={disabled}
+              onSelect={(customStyle) => {
+                // Si la gema escribe (o no lleva) el protagonista, los
+                // personajes elegidos antes ya no aplican (ADR-0020).
+                const mode = customStyle?.character?.mode ?? 'generic'
+                onChange(
+                  mode === 'own'
+                    ? { customStyle }
+                    : { customStyle, characters: [] },
+                )
+              }}
+            />
+            <PromptModelSection
+              value={value}
+              disabled={disabled}
+              onChange={onChange}
+            />
+          </>
         )}
       </div>
 
