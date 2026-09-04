@@ -39,6 +39,7 @@ export function LibraryProgress() {
     cancel,
     confirmScenes,
     confirmScenesForProject,
+    discardTask,
     startPipelineForProject,
   } = useCreateTask()
 
@@ -51,16 +52,33 @@ export function LibraryProgress() {
 
   usePageTitle(t('library.progress.pageTitle'))
 
-  // Al completar el job se invalida lo leído de disco y se pasa al player.
+  // Al completar el job se invalida lo leído de disco y se sigue de largo:
+  // con video, al player. Sin video (sin auto-export, ADR-0016) el proyecto
+  // quedó en borrador con todo generado y el destino es el editor, igual que
+  // en Create; antes iba al player, que solo ofrecía «Continuar editando».
   const completed = ownTask?.status === 'completed'
+  const completedWithVideo =
+    ownTask?.status === 'completed' && ownTask.videoPath !== null
   useEffect(() => {
     if (!completed) return
     void queryClient.invalidateQueries({ queryKey: videosQueryKeys.projects })
     void queryClient.invalidateQueries({
       queryKey: videosQueryKeys.projectStatus(projectId),
     })
-    void navigate(libraryPlayerPath(projectId), { replace: true })
-  }, [completed, navigate, projectId, queryClient])
+    if (completedWithVideo) {
+      void navigate(libraryPlayerPath(projectId), { replace: true })
+      return
+    }
+    discardTask()
+    void navigate(libraryEditorPath(projectId), { replace: true })
+  }, [
+    completed,
+    completedWithVideo,
+    discardTask,
+    navigate,
+    projectId,
+    queryClient,
+  ])
 
   const projectName = ownTask?.projectName ?? status?.metadata.name ?? projectId
   // Semilla desde disco (origen: `hidratar`): al reanudar, las fases hechas y
