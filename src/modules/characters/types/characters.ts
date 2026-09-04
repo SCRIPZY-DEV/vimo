@@ -27,3 +27,11 @@ export interface LabelledOption<TId extends string> {
 
 // El personaje en edición, o null al crear uno nuevo
 export type CharacterDraft = CharacterSummary | null
+
+// Contexto de «Mi estilo» cuando el modal se abre desde Create: con gema y
+// guion, la ficha la diseña el estilo del usuario (design-style-character).
+export interface CharacterStyleContext {
+  gem: string
+  script: string
+  promptModel?: string
+}
