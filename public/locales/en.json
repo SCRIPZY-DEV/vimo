@@ -534,6 +534,8 @@
       "generateDraft": "Generate video",
       "musicButton": "Music",
       "audioButton": "Audio",
+      "musicButtonHelp": "Edit the video music",
+      "audioButtonHelp": "Edit the video audio",
       "dismissError": "Dismiss error",
       "timeline": {
         "boundary": "Drag to move the boundary between scenes",
@@ -566,6 +568,7 @@
         "render": "Render video",
         "rerender": "Re-render (outdated)",
         "rerenderClean": "Re-render",
+        "help": "Regenerates the video with the latest changes",
         "cancel": "Cancel render",
         "phase": {
           "chunks": "Building scenes",
@@ -575,6 +578,7 @@
       },
       "export": {
         "button": "Export for editing",
+        "help": "Generates the clips to export them to video editors",
         "progress": "Exporting… {{percent}}%"
       },
       "previewBadge": "Preview",
