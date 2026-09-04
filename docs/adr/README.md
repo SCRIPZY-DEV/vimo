@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                        | Title                                                             | Status                   | Area                          |
 | -------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0020](ADR-0020-selector-de-modelo-y-personaje-de-la-gema.md)          | Prompt model selector, cost simulator and the style's character   | Aceptada                 | pipeline / app                |
 | [ADR-0019](ADR-0019-carril-verbatim-y-segundos-por-escena.md)              | Verbatim lane and seconds-per-scene for custom styles             | Aceptada                 | pipeline / app                |
 | [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md)               | Custom visual styles ("My style"), basic phase                    | Aceptada                 | pipeline / app                |
 | [ADR-0017](ADR-0017-formato-de-video-16-9-y-9-16.md)                       | Video format 16:9 / 9:16 end to end                               | Aceptada                 | pipeline / app                |

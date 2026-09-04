@@ -1,6 +1,7 @@
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import { readStoredSecondsPerScene } from '@/modules/videos/utilities/secondsPerSceneStorage'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
 import type {
   CreateVideoProjectPayload,
   VideoProjectOptions,
@@ -34,11 +35,15 @@ export function createProjectPayload(
       name: form.customStyle.name,
       systemPrompt: form.customStyle.systemPrompt,
       shots: form.customStyle.shots,
+      ...(form.customStyle.character
+        ? { character: form.customStyle.character }
+        : {}),
     }
     // Carril de segundos-por-escena: el proyecto nace con el último valor
     // elegido en el diálogo (o el default). El diálogo de confirmación lo
     // ajusta con el slider; sin confirmación, este valor corta directo.
     options.secondsPerScene = readStoredSecondsPerScene()
+    if (form.promptModel) options.promptModel = form.promptModel
   }
 
   if (form.narrationMode === 'tts' && form.voice) {
@@ -100,6 +105,11 @@ export function formBlockers(form: CreateFormValue): string[] {
   if (form.styleSource === 'custom' && !form.customStyle)
     blockers.push('create.validation.styleRequired')
 
+  // La gema pide TU personaje (ADR-0020): sin uno elegido — o con el fijo
+  // del estilo ya borrado de la biblioteca — no hay con qué generar.
+  if (styleCharacterModeOf(form) === 'own' && form.characters.length === 0)
+    blockers.push('create.validation.characterRequired')
+
   if (form.narrationMode === 'tts') {
     if (!form.script.trim()) blockers.push('create.validation.scriptRequired')
     if (!form.voice) blockers.push('create.validation.voiceRequired')
@@ -118,4 +128,13 @@ export function formBlockers(form: CreateFormValue): string[] {
     blockers.push('create.validation.overlayUrlRequired')
 
   return blockers
+}
+
+// Qué declaró la gema en uso sobre su protagonista; null sin estilo propio.
+// Ausente en la gema = genérico (compat con las guardadas antes de ADR-0020).
+export function styleCharacterModeOf(
+  form: CreateFormValue,
+): StyleCharacterMode | null {
+  if (form.styleSource !== 'custom' || !form.customStyle) return null
+  return form.customStyle.character?.mode ?? 'generic'
 }

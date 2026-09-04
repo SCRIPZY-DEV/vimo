@@ -30,6 +30,7 @@ import { createSceneLlm } from '../shared/llm.ts'
 import { regeneratePromptsForRejected } from '../scene-prompts/prompt-writer.ts'
 import {
   CONTENT_POLICY_RETRY_NOTE,
+  recordPromptModelUsed,
   runVerbatimLane,
 } from '../scene-prompts/verbatim/verbatim-lane.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
@@ -206,6 +207,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
           const lane = await runVerbatimLane(context, cleared, script, {
             retryNotes,
           })
+          await recordPromptModelUsed(context, lane)
           scenes = lane.scenes
         }
       } else {

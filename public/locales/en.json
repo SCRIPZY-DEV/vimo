@@ -204,7 +204,13 @@
         "always": "Always"
       },
       "selectedCount_one": "{{count}} character",
-      "selectedCount_other": "{{count}} characters"
+      "selectedCount_other": "{{count}} characters",
+      "asksForCharacter": "This style asks for your character: pick one to generate.",
+      "broughtByStyle": "Brought by your style. Every video with this style comes out with it.",
+      "useFixed": "Use {{name}}, this style's character",
+      "fixedMissing": "This style's default character is no longer in your library. Edit the style and pick another one.",
+      "createNew": "Create new character",
+      "createWithStyle": "Create character with my style"
     },
     "music": {
       "sectionTitle": "Music and overlay (optional)",
@@ -298,7 +304,8 @@
       "bgmUrlRequired": "Paste the YouTube link for the music.",
       "bgmPromptRequired": "Describe how you want the music to sound.",
       "overlayUrlRequired": "Paste the YouTube link for the texture.",
-      "styleRequired": "Pick (or create) a custom style to generate."
+      "styleRequired": "Pick (or create) a custom style to generate.",
+      "characterRequired": "This style asks for your character: pick one."
     },
     "errors": {
       "discard": "Discard",
@@ -431,6 +438,50 @@
       "delete": "Delete",
       "deleteConfirm": "Delete the style \"{{name}}\"? Videos that used it are not affected.",
       "save": "Done"
+    },
+    "promptModel": {
+      "title": "Which model writes the prompts",
+      "bands": {
+        "economic": "Budget",
+        "mid": "Mid-priced",
+        "high": "Premium",
+        "noPrice": "No price"
+      },
+      "speed": {
+        "fast": "FAST",
+        "medium": "MEDIUM",
+        "slow": "SLOW"
+      },
+      "simulatorTitle": "What writing the scenes costs",
+      "simulatorScenes": "{{count}} scenes with {{model}}",
+      "scenesCount": "{{count}} scenes",
+      "noPrice": "This model has no price listed",
+      "onlyPrompts": "This is only the cost of writing the scene texts. Images are billed separately.",
+      "sliderLabel": "How many scenes the video would have"
+    },
+    "styleCharacter": {
+      "title": "Does your style carry a character?",
+      "helpLabel": "What the {{option}} option does",
+      "own": {
+        "title": "My character",
+        "subtitle": "You pick it from your library.",
+        "help": "We will include your character whenever you pick this style. We'll ask for it in the form, or you can fix one below."
+      },
+      "generic": {
+        "title": "Generic character (narrative)",
+        "subtitle": "Vimo invents one coherent with your script.",
+        "help": "Vimo creates a character coherent with your script and uses it as the narrator of the story. Nothing to pick."
+      },
+      "none": {
+        "title": "No character",
+        "subtitle": "Only scenes of what is narrated.",
+        "help": "The video is built only from scenes of what is narrated. If the script mentions people, they appear — there is just no fixed protagonist repeated across the video."
+      },
+      "defaultTitle": "Default character for this style",
+      "defaultHint": "Keep one of your characters chosen and every video with this style comes out with it. With “ask”, we ask which one to use on each video.",
+      "defaultSelect": "Character",
+      "defaultAsk": "Ask on each video",
+      "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     }
   },
   "library": {
@@ -774,7 +825,9 @@
       "generando": "Writing…",
       "ayuda": "AI rewrites the identity in English, ordered by the most recognizable traits.",
       "completaCampos": "Fill in name, age, role and some notes so AI can write the identity.",
-      "faltaClave": "You need a DeepInfra key to use AI."
+      "faltaClave": "You need a DeepInfra key to use AI.",
+      "withStyle": "Create character with my style",
+      "improve": "Improve description with AI"
     },
     "preview": {
       "titulo": "Preview by style",
