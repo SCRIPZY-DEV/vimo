@@ -1,7 +1,7 @@
 // Tipos del catálogo de modelos del carril verbatim (gema propia). Port de
 // `motor-web/verbatim/modelos.ts` del origen. Browser-safe: la UI los importa
 // con `import type`; los datos viven en `providers/llm/model-catalog.ts` y le
-// llegan a la UI por subcomando (list-prompt-models, rama posterior).
+// llegan a la UI por subcomando (list-prompt-models).
 //
 // La idea a conservar del origen: **una entrada NO es un id, es un PERFIL DE
 // PETICIÓN**. Los modelos no aceptan el mismo cuerpo, y mandarle el equivocado
@@ -80,4 +80,16 @@ export interface LlmModelProfile {
    * 1,69× a 2,33×). Solo toca lo que se MUESTRA: el pedido no cambia en nada.
    */
   outputFactor?: number
+}
+
+// ─── Contrato de list-prompt-models ───
+
+export interface ListPromptModelsResult {
+  // Lo que se OFRECE en el selector (inUi && !retired), en el orden del
+  // catálogo. El de la casa siempre está (invariante del origen).
+  models: LlmModelProfile[]
+  defaultId: string
+  // Escenas por pedido del carril verbatim: el simulador de costos lo
+  // necesita para contar lotes (la gema y el guion viajan en cada uno).
+  batchSize: number
 }
