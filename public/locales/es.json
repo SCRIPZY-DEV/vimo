@@ -204,7 +204,13 @@
         "always": "Siempre"
       },
       "selectedCount_one": "{{count}} personaje",
-      "selectedCount_other": "{{count}} personajes"
+      "selectedCount_other": "{{count}} personajes",
+      "asksForCharacter": "Este estilo pide tu personaje: elegí uno para generar.",
+      "broughtByStyle": "Lo trae tu estilo. Todos los videos con este estilo salen con él.",
+      "useFixed": "Usar a {{name}}, el personaje de este estilo",
+      "fixedMissing": "El personaje predeterminado de este estilo ya no está en tu biblioteca. Editá el estilo y elegí otro.",
+      "createNew": "Crear personaje nuevo",
+      "createWithStyle": "Crear personaje con mi estilo"
     },
     "music": {
       "sectionTitle": "Música y overlay (opcional)",
@@ -298,7 +304,8 @@
       "bgmUrlRequired": "Pegá el link de YouTube de la música.",
       "bgmPromptRequired": "Describí cómo querés que suene la música.",
       "overlayUrlRequired": "Pegá el link de YouTube de la textura.",
-      "styleRequired": "Elegí (o creá) un estilo propio para generar."
+      "styleRequired": "Elegí (o creá) un estilo propio para generar.",
+      "characterRequired": "Este estilo pide tu personaje: elegí uno."
     },
     "errors": {
       "discard": "Descartar",
@@ -431,6 +438,50 @@
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar el estilo «{{name}}»? Los videos que lo usaron no se ven afectados.",
       "save": "Listo"
+    },
+    "promptModel": {
+      "title": "Con qué modelo escribo",
+      "bands": {
+        "economic": "Económicos",
+        "mid": "Precio medio",
+        "high": "Precio alto",
+        "noPrice": "Sin precio"
+      },
+      "speed": {
+        "fast": "RÁPIDO",
+        "medium": "MEDIO",
+        "slow": "LENTO"
+      },
+      "simulatorTitle": "Cuánto cuesta escribir las escenas",
+      "simulatorScenes": "{{count}} escenas con {{model}}",
+      "scenesCount": "{{count}} escenas",
+      "noPrice": "Falta el precio de este modelo",
+      "onlyPrompts": "Es solo lo que cuesta escribir los textos de las escenas. Las imágenes se cobran aparte.",
+      "sliderLabel": "Cuántas escenas tendría el video"
+    },
+    "styleCharacter": {
+      "title": "¿Tu estilo lleva personaje?",
+      "helpLabel": "Qué hace la opción {{option}}",
+      "own": {
+        "title": "Mi personaje",
+        "subtitle": "Lo elegís de tu biblioteca.",
+        "help": "Incluiremos tu personaje cuando elijas este estilo. Te lo vamos a pedir en el formulario, o dejás uno fijo acá abajo."
+      },
+      "generic": {
+        "title": "Personaje genérico (narrativo)",
+        "subtitle": "Vimo lo inventa coherente con tu guion.",
+        "help": "Vimo crea un personaje coherente con tu guion y lo usa como el narrador de la historia. No tenés que elegir nada."
+      },
+      "none": {
+        "title": "Sin personaje",
+        "subtitle": "Solo escenas de lo que se narra.",
+        "help": "El video se arma solo con escenas de lo que se narra. Si el guion habla de personas, se van a ver — lo que no hay es un protagonista fijo que se repita en todo el video."
+      },
+      "defaultTitle": "Personaje predeterminado para este estilo",
+      "defaultHint": "Dejá elegido uno de tus personajes y todos los videos con este estilo salen con él. Con «preguntar», te preguntamos cuál usar en cada video.",
+      "defaultSelect": "Personaje",
+      "defaultAsk": "Preguntar en cada video",
+      "defaultMissing": "El personaje predeterminado que tenías elegido ya no está en tu lista. Elegí otro para poder usar este estilo."
     }
   },
   "library": {
@@ -774,7 +825,9 @@
       "generando": "Redactando…",
       "ayuda": "La IA reescribe la identidad en inglés, ordenada por los rasgos más reconocibles.",
       "completaCampos": "Completá nombre, edad, rol y unas notas para que la IA redacte la identidad.",
-      "faltaClave": "Necesitás una clave de DeepInfra para usar la IA."
+      "faltaClave": "Necesitás una clave de DeepInfra para usar la IA.",
+      "withStyle": "Crear personaje con mi estilo",
+      "improve": "Mejorar descripción con IA"
     },
     "preview": {
       "titulo": "Vista previa por estilo",
