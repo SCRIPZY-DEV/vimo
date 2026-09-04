@@ -411,6 +411,11 @@ y el director, y los prompts salen por lotes con el modelo LLM elegido en Create
 simulador de costos vive en `utilities/promptCost.ts`). La gema declara además
 qué hace con su protagonista (`customStyle.character`: propio, genérico o
 ninguno) y puede diseñarlo con el guion como contexto (`design-style-character`).
+Un personaje se ilustra también con la gema (`generate-character-preview` con el
+id de galería: la gema escribe el prompt del retrato por el LLM) y esa es la
+referencia que `create-video-project` copia al proyecto; si el personaje no tiene
+preview del estilo actual, va sin referencia con un aviso en el log, nunca con el
+preview de otro estilo (ADR-0021).
 
 ### La pausa de confirmación de escenas
 
