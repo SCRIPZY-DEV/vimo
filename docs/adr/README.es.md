@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                        | Título                                                                    | Estado                   | Área                          |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0020](ADR-0020-selector-de-modelo-y-personaje-de-la-gema.md)          | Selector de modelo, simulador de costos y personaje de la gema            | Aceptada                 | pipeline / app                |
 | [ADR-0019](ADR-0019-carril-verbatim-y-segundos-por-escena.md)              | Carril verbatim y segundos por escena de los estilos propios              | Aceptada                 | pipeline / app                |
 | [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md)               | Estilos visuales propios («Mi estilo»), fase básica                       | Aceptada                 | pipeline / app                |
 | [ADR-0017](ADR-0017-formato-de-video-16-9-y-9-16.md)                       | Formato de video 16:9 / 9:16 de punta a punta                             | Aceptada                 | pipeline / app                |
