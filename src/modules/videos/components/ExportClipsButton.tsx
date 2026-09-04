@@ -1,6 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { Loader2, PackageOpen } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/modules/common/ui/tooltip'
 import type { EditorExportState } from '@/modules/videos/types/library'
 
 interface ExportClipsButtonProps {
@@ -30,14 +35,21 @@ export function ExportClipsButton({
   }
 
   return (
-    <Button
-      variant="outline"
-      onClick={onExport}
-      disabled={busy}
-      className="rounded-xl font-display"
-    >
-      <PackageOpen className="mr-1.5 h-4 w-4" />
-      {t('library.editor.export.button')}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          onClick={onExport}
+          disabled={busy}
+          className="rounded-xl font-display"
+        >
+          <PackageOpen className="mr-1.5 h-4 w-4" />
+          {t('library.editor.export.button')}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-sm leading-snug">
+        {t('library.editor.export.help')}
+      </TooltipContent>
+    </Tooltip>
   )
 }
