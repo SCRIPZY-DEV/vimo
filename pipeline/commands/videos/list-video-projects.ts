@@ -2,6 +2,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { readProjectMetadata } from '../../project/metadata.ts'
+import { resolveVerbatimModel } from '../../providers/llm/model-catalog.ts'
 import {
   isProjectDirectoryName,
   isValidFile,
@@ -78,6 +79,8 @@ async function readListItem(
   if (metadata.options?.videoFormat)
     item.videoFormat = metadata.options.videoFormat
   if (metadata.sceneCount !== undefined) item.sceneCount = metadata.sceneCount
+  const promptModelLabel = promptModelLabelOf(metadata)
+  if (promptModelLabel) item.promptModelLabel = promptModelLabel
 
   await attachSceneImages(paths, item)
   return item
@@ -90,6 +93,19 @@ function hasListableShape(metadata: VideoProjectMetadata): boolean {
   if (typeof metadata.name !== 'string' || metadata.name.length === 0)
     return false
   return typeof metadata.state === 'string'
+}
+
+// Quién escribió los prompts. Sin customStyle escribió la casa (sin campo).
+// Con gema: el modelo auditado si ya se generó, y si no el que correría —
+// resolveVerbatimModel degrada un id retirado al de la casa, igual que el
+// pipeline, así la tarjeta y la corrida real dicen lo mismo.
+function promptModelLabelOf(
+  metadata: VideoProjectMetadata,
+): string | undefined {
+  if (!metadata.options?.customStyle) return undefined
+  if (metadata.promptModelUsed) return metadata.promptModelUsed.label
+
+  return resolveVerbatimModel(metadata.options.promptModel).profile.label
 }
 
 // Cuenta las imágenes de escena y elige la de menor id como portada, con su
