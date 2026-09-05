@@ -11,6 +11,7 @@ import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { useDefaultSceneCount } from '@/modules/settings/hooks/useDefaultSceneCount'
 import { useSceneDurationDefaults } from '@/modules/settings/hooks/useSceneDurationDefaults'
+import { usePromptModelPreference } from '@/modules/settings/hooks/usePromptModelPreference'
 import { videosApi } from '@/modules/videos/api'
 import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
@@ -25,20 +26,22 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
-import { readStoredPromptModel } from '@/modules/videos/utilities/promptModelStorage'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
-// Pantalla de creación de video. Espera las preferencias de escenas (cantidad
-// por defecto y ritmo de los estilos propios) antes de montar el formulario: el
+// Pantalla de creación de video. Espera las preferencias (escenas, ritmo de los
+// estilos propios y modelo de escritura) antes de montar el formulario: el
 // estado inicial se siembra una sola vez y la lectura es de disco local
 // (staleTime Infinity → instantánea al volver).
 export function Create() {
   const { defaultSceneCount, isLoading } = useDefaultSceneCount()
   const { sceneDuration, isLoading: loadingSceneDuration } =
     useSceneDurationDefaults()
+  const { promptModel, isLoading: loadingPromptModel } =
+    usePromptModelPreference()
 
-  if (isLoading || loadingSceneDuration) return <ViewSpinner />
+  if (isLoading || loadingSceneDuration || loadingPromptModel)
+    return <ViewSpinner />
 
   return (
     <CreateView
@@ -52,6 +55,7 @@ export function Create() {
       initialConfirmScenes={
         sceneDuration?.confirmScenes ?? CREATE_FORM_INITIAL_VALUE.confirmScenes
       }
+      initialPromptModel={promptModel}
     />
   )
 }
@@ -60,6 +64,7 @@ interface CreateViewProps {
   initialSceneCount: number
   initialSecondsPerScene: number
   initialConfirmScenes: boolean
+  initialPromptModel: string | null
 }
 
 // Es dueña de la tarea: el formulario y los paneles de progreso son
@@ -69,6 +74,7 @@ function CreateView({
   initialSceneCount,
   initialSecondsPerScene,
   initialConfirmScenes,
+  initialPromptModel,
 }: CreateViewProps) {
   const { t } = useTranslation()
   const { isNative, missingKeys } = useRequiredApiKeys({
@@ -84,7 +90,7 @@ function CreateView({
     sceneCount: initialSceneCount,
     secondsPerScene: initialSecondsPerScene,
     confirmScenes: initialConfirmScenes,
-    promptModel: readStoredPromptModel(),
+    promptModel: initialPromptModel,
   }))
 
   // Sin auto-export el job termina sin video: el destino natural es el
