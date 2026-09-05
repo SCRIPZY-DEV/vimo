@@ -1121,7 +1121,12 @@
     "sceneDurationDontAskLabel": "Não me perguntar ao gerar",
     "sceneDurationDontAskHint": "Depois de transcrever, o vídeo para para você escolher o ritmo e ver quantas cenas saem.",
     "sceneDurationSaved": "Preferência salva.",
-    "sceneDurationError": "Não foi possível salvar a preferência."
+    "sceneDurationError": "Não foi possível salvar a preferência.",
+    "promptModelTitle": "Seu modelo de IA para escrever",
+    "promptModelTagline": "O modelo que escreve as cenas dos seus vídeos de Meu estilo",
+    "promptModelEstimateNote": "Estimativa sem estilo aplicado: em cada vídeo o custo muda conforme sua gema. Em Criar você pode usar outro modelo só para aquele vídeo.",
+    "promptModelSaved": "Preferência salva.",
+    "promptModelError": "Não foi possível salvar a preferência."
   },
   "splash": {
     "pageTitle": "Vimo",
