@@ -10,6 +10,8 @@ import {
   DEFAULT_PROJECTS_FOLDER_NAME,
   DEFAULT_SCENE_COUNT_STORE_KEY,
   PROJECTS_ROOT_STORE_KEY,
+  PROMPT_MODEL_ID_LIMIT,
+  PROMPT_MODEL_STORE_KEY,
   SCENE_COUNT_MAX,
   SECONDS_PER_SCENE_DEFAULT,
   SECONDS_PER_SCENE_MAX,
@@ -60,6 +62,15 @@ function clampSecondsPerScene(value: number): number {
     Math.max(Math.trunc(value), SECONDS_PER_SCENE_MIN),
     SECONDS_PER_SCENE_MAX,
   )
+}
+
+// null = el modelo de la casa. Sin whitelist contra el catálogo: un id
+// retirado o desconocido lo degrada el pipeline al escribir (ADR-0020), acá
+// solo se rechaza lo que no puede ser un id.
+function normalizePromptModel(value: string | null): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed || trimmed.length > PROMPT_MODEL_ID_LIMIT) return null
+  return trimmed
 }
 
 /**
@@ -126,5 +137,15 @@ export const settingsApi = {
     await store.set(CONFIRM_SCENES_STORE_KEY, saved.confirmScenes)
     await store.save()
     return saved
+  },
+  async getPromptModel(): Promise<string | null> {
+    const stored = await store.get<string>(PROMPT_MODEL_STORE_KEY)
+    return normalizePromptModel(stored ?? null)
+  },
+  async setPromptModel(modelId: string | null): Promise<string | null> {
+    const normalized = normalizePromptModel(modelId)
+    await store.set(PROMPT_MODEL_STORE_KEY, normalized)
+    await store.save()
+    return normalized
   },
 }
