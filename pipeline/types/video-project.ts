@@ -246,6 +246,9 @@ export interface VideoProjectListItem {
   videoOutdated: boolean
   // Ausente = 16:9 (proyectos previos al selector de formato).
   videoFormat?: VideoFormat
+  // Etiqueta del modelo que escribió los prompts, solo en la vía verbatim
+  // (Mi estilo). Ausente = los escribió la casa y la tarjeta dice Vimo.
+  promptModelLabel?: string
   imageCount: number
   sceneCount?: number
   // Imagen de la escena de menor id, si existe. mtime como cache-buster:

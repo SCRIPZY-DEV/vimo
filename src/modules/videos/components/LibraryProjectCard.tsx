@@ -1,5 +1,6 @@
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { Clapperboard, Images } from 'lucide-react'
+import { Brand } from '@/modules/common/brand/brand'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
 import { videosApi } from '@/modules/videos/api'
@@ -92,6 +93,15 @@ export function LibraryProjectCard({
             </p>
           )}
         </div>
+        <p className="font-body text-xs text-muted-foreground">
+          <Trans
+            i18nKey="library.list.promptAuthor"
+            values={{ author: project.promptModelLabel ?? Brand.name }}
+            components={{
+              author: <span className="font-semibold text-foreground" />,
+            }}
+          />
+        </p>
       </div>
     </button>
   )
