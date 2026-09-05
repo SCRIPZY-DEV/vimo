@@ -547,6 +547,7 @@
       "confirmDelete": "¿Eliminar {{total}} proyecto(s)? El video y todo su material se borran del disco. Esta acción no se puede deshacer.",
       "deleted": "{{total}} proyecto(s) eliminado(s)",
       "imageCount": "{{total}} imágenes",
+      "promptAuthor": "Prompts escritos por <author>{{author}}</author>",
       "badge": {
         "ready": "✓ Listo",
         "outdated": "Desactualizado",
@@ -1172,7 +1173,12 @@
     "sceneDurationDontAskLabel": "No preguntarme al generar",
     "sceneDurationDontAskHint": "Después de transcribir, el video se detiene para que elijas el ritmo y veas cuántas escenas salen.",
     "sceneDurationSaved": "Preferencia guardada.",
-    "sceneDurationError": "No se pudo guardar la preferencia."
+    "sceneDurationError": "No se pudo guardar la preferencia.",
+    "promptModelTitle": "Tu modelo de IA para escribir",
+    "promptModelTagline": "El modelo que escribe las escenas de tus videos de Mi estilo",
+    "promptModelEstimateNote": "Estimación sin estilo aplicado: en cada video el costo cambia según tu gema. En Crear podés usar otro modelo solo para ese video.",
+    "promptModelSaved": "Preferencia guardada.",
+    "promptModelError": "No se pudo guardar la preferencia."
   },
   "splash": {
     "pageTitle": "Vimo",

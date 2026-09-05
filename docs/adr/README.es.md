@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                        | Título                                                                    | Estado                   | Área                          |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0022](ADR-0022-modelo-de-prompts-como-preferencia.md)                 | El modelo de prompts es una preferencia, no la última elección            | Aceptada                 | app                           |
 | [ADR-0020](ADR-0020-selector-de-modelo-y-personaje-de-la-gema.md)          | Selector de modelo, simulador de costos y personaje de la gema            | Aceptada                 | pipeline / app                |
 | [ADR-0019](ADR-0019-carril-verbatim-y-segundos-por-escena.md)              | Carril verbatim y segundos por escena de los estilos propios              | Aceptada                 | pipeline / app                |
 | [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md)               | Estilos visuales propios («Mi estilo»), fase básica                       | Aceptada                 | pipeline / app                |

@@ -169,7 +169,7 @@ export interface CreateFormValue {
   styleSource: StyleSource
   customStyle: SelectedCustomStyle | null
   // Modelo LLM del carril verbatim (solo viaja con estilo propio). null = el
-  // de la casa; se siembra con el último elegido (localStorage).
+  // de la casa; se siembra con la preferencia de Ajustes.
   promptModel: string | null
   // 0 = cantidad automática. Solo aplica con estilo de catálogo: con estilo
   // propio el corte va por duración de escena.

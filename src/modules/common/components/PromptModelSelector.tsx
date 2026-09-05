@@ -12,7 +12,7 @@ import {
   SIMULATOR_SCENES_STEP,
   estimatePromptCost,
   priceBand,
-} from '@/modules/videos/utilities/promptCost'
+} from '@/modules/common/utilities/promptCost'
 import type { LlmModelProfile, ModelSpeed } from '@pipeline/types/llm-models.ts'
 
 interface PromptModelSelectorProps {

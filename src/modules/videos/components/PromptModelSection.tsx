@@ -1,7 +1,7 @@
-import { PromptModelSelector } from '@/modules/videos/components/PromptModelSelector'
-import { usePromptModels } from '@/modules/videos/hooks/usePromptModels'
+import { PromptModelSelector } from '@/modules/common/components/PromptModelSelector'
+import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
+import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
 import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
-import { storePromptModel } from '@/modules/videos/utilities/promptModelStorage'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
 interface PromptModelSectionProps {
@@ -10,8 +10,9 @@ interface PromptModelSectionProps {
   onChange: (patch: Partial<CreateFormValue>) => void
 }
 
-// Contenedor del selector de modelo (solo bajo «Mi estilo»): trae el
-// catálogo, resuelve el default y recuerda la elección entre videos.
+// Contenedor del selector de modelo (solo bajo «Mi estilo»): trae el catálogo
+// y resuelve el elegido. El cambio vale SOLO para este video; el modelo
+// predeterminado se fija en Ajustes.
 export function PromptModelSection({
   value,
   disabled,
@@ -19,12 +20,10 @@ export function PromptModelSection({
 }: PromptModelSectionProps) {
   const { models, defaultId, batchSize } = usePromptModels()
 
-  if (!defaultId) return null
+  // Sin catálogo (web, o el sidecar no respondió) no hay nada que elegir.
+  const chosen = resolvePromptModel(value.promptModel, models, defaultId)
+  if (!chosen) return null
 
-  // Un id recordado que ya no se ofrece (retirado/oculto) cae al default en
-  // pantalla; el pipeline haría lo mismo con aviso.
-  const offered = models.some((model) => model.id === value.promptModel)
-  const chosen = offered && value.promptModel ? value.promptModel : defaultId
   const gemChars = value.customStyle?.systemPrompt.trim().length ?? 0
   // La fase del personaje solo corre cuando la gema lo diseña (genérico); con
   // personaje propio o sin personaje no hay llamada que cobrar.
@@ -38,10 +37,7 @@ export function PromptModelSection({
       batchSize={batchSize}
       withCharacterPhase={withCharacterPhase}
       disabled={disabled}
-      onChange={(promptModel) => {
-        storePromptModel(promptModel)
-        onChange({ promptModel })
-      }}
+      onChange={(promptModel) => onChange({ promptModel })}
     />
   )
 }

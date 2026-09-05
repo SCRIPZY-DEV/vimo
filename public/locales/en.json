@@ -547,6 +547,7 @@
       "confirmDelete": "Delete {{total}} project(s)? The video and all its assets will be removed from disk. This cannot be undone.",
       "deleted": "{{total}} project(s) deleted",
       "imageCount": "{{total}} images",
+      "promptAuthor": "Prompts written by <author>{{author}}</author>",
       "badge": {
         "ready": "✓ Ready",
         "outdated": "Outdated",
@@ -1172,7 +1173,12 @@
     "sceneDurationDontAskLabel": "Don't ask me when generating",
     "sceneDurationDontAskHint": "After transcribing, the video pauses so you can pick the pace and see how many scenes come out.",
     "sceneDurationSaved": "Preference saved.",
-    "sceneDurationError": "Couldn't save the preference."
+    "sceneDurationError": "Couldn't save the preference.",
+    "promptModelTitle": "Your AI model for writing",
+    "promptModelTagline": "The model that writes the scenes of your My style videos",
+    "promptModelEstimateNote": "Estimate without a style applied: the cost of each video depends on your gem. In Create you can use a different model for that video only.",
+    "promptModelSaved": "Preference saved.",
+    "promptModelError": "Couldn't save the preference."
   },
   "splash": {
     "pageTitle": "Vimo",
