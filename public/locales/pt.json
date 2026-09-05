@@ -497,6 +497,7 @@
       "confirmDelete": "Excluir {{total}} projeto(s)? O vídeo e todo o material serão apagados do disco. Esta ação não pode ser desfeita.",
       "deleted": "{{total}} projeto(s) excluído(s)",
       "imageCount": "{{total}} imagens",
+      "promptAuthor": "Prompts escritos por <author>{{author}}</author>",
       "badge": {
         "ready": "✓ Pronto",
         "outdated": "Desatualizado",
