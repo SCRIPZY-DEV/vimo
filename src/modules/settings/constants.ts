@@ -6,6 +6,7 @@ export const settingsQueryKeys = {
   projectsRoot: ['settings', 'projectsRoot'],
   defaultSceneCount: ['settings', 'defaultSceneCount'],
   sceneDuration: ['settings', 'sceneDuration'],
+  promptModel: ['settings', 'promptModel'],
 } as const
 
 export const SETTINGS_STORE_FILE = 'settings.json'
@@ -13,6 +14,7 @@ export const PROJECTS_ROOT_STORE_KEY = 'projectsRoot'
 export const DEFAULT_SCENE_COUNT_STORE_KEY = 'defaultSceneCount'
 export const SECONDS_PER_SCENE_STORE_KEY = 'secondsPerScene'
 export const CONFIRM_SCENES_STORE_KEY = 'confirmScenes'
+export const PROMPT_MODEL_STORE_KEY = 'promptModel'
 
 // Espejo de MAX_SCENE_COUNT del módulo videos: se duplica a propósito para no
 // acoplar módulos. Si cambia allá, cambia acá.
@@ -27,6 +29,10 @@ export const SECONDS_PER_SCENE_MAX = 15
 export const SECONDS_PER_SCENE_DEFAULT = 3
 // Valores de un click para no arrastrar el slider hasta los más usados.
 export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10]
+
+// Espejo del límite del sidecar (create-video-project.ts): un id más largo no
+// es un modelo, es basura en el store.
+export const PROMPT_MODEL_ID_LIMIT = 200
 
 export const DEFAULT_PROJECTS_FOLDER_NAME = 'Vimo'
 
