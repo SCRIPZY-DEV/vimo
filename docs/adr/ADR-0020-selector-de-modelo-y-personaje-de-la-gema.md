@@ -42,6 +42,9 @@ sin tres cosas que el origen (`vimo_dev`) ya tenía:
    `secondsPerScene`); las tarjetas siempre visibles. NO se porta el switch
    «usar en todos mis videos» ni el modo colapsado v1.23.0 ni su entrada en
    Ajustes (decisión del usuario, 2026-09-02).
+   **Reemplazada por [ADR-0022](ADR-0022-modelo-de-prompts-como-preferencia.md)
+   (2026-09-04): el modelo pasó a ser una preferencia de Ajustes y la última
+   elección ya no se recuerda.** El resto de esta ADR sigue vigente.
 4. **Simulador sin imports** (`utilities/promptCost.ts`): port de
    `costoPrompts.ts` con sus constantes calibradas y sus comentarios de
    medición; bandas económico/medio/alto con la MISMA cuenta que la cifra

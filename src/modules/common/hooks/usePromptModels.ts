@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { videosApi } from '@/modules/videos/api'
-import { videosQueryKeys } from '@/modules/videos/constants'
+import { commonApi } from '@/modules/common/api'
+import { commonQueryKeys } from '@/modules/common/constants'
 
 // Catálogo de modelos del carril verbatim. Es data estática del sidecar:
 // una lectura por sesión alcanza.
 export function usePromptModels() {
-  const native = videosApi.isNative()
+  const native = commonApi.isNative()
 
   const { data, isLoading } = useQuery({
-    queryKey: videosQueryKeys.promptModels,
-    queryFn: () => videosApi.listPromptModels(),
+    queryKey: commonQueryKeys.promptModels,
+    queryFn: () => commonApi.listPromptModels(),
     enabled: native,
     staleTime: Infinity,
   })

@@ -7,13 +7,15 @@ import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { SceneCountSection } from '@/modules/settings/components/SceneCountSection'
 import { SceneDurationSection } from '@/modules/settings/components/SceneDurationSection'
+import { PromptModelSection } from '@/modules/settings/components/PromptModelSection'
 import { useProjectsRoot } from '@/modules/settings/hooks/useProjectsRoot'
 
 /**
  * Ajustes de la aplicación: la carpeta raíz donde Vimo guardará los proyectos
  * (una sola — el layout por proyecto lo crea el pipeline, ver ADR-0009), la
- * cantidad de escenas con la que arrancan los videos de catálogo y el ritmo de
- * los de estilo propio. En web las secciones se muestran deshabilitadas.
+ * cantidad de escenas con la que arrancan los videos de catálogo, y el ritmo y
+ * el modelo de escritura de los de estilo propio. En web las secciones se
+ * muestran deshabilitadas.
  */
 export function Settings() {
   const { t } = useTranslation()
@@ -119,6 +121,8 @@ export function Settings() {
       <SceneCountSection />
 
       <SceneDurationSection />
+
+      <PromptModelSection />
     </div>
   )
 }
