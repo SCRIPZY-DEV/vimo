@@ -46,7 +46,6 @@ export function libraryEditorPath(projectId: string): string {
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
   customStyles: ['videos', 'customStyles'],
-  promptModels: ['videos', 'promptModels'],
   projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
@@ -75,9 +74,6 @@ export const MAX_SCENE_COUNT = 500
 export const SECONDS_PER_SCENE_MIN = 2
 export const SECONDS_PER_SCENE_MAX = 15
 export const SECONDS_PER_SCENE_DEFAULT = 3
-// El último modelo de prompts elegido, recordado entre videos (decisión de
-// la rama 11: sin «modelo de siempre», solo se recuerda la última elección).
-export const PROMPT_MODEL_STORAGE_KEY = 'vimo:create:promptModel'
 // Opción «preguntar en cada video» del personaje predeterminado de un estilo.
 // Radix Select no admite el valor vacío; el guion doble no puede ser un id de
 // personaje (los ids arrancan con letra o número).
@@ -439,7 +435,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   script: '',
   narrationFilePath: null,
   styleId: 'normal',
-  // Create lo siembra con el último elegido (readStoredPromptModel).
+  // Create lo siembra con la preferencia de Ajustes.
   promptModel: null,
   sceneCount: 0,
   // Create lo siembra con la preferencia de Ajustes.
