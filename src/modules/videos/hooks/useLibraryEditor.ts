@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
+import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import {
   DEFAULT_IMAGE_CHOICE,
@@ -10,6 +11,7 @@ import {
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
+import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type {
   RegenQueueEntry,
   SceneImageChoice,
@@ -31,6 +33,7 @@ export function useLibraryEditor(projectId: string) {
   const queryClient = useQueryClient()
   const { detail, isLoading, errorKey } = useLibraryProjectDetail(projectId)
   const editorTask = useLibraryEditorTask(projectId)
+  const { configuredProviders } = useRequiredApiKeys()
 
   // ── Copia de trabajo ──
 
@@ -139,6 +142,7 @@ export function useLibraryEditor(projectId: string) {
 
   const imageChoice = resolveImageChoice(
     editorTask.task?.pendingImageProvider,
+    configuredProviders,
     detail?.metadata.options,
     selectedScene,
   )
@@ -240,14 +244,20 @@ export function useLibraryEditor(projectId: string) {
 }
 
 // Proveedor y calidad con que se regenera la escena seleccionada, por
-// prioridad: override pendiente del editor → opciones del proyecto → default.
+// prioridad: override pendiente del editor → el proveedor con clave
+// configurada (Evolink si están las dos) → opciones del proyecto → default.
 // La calidad sale de la escena si la tiene (ADR-0014).
 function resolveImageChoice(
   pendingProvider: ImageProviderId | null | undefined,
+  configuredProviders: ReadonlySet<string>,
   options: VideoProjectOptions | undefined,
   scene: SceneDetail | null,
 ): SceneImageChoice {
-  const provider = resolveImageProvider(pendingProvider, options)
+  const provider = resolveImageProvider(
+    pendingProvider,
+    configuredProviders,
+    options,
+  )
   const format = options?.videoFormat ?? '16:9'
   return {
     provider,
@@ -257,9 +267,14 @@ function resolveImageChoice(
 
 function resolveImageProvider(
   pendingProvider: ImageProviderId | null | undefined,
+  configuredProviders: ReadonlySet<string>,
   options: VideoProjectOptions | undefined,
 ): ImageProviderId {
   if (pendingProvider) return pendingProvider
+
+  const preferred = preferredImageProvider(configuredProviders)
+  if (preferred) return preferred
+
   if (options) return options.imageProvider
   return DEFAULT_IMAGE_CHOICE.provider
 }
