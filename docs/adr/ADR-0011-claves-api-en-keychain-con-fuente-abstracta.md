@@ -3,6 +3,8 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-08-15
 - **Área:** app | seguridad | providers
+- **Enmendada por:** [ADR-0023](ADR-0023-una-entrada-de-keychain-y-firma-estable.md)
+  (una sola entrada del keychain para todas las claves; el resto sigue vigente).
 
 ## Problema (obligatoria)
 
@@ -99,7 +101,8 @@ la clave completa. La validación contra proveedores se hace **en Rust con reqwe
   - `grep -rn "plugin-store" src/` → solo `modules/settings/api/index.ts` (la
     metadata de claves se escribe desde Rust, no desde JS).
 - **Manual (hasta que haya framework de tests):** guardar clave → aparece en
-  Keychain Access con service `click.vimo.portable` y NO en `api-keys.json`;
+  Keychain Access dentro de la única entrada con service `click.vimo.portable` y
+  account `api-keys` (ADR-0023) y NO en `api-keys.json`;
   reiniciar app → estado persiste; clave Fal no-Admin → error `not_admin`
   traducido; eliminar → desaparece del keychain.
 - **Cómo se vería una regresión:** una respuesta de `get_api_keys_status` con el
