@@ -133,19 +133,13 @@
       "evolinkHint": "Mais rápido (50 em paralelo), um único preset."
     },
     "quality": {
-      "evolinkLow": "Full HD · Low",
+      "low": "{{format}} · Low",
+      "medium": "{{format}} · Medium",
+      "high": "{{format}} · High",
       "evolinkLowNote": "Sai na forma do vídeo (16:9 ou 9:16). Mais econômico.",
-      "evolinkMedium": "Full HD · Medium",
       "evolinkMediumNote": "Sai na forma do vídeo (16:9 ou 9:16). Equilíbrio preço/qualidade.",
-      "evolinkHigh": "Full HD · High",
       "evolinkHighNote": "Sai na forma do vídeo (16:9 ou 9:16). Qualidade máxima.",
-      "falLow": "1920×1080 · Low",
-      "falMedium": "1920×1080 · Medium",
-      "falHigh": "1920×1080 · High",
       "falNote": "16:9 nativo. Sem redimensionamento.",
-      "falVerticalLow": "1080×1920 · Low",
-      "falVerticalMedium": "1080×1920 · Medium",
-      "falVerticalHigh": "1080×1920 · High",
       "falVerticalNote": "9:16 nativo para shorts. Sem redimensionamento."
     },
     "voice": {

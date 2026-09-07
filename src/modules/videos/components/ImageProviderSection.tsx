@@ -87,7 +87,8 @@ export function ImageProviderSection({
         value={value.imageQuality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          label: t(option.labelKey),
+          // «16:9 · Low»: el formato elegido en el formulario, no la resolución.
+          label: t(option.labelKey, { format: value.videoFormat }),
           priceUsd: option.priceUsd,
           note: t(option.noteKey),
         }))}

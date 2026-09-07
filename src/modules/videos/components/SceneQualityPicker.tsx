@@ -50,7 +50,8 @@ export function SceneQualityPicker({
         value={value.quality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          label: t(option.labelKey),
+          // «16:9 · Low»: el formato con el que está construido el video.
+          label: t(option.labelKey, { format: videoFormat }),
           priceUsd: option.priceUsd,
           note: t(option.noteKey),
         }))}
