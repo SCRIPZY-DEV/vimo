@@ -302,6 +302,7 @@ export function LibraryEditor() {
             musicSrc={musicSrc}
             videoSrc={videoSrc}
             durationSeconds={durationSeconds}
+            videoFormat={videoFormat}
             mix={mix}
             cursorSeconds={cursorSeconds}
             scrubbing={scrubbing}
