@@ -172,6 +172,24 @@ export function CreateForm({
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
         <input
           type="checkbox"
+          checked={value.subtitles}
+          disabled={disabled}
+          onChange={(event) => onChange({ subtitles: event.target.checked })}
+          className="mt-1 h-4 w-4 accent-saffron"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-sm font-semibold text-foreground">
+            {t('create.subtitles.label')}
+          </span>
+          <span className="mt-0.5 block font-body text-xs text-muted-foreground">
+            {t('create.subtitles.hint')}
+          </span>
+        </span>
+      </label>
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
+        <input
+          type="checkbox"
           checked={value.autoRender}
           disabled={disabled}
           onChange={(event) => onChange({ autoRender: event.target.checked })}

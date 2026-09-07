@@ -300,6 +300,7 @@ export function LibraryEditor() {
             musicSrc={musicSrc}
             videoSrc={videoSrc}
             durationSeconds={durationSeconds}
+            videoFormat={videoFormat}
             mix={mix}
             cursorSeconds={cursorSeconds}
             scrubbing={scrubbing}
@@ -360,6 +361,8 @@ export function LibraryEditor() {
         hasMusic={hasMusic}
         busy={audio.audioBusy}
         musicPercent={audio.musicPercent}
+        musicSrc={musicSrc}
+        musicVolume={mix.musicVolume}
         onClose={() => setMusicOpen(false)}
         onSetMusic={audio.setMusic}
         onGenerate={(prompt, instrumental) =>
@@ -375,6 +378,8 @@ export function LibraryEditor() {
         hasMusic={hasMusic}
         busy={audio.audioBusy}
         narrationPercent={audio.narrationPercent}
+        narrationSrc={narrationSrc}
+        musicSrc={musicSrc}
         onClose={() => setMixOpen(false)}
         onChange={setMix}
         onSaveMix={audio.updateMix}

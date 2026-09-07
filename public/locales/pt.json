@@ -3,7 +3,12 @@
     "resume": "Retomar",
     "openVideo": "Reproduzir",
     "revealVideo": "Mostrar na pasta",
-    "proximamente": "Em breve"
+    "proximamente": "Em breve",
+    "player": {
+      "play": "Reproduzir",
+      "pause": "Pausar",
+      "position": "Posição"
+    }
   },
   "layout": {
     "sidebar": {
@@ -425,6 +430,10 @@
       "error": "erro",
       "refresh": "Atualizar saldos"
     },
+    "subtitles": {
+      "label": "Adicionar legendas ao vídeo",
+      "hint": "O texto de cada cena aparece escrito embaixo, sobre o vídeo."
+    },
     "autoRender": {
       "label": "Exportar o vídeo automaticamente ao terminar",
       "hint": "Se ativado, o Vimo monta o vídeo no final. Se desativado, você vai ao editor para revisar/editar antes de exportar."
@@ -666,7 +675,8 @@
       "fileHint": "Escolha um áudio do seu computador (mp3, wav, ogg, m4a ou aac).",
       "pickFile": "Escolher arquivo…",
       "remove": "Remover música do projeto",
-      "updated": "Música atualizada"
+      "updated": "Música atualizada",
+      "current": "Música atual"
     },
     "audio": {
       "title": "Áudio do projeto",
@@ -814,11 +824,6 @@
       "confirmarEliminar": "Excluir esta música do histórico?",
       "eliminada": "Música excluída do histórico."
     },
-    "player": {
-      "reproducir": "Reproduzir",
-      "pausar": "Pausar",
-      "posicion": "Posição"
-    },
     "errores": {
       "network": "Não foi possível conectar ao serviço de música. Verifique sua conexão.",
       "invalidApiKey": "A Evolink rejeitou sua chave API. Verifique em Chaves API.",
@@ -885,11 +890,11 @@
       "improve": "Melhorar descrição com IA"
     },
     "preview": {
-      "titulo": "Prévia por estilo",
-      "nota": "Cada prévia consome créditos do provedor e fica salva com o personagem.",
-      "proveedor": "Provedor",
-      "generar": "Gerar prévia",
-      "regenerar": "Gerar prévia de novo",
+      "titulo": "Veja como ficaria — gere uma prévia por estilo",
+      "nota": "Estas prévias ficam salvas com o personagem. O físico pode variar levemente entre as cenas.",
+      "proveedor": "Gerar com:",
+      "generar": "Gerar prévia em {{style}} ({{provider}})",
+      "regenerar": "Gerar de novo a prévia em {{style}} ({{provider}})",
       "cancelar": "Cancelar",
       "vacio": "Você ainda não gerou nenhuma prévia.",
       "faltaClave": "Você precisa da chave do provedor escolhido.",
@@ -897,10 +902,13 @@
       "writingPrompt": "Escrevendo o prompt…",
       "customStyleBadge": "Estilo próprio",
       "customStyleNote": "Com um estilo próprio, sua gema escreve o prompt do retrato (uma chamada à IA, precisa da DeepInfra) e depois a imagem é gerada.",
-      "deletedStyle": "Estilo excluído"
+      "deletedStyle": "Estilo excluído",
+      "sourceCatalog": "Catálogo",
+      "sourceCustom": "Meu estilo",
+      "sinEstilosPropios": "Você ainda não tem estilos próprios na sua galeria."
     },
     "styles": {
-      "normal": "Normal",
+      "normal": "Realista",
       "stickman": "POV Stickman",
       "cartoon": "Cartoon 2D",
       "fantasy": "Fantasia mágica",
@@ -1052,11 +1060,6 @@
       "eliminar": "Excluir narração",
       "confirmarEliminar": "Excluir esta narração do histórico?",
       "eliminada": "Narração excluída."
-    },
-    "player": {
-      "reproducir": "Reproduzir",
-      "pausar": "Pausar",
-      "posicion": "Posição"
     },
     "errores": {
       "network": "Não foi possível conectar ao serviço de vozes. Verifique sua conexão.",

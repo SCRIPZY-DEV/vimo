@@ -24,6 +24,7 @@ import {
 import { CHUNKS_PROGRESS_SHARE, CONCAT_PROGRESS_SHARE } from './constants.ts'
 import { concatChunks, mixFinalVideo } from './final-mix.ts'
 import { exportPromptsMarkdown } from './prompts-export.ts'
+import { subtitlesFilter, writeSubtitlesFile } from './subtitles.ts'
 
 // Fase 6: ensamblado final (port de ensamblarVideo + rendereoFinal).
 // Etapas: chunks mudos con ken burns (cache por manifest) → concat sin
@@ -142,6 +143,12 @@ export const renderStage: Stage<CreateVideoContext> = {
         ? context.paths.overlayFile
         : undefined
 
+    // El .ass se rearma en cada render: así un texto de escena editado en el
+    // editor viaja al video sin pasos extra.
+    const subtitlesFile = options.subtitles
+      ? await writeSubtitlesFile(context.paths, scenes, frame)
+      : undefined
+
     await mixFinalVideo(
       ffmpegPath,
       {
@@ -151,6 +158,9 @@ export const renderStage: Stage<CreateVideoContext> = {
         musicFile,
         overlayFile,
         colorFilter: style.filterFinal,
+        subtitlesFilter: subtitlesFile
+          ? subtitlesFilter(subtitlesFile)
+          : undefined,
         voiceVolume: options.voiceVolume,
         musicVolume: options.musicVolume,
         musicOffsetSeconds: options.bgmOffsetSeconds,

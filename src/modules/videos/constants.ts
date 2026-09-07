@@ -480,6 +480,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   useOverlay: false,
   overlayUrl: '',
   confirmScenes: true,
+  subtitles: false,
   autoRender: false,
   videoFormat: DEFAULT_VIDEO_FORMAT,
   styleSource: 'catalog',

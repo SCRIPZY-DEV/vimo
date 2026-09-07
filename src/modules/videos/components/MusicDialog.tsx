@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Trash2 } from 'lucide-react'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -24,6 +25,9 @@ interface MusicDialogProps {
   hasMusic: boolean
   busy: boolean
   musicPercent: number | null
+  // Música vigente: se escucha con el volumen de la mezcla ya aplicado.
+  musicSrc: string | null
+  musicVolume: number
   onClose(): void
   onSetMusic(choice: MusicChoice): Promise<boolean>
   onGenerate(
@@ -43,6 +47,8 @@ export function MusicDialog({
   hasMusic,
   busy,
   musicPercent,
+  musicSrc,
+  musicVolume,
   onClose,
   onSetMusic,
   onGenerate,
@@ -115,6 +121,15 @@ export function MusicDialog({
             </Button>
           </TabsContent>
         </Tabs>
+
+        {musicSrc && (
+          <div className="space-y-2 rounded-xl border border-border p-3">
+            <p className="font-display text-sm font-bold text-foreground">
+              {t('library.music.current')}
+            </p>
+            <AudioPlayer src={musicSrc} volume={musicVolume} loop />
+          </div>
+        )}
 
         {hasMusic && (
           <Button

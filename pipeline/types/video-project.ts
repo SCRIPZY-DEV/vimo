@@ -99,6 +99,9 @@ export interface VideoProjectOptions {
   musicVolume?: number
   // Segundos que se saltean del arranque de la música al mezclar (Library).
   bgmOffsetSeconds?: number
+  // Quema el texto de cada escena abajo del video en la mezcla final.
+  // Ausente = false: los proyectos previos renderizan byte-idéntico.
+  subtitles?: boolean
   // Con false, el job de Create genera todo MENOS el render: el proyecto
   // queda en borrador y el video se arma desde el editor (ADR-0016 revierte
   // la decisión 4 de ADR-0013). Ausente = true — los proyectos previos y los

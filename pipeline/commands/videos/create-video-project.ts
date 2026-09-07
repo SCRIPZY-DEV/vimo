@@ -112,6 +112,11 @@ function validatePayload(
       'invalid_payload',
       'options.imageProvider must be fal or evolink',
     )
+  if (options.subtitles !== undefined && typeof options.subtitles !== 'boolean')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.subtitles must be a boolean',
+    )
   if (
     options.autoRender !== undefined &&
     typeof options.autoRender !== 'boolean'

@@ -3,7 +3,12 @@
     "resume": "Resume",
     "openVideo": "Play",
     "revealVideo": "Show in folder",
-    "proximamente": "Coming soon"
+    "proximamente": "Coming soon",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position"
+    }
   },
   "layout": {
     "sidebar": {
@@ -425,6 +430,10 @@
       "error": "error",
       "refresh": "Refresh balances"
     },
+    "subtitles": {
+      "label": "Add subtitles to the video",
+      "hint": "Each scene's text appears written at the bottom, over the video."
+    },
     "autoRender": {
       "label": "Auto-export the video when finished",
       "hint": "If on, Vimo assembles the video at the end. If off, you go to the editor to review/edit before exporting."
@@ -666,7 +675,8 @@
       "fileHint": "Pick an audio file from your computer (mp3, wav, ogg, m4a or aac).",
       "pickFile": "Choose file…",
       "remove": "Remove music from the project",
-      "updated": "Music updated"
+      "updated": "Music updated",
+      "current": "Current music"
     },
     "audio": {
       "title": "Project audio",
@@ -814,11 +824,6 @@
       "confirmarEliminar": "Delete this track from your history?",
       "eliminada": "Track deleted from history."
     },
-    "player": {
-      "reproducir": "Play",
-      "pausar": "Pause",
-      "posicion": "Position"
-    },
     "errores": {
       "network": "Could not reach the music service. Check your connection.",
       "invalidApiKey": "Evolink rejected your API key. Check it in API Keys.",
@@ -885,11 +890,11 @@
       "improve": "Improve description with AI"
     },
     "preview": {
-      "titulo": "Preview by style",
-      "nota": "Each preview uses provider credits and is stored with the character.",
-      "proveedor": "Provider",
-      "generar": "Generate preview",
-      "regenerar": "Regenerate preview",
+      "titulo": "See how it would look — generate a preview per style",
+      "nota": "These previews are stored with the character. Build may vary slightly between scenes.",
+      "proveedor": "Generate with:",
+      "generar": "Generate preview in {{style}} ({{provider}})",
+      "regenerar": "Regenerate preview in {{style}} ({{provider}})",
       "cancelar": "Cancel",
       "vacio": "You haven't generated any preview yet.",
       "faltaClave": "You need the key for the selected provider.",
@@ -897,10 +902,13 @@
       "writingPrompt": "Writing the prompt…",
       "customStyleBadge": "Custom style",
       "customStyleNote": "With a custom style, your gem writes the portrait prompt (one AI call, needs DeepInfra) and then the image is generated.",
-      "deletedStyle": "Deleted style"
+      "deletedStyle": "Deleted style",
+      "sourceCatalog": "Catalog",
+      "sourceCustom": "My style",
+      "sinEstilosPropios": "You don't have custom styles in your gallery yet."
     },
     "styles": {
-      "normal": "Normal",
+      "normal": "Realistic",
       "stickman": "POV Stickman",
       "cartoon": "2D Cartoon",
       "fantasy": "Magic fantasy",
@@ -1052,11 +1060,6 @@
       "eliminar": "Delete narration",
       "confirmarEliminar": "Delete this narration from the history?",
       "eliminada": "Narration deleted."
-    },
-    "player": {
-      "reproducir": "Play",
-      "pausar": "Pause",
-      "posicion": "Position"
     },
     "errores": {
       "network": "Couldn't reach the voice service. Check your connection.",
