@@ -13,7 +13,7 @@ import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
 import { voicesApi } from '@/modules/voices/api'
-import { VoiceAudioPlayer } from '@/modules/voices/components/VoiceAudioPlayer'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { VoiceSettingsPanel } from '@/modules/voices/components/VoiceSettingsPanel'
 import {
   DEFAULT_VOICE_MODELS,
@@ -212,7 +212,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
               {t('voices.probador.cerrar')}
             </Button>
           </div>
-          <VoiceAudioPlayer src={voicesApi.audioSource(entry.audioPath)} />
+          <AudioPlayer src={voicesApi.audioSource(entry.audioPath)} />
           <p className="font-body text-xs text-muted-foreground">
             {t('voices.probador.guardada')}
           </p>
