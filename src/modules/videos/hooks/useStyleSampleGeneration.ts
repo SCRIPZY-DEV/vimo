@@ -6,6 +6,7 @@ import {
   UNKNOWN_CREATE_ERROR_KEY,
   videosQueryKeys,
 } from '@/modules/videos/constants'
+import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 export interface SampleGenerationState {
@@ -28,7 +29,8 @@ const INITIAL_STATE: SampleGenerationState = {
 
 // Job de muestras de un estilo: progreso por muestra vía eventos del Channel
 // (reemplazo del polling de 500 ms del origen). Al completar invalida la
-// galería — las muestras nuevas ya están en disco.
+// galería — las muestras nuevas ya están en disco — y difiere el refetch del
+// saldo del proveedor (también si falló: pudo cobrar alguna muestra).
 export function useStyleSampleGeneration() {
   const [state, setState] = useState(INITIAL_STATE)
 
@@ -66,6 +68,7 @@ export function useStyleSampleGeneration() {
             void queryClient.invalidateQueries({
               queryKey: videosQueryKeys.customStyles,
             })
+            scheduleCreditsRefresh()
             return
           }
           if (event.type === 'job-failed') {
@@ -77,6 +80,7 @@ export function useStyleSampleGeneration() {
                 CREATE_ERROR_MESSAGE_KEYS[event.code] ??
                 UNKNOWN_CREATE_ERROR_KEY,
             }))
+            scheduleCreditsRefresh()
           }
         },
       )
@@ -87,6 +91,7 @@ export function useStyleSampleGeneration() {
         phase: null,
         errorKey: videosApi.errorMessageKey(error),
       }))
+      scheduleCreditsRefresh()
     }
   }
 

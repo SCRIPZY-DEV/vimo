@@ -12,8 +12,9 @@ interface ImageCreditsBadgesProps {
   loading: boolean
   // Refetch con saldo previo en pantalla: solo gira el botón de refrescar.
   refreshing: boolean
-  // Pista visual: el proveedor elegido (en el formulario o para la escena).
-  active: ImageProviderId
+  // Pista visual: el proveedor elegido (en el formulario, para la escena o
+  // para las muestras de un estilo); null = ninguno resaltado.
+  active: ImageProviderId | null
   onRefresh: () => void
 }
 
