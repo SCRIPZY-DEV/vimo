@@ -26,6 +26,17 @@ export const STALL_CHECK_MS = 60_000
 export const CHUNKS_PROGRESS_SHARE = 0.45
 export const CONCAT_PROGRESS_SHARE = 0.05
 
+// Subtítulos quemados: blanco con borde negro y sombra, centrados abajo
+// (Alignment=2). La fuente sale del lado CORTO del frame para que 16:9 y 9:16
+// se lean igual; cada margen sale de SU eje, así el texto queda despegado del
+// borde en los dos formatos.
+export const SUBTITLE_FONT_NAME = 'Arial'
+export const SUBTITLE_FONT_DIVISOR = 22
+export const SUBTITLE_MARGIN_VERTICAL_DIVISOR = 18
+export const SUBTITLE_MARGIN_HORIZONTAL_DIVISOR = 12
+export const SUBTITLE_OUTLINE = 3
+export const SUBTITLE_SHADOW = 1
+
 // Colita visual tras el fin del audio: la última imagen no corta en seco.
 export const PAD_MARGIN_SECONDS = 0.2
 
