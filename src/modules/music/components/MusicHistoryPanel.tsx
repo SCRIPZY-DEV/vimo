@@ -15,7 +15,7 @@ import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { musicApi } from '@/modules/music/api'
 import { useMusicHistory } from '@/modules/music/hooks/useMusicHistory'
-import { MusicAudioPlayer } from '@/modules/music/components/MusicAudioPlayer'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { matchesSearch } from '@/modules/music/utilities/matchesSearch'
 import type { MusicHistoryEntry } from '@pipeline/types/music.ts'
 
@@ -147,7 +147,7 @@ export function MusicHistoryPanel() {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-              <MusicAudioPlayer src={musicApi.audioSource(entry.audioPath)} />
+              <AudioPlayer src={musicApi.audioSource(entry.audioPath)} />
             </li>
           ))}
         </ul>

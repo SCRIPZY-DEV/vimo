@@ -113,6 +113,7 @@ export function EditorPreviewPlayer({
           ref={narrationRef}
           src={narrationSrc}
           muted={muted}
+          crossOrigin="anonymous"
           onEnded={onNarrationEnded}
           {...primaryMediaEvents}
           className="hidden"
@@ -123,6 +124,7 @@ export function EditorPreviewPlayer({
           ref={musicRef}
           src={musicSrc}
           muted={muted}
+          crossOrigin="anonymous"
           loop
           className="hidden"
         />

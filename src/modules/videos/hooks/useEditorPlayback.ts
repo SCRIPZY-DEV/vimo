@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject, SyntheticEvent } from 'react'
+import { useAudioGain } from '@/modules/common/hooks/useAudioGain'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { SEEK_TOLERANCE_SECONDS } from '@/modules/videos/constants'
 import type {
@@ -54,11 +55,10 @@ export function useEditorPlayback({
   }
 
   // Volúmenes en vivo: la mezcla real ocurre en el render; esto la imita.
-  useEffect(() => {
-    if (narrationRef.current)
-      narrationRef.current.volume = clamp(mix.voiceVolume, 0, 1)
-    if (musicRef.current) musicRef.current.volume = clamp(mix.musicVolume, 0, 1)
-  }, [mix.voiceVolume, mix.musicVolume])
+  // Por gain, no por element.volume: la mezcla admite hasta 2x y el elemento
+  // topa en 1.
+  const narrationGain = useAudioGain(narrationRef, mix.voiceVolume)
+  const musicGain = useAudioGain(musicRef, mix.musicVolume)
 
   // La música arranca en su offset y acompaña el tiempo de la narración.
   const syncMusic = (seconds: number) => {
@@ -89,6 +89,8 @@ export function useEditorPlayback({
   }
 
   const play = () => {
+    narrationGain.resume()
+    musicGain.resume()
     void primaryMedia()?.play()
     // La política de autoplay puede rechazar la música; la narración manda.
     if (!videoMode) void musicRef.current?.play().catch(() => null)

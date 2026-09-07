@@ -14,7 +14,7 @@ import {
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { voicesApi } from '@/modules/voices/api'
-import { VoiceAudioPlayer } from '@/modules/voices/components/VoiceAudioPlayer'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { useVoiceHistory } from '@/modules/voices/hooks/useVoiceHistory'
 import { matchesSearch } from '@/modules/voices/utilities/matchesSearch'
 import type { VoiceHistoryEntry } from '@pipeline/types/voices.ts'
@@ -139,7 +139,7 @@ export function VoiceHistoryPanel() {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-              <VoiceAudioPlayer src={voicesApi.audioSource(entry.audioPath)} />
+              <AudioPlayer src={voicesApi.audioSource(entry.audioPath)} />
             </li>
           ))}
         </ul>
