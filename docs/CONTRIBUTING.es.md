@@ -41,3 +41,36 @@ Este proceso se encuentra en desarrollo, pero básicamente lo que hace es levant
 
 - **Claude nunca ejecuta comandos de git**: tú, como humano, te encargas del _staging_, los _commits_, las ramas y los _pushes_.
 - Sigue las reglas del archivo `CLAUDE.md` de la zona; estas recogen las convenciones que los revisores utilizan para verificar el trabajo.
+
+## Empaquetar para macOS (firma)
+
+Hoy `pnpm tauri build` deja la app con **firma ad-hoc** (`codesign --sign -`), igual que
+los binarios de `scripts/build-sidecar.mjs` y `scripts/fetch-binaries.mjs`. Eso tiene un
+efecto en el llavero: macOS ancla el permiso de lectura de la entrada de claves al
+requisito de firma del binario, y con firma ad-hoc ese requisito cambia en cada build.
+Por eso cada versión nueva de Vimo pide permiso **una** vez (ADR-0023). En desarrollo
+(`pnpm tauri dev`, sin firmar) pasa lo mismo: un diálogo por build y uno por sesión.
+
+Para que las actualizaciones no vuelvan a preguntar hace falta una identidad estable.
+Tauri la lee de la variable `APPLE_SIGNING_IDENTITY` al empaquetar; **no** se escribe en
+`tauri.conf.json` porque queda ligada a la cuenta de una persona.
+
+- **Sin cuenta de Apple — certificado autofirmado local.** En Acceso a Llaveros:
+  Asistente de certificados → Crear un certificado → tipo «Firma de código». Después:
+
+  ```
+  security find-identity -v -p codesigning        # lista el nombre exacto
+  APPLE_SIGNING_IDENTITY="<nombre del certificado>" pnpm tauri build
+  ```
+
+  En la máquina donde se instale, tras el primer «Permitir siempre» ninguna versión
+  firmada con ese mismo certificado vuelve a preguntar. Gatekeeper lo trata igual que
+  ad-hoc (abrir con clic derecho la primera vez): no empeora la distribución actual.
+
+- **Con Apple Developer.** Misma variable con «Developer ID Application: …» y, para
+  notarizar, `APPLE_ID`, `APPLE_PASSWORD` y `APPLE_TEAM_ID`. Tauri firma con esa misma
+  identidad los `externalBin` (`vimo-pipeline`, `ffmpeg`, `yt-dlp`); la firma ad-hoc de
+  los scripts queda solo para desarrollo.
+
+Al pasar de ad-hoc a firmado, la entrada del llavero creada por un build anterior pide
+permiso una última vez; con «Permitir siempre» el permiso queda anclado al certificado.
