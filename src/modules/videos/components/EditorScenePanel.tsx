@@ -4,7 +4,7 @@ import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
-import { ImageCreditsSummary } from '@/modules/videos/components/ImageCreditsSummary'
+import { ImageCreditsBadges } from '@/modules/videos/components/ImageCreditsBadges'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
 import type { SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -23,7 +23,12 @@ interface EditorScenePanelProps {
   characters: ProjectCharacter[]
   imageChoice: SceneImageChoice
   videoFormat: VideoFormat
+  // Saldos de los proveedores (misma query que el formulario de Crear): la
+  // primera carga, el refetch en curso y el botón de refrescar.
   credits: ImageCreditsResult | null
+  creditsLoading: boolean
+  creditsRefreshing: boolean
+  onRefreshCredits(): void
   busy: boolean
   userPromptDirty: boolean
   // Clave i18n del último fallo de regeneración de esta escena.
@@ -44,6 +49,9 @@ export function EditorScenePanel({
   imageChoice,
   videoFormat,
   credits,
+  creditsLoading,
+  creditsRefreshing,
+  onRefreshCredits,
   busy,
   userPromptDirty,
   errorKey,
@@ -146,6 +154,17 @@ export function EditorScenePanel({
         onChange={onImageChoiceChange}
       />
 
+      {/* Saldo por proveedor, con el elegido para esta escena resaltado, y
+          el botón de refrescar. Tras regenerar, el saldo se vuelve a pedir
+          solo (scheduleCreditsRefresh): el botón es para revisarlo a mano. */}
+      <ImageCreditsBadges
+        credits={credits}
+        loading={creditsLoading}
+        refreshing={creditsRefreshing}
+        active={imageChoice.provider}
+        onRefresh={onRefreshCredits}
+      />
+
       {characters.length > 0 && (
         <div className="space-y-1.5">
           <Label className="font-display">
@@ -162,8 +181,6 @@ export function EditorScenePanel({
           ))}
         </div>
       )}
-
-      {credits && <ImageCreditsSummary credits={credits} />}
 
       {errorKey && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive">

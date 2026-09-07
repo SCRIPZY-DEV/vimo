@@ -647,8 +647,6 @@
         "provider": "Proveedor",
         "quality": "Calidad",
         "characters": "Personajes en esta escena",
-        "creditsRemaining": "{{provider}}: {{remaining}} créditos",
-        "creditsUnavailable": "{{provider}}: saldo no disponible",
         "regenerate": "Regenerar imagen",
         "regenerateWithPrompt": "Regenerar con tu descripción",
         "lastError": "Último intento: {{reason}}"

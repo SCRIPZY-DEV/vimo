@@ -25,7 +25,7 @@ export function ImageProviderSection({
   onChange,
 }: ImageProviderSectionProps) {
   const { t } = useTranslation()
-  const { credits, isLoading, refresh } = useImageCredits()
+  const { credits, isLoading, isRefreshing, refresh } = useImageCredits()
 
   const qualityOptions = qualityOptionsFor(
     value.imageProvider,
@@ -55,6 +55,7 @@ export function ImageProviderSection({
         <ImageCreditsBadges
           credits={credits}
           loading={isLoading}
+          refreshing={isRefreshing}
           active={value.imageProvider}
           onRefresh={refresh}
         />

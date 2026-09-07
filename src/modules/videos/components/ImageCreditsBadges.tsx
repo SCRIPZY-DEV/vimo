@@ -8,8 +8,11 @@ import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 interface ImageCreditsBadgesProps {
   credits: ImageCreditsResult | null
+  // Primera carga: las pills muestran un spinner en vez del saldo.
   loading: boolean
-  // Pista visual: el proveedor elegido en el formulario.
+  // Refetch con saldo previo en pantalla: solo gira el botón de refrescar.
+  refreshing: boolean
+  // Pista visual: el proveedor elegido (en el formulario o para la escena).
   active: ImageProviderId
   onRefresh: () => void
 }
@@ -19,10 +22,12 @@ interface ImageCreditsBadgesProps {
 export function ImageCreditsBadges({
   credits,
   loading,
+  refreshing,
   active,
   onRefresh,
 }: ImageCreditsBadgesProps) {
   const { t } = useTranslation()
+  const busy = loading || refreshing
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -47,12 +52,12 @@ export function ImageCreditsBadges({
       <button
         type="button"
         onClick={onRefresh}
-        disabled={loading}
+        disabled={busy}
         title={t('create.credits.refresh')}
         aria-label={t('create.credits.refresh')}
         className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted transition-colors hover:bg-saffron/20 hover:text-saffron disabled:opacity-40"
       >
-        <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+        <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
       </button>
     </div>
   )
