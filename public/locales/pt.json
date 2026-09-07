@@ -834,11 +834,11 @@
       "improve": "Melhorar descrição com IA"
     },
     "preview": {
-      "titulo": "Prévia por estilo",
-      "nota": "Cada prévia consome créditos do provedor e fica salva com o personagem.",
-      "proveedor": "Provedor",
-      "generar": "Gerar prévia",
-      "regenerar": "Gerar prévia de novo",
+      "titulo": "Veja como ficaria — gere uma prévia por estilo",
+      "nota": "Estas prévias ficam salvas com o personagem. O físico pode variar levemente entre as cenas.",
+      "proveedor": "Gerar com:",
+      "generar": "Gerar prévia em {{style}} ({{provider}})",
+      "regenerar": "Gerar de novo a prévia em {{style}} ({{provider}})",
       "cancelar": "Cancelar",
       "vacio": "Você ainda não gerou nenhuma prévia.",
       "faltaClave": "Você precisa da chave do provedor escolhido.",
@@ -846,10 +846,13 @@
       "writingPrompt": "Escrevendo o prompt…",
       "customStyleBadge": "Estilo próprio",
       "customStyleNote": "Com um estilo próprio, sua gema escreve o prompt do retrato (uma chamada à IA, precisa da DeepInfra) e depois a imagem é gerada.",
-      "deletedStyle": "Estilo excluído"
+      "deletedStyle": "Estilo excluído",
+      "sourceCatalog": "Catálogo",
+      "sourceCustom": "Meu estilo",
+      "sinEstilosPropios": "Você ainda não tem estilos próprios na sua galeria."
     },
     "styles": {
-      "normal": "Normal",
+      "normal": "Realista",
       "stickman": "POV Stickman",
       "cartoon": "Cartoon 2D",
       "fantasy": "Fantasia mágica",
