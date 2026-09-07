@@ -1,8 +1,10 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Film, HelpCircle, Sparkles, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from 'react'
 import { Switch } from '@/modules/common/ui/switch'
 import {
   Tooltip,
@@ -11,9 +13,10 @@ import {
 } from '@/modules/common/ui/tooltip'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
-import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
-import { STYLE_CHARACTER_ASK_OPTION } from '@/modules/videos/constants'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
+import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
+import type { SelectedCharacter } from '@/modules/videos/types/create'
+import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type {
   StyleCharacter,
   StyleCharacterMode,
@@ -22,7 +25,13 @@ import type {
 interface StyleCharacterBlockProps {
   value: StyleCharacter
   disabled: boolean
+  // Id de ESTA gema: la carita del fijado prefiere su preview.
+  styleId: string
   onChange: (value: StyleCharacter) => void
+  // Abre el selector de personajes para fijar uno, con el ya elegido
+  // preseleccionado (null = ninguno). Lo maneja el modal, que es quien
+  // esconde su ventana mientras el selector está abierto.
+  onPickCharacter: (current: SelectedCharacter | null) => void
 }
 
 interface ModeOption {
@@ -57,43 +66,92 @@ const MODE_OPTIONS: readonly ModeOption[] = [
   },
 ]
 
-// Port de BloquePersonajeDeEstilo del origen (v1.19.0): la gema declara qué
-// hace con su protagonista. Tres filas con un switch — la fila entera elige —
-// y, bajo «Mi personaje», el personaje predeterminado de la biblioteca como
-// select (no un segundo modal: CustomStyleModal es el único del flujo).
+// Tres zonas de la fila tienen acción propia y NO son «toggle de la fila»: el
+// switch (dejarlo pasar duplicaría el toggle), la sub-fila del predeterminado
+// y el signo de pregunta (en una pantalla táctil la ayuda se lee tocándolo).
+function hitsOwnControl(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.closest("button[role='switch']") !== null ||
+    target.closest('[data-style-character-default]') !== null ||
+    target.closest('[data-style-character-help]') !== null
+  )
+}
+
+// ¿Tu estilo lleva personaje? (port de BloquePersonajeDeEstilo del origen):
+// tres opciones excluyentes, cada una con su switch turquesa, y SIEMPRE
+// exactamente una encendida — es un modo del estilo, no tres ajustes
+// sueltos. Encender otra mueve la elección; apagar la activa cae a «Sin
+// personaje», que es el piso. La FILA ENTERA es el switch, en las dos
+// direcciones. Es presentacional: qué recordar al volver a «Mi personaje» lo
+// decide el modal, dueño del borrador.
 export function StyleCharacterBlock({
   value,
   disabled,
+  styleId,
   onChange,
+  onPickCharacter,
 }: StyleCharacterBlockProps) {
   const { t } = useTranslation()
   const { characters, isLoading } = useCharacterCatalog(true)
-  // El puntero sobrevive a pasar por «genérico» y volver: se guarda aparte
-  // mientras el modo lo esconde (se actualiza solo desde los handlers).
-  const [lastDefaultId, setLastDefaultId] = useState(value.defaultCharacterId)
 
   const fixed = value.defaultCharacterId
     ? characters.find((character) => character.id === value.defaultCharacterId)
     : undefined
-  // El id apuntado ya no está en la biblioteca: se avisa y se pide otro.
-  const fixedMissing = Boolean(value.defaultCharacterId) && !isLoading && !fixed
+  // El id apuntado ya no está en la biblioteca: se avisa y se pide otro. Con
+  // la biblioteca vacía no se afirma nada (puede ser que no haya cargado).
+  const fixedMissing =
+    Boolean(value.defaultCharacterId) &&
+    !isLoading &&
+    characters.length > 0 &&
+    !fixed
 
-  const select = (mode: StyleCharacterMode) => (checked: boolean) => {
-    // Apagar la activa cae al piso («sin personaje»); «sin personaje»
-    // apagado se queda.
-    if (!checked) {
-      onChange({ mode: 'none' })
+  const toSelected = (character: CharacterSummary): SelectedCharacter => {
+    const preview = findStylePreview(character, styleId)
+    return {
+      characterId: character.id,
+      name: character.name,
+      description: character.description,
+      previewPath: preview?.imagePath ?? null,
+    }
+  }
+
+  // Encender o apagar una opción: la misma acción venga del switch, de la
+  // fila o del teclado.
+  const toggle = (mode: StyleCharacterMode, checked: boolean) => {
+    if (checked) {
+      onChange({ mode })
       return
     }
-    if (mode === 'own' && lastDefaultId) {
-      onChange({ mode, defaultCharacterId: lastDefaultId })
-      return
+    // «Sin personaje» ya ES el piso: apagarla no tiene a dónde ir.
+    if (value.mode === mode && mode !== 'none') onChange({ mode: 'none' })
+  }
+
+  const rowClick = (mode: StyleCharacterMode) => {
+    return (event: ReactMouseEvent<HTMLDivElement>) => {
+      // SOLO clicks reales: el BubbleInput de Radix (el input oculto que
+      // aparece cuando un switch queda dentro de un <form>) re-despacha un
+      // click burbujeante en cada cambio, y tomarlo como click de la persona
+      // re-togglea en loop infinito.
+      if (disabled || !event.nativeEvent.isTrusted) return
+      if (hitsOwnControl(event.target)) return
+      toggle(mode, value.mode !== mode)
     }
-    onChange({ mode })
+  }
+
+  const rowKeyDown = (mode: StyleCharacterMode) => {
+    return (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      // Que el Enter/Espacio del switch, la sub-fila o la ayuda no dispare
+      // también el toggle de la fila.
+      if (event.target !== event.currentTarget) return
+      event.preventDefault()
+      if (!disabled) toggle(mode, value.mode !== mode)
+    }
   }
 
   return (
-    <div className="space-y-2 rounded-xl border-2 border-border bg-card p-4">
+    <div className="space-y-2 rounded-2xl border-2 border-border bg-card p-4">
       <h3 className="font-display text-sm font-extrabold text-foreground">
         {t('create.styleCharacter.title')}
       </h3>
@@ -103,14 +161,19 @@ export function StyleCharacterBlock({
         return (
           <div
             key={mode}
+            role="button"
+            tabIndex={disabled ? undefined : 0}
+            onClick={rowClick(mode)}
+            onKeyDown={rowKeyDown(mode)}
             className={cn(
-              'rounded-xl border-2 px-4 py-3 transition-colors',
+              'rounded-xl border-2 px-4 py-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ocean/50',
+              !disabled && 'cursor-pointer',
               active
-                ? 'border-ocean/40 bg-ocean/10'
-                : 'border-border bg-background hover:border-ocean/40',
+                ? 'border-ocean/40 bg-ocean/10 hover:bg-ocean/15'
+                : 'border-border bg-background hover:border-ocean/40 hover:bg-ocean/5',
             )}
           >
-            <label className="flex cursor-pointer items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3">
                 <Icon
                   className={cn(
@@ -132,6 +195,7 @@ export function StyleCharacterBlock({
                       <TooltipTrigger asChild>
                         <span
                           tabIndex={0}
+                          data-style-character-help="true"
                           aria-label={t('create.styleCharacter.helpLabel', {
                             option: t(titleKey),
                           })}
@@ -153,62 +217,68 @@ export function StyleCharacterBlock({
               <Switch
                 checked={active}
                 disabled={disabled}
-                onCheckedChange={select(mode)}
+                onCheckedChange={(checked) => toggle(mode, checked)}
                 aria-label={t(titleKey)}
                 className="shrink-0 data-[state=checked]:bg-ocean"
               />
-            </label>
+            </div>
 
-            {/* El personaje fijo cuelga de «Mi personaje»: solo tiene
-                sentido cuando el estilo lleva TU personaje. */}
+            {/* El personaje predeterminado cuelga de «Mi personaje»: es una
+                decisión de segundo nivel (ya elegiste que el estilo lleva TU
+                personaje; acá decidís si es siempre el mismo o se pregunta
+                en cada video). Se guarda como PUNTERO a la biblioteca. */}
             {mode === 'own' && active && (
-              <div className="mt-3 space-y-2 border-t border-ocean/20 pt-3">
-                <p className="font-display text-xs font-bold text-foreground">
-                  {t('create.styleCharacter.defaultTitle')}
-                </p>
-                <p className="font-body text-xs text-muted-foreground">
-                  {t('create.styleCharacter.defaultHint')}
-                </p>
-                <div className="flex items-center gap-3">
-                  {fixed && (
-                    <CharacterPortrait
-                      src={
-                        fixed.previews[0]
-                          ? videosApi.imageSource(fixed.previews[0].imagePath)
-                          : null
-                      }
-                      doodleSize={20}
-                      className="h-10 w-10 shrink-0 overflow-hidden rounded-full"
-                    />
-                  )}
-                  <LabeledSelect
-                    label={t('create.styleCharacter.defaultSelect')}
-                    value={fixed?.id ?? STYLE_CHARACTER_ASK_OPTION}
-                    options={[
-                      {
-                        id: STYLE_CHARACTER_ASK_OPTION,
-                        label: t('create.styleCharacter.defaultAsk'),
-                      },
-                      ...characters.map((character) => ({
-                        id: character.id,
-                        label: character.name,
-                      })),
-                    ]}
-                    disabled={disabled || isLoading}
-                    onChange={(id) => {
-                      if (id === STYLE_CHARACTER_ASK_OPTION) {
-                        setLastDefaultId(undefined)
-                        onChange({ mode: 'own' })
+              <div
+                data-style-character-default="true"
+                className="mt-3 border-t border-ocean/25 pt-3"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-display text-xs font-bold text-foreground">
+                      {t('create.styleCharacter.defaultTitle')}
+                    </p>
+                    <p className="font-body text-xs text-muted-foreground">
+                      {value.defaultCharacterId
+                        ? t('create.styleCharacter.defaultHintFixed')
+                        : t('create.styleCharacter.defaultHintAsk')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(value.defaultCharacterId)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        onPickCharacter(fixed ? toSelected(fixed) : null)
                         return
                       }
-                      setLastDefaultId(id)
-                      onChange({ mode: 'own', defaultCharacterId: id })
+                      onChange({ mode: 'own' })
                     }}
-                    className="flex-1"
+                    aria-label={t('create.styleCharacter.defaultSwitchLabel')}
+                    className="shrink-0 data-[state=checked]:bg-ocean"
                   />
                 </div>
+
+                {fixed && (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onPickCharacter(toSelected(fixed))}
+                    className="mt-2 flex w-full items-center gap-3 rounded-lg border border-ocean/30 bg-background px-3 py-2 text-left transition-colors hover:bg-muted"
+                  >
+                    <FixedPortrait character={fixed} styleId={styleId} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-display text-sm font-bold text-foreground">
+                        {fixed.name}
+                      </span>
+                      <span className="block font-body text-xs text-muted-foreground">
+                        {t('create.styleCharacter.defaultChange')}
+                      </span>
+                    </span>
+                  </button>
+                )}
+
                 {fixedMissing && (
-                  <p className="font-body text-xs text-coral">
+                  <p className="mt-2 font-body text-xs text-destructive">
                     {t('create.styleCharacter.defaultMissing')}
                   </p>
                 )}
@@ -218,5 +288,32 @@ export function StyleCharacterBlock({
         )
       })}
     </div>
+  )
+}
+
+interface FixedPortraitProps {
+  character: CharacterSummary
+  styleId: string
+}
+
+// La carita del fijado: el preview de ESTA gema o, si no lo tiene, el primero
+// que haya. El ícono queda para un personaje sin imagen alguna.
+function FixedPortrait({ character, styleId }: FixedPortraitProps) {
+  const preview =
+    findStylePreview(character, styleId) ?? character.previews.at(0)
+
+  if (!preview)
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ocean/15">
+        <UserRound className="h-4 w-4 text-ocean" />
+      </span>
+    )
+
+  return (
+    <img
+      src={videosApi.imageSource(preview.imagePath)}
+      alt=""
+      className="h-9 w-9 shrink-0 rounded-full object-cover"
+    />
   )
 }

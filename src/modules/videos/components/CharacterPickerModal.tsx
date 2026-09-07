@@ -34,6 +34,9 @@ interface CharacterPickerModalProps {
   // cada personaje. Sin preview igual se puede elegir: irá sin referencia.
   previewStyleKey: string
   selected: SelectedCharacter[]
+  // Cuántos se pueden elegir. Con uno solo, elegir otro lo REEMPLAZA (el
+  // personaje predeterminado de un estilo); con varios, lleno es lleno.
+  max?: number
   // Con «Mi estilo» en uso: el personaje nuevo se diseña con esa gema.
   styleContext?: CharacterStyleContext
   onConfirm: (characters: SelectedCharacter[]) => void
@@ -43,6 +46,7 @@ interface CharacterPickerModalProps {
 export function CharacterPickerModal({
   previewStyleKey,
   selected,
+  max = MAX_PROJECT_CHARACTERS,
   styleContext,
   onConfirm,
   onClose,
@@ -55,6 +59,7 @@ export function CharacterPickerModal({
   // picker se REEMPLAZA por el modal de personaje y vuelve al guardar; el
   // borrador sobrevive porque este componente sigue montado.
   const [creating, setCreating] = useState(false)
+  const single = max === 1
 
   const toSelected = (character: CharacterSummary): SelectedCharacter => {
     const preview = findStylePreview(character, previewStyleKey)
@@ -66,12 +71,19 @@ export function CharacterPickerModal({
     }
   }
 
+  const pick = (character: CharacterSummary) => {
+    if (draft.length < max) {
+      setDraft([...draft, toSelected(character)])
+      return
+    }
+    if (single) setDraft([toSelected(character)])
+  }
+
   const addCreated = (character: CharacterSummary) => {
     // La biblioteca invalida su propia query; la del picker es otra clave.
     void queryClient.invalidateQueries({ queryKey: videosQueryKeys.characters })
     setCreating(false)
-    if (draft.length >= MAX_PROJECT_CHARACTERS) return
-    setDraft([...draft, toSelected(character)])
+    pick(character)
   }
 
   if (creating)
@@ -93,9 +105,7 @@ export function CharacterPickerModal({
       setDraft(draft.filter((item) => item.characterId !== character.id))
       return
     }
-    if (draft.length >= MAX_PROJECT_CHARACTERS) return
-
-    setDraft([...draft, toSelected(character)])
+    pick(character)
   }
 
   return (
@@ -103,12 +113,14 @@ export function CharacterPickerModal({
       <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
         <DialogHeader>
           <DialogTitle className="font-display">
-            {t('create.characters.pickerTitle')}
+            {single
+              ? t('create.characters.pickerTitleSingle')
+              : t('create.characters.pickerTitle')}
           </DialogTitle>
           <DialogDescription>
-            {t('create.characters.pickerDescription', {
-              max: MAX_PROJECT_CHARACTERS,
-            })}
+            {single
+              ? t('create.characters.pickerDescriptionSingle')
+              : t('create.characters.pickerDescription', { max })}
           </DialogDescription>
         </DialogHeader>
 

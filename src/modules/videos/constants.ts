@@ -82,10 +82,6 @@ export const SCENE_CUT_PREVIEW_DEBOUNCE_MS = 120
 // Estimación local del corte por segundos: el resto final cuenta como escena
 // si alcanza esta fracción de una ventana (misma regla que el fragmentador).
 export const SCENE_REMAINDER_MIN_FRACTION = 0.3
-// Opción «preguntar en cada video» del personaje predeterminado de un estilo.
-// Radix Select no admite el valor vacío; el guion doble no puede ser un id de
-// personaje (los ids arrancan con letra o número).
-export const STYLE_CHARACTER_ASK_OPTION = '--ask--'
 
 // Últimas líneas de log que la vista conserva (como el origen).
 export const LOG_LINES_LIMIT = 50
@@ -294,7 +290,22 @@ export const STYLE_REFERENCES_BASE_PATH = '/style-references'
 // Rotación del carrusel de muestras al hacer hover en una tarjeta de estilo.
 export const SAMPLE_CAROUSEL_INTERVAL_MS = 1200
 
+// Carrusel arrastrable del modal del estilo (port de CarruselMuestras del
+// origen). Cuánto hay que arrastrar para pasar de muestra, como fracción del
+// ancho: en px sería injusto, la misma distancia es «mucho» en una ventana
+// chica y «nada» en un monitor grande. Cuánto «pesa» arrastrar más allá de la
+// primera o la última. Y la transición con la que la tira se acomoda al
+// soltar (durante el arrastre no hay transición: sería llegar tarde a
+// propósito).
+export const SAMPLE_SWIPE_FRACTION = 0.18
+export const SAMPLE_SWIPE_EDGE_RESISTANCE = 0.3
+export const SAMPLE_SWIPE_SETTLE_TRANSITION =
+  'transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1)'
+
 // ── Estilos propios («Mi estilo») ──
+
+// Cuántas muestras genera el sidecar por estilo (las 4 situaciones fijas).
+export const CUSTOM_STYLE_SAMPLE_COUNT = 4
 
 // Espejo de los límites del sidecar (pipeline/commands/styles/style-store.ts).
 export const CUSTOM_STYLE_NAME_LIMIT = 80

@@ -86,6 +86,8 @@ export function CreateForm({
             <CustomStyleGallery
               selected={value.customStyle}
               disabled={disabled}
+              script={value.script}
+              promptModel={value.promptModel}
               onSelect={(customStyle) => {
                 // Si la gema escribe (o no lleva) el protagonista, los
                 // personajes elegidos antes ya no aplican (ADR-0020).
