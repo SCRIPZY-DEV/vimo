@@ -88,8 +88,8 @@ export function ImageProviderSection({
         options={qualityOptions.map((option) => ({
           id: option.id,
           // «16:9 · Low»: el formato elegido en el formulario, no la resolución.
+          // Sin precio: el del catálogo no es el precio real por imagen.
           label: t(option.labelKey, { format: value.videoFormat }),
-          priceUsd: option.priceUsd,
           note: t(option.noteKey),
         }))}
         disabled={disabled}
