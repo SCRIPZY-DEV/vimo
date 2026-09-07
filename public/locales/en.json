@@ -390,6 +390,10 @@
       "error": "error",
       "refresh": "Refresh balances"
     },
+    "subtitles": {
+      "label": "Add subtitles to the video",
+      "hint": "Each scene's text appears written at the bottom, over the video."
+    },
     "autoRender": {
       "label": "Auto-export the video when finished",
       "hint": "If on, Vimo assembles the video at the end. If off, you go to the editor to review/edit before exporting."

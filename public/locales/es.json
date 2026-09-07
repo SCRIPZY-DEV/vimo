@@ -390,6 +390,10 @@
       "error": "error",
       "refresh": "Refrescar saldos"
     },
+    "subtitles": {
+      "label": "Agregar subtítulos al video",
+      "hint": "El texto de cada escena aparece escrito abajo, sobre el video."
+    },
     "autoRender": {
       "label": "Exportar el video automáticamente al terminar",
       "hint": "Si está activo, Vimo arma el video al final. Si está desactivado, vas al editor para revisar/editar antes de exportar."
