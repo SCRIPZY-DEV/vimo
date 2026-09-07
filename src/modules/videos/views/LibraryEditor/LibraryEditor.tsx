@@ -172,11 +172,9 @@ export function LibraryEditor() {
   }
 
   const generateDraft = async () => {
-    const started = await startPipelineForProject(
-      projectId,
-      metadata.name,
-      metadata.options.videoFormat,
-    )
+    const started = await startPipelineForProject(projectId, metadata.name, {
+      videoFormat: metadata.options.videoFormat,
+    })
     if (started) void navigate(libraryProgressPath(projectId))
   }
 

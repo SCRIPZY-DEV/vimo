@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
+import { cn } from '@/modules/common/utilities/cn'
+import { SUPPORT_NOTE_CLASS } from '@/modules/videos/constants'
 
 interface PromptsProgressCardProps {
   done: number
@@ -28,7 +30,7 @@ export function PromptsProgressCard({ done, total }: PromptsProgressCardProps) {
                 ? t('create.prompts.writingTitle', { total })
                 : t('create.prompts.doneTitle', { total })}
             </h3>
-            <p className="font-handwritten text-base text-muted-foreground">
+            <p className={cn(SUPPORT_NOTE_CLASS, 'text-muted-foreground')}>
               {writing
                 ? t('create.prompts.writingSubtitle', {
                     done,

@@ -1,14 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/modules/common/utilities/cn'
+import { formatSceneSeconds } from '@/modules/videos/utilities/formatSceneSeconds'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
 
 interface PromptRowProps {
   scene: SceneSummary
-}
-
-function clock(seconds: number): string {
-  return `${seconds.toFixed(1)}s`
 }
 
 // Una escena de la grilla de prompts: número, texto del guion y el prompt
@@ -59,7 +56,8 @@ export function PromptRow({ scene }: PromptRowProps) {
       </div>
 
       <span className="shrink-0 font-display text-xs font-bold tabular-nums text-muted-foreground">
-        {clock(scene.startSeconds ?? 0)} → {clock(scene.endSeconds ?? 0)}
+        {formatSceneSeconds(scene.startSeconds ?? 0)} →{' '}
+        {formatSceneSeconds(scene.endSeconds ?? 0)}
       </span>
     </div>
   )

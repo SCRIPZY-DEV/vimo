@@ -57,6 +57,20 @@ cerrado (`CharacterStyleId`, ADR-0013/0015). Restricciones:
   único (guarda ANTES de generar muestras; planos recomendados verbatim;
   barras por muestra desde los eventos). Crear un estilo lo deja «en uso».
 
+> **Adenda 2026-09-05.** La UI del tab se alineó con la extracción exacta de
+> la web (`vimo-ui-mi-estilo`): la tarjeta es 4:3 con carrusel al hover y un
+> menú de tres puntos (Usar · Ver y editar · Generar 4 muestras · Eliminar)
+> sobre `@radix-ui/react-dropdown-menu`, vendorizado como
+> `common/ui/dropdown-menu.tsx`; «Crear estilo» tiene la misma silueta; el
+> modal mide 768px y va en el orden personaje → muestras (carrusel 16:9
+> arrastrable) → proveedor (pastillas, sin preselección) → generar → nombre →
+> estilo → planos → Listo, y **cerrar guarda** el borrador (no hay
+> «Cancelar»; sin nombre se guarda como «Estilo sin nombre» porque el sidecar
+> exige uno). El personaje predeterminado se elige con el selector de
+> personajes mientras el modal se esconde (nunca dos Radix abiertos). Sin
+> cambios de contrato ni de sidecar. Fuera de alcance: «Crear estilo con IA»
+> (clonar el estilo de un video) — no existe subcomando que lo respalde.
+
 ## Alternativas consideradas
 
 - **Referencia por id en vez de snapshot** — descartada: borrar la gema

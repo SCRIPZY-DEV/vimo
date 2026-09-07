@@ -296,8 +296,16 @@ function laneEvents(
   produced: Set<number>,
 ): ImageLaneEvents {
   const lastProgressAt = new Map<number, number>()
+  // Último % emitido por escena: el avance de una imagen es monótono por
+  // construcción (regla del origen) — un reintento del carril o un poll sin
+  // `progress` no la devuelven a cero.
+  const lastPercent = new Map<number, number>()
   return {
-    onStarted(sceneId) {
+    onStarted(sceneId, attempt) {
+      // Solo el primer intento de cada pasada: los reintentos internos del
+      // carril no reinician la celda (spinner y % siguen donde estaban).
+      if (attempt > 1) return
+      lastPercent.delete(sceneId)
       context.emitter.emit({ type: 'scene-image-started', sceneId })
     },
     onReady(sceneId, imagePath) {
@@ -318,15 +326,19 @@ function laneEvents(
       })
     },
     onProgress(sceneId, percent, status) {
+      const terminal = percent >= 100 || status === 'completed'
+      // Solo si subió: un valor igual o menor al último emitido se descarta.
+      const previous = lastPercent.get(sceneId) ?? -1
+      if (!terminal && percent <= previous) return
       // Debounce por escena: 100 escenas × polls cada 5s saturarían el canal.
       const now = Date.now()
-      const terminal = percent >= 100 || status === 'completed'
       if (
         !terminal &&
         now - (lastProgressAt.get(sceneId) ?? 0) < PROGRESS_DEBOUNCE_MS
       )
         return
       lastProgressAt.set(sceneId, now)
+      lastPercent.set(sceneId, Math.max(previous, percent))
       context.emitter.emit({
         type: 'scene-image-progress',
         sceneId,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Plus } from 'lucide-react'
+import { Check, Loader2, Plus } from 'lucide-react'
 import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
@@ -9,12 +9,27 @@ import type {
   CustomStyleDraft,
   SelectedCustomStyle,
 } from '@/modules/videos/types/styles'
-import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
+import type {
+  CustomStyleSummary,
+  StyleSavePayload,
+} from '@pipeline/types/styles.ts'
 
 interface CustomStyleGalleryProps {
   selected: SelectedCustomStyle | null
   disabled: boolean
+  // Guion y modelo del formulario: el selector de personaje del modal los usa
+  // para diseñar un personaje nuevo coherente con esta gema (ADR-0020).
+  script: string
+  promptModel: string | null
   onSelect: (style: SelectedCustomStyle | null) => void
+}
+
+interface EditingStyle {
+  styleId: string
+  initial: CustomStyleDraft
+  // Abierto desde «Generar 4 muestras» del menú: arranca a generar apenas se
+  // elige el proveedor, sin pedirle a la persona que repita el pedido.
+  generateOnOpen: boolean
 }
 
 function toSelected(style: CustomStyleSummary): SelectedCustomStyle {
@@ -27,12 +42,24 @@ function toSelected(style: CustomStyleSummary): SelectedCustomStyle {
   }
 }
 
-// Galería de estilos propios: tarjetas + «Crear estilo» siempre al final.
-// Arranca VACÍA (v1.35.0 del origen: el estilo de la casa no existe acá) y
-// el submit queda bloqueado hasta elegir una tarjeta (formBlockers).
+function toDraft(style: CustomStyleSummary): CustomStyleDraft {
+  return {
+    name: style.name,
+    systemPrompt: style.systemPrompt,
+    shots: style.shots,
+    ...(style.character ? { character: style.character } : {}),
+  }
+}
+
+// Galería de estilos propios (port de GaleriaEstilosPropios del origen): una
+// tarjeta por estilo guardado + «Crear estilo» SIEMPRE al final, con la misma
+// silueta. Arranca VACÍA (v1.35.0 del origen: el estilo de la casa no existe
+// acá) y el submit queda bloqueado hasta elegir una tarjeta (formBlockers).
 export function CustomStyleGallery({
   selected,
   disabled,
+  script,
+  promptModel,
   onSelect,
 }: CustomStyleGalleryProps) {
   const { t } = useTranslation()
@@ -40,28 +67,19 @@ export function CustomStyleGallery({
     useCustomStyles()
 
   // Estilo abierto en el modal; null = cerrado.
-  const [editing, setEditing] = useState<{
-    styleId: string
-    initial: CustomStyleDraft
-  } | null>(null)
+  const [editing, setEditing] = useState<EditingStyle | null>(null)
 
   const openCreate = () => {
+    if (disabled) return
     setEditing({
       styleId: newCustomStyleId(),
       initial: { name: '', systemPrompt: '', shots: [] },
+      generateOnOpen: false,
     })
   }
 
-  const openEdit = (style: CustomStyleSummary) => {
-    setEditing({
-      styleId: style.id,
-      initial: {
-        name: style.name,
-        systemPrompt: style.systemPrompt,
-        shots: style.shots,
-        ...(style.character ? { character: style.character } : {}),
-      },
-    })
+  const openEdit = (style: CustomStyleSummary, generateOnOpen: boolean) => {
+    setEditing({ styleId: style.id, initial: toDraft(style), generateOnOpen })
   }
 
   const removeStyle = async (style: CustomStyleSummary) => {
@@ -75,8 +93,38 @@ export function CustomStyleGallery({
     if (selected?.styleId === style.id) onSelect(null)
   }
 
+  const save = async (payload: StyleSavePayload) => {
+    const wasNew = !styles.some((style) => style.id === payload.id)
+    await saveStyle(payload)
+    // Una tarjeta recién creada queda EN USO: la persona la acaba de armar
+    // para usarla. Una editada solo si ya lo estaba — editar un estilo no
+    // cambia cuál se usa (origen).
+    if (!wasNew && selected?.styleId !== payload.id) return
+    onSelect({
+      styleId: payload.id,
+      name: payload.name,
+      systemPrompt: payload.systemPrompt,
+      shots: payload.shots ?? [],
+      ...(payload.character ? { character: payload.character } : {}),
+    })
+  }
+
   return (
     <div className="space-y-3">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500">
+          <Check className="h-4 w-4 text-white" strokeWidth={3} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-display text-lg font-extrabold leading-tight text-foreground">
+            {t('create.style.label')}
+          </h3>
+          <p className="font-body text-sm leading-snug text-muted-foreground">
+            {t('create.customStyles.galleryHint')}
+          </p>
+        </div>
+      </div>
+
       {isLoading && (
         <p className="py-6 text-center">
           <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
@@ -91,25 +139,50 @@ export function CustomStyleGallery({
             selected={selected?.styleId === style.id}
             disabled={disabled}
             onSelect={() => onSelect(toSelected(style))}
-            onEdit={() => openEdit(style)}
+            onEdit={() => openEdit(style, false)}
+            onGenerateSamples={() => openEdit(style, true)}
             onDelete={() => void removeStyle(style)}
           />
         ))}
 
-        {/* Siempre al final, con la silueta de una tarjeta para que la fila
-            no colapse cuando está sola (detalle del origen). */}
-        <button
-          type="button"
-          disabled={disabled}
+        {/* La tarjeta de CREAR es fija: solo crea, nunca se transforma en un
+            estilo. MISMA silueta que una tarjeta de estilo (zona 4:3 arriba +
+            pie de dos líneas): mide lo mismo esté donde esté, y la grilla
+            crece hacia abajo. */}
+        <div
+          role="button"
+          tabIndex={disabled ? undefined : 0}
           onClick={openCreate}
-          className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-card text-muted-foreground transition-all hover:border-saffron/60 hover:text-foreground"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            openCreate()
+          }}
+          className="group flex cursor-pointer select-none flex-col overflow-hidden rounded-2xl border-2 border-dashed border-border bg-card text-muted-foreground outline-none transition-all hover:border-saffron/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-saffron/50"
         >
-          <Plus className="h-6 w-6" />
-          <span className="font-display text-sm font-bold">
-            {t('create.customStyles.createCard')}
-          </span>
-        </button>
+          <div className="flex aspect-[4/3] items-center justify-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110">
+              <Plus className="h-6 w-6" />
+            </span>
+          </div>
+          <div className="px-3.5 py-2.5 text-left">
+            <p className="truncate font-display text-base font-bold text-foreground">
+              {t('create.customStyles.createCard')}
+            </p>
+            <p className="truncate font-body text-xs text-muted-foreground">
+              {t('create.customStyles.createCardHint')}
+            </p>
+          </div>
+        </div>
       </div>
+
+      {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la
+          galería (origen), además de en la lista de bloqueos del envío. */}
+      {!selected && !isLoading && (
+        <p className="rounded-xl border-2 border-saffron/60 bg-saffron/10 px-4 py-3 font-body text-sm text-foreground">
+          {t('create.customStyles.pickNotice')}
+        </p>
+      )}
 
       {editing && (
         <CustomStyleModal
@@ -121,18 +194,10 @@ export function CustomStyleGallery({
             styles.find((style) => style.id === editing.styleId)?.samples ?? []
           }
           saving={saving}
-          onSave={async (payload) => {
-            await saveStyle(payload)
-            // El estilo recién guardado queda «en uso» (flujo del origen:
-            // crear ya lo marca elegido para este video).
-            onSelect({
-              styleId: payload.id,
-              name: payload.name,
-              systemPrompt: payload.systemPrompt,
-              shots: payload.shots ?? [],
-              ...(payload.character ? { character: payload.character } : {}),
-            })
-          }}
+          generateOnOpen={editing.generateOnOpen}
+          script={script}
+          promptModel={promptModel}
+          onSave={save}
           onClose={() => setEditing(null)}
         />
       )}

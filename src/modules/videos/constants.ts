@@ -74,10 +74,14 @@ export const MAX_SCENE_COUNT = 500
 export const SECONDS_PER_SCENE_MIN = 2
 export const SECONDS_PER_SCENE_MAX = 15
 export const SECONDS_PER_SCENE_DEFAULT = 3
-// Opción «preguntar en cada video» del personaje predeterminado de un estilo.
-// Radix Select no admite el valor vacío; el guion doble no puede ser un id de
-// personaje (los ids arrancan con letra o número).
-export const STYLE_CHARACTER_ASK_OPTION = '--ask--'
+// Atajos del paso de segundos por escena (las píldoras bajo el slider).
+export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10]
+// El slider dispara muchos valores seguidos y cada corte real es un job del
+// sidecar: se espera este rato antes de pedirlo.
+export const SCENE_CUT_PREVIEW_DEBOUNCE_MS = 120
+// Estimación local del corte por segundos: el resto final cuenta como escena
+// si alcanza esta fracción de una ventana (misma regla que el fragmentador).
+export const SCENE_REMAINDER_MIN_FRACTION = 0.3
 
 // Últimas líneas de log que la vista conserva (como el origen).
 export const LOG_LINES_LIMIT = 50
@@ -104,11 +108,29 @@ export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   'ytdlp_network',
   'ytdlp_timeout',
 ])
-export const AUTO_RETRY_MAX_ATTEMPTS = 3
-export const AUTO_RETRY_DELAY_SECONDS = 10
+// Backoff del origen (v0.11.4): 30 s, 90 s y 3 min entre intentos — el
+// pipeline retoma desde checkpoint en cada uno.
+export const AUTO_RETRY_DELAYS_SECONDS = [30, 90, 180] as const
+export const AUTO_RETRY_MAX_ATTEMPTS = AUTO_RETRY_DELAYS_SECONDS.length
 
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
+// Tras pedir cancelar, cuánto se espera el cierre del sidecar antes de dar
+// la tarea por terminada igual (red de seguridad, no el camino normal).
+export const CANCEL_SETTLE_TIMEOUT_MS = 8000
+
+// Nota de apoyo de la pantalla de progreso: en el origen `.font-handwritten`
+// se redefine como Outfit al 92 % (pisa la config de Tailwind). Acá se acota
+// a esta pantalla para no cambiar la tipografía del resto de la app.
+export const SUPPORT_NOTE_CLASS = 'font-display text-[0.92em]'
+
+// Carpeta personal al inicio de una ruta (macOS, Linux y Windows), para
+// mostrarla como «~/…» igual que el origen.
+export const HOME_DIRECTORY_PREFIX_REGEX =
+  /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)/
+
+// «Copiado» en el visor de escena: cuánto dura la confirmación.
+export const COPIED_FEEDBACK_MS = 1800
 
 // Mezcla de audio del editor: defaults (espejo de final-mix.ts en el sidecar)
 // y rangos de los sliders. Los volúmenes son ganancia lineal: 1 = original.
@@ -268,7 +290,22 @@ export const STYLE_REFERENCES_BASE_PATH = '/style-references'
 // Rotación del carrusel de muestras al hacer hover en una tarjeta de estilo.
 export const SAMPLE_CAROUSEL_INTERVAL_MS = 1200
 
+// Carrusel arrastrable del modal del estilo (port de CarruselMuestras del
+// origen). Cuánto hay que arrastrar para pasar de muestra, como fracción del
+// ancho: en px sería injusto, la misma distancia es «mucho» en una ventana
+// chica y «nada» en un monitor grande. Cuánto «pesa» arrastrar más allá de la
+// primera o la última. Y la transición con la que la tira se acomoda al
+// soltar (durante el arrastre no hay transición: sería llegar tarde a
+// propósito).
+export const SAMPLE_SWIPE_FRACTION = 0.18
+export const SAMPLE_SWIPE_EDGE_RESISTANCE = 0.3
+export const SAMPLE_SWIPE_SETTLE_TRANSITION =
+  'transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1)'
+
 // ── Estilos propios («Mi estilo») ──
+
+// Cuántas muestras genera el sidecar por estilo (las 4 situaciones fijas).
+export const CUSTOM_STYLE_SAMPLE_COUNT = 4
 
 // Espejo de los límites del sidecar (pipeline/commands/styles/style-store.ts).
 export const CUSTOM_STYLE_NAME_LIMIT = 80
@@ -453,7 +490,10 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   bgmInstrumental: true,
   useOverlay: false,
   overlayUrl: '',
+  // Create siembra las dos con la preferencia de Ajustes; la segunda no tiene
+  // casilla (ver CreateFormValue).
   confirmScenes: true,
+  confirmSceneDuration: true,
   subtitles: false,
   autoRender: false,
   videoFormat: DEFAULT_VIDEO_FORMAT,

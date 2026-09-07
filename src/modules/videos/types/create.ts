@@ -40,6 +40,14 @@ export interface RenderProgressView {
   phase: RenderPhase
 }
 
+// Prompts que el modelo ya terminó de ESCRIBIR, contados sobre el stream
+// (carril verbatim). Distinto de los persistidos (`hasPrompt` por escena):
+// este se mueve durante la espera y evita que la barra salte de 0 a 100.
+export interface PromptsWrittenView {
+  ready: number
+  total: number
+}
+
 // La pausa que abre el diálogo de confirmación de escenas.
 export interface SceneConfirmationView {
   suggestedScenes: number
@@ -55,6 +63,11 @@ export interface SceneConfirmationView {
 export type SceneCutChoice =
   { sceneCount: number } | { secondsPerScene: number }
 
+// Escena tal como la ve la pantalla de progreso: la del contrato más el
+// avance de su imagen mientras se genera (scene-image-progress; solo
+// Evolink lo informa).
+export type SceneView = SceneSummary & { imageProgress?: number }
+
 // Una generación de video de punta a punta. Vive fuera de React (módulo
 // store) porque el layout desmonta la vista al navegar y el job sigue
 // corriendo; se persiste en localStorage porque el proyecto queda en disco y
@@ -68,11 +81,12 @@ export interface CreateTask {
   // Fase en curso; null antes de arrancar o al terminar.
   stage: StageId | null
   completedStages: StageId[]
-  scenes: SceneSummary[]
+  scenes: SceneView[]
   audioDurationSeconds: number | null
   voiceProgress: VoiceProgressView | null
   bgmProgress: BgmProgressView | null
   renderProgress: RenderProgressView | null
+  promptsWritten: PromptsWrittenView | null
   confirmation: SceneConfirmationView | null
   // Últimas líneas de log del sidecar (capadas).
   logs: string[]
@@ -91,6 +105,32 @@ export interface CreateTask {
   retryAttempts: number
   // Formato del proyecto: la vista de progreso pinta la grilla sin refetch.
   videoFormat: VideoFormat
+  // Cancelación pedida (origen v0.35.0): la tarea deja de mostrarse y solo
+  // espera el cierre del job para liberar el turno; cancelar no es un error.
+  cancelRequested: boolean
+}
+
+// Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
+// depende solo de ellos: la tarea entera cambia de identidad con cada evento
+// del sidecar y no sirve como dependencia de un intervalo.
+export type CreateTaskTiming = Pick<
+  CreateTask,
+  'startedAt' | 'pausedAt' | 'pausedMs' | 'finishedAt'
+>
+
+// Semilla desde disco al reanudar un proyecto (origen: `hidratar`): la grilla
+// y las fases aparecen ya hechas en vez de vacías hasta el primer evento.
+export interface CreateTaskSeed {
+  scenes: SceneSummary[]
+  completedStages: StageId[]
+  audioDurationSeconds: number | null
+}
+
+// Cómo se lanza (o reanuda) el pipeline de un proyecto que ya existe en disco.
+export interface ProjectRunOptions {
+  videoFormat?: VideoFormat
+  // Estado en disco para sembrar la tarea (Library lo tiene a mano).
+  seed?: CreateTaskSeed
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.
@@ -150,7 +190,14 @@ export interface CreateFormValue {
   bgmInstrumental: boolean
   useOverlay: boolean
   overlayUrl: string
+  // Pausa para confirmar la CANTIDAD de escenas: la casilla del formulario,
+  // que solo se muestra con estilo de catálogo. Se siembra con la preferencia
+  // de Ajustes.
   confirmScenes: boolean
+  // Pausa para elegir la DURACIÓN de cada escena (solo viaja con estilo
+  // propio). No tiene casilla: es la preferencia «No preguntarme al generar»
+  // de Ajustes, con la que se siembra, y el formulario no la toca.
+  confirmSceneDuration: boolean
   // Quema el texto de cada escena abajo del video al renderizar.
   subtitles: boolean
   // Con false (default), al terminar la generación se va al editor y el

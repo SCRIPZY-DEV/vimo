@@ -215,7 +215,9 @@
       "broughtByStyle": "Lo trae tu estilo. Todos los videos con este estilo salen con él.",
       "fixedMissing": "El personaje predeterminado de este estilo ya no está en tu biblioteca. Editá el estilo y elegí otro.",
       "createNew": "Crear personaje nuevo",
-      "createWithStyle": "Crear personaje con mi estilo"
+      "createWithStyle": "Crear personaje con mi estilo",
+      "pickerTitleSingle": "Elegir el personaje predeterminado",
+      "pickerDescriptionSingle": "Este personaje sale en todos los videos que hagas con este estilo."
     },
     "music": {
       "sectionTitle": "Música y overlay (opcional)",
@@ -235,63 +237,103 @@
       "hint": "Video sobreimpreso al 30%. Útil para granos, polvo, ambient."
     },
     "stages": {
-      "voice": "Narración y música",
-      "transcription": "Transcripción",
-      "sceneCuts": "División en escenas",
-      "scenePrompts": "Prompts de cada escena",
-      "images": "Imágenes",
-      "render": "Armado del video"
+      "voice": "Sintetizando voz",
+      "transcription": "Transcribiendo audio",
+      "sceneCuts": "Dividiendo en escenas",
+      "scenePrompts": "Generando prompts con IA",
+      "images": "Generando imágenes",
+      "render": "Ensamblando video"
     },
     "progress": {
-      "elapsed": "Tiempo transcurrido: {{time}}",
+      "createAnother": "Crear otro",
       "cancel": "Cancelar",
-      "cancelConfirm": "¿Seguro? Tocá de nuevo",
-      "voice": "Generando la narración ({{chars}} caracteres)",
-      "music": "Generando la música de fondo",
-      "imagesCount": "Imágenes: {{ready}} de {{total}}",
-      "logs": "Ver detalles",
+      "cancelConfirm": "¿Seguro? Cancelar",
+      "viewVideo": "Ver video final",
+      "phasesTitle": "Fases del pipeline",
+      "waitingForYou": "te está esperando",
+      "audioSummary": "Duración audio: {{seconds}}s · {{scenes}} escenas",
+      "status": {
+        "generating": "Generando…",
+        "completed": "Listo",
+        "error": "Error"
+      },
+      "timer": {
+        "title": "Tiempo transcurrido desde que empezó la generación",
+        "pausedTitle": "El pipeline está detenido esperándote: este rato no cuenta como tiempo de generación",
+        "paused": "· en pausa"
+      },
+      "voice": {
+        "title": "Generando voz · {{provider}}",
+        "hintMinimax": "Minimax es sincrónico · suele tardar 5-30s para {{chars}} caracteres",
+        "hintEdge": "Edge TTS es rápido · suele tardar <5s",
+        "hintDefault": "Procesando {{chars}} caracteres"
+      },
+      "music": {
+        "title": "Generando música con IA · Suno"
+      },
       "render": {
         "chunks": "Armando los tramos del video",
         "concat": "Uniendo los tramos",
         "final": "Mezclando audio y color"
       },
-      "phasesTitle": "Fases del pipeline",
-      "waitingForYou": "te está esperando",
-      "status": {
-        "generating": "Generando…",
-        "paused": "En pausa",
-        "completed": "Listo"
-      },
-      "audioSummary": "Duración audio: {{seconds}} s · {{scenes}} escenas",
       "retry": {
-        "title": "Reintentando en {{seconds}} s · intento {{attempt}} de {{max}}"
+        "title": "Reintentando en {{seconds}}s",
+        "attempt": "· intento {{attempt}} de {{max}}"
+      },
+      "error": {
+        "title": "Algo salió mal",
+        "retryFromCheckpoint": "Reintentar desde el último paso",
+        "retryRender": "Reintentar ensamblaje",
+        "retryHint": "Se conserva lo que ya se generó (audio, escenas, prompts e imágenes) y solo se reintenta lo que falló.",
+        "retryRenderHint": "Tus imágenes y todo lo demás ya están listos — solo se rehace el armado del video. No se pierde nada ni se gastan créditos.",
+        "continueHint": "Las escenas que quedaron sin imagen conservan su descripción: en el editor puedes regenerarlas una por una, o cambiar la descripción de la que no salga, y después generar tu video."
+      },
+      "savedAt": "¡Listo! Tu video se guardó en",
+      "imagesCount": "Imágenes ({{ready}}/{{total}})",
+      "logs": "Mostrar logs internos ({{count}})",
+      "imagesEmpty": "Las escenas aparecerán acá cuando arranque la generación...",
+      "cell": {
+        "enlarge": "Ampliar",
+        "enlargeAria": "Ampliar la escena {{id}}",
+        "alt": "Escena {{id}}"
       }
     },
     "confirmScenes": {
-      "title": "¿Cuántas escenas?",
-      "description": "Vimo cortó tu narración y propone esta cantidad de escenas. Ajustala si querés otro ritmo.",
-      "countLabel": "Cantidad de escenas",
-      "hint": "Vimo propone {{suggested}} escenas para esta duración.",
-      "confirm": "Continuar",
-      "duration": "Duración",
-      "words": "Palabras",
-      "suggested": "Sugerido",
-      "secondsDescription": "Con tu estilo, vos elegís cuánto dura cada escena y la cantidad sale del audio.",
-      "secondsLabel": "Segundos por escena",
-      "secondsValue": "{{seconds}} s",
-      "secondsScenes_one": "Con esta duración sale {{count}} escena.",
-      "secondsScenes_other": "Con esta duración salen {{count}} escenas.",
-      "secondsHint": "Vimo recuerda este valor para tus próximos videos.",
-      "resulting": "Escenas"
+      "title": "Confirmá cuántas escenas",
+      "description": "Vimo transcribió tu narración y propone esta cantidad. Si la dejás así, sigue automáticamente; si la cambiás, recorta los tiempos antes de generar imágenes.",
+      "duration": "Duración de la voz",
+      "words": "Palabras transcritas",
+      "suggested": "Sugerido por Vimo",
+      "countLabel": "Cantidad final",
+      "confirm": "Confirmar y continuar"
     },
-    "completed": {
-      "subtitle": "Tu video está listo.",
-      "createAnother": "Crear otro"
+    "secondsStep": {
+      "perScene": "dura cada escena",
+      "total_one": "escena en total",
+      "total_other": "escenas en total",
+      "sliderAria": "Segundos por escena",
+      "sliderMin": "{{seconds}} s · muchas escenas cortas",
+      "sliderMax": "{{seconds}} s · pocas y largas",
+      "shortcuts": "Atajos:",
+      "shortcut": "{{seconds}} s",
+      "explanation": "Las escenas se cortan por reloj, no por frases: van pegadas una atrás de otra y cubren todo el audio, sin huecos. Si una frase arranca en una imagen y termina en la siguiente está bien — la imagen cambia mientras la narración sigue.",
+      "confirm_one": "Seguir con {{count}} escena de {{seconds}} s",
+      "confirm_other": "Seguir con {{count}} escenas de {{seconds}} s",
+      "footnote": "El video está detenido esperando esto: no se genera nada hasta que confirmes."
     },
     "probe": {
-      "title": "El servicio de voces no responde",
+      "titles": {
+        "ok": "No se puede generar la voz ahora",
+        "maintenance": "Servicio de voces en mantenimiento",
+        "auth": "Clave de DubVoice inválida",
+        "rate": "Demasiadas solicitudes",
+        "config": "Falta configurar DubVoice",
+        "other": "No se puede generar la voz ahora"
+      },
+      "hint": "Te avisamos antes de empezar para que no pierdas tiempo esperando un pipeline que iba a fallar. Podés reintentar en unos minutos o elegir otra voz (ElevenLabs o Edge — gratis).",
       "retry": "Reintentar",
-      "changeVoice": "Elegir otra voz",
+      "retrying": "Reintentando…",
+      "changeVoice": "Cambiar voz",
       "reason": {
         "ok": "El servicio está operativo.",
         "maintenance": "El proveedor de voces está en mantenimiento. Probá en unos minutos o elegí otro motor.",
@@ -407,8 +449,18 @@
     },
     "viewer": {
       "title": "Escena {{id}}",
-      "previous": "Anterior",
-      "next": "Siguiente"
+      "aria": "Escena {{id}}, {{index}} de {{total}}",
+      "position": "{{index}} de {{total}} · usá las flechas del teclado",
+      "previous": "Escena anterior",
+      "next": "Escena siguiente",
+      "close": "Cerrar",
+      "promptTitle": "Prompt de esta escena",
+      "copy": "Copiar el prompt",
+      "copied": "Copiado",
+      "noPrompt": "Todavía no está escrito el prompt de esta escena.",
+      "generating": "Esta imagen se está generando ahora",
+      "pending": "Todavía no le tocó el turno a esta escena",
+      "failed": "Esta imagen no se pudo generar."
     },
     "format": {
       "label": "Formato del video",
@@ -425,26 +477,48 @@
       "customHint": "Tu propio estilo visual."
     },
     "customStyles": {
+      "galleryHint": "Elegí el estilo de las imágenes de tu video. Cada estilo que creás queda guardado como una tarjeta; los tres puntos abren sus opciones.",
+      "pickNotice": "Elegí con qué estilo sale tu video.",
       "createCard": "Crear estilo",
-      "createTitle": "Crear estilo visual",
-      "editTitle": "Editar estilo visual",
-      "nameLabel": "Nombre del estilo",
-      "namePlaceholder": "Ej.: Acuarela nocturna",
-      "promptLabel": "El estilo (system prompt)",
-      "promptPlaceholder": "Escribí OBLIGACIONES, no permisos: qué técnica, qué paleta, qué iluminación tiene SIEMPRE cada imagen…",
-      "shotsLabel": "Planos permitidos (separados por coma)",
-      "shotsPlaceholder": "Wide shot, Close-up…",
-      "recommendedShots": "Planos recomendados",
-      "samplesTitle": "Muestras del estilo",
-      "generateSamples": "Generar 4 muestras",
-      "writingPrompts": "Escribiendo los prompts…",
-      "generatingImages": "Generando imágenes…",
-      "sampleLabel": "Muestra {{id}}",
-      "noSamples": "Sin muestras todavía. Generalas desde editar.",
-      "charsCount": "{{chars}} caracteres",
+      "createCardHint": "Pegá tu propio estilo y generá sus muestras.",
+      "unnamed": "Estilo sin nombre",
+      "menuAria": "Opciones de {{name}}",
+      "useInVideo": "Usar en este video",
+      "alreadyInUse": "Ya está en uso",
       "edit": "Ver y editar",
+      "generateSamples": "Generar 4 muestras",
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar el estilo «{{name}}»? Los videos que lo usaron no se ven afectados.",
+      "noSamples": "Sin muestras todavía. Generalas desde los tres puntos.",
+      "charsCount": "{{chars}} caracteres",
+      "modalTitle": "Tu estilo",
+      "modalDescription": "El estilo visual es el texto que le da las reglas al modelo. Estas son sus muestras.",
+      "samplesEmpty": "Todavía no hay muestras de este estilo.",
+      "samplesEmptyHint": "Generalas para ver cómo se ve.",
+      "sampleLabel": "Muestra {{id}}",
+      "writingPrompts": "Escribiendo el prompt…",
+      "sampleGenerating": "Generando… {{percent}}%",
+      "sampleReady": "¡Lista!",
+      "sampleAlt": "Muestra {{number}} de {{name}}",
+      "previousSample": "Imagen anterior",
+      "nextSample": "Imagen siguiente",
+      "goToSample": "Ver muestra {{number}}",
+      "sampleCounter": "{{current}} / {{total}}",
+      "providerQuestion": "¿Con qué proveedor generamos las muestras?",
+      "providerHint": "Las muestras salen con el mismo modelo que después genera tu video, así ves exactamente cómo va a quedar.",
+      "providerRequired": "Elegí el proveedor de arriba para poder generar.",
+      "regenerateSamples": "Generar muestras de nuevo",
+      "generating": "Generando… (alrededor de un minuto)",
+      "samplesNote": "Son siempre las mismas 4 situaciones para cualquier estilo, así lo único que cambia entre una muestra y otra es el estilo.",
+      "nameLabel": "Nombre del estilo",
+      "namePlaceholder": "Ponele un nombre — así lo ves en la tarjeta",
+      "promptLabel": "El estilo",
+      "promptPlaceholder": "Pegá acá el estilo visual completo (es el system prompt del modelo).\n\nDescribí cómo se ven las imágenes: trazo, colores, luz, encuadre, época, personaje.\n\nSi querés DINAMISMO, pedilo explícitamente y como obligación, no como sugerencia:\n  · \"Todo prompt debe empezar con uno de estos planos: ...\"\n  · \"Nunca repitas el mismo plano dos veces seguidas.\"\n  · \"Cambiá de lugar cuando la narración se mueve a otro lado.\"\n  · \"El texto dibujado en la imagen va en el idioma del guion.\"\n\nUn permiso no es una instrucción: lo que quieras que pase, escribilo como obligación.",
+      "shotsLabel": "Planos permitidos",
+      "shotsOptional": "(opcional)",
+      "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
+      "shotsHint": "Si los escribís, nos aseguramos de que dos imágenes seguidas nunca salgan con el mismo encuadre.",
+      "recommendedShots": "Planos recomendados",
       "save": "Listo"
     },
     "promptModel": {
@@ -486,9 +560,10 @@
         "help": "El video se arma solo con escenas de lo que se narra. Si el guion habla de personas, se van a ver — lo que no hay es un protagonista fijo que se repita en todo el video."
       },
       "defaultTitle": "Personaje predeterminado para este estilo",
-      "defaultHint": "Dejá elegido uno de tus personajes y todos los videos con este estilo salen con él. Con «preguntar», te preguntamos cuál usar en cada video.",
-      "defaultSelect": "Personaje",
-      "defaultAsk": "Preguntar en cada video",
+      "defaultHintFixed": "Todos los videos que hagas con este estilo salen con este personaje. No te lo volvemos a pedir.",
+      "defaultHintAsk": "Dejá elegido uno de tus personajes y todos los videos con este estilo salen con él. Apagado, te preguntamos cuál usar en cada video.",
+      "defaultSwitchLabel": "Elegir el personaje predeterminado de este estilo",
+      "defaultChange": "Tocá para cambiarlo",
       "defaultMissing": "El personaje predeterminado que tenías elegido ya no está en tu lista. Elegí otro para poder usar este estilo."
     }
   },
@@ -513,7 +588,7 @@
         "generating": "Generando",
         "awaitingConfirmation": "Confirmar escenas",
         "interrupted": "Interrumpido",
-        "paused": "Pausado",
+        "paused": "Cancelado",
         "error": "Error",
         "draft": "Borrador"
       }
@@ -536,7 +611,8 @@
     },
     "progress": {
       "pageTitle": "Progreso",
-      "interrupted": "La generación quedó interrumpida. Podés reanudarla: los pasos ya hechos no se repiten."
+      "interrupted": "La generación quedó interrumpida. Podés reanudarla: los pasos ya hechos no se repiten.",
+      "cancelled": "Cancelaste esta generación. Podés reanudarla desde el último paso hecho, o eliminar el proyecto desde la biblioteca."
     },
     "editor": {
       "draftHint": "Este proyecto es un borrador: todavía no se generó nada. Lanzá la generación para poder editarlo.",

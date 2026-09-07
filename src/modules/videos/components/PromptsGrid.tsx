@@ -2,6 +2,7 @@ import { PromptRow } from '@/modules/videos/components/PromptRow'
 import { PromptsProgressCard } from '@/modules/videos/components/PromptsProgressCard'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
+import type { PromptsWrittenView } from '@/modules/videos/types/create'
 
 // Los prompts, mientras se escriben y cuando están (port de GrillaPrompts,
 // origen v1.0.0). La lista aparece COMPLETA desde el primer segundo: las
@@ -10,12 +11,21 @@ import type { SceneSummary } from '@pipeline/types/scenes.ts'
 
 interface PromptsGridProps {
   scenes: SceneSummary[]
+  // Avance del stream del redactor (carril verbatim); null si el carril no
+  // lo informa y solo cuentan los prompts persistidos.
+  written: PromptsWrittenView | null
 }
 
-export function PromptsGrid({ scenes }: PromptsGridProps) {
+export function PromptsGrid({ scenes, written }: PromptsGridProps) {
   if (scenes.length === 0) return null
 
-  const done = scenes.filter(hasPrompt).length
+  // max(persistidos, escritos), acotado al total — origen: la barra avanza
+  // mientras el modelo escribe y nunca retrocede cuando la persistencia
+  // alcanza al stream.
+  const done = Math.min(
+    scenes.length,
+    Math.max(scenes.filter(hasPrompt).length, written?.ready ?? 0),
+  )
 
   return (
     <div className="space-y-3">

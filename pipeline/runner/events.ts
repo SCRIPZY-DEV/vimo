@@ -59,6 +59,16 @@ export interface ScenePromptReadyEvent {
   scene: SceneSummary
 }
 
+// Avance del redactor mientras ESCRIBE (Fase 4, carril verbatim): cifras
+// absolutas del stream, no incrementos — un evento perdido no descuadra.
+// Espejo de `prompts-progreso` del origen; es lo que hace que la barra
+// avance en vez de saltar de 0 a 100 cuando el lote termina.
+export interface ScenePromptsProgressEvent {
+  type: 'scene-prompts-progress'
+  ready: number
+  total: number
+}
+
 export interface SceneImageStartedEvent {
   type: 'scene-image-started'
   sceneId: number
@@ -149,6 +159,7 @@ export type PipelineEventPayload =
   | LogEvent
   | ScenesPlannedEvent
   | ScenePromptReadyEvent
+  | ScenePromptsProgressEvent
   | SceneImageStartedEvent
   | SceneImageReadyEvent
   | SceneImageFailedEvent

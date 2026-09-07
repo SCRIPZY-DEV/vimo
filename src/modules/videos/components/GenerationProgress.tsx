@@ -1,69 +1,83 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { motion } from 'framer-motion'
 import {
+  ArrowLeft,
   Ban,
-  Check,
-  Loader2,
+  Clapperboard,
+  FolderOpen,
   Mic,
   Music2,
-  PauseCircle,
-  Plus,
+  PlayCircle,
   RefreshCw,
-  Timer,
 } from 'lucide-react'
 import DoodleStar from '@/modules/common/doodles/DoodleStar'
-import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
-import { ProgressBar } from '@/modules/common/components/ProgressBar'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
-import { formatTime } from '@/modules/common/utilities/formatTime'
 import { videosApi } from '@/modules/videos/api'
+import { PhaseProgressPanel } from '@/modules/videos/components/PhaseProgressPanel'
+import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
+import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
+import { GenerationErrorCard } from '@/modules/videos/components/GenerationErrorCard'
+import { ProgressStatusPill } from '@/modules/videos/components/ProgressStatusPill'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
+import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
-import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
-import { CANCEL_CONFIRM_WINDOW_MS } from '@/modules/videos/constants'
+import {
+  CANCEL_CONFIRM_WINDOW_MS,
+  PIPELINE_STAGES,
+  SUPPORT_NOTE_CLASS,
+  UNKNOWN_CREATE_ERROR_KEY,
+} from '@/modules/videos/constants'
+import { shortenHomePath } from '@/modules/videos/utilities/shortenHomePath'
 import { voiceProgressPercent } from '@/modules/videos/utilities/voiceProgressPercent'
-import type { CreateTask } from '@/modules/videos/types/create'
+import type {
+  CreateTask,
+  SceneCutChoice,
+  VoiceProgressView,
+} from '@/modules/videos/types/create'
 
 interface GenerationProgressProps {
   task: CreateTask
+  // Botón de vuelta de la cabecera: «Crear otro» en Create, «Volver a la
+  // biblioteca» en Library.
+  back: { labelKey: string; onClick: () => void }
   onCancel: () => void
-  // Solo la vista de Create lo pasa: en Library el completado redirige al
-  // player y este estado no se alcanza.
-  onCreateAnother?: () => void
+  // Reintentar desde el último checkpoint cuando el job falló.
+  onRetryPipeline: () => void
+  // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
+  // imágenes no bloquea — se sigue en el editor y se regenera desde ahí.
+  onContinueInEditor: () => void
+  onConfirmScenes: (choice: SceneCutChoice) => void
+  onDismissConfirmation: () => void
 }
 
-// Cronómetro honesto: descuenta los tramos en pausa (el tiempo que la
-// persona tarda en confirmar no cuenta) y se congela al completar.
-function elapsedSeconds(task: CreateTask): number {
-  const end = task.finishedAt ?? Date.now()
-  const livePause = task.pausedAt !== null ? end - task.pausedAt : 0
-  return Math.max(
-    0,
-    Math.floor((end - task.startedAt - task.pausedMs - livePause) / 1000),
-  )
+// Pista bajo la barra de voz: qué esperar de cada proveedor mientras sube.
+function voiceHintKey(voice: VoiceProgressView): string {
+  if (voice.provider === 'minimax') return 'create.progress.voice.hintMinimax'
+  if (voice.provider === 'edge') return 'create.progress.voice.hintEdge'
+  return 'create.progress.voice.hintDefault'
 }
 
-// El cronómetro tiene su propio tick para no re-renderizar por segundo todo
-// lo que cuelga de la tarea.
+// Pantalla completa de la corrida del pipeline (port de PantallaProgreso del
+// origen): cabecera con título y reloj, fases a la izquierda y, a la derecha,
+// el panel de la fase que corre. «Una fase, un panel» (origen v1.1.0): no se
+// acumulan paneles de fases pasadas; las imágenes sí se quedan hasta el final
+// porque son el resultado que la persona revisa.
 export function GenerationProgress({
   task,
+  back,
   onCancel,
-  onCreateAnother,
+  onRetryPipeline,
+  onContinueInEditor,
+  onConfirmScenes,
+  onDismissConfirmation,
 }: GenerationProgressProps) {
   const { t } = useTranslation()
-  const [elapsed, setElapsed] = useState(() => elapsedSeconds(task))
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
-  const paused = task.status === 'awaitingConfirmation'
-  const finished = task.status === 'completed'
-
-  useEffect(() => {
-    const timer = setInterval(() => setElapsed(elapsedSeconds(task)), 1000)
-    return () => clearInterval(timer)
-  }, [task])
-
+  // Cancelar pide un segundo clic dentro de la ventana (origen v0.35.0).
   useEffect(() => {
     if (!confirmingCancel) return undefined
     const timer = setTimeout(
@@ -73,75 +87,70 @@ export function GenerationProgress({
     return () => clearTimeout(timer)
   }, [confirmingCancel])
 
+  const paused = task.status === 'awaitingConfirmation'
+  // La pausa de un estilo propio pregunta SEGUNDOS por escena con el paso
+  // inline; el diálogo clásico de conteo queda para el resto.
+  const secondsLane = paused && task.confirmation?.secondsPerScene !== undefined
+  const finished = task.status === 'completed'
+  const failed = task.status === 'error'
+  const generating = !finished && !failed
+  const completed = task.completedStages
   const voice = task.voiceProgress
-  const voicePercent = voiceProgressPercent(voice)
 
-  // «Una fase, un panel» (origen v1.1.0): solo el panel de la fase que corre.
   // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
   // disco y `stage` es null hasta el primer evento del job.
-  const completed = task.completedStages
   const showVoicePanel =
     voice !== null && (task.stage === 'voice' || !completed.includes('voice'))
   const showBgmPanel =
     task.bgmProgress !== null && task.bgmProgress.status !== 'completed'
+  // Solo mientras el job renderiza: al retomar, `renderProgress` puede venir
+  // viejo del disco y `stage` es null hasta el primer evento.
+  const showRenderPanel =
+    generating && task.stage === 'render' && task.renderProgress !== null
   const showPromptsPanel =
-    completed.includes('scene-cuts') && !completed.includes('scene-prompts')
+    !paused &&
+    completed.includes('scene-cuts') &&
+    !completed.includes('scene-prompts')
+  // La señal es que los prompts terminaron, no que las imágenes arrancaron;
+  // y se quedan también al terminar o fallar.
   const showImagesPanel =
-    completed.includes('scene-prompts') &&
-    !completed.includes('render') &&
-    task.stage !== 'render'
-  const showRenderPanel = task.renderProgress !== null && !finished
+    !paused &&
+    (completed.includes('scene-prompts') ||
+      task.stage === 'images' ||
+      !generating)
+  // La fase en la que se cayó el job: la primera sin completar.
+  const failedStage = failed
+    ? (PIPELINE_STAGES.find((stage) => !completed.includes(stage.id))?.id ??
+      null)
+    : null
 
   return (
-    <div className="space-y-5 rounded-2xl border-2 border-border bg-card p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <p className="truncate font-display text-lg font-extrabold text-foreground">
-            {task.projectName}
-          </p>
-          <span
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-display text-xs font-bold',
-              paused || finished
-                ? 'border-saffron/60 bg-saffron/10 text-foreground'
-                : 'border-border bg-muted text-muted-foreground',
-            )}
+    // Fluida hasta 1600px (el origen se acota a 1152 y centra): acá el
+    // sidebar ya descuenta 256px y la pantalla se veía chica a ventana
+    // completa; las columnas y la grilla crecen con la ventana.
+    <div className="mx-auto max-w-[1600px] space-y-6 px-8 py-10">
+      <div className="flex items-center justify-between">
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={back.onClick}
+            className="-ml-3 mb-1 font-display font-semibold text-muted-foreground"
           >
-            {finished ? (
-              <Check className="h-3.5 w-3.5 text-saffron" />
-            ) : paused ? (
-              <PauseCircle className="h-3.5 w-3.5 text-saffron" />
-            ) : (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-saffron" />
-            )}
-            {finished
-              ? t('create.progress.status.completed')
-              : paused
-                ? t('create.progress.status.paused')
-                : t('create.progress.status.generating')}
-          </span>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            {t(back.labelKey)}
+          </Button>
+          <h1 className="font-display text-3xl font-extrabold text-foreground">
+            {task.projectName}
+          </h1>
+          <ProgressStatusPill status={task.status} />
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 font-mono text-sm tabular-nums text-foreground">
-            <Timer className="h-4 w-4 text-saffron" />
-            {formatTime(elapsed)}
-          </span>
-          {finished ? (
-            onCreateAnother && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onCreateAnother}
-                className="rounded-lg font-display"
-              >
-                <Plus className="mr-1.5 h-4 w-4" />
-                {t('create.completed.createAnother')}
-              </Button>
-            )
-          ) : (
+        <div className="flex items-center gap-3">
+          <ElapsedTimer task={task} />
+          {generating && (
             <Button
-              variant="outline"
+              variant={confirmingCancel ? 'destructive' : 'outline'}
               size="sm"
               onClick={() => {
                 if (!confirmingCancel) {
@@ -151,138 +160,222 @@ export function GenerationProgress({
                 setConfirmingCancel(false)
                 onCancel()
               }}
-              className="rounded-full font-display"
+              className="font-display font-semibold"
             >
-              <Ban className="mr-1.5 h-4 w-4 text-destructive" />
+              <Ban className="mr-1.5 h-4 w-4" />
               {confirmingCancel
                 ? t('create.progress.cancelConfirm')
                 : t('create.progress.cancel')}
             </Button>
           )}
+          {finished && task.videoPath && (
+            <button
+              type="button"
+              onClick={() => void videosApi.openVideo(task.videoPath ?? '')}
+              className="btn-squish inline-flex items-center gap-2 rounded-xl bg-saffron px-5 py-3 font-display font-bold text-charcoal shadow-lg shadow-saffron/30"
+            >
+              <PlayCircle className="h-5 w-5" />
+              {t('create.progress.viewVideo')}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
-        <aside className="space-y-3">
-          <h2 className="font-display text-sm font-bold text-foreground">
+      {/* Dos columnas recién desde `xl` (y no `lg` como el origen): acá el
+          sidebar vive dentro del viewport y se lleva 256px, así que cada
+          layout aparece al mismo ancho de CONTENIDO que en el origen. En la
+          ventana mínima (1024) se apila en una columna. La columna de fases
+          es más ancha que los 280px del origen: a ventana completa se veía
+          diminuta. */}
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[320px_1fr]">
+        <aside className="space-y-4">
+          <h2 className="font-display text-base font-bold text-foreground">
             {t('create.progress.phasesTitle')}
           </h2>
           <StageBar
             currentStage={task.stage}
-            completedStages={task.completedStages}
+            completedStages={completed}
             paused={paused}
           />
           {task.audioDurationSeconds !== null && (
-            <p className="rounded-lg bg-muted/40 px-3 py-2 font-body text-xs text-muted-foreground">
+            <div className="rounded-lg bg-muted/50 p-3 font-body text-sm text-muted-foreground">
               {t('create.progress.audioSummary', {
-                seconds: Math.round(task.audioDurationSeconds),
+                seconds: task.audioDurationSeconds.toFixed(1),
                 scenes: task.scenes.length,
               })}
-            </p>
+            </div>
           )}
         </aside>
 
-        <div className="min-w-0 space-y-5">
-          {task.retry && (
-            <div className="space-y-1 rounded-xl border-2 border-saffron/40 bg-saffron/5 p-4">
-              <p className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
-                <RefreshCw className="h-4 w-4 animate-spin text-saffron" />
-                {t('create.progress.retry.title', {
-                  seconds: task.retry.secondsLeft,
-                  attempt: task.retry.attempt,
-                  max: task.retry.maxAttempts,
-                })}
-              </p>
-              {task.errorKey && (
-                <p className="line-clamp-2 pl-6 font-body text-xs text-muted-foreground">
-                  {t(task.errorKey)}
-                </p>
-              )}
-            </div>
+        {/* `min-w-0`: sin esto la columna 1fr usa su min-content como mínimo y
+            un mensaje largo la ensancha más allá del viewport. */}
+        <div className="min-w-0 space-y-6">
+          {/* Va arriba de todo: el pipeline está detenido esperándolo. */}
+          {secondsLane && task.confirmation && (
+            <SecondsPerSceneStep
+              projectId={task.projectId}
+              confirmation={task.confirmation}
+              onConfirm={onConfirmScenes}
+            />
           )}
 
           {finished && task.videoPath && (
-            <div className="space-y-3 rounded-xl border-2 border-saffron/30 p-4">
-              <div className="flex items-center gap-2">
-                <DoodleStar size={28} />
-                <p className="font-body text-sm text-muted-foreground">
-                  {t('create.completed.subtitle')}
-                </p>
-              </div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="overflow-hidden rounded-xl border-2 border-saffron/30 bg-card"
+            >
               <video
+                key={task.videoPath}
                 src={videosApi.videoSource(task.videoPath)}
                 controls
-                className="w-full rounded-xl border border-border bg-black"
+                className="w-full bg-black"
               />
-              <VideoFileActions videoPath={task.videoPath} />
-            </div>
+              <div className="flex items-center gap-3 p-4">
+                <DoodleStar size={28} delay={300} />
+                <p
+                  className={cn(
+                    SUPPORT_NOTE_CLASS,
+                    'min-w-0 flex-1 text-foreground',
+                  )}
+                >
+                  {t('create.progress.savedAt')}{' '}
+                  <code className="break-all rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
+                    {shortenHomePath(task.videoPath)}
+                  </code>
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    void videosApi.revealVideo(task.videoPath ?? '')
+                  }
+                  className="shrink-0 rounded-xl font-display text-muted-foreground"
+                >
+                  <FolderOpen className="mr-1.5 h-4 w-4" />
+                  {t('common.revealVideo')}
+                </Button>
+              </div>
+            </motion.div>
           )}
 
           {showVoicePanel && voice && (
-            <div className="space-y-2 rounded-xl border-2 border-ocean/40 bg-ocean/5 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
-                  <Mic className="h-4 w-4 text-ocean" />
-                  {t('create.progress.voice', { chars: voice.totalChars })}
-                </p>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {Math.round(voicePercent)}%
-                </span>
-              </div>
-              <ProgressBar percent={voicePercent} />
-            </div>
+            <PhaseProgressPanel
+              Icon={Mic}
+              title={t('create.progress.voice.title', {
+                provider: voice.provider,
+              })}
+              elapsedSeconds={voice.elapsedSeconds}
+              percent={voiceProgressPercent(voice)}
+              hint={t(voiceHintKey(voice), {
+                chars: voice.totalChars.toLocaleString(),
+              })}
+            />
           )}
 
           {showBgmPanel && task.bgmProgress && (
-            <div className="space-y-2 rounded-xl border-2 border-ocean/40 bg-ocean/5 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
-                  <Music2 className="h-4 w-4 text-ocean" />
-                  {t('create.progress.music')}
-                </p>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {Math.round(task.bgmProgress.percent)}%
-                </span>
-              </div>
-              <ProgressBar percent={task.bgmProgress.percent} />
-            </div>
-          )}
-
-          {showPromptsPanel && <PromptsGrid scenes={task.scenes} />}
-
-          {showImagesPanel && (
-            <SceneImagesGrid
-              scenes={task.scenes}
-              videoFormat={task.videoFormat}
+            <PhaseProgressPanel
+              Icon={Music2}
+              title={t('create.progress.music.title')}
+              elapsedSeconds={task.bgmProgress.elapsedSeconds}
+              percent={task.bgmProgress.percent}
             />
           )}
 
           {showRenderPanel && task.renderProgress && (
-            <LabeledProgress
-              label={t(`create.progress.render.${task.renderProgress.phase}`)}
+            <PhaseProgressPanel
+              Icon={Clapperboard}
+              // El mismo nombre que la fase en la lista de la izquierda: con
+              // dos textos distintos la pantalla se contradecía.
+              title={t('create.stages.render')}
               percent={task.renderProgress.percent}
+              hint={t(`create.progress.render.${task.renderProgress.phase}`)}
             />
           )}
 
+          {task.retry && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-3 rounded-xl border-2 border-saffron/40 bg-saffron/5 p-4"
+            >
+              <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-saffron" />
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-sm font-bold text-foreground">
+                  {t('create.progress.retry.title', {
+                    seconds: task.retry.secondsLeft,
+                  })}
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    {t('create.progress.retry.attempt', {
+                      attempt: task.retry.attempt,
+                      max: task.retry.maxAttempts,
+                    })}
+                  </span>
+                </p>
+                {task.errorKey && (
+                  <p className="mt-1 line-clamp-2 font-body text-xs text-muted-foreground">
+                    {t(task.errorKey)}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {failed && (
+            <GenerationErrorCard
+              message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
+              failedStage={failedStage}
+              onRetry={onRetryPipeline}
+              onContinueInEditor={
+                failedStage === 'images' ? onContinueInEditor : undefined
+              }
+            />
+          )}
+
+          {showPromptsPanel && (
+            <PromptsGrid scenes={task.scenes} written={task.promptsWritten} />
+          )}
+
+          {showImagesPanel && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-display text-base font-bold text-foreground">
+                  {t('create.progress.imagesCount', {
+                    ready: task.scenes.filter(
+                      (scene) => scene.imageStatus === 'ok',
+                    ).length,
+                    total: task.scenes.length,
+                  })}
+                </h2>
+              </div>
+              <SceneImagesGrid
+                scenes={task.scenes}
+                videoFormat={task.videoFormat}
+              />
+            </div>
+          )}
+
           {task.logs.length > 0 && (
-            <details className="rounded-xl border border-border bg-background p-3">
-              <summary className="cursor-pointer font-display text-sm text-muted-foreground">
-                {t('create.progress.logs')}
+            <details className="rounded-lg border border-border bg-muted/30 p-3">
+              <summary className="cursor-pointer font-display text-xs font-semibold text-muted-foreground">
+                {t('create.progress.logs', { count: task.logs.length })}
               </summary>
-              <ul className="mt-2 space-y-0.5">
-                {task.logs.map((line, index) => (
-                  <li
-                    key={`${index}-${line.slice(0, 24)}`}
-                    className="font-mono text-xs text-muted-foreground"
-                  >
-                    {line}
-                  </li>
-                ))}
-              </ul>
+              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-muted-foreground">
+                {task.logs.join('\n')}
+              </pre>
             </details>
           )}
         </div>
       </div>
+
+      {/* La confirmación de escenas sucede en el contexto visual del pipeline,
+          no en una pantalla aparte (origen v0.13.37). */}
+      <ConfirmScenesDialog
+        open={paused && !secondsLane}
+        confirmation={task.confirmation}
+        onConfirm={onConfirmScenes}
+        onCancel={onDismissConfirmation}
+      />
     </div>
   )
 }

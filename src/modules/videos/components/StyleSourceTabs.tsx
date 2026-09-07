@@ -52,7 +52,7 @@ export function StyleSourceTabs({
             <span className="block font-display text-sm font-bold text-foreground">
               {t(tab.titleKey)}
             </span>
-            <span className="font-body text-xs text-muted-foreground">
+            <span className="mt-0.5 block font-body text-xs text-muted-foreground">
               {t(tab.hintKey)}
             </span>
           </button>

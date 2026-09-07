@@ -99,6 +99,13 @@ Los 10 eventos nuevos de `pipeline/runner/events.ts` (`scenes-planned`,
 consume con un `switch` legible y sin casts; `progress` genérico queda para lo
 que ya lo usaba (música, personajes).
 
+> **Adenda 2026-09-04.** El carril verbatim de prompts (ADR-0016) emitía su
+> avance de stream como `progress` genérico con `stageId: 'scene-prompts'`, y
+> ninguna UI lo consumía: la barra de prompts saltaba de 0 a 100 al terminar el
+> lote. Pasa a ser la variante tipada `scene-prompts-progress { ready, total }`
+> (cifras absolutas sobre todas las escenas, espejo de `prompts-progreso` del
+> origen), coherente con esta regla.
+
 ### Layout del proyecto, en inglés
 
 ```

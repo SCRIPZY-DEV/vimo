@@ -10,7 +10,7 @@ import { Button } from '@/modules/common/ui/button'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
-import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
+import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import {
   UNKNOWN_CREATE_ERROR_KEY,
   VideosRoutes,
@@ -20,7 +20,11 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
-import type { SceneCutChoice } from '@/modules/videos/types/create'
+import type {
+  ProjectRunOptions,
+  SceneConfirmationView,
+  SceneCutChoice,
+} from '@/modules/videos/types/create'
 
 // Progreso de un proyecto de la biblioteca. Con tarea viva del store muestra
 // el progreso real (mismos paneles que Create); sin ella, rehidrata desde
@@ -35,6 +39,7 @@ export function LibraryProgress() {
     cancel,
     confirmScenes,
     confirmScenesForProject,
+    discardTask,
     startPipelineForProject,
   } = useCreateTask()
 
@@ -47,57 +52,76 @@ export function LibraryProgress() {
 
   usePageTitle(t('library.progress.pageTitle'))
 
-  // Al completar el job se invalida lo leído de disco y se pasa al player.
+  // Al completar el job se invalida lo leído de disco y se sigue de largo:
+  // con video, al player. Sin video (sin auto-export, ADR-0016) el proyecto
+  // quedó en borrador con todo generado y el destino es el editor, igual que
+  // en Create; antes iba al player, que solo ofrecía «Continuar editando».
   const completed = ownTask?.status === 'completed'
+  const completedWithVideo =
+    ownTask?.status === 'completed' && ownTask.videoPath !== null
   useEffect(() => {
     if (!completed) return
     void queryClient.invalidateQueries({ queryKey: videosQueryKeys.projects })
     void queryClient.invalidateQueries({
       queryKey: videosQueryKeys.projectStatus(projectId),
     })
-    void navigate(libraryPlayerPath(projectId), { replace: true })
-  }, [completed, navigate, projectId, queryClient])
+    if (completedWithVideo) {
+      void navigate(libraryPlayerPath(projectId), { replace: true })
+      return
+    }
+    discardTask()
+    void navigate(libraryEditorPath(projectId), { replace: true })
+  }, [
+    completed,
+    completedWithVideo,
+    discardTask,
+    navigate,
+    projectId,
+    queryClient,
+  ])
 
   const projectName = ownTask?.projectName ?? status?.metadata.name ?? projectId
-  const projectFormat = status?.metadata.options.videoFormat
+  // Semilla desde disco (origen: `hidratar`): al reanudar, las fases hechas y
+  // la grilla aparecen al toque en vez de vacías hasta el primer evento.
+  const runOptions: ProjectRunOptions = {
+    videoFormat: status?.metadata.options.videoFormat,
+    seed: status
+      ? {
+          scenes: status.scenes,
+          completedStages: status.metadata.completedStages,
+          audioDurationSeconds: status.metadata.audioDurationSeconds ?? null,
+        }
+      : undefined,
+  }
   const resume = () =>
-    void startPipelineForProject(projectId, projectName, projectFormat)
+    void startPipelineForProject(projectId, projectName, runOptions)
   const confirmFromDisk = (choice: SceneCutChoice) => {
-    void confirmScenesForProject(projectId, projectName, choice, projectFormat)
+    void confirmScenesForProject(projectId, projectName, choice, runOptions)
   }
   const backToLibrary = () => void navigate(VideosRoutes.library)
+  // Cancelar no es un error (origen v0.35.0): a la biblioteca en el acto; el
+  // proyecto queda ahí como cancelado. En la pausa no hay job que cancelar.
+  const cancelToLibrary = () => {
+    cancel()
+    backToLibrary()
+  }
 
-  // ── Con tarea del store ──
+  // ── Con tarea del store: la pantalla de progreso entera (origen), con la
+  // pausa, el error y el completado dentro ──
   if (ownTask) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
-        <LibraryViewHeader title={projectName} />
-
-        {(ownTask.status === 'creating' || ownTask.status === 'generating') && (
-          <GenerationProgress task={ownTask} onCancel={cancel} />
-        )}
-
-        {ownTask.status === 'error' && (
-          <TaskErrorCard
-            message={t(ownTask.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
-            onRetry={resume}
-            onContinueInEditor={
-              ownTask.completedStages.includes('scene-prompts')
-                ? () => navigate(libraryEditorPath(projectId))
-                : undefined
-            }
-          />
-        )}
-
-        {ownTask.status === 'awaitingConfirmation' && ownTask.confirmation && (
-          <ConfirmScenesDialog
-            confirmation={ownTask.confirmation}
-            projectId={projectId}
-            onConfirm={(choice) => void confirmScenes(choice)}
-            onCancel={backToLibrary}
-          />
-        )}
-      </div>
+      <GenerationProgress
+        task={ownTask}
+        back={{
+          labelKey: 'library.player.backToLibrary',
+          onClick: backToLibrary,
+        }}
+        onCancel={cancelToLibrary}
+        onRetryPipeline={resume}
+        onContinueInEditor={() => void navigate(libraryEditorPath(projectId))}
+        onConfirmScenes={(choice) => void confirmScenes(choice)}
+        onDismissConfirmation={backToLibrary}
+      />
     )
   }
 
@@ -123,38 +147,51 @@ export function LibraryProgress() {
     return <Navigate to={libraryPlayerPath(projectId)} replace />
 
   if (metadata.state === 'awaiting-confirmation') {
+    // El mismo objeto que guarda task.confirmation, reconstruido desde disco.
+    // La pausa de un estilo propio con carril de segundos vuelve como el
+    // paso inline también desde disco; el resto, con el diálogo de conteo.
+    const confirmation: SceneConfirmationView = {
+      suggestedScenes: metadata.sceneCount ?? status.scenes.length,
+      audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
+      wordCount: metadata.wordCount ?? 0,
+      ...(metadata.options.customStyle &&
+      metadata.options.secondsPerScene !== undefined
+        ? { secondsPerScene: metadata.options.secondsPerScene }
+        : {}),
+    }
+
     return (
       <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
         <LibraryViewHeader title={projectName} />
-        {/* El mismo objeto que guarda task.confirmation, reconstruido desde disco. */}
-        <ConfirmScenesDialog
-          confirmation={{
-            suggestedScenes: metadata.sceneCount ?? status.scenes.length,
-            audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
-            wordCount: metadata.wordCount ?? 0,
-            // La pausa de un estilo propio con carril de segundos vuelve en
-            // modo slider también desde disco.
-            ...(metadata.options.customStyle &&
-            metadata.options.secondsPerScene !== undefined
-              ? { secondsPerScene: metadata.options.secondsPerScene }
-              : {}),
-          }}
-          projectId={projectId}
-          onConfirm={confirmFromDisk}
-          onCancel={backToLibrary}
-        />
+        {confirmation.secondsPerScene !== undefined ? (
+          <SecondsPerSceneStep
+            projectId={projectId}
+            confirmation={confirmation}
+            onConfirm={confirmFromDisk}
+          />
+        ) : (
+          <ConfirmScenesDialog
+            open
+            confirmation={confirmation}
+            onConfirm={confirmFromDisk}
+            onCancel={backToLibrary}
+          />
+        )}
       </div>
     )
   }
 
-  // generating (job muerto con la app) o paused: mismo remedio — reanudar;
-  // las fases hechas son cache-hit y el disco se corrige.
+  // generating (job muerto con la app) o paused (cancelado por la persona):
+  // mismo remedio — reanudar; las fases hechas son cache-hit y el disco se
+  // corrige. Cambia solo el texto: cancelar no fue un error.
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
       <LibraryViewHeader title={projectName} />
       <div className="space-y-3 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6">
         <p className="font-body text-sm text-muted-foreground">
-          {t('library.progress.interrupted')}
+          {metadata.state === 'paused'
+            ? t('library.progress.cancelled')
+            : t('library.progress.interrupted')}
         </p>
         <Button onClick={resume} className="rounded-xl font-display font-bold">
           <RotateCcw className="mr-1.5 h-4 w-4" />
