@@ -207,25 +207,30 @@ export function CreateForm({
         </span>
       </label>
 
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
-        <input
-          type="checkbox"
-          checked={value.confirmScenes}
-          disabled={disabled}
-          onChange={(event) =>
-            onChange({ confirmScenes: event.target.checked })
-          }
-          className="mt-1 h-4 w-4 accent-saffron"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block font-display text-sm font-semibold text-foreground">
-            {t('create.scenes.confirmLabel')}
+      {/* Solo con estilo de catálogo: con Mi estilo la pausa (elegir cuánto
+          dura cada escena) la gobierna la preferencia «No preguntarme al
+          generar» de Ajustes, y acá no hay nada que marcar. */}
+      {value.styleSource === 'catalog' && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
+          <input
+            type="checkbox"
+            checked={value.confirmScenes}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ confirmScenes: event.target.checked })
+            }
+            className="mt-1 h-4 w-4 accent-saffron"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-sm font-semibold text-foreground">
+              {t('create.scenes.confirmLabel')}
+            </span>
+            <span className="mt-0.5 block font-body text-xs text-muted-foreground">
+              {t('create.scenes.confirmHint')}
+            </span>
           </span>
-          <span className="mt-0.5 block font-body text-xs text-muted-foreground">
-            {t('create.scenes.confirmHint')}
-          </span>
-        </span>
-      </label>
+        </label>
+      )}
 
       <Button
         size="lg"

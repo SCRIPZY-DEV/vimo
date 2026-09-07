@@ -61,6 +61,8 @@ export function Create() {
 interface CreateViewProps {
   initialSceneCount: number
   initialSecondsPerScene: number
+  // Preferencia «preguntar al generar» de Ajustes: siembra la casilla del
+  // catálogo y fija (sin casilla) la pausa de duración del estilo propio.
   initialConfirmScenes: boolean
   initialPromptModel: string | null
 }
@@ -90,6 +92,8 @@ function CreateView({
     sceneCount: initialSceneCount,
     secondsPerScene: initialSecondsPerScene,
     confirmScenes: initialConfirmScenes,
+    // Con estilo propio no hay casilla: la pausa la decide Ajustes.
+    confirmSceneDuration: initialConfirmScenes,
     promptModel: initialPromptModel,
   }))
 

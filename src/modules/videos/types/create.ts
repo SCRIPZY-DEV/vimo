@@ -190,7 +190,14 @@ export interface CreateFormValue {
   bgmInstrumental: boolean
   useOverlay: boolean
   overlayUrl: string
+  // Pausa para confirmar la CANTIDAD de escenas: la casilla del formulario,
+  // que solo se muestra con estilo de catálogo. Se siembra con la preferencia
+  // de Ajustes.
   confirmScenes: boolean
+  // Pausa para elegir la DURACIÓN de cada escena (solo viaja con estilo
+  // propio). No tiene casilla: es la preferencia «No preguntarme al generar»
+  // de Ajustes, con la que se siembra, y el formulario no la toca.
+  confirmSceneDuration: boolean
   // Quema el texto de cada escena abajo del video al renderizar.
   subtitles: boolean
   // Con false (default), al terminar la generación se va al editor y el

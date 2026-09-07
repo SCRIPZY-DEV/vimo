@@ -490,7 +490,10 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   bgmInstrumental: true,
   useOverlay: false,
   overlayUrl: '',
+  // Create siembra las dos con la preferencia de Ajustes; la segunda no tiene
+  // casilla (ver CreateFormValue).
   confirmScenes: true,
+  confirmSceneDuration: true,
   subtitles: false,
   autoRender: false,
   videoFormat: DEFAULT_VIDEO_FORMAT,

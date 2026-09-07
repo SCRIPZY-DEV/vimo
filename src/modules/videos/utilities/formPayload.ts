@@ -25,7 +25,12 @@ export function createProjectPayload(
     imageQuality: form.imageQuality,
     useBgm: form.useBgm,
     useOverlay: form.useOverlay,
-    confirmScenes: form.confirmScenes,
+    // La pausa de escenas: con catálogo es la casilla del formulario; con
+    // estilo propio no hay casilla y manda la preferencia «No preguntarme al
+    // generar» de Ajustes, que decide si se pregunta la duración de escena.
+    confirmScenes: usesCustomStyle
+      ? form.confirmSceneDuration
+      : form.confirmScenes,
     subtitles: form.subtitles,
     autoRender: form.autoRender,
     videoFormat: form.videoFormat,

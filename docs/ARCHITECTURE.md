@@ -419,7 +419,10 @@ preview de otro estilo (ADR-0021).
 
 ### La pausa de confirmación de escenas
 
-Cuando el usuario pidió confirmar, `scene-cuts` emite
+Cuando el usuario pidió confirmar — con estilo de catálogo, la casilla
+«Confirmar escenas antes de generar» del formulario; con estilo propio, la
+preferencia «No preguntarme al generar» de Ajustes, sin casilla en el
+formulario —, `scene-cuts` emite
 `awaiting-scene-confirmation` y devuelve `{ pause: true }`. El job termina con
 `job-completed { status: 'awaiting-confirmation' }` — **un cierre limpio no es
 un completado**. La interfaz muestra el diálogo; al confirmar llama a

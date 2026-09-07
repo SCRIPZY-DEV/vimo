@@ -66,6 +66,15 @@ de cada escena (el número sale del audio) en vez del conteo.
    `.env` (ADR-0010 prohíbe el entorno). El selector de modelo llegó en la
    rama 11 ([ADR-0020](ADR-0020-selector-de-modelo-y-personaje-de-la-gema.md)).
 
+> **Adenda 2026-09-07.** La pausa del carril de segundos no tiene casilla en
+> el formulario: con «Mi estilo» la decide la preferencia «No preguntarme al
+> generar» de Ajustes (`confirmScenes` de `SceneDurationDefaults`, PR #37), que
+> Create copia al proyecto como `options.confirmScenes` vía
+> `CreateFormValue.confirmSceneDuration`. La casilla «Confirmar escenas antes
+> de generar» queda solo para el estilo de catálogo, donde no hay preferencia
+> que la reemplace. El contrato del sidecar no cambia: sigue recibiendo el
+> booleano y pausando igual.
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por
