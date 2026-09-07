@@ -3,7 +3,12 @@
     "resume": "Resume",
     "openVideo": "Play",
     "revealVideo": "Show in folder",
-    "proximamente": "Coming soon"
+    "proximamente": "Coming soon",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position"
+    }
   },
   "layout": {
     "sidebar": {
@@ -615,7 +620,8 @@
       "fileHint": "Pick an audio file from your computer (mp3, wav, ogg, m4a or aac).",
       "pickFile": "Choose file…",
       "remove": "Remove music from the project",
-      "updated": "Music updated"
+      "updated": "Music updated",
+      "current": "Current music"
     },
     "audio": {
       "title": "Project audio",
@@ -762,11 +768,6 @@
       "eliminar": "Delete",
       "confirmarEliminar": "Delete this track from your history?",
       "eliminada": "Track deleted from history."
-    },
-    "player": {
-      "reproducir": "Play",
-      "pausar": "Pause",
-      "posicion": "Position"
     },
     "errores": {
       "network": "Could not reach the music service. Check your connection.",
@@ -1001,11 +1002,6 @@
       "eliminar": "Delete narration",
       "confirmarEliminar": "Delete this narration from the history?",
       "eliminada": "Narration deleted."
-    },
-    "player": {
-      "reproducir": "Play",
-      "pausar": "Pause",
-      "posicion": "Position"
     },
     "errores": {
       "network": "Couldn't reach the voice service. Check your connection.",
