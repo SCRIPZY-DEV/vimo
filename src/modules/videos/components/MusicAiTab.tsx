@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, Wand2 } from 'lucide-react'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
@@ -120,7 +121,7 @@ export function MusicAiTab({
                 {option.title ??
                   t('library.music.variation', { number: index + 1 })}
               </p>
-              <audio controls src={option.audioUrl} className="w-full" />
+              <AudioPlayer src={option.audioUrl} />
               <Button
                 size="sm"
                 disabled={busy}
