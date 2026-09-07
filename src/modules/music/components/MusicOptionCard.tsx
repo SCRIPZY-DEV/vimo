@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Music2 } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { OPTION_GRADIENTS } from '@/modules/music/constants'
-import { MusicAudioPlayer } from '@/modules/music/components/MusicAudioPlayer'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import type { MusicOption } from '@pipeline/types/music.ts'
 
 interface MusicOptionCardProps {
@@ -58,7 +58,7 @@ export function MusicOptionCard({
 
       {/* Las opciones se escuchan desde la URL remota de Evolink (dura 72 h);
           recién la elegida se descarga al historial. */}
-      <MusicAudioPlayer src={option.audioUrl} />
+      <AudioPlayer src={option.audioUrl} />
 
       <Button
         onClick={() => onChoose(option)}

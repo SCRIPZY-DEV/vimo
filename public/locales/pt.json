@@ -3,7 +3,12 @@
     "resume": "Retomar",
     "openVideo": "Reproduzir",
     "revealVideo": "Mostrar na pasta",
-    "proximamente": "Em breve"
+    "proximamente": "Em breve",
+    "player": {
+      "play": "Reproduzir",
+      "pause": "Pausar",
+      "position": "Posição"
+    }
   },
   "layout": {
     "sidebar": {
@@ -615,7 +620,8 @@
       "fileHint": "Escolha um áudio do seu computador (mp3, wav, ogg, m4a ou aac).",
       "pickFile": "Escolher arquivo…",
       "remove": "Remover música do projeto",
-      "updated": "Música atualizada"
+      "updated": "Música atualizada",
+      "current": "Música atual"
     },
     "audio": {
       "title": "Áudio do projeto",
@@ -762,11 +768,6 @@
       "eliminar": "Excluir",
       "confirmarEliminar": "Excluir esta música do histórico?",
       "eliminada": "Música excluída do histórico."
-    },
-    "player": {
-      "reproducir": "Reproduzir",
-      "pausar": "Pausar",
-      "posicion": "Posição"
     },
     "errores": {
       "network": "Não foi possível conectar ao serviço de música. Verifique sua conexão.",
@@ -1004,11 +1005,6 @@
       "eliminar": "Excluir narração",
       "confirmarEliminar": "Excluir esta narração do histórico?",
       "eliminada": "Narração excluída."
-    },
-    "player": {
-      "reproducir": "Reproduzir",
-      "pausar": "Pausar",
-      "posicion": "Posição"
     },
     "errores": {
       "network": "Não foi possível conectar ao serviço de vozes. Verifique sua conexão.",

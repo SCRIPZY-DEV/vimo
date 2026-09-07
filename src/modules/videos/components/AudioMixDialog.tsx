@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Mic, Upload } from 'lucide-react'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { SliderRow } from '@/modules/common/components/SliderRow'
 import { Button } from '@/modules/common/ui/button'
@@ -29,6 +30,9 @@ interface AudioMixDialogProps {
   hasMusic: boolean
   busy: boolean
   narrationPercent: number | null
+  // Pistas para el preview: se escuchan con el volumen del slider aplicado.
+  narrationSrc: string | null
+  musicSrc: string | null
   onClose(): void
   // Cada movimiento de slider: la vista lo previsualiza en el player.
   onChange(value: AudioMixValue): void
@@ -48,6 +52,8 @@ export function AudioMixDialog({
   hasMusic,
   busy,
   narrationPercent,
+  narrationSrc,
+  musicSrc,
   onClose,
   onChange,
   onSaveMix,
@@ -112,6 +118,10 @@ export function AudioMixDialog({
               formatValue={formatVolume}
             />
 
+            {narrationSrc && (
+              <AudioPlayer src={narrationSrc} volume={value.voiceVolume} />
+            )}
+
             {hasMusic && (
               <>
                 <SliderRow
@@ -138,6 +148,14 @@ export function AudioMixDialog({
                   }
                   formatValue={formatOffset}
                 />
+                {musicSrc && (
+                  <AudioPlayer
+                    src={musicSrc}
+                    volume={value.musicVolume}
+                    startSeconds={value.bgmOffsetSeconds}
+                    loop
+                  />
+                )}
               </>
             )}
 

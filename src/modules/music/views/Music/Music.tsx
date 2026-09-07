@@ -17,7 +17,7 @@ import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { musicApi } from '@/modules/music/api'
 import { MusicForm } from '@/modules/music/components/MusicForm'
 import { musicFormToParams } from '@/modules/music/utilities/formParams'
-import { MusicAudioPlayer } from '@/modules/music/components/MusicAudioPlayer'
+import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { MusicCreditsBadge } from '@/modules/music/components/MusicCreditsBadge'
 import { MusicHistoryPanel } from '@/modules/music/components/MusicHistoryPanel'
 import { MusicOptionCard } from '@/modules/music/components/MusicOptionCard'
@@ -277,7 +277,7 @@ export function Music() {
               </p>
             </div>
           </div>
-          <MusicAudioPlayer src={musicApi.audioSource(chosenEntry.audioPath)} />
+          <AudioPlayer src={musicApi.audioSource(chosenEntry.audioPath)} />
           <p className="font-body text-xs text-muted-foreground">
             {t('music.resultado.guardada')}
           </p>
