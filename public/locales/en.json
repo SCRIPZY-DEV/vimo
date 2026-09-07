@@ -834,11 +834,11 @@
       "improve": "Improve description with AI"
     },
     "preview": {
-      "titulo": "Preview by style",
-      "nota": "Each preview uses provider credits and is stored with the character.",
-      "proveedor": "Provider",
-      "generar": "Generate preview",
-      "regenerar": "Regenerate preview",
+      "titulo": "See how it would look — generate a preview per style",
+      "nota": "These previews are stored with the character. Build may vary slightly between scenes.",
+      "proveedor": "Generate with:",
+      "generar": "Generate preview in {{style}} ({{provider}})",
+      "regenerar": "Regenerate preview in {{style}} ({{provider}})",
       "cancelar": "Cancel",
       "vacio": "You haven't generated any preview yet.",
       "faltaClave": "You need the key for the selected provider.",
@@ -846,10 +846,13 @@
       "writingPrompt": "Writing the prompt…",
       "customStyleBadge": "Custom style",
       "customStyleNote": "With a custom style, your gem writes the portrait prompt (one AI call, needs DeepInfra) and then the image is generated.",
-      "deletedStyle": "Deleted style"
+      "deletedStyle": "Deleted style",
+      "sourceCatalog": "Catalog",
+      "sourceCustom": "My style",
+      "sinEstilosPropios": "You don't have custom styles in your gallery yet."
     },
     "styles": {
-      "normal": "Normal",
+      "normal": "Realistic",
       "stickman": "POV Stickman",
       "cartoon": "2D Cartoon",
       "fantasy": "Magic fantasy",
