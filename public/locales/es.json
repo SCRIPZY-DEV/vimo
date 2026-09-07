@@ -650,10 +650,12 @@
         "lastError": "Último intento: {{reason}}"
       },
       "render": {
-        "render": "Renderizar video",
-        "rerender": "Re-renderizar (desactualizado)",
-        "rerenderClean": "Re-renderizar",
-        "help": "Regenera el video con los últimos cambios",
+        "render": "Exportar video",
+        "rerender": "Re-exportar",
+        "rerenderClean": "Re-exportar",
+        "helpDraft": "Genera el video final con los cambios de esta edición",
+        "helpCurrent": "El video ya está al día; exportalo de nuevo solo si querés rehacerlo",
+        "helpOutdated": "Re-exporta el video con los últimos cambios",
         "cancel": "Cancelar render",
         "phase": {
           "chunks": "Armando escenas",

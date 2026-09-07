@@ -650,10 +650,12 @@
         "lastError": "Last attempt: {{reason}}"
       },
       "render": {
-        "render": "Render video",
-        "rerender": "Re-render (outdated)",
-        "rerenderClean": "Re-render",
-        "help": "Regenerates the video with the latest changes",
+        "render": "Export video",
+        "rerender": "Re-export",
+        "rerenderClean": "Re-export",
+        "helpDraft": "Generates the final video with the changes from this edit",
+        "helpCurrent": "The video is already up to date; export it again only if you want to rebuild it",
+        "helpOutdated": "Re-exports the video with your latest changes",
         "cancel": "Cancel render",
         "phase": {
           "chunks": "Building scenes",
