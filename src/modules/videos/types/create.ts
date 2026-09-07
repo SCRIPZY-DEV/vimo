@@ -151,6 +151,8 @@ export interface CreateFormValue {
   useOverlay: boolean
   overlayUrl: string
   confirmScenes: boolean
+  // Quema el texto de cada escena abajo del video al renderizar.
+  subtitles: boolean
   // Con false (default), al terminar la generación se va al editor y el
   // render se dispara desde ahí (ADR-0016).
   autoRender: boolean
