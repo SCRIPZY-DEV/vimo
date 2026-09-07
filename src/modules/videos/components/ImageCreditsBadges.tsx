@@ -15,6 +15,9 @@ interface ImageCreditsBadgesProps {
   // Pista visual: el proveedor elegido (en el formulario, para la escena o
   // para las muestras de un estilo); null = ninguno resaltado.
   active: ImageProviderId | null
+  // Solo la pill del proveedor activo (el panel del editor, donde el resto
+  // sería ruido); por defecto se ven las dos.
+  onlyActive?: boolean
   onRefresh: () => void
 }
 
@@ -25,31 +28,38 @@ export function ImageCreditsBadges({
   loading,
   refreshing,
   active,
+  onlyActive = false,
   onRefresh,
 }: ImageCreditsBadgesProps) {
   const { t } = useTranslation()
   const busy = loading || refreshing
+  const showFal = !onlyActive || active === 'fal'
+  const showEvolink = !onlyActive || active === 'evolink'
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <CreditsBadge
-        provider="fal.ai"
-        status={credits?.fal ?? null}
-        loading={loading}
-        active={active === 'fal'}
-        formatBalance={(remaining, currency) =>
-          `$${remaining.toFixed(2)} ${currency ?? 'USD'}`
-        }
-      />
-      <CreditsBadge
-        provider="evolink.ai"
-        status={credits?.evolink ?? null}
-        loading={loading}
-        active={active === 'evolink'}
-        formatBalance={(remaining) =>
-          t('create.credits.balance', { amount: formatCompact(remaining) })
-        }
-      />
+      {showFal && (
+        <CreditsBadge
+          provider="fal.ai"
+          status={credits?.fal ?? null}
+          loading={loading}
+          active={active === 'fal'}
+          formatBalance={(remaining, currency) =>
+            `$${remaining.toFixed(2)} ${currency ?? 'USD'}`
+          }
+        />
+      )}
+      {showEvolink && (
+        <CreditsBadge
+          provider="evolink.ai"
+          status={credits?.evolink ?? null}
+          loading={loading}
+          active={active === 'evolink'}
+          formatBalance={(remaining) =>
+            t('create.credits.balance', { amount: formatCompact(remaining) })
+          }
+        />
+      )}
       <button
         type="button"
         onClick={onRefresh}

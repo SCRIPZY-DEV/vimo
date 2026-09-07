@@ -162,6 +162,7 @@ export function EditorScenePanel({
         loading={creditsLoading}
         refreshing={creditsRefreshing}
         active={imageChoice.provider}
+        onlyActive
         onRefresh={onRefreshCredits}
       />
 

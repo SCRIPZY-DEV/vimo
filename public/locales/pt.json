@@ -421,8 +421,7 @@
     },
     "credits": {
       "balance": "{{amount}} cr.",
-      "configure": "configurar",
-      "adminRequired": "Admin necessário",
+      "notConfigured": "Sem configurar",
       "error": "erro",
       "refresh": "Atualizar saldos"
     },
