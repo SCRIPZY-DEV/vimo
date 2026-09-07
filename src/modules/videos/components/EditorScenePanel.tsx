@@ -9,6 +9,7 @@ import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPick
 import type { SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
+import { formatClipTime } from '@/modules/videos/utilities/formatClipTime'
 import { priceForQuality } from '@/modules/videos/utilities/imageQuality'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
 import type {
@@ -96,14 +97,46 @@ export function EditorScenePanel({
           placeholder={t('library.editor.panel.userPromptPlaceholder')}
           onChange={(event) => onUserPromptChange(event.target.value)}
           onBlur={onUserPromptBlur}
-          className="min-h-24 font-body text-sm"
+          className="min-h-32 font-body text-sm"
         />
-        <p className="text-right font-body text-[11px] text-muted-foreground">
-          {t('library.editor.panel.promptChars', {
-            used: (scene.userPrompt ?? '').length,
-            max: MAX_USER_PROMPT_CHARS,
-          })}
-        </p>
+        {/* Como en el origen: la ayuda a la izquierda, el contador a la
+            derecha, y debajo los tiempos de entrada y salida del clip. */}
+        <div className="flex items-start justify-between gap-3 font-body text-[11px] text-muted-foreground">
+          <p>
+            <span className="font-semibold text-foreground">
+              {t('library.editor.panel.promptHintLead')}
+            </span>{' '}
+            {t('library.editor.panel.promptHint', {
+              max: MAX_USER_PROMPT_CHARS,
+            })}
+          </p>
+          <span className="shrink-0 font-mono tabular-nums">
+            {t('library.editor.panel.promptChars', {
+              used: (scene.userPrompt ?? '').length,
+              max: MAX_USER_PROMPT_CHARS,
+            })}
+          </span>
+        </div>
+        {scene.startSeconds !== undefined && scene.endSeconds !== undefined && (
+          <div className="flex items-center justify-between pt-1 font-body text-xs">
+            <span>
+              <span className="font-display font-bold text-foreground">
+                {t('library.editor.panel.clipIn')}
+              </span>{' '}
+              <span className="font-mono tabular-nums text-muted-foreground">
+                {formatClipTime(scene.startSeconds)}
+              </span>
+            </span>
+            <span>
+              <span className="font-display font-bold text-foreground">
+                {t('library.editor.panel.clipOut')}
+              </span>{' '}
+              <span className="font-mono tabular-nums text-muted-foreground">
+                {formatClipTime(scene.endSeconds)}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       <SceneQualityPicker

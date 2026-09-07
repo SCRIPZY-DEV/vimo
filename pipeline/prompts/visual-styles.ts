@@ -262,8 +262,9 @@ STYLE: Pure dark horror photography style, cinematic gothic horror film aestheti
 }
 
 // Cap del SCENE editado por el usuario en la UI de regeneración (port de
-// MAX_CHARS_PROMPT_USUARIO). El backend rechaza valores mayores.
-export const MAX_USER_PROMPT_CHARS = 1000
+// MAX_CHARS_PROMPT_USUARIO: 2500 como en la web de origen). El backend
+// rechaza valores mayores (mismo valor en commands/videos/update-scenes.ts).
+export const MAX_USER_PROMPT_CHARS = 2500
 
 export function isCharacterStyleId(value: unknown): value is CharacterStyleId {
   return typeof value === 'string' && value in VISUAL_STYLES

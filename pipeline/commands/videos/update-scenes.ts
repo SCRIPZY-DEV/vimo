@@ -21,8 +21,10 @@ import type {
 // de 1). Un solo read-modify-write para todo el lote — el drag de fronteras
 // del timeline manda las dos escenas afectadas juntas y jamás se pisan.
 
-// Cap del prompt manual (espejado en la UI, port de MAX_CHARS_PROMPT_USUARIO).
-export const MAX_USER_PROMPT_CHARS = 1000
+// Cap del prompt manual (espejado en la UI, port de MAX_CHARS_PROMPT_USUARIO:
+// 2500 como en la web de origen). Mismo valor en prompts/visual-styles.ts y
+// en src/modules/videos/constants.ts.
+export const MAX_USER_PROMPT_CHARS = 2500
 
 export async function updateScenes(
   context: PipelineContext,

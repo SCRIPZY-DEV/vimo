@@ -147,8 +147,9 @@ export const BGM_OFFSET_MAX_SECONDS = 120
 export const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const
 export type PlaybackRate = (typeof PLAYBACK_RATES)[number]
 
-// Espejo del cap del sidecar (update-scenes.ts).
-export const MAX_USER_PROMPT_CHARS = 1000
+// Espejo del cap del sidecar (update-scenes.ts): 2500, como en la web de
+// origen. Si cambia acá tiene que cambiar allá, o el sidecar rechaza el texto.
+export const MAX_USER_PROMPT_CHARS = 2500
 
 // Badges con un job en curso o a medias: desde la biblioteca navegan a Progress.
 export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
