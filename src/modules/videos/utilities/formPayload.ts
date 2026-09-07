@@ -26,6 +26,7 @@ export function createProjectPayload(
     useBgm: form.useBgm,
     useOverlay: form.useOverlay,
     confirmScenes: form.confirmScenes,
+    subtitles: form.subtitles,
     autoRender: form.autoRender,
     videoFormat: form.videoFormat,
   }

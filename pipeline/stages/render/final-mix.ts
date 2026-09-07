@@ -68,6 +68,9 @@ export interface FinalMixInputs {
   overlayFile?: string
   // Cadena de filtros de color del estilo ("" = natural).
   colorFilter: string
+  // Filtro `subtitles=` ya armado (pipeline/stages/render/subtitles.ts);
+  // ausente = video sin texto, cadena idéntica a la de siempre.
+  subtitlesFilter?: string
   voiceVolume?: number
   musicVolume?: number
   // Segundos que se saltean del arranque de la música (Library, ADR-0014).
@@ -157,14 +160,20 @@ export async function mixFinalVideo(
       : `scale=${width}:${height}:force_original_aspect_ratio=increase,` +
         `crop=${width}:${height},setpts=PTS-STARTPTS`
 
+  // Los subtítulos van DESPUÉS del color del estilo: si no, el filtro los
+  // tiñe junto con la imagen y el blanco deja de ser blanco.
+  const videoChain = inputs.subtitlesFilter
+    ? `${colorChain},${inputs.subtitlesFilter}`
+    : colorChain
+
   let filter = `[0:v]tpad=stop_mode=clone:stop_duration=${padSeconds.toFixed(3)}[vpad];`
   if (overlayIndex >= 0) {
     filter +=
       `[${overlayIndex}:v]${overlayScale}[ovl];` +
       `[vpad][ovl]blend=all_mode=screen:shortest=1[blended];` +
-      `[blended]${colorChain}[finalvideo];`
+      `[blended]${videoChain}[finalvideo];`
   } else {
-    filter += `[vpad]${colorChain}[finalvideo];`
+    filter += `[vpad]${videoChain}[finalvideo];`
   }
 
   const voiceVolume = clampVolume(inputs.voiceVolume ?? 1.0, 1.0)

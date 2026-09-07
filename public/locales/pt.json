@@ -390,6 +390,10 @@
       "error": "erro",
       "refresh": "Atualizar saldos"
     },
+    "subtitles": {
+      "label": "Adicionar legendas ao vídeo",
+      "hint": "O texto de cada cena aparece escrito embaixo, sobre o vídeo."
+    },
     "autoRender": {
       "label": "Exportar o vídeo automaticamente ao terminar",
       "hint": "Se ativado, o Vimo monta o vídeo no final. Se desativado, você vai ao editor para revisar/editar antes de exportar."

@@ -10,6 +10,7 @@ import { PipelineFailure } from '../runner/failure.ts'
 // <projectsRoot>/<slug>/
 // ├── project.json  script.txt  narration.mp3  music.mp3  overlay.mp4
 // ├── words.json  scenes.json  scenes-confirmed.json  visual-context.txt
+// ├── subtitles.ass          (derivado de scenes.json; solo si options.subtitles)
 // ├── scenes/scene_<id>.jpg      characters/reference_N.jpg
 // ├── cache/chunks/              prompts.md
 // ├── clips/clip_NN.mp4          (export para editar; regenerable, ADR-0014)
@@ -36,6 +37,7 @@ export interface ProjectPaths {
   scenesFile: string
   scenesConfirmedFile: string
   visualContextFile: string
+  subtitlesFile: string
   scenesDirectory: string
   charactersDirectory: string
   chunksCacheDirectory: string
@@ -94,6 +96,7 @@ export function resolveProjectPaths(
     scenesFile: join(projectDir, 'scenes.json'),
     scenesConfirmedFile: join(projectDir, 'scenes-confirmed.json'),
     visualContextFile: join(projectDir, 'visual-context.txt'),
+    subtitlesFile: join(projectDir, 'subtitles.ass'),
     scenesDirectory: join(projectDir, 'scenes'),
     charactersDirectory: join(projectDir, 'characters'),
     chunksCacheDirectory: join(projectDir, 'cache', 'chunks'),
