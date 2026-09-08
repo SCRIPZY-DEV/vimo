@@ -101,10 +101,14 @@ export async function synthesizeEdge(
 
 export const edgeProvider: TtsProvider = {
   id: 'edge',
+  vendor: 'dubvoice',
   laneName: 'Edge TTS (via DubVoice)',
   requestCharLimit: EDGE_CHAR_LIMIT,
   chunksLongText: false,
   reportsProgress: false,
+  apiKeyOf(apiKeys) {
+    return apiKeys.dubvoice
+  },
   listVoices({ apiKey, signal }) {
     return listEdgeVoices(apiKey, signal).then((voices) => ({ voices }))
   },

@@ -197,10 +197,14 @@ export async function synthesizeElevenLabs(
 
 export const elevenLabsProvider: TtsProvider = {
   id: 'elevenlabs',
+  vendor: 'dubvoice',
   laneName: 'ElevenLabs via DubVoice',
   requestCharLimit: ELEVENLABS_CHAR_LIMIT,
   chunksLongText: false,
   reportsProgress: true,
+  apiKeyOf(apiKeys) {
+    return apiKeys.dubvoice
+  },
   listVoices({ apiKey, filters, signal }) {
     return listElevenLabsVoices(apiKey, filters, signal)
   },
