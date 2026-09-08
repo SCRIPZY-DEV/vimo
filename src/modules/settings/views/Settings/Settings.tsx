@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router'
 import { motion } from 'framer-motion'
 import { FolderOpen, FolderSync, RotateCcw } from 'lucide-react'
 import DoodleLightbulb from '@/modules/common/doodles/DoodleLightbulb'
@@ -9,6 +10,10 @@ import { SceneCountSection } from '@/modules/settings/components/SceneCountSecti
 import { SceneDurationSection } from '@/modules/settings/components/SceneDurationSection'
 import { PromptModelSection } from '@/modules/settings/components/PromptModelSection'
 import { useProjectsRoot } from '@/modules/settings/hooks/useProjectsRoot'
+import {
+  PROMPT_MODEL_FOCUS,
+  SETTINGS_FOCUS_PARAM,
+} from '@/modules/settings/constants'
 
 /**
  * Ajustes de la aplicación: la carpeta raíz donde Vimo guardará los proyectos
@@ -28,8 +33,13 @@ export function Settings() {
     openFolder,
     changing,
   } = useProjectsRoot()
+  const [searchParams] = useSearchParams()
 
   usePageTitle(t('settings.pageTitle'))
+
+  // `?focus=promptModel` (desde el link de Crear): esa tarjeta recibe scroll
+  // y queda resaltada.
+  const focusedSection = searchParams.get(SETTINGS_FOCUS_PARAM)
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
@@ -122,7 +132,7 @@ export function Settings() {
 
       <SceneDurationSection />
 
-      <PromptModelSection />
+      <PromptModelSection focused={focusedSection === PROMPT_MODEL_FOCUS} />
     </div>
   )
 }
