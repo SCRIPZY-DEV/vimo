@@ -339,6 +339,9 @@
       }
     },
     "validation": {
+      "title_one": "1 step left before you can generate",
+      "title_other": "{{count}} steps left before you can generate",
+      "hint": "Fill these in and the Generate button will run.",
       "nameRequired": "Give the video a name.",
       "scriptRequired": "Write the script to be narrated.",
       "voiceRequired": "Pick the narration voice.",

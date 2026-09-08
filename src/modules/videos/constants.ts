@@ -65,6 +65,9 @@ export const videosQueryKeys = {
 // La tarea sobrevive navegación y reinicios: el proyecto vive en disco.
 export const CREATE_TASK_STORAGE_KEY = 'vimo:create:task:v1'
 
+// La alerta de pasos faltantes: el botón de generar la referencia por id.
+export const CREATE_BLOCKERS_ID = 'create-blockers'
+
 // Espejo de los límites del sidecar (pipeline/commands/videos).
 export const PROJECT_NAME_LIMIT = 80
 // El guion no puede superar lo que la voz es capaz de narrar.

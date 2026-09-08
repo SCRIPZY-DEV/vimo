@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
@@ -5,6 +6,7 @@ import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { CharacterSection } from '@/modules/videos/components/CharacterSection'
+import { CreateBlockersAlert } from '@/modules/videos/components/CreateBlockersAlert'
 import { CustomStyleGallery } from '@/modules/videos/components/CustomStyleGallery'
 import { ImageProviderSection } from '@/modules/videos/components/ImageProviderSection'
 import { NarrationSection } from '@/modules/videos/components/NarrationSection'
@@ -14,7 +16,11 @@ import { StyleGallery } from '@/modules/videos/components/StyleGallery'
 import { StyleSourceTabs } from '@/modules/videos/components/StyleSourceTabs'
 import { VideoFormatSection } from '@/modules/videos/components/VideoFormatSection'
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
-import { MAX_SCENE_COUNT, PROJECT_NAME_LIMIT } from '@/modules/videos/constants'
+import {
+  CREATE_BLOCKERS_ID,
+  MAX_SCENE_COUNT,
+  PROJECT_NAME_LIMIT,
+} from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -38,8 +44,25 @@ export function CreateForm({
 }: CreateFormProps) {
   const { t } = useTranslation()
 
+  const [attempts, setAttempts] = useState(0)
+  const blockersRef = useRef<HTMLDivElement>(null)
+
   const blockers = formBlockers(value)
-  const canSubmit = blockers.length === 0 && !submitting
+
+  // El botón no se deshabilita en silencio: al pulsarlo con pasos faltantes
+  // lleva a la alerta y la sacude, en vez de no hacer nada.
+  const handleSubmit = () => {
+    if (blockers.length > 0) {
+      setAttempts((current) => current + 1)
+      blockersRef.current?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      })
+      return
+    }
+
+    onSubmit()
+  }
 
   return (
     <div
@@ -158,18 +181,12 @@ export function CreateForm({
         onChange={onChange}
       />
 
-      {blockers.length > 0 && (
-        <ul className="space-y-1 rounded-xl border-2 border-saffron/60 bg-saffron/5 px-4 py-3">
-          {blockers.map((blocker) => (
-            <li
-              key={blocker}
-              className="font-body text-xs text-muted-foreground"
-            >
-              {t(blocker)}
-            </li>
-          ))}
-        </ul>
-      )}
+      <CreateBlockersAlert
+        ref={blockersRef}
+        id={CREATE_BLOCKERS_ID}
+        blockers={blockers}
+        attempts={attempts}
+      />
 
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
         <input
@@ -234,8 +251,10 @@ export function CreateForm({
 
       <Button
         size="lg"
-        disabled={!canSubmit}
-        onClick={onSubmit}
+        disabled={submitting}
+        onClick={handleSubmit}
+        aria-invalid={blockers.length > 0}
+        aria-describedby={blockers.length > 0 ? CREATE_BLOCKERS_ID : undefined}
         className="w-full rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
       >
         {submitting ? (
