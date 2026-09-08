@@ -130,7 +130,7 @@ subcomandos:
 | `videos/`     | `create-video-project`, `upload-narration`, `run-video-pipeline`, `video-project-status`, `confirm-scenes`, `probe-tts`, `list-video-projects`, `delete-video-projects`, `video-project-detail`, `update-scenes`, `regenerate-scene-images`, `render-video`, `update-audio-mix`, `replace-narration`, `set-project-music`, `export-clips`, `get-image-credits` | `<projectsRoot>/<slug>/`               |
 | `characters/` | `characters-list`, `character-create`, `character-update`, `character-delete`, `suggest-character-profile`, `generate-character-preview`                                                                                                                                                                                                                       | `<projectsRoot>/characters/<id>/`      |
 | `music/`      | `suggest-music-prompt`, `generate-music`, `choose-music`, `get-music-credits`, `music-history-list`, `music-history-delete`                                                                                                                                                                                                                                    | `<projectsRoot>/_history/music/<id>/`  |
-| `voices/`     | `list-voices`, `generate-voice`, `get-voice-credits`, `voice-history-list`, `voice-history-delete`                                                                                                                                                                                                                                                             | `<projectsRoot>/_history/voices/<id>/` |
+| `voices/`     | `list-voices`, `generate-voice`, `get-voice-credits`, `voice-history-list`, `voice-history-delete`, `add-library-voice`                                                                                                                                                                                                                                        | `<projectsRoot>/_history/voices/<id>/` |
 
 ## 6. Las 6 stages del video (el corazón)
 
@@ -225,16 +225,24 @@ avance). La concurrencia por carril vive en `utils/concurrency.ts`.
 ## 9. La cascada de TTS
 
 La narración (`stages/voice/narration.ts`) y el módulo de voces usan el
-registro `TTS_PROVIDERS` de `providers/tts/registry.ts`:
+registro `TTS_PROVIDERS` de `providers/tts/registry.ts`. Cada motor declara su
+vendor y su clave (`apiKeyOf`) y, por id, sus carriles de respaldo
+(`fallbackProviderIds`); el registro los resuelve, así ningún motor importa a otro
+(ADR-0024):
 
 ```mermaid
 flowchart TD
-  narr["Pedido de síntesis<br/>(proveedor elegido por el usuario)"] --> dub["DubVoice (agregador)<br/>providers/tts/dubvoice.ts"]
+  narr["Pedido de síntesis<br/>(motor elegido por el usuario)"] --> dub["DubVoice (agregador)<br/>providers/tts/dubvoice.ts"]
+  narr --> direct["ElevenLabs directo<br/>providers/tts/elevenlabs-direct.ts"]
   dub --> mini["minimax.ts"]
   dub --> el["elevenlabs.ts"]
   dub --> edge["edge.ts"]
-  el -. "si DubVoice falla y hay<br/>clave propia de ElevenLabs" .-> direct["elevenlabs-direct.ts<br/>fallback BYO key"]
+  el -. "si DubVoice falla y hay<br/>clave propia de ElevenLabs" .-> direct
+  direct -. "si ElevenLabs falla y hay<br/>clave de DubVoice" .-> el
 ```
+
+El saldo es del **vendor**, no del motor: `providers/tts/vendors.ts` (créditos de
+DubVoice o cuota de caracteres de ElevenLabs).
 
 ## 10. Reuso de stages fuera del pipeline completo (ADR-0014)
 
@@ -250,16 +258,16 @@ proyecto, apoyándose en los `skip()`:
 
 ## 11. Servicios externos: quién llama a qué
 
-| Servicio                  | Cliente en `providers/`                                                   | Consumido desde                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| DeepInfra (LLM, 3 tiers)  | `llm/deepinfra.ts` + `llm/generate.ts` (reintentos y degradación de tier) | `stages/shared/llm.ts`, sugerencias de música y de perfil de personaje                                      |
-| Deepgram (transcripción)  | `transcription/deepgram.ts`                                               | `stages/transcription/`                                                                                     |
-| Fal (imágenes)            | `image/fal.ts`                                                            | `stages/images/fal-lane.ts`, `character-lane.ts`, créditos                                                  |
-| Evolink (imágenes + Suno) | `image/evolink.ts`, `music/evolink.ts`                                    | `stages/images/evolink-lane.ts`, `character-lane.ts`, `stages/voice/background-music.ts`, `commands/music/` |
-| DubVoice (agregador TTS)  | `tts/dubvoice.ts` + `minimax/elevenlabs/edge.ts`                          | `stages/voice/narration.ts`, `commands/voices/`, `probe-tts`                                                |
-| ElevenLabs directo        | `tts/elevenlabs-direct.ts`                                                | fallback de `tts/elevenlabs.ts` (BYO key)                                                                   |
-| ffmpeg (binario)          | `utils/ffmpeg.ts` — **único spawn**                                       | transcription, render, narración, upload/replace de audio, duraciones                                       |
-| yt-dlp (binario)          | `ytdlp/download.ts`                                                       | música de fondo por URL, overlay, `set-project-music`                                                       |
+| Servicio                  | Cliente en `providers/`                                                   | Consumido desde                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| DeepInfra (LLM, 3 tiers)  | `llm/deepinfra.ts` + `llm/generate.ts` (reintentos y degradación de tier) | `stages/shared/llm.ts`, sugerencias de música y de perfil de personaje                                                           |
+| Deepgram (transcripción)  | `transcription/deepgram.ts`                                               | `stages/transcription/`                                                                                                          |
+| Fal (imágenes)            | `image/fal.ts`                                                            | `stages/images/fal-lane.ts`, `character-lane.ts`, créditos                                                                       |
+| Evolink (imágenes + Suno) | `image/evolink.ts`, `music/evolink.ts`                                    | `stages/images/evolink-lane.ts`, `character-lane.ts`, `stages/voice/background-music.ts`, `commands/music/`                      |
+| DubVoice (agregador TTS)  | `tts/dubvoice.ts` + `minimax/elevenlabs/edge.ts`                          | `stages/voice/narration.ts`, `commands/voices/`, `probe-tts`                                                                     |
+| ElevenLabs directo        | `tts/elevenlabs-direct.ts` (+ `tts/vendors.ts` para la cuota)             | `stages/voice/narration.ts`, `commands/voices/` (incl. `add-library-voice`), `probe-tts`; fallback mutuo con `tts/elevenlabs.ts` |
+| ffmpeg (binario)          | `utils/ffmpeg.ts` — **único spawn**                                       | transcription, render, narración, upload/replace de audio, duraciones                                                            |
+| yt-dlp (binario)          | `ytdlp/download.ts`                                                       | música de fondo por URL, overlay, `set-project-music`                                                                            |
 
 ## 12. Layout en disco de un proyecto
 
