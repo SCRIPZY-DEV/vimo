@@ -2,6 +2,12 @@ export const SettingsRoutes = {
   settings: '/settings',
 } as const
 
+// Query param con la sección a enfocar al entrar a Ajustes (mismo patrón que
+// api-keys): la vista hace scroll hasta ella y la resalta.
+export const SETTINGS_FOCUS_PARAM = 'focus'
+export const PROMPT_MODEL_FOCUS = 'promptModel'
+export const PROMPT_MODEL_SETTINGS_PATH = `${SettingsRoutes.settings}?${SETTINGS_FOCUS_PARAM}=${PROMPT_MODEL_FOCUS}`
+
 export const settingsQueryKeys = {
   projectsRoot: ['settings', 'projectsRoot'],
   defaultSceneCount: ['settings', 'defaultSceneCount'],
