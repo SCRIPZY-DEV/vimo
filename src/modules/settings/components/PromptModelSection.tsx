@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { PromptModelSelector } from '@/modules/common/components/PromptModelSelector'
@@ -15,7 +16,12 @@ import { PROMPT_MODEL_COMPACT_DEFAULT } from '../constants'
 // El simulador va sin gema (gemChars 0, sin fase de personaje): acá no hay
 // video, así que compara modelos entre sí sobre una base común.
 
-export function PromptModelSection() {
+interface PromptModelSectionProps {
+  // Se llegó con `?focus=promptModel` desde Crear.
+  focused: boolean
+}
+
+export function PromptModelSection({ focused }: PromptModelSectionProps) {
   const { t } = useTranslation()
   const { models, defaultId, batchSize } = usePromptModels()
   const {
@@ -30,13 +36,23 @@ export function PromptModelSection() {
   const compact = promptModelDefaults?.compact ?? PROMPT_MODEL_COMPACT_DEFAULT
   const disabled = !isNative || isLoading || saving
   const chosen = resolvePromptModel(modelId, models, defaultId)
+  const sectionRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (!focused) return
+    sectionRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focused])
 
   return (
     <motion.section
+      ref={sectionRef}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="space-y-4 rounded-2xl border-2 border-border bg-card p-6 shadow-card"
+      className={cn(
+        'space-y-4 rounded-2xl border-2 bg-card p-6 shadow-card transition-colors',
+        focused ? 'border-saffron' : 'border-border',
+      )}
     >
       <div>
         <h2 className="font-display text-lg font-bold text-foreground">
