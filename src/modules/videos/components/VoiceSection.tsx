@@ -5,6 +5,7 @@ import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { VoicePickerModal } from '@/modules/videos/components/VoicePickerModal'
 import { VoiceSettingsFields } from '@/modules/videos/components/VoiceSettingsFields'
+import { VOICE_PROVIDER_LABELS } from '@/modules/voices/constants'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
 interface VoiceSectionProps {
@@ -45,7 +46,7 @@ export function VoiceSection({ value, disabled, onChange }: VoiceSectionProps) {
                 {value.voice.name}
               </p>
               <p className="font-body text-xs text-muted-foreground">
-                {value.voice.provider}
+                {VOICE_PROVIDER_LABELS[value.voice.provider]}
               </p>
             </div>
             <span className="rounded bg-saffron px-2 py-1 font-display text-[10px] font-bold text-charcoal">
