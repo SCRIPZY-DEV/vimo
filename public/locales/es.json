@@ -1207,8 +1207,10 @@
     "sceneDurationDontAskHint": "Después de transcribir, el video se detiene para que elijas el ritmo y veas cuántas escenas salen.",
     "sceneDurationSaved": "Preferencia guardada.",
     "sceneDurationError": "No se pudo guardar la preferencia.",
-    "promptModelTitle": "Tu modelo de IA para escribir",
-    "promptModelTagline": "El modelo que escribe las escenas de tus videos de Mi estilo",
+    "promptModelTitle": "Tu modelo para escribir",
+    "promptModelTagline": "El modelo por defecto que redacta los prompts de cada imagen en los videos de Mi estilo.",
+    "promptModelCompactLabel": "Mostrar solo el modelo elegido al crear",
+    "promptModelCompactHint": "En «Mi estilo» verás solo la tarjeta de este modelo. Apagalo para comparar todos los modelos en cada video.",
     "promptModelEstimateNote": "Estimación sin estilo aplicado: en cada video el costo cambia según tu gema. En Crear podés usar otro modelo solo para ese video.",
     "promptModelSaved": "Preferencia guardada.",
     "promptModelError": "No se pudo guardar la preferencia."
