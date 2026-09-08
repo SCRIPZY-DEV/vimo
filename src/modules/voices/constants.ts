@@ -44,6 +44,14 @@ export const VOICE_TEXT_LIMITS: Record<VoiceProviderId, number> = {
   edge: 4500,
 }
 
+/**
+ * Tope total de caracteres que la voz puede narrar en un video (90 000,
+ * según el dueño, 2026-09-07). El guion de Crear se limita a esto: un guion
+ * más largo armaría un video cuya narración no se puede generar. Espejado
+ * en el sidecar (pipeline/commands/videos/create-video-project.ts).
+ */
+export const NARRATION_CHAR_LIMIT = 90_000
+
 /** Créditos DubVoice por carácter, para el costo estimado del probador. */
 export const VOICE_COST_FACTORS: Record<VoiceProviderId, number> = {
   minimax: 1,

@@ -132,7 +132,10 @@ export function NarrationSection({
             {t('create.script.wordCount', { count: countWords(value.script) })}
           </span>
           <span>
-            {value.script.length} / {SCRIPT_CHAR_LIMIT}
+            {t('create.script.charCount', {
+              count: value.script.length,
+              max: SCRIPT_CHAR_LIMIT,
+            })}
           </span>
         </div>
         {isUpload && (

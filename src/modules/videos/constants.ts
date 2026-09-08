@@ -14,7 +14,10 @@ import type {
   CharacterFrequency,
   NarrationMode,
 } from '@pipeline/types/video-project.ts'
-import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
+import {
+  NARRATION_CHAR_LIMIT,
+  VOICE_SETTINGS_DEFAULTS,
+} from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
 import type {
   AudioMixValue,
@@ -64,7 +67,8 @@ export const CREATE_TASK_STORAGE_KEY = 'vimo:create:task:v1'
 
 // Espejo de los límites del sidecar (pipeline/commands/videos).
 export const PROJECT_NAME_LIMIT = 80
-export const SCRIPT_CHAR_LIMIT = 100_000
+// El guion no puede superar lo que la voz es capaz de narrar.
+export const SCRIPT_CHAR_LIMIT = NARRATION_CHAR_LIMIT
 export const MAX_PROJECT_CHARACTERS = 2
 export const MAX_SCENE_COUNT = 500
 
