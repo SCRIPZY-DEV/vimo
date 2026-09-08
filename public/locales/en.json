@@ -536,7 +536,8 @@
       "scenesCount": "{{count}} scenes",
       "noPrice": "This model has no price listed",
       "onlyPrompts": "This is only the cost of writing the scene texts. Images are billed separately.",
-      "sliderLabel": "How many scenes the video would have"
+      "sliderLabel": "How many scenes the video would have",
+      "settingsLink": "Change the default model in Settings"
     },
     "styleCharacter": {
       "title": "Does your style carry a character?",

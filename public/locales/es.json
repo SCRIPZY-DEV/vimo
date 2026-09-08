@@ -536,7 +536,8 @@
       "scenesCount": "{{count}} escenas",
       "noPrice": "Falta el precio de este modelo",
       "onlyPrompts": "Es solo lo que cuesta escribir los textos de las escenas. Las imágenes se cobran aparte.",
-      "sliderLabel": "Cuántas escenas tendría el video"
+      "sliderLabel": "Cuántas escenas tendría el video",
+      "settingsLink": "Cambiar el modelo por defecto en Ajustes"
     },
     "styleCharacter": {
       "title": "¿Tu estilo lleva personaje?",
