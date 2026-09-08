@@ -339,6 +339,9 @@
       }
     },
     "validation": {
+      "title_one": "Falta 1 passo para poder gerar",
+      "title_other": "Faltam {{count}} passos para poder gerar",
+      "hint": "Complete o que falta e o botão «Gerar» começa.",
       "nameRequired": "Dê um nome ao vídeo.",
       "scriptRequired": "Escreva o roteiro que será narrado.",
       "voiceRequired": "Escolha a voz da narração.",
