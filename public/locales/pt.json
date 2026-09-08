@@ -8,6 +8,10 @@
       "play": "Reproduzir",
       "pause": "Pausar",
       "position": "Posição"
+    },
+    "voiceVendor": {
+      "label": "Provedor de vozes",
+      "ariaLabel": "Provedor de vozes"
     }
   },
   "layout": {
@@ -158,9 +162,15 @@
       "tabs": {
         "minimax": "Minimax",
         "elevenlabs": "ElevenLabs",
-        "edge": "Edge"
+        "edge": "Edge",
+        "elevenlabs-account": "Minhas vozes",
+        "elevenlabs-library": "Biblioteca"
       },
-      "hint": "Essa voz narra o seu vídeo inteiro — escolha uma antes de gerar."
+      "hint": "Essa voz narra o seu vídeo inteiro — escolha uma antes de gerar.",
+      "libraryNote": "As vozes da biblioteca são adicionadas à sua conta do ElevenLabs ao usá-las.",
+      "libraryBadge": "Biblioteca",
+      "addingLibraryVoice": "Adicionando a voz…",
+      "missingVendorKey": "Falta a chave do {{vendor}}. Configure em Chaves de API ou troque o provedor de vozes."
     },
     "voiceSettings": {
       "title": "Ajustes da voz",
@@ -320,12 +330,12 @@
       "titles": {
         "ok": "Não dá para gerar a voz agora",
         "maintenance": "Serviço de vozes em manutenção",
-        "auth": "Chave da DubVoice inválida",
+        "auth": "Chave do serviço de vozes inválida",
         "rate": "Solicitações demais",
-        "config": "Falta configurar a DubVoice",
+        "config": "Serviço de vozes não configurado",
         "other": "Não dá para gerar a voz agora"
       },
-      "hint": "Avisamos antes de começar para você não perder tempo esperando um pipeline que ia falhar. Você pode tentar de novo em alguns minutos ou escolher outra voz (ElevenLabs ou Edge — grátis).",
+      "hint": "Avisamos antes de começar para você não perder tempo esperando um pipeline que ia falhar. Você pode tentar de novo em alguns minutos, escolher outra voz ou trocar o provedor de vozes.",
       "retry": "Tentar de novo",
       "retrying": "Tentando de novo…",
       "changeVoice": "Trocar de voz",
@@ -421,7 +431,10 @@
       "continueInEditor": "Continuar no editor",
       "styleNotFound": "Esse estilo não existe mais na sua galeria.",
       "styleSaveFailed": "Não foi possível salvar o estilo.",
-      "styleSamplesFailed": "Nenhuma amostra pôde ser gerada. Tente de novo."
+      "styleSamplesFailed": "Nenhuma amostra pôde ser gerada. Tente de novo.",
+      "voiceQuotaExceeded": "A cota de caracteres da sua conta do ElevenLabs acabou.",
+      "voiceLibraryAddFailed": "Não foi possível adicionar a voz da biblioteca à sua conta do ElevenLabs.",
+      "voiceAccountRestricted": "O ElevenLabs restringiu sua conta para esta função. Verifique seu plano no ElevenLabs."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -984,7 +997,9 @@
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
-      "favorites": "Favoritas"
+      "favorites": "Favoritas",
+      "elevenlabs-account": "Minhas vozes",
+      "elevenlabs-library": "Biblioteca"
     },
     "favoritos": {
       "vacio": "Você ainda não marcou vozes favoritas. Toque no coração de uma voz para guardá-la aqui."
@@ -1022,14 +1037,20 @@
       "todasCategorias": "Todas as categorias",
       "soloClones": "Só clonadas",
       "onlyWithPreview": "Só com amostra",
-      "sinResultados": "Nenhuma voz corresponde aos filtros."
+      "sinResultados": "Nenhuma voz corresponde aos filtros.",
+      "categorias": {
+        "professional": "Profissional",
+        "high_quality": "Alta qualidade",
+        "famous": "Famosas"
+      }
     },
     "tarjeta": {
       "clon": "Clone",
       "reproducir": "Ouvir amostra",
       "pausar": "Pausar amostra",
       "favorito": "Adicionar aos favoritos",
-      "quitarFavorito": "Remover dos favoritos"
+      "quitarFavorito": "Remover dos favoritos",
+      "biblioteca": "Biblioteca"
     },
     "probador": {
       "titulo": "Testador de voz",
@@ -1045,7 +1066,8 @@
       "progresoSegundos": "{{seconds}} s decorridos",
       "resultado": "Resultado",
       "cerrar": "Fechar",
-      "guardada": "A narração ficou salva no histórico."
+      "guardada": "A narração ficou salva no histórico.",
+      "anadiendoVoz": "Adicionando a voz à sua conta…"
     },
     "modelos": {
       "calidad": "qualidade",
@@ -1076,8 +1098,14 @@
     },
     "clonacion": {
       "titulo": "Clonagem de vozes",
-      "descripcion": "Clone sua voz no painel da DubVoice; depois ela aparece na aba Minimax com o filtro \"Só clonadas\".",
-      "abrirDashboard": "Abrir DubVoice"
+      "descripcion": {
+        "dubvoice": "Clone sua voz no painel do DubVoice; depois ela aparece na aba Minimax com o filtro «Somente clonadas».",
+        "elevenlabs": "Clone sua voz no Voice Lab do ElevenLabs; depois ela aparece na aba «Minhas vozes»."
+      },
+      "abrirDashboard": {
+        "dubvoice": "Abrir DubVoice",
+        "elevenlabs": "Abrir ElevenLabs"
+      }
     },
     "historial": {
       "titulo": "Histórico de vozes",
@@ -1094,7 +1122,7 @@
     },
     "errores": {
       "network": "Não foi possível conectar ao serviço de vozes. Verifique sua conexão.",
-      "invalidApiKey": "Sua chave da DubVoice é inválida ou expirou. Revise-a em Chaves de API.",
+      "invalidApiKey": "Sua chave do provedor de vozes não é válida ou expirou. Verifique em Chaves de API.",
       "rateLimited": "Muitas solicitações ao serviço de vozes. Espere um momento e tente de novo.",
       "maintenance": "O serviço de vozes está em manutenção. Tente em alguns minutos ou use outro motor.",
       "providerError": "O serviço de vozes retornou um erro. Tente de novo em alguns minutos.",
@@ -1104,12 +1132,23 @@
       "emptyAudio": "O provedor retornou um áudio vazio. Tente outra voz.",
       "textTooLong": "O texto ultrapassa o limite de caracteres do motor escolhido.",
       "invalido": "A solicitação não é válida. Recarregue a tela e tente de novo.",
-      "missingApiKey": "Falta a chave da DubVoice. Configure-a em Chaves de API.",
+      "missingApiKey": "Falta a chave do provedor de vozes escolhido. Configure em Chaves de API.",
       "missingProjectsRoot": "Nenhuma pasta de projetos está configurada. Verifique os Ajustes.",
       "cancelado": "Geração cancelada.",
       "sidecar": "Não foi possível iniciar o motor local. Reinicie o aplicativo.",
       "interrumpida": "A geração foi interrompida ao fechar o app. Os créditos podem ter sido descontados mesmo assim.",
-      "desconocido": "Algo falhou ao gerar a voz. Tente de novo."
+      "desconocido": "Algo falhou ao gerar a voz. Tente de novo.",
+      "quotaExceeded": "A cota de caracteres da sua conta do ElevenLabs acabou. Aguarde a renovação ou melhore seu plano.",
+      "libraryAddFailed": "Não foi possível adicionar a voz da biblioteca à sua conta do ElevenLabs. Verifique os espaços de voz do seu plano.",
+      "accountRestricted": "O ElevenLabs restringiu sua conta para esta função (atividade incomum no plano gratuito ou função só para planos pagos). Verifique sua conta no ElevenLabs."
+    },
+    "credits": {
+      "characters": "Caracteres ElevenLabs",
+      "remainingOf": "{{remaining}} de {{limit}}",
+      "resetsAt": "Renova em {{date}}"
+    },
+    "biblioteca": {
+      "nota": "As vozes da biblioteca são adicionadas à sua conta do ElevenLabs na primeira vez que você as usa."
     }
   },
   "apiKeys": {
@@ -1214,7 +1253,13 @@
     "promptModelCompactHint": "Em “Meu estilo” você verá só o cartão deste modelo. Desligue para comparar todos os modelos em cada vídeo.",
     "promptModelEstimateNote": "Estimativa sem estilo aplicado: em cada vídeo o custo muda conforme sua gema. Em Criar você pode usar outro modelo só para aquele vídeo.",
     "promptModelSaved": "Preferência salva.",
-    "promptModelError": "Não foi possível salvar a preferência."
+    "promptModelError": "Não foi possível salvar a preferência.",
+    "voiceVendorTitle": "Seu provedor de vozes",
+    "voiceVendorTagline": "Com qual serviço as vozes são listadas e geradas em Vozes e em Criar. O DubVoice reúne Minimax e ElevenLabs com uma única chave; o ElevenLabs usa a sua própria conta.",
+    "voiceVendorAutomaticHint": "Ainda não escolhido: usa-se o DubVoice, ou o ElevenLabs se for a única chave de voz salva.",
+    "voiceVendorResetAutomatic": "Voltar ao automático",
+    "voiceVendorSaved": "Preferência salva.",
+    "voiceVendorError": "Não foi possível salvar a preferência."
   },
   "splash": {
     "pageTitle": "Vimo",
