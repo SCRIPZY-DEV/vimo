@@ -2,10 +2,19 @@ import type {
   GenerateVoicePayload,
   VoiceHistoryEntry,
   VoiceProviderId,
+  VoiceSource,
   VoiceSummary,
 } from '@pipeline/types/voices.ts'
 
-export type VoiceTab = VoiceProviderId | 'favorites'
+// Pestañas del catálogo. Las dos de ElevenLabs directo comparten provider y
+// se distinguen por `source` (ver VOICE_TAB_CATALOGS).
+export type VoiceTab =
+  VoiceProviderId | 'elevenlabs-account' | 'elevenlabs-library' | 'favorites'
+
+export interface VoiceTabCatalog {
+  provider: VoiceProviderId
+  source?: VoiceSource
+}
 
 export type VoiceTaskStatus = 'generating' | 'completed' | 'error'
 
