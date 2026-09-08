@@ -15,7 +15,7 @@ interface LabeledSelectProps<T extends string> {
   value: T | undefined
   // Ya traducidas: el Select no sabe si la etiqueta sale del catálogo o es una
   // marca. `note` agrega una línea descriptiva SOLO en el desplegable (el
-  // trigger queda en la etiqueta, centrada).
+  // trigger queda solo en la etiqueta).
   options: { id: T; label: string; note?: string }[]
   disabled: boolean
   onChange: (value: T) => void
@@ -40,15 +40,14 @@ export function LabeledSelect<T extends string>({
         disabled={disabled}
         onValueChange={(selectedId) => onChange(selectedId as T)}
       >
-        {/* La etiqueta va centrada y ocupa el ancho libre; en una ventana
-            angosta se trunca con puntos suspensivos en vez de desbordar (el
-            line-clamp-1 del trigger común cortaba a mitad de palabra). */}
+        {/* La etiqueta ocupa el ancho libre para truncarse con puntos
+            suspensivos en una ventana angosta (el line-clamp-1 del trigger
+            común cortaba a mitad de palabra). El `text-left` es necesario: el
+            trigger es un <button>, que centra su texto por defecto. */}
         <SelectTrigger className="[&>span]:line-clamp-none [&>span]:min-w-0 [&>span]:flex-1">
           <SelectValue>
             {selected && (
-              <span className="block truncate text-center">
-                {selected.label}
-              </span>
+              <span className="block truncate text-left">{selected.label}</span>
             )}
           </SelectValue>
         </SelectTrigger>
