@@ -569,6 +569,12 @@
     "title": "Biblioteca",
     "tagline": "Tus videos generados",
     "desktopOnly": "La biblioteca solo está disponible en la app de escritorio.",
+    "tabs": {
+      "long": "Formato largo",
+      "shorts": "Shorts",
+      "emptyLong": "Todavía no hay videos en formato largo.",
+      "emptyShorts": "Todavía no hay shorts."
+    },
     "list": {
       "empty": "Todavía no hay proyectos. Creá tu primer video desde «Crear».",
       "refresh": "Recargar",

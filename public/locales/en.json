@@ -569,6 +569,12 @@
     "title": "Library",
     "tagline": "Your generated videos",
     "desktopOnly": "The library is only available in the desktop app.",
+    "tabs": {
+      "long": "Long format",
+      "shorts": "Shorts",
+      "emptyLong": "No long-format videos yet.",
+      "emptyShorts": "No shorts yet."
+    },
     "list": {
       "empty": "No projects yet. Create your first video from “Create”.",
       "refresh": "Refresh",

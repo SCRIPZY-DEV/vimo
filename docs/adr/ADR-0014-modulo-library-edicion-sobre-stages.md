@@ -198,6 +198,20 @@ cubrieron los 12 subcomandos nuevos.
 - **Paginación/búsqueda del listado**: el origen tampoco la tenía; se agrega si
   las bibliotecas reales lo piden.
 
+## Adenda 2026-09-08 — el listado se parte en pestañas por formato
+
+La grilla de la biblioteca pasa a tener dos pestañas: «Formato largo»
+(proyectos 16:9 y los previos al selector de formato, que no traen
+`videoFormat`) y «Shorts» (9:16). La tarjeta toma el aspecto del formato del
+proyecto y la grilla de shorts suma una columna. Es puro frontend sobre el
+mismo `list-video-projects`: el sidecar no cambia y `videoFormat` sigue siendo
+opcional. La pestaña activa se recuerda en `localStorage`
+(`LIBRARY_TAB_STORAGE_KEY`) y se fija al formato del último proyecto creado en
+`useCreateTask.startCreation`, así la biblioteca abre donde está el video
+recién hecho. Sin parámetro en la URL ni rutas nuevas: `VideosRoutes.library`
+sigue siendo la única entrada. La navegación al terminar de generar sigue
+yendo al editor (ADR-0016).
+
 ## Referencias
 
 - ADR-0009 (layout de proyecto; gana `clips/`), ADR-0010 (orden de migración;

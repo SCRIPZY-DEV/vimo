@@ -5,6 +5,7 @@ import { cn } from '@/modules/common/utilities/cn'
 import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
 import { videosApi } from '@/modules/videos/api'
 import { ProjectStateBadge } from '@/modules/videos/components/ProjectStateBadge'
+import { aspectClass, isVertical } from '@/modules/videos/utilities/videoFormat'
 import type { ProjectBadge } from '@/modules/videos/types/library'
 import type { VideoProjectListItem } from '@pipeline/types/video-project.ts'
 
@@ -17,8 +18,11 @@ interface LibraryProjectCardProps {
   onToggleSelected: () => void
 }
 
-// Tarjeta presentacional de un proyecto: miniatura + estado + metadatos. En
-// modo selección el click alterna la marca en vez de navegar.
+// Tarjeta presentacional de un proyecto: portada + estado + metadatos. La
+// portada toma el aspecto del formato del proyecto (16:9 o 9:16; ausente =
+// 16:9) y en un short los metadatos van más compactos para que la tarjeta
+// angosta no se cargue. En modo selección el click alterna la marca en vez
+// de navegar.
 export function LibraryProjectCard({
   project,
   badge,
@@ -29,7 +33,12 @@ export function LibraryProjectCard({
 }: LibraryProjectCardProps) {
   const { t, i18n } = useTranslation()
 
+  const format = project.videoFormat ?? '16:9'
+  const vertical = isVertical(format)
   const formattedDate = formatDateTime(project.updatedAt, i18n.resolvedLanguage)
+  const imageCountLabel = t('library.list.imageCount', {
+    total: project.imageCount,
+  })
 
   return (
     <button
@@ -39,7 +48,7 @@ export function LibraryProjectCard({
         selected ? 'border-saffron' : 'border-border hover:border-saffron/50'
       }`}
     >
-      <div className="relative aspect-video w-full bg-muted">
+      <div className={cn('relative w-full bg-muted', aspectClass(format))}>
         {project.thumbnailPath ? (
           <img
             src={videosApi.imageSource(
@@ -47,14 +56,7 @@ export function LibraryProjectCard({
               project.thumbnailMtimeMs,
             )}
             alt=""
-            // Una miniatura vertical no se recorta: entra entera sobre el
-            // fondo (la tarjeta conserva su marco 16:9).
-            className={cn(
-              'h-full w-full',
-              project.videoFormat === '9:16'
-                ? 'object-contain'
-                : 'object-cover',
-            )}
+            className="h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -64,6 +66,18 @@ export function LibraryProjectCard({
         <div className="absolute left-2 top-2">
           <ProjectStateBadge badge={badge} />
         </div>
+        {/* En el short la cantidad de imágenes va sobre la portada: debajo
+            quedan solo nombre, fecha y autor. */}
+        {vertical && project.imageCount > 0 && (
+          <span
+            title={imageCountLabel}
+            aria-label={imageCountLabel}
+            className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 font-body text-[11px] font-semibold text-white backdrop-blur-sm"
+          >
+            <Images className="h-3 w-3" />
+            {project.imageCount}
+          </span>
+        )}
         {selectionMode && (
           <span
             aria-hidden
@@ -86,14 +100,19 @@ export function LibraryProjectCard({
           <p className="font-body text-xs text-muted-foreground">
             {formattedDate}
           </p>
-          {project.imageCount > 0 && (
+          {!vertical && project.imageCount > 0 && (
             <p className="flex items-center gap-1 font-body text-xs text-muted-foreground">
               <Images className="h-3.5 w-3.5" />
-              {t('library.list.imageCount', { total: project.imageCount })}
+              {imageCountLabel}
             </p>
           )}
         </div>
-        <p className="font-body text-xs text-muted-foreground">
+        <p
+          className={cn(
+            'font-body text-xs text-muted-foreground',
+            vertical && 'truncate',
+          )}
+        >
           <Trans
             i18nKey="library.list.promptAuthor"
             values={{ author: project.promptModelLabel ?? Brand.name }}
