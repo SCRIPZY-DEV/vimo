@@ -119,9 +119,14 @@ export function StyleSamplesCarousel({
 
   if (total === 0) return null
 
+  // `transform-gpu` (y el `isolate` del marco): en WebKit —la WebView de
+  // Tauri— la tira es una capa compuesta por su `will-change: transform` y
+  // tapaba a las flechas aunque tuvieran z-index; solo asomaban al arrastrar.
+  // Con el marco como contexto de apilamiento propio y cada flecha en su
+  // propia capa, quedan siempre encima. En Chrome no cambia nada.
   const arrowClass = (side: ArrowSide) =>
     cn(
-      'absolute top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full p-2 shadow transition-all duration-150 [&_svg]:pointer-events-none',
+      'absolute top-1/2 z-10 -translate-y-1/2 transform-gpu cursor-pointer rounded-full p-2 shadow transition-all duration-150 [&_svg]:pointer-events-none',
       'hover:scale-110 hover:bg-saffron hover:text-charcoal',
       side === 'previous' ? 'left-2' : 'right-2',
       hoveredArrow === side
@@ -133,7 +138,7 @@ export function StyleSamplesCarousel({
     <div className="space-y-2">
       <div
         ref={frame}
-        className="relative select-none overflow-hidden rounded-xl border border-border bg-muted"
+        className="relative isolate select-none overflow-hidden rounded-xl border border-border bg-muted"
         style={{
           cursor: dragging ? 'grabbing' : 'grab',
           // La página se sigue scrolleando en vertical con el dedo; el
