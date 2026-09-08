@@ -8,7 +8,6 @@ import { TimelineWaveform } from '@/modules/videos/components/TimelineWaveform'
 import {
   AUTOSCROLL_EDGE_PX,
   AUTOSCROLL_MANUAL_PAUSE_MS,
-  MIN_SCENE_SECONDS,
   NO_SEEK_PROPS,
   NO_SEEK_SELECTOR,
   PLAYHEAD_EDGE_DRAG_MAX_SPEED,
@@ -22,6 +21,7 @@ import {
   TIMELINE_ZOOM_LEVELS,
 } from '@/modules/videos/constants'
 import { useAudioPeaks } from '@/modules/videos/hooks/useAudioPeaks'
+import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 
@@ -47,8 +47,14 @@ interface EditorTimelineProps {
   onScrubEnd(): void
   // Drag en vivo de la frontera COMPARTIDA: mueve end[izq] y start[der].
   onBoundaryDrag(leftId: number, rightId: number, boundarySeconds: number): void
-  // Al soltar: persistir el par tocado en un solo batch.
-  onBoundaryCommit(): void
+  // Al soltar: persistir el par tocado en un solo batch, con la frontera
+  // final (el mouseup corre con la clausura del mousedown: no puede leerla
+  // de ningún estado).
+  onBoundaryCommit(
+    leftId: number,
+    rightId: number,
+    boundarySeconds: number,
+  ): void
   onOpenAudio(): void
   onOpenMusic(): void
 }
@@ -260,24 +266,26 @@ export function EditorTimeline({
 
     const startX = event.clientX
     const initialBoundary = left.endSeconds ?? 0
-    // Piso duro de 1s por escena, a ambos lados de la frontera.
-    const minBoundary = (left.startSeconds ?? 0) + MIN_SCENE_SECONDS
-    const maxBoundary = (right.endSeconds ?? 0) - MIN_SCENE_SECONDS
+    // La frontera vigente vive en esta variable y no en estado de React: el
+    // mouseup corre con la clausura del mousedown y no vería nada que el
+    // drag hubiera cambiado por setState.
+    let boundary = initialBoundary
 
     const handleMove = (moveEvent: MouseEvent) => {
       // Delta directo sobre px/seg — NUNCA vía secondsAtClientX, que clampea
       // en 0 y rompía el drag cerca del inicio (bug pagado en el origen).
       const delta = (moveEvent.clientX - startX) / pxPerSecond
-      const boundary = Math.max(
-        minBoundary,
-        Math.min(maxBoundary, initialBoundary + delta),
-      )
-      onBoundaryDrag(left.id, right.id, Math.round(boundary * 1000) / 1000)
+      // Piso duro de 1s por escena, a ambos lados de la frontera.
+      boundary = clampBoundarySeconds(left, right, initialBoundary + delta)
+      onBoundaryDrag(left.id, right.id, boundary)
     }
     const handleUp = () => {
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
-      onBoundaryCommit()
+      // Un clic sin movimiento no guarda nada (y no marca el video como
+      // desactualizado).
+      if (boundary !== initialBoundary)
+        onBoundaryCommit(left.id, right.id, boundary)
     }
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)

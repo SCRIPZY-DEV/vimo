@@ -14,7 +14,10 @@ import type {
   CharacterFrequency,
   NarrationMode,
 } from '@pipeline/types/video-project.ts'
-import { VOICE_SETTINGS_DEFAULTS } from '@/modules/voices/constants'
+import {
+  NARRATION_CHAR_LIMIT,
+  VOICE_SETTINGS_DEFAULTS,
+} from '@/modules/voices/constants'
 import type { CreateFormValue } from './types/create'
 import type {
   AudioMixValue,
@@ -64,7 +67,8 @@ export const CREATE_TASK_STORAGE_KEY = 'vimo:create:task:v1'
 
 // Espejo de los límites del sidecar (pipeline/commands/videos).
 export const PROJECT_NAME_LIMIT = 80
-export const SCRIPT_CHAR_LIMIT = 100_000
+// El guion no puede superar lo que la voz es capaz de narrar.
+export const SCRIPT_CHAR_LIMIT = NARRATION_CHAR_LIMIT
 export const MAX_PROJECT_CHARACTERS = 2
 export const MAX_SCENE_COUNT = 500
 
@@ -163,6 +167,12 @@ export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
 
 // Duración mínima de una escena al arrastrar fronteras (piso duro del drag).
 export const MIN_SCENE_SECONDS = 1
+
+// Tiempo tipeado en los In/Out del panel de escena: «mm:ss.cc» como muestra
+// `formatClipTime`, y también «m:ss», «ss.c» o «ss». Grupos: minutos
+// (opcional), segundos, fracción (opcional, coma o punto).
+export const CLIP_TIME_INPUT_REGEX =
+  /^(?:(\d{1,3}):)?(\d{1,2})(?:[.,](\d{1,3}))?$/
 
 // Segundos que saltan J/L en el preview del editor.
 export const EDITOR_SEEK_STEP_SECONDS = 5

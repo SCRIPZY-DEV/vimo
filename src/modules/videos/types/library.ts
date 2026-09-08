@@ -32,6 +32,10 @@ export interface SceneImageChoice {
   quality: string
 }
 
+// Lado de la escena que se edita tipeando en el panel: In (la frontera con
+// la escena anterior) u Out (la frontera con la siguiente).
+export type ClipEdge = 'in' | 'out'
+
 // Operaciones de audio del editor: el mismo payload del sidecar sin el
 // projectId, que lo aporta el hook del proyecto.
 export type MusicChoice = Omit<SetProjectMusicPayload, 'projectId'>

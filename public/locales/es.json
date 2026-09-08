@@ -100,6 +100,7 @@
       "optionalLabel": "Guion del audio (opcional, pero recomendado)",
       "placeholder": "Escribí acá el texto que se va a narrar…",
       "wordCount": "{{count}} palabras",
+      "charCount": "{{count}} / {{max}} caracteres",
       "optionalPlaceholder": "Si tenés a mano el guion con el que grabaste el audio, pegalo acá…",
       "optionalHint": "Sin guion igual funciona: lo sacamos de tu audio. Pero si lo pegás, Vimo entiende mejor los personajes y el lugar, y las imágenes salen más consistentes (como cuando la voz la hace Vimo)."
     },
@@ -637,6 +638,8 @@
         "promptHint": "El estilo del proyecto se aplica automáticamente al regenerar. Máx. {{max}} caracteres.",
         "clipIn": "In:",
         "clipOut": "Out:",
+        "clipInEdit": "Editar el tiempo de entrada",
+        "clipOutEdit": "Editar el tiempo de salida",
         "provider": "Proveedor",
         "quality": "Calidad",
         "characters": "Personajes en esta escena",

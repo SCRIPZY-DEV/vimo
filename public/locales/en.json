@@ -100,6 +100,7 @@
       "optionalLabel": "Audio script (optional, but recommended)",
       "placeholder": "Write here the text to be narrated…",
       "wordCount": "{{count}} words",
+      "charCount": "{{count}} / {{max}} characters",
       "optionalPlaceholder": "If you have the script you recorded the audio from, paste it here…",
       "optionalHint": "It still works without it — we take the text from your audio. But pasting it lets Vimo understand the characters and setting better, so the images come out more consistent (like when Vimo does the voice)."
     },
@@ -637,6 +638,8 @@
         "promptHint": "The project's style is applied automatically when regenerating. Max. {{max}} characters.",
         "clipIn": "In:",
         "clipOut": "Out:",
+        "clipInEdit": "Edit the in time",
+        "clipOutEdit": "Edit the out time",
         "provider": "Provider",
         "quality": "Quality",
         "characters": "Characters in this scene",

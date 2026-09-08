@@ -13,6 +13,7 @@ import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
   ExportClipsResult,
   RegenerateSceneImagesResult,
+  RenderVideoResult,
 } from '@pipeline/types/video-project.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
@@ -269,10 +270,15 @@ function handleRenderEvent(projectId: string, event: PipelineEventPayload) {
       })
       return
 
-    case 'job-completed':
+    case 'job-completed': {
       patchTask(projectId, { render: null, revision: task.revision + 1 })
+      // Como el export de clips: el video recién exportado se muestra en su
+      // carpeta, con el archivo seleccionado.
+      const result = event.result as unknown as RenderVideoResult | null
+      if (result?.videoPath) void videosApi.revealVideo(result.videoPath)
       void dispatchRegen(projectId)
       return
+    }
 
     case 'job-failed':
       patchTask(projectId, {

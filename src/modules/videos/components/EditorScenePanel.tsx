@@ -4,13 +4,12 @@ import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
+import { ClipTimeField } from '@/modules/videos/components/ClipTimeField'
 import { ImageCreditsBadges } from '@/modules/videos/components/ImageCreditsBadges'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
-import type { SceneImageChoice } from '@/modules/videos/types/library'
+import type { ClipEdge, SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
-import { formatClipTime } from '@/modules/videos/utilities/formatClipTime'
-import { priceForQuality } from '@/modules/videos/utilities/imageQuality'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
 import type {
   ImageCreditsResult,
@@ -36,6 +35,10 @@ interface EditorScenePanelProps {
   onUserPromptChange(value: string): void
   // Al salir de la textarea la descripción se persiste (como el origen).
   onUserPromptBlur(): void
+  // In/Out tipeados: solo las fronteras compartidas con otra escena.
+  canEditClipIn: boolean
+  canEditClipOut: boolean
+  onClipTimeChange(edge: ClipEdge, seconds: number): void
   onImageChoiceChange(value: SceneImageChoice): void
   onCharactersChange(indexes: number[]): void
   onRegenerate(): void
@@ -57,6 +60,9 @@ export function EditorScenePanel({
   errorKey,
   onUserPromptChange,
   onUserPromptBlur,
+  canEditClipIn,
+  canEditClipOut,
+  onClipTimeChange,
   onImageChoiceChange,
   onCharactersChange,
   onRegenerate,
@@ -77,11 +83,6 @@ export function EditorScenePanel({
   const toggleCharacter = (index: number) => {
     onCharactersChange(toggleIndex(charactersPresent, index))
   }
-
-  const regenPriceUsd = priceForQuality(
-    imageChoice.provider,
-    imageChoice.quality,
-  )
 
   return (
     <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
@@ -127,22 +128,20 @@ export function EditorScenePanel({
         </div>
         {scene.startSeconds !== undefined && scene.endSeconds !== undefined && (
           <div className="flex items-center justify-between pt-1 font-body text-xs">
-            <span>
-              <span className="font-display font-bold text-foreground">
-                {t('library.editor.panel.clipIn')}
-              </span>{' '}
-              <span className="font-mono tabular-nums text-muted-foreground">
-                {formatClipTime(scene.startSeconds)}
-              </span>
-            </span>
-            <span>
-              <span className="font-display font-bold text-foreground">
-                {t('library.editor.panel.clipOut')}
-              </span>{' '}
-              <span className="font-mono tabular-nums text-muted-foreground">
-                {formatClipTime(scene.endSeconds)}
-              </span>
-            </span>
+            <ClipTimeField
+              label={t('library.editor.panel.clipIn')}
+              editLabel={t('library.editor.panel.clipInEdit')}
+              seconds={scene.startSeconds}
+              editable={canEditClipIn}
+              onCommit={(seconds) => onClipTimeChange('in', seconds)}
+            />
+            <ClipTimeField
+              label={t('library.editor.panel.clipOut')}
+              editLabel={t('library.editor.panel.clipOutEdit')}
+              seconds={scene.endSeconds}
+              editable={canEditClipOut}
+              onCommit={(seconds) => onClipTimeChange('out', seconds)}
+            />
           </div>
         )}
       </div>
@@ -189,20 +188,19 @@ export function EditorScenePanel({
         </p>
       )}
 
+      {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
+          trunca en vez de salirse del botón junto con el ícono. */}
       <Button
         onClick={onRegenerate}
         disabled={busy}
-        className="w-full rounded-xl font-display font-bold"
+        className="w-full min-w-0 rounded-xl font-display font-bold"
       >
         <RefreshCw className="mr-1.5 h-4 w-4" />
-        {userPromptDirty
-          ? t('library.editor.panel.regenerateWithPrompt')
-          : t('library.editor.panel.regenerate')}
-        {regenPriceUsd !== undefined && (
-          <span className="ml-1.5 font-mono text-xs tabular-nums">
-            ${regenPriceUsd.toFixed(3)}
-          </span>
-        )}
+        <span className="min-w-0 truncate">
+          {userPromptDirty
+            ? t('library.editor.panel.regenerateWithPrompt')
+            : t('library.editor.panel.regenerate')}
+        </span>
       </Button>
     </aside>
   )

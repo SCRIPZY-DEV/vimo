@@ -10,9 +10,11 @@ import {
 } from '@/modules/videos/constants'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
+import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
 import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type {
+  ClipEdge,
   RegenQueueEntry,
   SceneImageChoice,
 } from '@/modules/videos/types/library'
@@ -42,10 +44,6 @@ export function useLibraryEditor(projectId: string) {
   const [syncedScenes, setSyncedScenes] = useState<SceneDetail[] | undefined>(
     undefined,
   )
-  // Par de escenas cuya frontera se está arrastrando en el timeline.
-  const [draggedBoundary, setDraggedBoundary] = useState<
-    [number, number] | null
-  >(null)
 
   // Resync de la copia de trabajo con cada refetch (ajuste durante el
   // render, no en un efecto): el disco es la verdad tras cada job — salvo
@@ -197,29 +195,52 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     patchWorkingScene(leftId, { endSeconds: boundarySeconds })
     patchWorkingScene(rightId, { startSeconds: boundarySeconds })
-    setDraggedBoundary([leftId, rightId])
   }
 
-  // Al soltar: persiste el par tocado en un solo batch.
-  const commitBoundary = () => {
-    if (!draggedBoundary) return
-    const [leftId, rightId] = draggedBoundary
-    setDraggedBoundary(null)
-    const left = workingScenes.find((scene) => scene.id === leftId)
-    const right = workingScenes.find((scene) => scene.id === rightId)
-    if (!left || !right) return
+  // Al soltar: persiste el par tocado en un solo batch, solo los campos que
+  // cambiaron. Recibe la frontera final en vez de leerla del estado: el
+  // mouseup del timeline corre en un listener registrado al iniciar el drag,
+  // o sea con la clausura de ESE render, donde cualquier estado que el drag
+  // haya cambiado se ve viejo. Así se perdía el commit: las duraciones
+  // vivían solo en la copia local y el primer refetch las pisaba.
+  const commitBoundary = (
+    leftId: number,
+    rightId: number,
+    boundarySeconds: number,
+  ) => {
     commitScenes([
-      {
-        id: leftId,
-        startSeconds: left.startSeconds,
-        endSeconds: left.endSeconds,
-      },
-      {
-        id: rightId,
-        startSeconds: right.startSeconds,
-        endSeconds: right.endSeconds,
-      },
+      { id: leftId, endSeconds: boundarySeconds },
+      { id: rightId, startSeconds: boundarySeconds },
     ])
+  }
+
+  // ── In/Out tipeados en el panel ──
+
+  // Solo las fronteras compartidas se mueven: la escena seleccionada tiene
+  // In editable si hay una anterior y Out editable si hay una siguiente.
+  const selectedIndex = workingScenes.findIndex(
+    (scene) => scene.id === selectedSceneId,
+  )
+  const canEditClipIn = selectedIndex > 0
+  const canEditClipOut =
+    selectedIndex >= 0 && selectedIndex < workingScenes.length - 1
+
+  // Mueve la frontera del lado pedido de la escena seleccionada, acotada
+  // como el drag del timeline, y la persiste por el mismo camino.
+  const moveSelectedClipEdge = (edge: ClipEdge, seconds: number) => {
+    const editable = edge === 'in' ? canEditClipIn : canEditClipOut
+    if (!editable) return
+
+    const scene = workingScenes[selectedIndex]
+    const neighbor =
+      workingScenes[edge === 'in' ? selectedIndex - 1 : selectedIndex + 1]
+    const left = edge === 'in' ? neighbor : scene
+    const right = edge === 'in' ? scene : neighbor
+    const boundary = clampBoundarySeconds(left, right, seconds)
+    if (boundary === left.endSeconds) return
+
+    dragBoundary(left.id, right.id, boundary)
+    commitBoundary(left.id, right.id, boundary)
   }
 
   return {
@@ -239,6 +260,9 @@ export function useLibraryEditor(projectId: string) {
     regenerateSelected,
     dragBoundary,
     commitBoundary,
+    canEditClipIn,
+    canEditClipOut,
+    moveSelectedClipEdge,
     editorTask,
   }
 }
