@@ -19,16 +19,16 @@ import {
   rethrowIfCancelled,
   requestSignal,
 } from './dubvoice.ts'
-import { synthesizeElevenLabsDirect } from './elevenlabs-direct.ts'
+import {
+  ELEVENLABS_CHAR_LIMIT,
+  ELEVENLABS_DEFAULT_MODEL,
+  ELEVENLABS_PAGE_SIZE,
+} from './elevenlabs-shared.ts'
 import type { TtsProvider } from './provider.ts'
 
 // Motor ElevenLabs vía DubVoice: el listado pagina server-side (~12k voces,
 // bajarlas todas serían minutos) y la síntesis es ASÍNCRONA — submit → task_id
 // → polling con progreso real, hasta 10 minutos.
-export const ELEVENLABS_PAGE_SIZE = 60
-// Espejo del tope de DubVoice, igual para los tres motores.
-export const ELEVENLABS_CHAR_LIMIT = 4500
-const DEFAULT_MODEL = 'eleven_multilingual_v2'
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const POLL_REQUEST_TIMEOUT_MS = 30_000
 
@@ -117,7 +117,7 @@ export async function synthesizeElevenLabs(
       body: JSON.stringify({
         text,
         voice_id: payload.voiceId,
-        model_id: payload.model ?? DEFAULT_MODEL,
+        model_id: payload.model ?? ELEVENLABS_DEFAULT_MODEL,
         language: payload.language ?? 'auto',
         voice_settings: {
           speed: settings.speed ?? 1,
@@ -225,21 +225,7 @@ export const elevenLabsProvider: TtsProvider = {
     return { audio }
   },
   // Si DubVoice está caído y el usuario tiene su propia clave, se sintetiza
-  // contra api.elevenlabs.io con la MISMA voz.
-  directFallback: {
-    name: 'ElevenLabs direct (fallback)',
-    apiKeyOf(apiKeys) {
-      return apiKeys.elevenlabs
-    },
-    async synthesize({ payload, text, apiKey, signal }) {
-      const audio = await synthesizeElevenLabsDirect(
-        text,
-        payload.voiceId,
-        apiKey,
-        payload.settings,
-        signal,
-      )
-      return { audio }
-    },
-  },
+  // contra api.elevenlabs.io con la MISMA voz (solo funciona con voces
+  // premade públicas: las clonadas de una cuenta no existen en la otra).
+  fallbackProviderIds: ['elevenlabs-direct'],
 }
