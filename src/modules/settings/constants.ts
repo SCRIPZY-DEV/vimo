@@ -15,6 +15,11 @@ export const DEFAULT_SCENE_COUNT_STORE_KEY = 'defaultSceneCount'
 export const SECONDS_PER_SCENE_STORE_KEY = 'secondsPerScene'
 export const CONFIRM_SCENES_STORE_KEY = 'confirmScenes'
 export const PROMPT_MODEL_STORE_KEY = 'promptModel'
+export const PROMPT_MODEL_COMPACT_STORE_KEY = 'promptModelCompact'
+
+// El selector completo (todas las bandas de precio + simulador) es para
+// comparar; una vez elegido el modelo, en Crear alcanza con verlo.
+export const PROMPT_MODEL_COMPACT_DEFAULT = true
 
 // Espejo de MAX_SCENE_COUNT del módulo videos: se duplica a propósito para no
 // acoplar módulos. Si cambia allá, cambia acá.
