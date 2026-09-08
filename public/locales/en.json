@@ -975,6 +975,8 @@
     "saldo": "Credits",
     "soloEscritorio": "The voice catalog works in the desktop app.",
     "cargando": "Loading voices… the first time can take a while.",
+    "availableCount_one": "{{count}} voice available",
+    "availableCount_other": "{{count}} voices available",
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
