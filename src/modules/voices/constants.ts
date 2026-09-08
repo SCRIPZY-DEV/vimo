@@ -32,6 +32,11 @@ export const VOICE_LIST_CACHE_MAX_VOICES = 2000
 
 /** Voces por página en la paginación client-side (Minimax y favoritos). */
 export const VOICE_PAGE_SIZE = 30
+
+// Espejo de ELEVENLABS_PAGE_SIZE del sidecar (pipeline/providers/tts):
+// ElevenLabs pagina server-side, así que la UI necesita el mismo tamaño para
+// traducir el total del proveedor a número de páginas.
+export const ELEVENLABS_PAGE_SIZE = 60
 export const SEARCH_DEBOUNCE_MS = 300
 
 /** Espera antes de re-consultar el saldo (DubVoice descuenta async). */
