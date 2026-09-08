@@ -8,6 +8,7 @@ import {
   MINIMAX_EMOTIONS,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
+import { isElevenLabsEngine } from '@/modules/voices/utilities/isElevenLabsEngine'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
 
@@ -113,7 +114,7 @@ export function VoiceSettingsPanel({
         </>
       )}
 
-      {provider === 'elevenlabs' && (
+      {isElevenLabsEngine(provider) && (
         <>
           <SliderRow
             id="voice-speed"

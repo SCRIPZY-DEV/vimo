@@ -14,6 +14,7 @@ import {
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { voicesApi } from '@/modules/voices/api'
+import { VOICE_PROVIDER_LABELS } from '@/modules/voices/constants'
 import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { useVoiceHistory } from '@/modules/voices/hooks/useVoiceHistory'
 import { matchesSearch } from '@/modules/voices/utilities/matchesSearch'
@@ -124,7 +125,7 @@ export function VoiceHistoryPanel() {
                   </p>
                   <p className="mt-1 font-body text-xs text-muted-foreground">
                     {formatDateTime(entry.createdAt, i18n.resolvedLanguage)} ·{' '}
-                    {entry.provider}
+                    {VOICE_PROVIDER_LABELS[entry.provider]}
                     {entry.model ? ` · ${entry.model}` : ''}
                   </p>
                 </div>

@@ -9,18 +9,20 @@ import { cn } from '@/modules/common/utilities/cn'
 import { SceneCountSection } from '@/modules/settings/components/SceneCountSection'
 import { SceneDurationSection } from '@/modules/settings/components/SceneDurationSection'
 import { PromptModelSection } from '@/modules/settings/components/PromptModelSection'
+import { VoiceVendorSection } from '@/modules/settings/components/VoiceVendorSection'
 import { useProjectsRoot } from '@/modules/settings/hooks/useProjectsRoot'
 import {
   PROMPT_MODEL_FOCUS,
   SETTINGS_FOCUS_PARAM,
+  VOICE_VENDOR_FOCUS,
 } from '@/modules/settings/constants'
 
 /**
  * Ajustes de la aplicación: la carpeta raíz donde Vimo guardará los proyectos
  * (una sola — el layout por proyecto lo crea el pipeline, ver ADR-0009), la
  * cantidad de escenas con la que arrancan los videos de catálogo, y el ritmo y
- * el modelo de escritura de los de estilo propio. En web las secciones se
- * muestran deshabilitadas.
+ * el modelo de escritura de los de estilo propio, y el proveedor de voces. En
+ * web las secciones se muestran deshabilitadas.
  */
 export function Settings() {
   const { t } = useTranslation()
@@ -133,6 +135,8 @@ export function Settings() {
       <SceneDurationSection />
 
       <PromptModelSection focused={focusedSection === PROMPT_MODEL_FOCUS} />
+
+      <VoiceVendorSection focused={focusedSection === VOICE_VENDOR_FOCUS} />
     </div>
   )
 }

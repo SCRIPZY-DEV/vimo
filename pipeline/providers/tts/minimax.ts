@@ -145,10 +145,14 @@ export async function synthesizeMinimax(
 
 export const minimaxProvider: TtsProvider = {
   id: 'minimax',
+  vendor: 'dubvoice',
   laneName: 'DubVoice/Minimax',
   requestCharLimit: MINIMAX_CHAR_LIMIT,
   chunksLongText: true,
   reportsProgress: false,
+  apiKeyOf(apiKeys) {
+    return apiKeys.dubvoice
+  },
   listVoices({ apiKey, signal }) {
     return listMinimaxVoices(apiKey, signal).then((voices) => ({ voices }))
   },

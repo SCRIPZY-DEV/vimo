@@ -1,6 +1,20 @@
-// Dominio de voces TTS (DubVoice: Minimax + ElevenLabs + Edge). Port renombrado
-// del origen (VozUnificada, BodyVoz, MetadataHistorialVoz).
-export type VoiceProviderId = 'minimax' | 'elevenlabs' | 'edge'
+// Dominio de voces TTS. Port renombrado del origen (VozUnificada, BodyVoz,
+// MetadataHistorialVoz).
+//
+// Dos vendors (ADR-0024): DubVoice es un agregador (una clave, tres motores:
+// minimax, elevenlabs, edge) y ElevenLabs directo usa la clave propia del
+// usuario contra api.elevenlabs.io. El id de provider es el MOTOR y queda
+// persistido en project.json, historial y favoritos; el vendor se deriva del
+// id. 'elevenlabs' sigue siendo el motor vía DubVoice (compatibilidad con lo
+// ya guardado); 'elevenlabs-direct' es la API directa.
+export type VoiceProviderId =
+  'minimax' | 'elevenlabs' | 'edge' | 'elevenlabs-direct'
+
+export type VoiceVendorId = 'dubvoice' | 'elevenlabs'
+
+// Solo elevenlabs-direct: 'account' = voces de la cuenta del usuario
+// (/v2/voices); 'library' = biblioteca pública (/v1/shared-voices).
+export type VoiceSource = 'account' | 'library'
 
 // Shape unificado que cruza el contrato: la UI nunca ve los shapes crudos de
 // DubVoice (port de unificarMinimax/unificarElevenLabs/unificarEdge).
@@ -17,8 +31,14 @@ export interface VoiceSummary {
   category?: string
   // ElevenLabs preview_url | Minimax sample_audio | Edge: sin preview.
   previewUrl?: string
-  // Minimax: voz clonada de la cuenta del usuario.
+  // Minimax: voz clonada de la cuenta del usuario. ElevenLabs directo: voz
+  // clonada o profesional de la cuenta.
   isClone?: boolean
+  // Solo elevenlabs-direct con source 'library': dueño público de la voz.
+  // Su presencia significa «hay que añadirla a la cuenta antes de usarla»
+  // (subcomando add-library-voice); nunca se persiste en project.json ni en
+  // el historial.
+  libraryOwnerId?: string
 }
 
 // ─── Contratos de los subcomandos de voces (payload/result de cada job) ───
@@ -28,8 +48,14 @@ export interface ListVoicesFilters {
   search?: string
   language?: string
   gender?: string
-  // Paginación server-side: solo significativa para elevenlabs.
+  // Paginación server-side: solo significativa para elevenlabs y para
+  // elevenlabs-direct con source 'library'. 1-indexado (la conversión al
+  // 0-indexado de ElevenLabs la hace el sidecar).
   page?: number
+  // Solo elevenlabs-direct (default 'account').
+  source?: VoiceSource
+  // Solo elevenlabs-direct con source 'library': filtro server-side.
+  category?: string
 }
 
 export interface ListVoicesPayload {
@@ -39,10 +65,11 @@ export interface ListVoicesPayload {
 
 export interface ListVoicesResult {
   voices: VoiceSummary[]
-  // Solo significativo para elevenlabs (paginado server-side).
+  // Solo significativo en los catálogos paginados server-side.
   hasMore?: boolean
-  // Total de voces del catálogo del proveedor: solo elevenlabs lo informa
-  // (minimax y edge llegan completos, ahí el total es voices.length).
+  // Total de voces del catálogo del proveedor: solo elevenlabs (vía DubVoice)
+  // lo informa; los catálogos completos tienen total = voices.length y la
+  // biblioteca de ElevenLabs no lo expone.
   total?: number
 }
 
@@ -109,10 +136,40 @@ export interface GenerateVoiceResult {
   creditsRemaining?: number
 }
 
+export interface VoiceCreditsPayload {
+  // Sin payload → 'dubvoice' (compatibilidad).
+  vendor?: VoiceVendorId
+}
+
 export interface VoiceCreditsResult {
-  email?: string
+  vendor: VoiceVendorId
+  // dubvoice: créditos prepagos; elevenlabs: caracteres de la cuota mensual.
+  unit: 'credits' | 'characters'
+  // dubvoice: saldo; elevenlabs: caracteres restantes (limit - used).
   credits: number
+  email?: string
   plan?: string
+  // Solo elevenlabs: para «X de Y caracteres» y la fecha de renovación.
+  quota?: VoiceCharacterQuota
+}
+
+export interface VoiceCharacterQuota {
+  used: number
+  limit: number
+  // ISO 8601.
+  resetsAt?: string
+}
+
+// Añade una voz de la biblioteca pública de ElevenLabs a la cuenta del
+// usuario y devuelve el voice_id con el que ya se puede sintetizar.
+export interface AddLibraryVoicePayload {
+  libraryOwnerId: string
+  voiceId: string
+  name: string
+}
+
+export interface AddLibraryVoiceResult {
+  voiceId: string
 }
 
 export interface VoiceHistoryListResult {
@@ -177,4 +234,57 @@ export interface DubvoiceAccountResponse {
   email?: string
   credits?: number
   plan?: string
+}
+
+// ─── Formas crudas de la API directa de ElevenLabs (solo lo que consumimos) ───
+
+export interface ElevenLabsVoice {
+  voice_id?: string
+  name?: string
+  // 'premade' | 'cloned' | 'generated' | 'professional' | ...
+  category?: string
+  preview_url?: string
+  labels?: {
+    language?: string
+    gender?: string
+    accent?: string
+    [key: string]: string | undefined
+  }
+  sharing?: {
+    original_voice_id?: string
+    public_owner_id?: string
+  }
+}
+
+export interface ElevenLabsVoicesResponse {
+  voices?: ElevenLabsVoice[]
+  has_more?: boolean
+  next_page_token?: string | null
+}
+
+export interface ElevenLabsSharedVoice {
+  public_owner_id?: string
+  voice_id?: string
+  name?: string
+  category?: string
+  language?: string
+  gender?: string
+  accent?: string
+  preview_url?: string
+}
+
+export interface ElevenLabsSharedVoicesResponse {
+  voices?: ElevenLabsSharedVoice[]
+  has_more?: boolean
+}
+
+export interface ElevenLabsSubscriptionResponse {
+  tier?: string
+  character_count?: number
+  character_limit?: number
+  next_character_count_reset_unix?: number
+}
+
+export interface ElevenLabsAddVoiceResponse {
+  voice_id?: string
 }

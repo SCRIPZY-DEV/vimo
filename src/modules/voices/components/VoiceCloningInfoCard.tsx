@@ -2,9 +2,13 @@ import { useTranslation } from 'react-i18next'
 import { Copy, ExternalLink } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { voicesApi } from '@/modules/voices/api'
+import { useVoiceVendor } from '@/modules/voices/hooks/useVoiceVendor'
 
+// Clonación de voces: cada vendor la ofrece en su propio panel web
+// (DubVoice → pestaña Minimax con «Solo clonadas»; ElevenLabs → «Mis voces»).
 export function VoiceCloningInfoCard() {
   const { t } = useTranslation()
+  const { vendor } = useVoiceVendor()
 
   if (!voicesApi.isNative()) return null
 
@@ -19,17 +23,17 @@ export function VoiceCloningInfoCard() {
             {t('voices.clonacion.titulo')}
           </h2>
           <p className="font-body text-sm text-muted-foreground">
-            {t('voices.clonacion.descripcion')}
+            {t(`voices.clonacion.descripcion.${vendor}`)}
           </p>
         </div>
       </div>
       <Button
         variant="outline"
-        onClick={() => void voicesApi.openCloningDashboard()}
+        onClick={() => void voicesApi.openCloningDashboard(vendor)}
         className="rounded-xl font-display"
       >
         <ExternalLink className="mr-2 h-4 w-4" />
-        {t('voices.clonacion.abrirDashboard')}
+        {t(`voices.clonacion.abrirDashboard.${vendor}`)}
       </Button>
     </section>
   )

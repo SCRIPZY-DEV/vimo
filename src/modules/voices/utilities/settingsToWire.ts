@@ -2,6 +2,7 @@ import type {
   VoiceGenerationSettings,
   VoiceProviderId,
 } from '@pipeline/types/voices.ts'
+import { isElevenLabsEngine } from './isElevenLabsEngine'
 import type { VoiceSettingsFormValue } from '../types/voices'
 
 export function settingsForProvider(
@@ -18,7 +19,7 @@ export function settingsForProvider(
     return settings
   }
 
-  if (provider === 'elevenlabs')
+  if (isElevenLabsEngine(provider))
     return {
       speed: form.speed,
       stability: form.stability,

@@ -10,8 +10,12 @@ import {
 } from '@/modules/common/ui/select'
 import { Switch } from '@/modules/common/ui/switch'
 import { cn } from '@/modules/common/utilities/cn'
-import { VOICE_LANGUAGE_FILTER_CODES } from '@/modules/voices/constants'
-import type { VoiceProviderId } from '@pipeline/types/voices.ts'
+import {
+  ELEVENLABS_LIBRARY_CATEGORY_LABEL_KEYS,
+  VOICE_LANGUAGE_FILTER_CODES,
+} from '@/modules/voices/constants'
+import { isElevenLabsEngine } from '@/modules/voices/utilities/isElevenLabsEngine'
+import type { VoiceProviderId, VoiceSource } from '@pipeline/types/voices.ts'
 import type { VoiceFilterState } from '@/modules/voices/types/voices'
 
 // Radix Select no acepta '' como value de un item: 'all' es el centinela.
@@ -19,15 +23,18 @@ const ALL_VALUE = 'all'
 
 interface VoiceFiltersProps {
   provider: VoiceProviderId
+  source?: VoiceSource
   value: VoiceFilterState
   onChange: (value: VoiceFilterState) => void
-  // Opciones derivadas de las voces cargadas (solo ElevenLabs las muestra).
+  // Opciones de acento/categoría (solo los motores ElevenLabs las muestran):
+  // derivadas de las voces cargadas, o fijas para la biblioteca pública.
   accents: string[]
   categories: string[]
 }
 
 export function VoiceFilters({
   provider,
+  source,
   value,
   onChange,
   accents,
@@ -42,6 +49,14 @@ export function VoiceFilters({
     selected === ALL_VALUE ? '' : selected
 
   const genders = ['', 'male', 'female'] as const
+  const elevenLabs = isElevenLabsEngine(provider)
+  const categoryLabel = (category: string) => {
+    const key =
+      source === 'library'
+        ? ELEVENLABS_LIBRARY_CATEGORY_LABEL_KEYS[category]
+        : undefined
+    return key ? t(key) : category
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -107,7 +122,7 @@ export function VoiceFilters({
         })}
       </div>
 
-      {provider === 'elevenlabs' && accents.length > 0 && (
+      {elevenLabs && accents.length > 0 && (
         <Select
           value={value.accent || ALL_VALUE}
           onValueChange={(selected) => patch({ accent: fromSelect(selected) })}
@@ -131,7 +146,7 @@ export function VoiceFilters({
         </Select>
       )}
 
-      {provider === 'elevenlabs' && categories.length > 0 && (
+      {elevenLabs && categories.length > 0 && (
         <Select
           value={value.category || ALL_VALUE}
           onValueChange={(selected) =>
@@ -150,7 +165,7 @@ export function VoiceFilters({
             </SelectItem>
             {categories.map((category) => (
               <SelectItem key={category} value={category}>
-                {category}
+                {categoryLabel(category)}
               </SelectItem>
             ))}
           </SelectContent>

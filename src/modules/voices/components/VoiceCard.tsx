@@ -52,6 +52,11 @@ export function VoiceCard({
               {t('voices.tarjeta.clon')}
             </span>
           )}
+          {voice.libraryOwnerId && (
+            <span className="ml-1.5 rounded-full bg-saffron/20 px-1.5 py-0.5 font-body text-[10px] font-semibold text-foreground">
+              {t('voices.tarjeta.biblioteca')}
+            </span>
+          )}
         </p>
         {details && (
           <p className="truncate font-body text-xs text-muted-foreground">

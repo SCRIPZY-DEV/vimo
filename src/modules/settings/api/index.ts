@@ -20,8 +20,10 @@ import {
   SECONDS_PER_SCENE_MIN,
   SECONDS_PER_SCENE_STORE_KEY,
   SETTINGS_STORE_FILE,
+  VOICE_VENDOR_STORE_KEY,
   WRITE_PROBE_FILE_NAME,
 } from '../constants'
+import type { VoiceVendorId } from '@pipeline/types/voices.ts'
 import type {
   ChooseProjectsRootResult,
   PromptModelDefaults,
@@ -74,6 +76,13 @@ function normalizePromptModel(value: string | null): string | null {
   const trimmed = value?.trim()
   if (!trimmed || trimmed.length > PROMPT_MODEL_ID_LIMIT) return null
   return trimmed
+}
+
+// null = automático. Un valor que no es un vendor (store editado a mano,
+// versión vieja) se trata como «no elegido», nunca rompe la vista.
+function normalizeVoiceVendor(value: unknown): VoiceVendorId | null {
+  if (value === 'dubvoice' || value === 'elevenlabs') return value
+  return null
 }
 
 /**
@@ -158,6 +167,19 @@ export const settingsApi = {
     }
     await store.set(PROMPT_MODEL_STORE_KEY, saved.modelId)
     await store.set(PROMPT_MODEL_COMPACT_STORE_KEY, saved.compact)
+    await store.save()
+    return saved
+  },
+  async getVoiceVendor(): Promise<VoiceVendorId | null> {
+    const stored = await store.get<unknown>(VOICE_VENDOR_STORE_KEY)
+    return normalizeVoiceVendor(stored)
+  },
+  async setVoiceVendor(
+    vendor: VoiceVendorId | null,
+  ): Promise<VoiceVendorId | null> {
+    const saved = normalizeVoiceVendor(vendor)
+    if (saved === null) await store.delete(VOICE_VENDOR_STORE_KEY)
+    else await store.set(VOICE_VENDOR_STORE_KEY, saved)
     await store.save()
     return saved
   },

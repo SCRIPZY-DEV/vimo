@@ -7,8 +7,9 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import type { ListVoicesPayload, ListVoicesResult } from '../../types/voices.ts'
 
 // Listado unificado de voces: un solo contrato para todos los motores.
-// Minimax y Edge devuelven el catálogo completo (los filtros son client-side
-// en la UI); ElevenLabs pagina server-side con los filtros del payload.
+// Minimax, Edge y la cuenta de ElevenLabs devuelven el catálogo completo (los
+// filtros son client-side en la UI); ElevenLabs vía DubVoice y la biblioteca
+// de ElevenLabs paginan server-side con los filtros del payload.
 export async function listVoices(
   context: PipelineContext,
 ): Promise<ListVoicesResult> {
@@ -20,9 +21,12 @@ export async function listVoices(
       `payload.provider must be one of: ${TTS_PROVIDER_IDS}`,
     )
 
-  const apiKey = context.job.apiKeys.dubvoice
+  const apiKey = provider.apiKeyOf(context.job.apiKeys)
   if (!apiKey)
-    throw new PipelineFailure('missing_api_key', 'dubvoice API key is missing')
+    throw new PipelineFailure(
+      'missing_api_key',
+      `${provider.vendor} API key is missing`,
+    )
 
   return provider.listVoices({
     apiKey,

@@ -83,9 +83,12 @@ export async function generateVoiceCommand(
       `text exceeds the ${provider.requestCharLimit} character limit for ${provider.id}`,
     )
 
-  const apiKey = context.job.apiKeys.dubvoice
+  const apiKey = provider.apiKeyOf(context.job.apiKeys)
   if (!apiKey)
-    throw new PipelineFailure('missing_api_key', 'dubvoice API key is missing')
+    throw new PipelineFailure(
+      'missing_api_key',
+      `${provider.vendor} API key is missing`,
+    )
 
   // El historial debe existir ANTES de sintetizar: fallar por projectsRoot
   // después de gastar créditos sería tirar la generación a la basura.

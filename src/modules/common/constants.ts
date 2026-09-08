@@ -1,3 +1,5 @@
+import type { VoiceVendorId } from '@pipeline/types/voices.ts'
+
 export const CommonRoutesPaths = {
   notFound: '*',
 } as const
@@ -11,3 +13,11 @@ export const TOOLTIP_DELAY_MS = 300
 export const commonQueryKeys = {
   promptModels: ['common', 'promptModels'],
 } as const
+
+// Proveedores de voces (ADR-0024). Etiquetas de marca: no se traducen.
+export const VOICE_VENDOR_IDS = ['dubvoice', 'elevenlabs'] as const
+export const VOICE_VENDOR_LABELS: Record<VoiceVendorId, string> = {
+  dubvoice: 'DubVoice',
+  elevenlabs: 'ElevenLabs',
+}
+export const VOICE_VENDOR_DEFAULT: VoiceVendorId = 'dubvoice'

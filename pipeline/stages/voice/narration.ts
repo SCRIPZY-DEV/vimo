@@ -38,9 +38,12 @@ export async function synthesizeNarration(
       `narrationMode is tts but the project has no voiceId or its voiceProvider is not one of: ${TTS_PROVIDER_IDS}`,
     )
 
-  const apiKey = context.job.apiKeys.dubvoice
+  const apiKey = provider.apiKeyOf(context.job.apiKeys)
   if (!apiKey)
-    throw new PipelineFailure('missing_api_key', 'dubvoice API key is missing')
+    throw new PipelineFailure(
+      'missing_api_key',
+      `${provider.vendor} API key is missing`,
+    )
 
   // Números a palabras ANTES de mandar al proveedor (si no, «41» se
   // pronuncia «cuatro uno»); el idioma detectado también viaja al proveedor.
@@ -108,50 +111,41 @@ export async function synthesizeNarration(
   }
 }
 
-// Carriles en orden de preferencia: el principal es el motor vía DubVoice; el
-// fallback directo (si el motor declara uno y el usuario tiene su clave) entra
-// cuando DubVoice está caído.
+// Carriles en orden de preferencia: el motor elegido y después los fallbacks
+// que declara por id (ElevenLabs vía DubVoice ↔ ElevenLabs directo, con la
+// MISMA voz), solo los que el usuario puede pagar con sus claves. Todos pasan
+// por synthesizeToNarrationFile: el troceo y el reuso de partes ya pagadas
+// aplican en cualquier carril, no solo en el principal.
 function buildAttempts(
   context: CreateVideoContext,
   provider: TtsProvider,
   payload: GenerateVoicePayload,
   text: string,
-  dubvoiceApiKey: string,
+  apiKey: string,
   onPercent: (percent: number) => void,
 ): NarrationAttempt[] {
-  const attempts: NarrationAttempt[] = [
-    {
-      name: provider.laneName,
-      execute: () =>
-        synthesizeToNarrationFile(
-          context,
-          provider,
-          payload,
-          text,
-          dubvoiceApiKey,
-          onPercent,
-        ),
-    },
+  const lanes: { provider: TtsProvider; apiKey: string }[] = [
+    { provider, apiKey },
   ]
+  for (const fallbackId of provider.fallbackProviderIds ?? []) {
+    const fallback = resolveTtsProvider(fallbackId)
+    const fallbackApiKey = fallback?.apiKeyOf(context.job.apiKeys)
+    if (!fallback || !fallbackApiKey) continue
+    lanes.push({ provider: fallback, apiKey: fallbackApiKey })
+  }
 
-  const fallback = provider.directFallback
-  const fallbackApiKey = fallback?.apiKeyOf(context.job.apiKeys)
-  if (!fallback || !fallbackApiKey) return attempts
-
-  attempts.push({
-    name: fallback.name,
-    execute: async () => {
-      const download = await fallback.synthesize({
-        payload,
+  return lanes.map((lane) => ({
+    name: lane.provider.laneName,
+    execute: () =>
+      synthesizeToNarrationFile(
+        context,
+        lane.provider,
+        { ...payload, provider: lane.provider.id },
         text,
-        apiKey: fallbackApiKey,
-        signal: context.signal,
-      })
-      await writeNarrationAudio(context.paths.narrationFile, download)
-    },
-  })
-
-  return attempts
+        lane.apiKey,
+        onPercent,
+      ),
+  }))
 }
 
 async function synthesizeToNarrationFile(

@@ -4,6 +4,7 @@ import type {
   ApiKeyRequirement,
 } from './types/provider'
 import type { ApiKeyErrorCode } from './types/apiKeys'
+import type { VoiceVendorId } from '@pipeline/types/voices.ts'
 
 export const ApiKeysRoutes = {
   apiKeys: '/api-keys',
@@ -42,9 +43,19 @@ export const MODULE_API_KEY_REQUIREMENTS = {
     ['deepgram'],
   ],
   music: [['evolink']],
-  voices: [['dubvoice']],
+  voices: [['dubvoice', 'elevenlabs']],
   characters: [['fal', 'evolink'], ['deepinfra']],
 } satisfies Record<string, ApiKeyRequirement[]>
+
+// Con el proveedor de voces ya elegido (ADR-0024), el aviso apunta a la
+// clave de ESE vendor, no a «una de las dos».
+export const VOICE_VENDOR_API_KEY_REQUIREMENTS: Record<
+  VoiceVendorId,
+  ApiKeyRequirement[]
+> = {
+  dubvoice: [['dubvoice']],
+  elevenlabs: [['elevenlabs']],
+}
 
 /** Código de error de Rust → clave i18n del mensaje. */
 export const API_KEY_ERROR_MESSAGE_KEYS: Record<ApiKeyErrorCode, string> = {
