@@ -27,7 +27,7 @@ export async function probeTts(
       `payload.provider must be one of: ${TTS_PROVIDER_IDS}`,
     )
 
-  const apiKey = context.job.apiKeys.dubvoice
+  const apiKey = provider.apiKeyOf(context.job.apiKeys)
   if (!apiKey) return { ok: false, reason: 'config' }
 
   const request = provider.probeRequest(apiKey)
