@@ -42,10 +42,6 @@ export function useLibraryEditor(projectId: string) {
   const [syncedScenes, setSyncedScenes] = useState<SceneDetail[] | undefined>(
     undefined,
   )
-  // Par de escenas cuya frontera se está arrastrando en el timeline.
-  const [draggedBoundary, setDraggedBoundary] = useState<
-    [number, number] | null
-  >(null)
 
   // Resync de la copia de trabajo con cada refetch (ajuste durante el
   // render, no en un efecto): el disco es la verdad tras cada job — salvo
@@ -197,28 +193,22 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     patchWorkingScene(leftId, { endSeconds: boundarySeconds })
     patchWorkingScene(rightId, { startSeconds: boundarySeconds })
-    setDraggedBoundary([leftId, rightId])
   }
 
-  // Al soltar: persiste el par tocado en un solo batch.
-  const commitBoundary = () => {
-    if (!draggedBoundary) return
-    const [leftId, rightId] = draggedBoundary
-    setDraggedBoundary(null)
-    const left = workingScenes.find((scene) => scene.id === leftId)
-    const right = workingScenes.find((scene) => scene.id === rightId)
-    if (!left || !right) return
+  // Al soltar: persiste el par tocado en un solo batch, solo los campos que
+  // cambiaron. Recibe la frontera final en vez de leerla del estado: el
+  // mouseup del timeline corre en un listener registrado al iniciar el drag,
+  // o sea con la clausura de ESE render, donde cualquier estado que el drag
+  // haya cambiado se ve viejo. Así se perdía el commit: las duraciones
+  // vivían solo en la copia local y el primer refetch las pisaba.
+  const commitBoundary = (
+    leftId: number,
+    rightId: number,
+    boundarySeconds: number,
+  ) => {
     commitScenes([
-      {
-        id: leftId,
-        startSeconds: left.startSeconds,
-        endSeconds: left.endSeconds,
-      },
-      {
-        id: rightId,
-        startSeconds: right.startSeconds,
-        endSeconds: right.endSeconds,
-      },
+      { id: leftId, endSeconds: boundarySeconds },
+      { id: rightId, startSeconds: boundarySeconds },
     ])
   }
 
