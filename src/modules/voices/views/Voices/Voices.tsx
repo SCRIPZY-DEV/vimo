@@ -13,6 +13,7 @@ import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKe
 import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { VoiceCloningInfoCard } from '@/modules/voices/components/VoiceCloningInfoCard'
+import { VoiceCount } from '@/modules/voices/components/VoiceCount'
 import { VoiceFilters } from '@/modules/voices/components/VoiceFilters'
 import { VoiceGrid } from '@/modules/voices/components/VoiceGrid'
 import { VoiceHistoryPanel } from '@/modules/voices/components/VoiceHistoryPanel'
@@ -20,6 +21,7 @@ import { VoicePagination } from '@/modules/voices/components/VoicePagination'
 import { VoiceTesterPanel } from '@/modules/voices/components/VoiceTesterPanel'
 import {
   CREDITS_SETTLE_DELAY_MS,
+  ELEVENLABS_PAGE_SIZE,
   SEARCH_DEBOUNCE_MS,
   VOICE_FILTERS_INITIAL_VALUE,
   VOICE_PAGE_SIZE,
@@ -60,8 +62,15 @@ export function Voices() {
   const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS)
   const effectiveFilters = { ...filters, search: debouncedSearch }
   const provider = tab === 'favorites' ? null : tab
-  const { voices, isLoading, isFetching, errorKey, serverPaged, hasNextPage } =
-    useVoices({ provider, filters: effectiveFilters, page, ready })
+  const {
+    voices,
+    isLoading,
+    isFetching,
+    errorKey,
+    serverPaged,
+    hasNextPage,
+    serverTotal,
+  } = useVoices({ provider, filters: effectiveFilters, page, ready })
 
   // DubVoice descuenta créditos async al sintetizar: se refresca el saldo al
   // completar y otra vez unos segundos después (mismo patrón que música).
@@ -90,14 +99,21 @@ export function Voices() {
   const filteredVoices = filterVoices(source, effectiveFilters, {
     serverFiltered: tab === 'elevenlabs',
   })
-  // ElevenLabs ya viene paginado del server; el resto se rebana en cliente.
+  // ElevenLabs ya viene paginado del server: sus páginas salen del total que
+  // informa el proveedor (null si no lo trae); el resto se rebana en cliente.
+  const serverTotalPages =
+    serverTotal === null
+      ? null
+      : Math.max(1, Math.ceil(serverTotal / ELEVENLABS_PAGE_SIZE))
   const totalPages = serverPaged
-    ? null
+    ? serverTotalPages
     : Math.max(1, Math.ceil(filteredVoices.length / VOICE_PAGE_SIZE))
   const pageVoices = serverPaged
     ? filteredVoices
     : filteredVoices.slice((page - 1) * VOICE_PAGE_SIZE, page * VOICE_PAGE_SIZE)
   const canGoNext = serverPaged ? hasNextPage : page < (totalPages ?? 1)
+  // ElevenLabs solo conoce su total por el server; el resto se cuenta local.
+  const totalVoices = serverPaged ? serverTotal : filteredVoices.length
   const accents = [
     ...new Set(voices.map((voice) => voice.accent).filter(Boolean)),
   ] as string[]
@@ -110,11 +126,11 @@ export function Voices() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
+    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between gap-3"
+        className="flex max-w-5xl items-center justify-between gap-3"
       >
         <div className="flex items-center gap-3">
           <DoodleVoice size={48} delay={100} />
@@ -143,15 +159,17 @@ export function Voices() {
       </motion.div>
 
       {!isNative && (
-        <p className="font-body text-sm text-saffron">
+        <p className="max-w-5xl font-body text-sm text-saffron">
           {t('voices.soloEscritorio')}
         </p>
       )}
 
       {missingKeys && (
-        <MissingApiKeysNotice
-          requirements={MODULE_API_KEY_REQUIREMENTS.voices}
-        />
+        <div className="max-w-5xl">
+          <MissingApiKeysNotice
+            requirements={MODULE_API_KEY_REQUIREMENTS.voices}
+          />
+        </div>
       )}
 
       <motion.section
@@ -209,6 +227,8 @@ export function Voices() {
           </p>
         )}
 
+        {pageVoices.length > 0 && <VoiceCount count={totalVoices} />}
+
         {pageVoices.length > 0 && (
           <VoiceGrid
             voices={pageVoices}
@@ -236,7 +256,7 @@ export function Voices() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="space-y-8"
+        className="max-w-5xl space-y-8"
       >
         <VoiceCloningInfoCard />
         <VoiceHistoryPanel />
