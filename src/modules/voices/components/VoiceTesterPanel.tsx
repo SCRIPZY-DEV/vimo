@@ -22,6 +22,7 @@ import {
   VOICE_SETTINGS_DEFAULTS,
   VOICE_TEXT_LIMITS,
 } from '@/modules/voices/constants'
+import { useAddLibraryVoice } from '@/modules/voices/hooks/useAddLibraryVoice'
 import { useVoiceTask } from '@/modules/voices/hooks/useVoiceTask'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
@@ -42,6 +43,11 @@ interface VoiceTesterPanelProps {
 export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   const { t } = useTranslation()
   const { task, startGeneration, discardTask } = useVoiceTask()
+  const {
+    addLibraryVoice,
+    adding,
+    errorKey: addErrorKey,
+  } = useAddLibraryVoice()
 
   const [text, setText] = useState('')
   const [model, setModel] = useState<string | null>(null)
@@ -49,9 +55,9 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
     VOICE_SETTINGS_DEFAULTS,
   )
 
-  const generating = task?.status === 'generating'
+  const generating = task?.status === 'generating' || adding
   const entry = task?.status === 'completed' ? task.entry : null
-  const errorKey = task?.errorKey ?? null
+  const errorKey = addErrorKey ?? task?.errorKey ?? null
 
   const textLimit = VOICE_TEXT_LIMITS[voice.provider]
   const models = VOICE_MODELS[voice.provider]
@@ -60,10 +66,26 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
     text.length * VOICE_COST_FACTORS[voice.provider],
   )
 
-  const generate = () => {
+  // Una voz de la biblioteca pública de ElevenLabs se añade a la cuenta
+  // ANTES de generar; lo que se sintetiza (y queda en el historial) es la
+  // voz de cuenta que devuelve.
+  const generate = async () => {
+    let voiceId = voice.voiceId
+    if (voice.libraryOwnerId) {
+      try {
+        voiceId = await addLibraryVoice({
+          libraryOwnerId: voice.libraryOwnerId,
+          voiceId: voice.voiceId,
+          name: voice.name,
+        })
+      } catch {
+        return
+      }
+    }
+
     void startGeneration({
       provider: voice.provider,
-      voiceId: voice.voiceId,
+      voiceId,
       voiceName: voice.name,
       text,
       model: activeModel,
@@ -154,7 +176,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
       <div className="flex items-center gap-2">
         <Button
           size="lg"
-          onClick={generate}
+          onClick={() => void generate()}
           disabled={generating || !text.trim()}
           className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
         >
@@ -163,11 +185,13 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          {generating
-            ? t('voices.probador.generando')
-            : t('voices.probador.generar')}
+          {adding
+            ? t('voices.probador.anadiendoVoz')
+            : generating
+              ? t('voices.probador.generando')
+              : t('voices.probador.generar')}
         </Button>
-        {generating && (
+        {generating && !adding && (
           <Button
             variant="ghost"
             size="lg"
@@ -180,7 +204,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
         )}
       </div>
 
-      {generating && task && (
+      {generating && !adding && task && (
         <LabeledProgress
           className="space-y-2"
           label={
