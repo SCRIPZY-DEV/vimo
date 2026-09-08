@@ -564,6 +564,9 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_timeout: 'create.errors.voiceTimeout',
   voice_download_failed: 'create.errors.voiceDownloadFailed',
   voice_empty_audio: 'create.errors.voiceEmptyAudio',
+  voice_quota_exceeded: 'create.errors.voiceQuotaExceeded',
+  voice_account_restricted: 'create.errors.voiceAccountRestricted',
+  voice_library_add_failed: 'create.errors.voiceLibraryAddFailed',
   // Música y overlay
   music_generation_failed: 'create.errors.musicGenerationFailed',
   music_download_failed: 'create.errors.musicDownloadFailed',
