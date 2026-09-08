@@ -2,9 +2,11 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { PromptModelSelector } from '@/modules/common/components/PromptModelSelector'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
+import { Switch } from '@/modules/common/ui/switch'
 import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
 import { cn } from '@/modules/common/utilities/cn'
 import { usePromptModelPreference } from '@/modules/settings/hooks/usePromptModelPreference'
+import { PROMPT_MODEL_COMPACT_DEFAULT } from '../constants'
 
 // Preferencia «modelo con el que escribo»: el que redacta los prompts de
 // imagen en los videos de estilo propio. Siembra el selector de Crear, que lo
@@ -16,10 +18,18 @@ import { usePromptModelPreference } from '@/modules/settings/hooks/usePromptMode
 export function PromptModelSection() {
   const { t } = useTranslation()
   const { models, defaultId, batchSize } = usePromptModels()
-  const { isNative, promptModel, isLoading, savePromptModel, saving } =
-    usePromptModelPreference()
+  const {
+    isNative,
+    promptModelDefaults,
+    isLoading,
+    savePromptModelDefaults,
+    saving,
+  } = usePromptModelPreference()
 
-  const chosen = resolvePromptModel(promptModel, models, defaultId)
+  const modelId = promptModelDefaults?.modelId ?? null
+  const compact = promptModelDefaults?.compact ?? PROMPT_MODEL_COMPACT_DEFAULT
+  const disabled = !isNative || isLoading || saving
+  const chosen = resolvePromptModel(modelId, models, defaultId)
 
   return (
     <motion.section
@@ -56,12 +66,32 @@ export function PromptModelSection() {
             gemChars={0}
             batchSize={batchSize}
             withCharacterPhase={false}
-            disabled={!isNative || isLoading || saving}
-            onChange={(modelId) => savePromptModel(modelId)}
+            disabled={disabled}
+            onChange={(picked) =>
+              savePromptModelDefaults({ modelId: picked, compact })
+            }
           />
           <p className="font-body text-xs text-muted-foreground">
             {t('settings.promptModelEstimateNote')}
           </p>
+
+          <label className="flex items-center gap-4 rounded-xl border-2 border-border p-4">
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-sm font-bold text-foreground">
+                {t('settings.promptModelCompactLabel')}
+              </span>
+              <span className="mt-0.5 block font-body text-xs text-muted-foreground">
+                {t('settings.promptModelCompactHint')}
+              </span>
+            </span>
+            <Switch
+              checked={compact}
+              disabled={disabled}
+              onCheckedChange={(next) =>
+                savePromptModelDefaults({ modelId, compact: next })
+              }
+            />
+          </label>
         </div>
       )}
     </motion.section>
