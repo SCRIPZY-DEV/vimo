@@ -637,6 +637,8 @@
         "promptHint": "The project's style is applied automatically when regenerating. Max. {{max}} characters.",
         "clipIn": "In:",
         "clipOut": "Out:",
+        "clipInEdit": "Edit the in time",
+        "clipOutEdit": "Edit the out time",
         "provider": "Provider",
         "quality": "Quality",
         "characters": "Characters in this scene",

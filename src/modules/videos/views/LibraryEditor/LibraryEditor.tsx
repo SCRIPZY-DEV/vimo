@@ -331,6 +331,9 @@ export function LibraryEditor() {
             }
             onUserPromptChange={editor.patchSelectedUserPrompt}
             onUserPromptBlur={editor.commitSelectedUserPrompt}
+            canEditClipIn={editor.canEditClipIn}
+            canEditClipOut={editor.canEditClipOut}
+            onClipTimeChange={editor.moveSelectedClipEdge}
             onImageChoiceChange={editor.changeImageChoice}
             onCharactersChange={editor.changeCharacters}
             onRegenerate={editor.regenerateSelected}

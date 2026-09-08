@@ -164,6 +164,12 @@ export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
 // Duración mínima de una escena al arrastrar fronteras (piso duro del drag).
 export const MIN_SCENE_SECONDS = 1
 
+// Tiempo tipeado en los In/Out del panel de escena: «mm:ss.cc» como muestra
+// `formatClipTime`, y también «m:ss», «ss.c» o «ss». Grupos: minutos
+// (opcional), segundos, fracción (opcional, coma o punto).
+export const CLIP_TIME_INPUT_REGEX =
+  /^(?:(\d{1,3}):)?(\d{1,2})(?:[.,](\d{1,3}))?$/
+
 // Segundos que saltan J/L en el preview del editor.
 export const EDITOR_SEEK_STEP_SECONDS = 5
 

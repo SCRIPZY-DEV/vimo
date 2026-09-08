@@ -10,9 +10,11 @@ import {
 } from '@/modules/videos/constants'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
+import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
 import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type {
+  ClipEdge,
   RegenQueueEntry,
   SceneImageChoice,
 } from '@/modules/videos/types/library'
@@ -212,6 +214,35 @@ export function useLibraryEditor(projectId: string) {
     ])
   }
 
+  // ── In/Out tipeados en el panel ──
+
+  // Solo las fronteras compartidas se mueven: la escena seleccionada tiene
+  // In editable si hay una anterior y Out editable si hay una siguiente.
+  const selectedIndex = workingScenes.findIndex(
+    (scene) => scene.id === selectedSceneId,
+  )
+  const canEditClipIn = selectedIndex > 0
+  const canEditClipOut =
+    selectedIndex >= 0 && selectedIndex < workingScenes.length - 1
+
+  // Mueve la frontera del lado pedido de la escena seleccionada, acotada
+  // como el drag del timeline, y la persiste por el mismo camino.
+  const moveSelectedClipEdge = (edge: ClipEdge, seconds: number) => {
+    const editable = edge === 'in' ? canEditClipIn : canEditClipOut
+    if (!editable) return
+
+    const scene = workingScenes[selectedIndex]
+    const neighbor =
+      workingScenes[edge === 'in' ? selectedIndex - 1 : selectedIndex + 1]
+    const left = edge === 'in' ? neighbor : scene
+    const right = edge === 'in' ? scene : neighbor
+    const boundary = clampBoundarySeconds(left, right, seconds)
+    if (boundary === left.endSeconds) return
+
+    dragBoundary(left.id, right.id, boundary)
+    commitBoundary(left.id, right.id, boundary)
+  }
+
   return {
     detail,
     isLoading,
@@ -229,6 +260,9 @@ export function useLibraryEditor(projectId: string) {
     regenerateSelected,
     dragBoundary,
     commitBoundary,
+    canEditClipIn,
+    canEditClipOut,
+    moveSelectedClipEdge,
     editorTask,
   }
 }

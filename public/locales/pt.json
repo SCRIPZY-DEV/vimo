@@ -637,6 +637,8 @@
         "promptHint": "O estilo do projeto é aplicado automaticamente ao regenerar. Máx. {{max}} caracteres.",
         "clipIn": "In:",
         "clipOut": "Out:",
+        "clipInEdit": "Editar o tempo de entrada",
+        "clipOutEdit": "Editar o tempo de saída",
         "provider": "Provedor",
         "quality": "Qualidade",
         "characters": "Personagens nesta cena",
