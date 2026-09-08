@@ -1,8 +1,15 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckSquare, RefreshCw, Trash2, X } from 'lucide-react'
+import {
+  CheckCheck,
+  CheckSquare,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react'
 import DoodleCamera from '@/modules/common/doodles/DoodleCamera'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
@@ -11,6 +18,7 @@ import { Button } from '@/modules/common/ui/button'
 import { LibraryFormatTabs } from '@/modules/videos/components/LibraryFormatTabs'
 import { LibraryProjectCard } from '@/modules/videos/components/LibraryProjectCard'
 import {
+  VideosRoutes,
   libraryEditorPath,
   libraryPlayerPath,
   libraryProgressPath,
@@ -96,6 +104,17 @@ export function Library() {
     setSelection(new Set())
   }
 
+  const allVisibleSelected =
+    visibleProjects.length > 0 &&
+    visibleProjects.every((project) => selection.has(project.id))
+
+  // «Seleccionar todo» marca solo lo visible (la pestaña activa); si ya está
+  // todo marcado, lo desmarca.
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) return void setSelection(new Set())
+    setSelection(new Set(visibleProjects.map((project) => project.id)))
+  }
+
   // La selección es de la pestaña visible: cambiarla la descarta para no
   // borrar nada que no esté a la vista.
   const changeTab = (next: LibraryTab) => {
@@ -139,6 +158,19 @@ export function Library() {
           {selectionMode ? (
             <>
               <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="rounded-lg font-display text-muted-foreground"
+              >
+                <CheckCheck className="mr-1.5 h-4 w-4" />
+                {t(
+                  allVisibleSelected
+                    ? 'library.list.deselectAll'
+                    : 'library.list.selectAll',
+                )}
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 disabled={selection.size === 0 || deleting}
@@ -181,6 +213,17 @@ export function Library() {
                 <RefreshCw
                   className={isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
                 />
+              </Button>
+              {/* Acceso directo a Crear, con el amarillo de la marca. */}
+              <Button
+                asChild
+                size="sm"
+                className="rounded-lg bg-saffron font-display font-bold text-white hover:bg-saffron/90"
+              >
+                <Link to={VideosRoutes.create}>
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                  {t('library.list.create')}
+                </Link>
               </Button>
             </>
           )}

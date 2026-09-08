@@ -3,6 +3,11 @@ import { Clapperboard, Images } from 'lucide-react'
 import { Brand } from '@/modules/common/brand/brand'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/modules/common/ui/tooltip'
 import { videosApi } from '@/modules/videos/api'
 import { ProjectStateBadge } from '@/modules/videos/components/ProjectStateBadge'
 import { aspectClass, isVertical } from '@/modules/videos/utilities/videoFormat'
@@ -39,6 +44,26 @@ export function LibraryProjectCard({
   const imageCountLabel = t('library.list.imageCount', {
     total: project.imageCount,
   })
+  const author = project.promptModelLabel ?? Brand.name
+  // La tarjeta angosta corta el nombre del modelo: al pasar el cursor se
+  // muestra entero, sin espera.
+  const showsAuthorTooltip = vertical && project.promptModelLabel !== undefined
+  const authorLine = (
+    <p
+      className={cn(
+        'font-body text-xs text-muted-foreground',
+        vertical && 'truncate',
+      )}
+    >
+      <Trans
+        i18nKey="library.list.promptAuthor"
+        values={{ author }}
+        components={{
+          author: <span className="font-semibold text-foreground" />,
+        }}
+      />
+    </p>
+  )
 
   return (
     <button
@@ -107,20 +132,16 @@ export function LibraryProjectCard({
             </p>
           )}
         </div>
-        <p
-          className={cn(
-            'font-body text-xs text-muted-foreground',
-            vertical && 'truncate',
-          )}
-        >
-          <Trans
-            i18nKey="library.list.promptAuthor"
-            values={{ author: project.promptModelLabel ?? Brand.name }}
-            components={{
-              author: <span className="font-semibold text-foreground" />,
-            }}
-          />
-        </p>
+        {showsAuthorTooltip ? (
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>{authorLine}</TooltipTrigger>
+            <TooltipContent side="bottom" className="font-body text-xs">
+              {author}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          authorLine
+        )}
       </div>
     </button>
   )
