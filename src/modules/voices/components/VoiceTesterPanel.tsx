@@ -15,9 +15,9 @@ import { cn } from '@/modules/common/utilities/cn'
 import { voicesApi } from '@/modules/voices/api'
 import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
 import { VoiceSettingsPanel } from '@/modules/voices/components/VoiceSettingsPanel'
+import { EstimatedCostBadge } from '@/modules/voices/components/EstimatedCostBadge'
 import {
   DEFAULT_VOICE_MODELS,
-  VOICE_COST_FACTORS,
   VOICE_MODELS,
   VOICE_SETTINGS_DEFAULTS,
   VOICE_TEXT_LIMITS,
@@ -62,9 +62,6 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   const textLimit = VOICE_TEXT_LIMITS[voice.provider]
   const models = VOICE_MODELS[voice.provider]
   const activeModel = model ?? DEFAULT_VOICE_MODELS[voice.provider]
-  const estimatedCredits = Math.ceil(
-    text.length * VOICE_COST_FACTORS[voice.provider],
-  )
 
   // Una voz de la biblioteca pública de ElevenLabs se añade a la cuenta
   // ANTES de generar; lo que se sintetiza (y queda en el historial) es la
@@ -119,11 +116,12 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
           placeholder={t('voices.probador.placeholder')}
           rows={4}
         />
-        <div className="flex items-center justify-between font-body text-xs text-muted-foreground">
-          <span>
-            {t('voices.probador.costoEstimado', { n: estimatedCredits })}
-          </span>
-          <span className="tabular-nums">
+        <div className="flex items-center justify-between gap-2">
+          <EstimatedCostBadge
+            provider={voice.provider}
+            characters={text.length}
+          />
+          <span className="font-body text-xs tabular-nums text-muted-foreground">
             {t('voices.probador.limiteTexto', {
               chars: text.length,
               limit: textLimit,
