@@ -6,6 +6,7 @@ export const SettingsRoutes = {
 // api-keys): la vista hace scroll hasta ella y la resalta.
 export const SETTINGS_FOCUS_PARAM = 'focus'
 export const PROMPT_MODEL_FOCUS = 'promptModel'
+export const VOICE_VENDOR_FOCUS = 'voiceVendor'
 export const PROMPT_MODEL_SETTINGS_PATH = `${SettingsRoutes.settings}?${SETTINGS_FOCUS_PARAM}=${PROMPT_MODEL_FOCUS}`
 
 export const settingsQueryKeys = {
@@ -13,6 +14,7 @@ export const settingsQueryKeys = {
   defaultSceneCount: ['settings', 'defaultSceneCount'],
   sceneDuration: ['settings', 'sceneDuration'],
   promptModel: ['settings', 'promptModel'],
+  voiceVendor: ['settings', 'voiceVendor'],
 } as const
 
 export const SETTINGS_STORE_FILE = 'settings.json'
@@ -22,6 +24,9 @@ export const SECONDS_PER_SCENE_STORE_KEY = 'secondsPerScene'
 export const CONFIRM_SCENES_STORE_KEY = 'confirmScenes'
 export const PROMPT_MODEL_STORE_KEY = 'promptModel'
 export const PROMPT_MODEL_COMPACT_STORE_KEY = 'promptModelCompact'
+// Proveedor de voces elegido (ADR-0024). Ausente = automático: DubVoice, o
+// ElevenLabs si es la única clave de voz guardada.
+export const VOICE_VENDOR_STORE_KEY = 'voiceVendor'
 
 // El selector completo (todas las bandas de precio + simulador) es para
 // comparar; una vez elegido el modelo, en Crear alcanza con verlo.
