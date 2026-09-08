@@ -5,6 +5,7 @@ import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
 import { usePromptModelPreference } from '@/modules/settings/hooks/usePromptModelPreference'
 import { PROMPT_MODEL_COMPACT_DEFAULT } from '@/modules/settings/constants'
+import { PromptModelSettingsLink } from '@/modules/videos/components/PromptModelSettingsLink'
 import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
@@ -44,6 +45,7 @@ export function PromptModelSection({
           {t('create.promptModel.title')}
         </h3>
         <PromptModelCard model={model} active />
+        <PromptModelSettingsLink />
       </div>
     )
   }
@@ -54,14 +56,17 @@ export function PromptModelSection({
   const withCharacterPhase = styleCharacterModeOf(value) === 'generic'
 
   return (
-    <PromptModelSelector
-      models={models}
-      value={chosen}
-      gemChars={gemChars}
-      batchSize={batchSize}
-      withCharacterPhase={withCharacterPhase}
-      disabled={disabled}
-      onChange={(promptModel) => onChange({ promptModel })}
-    />
+    <div className="space-y-2">
+      <PromptModelSelector
+        models={models}
+        value={chosen}
+        gemChars={gemChars}
+        batchSize={batchSize}
+        withCharacterPhase={withCharacterPhase}
+        disabled={disabled}
+        onChange={(promptModel) => onChange({ promptModel })}
+      />
+      <PromptModelSettingsLink />
+    </div>
   )
 }
