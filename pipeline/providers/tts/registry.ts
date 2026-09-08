@@ -1,5 +1,6 @@
 import type { VoiceProviderId } from '../../types/voices.ts'
 import { edgeProvider } from './edge.ts'
+import { elevenLabsDirectProvider } from './elevenlabs-direct.ts'
 import { elevenLabsProvider } from './elevenlabs.ts'
 import { minimaxProvider } from './minimax.ts'
 import type { TtsProvider } from './provider.ts'
@@ -11,6 +12,7 @@ export const TTS_PROVIDERS: Record<VoiceProviderId, TtsProvider> = {
   minimax: minimaxProvider,
   elevenlabs: elevenLabsProvider,
   edge: edgeProvider,
+  'elevenlabs-direct': elevenLabsDirectProvider,
 }
 
 // Para los mensajes de payload inválido: la lista sale del registro, no de un
