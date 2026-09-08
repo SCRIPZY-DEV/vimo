@@ -660,7 +660,7 @@
       },
       "export": {
         "button": "Exportar para editar",
-        "help": "Genera los clips para exportarlos a editores de video",
+        "help": "Genera un clip por escena (con su duración exacta) + el audio, para editarlos en CapCut o Premiere sin que se desincronicen.",
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Vista previa",
