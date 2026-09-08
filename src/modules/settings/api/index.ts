@@ -10,6 +10,8 @@ import {
   DEFAULT_PROJECTS_FOLDER_NAME,
   DEFAULT_SCENE_COUNT_STORE_KEY,
   PROJECTS_ROOT_STORE_KEY,
+  PROMPT_MODEL_COMPACT_DEFAULT,
+  PROMPT_MODEL_COMPACT_STORE_KEY,
   PROMPT_MODEL_ID_LIMIT,
   PROMPT_MODEL_STORE_KEY,
   SCENE_COUNT_MAX,
@@ -22,6 +24,7 @@ import {
 } from '../constants'
 import type {
   ChooseProjectsRootResult,
+  PromptModelDefaults,
   SceneDurationDefaults,
 } from '../types/settings'
 
@@ -138,14 +141,24 @@ export const settingsApi = {
     await store.save()
     return saved
   },
-  async getPromptModel(): Promise<string | null> {
-    const stored = await store.get<string>(PROMPT_MODEL_STORE_KEY)
-    return normalizePromptModel(stored ?? null)
+  async getPromptModelDefaults(): Promise<PromptModelDefaults> {
+    const storedId = await store.get<string>(PROMPT_MODEL_STORE_KEY)
+    const compact = await store.get<boolean>(PROMPT_MODEL_COMPACT_STORE_KEY)
+    return {
+      modelId: normalizePromptModel(storedId ?? null),
+      compact: compact ?? PROMPT_MODEL_COMPACT_DEFAULT,
+    }
   },
-  async setPromptModel(modelId: string | null): Promise<string | null> {
-    const normalized = normalizePromptModel(modelId)
-    await store.set(PROMPT_MODEL_STORE_KEY, normalized)
+  async setPromptModelDefaults(
+    next: PromptModelDefaults,
+  ): Promise<PromptModelDefaults> {
+    const saved: PromptModelDefaults = {
+      modelId: normalizePromptModel(next.modelId),
+      compact: next.compact,
+    }
+    await store.set(PROMPT_MODEL_STORE_KEY, saved.modelId)
+    await store.set(PROMPT_MODEL_COMPACT_STORE_KEY, saved.compact)
     await store.save()
-    return normalized
+    return saved
   },
 }

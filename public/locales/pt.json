@@ -536,7 +536,8 @@
       "scenesCount": "{{count}} cenas",
       "noPrice": "Falta o preço deste modelo",
       "onlyPrompts": "É só o que custa escrever os textos das cenas. As imagens são cobradas à parte.",
-      "sliderLabel": "Quantas cenas o vídeo teria"
+      "sliderLabel": "Quantas cenas o vídeo teria",
+      "settingsLink": "Alterar o modelo padrão nas Configurações"
     },
     "styleCharacter": {
       "title": "Seu estilo tem personagem?",
@@ -1207,8 +1208,10 @@
     "sceneDurationDontAskHint": "Depois de transcrever, o vídeo para para você escolher o ritmo e ver quantas cenas saem.",
     "sceneDurationSaved": "Preferência salva.",
     "sceneDurationError": "Não foi possível salvar a preferência.",
-    "promptModelTitle": "Seu modelo de IA para escrever",
-    "promptModelTagline": "O modelo que escreve as cenas dos seus vídeos de Meu estilo",
+    "promptModelTitle": "Seu modelo para escrever",
+    "promptModelTagline": "O modelo padrão que redige os prompts de cada imagem nos vídeos de Meu estilo.",
+    "promptModelCompactLabel": "Mostrar só o modelo escolhido ao criar",
+    "promptModelCompactHint": "Em “Meu estilo” você verá só o cartão deste modelo. Desligue para comparar todos os modelos em cada vídeo.",
     "promptModelEstimateNote": "Estimativa sem estilo aplicado: em cada vídeo o custo muda conforme sua gema. Em Criar você pode usar outro modelo só para aquele vídeo.",
     "promptModelSaved": "Preferência salva.",
     "promptModelError": "Não foi possível salvar a preferência."

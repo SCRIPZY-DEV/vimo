@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Wallet } from 'lucide-react'
 import { PriceCell } from '@/modules/common/components/PriceCell'
+import { PromptModelCard } from '@/modules/common/components/PromptModelCard'
 import { cn } from '@/modules/common/utilities/cn'
 import {
   PRICE_BANDS,
@@ -13,7 +14,7 @@ import {
   estimatePromptCost,
   priceBand,
 } from '@/modules/common/utilities/promptCost'
-import type { LlmModelProfile, ModelSpeed } from '@pipeline/types/llm-models.ts'
+import type { LlmModelProfile } from '@pipeline/types/llm-models.ts'
 
 interface PromptModelSelectorProps {
   models: LlmModelProfile[]
@@ -27,18 +28,6 @@ interface PromptModelSelectorProps {
   withCharacterPhase: boolean
   disabled: boolean
   onChange: (modelId: string) => void
-}
-
-const SPEED_BADGE_CLASS: Record<ModelSpeed, string> = {
-  fast: 'border-ocean/40 bg-ocean/10 text-ocean',
-  medium: 'border-saffron/50 bg-saffron/15 text-saffron',
-  slow: 'border-destructive/40 bg-destructive/10 text-destructive',
-}
-
-const SPEED_LABEL_KEY: Record<ModelSpeed, string> = {
-  fast: 'create.promptModel.speed.fast',
-  medium: 'create.promptModel.speed.medium',
-  slow: 'create.promptModel.speed.slow',
 }
 
 // Proyecta UNA sola vez lo que el simulador necesita del perfil: la banda y
@@ -126,41 +115,15 @@ export function PromptModelSelector({
               <span className="h-px flex-1 bg-border" />
             </div>
             <div className="flex flex-wrap gap-3">
-              {group.map((model) => {
-                const active = model.id === chosen.id
-                return (
-                  <button
-                    key={model.id}
-                    type="button"
-                    disabled={disabled}
-                    aria-pressed={active}
-                    onClick={() => onChange(model.id)}
-                    className={cn(
-                      'rounded-2xl border-2 px-5 py-3 text-left transition-colors',
-                      active
-                        ? 'border-saffron bg-saffron/10'
-                        : 'border-border bg-card hover:bg-muted',
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-base font-extrabold text-foreground">
-                        {model.label}
-                      </span>
-                      <span
-                        className={cn(
-                          'rounded-full border px-2 py-0.5 font-display text-[10px] font-bold tracking-wide',
-                          SPEED_BADGE_CLASS[model.speed],
-                        )}
-                      >
-                        {t(SPEED_LABEL_KEY[model.speed])}
-                      </span>
-                    </div>
-                    <span className="font-body text-sm text-muted-foreground">
-                      {model.author}
-                    </span>
-                  </button>
-                )
-              })}
+              {group.map((model) => (
+                <PromptModelCard
+                  key={model.id}
+                  model={model}
+                  active={model.id === chosen.id}
+                  disabled={disabled}
+                  onSelect={() => onChange(model.id)}
+                />
+              ))}
             </div>
           </div>
         )

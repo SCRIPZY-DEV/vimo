@@ -4,26 +4,29 @@ import { queryClient } from '@/modules/common/queryClient'
 import { useToast } from '@/modules/common/hooks/useToast'
 import { settingsApi } from '@/modules/settings/api'
 import { settingsQueryKeys } from '../constants'
+import type { PromptModelDefaults } from '../types/settings'
 
 /**
  * Modelo con el que se escriben los prompts de imagen en los videos de estilo
- * propio. null = el de la casa. Siembra el selector de Crear, donde se puede
- * pisar para ese video sin tocar la preferencia.
+ * propio (null = el de la casa) y si en Crear el selector se muestra compacto.
+ * Siembra el selector de Crear, donde el modelo se puede pisar para ese video
+ * sin tocar la preferencia.
  */
 export function usePromptModelPreference() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const native = settingsApi.isNative()
 
-  const { data: promptModel, isLoading } = useQuery({
+  const { data: promptModelDefaults, isLoading } = useQuery({
     queryKey: settingsQueryKeys.promptModel,
-    queryFn: () => settingsApi.getPromptModel(),
+    queryFn: () => settingsApi.getPromptModelDefaults(),
     enabled: native,
     staleTime: Infinity,
   })
 
   const saveMutation = useMutation({
-    mutationFn: (modelId: string | null) => settingsApi.setPromptModel(modelId),
+    mutationFn: (next: PromptModelDefaults) =>
+      settingsApi.setPromptModelDefaults(next),
     onSuccess: (saved) => {
       queryClient.setQueryData(settingsQueryKeys.promptModel, saved)
       toast({ description: t('settings.promptModelSaved') })
@@ -38,9 +41,10 @@ export function usePromptModelPreference() {
 
   return {
     isNative: native,
-    promptModel: promptModel ?? null,
+    promptModelDefaults: promptModelDefaults ?? null,
     isLoading,
-    savePromptModel: (modelId: string | null) => saveMutation.mutate(modelId),
+    savePromptModelDefaults: (next: PromptModelDefaults) =>
+      saveMutation.mutate(next),
     saving: saveMutation.isPending,
   }
 }

@@ -536,7 +536,8 @@
       "scenesCount": "{{count}} scenes",
       "noPrice": "This model has no price listed",
       "onlyPrompts": "This is only the cost of writing the scene texts. Images are billed separately.",
-      "sliderLabel": "How many scenes the video would have"
+      "sliderLabel": "How many scenes the video would have",
+      "settingsLink": "Change the default model in Settings"
     },
     "styleCharacter": {
       "title": "Does your style carry a character?",
@@ -1207,8 +1208,10 @@
     "sceneDurationDontAskHint": "After transcribing, the video pauses so you can pick the pace and see how many scenes come out.",
     "sceneDurationSaved": "Preference saved.",
     "sceneDurationError": "Couldn't save the preference.",
-    "promptModelTitle": "Your AI model for writing",
-    "promptModelTagline": "The model that writes the scenes of your My style videos",
+    "promptModelTitle": "Your model for writing",
+    "promptModelTagline": "The default model that writes the prompt for every image in your My style videos.",
+    "promptModelCompactLabel": "Show only the chosen model when creating",
+    "promptModelCompactHint": "In “My style” you'll only see this model's card. Turn it off to compare every model on each video.",
     "promptModelEstimateNote": "Estimate without a style applied: the cost of each video depends on your gem. In Create you can use a different model for that video only.",
     "promptModelSaved": "Preference saved.",
     "promptModelError": "Couldn't save the preference."
