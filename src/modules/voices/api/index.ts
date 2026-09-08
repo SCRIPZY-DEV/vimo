@@ -7,8 +7,8 @@ import {
 } from '@/modules/common/fetcher/pipeline'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
-  DUBVOICE_DASHBOARD_URL,
   UNKNOWN_VOICE_ERROR_KEY,
+  VOICE_CLONING_URLS,
   VOICE_ERROR_MESSAGE_KEYS,
 } from '@/modules/voices/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
@@ -17,9 +17,11 @@ import type {
   GenerateVoicePayload,
   ListVoicesPayload,
   ListVoicesResult,
+  VoiceCreditsPayload,
   VoiceCreditsResult,
   VoiceHistoryEntry,
   VoiceHistoryListResult,
+  VoiceVendorId,
 } from '@pipeline/types/voices.ts'
 
 export const voicesApi = {
@@ -38,8 +40,9 @@ export const voicesApi = {
   async cancelJob(jobId: string): Promise<void> {
     return invoke('cancel_pipeline_job', { jobId })
   },
-  async getCredits(): Promise<VoiceCreditsResult> {
-    return runPipelineJob<VoiceCreditsResult>('get-voice-credits')
+  async getCredits(vendor: VoiceVendorId): Promise<VoiceCreditsResult> {
+    const payload: VoiceCreditsPayload = { vendor }
+    return runPipelineJob<VoiceCreditsResult>('get-voice-credits', payload)
   },
   async listHistory(): Promise<VoiceHistoryEntry[]> {
     const result =
@@ -49,8 +52,8 @@ export const voicesApi = {
   async deleteHistoryEntry(id: string): Promise<void> {
     await runPipelineJob('voice-history-delete', { id })
   },
-  async openCloningDashboard(): Promise<void> {
-    return openUrl(DUBVOICE_DASHBOARD_URL)
+  async openCloningDashboard(vendor: VoiceVendorId): Promise<void> {
+    return openUrl(VOICE_CLONING_URLS[vendor])
   },
   audioSource(path: string): string {
     return convertFileSrc(path)
