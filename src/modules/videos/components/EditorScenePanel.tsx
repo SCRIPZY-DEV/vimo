@@ -10,7 +10,6 @@ import type { SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
 import { formatClipTime } from '@/modules/videos/utilities/formatClipTime'
-import { priceForQuality } from '@/modules/videos/utilities/imageQuality'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
 import type {
   ImageCreditsResult,
@@ -77,11 +76,6 @@ export function EditorScenePanel({
   const toggleCharacter = (index: number) => {
     onCharactersChange(toggleIndex(charactersPresent, index))
   }
-
-  const regenPriceUsd = priceForQuality(
-    imageChoice.provider,
-    imageChoice.quality,
-  )
 
   return (
     <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
@@ -189,20 +183,19 @@ export function EditorScenePanel({
         </p>
       )}
 
+      {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
+          trunca en vez de salirse del botón junto con el ícono. */}
       <Button
         onClick={onRegenerate}
         disabled={busy}
-        className="w-full rounded-xl font-display font-bold"
+        className="w-full min-w-0 rounded-xl font-display font-bold"
       >
         <RefreshCw className="mr-1.5 h-4 w-4" />
-        {userPromptDirty
-          ? t('library.editor.panel.regenerateWithPrompt')
-          : t('library.editor.panel.regenerate')}
-        {regenPriceUsd !== undefined && (
-          <span className="ml-1.5 font-mono text-xs tabular-nums">
-            ${regenPriceUsd.toFixed(3)}
-          </span>
-        )}
+        <span className="min-w-0 truncate">
+          {userPromptDirty
+            ? t('library.editor.panel.regenerateWithPrompt')
+            : t('library.editor.panel.regenerate')}
+        </span>
       </Button>
     </aside>
   )
