@@ -194,5 +194,13 @@ export async function getDubvoiceAccount(
   )
 
   const data = (await response.json()) as DubvoiceAccountResponse
-  return { email: data.email, credits: data.credits ?? 0, plan: data.plan }
+  const result: VoiceCreditsResult = {
+    vendor: 'dubvoice',
+    unit: 'credits',
+    credits: data.credits ?? 0,
+  }
+  if (data.email) result.email = data.email
+  if (data.plan) result.plan = data.plan
+
+  return result
 }
