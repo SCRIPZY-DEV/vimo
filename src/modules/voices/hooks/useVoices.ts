@@ -82,5 +82,7 @@ export function useVoices({
     errorKey: isError ? voicesApi.errorMessageKey(error) : null,
     serverPaged,
     hasNextPage: serverPaged && Boolean(data?.hasMore),
+    // Solo lo informa elevenlabs; el resto del catálogo se cuenta en la vista.
+    serverTotal: serverPaged ? (data?.total ?? null) : null,
   }
 }

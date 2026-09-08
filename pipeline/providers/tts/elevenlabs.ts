@@ -7,6 +7,7 @@ import type {
   DubvoiceTtsTaskResponse,
   GenerateVoicePayload,
   ListVoicesFilters,
+  ListVoicesResult,
   VoiceSummary,
 } from '../../types/voices.ts'
 import {
@@ -59,7 +60,7 @@ export async function listElevenLabsVoices(
   apiKey: string,
   filters: ListVoicesFilters,
   signal?: AbortSignal,
-): Promise<{ voices: VoiceSummary[]; hasMore: boolean }> {
+): Promise<ListVoicesResult> {
   const query = new URLSearchParams({
     provider: 'elevenlabs',
     page: String(filters.page ?? 1),
@@ -88,7 +89,10 @@ export async function listElevenLabsVoices(
       ? data.has_more
       : (data.voices ?? []).length === ELEVENLABS_PAGE_SIZE
 
-  return { voices, hasMore }
+  const result: ListVoicesResult = { voices, hasMore }
+  if (typeof data.total === 'number') result.total = data.total
+
+  return result
 }
 
 export interface ElevenLabsProgress {

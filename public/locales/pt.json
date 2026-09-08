@@ -975,6 +975,8 @@
     "saldo": "Créditos",
     "soloEscritorio": "O catálogo de vozes funciona no aplicativo de desktop.",
     "cargando": "Carregando vozes… a primeira vez pode demorar um pouco.",
+    "availableCount_one": "{{count}} voz disponível",
+    "availableCount_other": "{{count}} vozes disponíveis",
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
