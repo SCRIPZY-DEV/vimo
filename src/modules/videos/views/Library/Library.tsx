@@ -203,6 +203,18 @@ export function Library() {
                   {t('library.list.select')}
                 </Button>
               )}
+              {/* Acceso directo a Crear: mismos colores que la pestaña activa
+                  (amarillo de la marca con texto carbón). Recargar va al final. */}
+              <Button
+                asChild
+                size="sm"
+                className="rounded-lg bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
+              >
+                <Link to={VideosRoutes.create}>
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                  {t('library.list.create')}
+                </Link>
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -213,17 +225,6 @@ export function Library() {
                 <RefreshCw
                   className={isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
                 />
-              </Button>
-              {/* Acceso directo a Crear, con el amarillo de la marca. */}
-              <Button
-                asChild
-                size="sm"
-                className="rounded-lg bg-saffron font-display font-bold text-white hover:bg-saffron/90"
-              >
-                <Link to={VideosRoutes.create}>
-                  <Sparkles className="mr-1.5 h-4 w-4" />
-                  {t('library.list.create')}
-                </Link>
               </Button>
             </>
           )}
