@@ -1,29 +1,39 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { videosApi } from '@/modules/videos/api'
+import { isServerPagedCatalog } from '@/modules/voices/utilities/isServerPagedCatalog'
 import type {
+  ListVoicesFilters,
   ListVoicesResult,
   VoiceProviderId,
+  VoiceSource,
 } from '@pipeline/types/voices.ts'
 
 interface UseVoiceCatalogOptions {
   provider: VoiceProviderId
-  // Server-side solo para elevenlabs (paginado); minimax/edge llegan
-  // completos y filtran client-side.
+  // Solo elevenlabs-direct: cuenta (completa) o biblioteca (paginada).
+  source?: VoiceSource
+  // Server-side solo en los catálogos paginados; el resto llega completo y
+  // filtra client-side.
   search: string
   language: string
   gender: string
+  category: string
   enabled: boolean
 }
 
 export function useVoiceCatalog({
   provider,
+  source,
   search,
   language,
   gender,
+  category,
   enabled,
 }: UseVoiceCatalogOptions) {
-  const paged = provider === 'elevenlabs'
+  const paged = isServerPagedCatalog(provider, source)
   const trimmedSearch = search.trim()
+  // La biblioteca de ElevenLabs también filtra categoría en el server.
+  const serverCategory = source === 'library' ? category : ''
 
   const {
     data,
@@ -38,23 +48,25 @@ export function useVoiceCatalog({
       'videos',
       'voices',
       provider,
-      paged ? `${trimmedSearch}|${language}|${gender}` : 'all',
+      source ?? 'default',
+      paged
+        ? `${trimmedSearch}|${language}|${gender}|${serverCategory}`
+        : 'all',
     ],
     enabled,
     retry: false,
     initialPageParam: 1,
     async queryFn({ pageParam }) {
-      return videosApi.listVoices({
-        provider,
-        filters: paged
-          ? {
-              page: pageParam,
-              ...(trimmedSearch ? { search: trimmedSearch } : {}),
-              ...(language ? { language } : {}),
-              ...(gender ? { gender } : {}),
-            }
-          : undefined,
-      })
+      const filters: ListVoicesFilters = {}
+      if (source) filters.source = source
+      if (paged) {
+        filters.page = pageParam
+        if (trimmedSearch) filters.search = trimmedSearch
+        if (language) filters.language = language
+        if (gender) filters.gender = gender
+        if (serverCategory) filters.category = serverCategory
+      }
+      return videosApi.listVoices({ provider, filters })
     },
     getNextPageParam(lastPage: ListVoicesResult, allPages) {
       if (!paged || !lastPage.hasMore) return undefined
@@ -71,7 +83,9 @@ export function useVoiceCatalog({
     hasNextPage: hasNextPage ?? false,
     isFetchingNextPage,
     loadMore: () => void fetchNextPage(),
-    // Minimax y Edge llegan completos: los filtros son client-side.
+    // Los catálogos completos filtran client-side.
     filtersAreClientSide: !paged,
+    // La biblioteca ya filtró categoría en el server.
+    categoryIsServerSide: Boolean(serverCategory),
   }
 }
