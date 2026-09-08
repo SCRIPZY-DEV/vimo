@@ -41,6 +41,9 @@ export interface ListVoicesResult {
   voices: VoiceSummary[]
   // Solo significativo para elevenlabs (paginado server-side).
   hasMore?: boolean
+  // Total de voces del catálogo del proveedor: solo elevenlabs lo informa
+  // (minimax y edge llegan completos, ahí el total es voices.length).
+  total?: number
 }
 
 // Ajustes de síntesis por proveedor (port de AjustesVoz). Cada motor lee solo
