@@ -22,6 +22,10 @@ export type ProjectBadge =
   | 'error'
   | 'draft'
 
+// Pestaña de la biblioteca: los videos horizontales y los shorts verticales
+// se listan por separado; el formato del proyecto decide en cuál cae.
+export type LibraryTab = 'long' | 'shorts'
+
 // Estado del mp4 final del proyecto: decide la etiqueta del botón de render
 // y si el preview reproduce el video o lo simula.
 export type RenderedVideoState = 'none' | 'current' | 'outdated'

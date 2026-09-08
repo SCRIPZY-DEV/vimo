@@ -21,6 +21,7 @@ import {
 import type { CreateFormValue } from './types/create'
 import type {
   AudioMixValue,
+  LibraryTab,
   ProjectBadge,
   SceneImageChoice,
 } from './types/library'
@@ -64,6 +65,11 @@ export const videosQueryKeys = {
 
 // La tarea sobrevive navegación y reinicios: el proyecto vive en disco.
 export const CREATE_TASK_STORAGE_KEY = 'vimo:create:task:v1'
+
+// La pestaña de la biblioteca sobrevive a la navegación: abre en la última
+// elegida o en la del último proyecto creado.
+export const LIBRARY_TAB_STORAGE_KEY = 'vimo:library:tab:v1'
+export const DEFAULT_LIBRARY_TAB: LibraryTab = 'long'
 
 // La alerta de pasos faltantes: el botón de generar la referencia por id.
 export const CREATE_BLOCKERS_ID = 'create-blockers'

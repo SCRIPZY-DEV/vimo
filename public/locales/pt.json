@@ -570,11 +570,20 @@
     "title": "Biblioteca",
     "tagline": "Seus vídeos gerados",
     "desktopOnly": "A biblioteca só está disponível no app de desktop.",
+    "tabs": {
+      "long": "Formato longo",
+      "shorts": "Shorts",
+      "emptyLong": "Ainda não há vídeos em formato longo.",
+      "emptyShorts": "Ainda não há shorts."
+    },
     "list": {
       "empty": "Ainda não há projetos. Crie seu primeiro vídeo em “Criar”.",
       "refresh": "Recarregar",
       "select": "Selecionar",
+      "selectAll": "Selecionar tudo",
+      "deselectAll": "Desmarcar tudo",
       "cancelSelection": "Cancelar",
+      "create": "Criar vídeo",
       "deleteSelected": "Excluir ({{total}})",
       "confirmDelete": "Excluir {{total}} projeto(s)? O vídeo e todo o material serão apagados do disco. Esta ação não pode ser desfeita.",
       "deleted": "{{total}} projeto(s) excluído(s)",

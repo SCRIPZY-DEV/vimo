@@ -570,11 +570,20 @@
     "title": "Biblioteca",
     "tagline": "Tus videos generados",
     "desktopOnly": "La biblioteca solo está disponible en la app de escritorio.",
+    "tabs": {
+      "long": "Formato largo",
+      "shorts": "Shorts",
+      "emptyLong": "Todavía no hay videos en formato largo.",
+      "emptyShorts": "Todavía no hay shorts."
+    },
     "list": {
       "empty": "Todavía no hay proyectos. Creá tu primer video desde «Crear».",
       "refresh": "Recargar",
       "select": "Seleccionar",
+      "selectAll": "Seleccionar todo",
+      "deselectAll": "Deseleccionar todo",
       "cancelSelection": "Cancelar",
+      "create": "Crear video",
       "deleteSelected": "Eliminar ({{total}})",
       "confirmDelete": "¿Eliminar {{total}} proyecto(s)? El video y todo su material se borran del disco. Esta acción no se puede deshacer.",
       "deleted": "{{total}} proyecto(s) eliminado(s)",

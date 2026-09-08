@@ -570,11 +570,20 @@
     "title": "Library",
     "tagline": "Your generated videos",
     "desktopOnly": "The library is only available in the desktop app.",
+    "tabs": {
+      "long": "Long format",
+      "shorts": "Shorts",
+      "emptyLong": "No long-format videos yet.",
+      "emptyShorts": "No shorts yet."
+    },
     "list": {
       "empty": "No projects yet. Create your first video from “Create”.",
       "refresh": "Refresh",
       "select": "Select",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
       "cancelSelection": "Cancel",
+      "create": "Create video",
       "deleteSelected": "Delete ({{total}})",
       "confirmDelete": "Delete {{total}} project(s)? The video and all its assets will be removed from disk. This cannot be undone.",
       "deleted": "{{total}} project(s) deleted",

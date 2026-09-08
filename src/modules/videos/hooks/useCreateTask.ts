@@ -15,6 +15,10 @@ import {
 } from '@/modules/videos/constants'
 import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
+import {
+  libraryTabFor,
+  rememberLibraryTab,
+} from '@/modules/videos/utilities/libraryTab'
 import { refreshProjectQueries } from '@/modules/videos/utilities/projectRefresh'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type {
@@ -524,6 +528,8 @@ async function startCreation(input: {
     const project = await videosApi.createProject(input.payload)
     projectId = project.projectId
     patchTask(taskId, { projectId })
+    // La biblioteca abre en la pestaña del formato recién creado.
+    rememberLibraryTab(libraryTabFor(input.payload.options.videoFormat))
   } catch (error) {
     patchTask(taskId, {
       status: 'error',
