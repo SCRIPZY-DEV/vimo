@@ -1,8 +1,10 @@
-import type { VoiceProviderId } from '@pipeline/types/voices.ts'
+import type { VoiceProviderId, VoiceVendorId } from '@pipeline/types/voices.ts'
 import type {
   VoiceFilterState,
   VoiceModelOption,
   VoiceSettingsFormValue,
+  VoiceTab,
+  VoiceTabCatalog,
 } from './types/voices'
 
 export const VoicesRoutes = {
@@ -10,12 +12,84 @@ export const VoicesRoutes = {
 } as const
 
 export const voicesQueryKeys = {
-  credits: ['voices', 'credits'],
+  // Prefijo para invalidar el saldo de cualquier vendor.
+  creditsRoot: ['voices', 'credits'],
+  credits(vendor: VoiceVendorId) {
+    return ['voices', 'credits', vendor]
+  },
   history: ['voices', 'history'],
   list(provider: VoiceProviderId, filtersKey: string) {
     return ['voices', 'list', provider, filtersKey]
   },
+  listRoot(provider: VoiceProviderId) {
+    return ['voices', 'list', provider]
+  },
 } as const
+
+// ─── Dos proveedores de voces (ADR-0024) ───
+// El vendor se deriva del id de motor: DubVoice agrupa tres motores con una
+// clave; ElevenLabs directo es uno solo con la clave del usuario.
+export const VOICE_PROVIDERS_BY_VENDOR: Record<
+  VoiceVendorId,
+  VoiceProviderId[]
+> = {
+  dubvoice: ['minimax', 'elevenlabs', 'edge'],
+  elevenlabs: ['elevenlabs-direct'],
+}
+
+// Pestañas de la página Voces según el vendor activo. Edge queda fuera del
+// catálogo visible (sin muestras del proveedor).
+export const VOICE_TABS_BY_VENDOR: Record<VoiceVendorId, VoiceTab[]> = {
+  dubvoice: ['minimax', 'elevenlabs', 'favorites'],
+  elevenlabs: ['elevenlabs-account', 'elevenlabs-library', 'favorites'],
+}
+
+// Pestañas del picker de voz de Crear/Library: DubVoice incluye Edge (sin
+// muestras, pero gratis); ElevenLabs directo, cuenta y biblioteca.
+export const VOICE_PICKER_TABS_BY_VENDOR: Record<
+  VoiceVendorId,
+  Exclude<VoiceTab, 'favorites'>[]
+> = {
+  dubvoice: ['minimax', 'elevenlabs', 'edge'],
+  elevenlabs: ['elevenlabs-account', 'elevenlabs-library'],
+}
+
+// Qué catálogo pide cada pestaña. Las dos de ElevenLabs directo son el mismo
+// motor con distinta fuente: la biblioteca pública no es un proveedor.
+export const VOICE_TAB_CATALOGS: Record<
+  Exclude<VoiceTab, 'favorites'>,
+  VoiceTabCatalog
+> = {
+  minimax: { provider: 'minimax' },
+  elevenlabs: { provider: 'elevenlabs' },
+  edge: { provider: 'edge' },
+  'elevenlabs-direct': { provider: 'elevenlabs-direct', source: 'account' },
+  'elevenlabs-account': { provider: 'elevenlabs-direct', source: 'account' },
+  'elevenlabs-library': { provider: 'elevenlabs-direct', source: 'library' },
+}
+
+/** Etiquetas de marca por motor (historial, Crear): no se traducen. */
+export const VOICE_PROVIDER_LABELS: Record<VoiceProviderId, string> = {
+  minimax: 'Minimax',
+  elevenlabs: 'ElevenLabs · DubVoice',
+  edge: 'Edge TTS',
+  'elevenlabs-direct': 'ElevenLabs',
+}
+
+/** Catálogos completos que se guardan como snapshot en localStorage. */
+export const VOICE_SNAPSHOT_PROVIDERS: VoiceProviderId[] = ['minimax', 'edge']
+
+/** Categorías de la biblioteca pública de ElevenLabs (filtro server-side). */
+export const ELEVENLABS_LIBRARY_CATEGORIES = [
+  'professional',
+  'high_quality',
+  'famous',
+] as const
+export const ELEVENLABS_LIBRARY_CATEGORY_LABEL_KEYS: Record<string, string> = {
+  professional: 'voices.filtros.categorias.professional',
+  high_quality: 'voices.filtros.categorias.high_quality',
+  famous: 'voices.filtros.categorias.famous',
+}
 
 /** La tarea sobrevive navegación; el audio queda en el historial local. */
 export const VOICE_TASK_STORAGE_KEY = 'vimo:voices:task:v1'
@@ -47,6 +121,7 @@ export const VOICE_TEXT_LIMITS: Record<VoiceProviderId, number> = {
   minimax: 4500,
   elevenlabs: 4500,
   edge: 4500,
+  'elevenlabs-direct': 4500,
 }
 
 /**
@@ -57,12 +132,34 @@ export const VOICE_TEXT_LIMITS: Record<VoiceProviderId, number> = {
  */
 export const NARRATION_CHAR_LIMIT = 90_000
 
-/** Créditos DubVoice por carácter, para el costo estimado del probador. */
+/** Unidades del vendor por carácter (créditos DubVoice o caracteres de
+ *  ElevenLabs), para el costo estimado del probador. */
 export const VOICE_COST_FACTORS: Record<VoiceProviderId, number> = {
   minimax: 1,
   elevenlabs: 1,
   edge: 0.5,
+  'elevenlabs-direct': 1,
 }
+
+/** Mismos modelos en los dos carriles ElevenLabs (DubVoice los reenvía tal cual). */
+const ELEVENLABS_MODELS: VoiceModelOption[] = [
+  {
+    id: 'eleven_multilingual_v2',
+    label: 'Multilingual v2',
+    badgeKey: 'voices.modelos.calidad',
+  },
+  { id: 'eleven_v3', label: 'Eleven v3', badgeKey: 'voices.modelos.calidad' },
+  {
+    id: 'eleven_turbo_v2_5',
+    label: 'Turbo v2.5',
+    badgeKey: 'voices.modelos.velocidad',
+  },
+  {
+    id: 'eleven_flash_v2_5',
+    label: 'Flash v2.5',
+    badgeKey: 'voices.modelos.velocidad',
+  },
+]
 
 /** Etiquetas técnicas de marca: van en el dataset, no se traducen (ADR-0008). */
 export const VOICE_MODELS: Record<VoiceProviderId, VoiceModelOption[]> = {
@@ -83,31 +180,16 @@ export const VOICE_MODELS: Record<VoiceProviderId, VoiceModelOption[]> = {
       badgeKey: 'voices.modelos.balance',
     },
   ],
-  elevenlabs: [
-    {
-      id: 'eleven_multilingual_v2',
-      label: 'Multilingual v2',
-      badgeKey: 'voices.modelos.calidad',
-    },
-    { id: 'eleven_v3', label: 'Eleven v3', badgeKey: 'voices.modelos.calidad' },
-    {
-      id: 'eleven_turbo_v2_5',
-      label: 'Turbo v2.5',
-      badgeKey: 'voices.modelos.velocidad',
-    },
-    {
-      id: 'eleven_flash_v2_5',
-      label: 'Flash v2.5',
-      badgeKey: 'voices.modelos.velocidad',
-    },
-  ],
+  elevenlabs: ELEVENLABS_MODELS,
   edge: [{ id: 'default', label: 'Microsoft Edge' }],
+  'elevenlabs-direct': ELEVENLABS_MODELS,
 }
 
 export const DEFAULT_VOICE_MODELS: Record<VoiceProviderId, string> = {
   minimax: 'speech-02-hd',
   elevenlabs: 'eleven_multilingual_v2',
   edge: 'default',
+  'elevenlabs-direct': 'eleven_multilingual_v2',
 }
 
 /** Chips de emoción de Minimax ('' = sin emoción explícita). */
@@ -170,6 +252,9 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_download_failed: 'voices.errores.downloadFailed',
   voice_empty_audio: 'voices.errores.emptyAudio',
   voice_text_too_long: 'voices.errores.textTooLong',
+  voice_quota_exceeded: 'voices.errores.quotaExceeded',
+  voice_account_restricted: 'voices.errores.accountRestricted',
+  voice_library_add_failed: 'voices.errores.libraryAddFailed',
   invalid_payload: 'voices.errores.invalido',
   missing_api_key: 'voices.errores.missingApiKey',
   missing_projects_root: 'voices.errores.missingProjectsRoot',
@@ -183,3 +268,10 @@ export const UNKNOWN_VOICE_ERROR_KEY = 'voices.errores.desconocido'
 export const INTERRUPTED_ERROR_KEY = 'voices.errores.interrumpida'
 
 export const DUBVOICE_DASHBOARD_URL = 'https://www.dubvoice.ai/'
+export const ELEVENLABS_VOICE_LAB_URL = 'https://elevenlabs.io/app/voice-lab'
+
+/** Dónde clona voces cada vendor. */
+export const VOICE_CLONING_URLS: Record<VoiceVendorId, string> = {
+  dubvoice: DUBVOICE_DASHBOARD_URL,
+  elevenlabs: ELEVENLABS_VOICE_LAB_URL,
+}
