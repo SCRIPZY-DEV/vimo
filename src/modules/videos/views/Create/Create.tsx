@@ -38,7 +38,7 @@ export function Create() {
   const { defaultSceneCount, isLoading } = useDefaultSceneCount()
   const { sceneDuration, isLoading: loadingSceneDuration } =
     useSceneDurationDefaults()
-  const { promptModel, isLoading: loadingPromptModel } =
+  const { promptModelDefaults, isLoading: loadingPromptModel } =
     usePromptModelPreference()
   const { configuredProviders, isLoading: loadingApiKeys } = useRequiredApiKeys(
     { requirements: MODULE_API_KEY_REQUIREMENTS.videos },
@@ -63,7 +63,7 @@ export function Create() {
       initialConfirmScenes={
         sceneDuration?.confirmScenes ?? CREATE_FORM_INITIAL_VALUE.confirmScenes
       }
-      initialPromptModel={promptModel}
+      initialPromptModel={promptModelDefaults?.modelId ?? null}
     />
   )
 }
