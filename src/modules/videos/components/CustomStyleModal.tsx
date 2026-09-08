@@ -11,11 +11,15 @@ import {
   DialogTitle,
 } from '@/modules/common/ui/dialog'
 import { cn } from '@/modules/common/utilities/cn'
+import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
+import { ImageCreditsBadges } from '@/modules/videos/components/ImageCreditsBadges'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
+import { useImageCredits } from '@/modules/videos/hooks/useImageCredits'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
+import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import {
   CUSTOM_STYLE_NAME_LIMIT,
   CUSTOM_STYLE_PROMPT_LIMIT,
@@ -87,13 +91,21 @@ export function CustomStyleModal({
 }: CustomStyleModalProps) {
   const { t } = useTranslation()
   const samplesJob = useStyleSampleGeneration()
+  // Saldo por proveedor (misma query que Crear y el editor): generar muestras
+  // cobra, y el job difiere el refetch al terminar para que el gasto se vea acá.
+  const credits = useImageCredits()
+  const { configuredProviders } = useRequiredApiKeys()
 
   const [name, setName] = useState(initial.name)
   const [systemPrompt, setSystemPrompt] = useState(initial.systemPrompt)
   const [shots, setShots] = useState(initial.shots.join(', '))
-  // Con qué proveedor salen las muestras. Arranca SIN elegir a propósito: la
-  // elección es de la persona, no nuestra — el botón de generar espera.
-  const [provider, setProvider] = useState<ImageProviderId | null>(null)
+  // Con qué proveedor salen las muestras: lo que la persona tocó, o, hasta
+  // que toque, el proveedor con clave configurada (Evolink si están las dos).
+  // Sin ninguna clave no hay elegido y el botón de generar espera.
+  const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
+    null,
+  )
+  const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
   // Ausente en disco = genérico (gemas previas a ADR-0020). Viaja SIEMPRE en
   // el payload: el guard del sidecar conserva el bloque solo cuando falta.
   const [characterDraft, setCharacterDraft] = useState<CharacterDraft>({
@@ -190,7 +202,7 @@ export function CustomStyleModal({
   }
 
   const chooseProvider = (imageProvider: ImageProviderId) => {
-    setProvider(imageProvider)
+    setChosenProvider(imageProvider)
     if (!generateOnOpen || autoStarted.current) return
     autoStarted.current = true
     void generate(imageProvider)
@@ -304,28 +316,40 @@ export function CustomStyleModal({
               <p className="mb-1.5 text-xs font-medium">
                 {t('create.customStyles.providerQuestion')}
               </p>
-              <div className="flex gap-2">
-                {IMAGE_PROVIDERS.map((imageProvider) => {
-                  const chosen = provider === imageProvider.id
-                  return (
-                    <button
-                      key={imageProvider.id}
-                      type="button"
-                      disabled={samplesJob.running}
-                      onClick={() => chooseProvider(imageProvider.id)}
-                      className={cn(
-                        'cursor-pointer rounded-lg border-2 px-3 py-1.5 text-sm transition-colors',
-                        chosen
-                          ? 'border-saffron bg-saffron/10 font-medium'
-                          : 'border-border text-muted-foreground hover:border-saffron/60',
-                      )}
-                    >
-                      {imageProvider.label}
-                    </button>
-                  )
-                })}
+              {/* El mismo control segmentado que el formulario de Crear (el
+                  elegido en saffron pleno), con el saldo de cada proveedor y
+                  el botón de refrescar al lado. */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
+                  {IMAGE_PROVIDERS.map((imageProvider) => {
+                    const chosen = provider === imageProvider.id
+                    return (
+                      <button
+                        key={imageProvider.id}
+                        type="button"
+                        disabled={samplesJob.running}
+                        onClick={() => chooseProvider(imageProvider.id)}
+                        className={cn(
+                          'cursor-pointer rounded-full px-4 py-1.5 font-display text-sm font-bold transition-colors disabled:cursor-default disabled:opacity-60',
+                          chosen
+                            ? 'bg-saffron text-charcoal shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {imageProvider.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <ImageCreditsBadges
+                  credits={credits.credits}
+                  loading={credits.isLoading}
+                  refreshing={credits.isRefreshing}
+                  active={provider}
+                  onRefresh={credits.refresh}
+                />
               </div>
-              <p className="mt-1 font-body text-xs text-muted-foreground">
+              <p className="mt-1.5 font-body text-xs text-muted-foreground">
                 {t('create.customStyles.providerHint')}
               </p>
             </div>

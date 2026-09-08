@@ -51,7 +51,12 @@ export function LibraryEditor() {
   const editor = useLibraryEditor(projectId)
   const { detail, isLoading, errorKey, workingScenes, selectedScene } = editor
   const audio = useProjectAudio(projectId)
-  const { credits } = useImageCredits()
+  const {
+    credits,
+    isLoading: creditsLoading,
+    isRefreshing: creditsRefreshing,
+    refresh: refreshCredits,
+  } = useImageCredits()
   const { task: createTask, startPipelineForProject } = useCreateTask()
 
   const [cursorSeconds, setCursorSeconds] = useState(0)
@@ -316,6 +321,9 @@ export function LibraryEditor() {
             imageChoice={editor.imageChoice}
             videoFormat={videoFormat}
             credits={credits}
+            creditsLoading={creditsLoading}
+            creditsRefreshing={creditsRefreshing}
+            onRefreshCredits={refreshCredits}
             busy={busy}
             userPromptDirty={editor.userPromptDirty}
             errorKey={

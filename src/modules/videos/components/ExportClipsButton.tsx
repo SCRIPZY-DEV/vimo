@@ -47,7 +47,9 @@ export function ExportClipsButton({
           {t('library.editor.export.button')}
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs text-sm leading-snug">
+      {/* Debajo del botón: en la barra del editor no hay lugar arriba y el
+          texto se perdería contra el borde de la ventana. */}
+      <TooltipContent side="bottom" className="max-w-xs text-sm leading-snug">
         {t('library.editor.export.help')}
       </TooltipContent>
     </Tooltip>

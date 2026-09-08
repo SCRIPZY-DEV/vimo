@@ -126,7 +126,8 @@ cubrieron los 12 subcomandos nuevos.
     trata como hueco (su imagen anterior sigue siendo válida para el render).
     El borrador de la descripción sobrevive a los refetches y se persiste al
     salir de la textarea; `rewritePrompt` se decide con ese borrador. Y
-    «Re-renderizar» nunca genera imágenes (solo `render`, paridad con el
+    «Re-exportar» (el botón de render del editor; hasta 2026-09-07 decía
+    «Re-renderizar») nunca genera imágenes (solo `render`, paridad con el
     origen): la imagen nueva sale de «Regenerar imagen».
 
 ## Alternativas consideradas

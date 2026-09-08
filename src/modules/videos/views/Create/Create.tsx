@@ -24,27 +24,37 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
+import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
+import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
 // Pantalla de creación de video. Espera las preferencias (escenas, ritmo de los
-// estilos propios y modelo de escritura) antes de montar el formulario: el
-// estado inicial se siembra una sola vez y la lectura es de disco local
-// (staleTime Infinity → instantánea al volver).
+// estilos propios y modelo de escritura) y el estado de las claves antes de
+// montar el formulario: el estado inicial se siembra una sola vez y la
+// lectura es de disco local (staleTime Infinity → instantánea al volver).
 export function Create() {
   const { defaultSceneCount, isLoading } = useDefaultSceneCount()
   const { sceneDuration, isLoading: loadingSceneDuration } =
     useSceneDurationDefaults()
   const { promptModel, isLoading: loadingPromptModel } =
     usePromptModelPreference()
+  const { configuredProviders, isLoading: loadingApiKeys } = useRequiredApiKeys(
+    { requirements: MODULE_API_KEY_REQUIREMENTS.videos },
+  )
 
-  if (isLoading || loadingSceneDuration || loadingPromptModel)
+  if (isLoading || loadingSceneDuration || loadingPromptModel || loadingApiKeys)
     return <ViewSpinner />
 
   return (
     <CreateView
       initialSceneCount={
         defaultSceneCount ?? CREATE_FORM_INITIAL_VALUE.sceneCount
+      }
+      initialImageProvider={
+        preferredImageProvider(configuredProviders) ??
+        CREATE_FORM_INITIAL_VALUE.imageProvider
       }
       initialSecondsPerScene={
         sceneDuration?.secondsPerScene ??
@@ -60,6 +70,8 @@ export function Create() {
 
 interface CreateViewProps {
   initialSceneCount: number
+  // El proveedor de imagen con clave configurada (Evolink si están las dos).
+  initialImageProvider: ImageProviderId
   initialSecondsPerScene: number
   // Preferencia «preguntar al generar» de Ajustes: siembra la casilla del
   // catálogo y fija (sin casilla) la pausa de duración del estilo propio.
@@ -74,6 +86,7 @@ interface CreateViewProps {
 // vuelve al formulario.
 function CreateView({
   initialSceneCount,
+  initialImageProvider,
   initialSecondsPerScene,
   initialConfirmScenes,
   initialPromptModel,
@@ -90,6 +103,12 @@ function CreateView({
   const [form, setForm] = useState<CreateFormValue>(() => ({
     ...CREATE_FORM_INITIAL_VALUE,
     sceneCount: initialSceneCount,
+    // Los ids de calidad son por proveedor: la calidad acompaña al elegido.
+    imageProvider: initialImageProvider,
+    imageQuality: defaultQualityFor(
+      initialImageProvider,
+      CREATE_FORM_INITIAL_VALUE.videoFormat,
+    ),
     secondsPerScene: initialSecondsPerScene,
     confirmScenes: initialConfirmScenes,
     // Con estilo propio no hay casilla: la pausa la decide Ajustes.

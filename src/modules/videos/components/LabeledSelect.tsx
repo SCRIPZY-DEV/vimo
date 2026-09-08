@@ -14,21 +14,12 @@ interface LabeledSelectProps<T extends string> {
   // opcional en el contrato del pipeline.
   value: T | undefined
   // Ya traducidas: el Select no sabe si la etiqueta sale del catálogo o es una
-  // marca. `priceUsd` agrega el precio por imagen al lado de la etiqueta y
-  // `note` una línea descriptiva SOLO en el desplegable (el trigger queda en
-  // etiqueta + precio).
-  options: { id: T; label: string; priceUsd?: number; note?: string }[]
+  // marca. `note` agrega una línea descriptiva SOLO en el desplegable (el
+  // trigger queda solo en la etiqueta).
+  options: { id: T; label: string; note?: string }[]
   disabled: boolean
   onChange: (value: T) => void
   className?: string
-}
-
-function PriceTag({ priceUsd }: { priceUsd: number }) {
-  return (
-    <span className="font-mono text-xs tabular-nums text-saffron">
-      ${priceUsd.toFixed(4)}
-    </span>
-  )
 }
 
 export function LabeledSelect<T extends string>({
@@ -49,17 +40,14 @@ export function LabeledSelect<T extends string>({
         disabled={disabled}
         onValueChange={(selectedId) => onChange(selectedId as T)}
       >
-        {/* El line-clamp-1 del trigger común (display -webkit-box) rompe el
-            span flex de etiqueta + precio y trunca a mitad de palabra. */}
-        <SelectTrigger className="[&>span]:line-clamp-none">
+        {/* La etiqueta ocupa el ancho libre para truncarse con puntos
+            suspensivos en una ventana angosta (el line-clamp-1 del trigger
+            común cortaba a mitad de palabra). El `text-left` es necesario: el
+            trigger es un <button>, que centra su texto por defecto. */}
+        <SelectTrigger className="[&>span]:line-clamp-none [&>span]:min-w-0 [&>span]:flex-1">
           <SelectValue>
             {selected && (
-              <span className="flex items-center gap-2 whitespace-nowrap">
-                {selected.label}
-                {selected.priceUsd !== undefined && (
-                  <PriceTag priceUsd={selected.priceUsd} />
-                )}
-              </span>
+              <span className="block truncate text-left">{selected.label}</span>
             )}
           </SelectValue>
         </SelectTrigger>
@@ -70,12 +58,7 @@ export function LabeledSelect<T extends string>({
               value={option.id}
               textValue={option.label}
             >
-              <span className="flex w-full min-w-0 items-center justify-between gap-6">
-                <span>{option.label}</span>
-                {option.priceUsd !== undefined && (
-                  <PriceTag priceUsd={option.priceUsd} />
-                )}
-              </span>
+              <span className="block">{option.label}</span>
               {option.note && (
                 <span className="mt-0.5 block font-body text-xs font-normal text-muted-foreground">
                   {option.note}

@@ -19,10 +19,19 @@ interface RenderVideoButtonProps {
   onCancel(): void
 }
 
+// Para el usuario la acción es «exportar»: el borrador nunca exportado
+// exporta, y con un video ya exportado (al día o desactualizado) re-exporta.
+// El tooltip explica cada caso.
 const LABEL_KEYS: Record<RenderedVideoState, string> = {
   none: 'library.editor.render.render',
   current: 'library.editor.render.rerenderClean',
   outdated: 'library.editor.render.rerender',
+}
+
+const HELP_KEYS: Record<RenderedVideoState, string> = {
+  none: 'library.editor.render.helpDraft',
+  current: 'library.editor.render.helpCurrent',
+  outdated: 'library.editor.render.helpOutdated',
 }
 
 // Botón de render del editor; vive en la barra de acciones del header.
@@ -69,8 +78,10 @@ export function RenderVideoButton({
           {t(LABEL_KEYS[videoState])}
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs text-sm leading-snug">
-        {t('library.editor.render.help')}
+      {/* Debajo, como el resto de la barra del editor; el botón flotante del
+          formato vertical vive abajo y Radix lo vuelve a subir solo. */}
+      <TooltipContent side="bottom" className="max-w-xs text-sm leading-snug">
+        {t(HELP_KEYS[videoState])}
       </TooltipContent>
     </Tooltip>
   )

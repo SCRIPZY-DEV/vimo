@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
+import { NOT_CONFIGURED_CREDITS_CODES } from '@/modules/videos/constants'
 import type { ProviderCreditsStatus } from '@pipeline/types/video-project.ts'
 
 interface CreditsBadgeProps {
@@ -28,12 +29,11 @@ export function CreditsBadge({
     if (loading || status === null)
       return <Loader2 className="h-3.5 w-3.5 animate-spin" />
     if (failed) {
-      const reasonKey =
-        status.errorCode === 'missing_api_key'
-          ? 'create.credits.configure'
-          : status.errorCode === 'fal_admin_key_required'
-            ? 'create.credits.adminRequired'
-            : 'create.credits.error'
+      // Sin clave o clave rechazada = «Sin configurar»: al cliente no le
+      // sirve saber que Fal pide una clave de admin para leer el saldo.
+      const reasonKey = NOT_CONFIGURED_CREDITS_CODES.has(status.errorCode ?? '')
+        ? 'create.credits.notConfigured'
+        : 'create.credits.error'
       return (
         <span className="flex items-center gap-1 text-coral">
           <AlertCircle className="h-3.5 w-3.5" />

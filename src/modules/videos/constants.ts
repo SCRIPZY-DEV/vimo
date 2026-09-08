@@ -147,8 +147,9 @@ export const BGM_OFFSET_MAX_SECONDS = 120
 export const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const
 export type PlaybackRate = (typeof PLAYBACK_RATES)[number]
 
-// Espejo del cap del sidecar (update-scenes.ts).
-export const MAX_USER_PROMPT_CHARS = 1000
+// Espejo del cap del sidecar (update-scenes.ts): 2500, como en la web de
+// origen. Si cambia acá tiene que cambiar allá, o el sidecar rechaza el texto.
+export const MAX_USER_PROMPT_CHARS = 2500
 
 // Badges con un job en curso o a medias: desde la biblioteca navegan a Progress.
 export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
@@ -363,7 +364,10 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
 // Opciones de calidad por proveedor (ambos generan con gpt-image-2, ADR-0015).
 // Evolink solo expone 16:9 1K, así que de la opción solo importa la calidad;
 // en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>` del
-// catálogo del origen).
+// catálogo del origen). La etiqueta visible no nombra la resolución sino el
+// formato del video y el nivel («16:9 · Low», «9:16 · High»): `labelKey` es
+// una clave por nivel y quien la traduce interpola el `format` vigente (el
+// elegido en el formulario, o el del proyecto en el editor).
 // Los precios (USD por imagen) vienen del catálogo del origen
 // (src/core/costos.ts); si cambian, actualizar también el catálogo
 // informativo de modules/costs/catalog.ts (ADR-0008).
@@ -375,19 +379,19 @@ export const EVOLINK_QUALITY_OPTIONS: {
 }[] = [
   {
     id: '1024x576_low',
-    labelKey: 'create.quality.evolinkLow',
+    labelKey: 'create.quality.low',
     noteKey: 'create.quality.evolinkLowNote',
     priceUsd: 0.0036,
   },
   {
     id: '1024x576_medium',
-    labelKey: 'create.quality.evolinkMedium',
+    labelKey: 'create.quality.medium',
     noteKey: 'create.quality.evolinkMediumNote',
     priceUsd: 0.0273,
   },
   {
     id: '1024x576_high',
-    labelKey: 'create.quality.evolinkHigh',
+    labelKey: 'create.quality.high',
     noteKey: 'create.quality.evolinkHighNote',
     priceUsd: 0.1072,
   },
@@ -401,19 +405,19 @@ export const FAL_QUALITY_OPTIONS: {
 }[] = [
   {
     id: '1920x1080_low',
-    labelKey: 'create.quality.falLow',
+    labelKey: 'create.quality.low',
     noteKey: 'create.quality.falNote',
     priceUsd: 0.005,
   },
   {
     id: '1920x1080_medium',
-    labelKey: 'create.quality.falMedium',
+    labelKey: 'create.quality.medium',
     noteKey: 'create.quality.falNote',
     priceUsd: 0.04,
   },
   {
     id: '1920x1080_high',
-    labelKey: 'create.quality.falHigh',
+    labelKey: 'create.quality.high',
     noteKey: 'create.quality.falNote',
     priceUsd: 0.158,
   },
@@ -429,19 +433,19 @@ export const FAL_QUALITY_OPTIONS_VERTICAL: {
 }[] = [
   {
     id: '1080x1920_low',
-    labelKey: 'create.quality.falVerticalLow',
+    labelKey: 'create.quality.low',
     noteKey: 'create.quality.falVerticalNote',
     priceUsd: 0.005,
   },
   {
     id: '1080x1920_medium',
-    labelKey: 'create.quality.falVerticalMedium',
+    labelKey: 'create.quality.medium',
     noteKey: 'create.quality.falVerticalNote',
     priceUsd: 0.04,
   },
   {
     id: '1080x1920_high',
-    labelKey: 'create.quality.falVerticalHigh',
+    labelKey: 'create.quality.high',
     noteKey: 'create.quality.falVerticalNote',
     priceUsd: 0.158,
   },
@@ -450,6 +454,17 @@ export const FAL_QUALITY_OPTIONS_VERTICAL: {
 // El proveedor tarda unos segundos en reflejar el gasto: el refetch de saldos
 // tras una generación se difiere (mismo criterio que el origen).
 export const CREDITS_REFRESH_DELAY_MS = 4000
+
+// Códigos del saldo (get-image-credits) que para la persona significan una
+// sola cosa: falta configurar la clave — no hay clave, o el proveedor la
+// rechazó (Fal responde 401/403 también cuando la clave no es de admin;
+// Evolink, cuando es inválida). Cualquier otro código es un error de red o
+// del proveedor y se muestra como tal.
+export const NOT_CONFIGURED_CREDITS_CODES: ReadonlySet<string> = new Set([
+  'missing_api_key',
+  'fal_admin_key_required',
+  'music_invalid_api_key',
+])
 
 // Frecuencias de aparición del personaje, de menor a mayor.
 export const CHARACTER_FREQUENCIES: {

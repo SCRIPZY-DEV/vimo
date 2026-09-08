@@ -43,6 +43,9 @@ export function useRequiredApiKeys(options: RequiredApiKeysOptions = {}) {
   return {
     isNative,
     isLoading,
+    // Ids con clave guardada: para preseleccionar el proveedor que sí puede
+    // generar (imágenes en Crear, el editor y las muestras de un estilo).
+    configuredProviders: configured,
     missingCategories,
     missingRequirements,
     missingKeys,

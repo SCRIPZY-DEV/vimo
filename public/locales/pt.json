@@ -133,19 +133,13 @@
       "evolinkHint": "Mais rápido (50 em paralelo), um único preset."
     },
     "quality": {
-      "evolinkLow": "Full HD · Low",
+      "low": "{{format}} · Low",
+      "medium": "{{format}} · Medium",
+      "high": "{{format}} · High",
       "evolinkLowNote": "Sai na forma do vídeo (16:9 ou 9:16). Mais econômico.",
-      "evolinkMedium": "Full HD · Medium",
       "evolinkMediumNote": "Sai na forma do vídeo (16:9 ou 9:16). Equilíbrio preço/qualidade.",
-      "evolinkHigh": "Full HD · High",
       "evolinkHighNote": "Sai na forma do vídeo (16:9 ou 9:16). Qualidade máxima.",
-      "falLow": "1920×1080 · Low",
-      "falMedium": "1920×1080 · Medium",
-      "falHigh": "1920×1080 · High",
       "falNote": "16:9 nativo. Sem redimensionamento.",
-      "falVerticalLow": "1080×1920 · Low",
-      "falVerticalMedium": "1080×1920 · Medium",
-      "falVerticalHigh": "1080×1920 · High",
       "falVerticalNote": "9:16 nativo para shorts. Sem redimensionamento."
     },
     "voice": {
@@ -427,8 +421,7 @@
     },
     "credits": {
       "balance": "{{amount}} cr.",
-      "configure": "configurar",
-      "adminRequired": "Admin necessário",
+      "notConfigured": "Sem configurar",
       "error": "erro",
       "refresh": "Atualizar saldos"
     },
@@ -640,20 +633,24 @@
         "userPrompt": "Sua descrição para a imagem",
         "userPromptPlaceholder": "Descreva o que você quer ver nesta cena (opcional)",
         "promptChars": "{{used}}/{{max}}",
+        "promptHintLead": "Descreva só a cena.",
+        "promptHint": "O estilo do projeto é aplicado automaticamente ao regenerar. Máx. {{max}} caracteres.",
+        "clipIn": "In:",
+        "clipOut": "Out:",
         "provider": "Provedor",
         "quality": "Qualidade",
         "characters": "Personagens nesta cena",
-        "creditsRemaining": "{{provider}}: {{remaining}} créditos",
-        "creditsUnavailable": "{{provider}}: saldo indisponível",
         "regenerate": "Regenerar imagem",
         "regenerateWithPrompt": "Regenerar com sua descrição",
         "lastError": "Última tentativa: {{reason}}"
       },
       "render": {
-        "render": "Renderizar vídeo",
-        "rerender": "Re-renderizar (desatualizado)",
-        "rerenderClean": "Re-renderizar",
-        "help": "Regenera o vídeo com as últimas alterações",
+        "render": "Exportar vídeo",
+        "rerender": "Reexportar",
+        "rerenderClean": "Reexportar",
+        "helpDraft": "Gera o vídeo final com as alterações desta edição",
+        "helpCurrent": "O vídeo já está em dia; exporte de novo só se quiser refazê-lo",
+        "helpOutdated": "Reexporta o vídeo com as últimas alterações",
         "cancel": "Cancelar render",
         "phase": {
           "chunks": "Montando cenas",
@@ -663,7 +660,7 @@
       },
       "export": {
         "button": "Exportar para editar",
-        "help": "Gera os clipes para exportá-los a editores de vídeo",
+        "help": "Gera um clipe por cena (com sua duração exata) + o áudio, para editá-los no CapCut ou Premiere sem perder a sincronia.",
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Prévia",

@@ -25,7 +25,7 @@ export function ImageProviderSection({
   onChange,
 }: ImageProviderSectionProps) {
   const { t } = useTranslation()
-  const { credits, isLoading, refresh } = useImageCredits()
+  const { credits, isLoading, isRefreshing, refresh } = useImageCredits()
 
   const qualityOptions = qualityOptionsFor(
     value.imageProvider,
@@ -55,6 +55,7 @@ export function ImageProviderSection({
         <ImageCreditsBadges
           credits={credits}
           loading={isLoading}
+          refreshing={isRefreshing}
           active={value.imageProvider}
           onRefresh={refresh}
         />
@@ -62,7 +63,9 @@ export function ImageProviderSection({
 
       <p className="font-body text-xs text-muted-foreground">{t(hintKey)}</p>
 
-      <div className="inline-flex items-center rounded-full bg-muted p-0.5">
+      {/* Mismo control segmentado que el modal de estilo: track con borde y
+          botones a tamaño de texto normal, para que se lean como botones. */}
+      <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
         {IMAGE_PROVIDERS.map((provider) => (
           <button
             key={provider.id}
@@ -70,7 +73,7 @@ export function ImageProviderSection({
             disabled={disabled}
             onClick={() => changeProvider(provider.id)}
             className={cn(
-              'rounded-full px-3 py-1 font-display text-xs font-bold transition-colors',
+              'rounded-full px-4 py-1.5 font-display text-sm font-bold transition-colors',
               value.imageProvider === provider.id
                 ? 'bg-saffron text-charcoal shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
@@ -86,8 +89,9 @@ export function ImageProviderSection({
         value={value.imageQuality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          label: t(option.labelKey),
-          priceUsd: option.priceUsd,
+          // «16:9 · Low»: el formato elegido en el formulario, no la resolución.
+          // Sin precio: el del catálogo no es el precio real por imagen.
+          label: t(option.labelKey, { format: value.videoFormat }),
           note: t(option.noteKey),
         }))}
         disabled={disabled}

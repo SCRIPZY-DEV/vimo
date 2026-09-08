@@ -133,19 +133,13 @@
       "evolinkHint": "Faster (50 in parallel), a single preset."
     },
     "quality": {
-      "evolinkLow": "Full HD · Low",
+      "low": "{{format}} · Low",
+      "medium": "{{format}} · Medium",
+      "high": "{{format}} · High",
       "evolinkLowNote": "Comes out in the video's shape (16:9 or 9:16). Cheapest.",
-      "evolinkMedium": "Full HD · Medium",
       "evolinkMediumNote": "Comes out in the video's shape (16:9 or 9:16). Price/quality balance.",
-      "evolinkHigh": "Full HD · High",
       "evolinkHighNote": "Comes out in the video's shape (16:9 or 9:16). Top quality.",
-      "falLow": "1920×1080 · Low",
-      "falMedium": "1920×1080 · Medium",
-      "falHigh": "1920×1080 · High",
       "falNote": "Native 16:9. No resizing.",
-      "falVerticalLow": "1080×1920 · Low",
-      "falVerticalMedium": "1080×1920 · Medium",
-      "falVerticalHigh": "1080×1920 · High",
       "falVerticalNote": "Native 9:16 for shorts. No resizing."
     },
     "voice": {
@@ -427,8 +421,7 @@
     },
     "credits": {
       "balance": "{{amount}} cr.",
-      "configure": "set up",
-      "adminRequired": "Admin required",
+      "notConfigured": "Not set up",
       "error": "error",
       "refresh": "Refresh balances"
     },
@@ -640,20 +633,24 @@
         "userPrompt": "Your description for the image",
         "userPromptPlaceholder": "Describe what you want to see in this scene (optional)",
         "promptChars": "{{used}}/{{max}}",
+        "promptHintLead": "Describe only the scene.",
+        "promptHint": "The project's style is applied automatically when regenerating. Max. {{max}} characters.",
+        "clipIn": "In:",
+        "clipOut": "Out:",
         "provider": "Provider",
         "quality": "Quality",
         "characters": "Characters in this scene",
-        "creditsRemaining": "{{provider}}: {{remaining}} credits",
-        "creditsUnavailable": "{{provider}}: balance unavailable",
         "regenerate": "Regenerate image",
         "regenerateWithPrompt": "Regenerate with your description",
         "lastError": "Last attempt: {{reason}}"
       },
       "render": {
-        "render": "Render video",
-        "rerender": "Re-render (outdated)",
-        "rerenderClean": "Re-render",
-        "help": "Regenerates the video with the latest changes",
+        "render": "Export video",
+        "rerender": "Re-export",
+        "rerenderClean": "Re-export",
+        "helpDraft": "Generates the final video with the changes from this edit",
+        "helpCurrent": "The video is already up to date; export it again only if you want to rebuild it",
+        "helpOutdated": "Re-exports the video with your latest changes",
         "cancel": "Cancel render",
         "phase": {
           "chunks": "Building scenes",
@@ -663,7 +660,7 @@
       },
       "export": {
         "button": "Export for editing",
-        "help": "Generates the clips to export them to video editors",
+        "help": "Generates one clip per scene (with its exact duration) + the audio, so you can edit them in CapCut or Premiere without losing sync.",
         "progress": "Exporting… {{percent}}%"
       },
       "previewBadge": "Preview",
