@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { FileAudio, Mic, X } from 'lucide-react'
+import { LongTextNotice } from '@/modules/common/components/LongTextNotice'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
@@ -138,6 +139,7 @@ export function NarrationSection({
             })}
           </span>
         </div>
+        {!isUpload && <LongTextNotice characters={value.script.length} />}
         {isUpload && (
           <p className="font-body text-xs text-muted-foreground">
             {t('create.script.optionalHint')}
