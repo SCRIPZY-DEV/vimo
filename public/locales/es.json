@@ -292,6 +292,10 @@
         "title": "Reintentando en {{seconds}}s",
         "attempt": "· intento {{attempt}} de {{max}}"
       },
+      "recovery": {
+        "rewritingPrompts": "Reescribiendo {{count}} prompts",
+        "retryingImages": "Reintentando {{count}} imágenes · pasada {{pass}} de {{maxPasses}}"
+      },
       "error": {
         "title": "Algo salió mal",
         "retryFromCheckpoint": "Reintentar desde el último paso",
@@ -462,7 +466,10 @@
       "doneTitle": "{{total}} prompts listos, uno por escena",
       "writingSubtitle": "{{done}} de {{total}} listos · {{percent}}%",
       "doneSubtitle": "Uno por escena, con el estilo elegido.",
-      "writingAria": "Escribiendo este prompt"
+      "writingAria": "Escribiendo este prompt",
+      "rewritingTitle": "Reescribiendo {{total}} prompts rechazados",
+      "rewritingSubtitle": "{{done}} de {{total}} reescritos · {{percent}}% · pasada {{pass}} de {{maxPasses}}",
+      "rewritingHint": "El generador de imágenes rechazó estas escenas por contenido: se reescriben más neutras, con el mismo estilo."
     },
     "viewer": {
       "title": "Escena {{id}}",

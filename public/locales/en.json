@@ -292,6 +292,10 @@
         "title": "Retrying in {{seconds}}s",
         "attempt": "· attempt {{attempt}} of {{max}}"
       },
+      "recovery": {
+        "rewritingPrompts": "Rewriting {{count}} prompts",
+        "retryingImages": "Retrying {{count}} images · pass {{pass}} of {{maxPasses}}"
+      },
       "error": {
         "title": "Something went wrong",
         "retryFromCheckpoint": "Retry from the last step",
@@ -462,7 +466,10 @@
       "doneTitle": "{{total}} prompts ready, one per scene",
       "writingSubtitle": "{{done}} of {{total}} ready · {{percent}}%",
       "doneSubtitle": "One per scene, in the style you picked.",
-      "writingAria": "Writing this prompt"
+      "writingAria": "Writing this prompt",
+      "rewritingTitle": "Rewriting {{total}} rejected prompts",
+      "rewritingSubtitle": "{{done}} of {{total}} rewritten · {{percent}}% · pass {{pass}} of {{maxPasses}}",
+      "rewritingHint": "The image generator rejected these scenes for content: they are rewritten more neutral, in the same style."
     },
     "viewer": {
       "title": "Scene {{id}}",
