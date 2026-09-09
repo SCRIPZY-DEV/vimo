@@ -4,6 +4,10 @@
     "openVideo": "Reproducir",
     "revealVideo": "Mostrar en carpeta",
     "proximamente": "Próximamente",
+    "longTextNotice": {
+      "title": "Este texto es largo",
+      "body": "Son {{characters}} caracteres: la voz se genera en varias partes y puede tardar varios minutos. Podés seguir usando la app mientras tanto."
+    },
     "player": {
       "play": "Reproducir",
       "pause": "Pausar",
@@ -273,7 +277,8 @@
         "title": "Generando voz · {{provider}}",
         "hintMinimax": "Minimax es sincrónico · suele tardar 5-30s para {{chars}} caracteres",
         "hintEdge": "Edge TTS es rápido · suele tardar <5s",
-        "hintDefault": "Procesando {{chars}} caracteres"
+        "hintDefault": "Procesando {{chars}} caracteres",
+        "hintParts": "Parte {{part}} de {{total}} · {{chars}} caracteres"
       },
       "music": {
         "title": "Generando música con IA · Suno"
@@ -1078,6 +1083,7 @@
       "generando": "Generando…",
       "cancelar": "Cancelar",
       "progresoSegundos": "{{seconds}} s transcurridos",
+      "progresoPartes": "Parte {{part}} de {{total}} · {{seconds}} s",
       "resultado": "Resultado",
       "cerrar": "Cerrar",
       "guardada": "La narración quedó guardada en el historial.",
@@ -1144,7 +1150,8 @@
       "timeout": "La generación tardó demasiado y se canceló. Volvé a intentar.",
       "downloadFailed": "No se pudo descargar el audio generado. Volvé a intentar.",
       "emptyAudio": "El proveedor devolvió un audio vacío. Probá con otra voz.",
-      "textTooLong": "El texto supera el límite de caracteres del motor elegido.",
+      "textTooLong": "El texto supera el máximo de caracteres permitido.",
+      "chunkingInconsistent": "El troceo del texto no cuadró y no se gastaron créditos. Probá de nuevo.",
       "invalido": "La solicitud no es válida. Recargá la pantalla y volvé a intentar.",
       "missingApiKey": "Falta la clave del proveedor de voces elegido. Configurala en Claves API.",
       "missingProjectsRoot": "No hay carpeta de proyectos configurada. Revisá Ajustes.",

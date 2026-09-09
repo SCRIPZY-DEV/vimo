@@ -4,6 +4,10 @@
     "openVideo": "Play",
     "revealVideo": "Show in folder",
     "proximamente": "Coming soon",
+    "longTextNotice": {
+      "title": "This text is long",
+      "body": "That is {{characters}} characters: the voice is generated in several parts and may take a few minutes. You can keep using the app meanwhile."
+    },
     "player": {
       "play": "Play",
       "pause": "Pause",
@@ -273,7 +277,8 @@
         "title": "Generating voice · {{provider}}",
         "hintMinimax": "Minimax is synchronous · usually takes 5-30s for {{chars}} characters",
         "hintEdge": "Edge TTS is fast · usually takes <5s",
-        "hintDefault": "Processing {{chars}} characters"
+        "hintDefault": "Processing {{chars}} characters",
+        "hintParts": "Part {{part}} of {{total}} · {{chars}} characters"
       },
       "music": {
         "title": "Generating music with AI · Suno"
@@ -1078,6 +1083,7 @@
       "generando": "Generating…",
       "cancelar": "Cancel",
       "progresoSegundos": "{{seconds}} s elapsed",
+      "progresoPartes": "Part {{part}} of {{total}} · {{seconds}} s",
       "resultado": "Result",
       "cerrar": "Close",
       "guardada": "The narration was saved to the history.",
@@ -1144,7 +1150,8 @@
       "timeout": "The generation took too long and was cancelled. Try again.",
       "downloadFailed": "The generated audio couldn't be downloaded. Try again.",
       "emptyAudio": "The provider returned empty audio. Try another voice.",
-      "textTooLong": "The text exceeds the character limit of the selected engine.",
+      "textTooLong": "The text exceeds the maximum number of characters allowed.",
+      "chunkingInconsistent": "Splitting the text did not add up and no credits were spent. Please try again.",
       "invalido": "The request is not valid. Reload the screen and try again.",
       "missingApiKey": "The key for the chosen voice provider is missing. Set it up in API Keys.",
       "missingProjectsRoot": "No projects folder is configured. Check Settings.",
