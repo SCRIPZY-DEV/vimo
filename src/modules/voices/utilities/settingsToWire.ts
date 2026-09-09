@@ -2,6 +2,7 @@ import type {
   VoiceGenerationSettings,
   VoiceProviderId,
 } from '@pipeline/types/voices.ts'
+import { isDubvoiceCatalogEngine } from './isDubvoiceCatalogEngine'
 import { isElevenLabsEngine } from './isElevenLabsEngine'
 import type { VoiceSettingsFormValue } from '../types/voices'
 
@@ -27,6 +28,8 @@ export function settingsForProvider(
       style: form.style,
       useSpeakerBoost: form.speakerBoost,
     }
+
+  if (isDubvoiceCatalogEngine(provider)) return { speed: form.speed }
 
   return { volumeEdge: form.volumeEdge }
 }
