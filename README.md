@@ -298,7 +298,8 @@ dos de historial solo leen y borran disco bajo `<root>/_history/voices/`.
 # paginados de DubVoice (elevenlabs, vbee, fishaudio).
 pnpm pipeline:harness list-voices --payload '{"provider":"minimax","filters":{"language":"Spanish","gender":"female"}}'
 
-# Sintetiza y guarda la entrada en el historial. text ≤ 4500 chars.
+# Sintetiza y guarda la entrada en el historial. text ≤ 90 000 chars: cada motor
+# lo trocea a su tope por llamada y concatena las partes (ADR-0025).
 # En minimax el voiceId es SIEMPRE el id largo ("Spanish_SereneWoman"): el corto da 500.
 pnpm pipeline:harness generate-voice --payload '{"provider":"minimax","voiceId":"Spanish_SereneWoman","text":"Hola, esto es una prueba.","settings":{"speed":1,"pitch":0}}'
 

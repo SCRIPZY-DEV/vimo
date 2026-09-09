@@ -110,6 +110,8 @@ motor, nunca al revés.**
   Voces y en Crear, con su cuota visible.
 - ✅ El troceo de narraciones largas y el reuso de partes ya pagadas aplican a
   **todos** los carriles (antes el fallback directo mandaba el texto entero).
+  Desde ADR-0025 cada carril trocea a su propio tope, así que el reuso vale
+  entre reintentos del mismo carril, no al caer al fallback.
 - ✅ Fallback simétrico: ElevenLabs directo ↔ ElevenLabs vía DubVoice con la misma
   voz, solo si el usuario tiene la otra clave.
 - ⚠️ El fallback solo sirve con voces **premade** públicas: una clonada o añadida a
@@ -137,7 +139,8 @@ motor, nunca al revés.**
   «Mis voces»/«Biblioteca», saldo en caracteres; (3) ambas claves → Voces y Crear arrancan en
   el proveedor de Ajustes; cambiarlo en Voces no cambia Ajustes ni el picker; (4) voz de biblioteca en el
   probador → «Añadiendo la voz…», aparece en «Mis voces», repetir no la duplica;
-  (5) narración > 4500 chars con ElevenLabs directo → log «split into N parts»;
+  (5) narración > 25 000 chars vía DubVoice, o > 9 500 con Multilingual v2 directo →
+  log «split into N parts» (ADR-0025);
   (6) clave ElevenLabs inválida + voz premade + clave DubVoice → log warn y carril
   «ElevenLabs via DubVoice»; (7) proyecto viejo con `voiceProvider: 'elevenlabs'` →
   Library re-sintetiza vía DubVoice.
