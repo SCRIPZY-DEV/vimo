@@ -27,20 +27,20 @@ export const voicesQueryKeys = {
 } as const
 
 // ─── Dos proveedores de voces (ADR-0024) ───
-// El vendor se deriva del id de motor: DubVoice agrupa tres motores con una
+// El vendor se deriva del id de motor: DubVoice agrupa cinco motores con una
 // clave; ElevenLabs directo es uno solo con la clave del usuario.
 export const VOICE_PROVIDERS_BY_VENDOR: Record<
   VoiceVendorId,
   VoiceProviderId[]
 > = {
-  dubvoice: ['minimax', 'elevenlabs', 'edge'],
+  dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'edge'],
   elevenlabs: ['elevenlabs-direct'],
 }
 
 // Pestañas de la página Voces según el vendor activo. Edge queda fuera del
 // catálogo visible (sin muestras del proveedor).
 export const VOICE_TABS_BY_VENDOR: Record<VoiceVendorId, VoiceTab[]> = {
-  dubvoice: ['minimax', 'elevenlabs', 'favorites'],
+  dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'favorites'],
   elevenlabs: ['elevenlabs-account', 'elevenlabs-library', 'favorites'],
 }
 
@@ -50,7 +50,7 @@ export const VOICE_PICKER_TABS_BY_VENDOR: Record<
   VoiceVendorId,
   Exclude<VoiceTab, 'favorites'>[]
 > = {
-  dubvoice: ['minimax', 'elevenlabs', 'edge'],
+  dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'edge'],
   elevenlabs: ['elevenlabs-account', 'elevenlabs-library'],
 }
 
@@ -62,6 +62,8 @@ export const VOICE_TAB_CATALOGS: Record<
 > = {
   minimax: { provider: 'minimax' },
   elevenlabs: { provider: 'elevenlabs' },
+  vbee: { provider: 'vbee' },
+  fishaudio: { provider: 'fishaudio' },
   edge: { provider: 'edge' },
   'elevenlabs-direct': { provider: 'elevenlabs-direct', source: 'account' },
   'elevenlabs-account': { provider: 'elevenlabs-direct', source: 'account' },
@@ -72,6 +74,8 @@ export const VOICE_TAB_CATALOGS: Record<
 export const VOICE_PROVIDER_LABELS: Record<VoiceProviderId, string> = {
   minimax: 'Minimax',
   elevenlabs: 'ElevenLabs · DubVoice',
+  vbee: 'Vbee · DubVoice',
+  fishaudio: 'Fish Audio · DubVoice',
   edge: 'Edge TTS',
   'elevenlabs-direct': 'ElevenLabs',
 }
@@ -107,10 +111,11 @@ export const VOICE_LIST_CACHE_MAX_VOICES = 2000
 /** Voces por página en la paginación client-side (Minimax y favoritos). */
 export const VOICE_PAGE_SIZE = 30
 
-// Espejo de ELEVENLABS_PAGE_SIZE del sidecar (pipeline/providers/tts):
-// ElevenLabs pagina server-side, así que la UI necesita el mismo tamaño para
-// traducir el total del proveedor a número de páginas.
-export const ELEVENLABS_PAGE_SIZE = 60
+// Espejo de CATALOG_PAGE_SIZE del sidecar (pipeline/providers/tts): los
+// catálogos paginados server-side (ElevenLabs, Vbee y Fish Audio vía DubVoice,
+// biblioteca de ElevenLabs) necesitan el mismo tamaño en la UI para traducir el
+// total del proveedor a número de páginas.
+export const CATALOG_PAGE_SIZE = 60
 export const SEARCH_DEBOUNCE_MS = 300
 
 /** Espera antes de re-consultar el saldo (DubVoice descuenta async). */
@@ -120,6 +125,8 @@ export const CREDITS_SETTLE_DELAY_MS = 3000
 export const VOICE_TEXT_LIMITS: Record<VoiceProviderId, number> = {
   minimax: 4500,
   elevenlabs: 4500,
+  vbee: 4500,
+  fishaudio: 4500,
   edge: 4500,
   'elevenlabs-direct': 4500,
 }
@@ -137,6 +144,8 @@ export const NARRATION_CHAR_LIMIT = 90_000
 export const VOICE_COST_FACTORS: Record<VoiceProviderId, number> = {
   minimax: 1,
   elevenlabs: 1,
+  vbee: 1,
+  fishaudio: 1,
   edge: 0.5,
   'elevenlabs-direct': 1,
 }
@@ -181,6 +190,9 @@ export const VOICE_MODELS: Record<VoiceProviderId, VoiceModelOption[]> = {
     },
   ],
   elevenlabs: ELEVENLABS_MODELS,
+  // Vbee y Fish Audio no eligen modelo: DubVoice lo decide por la voz.
+  vbee: [{ id: 'default', label: 'Vbee' }],
+  fishaudio: [{ id: 'default', label: 'Fish Audio' }],
   edge: [{ id: 'default', label: 'Microsoft Edge' }],
   'elevenlabs-direct': ELEVENLABS_MODELS,
 }
@@ -188,6 +200,8 @@ export const VOICE_MODELS: Record<VoiceProviderId, VoiceModelOption[]> = {
 export const DEFAULT_VOICE_MODELS: Record<VoiceProviderId, string> = {
   minimax: 'speech-02-hd',
   elevenlabs: 'eleven_multilingual_v2',
+  vbee: 'default',
+  fishaudio: 'default',
   edge: 'default',
   'elevenlabs-direct': 'eleven_multilingual_v2',
 }
