@@ -32,14 +32,15 @@ import type {
   ProjectCharacter,
   VideoProjectMetadata,
 } from '../../types/video-project.ts'
+import { TTS_TEXT_CHAR_LIMIT } from '../../providers/tts/text-limits.ts'
 import { ensureDirectory } from '../../utils/atomic-fs.ts'
 import { slugifyProjectName } from '../../utils/slug.ts'
 
 // Límites del formulario, espejados en src/modules/videos/constants.ts.
 export const PROJECT_NAME_LIMIT = 80
-// = NARRATION_CHAR_LIMIT del frontend: el tope de lo que la voz puede narrar
-// (90 000 según el dueño, 2026-09-07); antes 100 000 y la voz fallaba.
-export const SCRIPT_CHAR_LIMIT = 90_000
+// El guion no puede superar lo que la voz puede narrar (una sola fuente:
+// providers/tts/text-limits.ts).
+export const SCRIPT_CHAR_LIMIT = TTS_TEXT_CHAR_LIMIT
 export const MAX_PROJECT_CHARACTERS = 2
 export const MAX_SCENE_COUNT = 500
 // Un id de modelo es `autor/nombre`; el más largo del catálogo ronda los 45.
