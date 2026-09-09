@@ -26,6 +26,7 @@ import {
 import { useAddLibraryVoice } from '@/modules/voices/hooks/useAddLibraryVoice'
 import { useVoiceTask } from '@/modules/voices/hooks/useVoiceTask'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
+import { taskBelongsToVoice } from '@/modules/voices/utilities/taskBelongsToVoice'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
 import type {
   VoiceSettingsFormValue,
@@ -56,6 +57,9 @@ interface VoiceTesterPanelProps {
  * Se abre en un Dialog centrado al elegir una voz; el padre lo remonta (key
  * por provider) al cambiar de motor, así el modelo y los ajustes vuelven a los
  * defaults del provider activo.
+ * La tarea es un store global que sobrevive al remount: el error y el
+ * resultado solo se muestran si la tarea se generó con esta voz; el estado
+ * «generando» sí es global porque solo corre un job a la vez.
  */
 export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   const { t } = useTranslation()
@@ -64,6 +68,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
     addLibraryVoice,
     adding,
     errorKey: addErrorKey,
+    reset: resetAddLibraryVoice,
   } = useAddLibraryVoice()
 
   const [text, setText] = useState('')
@@ -73,8 +78,10 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   )
 
   const generating = task?.status === 'generating' || adding
-  const entry = task?.status === 'completed' ? task.entry : null
-  const errorKey = addErrorKey ?? task?.errorKey ?? null
+  const ownTask = taskBelongsToVoice(task, voice) ? task : null
+  const otherTaskGenerating = generating && !adding && !ownTask
+  const entry = ownTask?.status === 'completed' ? ownTask.entry : null
+  const errorKey = addErrorKey ?? ownTask?.errorKey ?? null
 
   const models = VOICE_MODELS[voice.provider]
   const activeModel = model ?? DEFAULT_VOICE_MODELS[voice.provider]
@@ -83,6 +90,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   // ANTES de generar; lo que se sintetiza (y queda en el historial) es la
   // voz de cuenta que devuelve.
   const generate = async () => {
+    resetAddLibraryVoice()
     let voiceId = voice.voiceId
     if (voice.libraryOwnerId) {
       try {
@@ -225,6 +233,14 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
           label={progressLabel(t, task)}
           percent={task.progressPercent}
         />
+      )}
+
+      {otherTaskGenerating && (
+        <p className="font-body text-xs text-muted-foreground">
+          {t('voices.probador.otraGeneracionEnCurso', {
+            name: task?.request.voiceName ?? task?.request.voiceId,
+          })}
+        </p>
       )}
 
       {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
