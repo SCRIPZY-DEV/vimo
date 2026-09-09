@@ -109,14 +109,25 @@ export function GenerationProgress({
   // viejo del disco y `stage` es null hasta el primer evento.
   const showRenderPanel =
     generating && task.stage === 'render' && task.renderProgress !== null
+  // Pasada de recuperación de imágenes: mientras se reescriben prompts, la
+  // grilla de prompts vuelve (solo con las escenas afectadas) y la de
+  // imágenes espera; el reintento se anota sobre la grilla de imágenes.
+  const recovery = generating ? task.imagesRecovery : null
+  const rewriting = recovery?.kind === 'rewrite'
+  const retrying = recovery?.kind === 'retry'
+  const rewritingScenes = rewriting
+    ? task.scenes.filter((scene) => recovery.sceneIds.includes(scene.id))
+    : task.scenes
   const showPromptsPanel =
     !paused &&
-    completed.includes('scene-cuts') &&
-    !completed.includes('scene-prompts')
+    (rewriting ||
+      (completed.includes('scene-cuts') &&
+        !completed.includes('scene-prompts')))
   // La señal es que los prompts terminaron, no que las imágenes arrancaron;
   // y se quedan también al terminar o fallar.
   const showImagesPanel =
     !paused &&
+    !rewriting &&
     (completed.includes('scene-prompts') ||
       task.stage === 'images' ||
       !generating)
@@ -198,6 +209,7 @@ export function GenerationProgress({
             currentStage={task.stage}
             completedStages={completed}
             paused={paused}
+            recovery={recovery}
           />
           {task.audioDurationSeconds !== null && (
             <div className="rounded-lg bg-muted/50 p-3 font-body text-sm text-muted-foreground">
@@ -337,7 +349,18 @@ export function GenerationProgress({
           )}
 
           {showPromptsPanel && (
-            <PromptsGrid scenes={task.scenes} written={task.promptsWritten} />
+            <PromptsGrid
+              scenes={rewritingScenes}
+              written={
+                rewriting
+                  ? {
+                      ready: recovery.streamed,
+                      total: recovery.sceneIds.length,
+                    }
+                  : task.promptsWritten
+              }
+              recovery={rewriting ? recovery : null}
+            />
           )}
 
           {showImagesPanel && (
@@ -352,6 +375,20 @@ export function GenerationProgress({
                   })}
                 </h2>
               </div>
+              {retrying && (
+                <p
+                  className={cn(
+                    SUPPORT_NOTE_CLASS,
+                    '-mt-2 mb-3 text-muted-foreground',
+                  )}
+                >
+                  {t('create.progress.recovery.retryingImages', {
+                    count: recovery.sceneIds.length,
+                    pass: recovery.pass,
+                    maxPasses: recovery.maxPasses,
+                  })}
+                </p>
+              )}
               <SceneImagesGrid
                 scenes={task.scenes}
                 videoFormat={task.videoFormat}
