@@ -55,7 +55,12 @@ jobs:
 
       # Ejecuta beforeBuildCommand: fetch:binaries (ffmpeg y yt-dlp pineados
       # por target triple), build:sidecar y el build de la interfaz.
+      # Vite embebe las VITE_* en el bundle en tiempo de build: sin ellas el
+      # cliente de Supabase lanza al cargar y la app abre en blanco.
       - uses: tauri-apps/tauri-action@v0
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         with:
           tauriScript: pnpm tauri
           args: --bundles ${{ matrix.bundles }}
