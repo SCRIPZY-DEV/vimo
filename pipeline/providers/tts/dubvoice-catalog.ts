@@ -19,28 +19,24 @@ import {
   rethrowIfCancelled,
   requestSignal,
 } from './dubvoice.ts'
-import {
-  CATALOG_PAGE_SIZE,
-  ELEVENLABS_CHAR_LIMIT,
-} from './elevenlabs-shared.ts'
+import { CATALOG_PAGE_SIZE } from './elevenlabs-shared.ts'
 
 // Transporte común de los motores que DubVoice sirve por su API v1:
 // ElevenLabs, Vbee y Fish Audio. El catálogo pagina server-side en
 // GET /api/v1/voices?provider=<motor> y la síntesis es ASÍNCRONA — submit a
-// POST /api/v1/tts → task_id → polling con progreso real, hasta 10 minutos.
-// Cada motor arma su propio body (sus voice_settings) y delega acá.
+// POST /api/v1/tts → task_id → polling con progreso real, hasta 20 minutos
+// por parte. Cada motor arma su propio body (sus voice_settings) y delega acá.
 export type DubvoiceCatalogProviderId = Extract<
   VoiceProviderId,
   'elevenlabs' | 'vbee' | 'fishaudio'
 >
 
-// Tope conservador por llamada del probador (espejado en la UI), el mismo de
-// ElevenLabs directo para que el troceo de la narración produzca las mismas
-// partes en todos los carriles. La narración de un video va entera al job
-// asíncrono, que admite hasta 100k caracteres.
-export const DUBVOICE_CATALOG_CHAR_LIMIT = ELEVENLABS_CHAR_LIMIT
+// Tope por llamada de los tres motores (ADR-0025): el job admite 100 000
+// chars, pero partes de ~25 000 (según el dueño, 2026-09-09) acotan lo que se
+// pierde si un job falla y permiten reusar las partes ya pagadas al reintentar.
+export const DUBVOICE_CATALOG_CHUNK_CHARS = 25_000
 
-const POLL_TIMEOUT_MS = 10 * 60 * 1000
+const POLL_TIMEOUT_MS = 20 * 60 * 1000
 const POLL_REQUEST_TIMEOUT_MS = 30_000
 
 // Intervalo de polling escalado por largo del texto (recomendación DubVoice).
@@ -229,6 +225,6 @@ export async function synthesizeDubvoiceTask({
 
   throw new PipelineFailure(
     'voice_timeout',
-    `${laneName} task did not complete within 10 minutes`,
+    `${laneName} task did not complete within 20 minutes`,
   )
 }

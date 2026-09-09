@@ -21,8 +21,8 @@ import type { TtsProvider } from './provider.ts'
 // ("English_Abbess"): el corto ("Abbess") devuelve 500 — verificado con curl
 // en el origen contra lo que afirmaba el soporte. Trust the wire.
 // Tope del endpoint /api/minimax-tts (~5000 chars por llamada); 4500 deja
-// margen. Una narración más larga se trocea (ver la stage de narración).
-export const MINIMAX_CHAR_LIMIT = 4500
+// margen. Un texto más largo se trocea (chunked-synthesis).
+export const MINIMAX_CHUNK_CHARS = 4500
 
 const VOICES_PAGE_SIZE = 100
 const MAX_VOICES_PAGES = 50
@@ -147,8 +147,9 @@ export const minimaxProvider: TtsProvider = {
   id: 'minimax',
   vendor: 'dubvoice',
   laneName: 'DubVoice/Minimax',
-  requestCharLimit: MINIMAX_CHAR_LIMIT,
-  chunksLongText: true,
+  chunkCharLimit() {
+    return MINIMAX_CHUNK_CHARS
+  },
   reportsProgress: false,
   apiKeyOf(apiKeys) {
     return apiKeys.dubvoice
