@@ -162,6 +162,8 @@
       "tabs": {
         "minimax": "Minimax",
         "elevenlabs": "ElevenLabs",
+        "vbee": "Vbee",
+        "fishaudio": "Fish Audio",
         "edge": "Edge",
         "elevenlabs-account": "Mis voces",
         "elevenlabs-library": "Biblioteca"
@@ -767,7 +769,7 @@
     "tituloMusica": "Música IA",
     "subtituloVideo": "Combiná proveedor de imágenes + voz y mirá el costo total para 5/10/20 min.",
     "subtituloImagenes": "Compará Fal y Evolink lote a lote (40 / 220 / 446 imágenes).",
-    "subtituloVoces": "1 crédito = 1 carácter en DubVoice. Costo lineal por longitud del guion.",
+    "subtituloVoces": "1 crédito = 1 carácter en DubVoice, con Minimax, Vbee o Fish Audio. Costo lineal por longitud del guion.",
     "subtituloMusica": "Generación de música con IA",
     "tabVideo": "Video completo",
     "tabImagenes": "Imágenes",
@@ -1006,6 +1008,8 @@
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
+      "vbee": "Vbee",
+      "fishaudio": "Fish Audio",
       "favorites": "Favoritos",
       "elevenlabs-account": "Mis voces",
       "elevenlabs-library": "Biblioteca"
@@ -1204,7 +1208,7 @@
       "deepinfra": "IA principal: genera los prompts visuales de cada escena.",
       "fal": "Imágenes con gpt-image. La clave debe ser de tipo Admin.",
       "evolink": "Imágenes con gpt-image (más caro, más realista). La misma clave sirve para la música IA.",
-      "dubvoice": "Voz narrada con Minimax. Calidad humana en español.",
+      "dubvoice": "Voz narrada con Minimax, ElevenLabs, Vbee y Fish Audio con una sola clave. Calidad humana en español.",
       "elevenlabs": "Voz premium directa de ElevenLabs.",
       "deepgram": "Transcripción palabra a palabra del audio."
     },
@@ -1265,7 +1269,7 @@
     "promptModelSaved": "Preferencia guardada.",
     "promptModelError": "No se pudo guardar la preferencia.",
     "voiceVendorTitle": "Tu proveedor de voces",
-    "voiceVendorTagline": "Con qué servicio se listan y generan las voces en Voces y en Crear. DubVoice agrupa Minimax y ElevenLabs con una sola clave; ElevenLabs usa tu propia cuenta.",
+    "voiceVendorTagline": "Con qué servicio se listan y generan las voces en Voces y en Crear. DubVoice agrupa Minimax, ElevenLabs, Vbee y Fish Audio con una sola clave; ElevenLabs usa tu propia cuenta.",
     "voiceVendorAutomaticHint": "Todavía no elegiste: se usa DubVoice, o ElevenLabs si es la única clave de voz guardada.",
     "voiceVendorResetAutomatic": "Volver a automático",
     "voiceVendorSaved": "Preferencia guardada.",
