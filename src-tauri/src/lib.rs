@@ -1,12 +1,27 @@
 #[cfg(any(windows, target_os = "linux"))]
 use tauri_plugin_deep_link::DeepLinkExt;
+#[cfg(desktop)]
+use tauri::Manager;
 
 mod api_keys;
 mod pipeline;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  let builder = tauri::Builder::default()
+  let builder = tauri::Builder::default();
+
+  // Debe ser el PRIMER plugin registrado (requisito del plugin). Con la feature
+  // deep-link, la URL vimo:// que trae la instancia nueva en argv se reenvía al
+  // plugin deep-link de esta instancia, así el onOpenUrl del webview la recibe
+  // aunque la app ya estuviera abierta (login OAuth en Windows/Linux, ADR-0026).
+  #[cfg(desktop)]
+  let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+    if let Some(window) = app.get_webview_window("main") {
+      let _ = window.set_focus();
+    }
+  }));
+
+  let builder = builder
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_dialog::init())
