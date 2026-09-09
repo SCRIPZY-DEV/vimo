@@ -1,4 +1,7 @@
-import type { RenderPhase } from '@pipeline/runner/events.ts'
+import type {
+  ImagesRecoveryKind,
+  RenderPhase,
+} from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
 import type {
@@ -51,6 +54,20 @@ export interface PromptsWrittenView {
   total: number
 }
 
+// Pasada de recuperación de la fase images en curso: con `rewrite` los
+// prompts de `sceneIds` se reescriben (la fila de prompts vuelve a «en
+// curso»); con `retry` sus imágenes se re-generan. Distinto de
+// `promptsWritten`: cuenta SOLO el subconjunto y muere con el job.
+export interface ImagesRecoveryView {
+  kind: ImagesRecoveryKind
+  sceneIds: number[]
+  pass: number
+  maxPasses: number
+  // Prompts reescritos según el stream del carril verbatim (0 en la casa,
+  // donde el avance llega escena a escena por scene-prompt-ready).
+  streamed: number
+}
+
 // La pausa que abre el diálogo de confirmación de escenas.
 export interface SceneConfirmationView {
   suggestedScenes: number
@@ -90,6 +107,7 @@ export interface CreateTask {
   bgmProgress: BgmProgressView | null
   renderProgress: RenderProgressView | null
   promptsWritten: PromptsWrittenView | null
+  imagesRecovery: ImagesRecoveryView | null
   confirmation: SceneConfirmationView | null
   // Últimas líneas de log del sidecar (capadas).
   logs: string[]
