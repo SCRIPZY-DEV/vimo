@@ -154,6 +154,25 @@ motor, nunca al revés.**
 - Previews precomputados o generados con créditos: se reproduce la `preview_url` del
   proveedor.
 
+## Addendum 2026-09-08 — Vbee y Fish Audio
+
+DubVoice sumó dos motores a su API v1 y Vimo los incorpora como `'vbee'` y
+`'fishaudio'`, bajo el mismo vendor `dubvoice` (misma clave, mismo saldo). La decisión
+de esta ADR se sostiene sin cambios: el id de motor sigue siendo lo persistido, el
+vendor se deriva del id, y `apiKeyOf` sigue siendo el único sitio que lee la clave.
+
+- Los tres motores que DubVoice sirve por `GET /api/v1/voices?provider=…` (catálogo
+  paginado) y `POST /api/v1/tts` (tarea asíncrona con polling) comparten transporte en
+  `providers/tts/dubvoice-catalog.ts`; `elevenlabs.ts`, `vbee.ts` y `fishaudio.ts`
+  solo arman su body. Ningún motor importa a otro.
+- Vbee y Fish Audio honran únicamente `speed` (0.5–1.5) y no eligen modelo. En la UI
+  el predicado `isDubvoiceCatalogEngine` gobierna el slider único y el paginado
+  server-side; `isElevenLabsEngine` no se amplió (modelos, acento y categoría siguen
+  siendo de ElevenLabs).
+- Vbee etiqueta el idioma por nombre completo («Spanish»); el sidecar traduce el código
+  del filtro de la UI (`VBEE_LANGUAGE_NAMES`). Fish Audio usa código ISO como ElevenLabs.
+- Sin carriles de respaldo: ningún otro motor tiene esas voces.
+
 ## Referencias
 
 - ADR-0010 (pipeline por stages), ADR-0011 y ADR-0023 (claves en el keychain),

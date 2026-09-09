@@ -236,6 +236,8 @@ flowchart TD
   narr --> direct["ElevenLabs directo<br/>providers/tts/elevenlabs-direct.ts"]
   dub --> mini["minimax.ts"]
   dub --> el["elevenlabs.ts"]
+  dub --> vbee["vbee.ts"]
+  dub --> fish["fishaudio.ts"]
   dub --> edge["edge.ts"]
   el -. "si DubVoice falla y hay<br/>clave propia de ElevenLabs" .-> direct
   direct -. "si ElevenLabs falla y hay<br/>clave de DubVoice" .-> el
@@ -258,16 +260,16 @@ proyecto, apoyándose en los `skip()`:
 
 ## 11. Servicios externos: quién llama a qué
 
-| Servicio                  | Cliente en `providers/`                                                   | Consumido desde                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| DeepInfra (LLM, 3 tiers)  | `llm/deepinfra.ts` + `llm/generate.ts` (reintentos y degradación de tier) | `stages/shared/llm.ts`, sugerencias de música y de perfil de personaje                                                           |
-| Deepgram (transcripción)  | `transcription/deepgram.ts`                                               | `stages/transcription/`                                                                                                          |
-| Fal (imágenes)            | `image/fal.ts`                                                            | `stages/images/fal-lane.ts`, `character-lane.ts`, créditos                                                                       |
-| Evolink (imágenes + Suno) | `image/evolink.ts`, `music/evolink.ts`                                    | `stages/images/evolink-lane.ts`, `character-lane.ts`, `stages/voice/background-music.ts`, `commands/music/`                      |
-| DubVoice (agregador TTS)  | `tts/dubvoice.ts` + `minimax/elevenlabs/edge.ts`                          | `stages/voice/narration.ts`, `commands/voices/`, `probe-tts`                                                                     |
-| ElevenLabs directo        | `tts/elevenlabs-direct.ts` (+ `tts/vendors.ts` para la cuota)             | `stages/voice/narration.ts`, `commands/voices/` (incl. `add-library-voice`), `probe-tts`; fallback mutuo con `tts/elevenlabs.ts` |
-| ffmpeg (binario)          | `utils/ffmpeg.ts` — **único spawn**                                       | transcription, render, narración, upload/replace de audio, duraciones                                                            |
-| yt-dlp (binario)          | `ytdlp/download.ts`                                                       | música de fondo por URL, overlay, `set-project-music`                                                                            |
+| Servicio                  | Cliente en `providers/`                                                                                                        | Consumido desde                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| DeepInfra (LLM, 3 tiers)  | `llm/deepinfra.ts` + `llm/generate.ts` (reintentos y degradación de tier)                                                      | `stages/shared/llm.ts`, sugerencias de música y de perfil de personaje                                                           |
+| Deepgram (transcripción)  | `transcription/deepgram.ts`                                                                                                    | `stages/transcription/`                                                                                                          |
+| Fal (imágenes)            | `image/fal.ts`                                                                                                                 | `stages/images/fal-lane.ts`, `character-lane.ts`, créditos                                                                       |
+| Evolink (imágenes + Suno) | `image/evolink.ts`, `music/evolink.ts`                                                                                         | `stages/images/evolink-lane.ts`, `character-lane.ts`, `stages/voice/background-music.ts`, `commands/music/`                      |
+| DubVoice (agregador TTS)  | `tts/dubvoice.ts` + `minimax/elevenlabs/vbee/fishaudio/edge.ts` (los tres del catálogo v1 comparten `tts/dubvoice-catalog.ts`) | `stages/voice/narration.ts`, `commands/voices/`, `probe-tts`                                                                     |
+| ElevenLabs directo        | `tts/elevenlabs-direct.ts` (+ `tts/vendors.ts` para la cuota)                                                                  | `stages/voice/narration.ts`, `commands/voices/` (incl. `add-library-voice`), `probe-tts`; fallback mutuo con `tts/elevenlabs.ts` |
+| ffmpeg (binario)          | `utils/ffmpeg.ts` — **único spawn**                                                                                            | transcription, render, narración, upload/replace de audio, duraciones                                                            |
+| yt-dlp (binario)          | `ytdlp/download.ts`                                                                                                            | música de fondo por URL, overlay, `set-project-music`                                                                            |
 
 ## 12. Layout en disco de un proyecto
 
