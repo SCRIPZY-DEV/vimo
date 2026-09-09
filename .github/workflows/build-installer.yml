@@ -1,0 +1,75 @@
+# Compila un instalador de escritorio para una plataforma (ADR-0026). Es un
+# workflow reutilizable: lo llama build-desktop.yml una vez por plataforma y no
+# se dispara solo. Los secretos VITE_* llegan con `secrets: inherit`.
+name: Build installer
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner (windows-latest, macos-latest)'
+        type: string
+        required: true
+      target:
+        description: 'Target triple de Rust'
+        type: string
+        required: true
+      bundles:
+        description: 'Bundles de Tauri (nsis, dmg)'
+        type: string
+        required: true
+      artifact:
+        description: 'Nombre del artefacto'
+        type: string
+        required: true
+      path:
+        description: 'Glob del instalador generado'
+        type: string
+        required: true
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      # Este runtime de Node es la base del sidecar SEA (scripts/build-sidecar.mjs).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # Ejecuta beforeBuildCommand: fetch:binaries (ffmpeg y yt-dlp pineados
+      # por target triple), build:sidecar y el build de la interfaz.
+      # Vite embebe las VITE_* en el bundle en tiempo de build: sin ellas el
+      # cliente de Supabase lanza al cargar y la app abre en blanco.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        with:
+          tauriScript: pnpm tauri
+          args: --bundles ${{ inputs.bundles }}
+
+      # Retención corta: el plan Free de GitHub da 500 MB de artefactos en
+      # repos privados y cada corrida pesa ~270 MB.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: ${{ inputs.path }}
+          if-no-files-found: error
+          retention-days: 3

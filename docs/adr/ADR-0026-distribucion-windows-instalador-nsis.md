@@ -37,15 +37,15 @@ GitHub Actions `windows-latest`, con los mismos pins de ffmpeg-static y yt-dlp q
 macOS y `tauri-plugin-single-instance` para que el retorno OAuth llegue a la
 instancia abierta.**
 
-| Componente                                           | Estado  | Ubicación                                      | Para qué                                                                                     |
-| ---------------------------------------------------- | ------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `targetTriple()` + `executableSuffix()`              | nuevo   | `scripts/target-triple.mjs`                    | Helper único para los tres scripts; sufija `.exe` cuando el triple es Windows                |
-| Pins `x86_64-pc-windows-msvc`                        | nuevo   | `scripts/fetch-binaries.mjs`                   | `ffmpeg-win32-x64` (ffmpeg-static b6.1.1) y `yt-dlp.exe` (2026.08.19), SHA-256 pineados      |
-| Sidecar SEA en Windows                               | reusado | `scripts/build-sidecar.mjs`                    | Copia `node.exe`; la firma de OpenJS queda inválida a propósito (ver Consecuencias)          |
-| `EXE_SUFFIX` al resolver externalBin                 | cambio  | `src-tauri/src/pipeline/binaries.rs`           | `ffmpeg.exe` / `yt-dlp.exe` en Windows, sin extensión en el resto                            |
-| `tauri-plugin-single-instance` (feature `deep-link`) | nuevo   | `src-tauri/Cargo.toml`, `src-tauri/src/lib.rs` | Primer plugin registrado; reenvía la URL de `argv` al plugin deep-link de la instancia viva  |
-| `tauri.windows.conf.json`                            | nuevo   | `src-tauri/tauri.windows.conf.json`            | `targets: ["nsis"]`, `installMode: currentUser`, WebView2 por `downloadBootstrapper`         |
-| Workflow                                             | nuevo   | `.github/workflows/build-desktop.yml`          | Matriz `windows-latest` + `macos-latest` con `tauri-action`; `.exe` y `.dmg` como artefactos |
+| Componente                                           | Estado  | Ubicación                                      | Para qué                                                                                                                                                 |
+| ---------------------------------------------------- | ------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `targetTriple()` + `executableSuffix()`              | nuevo   | `scripts/target-triple.mjs`                    | Helper único para los tres scripts; sufija `.exe` cuando el triple es Windows                                                                            |
+| Pins `x86_64-pc-windows-msvc`                        | nuevo   | `scripts/fetch-binaries.mjs`                   | `ffmpeg-win32-x64` (ffmpeg-static b6.1.1) y `yt-dlp.exe` (2026.08.19), SHA-256 pineados                                                                  |
+| Sidecar SEA en Windows                               | reusado | `scripts/build-sidecar.mjs`                    | Copia `node.exe`; la firma de OpenJS queda inválida a propósito (ver Consecuencias)                                                                      |
+| `EXE_SUFFIX` al resolver externalBin                 | cambio  | `src-tauri/src/pipeline/binaries.rs`           | `ffmpeg.exe` / `yt-dlp.exe` en Windows, sin extensión en el resto                                                                                        |
+| `tauri-plugin-single-instance` (feature `deep-link`) | nuevo   | `src-tauri/Cargo.toml`, `src-tauri/src/lib.rs` | Primer plugin registrado; reenvía la URL de `argv` al plugin deep-link de la instancia viva                                                              |
+| `tauri.windows.conf.json`                            | nuevo   | `src-tauri/tauri.windows.conf.json`            | `targets: ["nsis"]`, `installMode: currentUser`, WebView2 por `downloadBootstrapper`                                                                     |
+| Workflow                                             | nuevo   | `.github/workflows/build-desktop.yml`          | Un job por plataforma (`windows-latest`, `macos-latest`) sobre el reutilizable `build-installer.yml` con `tauri-action`; `.exe` y `.dmg` como artefactos |
 
 La configuración de Windows vive en un archivo de plataforma (Tauri lo mezcla solo
 cuando compila para Windows): el `tauri.conf.json` principal conserva `targets: "all"`
