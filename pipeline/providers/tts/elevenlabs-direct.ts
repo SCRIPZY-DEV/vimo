@@ -26,7 +26,7 @@ import {
   ELEVENLABS_API_BASE_URL,
   ELEVENLABS_CHAR_LIMIT,
   ELEVENLABS_DEFAULT_MODEL,
-  ELEVENLABS_PAGE_SIZE,
+  CATALOG_PAGE_SIZE,
 } from './elevenlabs-shared.ts'
 import type { TtsProvider } from './provider.ts'
 
@@ -253,7 +253,7 @@ export async function listLibraryVoices(
 ): Promise<ListVoicesResult> {
   const query = new URLSearchParams({
     page: String(Math.max(0, (filters.page ?? 1) - 1)),
-    page_size: String(ELEVENLABS_PAGE_SIZE),
+    page_size: String(CATALOG_PAGE_SIZE),
   })
   if (filters.search) query.set('search', filters.search)
   if (filters.language) query.set('language', filters.language)
@@ -276,7 +276,7 @@ export async function listLibraryVoices(
   const hasMore =
     typeof data.has_more === 'boolean'
       ? data.has_more
-      : (data.voices ?? []).length === ELEVENLABS_PAGE_SIZE
+      : (data.voices ?? []).length === CATALOG_PAGE_SIZE
 
   return { voices, hasMore }
 }
