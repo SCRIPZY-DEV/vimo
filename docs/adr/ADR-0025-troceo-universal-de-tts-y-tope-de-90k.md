@@ -37,10 +37,30 @@ tope total es uno solo, 90 000, espejado UI↔sidecar.**
   `generate-voice.ts` (probador). La UI lo espeja como `NARRATION_CHAR_LIMIT` /
   `VOICE_TEXT_LIMIT` en `src/modules/voices/constants.ts`.
 - `TtsProvider.chunkCharLimit(payload)` (`pipeline/providers/tts/provider.ts`)
-  reemplaza a `requestCharLimit` + `chunksLongText`: ElevenLabs, Vbee y Fish Audio vía
-  DubVoice 25 000 (`DUBVOICE_CATALOG_CHUNK_CHARS` en `dubvoice-catalog.ts`);
-  ElevenLabs directo por modelo (9 500 / 4 500 / 38 000, ~5 % bajo el tope publicado
-  porque el texto ya trae los números expandidos a palabras); Minimax y Edge 4500.
+  reemplaza a `requestCharLimit` + `chunksLongText`. El tope por trozo de cada motor
+  (y, en ElevenLabs directo, de cada modelo) queda ~5 % por debajo del tope que publica
+  el proveedor, porque el texto llega con los números ya expandidos a palabras:
+
+### Topes por trozo
+
+| Motor                                         | Vendor y endpoint                             | Tope publicado por llamada | Trozo en Vimo | Constante                                                |
+| --------------------------------------------- | --------------------------------------------- | -------------------------: | ------------: | -------------------------------------------------------- |
+| ElevenLabs vía DubVoice                       | DubVoice, `POST /api/v1/tts` (asíncrono)      |                    100 000 |        25 000 | `DUBVOICE_CATALOG_CHUNK_CHARS` (`dubvoice-catalog.ts`)   |
+| Vbee vía DubVoice                             | ídem                                          |                    100 000 |        25 000 | ídem                                                     |
+| Fish Audio vía DubVoice                       | ídem                                          |                    100 000 |        25 000 | ídem                                                     |
+| Minimax vía DubVoice                          | DubVoice, `POST /api/minimax-tts` (síncrono)  |                      5 000 |         4 500 | `MINIMAX_CHUNK_CHARS` (`minimax.ts`)                     |
+| Edge vía DubVoice                             | DubVoice, `POST /api/edge-tts` (síncrono)     |             no documentado |         4 500 | `EDGE_CHUNK_CHARS` (`edge.ts`)                           |
+| ElevenLabs directo · `eleven_multilingual_v2` | ElevenLabs, `POST /v1/text-to-speech/{voice}` |                     10 000 |         9 500 | `ELEVENLABS_DIRECT_CHUNK_CHARS` (`elevenlabs-direct.ts`) |
+| ElevenLabs directo · `eleven_v3`              | ídem                                          |                      5 000 |         4 500 | ídem                                                     |
+| ElevenLabs directo · `eleven_turbo_v2_5`      | ídem                                          |                     40 000 |        38 000 | ídem                                                     |
+| ElevenLabs directo · `eleven_flash_v2_5`      | ídem                                          |                     40 000 |        38 000 | ídem                                                     |
+| ElevenLabs directo · modelo desconocido       | ídem                                          |                          — |         4 500 | `ELEVENLABS_DIRECT_DEFAULT_CHUNK_CHARS`                  |
+
+Los 25 000 de DubVoice no son el tope técnico (admite 100 000 por job) sino el
+tamaño que pidió el dueño (2026-09-09): acota lo que se pierde si un job falla y
+permite reusar las partes ya pagadas al reintentar. Cambiar un trozo es tocar solo
+su constante; el tope TOTAL (90 000) no se mueve de `text-limits.ts`.
+
 - `pipeline/providers/tts/chunked-synthesis.ts` — `synthesizeInParts()`: el troceo por
   oraciones, el guard anti-doble-gasto, el manifest de hashes con reuso de partes ya
   pagadas, la concatenación re-encodeada con ffmpeg (ADR-0013) y el progreso
