@@ -21,3 +21,8 @@ export const VOICE_VENDOR_LABELS: Record<VoiceVendorId, string> = {
   elevenlabs: 'ElevenLabs',
 }
 export const VOICE_VENDOR_DEFAULT: VoiceVendorId = 'dubvoice'
+
+// Desde cuántos caracteres un texto a narrar merece el aviso de «puede
+// tardar» (Voces y Crear): a partir de acá el sidecar lo sintetiza en varias
+// partes o en un job largo.
+export const LONG_TEXT_WARNING_THRESHOLD = 10_000
