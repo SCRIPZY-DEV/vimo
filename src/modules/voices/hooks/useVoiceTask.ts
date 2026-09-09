@@ -96,6 +96,8 @@ function handleGenerationEvent(taskId: string, event: PipelineEventPayload) {
     if (typeof event.percent === 'number') patch.progressPercent = event.percent
     if (detail.elapsedSeconds !== undefined)
       patch.elapsedSeconds = detail.elapsedSeconds
+    if (detail.partIndex !== undefined) patch.partIndex = detail.partIndex
+    if (detail.partTotal !== undefined) patch.partTotal = detail.partTotal
     patchTask(taskId, patch)
     return
   }

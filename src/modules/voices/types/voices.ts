@@ -31,6 +31,10 @@ export interface VoiceTask {
   request: GenerateVoicePayload
   progressPercent: number
   elapsedSeconds: number | null
+  // Parte en curso (1-based) y total cuando el sidecar troceó el texto.
+  // Opcionales: las tareas persistidas antes de ADR-0025 no los traen.
+  partIndex?: number
+  partTotal?: number
   entry: VoiceHistoryEntry | null
   creditsRemaining: number | null
   errorKey: string | null

@@ -282,6 +282,8 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           totalChars: event.totalChars,
           elapsedSeconds: event.elapsedSeconds,
           percent: event.percent ?? null,
+          partIndex: event.partIndex ?? null,
+          partTotal: event.partTotal ?? null,
         },
       })
       return
