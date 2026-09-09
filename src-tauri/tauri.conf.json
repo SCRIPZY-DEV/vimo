@@ -39,6 +39,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Vimo",
     "externalBin": [
       "binaries/vimo-pipeline",
       "binaries/ffmpeg",

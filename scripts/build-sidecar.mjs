@@ -19,6 +19,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { inject } from 'postject'
+import {
+  executableSuffix,
+  isMacosTriple,
+  targetTriple,
+} from './target-triple.mjs'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const buildDir = join(repoRoot, 'src-tauri/sidecar-build')
@@ -27,24 +32,11 @@ const binariesDir = join(repoRoot, 'src-tauri/binaries')
 // Sentinel documentado por Node para SEA; no es un secreto.
 const SEA_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'
 
-function targetTriple() {
-  // Tauri lo exporta en sus hooks de build; fuera de ellos, el host de rustc.
-  if (process.env.TAURI_ENV_TARGET_TRIPLE) {
-    return process.env.TAURI_ENV_TARGET_TRIPLE
-  }
-  const output = execFileSync('rustc', ['-Vv'], { encoding: 'utf8' })
-  const match = output.match(/host: (\S+)/)
-  if (!match)
-    throw new Error('No se pudo determinar el target triple (rustc -Vv)')
-  return match[1]
-}
-
 const triple = targetTriple()
-const isWindows = triple.includes('windows')
-const isMacos = triple.includes('apple-darwin')
+const isMacos = isMacosTriple(triple)
 const binaryPath = join(
   binariesDir,
-  `vimo-pipeline-${triple}${isWindows ? '.exe' : ''}`,
+  `vimo-pipeline-${triple}${executableSuffix(triple)}`,
 )
 
 mkdirSync(buildDir, { recursive: true })
@@ -86,6 +78,10 @@ if (isMacos) {
   // La copia hereda la firma de Node; hay que quitarla antes de inyectar.
   execFileSync('codesign', ['--remove-signature', binaryPath])
 }
+// En Windows la copia de node.exe conserva la firma Authenticode de OpenJS,
+// que queda inválida tras inyectar el blob. Se deja así a propósito: Windows
+// ejecuta un binario con firma inválida igual que uno sin firma, NSIS no la
+// exige y quitarla requeriría signtool (Windows SDK). Ver ADR-0026.
 await inject(binaryPath, 'NODE_SEA_BLOB', readFileSync(blobPath), {
   sentinelFuse: SEA_FUSE,
   ...(isMacos ? { machoSegmentName: 'NODE_SEA' } : {}),

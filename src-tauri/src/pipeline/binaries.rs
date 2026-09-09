@@ -4,8 +4,9 @@ use serde_json::{Map, Value};
 
 /// Rutas absolutas de los binarios que viajan como externalBin (ffmpeg y
 /// yt-dlp, ADR-0013). Tauri los copia SIN sufijo de target-triple junto al
-/// ejecutable de la app — en `target/debug` durante dev y en `Contents/MacOS`
-/// dentro del bundle — así que basta mirar al lado de `current_exe`.
+/// ejecutable de la app — en `target/debug` durante dev, en `Contents/MacOS`
+/// dentro del bundle de macOS y junto a `Vimo.exe` en la carpeta de
+/// instalación de Windows — así que basta mirar al lado de `current_exe`.
 ///
 /// Best-effort, como las API keys: si un binario falta, el campo no se
 /// inserta y el sidecar reporta el faltante con un job-failed traducible
@@ -20,10 +21,12 @@ pub fn resolve_binary_paths() -> Value {
         return Value::Object(paths);
     };
 
-    // Nombres sin extensión: por ahora solo macOS arm64; el `.exe` de Windows
-    // llega con la fase de distribución (ADR-0013).
-    insert_if_present(&mut paths, directory, "ffmpeg", "ffmpeg");
-    insert_if_present(&mut paths, directory, "yt-dlp", "ytDlp");
+    // Tauri conserva el sufijo de ejecutable de la plataforma al copiar los
+    // externalBin: `ffmpeg.exe` en Windows, `ffmpeg` en el resto (ADR-0026).
+    let ffmpeg_name = format!("ffmpeg{}", std::env::consts::EXE_SUFFIX);
+    let yt_dlp_name = format!("yt-dlp{}", std::env::consts::EXE_SUFFIX);
+    insert_if_present(&mut paths, directory, &ffmpeg_name, "ffmpeg");
+    insert_if_present(&mut paths, directory, &yt_dlp_name, "ytDlp");
 
     Value::Object(paths)
 }

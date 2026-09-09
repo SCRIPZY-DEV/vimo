@@ -102,6 +102,10 @@ vigente).
   empaqueta con Node SEA y el harness CLI ejecuta TypeScript por type stripping.
 - **Rust** y las dependencias nativas de Tauri, solo si vas a compilar la app de
   escritorio. Guía oficial: <https://tauri.app/start/prerequisites/>.
+- **En Windows**, además: Visual Studio Build Tools con la carga «Desarrollo para el
+  escritorio con C++» (MSVC + Windows SDK) y el runtime de WebView2. El instalador
+  oficial se genera en GitHub Actions; ver
+  [CONTRIBUTING.es.md](docs/CONTRIBUTING.es.md#empaquetar-para-windows-instalador-nsis).
 - Para el desarrollo de la interfaz sola, alcanza con Node y pnpm.
 
 ## Puesta en marcha
@@ -127,21 +131,21 @@ pnpm tauri dev    # aplicación nativa, con recarga en caliente
 
 ## Comandos
 
-| Comando                 | Qué hace                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`              | Servidor de desarrollo de Vite en el puerto 5173                                                            |
-| `pnpm build`            | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/`                                               |
-| `pnpm preview`          | Sirve el bundle ya construido                                                                               |
-| `pnpm lint`             | ESLint sobre todo el repositorio                                                                            |
-| `pnpm lint:fix`         | ESLint aplicando las correcciones automáticas                                                               |
-| `pnpm format`           | Prettier sobre todo el repositorio                                                                          |
-| `pnpm pipeline`         | Corre el sidecar crudo: el `PipelineJob` va por stdin, a mano                                               |
-| `pnpm pipeline:harness` | Ejecuta un subcomando del sidecar armando el job por vos ([ver abajo](#probar-el-pipeline-por-cli-harness)) |
-| `pnpm build:sidecar`    | Empaqueta el sidecar como binario único (Node SEA → `externalBin`)                                          |
-| `pnpm fetch:binaries`   | Descarga ffmpeg y yt-dlp pineados a `src-tauri/binaries/`                                                   |
-| `pnpm check:locales`    | Verifica que `es`, `en` y `pt` declaren exactamente las mismas claves                                       |
-| `pnpm tauri dev`        | Aplicación nativa en modo desarrollo                                                                        |
-| `pnpm tauri build`      | Compila los instaladores nativos de la plataforma actual                                                    |
+| Comando                 | Qué hace                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`              | Servidor de desarrollo de Vite en el puerto 5173                                                                                           |
+| `pnpm build`            | Chequeo de tipos (`tsc -b`) y bundle de producción en `dist/`                                                                              |
+| `pnpm preview`          | Sirve el bundle ya construido                                                                                                              |
+| `pnpm lint`             | ESLint sobre todo el repositorio                                                                                                           |
+| `pnpm lint:fix`         | ESLint aplicando las correcciones automáticas                                                                                              |
+| `pnpm format`           | Prettier sobre todo el repositorio                                                                                                         |
+| `pnpm pipeline`         | Corre el sidecar crudo: el `PipelineJob` va por stdin, a mano                                                                              |
+| `pnpm pipeline:harness` | Ejecuta un subcomando del sidecar armando el job por vos ([ver abajo](#probar-el-pipeline-por-cli-harness))                                |
+| `pnpm build:sidecar`    | Empaqueta el sidecar como binario único (Node SEA → `externalBin`)                                                                         |
+| `pnpm fetch:binaries`   | Descarga ffmpeg y yt-dlp pineados a `src-tauri/binaries/`                                                                                  |
+| `pnpm check:locales`    | Verifica que `es`, `en` y `pt` declaren exactamente las mismas claves                                                                      |
+| `pnpm tauri dev`        | Aplicación nativa en modo desarrollo                                                                                                       |
+| `pnpm tauri build`      | Compila los instaladores nativos de la plataforma actual (en Windows: `src-tauri/target/release/bundle/nsis/Vimo_<versión>_x64-setup.exe`) |
 
 Antes de dar por terminado un cambio: `pnpm format`, `pnpm lint` y `pnpm build`, en ese
 orden. Los tres deben pasar.
