@@ -74,3 +74,44 @@ Tauri la lee de la variable `APPLE_SIGNING_IDENTITY` al empaquetar; **no** se es
 
 Al pasar de ad-hoc a firmado, la entrada del llavero creada por un build anterior pide
 permiso una última vez; con «Permitir siempre» el permiso queda anclado al certificado.
+
+## Empaquetar para Windows (instalador NSIS)
+
+El instalador de Windows se genera en **GitHub Actions**
+([.github/workflows/build-desktop.yml](/.github/workflows/build-desktop.yml), ADR-0026):
+Tauri no cross-compila desde macOS. Se dispara a mano desde la pestaña _Actions_
+(«Build desktop installers» → _Run workflow_) o al pushear un tag `v*`; el
+`Vimo_<versión>_x64-setup.exe` queda como artefacto `Vimo-windows-x64` del run. El
+mismo workflow genera el DMG de macOS Apple Silicon (`Vimo-macos-arm64`) con firma
+ad-hoc; para firmarlo de verdad, las variables de la sección anterior van como secretos
+del repo.
+
+**Cuota gratuita.** En repos privados GitHub cuenta los minutos de macOS por diez y los
+de Windows por dos: una corrida completa gasta unos 200-250 de los 2000 minutos
+mensuales del plan Free, y los artefactos (~270 MB por corrida, 3 días de retención)
+comparten un cupo de 500 MB. Por eso el workflow no corre en cada push.
+
+El workflow corre el mismo `pnpm tauri build` que en macOS: `fetch:binaries` descarga
+`ffmpeg` y `yt-dlp` pineados para `x86_64-pc-windows-msvc`
+([scripts/fetch-binaries.mjs](/scripts/fetch-binaries.mjs)), `build:sidecar` genera
+`vimo-pipeline-x86_64-pc-windows-msvc.exe` a partir del `node.exe` del runner, y NSIS
+lo descarga Tauri CLI solo. La configuración propia de Windows —solo NSIS, instalación
+por usuario sin UAC, WebView2 por bootstrapper— vive en
+[src-tauri/tauri.windows.conf.json](/src-tauri/tauri.windows.conf.json).
+
+**Sin firma Authenticode.** Al ejecutar el setup, SmartScreen muestra «Windows protegió
+el PC»: «Más información» → «Ejecutar de todas formas». Es la misma deuda que la firma
+ad-hoc de macOS; cuando exista un certificado, va en `bundle.windows.certificateThumbprint`
+(o `signCommand`) del archivo de Windows y las credenciales como secretos del workflow.
+
+Para compilar localmente en una máquina Windows hacen falta Visual Studio Build Tools
+(«Desarrollo para el escritorio con C++», incluye MSVC y el Windows SDK), Rust por
+rustup (toolchain `stable-x86_64-pc-windows-msvc`), el runtime de WebView2, Node 22+ y
+pnpm. Después:
+
+```
+pnpm install
+pnpm tauri build --bundles nsis
+```
+
+El instalador queda en `src-tauri\target\release\bundle\nsis\`.
