@@ -256,11 +256,25 @@ export const IMAGE_PROVIDERS: ImageProvider[] = [
   },
 ]
 
+// DubVoice cobra 1 crédito por carácter en Minimax, Vbee y Fish Audio: el
+// precio en USD es el del crédito, igual para los tres.
+const DUBVOICE_USD_PER_CHAR = 11.9 / 1_000_000
+
 export const VOICE_PROVIDERS: VoiceProvider[] = [
   {
     id: 'dubvoice-minimax',
     label: 'DubVoice (Minimax)',
-    pricePerCharUsd: 11.9 / 1_000_000,
+    pricePerCharUsd: DUBVOICE_USD_PER_CHAR,
+  },
+  {
+    id: 'dubvoice-vbee',
+    label: 'DubVoice (Vbee)',
+    pricePerCharUsd: DUBVOICE_USD_PER_CHAR,
+  },
+  {
+    id: 'dubvoice-fishaudio',
+    label: 'DubVoice (Fish Audio)',
+    pricePerCharUsd: DUBVOICE_USD_PER_CHAR,
   },
 ]
 

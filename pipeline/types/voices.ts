@@ -1,14 +1,14 @@
 // Dominio de voces TTS. Port renombrado del origen (VozUnificada, BodyVoz,
 // MetadataHistorialVoz).
 //
-// Dos vendors (ADR-0024): DubVoice es un agregador (una clave, tres motores:
-// minimax, elevenlabs, edge) y ElevenLabs directo usa la clave propia del
-// usuario contra api.elevenlabs.io. El id de provider es el MOTOR y queda
-// persistido en project.json, historial y favoritos; el vendor se deriva del
-// id. 'elevenlabs' sigue siendo el motor vía DubVoice (compatibilidad con lo
-// ya guardado); 'elevenlabs-direct' es la API directa.
+// Dos vendors (ADR-0024): DubVoice es un agregador (una clave, cinco motores:
+// minimax, elevenlabs, vbee, fishaudio, edge) y ElevenLabs directo usa la
+// clave propia del usuario contra api.elevenlabs.io. El id de provider es el
+// MOTOR y queda persistido en project.json, historial y favoritos; el vendor
+// se deriva del id. 'elevenlabs' sigue siendo el motor vía DubVoice
+// (compatibilidad con lo ya guardado); 'elevenlabs-direct' es la API directa.
 export type VoiceProviderId =
-  'minimax' | 'elevenlabs' | 'edge' | 'elevenlabs-direct'
+  'minimax' | 'elevenlabs' | 'vbee' | 'fishaudio' | 'edge' | 'elevenlabs-direct'
 
 export type VoiceVendorId = 'dubvoice' | 'elevenlabs'
 
@@ -23,8 +23,9 @@ export interface VoiceSummary {
   // Minimax: SIEMPRE el id largo ("English_Abbess"); el corto da 500.
   voiceId: string
   name: string
-  // Minimax devuelve nombre completo ("Spanish"); Edge devuelve locale
-  // ("es-ES"). La UI matchea ambos con languageMatches.
+  // Minimax y Vbee devuelven nombre completo ("Spanish"); Edge devuelve
+  // locale ("es-ES"); ElevenLabs y Fish Audio, código ISO ("es"). La UI
+  // matchea todos con languageMatches.
   language?: string
   gender?: string
   accent?: string
@@ -48,9 +49,10 @@ export interface ListVoicesFilters {
   search?: string
   language?: string
   gender?: string
-  // Paginación server-side: solo significativa para elevenlabs y para
-  // elevenlabs-direct con source 'library'. 1-indexado (la conversión al
-  // 0-indexado de ElevenLabs la hace el sidecar).
+  // Paginación server-side: solo significativa para los motores de DubVoice
+  // v1 (elevenlabs, vbee, fishaudio) y para elevenlabs-direct con source
+  // 'library'. 1-indexado (la conversión al 0-indexado de ElevenLabs la hace
+  // el sidecar).
   page?: number
   // Solo elevenlabs-direct (default 'account').
   source?: VoiceSource
@@ -67,16 +69,17 @@ export interface ListVoicesResult {
   voices: VoiceSummary[]
   // Solo significativo en los catálogos paginados server-side.
   hasMore?: boolean
-  // Total de voces del catálogo del proveedor: solo elevenlabs (vía DubVoice)
-  // lo informa; los catálogos completos tienen total = voices.length y la
-  // biblioteca de ElevenLabs no lo expone.
+  // Total de voces del catálogo del proveedor: solo los motores de DubVoice
+  // v1 (elevenlabs, vbee, fishaudio) lo informan; los catálogos completos
+  // tienen total = voices.length y la biblioteca de ElevenLabs no lo expone.
   total?: number
 }
 
 // Ajustes de síntesis por proveedor (port de AjustesVoz). Cada motor lee solo
 // los campos que le aplican; el resto se ignora.
 export interface VoiceGenerationSettings {
-  // minimax 0.5–2 | elevenlabs 0.7–1.2
+  // minimax 0.5–2 | elevenlabs 0.7–1.2 | vbee y fishaudio 0.5–1.5 (su único
+  // ajuste)
   speed?: number
   // minimax -12..12
   pitch?: number
@@ -198,7 +201,9 @@ export interface DubvoiceMinimaxVoicesResponse {
   has_more?: boolean
 }
 
-export interface DubvoiceElevenLabsVoice {
+// Item de GET /api/v1/voices, el mismo envelope para elevenlabs, vbee y
+// fishaudio (accent y category solo vienen en ElevenLabs).
+export interface DubvoiceCatalogVoice {
   voice_id?: string
   name?: string
   category?: string
@@ -208,8 +213,8 @@ export interface DubvoiceElevenLabsVoice {
   preview_url?: string
 }
 
-export interface DubvoiceElevenLabsVoicesResponse {
-  voices?: DubvoiceElevenLabsVoice[]
+export interface DubvoiceCatalogVoicesResponse {
+  voices?: DubvoiceCatalogVoice[]
   total?: number
   has_more?: boolean
 }

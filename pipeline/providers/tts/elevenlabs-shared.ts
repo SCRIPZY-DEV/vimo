@@ -3,9 +3,10 @@
 // entre ambos se declara por id y lo resuelve el registro (ADR-0024).
 export const ELEVENLABS_API_BASE_URL = 'https://api.elevenlabs.io'
 
-// Tamaño de página de los catálogos paginados server-side; espejado en
+// Tamaño de página de los catálogos paginados server-side (los motores de
+// DubVoice v1 y la biblioteca pública de ElevenLabs); espejado en
 // src/modules/voices/constants.ts.
-export const ELEVENLABS_PAGE_SIZE = 60
+export const CATALOG_PAGE_SIZE = 60
 
 // Tope por llamada. DubVoice topa en ~5000; la API directa admite más en
 // algunos modelos, pero se usa el mismo valor conservador en ambos carriles

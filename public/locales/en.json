@@ -162,6 +162,8 @@
       "tabs": {
         "minimax": "Minimax",
         "elevenlabs": "ElevenLabs",
+        "vbee": "Vbee",
+        "fishaudio": "Fish Audio",
         "edge": "Edge",
         "elevenlabs-account": "My voices",
         "elevenlabs-library": "Library"
@@ -767,7 +769,7 @@
     "tituloMusica": "AI Music",
     "subtituloVideo": "Mix image provider + voice and see total cost for 5/10/20 min.",
     "subtituloImagenes": "Compare Fal vs Evolink batch by batch (40 / 220 / 446 images).",
-    "subtituloVoces": "1 credit = 1 character in DubVoice. Linear cost based on script length.",
+    "subtituloVoces": "1 credit = 1 character in DubVoice, with Minimax, Vbee or Fish Audio. Linear cost based on script length.",
     "subtituloMusica": "AI music generation",
     "tabVideo": "Full video",
     "tabImagenes": "Images",
@@ -1006,6 +1008,8 @@
     "tabs": {
       "minimax": "Minimax",
       "elevenlabs": "ElevenLabs",
+      "vbee": "Vbee",
+      "fishaudio": "Fish Audio",
       "favorites": "Favorites",
       "elevenlabs-account": "My voices",
       "elevenlabs-library": "Library"
@@ -1204,7 +1208,7 @@
       "deepinfra": "Main AI: generates the visual prompts for each scene.",
       "fal": "Images with gpt-image. The key must be Admin type.",
       "evolink": "Images with gpt-image (pricier, more realistic). The same key works for AI music.",
-      "dubvoice": "Narrated voice with Minimax. Human quality in Spanish.",
+      "dubvoice": "Narrated voice with Minimax, ElevenLabs, Vbee and Fish Audio behind one key. Human quality in Spanish.",
       "elevenlabs": "Premium voice straight from ElevenLabs.",
       "deepgram": "Word-by-word audio transcription."
     },
@@ -1265,7 +1269,7 @@
     "promptModelSaved": "Preference saved.",
     "promptModelError": "Couldn't save the preference.",
     "voiceVendorTitle": "Your voice provider",
-    "voiceVendorTagline": "Which service lists and generates voices in Voices and Create. DubVoice bundles Minimax and ElevenLabs behind one key; ElevenLabs uses your own account.",
+    "voiceVendorTagline": "Which service lists and generates voices in Voices and Create. DubVoice bundles Minimax, ElevenLabs, Vbee and Fish Audio behind one key; ElevenLabs uses your own account.",
     "voiceVendorAutomaticHint": "Not chosen yet: DubVoice is used, or ElevenLabs if it is the only voice key saved.",
     "voiceVendorResetAutomatic": "Back to automatic",
     "voiceVendorSaved": "Preference saved.",

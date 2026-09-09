@@ -8,6 +8,7 @@ import {
   MINIMAX_EMOTIONS,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
+import { isDubvoiceCatalogEngine } from '@/modules/voices/utilities/isDubvoiceCatalogEngine'
 import { isElevenLabsEngine } from '@/modules/voices/utilities/isElevenLabsEngine'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
@@ -164,6 +165,19 @@ export function VoiceSettingsFields({
             />
           </label>
         </>
+      )}
+
+      {isDubvoiceCatalogEngine(provider) && (
+        <SliderRow
+          id="create-voice-speed"
+          label={t('create.voiceSettings.speed')}
+          min={0.5}
+          max={1.5}
+          step={0.05}
+          value={value.speed}
+          disabled={disabled}
+          onChange={(speed) => patch({ speed })}
+        />
       )}
 
       {provider === 'edge' && (

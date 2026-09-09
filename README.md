@@ -294,12 +294,18 @@ de la app.
 dos de historial solo leen y borran disco bajo `<root>/_history/voices/`.
 
 ```bash
-# Catálogo unificado. filters es opcional; page solo es significativo para elevenlabs.
+# Catálogo unificado. filters es opcional; page solo es significativo para los motores
+# paginados de DubVoice (elevenlabs, vbee, fishaudio).
 pnpm pipeline:harness list-voices --payload '{"provider":"minimax","filters":{"language":"Spanish","gender":"female"}}'
 
 # Sintetiza y guarda la entrada en el historial. text ≤ 4500 chars.
 # En minimax el voiceId es SIEMPRE el id largo ("Spanish_SereneWoman"): el corto da 500.
 pnpm pipeline:harness generate-voice --payload '{"provider":"minimax","voiceId":"Spanish_SereneWoman","text":"Hola, esto es una prueba.","settings":{"speed":1,"pitch":0}}'
+
+# Vbee y Fish Audio (vía DubVoice): el voiceId viene prefijado del catálogo y el único
+# ajuste es speed (0.5–1.5).
+pnpm pipeline:harness list-voices --payload '{"provider":"vbee","filters":{"language":"es","page":1}}'
+pnpm pipeline:harness generate-voice --payload '{"provider":"fishaudio","voiceId":"fishaudio_<id>","text":"Hola, esto es una prueba.","settings":{"speed":1}}'
 
 pnpm pipeline:harness get-voice-credits
 pnpm pipeline:harness voice-history-list

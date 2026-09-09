@@ -32,7 +32,8 @@ export interface ImageProvider {
   models: ImageModel[]
 }
 
-export type VoiceProviderId = 'dubvoice-minimax'
+export type VoiceProviderId =
+  'dubvoice-minimax' | 'dubvoice-vbee' | 'dubvoice-fishaudio'
 
 export interface VoiceProvider {
   id: VoiceProviderId

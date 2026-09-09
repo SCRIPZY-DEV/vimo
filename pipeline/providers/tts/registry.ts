@@ -2,8 +2,10 @@ import type { VoiceProviderId } from '../../types/voices.ts'
 import { edgeProvider } from './edge.ts'
 import { elevenLabsDirectProvider } from './elevenlabs-direct.ts'
 import { elevenLabsProvider } from './elevenlabs.ts'
+import { fishAudioProvider } from './fishaudio.ts'
 import { minimaxProvider } from './minimax.ts'
 import type { TtsProvider } from './provider.ts'
+import { vbeeProvider } from './vbee.ts'
 
 // Registro de motores de voz (mismo patrón que CREATE_VIDEO_STAGES): agregar
 // un motor es un archivo en providers/tts/ que exporta su TtsProvider más una
@@ -11,6 +13,8 @@ import type { TtsProvider } from './provider.ts'
 export const TTS_PROVIDERS: Record<VoiceProviderId, TtsProvider> = {
   minimax: minimaxProvider,
   elevenlabs: elevenLabsProvider,
+  vbee: vbeeProvider,
+  fishaudio: fishAudioProvider,
   edge: edgeProvider,
   'elevenlabs-direct': elevenLabsDirectProvider,
 }
