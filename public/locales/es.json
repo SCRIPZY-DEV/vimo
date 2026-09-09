@@ -1087,7 +1087,8 @@
       "resultado": "Resultado",
       "cerrar": "Cerrar",
       "guardada": "La narración quedó guardada en el historial.",
-      "anadiendoVoz": "Añadiendo la voz a tu cuenta…"
+      "anadiendoVoz": "Añadiendo la voz a tu cuenta…",
+      "otraGeneracionEnCurso": "Hay otra generación en curso con la voz {{name}}. Esperá a que termine para probar esta."
     },
     "modelos": {
       "calidad": "calidad",

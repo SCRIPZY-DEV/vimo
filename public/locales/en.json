@@ -1087,7 +1087,8 @@
       "resultado": "Result",
       "cerrar": "Close",
       "guardada": "The narration was saved to the history.",
-      "anadiendoVoz": "Adding the voice to your account…"
+      "anadiendoVoz": "Adding the voice to your account…",
+      "otraGeneracionEnCurso": "Another generation is running with the voice {{name}}. Wait for it to finish to try this one."
     },
     "modelos": {
       "calidad": "quality",
