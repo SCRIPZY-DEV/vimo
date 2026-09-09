@@ -24,7 +24,7 @@ import { VoiceTesterPanel } from '@/modules/voices/components/VoiceTesterPanel'
 import {
   CREDITS_SETTLE_DELAY_MS,
   ELEVENLABS_LIBRARY_CATEGORIES,
-  ELEVENLABS_PAGE_SIZE,
+  CATALOG_PAGE_SIZE,
   SEARCH_DEBOUNCE_MS,
   VOICE_FILTERS_INITIAL_VALUE,
   VOICE_PAGE_SIZE,
@@ -137,7 +137,7 @@ export function Voices() {
   const serverTotalPages =
     serverTotal === null
       ? null
-      : Math.max(1, Math.ceil(serverTotal / ELEVENLABS_PAGE_SIZE))
+      : Math.max(1, Math.ceil(serverTotal / CATALOG_PAGE_SIZE))
   const totalPages = serverPaged
     ? serverTotalPages
     : Math.max(1, Math.ceil(filteredVoices.length / VOICE_PAGE_SIZE))
