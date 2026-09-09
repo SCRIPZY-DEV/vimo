@@ -106,6 +106,15 @@ que ya lo usaba (música, personajes).
 > (cifras absolutas sobre todas las escenas, espejo de `prompts-progreso` del
 > origen), coherente con esta regla.
 
+> **Adenda 2026-09-09.** Las pasadas de recuperación de `images` reescribían
+> prompts (rechazados por contenido o inválidos) emitiendo solo un `log`: la UI
+> mostraba prompts ✓ e imágenes congeladas, y la persona lo leía como un
+> pipeline trabado. Pasan a emitir `images-recovery-pass { kind: 'rewrite' |
+'retry', sceneIds, pass, maxPasses }` (cifras absolutas) y a reemitir
+> `scene-prompt-ready` por cada prompt reescrito. La stage sigue sin emitir
+> `stage-*`: que la fila de prompts vuelva a «en curso» es derivación de la UI
+> a partir de ese evento, no una reapertura de la fase en el runner.
+
 ### Layout del proyecto, en inglés
 
 ```
