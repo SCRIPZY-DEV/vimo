@@ -4,7 +4,11 @@ import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
 import { resolveProjectStyle } from '../shared/project-style.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
 import { isValidFile, sceneImageFile } from '../../project/paths.ts'
-import { readScenes, writeScenesOwned } from '../../project/scenes-file.ts'
+import {
+  readScenes,
+  toSceneSummary,
+  writeScenesOwned,
+} from '../../project/scenes-file.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import {
@@ -55,6 +59,15 @@ const PROGRESS_DEBOUNCE_MS = 250
 
 function hasText(scene: Scene): boolean {
   return (scene.text?.trim().length ?? 0) > 0
+}
+
+// Qué prompts reescribe una pasada de recuperación: los rechazados por
+// contenido o inválidos, siempre que la escena siga sin imagen. Es el mismo
+// predicado en los dos carriles; vive acá para conocer los ids ANTES de
+// reescribir y anunciarlos a la UI.
+function needsPromptRewrite(scene: Scene, ready: boolean): boolean {
+  if (ready) return false
+  return scene.contentRejected === true || !isValidPrompt(scene.imagePrompt)
 }
 
 async function idsWithValidImage(
@@ -176,6 +189,20 @@ export const imagesStage: Stage<CreateVideoContext> = {
       })
 
       const readyNow = alreadyReady
+      const toRewrite = scenes.filter((scene) =>
+        needsPromptRewrite(scene, isReady(scene.id, readyNow)),
+      )
+      // La UI devuelve la fila de prompts a «en curso» con este evento; la
+      // fase NO se reabre en el runner (ADR-0013: acá no se emite stage-*).
+      if (toRewrite.length > 0)
+        context.emitter.emit({
+          type: 'images-recovery-pass',
+          kind: 'rewrite',
+          sceneIds: toRewrite.map((scene) => scene.id),
+          pass,
+          maxPasses: MAX_RECOVERY_PASSES,
+        })
+
       if (context.options.customStyle) {
         // E34 — Con estilo propio, el prompt de una escena SOLO puede
         // escribirlo su propio carril: el re-escritor de la casa escribe en
@@ -186,12 +213,6 @@ export const imagesStage: Stage<CreateVideoContext> = {
         // la nota de content-policy viaja pegada al fragmento. Si el carril
         // propio tampoco puede, la escena queda sin imagen y la corrida
         // termina con el aviso honesto — jamás con otro estilo.
-        const toRewrite = scenes.filter(
-          (scene) =>
-            !isReady(scene.id, readyNow) &&
-            (scene.contentRejected === true ||
-              !isValidPrompt(scene.imagePrompt)),
-        )
         if (toRewrite.length > 0) {
           const retryNotes = new Map<number, string>()
           for (const scene of toRewrite) {
@@ -209,6 +230,16 @@ export const imagesStage: Stage<CreateVideoContext> = {
           })
           await recordPromptModelUsed(context, lane)
           scenes = lane.scenes
+          // El carril entrega los prompts al cerrar el lote: se reemiten
+          // acá los reescritos (las `missing` quedan sin prompt y las cubre
+          // el fallback de generateImages, como hasta ahora).
+          for (const scene of lane.scenes) {
+            if (!lane.written.has(scene.id)) continue
+            context.emitter.emit({
+              type: 'scene-prompt-ready',
+              scene: await toSceneSummary(context.paths, scene),
+            })
+          }
         }
       } else {
         scenes = await regeneratePromptsForRejected(
@@ -223,6 +254,12 @@ export const imagesStage: Stage<CreateVideoContext> = {
             characters: promptCharacters,
             imageTextLanguage,
             signal: context.signal,
+            onSceneProcessed: async (scene) => {
+              context.emitter.emit({
+                type: 'scene-prompt-ready',
+                scene: await toSceneSummary(context.paths, scene),
+              })
+            },
           },
         )
       }
@@ -233,6 +270,14 @@ export const imagesStage: Stage<CreateVideoContext> = {
           ? scene
           : { ...scene, contentRejected: false },
       )
+      // Cierra el `rewrite` (si lo hubo) y anuncia el reintento de imágenes.
+      context.emitter.emit({
+        type: 'images-recovery-pass',
+        kind: 'retry',
+        sceneIds: missing.map((scene) => scene.id),
+        pass,
+        maxPasses: MAX_RECOVERY_PASSES,
+      })
       scenes = await generateImages(
         applyProjectImageDefaults(scenes, context),
         generation,
