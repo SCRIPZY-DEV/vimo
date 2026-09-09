@@ -8,8 +8,9 @@ import type { ListVoicesPayload, ListVoicesResult } from '../../types/voices.ts'
 
 // Listado unificado de voces: un solo contrato para todos los motores.
 // Minimax, Edge y la cuenta de ElevenLabs devuelven el catálogo completo (los
-// filtros son client-side en la UI); ElevenLabs vía DubVoice y la biblioteca
-// de ElevenLabs paginan server-side con los filtros del payload.
+// filtros son client-side en la UI); los motores de DubVoice v1 (ElevenLabs,
+// Vbee, Fish Audio) y la biblioteca de ElevenLabs paginan server-side con los
+// filtros del payload.
 export async function listVoices(
   context: PipelineContext,
 ): Promise<ListVoicesResult> {
