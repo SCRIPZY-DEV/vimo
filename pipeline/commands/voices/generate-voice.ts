@@ -1,13 +1,16 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { synthesizeInParts } from '../../providers/tts/chunked-synthesis.ts'
 import type { AudioDownload } from '../../providers/tts/dubvoice.ts'
 import {
   TTS_PROVIDER_IDS,
   resolveTtsProvider,
 } from '../../providers/tts/registry.ts'
+import { TTS_TEXT_CHAR_LIMIT } from '../../providers/tts/text-limits.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
+import type { JsonValue } from '../../types/json.ts'
 import type {
   GenerateVoicePayload,
   GenerateVoiceResult,
@@ -25,10 +28,6 @@ import {
 } from './voice-history.ts'
 
 const METADATA_TEXT_LIMIT = 1000
-const HEURISTIC_TICK_MS = 1000
-const HEURISTIC_MIN_EXPECTED_MS = 5000
-const HEURISTIC_MS_PER_CHAR = 25
-const HEURISTIC_PERCENT_CAP = 95
 
 function forcedNarrationLanguage(
   language?: string,
@@ -37,36 +36,11 @@ function forcedNarrationLanguage(
   return undefined
 }
 
-// Motores sin progreso real (reportsProgress false): el avance es un
-// heurístico por largo del texto, cap 95% hasta que el proveedor responde
-// (port del SSE del origen).
-function startHeuristicProgress(context: PipelineContext, textLength: number) {
-  const expectedMs = Math.max(
-    HEURISTIC_MIN_EXPECTED_MS,
-    textLength * HEURISTIC_MS_PER_CHAR,
-  )
-  const startedAt = Date.now()
-  const timer = setInterval(() => {
-    const elapsedMs = Date.now() - startedAt
-    context.emitter.emit({
-      type: 'progress',
-      percent: Math.min(
-        HEURISTIC_PERCENT_CAP,
-        Math.floor((elapsedMs / expectedMs) * 100),
-      ),
-      detail: {
-        status: 'processing',
-        elapsedSeconds: Math.round(elapsedMs / 1000),
-      },
-    })
-  }, HEURISTIC_TICK_MS)
-
-  return () => clearInterval(timer)
-}
-
 // Genera la narración con el motor elegido y la persiste DIRECTO en el
 // historial (a diferencia de música no hay variaciones que elegir): la entry
-// vuelve en el job-completed y la UI la reproduce vía convertFileSrc.
+// vuelve en el job-completed y la UI la reproduce vía convertFileSrc. El
+// texto se trocea al tope del motor (chunked-synthesis), hasta
+// TTS_TEXT_CHAR_LIMIT en total.
 export async function generateVoiceCommand(
   context: PipelineContext,
 ): Promise<GenerateVoiceResult> {
@@ -77,10 +51,10 @@ export async function generateVoiceCommand(
       'invalid_payload',
       `payload.provider (one of: ${TTS_PROVIDER_IDS}), payload.voiceId and payload.text are required`,
     )
-  if (payload.text.length > provider.requestCharLimit)
+  if (payload.text.length > TTS_TEXT_CHAR_LIMIT)
     throw new PipelineFailure(
       'voice_text_too_long',
-      `text exceeds the ${provider.requestCharLimit} character limit for ${provider.id}`,
+      `text exceeds the ${TTS_TEXT_CHAR_LIMIT} character limit`,
     )
 
   const apiKey = provider.apiKeyOf(context.job.apiKeys)
@@ -100,37 +74,46 @@ export async function generateVoiceCommand(
     forcedNarrationLanguage(payload.language),
   )
 
-  const stopHeuristicProgress = provider.reportsProgress
-    ? null
-    : startHeuristicProgress(context, text.length)
-
-  let download: AudioDownload
-  try {
-    download = await provider.synthesize({
-      payload,
-      text,
-      apiKey,
-      signal: context.signal,
-      onProgress: (progress) => {
-        context.emitter.emit({
-          type: 'progress',
-          percent: progress.percent,
-          detail: {
-            status: progress.status,
-            elapsedSeconds: progress.elapsedSeconds,
-          },
-        })
-      },
-    })
-  } finally {
-    stopHeuristicProgress?.()
-  }
-
+  // La carpeta de la entry se crea antes: las partes y el manifest del troceo
+  // viven ahí. Si la síntesis falla, se borra para no dejar una entry huérfana.
   const id = newHistoryId()
   const entryDirectory = join(historyRoot, id)
   await mkdir(entryDirectory, { recursive: true })
   const audioPath = join(entryDirectory, HISTORY_AUDIO_FILE)
-  await writeFile(audioPath, download.audio)
+
+  let download: AudioDownload
+  try {
+    download = await synthesizeInParts({
+      provider,
+      payload,
+      text,
+      apiKey,
+      signal: context.signal,
+      outputFile: audioPath,
+      ffmpegPath: context.job.binaryPaths.ffmpeg,
+      emitter: context.emitter,
+      onProgress: (progress) => {
+        // Shape de VoiceProgressDetail (tipado como JSON por el contrato del
+        // evento); con una sola parte no viajan los campos de troceo.
+        const detail: Record<string, JsonValue> = {
+          status: progress.status,
+          elapsedSeconds: progress.elapsedSeconds,
+        }
+        if (progress.partTotal > 1) {
+          detail.partIndex = progress.partIndex
+          detail.partTotal = progress.partTotal
+        }
+        context.emitter.emit({
+          type: 'progress',
+          percent: progress.percent,
+          detail,
+        })
+      },
+    })
+  } catch (error) {
+    await rm(entryDirectory, { recursive: true, force: true })
+    throw error
+  }
 
   const metadata: StoredVoiceMetadata = {
     id,

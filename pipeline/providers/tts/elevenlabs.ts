@@ -1,6 +1,6 @@
 import type { GenerateVoicePayload } from '../../types/voices.ts'
 import {
-  DUBVOICE_CATALOG_CHAR_LIMIT,
+  DUBVOICE_CATALOG_CHUNK_CHARS,
   dubvoiceCatalogProbeRequest,
   listDubvoiceCatalogVoices,
   synthesizeDubvoiceTask,
@@ -37,8 +37,9 @@ export const elevenLabsProvider: TtsProvider = {
   id: 'elevenlabs',
   vendor: 'dubvoice',
   laneName: LANE_NAME,
-  requestCharLimit: DUBVOICE_CATALOG_CHAR_LIMIT,
-  chunksLongText: false,
+  chunkCharLimit() {
+    return DUBVOICE_CATALOG_CHUNK_CHARS
+  },
   reportsProgress: true,
   apiKeyOf(apiKeys) {
     return apiKeys.dubvoice

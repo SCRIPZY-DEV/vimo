@@ -19,8 +19,9 @@ import { EDGE_LIVE_VOICE_IDS } from './edge-live-voice-ids.ts'
 // `volume`: `rate`/`pitch` devuelven audio vacío y el campo `voice` da 400
 // (verificado en vivo en el origen — trust the wire, no la doc).
 
-// Espejo del tope de DubVoice, igual para los tres motores.
-export const EDGE_CHAR_LIMIT = 4500
+// DubVoice no documenta tope para Edge: se trocea al mismo tamaño conservador
+// que Minimax (chunked-synthesis).
+export const EDGE_CHUNK_CHARS = 4500
 
 function normalizeVoice(voice: DubvoiceEdgeVoice): VoiceSummary | null {
   if (!voice.id) return null
@@ -103,8 +104,9 @@ export const edgeProvider: TtsProvider = {
   id: 'edge',
   vendor: 'dubvoice',
   laneName: 'Edge TTS (via DubVoice)',
-  requestCharLimit: EDGE_CHAR_LIMIT,
-  chunksLongText: false,
+  chunkCharLimit() {
+    return EDGE_CHUNK_CHARS
+  },
   reportsProgress: false,
   apiKeyOf(apiKeys) {
     return apiKeys.dubvoice

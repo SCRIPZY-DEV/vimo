@@ -28,7 +28,13 @@ export interface SynthesizeInput {
   text: string
   apiKey: string
   signal?: AbortSignal
-  // Solo lo llaman los motores con progreso real; ver reportsProgress.
+  // Trozos vecinos cuando el texto viene troceado (chunked-synthesis): solo
+  // ElevenLabs directo los usa para la continuidad entre partes; el resto los
+  // ignora.
+  previousText?: string
+  nextText?: string
+  // Solo lo llaman los motores con progreso real (reportsProgress); para los
+  // demás, chunked-synthesis corre un heurístico por parte.
   onProgress?(progress: SynthesisProgress): void
 }
 
@@ -38,13 +44,11 @@ export interface TtsProvider {
   vendor: VoiceVendorId
   // Nombre del carril en los logs de la cascada de narración.
   laneName: string
-  // Tope de texto por llamada al proveedor; espejado en la UI
-  // (src/modules/voices/constants.ts).
-  requestCharLimit: number
-  // Si una narración más larga que el tope se trocea y se concatena en vez de
-  // fallar.
-  chunksLongText: boolean
-  // Si el proveedor informa avance real; el resto usa la curva sintética.
+  // Tope de texto por llamada al proveedor: todo texto más largo se trocea y
+  // se concatena (chunked-synthesis). Depende del motor y, en ElevenLabs
+  // directo, del modelo del payload. El tope TOTAL es TTS_TEXT_CHAR_LIMIT.
+  chunkCharLimit(payload: GenerateVoicePayload): number
+  // Si el proveedor informa avance real; el resto usa un heurístico por parte.
   reportsProgress: boolean
   // Qué clave del keychain usa este motor. Es el ÚNICO lugar donde se lee
   // apiKeys.<vendor>: commands y stage nunca eligen la clave a mano.

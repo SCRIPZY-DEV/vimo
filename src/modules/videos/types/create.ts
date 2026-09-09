@@ -26,6 +26,9 @@ export interface VoiceProgressView {
   totalChars: number
   elapsedSeconds: number
   percent: number | null
+  // Parte en curso (1-based) y total cuando el sidecar troceó la narración.
+  partIndex: number | null
+  partTotal: number | null
 }
 
 // Progreso de la música de fondo generada con IA.

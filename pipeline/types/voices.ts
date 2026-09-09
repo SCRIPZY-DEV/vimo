@@ -110,10 +110,14 @@ export interface GenerateVoicePayload {
   settings?: VoiceGenerationSettings
 }
 
-// Detalle que viaja en los eventos `progress` de generate-voice.
+// Detalle que viaja en los eventos `progress` de generate-voice. Con texto
+// troceado trae la parte en curso (1-based) y el total; `percent` del evento
+// es el agregado de todas las partes.
 export interface VoiceProgressDetail {
   status?: string
   elapsedSeconds?: number
+  partIndex?: number
+  partTotal?: number
 }
 
 // Una generación guardada en `<projectsRoot>/_history/voices/<id>/`.

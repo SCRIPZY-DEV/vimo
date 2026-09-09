@@ -14,19 +14,36 @@ import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
 import { voicesApi } from '@/modules/voices/api'
 import { AudioPlayer } from '@/modules/common/components/AudioPlayer'
+import { LongTextNotice } from '@/modules/common/components/LongTextNotice'
 import { VoiceSettingsPanel } from '@/modules/voices/components/VoiceSettingsPanel'
 import { EstimatedCostBadge } from '@/modules/voices/components/EstimatedCostBadge'
 import {
   DEFAULT_VOICE_MODELS,
   VOICE_MODELS,
   VOICE_SETTINGS_DEFAULTS,
-  VOICE_TEXT_LIMITS,
+  VOICE_TEXT_LIMIT,
 } from '@/modules/voices/constants'
 import { useAddLibraryVoice } from '@/modules/voices/hooks/useAddLibraryVoice'
 import { useVoiceTask } from '@/modules/voices/hooks/useVoiceTask'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
-import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
+import type {
+  VoiceSettingsFormValue,
+  VoiceTask,
+} from '@/modules/voices/types/voices'
+import type { TFunction } from 'i18next'
+
+// Etiqueta de la barra: con texto troceado dice en qué parte va.
+function progressLabel(t: TFunction, task: VoiceTask): string {
+  if (task.elapsedSeconds === null) return t('voices.probador.generando')
+  if (task.partTotal !== undefined && task.partIndex !== undefined)
+    return t('voices.probador.progresoPartes', {
+      part: task.partIndex,
+      total: task.partTotal,
+      seconds: task.elapsedSeconds,
+    })
+  return t('voices.probador.progresoSegundos', { seconds: task.elapsedSeconds })
+}
 
 interface VoiceTesterPanelProps {
   voice: VoiceSummary
@@ -59,7 +76,6 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
   const entry = task?.status === 'completed' ? task.entry : null
   const errorKey = addErrorKey ?? task?.errorKey ?? null
 
-  const textLimit = VOICE_TEXT_LIMITS[voice.provider]
   const models = VOICE_MODELS[voice.provider]
   const activeModel = model ?? DEFAULT_VOICE_MODELS[voice.provider]
 
@@ -110,11 +126,11 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
         <Textarea
           id="voice-text"
           value={text}
-          maxLength={textLimit}
+          maxLength={VOICE_TEXT_LIMIT}
           disabled={generating}
           onChange={(event) => setText(event.target.value)}
           placeholder={t('voices.probador.placeholder')}
-          rows={4}
+          rows={6}
         />
         <div className="flex items-center justify-between gap-2">
           <EstimatedCostBadge
@@ -124,10 +140,11 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
           <span className="font-body text-xs tabular-nums text-muted-foreground">
             {t('voices.probador.limiteTexto', {
               chars: text.length,
-              limit: textLimit,
+              limit: VOICE_TEXT_LIMIT,
             })}
           </span>
         </div>
+        <LongTextNotice characters={text.length} />
       </div>
 
       {models.length > 1 && (
@@ -205,13 +222,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
       {generating && !adding && task && (
         <LabeledProgress
           className="space-y-2"
-          label={
-            task.elapsedSeconds !== null
-              ? t('voices.probador.progresoSegundos', {
-                  seconds: task.elapsedSeconds,
-                })
-              : t('voices.probador.generando')
-          }
+          label={progressLabel(t, task)}
           percent={task.progressPercent}
         />
       )}

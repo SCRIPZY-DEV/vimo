@@ -24,11 +24,10 @@ import {
 } from './dubvoice.ts'
 import {
   ELEVENLABS_API_BASE_URL,
-  ELEVENLABS_CHAR_LIMIT,
   ELEVENLABS_DEFAULT_MODEL,
   CATALOG_PAGE_SIZE,
 } from './elevenlabs-shared.ts'
-import type { TtsProvider } from './provider.ts'
+import type { SynthesizeInput, TtsProvider } from './provider.ts'
 
 // ElevenLabs DIRECTO (api.elevenlabs.io, la clave del propio usuario). Nació
 // como fallback de la narración (port de sintetizarElevenLabsDirecto) y desde
@@ -43,6 +42,20 @@ const OUTPUT_FORMAT = 'mp3_44100_128'
 // Solo estos modelos aceptan language_code; multilingual_v2 responde 400.
 const LANGUAGE_CODE_MODELS = new Set(['eleven_turbo_v2_5', 'eleven_flash_v2_5'])
 const CLONE_CATEGORIES = new Set(['cloned', 'professional', 'generated'])
+
+// Tope por request según el modelo (elevenlabs.io/docs/overview/models:
+// Multilingual v2 10 000, Eleven v3 5 000, Flash/Turbo v2.5 40 000), con ~5 %
+// de margen porque el texto ya viene con números expandidos a palabras.
+export const ELEVENLABS_DIRECT_CHUNK_CHARS: Record<string, number> = {
+  eleven_multilingual_v2: 9_500,
+  eleven_v3: 4_500,
+  eleven_turbo_v2_5: 38_000,
+  eleven_flash_v2_5: 38_000,
+}
+export const ELEVENLABS_DIRECT_DEFAULT_CHUNK_CHARS = 4_500
+// Cuántos chars del trozo vecino viajan como previous_text / next_text: la
+// API los usa solo como contexto de prosodia, no hace falta el trozo entero.
+const CONTINUITY_CONTEXT_CHARS = 300
 
 function authHeaders(apiKey: string): Record<string, string> {
   return { 'xi-api-key': apiKey, 'Content-Type': 'application/json' }
@@ -370,6 +383,7 @@ export async function synthesizeElevenLabsDirect(
   text: string,
   apiKey: string,
   signal?: AbortSignal,
+  continuity: Pick<SynthesizeInput, 'previousText' | 'nextText'> = {},
 ): Promise<AudioDownload> {
   const settings = payload.settings ?? {}
   const model = payload.model ?? ELEVENLABS_DEFAULT_MODEL
@@ -390,6 +404,15 @@ export async function synthesizeElevenLabsDirect(
     LANGUAGE_CODE_MODELS.has(model)
   )
     body.language_code = payload.language
+  // Continuidad entre partes de un texto troceado: la cola del trozo anterior
+  // y la cabeza del siguiente. Gratis, a diferencia del context_chaining de
+  // DubVoice.
+  if (continuity.previousText)
+    body.previous_text = continuity.previousText.slice(
+      -CONTINUITY_CONTEXT_CHARS,
+    )
+  if (continuity.nextText)
+    body.next_text = continuity.nextText.slice(0, CONTINUITY_CONTEXT_CHARS)
 
   const response = await elevenLabsFetch(
     `${ELEVENLABS_API_BASE_URL}/v1/text-to-speech/${encodeURIComponent(payload.voiceId)}?output_format=${OUTPUT_FORMAT}`,
@@ -425,8 +448,13 @@ export const elevenLabsDirectProvider: TtsProvider = {
   id: 'elevenlabs-direct',
   vendor: 'elevenlabs',
   laneName: 'ElevenLabs direct',
-  requestCharLimit: ELEVENLABS_CHAR_LIMIT,
-  chunksLongText: true,
+  chunkCharLimit(payload) {
+    const model = payload.model ?? ELEVENLABS_DEFAULT_MODEL
+    return (
+      ELEVENLABS_DIRECT_CHUNK_CHARS[model] ??
+      ELEVENLABS_DIRECT_DEFAULT_CHUNK_CHARS
+    )
+  },
   reportsProgress: false,
   apiKeyOf(apiKeys) {
     return apiKeys.elevenlabs
@@ -442,8 +470,11 @@ export const elevenLabsDirectProvider: TtsProvider = {
       init: { headers: authHeaders(apiKey) },
     }
   },
-  synthesize({ payload, text, apiKey, signal }) {
-    return synthesizeElevenLabsDirect(payload, text, apiKey, signal)
+  synthesize({ payload, text, apiKey, signal, previousText, nextText }) {
+    return synthesizeElevenLabsDirect(payload, text, apiKey, signal, {
+      previousText,
+      nextText,
+    })
   },
   // Si ElevenLabs falla y el usuario también tiene DubVoice, se sintetiza la
   // MISMA voz vía DubVoice (solo voces premade públicas).

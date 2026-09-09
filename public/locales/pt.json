@@ -4,6 +4,10 @@
     "openVideo": "Reproduzir",
     "revealVideo": "Mostrar na pasta",
     "proximamente": "Em breve",
+    "longTextNotice": {
+      "title": "Este texto é longo",
+      "body": "São {{characters}} caracteres: a voz é gerada em várias partes e pode levar alguns minutos. Você pode continuar usando o app enquanto isso."
+    },
     "player": {
       "play": "Reproduzir",
       "pause": "Pausar",
@@ -273,7 +277,8 @@
         "title": "Gerando voz · {{provider}}",
         "hintMinimax": "Minimax é síncrono · costuma levar 5-30s para {{chars}} caracteres",
         "hintEdge": "Edge TTS é rápido · costuma levar <5s",
-        "hintDefault": "Processando {{chars}} caracteres"
+        "hintDefault": "Processando {{chars}} caracteres",
+        "hintParts": "Parte {{part}} de {{total}} · {{chars}} caracteres"
       },
       "music": {
         "title": "Gerando música com IA · Suno"
@@ -1078,6 +1083,7 @@
       "generando": "Gerando…",
       "cancelar": "Cancelar",
       "progresoSegundos": "{{seconds}} s decorridos",
+      "progresoPartes": "Parte {{part}} de {{total}} · {{seconds}} s",
       "resultado": "Resultado",
       "cerrar": "Fechar",
       "guardada": "A narração ficou salva no histórico.",
@@ -1144,7 +1150,8 @@
       "timeout": "A geração demorou demais e foi cancelada. Tente de novo.",
       "downloadFailed": "Não foi possível baixar o áudio gerado. Tente de novo.",
       "emptyAudio": "O provedor retornou um áudio vazio. Tente outra voz.",
-      "textTooLong": "O texto ultrapassa o limite de caracteres do motor escolhido.",
+      "textTooLong": "O texto ultrapassa o máximo de caracteres permitido.",
+      "chunkingInconsistent": "A divisão do texto não bateu e nenhum crédito foi gasto. Tente de novo.",
       "invalido": "A solicitação não é válida. Recarregue a tela e tente de novo.",
       "missingApiKey": "Falta a chave do provedor de vozes escolhido. Configure em Chaves de API.",
       "missingProjectsRoot": "Nenhuma pasta de projetos está configurada. Verifique os Ajustes.",
