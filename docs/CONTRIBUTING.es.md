@@ -80,7 +80,8 @@ permiso una última vez; con «Permitir siempre» el permiso queda anclado al ce
 El instalador de Windows se genera en **GitHub Actions**
 ([.github/workflows/build-desktop.yml](/.github/workflows/build-desktop.yml), ADR-0026):
 Tauri no cross-compila desde macOS. Se dispara a mano desde la pestaña _Actions_
-(«Build desktop installers» → _Run workflow_) o al pushear un tag `v*`; el
+(«Build desktop installers» → _Run workflow_, eligiendo en _platform_ si se compila
+solo Windows, solo macOS o ambos) o al pushear un tag `v*`, que siempre genera ambos; el
 `Vimo_<versión>_x64-setup.exe` queda como artefacto `Vimo-windows-x64` del run. El
 mismo workflow genera el DMG de macOS Apple Silicon (`Vimo-macos-arm64`) con firma
 ad-hoc; para firmarlo de verdad, las variables de la sección anterior van como secretos
