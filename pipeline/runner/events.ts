@@ -100,13 +100,17 @@ export interface SceneImageProgressEvent {
 }
 
 // Progreso de la síntesis de voz. Sin `percent` real (Minimax/Edge no lo
-// informan) la UI dibuja su curva sintética desde elapsedSeconds.
+// informan) la UI dibuja su curva sintética desde elapsedSeconds. Con texto
+// troceado viajan la parte en curso (1-based) y el total, y `percent` es el
+// agregado de todas las partes.
 export interface VoiceProgressEvent {
   type: 'voice-progress'
   provider: VoiceProviderId
   totalChars: number
   elapsedSeconds: number
   percent?: number
+  partIndex?: number
+  partTotal?: number
 }
 
 // Progreso de la música de fondo generada con IA (Evolink/Suno).
