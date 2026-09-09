@@ -6,9 +6,9 @@
 // decisiones registradas en ADR-0013).
 //
 // Las URLs y los SHA-256 van pineados: una release nueva se adopta cambiando
-// estas constantes a mano, nunca «latest» (build reproducible). Por ahora solo
-// aarch64-apple-darwin — el resto de plataformas llega con la fase de
-// distribución (ADR-0013).
+// estas constantes a mano, nunca «latest» (build reproducible). Hay un bloque
+// de pins por target triple: macOS arm64 (ADR-0013) y Windows x64 (ADR-0026);
+// un triple sin pins falla con un mensaje que dice qué agregar.
 //
 // Nota de licencia: el build estático de ffmpeg-static es GPL; la aspiración
 // LGPL queda para la fase de distribución.
@@ -18,12 +18,18 @@ import { chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  executableSuffix,
+  isMacosTriple,
+  targetTriple,
+} from './target-triple.mjs'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const binariesDir = join(repoRoot, 'src-tauri/binaries')
 
-// Un pin por binario y plataforma. El hash de yt-dlp se contrasta al pinear
-// con el SHA2-256SUMS oficial de la release.
+// Un pin por binario y plataforma. Ambas plataformas comparten release de
+// ffmpeg-static y de yt-dlp; el hash de yt-dlp se contrasta al pinear con el
+// SHA2-256SUMS oficial de la release.
 const BINARY_PINS = {
   'aarch64-apple-darwin': [
     {
@@ -39,22 +45,27 @@ const BINARY_PINS = {
         '0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202',
     },
   ],
-}
-
-function targetTriple() {
-  // Tauri lo exporta en sus hooks de build; fuera de ellos, el host de rustc.
-  if (process.env.TAURI_ENV_TARGET_TRIPLE) {
-    return process.env.TAURI_ENV_TARGET_TRIPLE
-  }
-  const output = execFileSync('rustc', ['-Vv'], { encoding: 'utf8' })
-  const match = output.match(/host: (\S+)/)
-  if (!match)
-    throw new Error('No se pudo determinar el target triple (rustc -Vv)')
-  return match[1]
+  'x86_64-pc-windows-msvc': [
+    {
+      name: 'ffmpeg',
+      url: 'https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64',
+      sha256:
+        '04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00',
+    },
+    {
+      name: 'yt-dlp',
+      url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe',
+      sha256:
+        '66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a',
+    },
+  ],
 }
 
 async function fetchBinary(pin, triple) {
-  const binaryPath = join(binariesDir, `${pin.name}-${triple}`)
+  const binaryPath = join(
+    binariesDir,
+    `${pin.name}-${triple}${executableSuffix(triple)}`,
+  )
   // La firma ad-hoc modifica el binario en disco, así que su hash ya no
   // coincide con el del artefacto descargado. El marcador registra qué pin
   // quedó instalado: es lo que hace al script idempotente.
@@ -85,8 +96,9 @@ async function fetchBinary(pin, triple) {
   }
 
   await writeFile(binaryPath, bytes)
+  // No-op en Windows: ahí la ejecutabilidad la da la extensión .exe.
   chmodSync(binaryPath, 0o755)
-  if (triple.includes('apple-darwin')) {
+  if (isMacosTriple(triple)) {
     // Firma ad-hoc; la firma real de distribución la aplica el bundling.
     execFileSync('codesign', ['--sign', '-', '--force', binaryPath])
   }
@@ -99,7 +111,7 @@ const pins = BINARY_PINS[triple]
 if (!pins) {
   throw new Error(
     `Sin pins de binarios para ${triple}: agregalos a BINARY_PINS ` +
-      '(por ahora solo aarch64-apple-darwin, ver ADR-0013).',
+      '(hoy aarch64-apple-darwin y x86_64-pc-windows-msvc, ver ADR-0026).',
   )
 }
 
