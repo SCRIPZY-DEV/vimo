@@ -91,6 +91,12 @@ de Windows por dos: una corrida completa gasta unos 200-250 de los 2000 minutos
 mensuales del plan Free, y los artefactos (~270 MB por corrida, 3 días de retención)
 comparten un cupo de 500 MB. Por eso el workflow no corre en cada push.
 
+**Secretos obligatorios.** El `.env` no se sube al repo, así que el workflow lee
+`VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` desde los secretos del repo
+(_Settings → Secrets and variables → Actions_) y se los pasa al build de la interfaz.
+Vite los embebe en el bundle; si faltan, el cliente de Supabase lanza al cargar y la app
+instalada abre con la ventana en blanco, en ambos sistemas.
+
 El workflow corre el mismo `pnpm tauri build` que en macOS: `fetch:binaries` descarga
 `ffmpeg` y `yt-dlp` pineados para `x86_64-pc-windows-msvc`
 ([scripts/fetch-binaries.mjs](/scripts/fetch-binaries.mjs)), `build:sidecar` genera
