@@ -53,7 +53,9 @@ export interface PromptWriterOptions {
   // Nombre inglés del idioma del guion ("" → el LLM lo infiere).
   imageTextLanguage: string
   signal: AbortSignal
-  // Persistencia incremental: se llama tras cada escena con prompt nuevo.
+  // Persistencia incremental: se llama tras cada escena con prompt nuevo —
+  // también en la reescritura por content policy desde la fase de imágenes,
+  // que lo usa para reemitir scene-prompt-ready.
   onSceneProcessed?(scene: Scene): Promise<void> | void
 }
 
@@ -511,22 +513,25 @@ export async function regeneratePromptsForRejected(
 
         // NO se conserva el prompt anterior: es JUSTO el que el modelo de
         // imágenes rechazó — reenviarlo byte-por-byte vuelve a fallar.
-        if (!isValidPrompt(imagePrompt)) {
-          const fallback = anchorNormalRealism(
-            buildDeterministicFallbackPrompt(
-              { ...scene, text },
-              writerOptions.visualBible,
-              writerOptions.style,
-              orderedScenes,
-              writerOptions.characters,
-              writerOptions.imageTextLanguage,
-            ),
-            writerOptions.style,
-          )
-          return { ...scene, imagePrompt: fallback, promptIsFallback: true }
-        }
-
-        return { ...scene, imagePrompt, promptIsFallback: false }
+        const updated: Scene = isValidPrompt(imagePrompt)
+          ? { ...scene, imagePrompt, promptIsFallback: false }
+          : {
+              ...scene,
+              imagePrompt: anchorNormalRealism(
+                buildDeterministicFallbackPrompt(
+                  { ...scene, text },
+                  writerOptions.visualBible,
+                  writerOptions.style,
+                  orderedScenes,
+                  writerOptions.characters,
+                  writerOptions.imageTextLanguage,
+                ),
+                writerOptions.style,
+              ),
+              promptIsFallback: true,
+            }
+        await writerOptions.onSceneProcessed?.(updated)
+        return updated
       }),
     ),
   )
