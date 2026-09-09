@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { executableSuffix, targetTriple } from './target-triple.mjs'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
@@ -41,9 +42,11 @@ const apiKeys = existsSync(keysFile)
 // Los mismos binarios que empaqueta Tauri: nunca los del PATH.
 const binariesDirectory = join(repoRoot, 'src-tauri/binaries')
 const binaryPaths = {}
+const triple = targetTriple()
+const suffix = executableSuffix(triple)
 for (const [field, name] of [
-  ['ffmpeg', 'ffmpeg-aarch64-apple-darwin'],
-  ['ytDlp', 'yt-dlp-aarch64-apple-darwin'],
+  ['ffmpeg', `ffmpeg-${triple}${suffix}`],
+  ['ytDlp', `yt-dlp-${triple}${suffix}`],
 ]) {
   const path = join(binariesDirectory, name)
   if (existsSync(path)) binaryPaths[field] = path
