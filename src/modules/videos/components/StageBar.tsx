@@ -3,6 +3,7 @@ import { Check, Loader2, PauseCircle } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { PIPELINE_STAGES } from '@/modules/videos/constants'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
+import type { ImagesRecoveryView } from '@/modules/videos/types/create'
 
 interface StageBarProps {
   currentStage: StageId | null
@@ -10,6 +11,36 @@ interface StageBarProps {
   // En pausa de confirmación: la fase que espera muestra pausa honesta en
   // vez de un spinner mentiroso (el job está cerrado).
   paused: boolean
+  // Pasada de recuperación de imágenes en curso: con `rewrite` la fila de
+  // prompts vuelve a «en curso» (la fase sigue completa para el runner, pero
+  // para la persona los prompts NO están listos) y la de imágenes espera.
+  recovery: ImagesRecoveryView | null
+}
+
+// Sub-línea de la pasada de recuperación bajo la fila que la sufre: la
+// reescritura de prompts bajo prompts, el reintento de imágenes bajo imágenes.
+function recoveryNote(
+  stageId: StageId,
+  recovery: ImagesRecoveryView | null,
+): { key: string; values: Record<string, number> } | null {
+  if (!recovery) return null
+  if (recovery.kind === 'rewrite' && stageId === 'scene-prompts') {
+    return {
+      key: 'create.progress.recovery.rewritingPrompts',
+      values: { count: recovery.sceneIds.length },
+    }
+  }
+  if (recovery.kind === 'retry' && stageId === 'images') {
+    return {
+      key: 'create.progress.recovery.retryingImages',
+      values: {
+        count: recovery.sceneIds.length,
+        pass: recovery.pass,
+        maxPasses: recovery.maxPasses,
+      },
+    }
+  }
+  return null
 }
 
 // Lista de fases (port de BarraDeFases del origen): completada en saffron,
@@ -20,8 +51,11 @@ export function StageBar({
   currentStage,
   completedStages,
   paused,
+  recovery,
 }: StageBarProps) {
   const { t } = useTranslation()
+
+  const rewriting = recovery?.kind === 'rewrite'
 
   // Con el job cerrado en pausa no hay currentStage: la fase que espera es
   // la primera sin completar.
@@ -33,10 +67,15 @@ export function StageBar({
   return (
     <ul className="space-y-2">
       {PIPELINE_STAGES.map((stage) => {
-        const done = completedStages.includes(stage.id)
+        const reopened = rewriting && stage.id === 'scene-prompts'
+        const done = completedStages.includes(stage.id) && !reopened
         const waiting = stage.id === pausedStageId
-        const active = !done && !waiting && currentStage === stage.id
+        const active =
+          !done &&
+          !waiting &&
+          (rewriting ? reopened : currentStage === stage.id)
         const pending = !done && !waiting && !active
+        const note = recoveryNote(stage.id, recovery)
 
         return (
           <li
@@ -78,6 +117,11 @@ export function StageBar({
               {waiting && (
                 <span className="block font-body text-sm font-normal text-saffron">
                   {t('create.progress.waitingForYou')}
+                </span>
+              )}
+              {note && (
+                <span className="block font-body text-sm font-normal text-ocean">
+                  {t(note.key, note.values)}
                 </span>
               )}
             </span>

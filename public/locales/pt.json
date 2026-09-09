@@ -292,6 +292,10 @@
         "title": "Tentando de novo em {{seconds}}s",
         "attempt": "· tentativa {{attempt}} de {{max}}"
       },
+      "recovery": {
+        "rewritingPrompts": "Reescrevendo {{count}} prompts",
+        "retryingImages": "Tentando {{count}} imagens de novo · passagem {{pass}} de {{maxPasses}}"
+      },
       "error": {
         "title": "Algo deu errado",
         "retryFromCheckpoint": "Tentar de novo a partir do último passo",
@@ -462,7 +466,10 @@
       "doneTitle": "{{total}} prompts prontos, um por cena",
       "writingSubtitle": "{{done}} de {{total}} prontos · {{percent}}%",
       "doneSubtitle": "Um por cena, no estilo escolhido.",
-      "writingAria": "Escrevendo este prompt"
+      "writingAria": "Escrevendo este prompt",
+      "rewritingTitle": "Reescrevendo {{total}} prompts rejeitados",
+      "rewritingSubtitle": "{{done}} de {{total}} reescritos · {{percent}}% · passagem {{pass}} de {{maxPasses}}",
+      "rewritingHint": "O gerador de imagens rejeitou estas cenas por conteúdo: são reescritas mais neutras, no mesmo estilo."
     },
     "viewer": {
       "title": "Cena {{id}}",

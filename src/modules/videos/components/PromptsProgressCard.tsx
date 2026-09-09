@@ -6,16 +6,40 @@ import { SUPPORT_NOTE_CLASS } from '@/modules/videos/constants'
 interface PromptsProgressCardProps {
   done: number
   total: number
+  // Pasada de reescritura (fase de imágenes): los títulos cambian y el
+  // spinner se mantiene aunque el conteo llegue al total — la pasada la
+  // cierra el evento de reintento, no el contador.
+  rewrite: { pass: number; maxPasses: number } | null
 }
 
 // Cabecera del avance de prompts. El porcentaje es REAL: cuenta los prompts
 // que llegaron por evento. Si el modelo se traba, la barra se queda quieta —
 // exactamente lo que hay que mostrar cuando eso pasa.
-export function PromptsProgressCard({ done, total }: PromptsProgressCardProps) {
+export function PromptsProgressCard({
+  done,
+  total,
+  rewrite,
+}: PromptsProgressCardProps) {
   const { t } = useTranslation()
 
   const percent = total > 0 ? Math.round((done / total) * 100) : 0
-  const writing = done < total
+  const writing = rewrite !== null || done < total
+  const title = rewrite
+    ? t('create.prompts.rewritingTitle', { total })
+    : writing
+      ? t('create.prompts.writingTitle', { total })
+      : t('create.prompts.doneTitle', { total })
+  const subtitle = rewrite
+    ? t('create.prompts.rewritingSubtitle', {
+        done,
+        total,
+        percent,
+        pass: rewrite.pass,
+        maxPasses: rewrite.maxPasses,
+      })
+    : writing
+      ? t('create.prompts.writingSubtitle', { done, total, percent })
+      : t('create.prompts.doneSubtitle')
 
   return (
     <div className="rounded-2xl border-2 border-border bg-card p-5">
@@ -26,19 +50,18 @@ export function PromptsProgressCard({ done, total }: PromptsProgressCardProps) {
           )}
           <div>
             <h3 className="font-display text-xl font-extrabold text-foreground">
-              {writing
-                ? t('create.prompts.writingTitle', { total })
-                : t('create.prompts.doneTitle', { total })}
+              {title}
             </h3>
             <p className={cn(SUPPORT_NOTE_CLASS, 'text-muted-foreground')}>
-              {writing
-                ? t('create.prompts.writingSubtitle', {
-                    done,
-                    total,
-                    percent,
-                  })
-                : t('create.prompts.doneSubtitle')}
+              {subtitle}
             </p>
+            {rewrite && (
+              <p
+                className={cn(SUPPORT_NOTE_CLASS, 'mt-1 text-muted-foreground')}
+              >
+                {t('create.prompts.rewritingHint')}
+              </p>
+            )}
           </div>
         </div>
         {writing && (

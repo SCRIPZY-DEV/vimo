@@ -69,6 +69,23 @@ export interface ScenePromptsProgressEvent {
   total: number
 }
 
+export type ImagesRecoveryKind = 'rewrite' | 'retry'
+
+// Pasada de recuperación de la fase images (Fase 5). `rewrite`: se están
+// reescribiendo los prompts de `sceneIds` (rechazadas por contenido o sin
+// prompt válido) — la UI devuelve la fila de prompts a «en curso» sin que la
+// fase se reabra en el runner. `retry`: se re-generan las imágenes de
+// `sceneIds`; llega siempre, haya habido reescritura o no, y cierra el
+// `rewrite` anterior. Cifras absolutas e idempotentes: describe el estado, no
+// un delta. Cada prompt reescrito viaja además como `scene-prompt-ready`.
+export interface ImagesRecoveryPassEvent {
+  type: 'images-recovery-pass'
+  kind: ImagesRecoveryKind
+  sceneIds: number[]
+  pass: number
+  maxPasses: number
+}
+
 export interface SceneImageStartedEvent {
   type: 'scene-image-started'
   sceneId: number
@@ -164,6 +181,7 @@ export type PipelineEventPayload =
   | ScenesPlannedEvent
   | ScenePromptReadyEvent
   | ScenePromptsProgressEvent
+  | ImagesRecoveryPassEvent
   | SceneImageStartedEvent
   | SceneImageReadyEvent
   | SceneImageFailedEvent

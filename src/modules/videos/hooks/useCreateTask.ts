@@ -92,6 +92,8 @@ function restoreTask(): CreateTask | null {
       retryAttempts: stored.retryAttempts ?? 0,
       videoFormat: stored.videoFormat ?? '16:9',
       promptsWritten: stored.promptsWritten ?? null,
+      // La pasada de recuperación pertenece a un job vivo: no sobrevive.
+      imagesRecovery: null,
       cancelRequested: false,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
@@ -195,7 +197,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
   switch (event.type) {
     case 'stage-started':
-      patchTask(taskId, { stage: event.stageId })
+      patchTask(taskId, { stage: event.stageId, imagesRecovery: null })
       return
 
     case 'stage-skipped':
@@ -204,6 +206,25 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         completedStages: withStage(task.completedStages, event.stageId),
         // El stream del redactor ya no importa con los prompts persistidos.
         ...(event.stageId === 'scene-prompts' ? { promptsWritten: null } : {}),
+        ...(event.stageId === 'images' ? { imagesRecovery: null } : {}),
+      })
+      return
+
+    // Pasada de recuperación de imágenes. En `rewrite` se vacía el prompt de
+    // las escenas afectadas para que la grilla las muestre escribiéndose;
+    // cada scene-prompt-ready lo rellena. `retry` cierra el rewrite anterior.
+    case 'images-recovery-pass':
+      patchTask(taskId, {
+        imagesRecovery: {
+          kind: event.kind,
+          sceneIds: event.sceneIds,
+          pass: event.pass,
+          maxPasses: event.maxPasses,
+          streamed: 0,
+        },
+        ...(event.kind === 'rewrite'
+          ? { scenes: clearPrompts(task.scenes, event.sceneIds) }
+          : {}),
       })
       return
 
@@ -228,7 +249,27 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     // Cifras absolutas del stream del redactor: reemplazan, no suman. Se
     // conserva el máximo visto — un job relanzado (reintento automático)
     // vuelve a escribir desde cero y la barra no debe devolverse.
-    case 'scene-prompts-progress':
+    case 'scene-prompts-progress': {
+      // Durante una reescritura (carril verbatim) las cifras son sobre TODAS
+      // las escenas, con las no afectadas contadas como listas: se traduce al
+      // subconjunto y no toca `promptsWritten` (su máximo monótono lo dejaría
+      // clavado en el total).
+      const recovery = task.imagesRecovery
+      if (recovery?.kind === 'rewrite') {
+        const subset = recovery.sceneIds.length
+        const streamed = Math.min(
+          subset,
+          Math.max(0, event.ready - (event.total - subset)),
+        )
+        patchTask(taskId, {
+          imagesRecovery: {
+            ...recovery,
+            streamed: Math.max(recovery.streamed, streamed),
+          },
+        })
+        return
+      }
+
       patchTask(taskId, {
         promptsWritten: {
           ready: Math.max(task.promptsWritten?.ready ?? 0, event.ready),
@@ -236,6 +277,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         },
       })
       return
+    }
 
     case 'scene-image-started':
       patchTask(taskId, {
@@ -336,6 +378,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         status: 'completed',
         jobId: null,
         stage: null,
+        imagesRecovery: null,
         videoPath: result?.videoPath ?? null,
         finishedAt: Date.now(),
         retryAttempts: 0,
@@ -359,6 +402,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         status: 'error',
         jobId: null,
         stage: null,
+        imagesRecovery: null,
         errorKey: errorKeyFor(event.code),
       })
       return
@@ -412,6 +456,18 @@ function mergePlannedScenes(
   })
 }
 
+// Deja sin prompt a las escenas que la fase de imágenes va a reescribir: la
+// grilla las pinta con su placeholder hasta que llegue el prompt nuevo.
+function clearPrompts(
+  scenes: CreateTask['scenes'],
+  sceneIds: number[],
+): CreateTask['scenes'] {
+  const targets = new Set(sceneIds)
+  return scenes.map((scene) =>
+    targets.has(scene.id) ? { ...scene, imagePrompt: undefined } : scene,
+  )
+}
+
 function patchScene(
   scenes: CreateTask['scenes'],
   sceneId: number,
@@ -445,6 +501,7 @@ function makeTask(
     bgmProgress: null,
     renderProgress: null,
     promptsWritten: null,
+    imagesRecovery: null,
     confirmation: null,
     logs: [],
     videoPath: null,
@@ -476,10 +533,12 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
   // redactor arranca de cero y la barra se quedaría quieta hasta alcanzar lo
   // ya visto — nunca vuelve atrás (regla del origen). Lo limpia la fase al
   // completarse y cada tarea nueva nace sin él.
+  // `imagesRecovery` sí: describe una pasada del job anterior, ya muerto.
   patchTask(taskId, {
     status: 'generating',
     errorKey: null,
     confirmation: null,
+    imagesRecovery: null,
     ...pausePatch,
   })
 

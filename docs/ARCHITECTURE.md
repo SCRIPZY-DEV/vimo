@@ -392,14 +392,14 @@ Cada una implementa `Stage { id, skip?, run }` y el runner
 `stage-skipped` / `stage-completed`. **Toda fase es retomable**: si su artefacto
 en disco es válido, `skip()` la saltea.
 
-| Fase            | Qué hace el sidecar                                                                                         | Qué muestra la interfaz                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                 | `voice-progress`, `bgm-progress`                                                               |
-| `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                   | fase en curso                                                                                  |
-| `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                               | `scenes-planned` o el diálogo                                                                  |
-| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía)                              | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim) |
-| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas | `scene-image-*` sobre la grilla                                                                |
-| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                   | `render-progress` por sub-fase                                                                 |
+| Fase            | Qué hace el sidecar                                                                                         | Qué muestra la interfaz                                                                                                                                                 |
+| --------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                 | `voice-progress`, `bgm-progress`                                                                                                                                        |
+| `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                   | fase en curso                                                                                                                                                           |
+| `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                               | `scenes-planned` o el diálogo                                                                                                                                           |
+| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía)                              | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim)                                                                          |
+| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento) |
+| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                   | `render-progress` por sub-fase                                                                                                                                          |
 
 La narración es **esencial** (si falla, el job muere); música y overlay son
 **opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
