@@ -53,8 +53,10 @@ interface GenerationProgressProps {
   onDismissConfirmation: () => void
 }
 
-// Pista bajo la barra de voz: qué esperar de cada proveedor mientras sube.
+// Pista bajo la barra de voz: en qué parte va si la narración se troceó; si
+// no, qué esperar de cada proveedor mientras sube.
 function voiceHintKey(voice: VoiceProgressView): string {
+  if (voice.partTotal !== null) return 'create.progress.voice.hintParts'
   if (voice.provider === 'minimax') return 'create.progress.voice.hintMinimax'
   if (voice.provider === 'edge') return 'create.progress.voice.hintEdge'
   return 'create.progress.voice.hintDefault'
@@ -269,6 +271,8 @@ export function GenerationProgress({
               percent={voiceProgressPercent(voice)}
               hint={t(voiceHintKey(voice), {
                 chars: voice.totalChars.toLocaleString(),
+                part: voice.partIndex,
+                total: voice.partTotal,
               })}
             />
           )}
