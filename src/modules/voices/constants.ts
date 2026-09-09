@@ -121,23 +121,14 @@ export const SEARCH_DEBOUNCE_MS = 300
 /** Espera antes de re-consultar el saldo (DubVoice descuenta async). */
 export const CREDITS_SETTLE_DELAY_MS = 3000
 
-/** Espejo de VOICE_TEXT_LIMITS del sidecar (pipeline/commands/voices). */
-export const VOICE_TEXT_LIMITS: Record<VoiceProviderId, number> = {
-  minimax: 4500,
-  elevenlabs: 4500,
-  vbee: 4500,
-  fishaudio: 4500,
-  edge: 4500,
-  'elevenlabs-direct': 4500,
-}
-
 /**
- * Tope total de caracteres que la voz puede narrar en un video (90 000,
- * según el dueño, 2026-09-07). El guion de Crear se limita a esto: un guion
- * más largo armaría un video cuya narración no se puede generar. Espejado
- * en el sidecar (pipeline/commands/videos/create-video-project.ts).
+ * Tope total de caracteres que la voz puede narrar (90 000, según el dueño,
+ * 2026-09-07), en cualquier motor: cada uno trocea el texto a su tope por
+ * llamada en el sidecar. Lo usan el guion de Crear y el probador de voz.
+ * Espejo de TTS_TEXT_CHAR_LIMIT (pipeline/providers/tts/text-limits.ts).
  */
 export const NARRATION_CHAR_LIMIT = 90_000
+export const VOICE_TEXT_LIMIT = NARRATION_CHAR_LIMIT
 
 /** Unidades del vendor por carácter (créditos DubVoice o caracteres de
  *  ElevenLabs), para el costo estimado del probador. */
@@ -266,6 +257,7 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_download_failed: 'voices.errores.downloadFailed',
   voice_empty_audio: 'voices.errores.emptyAudio',
   voice_text_too_long: 'voices.errores.textTooLong',
+  voice_chunking_inconsistent: 'voices.errores.chunkingInconsistent',
   voice_quota_exceeded: 'voices.errores.quotaExceeded',
   voice_account_restricted: 'voices.errores.accountRestricted',
   voice_library_add_failed: 'voices.errores.libraryAddFailed',
