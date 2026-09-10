@@ -104,16 +104,18 @@ mano en el repo de la landing. La versión vive solo en `package.json`.**
 - ✅ El build local no cambia: sin clave privada compila igual (sin artefactos de
   updater).
 - ⚠️ Cada actualización descarga el instalador completo (~150 MB). Sin delta updates.
-- ⚠️ En macOS con firma ad-hoc, cada actualización vuelve a pedir permiso de
-  keychain (ADR-0023). Se resuelve con una identidad de firma estable.
+- ✅ En macOS el `.app.tar.gz` del updater se arma con la `.app` ya firmada con
+  Developer ID (ADR-0023): la identidad es estable entre versiones y el llavero no
+  vuelve a preguntar tras actualizar. Un build sin las `APPLE_*` cae a ad-hoc y sí
+  vuelve a pedir permiso.
 - ⚠️ La subida a R2 depende de `RELEASES_PUBLIC_URL` y los secretos `RELEASES_S3_*`;
   hasta cargarlos, los binarios también se suben a mano.
 - ⚠️ El commit del manifiesto en la landing es manual: si se olvida, la versión
   está en R2 pero ninguna app la ve.
 - ⚠️ El bucket de R2 necesita acceso público (dominio propio o URL `r2.dev`); esa
   URL es `RELEASES_PUBLIC_URL` y cambiarla rompe los manifiestos ya publicados.
-- ⚠️ SmartScreen y Gatekeeper siguen avisando: el updater no firma con Authenticode
-  ni notariza; solo verifica la firma minisign de Tauri.
+- ⚠️ En Windows SmartScreen sigue avisando: el updater no firma con Authenticode;
+  solo verifica la firma minisign de Tauri (la de Apple es independiente).
 - 🔒 La clave privada minisign **no se regenera**: una app instalada solo acepta
   artefactos firmados con la clave cuya pública lleva embebida. Perderla obliga a
   redistribuir instaladores a mano.
@@ -164,7 +166,7 @@ mano en el repo de la landing. La versión vive solo en `package.json`.**
 
 - Delta updates, canales (beta/estable) y rollback.
 - Linux y Windows ARM64.
-- Firma Authenticode y notarización (deuda de ADR-0026 y ADR-0023).
+- Firma Authenticode en Windows (deuda de ADR-0026).
 - Un endpoint dinámico (`{{target}}/{{current_version}}`): con un solo manifiesto
   estático alcanza para dos plataformas.
 
