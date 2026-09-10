@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
 import { settingsApi } from '@/modules/settings/api'
-import { AppUpdateContext } from '@/modules/settings/hooks/appUpdateContext'
+import { AppUpdateContext } from '@/modules/settings/context/appUpdateContext'
 import { UPDATE_CHECK_STALE_TIME_MS, settingsQueryKeys } from '../constants'
 import {
   UpdatePhase,
