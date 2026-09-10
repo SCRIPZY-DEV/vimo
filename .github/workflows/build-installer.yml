@@ -1,6 +1,6 @@
 # Compila un instalador de escritorio para una plataforma (ADR-0026). Es un
 # workflow reutilizable: lo llama build-desktop.yml una vez por plataforma y no
-# se dispara solo. Los secretos VITE_* y TAURI_SIGNING_* llegan con
+# se dispara solo. Los secretos VITE_*, APPLE_* y TAURI_SIGNING_* llegan con
 # `secrets: inherit`.
 #
 # Además del instalador genera los artefactos del updater firmados con
@@ -63,12 +63,28 @@ jobs:
       # por target triple), build:sidecar y el build de la interfaz.
       # Vite embebe las VITE_* en el bundle en tiempo de build: sin ellas el
       # cliente de Supabase lanza al cargar y la app abre en blanco.
+      #
+      # Firma y notarización de macOS (Developer ID, fuera de la App Store). Con
+      # las APPLE_* presentes, Tauri CLI importa el .p12 en un llavero temporal,
+      # firma la .app y los externalBin con hardened runtime y los entitlements
+      # de src-tauri/Entitlements.plist, notariza con notarytool y grapa el
+      # ticket al DMG. Si faltan (un fork sin secretos) vuelve a firma ad-hoc y
+      # no notariza: el build no rompe, pero Gatekeeper marca la app como
+      # «dañada» al descargarla. En el job de Windows se ignoran.
+      #
       # `--config tauri.updater.conf.json` activa createUpdaterArtifacts solo
       # acá: así `pnpm tauri build` local sigue compilando sin la clave privada.
+      # El Vimo.app.tar.gz del updater se arma con la .app ya firmada.
       - uses: tauri-apps/tauri-action@v0
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:

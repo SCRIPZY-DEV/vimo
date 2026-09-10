@@ -82,8 +82,10 @@ así que `capabilities/default.json` no se toca; el frontend
   con los mismos scripts que el build de macOS.
 - ✅ El login OAuth funciona en Windows con la app abierta; en macOS, abrir la app dos
   veces ahora enfoca la instancia existente en vez de duplicarla.
-- ⚠️ Sin firma Authenticode: SmartScreen muestra «editor desconocido» al instalar. Es
-  la misma deuda que la firma ad-hoc de macOS (`docs/CONTRIBUTING.es.md`).
+- ⚠️ Sin firma Authenticode: SmartScreen muestra «editor desconocido» al instalar. Era
+  la misma deuda que la firma ad-hoc de macOS; esa parte quedó saldada en 2026-09 (el
+  DMG de CI se firma con Developer ID y se notariza, `docs/CONTRIBUTING.es.md`) y la
+  deuda vigente es solo la de Windows.
 - ⚠️ La firma de `vimo-pipeline.exe` queda inválida tras inyectar el blob SEA.
 - ⚠️ El instalador pesa ~150 MB: el runtime de Node del sidecar viaja dentro.
 - ⚠️ ffmpeg sigue siendo el build GPL de ffmpeg-static (ADR-0013).
