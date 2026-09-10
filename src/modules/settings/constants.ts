@@ -15,7 +15,12 @@ export const settingsQueryKeys = {
   sceneDuration: ['settings', 'sceneDuration'],
   promptModel: ['settings', 'promptModel'],
   voiceVendor: ['settings', 'voiceVendor'],
+  appUpdate: ['settings', 'appUpdate'],
 } as const
+
+// Un chequeo por arranque: el resultado se considera fresco durante esta
+// ventana; «Buscar actualizaciones» en Ajustes lo fuerza igual (ADR-0027).
+export const UPDATE_CHECK_STALE_TIME_MS = 60 * 60 * 1000
 
 export const SETTINGS_STORE_FILE = 'settings.json'
 export const PROJECTS_ROOT_STORE_KEY = 'projectsRoot'

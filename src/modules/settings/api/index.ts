@@ -2,7 +2,9 @@ import { documentDir, join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove, writeTextFile } from '@tauri-apps/plugin-fs'
 import { openPath } from '@tauri-apps/plugin-opener'
+import { relaunch } from '@tauri-apps/plugin-process'
 import { LazyStore } from '@tauri-apps/plugin-store'
+import { check } from '@tauri-apps/plugin-updater'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   AUTOMATIC_SCENE_COUNT,
@@ -29,8 +31,33 @@ import type {
   PromptModelDefaults,
   SceneDurationDefaults,
 } from '../types/settings'
+import type {
+  AppUpdateInfo,
+  PendingUpdate,
+  UpdateDownloadProgress,
+} from '../types/updates'
 
 const store = new LazyStore(SETTINGS_STORE_FILE)
+
+// El update pendiente es un recurso de Rust: se retiene acá entre el chequeo
+// y la instalación, y se libera (close) al reemplazarlo o al terminar.
+let pendingUpdate: PendingUpdate | null = null
+
+async function releasePendingUpdate(): Promise<void> {
+  if (pendingUpdate === null) return
+  const previous = pendingUpdate
+  pendingUpdate = null
+  await previous.close()
+}
+
+function toAppUpdateInfo(update: PendingUpdate): AppUpdateInfo {
+  return {
+    version: update.version,
+    currentVersion: update.currentVersion,
+    notes: update.body?.trim() || null,
+    date: update.date ?? null,
+  }
+}
 
 async function ensureWritableDirectory(path: string): Promise<void> {
   if (!(await exists(path))) {
@@ -86,8 +113,8 @@ function normalizeVoiceVendor(value: unknown): VoiceVendorId | null {
 }
 
 /**
- * Única capa del módulo que toca los plugins de Tauri (dialog/fs/store/opener),
- * igual que un invoke() o una llamada HTTP se envolverían acá.
+ * Única capa del módulo que toca los plugins de Tauri (dialog/fs/store/opener/
+ * updater/process), igual que un invoke() o una llamada HTTP se envolverían acá.
  */
 export const settingsApi = {
   isNative() {
@@ -182,5 +209,41 @@ export const settingsApi = {
     else await store.set(VOICE_VENDOR_STORE_KEY, saved)
     await store.save()
     return saved
+  },
+  // Consulta latest.json (endpoint en tauri.conf.json) y compara con la
+  // versión instalada. null = al día.
+  async checkForUpdate(): Promise<AppUpdateInfo | null> {
+    await releasePendingUpdate()
+    const update = await check()
+    if (update === null) return null
+    pendingUpdate = update
+    return toAppUpdateInfo(update)
+  },
+  // Descarga, verifica la firma e instala el update del último chequeo. En
+  // Windows el plugin cierra la app al lanzar el instalador; en macOS resuelve
+  // y hay que llamar a relaunchApp().
+  async downloadAndInstallUpdate(
+    onProgress: (progress: UpdateDownloadProgress) => void,
+  ): Promise<void> {
+    if (pendingUpdate === null) throw new Error('no_pending_update')
+    let downloadedBytes = 0
+    let totalBytes: number | null = null
+    await pendingUpdate.downloadAndInstall((event) => {
+      if (event.event === 'Started') {
+        totalBytes = event.data.contentLength ?? null
+        onProgress({ downloadedBytes, totalBytes })
+        return
+      }
+      if (event.event === 'Progress') {
+        downloadedBytes += event.data.chunkLength
+        onProgress({ downloadedBytes, totalBytes })
+        return
+      }
+      onProgress({ downloadedBytes: totalBytes ?? downloadedBytes, totalBytes })
+    })
+    await releasePendingUpdate()
+  },
+  async relaunchApp(): Promise<void> {
+    return relaunch()
   },
 }

@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/modules/common/theme/ThemeProvider'
 import { Toaster } from '@/modules/common/ui/toaster'
 import { Toaster as Sonner } from '@/modules/common/ui/sonner'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
+import { AppUpdateProvider } from '@/modules/settings/components/AppUpdateProvider'
+import { UpdatePrompt } from '@/modules/settings/components/UpdatePrompt'
 import { router } from '@/router'
 
 export function App() {
@@ -16,7 +18,11 @@ export function App() {
       <Suspense fallback={null}>
         <ThemeProvider>
           <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
-            <RouterProvider router={router} />
+            {/* Updater (ADR-0027): un chequeo por arranque y el aviso en cualquier pantalla. */}
+            <AppUpdateProvider>
+              <RouterProvider router={router} />
+              <UpdatePrompt />
+            </AppUpdateProvider>
             <Toaster />
             <Sonner />
           </TooltipProvider>

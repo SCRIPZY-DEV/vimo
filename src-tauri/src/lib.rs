@@ -21,6 +21,14 @@ pub fn run() {
     }
   }));
 
+  // Actualizaciones automáticas (ADR-0027). El chequeo lo dirige el webview
+  // (settingsApi.checkForUpdate) al arrancar y desde Ajustes; acá solo se
+  // registran el updater y `process` (relaunch tras instalar en macOS).
+  #[cfg(desktop)]
+  let builder = builder
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init());
+
   let builder = builder
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_opener::init())

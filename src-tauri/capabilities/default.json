@@ -8,6 +8,8 @@
     "deep-link:default",
     "dialog:default",
     "store:default",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

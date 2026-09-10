@@ -122,7 +122,8 @@ así que `capabilities/default.json` no se toca; el frontend
 ## Fuera de alcance
 
 - Firma Authenticode (`bundle.windows.certificateThumbprint` / `signCommand`).
-- Windows ARM64, Linux, MSI y el updater de Tauri.
+- Windows ARM64, Linux y MSI. El updater de Tauri llegó después en
+  [ADR-0027](ADR-0027-actualizaciones-automaticas-tauri-updater.md).
 - Migración de ffmpeg a LGPL.
 
 ## Referencias
