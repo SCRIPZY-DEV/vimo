@@ -17,7 +17,7 @@
     },
     "updater": {
       "endpoints": ["https://vimo.click/releases/latest.json"],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZEQUY3ODYxMDRGRDk3NTgKUldSWWwvMEVZWGl2YmFvRVpyT25GbkY3NEFnenYrSzl4b1BVV0VoVGhxa1dxaEFydlF1eUhXanEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFBRjlCRThCMEVGQTIzNkIKUldSckkvb09pNzc1cW5tSHRlbEJrcjVuZW5oQXZZT2RsSUJtSHpwY3EwOHVYZHdzWnhBVTlaWHUK",
       "windows": {
         "installMode": "passive"
       }
