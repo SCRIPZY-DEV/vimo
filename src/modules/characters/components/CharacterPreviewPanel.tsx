@@ -26,6 +26,8 @@ interface CharacterPreviewPanelProps {
   provider: ImageProviderId
   generating: boolean
   phase: CharacterPreviewPhase | null
+  // Avance de la fase en curso; null = todavía sin dato (solo el spinner).
+  percent: number | null
   errorKey: string | null
   disabled: boolean
   missingProviderKey: boolean
@@ -43,6 +45,7 @@ export function CharacterPreviewPanel({
   provider,
   generating,
   phase,
+  percent,
   errorKey,
   disabled,
   missingProviderKey,
@@ -175,6 +178,7 @@ export function CharacterPreviewPanel({
         previews={visiblePreviews}
         generating={generating}
         generatingLabel={generatingLabel}
+        percent={percent}
         labelOf={labelOf}
       />
 

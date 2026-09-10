@@ -233,6 +233,7 @@ export function CharacterModal({
             provider={provider}
             generating={preview.generating}
             phase={preview.phase}
+            percent={preview.hasProgress ? preview.percent : null}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingRequirements.length > 0}

@@ -26,8 +26,9 @@ function progressPhase(detail: unknown): CharacterPreviewPhase | null {
 export function useCharacterPreview() {
   const [generating, setGenerating] = useState(false)
   const [percent, setPercent] = useState(0)
-  // No todos los proveedores informan avance (Fal no emite `progress`): sin un
-  // evento real no hay porcentaje que mostrar, solo la barra.
+  // Hasta el primer `progress` con porcentaje de la fase en curso no hay
+  // número que mostrar, solo el spinner (el sidecar simula el avance de Fal y
+  // del prompt; Evolink informa el suyo).
   const [hasProgress, setHasProgress] = useState(false)
   // Solo con estilo propio: la gema escribe el prompt antes de la imagen.
   const [phase, setPhase] = useState<CharacterPreviewPhase | null>(null)
@@ -54,6 +55,9 @@ export function useCharacterPreview() {
       setErrorKey(null)
 
       let finished = false
+      // La fase vigente vive en el closure del job: el estado de React llega
+      // tarde para decidir si un `progress` reinicia la barra.
+      let currentPhase: CharacterPreviewPhase | null = null
       const finish = (dataUri: string | null, failureKey: string | null) => {
         finished = true
         activeJob.current?.stop()
@@ -66,10 +70,19 @@ export function useCharacterPreview() {
       const handleEvent = (event: PipelineEventPayload) => {
         if (event.type === 'progress') {
           const nextPhase = progressPhase(event.detail)
-          if (nextPhase) setPhase(nextPhase)
+          // Cambio de fase (prompt → imagen): la barra arranca de nuevo.
+          if (nextPhase && nextPhase !== currentPhase) {
+            currentPhase = nextPhase
+            setPhase(nextPhase)
+            setPercent(0)
+            setHasProgress(false)
+          }
           if (typeof event.percent !== 'number') return
 
-          setPercent(event.percent)
+          // Nunca retrocede: el ramp simulado del sidecar y el avance real
+          // del proveedor pueden intercalarse.
+          const percent = event.percent
+          setPercent((current) => Math.max(current, percent))
           setHasProgress(true)
           return
         }
