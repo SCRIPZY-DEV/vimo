@@ -8,9 +8,10 @@
 # sin consumir minutos. El tag v* siempre genera ambos instaladores. Son dos
 # jobs y no una matriz porque el contexto `matrix` no existe en el `if` de job.
 #
-# Sin firma de código: SmartScreen y Gatekeeper avisan al instalar (deuda
-# documentada en docs/CONTRIBUTING.es.md). Con certificado, las credenciales
-# van como secretos del repo (APPLE_SIGNING_IDENTITY, etc.) sin tocar el YAML.
+# macOS se firma con Developer ID y se notariza: las credenciales son secretos
+# del repo (APPLE_CERTIFICATE, APPLE_SIGNING_IDENTITY, APPLE_ID, …) que
+# build-installer.yml pasa a Tauri; ver docs/CONTRIBUTING.es.md. Windows sigue
+# sin Authenticode: SmartScreen avisa al instalar (deuda documentada ahí mismo).
 name: Build desktop installers
 
 on:

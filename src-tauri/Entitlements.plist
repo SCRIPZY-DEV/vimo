@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements que Tauri aplica al firmar la .app y cada externalBin con
+  hardened runtime (obligatorio para notarizar). Los tres son los que Node
+  usa en sus propios binarios firmados: el sidecar vimo-pipeline es un Node
+  SEA y V8 necesita JIT y memoria ejecutable; ffmpeg y yt-dlp cargan
+  librerías que no están firmadas con nuestro Team ID.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>
