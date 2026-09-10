@@ -85,13 +85,14 @@ export function ImageProviderSection({
       </div>
 
       <LabeledSelect
-        label={t('create.image.quality')}
+        label={t('create.image.reasoningLevel')}
+        help={t('create.reasoningLevel.help')}
         value={value.imageQuality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          // «16:9 · Low»: el formato elegido en el formulario, no la resolución.
-          // Sin precio: el del catálogo no es el precio real por imagen.
-          label: t(option.labelKey, { format: value.videoFormat }),
+          // Solo el nivel: el formato ya se eligió arriba y la nota dice en
+          // qué forma sale. Sin precio: el del catálogo no es el real.
+          label: t(option.labelKey),
           note: t(option.noteKey),
         }))}
         disabled={disabled}

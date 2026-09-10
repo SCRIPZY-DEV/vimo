@@ -379,13 +379,13 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'fal', label: 'Fal' },
 ]
 
-// Opciones de calidad por proveedor (ambos generan con gpt-image-2, ADR-0015).
-// Evolink solo expone 16:9 1K, así que de la opción solo importa la calidad;
-// en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>` del
-// catálogo del origen). La etiqueta visible no nombra la resolución sino el
-// formato del video y el nivel («16:9 · Low», «9:16 · High»): `labelKey` es
-// una clave por nivel y quien la traduce interpola el `format` vigente (el
-// elegido en el formulario, o el del proyecto en el editor).
+// Opciones de nivel de razonamiento por proveedor (ambos generan con
+// gpt-image-2, ADR-0015). Para la persona es «cuánto razona el modelo antes
+// de dibujar»; para el sidecar sigue siendo la calidad del catálogo del
+// origen: Evolink solo expone 16:9 1K, así que del id solo importa el nivel;
+// en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>`). La
+// etiqueta visible nombra solo el nivel («Nivel de razonamiento bajo»): el
+// formato ya se elige aparte y la nota de cada opción dice en qué forma sale.
 // Los precios (USD por imagen) vienen del catálogo del origen
 // (src/core/costos.ts); si cambian, actualizar también el catálogo
 // informativo de modules/costs/catalog.ts (ADR-0008).
@@ -397,20 +397,20 @@ export const EVOLINK_QUALITY_OPTIONS: {
 }[] = [
   {
     id: '1024x576_low',
-    labelKey: 'create.quality.low',
-    noteKey: 'create.quality.evolinkLowNote',
+    labelKey: 'create.reasoningLevel.low',
+    noteKey: 'create.reasoningLevel.evolinkLowNote',
     priceUsd: 0.0036,
   },
   {
     id: '1024x576_medium',
-    labelKey: 'create.quality.medium',
-    noteKey: 'create.quality.evolinkMediumNote',
+    labelKey: 'create.reasoningLevel.medium',
+    noteKey: 'create.reasoningLevel.evolinkMediumNote',
     priceUsd: 0.0273,
   },
   {
     id: '1024x576_high',
-    labelKey: 'create.quality.high',
-    noteKey: 'create.quality.evolinkHighNote',
+    labelKey: 'create.reasoningLevel.high',
+    noteKey: 'create.reasoningLevel.evolinkHighNote',
     priceUsd: 0.1072,
   },
 ]
@@ -423,20 +423,20 @@ export const FAL_QUALITY_OPTIONS: {
 }[] = [
   {
     id: '1920x1080_low',
-    labelKey: 'create.quality.low',
-    noteKey: 'create.quality.falNote',
+    labelKey: 'create.reasoningLevel.low',
+    noteKey: 'create.reasoningLevel.falNote',
     priceUsd: 0.005,
   },
   {
     id: '1920x1080_medium',
-    labelKey: 'create.quality.medium',
-    noteKey: 'create.quality.falNote',
+    labelKey: 'create.reasoningLevel.medium',
+    noteKey: 'create.reasoningLevel.falNote',
     priceUsd: 0.04,
   },
   {
     id: '1920x1080_high',
-    labelKey: 'create.quality.high',
-    noteKey: 'create.quality.falNote',
+    labelKey: 'create.reasoningLevel.high',
+    noteKey: 'create.reasoningLevel.falNote',
     priceUsd: 0.158,
   },
 ]
@@ -451,20 +451,20 @@ export const FAL_QUALITY_OPTIONS_VERTICAL: {
 }[] = [
   {
     id: '1080x1920_low',
-    labelKey: 'create.quality.low',
-    noteKey: 'create.quality.falVerticalNote',
+    labelKey: 'create.reasoningLevel.low',
+    noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.005,
   },
   {
     id: '1080x1920_medium',
-    labelKey: 'create.quality.medium',
-    noteKey: 'create.quality.falVerticalNote',
+    labelKey: 'create.reasoningLevel.medium',
+    noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.04,
   },
   {
     id: '1080x1920_high',
-    labelKey: 'create.quality.high',
-    noteKey: 'create.quality.falVerticalNote',
+    labelKey: 'create.reasoningLevel.high',
+    noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.158,
   },
 ]

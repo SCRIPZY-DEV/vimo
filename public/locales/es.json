@@ -137,17 +137,18 @@
     },
     "image": {
       "provider": "Proveedor de imágenes",
-      "quality": "Calidad",
-      "falHint": "Más opciones de calidad.",
+      "reasoningLevel": "Nivel de razonamiento",
+      "falHint": "Tres niveles de razonamiento, en el tamaño nativo del formato.",
       "evolinkHint": "Más rápido (50 en paralelo), un solo preset."
     },
-    "quality": {
-      "low": "{{format}} · Low",
-      "medium": "{{format}} · Medium",
-      "high": "{{format}} · High",
-      "evolinkLowNote": "Sale en la forma del video (16:9 o 9:16). Más económico.",
-      "evolinkMediumNote": "Sale en la forma del video (16:9 o 9:16). Balance precio/calidad.",
-      "evolinkHighNote": "Sale en la forma del video (16:9 o 9:16). Máxima calidad.",
+    "reasoningLevel": {
+      "low": "Nivel de razonamiento bajo",
+      "medium": "Nivel de razonamiento medio",
+      "high": "Nivel de razonamiento alto",
+      "help": "Cuánto razona el modelo antes de dibujar cada imagen. Bajo: rápido y económico, para escenas simples. Medio: equilibrio entre precio y detalle. Alto: máximo detalle y fidelidad al prompt; más lento y caro.",
+      "evolinkLowNote": "Sale en la forma del video (16:9 o 9:16). Rápido y económico.",
+      "evolinkMediumNote": "Sale en la forma del video (16:9 o 9:16). Equilibrio entre precio y detalle.",
+      "evolinkHighNote": "Sale en la forma del video (16:9 o 9:16). Máximo detalle, más lento y caro.",
       "falNote": "16:9 nativo. Sin redimensionado.",
       "falVerticalNote": "9:16 nativo para shorts. Sin redimensionado."
     },
@@ -681,7 +682,7 @@
         "clipInEdit": "Editar el tiempo de entrada",
         "clipOutEdit": "Editar el tiempo de salida",
         "provider": "Proveedor",
-        "quality": "Calidad",
+        "reasoningLevel": "Nivel de razonamiento",
         "characters": "Personajes en esta escena",
         "regenerate": "Regenerar imagen",
         "regenerateWithPrompt": "Regenerar con tu descripción",
