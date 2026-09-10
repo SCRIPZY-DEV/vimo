@@ -122,3 +122,72 @@ pnpm tauri build --bundles nsis
 ```
 
 El instalador queda en `src-tauri\target\release\bundle\nsis\`.
+
+## Publicar una versión (updater)
+
+La app busca versiones nuevas al arrancar en `https://vimo.click/releases/latest.json`
+(ADR-0027). Publicar una versión es pushear un tag; el workflow hace el resto.
+
+1. Subí la versión en `package.json` (única fuente: `tauri.conf.json` y la UI la leen
+   de ahí) y mergeá ese cambio.
+2. Creá un tag **anotado** con el mismo número; el mensaje son las notas que verá el
+   usuario en el aviso de actualización:
+
+   ```
+   git tag -a v0.2.0 -m "Novedades de esta versión"
+   git push origin v0.2.0
+   ```
+
+3. `Build desktop installers` compila ambas plataformas, firma los artefactos con
+   minisign y el job `publish` genera `latest.json`
+   ([scripts/build-update-manifest.mjs](/scripts/build-update-manifest.mjs)), sube los
+   instaladores a Cloudflare R2 (carpeta `v<versión>/`) y deja el manifiesto como
+   artefacto `Vimo-release-manifest-<tag>` del run. Si el tag no coincide con
+   `package.json` o falta una firma, el job aborta y no sube nada.
+4. Descargá ese artefacto y pegá `latest.json` en `public/releases/` del repo de la
+   landing; con el push, Cloudflare Pages lo sirve en
+   `https://vimo.click/releases/latest.json` y las apps ven la versión nueva. Hasta
+   ese commit nadie recibe la actualización.
+
+**Clave de firma (una sola vez).** Los artefactos del updater se firman con una clave
+minisign; la app solo instala lo que verifica con la clave pública embebida en
+`src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). La privada se genera una vez:
+
+```
+pnpm tauri signer generate -w ~/.tauri/vimo.key
+```
+
+y va a los secretos del repo como `TAURI_SIGNING_PRIVATE_KEY` (el contenido del archivo)
+y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (vacío si se generó sin password). **Guardala en
+un gestor de contraseñas: si se pierde, ninguna app instalada podrá actualizarse** y
+habrá que redistribuir instaladores a mano con una clave nueva. No se regenera.
+
+**Variables y secretos de publicación** (_Settings → Secrets and variables → Actions_):
+
+| Nombre                       | Tipo     | Qué es                                                                                 |
+| ---------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| `RELEASES_PUBLIC_URL`        | variable | URL pública del bucket de R2, con `/` final (dominio propio o `https://pub-….r2.dev/`) |
+| `RELEASES_S3_ENDPOINT`       | secreto  | `https://<account-id>.r2.cloudflarestorage.com`                                        |
+| `RELEASES_S3_BUCKET`         | secreto  | Nombre del bucket                                                                      |
+| `RELEASES_ACCESS_KEY_ID`     | secreto  | Token de API de R2 con permiso de escritura en ese bucket                              |
+| `RELEASES_SECRET_ACCESS_KEY` | secreto  | Su secreto                                                                             |
+
+Mientras falten, la subida se salta sin fallar; los instaladores quedan en los
+artefactos de cada plataforma y se suben a mano a `v<versión>/` en el bucket con los
+nombres que figuran en el manifiesto. El feed viejo `public/vimo-latest.json` de la
+landing es de la app anterior y no se toca.
+
+**Build local.** `pnpm tauri build` no necesita la clave: `createUpdaterArtifacts` vive
+en [src-tauri/tauri.updater.conf.json](/src-tauri/tauri.updater.conf.json) y solo el
+workflow lo pasa con `--config`. Para probar el ciclo completo en tu máquina:
+
+```
+TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/vimo.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
+  pnpm tauri build --config src-tauri/tauri.updater.conf.json
+```
+
+(el bundler lee el **contenido** de la clave en `TAURI_SIGNING_PRIVATE_KEY`; la variante
+`_PATH` no la reconoce). El build deja `Vimo.app.tar.gz` + `.sig` en `src-tauri/target/release/bundle/macos/`; armá un
+`latest.json` con `scripts/build-update-manifest.mjs`, servilo con
+`python3 -m http.server` y apuntá `endpoints` temporalmente a `http://localhost:8000/latest.json`
+en una app instalada con versión menor.
