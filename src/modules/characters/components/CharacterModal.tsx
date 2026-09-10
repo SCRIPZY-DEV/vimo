@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -67,6 +68,7 @@ export function CharacterModal({
   } = useDesignStyleCharacter()
   const preview = useCharacterPreview()
   const { styles: customStyles } = useCustomStyleCatalog()
+  const credits = useImageCredits()
 
   const [form, setForm] = useState(() =>
     character ? toFormValue(character) : CHARACTER_FORM_INITIAL_VALUE,
@@ -238,6 +240,10 @@ export function CharacterModal({
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingRequirements.length > 0}
             canGenerate={identityReady}
+            credits={credits.credits}
+            creditsLoading={credits.isLoading}
+            creditsRefreshing={credits.isRefreshing}
+            onRefreshCredits={credits.refresh}
             onStyleChange={setStyleId}
             onProviderChange={setProvider}
             onGenerate={() => void generatePreview()}

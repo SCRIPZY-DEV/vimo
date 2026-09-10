@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { ImageIcon, Loader2, X } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { Button } from '@/modules/common/ui/button'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { PREVIEW_PROVIDERS } from '@/modules/characters/constants'
@@ -13,6 +14,7 @@ import { StyleSourceTabs } from '@/modules/characters/components/StyleSourceTabs
 import type { StyleSource } from '@/modules/characters/components/StyleSourceTabs'
 import type { CharacterPreviewPhase } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { ImageCreditsResult } from '@pipeline/types/video-project.ts'
 import type {
   PreviewStyleOption,
   PreviewView,
@@ -32,6 +34,12 @@ interface CharacterPreviewPanelProps {
   disabled: boolean
   missingProviderKey: boolean
   canGenerate: boolean
+  // Saldo de los proveedores de imagen: se muestra solo el del elegido, con
+  // el botón de refrescar (mismo bloque que el panel del editor).
+  credits: ImageCreditsResult | null
+  creditsLoading: boolean
+  creditsRefreshing: boolean
+  onRefreshCredits: () => void
   onStyleChange: (styleId: string) => void
   onProviderChange: (provider: ImageProviderId) => void
   onGenerate: () => void
@@ -50,6 +58,10 @@ export function CharacterPreviewPanel({
   disabled,
   missingProviderKey,
   canGenerate,
+  credits,
+  creditsLoading,
+  creditsRefreshing,
+  onRefreshCredits,
   onStyleChange,
   onProviderChange,
   onGenerate,
@@ -125,11 +137,25 @@ export function CharacterPreviewPanel({
         </p>
       )}
 
-      <PreviewProviderChips
-        provider={provider}
-        disabled={disabled || generating}
-        onProviderChange={onProviderChange}
-      />
+      {/* Proveedor a la izquierda; a la derecha, el saldo del elegido y el
+          botón de refrescar, como en el panel del editor. Tras un preview el
+          saldo se vuelve a pedir solo (scheduleCreditsRefresh): el botón es
+          para revisarlo a mano. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PreviewProviderChips
+          provider={provider}
+          disabled={disabled || generating}
+          onProviderChange={onProviderChange}
+        />
+        <ImageCreditsBadges
+          credits={credits}
+          loading={creditsLoading}
+          refreshing={creditsRefreshing}
+          active={provider}
+          onlyActive
+          onRefresh={onRefreshCredits}
+        />
+      </div>
 
       <div className="flex items-center gap-2">
         <Button

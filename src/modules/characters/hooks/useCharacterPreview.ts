@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { charactersApi } from '@/modules/characters/api'
 import { UNKNOWN_CHARACTERS_ERROR_KEY } from '@/modules/characters/constants'
+import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
@@ -64,6 +65,9 @@ export function useCharacterPreview() {
         activeJob.current = null
         setGenerating(false)
         if (failureKey) setErrorKey(failureKey)
+        // Completado o fallido, el proveedor pudo cobrar: el saldo se vuelve
+        // a pedir en unos segundos (mismo criterio que las muestras de estilo).
+        scheduleCreditsRefresh()
         resolve(dataUri)
       }
 
@@ -124,6 +128,8 @@ export function useCharacterPreview() {
     if (!job) return
     job.stop()
     void charactersApi.cancelJob(job.jobId)
+    // Evolink termina la tarea igual aunque se cancele (y la cobra).
+    scheduleCreditsRefresh()
   }
 
   return {
