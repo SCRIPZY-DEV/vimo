@@ -103,8 +103,12 @@ sesión en la fuente de claves, y dejar la firma estable como paso pendiente doc
 
 ## Fuera de alcance (opcional)
 
-- Activar la firma (`APPLE_SIGNING_IDENTITY`, notarización): documentado en
-  `docs/CONTRIBUTING.es.md`, se aplica cuando se decida distribuir firmado.
+- ~~Activar la firma (`APPLE_SIGNING_IDENTITY`, notarización)~~ — **hecho en
+  2026-09**: el workflow `build-installer.yml` firma con Developer ID y notariza a
+  partir de los secretos `APPLE_*` (`docs/CONTRIBUTING.es.md`). La identidad ya es
+  estable entre versiones: al instalar la primera build firmada sobre una ad-hoc, el
+  llavero pregunta una última vez y, con «Permitir siempre», no vuelve a hacerlo. Los
+  builds locales sin variables siguen siendo ad-hoc y conservan el diálogo por build.
 - `ManagedSource` (membresía/Supabase): sigue pendiente según ADR-0011.
 
 ## Referencias (opcional)
