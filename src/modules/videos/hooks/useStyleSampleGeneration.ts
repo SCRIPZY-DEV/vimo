@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { queryClient } from '@/modules/common/queryClient'
+import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { videosApi } from '@/modules/videos/api'
 import {
   CREATE_ERROR_MESSAGE_KEYS,
   UNKNOWN_CREATE_ERROR_KEY,
   videosQueryKeys,
 } from '@/modules/videos/constants'
-import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 export interface SampleGenerationState {

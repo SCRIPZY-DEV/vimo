@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Loader2 } from 'lucide-react'
+import { NOT_CONFIGURED_CREDITS_CODES } from '@/modules/common/constants'
 import { cn } from '@/modules/common/utilities/cn'
-import { NOT_CONFIGURED_CREDITS_CODES } from '@/modules/videos/constants'
 import type { ProviderCreditsStatus } from '@pipeline/types/video-project.ts'
 
 interface CreditsBadgeProps {
