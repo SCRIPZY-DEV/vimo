@@ -69,6 +69,18 @@ export interface ScenePromptsProgressEvent {
   total: number
 }
 
+// El modelo ELEGIDO del carril verbatim (Fase 4, Mi estilo) falló de verdad:
+// agotó los reintentos de un lote con un código del proveedor, o dejó escenas
+// tercas que pasan a la ronda de rescate con otro modelo (`llm_rescue_needed`).
+// Los reintentos internos y la ronda de rescate NO lo emiten. La UI lo usa
+// para bloquear ese modelo un rato y ofrecer cambiarlo; nunca detiene el job.
+export interface PromptModelTroubleEvent {
+  type: 'prompt-model-trouble'
+  modelId: string
+  code: string
+  sceneIds: number[]
+}
+
 export type ImagesRecoveryKind = 'rewrite' | 'retry'
 
 // Pasada de recuperación de la fase images (Fase 5). `rewrite`: se están
@@ -181,6 +193,7 @@ export type PipelineEventPayload =
   | ScenesPlannedEvent
   | ScenePromptReadyEvent
   | ScenePromptsProgressEvent
+  | PromptModelTroubleEvent
   | ImagesRecoveryPassEvent
   | SceneImageStartedEvent
   | SceneImageReadyEvent

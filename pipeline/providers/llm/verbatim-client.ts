@@ -1,5 +1,10 @@
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { LlmModelProfile } from '../../types/llm-models.ts'
+import {
+  isAuthStatus,
+  isLlmAuthFailure,
+  LLM_AUTH_CODE,
+} from './auth-failure.ts'
 
 // CLIENTE del carril verbatim (gema propia). Port de
 // `motor-web/verbatim/cliente.ts` del origen, reescrito sobre fetch (el
@@ -153,6 +158,12 @@ export function createVerbatimClient(
         throw new PipelineFailure(
           'llm_rate_limited',
           `verbatim rate limit hit on ${profile.id}`,
+        )
+      // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
+      if (isAuthStatus(response.status))
+        throw new PipelineFailure(
+          LLM_AUTH_CODE,
+          `DeepInfra rejected the API key (status=${response.status})`,
         )
       if (!response.ok || !response.body)
         throw new PipelineFailure(
@@ -308,6 +319,8 @@ export async function withVerbatimRetry<T>(
       return await task()
     } catch (error) {
       if (isOutputTruncated(error)) throw error
+      // La clave rechazada tampoco se reintenta: repetir da el mismo 401.
+      if (isLlmAuthFailure(error)) throw error
       lastError = error
       if (signal?.aborted) break
       if (isQuotaError(error) && quotaWaits < quotaBackoffMs.length) {

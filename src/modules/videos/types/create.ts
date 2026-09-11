@@ -14,6 +14,7 @@ import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
+import type { PromptModelBlockReason } from '@/modules/common/types/promptModelBlocks'
 import type {
   SelectedCustomStyle,
   StyleSource,
@@ -67,6 +68,29 @@ export interface ImagesRecoveryView {
   // donde el avance llega escena a escena por scene-prompt-ready).
   streamed: number
 }
+
+// Actividad de la fase de prompts mientras corre: cuándo arrancó y cuándo
+// llegó el último avance (prompt listo o cifra del stream). El watchdog
+// compara `lastProgressAt` con el reloj para detectar un modelo trabado.
+export interface PromptsStageActivity {
+  startedAt: number
+  lastProgressAt: number
+}
+
+// El modelo de prompts dio problemas en ESTE job (ADR-0028): se trabó o
+// devolvió errores. Abre el diálogo «seguir esperando / cambiar de modelo»;
+// `snoozedUntil` lo silencia hasta esa marca (null = visible).
+export interface PromptModelIssueView {
+  reason: PromptModelBlockReason
+  modelId: string
+  snoozedUntil: number | null
+}
+
+// Transiciones del job por el modelo de prompts. `halting`: el modelo falló
+// y el job se detiene a esperar la decisión de la persona (nada avanza ni se
+// rellena). `cancelling` → `relaunching`: cambio de modelo, se cierra el job
+// vivo y se relanza el mismo proyecto sin salir de la pantalla de progreso.
+export type PromptModelSwitchPhase = 'halting' | 'cancelling' | 'relaunching'
 
 // La pausa que abre el diálogo de confirmación de escenas.
 export interface SceneConfirmationView {
@@ -129,6 +153,17 @@ export interface CreateTask {
   // Cancelación pedida (origen v0.35.0): la tarea deja de mostrarse y solo
   // espera el cierre del job para liberar el turno; cancelar no es un error.
   cancelRequested: boolean
+  // El proyecto usa un estilo propio (carril verbatim): ahí el modelo elegido
+  // escribe los prompts y puede bloquearse (ADR-0028). Con estilo de Vimo no
+  // hay modelo que vigilar.
+  usesCustomStyle: boolean
+  // Modelo de prompts RESUELTO (nunca null con estilo propio: el default de
+  // la casa ya viene aplicado). Es el que se bloquea si falla.
+  promptModel: string | null
+  // Solo mientras corre la fase de prompts de un job vivo.
+  promptsStageActivity: PromptsStageActivity | null
+  promptModelIssue: PromptModelIssueView | null
+  promptModelSwitch: PromptModelSwitchPhase | null
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -152,6 +187,10 @@ export interface ProjectRunOptions {
   videoFormat?: VideoFormat
   // Estado en disco para sembrar la tarea (Library lo tiene a mano).
   seed?: CreateTaskSeed
+  // Carril del proyecto y modelo resuelto (ver CreateTask): la vista los saca
+  // de project.json al reanudar.
+  usesCustomStyle?: boolean
+  promptModel?: string | null
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.

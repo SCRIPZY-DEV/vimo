@@ -32,6 +32,7 @@ import type {
 } from '@pipeline/types/voices.ts'
 import type {
   ConfirmScenesPayload,
+  SetPromptModelPayload,
   PreviewSceneCutsPayload,
   PreviewSceneCutsResult,
   CreateVideoProjectPayload,
@@ -87,6 +88,9 @@ export const videosApi = {
   },
   async confirmScenes(payload: ConfirmScenesPayload): Promise<void> {
     await runPipelineJob('confirm-scenes', payload)
+  },
+  async setPromptModel(payload: SetPromptModelPayload): Promise<void> {
+    await runPipelineJob('set-prompt-model', payload)
   },
   async previewSceneCuts(
     payload: PreviewSceneCutsPayload,

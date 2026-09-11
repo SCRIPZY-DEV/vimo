@@ -5,6 +5,9 @@ import type { StyleSource } from '@/modules/videos/types/styles'
 interface StyleSourceTabsProps {
   value: StyleSource
   disabled: boolean
+  // «Mi estilo» no se puede elegir (todos los modelos de prompts bloqueados,
+  // ADR-0028): la pestaña queda inerte y su pista dice por qué.
+  customDisabled?: boolean
   onChange: (value: StyleSource) => void
 }
 
@@ -26,6 +29,7 @@ const TABS: { id: StyleSource; titleKey: string; hintKey: string }[] = [
 export function StyleSourceTabs({
   value,
   disabled,
+  customDisabled = false,
   onChange,
 }: StyleSourceTabsProps) {
   const { t } = useTranslation()
@@ -34,26 +38,35 @@ export function StyleSourceTabs({
     <div role="tablist" className="grid grid-cols-2 gap-2">
       {TABS.map((tab) => {
         const selected = value === tab.id
+        const blocked = tab.id === 'custom' && customDisabled
         return (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={selected}
-            disabled={disabled}
+            disabled={disabled || blocked}
             onClick={() => onChange(tab.id)}
             className={cn(
               'rounded-xl border-2 px-4 py-3 text-left transition-all',
               selected
                 ? 'border-saffron bg-saffron/5'
                 : 'border-border bg-card hover:border-saffron/40',
+              blocked && 'cursor-not-allowed opacity-60',
             )}
           >
             <span className="block font-display text-sm font-bold text-foreground">
               {t(tab.titleKey)}
             </span>
-            <span className="mt-0.5 block font-body text-xs text-muted-foreground">
-              {t(tab.hintKey)}
+            <span
+              className={cn(
+                'mt-0.5 block font-body text-xs',
+                blocked ? 'text-coral' : 'text-muted-foreground',
+              )}
+            >
+              {t(
+                blocked ? 'create.styleSource.customBlockedHint' : tab.hintKey,
+              )}
             </span>
           </button>
         )

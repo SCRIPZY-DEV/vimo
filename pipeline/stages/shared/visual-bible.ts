@@ -1,3 +1,4 @@
+import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
 import {
   BIBLE_OUTPUT_LIMIT,
   buildVisualBibleSystemPrompt,
@@ -70,6 +71,9 @@ export async function loadOrGenerateVisualBible(
     await writeFileAtomic(bibleFile, markBible(bible))
     return bible
   } catch (error) {
+    // Clave rechazada: seguir «sin biblia» solo posterga el mismo 401 a la
+    // fase de prompts. Se corta acá, que es lo más temprano posible.
+    if (isLlmAuthFailure(error)) throw error
     context.emitter.emit({
       type: 'log',
       level: 'warn',

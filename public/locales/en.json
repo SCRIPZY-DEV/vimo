@@ -16,6 +16,10 @@
     "voiceVendor": {
       "label": "Voice provider",
       "ariaLabel": "Voice provider"
+    },
+    "promptModelBlocked": {
+      "badge": "Unavailable · back in {{minutes}} min",
+      "allBlocked": "Every prompt-writing model is blocked after recent failures. They come back on their own within an hour; meanwhile, generate with a Vimo style."
     }
   },
   "layout": {
@@ -302,7 +306,9 @@
         "retryRender": "Retry assembly",
         "retryHint": "What was already generated (audio, scenes, prompts and images) is kept; only what failed is retried.",
         "retryRenderHint": "Your images and everything else are ready — only the video assembly is redone. Nothing is lost and no credits are spent.",
-        "continueHint": "Scenes left without an image keep their description: in the editor you can regenerate them one by one, or change the description of the one that fails, and then generate your video."
+        "continueHint": "Scenes left without an image keep their description: in the editor you can regenerate them one by one, or change the description of the one that fails, and then generate your video.",
+        "switchModel": "Switch model and relaunch",
+        "switchModelHint": "The model writing the prompts failed. With another model everything done is kept and only the missing prompts get written."
       },
       "savedAt": "Done! Your video was saved to",
       "imagesCount": "Images ({{ready}}/{{total}})",
@@ -312,7 +318,8 @@
         "enlarge": "Enlarge",
         "enlargeAria": "Enlarge scene {{id}}",
         "alt": "Scene {{id}}"
-      }
+      },
+      "promptModelStalled": "The model has not written anything for over 2 min"
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -371,7 +378,8 @@
       "bgmPromptRequired": "Describe how you want the music to sound.",
       "overlayUrlRequired": "Paste the YouTube link for the texture.",
       "styleRequired": "Pick (or create) a custom style to generate.",
-      "characterRequired": "This style asks for your character: pick one."
+      "characterRequired": "This style asks for your character: pick one.",
+      "promptModelsBlocked": "Every prompt-writing model is blocked: pick a Vimo style or wait for them to come back."
     },
     "errors": {
       "discard": "Discard",
@@ -445,7 +453,9 @@
       "styleSamplesFailed": "No sample could be generated. Try again.",
       "voiceQuotaExceeded": "Your ElevenLabs account ran out of characters.",
       "voiceLibraryAddFailed": "The library voice could not be added to your ElevenLabs account.",
-      "voiceAccountRestricted": "ElevenLabs restricted your account for this feature. Check your ElevenLabs plan."
+      "voiceAccountRestricted": "ElevenLabs restricted your account for this feature. Check your ElevenLabs plan.",
+      "llmRescueNeeded": "The chosen model left scenes unwritten and another model rescued them.",
+      "llmAuth": "DeepInfra rejected your API key. Check it in API Keys: without a valid key the prompts cannot be written."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -498,7 +508,8 @@
       "catalog": "Catalog",
       "catalogHint": "Vimo's 5 styles.",
       "custom": "My style",
-      "customHint": "Your own visual style."
+      "customHint": "Your own visual style.",
+      "customBlockedHint": "No models available for now: use a Vimo style."
     },
     "customStyles": {
       "galleryHint": "Pick the style of your video images. Every style you create is kept as a card; the three dots open its options.",
@@ -564,7 +575,9 @@
       "noPrice": "This model has no price listed",
       "onlyPrompts": "This is only the cost of writing the scene texts. Images are billed separately.",
       "sliderLabel": "How many scenes the video would have",
-      "settingsLink": "Change the default model in Settings"
+      "settingsLink": "Change the default model in Settings",
+      "blockedFallback": "{{model}} is unavailable (back in {{minutes}} min): {{fallback}} writes this video instead.",
+      "allBlocked": "No model can write the prompts right now: all of them are blocked after recent failures. They come back on their own within an hour. Meanwhile, pick a Vimo style."
     },
     "styleCharacter": {
       "title": "Does your style carry a character?",
@@ -590,6 +603,25 @@
       "defaultSwitchLabel": "Pick the default character for this style",
       "defaultChange": "Tap to change it",
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
+    },
+    "promptModelIssue": {
+      "stalled": {
+        "title": "{{model}} got stuck",
+        "body": "More than 2 minutes went by without a single new prompt. You can keep waiting, or cancel and relaunch this same video with another model: the voice and cuts already done are kept."
+      },
+      "error": {
+        "title": "{{model}} is returning errors",
+        "body": "The model's service failed while writing the prompts, so the video stopped: nothing gets filled in without your decision. You can retry with the same model or relaunch this same video with another one. The voice, cuts and prompts already written are kept."
+      },
+      "blockedHint": "{{model}} stays blocked for 1 hour for new videos. It comes back on its own.",
+      "keepWaiting": "Keep waiting",
+      "switchModel": "Switch model",
+      "relaunchWith": "Cancel and relaunch with {{model}}",
+      "switching": "Switching to {{model}}… the current job is closing and the video relaunches.",
+      "allBlockedHint": "This video uses your own style and needs a model to write the prompts. Cancel it and try again once they come back, or create a new one with a Vimo style.",
+      "cancelToLibrary": "Cancel and go back to the library",
+      "halting": "Stopping the video… the current job is closing.",
+      "retrySame": "Retry with {{model}}"
     }
   },
   "library": {
@@ -1304,7 +1336,17 @@
     "updatesInstallError": "The update could not be installed. Try again later.",
     "updatesPromptTitle": "New version of Vimo",
     "updatesPromptDescription": "Version {{version}} is ready to install. You have {{currentVersion}}.",
-    "updatesNotesTitle": "What's new"
+    "updatesNotesTitle": "What's new",
+    "blockedModelsTitle": "Blocked models",
+    "blockedModelsTagline": "Prompt-writing models that got stuck or failed recently. They come back on their own after an hour; here you can release them earlier.",
+    "blockedModelsEmpty": "No model is blocked right now.",
+    "blockedModelsUnblock": "Unblock",
+    "blockedModelsUnblockAll": "Unblock all",
+    "blockedModelsBackIn": "back in {{minutes}} min",
+    "blockedModelsReason": {
+      "stalled": "Went over 2 min without writing",
+      "error": "Returned errors while writing"
+    }
   },
   "splash": {
     "pageTitle": "Vimo",
