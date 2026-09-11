@@ -162,10 +162,6 @@
       "pickerTitle": "Pick a voice",
       "pickerDescription": "Listen to the provider's sample and pick the one that fits your video.",
       "edgeNote": "Edge voices have no sample to listen to.",
-      "empty": "No voices match your search.",
-      "loadMore": "Load more voices",
-      "play": "Play sample",
-      "pause": "Pause sample",
       "use": "Use this voice",
       "tabs": {
         "minimax": "Minimax",
@@ -174,11 +170,11 @@
         "fishaudio": "Fish Audio",
         "edge": "Edge",
         "elevenlabs-account": "My voices",
-        "elevenlabs-library": "Library"
+        "elevenlabs-library": "Library",
+        "favorites": "Favorites"
       },
       "hint": "This voice narrates your whole video — pick one before generating.",
       "libraryNote": "Library voices are added to your ElevenLabs account when you use them.",
-      "libraryBadge": "Library",
       "addingLibraryVoice": "Adding the voice…",
       "missingVendorKey": "The {{vendor}} key is missing. Set it up in API Keys or switch voice provider."
     },

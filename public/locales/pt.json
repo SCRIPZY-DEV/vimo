@@ -162,10 +162,6 @@
       "pickerTitle": "Escolher uma voz",
       "pickerDescription": "Ouça o exemplo do provedor e escolha a que combina com seu vídeo.",
       "edgeNote": "As vozes Edge não têm exemplo para ouvir.",
-      "empty": "Nenhuma voz corresponde à sua busca.",
-      "loadMore": "Carregar mais vozes",
-      "play": "Ouvir exemplo",
-      "pause": "Pausar exemplo",
       "use": "Usar esta voz",
       "tabs": {
         "minimax": "Minimax",
@@ -174,11 +170,11 @@
         "fishaudio": "Fish Audio",
         "edge": "Edge",
         "elevenlabs-account": "Minhas vozes",
-        "elevenlabs-library": "Biblioteca"
+        "elevenlabs-library": "Biblioteca",
+        "favorites": "Favoritas"
       },
       "hint": "Essa voz narra o seu vídeo inteiro — escolha uma antes de gerar.",
       "libraryNote": "As vozes da biblioteca são adicionadas à sua conta do ElevenLabs ao usá-las.",
-      "libraryBadge": "Biblioteca",
       "addingLibraryVoice": "Adicionando a voz…",
       "missingVendorKey": "Falta a chave do {{vendor}}. Configure em Chaves de API ou troque o provedor de vozes."
     },

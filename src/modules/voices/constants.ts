@@ -44,14 +44,11 @@ export const VOICE_TABS_BY_VENDOR: Record<VoiceVendorId, VoiceTab[]> = {
   elevenlabs: ['elevenlabs-account', 'elevenlabs-library', 'favorites'],
 }
 
-// Pestañas del picker de voz de Crear/Library: DubVoice incluye Edge (sin
-// muestras, pero gratis); ElevenLabs directo, cuenta y biblioteca.
-export const VOICE_PICKER_TABS_BY_VENDOR: Record<
-  VoiceVendorId,
-  Exclude<VoiceTab, 'favorites'>[]
-> = {
-  dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'edge'],
-  elevenlabs: ['elevenlabs-account', 'elevenlabs-library'],
+// Pestañas del picker de voz de Crear/Library: las de la página Voces más
+// Edge en DubVoice (sin muestras, pero gratis); Favoritos al final, como allá.
+export const VOICE_PICKER_TABS_BY_VENDOR: Record<VoiceVendorId, VoiceTab[]> = {
+  dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'edge', 'favorites'],
+  elevenlabs: ['elevenlabs-account', 'elevenlabs-library', 'favorites'],
 }
 
 // Qué catálogo pide cada pestaña. Las dos de ElevenLabs directo son el mismo

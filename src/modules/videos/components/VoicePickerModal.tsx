@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Loader2, Pause, Play } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { VOICE_VENDOR_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
@@ -19,25 +19,25 @@ import {
   DialogTitle,
 } from '@/modules/common/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/modules/common/ui/tabs'
-import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
-import { useVoiceCatalog } from '@/modules/videos/hooks/useVoiceCatalog'
+import { VoiceCount } from '@/modules/voices/components/VoiceCount'
 import { VoiceFilters } from '@/modules/voices/components/VoiceFilters'
+import { VoiceGrid } from '@/modules/voices/components/VoiceGrid'
+import { VoicePagination } from '@/modules/voices/components/VoicePagination'
 import {
-  ELEVENLABS_LIBRARY_CATEGORIES,
-  SEARCH_DEBOUNCE_MS,
   VOICE_FILTERS_INITIAL_VALUE,
   VOICE_PICKER_TABS_BY_VENDOR,
   VOICE_TAB_CATALOGS,
 } from '@/modules/voices/constants'
-import { useDebouncedValue } from '@/modules/voices/hooks/useDebouncedValue'
+import { useVoiceCatalogPage } from '@/modules/voices/hooks/useVoiceCatalogPage'
+import { useVoiceFavorites } from '@/modules/voices/hooks/useVoiceFavorites'
 import { useVoicePreview } from '@/modules/voices/hooks/useVoicePreview'
 import { useVoiceVendor } from '@/modules/voices/hooks/useVoiceVendor'
-import { filterVoices } from '@/modules/voices/utilities/filterVoices'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
+import { voiceKey } from '@/modules/voices/utilities/voiceKey'
 import type { SelectedVoice } from '@/modules/videos/types/create'
 import type { VoiceSummary, VoiceVendorId } from '@pipeline/types/voices.ts'
-import type { VoiceTab } from '@/modules/voices/types/voices'
+import type { VoiceFilterState, VoiceTab } from '@/modules/voices/types/voices'
 
 interface VoicePickerModalProps {
   current: SelectedVoice | null
@@ -45,19 +45,35 @@ interface VoicePickerModalProps {
   onClose: () => void
 }
 
-type PickerTab = Exclude<VoiceTab, 'favorites'>
-
 // Pestaña que muestra la voz ya elegida, si existe en el vendor activo.
+// Favoritos no es un catálogo: no cuenta.
 function tabForProvider(
-  tabs: PickerTab[],
+  tabs: VoiceTab[],
   provider: SelectedVoice['provider'] | undefined,
-): PickerTab | null {
+): VoiceTab | null {
   if (!provider) return null
   return (
-    tabs.find((tab) => VOICE_TAB_CATALOGS[tab].provider === provider) ?? null
+    tabs.find(
+      (tab) =>
+        tab !== 'favorites' && VOICE_TAB_CATALOGS[tab].provider === provider,
+    ) ?? null
   )
 }
 
+// La tarjeta resaltada: la elegida en este modal o, hasta elegir otra, la voz
+// que ya tiene el formulario.
+function highlightedKey(
+  selected: VoiceSummary | null,
+  current: SelectedVoice | null,
+): string | null {
+  if (selected) return voiceKey(selected)
+  if (current) return voiceKey(current)
+  return null
+}
+
+// Selector de voz de Crear y del editor: el mismo catálogo que la página
+// Voces (grilla de tres columnas con muestra y favorito, contador, filtros y
+// paginación), en un modal tan ancho como esa página para que se vea igual.
 export function VoicePickerModal({
   current,
   onSelect,
@@ -65,6 +81,7 @@ export function VoicePickerModal({
 }: VoicePickerModalProps) {
   const { t } = useTranslation()
   const { playingUrl, togglePreview, stopPreview } = useVoicePreview()
+  const { isFavorite, toggleFavorite } = useVoiceFavorites()
   // Proveedor por defecto de Ajustes (ADR-0024); si ya hay una voz elegida se
   // arranca en el suyo. El switch del modal cambia solo esta elección, nunca
   // la preferencia.
@@ -75,14 +92,15 @@ export function VoicePickerModal({
   const vendor =
     vendorOverride ??
     (current ? vendorOfProvider(current.provider) : defaultVendor)
-  const { missingKeys } = useRequiredApiKeys({
+  const { missingKeys, ready } = useRequiredApiKeys({
     requirements: VOICE_VENDOR_API_KEY_REQUIREMENTS[vendor],
   })
 
-  const [chosenTab, setChosenTab] = useState<PickerTab | null>(null)
-  // Los mismos filtros de la sección Voces (búsqueda, idioma, género, y los
-  // extras por proveedor); se conservan al cambiar de tab.
+  const [chosenTab, setChosenTab] = useState<VoiceTab | null>(null)
+  // Los mismos filtros de la página Voces (búsqueda, idioma, género y los
+  // extras por proveedor); se conservan al cambiar de pestaña.
   const [filters, setFilters] = useState(VOICE_FILTERS_INITIAL_VALUE)
+  const [page, setPage] = useState(1)
   // Se guarda el VoiceSummary entero: una voz de la biblioteca de ElevenLabs
   // trae libraryOwnerId y hay que añadirla a la cuenta al confirmar.
   const [selected, setSelected] = useState<VoiceSummary | null>(null)
@@ -96,53 +114,46 @@ export function VoicePickerModal({
     chosenTab && tabs.includes(chosenTab)
       ? chosenTab
       : (tabForProvider(tabs, current?.provider) ?? tabs[0])
-  const { provider, source } = VOICE_TAB_CATALOGS[tab]
-
-  const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS)
-  const effectiveFilters = { ...filters, search: debouncedSearch }
-
-  const catalog = useVoiceCatalog({
+  const {
     provider,
     source,
-    search: debouncedSearch,
-    language: filters.language,
-    gender: filters.gender,
-    category: filters.category,
-    enabled: !missingKeys,
-  })
+    vendorFavorites,
+    pageVoices,
+    totalVoices,
+    totalPages,
+    canGoNext,
+    isLoading,
+    isFetching,
+    errorKey,
+    accents,
+    categories,
+  } = useVoiceCatalogPage({ vendor, tab, filters, page, ready })
 
-  const visibleVoices = filterVoices(catalog.voices, effectiveFilters, {
-    serverFiltered: !catalog.filtersAreClientSide,
-    serverFilteredCategory: catalog.categoryIsServerSide,
-  })
-  // Opciones derivadas de lo cargado (solo los motores ElevenLabs las
-  // traen); la biblioteca filtra categoría en el server con opciones fijas.
-  const accents = [
-    ...new Set(catalog.voices.map((voice) => voice.accent).filter(Boolean)),
-  ] as string[]
-  const categories =
-    source === 'library'
-      ? [...ELEVENLABS_LIBRARY_CATEGORIES]
-      : ([
-          ...new Set(
-            catalog.voices.map((voice) => voice.category).filter(Boolean),
-          ),
-        ] as string[])
+  const selectedKey = highlightedKey(selected, current)
 
-  const isCurrent = (voice: VoiceSummary) =>
-    current?.voiceId === voice.voiceId && current.provider === voice.provider
-  const isChosen = (voice: VoiceSummary) =>
-    selected
-      ? selected.voiceId === voice.voiceId &&
-        selected.provider === voice.provider
-      : isCurrent(voice)
-
+  // Cambiar de vendor, de pestaña o de filtros vuelve a la primera página.
   const changeVendor = (next: VoiceVendorId) => {
     stopPreview()
     setVendorOverride(next)
     setChosenTab(null)
     setSelected(null)
     setAddErrorKey(null)
+    setPage(1)
+  }
+  const changeTab = (value: string) => {
+    stopPreview()
+    setChosenTab(value as VoiceTab)
+    setPage(1)
+  }
+  const changeFilters = (value: VoiceFilterState) => {
+    setFilters(value)
+    setPage(1)
+  }
+  const choose = (voice: VoiceSummary) => {
+    if (!adding) setSelected(voice)
+  }
+  const togglePreviewFor = (voice: VoiceSummary) => {
+    if (voice.previewUrl) togglePreview(voice.previewUrl)
   }
 
   const close = () => {
@@ -186,7 +197,9 @@ export function VoicePickerModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && !adding && close()}>
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
+      {/* Tan ancho como la página Voces: la grilla de tres columnas necesita
+          ese espacio; la lista angosta de antes escondía el catálogo. */}
+      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-3rem)] max-w-7xl flex-col">
         <DialogHeader>
           <DialogTitle className="font-display">
             {t('create.voice.pickerTitle')}
@@ -222,30 +235,18 @@ export function VoicePickerModal({
           </div>
         ) : (
           <>
-            <Tabs
-              value={tab}
-              onValueChange={(value) => {
-                stopPreview()
-                setChosenTab(value as PickerTab)
-              }}
-            >
-              <TabsList className="w-full">
+            <Tabs value={tab} onValueChange={changeTab}>
+              <TabsList>
                 {tabs.map((tabId) => (
-                  <TabsTrigger key={tabId} value={tabId} className="flex-1">
+                  <TabsTrigger key={tabId} value={tabId}>
                     {t(`create.voice.tabs.${tabId}`)}
+                    {tabId === 'favorites' && vendorFavorites.length > 0
+                      ? ` (${vendorFavorites.length})`
+                      : ''}
                   </TabsTrigger>
                 ))}
               </TabsList>
             </Tabs>
-
-            <VoiceFilters
-              provider={provider}
-              source={source}
-              value={filters}
-              onChange={setFilters}
-              accents={accents}
-              categories={categories}
-            />
 
             {provider === 'edge' && (
               <p className="font-body text-xs text-muted-foreground">
@@ -259,101 +260,62 @@ export function VoicePickerModal({
               </p>
             )}
 
-            {catalog.errorKey && (
-              <ErrorMessage>{t(catalog.errorKey)}</ErrorMessage>
+            {provider && (
+              <VoiceFilters
+                provider={provider}
+                source={source}
+                value={filters}
+                onChange={changeFilters}
+                accents={accents}
+                categories={categories}
+              />
             )}
+
+            {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
             {addErrorKey && <ErrorMessage>{t(addErrorKey)}</ErrorMessage>}
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {catalog.isLoading && (
-                <p className="py-8 text-center">
-                  <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+            {pageVoices.length > 0 && <VoiceCount count={totalVoices} />}
+
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              {isLoading && (
+                <div className="py-12 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+                  <p className="mt-2 font-body text-sm text-muted-foreground">
+                    {t('voices.cargando')}
+                  </p>
+                </div>
+              )}
+
+              {!isLoading && pageVoices.length === 0 && !errorKey && (
+                <p className="py-12 text-center font-body text-sm text-muted-foreground">
+                  {tab === 'favorites'
+                    ? t('voices.favoritos.vacio')
+                    : t('voices.filtros.sinResultados')}
                 </p>
               )}
 
-              {!catalog.isLoading && visibleVoices.length === 0 && (
-                <p className="py-8 text-center font-body text-sm text-muted-foreground">
-                  {t('create.voice.empty')}
-                </p>
-              )}
-
-              {visibleVoices.map((voice) => {
-                const isSelected = isChosen(voice)
-                const isPlaying = Boolean(
-                  voice.previewUrl && playingUrl === voice.previewUrl,
-                )
-                return (
-                  <div
-                    key={`${voice.provider}-${voice.voiceId}`}
-                    className={cn(
-                      'flex items-center gap-2 rounded-xl border-2 bg-card p-3 transition-colors',
-                      isSelected
-                        ? 'border-saffron bg-saffron/10'
-                        : 'border-border hover:border-saffron/40',
-                    )}
-                  >
-                    <button
-                      type="button"
-                      disabled={adding}
-                      onClick={() => setSelected(voice)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <p className="truncate font-display text-sm font-bold text-foreground">
-                        {voice.name}
-                        {voice.libraryOwnerId && (
-                          <span className="ml-1.5 rounded-full bg-saffron/20 px-1.5 py-0.5 font-body text-[10px] font-semibold text-foreground">
-                            {t('create.voice.libraryBadge')}
-                          </span>
-                        )}
-                      </p>
-                      <p className="truncate font-body text-xs text-muted-foreground">
-                        {[voice.language, voice.gender, voice.accent]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
-                    </button>
-
-                    {voice.previewUrl && (
-                      <button
-                        type="button"
-                        onClick={() => togglePreview(voice.previewUrl!)}
-                        aria-label={
-                          isPlaying
-                            ? t('create.voice.pause')
-                            : t('create.voice.play')
-                        }
-                        className={cn(
-                          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
-                          isPlaying
-                            ? 'border-saffron bg-saffron text-charcoal'
-                            : 'border-border text-muted-foreground hover:border-saffron/50',
-                        )}
-                      >
-                        {isPlaying ? (
-                          <Pause className="h-3.5 w-3.5" />
-                        ) : (
-                          <Play className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-
-              {catalog.hasNextPage && (
-                <Button
-                  variant="outline"
-                  disabled={catalog.isFetchingNextPage}
-                  onClick={catalog.loadMore}
-                  className="w-full rounded-xl font-display"
-                >
-                  {catalog.isFetchingNextPage && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  {t('create.voice.loadMore')}
-                </Button>
+              {pageVoices.length > 0 && (
+                <VoiceGrid
+                  voices={pageVoices}
+                  selectedKey={selectedKey}
+                  playingUrl={playingUrl}
+                  isFavorite={isFavorite}
+                  onSelect={choose}
+                  onTogglePreview={togglePreviewFor}
+                  onToggleFavorite={toggleFavorite}
+                />
               )}
             </div>
+
+            {!isLoading && (pageVoices.length > 0 || page > 1) && (
+              <VoicePagination
+                page={page}
+                totalPages={totalPages}
+                hasNextPage={canGoNext}
+                loading={isFetching}
+                onPageChange={setPage}
+              />
+            )}
           </>
         )}
 

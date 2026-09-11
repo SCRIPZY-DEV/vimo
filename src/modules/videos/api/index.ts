@@ -27,10 +27,6 @@ import type {
   SuggestMusicPromptResult,
 } from '@pipeline/types/music.ts'
 import type {
-  ListVoicesPayload,
-  ListVoicesResult,
-} from '@pipeline/types/voices.ts'
-import type {
   ConfirmScenesPayload,
   SetPromptModelPayload,
   PreviewSceneCutsPayload,
@@ -198,9 +194,6 @@ export const videosApi = {
   },
   async cancelJob(jobId: string): Promise<void> {
     return invoke('cancel_pipeline_job', { jobId })
-  },
-  async listVoices(payload: ListVoicesPayload): Promise<ListVoicesResult> {
-    return runPipelineJob<ListVoicesResult>('list-voices', payload)
   },
   async listCharacters(): Promise<CharactersListResult> {
     return runPipelineJob<CharactersListResult>('characters-list')
