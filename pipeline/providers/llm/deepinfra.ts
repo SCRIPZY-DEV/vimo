@@ -1,5 +1,6 @@
 import { PipelineFailure } from '../../runner/failure.ts'
 import { isAuthStatus, LLM_AUTH_CODE } from './auth-failure.ts'
+import { isInsufficientCreditsResponse } from '../../utils/insufficient-credits.ts'
 import type {
   ChatCompletionResponse,
   LlmProvider,
@@ -57,17 +58,26 @@ export function createDeepInfraProvider(
           'llm_rate_limited',
           'DeepInfra rate limit hit',
         )
-      // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
-      if (isAuthStatus(response.status))
-        throw new PipelineFailure(
-          LLM_AUTH_CODE,
-          `DeepInfra rejected the API key (status=${response.status})`,
-        )
-      if (!response.ok)
+      if (!response.ok) {
+        const bodyText = (await response.text().catch(() => '')).slice(0, 300)
+        // Saldo agotado antes que la clave (ADR-0029): un 403 con detalle de
+        // balance no es «revisá tu clave», es «recargá».
+        if (isInsufficientCreditsResponse(response.status, bodyText))
+          throw new PipelineFailure(
+            'llm_insufficient_credits',
+            `DeepInfra rejected the request for insufficient balance (status=${response.status}) ${bodyText}`,
+          )
+        // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
+        if (isAuthStatus(response.status))
+          throw new PipelineFailure(
+            LLM_AUTH_CODE,
+            `DeepInfra rejected the API key (status=${response.status})`,
+          )
         throw new PipelineFailure(
           'llm_provider_error',
-          `DeepInfra failed (status=${response.status})`,
+          `DeepInfra failed (status=${response.status}) ${bodyText}`,
         )
+      }
 
       const body = (await response.json()) as ChatCompletionResponse
       const content = body.choices?.[0]?.message?.content

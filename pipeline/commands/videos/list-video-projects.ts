@@ -76,6 +76,7 @@ async function readListItem(
     imageCount: 0,
   }
   if (metadata.errorCode) item.errorCode = metadata.errorCode
+  if (metadata.pauseReason) item.pauseReason = metadata.pauseReason
   if (metadata.options?.videoFormat)
     item.videoFormat = metadata.options.videoFormat
   if (metadata.sceneCount !== undefined) item.sceneCount = metadata.sceneCount

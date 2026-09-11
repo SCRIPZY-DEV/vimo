@@ -8,6 +8,10 @@ import {
   readFalErrorBody,
 } from '../../providers/image/fal.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
+import {
+  isInsufficientCreditsFailure,
+  isInsufficientCreditsResponse,
+} from '../../utils/insufficient-credits.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { IMAGE_MODEL } from '../../types/image-provider.ts'
 import type { FalImageResponse } from '../../types/images.ts'
@@ -127,6 +131,19 @@ export async function generateSceneWithFal(
         }
       }
 
+      const body = await readFalErrorBody(response)
+      const detail = falErrorText(body)
+      const errorType = typeof body?.type === 'string' ? body.type : ''
+
+      // Saldo agotado: no es un fallo de ESTA escena sino de la cuenta. Se
+      // lanza (no se marca y sigue) para que la fase entera corte y el
+      // proyecto quede pausado y retomable (ADR-0029).
+      if (isInsufficientCreditsResponse(response.status, detail))
+        throw new PipelineFailure(
+          'image_insufficient_credits',
+          `Fal rejected scene ${scene.id} for insufficient balance (status=${response.status}) ${detail}`,
+        )
+
       if (response.status === 401 || response.status === 403) {
         options.events.onFailed(
           scene.id,
@@ -135,10 +152,6 @@ export async function generateSceneWithFal(
         )
         return { scene, imageReady: false }
       }
-
-      const body = await readFalErrorBody(response)
-      const detail = falErrorText(body)
-      const errorType = typeof body?.type === 'string' ? body.type : ''
 
       if (
         response.status === 429 ||
@@ -180,6 +193,7 @@ export async function generateSceneWithFal(
       await sleep(2000, options.signal)
     } catch (error) {
       if (options.signal.aborted) return { scene, imageReady: false }
+      if (isInsufficientCreditsFailure(error)) throw error
       // Descarga fallida u otro transitorio: reintentar; agotado → error.
       if (attempt === MAX_ATTEMPTS) {
         const code =

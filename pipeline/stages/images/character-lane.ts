@@ -7,10 +7,15 @@ import {
   readFalErrorBody,
 } from '../../providers/image/fal.ts'
 import { uploadEvolinkReference } from '../../providers/image/evolink.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
 import type { FalImageResponse } from '../../types/images.ts'
 import type { Scene } from '../../types/scenes.ts'
 import { frameSizeFor, type VideoFormat } from '../../types/video-format.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
+import {
+  isInsufficientCreditsFailure,
+  isInsufficientCreditsResponse,
+} from '../../utils/insufficient-credits.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { generateSceneWithEvolink } from './evolink-lane.ts'
 import {
@@ -120,6 +125,14 @@ async function generateSceneWithFalEdit(
       const errorType = typeof body?.type === 'string' ? body.type : ''
       const signalText = `${errorType} ${falErrorText(body)}`.toLowerCase()
 
+      // Saldo agotado: corta la fase entera (ADR-0029), no cae al carril
+      // normal — ahí fallaría igual y gastaría intentos.
+      if (isInsufficientCreditsResponse(response.status, signalText))
+        throw new PipelineFailure(
+          'image_insufficient_credits',
+          `Fal rejected scene ${scene.id} (references) for insufficient balance (status=${response.status}) ${signalText}`,
+        )
+
       if (
         response.status === 429 ||
         errorType === 'concurrent_requests_limit'
@@ -138,8 +151,9 @@ async function generateSceneWithFalEdit(
 
       if (attempt === FAL_MAX_ATTEMPTS) return { scene, imageReady: false }
       await sleep(2000 * attempt, options.signal)
-    } catch {
+    } catch (error) {
       if (options.signal.aborted) return { scene, imageReady: false }
+      if (isInsufficientCreditsFailure(error)) throw error
       if (attempt === FAL_MAX_ATTEMPTS) return { scene, imageReady: false }
       await sleep(2000 * attempt, options.signal)
     } finally {

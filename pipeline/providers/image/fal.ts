@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
+import { isInsufficientCreditsResponse } from '../../utils/insufficient-credits.ts'
 import {
   DEFAULT_VIDEO_FORMAT,
   type VideoFormat,
@@ -165,14 +166,22 @@ export async function generateFalImage(
       return downloadImage(url, options.signal)
     }
 
+    const body = await readFalErrorBody(response)
+    const detail = falErrorText(body)
+
+    // Saldo agotado antes que la clave: Fal puede responder 403 con detalle
+    // de balance, y reintentar solo repetiría el rechazo (ADR-0029).
+    if (isInsufficientCreditsResponse(response.status, detail))
+      throw new PipelineFailure(
+        'image_insufficient_credits',
+        `Fal rejected the request for insufficient balance (status=${response.status}) ${detail.slice(0, 200)}`,
+      )
+
     if (response.status === 401 || response.status === 403)
       throw new PipelineFailure(
         'image_invalid_api_key',
         `Fal rejected the API key (status=${response.status})`,
       )
-
-    const body = await readFalErrorBody(response)
-    const detail = falErrorText(body)
 
     if (
       (response.status === 400 || response.status === 422) &&

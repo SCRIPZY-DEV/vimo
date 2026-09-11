@@ -1,4 +1,5 @@
 import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
+import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
@@ -261,7 +262,8 @@ export async function generateScenePrompts(
             if (writerOptions.signal.aborted) return
             // Clave rechazada: ninguna capa de garantía la cura y el
             // fallback determinístico escondería el problema. Corta el job.
-            if (isLlmAuthFailure(error)) throw error
+            if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+              throw error
             lastError = error instanceof Error ? error.message : String(error)
           }
           if (attempt < MAX_ATTEMPTS_PER_SCENE) await delay(300 * attempt)
@@ -335,7 +337,8 @@ async function rescuePlainTextPrompt(
       if (isValidPrompt(candidate)) return candidate
     } catch (error) {
       if (options.signal.aborted) return ''
-      if (isLlmAuthFailure(error)) throw error
+      if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+        throw error
       // Transitorio: reintentar abajo con backoff.
     }
     if (attempt < MAX_PLAIN_TEXT_RESCUE_ATTEMPTS) await delay(400 * attempt)
@@ -357,7 +360,8 @@ export async function guaranteePrompts(
     result = await generateScenePrompts(scenes, options)
   } catch (error) {
     // Clave rechazada: ninguna capa la cura; el job tiene que fallar.
-    if (isLlmAuthFailure(error)) throw error
+    if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+      throw error
     // Sigue con barrido + fallback.
   }
 
@@ -370,7 +374,8 @@ export async function guaranteePrompts(
         escalateTier: true,
       })
     } catch (error) {
-      if (isLlmAuthFailure(error)) throw error
+      if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+        throw error
       // Siguiente ronda / fallback.
     }
   }
@@ -514,7 +519,8 @@ export async function regeneratePromptsForRejected(
             }
           } catch (error) {
             if (writerOptions.signal.aborted) return scene
-            if (isLlmAuthFailure(error)) throw error
+            if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+              throw error
             // Transitorio: reintentar abajo.
           }
           if (retry < MAX_ATTEMPTS_PER_SCENE) await delay(300 * retry)

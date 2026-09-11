@@ -1,6 +1,10 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
+import {
+  isInsufficientCreditsResponse,
+  isInsufficientTaskError,
+} from '../../utils/insufficient-credits.ts'
 import type {
   DecodedImage,
   EvolinkImageCreateResponse,
@@ -40,12 +44,12 @@ const POLL_RATE_LIMIT_MAX_WAIT_MS = 15_000
 const MAX_ORDERS = 3
 
 // Fallos de tarea que sí conviene re-encargar: la tarea fallida no se cobró.
+// `quota_exceeded` y `resource_exhausted` NO están: son saldo agotado y
+// re-encargar solo repite el rechazo (ADR-0029, ver isInsufficientTaskError).
 export const RETRYABLE_TASK_ERRORS = new Set([
   'generation_failed_no_content',
   'service_error',
   'generation_timeout',
-  'quota_exceeded',
-  'resource_exhausted',
   'request_cancelled',
   'service_unavailable',
   'unknown_error',
@@ -119,6 +123,11 @@ function taskFailure(error: { code?: string; message?: string }): never {
       'image_content_policy',
       `Evolink rejected the prompt by content policy: ${message.slice(0, 200)}`,
     )
+  if (isInsufficientTaskError(code, message))
+    throw new PipelineFailure(
+      'image_insufficient_credits',
+      `Evolink task rejected for insufficient credits: [${code}] ${message.slice(0, 200)}`,
+    )
   if (RETRYABLE_TASK_ERRORS.has(code)) throw new RetryableOrderError(code)
 
   throw new PipelineFailure(
@@ -147,21 +156,7 @@ export async function createEvolinkImageTask(
     throw new PipelineFailure('image_network', 'Evolink create request failed')
   })
 
-  if (response.status === 401 || response.status === 403)
-    throw new PipelineFailure(
-      'image_invalid_api_key',
-      `Evolink rejected the API key (status=${response.status})`,
-    )
-  if (response.status === 429)
-    throw new PipelineFailure(
-      'image_rate_limited',
-      response.headers.get('retry-after') ?? '3',
-    )
-  if (!response.ok)
-    throw new PipelineFailure(
-      'image_provider_error',
-      `Evolink create failed (status=${response.status})`,
-    )
+  if (!response.ok) throw createFailure(response, await errorBodyText(response))
 
   const data = (await response.json()) as EvolinkImageCreateResponse
   if (!data.id)
@@ -226,16 +221,7 @@ async function createTask(
     throw new PipelineFailure('image_network', 'Evolink create request failed')
   })
 
-  if (response.status === 401 || response.status === 403)
-    throw new PipelineFailure(
-      'image_invalid_api_key',
-      `Evolink rejected the API key (status=${response.status})`,
-    )
-  if (!response.ok)
-    throw new PipelineFailure(
-      'image_provider_error',
-      `Evolink create failed (status=${response.status})`,
-    )
+  if (!response.ok) throw createFailure(response, await errorBodyText(response))
 
   const data = (await response.json()) as EvolinkImageCreateResponse
   if (!data.id)
@@ -245,6 +231,37 @@ async function createTask(
     )
 
   return data.id
+}
+
+async function errorBodyText(response: Response): Promise<string> {
+  return (await response.text().catch(() => '')).slice(0, 300)
+}
+
+// Clasificación de un create rechazado. El cuerpo se lee ANTES de mirar el
+// status: el saldo agotado puede venir como 402 o como 403 con detalle, y
+// confundirlo con clave inválida manda a la persona a revisar la clave en
+// vez de a recargar (ADR-0029). Un 429 sale con el retry-after en el mensaje
+// para que el caller espere lo que el proveedor pide.
+function createFailure(response: Response, bodyText: string): PipelineFailure {
+  if (isInsufficientCreditsResponse(response.status, bodyText))
+    return new PipelineFailure(
+      'image_insufficient_credits',
+      `Evolink rejected the request for insufficient credits (status=${response.status}) ${bodyText}`,
+    )
+  if (response.status === 401 || response.status === 403)
+    return new PipelineFailure(
+      'image_invalid_api_key',
+      `Evolink rejected the API key (status=${response.status})`,
+    )
+  if (response.status === 429)
+    return new PipelineFailure(
+      'image_rate_limited',
+      response.headers.get('retry-after') ?? '3',
+    )
+  return new PipelineFailure(
+    'image_provider_error',
+    `Evolink create failed (status=${response.status}) ${bodyText}`,
+  )
 }
 
 export async function pollTask(

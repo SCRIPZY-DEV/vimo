@@ -1,6 +1,10 @@
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { LlmModelProfile } from '../../types/llm-models.ts'
 import {
+  isInsufficientCreditsFailure,
+  isInsufficientCreditsResponse,
+} from '../../utils/insufficient-credits.ts'
+import {
   isAuthStatus,
   isLlmAuthFailure,
   LLM_AUTH_CODE,
@@ -159,17 +163,25 @@ export function createVerbatimClient(
           'llm_rate_limited',
           `verbatim rate limit hit on ${profile.id}`,
         )
-      // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
-      if (isAuthStatus(response.status))
-        throw new PipelineFailure(
-          LLM_AUTH_CODE,
-          `DeepInfra rejected the API key (status=${response.status})`,
-        )
-      if (!response.ok || !response.body)
+      if (!response.ok || !response.body) {
+        const bodyText = (await response.text().catch(() => '')).slice(0, 300)
+        // Saldo agotado antes que la clave (ADR-0029).
+        if (isInsufficientCreditsResponse(response.status, bodyText))
+          throw new PipelineFailure(
+            'llm_insufficient_credits',
+            `DeepInfra rejected ${profile.id} for insufficient balance (status=${response.status}) ${bodyText}`,
+          )
+        // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
+        if (isAuthStatus(response.status))
+          throw new PipelineFailure(
+            LLM_AUTH_CODE,
+            `DeepInfra rejected the API key (status=${response.status})`,
+          )
         throw new PipelineFailure(
           'llm_provider_error',
-          `verbatim request to ${profile.id} failed (status=${response.status})`,
+          `verbatim request to ${profile.id} failed (status=${response.status}) ${bodyText}`,
         )
+      }
 
       // Lectura del stream SSE: eventos `data: {json}` separados por líneas,
       // cerrados con `data: [DONE]`.
@@ -320,7 +332,9 @@ export async function withVerbatimRetry<T>(
     } catch (error) {
       if (isOutputTruncated(error)) throw error
       // La clave rechazada tampoco se reintenta: repetir da el mismo 401.
-      if (isLlmAuthFailure(error)) throw error
+      // El saldo agotado, tampoco: repetir da el mismo 402.
+      if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+        throw error
       lastError = error
       if (signal?.aborted) break
       if (isQuotaError(error) && quotaWaits < quotaBackoffMs.length) {

@@ -10,6 +10,7 @@ import {
 import type { VoiceProgressEvent } from '../../runner/events.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { GenerateVoicePayload } from '../../types/voices.ts'
+import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { prepareNarrationText } from '../../utils/narration-text.ts'
 import type { CreateVideoContext } from '../context.ts'
 
@@ -81,6 +82,9 @@ export async function synthesizeNarration(
 
   try {
     const failures: string[] = []
+    // El primer carril rechazado por saldo: si ningún otro carril pudo, el
+    // job cae con ESE código (pausa retomable) y no con el genérico.
+    let creditsFailure: PipelineFailure | null = null
     for (const [index, attempt] of attempts.entries()) {
       if (index > 0)
         context.emitter.emit({
@@ -97,8 +101,16 @@ export async function synthesizeNarration(
         context.signal.throwIfAborted()
         const message = error instanceof Error ? error.message : String(error)
         failures.push(`${attempt.name}: ${message}`)
+        if (!creditsFailure && isInsufficientCreditsFailure(error))
+          creditsFailure = error
       }
     }
+
+    if (creditsFailure)
+      throw new PipelineFailure(
+        creditsFailure.code,
+        `no voice lane could synthesize the narration (insufficient credits):\n${failures.join('\n')}`,
+      )
 
     throw new PipelineFailure(
       'voice_all_lanes_failed',

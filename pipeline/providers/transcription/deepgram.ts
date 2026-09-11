@@ -1,4 +1,5 @@
 import { PipelineFailure } from '../../runner/failure.ts'
+import { isInsufficientCreditsResponse } from '../../utils/insufficient-credits.ts'
 import type { TranscriptWord } from '../../types/scenes.ts'
 import { rateLimitDelayMs } from '../../utils/http-retry.ts'
 import { sleep } from '../../utils/sleep.ts'
@@ -76,13 +77,20 @@ async function requestTranscription(
 
     if (response.ok) return response
 
+    const detail = (await response.text().catch(() => '')).slice(0, 200)
+
+    // Saldo agotado antes que la clave (ADR-0029).
+    if (isInsufficientCreditsResponse(response.status, detail))
+      throw new PipelineFailure(
+        'transcription_insufficient_credits',
+        `Deepgram rejected the request for insufficient balance (HTTP ${response.status}): ${detail}`,
+      )
+
     if (response.status === 401 || response.status === 403)
       throw new PipelineFailure(
         'transcription_invalid_api_key',
         `Deepgram rejected the API key (HTTP ${response.status})`,
       )
-
-    const detail = (await response.text().catch(() => '')).slice(0, 200)
 
     if (response.status === 429) {
       if (attempt === RATE_LIMIT_MAX_RETRIES)
