@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import i18next from 'i18next'
 import { toast } from '@/modules/common/hooks/useToast'
+import { blockPromptModel } from '@/modules/common/utilities/promptModelBlocks'
 import { videosApi } from '@/modules/videos/api'
 import {
   AUTO_RETRY_DELAYS_SECONDS,
@@ -10,6 +11,8 @@ import {
   CREATE_TASK_STORAGE_KEY,
   INTERRUPTED_ERROR_KEY,
   LOG_LINES_LIMIT,
+  PROMPT_STAGE_STALL_MS,
+  PROVIDER_TROUBLE_CODES,
   RETRYABLE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
@@ -21,16 +24,15 @@ import {
 } from '@/modules/videos/utilities/libraryTab'
 import { refreshProjectQueries } from '@/modules/videos/utilities/projectRefresh'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
+import type { PromptModelBlockReason } from '@/modules/common/types/promptModelBlocks'
 import type {
   CreateTask,
-  CreateTaskSeed,
   ProjectRunOptions,
   SceneCutChoice,
 } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
-import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type {
   CreateVideoProjectPayload,
   RunVideoPipelineResult,
@@ -95,6 +97,13 @@ function restoreTask(): CreateTask | null {
       // La pasada de recuperación pertenece a un job vivo: no sobrevive.
       imagesRecovery: null,
       cancelRequested: false,
+      // Tareas persistidas antes de ADR-0028: sin carril conocido no hay
+      // modelo que vigilar. Lo demás pertenece a un job vivo: no sobrevive.
+      usesCustomStyle: stored.usesCustomStyle ?? false,
+      promptModel: stored.promptModel ?? null,
+      promptsStageActivity: null,
+      promptModelIssue: null,
+      promptModelSwitch: null,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -195,9 +204,29 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     return
   }
 
+  // Detención por fallo del modelo o cambio de modelo en curso: el job viejo
+  // se está cerrando y nada de lo que diga cambia la pantalla; solo su cierre
+  // destraba el paso siguiente.
+  if (
+    task.promptModelSwitch === 'halting' ||
+    task.promptModelSwitch === 'cancelling'
+  ) {
+    if (event.type === 'job-completed' || event.type === 'job-failed')
+      settlePendingSwitch(taskId)
+    return
+  }
+
   switch (event.type) {
     case 'stage-started':
-      patchTask(taskId, { stage: event.stageId, imagesRecovery: null })
+      patchTask(taskId, {
+        stage: event.stageId,
+        imagesRecovery: null,
+        // Arranca la vigilancia del modelo de prompts (ADR-0028).
+        promptsStageActivity:
+          event.stageId === 'scene-prompts'
+            ? { startedAt: Date.now(), lastProgressAt: Date.now() }
+            : null,
+      })
       return
 
     case 'stage-skipped':
@@ -205,8 +234,28 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         completedStages: withStage(task.completedStages, event.stageId),
         // El stream del redactor ya no importa con los prompts persistidos.
-        ...(event.stageId === 'scene-prompts' ? { promptsWritten: null } : {}),
+        ...(event.stageId === 'scene-prompts'
+          ? {
+              promptsWritten: null,
+              promptsStageActivity: null,
+              promptModelIssue: null,
+            }
+          : {}),
         ...(event.stageId === 'images' ? { imagesRecovery: null } : {}),
+      })
+      return
+
+    // El modelo elegido falló de verdad (código del proveedor o rescate): se
+    // bloquea una hora y el job SE DETIENE a esperar la decisión de la persona
+    // — reintentar con el mismo o cambiar de modelo. Si siguiera solo, el
+    // relleno determinístico escribiría escenas que ignoran la gema.
+    case 'prompt-model-trouble':
+      if (!task.usesCustomStyle) return
+      void haltForPromptModelTrouble(taskId, event.modelId, event.code, {
+        logs: appendLog(
+          task,
+          `prompt model ${event.modelId} failed (${event.code}) on ${event.sceneIds.length} scene(s)`,
+        ),
       })
       return
 
@@ -243,7 +292,10 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       return
 
     case 'scene-prompt-ready':
-      patchTask(taskId, { scenes: mergeScene(task.scenes, event.scene) })
+      patchTask(taskId, {
+        scenes: mergeScene(task.scenes, event.scene),
+        promptsStageActivity: touchPromptsActivity(task),
+      })
       return
 
     // Cifras absolutas del stream del redactor: reemplazan, no suman. Se
@@ -270,11 +322,15 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         return
       }
 
+      const ready = Math.max(task.promptsWritten?.ready ?? 0, event.ready)
       patchTask(taskId, {
-        promptsWritten: {
-          ready: Math.max(task.promptsWritten?.ready ?? 0, event.ready),
-          total: event.total,
-        },
+        promptsWritten: { ready, total: event.total },
+        // Solo un avance real reinicia la vigilancia: una cifra repetida no
+        // prueba que el modelo siga escribiendo.
+        promptsStageActivity:
+          ready > (task.promptsWritten?.ready ?? 0)
+            ? touchPromptsActivity(task)
+            : task.promptsStageActivity,
       })
       return
     }
@@ -389,6 +445,31 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'job-failed': {
       stopActiveJob()
+      // El job cayó por el proveedor mientras el modelo elegido escribía
+      // (ADR-0028): el modelo queda bloqueado una hora y, en vez del
+      // reintento automático con el mismo modelo, se abre la decisión.
+      if (
+        task.usesCustomStyle &&
+        task.promptModel &&
+        task.stage === 'scene-prompts' &&
+        PROVIDER_TROUBLE_CODES.has(event.code)
+      ) {
+        blockPromptModel(task.promptModel, 'error')
+        patchTask(taskId, {
+          status: 'error',
+          jobId: null,
+          stage: null,
+          imagesRecovery: null,
+          promptsStageActivity: null,
+          errorKey: errorKeyFor(event.code),
+          promptModelIssue: {
+            reason: 'error',
+            modelId: task.promptModel,
+            snoozedUntil: null,
+          },
+        })
+        return
+      }
       // Fallo transitorio con reintentos disponibles → cuenta regresiva y
       // relanzamiento automático en vez de tarjeta de error.
       if (
@@ -415,6 +496,16 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
 function withStage(stages: StageId[], stageId: StageId): StageId[] {
   return stages.includes(stageId) ? stages : [...stages, stageId]
+}
+
+// Marca «hubo avance ahora» en la vigilancia de la fase de prompts. Sin
+// actividad registrada (prompt reemitido desde la fase de imágenes) no crea
+// una: la vigilancia solo vive dentro de la fase.
+function touchPromptsActivity(
+  task: CreateTask,
+): CreateTask['promptsStageActivity'] {
+  if (!task.promptsStageActivity) return null
+  return { ...task.promptsStageActivity, lastProgressAt: Date.now() }
 }
 
 function mergeScene(
@@ -482,9 +573,9 @@ function makeTask(
   id: string,
   projectId: string,
   projectName: string,
-  videoFormat: VideoFormat = '16:9',
-  seed?: CreateTaskSeed,
+  options: ProjectRunOptions = {},
 ): CreateTask {
+  const { seed } = options
   return {
     id,
     jobId: null,
@@ -512,8 +603,13 @@ function makeTask(
     finishedAt: null,
     retry: null,
     retryAttempts: 0,
-    videoFormat,
+    videoFormat: options.videoFormat ?? '16:9',
     cancelRequested: false,
+    usesCustomStyle: options.usesCustomStyle ?? false,
+    promptModel: options.promptModel ?? null,
+    promptsStageActivity: null,
+    promptModelIssue: null,
+    promptModelSwitch: null,
   }
 }
 
@@ -539,6 +635,11 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
     errorKey: null,
     confirmation: null,
     imagesRecovery: null,
+    // La vigilancia y el aviso del modelo describen un job: nacen con el
+    // stage-started del nuevo.
+    promptsStageActivity: null,
+    promptModelIssue: null,
+    promptModelSwitch: null,
     ...pausePatch,
   })
 
@@ -572,16 +673,19 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
 async function startCreation(input: {
   payload: CreateVideoProjectPayload
   narrationFilePath?: string | null
+  // Modelo de prompts YA resuelto (el default aplicado): es el que se
+  // bloquea si falla. Solo cuenta con estilo propio.
+  promptModel?: string | null
 }): Promise<void> {
   stopActiveJob()
   const taskId = newTaskId()
+  const usesCustomStyle = input.payload.options.customStyle !== undefined
   setTask(
-    makeTask(
-      taskId,
-      '',
-      input.payload.name,
-      input.payload.options.videoFormat ?? '16:9',
-    ),
+    makeTask(taskId, '', input.payload.name, {
+      videoFormat: input.payload.options.videoFormat,
+      usesCustomStyle,
+      promptModel: usesCustomStyle ? (input.promptModel ?? null) : null,
+    }),
   )
 
   let projectId: string
@@ -647,9 +751,7 @@ async function startPipelineForProject(
 
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(
-    makeTask(taskId, projectId, projectName, options.videoFormat, options.seed),
-  )
+  setTask(makeTask(taskId, projectId, projectName, options))
   await runPipeline(taskId, projectId)
   return true
 }
@@ -666,9 +768,7 @@ async function confirmScenesForProject(
 
   stopActiveJob()
   const taskId = newTaskId()
-  setTask(
-    makeTask(taskId, projectId, projectName, options.videoFormat, options.seed),
-  )
+  setTask(makeTask(taskId, projectId, projectName, options))
   try {
     await videosApi.confirmScenes({ projectId, ...choice })
   } catch (error) {
@@ -705,6 +805,150 @@ async function resume(): Promise<void> {
   const task = currentTask
   if (!task || !task.projectId) return
   await runPipeline(task.id, task.projectId)
+}
+
+// ── Modelo de prompts trabado o con errores (ADR-0028) ──
+
+// Bloquea el modelo en uso y deja el aviso abierto. Lo llama el watchdog al
+// pasar PROMPT_STAGE_STALL_MS sin avance, y el aviso vuelve a abrirse solo si
+// la persona lo silenció y el modelo sigue sin escribir.
+function reportPromptModelIssue(
+  taskId: string,
+  reason: PromptModelBlockReason,
+) {
+  const task = currentTask
+  if (!task || task.id !== taskId) return
+  if (!task.usesCustomStyle || !task.promptModel) return
+  if (task.promptModelSwitch !== null) return
+
+  blockPromptModel(task.promptModel, reason)
+  patchTask(taskId, {
+    promptModelIssue: { reason, modelId: task.promptModel, snoozedUntil: null },
+  })
+}
+
+// «Seguir esperando»: el job sigue; el aviso vuelve si en otra ventana
+// completa el modelo no avanza.
+function snoozePromptModelIssue() {
+  const task = currentTask
+  if (!task?.promptModelIssue) return
+  patchTask(task.id, {
+    promptModelIssue: {
+      ...task.promptModelIssue,
+      snoozedUntil: Date.now() + PROMPT_STAGE_STALL_MS,
+    },
+  })
+}
+
+// El cierre del job viejo que el cambio de modelo espera. Una sola espera a
+// la vez: un cambio pisa a otro solo en teoría (el diálogo se bloquea).
+let pendingSwitch: { taskId: string; resolve: () => void } | null = null
+
+function settlePendingSwitch(taskId: string) {
+  if (!pendingSwitch || pendingSwitch.taskId !== taskId) return
+  const { resolve } = pendingSwitch
+  pendingSwitch = null
+  stopActiveJob()
+  resolve()
+}
+
+// Espera a que el sidecar confirme el cierre del job (o vence la red de
+// seguridad, igual que cancelar).
+function waitForJobClose(taskId: string): Promise<void> {
+  return new Promise((resolve) => {
+    pendingSwitch = { taskId, resolve }
+    setTimeout(() => settlePendingSwitch(taskId), CANCEL_SETTLE_TIMEOUT_MS)
+  })
+}
+
+// El modelo falló (evento del sidecar): se bloquea, se cancela el job por
+// stdin y, cerrado el job, la tarea queda en error con el diálogo abierto.
+// El proyecto queda `paused` en disco (retomable) y sin prompts de relleno:
+// la persona decide si reintenta con el mismo modelo o cambia.
+async function haltForPromptModelTrouble(
+  taskId: string,
+  modelId: string,
+  code: string,
+  patch: Partial<CreateTask>,
+): Promise<void> {
+  const task = currentTask
+  if (!task || task.id !== taskId) return
+  if (task.promptModelSwitch !== null) return
+  stopRetryTimer()
+  blockPromptModel(modelId, 'error')
+
+  patchTask(taskId, {
+    ...patch,
+    promptModelSwitch: 'halting',
+    promptModelIssue: { reason: 'error', modelId, snoozedUntil: null },
+    retry: null,
+  })
+
+  if (task.jobId && activeJob) {
+    const closed = waitForJobClose(taskId)
+    videosApi.cancelJob(task.jobId).catch(() => settlePendingSwitch(taskId))
+    await closed
+  } else {
+    stopActiveJob()
+  }
+  if (currentTask?.id !== taskId) return
+
+  patchTask(taskId, {
+    status: 'error',
+    jobId: null,
+    stage: null,
+    imagesRecovery: null,
+    promptsStageActivity: null,
+    promptModelSwitch: null,
+    errorKey: errorKeyFor(code),
+  })
+}
+
+// «Cambiar de modelo»: cancela el job vivo, escribe el modelo nuevo en el
+// proyecto y relanza la MISMA tarea — voz, cortes y prompts ya escritos son
+// cache-hit; el modelo nuevo escribe solo lo que falta. Sin job vivo (tarjeta
+// de error, cuenta regresiva) va directo al cambio.
+async function switchPromptModel(modelId: string): Promise<void> {
+  const task = currentTask
+  if (!task || !task.projectId || !task.usesCustomStyle) return
+  if (task.promptModelSwitch !== null) return
+  const taskId = task.id
+  stopRetryTimer()
+
+  patchTask(taskId, {
+    promptModelSwitch: 'cancelling',
+    promptModelIssue: null,
+    retry: null,
+  })
+
+  if (task.jobId && activeJob) {
+    const closed = waitForJobClose(taskId)
+    videosApi.cancelJob(task.jobId).catch(() => settlePendingSwitch(taskId))
+    await closed
+  } else {
+    stopActiveJob()
+  }
+  if (currentTask?.id !== taskId) return
+
+  patchTask(taskId, { promptModelSwitch: 'relaunching' })
+  try {
+    await videosApi.setPromptModel({
+      projectId: task.projectId,
+      promptModel: modelId,
+    })
+  } catch (error) {
+    patchTask(taskId, {
+      status: 'error',
+      jobId: null,
+      stage: null,
+      promptModelSwitch: null,
+      errorKey: videosApi.errorMessageKey(error),
+    })
+    return
+  }
+
+  patchTask(taskId, { promptModel: modelId })
+  await runPipeline(taskId, task.projectId)
 }
 
 // Cierra la cancelación: suelta el job y borra la tarea. Idempotente — la
@@ -777,5 +1021,8 @@ export function useCreateTask() {
     resume,
     cancel,
     discardTask,
+    reportPromptModelIssue,
+    snoozePromptModelIssue,
+    switchPromptModel,
   }
 }
