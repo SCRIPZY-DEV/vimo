@@ -50,11 +50,11 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
     },
   },
   demo: {
-    packVersion: 'v2',
+    packVersion: 'v3',
     packUrl:
-      'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v2/vimo-demo-pack-v2.zip',
+      'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v3/vimo-demo-pack-v3.zip',
     packSha256:
-      'cae7f0bb96d18d630b820d9476363cf7db20077980ba533480aa15bd1e2a95b2',
+      '7c1930c58d898f2232628ad75f49d7cb497d8ebed9fd92f81737f0a3e208c152',
     delayScale: 1,
   },
 }

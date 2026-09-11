@@ -155,7 +155,13 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
 - **`pnpm check:locales`:** las claves nuevas existen en los tres catálogos.
 - **Corrida real:** con el v3 publicado, `demo-prepare` desde una raíz temporal descarga,
   verifica el SHA e instala; `demo-status` trae `stories['9:16']`; `run-video-pipeline`
-  con un proyecto demo 9:16 y otro con `own-audio` completan.
+  con un proyecto demo 9:16 y otro con `own-audio` completan. Evidencia del
+  2026-09-11 con el release `demo-pack-v3` (334.224.614 bytes, 210 archivos): raíz
+  limpia instalada en 105 s con el `.ok` sellando v3 y el SHA publicado, ocho historias
+  en los dos formatos y la gema sembrada; una raíz con el v2 instalado pasó a «no
+  listo» por la versión y se actualizó al v3 en 101 s sin temporales (320 MB en disco);
+  contra el zip local, Short de catálogo, Short con la gema y `own-audio` en 16:9
+  completaron con los archivos de su carpeta.
 - **Checklist manual (build instalado), además del de ADR-0027:** (a) al entrar a la
   demo por primera vez tras el bump, la puerta descarga el v3; (b) Short se puede elegir
   y al elegirlo cambian nombre, guion y audio; generar produce un video vertical; (c) en
