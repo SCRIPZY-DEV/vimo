@@ -16,6 +16,10 @@
     "voiceVendor": {
       "label": "Provedor de vozes",
       "ariaLabel": "Provedor de vozes"
+    },
+    "promptModelBlocked": {
+      "badge": "Indisponível · volta em {{minutes}} min",
+      "allBlocked": "Todos os modelos para escrever prompts estão bloqueados por falhas recentes. Eles voltam sozinhos em menos de uma hora; enquanto isso, gere com um estilo da Vimo."
     }
   },
   "layout": {
@@ -302,7 +306,9 @@
         "retryRender": "Tentar a montagem de novo",
         "retryHint": "O que já foi gerado (áudio, cenas, prompts e imagens) é mantido; só o que falhou é tentado de novo.",
         "retryRenderHint": "Suas imagens e todo o resto já estão prontos — só a montagem do vídeo é refeita. Nada se perde e não se gastam créditos.",
-        "continueHint": "As cenas que ficaram sem imagem mantêm sua descrição: no editor você pode regenerá-las uma a uma, ou mudar a descrição da que não sair, e depois gerar seu vídeo."
+        "continueHint": "As cenas que ficaram sem imagem mantêm sua descrição: no editor você pode regenerá-las uma a uma, ou mudar a descrição da que não sair, e depois gerar seu vídeo.",
+        "switchModel": "Trocar de modelo e relançar",
+        "switchModelHint": "O modelo que escrevia os prompts falhou. Com outro modelo tudo o que foi feito é mantido e só os prompts que faltam são escritos."
       },
       "savedAt": "Pronto! Seu vídeo foi salvo em",
       "imagesCount": "Imagens ({{ready}}/{{total}})",
@@ -312,7 +318,8 @@
         "enlarge": "Ampliar",
         "enlargeAria": "Ampliar a cena {{id}}",
         "alt": "Cena {{id}}"
-      }
+      },
+      "promptModelStalled": "O modelo está há mais de 2 min sem escrever"
     },
     "confirmScenes": {
       "title": "Confirme a quantidade de cenas",
@@ -371,7 +378,8 @@
       "bgmPromptRequired": "Descreva como quer que a música soe.",
       "overlayUrlRequired": "Cole o link do YouTube da textura.",
       "styleRequired": "Escolha (ou crie) um estilo próprio para gerar.",
-      "characterRequired": "Este estilo pede seu personagem: escolha um."
+      "characterRequired": "Este estilo pede seu personagem: escolha um.",
+      "promptModelsBlocked": "Todos os modelos para escrever prompts estão bloqueados: escolha um estilo da Vimo ou espere eles voltarem."
     },
     "errors": {
       "discard": "Descartar",
@@ -445,7 +453,9 @@
       "styleSamplesFailed": "Nenhuma amostra pôde ser gerada. Tente de novo.",
       "voiceQuotaExceeded": "A cota de caracteres da sua conta do ElevenLabs acabou.",
       "voiceLibraryAddFailed": "Não foi possível adicionar a voz da biblioteca à sua conta do ElevenLabs.",
-      "voiceAccountRestricted": "O ElevenLabs restringiu sua conta para esta função. Verifique seu plano no ElevenLabs."
+      "voiceAccountRestricted": "O ElevenLabs restringiu sua conta para esta função. Verifique seu plano no ElevenLabs.",
+      "llmRescueNeeded": "O modelo escolhido deixou cenas sem escrever e outro modelo as resgatou.",
+      "llmAuth": "A DeepInfra rejeitou sua chave de API. Confira em Chaves de API: sem uma chave válida os prompts não podem ser escritos."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -498,7 +508,8 @@
       "catalog": "Catálogo",
       "catalogHint": "Os 5 estilos do Vimo.",
       "custom": "Meu estilo",
-      "customHint": "Seu próprio estilo visual."
+      "customHint": "Seu próprio estilo visual.",
+      "customBlockedHint": "Sem modelos disponíveis por enquanto: use um estilo da Vimo."
     },
     "customStyles": {
       "galleryHint": "Escolha o estilo das imagens do seu vídeo. Cada estilo que você cria fica guardado como um cartão; os três pontos abrem suas opções.",
@@ -564,7 +575,9 @@
       "noPrice": "Falta o preço deste modelo",
       "onlyPrompts": "É só o que custa escrever os textos das cenas. As imagens são cobradas à parte.",
       "sliderLabel": "Quantas cenas o vídeo teria",
-      "settingsLink": "Alterar o modelo padrão nas Configurações"
+      "settingsLink": "Alterar o modelo padrão nas Configurações",
+      "blockedFallback": "{{model}} não está disponível (volta em {{minutes}} min): este vídeo é escrito por {{fallback}}.",
+      "allBlocked": "Nenhum modelo pode escrever os prompts agora: todos ficaram bloqueados por falhas recentes. Eles voltam sozinhos em menos de uma hora. Enquanto isso, escolha um estilo da Vimo."
     },
     "styleCharacter": {
       "title": "Seu estilo tem personagem?",
@@ -590,6 +603,25 @@
       "defaultSwitchLabel": "Escolher o personagem padrão deste estilo",
       "defaultChange": "Toque para trocar",
       "defaultMissing": "O personagem padrão que você tinha escolhido não está mais na sua lista. Escolha outro para usar este estilo."
+    },
+    "promptModelIssue": {
+      "stalled": {
+        "title": "{{model}} travou",
+        "body": "Passaram mais de 2 minutos sem nenhum prompt novo. Você pode continuar esperando ou cancelar e relançar este mesmo vídeo com outro modelo: a voz e os cortes já feitos são mantidos."
+      },
+      "error": {
+        "title": "{{model}} está retornando erros",
+        "body": "O serviço do modelo falhou enquanto escrevia os prompts, então o vídeo parou: nada é preenchido sem a sua decisão. Você pode tentar de novo com o mesmo modelo ou relançar este mesmo vídeo com outro. A voz, os cortes e os prompts que já saíram são mantidos."
+      },
+      "blockedHint": "{{model}} fica bloqueado por 1 hora para vídeos novos. Ele volta sozinho.",
+      "keepWaiting": "Continuar esperando",
+      "switchModel": "Trocar de modelo",
+      "relaunchWith": "Cancelar e relançar com {{model}}",
+      "switching": "Trocando para {{model}}… o job atual está fechando e o vídeo é relançado.",
+      "allBlockedHint": "Este vídeo usa seu próprio estilo e precisa de um modelo para escrever os prompts. Cancele e tente de novo quando eles voltarem, ou crie um novo com um estilo da Vimo.",
+      "cancelToLibrary": "Cancelar e voltar para a biblioteca",
+      "halting": "Parando o vídeo… o job atual está fechando.",
+      "retrySame": "Tentar de novo com {{model}}"
     }
   },
   "library": {
@@ -1304,7 +1336,17 @@
     "updatesInstallError": "Não foi possível instalar a atualização. Tente de novo mais tarde.",
     "updatesPromptTitle": "Nova versão do Vimo",
     "updatesPromptDescription": "A versão {{version}} está pronta para instalar. Você tem a {{currentVersion}}.",
-    "updatesNotesTitle": "Novidades"
+    "updatesNotesTitle": "Novidades",
+    "blockedModelsTitle": "Modelos bloqueados",
+    "blockedModelsTagline": "Modelos para escrever prompts que travaram ou falharam há pouco. Eles voltam sozinhos depois de uma hora; aqui você pode liberá-los antes.",
+    "blockedModelsEmpty": "Nenhum modelo bloqueado agora.",
+    "blockedModelsUnblock": "Desbloquear",
+    "blockedModelsUnblockAll": "Desbloquear todos",
+    "blockedModelsBackIn": "volta em {{minutes}} min",
+    "blockedModelsReason": {
+      "stalled": "Ficou mais de 2 min sem escrever",
+      "error": "Retornou erros ao escrever"
+    }
   },
   "splash": {
     "pageTitle": "Vimo",
