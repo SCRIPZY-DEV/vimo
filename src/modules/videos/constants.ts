@@ -28,6 +28,7 @@ import type {
 
 export const VideosRoutes = {
   create: '/create',
+  createDemo: '/create-demo',
   library: '/library',
   libraryPlayer: '/library/:projectId',
   libraryProgress: '/library/:projectId/progress',
@@ -50,6 +51,7 @@ export function libraryEditorPath(projectId: string): string {
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
   customStyles: ['videos', 'customStyles'],
+  demoStatus: ['videos', 'demoStatus'],
   projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
@@ -57,7 +59,6 @@ export const videosQueryKeys = {
   projectDetail(projectId: string) {
     return ['videos', 'project', projectId, 'detail']
   },
-  imageCredits: ['videos', 'imageCredits'],
   sceneCutPreview(projectId: string, secondsPerScene: number) {
     return ['videos', 'project', projectId, 'sceneCutPreview', secondsPerScene]
   },
@@ -122,7 +123,7 @@ export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   'ytdlp_timeout',
 ])
 // Saldo agotado en el proveedor (espejo de pipeline/utils/insufficient-
-// credits.ts, ADR-0029): nunca se reintenta solo ni abre el diálogo del
+// credits.ts, ADR-0031): nunca se reintenta solo ni abre el diálogo del
 // modelo; el proyecto queda pausado y la persona recarga y reanuda.
 export const INSUFFICIENT_CREDITS_CODES: ReadonlySet<string> = new Set([
   'voice_insufficient_credits',
@@ -396,6 +397,10 @@ export function newCustomStyleId(): string {
 // Formato del video: horizontal clásico o vertical para shorts.
 export const DEFAULT_VIDEO_FORMAT: VideoFormat = '16:9'
 
+// Modo demo (ADR-0029, ADR-0030): la demo arranca en 16:9; qué otros
+// formatos se ofrecen (Short) lo decide el manifest del pack instalado.
+export const DEMO_VIDEO_FORMAT: VideoFormat = '16:9'
+
 export const VIDEO_FORMATS: {
   id: VideoFormat
   titleKey: string
@@ -422,13 +427,13 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'fal', label: 'Fal' },
 ]
 
-// Opciones de calidad por proveedor (ambos generan con gpt-image-2, ADR-0015).
-// Evolink solo expone 16:9 1K, así que de la opción solo importa la calidad;
-// en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>` del
-// catálogo del origen). La etiqueta visible no nombra la resolución sino el
-// formato del video y el nivel («16:9 · Low», «9:16 · High»): `labelKey` es
-// una clave por nivel y quien la traduce interpola el `format` vigente (el
-// elegido en el formulario, o el del proyecto en el editor).
+// Opciones de nivel de razonamiento por proveedor (ambos generan con
+// gpt-image-2, ADR-0015). Para la persona es «cuánto razona el modelo antes
+// de dibujar»; para el sidecar sigue siendo la calidad del catálogo del
+// origen: Evolink solo expone 16:9 1K, así que del id solo importa el nivel;
+// en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>`). La
+// etiqueta visible lleva el nivel y el formato elegido («Bajo · 16:9»), sin
+// repetir «Nivel de razonamiento», que ya es la etiqueta del campo.
 // Los precios (USD por imagen) vienen del catálogo del origen
 // (src/core/costos.ts); si cambian, actualizar también el catálogo
 // informativo de modules/costs/catalog.ts (ADR-0008). Evolink cobra en
@@ -442,22 +447,22 @@ export const EVOLINK_QUALITY_OPTIONS: {
 }[] = [
   {
     id: '1024x576_low',
-    labelKey: 'create.quality.low',
-    noteKey: 'create.quality.evolinkLowNote',
+    labelKey: 'create.reasoningLevel.low',
+    noteKey: 'create.reasoningLevel.evolinkLowNote',
     priceUsd: 0.0036,
     credits: 0.24,
   },
   {
     id: '1024x576_medium',
-    labelKey: 'create.quality.medium',
-    noteKey: 'create.quality.evolinkMediumNote',
+    labelKey: 'create.reasoningLevel.medium',
+    noteKey: 'create.reasoningLevel.evolinkMediumNote',
     priceUsd: 0.0273,
     credits: 1.85,
   },
   {
     id: '1024x576_high',
-    labelKey: 'create.quality.high',
-    noteKey: 'create.quality.evolinkHighNote',
+    labelKey: 'create.reasoningLevel.high',
+    noteKey: 'create.reasoningLevel.evolinkHighNote',
     priceUsd: 0.1072,
     credits: 7.29,
   },
@@ -471,20 +476,20 @@ export const FAL_QUALITY_OPTIONS: {
 }[] = [
   {
     id: '1920x1080_low',
-    labelKey: 'create.quality.low',
-    noteKey: 'create.quality.falNote',
+    labelKey: 'create.reasoningLevel.low',
+    noteKey: 'create.reasoningLevel.falNote',
     priceUsd: 0.005,
   },
   {
     id: '1920x1080_medium',
-    labelKey: 'create.quality.medium',
-    noteKey: 'create.quality.falNote',
+    labelKey: 'create.reasoningLevel.medium',
+    noteKey: 'create.reasoningLevel.falNote',
     priceUsd: 0.04,
   },
   {
     id: '1920x1080_high',
-    labelKey: 'create.quality.high',
-    noteKey: 'create.quality.falNote',
+    labelKey: 'create.reasoningLevel.high',
+    noteKey: 'create.reasoningLevel.falNote',
     priceUsd: 0.158,
   },
 ]
@@ -499,38 +504,23 @@ export const FAL_QUALITY_OPTIONS_VERTICAL: {
 }[] = [
   {
     id: '1080x1920_low',
-    labelKey: 'create.quality.low',
-    noteKey: 'create.quality.falVerticalNote',
+    labelKey: 'create.reasoningLevel.low',
+    noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.005,
   },
   {
     id: '1080x1920_medium',
-    labelKey: 'create.quality.medium',
-    noteKey: 'create.quality.falVerticalNote',
+    labelKey: 'create.reasoningLevel.medium',
+    noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.04,
   },
   {
     id: '1080x1920_high',
-    labelKey: 'create.quality.high',
-    noteKey: 'create.quality.falVerticalNote',
+    labelKey: 'create.reasoningLevel.high',
+    noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.158,
   },
 ]
-
-// El proveedor tarda unos segundos en reflejar el gasto: el refetch de saldos
-// tras una generación se difiere (mismo criterio que el origen).
-export const CREDITS_REFRESH_DELAY_MS = 4000
-
-// Códigos del saldo (get-image-credits) que para la persona significan una
-// sola cosa: falta configurar la clave — no hay clave, o el proveedor la
-// rechazó (Fal responde 401/403 también cuando la clave no es de admin;
-// Evolink, cuando es inválida). Cualquier otro código es un error de red o
-// del proveedor y se muestra como tal.
-export const NOT_CONFIGURED_CREDITS_CODES: ReadonlySet<string> = new Set([
-  'missing_api_key',
-  'fal_admin_key_required',
-  'music_invalid_api_key',
-])
 
 // Frecuencias de aparición del personaje, de menor a mayor.
 export const CHARACTER_FREQUENCIES: {
@@ -679,6 +669,11 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   style_not_found: 'create.errors.styleNotFound',
   style_save_failed: 'create.errors.styleSaveFailed',
   style_samples_failed: 'create.errors.styleSamplesFailed',
+  // Modo demo (ADR-0029)
+  demo_not_ready: 'create.errors.demoNotReady',
+  demo_pack_incomplete: 'create.errors.demoNotReady',
+  demo_style_not_included: 'create.errors.demoStyleNotIncluded',
+  demo_format_not_included: 'create.errors.demoFormatNotIncluded',
   cancelled: 'create.errors.cancelled',
   sidecar_missing: 'create.errors.sidecar',
   sidecar_spawn: 'create.errors.sidecar',
@@ -699,4 +694,17 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   fal_admin_key_required: 'library.errors.falAdminKeyRequired',
   music_invalid_api_key: 'create.errors.missingApiKey',
   music_network: 'create.errors.musicGenerationFailed',
+  demo_project: 'library.errors.demoProject',
 }
+
+// Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0029).
+// Ninguno es reintentable: un fallo de la demo es final.
+export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  demo_offline: 'createDemo.errors.offline',
+  demo_download_failed: 'createDemo.errors.downloadFailed',
+  demo_pack_corrupt: 'createDemo.errors.packCorrupt',
+  demo_pack_unreadable: 'createDemo.errors.packUnreadable',
+  demo_pack_incomplete: 'createDemo.errors.packIncomplete',
+  missing_projects_root: 'create.errors.missingProjectsRoot',
+}
+export const UNKNOWN_DEMO_ERROR_KEY = 'createDemo.errors.unknown'

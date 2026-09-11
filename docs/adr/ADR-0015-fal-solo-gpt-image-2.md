@@ -44,7 +44,8 @@ un solo literal: el modelo es una constante del proveedor.
   `generateFalImage(prompt, options)` y `falSceneRequestBody(prompt, quality)`
   no reciben modelo.
 - `pipeline/stages/images/lane.ts`: `SceneLaneInputs` queda con `apiKey` y
-  `qualityOption`; `fal-lane.ts` usa un `EXPECTED_MS` fijo para el progreso.
+  `qualityOption`; `fal-lane.ts` usa el `FAL_EXPECTED_MS` fijo de `fal.ts`
+  para el progreso simulado (reloj compartido en `utils/simulated-progress.ts`).
 - `VideoProjectOptions` (`pipeline/types/video-project.ts`) y
   `GenerateCharacterPreviewPayload` (`pipeline/types/characters.ts`) pierden
   `falModel`; `visual-styles.ts` pierde `incompatibleModels`.

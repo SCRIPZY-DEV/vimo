@@ -60,7 +60,7 @@ export function createDeepInfraProvider(
         )
       if (!response.ok) {
         const bodyText = (await response.text().catch(() => '')).slice(0, 300)
-        // Saldo agotado antes que la clave (ADR-0029): un 403 con detalle de
+        // Saldo agotado antes que la clave (ADR-0031): un 403 con detalle de
         // balance no es «revisá tu clave», es «recargá».
         if (isInsufficientCreditsResponse(response.status, bodyText))
           throw new PipelineFailure(

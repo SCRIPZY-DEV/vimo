@@ -169,7 +169,7 @@ export interface CreateTask {
   // saldo la tarjeta sabe qué cuenta mostrar y a dónde mandar a recargar.
   imageProvider: ImageProviderId | null
   voiceVendor: VoiceVendorId | null
-  // El job cayó por saldo agotado (ADR-0029). Sobrevive al reinicio: el
+  // El job cayó por saldo agotado (ADR-0031). Sobrevive al reinicio: el
   // proyecto quedó pausado en disco por el mismo motivo.
   creditsIssue: CreditsIssueView | null
 }
@@ -281,4 +281,10 @@ export interface ProbeCacheEntry {
   ok: boolean
   reason: ProbeTtsReason
   expiresAt: number
+}
+
+// Cómo se arma el payload de create-video-project desde el formulario.
+export interface CreateProjectPayloadOptions {
+  // Modo demo (ADR-0029): el proyecto nace con options.demo y sin pausas.
+  demo?: boolean
 }

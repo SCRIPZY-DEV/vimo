@@ -147,7 +147,7 @@ async function createTask(
 
   if (!response.ok) {
     const bodyText = (await response.text().catch(() => '')).slice(0, 300)
-    // Saldo agotado antes que la clave (ADR-0029).
+    // Saldo agotado antes que la clave (ADR-0031).
     if (isInsufficientCreditsResponse(response.status, bodyText))
       throw new PipelineFailure(
         'music_insufficient_credits',

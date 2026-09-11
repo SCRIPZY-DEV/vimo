@@ -20,7 +20,7 @@ interface NoCreditsResumePanelProps {
 
 // Proyecto pausado por saldo, rehidratado desde disco (sin tarea viva): qué
 // cuenta rechazó, cuánto falta por gastar, saldo actual, recargar y
-// reanudar recién cuando el saldo re-leído alcanza (ADR-0029).
+// reanudar recién cuando el saldo re-leído alcanza (ADR-0031).
 export function NoCreditsResumePanel({
   status,
   onResume,

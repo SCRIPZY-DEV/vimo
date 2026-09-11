@@ -20,7 +20,7 @@ interface InsufficientCreditsCardProps {
   onContinueInEditor?: () => void
 }
 
-// Bloque de «sin saldo» dentro de la pantalla de progreso (ADR-0029): qué
+// Bloque de «sin saldo» dentro de la pantalla de progreso (ADR-0031): qué
 // cuenta se quedó sin saldo, cuánto falta por gastar (leído del disco),
 // saldo actual, recargar, y reanudar recién cuando el saldo alcanza.
 export function InsufficientCreditsCard({

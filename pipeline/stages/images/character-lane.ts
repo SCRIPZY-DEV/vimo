@@ -3,6 +3,7 @@ import { sceneImageFile } from '../../project/paths.ts'
 import {
   FAL_BASE_URL,
   FAL_CONTENT_POLICY_PATTERN,
+  FAL_EXPECTED_MS,
   falErrorText,
   readFalErrorBody,
 } from '../../providers/image/fal.ts'
@@ -16,6 +17,7 @@ import {
   isInsufficientCreditsFailure,
   isInsufficientCreditsResponse,
 } from '../../utils/insufficient-credits.ts'
+import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { generateSceneWithEvolink } from './evolink-lane.ts'
 import {
@@ -41,7 +43,6 @@ export interface CharacterReference {
 const FAL_EDIT_ENDPOINT = `${FAL_BASE_URL}/openai/gpt-image-2/edit`
 const FAL_MAX_ATTEMPTS = 3
 const FAL_REQUEST_TIMEOUT_MS = 180_000
-const FAL_EXPECTED_MS = 22_000
 const CHARACTER_QUALITY = 'low'
 // Mismo cupo que el carril normal; los 429 los absorbe el backoff.
 const FAL_CHARACTER_CONCURRENCY = 10
@@ -73,13 +74,12 @@ async function generateSceneWithFalEdit(
   // subiendo desde donde iba en vez de volver a 0 (avance monótono).
   const startedAt = Date.now()
   for (let attempt = 1; attempt <= FAL_MAX_ATTEMPTS; attempt++) {
-    const progressTimer = setInterval(() => {
-      const percent = Math.min(
-        95,
-        Math.floor(((Date.now() - startedAt) / FAL_EXPECTED_MS) * 100),
-      )
-      options.events.onProgress(scene.id, percent, 'processing')
-    }, 500)
+    // Fal no expone progreso: mismo ramp simulado que el carril normal.
+    const stopProgress = startSimulatedProgress(
+      startedAt,
+      FAL_EXPECTED_MS,
+      (percent) => options.events.onProgress(scene.id, percent, 'processing'),
+    )
 
     try {
       options.events.onStarted(scene.id, attempt)
@@ -125,7 +125,7 @@ async function generateSceneWithFalEdit(
       const errorType = typeof body?.type === 'string' ? body.type : ''
       const signalText = `${errorType} ${falErrorText(body)}`.toLowerCase()
 
-      // Saldo agotado: corta la fase entera (ADR-0029), no cae al carril
+      // Saldo agotado: corta la fase entera (ADR-0031), no cae al carril
       // normal — ahí fallaría igual y gastaría intentos.
       if (isInsufficientCreditsResponse(response.status, signalText))
         throw new PipelineFailure(
@@ -157,7 +157,7 @@ async function generateSceneWithFalEdit(
       if (attempt === FAL_MAX_ATTEMPTS) return { scene, imageReady: false }
       await sleep(2000 * attempt, options.signal)
     } finally {
-      clearInterval(progressTimer)
+      stopProgress()
     }
   }
   return { scene, imageReady: false }

@@ -1,3 +1,4 @@
+import { runDemoPipeline } from '../demo/run-demo-pipeline.ts'
 import { isValidFile } from '../../project/paths.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure, toPipelineFailure } from '../../runner/failure.ts'
@@ -31,6 +32,11 @@ export async function runVideoPipeline(
     )
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
+
+  // Modo demo (ADR-0029): el proyecto nació desde la puerta de la demo y no
+  // hay proveedores que llamar — se simulan las fases con el pack pre-hecho.
+  // `untilStage` no aplica: la demo siempre corre entera.
+  if (videoContext.options.demo === true) return runDemoPipeline(videoContext)
 
   // autoRender false (ADR-0016): el run completo genera todo MENOS el render
   // y el proyecto queda en borrador para el editor. Un untilStage explícito
@@ -66,6 +72,8 @@ export async function runVideoPipeline(
     // el editor lo abre directo con todo generado.
     if (fullRun) {
       videoContext.metadata.state = autoRender ? 'completed' : 'draft'
+      // El render recién hecho es la verdad: el mp4 ya no está atrás de nada.
+      if (autoRender) videoContext.metadata.videoOutdated = false
       await videoContext.saveMetadata()
     }
 

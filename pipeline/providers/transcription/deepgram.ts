@@ -79,7 +79,7 @@ async function requestTranscription(
 
     const detail = (await response.text().catch(() => '')).slice(0, 200)
 
-    // Saldo agotado antes que la clave (ADR-0029).
+    // Saldo agotado antes que la clave (ADR-0031).
     if (isInsufficientCreditsResponse(response.status, detail))
       throw new PipelineFailure(
         'transcription_insufficient_credits',

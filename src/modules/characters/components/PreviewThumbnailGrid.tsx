@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { ImageIcon, Loader2 } from 'lucide-react'
-import { Skeleton } from '@/modules/common/ui/skeleton'
 import type { PreviewView } from '@/modules/characters/types/characters'
 
 interface PreviewThumbnailGridProps {
@@ -8,6 +7,9 @@ interface PreviewThumbnailGridProps {
   previews: PreviewView[]
   generating: boolean
   generatingLabel: string
+  // Avance del preview en curso (real de Evolink o simulado por el sidecar);
+  // null = todavía sin dato, solo el spinner.
+  percent: number | null
   labelOf: (styleId: string) => string
 }
 
@@ -15,6 +17,7 @@ export function PreviewThumbnailGrid({
   previews,
   generating,
   generatingLabel,
+  percent,
   labelOf,
 }: PreviewThumbnailGridProps) {
   const { t } = useTranslation()
@@ -27,6 +30,8 @@ export function PreviewThumbnailGrid({
       </p>
     )
   }
+
+  const progress = percent === null ? null : Math.min(100, Math.max(0, percent))
 
   return (
     <ul className="flex flex-wrap justify-center gap-3">
@@ -47,9 +52,24 @@ export function PreviewThumbnailGrid({
       ))}
       {generating && (
         <li className="w-[calc((100%-1.5rem)/3)] space-y-1">
-          <Skeleton className="flex aspect-square w-full items-center justify-center rounded-xl border border-border">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </Skeleton>
+          {/* Misma casilla que la grilla de imágenes del pipeline (SceneCell):
+              spinner, porcentaje en mono y barra fina abajo. */}
+          <div className="relative flex aspect-square w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-ocean/60 bg-ocean/10">
+            <Loader2 className="h-6 w-6 animate-spin text-ocean" />
+            {progress !== null && (
+              <span className="font-mono text-sm font-bold tabular-nums text-ocean">
+                {Math.round(progress)}%
+              </span>
+            )}
+            {progress !== null && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
+                <div
+                  className="h-full bg-ocean transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+          </div>
           <p className="truncate text-center font-body text-xs text-muted-foreground">
             {generatingLabel}
           </p>

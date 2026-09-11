@@ -1,4 +1,4 @@
-import { useImageCredits } from '@/modules/videos/hooks/useImageCredits'
+import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { creditsIssueLine } from '@/modules/videos/utilities/creditsIssueLine'
 import { useVoiceCredits } from '@/modules/voices/hooks/useVoiceCredits'
 import type { CreditsIssueContext } from '@/modules/videos/types/credits'

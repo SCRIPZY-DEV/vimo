@@ -76,6 +76,11 @@ export function CustomStyleCard({
       onMouseLeave={carousel.deactivate}
       onFocus={carousel.activate}
       onBlur={carousel.deactivate}
+      // El click no enfoca la tarjeta: en el WebView de macOS `focus-visible`
+      // igual encendía el aro al hacer clic (visto en la tarjeta del catálogo,
+      // que es idéntica). Con Tab el aro sigue; el menú de los tres puntos
+      // abre por pointerdown y no depende de este foco.
+      onMouseDown={(event) => event.preventDefault()}
       // Nada dentro de la tarjeta inicia un arrastre del navegador: un
       // arrastre en curso congela la forma del cursor y el :hover de toda la
       // página hasta el próximo click.

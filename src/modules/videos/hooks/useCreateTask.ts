@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import i18next from 'i18next'
 import { toast } from '@/modules/common/hooks/useToast'
+import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { blockPromptModel } from '@/modules/common/utilities/promptModelBlocks'
 import { videosApi } from '@/modules/videos/api'
 import {
@@ -18,7 +19,6 @@ import {
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
-import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import {
@@ -453,7 +453,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'job-failed': {
       stopActiveJob()
-      // Saldo agotado (ADR-0029): ni reintento automático ni diálogo del
+      // Saldo agotado (ADR-0031): ni reintento automático ni diálogo del
       // modelo — el proyecto quedó pausado en disco; la tarjeta muestra el
       // saldo, manda a recargar y re-chequea antes de reanudar.
       const creditsDomain = INSUFFICIENT_CREDITS_CODES.has(event.code)

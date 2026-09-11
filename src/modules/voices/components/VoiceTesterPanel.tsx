@@ -57,7 +57,7 @@ interface VoiceTesterPanelProps {
   voice: VoiceSummary
   disabled: boolean
   // Saldo del vendor de la voz (lo lee la vista): con saldo leído menor al
-  // costo del texto el botón se frena y se ofrece recargar (ADR-0029).
+  // costo del texto el botón se frena y se ofrece recargar (ADR-0031).
   credits: VoiceCreditsResult | null
   onRefreshCredits: () => void
   creditsRefreshing: boolean

@@ -165,7 +165,7 @@ export async function generateSceneWithEvolink(
       if (options.signal.aborted)
         return { scene: withPendingTask(), imageReady: false }
       // Saldo agotado: no es de esta escena sino de la cuenta — corta la
-      // fase entera; el proyecto queda pausado y retomable (ADR-0029).
+      // fase entera; el proyecto queda pausado y retomable (ADR-0031).
       if (isInsufficientCreditsFailure(error)) throw error
 
       // Plazo del encargo vencido: verificación FINAL antes de re-encargar.

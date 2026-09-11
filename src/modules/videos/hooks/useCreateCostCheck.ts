@@ -7,7 +7,7 @@ interface UseCreateCostCheckOptions {
   form: CreateFormValue
 }
 
-// Pre-check de saldo del formulario de Crear (ADR-0029).
+// Pre-check de saldo del formulario de Crear (ADR-0031).
 export function useCreateCostCheck({ form }: UseCreateCostCheckOptions) {
   return useCostCheck({
     estimates: estimateCreateCost(form),

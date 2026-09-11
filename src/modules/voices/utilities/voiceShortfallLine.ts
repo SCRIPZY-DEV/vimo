@@ -11,7 +11,7 @@ import type {
 } from '@pipeline/types/voices.ts'
 
 // La fila del aviso de saldo del probador: lo que cuesta el texto contra el
-// saldo del vendor de esa voz (ADR-0029).
+// saldo del vendor de esa voz (ADR-0031).
 export function voiceShortfallLine(
   provider: VoiceProviderId,
   estimated: number,

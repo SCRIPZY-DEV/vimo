@@ -8,7 +8,7 @@ import type {
   CostEstimateLine,
 } from '@/modules/common/types/credits'
 
-// Cruza la estimación con los saldos leídos (ADR-0029). Bloquea SOLO con
+// Cruza la estimación con los saldos leídos (ADR-0031). Bloquea SOLO con
 // saldo leído e insuficiente en una línea obligatoria: una cuenta ilegible
 // (sin clave, red caída) se avisa, no se bloquea — el proveedor dirá.
 // `labelOf` pone la marca del proveedor (el catálogo vive en api-keys).

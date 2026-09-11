@@ -45,7 +45,7 @@ const MAX_ORDERS = 3
 
 // Fallos de tarea que sí conviene re-encargar: la tarea fallida no se cobró.
 // `quota_exceeded` y `resource_exhausted` NO están: son saldo agotado y
-// re-encargar solo repite el rechazo (ADR-0029, ver isInsufficientTaskError).
+// re-encargar solo repite el rechazo (ADR-0031, ver isInsufficientTaskError).
 export const RETRYABLE_TASK_ERRORS = new Set([
   'generation_failed_no_content',
   'service_error',
@@ -240,7 +240,7 @@ async function errorBodyText(response: Response): Promise<string> {
 // Clasificación de un create rechazado. El cuerpo se lee ANTES de mirar el
 // status: el saldo agotado puede venir como 402 o como 403 con detalle, y
 // confundirlo con clave inválida manda a la persona a revisar la clave en
-// vez de a recargar (ADR-0029). Un 429 sale con el retry-after en el mensaje
+// vez de a recargar (ADR-0031). Un 429 sale con el retry-after en el mensaje
 // para que el caller espere lo que el proveedor pide.
 function createFailure(response: Response, bodyText: string): PipelineFailure {
   if (isInsufficientCreditsResponse(response.status, bodyText))

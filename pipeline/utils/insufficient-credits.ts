@@ -1,6 +1,6 @@
 import { PipelineFailure } from '../runner/failure.ts'
 
-// Detección uniforme de «saldo agotado» en los proveedores pagos (ADR-0029).
+// Detección uniforme de «saldo agotado» en los proveedores pagos (ADR-0031).
 // Cada dominio tiene su código estable (la UI lo traduce y lo trata distinto
 // de un fallo transitorio: no se reintenta, el proyecto queda pausado y
 // retomable). `voice_quota_exceeded` es el histórico de ElevenLabs directo

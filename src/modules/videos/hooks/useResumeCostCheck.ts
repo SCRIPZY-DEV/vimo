@@ -7,7 +7,7 @@ interface UseResumeCostCheckOptions {
   status: VideoProjectStatusResult | null
 }
 
-// Pre-check de saldo al reanudar (ADR-0029): solo lo que falta por generar
+// Pre-check de saldo al reanudar (ADR-0031): solo lo que falta por generar
 // según el estado en disco.
 export function useResumeCostCheck({ status }: UseResumeCostCheckOptions) {
   const voiceProvider = status?.metadata.options.voiceProvider

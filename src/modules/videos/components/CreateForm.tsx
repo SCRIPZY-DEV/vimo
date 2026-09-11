@@ -28,13 +28,21 @@ import {
 import { allPromptModelsBlocked } from '@/modules/common/utilities/allPromptModelsBlocked'
 import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
+import {
+  demoAudioFileLabel,
+  demoComingSoonFormats,
+  demoStyleIds,
+} from '@/modules/videos/utilities/demoForm'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { DemoManifest } from '@pipeline/types/demo.ts'
 
 interface CreateFormProps {
   value: CreateFormValue
   disabled: boolean
   submitting: boolean
+  // Manifest del pack cuando se entra por la puerta de la demo (ADR-0027).
+  demo: DemoManifest | null
   onChange: (patch: Partial<CreateFormValue>) => void
   onPickAudio: () => void
   onSubmit: () => void
@@ -44,6 +52,7 @@ export function CreateForm({
   value,
   disabled,
   submitting,
+  demo,
   onChange,
   onPickAudio,
   onSubmit,
@@ -58,7 +67,7 @@ export function CreateForm({
   const { blockedIds } = usePromptModelBlocks()
   const promptModelsBlocked = allPromptModelsBlocked(models, blockedIds)
 
-  // Pre-check de saldo (ADR-0029): con saldo leído e insuficiente el envío
+  // Pre-check de saldo (ADR-0031): con saldo leído e insuficiente el envío
   // se frena como cualquier otro paso faltante; ilegible solo avisa.
   const costCheck = useCreateCostCheck({ form: value })
   const blockers = costCheck.result.blocking
@@ -107,6 +116,8 @@ export function CreateForm({
       <NarrationSection
         value={value}
         disabled={disabled}
+        audioLocked={demo !== null}
+        audioFileLabel={demo ? demoAudioFileLabel(demo, value) : undefined}
         onChange={onChange}
         onPickAudio={onPickAudio}
       />
@@ -115,6 +126,9 @@ export function CreateForm({
         <StyleSourceTabs
           value={value.styleSource}
           disabled={disabled}
+          catalogHintKey={
+            demo ? 'create.styleSource.catalogHintDemo' : undefined
+          }
           customDisabled={promptModelsBlocked}
           onChange={(styleSource) => onChange({ styleSource })}
         />
@@ -122,6 +136,7 @@ export function CreateForm({
           <StyleGallery
             value={value.styleId}
             disabled={disabled}
+            visibleIds={demo ? demoStyleIds(demo) : undefined}
             onChange={(styleId) => onChange({ styleId })}
           />
         ) : (
@@ -180,6 +195,7 @@ export function CreateForm({
       <VideoFormatSection
         value={value}
         disabled={disabled}
+        comingSoon={demo ? demoComingSoonFormats(demo) : undefined}
         onChange={onChange}
       />
 

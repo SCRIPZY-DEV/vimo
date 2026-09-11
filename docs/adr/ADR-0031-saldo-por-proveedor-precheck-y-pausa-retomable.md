@@ -1,10 +1,10 @@
-# ADR-0029 — Saldo por proveedor: pre-check antes de gastar y pausa retomable al agotarse
+# ADR-0031 — Saldo por proveedor: pre-check antes de gastar y pausa retomable al agotarse
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-11
 - **Área:** app | pipeline | providers
 - **Completa a:** [ADR-0011](ADR-0011-claves-de-api-byo-en-keychain.md), [ADR-0013](ADR-0013-runner-de-stages-y-fases-de-create.md), [ADR-0014](ADR-0014-modulo-library-edicion-sobre-stages.md)
-- **Puente hacia:** [ADR-0030](ADR-0030-proveedores-en-servidor-y-creditos-de-vimo.md)
+- **Puente hacia:** [ADR-0032](ADR-0032-proveedores-en-servidor-y-creditos-de-vimo.md)
 
 ## Problema
 
@@ -75,7 +75,7 @@ con motivo.
 - **`state: 'error'` + errorCode** — es lo que pasaba: manda al player, dispara el
   auto-retry y no distingue «recargá» de «algo se rompió». Descartada.
 - **Créditos propios de Vimo ahora** — exige backend, descuento y recarga desde cero.
-  Es la dirección (ADR-0030), no el paso de hoy; por eso la UI de saldo nació agnóstica
+  Es la dirección (ADR-0032), no el paso de hoy; por eso la UI de saldo nació agnóstica
   del proveedor.
 - **Estimar en el sidecar** — un proceso por consulta para una cuenta que ya está en
   la UI (precios en `videos/constants.ts`, factores en `voices/constants.ts`). Descartada.
@@ -113,6 +113,6 @@ con motivo.
 
 ## Fuera de alcance
 
-- Conversión de unidades entre proveedores y un saldo único: lo resuelve ADR-0030.
+- Conversión de unidades entre proveedores y un saldo único: lo resuelve ADR-0032.
 - Estimar el costo del LLM en dólares (el simulador de `promptCost.ts` sigue siendo
   informativo): DeepInfra no expone saldo contra el cual comparar.

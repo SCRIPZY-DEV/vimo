@@ -165,7 +165,7 @@ export function createVerbatimClient(
         )
       if (!response.ok || !response.body) {
         const bodyText = (await response.text().catch(() => '')).slice(0, 300)
-        // Saldo agotado antes que la clave (ADR-0029).
+        // Saldo agotado antes que la clave (ADR-0031).
         if (isInsufficientCreditsResponse(response.status, bodyText))
           throw new PipelineFailure(
             'llm_insufficient_credits',

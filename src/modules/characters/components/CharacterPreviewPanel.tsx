@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { ImageIcon, Loader2, X } from 'lucide-react'
 import { apiKeysApi } from '@/modules/api-keys/api'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { Button } from '@/modules/common/ui/button'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
@@ -16,6 +17,7 @@ import type { StyleSource } from '@/modules/characters/components/StyleSourceTab
 import type { CharacterPreviewPhase } from '@pipeline/types/characters.ts'
 import type { CreditsShortfallLine } from '@/modules/common/types/credits'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { ImageCreditsResult } from '@pipeline/types/video-project.ts'
 import type {
   PreviewStyleOption,
   PreviewView,
@@ -29,11 +31,17 @@ interface CharacterPreviewPanelProps {
   provider: ImageProviderId
   generating: boolean
   phase: CharacterPreviewPhase | null
+  // Avance de la fase en curso; null = todavía sin dato (solo el spinner).
+  percent: number | null
   errorKey: string | null
   disabled: boolean
   missingProviderKey: boolean
   canGenerate: boolean
-  // Saldo del proveedor elegido (ADR-0029): con `sufficient === false` el
+  // Saldo de los proveedores de imagen: se muestra solo el del elegido, con
+  // el botón de refrescar (mismo bloque que el panel del editor).
+  credits: ImageCreditsResult | null
+  creditsLoading: boolean
+  // El mismo saldo comparado (ADR-0031): con `sufficient === false` el
   // botón se frena y se ofrece recargar.
   creditsLine: CreditsShortfallLine
   creditsRefreshing: boolean
@@ -51,10 +59,13 @@ export function CharacterPreviewPanel({
   provider,
   generating,
   phase,
+  percent,
   errorKey,
   disabled,
   missingProviderKey,
   canGenerate,
+  credits,
+  creditsLoading,
   creditsLine,
   creditsRefreshing,
   onRefreshCredits,
@@ -134,11 +145,25 @@ export function CharacterPreviewPanel({
         </p>
       )}
 
-      <PreviewProviderChips
-        provider={provider}
-        disabled={disabled || generating}
-        onProviderChange={onProviderChange}
-      />
+      {/* Proveedor a la izquierda; a la derecha, el saldo del elegido y el
+          botón de refrescar, como en el panel del editor. Tras un preview el
+          saldo se vuelve a pedir solo (scheduleCreditsRefresh): el botón es
+          para revisarlo a mano. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PreviewProviderChips
+          provider={provider}
+          disabled={disabled || generating}
+          onProviderChange={onProviderChange}
+        />
+        <ImageCreditsBadges
+          credits={credits}
+          loading={creditsLoading}
+          refreshing={creditsRefreshing}
+          active={provider}
+          onlyActive
+          onRefresh={onRefreshCredits}
+        />
+      </div>
 
       <div className="flex items-center gap-2">
         <Button
@@ -201,6 +226,7 @@ export function CharacterPreviewPanel({
         previews={visiblePreviews}
         generating={generating}
         generatingLabel={generatingLabel}
+        percent={percent}
         labelOf={labelOf}
       />
 

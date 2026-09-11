@@ -1,9 +1,10 @@
 import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
 import { queryClient } from '@/modules/common/queryClient'
 import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
+import { commonApi } from '@/modules/common/api'
+import { commonQueryKeys } from '@/modules/common/constants'
 import { videosApi } from '@/modules/videos/api'
-import { videosQueryKeys } from '@/modules/videos/constants'
-import { useImageCredits } from '@/modules/videos/hooks/useImageCredits'
+import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { voicesApi } from '@/modules/voices/api'
 import { voicesQueryKeys } from '@/modules/voices/constants'
 import { useVoiceCredits } from '@/modules/voices/hooks/useVoiceCredits'
@@ -18,7 +19,7 @@ interface UseCostCheckOptions {
   voiceVendor: VoiceVendorId | null
 }
 
-// Cruza una estimación de gasto con los saldos (ADR-0029): `result` usa la
+// Cruza una estimación de gasto con los saldos (ADR-0031): `result` usa la
 // caché (aviso en vivo); `verify` re-lee justo antes de arrancar, porque un
 // saldo de hace un minuto pudo gastarse en otro lado. Solo consulta las
 // cuentas que la estimación toca: cada consulta levanta un proceso.
@@ -53,8 +54,8 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
       needsImage
         ? queryClient
             .fetchQuery({
-              queryKey: videosQueryKeys.imageCredits,
-              queryFn: () => videosApi.getImageCredits(),
+              queryKey: commonQueryKeys.imageCredits,
+              queryFn: () => commonApi.getImageCredits(),
               staleTime: 0,
             })
             .catch(() => null)

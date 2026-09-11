@@ -17,7 +17,7 @@ export interface CostEstimateLine {
 }
 
 // Una fila del aviso de saldo: cuánto se estima gastar en un proveedor y
-// cuánto hay. Agnóstica del proveedor a propósito (ADR-0029/0030): cuando
+// cuánto hay. Agnóstica del proveedor a propósito (ADR-0031/0032): cuando
 // cambie la fuente del saldo, cambia quien arma la fila, no la UI.
 //   - `estimated: null` → no se pudo estimar; solo se informa el saldo.
 //   - `available: null` → saldo no legible (sin clave, red caída); no bloquea.

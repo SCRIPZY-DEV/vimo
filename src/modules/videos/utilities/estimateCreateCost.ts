@@ -12,7 +12,7 @@ import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
 
 // Cuánto va a gastar el formulario de Crear en cada proveedor, antes de
-// arrancar (ADR-0029). Pura: sin saldo ni red. Estima del lado caro
+// arrancar (ADR-0031). Pura: sin saldo ni red. Estima del lado caro
 // (COST_ESTIMATE_SAFETY_FACTOR): quedarse sin saldo a mitad es peor que
 // pedir un poco más. Lo que no se puede estimar no aparece (audio propio sin
 // cantidad de escenas: la duración recién se conoce al decodificar).

@@ -9,7 +9,6 @@ export const CharactersRoutes = {
 export const charactersQueryKeys = {
   list: ['characters', 'list'],
   customStyles: ['characters', 'customStyles'],
-  imageCredits: ['characters', 'imageCredits'],
 } as const
 
 // Espejo de los límites del sidecar (pipeline/commands/characters)

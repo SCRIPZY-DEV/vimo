@@ -23,11 +23,11 @@ diagramas, está en [docs/diagrams/](diagrams/).
 > ([ADR-0014](adr/ADR-0014-modulo-library-edicion-sobre-stages.md)).
 >
 > **Dirección futura
-> ([ADR-0030](adr/ADR-0030-proveedores-en-servidor-y-creditos-de-vimo.md),
+> ([ADR-0032](adr/ADR-0032-proveedores-en-servidor-y-creditos-de-vimo.md),
 > propuesta):** las llamadas a proveedores se unificarán en un servidor de Vimo
 > con créditos propios y sin claves del usuario; en el sidecar quedará solo lo
 > local (FFmpeg, ensamblado y descarga de assets). Hasta entonces rige BYO-keys
-> con saldo por proveedor ([ADR-0029](adr/ADR-0029-saldo-por-proveedor-precheck-y-pausa-retomable.md)).
+> con saldo por proveedor ([ADR-0031](adr/ADR-0031-saldo-por-proveedor-precheck-y-pausa-retomable.md)).
 
 ---
 
@@ -390,7 +390,7 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
 3. **Pre-flight del proveedor de voz** (`probe-tts`): valida contra los
    endpoints de LISTADO —no gasta créditos— y avisa antes de arrancar un
    pipeline largo. El resultado se cachea 2 minutos en la UI.
-4. **Pre-check de saldo** (ADR-0029): `useCreateCostCheck` estima el gasto
+4. **Pre-check de saldo** (ADR-0031): `useCreateCostCheck` estima el gasto
    por proveedor (voz por caracteres × `VOICE_COST_FACTORS`, imágenes por
    escenas × precio de la calidad, música de fondo informativa) y lo cruza
    con los saldos leídos (`compareCostLines`). Con saldo leído e
@@ -414,7 +414,7 @@ en disco es válido, `skip()` la saltea.
 | `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                                                                                 | fase en curso                                                                                                                                                              |
 | `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                                                                                             | `scenes-planned` o el diálogo                                                                                                                                              |
 | `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía)                                                                                            | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim); `prompt-model-trouble` (el modelo elegido falló: se bloquea 1 h, ADR-0028) |
-| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas; al primer rechazo por saldo aborta la fase entera (ADR-0029) | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)    |
+| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas; al primer rechazo por saldo aborta la fase entera (ADR-0031) | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)    |
 | `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                                                                                 | `render-progress` por sub-fase                                                                                                                                             |
 
 La narración es **esencial** (si falla, el job muere); música y overlay son
@@ -464,7 +464,7 @@ quedaba generando se marca interrumpida y el botón «Reanudar» relanza el mism
 job — todo lo hecho se conserva. Una cancelación deja el proyecto en `paused`
 con `pauseReason: 'cancelled'`, igual de retomable.
 
-**Saldo agotado a mitad del job** (ADR-0029): los providers clasifican el
+**Saldo agotado a mitad del job** (ADR-0031): los providers clasifican el
 rechazo con la familia `*_insufficient_credits`
 (`pipeline/utils/insufficient-credits.ts`), la fase `images` corta los carriles
 en vuelo, y `run-video-pipeline` deja `paused` + `pauseReason:
@@ -492,6 +492,8 @@ los tiempos preservando escenas e imágenes. Las escenas se persisten con
 **merge por id** (`scenes-file.ts`): una edición del usuario durante una regen
 no se pisa. Un mp4 que quedó atrás se marca con `videoOutdated` en
 `project.json` — el flag jamás borra el video; lo limpia el próximo render.
+`update-scenes` solo lo marca cuando cambian los tiempos de una escena; prompt,
+modelo, calidad y personajes esperan a la regeneración, que marca por su cuenta.
 Concurrencia: un pipeline completo/render a la vez en la app, y las regens se
 coalescen en UN job por proyecto (cola en la UI); sin replay de eventos — al
 rehidratar, la UI refetchea el disco.
@@ -537,6 +539,7 @@ Este documento describe el destino. El código todavía no llegó ahí:
 | Módulo `videos` (Create)                           | listo — ADR-0013: pantalla completa de creación (formulario con guion o audio propio, estilo, escenas, proveedor de imagen, selector de voz y de hasta 2 personajes, música y overlay), progreso en vivo por fases con grilla de escenas, pausa de confirmación de escenas, cancelar y reanudar, y panel del video terminado. La tarea vive en un store con `localStorage` y sobrevive a navegación y reload. Desde 2026-09-03 la pantalla de progreso calca la del origen (rama 7 de ADR-0016, port visual de `vimo-ui-pipeline`): página entera con cronómetro que descuenta la pausa, fases a la izquierda y un panel por fase, grilla de imágenes con visor a pantalla completa, paso de segundos por escena inline y el error dentro de la pantalla                                                                                                                                                                                                |
 | Runner de stages y las 6 fases                     | listos — ADR-0013: `pipeline/runner/run-stages.ts` + `pipeline/stages/` (voice, transcription, scene-cuts, scene-prompts, images, render) con el registro declarativo en `stages/registry.ts`. Toda fase es retomable por `skip()`; los guards de gasto del origen se conservan textualmente (anti-doble-gasto del TTS, concat con re-encode, cosecha de tarea Evolink ya pagada, `-t` explícito en el render)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Módulo `videos` (Library)                          | listo — ADR-0014: biblioteca completa (grilla con estados y borrado en lote, partida en dos pestañas por formato desde 2026-09-08 —«Formato largo» con tarjetas 16:9 y «Shorts» con tarjetas 9:16 en una columna más—, la pestaña se recuerda en `localStorage` y queda en la del último proyecto creado; reproductor con velocidades, pantalla de progreso rehidratable) + editor (regeneración selectiva de imágenes con prompt propio y modelo/calidad por escena, drag de fronteras en el timeline, re-render con cache de chunks, export de clips a `clips/`, reemplazo de narración con re-transcripción, música IA/YouTube/archivo, mezcla de volúmenes y offset). 11 subcomandos nuevos en `pipeline/commands/videos/` sin tocar Rust; flag `videoOutdated` en `project.json`. Pendiente: prueba con claves reales en build instalado                                                                                                           |
+| Modo demo (`videos` + sidecar)                     | listo — ADR-0029 + ADR-0030: entrada «Demo» del sidebar (flag `demo` del veredicto de vimo.click: administradores y `demo_accesos`), puerta `/create-demo` que descarga una sola vez el pack v3 (318,7 MB, SHA-256 pineado; raíz v2 con cuatro historias 16:9 más `short/` con cuatro shorts 9:16) a `<carpeta raíz>/_demo-pack` y siembra la gema del pack en `_styles/demo-storytelling/`, Crear pre-llenado desde el manifest (la historia sigue a formato y estilo; «Subir mi audio» ya cargado con el audio de la historia) y `run-video-pipeline` simulando las seis fases (~40 s) con los archivos del pack, sin claves ni proveedores; regenerar imágenes y cambiar narración se rechazan (`demo_project`). Dominio `pipeline/commands/demo/` (`demo-status`, `demo-prepare`, `run-demo-pipeline`) sin tocar Rust. Guard `pnpm check:demo` (19 secciones) y armador `pnpm build:demo-pack`                                                      |
 
 Mantené esta tabla al día: es lo que le dice a quien llega —persona o agente— qué puede
 dar por hecho y qué no.

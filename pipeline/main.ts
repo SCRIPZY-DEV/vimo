@@ -1,6 +1,7 @@
 import { createInterface, type Interface } from 'node:readline'
 
 import { charactersSubcommands } from './commands/characters/subcommands.ts'
+import { demoSubcommands } from './commands/demo/subcommands.ts'
 import { musicSubcommands } from './commands/music/subcommands.ts'
 import { stylesSubcommands } from './commands/styles/subcommands.ts'
 import { videosSubcommands } from './commands/videos/subcommands.ts'
@@ -28,6 +29,7 @@ const SUBCOMMANDS: Record<string, SubcommandHandler> = {
   ...charactersSubcommands,
   ...stylesSubcommands,
   ...videosSubcommands,
+  ...demoSubcommands,
 }
 
 function handleControlLine(line: string, abortController: AbortController) {

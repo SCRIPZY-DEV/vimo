@@ -2,14 +2,16 @@ import { useCallback, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Instagram, LogOut } from 'lucide-react'
 import { SidebarItem } from '@/layouts/AuthenticatedLayout/components/SidebarItem'
 import {
   VISIBLE_NAV_ITEMS,
   COLLAPSED_STORAGE_KEY,
 } from '@/layouts/AuthenticatedLayout/constants'
-import { AuthRoutesPaths } from '@/modules/auth/constants'
+import { authQueryKeys, AuthRoutesPaths } from '@/modules/auth/constants'
 import { Brand } from '@/modules/common/brand/brand'
+import { isNative } from '@/modules/common/utilities/isNative'
 import { cn } from '@/modules/common/utilities/cn'
 import {
   Tooltip,
@@ -18,6 +20,7 @@ import {
   TooltipTrigger,
 } from '@/modules/common/ui/tooltip'
 import DoodleRocket from '@/modules/common/doodles/DoodleRocket'
+import type { AccessStatus } from '@/modules/auth/types/access'
 
 /**
  * Menú lateral colapsable (port del Sidebar de la app original).
@@ -32,6 +35,18 @@ function readInitialCollapsed(): boolean {
 export function Sidebar() {
   const { t, i18n } = useTranslation()
   const [collapsed, setCollapsed] = useState(readInitialCollapsed)
+
+  // El veredicto de acceso ya lo pobló el loader del layout: se lee del caché
+  // por su clave (contrato público de auth) sin disparar otra verificación —
+  // un layout no importa hooks de un módulo.
+  const { data: access } = useQuery<AccessStatus>({
+    queryKey: authQueryKeys.access,
+    queryFn: skipToken,
+  })
+  const demoVisible = isNative() && access?.demo === true
+  const items = VISIBLE_NAV_ITEMS.filter(
+    (item) => !item.requiresDemo || demoVisible,
+  )
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((current) => {
@@ -97,7 +112,7 @@ export function Sidebar() {
       >
         <TooltipProvider delayDuration={0} skipDelayDuration={0}>
           <div className="space-y-1">
-            {VISIBLE_NAV_ITEMS.map((item) => (
+            {items.map((item) => (
               <SidebarItem key={item.route} item={item} collapsed={collapsed} />
             ))}
 

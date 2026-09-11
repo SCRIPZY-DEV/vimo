@@ -77,7 +77,7 @@ export async function dubvoiceFetch(
     const bodyText = await response.text().catch(() => '')
 
     // Saldo agotado antes que la clave: DubVoice puede responder 402 o 403
-    // con detalle de créditos, y reintentar solo repite el rechazo (ADR-0029).
+    // con detalle de créditos, y reintentar solo repite el rechazo (ADR-0031).
     if (isInsufficientCreditsResponse(response.status, bodyText))
       throw new PipelineFailure(
         'voice_insufficient_credits',

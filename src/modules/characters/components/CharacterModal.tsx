@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -21,7 +22,6 @@ import {
   PREVIEW_STYLES,
 } from '@/modules/characters/constants'
 import { useCharacterMutations } from '@/modules/characters/hooks/useCharacterMutations'
-import { useCharacterImageCredits } from '@/modules/characters/hooks/useCharacterImageCredits'
 import { useCharacterPreview } from '@/modules/characters/hooks/useCharacterPreview'
 import { useCustomStyleCatalog } from '@/modules/characters/hooks/useCustomStyleCatalog'
 import { useDesignStyleCharacter } from '@/modules/characters/hooks/useDesignStyleCharacter'
@@ -68,9 +68,8 @@ export function CharacterModal({
     errorKey: designErrorKey,
   } = useDesignStyleCharacter()
   const preview = useCharacterPreview()
-  // Saldo del proveedor del preview: en cero se frena y se ofrece recargar.
-  const imageCredits = useCharacterImageCredits()
   const { styles: customStyles } = useCustomStyleCatalog()
+  const credits = useImageCredits()
 
   const [form, setForm] = useState(() =>
     character ? toFormValue(character) : CHARACTER_FORM_INITIAL_VALUE,
@@ -237,13 +236,16 @@ export function CharacterModal({
             provider={provider}
             generating={preview.generating}
             phase={preview.phase}
+            percent={preview.hasProgress ? preview.percent : null}
             errorKey={preview.errorKey}
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingRequirements.length > 0}
             canGenerate={identityReady}
-            creditsLine={previewShortfallLine(provider, imageCredits.credits)}
-            creditsRefreshing={imageCredits.isRefreshing}
-            onRefreshCredits={imageCredits.refresh}
+            credits={credits.credits}
+            creditsLoading={credits.isLoading}
+            creditsRefreshing={credits.isRefreshing}
+            creditsLine={previewShortfallLine(provider, credits.credits)}
+            onRefreshCredits={credits.refresh}
             onStyleChange={setStyleId}
             onProviderChange={setProvider}
             onGenerate={() => void generatePreview()}

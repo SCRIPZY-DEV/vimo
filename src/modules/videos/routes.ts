@@ -23,3 +23,10 @@ export const videosRoutes: RouteObject[] = [
     lazy: () => import('./views/LibraryEditor'),
   },
 ]
+
+// La puerta de la demo se exporta aparte: el router le adjunta el guard de
+// acceso, que vive en auth (un módulo no importa los guards de otro).
+export const createDemoRoute: RouteObject = {
+  path: VideosRoutes.createDemo,
+  lazy: () => import('./views/CreateDemo'),
+}

@@ -207,7 +207,7 @@ export function LibraryProgress() {
     )
   }
 
-  // Pausado por saldo (ADR-0029): saldo actual, recargar y reanudar recién
+  // Pausado por saldo (ADR-0031): saldo actual, recargar y reanudar recién
   // cuando alcance; las fases hechas son cache-hit igual que al cancelar.
   if (
     metadata.state === 'paused' &&
