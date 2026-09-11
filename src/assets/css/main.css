@@ -121,13 +121,19 @@ html.theme-changing *::after {
   * {
     @apply border-border;
   }
+  /* Sin rebote elástico: el WebView de macOS estiraba la página entera al
+     pasarse del final del scroll interno (la app «se salía» de la ventana y
+     el contenido se veía duplicado durante el rebote). `overscroll-behavior`
+     corta ese encadenamiento en la raíz; el scroller principal lo repite. */
   html {
     height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
   }
   body {
     height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
     @apply bg-background text-foreground;
     font-family: 'DM Sans', sans-serif;
   }
