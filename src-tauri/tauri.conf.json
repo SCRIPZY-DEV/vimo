@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Vimo",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "click.vimo.portable",
   "build": {
     "frontendDist": "../dist",
@@ -13,6 +13,13 @@
     "deep-link": {
       "desktop": {
         "schemes": ["vimo"]
+      }
+    },
+    "updater": {
+      "endpoints": ["https://vimo.click/releases/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFBRjlCRThCMEVGQTIzNkIKUldSckkvb09pNzc1cW5tSHRlbEJrcjVuZW5oQXZZT2RsSUJtSHpwY3EwOHVYZHdzWnhBVTlaWHUK",
+      "windows": {
+        "installMode": "passive"
       }
     }
   },

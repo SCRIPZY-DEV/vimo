@@ -1,6 +1,7 @@
 export const Brand = {
   name: 'Vimo',
-  version: '0.1.0',
+  // Viene de package.json vía vite.config.ts (única fuente de la versión).
+  version: __APP_VERSION__,
   domain: 'vimo.app',
   supportEmail: 'helpscripzy.ai@gmail.com',
   instagram: {

@@ -203,6 +203,15 @@ export interface ConfirmScenesPayload {
   secondsPerScene?: number
 }
 
+// Cambia el modelo que escribe los prompts de un proyecto de Mi estilo que ya
+// existe en disco (la UI lo usa al «cambiar de modelo» tras un bloqueo). null
+// = el de la casa. No toca scenes.json: los prompts válidos se conservan y el
+// modelo nuevo escribe solo los que faltan al relanzar.
+export interface SetPromptModelPayload {
+  projectId: string
+  promptModel: string | null
+}
+
 export interface PreviewSceneCutsPayload {
   projectId: string
   secondsPerScene: number

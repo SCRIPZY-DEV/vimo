@@ -12,6 +12,7 @@ import { renderVideo } from './render-video.ts'
 import { replaceNarration } from './replace-narration.ts'
 import { runVideoPipeline } from './run-video-pipeline.ts'
 import { setProjectMusic } from './set-project-music.ts'
+import { setPromptModel } from './set-prompt-model.ts'
 import { updateAudioMix } from './update-audio-mix.ts'
 import { updateScenes } from './update-scenes.ts'
 import { uploadNarration } from './upload-narration.ts'
@@ -24,6 +25,7 @@ export const videosSubcommands: Record<string, SubcommandHandler> = {
   'run-video-pipeline': runVideoPipeline,
   'video-project-status': videoProjectStatus,
   'confirm-scenes': confirmScenes,
+  'set-prompt-model': setPromptModel,
   'preview-scene-cuts': previewSceneCuts,
   'probe-tts': probeTts,
   'list-video-projects': listVideoProjects,

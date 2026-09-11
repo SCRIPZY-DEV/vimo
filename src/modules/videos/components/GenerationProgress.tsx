@@ -20,6 +20,8 @@ import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDi
 import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
 import { GenerationErrorCard } from '@/modules/videos/components/GenerationErrorCard'
 import { ProgressStatusPill } from '@/modules/videos/components/ProgressStatusPill'
+import { PromptModelIssueDialog } from '@/modules/videos/components/PromptModelIssueDialog'
+import { PromptStageWatchdog } from '@/modules/videos/components/PromptStageWatchdog'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
@@ -52,6 +54,10 @@ interface GenerationProgressProps {
   onContinueInEditor: () => void
   onConfirmScenes: (choice: SceneCutChoice) => void
   onDismissConfirmation: () => void
+  // Modelo de prompts trabado o con errores (ADR-0028, carril verbatim).
+  onPromptModelStall: () => void
+  onSnoozePromptModelIssue: () => void
+  onSwitchPromptModel: (modelId: string) => void
 }
 
 // Pista bajo la barra de voz: en qué parte va si la narración se troceó; si
@@ -76,9 +82,14 @@ export function GenerationProgress({
   onContinueInEditor,
   onConfirmScenes,
   onDismissConfirmation,
+  onPromptModelStall,
+  onSnoozePromptModelIssue,
+  onSwitchPromptModel,
 }: GenerationProgressProps) {
   const { t } = useTranslation()
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  // Diálogo de cambio de modelo abierto a mano desde la tarjeta de error.
+  const [switchingFromError, setSwitchingFromError] = useState(false)
 
   // Cancelar pide un segundo clic dentro de la ventana (origen v0.35.0).
   useEffect(() => {
@@ -137,6 +148,11 @@ export function GenerationProgress({
     ? (PIPELINE_STAGES.find((stage) => !completed.includes(stage.id))?.id ??
       null)
     : null
+  // Solo el carril verbatim tiene un modelo elegible que cambiar.
+  const promptModelSwitchable =
+    task.usesCustomStyle && failedStage === 'scene-prompts'
+  const promptModelStalled =
+    generating && task.promptModelIssue?.reason === 'stalled'
 
   return (
     // Fluida hasta 1600px (el origen se acota a 1152 y centra): acá el
@@ -211,6 +227,7 @@ export function GenerationProgress({
             completedStages={completed}
             paused={paused}
             recovery={recovery}
+            promptModelStalled={promptModelStalled}
           />
           {task.audioDurationSeconds !== null && (
             <div className="rounded-lg bg-muted/50 p-3 font-body text-sm text-muted-foreground">
@@ -359,6 +376,11 @@ export function GenerationProgress({
               onContinueInEditor={
                 failedStage === 'images' ? onContinueInEditor : undefined
               }
+              onSwitchPromptModel={
+                promptModelSwitchable
+                  ? () => setSwitchingFromError(true)
+                  : undefined
+              }
             />
           )}
 
@@ -430,6 +452,27 @@ export function GenerationProgress({
         confirmation={task.confirmation}
         onConfirm={onConfirmScenes}
         onCancel={onDismissConfirmation}
+      />
+
+      {/* Vigilancia del modelo de prompts (ADR-0028): el watchdog no pinta
+          nada; el diálogo abre solo cuando la tarea registra un problema. */}
+      <PromptStageWatchdog task={task} onStall={onPromptModelStall} />
+      <PromptModelIssueDialog
+        task={task}
+        forceOpen={switchingFromError}
+        onDismiss={() => {
+          setSwitchingFromError(false)
+          onSnoozePromptModelIssue()
+        }}
+        onRetry={onRetryPipeline}
+        onSwitch={(modelId) => {
+          setSwitchingFromError(false)
+          onSwitchPromptModel(modelId)
+        }}
+        onCancel={() => {
+          setSwitchingFromError(false)
+          onCancel()
+        }}
       />
     </div>
   )

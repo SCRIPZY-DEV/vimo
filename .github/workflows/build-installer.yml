@@ -1,6 +1,12 @@
 # Compila un instalador de escritorio para una plataforma (ADR-0026). Es un
 # workflow reutilizable: lo llama build-desktop.yml una vez por plataforma y no
-# se dispara solo. Los secretos VITE_* y APPLE_* llegan con `secrets: inherit`.
+# se dispara solo. Los secretos VITE_*, APPLE_* y TAURI_SIGNING_* llegan con
+# `secrets: inherit`.
+#
+# Además del instalador genera los artefactos del updater firmados con
+# minisign (ADR-0027): en Windows la firma `.exe.sig` del mismo setup, en macOS
+# `Vimo.app.tar.gz` + `.sig`. Sin TAURI_SIGNING_PRIVATE_KEY el build FALLA a
+# propósito: un instalador sin firma no puede publicarse como actualización.
 name: Build installer
 
 on:
@@ -23,7 +29,7 @@ on:
         type: string
         required: true
       path:
-        description: 'Glob del instalador generado'
+        description: 'Globs de los archivos a subir (uno por línea)'
         type: string
         required: true
 
@@ -65,6 +71,10 @@ jobs:
       # ticket al DMG. Si faltan (un fork sin secretos) vuelve a firma ad-hoc y
       # no notariza: el build no rompe, pero Gatekeeper marca la app como
       # «dañada» al descargarla. En el job de Windows se ignoran.
+      #
+      # `--config tauri.updater.conf.json` activa createUpdaterArtifacts solo
+      # acá: así `pnpm tauri build` local sigue compilando sin la clave privada.
+      # El Vimo.app.tar.gz del updater se arma con la .app ya firmada.
       - uses: tauri-apps/tauri-action@v0
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -75,9 +85,11 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: pnpm tauri
-          args: --bundles ${{ inputs.bundles }}
+          args: --bundles ${{ inputs.bundles }} --config src-tauri/tauri.updater.conf.json
 
       # Retención corta: el plan Free de GitHub da 500 MB de artefactos en
       # repos privados y cada corrida pesa ~270 MB.

@@ -6,6 +6,9 @@ import { Brand } from '@/modules/common/brand/brand'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
+import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
+import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
+import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
 import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
@@ -121,11 +124,24 @@ function CreateView({
   const { isNative, missingKeys } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.videos,
   })
-  const { task, startCreation, confirmScenes, resume, cancel, discardTask } =
-    useCreateTask()
+  const {
+    task,
+    startCreation,
+    confirmScenes,
+    resume,
+    cancel,
+    discardTask,
+    reportPromptModelIssue,
+    snoozePromptModelIssue,
+    switchPromptModel,
+  } = useCreateTask()
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
   const { styles: customStyles } = useCustomStyles()
+  // El modelo que viaja al proyecto ya resuelto (default aplicado y sin
+  // bloqueados, ADR-0028): es el que la tarea vigila.
+  const { models, defaultId } = usePromptModels()
+  const { blockedIds } = usePromptModelBlocks()
 
   const [form, setForm] = useState<CreateFormValue>(() => {
     const base: CreateFormValue = {
@@ -194,12 +210,23 @@ function CreateView({
       }
     }
     setProbeFailure(null)
+    const promptModel = resolvePromptModel(
+      form.promptModel,
+      models,
+      defaultId,
+      blockedIds,
+    )
     await startCreation({
-      payload: createProjectPayload(formValue, { demo: demo !== null }),
+      // `formValue` (y no `form`): en demo lleva la gema derivada en el render.
+      payload: createProjectPayload(
+        { ...formValue, promptModel },
+        { demo: demo !== null },
+      ),
       narrationFilePath:
         formValue.narrationMode === 'own-audio'
           ? formValue.narrationFilePath
           : null,
+      promptModel,
     })
   }
 
@@ -226,6 +253,9 @@ function CreateView({
         }}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
         onDismissConfirmation={discardTask}
+        onPromptModelStall={() => reportPromptModelIssue(task.id, 'stalled')}
+        onSnoozePromptModelIssue={snoozePromptModelIssue}
+        onSwitchPromptModel={(modelId) => void switchPromptModel(modelId)}
       />
     )
   }

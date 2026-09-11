@@ -233,6 +233,15 @@ export async function runVerbatimLane(
       context.emitter.emit({ type: 'log', level: 'info', message }),
     onWarn: (message) =>
       context.emitter.emit({ type: 'log', level: 'warn', message }),
+    // El modelo elegido falló de verdad (código del proveedor o rescate):
+    // evento tipado para que la UI lo bloquee un rato y ofrezca cambiarlo.
+    onModelTrouble: (modelId, code, sceneIds) =>
+      context.emitter.emit({
+        type: 'prompt-model-trouble',
+        modelId,
+        code,
+        sceneIds,
+      }),
     // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
     // que ya traían prompt cuentan como listas, así la UI muestra
     // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.

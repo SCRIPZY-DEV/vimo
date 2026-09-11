@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Pencil, RefreshCw } from 'lucide-react'
+import { Pencil, RefreshCw, Shuffle } from 'lucide-react'
 import DoodleSadFace from '@/modules/common/doodles/DoodleSadFace'
 import { Button } from '@/modules/common/ui/button'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
@@ -15,6 +15,9 @@ interface GenerationErrorCardProps {
   // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
   // imágenes no bloquea — se sigue en el editor y se regenera desde ahí.
   onContinueInEditor?: () => void
+  // El modelo de prompts falló (carril verbatim, ADR-0028): relanzar el
+  // mismo proyecto con otro en vez de insistir con el que se cayó.
+  onSwitchPromptModel?: () => void
 }
 
 // Bloque de error dentro de la pantalla de progreso (port del origen): las
@@ -24,6 +27,7 @@ export function GenerationErrorCard({
   failedStage,
   onRetry,
   onContinueInEditor,
+  onSwitchPromptModel,
 }: GenerationErrorCardProps) {
   const { t } = useTranslation()
   const renderFailed = failedStage === 'render'
@@ -63,6 +67,23 @@ export function GenerationErrorCard({
             : t('create.progress.error.retryHint')}
         </p>
       </div>
+
+      {onSwitchPromptModel && (
+        <div className="space-y-2">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={onSwitchPromptModel}
+            className="w-full rounded-xl font-display font-bold"
+          >
+            <Shuffle className="mr-2 h-4 w-4" />
+            {t('create.progress.error.switchModel')}
+          </Button>
+          <p className="text-center font-body text-xs text-muted-foreground">
+            {t('create.progress.error.switchModelHint')}
+          </p>
+        </div>
+      )}
 
       {onContinueInEditor && (
         <div className="space-y-2">

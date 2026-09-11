@@ -130,6 +130,23 @@ export const AUTO_RETRY_MAX_ATTEMPTS = AUTO_RETRY_DELAYS_SECONDS.length
 
 // Cancelar pide confirmación: el segundo clic dentro de esta ventana.
 export const CANCEL_CONFIRM_WINDOW_MS = 3500
+
+// Vigilancia del modelo de prompts (ADR-0028, solo carril verbatim): si en
+// esta ventana no llega ningún prompt nuevo, el modelo se da por trabado, se
+// bloquea una hora y se ofrece cambiarlo.
+export const PROMPT_STAGE_STALL_MS = 2 * 60 * 1000
+export const PROMPT_STAGE_WATCHDOG_TICK_MS = 1000
+// Espejo de PROVIDER_TROUBLE_CODES del redactor verbatim (pipeline): los
+// códigos que delatan al modelo. `llm_network` no está a propósito (es la red
+// del usuario) ni `llm_auth` (es la clave: el job falla con su mensaje).
+// `llm_rescue_needed` es el sintético del rescate.
+export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
+  'llm_timeout',
+  'llm_rate_limited',
+  'llm_provider_error',
+  'llm_empty_response',
+  'llm_rescue_needed',
+])
 // Tras pedir cancelar, cuánto se espera el cierre del sidecar antes de dar
 // la tarea por terminada igual (red de seguridad, no el camino normal).
 export const CANCEL_SETTLE_TIMEOUT_MS = 8000
@@ -608,6 +625,8 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_rate_limited: 'create.errors.llmRateLimited',
   llm_provider_error: 'create.errors.llmProviderError',
   llm_empty_response: 'create.errors.llmProviderError',
+  llm_rescue_needed: 'create.errors.llmRescueNeeded',
+  llm_auth: 'create.errors.llmAuth',
   // Imágenes
   image_network: 'create.errors.imageNetwork',
   image_invalid_api_key: 'create.errors.imageInvalidApiKey',

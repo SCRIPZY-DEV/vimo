@@ -1,7 +1,11 @@
 import { useTranslation } from 'react-i18next'
+import { Alert } from '@/modules/common/components/Alert'
 import { PromptModelCard } from '@/modules/common/components/PromptModelCard'
 import { PromptModelSelector } from '@/modules/common/components/PromptModelSelector'
+import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
+import { allPromptModelsBlocked } from '@/modules/common/utilities/allPromptModelsBlocked'
+import { blockedMinutesLeft } from '@/modules/common/utilities/blockedMinutesLeft'
 import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
 import { usePromptModelPreference } from '@/modules/settings/hooks/usePromptModelPreference'
 import { PROMPT_MODEL_COMPACT_DEFAULT } from '@/modules/settings/constants'
@@ -27,10 +31,37 @@ export function PromptModelSection({
   const { models, defaultId, batchSize } = usePromptModels()
   // Preferencia global de presentación: se lee acá y no viaja por props.
   const { promptModelDefaults } = usePromptModelPreference()
+  // Bloqueos temporales (ADR-0028): el elegido bloqueado cae a otro, y sin
+  // ninguno libre solo queda avisar (el envío lo frena formBlockers).
+  const { blockedIds, blockedUntil } = usePromptModelBlocks()
+
+  if (allPromptModelsBlocked(models, blockedIds))
+    return <Alert tone="warning">{t('create.promptModel.allBlocked')}</Alert>
 
   // Sin catálogo (web, o el sidecar no respondió) no hay nada que elegir.
-  const chosen = resolvePromptModel(value.promptModel, models, defaultId)
+  const chosen = resolvePromptModel(
+    value.promptModel,
+    models,
+    defaultId,
+    blockedIds,
+  )
   if (!chosen) return null
+
+  // El que la persona quería (o su default) está bloqueado: se dice cuál
+  // escribe en su lugar y hasta cuándo.
+  const wanted = value.promptModel ?? defaultId
+  const wantedBlockedUntil = wanted ? blockedUntil(wanted) : null
+  const fallbackNotice =
+    wanted && wantedBlockedUntil !== null && wanted !== chosen ? (
+      <Alert tone="info">
+        {t('create.promptModel.blockedFallback', {
+          model: models.find((model) => model.id === wanted)?.label ?? wanted,
+          minutes: blockedMinutesLeft(wantedBlockedUntil),
+          fallback:
+            models.find((model) => model.id === chosen)?.label ?? chosen,
+        })}
+      </Alert>
+    ) : null
 
   // Con el modo compacto solo se muestra el modelo en uso: quien ya eligió no
   // necesita las bandas de precio ni el simulador en cada video.
@@ -44,6 +75,7 @@ export function PromptModelSection({
         <h3 className="font-display text-sm font-bold text-foreground">
           {t('create.promptModel.title')}
         </h3>
+        {fallbackNotice}
         <PromptModelCard model={model} active />
         <PromptModelSettingsLink />
       </div>
@@ -57,6 +89,7 @@ export function PromptModelSection({
 
   return (
     <div className="space-y-2">
+      {fallbackNotice}
       <PromptModelSelector
         models={models}
         value={chosen}

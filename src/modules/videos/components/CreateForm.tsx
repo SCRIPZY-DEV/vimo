@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
+import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
+import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
@@ -21,6 +23,7 @@ import {
   MAX_SCENE_COUNT,
   PROJECT_NAME_LIMIT,
 } from '@/modules/videos/constants'
+import { allPromptModelsBlocked } from '@/modules/common/utilities/allPromptModelsBlocked'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
 import {
   demoAudioFileLabel,
@@ -55,8 +58,13 @@ export function CreateForm({
 
   const [attempts, setAttempts] = useState(0)
   const blockersRef = useRef<HTMLDivElement>(null)
+  // Con todos los modelos de prompts bloqueados (ADR-0028) solo quedan los
+  // estilos de Vimo: la pestaña «Mi estilo» se apaga y el envío se frena.
+  const { models } = usePromptModels()
+  const { blockedIds } = usePromptModelBlocks()
+  const promptModelsBlocked = allPromptModelsBlocked(models, blockedIds)
 
-  const blockers = formBlockers(value)
+  const blockers = formBlockers(value, promptModelsBlocked)
 
   // El botón no se deshabilita en silencio: al pulsarlo con pasos faltantes
   // lleva a la alerta y la sacude, en vez de no hacer nada.
@@ -110,6 +118,7 @@ export function CreateForm({
           catalogHintKey={
             demo ? 'create.styleSource.catalogHintDemo' : undefined
           }
+          customDisabled={promptModelsBlocked}
           onChange={(styleSource) => onChange({ styleSource })}
         />
         {value.styleSource === 'catalog' ? (

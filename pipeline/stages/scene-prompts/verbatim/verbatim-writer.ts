@@ -4,6 +4,8 @@ import {
   rescueModelFor,
   resolveVerbatimModel,
 } from '../../../providers/llm/model-catalog.ts'
+import { isLlmAuthFailure } from '../../../providers/llm/auth-failure.ts'
+import { PipelineFailure } from '../../../runner/failure.ts'
 import {
   isOutputTruncated,
   withVerbatimRetry,
@@ -106,6 +108,22 @@ const RETRY_BATCH_SIZES = [VERBATIM_BATCH_SIZE, 5, 1] as const
 const CHARACTER_ATTEMPTS = 3
 
 /**
+ * Códigos del proveedor que delatan al MODELO (no a la red del usuario ni a
+ * un corte determinista que la escalera cura con lotes más chicos). Con uno
+ * de estos, el lote ya agotó `withVerbatimRetry`: es un fallo real del
+ * elegido y la UI merece enterarse para bloquearlo un rato.
+ */
+export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
+  'llm_timeout',
+  'llm_rate_limited',
+  'llm_provider_error',
+  'llm_empty_response',
+])
+
+/** Código sintético: el elegido dejó escenas tercas y otro modelo las rescata. */
+export const LLM_RESCUE_NEEDED = 'llm_rescue_needed'
+
+/**
  * Lo que el proyecto declaró sobre su protagonista, ya resuelto por la stage.
  * Unión discriminada a propósito: cada modo trae exactamente el material que
  * necesita, así que no existe el estado imposible «referencia sin nombre» ni
@@ -145,6 +163,12 @@ export interface VerbatimWriterOptions {
    * máximos por lote.
    */
   onProgress?: (ready: number, total: number) => void
+  /**
+   * El modelo ELEGIDO falló de verdad: un lote agotó sus reintentos con un
+   * código de PROVIDER_TROUBLE_CODES, o sus escenas tercas pasan al rescate
+   * (LLM_RESCUE_NEEDED). Solo para el elegido: la ronda de rescate no avisa.
+   */
+  onModelTrouble?: (modelId: string, code: string, sceneIds: number[]) => void
 }
 
 export interface VerbatimResult {
@@ -274,6 +298,9 @@ async function designCharacter(
       options.signal,
     )
   } catch (error) {
+    // Clave rechazada: no es «la gema no supo», es que nadie puede escribir.
+    // Corta el job en vez de seguir sin personaje.
+    if (isLlmAuthFailure(error)) throw error
     // Red de rescate: si en TODOS los intentos alguna marca sobrevivió, se
     // tira LA FRASE entera que la trae (el recorte fino que falló tres veces
     // va a fallar la cuarta). Perder una frase de identidad es mejor que
@@ -735,6 +762,10 @@ export async function generateVerbatimPrompts(
   // clave de caché (el cliente es el mismo — todos los perfiles son
   // DeepInfra). La conversación (gema, guion, personaje, ids) es LA MISMA.
   const chosenExecutor = { profile, cacheKey }
+  // ¿Algún lote del ELEGIDO falló por algo que no sea la red de la persona?
+  // Solo entonces el rescate cuenta como fallo del modelo: sin internet todos
+  // los lotes caen con llm_network y no hay a quién culpar.
+  let chosenModelBlamed = false
   const obtained = new Map<number, string>()
   let lastError = ''
 
@@ -865,6 +896,9 @@ export async function generateVerbatimPrompts(
           // Cosechado: la cifra del stream era una estimación; esto es un hecho.
           reportProgress()
         } catch (error) {
+          // Clave rechazada: la escalera y el rescate darían el mismo 401 y
+          // el video saldría con prompts de relleno. Se corta el job.
+          if (isLlmAuthFailure(error)) throw error
           // Un lote caído NO tumba la corrida: sus fragmentos quedan como
           // faltantes y entran a la escalera de reintento. Un corte por tope
           // de tokens tampoco: la escalera pide lotes más chicos, que es
@@ -873,6 +907,29 @@ export async function generateVerbatimPrompts(
             lastError = 'the answer hit the output token ceiling'
           } else {
             lastError = error instanceof Error ? error.message : String(error)
+          }
+          // El motivo real, en el acto y por lote: sin esto el único rastro
+          // de un fallo del proveedor era el «last notice» del final.
+          options.onWarn?.(
+            `batch ${batch[0]?.n}-${batch[batch.length - 1]?.n} failed with ${executor.profile.label}: ${lastError}`,
+          )
+          const networkFailure =
+            error instanceof PipelineFailure && error.code === 'llm_network'
+          if (executor.profile.id === profile.id && !networkFailure)
+            chosenModelBlamed = true
+          // Fallo del PROVEEDOR con el modelo elegido (no en el rescate): la
+          // UI se entera para bloquearlo un rato. No cambia nada acá: el
+          // lote entra igual a la escalera de reintento.
+          if (
+            executor.profile.id === profile.id &&
+            error instanceof PipelineFailure &&
+            PROVIDER_TROUBLE_CODES.has(error.code)
+          ) {
+            options.onModelTrouble?.(
+              profile.id,
+              error.code,
+              batch.map((fragment) => fragment.n),
+            )
           }
         }
       }),
@@ -909,6 +966,16 @@ export async function generateVerbatimPrompts(
     options.onLog?.(
       `the ${stubborn.length} scene(s) that did not come out with ${profile.label} go to ${rescueProfile.label} so the video is not stuck`,
     )
+    // Cuatro rondas y el elegido sigue dejando escenas afuera: es el síntoma
+    // de «tiene errores seguido», aunque cada lote haya fallado por parseo y
+    // no por un código del proveedor. Salvo que TODO haya sido la red: ahí el
+    // modelo no tuvo oportunidad y no se lo culpa.
+    if (chosenModelBlamed)
+      options.onModelTrouble?.(
+        profile.id,
+        LLM_RESCUE_NEEDED,
+        stubborn.map((fragment) => fragment.n),
+      )
     const rescueExecutor = {
       profile: rescueProfile,
       cacheKey: cacheKeyFor(rescueProfile.id),
