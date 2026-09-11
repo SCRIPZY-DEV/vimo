@@ -1,4 +1,4 @@
-import type { DemoManifest, DemoStories } from '@pipeline/types/demo.ts'
+import type { DemoManifest } from '@pipeline/types/demo.ts'
 
 // Lee el manifest que la puerta de la demo deja en el state del router
 // (CreateDemoNavigationState). Una navegación normal, o un state ajeno, es
@@ -26,7 +26,7 @@ export function readDemoState(state: unknown): DemoManifest | null {
   // demoComingSoonFormats solo mira si la clave existe (seguiría ofreciendo
   // Short) mientras demoStoriesFor serviría en silencio la historia de 16:9.
   if (manifest.stories && '9:16' in manifest.stories) {
-    const short = manifest.stories['9:16'] as DemoStories | null | undefined
+    const short = manifest.stories['9:16']
     if (
       !short ||
       !Array.isArray(short.styles) ||

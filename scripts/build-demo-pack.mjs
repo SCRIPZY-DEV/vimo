@@ -203,6 +203,10 @@ async function copyInto(source, target) {
 
 async function copyTree(source, target, { skip = () => false } = {}) {
   for (const entry of await readdir(source, { withFileTypes: true })) {
+    // Un `.DS_Store` (o cualquier punto-archivo/punto-carpeta) que Finder deja
+    // en el pack base no puede colarse en el zip: cambiaría el SHA-256 que
+    // queda pineado en DEFAULT_PIPELINE_CONFIG.demo de una máquina a otra.
+    if (entry.name.startsWith('.')) continue
     const from = join(source, entry.name)
     const to = join(target, entry.name)
     if (skip(relative(source, from))) continue
@@ -265,6 +269,7 @@ async function listFiles(root, directory = root) {
   for (const entry of (await readdir(directory, { withFileTypes: true })).sort(
     (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
   )) {
+    if (entry.name.startsWith('.')) continue
     const path = join(directory, entry.name)
     if (entry.isDirectory()) files.push(...(await listFiles(root, path)))
     else

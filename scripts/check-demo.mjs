@@ -1037,6 +1037,10 @@ try {
       await mkdir(join(basePack, name, '..'), { recursive: true })
       await writeFile(join(basePack, name), data)
     }
+    // Distintos de FAKE_MP3 (el audio.mp3 de la raíz del pack base): si el
+    // assert de más abajo comparara contra FAKE_MP3, una copia que reusara
+    // por error el audio 16:9 del pack base también lo pasaría.
+    const NATIVE_NARRATION = Buffer.from('narracion nativa armada')
     const nativeRoot = join(workspace, 'native')
     const nativeProject = async (folder) => {
       const id = `demo-short-${folder.replace('_', '-')}`
@@ -1083,7 +1087,7 @@ try {
         join(directory, 'script.txt'),
         `${SHORT_STORIES[folder]}. Guion armado.`,
       )
-      await writeFile(join(directory, 'narration.mp3'), FAKE_MP3)
+      await writeFile(join(directory, 'narration.mp3'), NATIVE_NARRATION)
       await writeFile(
         join(directory, 'words.json'),
         JSON.stringify([
@@ -1205,11 +1209,167 @@ try {
     )
     assert(
       (await readFile(join(builtRoot, projectId, 'narration.mp3'))).equals(
-        FAKE_MP3,
+        NATIVE_NARRATION,
       ) &&
         (await stat(join(builtRoot, projectId, `${projectId}.mp4`))).size ===
           100_001,
-      'audio y video llegan desde el proyecto nativo',
+      'narration.mp3 y el video son los del proyecto nativo, no el audio del pack base',
+    )
+  }
+
+  // 19. El .ok de otra versión no basta: re-descarga limpia y reemplaza el pack.
+  section('19. .ok de otra versión: re-descarga limpia al cambiar de pack')
+  {
+    const upgradeRoot = join(workspace, 'Vimo-upgrade')
+    await mkdir(upgradeRoot, { recursive: true })
+
+    const first = await runSidecar('demo-prepare', {
+      projectsRoot: upgradeRoot,
+      config: demoConfig(),
+    })
+    assert(
+      last(first.events)?.type === 'job-completed',
+      `instala mini con short/ (fue ${last(first.events)?.type}: ${last(first.events)?.message ?? ''})`,
+    )
+    assert(
+      existsSync(
+        join(upgradeRoot, '_demo-pack', 'short', 'normal', 'audio.mp3'),
+      ),
+      'short/ queda instalado tras la primera preparación',
+    )
+
+    // mini → mini2: mismo binario, otra versión y otro sha256 (pack sin short).
+    const mini2Config = demoConfig({
+      packVersion: 'mini2',
+      packUrl: `${baseUrl}/landscape-only.zip`,
+      packSha256: sha256(landscapeOnlyZip),
+    })
+    const statusMini2 = await runSidecar('demo-status', {
+      projectsRoot: upgradeRoot,
+      config: mini2Config,
+    })
+    assert(
+      resultOf(statusMini2.events)?.ready === false,
+      'con el .ok de mini, la config de mini2 no está lista',
+    )
+    const hitsBeforeMini2 = hits
+    const second = await runSidecar('demo-prepare', {
+      projectsRoot: upgradeRoot,
+      config: mini2Config,
+    })
+    assert(
+      last(second.events)?.type === 'job-completed',
+      `demo-prepare re-instala mini2 (fue ${last(second.events)?.type}: ${last(second.events)?.message ?? ''})`,
+    )
+    assert(
+      hits === hitsBeforeMini2 + 1,
+      `re-descarga exactamente una vez (hits +${hits - hitsBeforeMini2})`,
+    )
+    const markerMini2 = JSON.parse(
+      await readFile(join(upgradeRoot, '_demo-pack', '.ok'), 'utf8'),
+    )
+    assert(
+      markerMini2.version === 'mini2' &&
+        markerMini2.sha256 === sha256(landscapeOnlyZip),
+      '.ok sella la versión y el sha256 de mini2',
+    )
+    assert(
+      !existsSync(join(upgradeRoot, '_demo-pack', 'short')),
+      'el árbol short/ del pack viejo no sobrevive al reemplazo',
+    )
+    assert(
+      !existsSync(join(upgradeRoot, '_demo-pack.tmp')) &&
+        !existsSync(join(upgradeRoot, '_demo-pack.zip.download')),
+      'no quedan temporales tras el reemplazo',
+    )
+    const manifestMini2 = resultOf(second.events)?.manifest
+    assert(
+      manifestMini2?.stories?.['9:16'] === undefined &&
+        manifestMini2?.stories?.['16:9']?.styles?.length === 3,
+      'el manifest de mini2 manda: sin stories[9:16]',
+    )
+
+    // mini2 → mini3: el camino real tras el bump (v2 instalado en la máquina
+    // → v3 con short/).
+    const mini3Config = demoConfig({ packVersion: 'mini3' })
+    const statusMini3 = await runSidecar('demo-status', {
+      projectsRoot: upgradeRoot,
+      config: mini3Config,
+    })
+    assert(
+      resultOf(statusMini3.events)?.ready === false,
+      'con mini2 instalado, la config de mini3 no está lista',
+    )
+    const third = await runSidecar('demo-prepare', {
+      projectsRoot: upgradeRoot,
+      config: mini3Config,
+    })
+    assert(
+      last(third.events)?.type === 'job-completed' &&
+        resultOf(third.events)?.manifest?.stories?.['9:16']?.styles?.length ===
+          3,
+      `demo-prepare re-instala mini3 con short/ (fue ${last(third.events)?.type}: ${last(third.events)?.message ?? ''})`,
+    )
+    const markerMini3 = JSON.parse(
+      await readFile(join(upgradeRoot, '_demo-pack', '.ok'), 'utf8'),
+    )
+    assert(
+      markerMini3.version === 'mini3' && markerMini3.sha256 === sha256(packZip),
+      '.ok sella la versión y el sha256 de mini3',
+    )
+    const gem = JSON.parse(
+      await readFile(
+        join(upgradeRoot, '_styles', 'demo-storytelling', 'style.json'),
+        'utf8',
+      ),
+    )
+    assert(
+      gem.name === 'STORYTELLING mini',
+      'la gema sembrada sobrevive a los dos reemplazos',
+    )
+
+    // Un Short own-audio corre sobre el pack recién reemplazado.
+    const created = await runSidecar('create-video-project', {
+      projectsRoot: upgradeRoot,
+      config: mini3Config,
+      payload: projectPayload('Demo short tras upgrade', {
+        demo: true,
+        styleId: 'normal',
+        videoFormat: '9:16',
+        narrationMode: 'own-audio',
+      }),
+    })
+    const projectId = resultOf(created.events)?.projectId
+    assert(
+      typeof projectId === 'string',
+      'create-video-project acepta el Short own-audio tras el upgrade',
+    )
+    await writeFile(
+      join(upgradeRoot, projectId, 'narration.mp3'),
+      Buffer.from('audio subido por la persona'),
+    )
+    const run = await runSidecar('run-video-pipeline', {
+      projectsRoot: upgradeRoot,
+      config: mini3Config,
+      payload: { projectId },
+    })
+    const scenes = JSON.parse(
+      await readFile(join(upgradeRoot, projectId, 'scenes.json'), 'utf8'),
+    )
+    assert(
+      resultOf(run.events)?.status === 'completed' &&
+        scenes[0]?.imagePrompt === 'normal short scene one',
+      `Short own-audio completa desde short/normal (fue ${last(run.events)?.type}: ${last(run.events)?.message ?? ''})`,
+    )
+    assert(
+      (await readFile(join(upgradeRoot, projectId, 'narration.mp3'))).equals(
+        FAKE_MP3,
+      ),
+      'narration.mp3 termina siendo el audio del pack',
+    )
+    assert(
+      !run.events.some((event) => event.type === 'voice-progress'),
+      'sin voice-progress con own-audio',
     )
   }
 } finally {
