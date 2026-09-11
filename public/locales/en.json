@@ -33,6 +33,7 @@
       "personajes": "Characters",
       "voces": "Voices",
       "musica": "AI Music",
+      "demo": "Demo",
       "costos": "Pricing",
       "claves": "API Keys",
       "licencia": "License",
@@ -445,7 +446,9 @@
       "styleSamplesFailed": "No sample could be generated. Try again.",
       "voiceQuotaExceeded": "Your ElevenLabs account ran out of characters.",
       "voiceLibraryAddFailed": "The library voice could not be added to your ElevenLabs account.",
-      "voiceAccountRestricted": "ElevenLabs restricted your account for this feature. Check your ElevenLabs plan."
+      "voiceAccountRestricted": "ElevenLabs restricted your account for this feature. Check your ElevenLabs plan.",
+      "demoNotReady": "The demo is not ready on this computer. Enter again through the Demo button.",
+      "demoStyleNotIncluded": "The demo does not include this style. Pick one of the styles the demo shows."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -592,6 +595,24 @@
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     }
   },
+  "createDemo": {
+    "pageTitle": "Demo",
+    "title": "Vimo demo",
+    "checking": "Checking the demo…",
+    "preparingFirstTime": "Preparing the demo for the first time…",
+    "downloading": "Downloading the demo (one time only)…",
+    "installing": "Preparing the files…",
+    "onceNote": "This happens only once: the demo stays on this computer.",
+    "retry": "Retry",
+    "errors": {
+      "offline": "No connection to download the demo. Check your internet and try again.",
+      "downloadFailed": "The demo package could not be downloaded. Try again later.",
+      "packCorrupt": "The downloaded package does not match the expected one. Try again.",
+      "packUnreadable": "The demo package could not be opened. Try again.",
+      "packIncomplete": "The demo package came incomplete. Try again.",
+      "unknown": "The demo could not be prepared. Try again."
+    }
+  },
   "library": {
     "pageTitle": "Library",
     "title": "Library",
@@ -710,7 +731,8 @@
       "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept.",
       "missingImagesTitle_one": "1 scene is missing its image (scene {{ids}})",
       "missingImagesTitle_other": "{{count}} scenes are missing their image (scenes {{ids}})",
-      "missingImagesHint": "Their descriptions are saved. Tap an empty scene in the timeline and use \"Regenerate\" to create its image — or change the description if you want something else. Once they all have one, build your video."
+      "missingImagesHint": "Their descriptions are saved. Tap an empty scene in the timeline and use \"Regenerate\" to create its image — or change the description if you want something else. Once they all have one, build your video.",
+      "demoLocked": "In the demo, images and narration come from the sample package: they cannot be regenerated."
     },
     "errors": {
       "projectBusy": "A generation is already running. Wait for it to finish before starting another.",
@@ -718,7 +740,8 @@
       "audioTooLarge": "The audio exceeds the maximum allowed size (50 MB).",
       "clipsNoScenes": "The project has no timed scenes to export.",
       "clipsNoImages": "Some scenes have no image: generate them before exporting.",
-      "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance."
+      "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance.",
+      "demoProject": "This video belongs to the demo: its images and narration come from the sample package and cannot be regenerated."
     },
     "music": {
       "title": "Background music",
