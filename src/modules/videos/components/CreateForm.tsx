@@ -102,6 +102,9 @@ export function CreateForm({
         <StyleSourceTabs
           value={value.styleSource}
           disabled={disabled}
+          catalogHintKey={
+            demo ? 'create.styleSource.catalogHintDemo' : undefined
+          }
           onChange={(styleSource) => onChange({ styleSource })}
         />
         {value.styleSource === 'catalog' ? (

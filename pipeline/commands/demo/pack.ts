@@ -177,6 +177,17 @@ export async function validatePack(packRoot: string): Promise<string | null> {
   const manifest = await readPackManifest(packRoot)
   if (!manifest) return `${DEMO_PACK_MANIFEST_FILE} is missing or malformed`
 
+  // El manifest tiene que nombrar los tres estilos del catálogo (con ese
+  // `id` exacto) y una gema con id: si falta uno, run-demo-pipeline no
+  // encuentra su entrada más tarde y el proyecto queda incompletable sin
+  // que `.ok` lo hubiera avisado.
+  for (const styleId of DEMO_CATALOG_STYLES) {
+    if (!manifest.estilos?.some((entry) => entry.id === styleId))
+      return `${DEMO_PACK_MANIFEST_FILE} lists no entry for style "${styleId}"`
+  }
+  if (!manifest.gema?.id?.trim())
+    return `${DEMO_PACK_MANIFEST_FILE} gema entry has no id`
+
   for (const folder of [...DEMO_CATALOG_STYLES, DEMO_CUSTOM_STYLE_FOLDER]) {
     const directory = join(packRoot, folder)
     for (const file of [

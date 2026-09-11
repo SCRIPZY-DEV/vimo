@@ -5,7 +5,7 @@ import { isValidFile, projectsRootOf } from '../../project/paths.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { DemoPrepareResult } from '../../types/demo.ts'
-import { renameAtomic } from '../../utils/atomic-fs.ts'
+import { moveDirectoryAtomic } from '../../utils/atomic-fs.ts'
 import { downloadFile } from './download.ts'
 import { extractZip } from './extract.ts'
 import {
@@ -95,7 +95,10 @@ async function installPack(
     if (problem) throw new PipelineFailure('demo_pack_incomplete', problem)
 
     await rm(packRoot, { recursive: true, force: true })
-    await renameAtomic(extractedRoot, packRoot)
+    // Es un directorio, no un archivo: swap con reintentos y fallback a
+    // copia recursiva si el rename sigue bloqueado (ADR-0027, ver
+    // moveDirectoryAtomic).
+    await moveDirectoryAtomic(extractedRoot, packRoot)
     await writeOkMarker(packRoot, demo, sha256)
   } finally {
     await rm(zipFile, { force: true })

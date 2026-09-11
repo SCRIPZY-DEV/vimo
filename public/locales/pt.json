@@ -500,6 +500,7 @@
     "styleSource": {
       "catalog": "Catálogo",
       "catalogHint": "Os 5 estilos do Vimo.",
+      "catalogHintDemo": "Os 3 estilos com demo pronta.",
       "custom": "Meu estilo",
       "customHint": "Seu próprio estilo visual."
     },

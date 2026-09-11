@@ -91,7 +91,7 @@ job-completed { videoPath } ─► biblioteca / editor
 | Rechazos `demo_project`           | cambio | `pipeline/commands/videos/{regenerate-scene-images,replace-narration}.ts`                                                               | `PipelineFailure('demo_project')` antes de tocar cualquier proveedor                                                                                                                                                                                          |
 | `yauzl`                           | nuevo  | `package.json` (+ `@types/yauzl` en dev)                                                                                                | Lector de zip puro JavaScript y por streaming (una sola dependencia transitiva, `pend`); esbuild lo empaqueta en el SEA                                                                                                                                       |
 | Guard ejecutable                  | nuevo  | `scripts/check-demo.mjs` (`pnpm check:demo`)                                                                                            | Genera un pack mínimo en una carpeta temporal, lo sirve por HTTP local y corre el sidecar con overrides de `config.demo`; ver Verificación                                                                                                                    |
-| Textos                            | cambio | `public/locales/{es,en,pt}.json`                                                                                                        | `layout.nav.demo`, grupo `createDemo.*` (estados, nota, reintentar, `errors.*`), `create.format.comingSoon`, `library.editor.demoLocked`, `library.errors.demoProject`                                                                                        |
+| Textos                            | cambio | `public/locales/{es,en,pt}.json`                                                                                                        | `layout.nav.demo`, grupo `createDemo.*` (estados, nota, reintentar, `errors.*`), `common.proximamente`, `library.editor.demoLocked`, `library.errors.demoProject`                                                                                             |
 
 ### El pack en disco
 
@@ -117,7 +117,8 @@ El formato del origen se traduce al nativo **al copiar**, nunca al extraer:
 formulario toma **todo** de ahí, y publicar un pack con otras historias no exige tocar
 la app. La carpeta del estilo se elige por `options.styleId` (catálogo: `pov_stickman`,
 `normal`, `cartoon`) o por `options.customStyle` (gema → `storytelling`); cualquier
-otro estilo falla con `demo_style_not_included`.
+otro estilo falla con `demo_style_not_included`. El nombre que ve la persona en «Mi
+estilo» es el de la gema del pack (en v2, «STORYTELLING2»), no uno fijo en el código.
 
 ### La simulación
 
@@ -244,7 +245,8 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
   6. `demo: 'yes'` en `create-video-project` es `invalid_payload`.
 - **Guards existentes:** `pnpm check:locales` (las claves nuevas en los tres catálogos),
   `pnpm lint` (sin `process.env` ni `console` en `pipeline/`), `pnpm build` y
-  `pnpm build:sidecar` (yauzl empaquetado en el SEA).
+  `pnpm build:sidecar` (el bundle minificado conserva los identificadores de la API de
+  yauzl; la prueba real es la corrida del checklist manual con el build instalado).
 - **Checklist manual** con el build instalado:
   1. Con un correo administrador o cargado desde «Accesos a la demo» del landing,
      reabrir Vimo muestra «Demo» en el sidebar; con otro correo, no.

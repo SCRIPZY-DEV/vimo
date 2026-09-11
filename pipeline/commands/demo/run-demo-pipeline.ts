@@ -11,12 +11,13 @@ import {
 import { PipelineFailure, toPipelineFailure } from '../../runner/failure.ts'
 import type { StageId } from '../../runner/stage-id.ts'
 import type { CreateVideoContext } from '../../stages/context.ts'
-import type { DemoStyleEntry } from '../../types/demo.ts'
+import type { DemoManifest, DemoStyleEntry } from '../../types/demo.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
 import type { RunVideoPipelineResult } from '../../types/video-project.ts'
 import { ensureDirectory, writeFileAtomic } from '../../utils/atomic-fs.ts'
 import {
   DEMO_CUSTOM_STYLE_FOLDER,
+  DEMO_PACK_MANIFEST_FILE,
   PACK_AUDIO_FILE,
   PACK_SCRIPT_FILE,
   PACK_VIDEO_FILE,
@@ -87,11 +88,7 @@ export async function runDemoPipeline(
     const folder = demoStyleFolderFor(context.options)
     const styleDirectory = join(packRoot, folder)
     const manifest = await readDemoManifest(packRoot, demo)
-    const entry: DemoStyleEntry =
-      folder === DEMO_CUSTOM_STYLE_FOLDER
-        ? manifest.customStyle
-        : (manifest.styles.find((style) => style.id === folder) ??
-          manifest.styles[0])
+    const entry = resolveStyleEntry(manifest, folder)
     const packScenes = await readPackScenes(styleDirectory)
     const packWords = await readPackWords(styleDirectory)
     const packScript = await readFile(
@@ -290,4 +287,24 @@ export async function runDemoPipeline(
     await context.saveMetadata()
     throw error
   }
+}
+
+// La carpeta de la gema no tiene entrada en manifest.styles (vive aparte, en
+// manifest.customStyle); cualquier otra carpeta sin entrada es un pack
+// incompleto — nunca se cae de vuelta a un estilo cualquiera del manifest
+// por accidente (validatePack ya exige las tres, pero un pack corrupto
+// puede haber sido instalado antes de que ese chequeo existiera).
+function resolveStyleEntry(
+  manifest: DemoManifest,
+  folder: string,
+): DemoStyleEntry {
+  if (folder === DEMO_CUSTOM_STYLE_FOLDER) return manifest.customStyle
+
+  const entry = manifest.styles.find((style) => style.id === folder)
+  if (entry) return entry
+
+  throw new PipelineFailure(
+    'demo_pack_incomplete',
+    `${DEMO_PACK_MANIFEST_FILE} has no entry for style folder "${folder}"`,
+  )
 }

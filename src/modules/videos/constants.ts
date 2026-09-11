@@ -633,6 +633,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   style_samples_failed: 'create.errors.styleSamplesFailed',
   // Modo demo (ADR-0027)
   demo_not_ready: 'create.errors.demoNotReady',
+  demo_pack_incomplete: 'create.errors.demoNotReady',
   demo_style_not_included: 'create.errors.demoStyleNotIncluded',
   cancelled: 'create.errors.cancelled',
   sidecar_missing: 'create.errors.sidecar',
