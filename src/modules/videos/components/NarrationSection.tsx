@@ -30,8 +30,13 @@ export function NarrationSection({
   const { t } = useTranslation()
 
   const isUpload = value.narrationMode === 'own-audio'
-  const fileName =
-    audioFileLabel ?? value.narrationFilePath?.split(/[\\/]/).pop() ?? null
+  // El chip depende del path real, no solo de la etiqueta: si una entrada
+  // del manifest no trajera audioFile, mostrar igual el chip dejaría
+  // «Subir mi audio» bloqueada sin audio real (picker deshabilitado, X
+  // oculta) y sin forma de salir del paso.
+  const fileName = value.narrationFilePath
+    ? (audioFileLabel ?? value.narrationFilePath.split(/[\\/]/).pop() ?? null)
+    : null
 
   return (
     <div className="space-y-3">
@@ -78,9 +83,14 @@ export function NarrationSection({
             type="button"
             disabled={disabled || audioLocked}
             onClick={onPickAudio}
-            className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-border bg-card p-3 text-left transition-all hover:border-saffron/40"
+            className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-border bg-card p-3 text-left transition-all hover:border-saffron/40 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span className="rounded-lg bg-saffron px-4 py-2 font-display text-sm font-bold text-charcoal transition-colors hover:bg-saffron/90">
+            <span
+              className={cn(
+                'rounded-lg bg-saffron px-4 py-2 font-display text-sm font-bold text-charcoal transition-colors',
+                !audioLocked && 'hover:bg-saffron/90',
+              )}
+            >
               {t('create.narration.chooseFile')}
             </span>
             {!fileName && (

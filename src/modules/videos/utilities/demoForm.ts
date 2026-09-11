@@ -28,7 +28,11 @@ export function demoStoriesFor(
   return manifest.stories[format] ?? manifest.stories['16:9']
 }
 
-// Ids del catálogo con historia pre-hecha, en el orden de la galería.
+// Ids del catálogo con historia pre-hecha, en el orden de la galería. Lee
+// solo 16:9: por contrato el árbol short/ espeja el mismo conjunto de
+// estilos que la raíz (validatePack exige las mismas tres entradas del
+// catálogo en los dos árboles, ADR-0028 regla 2), así que los ids de la
+// galería no cambian entre formatos.
 export function demoStyleIds(manifest: DemoManifest): CharacterStyleId[] {
   const ids: CharacterStyleId[] = []
   for (const style of VIDEO_STYLES) {
