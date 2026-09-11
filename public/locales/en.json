@@ -143,17 +143,18 @@
     },
     "image": {
       "provider": "Image provider",
-      "quality": "Quality",
-      "falHint": "More quality options.",
+      "reasoningLevel": "Reasoning level",
+      "falHint": "Three reasoning levels, at the format's native size.",
       "evolinkHint": "Faster (50 in parallel), a single preset."
     },
-    "quality": {
-      "low": "{{format}} · Low",
-      "medium": "{{format}} · Medium",
-      "high": "{{format}} · High",
-      "evolinkLowNote": "Comes out in the video's shape (16:9 or 9:16). Cheapest.",
-      "evolinkMediumNote": "Comes out in the video's shape (16:9 or 9:16). Price/quality balance.",
-      "evolinkHighNote": "Comes out in the video's shape (16:9 or 9:16). Top quality.",
+    "reasoningLevel": {
+      "low": "Low · {{format}}",
+      "medium": "Medium · {{format}}",
+      "high": "High · {{format}}",
+      "help": "How much the model reasons before drawing each image. Low: fast and cheap, for simple scenes. Medium: a balance between price and detail. High: maximum detail and prompt fidelity; slower and pricier.",
+      "evolinkLowNote": "Comes out in the video's shape (16:9 or 9:16). Fast and cheap.",
+      "evolinkMediumNote": "Comes out in the video's shape (16:9 or 9:16). A balance between price and detail.",
+      "evolinkHighNote": "Comes out in the video's shape (16:9 or 9:16). Maximum detail, slower and pricier.",
       "falNote": "Native 16:9. No resizing.",
       "falVerticalNote": "Native 9:16 for shorts. No resizing."
     },
@@ -737,7 +738,7 @@
         "clipInEdit": "Edit the in time",
         "clipOutEdit": "Edit the out time",
         "provider": "Provider",
-        "quality": "Quality",
+        "reasoningLevel": "Reasoning level",
         "characters": "Characters in this scene",
         "regenerate": "Regenerate image",
         "regenerateWithPrompt": "Regenerate with your description",

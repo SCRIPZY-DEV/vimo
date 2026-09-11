@@ -11,12 +11,20 @@ import type {
   FalImageResponse,
   GenerateImageOptions,
 } from '../../types/images.ts'
+import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { downloadImage } from './download.ts'
 
 // Provider Fal (síncrono: el POST devuelve la imagen ya generada). Port
 // acotado de fal_provider.ts a UNA imagen — la generación por escenas, con
 // caché por archivo y semáforos, llega con la stage `images` de Create.
 export const FAL_BASE_URL = 'https://fal.run'
+
+// Cuánto tarda una imagen de Fal en el caso típico. Fal no informa avance: el
+// porcentaje que ve la persona es un ramp simulado que llega al techo en este
+// tiempo y ahí espera a la imagen real. Lo comparten las lanes del pipeline,
+// las muestras de estilo y el preview de personaje (pedido del 2026-09-10:
+// 40 s — con 18-22 s subía demasiado rápido y después se clavaba).
+export const FAL_EXPECTED_MS = 40_000
 
 // El billing vive en otro host que la generación.
 const FAL_BILLING_URL = 'https://api.fal.ai/v1/account/billing?expand=credits'
@@ -128,86 +136,117 @@ export async function generateFalImage(
     ? AbortSignal.any([options.signal, deadline])
     : deadline
   let lastError = 'unknown'
+  // Mientras el encargo está en vuelo se estima el avance con el mismo ramp
+  // que las lanes del pipeline. El reloj arranca UNA vez por encargo: un
+  // reintento sigue subiendo en vez de volver a 0.
+  const startedAt = Date.now()
+  const stopProgress = startSimulatedProgress(
+    startedAt,
+    FAL_EXPECTED_MS,
+    (percent) => reportProgress(options, startedAt, percent, 'processing'),
+  )
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    let response: Response
-    try {
-      response = await fetch(`${FAL_BASE_URL}/${FAL_IMAGE_ENDPOINT}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Key ${options.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: requestBody(prompt),
-        signal,
-      })
-    } catch (error) {
-      // Cancelación pedida por el usuario: sale como tal.
-      if (options.signal?.aborted) throw error
-      if (deadline.aborted)
-        throw new PipelineFailure(
-          'image_timeout',
-          `Fal did not answer within ${ORDER_DEADLINE_MS / 1000}s`,
-        )
-      lastError = 'network'
-      continue
-    }
-
-    if (response.ok) {
-      const data = (await response.json()) as FalImageResponse
-      const url = data.images?.[0]?.url
-      // 200 sin URL no es terminal: el origen lo vio y reintenta.
-      if (!url) {
-        lastError = 'Fal returned 200 without an image url'
+  try {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      let response: Response
+      try {
+        response = await fetch(`${FAL_BASE_URL}/${FAL_IMAGE_ENDPOINT}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Key ${options.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: requestBody(prompt),
+          signal,
+        })
+      } catch (error) {
+        // Cancelación pedida por el usuario: sale como tal.
+        if (options.signal?.aborted) throw error
+        if (deadline.aborted)
+          throw new PipelineFailure(
+            'image_timeout',
+            `Fal did not answer within ${ORDER_DEADLINE_MS / 1000}s`,
+          )
+        lastError = 'network'
         continue
       }
 
-      return downloadImage(url, options.signal)
+      if (response.ok) {
+        const data = (await response.json()) as FalImageResponse
+        const url = data.images?.[0]?.url
+        // 200 sin URL no es terminal: el origen lo vio y reintenta.
+        if (!url) {
+          lastError = 'Fal returned 200 without an image url'
+          continue
+        }
+
+        const image = await downloadImage(url, options.signal)
+        reportProgress(options, startedAt, 100, 'completed')
+        return image
+      }
+
+      if (response.status === 401 || response.status === 403)
+        throw new PipelineFailure(
+          'image_invalid_api_key',
+          `Fal rejected the API key (status=${response.status})`,
+        )
+
+      const body = await readFalErrorBody(response)
+      const detail = falErrorText(body)
+
+      if (
+        (response.status === 400 || response.status === 422) &&
+        (body?.type === 'content_policy_violation' ||
+          FAL_CONTENT_POLICY_PATTERN.test(detail))
+      )
+        // Reintentar el mismo prompt rechazado solo quema créditos.
+        throw new PipelineFailure(
+          'image_content_policy',
+          `Fal rejected the prompt by content policy: ${detail.slice(0, 200)}`,
+        )
+
+      if (
+        response.status === 429 ||
+        body?.type === 'concurrent_requests_limit'
+      ) {
+        lastError = 'rate limited'
+        await delay(
+          Math.min(2000 * 2 ** (attempt - 1), RATE_LIMIT_MAX_BACKOFF_MS),
+          undefined,
+          { signal: options.signal },
+        )
+        continue
+      }
+
+      if (response.status >= 500) {
+        lastError = `status=${response.status}`
+        await delay(2000 * attempt, undefined, { signal: options.signal })
+        continue
+      }
+
+      lastError = `status=${response.status} ${detail.slice(0, 200)}`
     }
 
-    if (response.status === 401 || response.status === 403)
-      throw new PipelineFailure(
-        'image_invalid_api_key',
-        `Fal rejected the API key (status=${response.status})`,
-      )
-
-    const body = await readFalErrorBody(response)
-    const detail = falErrorText(body)
-
-    if (
-      (response.status === 400 || response.status === 422) &&
-      (body?.type === 'content_policy_violation' ||
-        FAL_CONTENT_POLICY_PATTERN.test(detail))
+    throw new PipelineFailure(
+      'image_provider_error',
+      `Fal failed after ${MAX_ATTEMPTS} attempts (${lastError})`,
     )
-      // Reintentar el mismo prompt rechazado solo quema créditos.
-      throw new PipelineFailure(
-        'image_content_policy',
-        `Fal rejected the prompt by content policy: ${detail.slice(0, 200)}`,
-      )
-
-    if (response.status === 429 || body?.type === 'concurrent_requests_limit') {
-      lastError = 'rate limited'
-      await delay(
-        Math.min(2000 * 2 ** (attempt - 1), RATE_LIMIT_MAX_BACKOFF_MS),
-        undefined,
-        { signal: options.signal },
-      )
-      continue
-    }
-
-    if (response.status >= 500) {
-      lastError = `status=${response.status}`
-      await delay(2000 * attempt, undefined, { signal: options.signal })
-      continue
-    }
-
-    lastError = `status=${response.status} ${detail.slice(0, 200)}`
+  } finally {
+    stopProgress()
   }
+}
 
-  throw new PipelineFailure(
-    'image_provider_error',
-    `Fal failed after ${MAX_ATTEMPTS} attempts (${lastError})`,
-  )
+function reportProgress(
+  options: GenerateImageOptions,
+  startedAt: number,
+  percent: number,
+  status: string,
+): void {
+  options.onProgress?.({
+    percent,
+    status,
+    elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+  })
 }
 
 // Convención de opción de calidad del catálogo: "<W>x<H>_<quality>".

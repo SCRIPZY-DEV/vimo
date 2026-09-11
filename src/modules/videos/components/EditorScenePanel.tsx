@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
+import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
@@ -10,7 +11,6 @@ import {
   TooltipTrigger,
 } from '@/modules/common/ui/tooltip'
 import { ClipTimeField } from '@/modules/videos/components/ClipTimeField'
-import { ImageCreditsBadges } from '@/modules/videos/components/ImageCreditsBadges'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
 import type { ClipEdge, SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'

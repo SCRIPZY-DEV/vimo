@@ -42,7 +42,6 @@ import type {
   CreateVideoProjectResult,
   DeleteVideoProjectsResult,
   ExportClipsPayload,
-  ImageCreditsResult,
   ListVideoProjectsResult,
   ProbeTtsPayload,
   ProbeTtsResult,
@@ -164,9 +163,6 @@ export const videosApi = {
   },
   async updateAudioMix(payload: UpdateAudioMixPayload): Promise<void> {
     await runPipelineJob('update-audio-mix', payload)
-  },
-  async getImageCredits(): Promise<ImageCreditsResult> {
-    return runPipelineJob<ImageCreditsResult>('get-image-credits')
   },
   async generateProjectMusic(
     params: MusicGenerationParams,

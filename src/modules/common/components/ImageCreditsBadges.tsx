@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
+import { CreditsBadge } from '@/modules/common/components/CreditsBadge'
 import { cn } from '@/modules/common/utilities/cn'
-import { CreditsBadge } from '@/modules/videos/components/CreditsBadge'
-import { formatCompact } from '@/modules/videos/utilities/formatCompact'
+import { formatCompact } from '@/modules/common/utilities/formatCompact'
 import type { ImageCreditsResult } from '@pipeline/types/video-project.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 

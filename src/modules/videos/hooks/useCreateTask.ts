@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import i18next from 'i18next'
 import { toast } from '@/modules/common/hooks/useToast'
+import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { blockPromptModel } from '@/modules/common/utilities/promptModelBlocks'
 import { videosApi } from '@/modules/videos/api'
 import {
@@ -16,7 +17,6 @@ import {
   RETRYABLE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
-import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import {
   libraryTabFor,

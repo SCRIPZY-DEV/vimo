@@ -2,12 +2,14 @@ import { sceneImageFile } from '../../project/paths.ts'
 import {
   FAL_BASE_URL,
   FAL_CONTENT_POLICY_PATTERN,
+  FAL_EXPECTED_MS,
   FAL_IMAGE_ENDPOINT,
   falErrorText,
   falSceneRequestBody,
   readFalErrorBody,
 } from '../../providers/image/fal.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
+import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { IMAGE_MODEL } from '../../types/image-provider.ts'
 import type { FalImageResponse } from '../../types/images.ts'
@@ -31,9 +33,6 @@ import {
 const MAX_ATTEMPTS = 5
 const ORDER_DEADLINE_MS = 210_000
 const RATE_LIMIT_MAX_BACKOFF_MS = 30_000
-const PROGRESS_TICK_MS = 500
-// Fal no expone progreso: estimación honesta elapsed/expected (cap 95%).
-const EXPECTED_MS = 18_000
 
 export async function generateSceneWithFal(
   scene: Scene,
@@ -62,13 +61,13 @@ export async function generateSceneWithFal(
   // subiendo desde donde iba en vez de volver a 0 (avance monótono).
   const startedAt = Date.now()
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const progressTimer = setInterval(() => {
-      const percent = Math.min(
-        95,
-        Math.floor(((Date.now() - startedAt) / EXPECTED_MS) * 100),
-      )
-      options.events.onProgress(scene.id, percent, 'processing')
-    }, PROGRESS_TICK_MS)
+    // Fal no expone progreso: estimación honesta elapsed/expected (techo 95 %)
+    // con el mismo reloj que el provider y el preview de personaje.
+    const stopProgress = startSimulatedProgress(
+      startedAt,
+      FAL_EXPECTED_MS,
+      (percent) => options.events.onProgress(scene.id, percent, 'processing'),
+    )
 
     const deadline = AbortSignal.timeout(ORDER_DEADLINE_MS)
     try {
@@ -193,7 +192,7 @@ export async function generateSceneWithFal(
       }
       await sleep(2000, options.signal)
     } finally {
-      clearInterval(progressTimer)
+      stopProgress()
     }
   }
 
