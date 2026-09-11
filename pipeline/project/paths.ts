@@ -17,11 +17,13 @@ import { PipelineFailure } from '../runner/failure.ts'
 // └── <slug>.mp4
 
 // Carpetas bajo <projectsRoot> que NO son proyectos: un proyecto no puede
-// llamarse así (el slug colisionaría con la biblioteca o el historial).
+// llamarse así (el slug colisionaría con la biblioteca, el historial, la
+// galería de estilos o el pack de la demo — ADR-0027).
 export const RESERVED_ROOT_DIRECTORIES = new Set([
   'characters',
   '_history',
   '_styles',
+  '_demo-pack',
 ])
 
 const PROJECT_ID_PATTERN = /^[a-z0-9-]+$/
