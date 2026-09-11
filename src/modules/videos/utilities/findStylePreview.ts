@@ -14,3 +14,17 @@ export function findStylePreview(
     (preview) => preview.styleId === previewStyleKey,
   )
 }
+
+// El retrato con el que se RECONOCE al personaje en pantalla: el de este
+// estilo y, si no lo tiene, cualquiera de los suyos. E20 manda sobre la
+// referencia que se ENVÍA (esa sigue siendo estricta: sin preview del estilo
+// la identidad viaja como texto), no sobre lo que se ve en la app — dibujar
+// un ícono vacío para alguien que sí tiene ilustraciones es un bug de vista.
+export function findPortraitPreview(
+  character: CharacterSummary,
+  previewStyleKey: string,
+): CharacterPreview | undefined {
+  return (
+    findStylePreview(character, previewStyleKey) ?? character.previews.at(0)
+  )
+}

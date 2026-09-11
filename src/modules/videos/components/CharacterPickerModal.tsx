@@ -25,7 +25,11 @@ import {
 import { CharacterModal } from '@/modules/characters/components/CharacterModal'
 import type { CharacterStyleContext } from '@/modules/characters/types/characters'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
-import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
+import {
+  findPortraitPreview,
+  findStylePreview,
+} from '@/modules/videos/utilities/findStylePreview'
+import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 
@@ -61,22 +65,13 @@ export function CharacterPickerModal({
   const [creating, setCreating] = useState(false)
   const single = max === 1
 
-  const toSelected = (character: CharacterSummary): SelectedCharacter => {
-    const preview = findStylePreview(character, previewStyleKey)
-    return {
-      characterId: character.id,
-      name: character.name,
-      description: character.description,
-      previewPath: preview?.imagePath ?? null,
-    }
-  }
-
   const pick = (character: CharacterSummary) => {
+    const selected = toSelectedCharacter(character, previewStyleKey)
     if (draft.length < max) {
-      setDraft([...draft, toSelected(character)])
+      setDraft([...draft, selected])
       return
     }
-    if (single) setDraft([toSelected(character)])
+    if (single) setDraft([selected])
   }
 
   const addCreated = (character: CharacterSummary) => {
@@ -153,7 +148,10 @@ export function CharacterPickerModal({
           </button>
           {characters.map((character) => {
             const isSelected = isPicked(character.id)
+            // La carita sale de cualquier ilustración que tenga; el aviso de
+            // abajo mira SOLO la de este estilo, que es la que viajaría.
             const preview = findStylePreview(character, previewStyleKey)
+            const portrait = findPortraitPreview(character, previewStyleKey)
             return (
               <button
                 key={character.id}
@@ -168,7 +166,7 @@ export function CharacterPickerModal({
               >
                 <CharacterPortrait
                   src={
-                    preview ? videosApi.imageSource(preview.imagePath) : null
+                    portrait ? videosApi.imageSource(portrait.imagePath) : null
                   }
                   doodleSize={56}
                   className="aspect-square"

@@ -10,12 +10,10 @@ import { CharacterPickerModal } from '@/modules/videos/components/CharacterPicke
 import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
 import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
-import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
+import { findPortraitPreview } from '@/modules/videos/utilities/findStylePreview'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
-import type {
-  CreateFormValue,
-  SelectedCharacter,
-} from '@/modules/videos/types/create'
+import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
+import type { CreateFormValue } from '@/modules/videos/types/create'
 
 interface CharacterSectionProps {
   value: CreateFormValue
@@ -57,14 +55,9 @@ export function CharacterSection({
   // sincronización va en un efecto (no se puede llamar a onChange en render).
   useEffect(() => {
     if (!fixedCharacter || fixedSeeded || disabled) return
-    const preview = findStylePreview(fixedCharacter, previewStyleKey)
-    const seeded: SelectedCharacter = {
-      characterId: fixedCharacter.id,
-      name: fixedCharacter.name,
-      description: fixedCharacter.description,
-      previewPath: preview?.imagePath ?? null,
-    }
-    onChange({ characters: [seeded] })
+    onChange({
+      characters: [toSelectedCharacter(fixedCharacter, previewStyleKey)],
+    })
   }, [fixedCharacter, fixedSeeded, disabled, previewStyleKey, onChange])
 
   // Todos los chips del estilo abren el editor de la gema EN USO (v1.19.5
@@ -173,9 +166,10 @@ export function CharacterSection({
 
   if (fixedCharacterId) {
     // La carita sale del catálogo (no de la siembra) para no depender del
-    // orden del efecto.
-    const fixedPreview = fixedCharacter
-      ? findStylePreview(fixedCharacter, previewStyleKey)
+    // orden del efecto, y de cualquier ilustración suya: una gema recién
+    // creada todavía no tiene preview propio del personaje.
+    const fixedPortrait = fixedCharacter
+      ? findPortraitPreview(fixedCharacter, previewStyleKey)
       : undefined
 
     return (
@@ -214,8 +208,8 @@ export function CharacterSection({
             <div className="flex items-center gap-3">
               <CharacterPortrait
                 src={
-                  fixedPreview
-                    ? videosApi.imageSource(fixedPreview.imagePath)
+                  fixedPortrait
+                    ? videosApi.imageSource(fixedPortrait.imagePath)
                     : null
                 }
                 doodleSize={20}
@@ -274,8 +268,8 @@ export function CharacterSection({
           <div className="flex items-center gap-3">
             <CharacterPortrait
               src={
-                firstCharacter.previewPath
-                  ? videosApi.imageSource(firstCharacter.previewPath)
+                firstCharacter.portraitPath
+                  ? videosApi.imageSource(firstCharacter.portraitPath)
                   : null
               }
               doodleSize={20}
@@ -319,8 +313,8 @@ export function CharacterSection({
             >
               <CharacterPortrait
                 src={
-                  character.previewPath
-                    ? videosApi.imageSource(character.previewPath)
+                  character.portraitPath
+                    ? videosApi.imageSource(character.portraitPath)
                     : null
                 }
                 doodleSize={20}

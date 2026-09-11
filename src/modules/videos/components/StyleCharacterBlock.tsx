@@ -14,7 +14,8 @@ import {
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
-import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
+import { findPortraitPreview } from '@/modules/videos/utilities/findStylePreview'
+import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type {
@@ -106,14 +107,8 @@ export function StyleCharacterBlock({
     characters.length > 0 &&
     !fixed
 
-  const toSelected = (character: CharacterSummary): SelectedCharacter => {
-    const preview = findStylePreview(character, styleId)
-    return {
-      characterId: character.id,
-      name: character.name,
-      description: character.description,
-      previewPath: preview?.imagePath ?? null,
-    }
+  const toSelected = (character: CharacterSummary) => {
+    return toSelectedCharacter(character, styleId)
   }
 
   // Encender o apagar una opción: la misma acción venga del switch, de la
@@ -299,8 +294,7 @@ interface FixedPortraitProps {
 // La carita del fijado: el preview de ESTA gema o, si no lo tiene, el primero
 // que haya. El ícono queda para un personaje sin imagen alguna.
 function FixedPortrait({ character, styleId }: FixedPortraitProps) {
-  const preview =
-    findStylePreview(character, styleId) ?? character.previews.at(0)
+  const preview = findPortraitPreview(character, styleId)
 
   if (!preview)
     return (
