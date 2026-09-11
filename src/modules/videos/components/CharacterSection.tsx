@@ -5,10 +5,9 @@ import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
+import { CharacterFrequencyPicker } from '@/modules/videos/components/CharacterFrequencyPicker'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
-import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
 import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
-import { CHARACTER_FREQUENCIES } from '@/modules/videos/constants'
 import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
 import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
@@ -239,10 +238,17 @@ export function CharacterSection({
   }
 
   const firstCharacter = value.characters[0] ?? null
+  // Con «Mi estilo» nadie elige cada cuánto sale: dónde aparece el
+  // protagonista lo decide el prompt que escribe la gema (ADR-0019), así que
+  // la promesa de la pista también cambia.
+  const hint =
+    value.styleSource === 'custom'
+      ? t('create.characters.hintOfStyle')
+      : t('create.characters.hint')
   const subtitle =
     value.characters.length > 1
       ? t('create.characters.selectedCount', { count: value.characters.length })
-      : (firstCharacter?.description ?? '') || t('create.characters.hint')
+      : (firstCharacter?.description ?? '') || hint
 
   return (
     <div className="space-y-2">
@@ -298,9 +304,7 @@ export function CharacterSection({
               <p className="font-display text-sm font-bold text-foreground">
                 {t('create.characters.choose')}
               </p>
-              <p className="font-body text-xs text-muted-foreground">
-                {t('create.characters.hint')}
-              </p>
+              <p className="font-body text-xs text-muted-foreground">{hint}</p>
             </div>
           </div>
         )}
@@ -350,17 +354,14 @@ export function CharacterSection({
         </ul>
       )}
 
-      {value.characters.length > 0 && (
-        <LabeledSelect
-          label={t('create.characters.frequency.label')}
+      {/* Solo con el catálogo: el carril verbatim de «Mi estilo» saltea el
+          clasificador de presencia (ADR-0019), así que ahí la pregunta
+          prometería un control que ese flujo no tiene. */}
+      {value.characters.length > 0 && value.styleSource === 'catalog' && (
+        <CharacterFrequencyPicker
           value={value.characterFrequency}
-          options={CHARACTER_FREQUENCIES.map((frequency) => ({
-            id: frequency.id,
-            label: t(frequency.labelKey),
-          }))}
           disabled={disabled}
           onChange={(characterFrequency) => onChange({ characterFrequency })}
-          className={cn(disabled && 'opacity-60')}
         />
       )}
 

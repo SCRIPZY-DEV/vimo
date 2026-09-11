@@ -90,7 +90,10 @@ export function createProjectPayload(
 
   if (form.useOverlay) options.overlayUrl = form.overlayUrl.trim()
 
-  if (form.characters.length > 0) {
+  // La frecuencia viaja solo con un estilo del catálogo: el carril verbatim
+  // saltea el clasificador de presencia (ADR-0019) y la ignoraría, así que
+  // mandarla dejaría en el proyecto una opción que nadie aplica.
+  if (form.characters.length > 0 && !usesCustomStyle) {
     options.characterFrequency = form.characterFrequency
   }
 

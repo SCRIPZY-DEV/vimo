@@ -208,6 +208,7 @@
       "choose": "Add character",
       "change": "Change",
       "hint": "Shows up consistently in your video; you choose how often it appears.",
+      "hintOfStyle": "Shows up consistently in your video; this style decides which scenes they appear in.",
       "remove": "Remove character",
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
@@ -216,12 +217,12 @@
       "noReferenceHint": "No visual reference",
       "use": "Use {{count}} character(s)",
       "frequency": {
-        "label": "How often do they appear?",
-        "rarely": "Rarely",
+        "label": "How often does your character appear?",
+        "hint": "With \"Balanced\" your character shows up in half the scenes, evenly spread from start to finish; in the rest we draw whatever is being told (an object, a place, an idea). With \"Always\", they appear in every scene.",
         "balanced": "Balanced",
-        "often": "Often",
-        "almostAlways": "Almost always",
-        "always": "Always"
+        "balancedPercent": "50%",
+        "always": "Always",
+        "alwaysPercent": "100%"
       },
       "selectedCount_one": "{{count}} character",
       "selectedCount_other": "{{count}} characters",

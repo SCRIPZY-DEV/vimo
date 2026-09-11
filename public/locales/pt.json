@@ -208,6 +208,7 @@
       "choose": "Adicionar personagem",
       "change": "Trocar",
       "hint": "Aparece consistente no seu vídeo; você escolhe com que frequência.",
+      "hintOfStyle": "Aparece consistente no seu vídeo; este estilo decide em quais cenas ele aparece.",
       "remove": "Remover personagem",
       "pickerTitle": "Escolher personagens",
       "pickerDescription": "Você pode escolher até {{max}} personagens; eles mantêm a identidade no vídeo todo.",
@@ -216,12 +217,12 @@
       "noReferenceHint": "Sem referência visual",
       "use": "Usar {{count}} personagem(ns)",
       "frequency": {
-        "label": "Com que frequência aparecem?",
-        "rarely": "Pouco",
+        "label": "Com que frequência seu personagem aparece?",
+        "hint": "Com «Equilibrado» seu personagem aparece na metade das cenas, bem distribuído do início ao fim; nas outras mostramos um desenho do que está sendo contado (um objeto, um lugar, uma ideia). Com «Sempre», aparece em todas as cenas.",
         "balanced": "Equilibrado",
-        "often": "Frequente",
-        "almostAlways": "Quase sempre",
-        "always": "Sempre"
+        "balancedPercent": "50%",
+        "always": "Sempre",
+        "alwaysPercent": "100%"
       },
       "selectedCount_one": "{{count}} personagem",
       "selectedCount_other": "{{count}} personagens",
