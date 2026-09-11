@@ -14,6 +14,9 @@ interface StyleCardProps {
 
 // Tarjeta de un estilo del catálogo. Maneja su propio carrusel: al hacer
 // hover (o foco por teclado) rota las muestras; al salir vuelve a la #1.
+// El anillo de foco es solo para el teclado (focus-visible): con `focus` a
+// secas, el clic dejaba la tarjeta enfocada y el anillo se veía como un
+// destello extra sobre el borde de selección.
 export function StyleCard({
   images,
   title,
@@ -44,7 +47,7 @@ export function StyleCard({
       className={cn(
         'group overflow-hidden rounded-2xl border-2 bg-card transition-all',
         !disabled &&
-          'cursor-pointer hover:shadow-lg hover:shadow-saffron/10 focus:outline-none focus:ring-2 focus:ring-saffron/50',
+          'cursor-pointer hover:shadow-lg hover:shadow-saffron/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-saffron/50',
         selected
           ? 'border-saffron shadow-md shadow-saffron/20'
           : 'border-border hover:border-saffron/60',
