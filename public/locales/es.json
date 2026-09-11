@@ -20,6 +20,19 @@
     "promptModelBlocked": {
       "badge": "No disponible · vuelve en {{minutes}} min",
       "allBlocked": "Todos los modelos para escribir prompts están bloqueados por fallas recientes. Se rehabilitan solos en menos de una hora; mientras tanto, generá con un estilo de Vimo."
+    },
+    "credits": {
+      "title": "Saldo insuficiente",
+      "titleSoft": "Saldo a revisar",
+      "reload": "Recargar saldo",
+      "refresh": "Refrescar saldo",
+      "needed": "necesitás {{amount}}",
+      "available": "tenés {{amount}}",
+      "unavailable": "saldo no disponible",
+      "optional": "(opcional)",
+      "unitCredits": "{{amount}} cr.",
+      "unitUsd": "US$ {{amount}}",
+      "unitCharacters": "{{amount}} caracteres"
     }
   },
   "layout": {
@@ -319,7 +332,13 @@
         "enlargeAria": "Ampliar la escena {{id}}",
         "alt": "Escena {{id}}"
       },
-      "promptModelStalled": "El modelo lleva más de 2 min sin escribir"
+      "promptModelStalled": "El modelo lleva más de 2 min sin escribir",
+      "noCredits": {
+        "title": "Te quedaste sin saldo",
+        "body": "El proyecto quedó guardado con todo lo generado hasta acá. Recargá saldo en el proveedor, refrescá y reanudá: solo se genera lo que falta.",
+        "retry": "Reanudar donde quedó",
+        "retryHint": "Se habilita cuando el saldo leído alcanza. Lo ya hecho no se repite ni se vuelve a cobrar."
+      }
     },
     "confirmScenes": {
       "title": "Confirmá cuántas escenas",
@@ -379,7 +398,8 @@
       "overlayUrlRequired": "Pegá el link de YouTube de la textura.",
       "styleRequired": "Elegí (o creá) un estilo propio para generar.",
       "characterRequired": "Este estilo pide tu personaje: elegí uno.",
-      "promptModelsBlocked": "Todos los modelos para escribir prompts están bloqueados: elegí un estilo de Vimo o esperá a que se rehabiliten."
+      "promptModelsBlocked": "Todos los modelos para escribir prompts están bloqueados: elegí un estilo de Vimo o esperá a que se rehabiliten.",
+      "insufficientCredits": "No hay saldo suficiente en un proveedor para esta generación: recargá o bajá el costo (menos escenas, otra calidad)."
     },
     "errors": {
       "discard": "Descartar",
@@ -455,7 +475,12 @@
       "voiceLibraryAddFailed": "No se pudo añadir la voz de la biblioteca a tu cuenta de ElevenLabs.",
       "voiceAccountRestricted": "ElevenLabs restringió tu cuenta para esta función. Revisá tu plan en ElevenLabs.",
       "llmRescueNeeded": "El modelo elegido dejó escenas sin escribir y otro modelo las rescató.",
-      "llmAuth": "DeepInfra rechazó tu clave de API. Revisala en Claves API: sin una clave válida no se pueden escribir los prompts."
+      "llmAuth": "DeepInfra rechazó tu clave de API. Revisala en Claves API: sin una clave válida no se pueden escribir los prompts.",
+      "voiceInsufficientCredits": "Tu cuenta del proveedor de voz no tiene créditos suficientes para generar la narración.",
+      "imageInsufficientCredits": "Tu cuenta del proveedor de imágenes se quedó sin saldo. Lo generado hasta acá se conserva.",
+      "llmInsufficientCredits": "Tu cuenta de DeepInfra no tiene saldo para escribir los prompts.",
+      "transcriptionInsufficientCredits": "Tu cuenta de Deepgram no tiene saldo para transcribir la narración.",
+      "musicInsufficientCredits": "Tu cuenta de Evolink no tiene créditos suficientes para generar la música."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -656,7 +681,8 @@
         "interrupted": "Interrumpido",
         "paused": "Cancelado",
         "error": "Error",
-        "draft": "Borrador"
+        "draft": "Borrador",
+        "noCredits": "Sin créditos"
       }
     },
     "player": {
@@ -678,7 +704,8 @@
     "progress": {
       "pageTitle": "Progreso",
       "interrupted": "La generación quedó interrumpida. Podés reanudarla: los pasos ya hechos no se repiten.",
-      "cancelled": "Cancelaste esta generación. Podés reanudarla desde el último paso hecho, o eliminar el proyecto desde la biblioteca."
+      "cancelled": "Cancelaste esta generación. Podés reanudarla desde el último paso hecho, o eliminar el proyecto desde la biblioteca.",
+      "noCredits": "La generación se pausó porque el proveedor rechazó por falta de saldo. Todo lo hecho quedó guardado: recargá, refrescá el saldo y reanudá desde el último paso."
     },
     "editor": {
       "draftHint": "Este proyecto es un borrador: todavía no se generó nada. Lanzá la generación para poder editarlo.",
@@ -939,7 +966,9 @@
       "sidecar": "No se pudo iniciar el motor de generación. Reiniciá la app.",
       "interrumpida": "La generación se interrumpió al cerrar la app. Si Evolink completó la tarea, el saldo se descontó igual — generá de nuevo con el mismo prompt o esperá unos minutos.",
       "cooldown": "Esperá {{seconds}} segundos entre generaciones.",
-      "desconocido": "Algo salió mal. Intentá de nuevo."
+      "desconocido": "Algo salió mal. Intentá de nuevo.",
+      "insufficientCredits": "Tu cuenta de Evolink no tiene créditos suficientes para generar música. Recargá y volvé a intentar.",
+      "llmInsufficientCredits": "Tu cuenta de DeepInfra no tiene saldo para sugerir el prompt."
     }
   },
   "characters": {
@@ -1037,7 +1066,9 @@
       "cancelled": "Vista previa cancelada.",
       "sidecar": "No pudimos iniciar el motor de Vimo. Reiniciá la aplicación.",
       "interrupted": "La vista previa se interrumpió.",
-      "unknown": "Algo salió mal. Probá de nuevo."
+      "unknown": "Algo salió mal. Probá de nuevo.",
+      "imageInsufficientCredits": "Tu cuenta del proveedor de imágenes se quedó sin saldo para generar el preview.",
+      "llmInsufficientCredits": "Tu cuenta de DeepInfra no tiene saldo para redactar el perfil."
     }
   },
   "voices": {
@@ -1201,7 +1232,8 @@
       "desconocido": "Algo falló al generar la voz. Volvé a intentar.",
       "quotaExceeded": "Se agotó la cuota de caracteres de tu cuenta de ElevenLabs. Esperá a que se renueve o mejorá tu plan.",
       "libraryAddFailed": "No se pudo añadir la voz de la biblioteca a tu cuenta de ElevenLabs. Revisá los espacios de voz de tu plan.",
-      "accountRestricted": "ElevenLabs restringió tu cuenta para esta función (actividad inusual en el plan gratuito o función solo para planes pagos). Revisá tu cuenta en ElevenLabs."
+      "accountRestricted": "ElevenLabs restringió tu cuenta para esta función (actividad inusual en el plan gratuito o función solo para planes pagos). Revisá tu cuenta en ElevenLabs.",
+      "insufficientCredits": "Tu cuenta no tiene créditos suficientes para generar esta voz. Recargá y volvé a intentar."
     },
     "credits": {
       "characters": "Caracteres ElevenLabs",
