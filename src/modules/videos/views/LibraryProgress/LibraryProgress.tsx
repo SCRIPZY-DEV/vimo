@@ -6,6 +6,8 @@ import { RotateCcw } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
+import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
+import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
 import { Button } from '@/modules/common/ui/button'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
@@ -41,7 +43,11 @@ export function LibraryProgress() {
     confirmScenesForProject,
     discardTask,
     startPipelineForProject,
+    reportPromptModelIssue,
+    snoozePromptModelIssue,
+    switchPromptModel,
   } = useCreateTask()
+  const { models, defaultId } = usePromptModels()
 
   // La tarea del store pertenece a ESTE proyecto (viva o recién terminada).
   const ownTask = task?.projectId === projectId ? task : null
@@ -83,6 +89,9 @@ export function LibraryProgress() {
   const projectName = ownTask?.projectName ?? status?.metadata.name ?? projectId
   // Semilla desde disco (origen: `hidratar`): al reanudar, las fases hechas y
   // la grilla aparecen al toque en vez de vacías hasta el primer evento.
+  // El carril y el modelo salen de project.json (ADR-0028): el modelo se
+  // resuelve como en Crear (null = el de la casa) para saber a quién bloquear.
+  const usesCustomStyle = status?.metadata.options.customStyle !== undefined
   const runOptions: ProjectRunOptions = {
     videoFormat: status?.metadata.options.videoFormat,
     seed: status
@@ -92,6 +101,14 @@ export function LibraryProgress() {
           audioDurationSeconds: status.metadata.audioDurationSeconds ?? null,
         }
       : undefined,
+    usesCustomStyle,
+    promptModel: usesCustomStyle
+      ? resolvePromptModel(
+          status?.metadata.options.promptModel ?? null,
+          models,
+          defaultId,
+        )
+      : null,
   }
   const resume = () =>
     void startPipelineForProject(projectId, projectName, runOptions)
@@ -121,6 +138,9 @@ export function LibraryProgress() {
         onContinueInEditor={() => void navigate(libraryEditorPath(projectId))}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
         onDismissConfirmation={backToLibrary}
+        onPromptModelStall={() => reportPromptModelIssue(ownTask.id, 'stalled')}
+        onSnoozePromptModelIssue={snoozePromptModelIssue}
+        onSwitchPromptModel={(modelId) => void switchPromptModel(modelId)}
       />
     )
   }
