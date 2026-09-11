@@ -142,9 +142,9 @@
       "evolinkHint": "Más rápido (50 en paralelo), un solo preset."
     },
     "reasoningLevel": {
-      "low": "Nivel de razonamiento bajo",
-      "medium": "Nivel de razonamiento medio",
-      "high": "Nivel de razonamiento alto",
+      "low": "Bajo · {{format}}",
+      "medium": "Medio · {{format}}",
+      "high": "Alto · {{format}}",
       "help": "Cuánto razona el modelo antes de dibujar cada imagen. Bajo: rápido y económico, para escenas simples. Medio: equilibrio entre precio y detalle. Alto: máximo detalle y fidelidad al prompt; más lento y caro.",
       "evolinkLowNote": "Sale en la forma del video (16:9 o 9:16). Rápido y económico.",
       "evolinkMediumNote": "Sale en la forma del video (16:9 o 9:16). Equilibrio entre precio y detalle.",

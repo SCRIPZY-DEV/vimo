@@ -384,8 +384,8 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
 // de dibujar»; para el sidecar sigue siendo la calidad del catálogo del
 // origen: Evolink solo expone 16:9 1K, así que del id solo importa el nivel;
 // en Fal el id lleva el tamaño exacto (convención `<W>x<H>_<quality>`). La
-// etiqueta visible nombra solo el nivel («Nivel de razonamiento bajo»): el
-// formato ya se elige aparte y la nota de cada opción dice en qué forma sale.
+// etiqueta visible lleva el nivel y el formato elegido («Bajo · 16:9»), sin
+// repetir «Nivel de razonamiento», que ya es la etiqueta del campo.
 // Los precios (USD por imagen) vienen del catálogo del origen
 // (src/core/costos.ts); si cambian, actualizar también el catálogo
 // informativo de modules/costs/catalog.ts (ADR-0008).

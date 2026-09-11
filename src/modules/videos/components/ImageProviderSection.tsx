@@ -90,9 +90,10 @@ export function ImageProviderSection({
         value={value.imageQuality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          // Solo el nivel: el formato ya se eligió arriba y la nota dice en
-          // qué forma sale. Sin precio: el del catálogo no es el real.
-          label: t(option.labelKey),
+          // «Bajo · 16:9»: el nivel y el formato elegido en el formulario, sin
+          // repetir la etiqueta del campo. Sin precio: el del catálogo no es
+          // el real.
+          label: t(option.labelKey, { format: value.videoFormat }),
           note: t(option.noteKey),
         }))}
         disabled={disabled}

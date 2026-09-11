@@ -52,9 +52,10 @@ export function SceneQualityPicker({
         value={value.quality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          // Solo el nivel: el formato es el del proyecto y la nota dice en
-          // qué forma sale. Sin precio: el del catálogo no es el real.
-          label: t(option.labelKey),
+          // «Bajo · 16:9»: el nivel y el formato con el que está construido el
+          // video, sin repetir la etiqueta del campo. Sin precio: el del
+          // catálogo no es el real.
+          label: t(option.labelKey, { format: videoFormat }),
           note: t(option.noteKey),
         }))}
         disabled={disabled}
