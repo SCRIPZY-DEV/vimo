@@ -23,7 +23,6 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve } from 'node:path'
-import { pipeline } from 'node:stream/promises'
 import { crc32 } from 'node:zlib'
 
 const CATALOG_STYLES = ['pov_stickman', 'normal', 'cartoon']
@@ -41,9 +40,13 @@ const MIN_VIDEO_BYTES = 100_000
 const MAX_ZIP_ENTRY_BYTES = 0xffffffff
 const MAX_ZIP_ENTRIES = 0xffff
 
+// `fail()` lanza en vez de terminar el proceso: así el `catch` de más abajo
+// puede imprimir el mensaje y dejar que el `finally` limpie el staging antes
+// de salir con process.exitCode = 1.
+class BuildFailure extends Error {}
+
 function fail(message) {
-  process.stderr.write(`✗ ${message}\n`)
-  process.exit(1)
+  throw new BuildFailure(message)
 }
 
 // ── Argumentos ───────────────────────────────────────────────────────────────
@@ -56,7 +59,10 @@ function parseArguments(argv) {
       fail(`argumento inválido: ${flag}`)
     const name = flag.slice(2)
     if (name === 'short') {
-      const [folder, directory] = value.split('=')
+      // Solo el primer «=»: una ruta de proyecto puede traer otros de yapa.
+      const separator = value.indexOf('=')
+      const folder = separator === -1 ? value : value.slice(0, separator)
+      const directory = separator === -1 ? '' : value.slice(separator + 1)
       if (!STORY_FOLDERS.includes(folder) || !directory)
         fail(
           `--short espera <${STORY_FOLDERS.join('|')}>=<carpeta del proyecto>, recibió "${value}"`,
@@ -171,6 +177,11 @@ async function readNativeStory(folder, directory, baseVoiceId) {
     if (typeof scene.imagePrompt !== 'string' || !scene.imagePrompt.trim())
       fail(`${folder}: la escena ${scene.id} no tiene imagePrompt`)
     if (
+      typeof scene.startSeconds !== 'number' ||
+      typeof scene.endSeconds !== 'number'
+    )
+      fail(`${folder}: la escena ${scene.id} no tiene tiempos`)
+    if (
       !(await isValidFile(join(directory, 'scenes', `scene_${scene.id}.jpg`)))
     )
       fail(`${folder}: falta scenes/scene_${scene.id}.jpg`)
@@ -248,8 +259,11 @@ async function writeShortStory(staging, folder, story) {
 // ── Zip «store» por streaming (sin ZIP64: < 4 GiB y < 65535 entradas) ────────
 async function listFiles(root, directory = root) {
   const files = []
+  // Orden binario, no localeCompare: el SHA-256 del zip queda pineado en
+  // DEFAULT_PIPELINE_CONFIG.demo, así que los mismos insumos tienen que dar
+  // el mismo zip byte a byte sin importar el locale/ICU de la máquina.
   for (const entry of (await readdir(directory, { withFileTypes: true })).sort(
-    (a, b) => a.name.localeCompare(b.name),
+    (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
   )) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) files.push(...(await listFiles(root, path)))
@@ -322,34 +336,50 @@ async function writeStoreZip(staging, out) {
     })
   const centrals = []
   let offset = 0
-  for (const file of files) {
-    if (file.size > MAX_ZIP_ENTRY_BYTES)
-      fail(`${file.name} supera los 4 GiB de un zip sin ZIP64`)
-    const nameBytes = Buffer.from(file.name, 'utf8')
-    const crc = await fileCrc32(file.path)
-    await write(localHeader(nameBytes, crc, file.size))
-    await write(nameBytes)
-    await pipeline(createReadStream(file.path), output, { end: false })
-    centrals.push(centralHeader(nameBytes, crc, file.size, offset), nameBytes)
-    offset += 30 + nameBytes.length + file.size
-    if (offset > MAX_ZIP_ENTRY_BYTES)
-      fail('el zip supera los 4 GiB de un zip sin ZIP64')
+  // Si algo falla a mitad del zip (una entrada de más, o el corte de 4 GiB),
+  // no dejamos un `--out` truncado: se cierra el stream y se borra el archivo
+  // antes de volver a lanzar.
+  try {
+    for (const file of files) {
+      if (file.size > MAX_ZIP_ENTRY_BYTES)
+        fail(`${file.name} supera los 4 GiB de un zip sin ZIP64`)
+      const nameBytes = Buffer.from(file.name, 'utf8')
+      const nextOffset = offset + 30 + nameBytes.length + file.size
+      if (nextOffset > MAX_ZIP_ENTRY_BYTES)
+        fail('el zip supera los 4 GiB de un zip sin ZIP64')
+      const crc = await fileCrc32(file.path)
+      await write(localHeader(nameBytes, crc, file.size))
+      await write(nameBytes)
+      // `write` ya respeta backpressure (el callback de `stream.write`
+      // resuelve recién cuando el chunk se drenó); evitamos
+      // `pipeline(src, output, { end: false })` porque cada llamada deja
+      // listeners de error/close/finish en el WriteStream de larga vida
+      // hasta que termina de verdad, y con 200+ entradas dispara
+      // MaxListenersExceededWarning.
+      for await (const chunk of createReadStream(file.path)) await write(chunk)
+      centrals.push(centralHeader(nameBytes, crc, file.size, offset), nameBytes)
+      offset = nextOffset
+    }
+    const centralDirectory = Buffer.concat(centrals)
+    const end = Buffer.alloc(22)
+    end.writeUInt32LE(0x06054b50, 0)
+    end.writeUInt16LE(0, 4)
+    end.writeUInt16LE(0, 6)
+    end.writeUInt16LE(files.length, 8)
+    end.writeUInt16LE(files.length, 10)
+    end.writeUInt32LE(centralDirectory.length, 12)
+    end.writeUInt32LE(offset, 16)
+    end.writeUInt16LE(0, 20)
+    await write(centralDirectory)
+    await write(end)
+    await new Promise((resolvePromise, reject) => {
+      output.end((error) => (error ? reject(error) : resolvePromise()))
+    })
+  } catch (error) {
+    output.destroy()
+    await rm(out, { force: true })
+    throw error
   }
-  const directory = Buffer.concat(centrals)
-  const end = Buffer.alloc(22)
-  end.writeUInt32LE(0x06054b50, 0)
-  end.writeUInt16LE(0, 4)
-  end.writeUInt16LE(0, 6)
-  end.writeUInt16LE(files.length, 8)
-  end.writeUInt16LE(files.length, 10)
-  end.writeUInt32LE(directory.length, 12)
-  end.writeUInt32LE(offset, 16)
-  end.writeUInt16LE(0, 20)
-  await write(directory)
-  await write(end)
-  await new Promise((resolvePromise, reject) => {
-    output.end((error) => (error ? reject(error) : resolvePromise()))
-  })
   return files.length
 }
 
@@ -360,62 +390,73 @@ async function fileSha256(path) {
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
-const options = parseArguments(process.argv.slice(2))
-const baseManifest = await readBase(options.base)
-process.stdout.write(
-  `Pack base: ${options.base} (${baseManifest.version ?? '?'}, voz ${baseManifest.voz.nombre ?? baseManifest.voz.voice_id})\n`,
-)
-
-const stories = {}
-for (const folder of STORY_FOLDERS) {
-  stories[folder] = await readNativeStory(
-    folder,
-    options.short[folder],
-    baseManifest.voz.voice_id,
-  )
-  process.stdout.write(
-    `  ✓ short/${folder}: «${stories[folder].metadata.name}» · ${stories[folder].scenes.length} escenas · ${stories[folder].metadata.audioDurationSeconds}s\n`,
-  )
-}
-
-const staging = await mkdtemp(join(tmpdir(), 'vimo-demo-pack-'))
 try {
-  // La raíz v2 viaja tal cual, sin el sello ni un short/ de un pack anterior.
-  await copyTree(options.base, staging, {
-    skip: (path) =>
-      path === '.ok' || path === SHORT_FOLDER || path === 'manifest.json',
-  })
-  for (const folder of STORY_FOLDERS)
-    await writeShortStory(staging, folder, stories[folder])
-
-  const entry = (folder) => ({
-    id: folder,
-    nombreSugerido: stories[folder].metadata.name,
-    numEscenas: stories[folder].scenes.length,
-    duracionAudioSeg: stories[folder].metadata.audioDurationSeconds,
-  })
-  const manifest = {
-    ...baseManifest,
-    version: options.version,
-    short: {
-      estilos: CATALOG_STYLES.map(entry),
-      gema: entry(GEM_FOLDER),
-    },
-  }
-  await writeFile(
-    join(staging, 'manifest.json'),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  )
-
-  const entries = await writeStoreZip(staging, options.out)
-  const size = (await stat(options.out)).size
+  const options = parseArguments(process.argv.slice(2))
+  // Antes de tocar nada: si --out ya es un directorio, ni se crea el staging
+  // (nunca hacemos `rm` de un directorio existente).
+  const outInfo = await stat(options.out).catch(() => null)
+  if (outInfo?.isDirectory())
+    fail(`--out ya existe y es un directorio: ${options.out}`)
+  const baseManifest = await readBase(options.base)
   process.stdout.write(
-    `\n✅ Pack listo: ${options.out} (${(size / 1024 / 1024).toFixed(1)} MB, ${entries} archivos)\n`,
+    `Pack base: ${options.base} (${baseManifest.version ?? '?'}, voz ${baseManifest.voz.nombre ?? baseManifest.voz.voice_id})\n`,
   )
-  process.stdout.write(`   packVersion: '${options.version}'\n`)
-  process.stdout.write(`   asset: ${basename(options.out)}\n`)
-  process.stdout.write('   packSha256 (última línea):\n')
-  process.stdout.write(`${await fileSha256(options.out)}\n`)
-} finally {
-  await rm(staging, { recursive: true, force: true })
+
+  const stories = {}
+  for (const folder of STORY_FOLDERS) {
+    stories[folder] = await readNativeStory(
+      folder,
+      options.short[folder],
+      baseManifest.voz.voice_id,
+    )
+    process.stdout.write(
+      `  ✓ short/${folder}: «${stories[folder].metadata.name}» · ${stories[folder].scenes.length} escenas · ${stories[folder].metadata.audioDurationSeconds}s\n`,
+    )
+  }
+
+  const staging = await mkdtemp(join(tmpdir(), 'vimo-demo-pack-'))
+  try {
+    // La raíz v2 viaja tal cual, sin el sello ni un short/ de un pack anterior.
+    await copyTree(options.base, staging, {
+      skip: (path) =>
+        path === '.ok' || path === SHORT_FOLDER || path === 'manifest.json',
+    })
+    for (const folder of STORY_FOLDERS)
+      await writeShortStory(staging, folder, stories[folder])
+
+    const entry = (folder) => ({
+      id: folder,
+      nombreSugerido: stories[folder].metadata.name,
+      numEscenas: stories[folder].scenes.length,
+      duracionAudioSeg: stories[folder].metadata.audioDurationSeconds,
+    })
+    const manifest = {
+      ...baseManifest,
+      version: options.version,
+      short: {
+        estilos: CATALOG_STYLES.map(entry),
+        gema: entry(GEM_FOLDER),
+      },
+    }
+    await writeFile(
+      join(staging, 'manifest.json'),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+    )
+
+    const entries = await writeStoreZip(staging, options.out)
+    const size = (await stat(options.out)).size
+    process.stdout.write(
+      `\n✅ Pack listo: ${options.out} (${(size / 1024 / 1024).toFixed(1)} MB, ${entries} archivos)\n`,
+    )
+    process.stdout.write(`   packVersion: '${options.version}'\n`)
+    process.stdout.write(`   asset: ${basename(options.out)}\n`)
+    process.stdout.write('   packSha256 (última línea):\n')
+    process.stdout.write(`${await fileSha256(options.out)}\n`)
+  } finally {
+    await rm(staging, { recursive: true, force: true })
+  }
+} catch (error) {
+  if (!(error instanceof BuildFailure)) throw error
+  process.stderr.write(`✗ ${error.message}\n`)
+  process.exitCode = 1
 }

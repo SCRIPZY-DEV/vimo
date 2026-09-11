@@ -1184,6 +1184,10 @@ try {
       }),
     })
     const projectId = resultOf(created.events)?.projectId
+    assert(
+      typeof projectId === 'string',
+      'create-video-project acepta demo:true (pack armado)',
+    )
     const { events } = await runSidecar('run-video-pipeline', {
       projectsRoot: builtRoot,
       config,
