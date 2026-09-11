@@ -3,7 +3,7 @@ import { open } from 'node:fs/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
 
-// Descarga del pack por streaming (ADR-0027): el archivo se escribe a medida
+// Descarga del pack por streaming (ADR-0029): el archivo se escribe a medida
 // que llega y el SHA-256 se calcula al vuelo — 209 MB no pasan por memoria.
 // fetch sigue los redirects de GitHub solo. Sin resume a propósito: el pack
 // se baja entero o se reintenta de cero; el SHA es la verdad final.

@@ -23,7 +23,7 @@ export interface VerifyAccessResponse {
   plan?: AccessPlan
   diasRestantes?: number
   trialExpira?: string
-  // Modo demo (ADR-0027): true para administradores y correos en demo_accesos.
+  // Modo demo (ADR-0029): true para administradores y correos en demo_accesos.
   demo?: boolean
 }
 

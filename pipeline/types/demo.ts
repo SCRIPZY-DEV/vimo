@@ -1,8 +1,8 @@
 import type { VideoFormat } from './video-format.ts'
 import type { VoiceProviderId } from './voices.ts'
 
-// Contrato del modo demo (ADR-0027; pack v3 y audio por historia en
-// ADR-0028). Browser-safe: la UI lo consume solo con `import type`. El
+// Contrato del modo demo (ADR-0029; pack v3 y audio por historia en
+// ADR-0030). Browser-safe: la UI lo consume solo con `import type`. El
 // manifest ya viene traducido al formato nativo — el pack publicado (claves
 // en español) se lee en commands/demo/pack.ts y nunca cruza este borde crudo.
 
@@ -22,7 +22,7 @@ export interface DemoStyleEntry {
   sceneCount: number
   audioDurationSeconds: number
   // Ruta absoluta del audio.mp3 de la historia dentro del pack instalado:
-  // «Subir mi audio» lo muestra ya cargado en demo (ADR-0028).
+  // «Subir mi audio» lo muestra ya cargado en demo (ADR-0030).
   audioFile: string
 }
 

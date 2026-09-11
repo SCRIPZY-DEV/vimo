@@ -22,7 +22,7 @@ import {
 // Un progress por punto porcentual, no por chunk: 209 MB son miles de chunks.
 const DOWNLOAD_PERCENT_CAP = 99
 
-// Descarga única del pack (ADR-0027): SHA-256 pineado, extracción a `.tmp`,
+// Descarga única del pack (ADR-0029): SHA-256 pineado, extracción a `.tmp`,
 // validación entera y rename atómico — el pack real nunca queda a medias. La
 // gema se siembra aunque el pack ya estuviera (la persona pudo borrarla).
 export async function demoPrepare(
@@ -96,7 +96,7 @@ async function installPack(
 
     await rm(packRoot, { recursive: true, force: true })
     // Es un directorio, no un archivo: swap con reintentos y fallback a
-    // copia recursiva si el rename sigue bloqueado (ADR-0027, ver
+    // copia recursiva si el rename sigue bloqueado (ADR-0029, ver
     // moveDirectoryAtomic).
     await moveDirectoryAtomic(extractedRoot, packRoot)
     await writeOkMarker(packRoot, demo, sha256)

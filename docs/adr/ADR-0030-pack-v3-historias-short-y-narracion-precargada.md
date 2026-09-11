@@ -1,10 +1,10 @@
-# ADR-0028 — Pack v3 de la demo: historias en Short por estilo y narración pre-cargada en «Subir mi audio»
+# ADR-0030 — Pack v3 de la demo: historias en Short por estilo y narración pre-cargada en «Subir mi audio»
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-11
 - **Área:** app / pipeline
 
-Extiende la [ADR-0027](ADR-0027-modo-demo-pipeline-simulado-sobre-pack-prehecho.md):
+Extiende la [ADR-0029](ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md):
 el modo demo, la puerta, el acceso y la simulación siguen como allí se decidió. Acá
 cambia **qué trae el pack** y **qué muestra Crear** en demo.
 
@@ -12,7 +12,7 @@ cambia **qué trae el pack** y **qué muestra Crear** en demo.
 
 El pack v2 trae cuatro historias distintas (una por estilo del catálogo más la de la
 gema «Mi estilo»), todas en 16:9: imágenes de 1360×768 y video de 1920×1080. Por eso
-en demo el formato Short (9:16) quedó en «Próximamente» (ADR-0027, decisión 5), y la
+en demo el formato Short (9:16) quedó en «Próximamente» (ADR-0029, decisión 5), y la
 persona que muestra Vimo no puede enseñar el formato que más se pide. Además, la pestaña
 «Subir mi audio» de Crear aparece vacía en demo: el manifest no dice dónde está el audio
 de cada historia, así que el chip «Elegir audio» no tiene qué mostrar aunque el guion
@@ -22,7 +22,7 @@ que «toda la app tenga todo subido»: al abrir «Subir mi audio», el audio ya 
 
 Restricciones que achicaron el campo:
 
-- La simulación no toca proveedores ni claves (ADR-0027): todo lo que se ve en demo
+- La simulación no toca proveedores ni claves (ADR-0029): todo lo que se ve en demo
   tiene que estar pre-hecho dentro del pack.
 - El pack es público, versionado y sellado por SHA-256; cambiarlo implica que todas
   las máquinas lo re-descarguen. Una sola descarga, no dos.
@@ -58,7 +58,7 @@ short/pov_stickman/ short/normal/ short/cartoon/ short/storytelling/
 
 Reglas del formato v3:
 
-1. **La raíz es v2, congelada.** Todo lo que ADR-0027 documenta sobre la raíz sigue
+1. **La raíz es v2, congelada.** Todo lo que ADR-0029 documenta sobre la raíz sigue
    valiendo byte a byte; `short/` es un árbol hermano con la misma estructura interna.
    Un formato nuevo en el futuro = otro árbol hermano + otro bloque en el manifest.
 2. **`short/` es opcional pero, si está, es completo.** `validatePack` exige en
@@ -123,7 +123,7 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
   pre-hecho; el resultado no correspondería al audio subido. Se bloquea con aviso.
 - **Generar los shorts recortando los assets 16:9** — descartada: calidad pobre y no
   cumple el pedido de guiones distintos.
-- **Convertir a formato nativo el pack entero (v3 «nativo», D2 de ADR-0027)** —
+- **Convertir a formato nativo el pack entero (v3 «nativo», D2 de ADR-0029)** —
   pospuesta: el lector traduce en runtime y funciona; cambiar el formato de todo el zip
   no aporta a este pedido.
 
@@ -162,7 +162,7 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
   listo» por la versión y se actualizó al v3 en 101 s sin temporales (320 MB en disco);
   contra el zip local, Short de catálogo, Short con la gema y `own-audio` en 16:9
   completaron con los archivos de su carpeta.
-- **Checklist manual (build instalado), además del de ADR-0027:** (a) al entrar a la
+- **Checklist manual (build instalado), además del de ADR-0029:** (a) al entrar a la
   demo por primera vez tras el bump, la puerta descarga el v3; (b) Short se puede elegir
   y al elegirlo cambian nombre, guion y audio; generar produce un video vertical; (c) en
   «Subir mi audio» el chip aparece cargado con «<historia>.mp3», el picker y la X están
@@ -187,10 +187,10 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
 - Historias nuevas en 16:9 o más estilos: el formato lo permite, este pedido no lo
   incluye.
 - Un audio real subido por la persona dentro de la demo (ver decisión 4).
-- Convertir el zip al formato nativo (D2 de ADR-0027).
+- Convertir el zip al formato nativo (D2 de ADR-0029).
 
 ## Referencias
 
-- ADR-0027 (modo demo), ADR-0017 (formato 16:9 / 9:16), ADR-0016 (Crear sin render).
+- ADR-0029 (modo demo), ADR-0017 (formato 16:9 / 9:16), ADR-0016 (Crear sin render).
 - Pack v2 documentado en `~/Documents/vimo-ruta-demo/pack/FORMATO-DEL-PACK.md` (repo de
   origen); release `demo-pack-v2` y `demo-pack-v3` en `otd20071-cloud/vimo-releases`.

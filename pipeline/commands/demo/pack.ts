@@ -24,7 +24,7 @@ import {
   type StoredStyle,
 } from '../styles/style-store.ts'
 
-// El pack pre-hecho de la demo (ADR-0027, v3 en ADR-0028): el zip publicado
+// El pack pre-hecho de la demo (ADR-0029, v3 en ADR-0030): el zip publicado
 // se extrae TAL CUAL (claves en español) en <projectsRoot>/_demo-pack y se
 // traduce al formato nativo al leer y al copiar. La raíz es el formato v2
 // (una carpeta por estilo, en 16:9); `short/` repite ese árbol en 9:16 y es
@@ -139,7 +139,7 @@ export function demoStyleFolderFor(options: VideoProjectOptions): string {
 }
 
 // La carpeta de una historia = formato + estilo: la raíz para 16:9, `short/`
-// para 9:16 (ADR-0028).
+// para 9:16 (ADR-0030).
 export function demoStoryDirectory(
   packRoot: string,
   format: VideoFormat,
@@ -258,7 +258,7 @@ export async function validatePack(packRoot: string): Promise<string | null> {
   const landscape = await validateStories(packRoot, '', manifest)
   if (landscape) return landscape
 
-  // `short/` es opcional; presente, se exige entero (ADR-0028).
+  // `short/` es opcional; presente, se exige entero (ADR-0030).
   if (manifest.short) {
     const short = await validateStories(
       packRoot,

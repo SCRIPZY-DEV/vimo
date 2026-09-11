@@ -31,7 +31,7 @@ export async function replaceNarration(
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
 
-  // Modo demo (ADR-0027): la narración es la del pack; sin proveedor de voz.
+  // Modo demo (ADR-0029): la narración es la del pack; sin proveedor de voz.
   if (videoContext.options.demo === true)
     throw new PipelineFailure(
       'demo_project',

@@ -23,7 +23,7 @@ export const router = createHashRouter([
     loader: requireAuthLoader,
     children: [
       ...videosRoutes,
-      // Modo demo (ADR-0027): la ruta existe siempre; el loader manda a Crear
+      // Modo demo (ADR-0029): la ruta existe siempre; el loader manda a Crear
       // sin el flag `demo` del veredicto.
       { ...createDemoRoute, loader: requireDemoAccessLoader },
       ...charactersRoutes,

@@ -41,7 +41,7 @@ export async function requireAuthLoader(): Promise<Response | null> {
 }
 
 /**
- * Puerta de la demo (ADR-0027): sin el flag `demo` del veredicto —o fuera de
+ * Puerta de la demo (ADR-0029): sin el flag `demo` del veredicto —o fuera de
  * la app nativa, donde no hay sidecar que prepare el pack— manda a Crear. La
  * sesión ya la exigió el loader del layout; acá solo se mira el flag.
  */

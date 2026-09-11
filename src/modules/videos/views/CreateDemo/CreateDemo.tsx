@@ -9,7 +9,7 @@ import { useDemoPrepare } from '@/modules/videos/hooks/useDemoPrepare'
 import { useDemoStatus } from '@/modules/videos/hooks/useDemoStatus'
 import type { CreateDemoNavigationState } from '@/modules/videos/types/demo'
 
-// Puerta del modo demo (ADR-0027). Con el pack listo entra directo a Crear
+// Puerta del modo demo (ADR-0029). Con el pack listo entra directo a Crear
 // con el manifest en el state del router; si falta, lo prepara una sola vez
 // mostrando el avance y entra al terminar. El acceso lo exige el loader de la
 // ruta (requireDemoAccessLoader): acá no se decide nada de permisos.

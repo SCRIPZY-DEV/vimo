@@ -52,7 +52,7 @@ export async function renameAtomic(
 }
 
 // Mueve un directorio entero, resistente a locks de Windows (swap del pack
-// de la demo, ADR-0027): tras extraer el zip, Defender o el indexador
+// de la demo, ADR-0029): tras extraer el zip, Defender o el indexador
 // pueden tener abierto algún archivo recién escrito del árbol, y en Windows
 // eso basta para que el rename de la CARPETA falle con EPERM/EBUSY aunque
 // los archivos en sí se puedan leer. Mismo reintento lock-tolerante que

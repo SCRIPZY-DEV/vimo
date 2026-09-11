@@ -107,7 +107,7 @@ export interface VideoProjectOptions {
   // la decisión 4 de ADR-0013). Ausente = true — los proyectos previos y los
   // re-render de Library se comportan igual que siempre.
   autoRender?: boolean
-  // Modo demo (ADR-0027): el proyecto nació desde la puerta de la demo y
+  // Modo demo (ADR-0029): el proyecto nació desde la puerta de la demo y
   // run-video-pipeline SIMULA las fases con el pack pre-hecho en vez de
   // llamar a proveedores. Solo lo pone ese camino; ausente/false = pipeline
   // real de siempre. Se persiste: el editor lo lee para bloquear acciones.

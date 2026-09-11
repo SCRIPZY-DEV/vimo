@@ -373,7 +373,7 @@ export function newCustomStyleId(): string {
 // Formato del video: horizontal clásico o vertical para shorts.
 export const DEFAULT_VIDEO_FORMAT: VideoFormat = '16:9'
 
-// Modo demo (ADR-0027, ADR-0028): la demo arranca en 16:9; qué otros
+// Modo demo (ADR-0029, ADR-0030): la demo arranca en 16:9; qué otros
 // formatos se ofrecen (Short) lo decide el manifest del pack instalado.
 export const DEMO_VIDEO_FORMAT: VideoFormat = '16:9'
 
@@ -649,7 +649,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   style_not_found: 'create.errors.styleNotFound',
   style_save_failed: 'create.errors.styleSaveFailed',
   style_samples_failed: 'create.errors.styleSamplesFailed',
-  // Modo demo (ADR-0027)
+  // Modo demo (ADR-0029)
   demo_not_ready: 'create.errors.demoNotReady',
   demo_pack_incomplete: 'create.errors.demoNotReady',
   demo_style_not_included: 'create.errors.demoStyleNotIncluded',
@@ -677,7 +677,7 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_project: 'library.errors.demoProject',
 }
 
-// Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0027).
+// Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0029).
 // Ninguno es reintentable: un fallo de la demo es final.
 export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_offline: 'createDemo.errors.offline',

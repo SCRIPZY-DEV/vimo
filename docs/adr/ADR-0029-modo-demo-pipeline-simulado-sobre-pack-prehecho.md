@@ -1,4 +1,4 @@
-# ADR-0027 — Modo demo: pipeline simulado sobre un pack pre-hecho, con acceso decidido por vimo.click
+# ADR-0029 — Modo demo: pipeline simulado sobre un pack pre-hecho, con acceso decidido por vimo.click
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-10
@@ -6,7 +6,7 @@
 - **Completa a:** [ADR-0006](ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md),
   [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md),
   [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md)
-- **Extendida por:** [ADR-0028](ADR-0028-pack-v3-historias-short-y-narracion-precargada.md)
+- **Extendida por:** [ADR-0030](ADR-0030-pack-v3-historias-short-y-narracion-precargada.md)
   (pack v3 con historias Short bajo `short/`, audio pre-cargado en «Subir mi audio» y
   armador propio del repo). Lo que acá dice sobre la raíz del pack sigue vigente.
 
@@ -255,7 +255,7 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
      reabrir Vimo muestra «Demo» en el sidebar; con otro correo, no.
   2. Primer clic: descarga con porcentaje y barra; segundo clic: entra directo a Crear.
   3. Crear aparece pre-llenado; cambiar de estilo cambia nombre, guion y escenas; el
-     Short dice «Próximamente» (hasta ADR-0028: con el pack v3 se elige); con las
+     Short dice «Próximamente» (hasta ADR-0030: con el pack v3 se elige); con las
      claves vacías, «Generar» funciona.
   4. La generación dura ~40 s con imágenes apareciendo en la grilla y termina con el
      video reproducible; en la biblioteca figura como completado.
@@ -284,10 +284,10 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
 ## Fuera de alcance
 
 - Shorts (9:16) en la demo: el pack v2 solo trae 16:9 y el botón queda «Próximamente».
-  Resuelto por ADR-0028 (árbol `short/` del pack v3).
+  Resuelto por ADR-0030 (árbol `short/` del pack v3).
 - Continuar la descarga fuera de la puerta (store global).
 - El script que arma un pack nuevo (`armar-demo-pack.ts` del origen): el pack v2 se
-  publicó con las herramientas del origen. Desde ADR-0028 el repo tiene su propio
+  publicó con las herramientas del origen. Desde ADR-0030 el repo tiene su propio
   armador (`scripts/build-demo-pack.mjs`, `pnpm build:demo-pack`).
 - Modo web (sin Tauri): la entrada no se muestra y la puerta redirige a Crear igual
   que sin flag (el pack necesita el sidecar).

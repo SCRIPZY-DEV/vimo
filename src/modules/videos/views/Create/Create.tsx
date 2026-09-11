@@ -103,7 +103,7 @@ interface CreateViewProps {
   // catálogo y fija (sin casilla) la pausa de duración del estilo propio.
   initialConfirmScenes: boolean
   initialPromptModel: string | null
-  // Manifest del pack cuando se entra por la puerta de la demo (ADR-0027).
+  // Manifest del pack cuando se entra por la puerta de la demo (ADR-0029).
   demo: DemoManifest | null
 }
 

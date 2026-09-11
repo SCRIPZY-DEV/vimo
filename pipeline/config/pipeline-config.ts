@@ -9,7 +9,7 @@ export interface LlmConfig {
   models: Record<LlmTier, string>
 }
 
-// Pack pre-hecho del modo demo (ADR-0027). Versión, URL y SHA-256 se cambian
+// Pack pre-hecho del modo demo (ADR-0029). Versión, URL y SHA-256 se cambian
 // JUNTOS: subir la versión invalida el marcador `.ok` y fuerza una descarga
 // limpia en todas las máquinas. `delayScale` multiplica las esperas de la
 // simulación (1 = los ~40 s reales; el guard lo baja a 0). Rust nunca manda

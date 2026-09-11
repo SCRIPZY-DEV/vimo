@@ -10,7 +10,7 @@ export function readDemoState(state: unknown): DemoManifest | null {
   if (typeof demo !== 'object' || demo === null) return null
 
   const manifest = demo as Partial<DemoManifest>
-  // Las historias 16:9 están en todo pack (ADR-0028): sin ellas el state no
+  // Las historias 16:9 están en todo pack (ADR-0030): sin ellas el state no
   // es un manifest de la demo.
   const landscape = manifest.stories?.['16:9']
   if (!landscape) return null
@@ -21,7 +21,7 @@ export function readDemoState(state: unknown): DemoManifest | null {
     return null
 
   // El bloque 9:16 es opcional (pack v2 no lo trae), pero si la CLAVE está
-  // presente tiene que traer la misma forma que 16:9 (ADR-0028): la vieja
+  // presente tiene que traer la misma forma que 16:9 (ADR-0030): la vieja
   // verificación por truthiness dejaba pasar `stories: { '9:16': null }` —
   // demoComingSoonFormats solo mira si la clave existe (seguiría ofreciendo
   // Short) mientras demoStoriesFor serviría en silencio la historia de 16:9.

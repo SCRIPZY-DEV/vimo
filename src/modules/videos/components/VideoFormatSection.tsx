@@ -10,7 +10,7 @@ import type { VideoFormat } from '@pipeline/types/video-format.ts'
 interface VideoFormatSectionProps {
   value: CreateFormValue
   disabled: boolean
-  // Formatos sin historias en este modo (demo con un pack sin Short, ADR-0028):
+  // Formatos sin historias en este modo (demo con un pack sin Short, ADR-0030):
   // se ven pero no se eligen.
   comingSoon?: VideoFormat[]
   onChange: (patch: Partial<CreateFormValue>) => void

@@ -1,6 +1,6 @@
 import type { DemoManifest } from '@pipeline/types/demo.ts'
 
-// Lo que la puerta le entrega a Crear en el `state` del router (ADR-0027):
+// Lo que la puerta le entrega a Crear en el `state` del router (ADR-0029):
 // el manifest ya listo, sin una segunda consulta al sidecar.
 export interface CreateDemoNavigationState {
   demo: DemoManifest

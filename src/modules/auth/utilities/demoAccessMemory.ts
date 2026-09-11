@@ -7,7 +7,7 @@ interface DemoAccessMemory {
 
 // El veredicto de vimo.click es fail-open sin red (ADR-0006), pero el flag
 // `demo` no se puede inventar: se recuerda el último recibido para ESTE
-// correo y se reutiliza offline (ADR-0027). Otro correo no lo hereda.
+// correo y se reutiliza offline (ADR-0029). Otro correo no lo hereda.
 export function rememberDemoAccess(email: string | null, demo: boolean): void {
   if (!email) return
   try {

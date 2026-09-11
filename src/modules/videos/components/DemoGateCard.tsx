@@ -12,7 +12,7 @@ interface DemoGateCardProps {
   onRetry(): void
 }
 
-// Puerta de la demo (ADR-0027): una sola tarjeta centrada con el estado de la
+// Puerta de la demo (ADR-0029): una sola tarjeta centrada con el estado de la
 // preparación del pack. Presentacional: la vista decide qué mostrar.
 export function DemoGateCard({
   messageKey,

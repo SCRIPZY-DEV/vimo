@@ -32,7 +32,7 @@ export async function runVideoPipeline(
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
 
-  // Modo demo (ADR-0027): el proyecto nació desde la puerta de la demo y no
+  // Modo demo (ADR-0029): el proyecto nació desde la puerta de la demo y no
   // hay proveedores que llamar — se simulan las fases con el pack pre-hecho.
   // `untilStage` no aplica: la demo siempre corre entera.
   if (videoContext.options.demo === true) return runDemoPipeline(videoContext)

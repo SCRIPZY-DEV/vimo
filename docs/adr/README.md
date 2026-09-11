@@ -46,8 +46,10 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                            | Title                                                                      | Status                   | Area                          |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
-| [ADR-0028](ADR-0028-pack-v3-historias-short-y-narracion-precargada.md)         | Demo pack v3: Short stories per style and pre-loaded narration             | Aceptada                 | app / pipeline                |
-| [ADR-0027](ADR-0027-modo-demo-pipeline-simulado-sobre-pack-prehecho.md)        | Demo mode: simulated pipeline over a pre-built pack, access via vimo.click | Aceptada                 | app / pipeline                |
+| [ADR-0030](ADR-0030-pack-v3-historias-short-y-narracion-precargada.md)         | Demo pack v3: Short stories per style and pre-loaded narration             | Aceptada                 | app / pipeline                |
+| [ADR-0029](ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md)        | Demo mode: simulated pipeline over a pre-built pack, access via vimo.click | Aceptada                 | app / pipeline                |
+| [ADR-0028](ADR-0028-bloqueo-temporal-de-modelos-de-prompts.md)                 | Temporary block of the prompt models that stall or fail                    | Aceptada                 | app / pipeline                |
+| [ADR-0027](ADR-0027-actualizaciones-automaticas-tauri-updater.md)              | Automatic updates with tauri-plugin-updater and a manifest on vimo.click   | Aceptada                 | distribución                  |
 | [ADR-0024](ADR-0024-dos-proveedores-de-voces-dubvoice-y-elevenlabs-directo.md) | Two voice providers: DubVoice and direct ElevenLabs                        | Aceptada                 | providers / pipeline / app    |
 | [ADR-0023](ADR-0023-una-entrada-de-keychain-y-firma-estable.md)                | One keychain entry for every API key, stable signing pending               | Aceptada                 | seguridad / distribución      |
 | [ADR-0022](ADR-0022-modelo-de-prompts-como-preferencia.md)                     | The prompt model is a preference, not the last choice                      | Aceptada                 | app                           |

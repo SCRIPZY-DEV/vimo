@@ -11,7 +11,7 @@ import type { CreateFormValue } from '@/modules/videos/types/create'
 interface NarrationSectionProps {
   value: CreateFormValue
   disabled: boolean
-  // Demo (ADR-0028): el audio es siempre el de la historia — el picker y la
+  // Demo (ADR-0030): el audio es siempre el de la historia — el picker y la
   // X quedan bloqueados y el chip muestra `audioFileLabel`.
   audioLocked?: boolean
   audioFileLabel?: string

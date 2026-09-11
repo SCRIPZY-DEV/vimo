@@ -44,7 +44,7 @@ export async function regenerateSceneImages(
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
 
-  // Modo demo (ADR-0027): las imágenes vienen del pack; no hay proveedor que
+  // Modo demo (ADR-0029): las imágenes vienen del pack; no hay proveedor que
   // regenere y nada se gasta. La UI ya deshabilita el botón; esto es la
   // cerradura del sidecar.
   if (videoContext.options.demo === true)

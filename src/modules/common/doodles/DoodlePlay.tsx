@@ -7,7 +7,7 @@ interface Props {
   className?: string
 }
 
-// Ícono del modo demo (ADR-0027): un botón de play dibujado a mano.
+// Ícono del modo demo (ADR-0029): un botón de play dibujado a mano.
 const DoodlePlay = ({ size = 48, delay = 0, className = '', loop }: Props) => {
   const drawn = useDoodleDraw({ delayMs: delay, loop })
 

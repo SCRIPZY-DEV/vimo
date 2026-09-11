@@ -32,7 +32,7 @@ import {
   readPackWords,
 } from './pack.ts'
 
-// La generación SIMULADA del modo demo (ADR-0027; port de pipelineDemo.ts
+// La generación SIMULADA del modo demo (ADR-0029; port de pipelineDemo.ts
 // del origen). En vez de las stages reales se recorren las seis fases con
 // esperas (~40 s en total) mientras los archivos del proyecto se materializan
 // desde el pack: audio, palabras, escenas, imágenes y video. Reglas duras:
@@ -43,7 +43,7 @@ import {
 //  - Toda espera respeta context.signal: cancelar deja `paused` como una
 //    corrida real; volver a correr es idempotente (las copias pisan).
 //  - La carpeta se elige por formato (raíz = 16:9, `short/` = 9:16) y estilo;
-//    con `own-audio` no hay ramp de voz (ADR-0028).
+//    con `own-audio` no hay ramp de voz (ADR-0030).
 
 // Presupuesto ≈ 40 s (pedido del dueño): las fases por escena reparten su
 // presupuesto entre las N escenas del pack; las imágenes van de a 10 como la
@@ -73,7 +73,7 @@ export async function runDemoPipeline(
   const demo = context.config.demo
 
   // Mismo manejo de estado que run-video-pipeline, repetido a propósito: el
-  // camino real no se toca (ADR-0027). Se marca ANTES de leer el pack para
+  // camino real no se toca (ADR-0029). Se marca ANTES de leer el pack para
   // que un pack ausente o un estilo fuera de catálogo también dejen
   // state = 'error' + errorCode persistidos, igual que cualquier otro fallo
   // (la biblioteca tiene que mostrar el error tras un reload).
@@ -138,7 +138,7 @@ export async function runDemoPipeline(
       // Con «Subir mi audio» la narración ya está en el proyecto
       // (upload-narration) y el pipeline real no sintetiza nada: acá tampoco
       // hay ramp. La copia se hace igual: en demo la narración es SIEMPRE la
-      // de la historia del pack (ADR-0028), aunque se haya subido otro archivo.
+      // de la historia del pack (ADR-0030), aunque se haya subido otro archivo.
       if (context.options.narrationMode === 'tts') {
         for (const [index, percent] of VOICE_TICKS.entries()) {
           await wait(VOICE_TICK_MS)

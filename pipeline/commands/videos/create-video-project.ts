@@ -128,7 +128,7 @@ function validatePayload(
       'invalid_payload',
       'options.autoRender must be a boolean',
     )
-  // Modo demo (ADR-0027): solo booleano; cualquier otra cosa es un llamador
+  // Modo demo (ADR-0029): solo booleano; cualquier otra cosa es un llamador
   // roto, no un modo nuevo.
   if (options.demo !== undefined && typeof options.demo !== 'boolean')
     throw new PipelineFailure(

@@ -14,7 +14,7 @@ import type {
 } from '@pipeline/types/demo.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
-// Crear en modo demo (ADR-0027, ADR-0028): todo sale del manifest del pack —
+// Crear en modo demo (ADR-0029, ADR-0030): todo sale del manifest del pack —
 // voz, estilos visibles, formatos disponibles, nombre, guion, escenas y
 // audio. Publicar un pack con otras historias no exige tocar la app.
 
@@ -31,7 +31,7 @@ export function demoStoriesFor(
 // Ids del catálogo con historia pre-hecha, en el orden de la galería. Lee
 // solo 16:9: por contrato el árbol short/ espeja el mismo conjunto de
 // estilos que la raíz (validatePack exige las mismas tres entradas del
-// catálogo en los dos árboles, ADR-0028 regla 2), así que los ids de la
+// catálogo en los dos árboles, ADR-0030 regla 2), así que los ids de la
 // galería no cambian entre formatos.
 export function demoStyleIds(manifest: DemoManifest): CharacterStyleId[] {
   const ids: CharacterStyleId[] = []

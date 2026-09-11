@@ -1,6 +1,6 @@
-// Guard ejecutable del modo demo (ADR-0027). Sin app y sin red: genera un
+// Guard ejecutable del modo demo (ADR-0029). Sin app y sin red: genera un
 // pack mínimo en una carpeta temporal (formato v2 del origen más el árbol
-// `short/` del v3 —ADR-0028—, 2 escenas por estilo, archivos diminutos), lo
+// `short/` del v3 —ADR-0030—, 2 escenas por estilo, archivos diminutos), lo
 // empaqueta en un zip en memoria, lo sirve por HTTP local y corre los
 // subcomandos del sidecar contra una carpeta raíz temporal. Cada sección
 // asserta un invariante de la ADR.

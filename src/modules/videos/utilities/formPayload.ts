@@ -40,7 +40,7 @@ export function createProjectPayload(
     videoFormat: form.videoFormat,
   }
 
-  // Modo demo (ADR-0027): el flag viaja al proyecto y la corrida nunca pausa
+  // Modo demo (ADR-0029): el flag viaja al proyecto y la corrida nunca pausa
   // ni deja borrador — el video pre-hecho se materializa entero.
   if (demo) {
     options.demo = true

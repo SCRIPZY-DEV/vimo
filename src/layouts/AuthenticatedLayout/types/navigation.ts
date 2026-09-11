@@ -21,7 +21,7 @@ export type SidebarNavItem = {
   hidden?: boolean
   /**
    * true para las secciones que solo existen con el flag `demo` del veredicto
-   * de acceso (ADR-0027): el sidebar las filtra en el render, en la app nativa.
+   * de acceso (ADR-0029): el sidebar las filtra en el render, en la app nativa.
    */
   requiresDemo?: boolean
 }

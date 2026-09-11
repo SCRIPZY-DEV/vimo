@@ -6,7 +6,7 @@ import yauzl from 'yauzl'
 
 import { PipelineFailure } from '../../runner/failure.ts'
 
-// Extracción del zip del pack con yauzl (ADR-0027): puro JavaScript y por
+// Extracción del zip del pack con yauzl (ADR-0029): puro JavaScript y por
 // streaming — el pipeline nunca depende de binarios del PATH (ADR-0013) y
 // Windows no trae unzip. yauzl ya rechaza nombres absolutos o con `..`; el
 // chequeo del destino es la segunda cerradura.

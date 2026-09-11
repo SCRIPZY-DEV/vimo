@@ -1,4 +1,4 @@
-// Arma el pack de la demo (ADR-0027, formato v3 en ADR-0028) desde el pack
+// Arma el pack de la demo (ADR-0029, formato v3 en ADR-0030) desde el pack
 // instalado más cuatro proyectos NATIVOS en 9:16 — uno por estilo del
 // catálogo y uno de «Mi estilo» —, valida los invariantes que la simulación
 // asume, escribe el zip sin compresión (los assets ya vienen comprimidos) e
@@ -218,7 +218,7 @@ async function copyTree(source, target, { skip = () => false } = {}) {
   }
 }
 
-// Traducción nativo → pack (la inversa de la tabla de ADR-0027).
+// Traducción nativo → pack (la inversa de la tabla de ADR-0029).
 async function writeShortStory(staging, folder, story) {
   const target = join(staging, SHORT_FOLDER, folder)
   await mkdir(join(target, 'imagenes'), { recursive: true })

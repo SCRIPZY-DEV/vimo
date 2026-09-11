@@ -58,7 +58,7 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     route: VideosRoutes.createDemo,
     labelKey: 'layout.nav.demo',
     Icon: DoodlePlay,
-    // Modo demo (ADR-0027): visible solo para administradores y correos con
+    // Modo demo (ADR-0029): visible solo para administradores y correos con
     // demo habilitada en vimo.click.
     requiresDemo: true,
   },

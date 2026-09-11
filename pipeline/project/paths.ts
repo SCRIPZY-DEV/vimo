@@ -18,7 +18,7 @@ import { PipelineFailure } from '../runner/failure.ts'
 
 // Carpetas bajo <projectsRoot> que NO son proyectos: un proyecto no puede
 // llamarse así (el slug colisionaría con la biblioteca, el historial, la
-// galería de estilos o el pack de la demo — ADR-0027).
+// galería de estilos o el pack de la demo — ADR-0029).
 export const RESERVED_ROOT_DIRECTORIES = new Set([
   'characters',
   '_history',
