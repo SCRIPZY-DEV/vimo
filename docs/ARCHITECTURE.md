@@ -21,6 +21,13 @@ diagramas, está en [docs/diagrams/](diagrams/).
 > guion a video (y su edición posterior), en la **sección 5**. La migración por
 > módulos de ADR-0010 quedó completa con Library
 > ([ADR-0014](adr/ADR-0014-modulo-library-edicion-sobre-stages.md)).
+>
+> **Dirección futura
+> ([ADR-0030](adr/ADR-0030-proveedores-en-servidor-y-creditos-de-vimo.md),
+> propuesta):** las llamadas a proveedores se unificarán en un servidor de Vimo
+> con créditos propios y sin claves del usuario; en el sidecar quedará solo lo
+> local (FFmpeg, ensamblado y descarga de assets). Hasta entonces rige BYO-keys
+> con saldo por proveedor ([ADR-0029](adr/ADR-0029-saldo-por-proveedor-precheck-y-pausa-retomable.md)).
 
 ---
 
@@ -383,7 +390,14 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
 3. **Pre-flight del proveedor de voz** (`probe-tts`): valida contra los
    endpoints de LISTADO —no gasta créditos— y avisa antes de arrancar un
    pipeline largo. El resultado se cachea 2 minutos en la UI.
-4. `create-video-project` crea la carpeta del proyecto con `project.json`,
+4. **Pre-check de saldo** (ADR-0029): `useCreateCostCheck` estima el gasto
+   por proveedor (voz por caracteres × `VOICE_COST_FACTORS`, imágenes por
+   escenas × precio de la calidad, música de fondo informativa) y lo cruza
+   con los saldos leídos (`compareCostLines`). Con saldo leído e
+   insuficiente el envío se frena y `InsufficientCreditsAlert` ofrece
+   recargar (`billingUrl` del catálogo de `api-keys`); un saldo ilegible
+   solo avisa. Al enviar, `verify()` re-lee el saldo justo antes de arrancar.
+5. `create-video-project` crea la carpeta del proyecto con `project.json`,
    `script.txt` y las referencias de los personajes; con audio propio,
    `upload-narration` lo copia (o transcodifica) a `narration.mp3`.
 
@@ -394,14 +408,14 @@ Cada una implementa `Stage { id, skip?, run }` y el runner
 `stage-skipped` / `stage-completed`. **Toda fase es retomable**: si su artefacto
 en disco es válido, `skip()` la saltea.
 
-| Fase            | Qué hace el sidecar                                                                                         | Qué muestra la interfaz                                                                                                                                                    |
-| --------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                 | `voice-progress`, `bgm-progress`                                                                                                                                           |
-| `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                   | fase en curso                                                                                                                                                              |
-| `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                               | `scenes-planned` o el diálogo                                                                                                                                              |
-| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía)                              | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim); `prompt-model-trouble` (el modelo elegido falló: se bloquea 1 h, ADR-0028) |
-| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)    |
-| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                   | `render-progress` por sub-fase                                                                                                                                             |
+| Fase            | Qué hace el sidecar                                                                                                                                                       | Qué muestra la interfaz                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                                                                               | `voice-progress`, `bgm-progress`                                                                                                                                           |
+| `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                                                                                 | fase en curso                                                                                                                                                              |
+| `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                                                                                             | `scenes-planned` o el diálogo                                                                                                                                              |
+| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía)                                                                                            | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim); `prompt-model-trouble` (el modelo elegido falló: se bloquea 1 h, ADR-0028) |
+| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas; al primer rechazo por saldo aborta la fase entera (ADR-0029) | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)    |
+| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                                                                                 | `render-progress` por sub-fase                                                                                                                                             |
 
 La narración es **esencial** (si falla, el job muere); música y overlay son
 **opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
@@ -447,8 +461,19 @@ al reload.
 
 El sidecar **no** sobrevive al cierre de la app: al reabrir, una tarea que
 quedaba generando se marca interrumpida y el botón «Reanudar» relanza el mismo
-job — todo lo hecho se conserva. Una cancelación deja el proyecto en `paused`,
-igual de retomable.
+job — todo lo hecho se conserva. Una cancelación deja el proyecto en `paused`
+con `pauseReason: 'cancelled'`, igual de retomable.
+
+**Saldo agotado a mitad del job** (ADR-0029): los providers clasifican el
+rechazo con la familia `*_insufficient_credits`
+(`pipeline/utils/insufficient-credits.ts`), la fase `images` corta los carriles
+en vuelo, y `run-video-pipeline` deja `paused` + `pauseReason:
+'insufficient-credits'` + `errorCode`. En la UI el código no entra al reintento
+automático: la tarea guarda `creditsIssue` y la pantalla de progreso muestra
+`InsufficientCreditsCard` (saldo de la cuenta que rechazó, lo pendiente por
+gastar estimado desde disco, recargar, reanudar cuando alcanza). Biblioteca lo
+lista con el badge «Sin créditos» y `LibraryProgress` monta
+`NoCreditsResumePanel`, que re-lee el saldo antes de relanzar.
 
 ### Editar después de crear (Library)
 

@@ -45,6 +45,8 @@ agrega ruido.
 
 | ADR                                                                            | Título                                                                          | Estado                   | Área                          |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0030](ADR-0030-proveedores-en-servidor-y-creditos-de-vimo.md)             | Proveedores unificados en un servidor de Vimo y créditos propios                | Propuesta                | pipeline, providers, app      |
+| [ADR-0029](ADR-0029-saldo-por-proveedor-precheck-y-pausa-retomable.md)         | Saldo por proveedor: pre-check antes de gastar y pausa retomable al agotarse    | Aceptada                 | app, pipeline, providers      |
 | [ADR-0028](ADR-0028-bloqueo-temporal-de-modelos-de-prompts.md)                 | Bloqueo temporal de los modelos de prompts que se traban o fallan               | Aceptada                 | app, pipeline                 |
 | [ADR-0027](ADR-0027-actualizaciones-automaticas-tauri-updater.md)              | Actualizaciones automáticas con tauri-plugin-updater y manifiesto en vimo.click | Aceptada                 | distribución                  |
 | [ADR-0026](ADR-0026-distribucion-windows-instalador-nsis.md)                   | Distribución en Windows: instalador NSIS construido en GitHub Actions           | Aceptada                 | distribución                  |
