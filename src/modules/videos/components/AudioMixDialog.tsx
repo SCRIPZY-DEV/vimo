@@ -29,6 +29,8 @@ interface AudioMixDialogProps {
   value: AudioMixValue
   hasMusic: boolean
   busy: boolean
+  // Proyecto demo: la narración es la del pack y no se reemplaza.
+  narrationLocked: boolean
   narrationPercent: number | null
   // Pistas para el preview: se escuchan con el volumen del slider aplicado.
   narrationSrc: string | null
@@ -51,6 +53,7 @@ export function AudioMixDialog({
   value,
   hasMusic,
   busy,
+  narrationLocked,
   narrationPercent,
   narrationSrc,
   musicSrc,
@@ -173,7 +176,7 @@ export function AudioMixDialog({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={busy}
+                    disabled={busy || narrationLocked}
                     onClick={() => void uploadNarration()}
                     className="rounded-lg font-display"
                   >
@@ -183,7 +186,7 @@ export function AudioMixDialog({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={busy}
+                    disabled={busy || narrationLocked}
                     onClick={() => setPickingVoice(true)}
                     className="rounded-lg font-display"
                   >
@@ -193,7 +196,9 @@ export function AudioMixDialog({
                 </div>
               )}
               <p className="font-body text-[11px] text-muted-foreground">
-                {t('library.audio.replaceHint')}
+                {narrationLocked
+                  ? t('library.editor.demoLocked')
+                  : t('library.audio.replaceHint')}
               </p>
             </div>
           </div>

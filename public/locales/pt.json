@@ -37,6 +37,7 @@
       "personajes": "Personagens",
       "voces": "Vozes",
       "musica": "Música IA",
+      "demo": "Demo",
       "costos": "Custos",
       "claves": "Chaves API",
       "licencia": "Licença",
@@ -105,7 +106,8 @@
       "clearFile": "Remover o áudio escolhido",
       "noFile": "Nenhum arquivo escolhido",
       "audioLabel": "Seu áudio narrado",
-      "audioHint": "O Vimo transcreve seu áudio e usa esse texto para criar as imagens. Não precisa escrever o roteiro. Formatos: mp3, wav, m4a, aac, ogg."
+      "audioHint": "O Vimo transcreve seu áudio e usa esse texto para criar as imagens. Não precisa escrever o roteiro. Formatos: mp3, wav, m4a, aac, ogg.",
+      "demoAudioHint": "Na demo o áudio já vem carregado: é a narração da história escolhida e muda com o estilo e o formato."
     },
     "script": {
       "label": "Roteiro",
@@ -454,6 +456,9 @@
       "voiceQuotaExceeded": "A cota de caracteres da sua conta do ElevenLabs acabou.",
       "voiceLibraryAddFailed": "Não foi possível adicionar a voz da biblioteca à sua conta do ElevenLabs.",
       "voiceAccountRestricted": "O ElevenLabs restringiu sua conta para esta função. Verifique seu plano no ElevenLabs.",
+      "demoNotReady": "A demo não está pronta neste computador. Entre de novo pelo botão Demo.",
+      "demoStyleNotIncluded": "A demo não inclui este estilo. Escolha um dos estilos que a demo mostra.",
+      "demoFormatNotIncluded": "O pack da demo instalado não traz histórias neste formato. Entre de novo pelo botão Demo para atualizá-lo.",
       "llmRescueNeeded": "O modelo escolhido deixou cenas sem escrever e outro modelo as resgatou.",
       "llmAuth": "A DeepInfra rejeitou sua chave de API. Confira em Chaves de API: sem uma chave válida os prompts não podem ser escritos."
     },
@@ -507,6 +512,7 @@
     "styleSource": {
       "catalog": "Catálogo",
       "catalogHint": "Os 5 estilos do Vimo.",
+      "catalogHintDemo": "Os 3 estilos com demo pronta.",
       "custom": "Meu estilo",
       "customHint": "Seu próprio estilo visual.",
       "customBlockedHint": "Sem modelos disponíveis por enquanto: use um estilo da Vimo."
@@ -622,6 +628,24 @@
       "cancelToLibrary": "Cancelar e voltar para a biblioteca",
       "halting": "Parando o vídeo… o job atual está fechando.",
       "retrySame": "Tentar de novo com {{model}}"
+    }
+  },
+  "createDemo": {
+    "pageTitle": "Demo",
+    "title": "Demo do Vimo",
+    "checking": "Verificando a demo…",
+    "preparingFirstTime": "Preparando a demo pela primeira vez…",
+    "downloading": "Baixando a demo (só uma vez)…",
+    "installing": "Preparando os arquivos…",
+    "onceNote": "Isso acontece só uma vez: a demo fica guardada neste computador.",
+    "retry": "Tentar de novo",
+    "errors": {
+      "offline": "Sem conexão para baixar a demo. Verifique sua internet e tente de novo.",
+      "downloadFailed": "Não foi possível baixar o pacote da demo. Tente mais tarde.",
+      "packCorrupt": "O pacote baixado não confere com o esperado. Tente de novo.",
+      "packUnreadable": "Não foi possível abrir o pacote da demo. Tente de novo.",
+      "packIncomplete": "O pacote da demo veio incompleto. Tente de novo.",
+      "unknown": "Não foi possível preparar a demo. Tente de novo."
     }
   },
   "library": {
@@ -742,7 +766,8 @@
       "regenFailed": "Não foi possível regenerar alguma cena: o motivo está em cada cena e a imagem anterior é mantida.",
       "missingImagesTitle_one": "Falta a imagem de 1 cena (cena {{ids}})",
       "missingImagesTitle_other": "Faltam as imagens de {{count}} cenas (cenas {{ids}})",
-      "missingImagesHint": "A descrição delas ficou salva. Toque numa cena vazia na linha do tempo e use «Regenerar» para criar a imagem — ou mude a descrição se quiser outra coisa. Quando todas tiverem, gere seu vídeo."
+      "missingImagesHint": "A descrição delas ficou salva. Toque numa cena vazia na linha do tempo e use «Regenerar» para criar a imagem — ou mude a descrição se quiser outra coisa. Quando todas tiverem, gere seu vídeo.",
+      "demoLocked": "Na demo, as imagens e a narração vêm do pacote de amostra: não podem ser regeneradas."
     },
     "errors": {
       "projectBusy": "Já há uma geração em andamento. Espere terminar antes de iniciar outra.",
@@ -750,7 +775,8 @@
       "audioTooLarge": "O áudio excede o tamanho máximo permitido (50 MB).",
       "clipsNoScenes": "O projeto não tem cenas com tempos para exportar.",
       "clipsNoImages": "Há cenas sem imagem: gere-as antes de exportar.",
-      "falAdminKeyRequired": "Sua chave Fal não é do tipo Admin: crie uma nova com permissão Admin para ver o saldo."
+      "falAdminKeyRequired": "Sua chave Fal não é do tipo Admin: crie uma nova com permissão Admin para ver o saldo.",
+      "demoProject": "Este vídeo é da demo: as imagens e a narração vêm do pacote de amostra e não são regeneradas."
     },
     "music": {
       "title": "Música de fundo",

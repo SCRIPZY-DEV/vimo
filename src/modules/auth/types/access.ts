@@ -23,6 +23,8 @@ export interface VerifyAccessResponse {
   plan?: AccessPlan
   diasRestantes?: number
   trialExpira?: string
+  // Modo demo (ADR-0029): true para administradores y correos en demo_accesos.
+  demo?: boolean
 }
 
 /** Veredicto normalizado que cachea TanStack y consumen guards y vistas. */
@@ -35,4 +37,7 @@ export interface AccessStatus {
   email: string | null
   name: string | null
   avatar: string | null
+  // Muestra la entrada «Demo» del sidebar. Sin red, vale el último valor
+  // recordado para este correo (el pack ya está en disco y nada se gasta).
+  demo: boolean
 }

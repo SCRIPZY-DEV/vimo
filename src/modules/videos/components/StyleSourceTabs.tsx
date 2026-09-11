@@ -5,6 +5,9 @@ import type { StyleSource } from '@/modules/videos/types/styles'
 interface StyleSourceTabsProps {
   value: StyleSource
   disabled: boolean
+  // Pisa el texto del catálogo cuando hay menos estilos que ofrecer (modo
+  // demo, ADR-0029); por defecto, el texto del catálogo completo.
+  catalogHintKey?: string
   // «Mi estilo» no se puede elegir (todos los modelos de prompts bloqueados,
   // ADR-0028): la pestaña queda inerte y su pista dice por qué.
   customDisabled?: boolean
@@ -29,6 +32,7 @@ const TABS: { id: StyleSource; titleKey: string; hintKey: string }[] = [
 export function StyleSourceTabs({
   value,
   disabled,
+  catalogHintKey,
   customDisabled = false,
   onChange,
 }: StyleSourceTabsProps) {
@@ -39,6 +43,8 @@ export function StyleSourceTabs({
       {TABS.map((tab) => {
         const selected = value === tab.id
         const blocked = tab.id === 'custom' && customDisabled
+        const hintKey =
+          tab.id === 'catalog' && catalogHintKey ? catalogHintKey : tab.hintKey
         return (
           <button
             key={tab.id}
@@ -64,9 +70,7 @@ export function StyleSourceTabs({
                 blocked ? 'text-coral' : 'text-muted-foreground',
               )}
             >
-              {t(
-                blocked ? 'create.styleSource.customBlockedHint' : tab.hintKey,
-              )}
+              {t(blocked ? 'create.styleSource.customBlockedHint' : hintKey)}
             </span>
           </button>
         )

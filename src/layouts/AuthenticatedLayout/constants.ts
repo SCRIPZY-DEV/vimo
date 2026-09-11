@@ -8,6 +8,7 @@ import { SettingsRoutes } from '@/modules/settings/constants'
 import { VideosRoutes } from '@/modules/videos/constants'
 import { VoicesRoutes } from '@/modules/voices/constants'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
+import DoodlePlay from '@/modules/common/doodles/DoodlePlay'
 import DoodleScript from '@/modules/common/doodles/DoodleScript'
 import DoodleCamera from '@/modules/common/doodles/DoodleCamera'
 import DoodleTrophy from '@/modules/common/doodles/DoodleTrophy'
@@ -52,6 +53,14 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     // intacto y typechequeado. Para reactivar: borrar este `hidden` y
     // devolver `costsRoutes` a `src/router/index.ts`.
     hidden: true,
+  },
+  {
+    route: VideosRoutes.createDemo,
+    labelKey: 'layout.nav.demo',
+    Icon: DoodlePlay,
+    // Modo demo (ADR-0029): visible solo para administradores y correos con
+    // demo habilitada en vimo.click.
+    requiresDemo: true,
   },
   {
     route: ApiKeysRoutes.apiKeys,

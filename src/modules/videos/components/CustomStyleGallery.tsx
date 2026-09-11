@@ -5,6 +5,7 @@ import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { newCustomStyleId } from '@/modules/videos/constants'
+import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
 import type {
   CustomStyleDraft,
   SelectedCustomStyle,
@@ -30,16 +31,6 @@ interface EditingStyle {
   // Abierto desde «Generar 4 muestras» del menú: arranca a generar apenas se
   // elige el proveedor, sin pedirle a la persona que repita el pedido.
   generateOnOpen: boolean
-}
-
-function toSelected(style: CustomStyleSummary): SelectedCustomStyle {
-  return {
-    styleId: style.id,
-    name: style.name,
-    systemPrompt: style.systemPrompt,
-    shots: style.shots,
-    ...(style.character ? { character: style.character } : {}),
-  }
 }
 
 function toDraft(style: CustomStyleSummary): CustomStyleDraft {
@@ -138,7 +129,7 @@ export function CustomStyleGallery({
             style={style}
             selected={selected?.styleId === style.id}
             disabled={disabled}
-            onSelect={() => onSelect(toSelected(style))}
+            onSelect={() => onSelect(selectedCustomStyleFrom(style))}
             onEdit={() => openEdit(style, false)}
             onGenerateSamples={() => openEdit(style, true)}
             onDelete={() => void removeStyle(style)}

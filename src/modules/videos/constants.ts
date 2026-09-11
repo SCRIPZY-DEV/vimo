@@ -28,6 +28,7 @@ import type {
 
 export const VideosRoutes = {
   create: '/create',
+  createDemo: '/create-demo',
   library: '/library',
   libraryPlayer: '/library/:projectId',
   libraryProgress: '/library/:projectId/progress',
@@ -50,6 +51,7 @@ export function libraryEditorPath(projectId: string): string {
 export const videosQueryKeys = {
   characters: ['videos', 'characters'],
   customStyles: ['videos', 'customStyles'],
+  demoStatus: ['videos', 'demoStatus'],
   projects: ['videos', 'projects'],
   projectStatus(projectId: string) {
     return ['videos', 'project', projectId]
@@ -371,6 +373,10 @@ export function newCustomStyleId(): string {
 // Formato del video: horizontal clásico o vertical para shorts.
 export const DEFAULT_VIDEO_FORMAT: VideoFormat = '16:9'
 
+// Modo demo (ADR-0029, ADR-0030): la demo arranca en 16:9; qué otros
+// formatos se ofrecen (Short) lo decide el manifest del pack instalado.
+export const DEMO_VIDEO_FORMAT: VideoFormat = '16:9'
+
 export const VIDEO_FORMATS: {
   id: VideoFormat
   titleKey: string
@@ -643,6 +649,11 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   style_not_found: 'create.errors.styleNotFound',
   style_save_failed: 'create.errors.styleSaveFailed',
   style_samples_failed: 'create.errors.styleSamplesFailed',
+  // Modo demo (ADR-0029)
+  demo_not_ready: 'create.errors.demoNotReady',
+  demo_pack_incomplete: 'create.errors.demoNotReady',
+  demo_style_not_included: 'create.errors.demoStyleNotIncluded',
+  demo_format_not_included: 'create.errors.demoFormatNotIncluded',
   cancelled: 'create.errors.cancelled',
   sidecar_missing: 'create.errors.sidecar',
   sidecar_spawn: 'create.errors.sidecar',
@@ -663,4 +674,17 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   fal_admin_key_required: 'library.errors.falAdminKeyRequired',
   music_invalid_api_key: 'create.errors.missingApiKey',
   music_network: 'create.errors.musicGenerationFailed',
+  demo_project: 'library.errors.demoProject',
 }
+
+// Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0029).
+// Ninguno es reintentable: un fallo de la demo es final.
+export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  demo_offline: 'createDemo.errors.offline',
+  demo_download_failed: 'createDemo.errors.downloadFailed',
+  demo_pack_corrupt: 'createDemo.errors.packCorrupt',
+  demo_pack_unreadable: 'createDemo.errors.packUnreadable',
+  demo_pack_incomplete: 'createDemo.errors.packIncomplete',
+  missing_projects_root: 'create.errors.missingProjectsRoot',
+}
+export const UNKNOWN_DEMO_ERROR_KEY = 'createDemo.errors.unknown'

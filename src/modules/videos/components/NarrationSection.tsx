@@ -11,6 +11,10 @@ import type { CreateFormValue } from '@/modules/videos/types/create'
 interface NarrationSectionProps {
   value: CreateFormValue
   disabled: boolean
+  // Demo (ADR-0030): el audio es siempre el de la historia — el picker y la
+  // X quedan bloqueados y el chip muestra `audioFileLabel`.
+  audioLocked?: boolean
+  audioFileLabel?: string
   onChange: (patch: Partial<CreateFormValue>) => void
   onPickAudio: () => void
 }
@@ -18,13 +22,21 @@ interface NarrationSectionProps {
 export function NarrationSection({
   value,
   disabled,
+  audioLocked = false,
+  audioFileLabel,
   onChange,
   onPickAudio,
 }: NarrationSectionProps) {
   const { t } = useTranslation()
 
   const isUpload = value.narrationMode === 'own-audio'
-  const fileName = value.narrationFilePath?.split(/[\\/]/).pop() ?? null
+  // El chip depende del path real, no solo de la etiqueta: si una entrada
+  // del manifest no trajera audioFile, mostrar igual el chip dejaría
+  // «Subir mi audio» bloqueada sin audio real (picker deshabilitado, X
+  // oculta) y sin forma de salir del paso.
+  const fileName = value.narrationFilePath
+    ? (audioFileLabel ?? value.narrationFilePath.split(/[\\/]/).pop() ?? null)
+    : null
 
   return (
     <div className="space-y-3">
@@ -69,11 +81,16 @@ export function NarrationSection({
 
           <button
             type="button"
-            disabled={disabled}
+            disabled={disabled || audioLocked}
             onClick={onPickAudio}
-            className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-border bg-card p-3 text-left transition-all hover:border-saffron/40"
+            className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-border bg-card p-3 text-left transition-all hover:border-saffron/40 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span className="rounded-lg bg-saffron px-4 py-2 font-display text-sm font-bold text-charcoal transition-colors hover:bg-saffron/90">
+            <span
+              className={cn(
+                'rounded-lg bg-saffron px-4 py-2 font-display text-sm font-bold text-charcoal transition-colors',
+                !audioLocked && 'hover:bg-saffron/90',
+              )}
+            >
               {t('create.narration.chooseFile')}
             </span>
             {!fileName && (
@@ -89,20 +106,24 @@ export function NarrationSection({
               <span className="truncate font-body text-sm text-foreground">
                 {fileName}
               </span>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange({ narrationFilePath: null })}
-                aria-label={t('create.narration.clearFile')}
-                className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              {!audioLocked && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange({ narrationFilePath: null })}
+                  aria-label={t('create.narration.clearFile')}
+                  className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
 
           <p className="font-body text-xs text-muted-foreground">
-            {t('create.narration.audioHint')}
+            {audioLocked
+              ? t('create.narration.demoAudioHint')
+              : t('create.narration.audioHint')}
           </p>
         </div>
       )}

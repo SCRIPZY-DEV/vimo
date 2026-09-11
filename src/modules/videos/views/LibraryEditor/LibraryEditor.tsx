@@ -133,6 +133,9 @@ export function LibraryEditor() {
   const metadata = detail.metadata
   const videoFormat = metadata.options.videoFormat ?? '16:9'
   const isShort = videoFormat === '9:16'
+  // Modo demo (ADR-0029): las imágenes y la narración vienen del pack; el
+  // sidecar rechaza regenerarlas (demo_project) y acá ni se ofrece.
+  const demoProject = metadata.options.demo === true
   const creatingHere = isTaskLiveFor(createTask, projectId)
   if (metadata.state === 'generating' && creatingHere)
     return <Navigate to={libraryProgressPath(projectId)} replace />
@@ -325,6 +328,7 @@ export function LibraryEditor() {
             creditsRefreshing={creditsRefreshing}
             onRefreshCredits={refreshCredits}
             busy={busy}
+            regenerateLocked={demoProject}
             userPromptDirty={editor.userPromptDirty}
             errorKey={
               selectedScene ? task?.sceneErrors[selectedScene.id] : undefined
@@ -388,6 +392,7 @@ export function LibraryEditor() {
         value={mix}
         hasMusic={hasMusic}
         busy={audio.audioBusy}
+        narrationLocked={demoProject}
         narrationPercent={audio.narrationPercent}
         narrationSrc={narrationSrc}
         musicSrc={musicSrc}

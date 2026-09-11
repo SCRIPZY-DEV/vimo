@@ -8,13 +8,16 @@ import {
 } from '@/modules/common/fetcher/pipeline'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
+  DEMO_ERROR_MESSAGE_KEYS,
   LIBRARY_ERROR_MESSAGE_KEYS,
   NARRATION_AUDIO_EXTENSIONS,
   UNKNOWN_CREATE_ERROR_KEY,
+  UNKNOWN_DEMO_ERROR_KEY,
 } from '@/modules/videos/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
+import type { DemoStatusResult } from '@pipeline/types/demo.ts'
 import type {
   GenerateStyleSamplesPayload,
   StyleDeletePayload,
@@ -195,6 +198,19 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('generate-style-samples', payload, onEvent)
+  },
+  async demoStatus(): Promise<DemoStatusResult> {
+    return runPipelineJob<DemoStatusResult>('demo-status')
+  },
+  async startDemoPrepare(
+    onEvent: (event: PipelineEventPayload) => void,
+  ): Promise<PipelineJobHandle> {
+    return startPipelineJob('demo-prepare', undefined, onEvent)
+  },
+  demoErrorMessageKey(error: unknown): string {
+    const code = pipelineErrorCode(error)
+    if (!code) return UNKNOWN_DEMO_ERROR_KEY
+    return DEMO_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_DEMO_ERROR_KEY
   },
   async cancelJob(jobId: string): Promise<void> {
     return invoke('cancel_pipeline_job', { jobId })
