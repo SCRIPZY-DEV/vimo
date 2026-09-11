@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                            | Título                                                                      | Estado                   | Área                          |
 | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0028](ADR-0028-pack-v3-historias-short-y-narracion-precargada.md)         | Pack v3 de la demo: historias en Short y narración pre-cargada              | Aceptada                 | app / pipeline                |
 | [ADR-0027](ADR-0027-modo-demo-pipeline-simulado-sobre-pack-prehecho.md)        | Modo demo: pipeline simulado sobre un pack pre-hecho, acceso por vimo.click | Aceptada                 | app / pipeline                |
 | [ADR-0026](ADR-0026-distribucion-windows-instalador-nsis.md)                   | Distribución en Windows: instalador NSIS construido en GitHub Actions       | Aceptada                 | distribución                  |
 | [ADR-0025](ADR-0025-troceo-universal-de-tts-y-tope-de-90k.md)                  | Troceo universal de TTS por motor y tope total de 90 000 caracteres         | Aceptada                 | providers / pipeline / app    |

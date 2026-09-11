@@ -1,8 +1,9 @@
 // Guard ejecutable del modo demo (ADR-0027). Sin app y sin red: genera un
-// pack mínimo en una carpeta temporal (mismo formato v2 del origen, 2 escenas
-// por estilo, archivos diminutos), lo empaqueta en un zip en memoria, lo
-// sirve por HTTP local y corre los subcomandos del sidecar contra una carpeta
-// raíz temporal. Cada sección asserta un invariante de la ADR.
+// pack mínimo en una carpeta temporal (formato v2 del origen más el árbol
+// `short/` del v3 (ADR-0028), 2 escenas por estilo, archivos diminutos), lo
+// empaqueta en un zip en memoria, lo sirve por HTTP local y corre los
+// subcomandos del sidecar contra una carpeta raíz temporal. Cada sección
+// asserta un invariante de la ADR.
 //
 //   pnpm check:demo
 import { spawn } from 'node:child_process'
@@ -39,6 +40,12 @@ const STORIES = {
   cartoon: 'Un día siendo abeja',
   storytelling: 'La luz del farero',
 }
+const SHORT_STORIES = {
+  pov_stickman: 'Tu primer día en Marte',
+  normal: 'Cómo nace una tormenta',
+  cartoon: 'El gato que quería ser panadero',
+  storytelling: 'El último tren a casa',
+}
 const FAKE_JPG = Buffer.from(
   'ffd8ffe000104a46494600010100000100010000ffd9',
   'hex',
@@ -46,45 +53,70 @@ const FAKE_JPG = Buffer.from(
 const FAKE_MP3 = Buffer.from('not-a-real-mp3-but-enough-for-the-guard')
 const FAKE_MP4 = Buffer.from('not-a-real-mp4-but-enough-for-the-guard')
 
-function storyFiles(folder) {
-  const script = `${STORIES[folder]}. Primera frase de la historia. Segunda frase.`
+// Los archivos de una historia. `prefix` vacío = la raíz (16:9); 'short/' =
+// el árbol 9:16 del pack v3, con su propio guion y sus propios prompts para
+// que el guard distinga de qué carpeta salió cada copia.
+function storyFiles(folder, prefix = '') {
+  const short = prefix !== ''
+  const title = short ? SHORT_STORIES[folder] : STORIES[folder]
+  const script = `${title}. Primera frase de la historia. Segunda frase.`
   const words = [
     { word: 'Primera', start: 0.1, end: 0.5, confidence: 0.99 },
     { word: 'frase', start: 0.6, end: 1.0, confidence: 0.98 },
     { word: 'Segunda', start: 1.2, end: 1.7, confidence: 0.97 },
     { word: 'frase', start: 1.8, end: 2.3, confidence: 0.99 },
   ]
+  const kind = short ? 'short scene' : 'scene'
   const scenes = [
     {
       id: 1,
       texto: 'Primera frase',
-      promptImagen: `${folder} scene one`,
+      promptImagen: `${folder} ${kind} one`,
       tiempoInicioSeg: 0,
       tiempoFinSeg: 1.1,
     },
     {
       id: 2,
       texto: 'Segunda frase',
-      promptImagen: `${folder} scene two`,
+      promptImagen: `${folder} ${kind} two`,
       tiempoInicioSeg: 1.1,
       tiempoFinSeg: 2.3,
     },
   ]
   return new Map([
-    [`${folder}/guion.txt`, Buffer.from(script)],
-    [`${folder}/audio.mp3`, FAKE_MP3],
-    [`${folder}/palabras.json`, Buffer.from(JSON.stringify(words))],
-    [`${folder}/escenas.json`, Buffer.from(JSON.stringify(scenes))],
-    [`${folder}/imagenes/imagen_1.jpg`, FAKE_JPG],
-    [`${folder}/imagenes/imagen_2.jpg`, FAKE_JPG],
-    [`${folder}/video_final.mp4`, FAKE_MP4],
+    [`${prefix}${folder}/guion.txt`, Buffer.from(script)],
+    [`${prefix}${folder}/audio.mp3`, FAKE_MP3],
+    [`${prefix}${folder}/palabras.json`, Buffer.from(JSON.stringify(words))],
+    [`${prefix}${folder}/escenas.json`, Buffer.from(JSON.stringify(scenes))],
+    [`${prefix}${folder}/imagenes/imagen_1.jpg`, FAKE_JPG],
+    [`${prefix}${folder}/imagenes/imagen_2.jpg`, FAKE_JPG],
+    [`${prefix}${folder}/video_final.mp4`, FAKE_MP4],
   ])
 }
 
+// `withShort` agrega el bloque `short` del manifest y el árbol short/ (pack
+// v3); `shortComplete: false` omite un archivo del árbol para probar que un
+// short a medias no se instala.
 function buildPackEntries({
   withManifest = true,
+  withShort = true,
+  shortComplete = true,
   container = 'vimo-demo-pack-mini',
 } = {}) {
+  const storiesBlock = (names) => ({
+    estilos: CATALOG_STYLES.map((id) => ({
+      id,
+      nombreSugerido: names[id],
+      numEscenas: 2,
+      duracionAudioSeg: 2.3,
+    })),
+    gema: {
+      id: GEM_FOLDER,
+      nombreSugerido: names[GEM_FOLDER],
+      numEscenas: 2,
+      duracionAudioSeg: 2.3,
+    },
+  })
   const manifest = {
     version: 'mini',
     voz: {
@@ -92,18 +124,8 @@ function buildPackEntries({
       voice_id: 'voice-mini',
       nombre: 'Abel mini',
     },
-    estilos: CATALOG_STYLES.map((id) => ({
-      id,
-      nombreSugerido: STORIES[id],
-      numEscenas: 2,
-      duracionAudioSeg: 2.3,
-    })),
-    gema: {
-      id: GEM_FOLDER,
-      nombreSugerido: STORIES[GEM_FOLDER],
-      numEscenas: 2,
-      duracionAudioSeg: 2.3,
-    },
+    ...storiesBlock(STORIES),
+    ...(withShort ? { short: storiesBlock(SHORT_STORIES) } : {}),
   }
   const gem = {
     nombre: 'STORYTELLING mini',
@@ -121,6 +143,11 @@ function buildPackEntries({
   for (const folder of [...CATALOG_STYLES, GEM_FOLDER]) {
     for (const [name, data] of storyFiles(folder))
       entries.set(`${prefix}${name}`, data)
+    if (!withShort) continue
+    for (const [name, data] of storyFiles(folder, 'short/')) {
+      if (!shortComplete && name === 'short/normal/video_final.mp4') continue
+      entries.set(`${prefix}${name}`, data)
+    }
   }
   return entries
 }
@@ -187,15 +214,18 @@ function sha256(buffer) {
 // ── Servidor HTTP local que sirve los zips ───────────────────────────────────
 const packZip = buildZip(buildPackEntries())
 const brokenZip = buildZip(buildPackEntries({ withManifest: false }))
+const landscapeOnlyZip = buildZip(buildPackEntries({ withShort: false }))
+const shortIncompleteZip = buildZip(buildPackEntries({ shortComplete: false }))
+const served = new Map([
+  ['/pack.zip', packZip],
+  ['/broken.zip', brokenZip],
+  ['/landscape-only.zip', landscapeOnlyZip],
+  ['/short-incomplete.zip', shortIncompleteZip],
+])
 let hits = 0
 const server = createServer((request, response) => {
   hits += 1
-  const body =
-    request.url === '/pack.zip'
-      ? packZip
-      : request.url === '/broken.zip'
-        ? brokenZip
-        : null
+  const body = served.get(request.url) ?? null
   if (!body) {
     response.statusCode = 404
     response.end()
@@ -340,18 +370,38 @@ try {
       manifest?.customStyleId === 'demo-storytelling',
       'manifest.customStyleId es demo-storytelling',
     )
+    const landscape = manifest?.stories?.['16:9']
+    const short = manifest?.stories?.['9:16']
     assert(
-      JSON.stringify(manifest?.styles?.map((style) => style.id)) ===
+      JSON.stringify(landscape?.styles?.map((style) => style.id)) ===
         JSON.stringify(CATALOG_STYLES),
-      'manifest.styles trae los tres estilos del catálogo en orden',
+      'stories[16:9].styles trae los tres estilos del catálogo en orden',
     )
     assert(
-      manifest?.styles?.[0]?.script?.startsWith('Vida en el espacio'),
+      landscape?.styles?.[0]?.script?.startsWith('Vida en el espacio'),
       'cada entrada trae su guion',
     )
     assert(
-      manifest?.customStyle?.suggestedName === 'La luz del farero',
-      'manifest.customStyle es la gema',
+      landscape?.customStyle?.suggestedName === 'La luz del farero',
+      'stories[16:9].customStyle es la gema',
+    )
+    assert(
+      landscape?.styles?.[0]?.audioFile ===
+        join(packRoot, 'pov_stickman', 'audio.mp3') &&
+        existsSync(landscape.styles[0].audioFile),
+      'cada historia trae la ruta absoluta de su audio.mp3',
+    )
+    assert(
+      JSON.stringify(short?.styles?.map((style) => style.id)) ===
+        JSON.stringify(CATALOG_STYLES) &&
+        short?.customStyle?.suggestedName === 'El último tren a casa',
+      'stories[9:16] trae las historias de short/',
+    )
+    assert(
+      short?.styles?.[0]?.audioFile ===
+        join(packRoot, 'short', 'pov_stickman', 'audio.mp3') &&
+        short?.styles?.[0]?.script?.startsWith('Tu primer día en Marte'),
+      'las historias Short apuntan a short/<estilo>',
     )
     assert(
       manifest?.voice?.provider === 'elevenlabs' &&
@@ -386,7 +436,10 @@ try {
       config: demoConfig(),
     })
     assert(resultOf(events)?.ready === true, 'con pack, ready es true')
-    assert(resultOf(events)?.manifest?.styles?.length === 3, 'trae el manifest')
+    assert(
+      resultOf(events)?.manifest?.stories?.['16:9']?.styles?.length === 3,
+      'trae el manifest',
+    )
   }
 
   // 4. La gema no se pisa y el pack no se re-descarga.
@@ -797,6 +850,175 @@ try {
     assert(
       codeOf(run.events) === 'demo_project',
       `replace-narration → demo_project (fue ${codeOf(run.events)})`,
+    )
+  }
+
+  // 14. Historia Short: la carpeta se elige por formato.
+  section('14. historia Short (9:16)')
+  {
+    const projectId = await createProject('Demo short', {
+      demo: true,
+      styleId: 'cartoon',
+      videoFormat: '9:16',
+    })
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+    })
+    assert(
+      resultOf(events)?.status === 'completed',
+      `un proyecto 9:16 en demo completa (fue ${last(events)?.type}: ${last(events)?.message ?? ''})`,
+    )
+    const scenes = JSON.parse(
+      await readFile(join(projectsRoot, projectId, 'scenes.json'), 'utf8'),
+    )
+    assert(
+      scenes[0]?.imagePrompt === 'cartoon short scene one',
+      'los prompts salen de short/cartoon',
+    )
+    assert(
+      (await readMetadata(projectId)).options?.videoFormat === '9:16',
+      'project.json conserva videoFormat 9:16',
+    )
+    const gemId = await createProject('Demo short gema', {
+      demo: true,
+      videoFormat: '9:16',
+      customStyle: {
+        styleId: 'demo-storytelling',
+        name: 'STORYTELLING mini',
+        systemPrompt: 'You write prompts.',
+        shots: [],
+      },
+    })
+    const gemRun = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId: gemId },
+    })
+    const gemScenes = JSON.parse(
+      await readFile(join(projectsRoot, gemId, 'scenes.json'), 'utf8'),
+    )
+    assert(
+      resultOf(gemRun.events)?.status === 'completed' &&
+        gemScenes[0]?.imagePrompt === 'storytelling short scene one',
+      'la gema en 9:16 sale de short/storytelling',
+    )
+  }
+
+  // 15. «Subir mi audio» en demo: sin ramp de voz y narración del pack.
+  section('15. audio propio en demo')
+  {
+    const projectId = await createProject('Demo audio propio', {
+      demo: true,
+      narrationMode: 'own-audio',
+    })
+    // Lo que upload-narration deja en el proyecto (sin ffmpeg en el guard).
+    await writeFile(
+      join(projectsRoot, projectId, 'narration.mp3'),
+      Buffer.from('audio subido por la persona'),
+    )
+    const started = []
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+      onEvent(event) {
+        if (event.type === 'stage-started') started.push(event.stageId)
+      },
+    })
+    assert(
+      resultOf(events)?.status === 'completed',
+      `con own-audio la demo completa (fue ${last(events)?.type}: ${last(events)?.message ?? ''})`,
+    )
+    assert(
+      started[0] === 'voice' &&
+        !events.some((event) => event.type === 'voice-progress'),
+      'la fase voice corre sin voice-progress',
+    )
+    assert(
+      (await readFile(join(projectsRoot, projectId, 'narration.mp3'))).equals(
+        FAKE_MP3,
+      ),
+      'narration.mp3 termina siendo el audio del pack',
+    )
+  }
+
+  // 16. Pack v2 (sin short): válido, sin historias 9:16.
+  section('16. pack sin Short')
+  {
+    const v2Root = join(workspace, 'Vimo-v2')
+    await mkdir(v2Root, { recursive: true })
+    const config = demoConfig({
+      packUrl: `${baseUrl}/landscape-only.zip`,
+      packSha256: sha256(landscapeOnlyZip),
+    })
+    const prepared = await runSidecar('demo-prepare', {
+      projectsRoot: v2Root,
+      config,
+    })
+    assert(
+      last(prepared.events)?.type === 'job-completed',
+      `un pack sin short se instala (fue ${last(prepared.events)?.type}: ${last(prepared.events)?.message ?? ''})`,
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: v2Root,
+      config,
+    })
+    assert(
+      resultOf(status.events)?.ready === true &&
+        resultOf(status.events)?.manifest?.stories?.['9:16'] === undefined &&
+        resultOf(status.events)?.manifest?.stories?.['16:9']?.styles?.length ===
+          3,
+      'sin short no hay stories[9:16] y sí 16:9',
+    )
+    const created = await runSidecar('create-video-project', {
+      projectsRoot: v2Root,
+      config,
+      payload: projectPayload('Demo short sin pack', {
+        demo: true,
+        videoFormat: '9:16',
+      }),
+    })
+    const projectId = resultOf(created.events)?.projectId
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot: v2Root,
+      config,
+      payload: { projectId },
+    })
+    assert(
+      codeOf(events) === 'demo_format_not_included',
+      `9:16 sin short → demo_format_not_included (fue ${codeOf(events)})`,
+    )
+    const metadata = JSON.parse(
+      await readFile(join(v2Root, projectId, 'project.json'), 'utf8'),
+    )
+    assert(
+      metadata.state === 'error' &&
+        metadata.errorCode === 'demo_format_not_included',
+      'el error queda persistido',
+    )
+  }
+
+  // 17. Short a medias: no se instala.
+  section('17. Short incompleto')
+  {
+    const brokenShortRoot = join(workspace, 'Vimo-short-incomplete')
+    await mkdir(brokenShortRoot, { recursive: true })
+    const { events } = await runSidecar('demo-prepare', {
+      projectsRoot: brokenShortRoot,
+      config: demoConfig({
+        packUrl: `${baseUrl}/short-incomplete.zip`,
+        packSha256: sha256(shortIncompleteZip),
+      }),
+    })
+    assert(
+      codeOf(events) === 'demo_pack_incomplete',
+      `short/ sin un video → demo_pack_incomplete (fue ${codeOf(events)})`,
+    )
+    assert(
+      !existsSync(join(brokenShortRoot, '_demo-pack')),
+      'un short incompleto no deja _demo-pack a medias',
     )
   }
 } finally {

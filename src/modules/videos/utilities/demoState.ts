@@ -10,9 +10,15 @@ export function readDemoState(state: unknown): DemoManifest | null {
   if (typeof demo !== 'object' || demo === null) return null
 
   const manifest = demo as Partial<DemoManifest>
-  if (!Array.isArray(manifest.styles) || manifest.styles.length === 0)
+  // Las historias 16:9 están en todo pack (ADR-0028): sin ellas el state no
+  // es un manifest de la demo.
+  const landscape = manifest.stories?.['16:9']
+  if (!landscape) return null
+
+  if (!Array.isArray(landscape.styles) || landscape.styles.length === 0)
     return null
-  if (!manifest.voice || !manifest.customStyle || !manifest.customStyleId)
+  if (!manifest.voice || !landscape.customStyle || !manifest.customStyleId)
     return null
+
   return manifest as DemoManifest
 }

@@ -7,9 +7,12 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import type { DemoConfig } from '../../config/pipeline-config.ts'
 import type {
   DemoManifest,
+  DemoStories,
+  DemoStoriesByFormat,
   DemoStyleEntry,
   DemoVoice,
 } from '../../types/demo.ts'
+import type { VideoFormat } from '../../types/video-format.ts'
 import type { VideoProjectOptions } from '../../types/video-project.ts'
 import type { VoiceProviderId } from '../../types/voices.ts'
 import { ensureDirectory, writeFileAtomic } from '../../utils/atomic-fs.ts'
@@ -21,10 +24,12 @@ import {
   type StoredStyle,
 } from '../styles/style-store.ts'
 
-// El pack pre-hecho de la demo (ADR-0027): el zip publicado se extrae TAL
-// CUAL (formato v2 del origen, claves en español) en <projectsRoot>/_demo-pack
-// y se traduce al formato nativo al leer y al copiar. Este archivo es el
-// único que conoce ese formato.
+// El pack pre-hecho de la demo (ADR-0027, v3 en ADR-0028): el zip publicado
+// se extrae TAL CUAL (claves en español) en <projectsRoot>/_demo-pack y se
+// traduce al formato nativo al leer y al copiar. La raíz es el formato v2
+// (una carpeta por estilo, en 16:9); `short/` repite ese árbol en 9:16 y es
+// opcional — sin él no hay historias Short. Este archivo es el único que
+// conoce ese formato.
 export const DEMO_PACK_SUBDIRECTORY = '_demo-pack'
 export const DEMO_PACK_OK_FILE = '.ok'
 export const DEMO_PACK_MANIFEST_FILE = 'manifest.json'
@@ -37,6 +42,8 @@ export const DEMO_CATALOG_STYLES = [
 // La gema («Mi estilo») del pack: su historia y su estilo.json + muestras.
 export const DEMO_CUSTOM_STYLE_FOLDER = 'storytelling'
 export const DEMO_GEM_FOLDER = 'gema'
+// Las historias en 9:16 (pack v3): mismo árbol por estilo bajo esta carpeta.
+export const DEMO_SHORT_FOLDER = 'short'
 // Id con el que se siembra en la galería (_styles/<id>/); cumple
 // STYLE_ID_PATTERN.
 export const DEMO_CUSTOM_STYLE_ID = 'demo-storytelling'
@@ -61,7 +68,7 @@ const VOICE_PROVIDER_IDS: readonly string[] = [
 ]
 const FALLBACK_VOICE_PROVIDER: VoiceProviderId = 'elevenlabs'
 
-// ─── Formato v2 del origen (solo lectura) ───
+// ─── Formato del origen (solo lectura) ───
 
 interface PackManifestEntry {
   id?: string
@@ -70,11 +77,17 @@ interface PackManifestEntry {
   duracionAudioSeg?: number
 }
 
-interface PackManifest {
-  version?: string
-  voz?: { provider?: string; voice_id?: string; nombre?: string }
+// Las historias de un formato tal como las lista el manifest: la raíz (16:9)
+// y, desde v3, el bloque `short` (9:16).
+interface PackStoriesManifest {
   estilos?: PackManifestEntry[]
   gema?: PackManifestEntry
+}
+
+interface PackManifest extends PackStoriesManifest {
+  version?: string
+  voz?: { provider?: string; voice_id?: string; nombre?: string }
+  short?: PackStoriesManifest
 }
 
 export interface PackScene {
@@ -107,8 +120,8 @@ export function demoPackRoot(context: PipelineContext): string {
   return join(projectsRootOf(context), DEMO_PACK_SUBDIRECTORY)
 }
 
-export function packImageFile(styleDirectory: string, sceneId: number): string {
-  return join(styleDirectory, PACK_IMAGES_DIRECTORY, `imagen_${sceneId}.jpg`)
+export function packImageFile(storyDirectory: string, sceneId: number): string {
+  return join(storyDirectory, PACK_IMAGES_DIRECTORY, `imagen_${sceneId}.jpg`)
 }
 
 // Con qué carpeta del pack se arma un proyecto: la gema manda (customStyle
@@ -125,6 +138,17 @@ export function demoStyleFolderFor(options: VideoProjectOptions): string {
   )
 }
 
+// La carpeta de una historia = formato + estilo: la raíz para 16:9, `short/`
+// para 9:16 (ADR-0028).
+export function demoStoryDirectory(
+  packRoot: string,
+  format: VideoFormat,
+  styleFolder: string,
+): string {
+  if (format === '9:16') return join(packRoot, DEMO_SHORT_FOLDER, styleFolder)
+  return join(packRoot, styleFolder)
+}
+
 async function readJsonFile<T>(path: string): Promise<T | null> {
   try {
     return JSON.parse(await readFile(path, 'utf8')) as T
@@ -133,63 +157,72 @@ async function readJsonFile<T>(path: string): Promise<T | null> {
   }
 }
 
+function hasStories(block: PackStoriesManifest | undefined): boolean {
+  return Array.isArray(block?.estilos) && block?.gema !== undefined
+}
+
+// El bloque `short` es opcional, pero si está tiene la misma forma que la
+// raíz: un `short` malformado invalida el manifest entero.
 async function readPackManifest(
   packRoot: string,
 ): Promise<PackManifest | null> {
   const manifest = await readJsonFile<PackManifest>(
     join(packRoot, DEMO_PACK_MANIFEST_FILE),
   )
-  if (!manifest?.voz?.voice_id || !Array.isArray(manifest.estilos)) return null
-  if (!manifest.gema) return null
+  if (!manifest?.voz?.voice_id || !hasStories(manifest)) return null
+  if (manifest.short !== undefined && !hasStories(manifest.short)) return null
   return manifest
 }
 
 export async function readPackScenes(
-  styleDirectory: string,
+  storyDirectory: string,
 ): Promise<PackScene[]> {
   const scenes = await readJsonFile<PackScene[]>(
-    join(styleDirectory, PACK_SCENES_FILE),
+    join(storyDirectory, PACK_SCENES_FILE),
   )
   if (!Array.isArray(scenes) || scenes.length === 0)
     throw new PipelineFailure(
       'demo_pack_incomplete',
-      `${PACK_SCENES_FILE} is missing or empty in ${styleDirectory}`,
+      `${PACK_SCENES_FILE} is missing or empty in ${storyDirectory}`,
     )
   return scenes
 }
 
 export async function readPackWords(
-  styleDirectory: string,
+  storyDirectory: string,
 ): Promise<PackWord[]> {
   const words = await readJsonFile<PackWord[]>(
-    join(styleDirectory, PACK_WORDS_FILE),
+    join(storyDirectory, PACK_WORDS_FILE),
   )
   if (!Array.isArray(words) || words.length === 0)
     throw new PipelineFailure(
       'demo_pack_incomplete',
-      `${PACK_WORDS_FILE} is missing or empty in ${styleDirectory}`,
+      `${PACK_WORDS_FILE} is missing or empty in ${storyDirectory}`,
     )
   return words
 }
 
-// null = pack completo; string = el primer problema encontrado (diagnóstico).
-export async function validatePack(packRoot: string): Promise<string | null> {
-  const manifest = await readPackManifest(packRoot)
-  if (!manifest) return `${DEMO_PACK_MANIFEST_FILE} is missing or malformed`
-
-  // El manifest tiene que nombrar los tres estilos del catálogo (con ese
-  // `id` exacto) y una gema con id: si falta uno, run-demo-pipeline no
-  // encuentra su entrada más tarde y el proyecto queda incompletable sin
-  // que `.ok` lo hubiera avisado.
+// Las historias de un árbol (la raíz o `short/`): el manifest tiene que
+// nombrar los tres estilos del catálogo (con ese `id` exacto) y una gema con
+// id, y cada carpeta tiene que estar completa. Si falta algo,
+// run-demo-pipeline no lo encontraría más tarde y el proyecto quedaría
+// incompletable sin que `.ok` lo hubiera avisado. `prefix` vacío = la raíz.
+async function validateStories(
+  packRoot: string,
+  prefix: string,
+  block: PackStoriesManifest,
+): Promise<string | null> {
+  const label = prefix ? `${prefix} ` : ''
   for (const styleId of DEMO_CATALOG_STYLES) {
-    if (!manifest.estilos?.some((entry) => entry.id === styleId))
-      return `${DEMO_PACK_MANIFEST_FILE} lists no entry for style "${styleId}"`
+    if (!block.estilos?.some((entry) => entry.id === styleId))
+      return `${DEMO_PACK_MANIFEST_FILE} lists no ${label}entry for style "${styleId}"`
   }
-  if (!manifest.gema?.id?.trim())
-    return `${DEMO_PACK_MANIFEST_FILE} gema entry has no id`
+  if (!block.gema?.id?.trim())
+    return `${DEMO_PACK_MANIFEST_FILE} ${label}gema entry has no id`
 
   for (const folder of [...DEMO_CATALOG_STYLES, DEMO_CUSTOM_STYLE_FOLDER]) {
-    const directory = join(packRoot, folder)
+    const relative = prefix ? `${prefix}/${folder}` : folder
+    const directory = join(packRoot, prefix, folder)
     for (const file of [
       PACK_SCRIPT_FILE,
       PACK_AUDIO_FILE,
@@ -197,22 +230,42 @@ export async function validatePack(packRoot: string): Promise<string | null> {
       PACK_VIDEO_FILE,
     ]) {
       if (!(await isValidFile(join(directory, file))))
-        return `${folder}/${file} is missing`
+        return `${relative}/${file} is missing`
     }
     const scenes = await readJsonFile<PackScene[]>(
       join(directory, PACK_SCENES_FILE),
     )
     if (!Array.isArray(scenes) || scenes.length === 0)
-      return `${folder}/${PACK_SCENES_FILE} is missing or empty`
+      return `${relative}/${PACK_SCENES_FILE} is missing or empty`
     for (const scene of scenes) {
       if (
         typeof scene?.id !== 'number' ||
         typeof scene.promptImagen !== 'string'
       )
-        return `${folder}/${PACK_SCENES_FILE} has a scene without id or promptImagen`
+        return `${relative}/${PACK_SCENES_FILE} has a scene without id or promptImagen`
       if (!(await isValidFile(packImageFile(directory, scene.id))))
-        return `${folder}/${PACK_IMAGES_DIRECTORY}/imagen_${scene.id}.jpg is missing`
+        return `${relative}/${PACK_IMAGES_DIRECTORY}/imagen_${scene.id}.jpg is missing`
     }
+  }
+  return null
+}
+
+// null = pack completo; string = el primer problema encontrado (diagnóstico).
+export async function validatePack(packRoot: string): Promise<string | null> {
+  const manifest = await readPackManifest(packRoot)
+  if (!manifest) return `${DEMO_PACK_MANIFEST_FILE} is missing or malformed`
+
+  const landscape = await validateStories(packRoot, '', manifest)
+  if (landscape) return landscape
+
+  // `short/` es opcional; presente, se exige entero (ADR-0028).
+  if (manifest.short) {
+    const short = await validateStories(
+      packRoot,
+      DEMO_SHORT_FOLDER,
+      manifest.short,
+    )
+    if (short) return short
   }
 
   const gem = await readJsonFile<PackGemStyle>(
@@ -266,45 +319,77 @@ function toVoiceProviderId(value: string | undefined): VoiceProviderId {
 
 async function toStyleEntry(
   packRoot: string,
+  prefix: string,
   folder: string,
   entry: PackManifestEntry,
 ): Promise<DemoStyleEntry> {
-  const script = await readFile(
-    join(packRoot, folder, PACK_SCRIPT_FILE),
-    'utf8',
-  )
+  const directory = join(packRoot, prefix, folder)
+  const script = await readFile(join(directory, PACK_SCRIPT_FILE), 'utf8')
   return {
     id: entry.id ?? folder,
     suggestedName: entry.nombreSugerido ?? folder,
     script: script.trim(),
     sceneCount: entry.numEscenas ?? 0,
     audioDurationSeconds: entry.duracionAudioSeg ?? 0,
+    audioFile: join(directory, PACK_AUDIO_FILE),
   }
 }
 
-// El manifest nativo: lo que Crear necesita para pre-llenarse. Solo entran
-// los estilos del catálogo que tienen carpeta en el pack.
+// Las historias de un árbol en formato nativo. Solo entran los estilos del
+// catálogo que tienen carpeta en el pack.
+async function readStories(
+  packRoot: string,
+  prefix: string,
+  block: PackStoriesManifest,
+): Promise<DemoStories> {
+  const styles: DemoStyleEntry[] = []
+  for (const entry of block.estilos ?? []) {
+    if (!entry.id) continue
+    if (!(DEMO_CATALOG_STYLES as readonly string[]).includes(entry.id)) continue
+    styles.push(await toStyleEntry(packRoot, prefix, entry.id, entry))
+  }
+  if (styles.length === 0)
+    throw new PipelineFailure(
+      'demo_pack_incomplete',
+      `${DEMO_PACK_MANIFEST_FILE} lists no ${prefix || 'landscape'} catalog style`,
+    )
+  if (!block.gema)
+    throw new PipelineFailure(
+      'demo_pack_incomplete',
+      `${DEMO_PACK_MANIFEST_FILE} has no ${prefix || 'landscape'} gema entry`,
+    )
+  return {
+    styles,
+    customStyle: await toStyleEntry(
+      packRoot,
+      prefix,
+      DEMO_CUSTOM_STYLE_FOLDER,
+      block.gema,
+    ),
+  }
+}
+
+// El manifest nativo: lo que Crear necesita para pre-llenarse, con las
+// historias por formato (16:9 siempre; 9:16 solo si el pack trae `short`).
 export async function readDemoManifest(
   packRoot: string,
   demo: DemoConfig,
 ): Promise<DemoManifest> {
   const manifest = await readPackManifest(packRoot)
-  if (!manifest?.gema)
+  if (!manifest)
     throw new PipelineFailure(
       'demo_pack_incomplete',
       `${DEMO_PACK_MANIFEST_FILE} is missing or malformed`,
     )
 
-  const styles: DemoStyleEntry[] = []
-  for (const entry of manifest.estilos ?? []) {
-    if (!entry.id) continue
-    if (!(DEMO_CATALOG_STYLES as readonly string[]).includes(entry.id)) continue
-    styles.push(await toStyleEntry(packRoot, entry.id, entry))
+  const stories: DemoStoriesByFormat = {
+    '16:9': await readStories(packRoot, '', manifest),
   }
-  if (styles.length === 0)
-    throw new PipelineFailure(
-      'demo_pack_incomplete',
-      `${DEMO_PACK_MANIFEST_FILE} lists no catalog style`,
+  if (manifest.short)
+    stories['9:16'] = await readStories(
+      packRoot,
+      DEMO_SHORT_FOLDER,
+      manifest.short,
     )
 
   const voice: DemoVoice = {
@@ -316,12 +401,7 @@ export async function readDemoManifest(
   return {
     version: manifest.version ?? demo.packVersion,
     voice,
-    styles,
-    customStyle: await toStyleEntry(
-      packRoot,
-      DEMO_CUSTOM_STYLE_FOLDER,
-      manifest.gema,
-    ),
+    stories,
     customStyleId: DEMO_CUSTOM_STYLE_ID,
   }
 }

@@ -11,8 +11,9 @@ import {
 import { PipelineFailure, toPipelineFailure } from '../../runner/failure.ts'
 import type { StageId } from '../../runner/stage-id.ts'
 import type { CreateVideoContext } from '../../stages/context.ts'
-import type { DemoManifest, DemoStyleEntry } from '../../types/demo.ts'
+import type { DemoStories, DemoStyleEntry } from '../../types/demo.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
+import { videoFormatOf } from '../../types/video-format.ts'
 import type { RunVideoPipelineResult } from '../../types/video-project.ts'
 import { ensureDirectory, writeFileAtomic } from '../../utils/atomic-fs.ts'
 import {
@@ -22,6 +23,7 @@ import {
   PACK_SCRIPT_FILE,
   PACK_VIDEO_FILE,
   demoPackRoot,
+  demoStoryDirectory,
   demoStyleFolderFor,
   isPackInstalled,
   packImageFile,
@@ -40,6 +42,8 @@ import {
 //  - Solo eventos de runner/events.ts, y nunca awaiting-scene-confirmation.
 //  - Toda espera respeta context.signal: cancelar deja `paused` como una
 //    corrida real; volver a correr es idempotente (las copias pisan).
+//  - La carpeta se elige por formato (raíz = 16:9, `short/` = 9:16) y estilo;
+//    con `own-audio` no hay ramp de voz (ADR-0028).
 
 // Presupuesto ≈ 40 s (pedido del dueño): las fases por escena reparten su
 // presupuesto entre las N escenas del pack; las imágenes van de a 10 como la
@@ -85,14 +89,24 @@ export async function runDemoPipeline(
         'the demo pack is not installed in this projects root',
       )
 
-    const folder = demoStyleFolderFor(context.options)
-    const styleDirectory = join(packRoot, folder)
+    const styleFolder = demoStyleFolderFor(context.options)
+    const format = videoFormatOf(context.options)
     const manifest = await readDemoManifest(packRoot, demo)
-    const entry = resolveStyleEntry(manifest, folder)
-    const packScenes = await readPackScenes(styleDirectory)
-    const packWords = await readPackWords(styleDirectory)
+    const stories = manifest.stories[format]
+    // Crear en demo solo ofrece los formatos con historias en el pack (Short
+    // queda en «Próximamente» con un pack v2): llegar acá es un payload a
+    // mano o un pack cambiado por debajo, y queda como error del proyecto.
+    if (!stories)
+      throw new PipelineFailure(
+        'demo_format_not_included',
+        `the demo pack has no ${format} stories`,
+      )
+    const storyDirectory = demoStoryDirectory(packRoot, format, styleFolder)
+    const entry = resolveStyleEntry(stories, styleFolder)
+    const packScenes = await readPackScenes(storyDirectory)
+    const packWords = await readPackWords(storyDirectory)
     const packScript = await readFile(
-      join(styleDirectory, PACK_SCRIPT_FILE),
+      join(storyDirectory, PACK_SCRIPT_FILE),
       'utf8',
     )
 
@@ -119,20 +133,26 @@ export async function runDemoPipeline(
     }))
     const sceneCount = Math.max(1, scenes.length)
 
-    // ── voice (~4 s) ──
+    // ── voice (~4 s; sin ramp con audio propio) ──
     await stage('voice', async () => {
-      for (const [index, percent] of VOICE_TICKS.entries()) {
-        await wait(VOICE_TICK_MS)
-        context.emitter.emit({
-          type: 'voice-progress',
-          provider: manifest.voice.provider,
-          totalChars: packScript.length,
-          elapsedSeconds: index + 1,
-          percent,
-        })
+      // Con «Subir mi audio» la narración ya está en el proyecto
+      // (upload-narration) y el pipeline real no sintetiza nada: acá tampoco
+      // hay ramp. La copia se hace igual: en demo la narración es SIEMPRE la
+      // de la historia del pack (ADR-0028), aunque se haya subido otro archivo.
+      if (context.options.narrationMode === 'tts') {
+        for (const [index, percent] of VOICE_TICKS.entries()) {
+          await wait(VOICE_TICK_MS)
+          context.emitter.emit({
+            type: 'voice-progress',
+            provider: manifest.voice.provider,
+            totalChars: packScript.length,
+            elapsedSeconds: index + 1,
+            percent,
+          })
+        }
       }
       await copyFile(
-        join(styleDirectory, PACK_AUDIO_FILE),
+        join(storyDirectory, PACK_AUDIO_FILE),
         context.paths.narrationFile,
       )
     })
@@ -233,7 +253,7 @@ export async function runDemoPipeline(
         }
         for (const scene of batch) {
           const imagePath = sceneImageFile(context.paths, scene.id)
-          await copyFile(packImageFile(styleDirectory, scene.id), imagePath)
+          await copyFile(packImageFile(storyDirectory, scene.id), imagePath)
           context.emitter.emit({
             type: 'scene-image-ready',
             sceneId: scene.id,
@@ -261,7 +281,7 @@ export async function runDemoPipeline(
         phase: 'concat',
       })
       await copyFile(
-        join(styleDirectory, PACK_VIDEO_FILE),
+        join(storyDirectory, PACK_VIDEO_FILE),
         context.paths.videoFile,
       )
       await wait(RENDER_FINAL_WAIT_MS)
@@ -289,18 +309,18 @@ export async function runDemoPipeline(
   }
 }
 
-// La carpeta de la gema no tiene entrada en manifest.styles (vive aparte, en
-// manifest.customStyle); cualquier otra carpeta sin entrada es un pack
+// La carpeta de la gema no tiene entrada en stories.styles (vive aparte, en
+// stories.customStyle); cualquier otra carpeta sin entrada es un pack
 // incompleto — nunca se cae de vuelta a un estilo cualquiera del manifest
 // por accidente (validatePack ya exige las tres, pero un pack corrupto
 // puede haber sido instalado antes de que ese chequeo existiera).
 function resolveStyleEntry(
-  manifest: DemoManifest,
+  stories: DemoStories,
   folder: string,
 ): DemoStyleEntry {
-  if (folder === DEMO_CUSTOM_STYLE_FOLDER) return manifest.customStyle
+  if (folder === DEMO_CUSTOM_STYLE_FOLDER) return stories.customStyle
 
-  const entry = manifest.styles.find((style) => style.id === folder)
+  const entry = stories.styles.find((style) => style.id === folder)
   if (entry) return entry
 
   throw new PipelineFailure(

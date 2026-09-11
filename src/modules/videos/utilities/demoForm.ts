@@ -13,7 +13,7 @@ import type { DemoManifest, DemoStyleEntry } from '@pipeline/types/demo.ts'
 export function demoStyleIds(manifest: DemoManifest): CharacterStyleId[] {
   const ids: CharacterStyleId[] = []
   for (const style of VIDEO_STYLES) {
-    if (manifest.styles.some((entry) => entry.id === style.id))
+    if (manifest.stories['16:9'].styles.some((entry) => entry.id === style.id))
       ids.push(style.id)
   }
   return ids
@@ -26,9 +26,10 @@ export function demoEntryFor(
   styleSource: StyleSource,
   styleId: CharacterStyleId,
 ): DemoStyleEntry {
-  if (styleSource === 'custom') return manifest.customStyle
+  if (styleSource === 'custom') return manifest.stories['16:9'].customStyle
   return (
-    manifest.styles.find((entry) => entry.id === styleId) ?? manifest.styles[0]
+    manifest.stories['16:9'].styles.find((entry) => entry.id === styleId) ??
+    manifest.stories['16:9'].styles[0]
   )
 }
 
