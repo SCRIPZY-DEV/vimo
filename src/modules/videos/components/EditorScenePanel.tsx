@@ -199,11 +199,13 @@ export function EditorScenePanel({
       {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
           trunca en vez de salirse del botón junto con el ícono. En un proyecto
           demo el botón queda deshabilitado con el porqué en el tooltip (el
-          <span> recibe el hover que un botón deshabilitado no recibe). */}
+          <span> recibe el hover que un botón deshabilitado no recibe, y con
+          tabIndex es también quien llega por teclado para que el foco
+          dispare el mismo tooltip). */}
       {regenerateLocked ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="block">
+            <span className="block" tabIndex={0}>
               <Button
                 disabled
                 className="w-full min-w-0 rounded-xl font-display font-bold"
