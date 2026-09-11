@@ -13,6 +13,7 @@ const BADGE_CLASSES: Record<ProjectBadge, string> = {
   awaitingConfirmation: 'bg-saffron/15 text-saffron',
   interrupted: 'bg-muted text-muted-foreground',
   paused: 'bg-muted text-muted-foreground',
+  noCredits: 'bg-coral/15 text-coral',
   error: 'bg-destructive/10 text-destructive',
   draft: 'bg-muted text-muted-foreground',
 }

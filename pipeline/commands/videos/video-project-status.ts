@@ -1,5 +1,6 @@
 import { readProjectMetadata } from '../../project/metadata.ts'
 import {
+  isValidFile,
   projectsRootOf,
   resolveProjectDir,
   resolveProjectPaths,
@@ -7,6 +8,7 @@ import {
 import { readScenes, toSceneSummaries } from '../../project/scenes-file.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
+import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 import type {
   VideoProjectStatusPayload,
   VideoProjectStatusResult,
@@ -31,8 +33,11 @@ export async function videoProjectStatus(
   const metadata = await readProjectMetadata(paths)
   const scenes = await readScenes(paths)
 
-  return {
+  const result: VideoProjectStatusResult = {
     metadata,
     scenes: scenes ? await toSceneSummaries(paths, scenes) : [],
   }
+  if (await isValidFile(paths.scriptFile))
+    result.scriptCharCount = (await readTextWithRetry(paths.scriptFile)).length
+  return result
 }

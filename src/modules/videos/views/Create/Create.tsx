@@ -25,6 +25,7 @@ import {
   libraryEditorPath,
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
+import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
 import {
@@ -172,6 +173,10 @@ function CreateView({
     ? { ...form, customStyle: selectedCustomStyleFrom(demoGem) }
     : form
 
+  // El formulario ya avisa con el saldo cacheado; acá se re-lee justo antes
+  // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse.
+  const { verify: verifyCredits } = useCreateCostCheck({ form })
+
   // Sin auto-export el job termina sin video: el destino natural es el
   // editor (el proyecto quedó en borrador con todo generado, ADR-0016).
   useEffect(() => {
@@ -210,6 +215,10 @@ function CreateView({
       }
     }
     setProbeFailure(null)
+    // Con saldo insuficiente recién leído el formulario muestra la alerta
+    // (la caché fresca la alimenta) y no se arranca un job condenado.
+    const costCheck = await verifyCredits()
+    if (costCheck.blocking) return
     const promptModel = resolvePromptModel(
       form.promptModel,
       models,

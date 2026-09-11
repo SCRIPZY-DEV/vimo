@@ -18,6 +18,12 @@ import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
+import { apiKeysApi } from '@/modules/api-keys/api'
+import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
+import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
+import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
+import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
+import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import {
@@ -119,8 +125,26 @@ export function CustomStyleModal({
   const autoStarted = useRef(false)
 
   const hasPrompt = systemPrompt.trim().length > 0
+  // Las muestras se cobran como N imágenes en calidad base (ADR-0029): con
+  // saldo leído insuficiente el botón se frena y se ofrece recargar.
+  const samplesEstimate = provider
+    ? imageCostEstimate(
+        provider,
+        defaultQualityFor(provider),
+        CUSTOM_STYLE_SAMPLE_COUNT,
+      )
+    : null
+  const creditsCheck = compareCostLines(
+    samplesEstimate ? [samplesEstimate] : [],
+    { image: credits.credits, voice: null },
+    providerLabel,
+  )
   const canGenerate =
-    hasPrompt && provider !== null && !samplesJob.running && !saving
+    hasPrompt &&
+    provider !== null &&
+    !samplesJob.running &&
+    !saving &&
+    !creditsCheck.blocking
   const character = characterDraft.character
 
   const changeCharacter = (next: StyleCharacter) => {
@@ -387,6 +411,18 @@ export function CustomStyleModal({
             <p className="font-body text-xs text-muted-foreground">
               {t('create.customStyles.samplesNote')}
             </p>
+
+            {creditsCheck.blocking && (
+              <InsufficientCreditsAlert
+                lines={creditsCheck.lines}
+                blocking
+                onReload={(providerId) =>
+                  void apiKeysApi.openBillingPage(providerId)
+                }
+                onRefresh={credits.refresh}
+                refreshing={credits.isLoading || credits.isRefreshing}
+              />
+            )}
 
             {saveErrorKey && <ErrorMessage>{t(saveErrorKey)}</ErrorMessage>}
             {samplesJob.errorKey && (

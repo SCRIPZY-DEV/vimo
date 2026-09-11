@@ -10,6 +10,10 @@ import {
   startOrderDeadline,
 } from '../../providers/image/evolink.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
+import {
+  isInsufficientCreditsFailure,
+  isInsufficientTaskError,
+} from '../../utils/insufficient-credits.ts'
 import { sleep } from '../../utils/sleep.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { VideoFormat } from '../../types/video-format.ts'
@@ -160,6 +164,9 @@ export async function generateSceneWithEvolink(
       // persistida (cancelar no la des-factura: al retomar se cosecha).
       if (options.signal.aborted)
         return { scene: withPendingTask(), imageReady: false }
+      // Saldo agotado: no es de esta escena sino de la cuenta — corta la
+      // fase entera; el proyecto queda pausado y retomable (ADR-0031).
+      if (isInsufficientCreditsFailure(error)) throw error
 
       // Plazo del encargo vencido: verificación FINAL antes de re-encargar.
       if (order.expired()) {
@@ -200,6 +207,11 @@ export async function generateSceneWithEvolink(
                 imageReady: false,
               }
             }
+            if (isInsufficientTaskError(code, message))
+              throw new PipelineFailure(
+                'image_insufficient_credits',
+                `Evolink task for scene ${scene.id} rejected for insufficient credits: [${code}] ${message}`,
+              )
             if (RETRYABLE_TASK_ERRORS.has(code) && attempt < MAX_ORDERS) {
               await sleep(2000 * attempt, options.signal)
               continue

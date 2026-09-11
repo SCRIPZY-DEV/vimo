@@ -58,7 +58,12 @@ export function Voices() {
   const { isNative, missingKeys, ready } = useRequiredApiKeys({
     requirements: VOICE_VENDOR_API_KEY_REQUIREMENTS[vendor],
   })
-  const { credits } = useVoiceCredits({ vendor })
+  const {
+    credits,
+    refresh: refreshCredits,
+    isLoading: creditsLoading,
+    isRefreshing: creditsRefreshing,
+  } = useVoiceCredits({ vendor })
   const { favorites, isFavorite, toggleFavorite } = useVoiceFavorites()
   const { playingUrl, togglePreview } = useVoicePreview()
   const { task } = useVoiceTask()
@@ -344,6 +349,9 @@ export function Voices() {
               key={selectedVoice.provider}
               voice={selectedVoice}
               disabled={!isNative || missingKeys}
+              credits={credits}
+              onRefreshCredits={refreshCredits}
+              creditsRefreshing={creditsLoading || creditsRefreshing}
             />
           )}
         </DialogContent>

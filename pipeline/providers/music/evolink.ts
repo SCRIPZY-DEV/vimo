@@ -3,6 +3,10 @@ import { dirname } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
+import {
+  isInsufficientCreditsResponse,
+  isInsufficientTaskError,
+} from '../../utils/insufficient-credits.ts'
 import type {
   EvolinkCredits,
   EvolinkCreditsResponse,
@@ -141,16 +145,24 @@ async function createTask(
     throw new PipelineFailure('music_network', 'Evolink create request failed')
   })
 
-  if (response.status === 401 || response.status === 403)
-    throw new PipelineFailure(
-      'music_invalid_api_key',
-      `Evolink rejected the API key (status=${response.status})`,
-    )
-  if (!response.ok)
+  if (!response.ok) {
+    const bodyText = (await response.text().catch(() => '')).slice(0, 300)
+    // Saldo agotado antes que la clave (ADR-0031).
+    if (isInsufficientCreditsResponse(response.status, bodyText))
+      throw new PipelineFailure(
+        'music_insufficient_credits',
+        `Evolink rejected the music request for insufficient credits (status=${response.status}) ${bodyText}`,
+      )
+    if (response.status === 401 || response.status === 403)
+      throw new PipelineFailure(
+        'music_invalid_api_key',
+        `Evolink rejected the API key (status=${response.status})`,
+      )
     throw new PipelineFailure(
       'music_provider_error',
-      `Evolink create failed (status=${response.status})`,
+      `Evolink create failed (status=${response.status}) ${bodyText}`,
     )
+  }
 
   const data = (await response.json()) as EvolinkGenerationResponse
   if (!data.id)
@@ -217,11 +229,16 @@ export async function generateMusic(
 
       return { options: musicOptions, estimatedCredits }
     }
-    if (data.status === 'failed')
-      throw new PipelineFailure(
-        'music_generation_failed',
-        data.error?.message ?? 'Evolink task failed',
-      )
+    if (data.status === 'failed') {
+      const code = data.error?.code ?? 'unknown_error'
+      const message = data.error?.message ?? 'Evolink task failed'
+      if (isInsufficientTaskError(code, message))
+        throw new PipelineFailure(
+          'music_insufficient_credits',
+          `Evolink music task rejected for insufficient credits: [${code}] ${message}`,
+        )
+      throw new PipelineFailure('music_generation_failed', message)
+    }
 
     await options.callbacks?.onProgress?.({
       percent: data.progress ?? 0,

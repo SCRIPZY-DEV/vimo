@@ -45,6 +45,8 @@ agrega ruido.
 
 | ADR                                                                            | Título                                                                          | Estado                   | Área                          |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0032](ADR-0032-proveedores-en-servidor-y-creditos-de-vimo.md)             | Proveedores unificados en un servidor de Vimo y créditos propios                | Propuesta                | pipeline, providers, app      |
+| [ADR-0031](ADR-0031-saldo-por-proveedor-precheck-y-pausa-retomable.md)         | Saldo por proveedor: pre-check antes de gastar y pausa retomable al agotarse    | Aceptada                 | app, pipeline, providers      |
 | [ADR-0030](ADR-0030-pack-v3-historias-short-y-narracion-precargada.md)         | Pack v3 de la demo: historias en Short y narración pre-cargada                  | Aceptada                 | app / pipeline                |
 | [ADR-0029](ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md)        | Modo demo: pipeline simulado sobre un pack pre-hecho, acceso por vimo.click     | Aceptada                 | app / pipeline                |
 | [ADR-0028](ADR-0028-bloqueo-temporal-de-modelos-de-prompts.md)                 | Bloqueo temporal de los modelos de prompts que se traban o fallan               | Aceptada                 | app, pipeline                 |

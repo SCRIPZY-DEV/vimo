@@ -8,8 +8,15 @@ import { commonQueryKeys } from '@/modules/common/constants'
 // carga (sin saldo que mostrar); `isRefreshing`, un refetch con el saldo
 // anterior todavía en pantalla — el del botón de refrescar o el que se difiere
 // tras generar imágenes (scheduleCreditsRefresh).
-export function useImageCredits() {
-  const native = commonApi.isNative()
+interface UseImageCreditsOptions {
+  // Con false no se consulta (cada consulta levanta un proceso del sidecar).
+  enabled?: boolean
+}
+
+export function useImageCredits({
+  enabled = true,
+}: UseImageCreditsOptions = {}) {
+  const native = commonApi.isNative() && enabled
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: commonQueryKeys.imageCredits,

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Coins } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
-import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
+import { estimateVoiceCost } from '@/modules/voices/utilities/estimateVoiceCost'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 
@@ -21,7 +21,7 @@ export function EstimatedCostBadge({
 }: EstimatedCostBadgeProps) {
   const { t, i18n } = useTranslation()
 
-  const units = Math.ceil(characters * VOICE_COST_FACTORS[provider])
+  const units = estimateVoiceCost(provider, characters)
   const costKey =
     vendorOfProvider(provider) === 'elevenlabs'
       ? 'voices.probador.estimatedCostCharacters'

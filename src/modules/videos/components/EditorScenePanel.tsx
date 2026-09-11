@@ -1,7 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
+import { apiKeysApi } from '@/modules/api-keys/api'
+import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
+import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
+import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
@@ -15,6 +19,7 @@ import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPick
 import type { ClipEdge, SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
+import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
 import type {
   ImageCreditsResult,
@@ -91,6 +96,18 @@ export function EditorScenePanel({
   const toggleCharacter = (index: number) => {
     onCharactersChange(toggleIndex(charactersPresent, index))
   }
+  // Una imagen con la calidad elegida contra el saldo leído (ADR-0031):
+  // insuficiente frena el botón; ilegible no bloquea (el proveedor dirá).
+  const estimate = imageCostEstimate(
+    imageChoice.provider,
+    imageChoice.quality,
+    1,
+  )
+  const creditsCheck = compareCostLines(
+    estimate ? [estimate] : [],
+    { image: credits, voice: null },
+    providerLabel,
+  )
 
   return (
     <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
@@ -190,6 +207,16 @@ export function EditorScenePanel({
         </div>
       )}
 
+      {creditsCheck.blocking && (
+        <InsufficientCreditsAlert
+          lines={creditsCheck.lines}
+          blocking
+          onReload={(providerId) => void apiKeysApi.openBillingPage(providerId)}
+          onRefresh={onRefreshCredits}
+          refreshing={creditsLoading || creditsRefreshing}
+        />
+      )}
+
       {errorKey && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive">
           {t('library.editor.panel.lastError', { reason: t(errorKey) })}
@@ -224,7 +251,7 @@ export function EditorScenePanel({
       ) : (
         <Button
           onClick={onRegenerate}
-          disabled={busy}
+          disabled={busy || creditsCheck.blocking}
           className="w-full min-w-0 rounded-xl font-display font-bold"
         >
           <RefreshCw className="mr-1.5 h-4 w-4" />

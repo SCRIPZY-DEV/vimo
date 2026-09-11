@@ -47,7 +47,11 @@ async function evolinkStatus(
 
   try {
     const credits = await getEvolinkCredits(apiKey, context.signal)
-    return { available: true, remaining: credits.remaining }
+    return {
+      available: true,
+      remaining: credits.remaining,
+      unlimited: credits.unlimited,
+    }
   } catch (error) {
     return { available: false, errorCode: toPipelineFailure(error).code }
   }
