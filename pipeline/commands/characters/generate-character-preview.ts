@@ -22,10 +22,16 @@ import type {
 } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
+import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
 const MIN_IDENTITY_LENGTH = 10
+// Cuánto tarda la gema en escribir el prompt del retrato en el caso típico:
+// el LLM no informa avance, así que la fase «prompt» muestra un ramp simulado
+// (mismo mecanismo que Fal con la imagen) para que la casilla no se quede
+// quieta.
+const PROMPT_EXPECTED_MS = 15_000
 
 /**
  * Genera UNA imagen de cómo se vería el personaje en el estilo elegido. El
@@ -98,12 +104,19 @@ async function writeCustomStylePrompt(
   const llm = createSceneLlm(context)
 
   emitPhase(context, 'prompt')
-  const response = await llm.generate({
-    systemPrompt: buildCustomStyleSystemPrompt(style),
-    userPrompt: buildCustomPreviewRequest(identityPrompt),
-    jsonOnly: true,
-    tier: 'balanced',
-  })
+  const stopProgress = startSimulatedProgress(
+    Date.now(),
+    PROMPT_EXPECTED_MS,
+    (percent) => emitProgress(context, 'prompt', percent),
+  )
+  const response = await llm
+    .generate({
+      systemPrompt: buildCustomStyleSystemPrompt(style),
+      userPrompt: buildCustomPreviewRequest(identityPrompt),
+      jsonOnly: true,
+      tier: 'balanced',
+    })
+    .finally(stopProgress)
   const imagePrompt = extractImagePrompt(response)
   if (!imagePrompt)
     throw new PipelineFailure(
@@ -146,5 +159,13 @@ async function generateImage(
 }
 
 function emitPhase(context: PipelineContext, phase: CharacterPreviewPhase) {
-  context.emitter.emit({ type: 'progress', percent: 0, detail: { phase } })
+  emitProgress(context, phase, 0)
+}
+
+function emitProgress(
+  context: PipelineContext,
+  phase: CharacterPreviewPhase,
+  percent: number,
+) {
+  context.emitter.emit({ type: 'progress', percent, detail: { phase } })
 }

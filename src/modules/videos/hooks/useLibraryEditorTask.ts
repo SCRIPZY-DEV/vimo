@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react'
+import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { videosApi } from '@/modules/videos/api'
 import {
   hasBusyCreateTask,
   subscribeCreateTask,
 } from '@/modules/videos/hooks/useCreateTask'
-import { scheduleCreditsRefresh } from '@/modules/videos/utilities/creditsRefresh'
 import type {
   LibraryEditorTask,
   RegenQueueEntry,

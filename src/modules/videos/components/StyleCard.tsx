@@ -14,6 +14,10 @@ interface StyleCardProps {
 
 // Tarjeta de un estilo del catálogo. Maneja su propio carrusel: al hacer
 // hover (o foco por teclado) rota las muestras; al salir vuelve a la #1.
+// El anillo de foco es solo para el teclado: el clic NO enfoca la tarjeta
+// (`onMouseDown` cancela el foco por mouse), porque en el WebView de macOS
+// `focus-visible` seguía encendiendo el anillo al hacer clic y se veía como
+// un destello extra sobre el borde de selección. Con Tab el anillo sigue.
 export function StyleCard({
   images,
   title,
@@ -30,6 +34,7 @@ export function StyleCard({
       role="button"
       tabIndex={disabled ? undefined : 0}
       onClick={disabled ? undefined : onSelect}
+      onMouseDown={(event) => event.preventDefault()}
       onKeyDown={(event) => {
         if (disabled) return
         if (event.key === 'Enter' || event.key === ' ') {
@@ -44,7 +49,7 @@ export function StyleCard({
       className={cn(
         'group overflow-hidden rounded-2xl border-2 bg-card transition-all',
         !disabled &&
-          'cursor-pointer hover:shadow-lg hover:shadow-saffron/10 focus:outline-none focus:ring-2 focus:ring-saffron/50',
+          'cursor-pointer hover:shadow-lg hover:shadow-saffron/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-saffron/50',
         selected
           ? 'border-saffron shadow-md shadow-saffron/20'
           : 'border-border hover:border-saffron/60',

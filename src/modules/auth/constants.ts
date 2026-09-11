@@ -23,3 +23,6 @@ export const SIGN_OUT_TIMEOUT_MS = 1500
 export const CALLBACK_POLL_INTERVAL_MS = 100
 export const CALLBACK_POLL_MAX_ATTEMPTS = 40
 export const ACCESS_STALE_TIME_MS = 5 * 60_000
+
+/** Último flag `demo` recibido, por correo: sobrevive al modo sin red (ADR-0029). */
+export const DEMO_ACCESS_STORAGE_KEY = 'vimo:demo:access:v1'

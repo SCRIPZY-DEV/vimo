@@ -37,6 +37,7 @@
       "personajes": "Characters",
       "voces": "Voices",
       "musica": "AI Music",
+      "demo": "Demo",
       "costos": "Pricing",
       "claves": "API Keys",
       "licencia": "License",
@@ -105,7 +106,8 @@
       "clearFile": "Remove the chosen audio",
       "noFile": "No file chosen",
       "audioLabel": "Your narration audio",
-      "audioHint": "Vimo transcribes your audio and uses that text to create the images. No need to write a script. Formats: mp3, wav, m4a, aac, ogg."
+      "audioHint": "Vimo transcribes your audio and uses that text to create the images. No need to write a script. Formats: mp3, wav, m4a, aac, ogg.",
+      "demoAudioHint": "In the demo the audio is already loaded: it is the narration of the chosen story and changes with the style and the format."
     },
     "script": {
       "label": "Script",
@@ -141,17 +143,18 @@
     },
     "image": {
       "provider": "Image provider",
-      "quality": "Quality",
-      "falHint": "More quality options.",
+      "reasoningLevel": "Reasoning level",
+      "falHint": "Three reasoning levels, at the format's native size.",
       "evolinkHint": "Faster (50 in parallel), a single preset."
     },
-    "quality": {
-      "low": "{{format}} · Low",
-      "medium": "{{format}} · Medium",
-      "high": "{{format}} · High",
-      "evolinkLowNote": "Comes out in the video's shape (16:9 or 9:16). Cheapest.",
-      "evolinkMediumNote": "Comes out in the video's shape (16:9 or 9:16). Price/quality balance.",
-      "evolinkHighNote": "Comes out in the video's shape (16:9 or 9:16). Top quality.",
+    "reasoningLevel": {
+      "low": "Low · {{format}}",
+      "medium": "Medium · {{format}}",
+      "high": "High · {{format}}",
+      "help": "How much the model reasons before drawing each image. Low: fast and cheap, for simple scenes. Medium: a balance between price and detail. High: maximum detail and prompt fidelity; slower and pricier.",
+      "evolinkLowNote": "Comes out in the video's shape (16:9 or 9:16). Fast and cheap.",
+      "evolinkMediumNote": "Comes out in the video's shape (16:9 or 9:16). A balance between price and detail.",
+      "evolinkHighNote": "Comes out in the video's shape (16:9 or 9:16). Maximum detail, slower and pricier.",
       "falNote": "Native 16:9. No resizing.",
       "falVerticalNote": "Native 9:16 for shorts. No resizing."
     },
@@ -450,6 +453,9 @@
       "voiceQuotaExceeded": "Your ElevenLabs account ran out of characters.",
       "voiceLibraryAddFailed": "The library voice could not be added to your ElevenLabs account.",
       "voiceAccountRestricted": "ElevenLabs restricted your account for this feature. Check your ElevenLabs plan.",
+      "demoNotReady": "The demo is not ready on this computer. Enter again through the Demo button.",
+      "demoStyleNotIncluded": "The demo does not include this style. Pick one of the styles the demo shows.",
+      "demoFormatNotIncluded": "The installed demo pack has no stories in this format. Enter again through the Demo button to update it.",
       "llmRescueNeeded": "The chosen model left scenes unwritten and another model rescued them.",
       "llmAuth": "DeepInfra rejected your API key. Check it in API Keys: without a valid key the prompts cannot be written."
     },
@@ -503,6 +509,7 @@
     "styleSource": {
       "catalog": "Catalog",
       "catalogHint": "Vimo's 5 styles.",
+      "catalogHintDemo": "The 3 styles with a ready-made demo.",
       "custom": "My style",
       "customHint": "Your own visual style.",
       "customBlockedHint": "No models available for now: use a Vimo style."
@@ -620,6 +627,24 @@
       "retrySame": "Retry with {{model}}"
     }
   },
+  "createDemo": {
+    "pageTitle": "Demo",
+    "title": "Vimo demo",
+    "checking": "Checking the demo…",
+    "preparingFirstTime": "Preparing the demo for the first time…",
+    "downloading": "Downloading the demo (one time only)…",
+    "installing": "Preparing the files…",
+    "onceNote": "This happens only once: the demo stays on this computer.",
+    "retry": "Retry",
+    "errors": {
+      "offline": "No connection to download the demo. Check your internet and try again.",
+      "downloadFailed": "The demo package could not be downloaded. Try again later.",
+      "packCorrupt": "The downloaded package does not match the expected one. Try again.",
+      "packUnreadable": "The demo package could not be opened. Try again.",
+      "packIncomplete": "The demo package came incomplete. Try again.",
+      "unknown": "The demo could not be prepared. Try again."
+    }
+  },
   "library": {
     "pageTitle": "Library",
     "title": "Library",
@@ -709,7 +734,7 @@
         "clipInEdit": "Edit the in time",
         "clipOutEdit": "Edit the out time",
         "provider": "Provider",
-        "quality": "Quality",
+        "reasoningLevel": "Reasoning level",
         "characters": "Characters in this scene",
         "regenerate": "Regenerate image",
         "regenerateWithPrompt": "Regenerate with your description",
@@ -738,7 +763,8 @@
       "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept.",
       "missingImagesTitle_one": "1 scene is missing its image (scene {{ids}})",
       "missingImagesTitle_other": "{{count}} scenes are missing their image (scenes {{ids}})",
-      "missingImagesHint": "Their descriptions are saved. Tap an empty scene in the timeline and use \"Regenerate\" to create its image — or change the description if you want something else. Once they all have one, build your video."
+      "missingImagesHint": "Their descriptions are saved. Tap an empty scene in the timeline and use \"Regenerate\" to create its image — or change the description if you want something else. Once they all have one, build your video.",
+      "demoLocked": "In the demo, images and narration come from the sample package: they cannot be regenerated."
     },
     "errors": {
       "projectBusy": "A generation is already running. Wait for it to finish before starting another.",
@@ -746,7 +772,8 @@
       "audioTooLarge": "The audio exceeds the maximum allowed size (50 MB).",
       "clipsNoScenes": "The project has no timed scenes to export.",
       "clipsNoImages": "Some scenes have no image: generate them before exporting.",
-      "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance."
+      "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance.",
+      "demoProject": "This video belongs to the demo: its images and narration come from the sample package and cannot be regenerated."
     },
     "music": {
       "title": "Background music",

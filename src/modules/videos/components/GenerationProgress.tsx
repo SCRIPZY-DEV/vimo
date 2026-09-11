@@ -33,6 +33,7 @@ import {
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import { shortenHomePath } from '@/modules/videos/utilities/shortenHomePath'
+import { isVertical } from '@/modules/videos/utilities/videoFormat'
 import { voiceProgressPercent } from '@/modules/videos/utilities/voiceProgressPercent'
 import type {
   CreateTask,
@@ -256,12 +257,25 @@ export function GenerationProgress({
               animate={{ opacity: 1, y: 0 }}
               className="overflow-hidden rounded-xl border-2 border-saffron/30 bg-card"
             >
-              <video
-                key={task.videoPath}
-                src={videosApi.videoSource(task.videoPath)}
-                controls
-                className="w-full bg-black"
-              />
+              {/* Un short a w-full saldría gigante (mismo criterio que
+                  LibraryVideoPlayer): se limita por alto y se centra sobre
+                  el fondo negro del recuadro. */}
+              <div
+                className={cn(
+                  'bg-black',
+                  isVertical(task.videoFormat) && 'flex justify-center',
+                )}
+              >
+                <video
+                  key={task.videoPath}
+                  src={videosApi.videoSource(task.videoPath)}
+                  controls
+                  className={cn(
+                    'bg-black',
+                    isVertical(task.videoFormat) ? 'max-h-[70vh]' : 'w-full',
+                  )}
+                />
+              </div>
               <div className="flex items-center gap-3 p-4">
                 <DoodleStar size={28} delay={300} />
                 <p

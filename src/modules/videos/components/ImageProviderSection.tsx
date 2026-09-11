@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
+import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
+import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
-import { ImageCreditsBadges } from '@/modules/videos/components/ImageCreditsBadges'
 import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
-import { useImageCredits } from '@/modules/videos/hooks/useImageCredits'
 import { IMAGE_PROVIDERS } from '@/modules/videos/constants'
 import {
   defaultQualityFor,
@@ -85,12 +85,14 @@ export function ImageProviderSection({
       </div>
 
       <LabeledSelect
-        label={t('create.image.quality')}
+        label={t('create.image.reasoningLevel')}
+        help={t('create.reasoningLevel.help')}
         value={value.imageQuality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          // «16:9 · Low»: el formato elegido en el formulario, no la resolución.
-          // Sin precio: el del catálogo no es el precio real por imagen.
+          // «Bajo · 16:9»: el nivel y el formato elegido en el formulario, sin
+          // repetir la etiqueta del campo. Sin precio: el del catálogo no es
+          // el real.
           label: t(option.labelKey, { format: value.videoFormat }),
           note: t(option.noteKey),
         }))}

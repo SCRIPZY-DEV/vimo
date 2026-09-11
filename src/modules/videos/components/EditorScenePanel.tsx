@@ -1,11 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
+import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/modules/common/ui/tooltip'
 import { ClipTimeField } from '@/modules/videos/components/ClipTimeField'
-import { ImageCreditsBadges } from '@/modules/videos/components/ImageCreditsBadges'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
 import type { ClipEdge, SceneImageChoice } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -29,6 +34,8 @@ interface EditorScenePanelProps {
   creditsRefreshing: boolean
   onRefreshCredits(): void
   busy: boolean
+  // Proyecto demo: regenerar no aplica (las imágenes son del pack).
+  regenerateLocked: boolean
   userPromptDirty: boolean
   // Clave i18n del último fallo de regeneración de esta escena.
   errorKey: string | undefined
@@ -56,6 +63,7 @@ export function EditorScenePanel({
   creditsRefreshing,
   onRefreshCredits,
   busy,
+  regenerateLocked,
   userPromptDirty,
   errorKey,
   onUserPromptChange,
@@ -189,19 +197,44 @@ export function EditorScenePanel({
       )}
 
       {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
-          trunca en vez de salirse del botón junto con el ícono. */}
-      <Button
-        onClick={onRegenerate}
-        disabled={busy}
-        className="w-full min-w-0 rounded-xl font-display font-bold"
-      >
-        <RefreshCw className="mr-1.5 h-4 w-4" />
-        <span className="min-w-0 truncate">
-          {userPromptDirty
-            ? t('library.editor.panel.regenerateWithPrompt')
-            : t('library.editor.panel.regenerate')}
-        </span>
-      </Button>
+          trunca en vez de salirse del botón junto con el ícono. En un proyecto
+          demo el botón queda deshabilitado con el porqué en el tooltip (el
+          <span> recibe el hover que un botón deshabilitado no recibe, y con
+          tabIndex es también quien llega por teclado para que el foco
+          dispare el mismo tooltip). */}
+      {regenerateLocked ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="block" tabIndex={0}>
+              <Button
+                disabled
+                className="w-full min-w-0 rounded-xl font-display font-bold"
+              >
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+                <span className="min-w-0 truncate">
+                  {t('library.editor.panel.regenerate')}
+                </span>
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-sm leading-snug">
+            {t('library.editor.demoLocked')}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <Button
+          onClick={onRegenerate}
+          disabled={busy}
+          className="w-full min-w-0 rounded-xl font-display font-bold"
+        >
+          <RefreshCw className="mr-1.5 h-4 w-4" />
+          <span className="min-w-0 truncate">
+            {userPromptDirty
+              ? t('library.editor.panel.regenerateWithPrompt')
+              : t('library.editor.panel.regenerate')}
+          </span>
+        </Button>
+      )}
     </aside>
   )
 }

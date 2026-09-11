@@ -16,9 +16,10 @@ interface SceneQualityPickerProps {
   onChange(value: SceneImageChoice): void
 }
 
-// Proveedor + calidad para regenerar UNA escena. La calidad persiste por
-// escena; el proveedor es un override transitorio del próximo lote (ADR-0014).
-// En un short solo se ofrecen tamaños verticales (Fal).
+// Proveedor + nivel de razonamiento (la «calidad» del catálogo) para
+// regenerar UNA escena. El nivel persiste por escena; el proveedor es un
+// override transitorio del próximo lote (ADR-0014). En un short solo se
+// ofrecen tamaños verticales (Fal).
 export function SceneQualityPicker({
   value,
   videoFormat,
@@ -46,12 +47,14 @@ export function SceneQualityPicker({
       />
 
       <LabeledSelect
-        label={t('library.editor.panel.quality')}
+        label={t('library.editor.panel.reasoningLevel')}
+        help={t('create.reasoningLevel.help')}
         value={value.quality}
         options={qualityOptions.map((option) => ({
           id: option.id,
-          // «16:9 · Low»: el formato con el que está construido el video.
-          // Sin precio: el del catálogo no es el precio real por imagen.
+          // «Bajo · 16:9»: el nivel y el formato con el que está construido el
+          // video, sin repetir la etiqueta del campo. Sin precio: el del
+          // catálogo no es el real.
           label: t(option.labelKey, { format: videoFormat }),
           note: t(option.noteKey),
         }))}

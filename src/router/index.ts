@@ -2,9 +2,12 @@ import { createHashRouter } from 'react-router'
 import { AuthenticatedLayout } from '@/layouts/AuthenticatedLayout/AuthenticatedLayout'
 import { GuestLayout } from '@/layouts/GuestLayout/GuestLayout'
 
-import { requireAuthLoader } from '@/modules/auth/guards'
+import {
+  requireAuthLoader,
+  requireDemoAccessLoader,
+} from '@/modules/auth/guards'
 import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
-import { videosRoutes } from '@/modules/videos/routes'
+import { createDemoRoute, videosRoutes } from '@/modules/videos/routes'
 import { musicRoutes } from '@/modules/music/routes'
 import { charactersRoutes } from '@/modules/characters/routes'
 import { voicesRoutes } from '@/modules/voices/routes'
@@ -20,6 +23,9 @@ export const router = createHashRouter([
     loader: requireAuthLoader,
     children: [
       ...videosRoutes,
+      // Modo demo (ADR-0029): la ruta existe siempre; el loader manda a Crear
+      // sin el flag `demo` del veredicto.
+      { ...createDemoRoute, loader: requireDemoAccessLoader },
       ...charactersRoutes,
       ...voicesRoutes,
       ...musicRoutes,

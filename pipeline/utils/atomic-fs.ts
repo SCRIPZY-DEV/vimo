@@ -1,5 +1,6 @@
 import {
   copyFile,
+  cp,
   mkdir,
   readFile,
   rename,
@@ -43,6 +44,37 @@ export async function renameAtomic(
         } catch {
           throw error
         }
+      }
+
+      await delay(BASE_DELAY_MS * (attempt + 1))
+    }
+  }
+}
+
+// Mueve un directorio entero, resistente a locks de Windows (swap del pack
+// de la demo, ADR-0029): tras extraer el zip, Defender o el indexador
+// pueden tener abierto algún archivo recién escrito del árbol, y en Windows
+// eso basta para que el rename de la CARPETA falle con EPERM/EBUSY aunque
+// los archivos en sí se puedan leer. Mismo reintento lock-tolerante que
+// renameAtomic; si los 8 intentos se agotan, copia el árbol entero en vez
+// de perder el trabajo — quien llama sigue siendo dueño de borrar el
+// origen (installPack ya lo hace en su `finally`).
+export async function moveDirectoryAtomic(
+  source: string,
+  destination: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      await rename(source, destination)
+      return
+    } catch (error) {
+      // Los errores que no corresponden a un lock se propagan inmediatamente.
+      if (!TRANSIENT_LOCK_CODES.has(errorCode(error))) throw error
+
+      const isLastAttempt = attempt === MAX_ATTEMPTS - 1
+      if (isLastAttempt) {
+        await cp(source, destination, { recursive: true })
+        return
       }
 
       await delay(BASE_DELAY_MS * (attempt + 1))

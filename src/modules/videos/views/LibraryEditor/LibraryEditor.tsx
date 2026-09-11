@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Music2, SlidersHorizontal, X } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
+import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -32,7 +33,6 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useEditorShortcuts } from '@/modules/videos/hooks/useEditorShortcuts'
-import { useImageCredits } from '@/modules/videos/hooks/useImageCredits'
 import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
 import { useProjectAudio } from '@/modules/videos/hooks/useProjectAudio'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
@@ -133,6 +133,9 @@ export function LibraryEditor() {
   const metadata = detail.metadata
   const videoFormat = metadata.options.videoFormat ?? '16:9'
   const isShort = videoFormat === '9:16'
+  // Modo demo (ADR-0029): las imágenes y la narración vienen del pack; el
+  // sidecar rechaza regenerarlas (demo_project) y acá ni se ofrece.
+  const demoProject = metadata.options.demo === true
   const creatingHere = isTaskLiveFor(createTask, projectId)
   if (metadata.state === 'generating' && creatingHere)
     return <Navigate to={libraryProgressPath(projectId)} replace />
@@ -325,6 +328,7 @@ export function LibraryEditor() {
             creditsRefreshing={creditsRefreshing}
             onRefreshCredits={refreshCredits}
             busy={busy}
+            regenerateLocked={demoProject}
             userPromptDirty={editor.userPromptDirty}
             errorKey={
               selectedScene ? task?.sceneErrors[selectedScene.id] : undefined
@@ -388,6 +392,7 @@ export function LibraryEditor() {
         value={mix}
         hasMusic={hasMusic}
         busy={audio.audioBusy}
+        narrationLocked={demoProject}
         narrationPercent={audio.narrationPercent}
         narrationSrc={narrationSrc}
         musicSrc={musicSrc}

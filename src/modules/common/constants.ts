@@ -12,6 +12,7 @@ export const TOOLTIP_DELAY_MS = 300
 
 export const commonQueryKeys = {
   promptModels: ['common', 'promptModels'],
+  imageCredits: ['common', 'imageCredits'],
 } as const
 
 // Bloqueo temporal de un modelo de prompts que se trabó o falló (carril
@@ -21,6 +22,22 @@ export const PROMPT_MODEL_BLOCKS_STORAGE_KEY = 'vimo:promptModelBlocks:v1'
 export const PROMPT_MODEL_BLOCK_DURATION_MS = 60 * 60 * 1000
 // Cada cuánto se refresca el «vuelve en N min» de las tarjetas bloqueadas.
 export const PROMPT_MODEL_BLOCK_TICK_MS = 60 * 1000
+
+// El proveedor de imágenes tarda unos segundos en reflejar el gasto: el
+// refetch de saldos tras una generación se difiere (mismo criterio que el
+// origen).
+export const CREDITS_REFRESH_DELAY_MS = 4000
+
+// Códigos del saldo (get-image-credits) que para la persona significan una
+// sola cosa: falta configurar la clave — no hay clave, o el proveedor la
+// rechazó (Fal responde 401/403 también cuando la clave no es de admin;
+// Evolink, cuando es inválida). Cualquier otro código es un error de red o
+// del proveedor y se muestra como tal.
+export const NOT_CONFIGURED_CREDITS_CODES: ReadonlySet<string> = new Set([
+  'missing_api_key',
+  'fal_admin_key_required',
+  'music_invalid_api_key',
+])
 
 // Proveedores de voces (ADR-0024). Etiquetas de marca: no se traducen.
 export const VOICE_VENDOR_IDS = ['dubvoice', 'elevenlabs'] as const
