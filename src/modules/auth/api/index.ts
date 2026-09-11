@@ -12,6 +12,10 @@ import {
   VERIFY_TIMEOUT_MS,
 } from '../constants'
 import type { AccessStatus, VerifyAccessResponse } from '../types/access'
+import {
+  recallDemoAccess,
+  rememberDemoAccess,
+} from '../utilities/demoAccessMemory'
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -120,6 +124,7 @@ export const authApi = {
         email,
         name,
         avatar,
+        demo: false,
       }
     }
     try {
@@ -133,6 +138,9 @@ export const authApi = {
         signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
       })
       const body = (await response.json()) as VerifyAccessResponse
+      // El flag de la demo se recuerda por correo para el modo sin red.
+      const demo = body.demo === true
+      rememberDemoAccess(email, demo)
       return {
         authorized: body.autorizado,
         reason: body.motivo,
@@ -142,6 +150,7 @@ export const authApi = {
         email,
         name,
         avatar,
+        demo,
       }
     } catch {
       // Fail-open deliberado (regla del origen): sin red o con el server caído
@@ -155,6 +164,7 @@ export const authApi = {
         email,
         name,
         avatar,
+        demo: recallDemoAccess(email),
       }
     }
   },
