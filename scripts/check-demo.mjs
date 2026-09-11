@@ -1,6 +1,6 @@
 // Guard ejecutable del modo demo (ADR-0027). Sin app y sin red: genera un
 // pack mínimo en una carpeta temporal (formato v2 del origen más el árbol
-// `short/` del v3 (ADR-0028), 2 escenas por estilo, archivos diminutos), lo
+// `short/` del v3 —ADR-0028—, 2 escenas por estilo, archivos diminutos), lo
 // empaqueta en un zip en memoria, lo sirve por HTTP local y corre los
 // subcomandos del sidecar contra una carpeta raíz temporal. Cada sección
 // asserta un invariante de la ADR.
@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -981,6 +981,10 @@ try {
       }),
     })
     const projectId = resultOf(created.events)?.projectId
+    assert(
+      typeof projectId === 'string',
+      'create-video-project acepta demo:true (pack sin short)',
+    )
     const { events } = await runSidecar('run-video-pipeline', {
       projectsRoot: v2Root,
       config,
@@ -1019,6 +1023,189 @@ try {
     assert(
       !existsSync(join(brokenShortRoot, '_demo-pack')),
       'un short incompleto no deja _demo-pack a medias',
+    )
+  }
+
+  // 18. El armador: pack base + 4 proyectos nativos → zip que se instala.
+  section('18. build-demo-pack arma un pack instalable')
+  {
+    const basePack = join(workspace, 'base-pack')
+    for (const [name, data] of buildPackEntries({
+      withShort: false,
+      container: '',
+    })) {
+      await mkdir(join(basePack, name, '..'), { recursive: true })
+      await writeFile(join(basePack, name), data)
+    }
+    const nativeRoot = join(workspace, 'native')
+    const nativeProject = async (folder) => {
+      const id = `demo-short-${folder.replace('_', '-')}`
+      const directory = join(nativeRoot, id)
+      await mkdir(join(directory, 'scenes'), { recursive: true })
+      const options = {
+        styleId: folder === GEM_FOLDER ? 'normal' : folder,
+        sceneCount: 0,
+        narrationMode: 'tts',
+        voiceProvider: 'elevenlabs',
+        voiceId: 'voice-mini',
+        voiceName: 'Abel mini',
+        imageProvider: 'fal',
+        videoFormat: '9:16',
+        useBgm: false,
+        useOverlay: false,
+        confirmScenes: false,
+        ...(folder === GEM_FOLDER
+          ? {
+              customStyle: {
+                styleId: 'demo-storytelling',
+                name: 'STORYTELLING mini',
+                systemPrompt: 'You write prompts.',
+              },
+            }
+          : {}),
+      }
+      await writeFile(
+        join(directory, 'project.json'),
+        JSON.stringify({
+          id,
+          name: `${SHORT_STORIES[folder]} (armado)`,
+          createdAt: '2026-09-11T00:00:00.000Z',
+          updatedAt: '2026-09-11T00:00:00.000Z',
+          state: 'completed',
+          options,
+          completedStages: STAGE_IDS,
+          audioDurationSeconds: 2.3,
+          sceneCount: 2,
+          wordCount: 4,
+        }),
+      )
+      await writeFile(
+        join(directory, 'script.txt'),
+        `${SHORT_STORIES[folder]}. Guion armado.`,
+      )
+      await writeFile(join(directory, 'narration.mp3'), FAKE_MP3)
+      await writeFile(
+        join(directory, 'words.json'),
+        JSON.stringify([
+          { word: 'Guion', start: 0.1, end: 0.5 },
+          { word: 'armado', start: 0.6, end: 1.0 },
+        ]),
+      )
+      await writeFile(
+        join(directory, 'scenes.json'),
+        JSON.stringify([
+          {
+            id: 1,
+            text: 'Guion',
+            imagePrompt: `${folder} built scene one`,
+            startSeconds: 0,
+            endSeconds: 1.1,
+          },
+          {
+            id: 2,
+            text: 'armado',
+            imagePrompt: `${folder} built scene two`,
+            startSeconds: 1.1,
+            endSeconds: 2.3,
+          },
+        ]),
+      )
+      await writeFile(join(directory, 'scenes', 'scene_1.jpg'), FAKE_JPG)
+      await writeFile(join(directory, 'scenes', 'scene_2.jpg'), FAKE_JPG)
+      await writeFile(join(directory, `${id}.mp4`), Buffer.alloc(100_001, 1))
+      return directory
+    }
+    const shortArguments = []
+    for (const folder of [...CATALOG_STYLES, GEM_FOLDER])
+      shortArguments.push('--short', `${folder}=${await nativeProject(folder)}`)
+    const builtZip = join(workspace, 'built.zip')
+    const builder = await new Promise((resolve) => {
+      const child = spawn(
+        process.execPath,
+        [
+          join(repoRoot, 'scripts/build-demo-pack.mjs'),
+          '--base',
+          basePack,
+          ...shortArguments,
+          '--version',
+          'built',
+          '--out',
+          builtZip,
+        ],
+        { stdio: ['ignore', 'pipe', 'inherit'] },
+      )
+      let stdout = ''
+      child.stdout.on('data', (chunk) => (stdout += chunk))
+      child.on('close', (code) => resolve({ code, stdout }))
+    })
+    assert(
+      builder.code === 0,
+      `build-demo-pack termina en 0 (fue ${builder.code})`,
+    )
+    const printedSha = builder.stdout.trim().split('\n').pop()
+    const builtBytes = await readFile(builtZip)
+    assert(
+      /^[0-9a-f]{64}$/.test(printedSha) && printedSha === sha256(builtBytes),
+      'imprime el SHA-256 real del zip en la última línea',
+    )
+    served.set('/built.zip', builtBytes)
+    const builtRoot = join(workspace, 'Vimo-built')
+    await mkdir(builtRoot, { recursive: true })
+    const config = demoConfig({
+      packVersion: 'built',
+      packUrl: `${baseUrl}/built.zip`,
+      packSha256: printedSha,
+    })
+    const prepared = await runSidecar('demo-prepare', {
+      projectsRoot: builtRoot,
+      config,
+    })
+    assert(
+      last(prepared.events)?.type === 'job-completed',
+      `el pack armado se instala (fue ${last(prepared.events)?.type}: ${last(prepared.events)?.message ?? ''})`,
+    )
+    const manifest = resultOf(prepared.events)?.manifest
+    assert(
+      manifest?.version === 'built' &&
+        manifest?.stories?.['9:16']?.styles?.[0]?.suggestedName ===
+          'Tu primer día en Marte (armado)' &&
+        manifest?.stories?.['9:16']?.customStyle?.script ===
+          'El último tren a casa. Guion armado.' &&
+        manifest?.stories?.['16:9']?.styles?.length === 3,
+      'el manifest armado trae la raíz base y las historias short',
+    )
+    const created = await runSidecar('create-video-project', {
+      projectsRoot: builtRoot,
+      config,
+      payload: projectPayload('Demo armado', {
+        demo: true,
+        styleId: 'cartoon',
+        videoFormat: '9:16',
+      }),
+    })
+    const projectId = resultOf(created.events)?.projectId
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot: builtRoot,
+      config,
+      payload: { projectId },
+    })
+    const scenes = JSON.parse(
+      await readFile(join(builtRoot, projectId, 'scenes.json'), 'utf8'),
+    )
+    assert(
+      resultOf(events)?.status === 'completed' &&
+        scenes[0]?.imagePrompt === 'cartoon built scene one' &&
+        scenes[0]?.startSeconds === 0 &&
+        scenes[1]?.endSeconds === 2.3,
+      'una historia del pack armado completa con las escenas traducidas',
+    )
+    assert(
+      (await readFile(join(builtRoot, projectId, 'narration.mp3'))).equals(
+        FAKE_MP3,
+      ) &&
+        (await stat(join(builtRoot, projectId, `${projectId}.mp4`))).size ===
+          100_001,
+      'audio y video llegan desde el proyecto nativo',
     )
   }
 } finally {

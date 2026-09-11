@@ -16,6 +16,7 @@
     "check:locales": "node scripts/check-locales.mjs",
     "pipeline:harness": "node scripts/run-pipeline-harness.mjs",
     "check:demo": "node scripts/check-demo.mjs",
+    "build:demo-pack": "node scripts/build-demo-pack.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
