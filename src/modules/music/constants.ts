@@ -18,6 +18,10 @@ export const GENERATION_COOLDOWN_MS = 60_000
 /** Espera antes de re-consultar el saldo (Evolink descuenta créditos async). */
 export const CREDITS_SETTLE_DELAY_MS = 3000
 
+/** Piso del rango «~50–200 créditos» por generación: con saldo leído por
+ *  debajo, Evolink rechaza y no vale la pena arrancar (ADR-0029). */
+export const MUSIC_MIN_CREDITS = 50
+
 export const MUSIC_MODEL_LABEL = 'suno-v5-beta'
 export const MUSIC_VARIATIONS = 2
 
@@ -38,11 +42,13 @@ export const MUSIC_ERROR_MESSAGE_KEYS: Record<string, string> = {
   music_generation_failed: 'music.errores.generationFailed',
   music_timeout: 'music.errores.timeout',
   music_download_failed: 'music.errores.downloadFailed',
+  music_insufficient_credits: 'music.errores.insufficientCredits',
   llm_network: 'music.errores.llmNetwork',
   llm_timeout: 'music.errores.llmTimeout',
   llm_rate_limited: 'music.errores.llmRateLimited',
   llm_provider_error: 'music.errores.llmProviderError',
   llm_empty_response: 'music.errores.llmProviderError',
+  llm_insufficient_credits: 'music.errores.llmInsufficientCredits',
   missing_api_key: 'music.errores.missingApiKey',
   missing_projects_root: 'music.errores.missingProjectsRoot',
   cancelled: 'music.errores.cancelado',

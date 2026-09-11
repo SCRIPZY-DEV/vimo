@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, X } from 'lucide-react'
+import { apiKeysApi } from '@/modules/api-keys/api'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -25,9 +27,14 @@ import {
 } from '@/modules/voices/constants'
 import { useAddLibraryVoice } from '@/modules/voices/hooks/useAddLibraryVoice'
 import { useVoiceTask } from '@/modules/voices/hooks/useVoiceTask'
+import { estimateVoiceCost } from '@/modules/voices/utilities/estimateVoiceCost'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
+import { voiceShortfallLine } from '@/modules/voices/utilities/voiceShortfallLine'
 import { taskBelongsToVoice } from '@/modules/voices/utilities/taskBelongsToVoice'
-import type { VoiceSummary } from '@pipeline/types/voices.ts'
+import type {
+  VoiceCreditsResult,
+  VoiceSummary,
+} from '@pipeline/types/voices.ts'
 import type {
   VoiceSettingsFormValue,
   VoiceTask,
@@ -49,6 +56,11 @@ function progressLabel(t: TFunction, task: VoiceTask): string {
 interface VoiceTesterPanelProps {
   voice: VoiceSummary
   disabled: boolean
+  // Saldo del vendor de la voz (lo lee la vista): con saldo leído menor al
+  // costo del texto el botón se frena y se ofrece recargar (ADR-0029).
+  credits: VoiceCreditsResult | null
+  onRefreshCredits: () => void
+  creditsRefreshing: boolean
 }
 
 /**
@@ -61,7 +73,13 @@ interface VoiceTesterPanelProps {
  * resultado solo se muestran si la tarea se generó con esta voz; el estado
  * «generando» sí es global porque solo corre un job a la vez.
  */
-export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
+export function VoiceTesterPanel({
+  voice,
+  disabled,
+  credits,
+  onRefreshCredits,
+  creditsRefreshing,
+}: VoiceTesterPanelProps) {
   const { t } = useTranslation()
   const { task, startGeneration, discardTask } = useVoiceTask()
   const {
@@ -85,6 +103,16 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
 
   const models = VOICE_MODELS[voice.provider]
   const activeModel = model ?? DEFAULT_VOICE_MODELS[voice.provider]
+
+  const shortfall =
+    text.trim().length > 0
+      ? voiceShortfallLine(
+          voice.provider,
+          estimateVoiceCost(voice.provider, text.length),
+          credits,
+        )
+      : null
+  const insufficient = shortfall?.sufficient === false
 
   // Una voz de la biblioteca pública de ElevenLabs se añade a la cuenta
   // ANTES de generar; lo que se sintetiza (y queda en el historial) es la
@@ -153,6 +181,17 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
           </span>
         </div>
         <LongTextNotice characters={text.length} />
+        {insufficient && shortfall && (
+          <InsufficientCreditsAlert
+            lines={[shortfall]}
+            blocking
+            onReload={(providerId) =>
+              void apiKeysApi.openBillingPage(providerId)
+            }
+            onRefresh={onRefreshCredits}
+            refreshing={creditsRefreshing}
+          />
+        )}
       </div>
 
       {models.length > 1 && (
@@ -200,7 +239,7 @@ export function VoiceTesterPanel({ voice, disabled }: VoiceTesterPanelProps) {
         <Button
           size="lg"
           onClick={() => void generate()}
-          disabled={generating || !text.trim()}
+          disabled={generating || !text.trim() || insufficient}
           className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
         >
           {generating ? (

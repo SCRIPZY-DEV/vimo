@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { ImageIcon, Loader2, X } from 'lucide-react'
+import { apiKeysApi } from '@/modules/api-keys/api'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { Button } from '@/modules/common/ui/button'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { PREVIEW_PROVIDERS } from '@/modules/characters/constants'
@@ -12,6 +14,7 @@ import { StyleChipList } from '@/modules/characters/components/StyleChipList'
 import { StyleSourceTabs } from '@/modules/characters/components/StyleSourceTabs'
 import type { StyleSource } from '@/modules/characters/components/StyleSourceTabs'
 import type { CharacterPreviewPhase } from '@pipeline/types/characters.ts'
+import type { CreditsShortfallLine } from '@/modules/common/types/credits'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
   PreviewStyleOption,
@@ -30,6 +33,11 @@ interface CharacterPreviewPanelProps {
   disabled: boolean
   missingProviderKey: boolean
   canGenerate: boolean
+  // Saldo del proveedor elegido (ADR-0029): con `sufficient === false` el
+  // botón se frena y se ofrece recargar.
+  creditsLine: CreditsShortfallLine
+  creditsRefreshing: boolean
+  onRefreshCredits: () => void
   onStyleChange: (styleId: string) => void
   onProviderChange: (provider: ImageProviderId) => void
   onGenerate: () => void
@@ -47,12 +55,16 @@ export function CharacterPreviewPanel({
   disabled,
   missingProviderKey,
   canGenerate,
+  creditsLine,
+  creditsRefreshing,
+  onRefreshCredits,
   onStyleChange,
   onProviderChange,
   onGenerate,
   onCancel,
 }: CharacterPreviewPanelProps) {
   const { t } = useTranslation()
+  const insufficientCredits = creditsLine.sufficient === false
 
   const styleOf = (id: string) => styles.find((style) => style.id === id)
   // Un preview cuyo estilo propio ya no está en la galería conserva la
@@ -132,7 +144,11 @@ export function CharacterPreviewPanel({
         <Button
           type="button"
           disabled={
-            disabled || generating || !canGenerate || missingProviderKey
+            disabled ||
+            generating ||
+            !canGenerate ||
+            missingProviderKey ||
+            insufficientCredits
           }
           onClick={onGenerate}
           className="btn-squish h-auto w-full rounded-xl bg-ocean py-4 font-display text-base font-bold text-white hover:bg-ocean/90"
@@ -167,6 +183,16 @@ export function CharacterPreviewPanel({
             {t('characters.irAClaves')}
           </Link>
         </p>
+      )}
+
+      {insufficientCredits && (
+        <InsufficientCreditsAlert
+          lines={[creditsLine]}
+          blocking
+          onReload={(providerId) => void apiKeysApi.openBillingPage(providerId)}
+          onRefresh={onRefreshCredits}
+          refreshing={creditsRefreshing}
+        />
       )}
 
       {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}

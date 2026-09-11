@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2, Music2, RotateCcw, Sparkles, X } from 'lucide-react'
+import { apiKeysApi } from '@/modules/api-keys/api'
+import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
@@ -25,9 +28,11 @@ import { MusicPromptSuggester } from '@/modules/music/components/MusicPromptSugg
 import {
   CREDITS_SETTLE_DELAY_MS,
   MUSIC_FORM_INITIAL_VALUE,
+  MUSIC_MIN_CREDITS,
   NAME_LIMIT,
   musicQueryKeys,
 } from '@/modules/music/constants'
+import { useMusicCredits } from '@/modules/music/hooks/useMusicCredits'
 import { useMusicTask } from '@/modules/music/hooks/useMusicTask'
 
 export function Music() {
@@ -38,6 +43,21 @@ export function Music() {
   })
   const { task, startGeneration, chooseOption, regenerate, discardTask } =
     useMusicTask()
+  // Misma query que el badge del header: con saldo leído por debajo del
+  // mínimo de una generación el botón se frena y se ofrece recargar.
+  const musicCredits = useMusicCredits()
+  const creditsShortfall =
+    musicCredits.credits && !musicCredits.credits.unlimited
+      ? {
+          providerId: 'evolink',
+          providerLabel: providerLabel('evolink'),
+          unit: 'credits' as const,
+          estimated: MUSIC_MIN_CREDITS,
+          available: musicCredits.credits.remaining,
+          sufficient: musicCredits.credits.remaining >= MUSIC_MIN_CREDITS,
+        }
+      : null
+  const insufficientCredits = creditsShortfall?.sufficient === false
 
   const [formValue, setFormValue] = useState(MUSIC_FORM_INITIAL_VALUE)
   const [name, setName] = useState('')
@@ -141,11 +161,25 @@ export function Music() {
           disabled={generating}
         />
 
+        {insufficientCredits && creditsShortfall && (
+          <InsufficientCreditsAlert
+            lines={[creditsShortfall]}
+            blocking
+            onReload={(providerId) =>
+              void apiKeysApi.openBillingPage(providerId)
+            }
+            onRefresh={() => void musicCredits.refresh()}
+            refreshing={musicCredits.isFetching}
+          />
+        )}
+
         <div className="flex items-center gap-2">
           <Button
             size="lg"
             onClick={generate}
-            disabled={generating || !formValue.prompt.trim()}
+            disabled={
+              generating || !formValue.prompt.trim() || insufficientCredits
+            }
             className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
           >
             {generating ? (
@@ -231,7 +265,7 @@ export function Music() {
             <Button
               variant="outline"
               size="sm"
-              disabled={generating || choosing}
+              disabled={generating || choosing || insufficientCredits}
               onClick={() => void regenerate()}
               className="rounded-lg font-display"
             >

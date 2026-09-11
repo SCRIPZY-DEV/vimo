@@ -16,6 +16,7 @@ import type {
   DesignStyleCharacterResult,
   StylesListResult,
 } from '@pipeline/types/styles.ts'
+import type { ImageCreditsResult } from '@pipeline/types/video-project.ts'
 import type {
   CharacterCreatePayload,
   CharacterCreateResult,
@@ -57,6 +58,11 @@ export const charactersApi = {
   // mismo subcomando que videos (precedente: listCharacters en videosApi).
   async listCustomStyles(): Promise<StylesListResult> {
     return runPipelineJob<StylesListResult>('styles-list')
+  },
+  // Saldo de los proveedores de imagen para el preview (mismo subcomando
+  // que videos; precedente: music consulta Evolink por su cuenta).
+  async getImageCredits(): Promise<ImageCreditsResult> {
+    return runPipelineJob<ImageCreditsResult>('get-image-credits')
   },
   async suggestProfile(
     payload: SuggestCharacterProfilePayload,

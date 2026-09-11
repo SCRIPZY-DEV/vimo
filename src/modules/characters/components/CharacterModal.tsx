@@ -21,6 +21,7 @@ import {
   PREVIEW_STYLES,
 } from '@/modules/characters/constants'
 import { useCharacterMutations } from '@/modules/characters/hooks/useCharacterMutations'
+import { useCharacterImageCredits } from '@/modules/characters/hooks/useCharacterImageCredits'
 import { useCharacterPreview } from '@/modules/characters/hooks/useCharacterPreview'
 import { useCustomStyleCatalog } from '@/modules/characters/hooks/useCustomStyleCatalog'
 import { useDesignStyleCharacter } from '@/modules/characters/hooks/useDesignStyleCharacter'
@@ -29,6 +30,7 @@ import {
   toFormValue,
   toPreviewViews,
 } from '@/modules/characters/utilities/characterDraft'
+import { previewShortfallLine } from '@/modules/characters/utilities/previewShortfallLine'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
@@ -66,6 +68,8 @@ export function CharacterModal({
     errorKey: designErrorKey,
   } = useDesignStyleCharacter()
   const preview = useCharacterPreview()
+  // Saldo del proveedor del preview: en cero se frena y se ofrece recargar.
+  const imageCredits = useCharacterImageCredits()
   const { styles: customStyles } = useCustomStyleCatalog()
 
   const [form, setForm] = useState(() =>
@@ -237,6 +241,9 @@ export function CharacterModal({
             disabled={saving || suggesting}
             missingProviderKey={providerKeys.missingRequirements.length > 0}
             canGenerate={identityReady}
+            creditsLine={previewShortfallLine(provider, imageCredits.credits)}
+            creditsRefreshing={imageCredits.isRefreshing}
+            onRefreshCredits={imageCredits.refresh}
             onStyleChange={setStyleId}
             onProviderChange={setProvider}
             onGenerate={() => void generatePreview()}

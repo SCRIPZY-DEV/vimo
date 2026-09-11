@@ -259,6 +259,7 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_text_too_long: 'voices.errores.textTooLong',
   voice_chunking_inconsistent: 'voices.errores.chunkingInconsistent',
   voice_quota_exceeded: 'voices.errores.quotaExceeded',
+  voice_insufficient_credits: 'voices.errores.insufficientCredits',
   voice_account_restricted: 'voices.errores.accountRestricted',
   voice_library_add_failed: 'voices.errores.libraryAddFailed',
   invalid_payload: 'voices.errores.invalido',
