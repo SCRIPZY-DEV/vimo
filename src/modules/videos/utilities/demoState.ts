@@ -20,5 +20,16 @@ export function readDemoState(state: unknown): DemoManifest | null {
   if (!manifest.voice || !landscape.customStyle || !manifest.customStyleId)
     return null
 
+  // El bloque 9:16 es opcional (pack v2 no lo trae), pero si está presente
+  // tiene que traer la misma forma que 16:9 (ADR-0028).
+  const short = manifest.stories?.['9:16']
+  if (
+    short &&
+    (!Array.isArray(short.styles) ||
+      short.styles.length === 0 ||
+      !short.customStyle)
+  )
+    return null
+
   return manifest as DemoManifest
 }

@@ -102,7 +102,8 @@
       "clearFile": "Remover o áudio escolhido",
       "noFile": "Nenhum arquivo escolhido",
       "audioLabel": "Seu áudio narrado",
-      "audioHint": "O Vimo transcreve seu áudio e usa esse texto para criar as imagens. Não precisa escrever o roteiro. Formatos: mp3, wav, m4a, aac, ogg."
+      "audioHint": "O Vimo transcreve seu áudio e usa esse texto para criar as imagens. Não precisa escrever o roteiro. Formatos: mp3, wav, m4a, aac, ogg.",
+      "demoAudioHint": "Na demo o áudio já vem carregado: é a narração da história escolhida e muda com o estilo e o formato."
     },
     "script": {
       "label": "Roteiro",
@@ -448,7 +449,8 @@
       "voiceLibraryAddFailed": "Não foi possível adicionar a voz da biblioteca à sua conta do ElevenLabs.",
       "voiceAccountRestricted": "O ElevenLabs restringiu sua conta para esta função. Verifique seu plano no ElevenLabs.",
       "demoNotReady": "A demo não está pronta neste computador. Entre de novo pelo botão Demo.",
-      "demoStyleNotIncluded": "A demo não inclui este estilo. Escolha um dos estilos que a demo mostra."
+      "demoStyleNotIncluded": "A demo não inclui este estilo. Escolha um dos estilos que a demo mostra.",
+      "demoFormatNotIncluded": "O pack da demo instalado não traz histórias neste formato. Entre de novo pelo botão Demo para atualizá-lo."
     },
     "credits": {
       "balance": "{{amount}} cr.",

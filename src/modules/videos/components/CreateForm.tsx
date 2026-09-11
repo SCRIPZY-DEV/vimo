@@ -18,12 +18,15 @@ import { VideoFormatSection } from '@/modules/videos/components/VideoFormatSecti
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
 import {
   CREATE_BLOCKERS_ID,
-  DEMO_COMING_SOON_FORMATS,
   MAX_SCENE_COUNT,
   PROJECT_NAME_LIMIT,
 } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
-import { demoStyleIds } from '@/modules/videos/utilities/demoForm'
+import {
+  demoAudioFileLabel,
+  demoComingSoonFormats,
+  demoStyleIds,
+} from '@/modules/videos/utilities/demoForm'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { DemoManifest } from '@pipeline/types/demo.ts'
@@ -94,6 +97,8 @@ export function CreateForm({
       <NarrationSection
         value={value}
         disabled={disabled}
+        audioLocked={demo !== null}
+        audioFileLabel={demo ? demoAudioFileLabel(demo, value) : undefined}
         onChange={onChange}
         onPickAudio={onPickAudio}
       />
@@ -170,7 +175,7 @@ export function CreateForm({
       <VideoFormatSection
         value={value}
         disabled={disabled}
-        comingSoon={demo ? DEMO_COMING_SOON_FORMATS : undefined}
+        comingSoon={demo ? demoComingSoonFormats(demo) : undefined}
         onChange={onChange}
       />
 

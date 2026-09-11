@@ -102,7 +102,8 @@
       "clearFile": "Remove the chosen audio",
       "noFile": "No file chosen",
       "audioLabel": "Your narration audio",
-      "audioHint": "Vimo transcribes your audio and uses that text to create the images. No need to write a script. Formats: mp3, wav, m4a, aac, ogg."
+      "audioHint": "Vimo transcribes your audio and uses that text to create the images. No need to write a script. Formats: mp3, wav, m4a, aac, ogg.",
+      "demoAudioHint": "In the demo the audio is already loaded: it is the narration of the chosen story and changes with the style and the format."
     },
     "script": {
       "label": "Script",
@@ -448,7 +449,8 @@
       "voiceLibraryAddFailed": "The library voice could not be added to your ElevenLabs account.",
       "voiceAccountRestricted": "ElevenLabs restricted your account for this feature. Check your ElevenLabs plan.",
       "demoNotReady": "The demo is not ready on this computer. Enter again through the Demo button.",
-      "demoStyleNotIncluded": "The demo does not include this style. Pick one of the styles the demo shows."
+      "demoStyleNotIncluded": "The demo does not include this style. Pick one of the styles the demo shows.",
+      "demoFormatNotIncluded": "The installed demo pack has no stories in this format. Enter again through the Demo button to update it."
     },
     "credits": {
       "balance": "{{amount}} cr.",

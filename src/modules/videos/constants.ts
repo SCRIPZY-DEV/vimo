@@ -356,10 +356,9 @@ export function newCustomStyleId(): string {
 // Formato del video: horizontal clásico o vertical para shorts.
 export const DEFAULT_VIDEO_FORMAT: VideoFormat = '16:9'
 
-// Modo demo (ADR-0027): el pack solo trae historias 16:9; el Short se muestra
-// «Próximamente».
+// Modo demo (ADR-0027, ADR-0028): la demo arranca en 16:9; qué otros
+// formatos se ofrecen (Short) lo decide el manifest del pack instalado.
 export const DEMO_VIDEO_FORMAT: VideoFormat = '16:9'
-export const DEMO_COMING_SOON_FORMATS: VideoFormat[] = ['9:16']
 
 export const VIDEO_FORMATS: {
   id: VideoFormat
@@ -635,6 +634,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_not_ready: 'create.errors.demoNotReady',
   demo_pack_incomplete: 'create.errors.demoNotReady',
   demo_style_not_included: 'create.errors.demoStyleNotIncluded',
+  demo_format_not_included: 'create.errors.demoFormatNotIncluded',
   cancelled: 'create.errors.cancelled',
   sidecar_missing: 'create.errors.sidecar',
   sidecar_spawn: 'create.errors.sidecar',

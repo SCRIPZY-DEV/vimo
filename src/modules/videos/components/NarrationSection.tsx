@@ -11,6 +11,10 @@ import type { CreateFormValue } from '@/modules/videos/types/create'
 interface NarrationSectionProps {
   value: CreateFormValue
   disabled: boolean
+  // Demo (ADR-0028): el audio es siempre el de la historia — el picker y la
+  // X quedan bloqueados y el chip muestra `audioFileLabel`.
+  audioLocked?: boolean
+  audioFileLabel?: string
   onChange: (patch: Partial<CreateFormValue>) => void
   onPickAudio: () => void
 }
@@ -18,13 +22,16 @@ interface NarrationSectionProps {
 export function NarrationSection({
   value,
   disabled,
+  audioLocked = false,
+  audioFileLabel,
   onChange,
   onPickAudio,
 }: NarrationSectionProps) {
   const { t } = useTranslation()
 
   const isUpload = value.narrationMode === 'own-audio'
-  const fileName = value.narrationFilePath?.split(/[\\/]/).pop() ?? null
+  const fileName =
+    audioFileLabel ?? value.narrationFilePath?.split(/[\\/]/).pop() ?? null
 
   return (
     <div className="space-y-3">
@@ -69,7 +76,7 @@ export function NarrationSection({
 
           <button
             type="button"
-            disabled={disabled}
+            disabled={disabled || audioLocked}
             onClick={onPickAudio}
             className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-border bg-card p-3 text-left transition-all hover:border-saffron/40"
           >
@@ -89,20 +96,24 @@ export function NarrationSection({
               <span className="truncate font-body text-sm text-foreground">
                 {fileName}
               </span>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange({ narrationFilePath: null })}
-                aria-label={t('create.narration.clearFile')}
-                className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              {!audioLocked && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange({ narrationFilePath: null })}
+                  aria-label={t('create.narration.clearFile')}
+                  className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
 
           <p className="font-body text-xs text-muted-foreground">
-            {t('create.narration.audioHint')}
+            {audioLocked
+              ? t('create.narration.demoAudioHint')
+              : t('create.narration.audioHint')}
           </p>
         </div>
       )}

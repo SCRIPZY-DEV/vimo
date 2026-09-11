@@ -102,7 +102,8 @@
       "clearFile": "Quitar el audio elegido",
       "noFile": "Ningún archivo elegido",
       "audioLabel": "Tu audio narrado",
-      "audioHint": "Vimo transcribe tu audio y usa ese texto para crear las imágenes. No hace falta que escribas el guion. Formatos: mp3, wav, m4a, aac, ogg."
+      "audioHint": "Vimo transcribe tu audio y usa ese texto para crear las imágenes. No hace falta que escribas el guion. Formatos: mp3, wav, m4a, aac, ogg.",
+      "demoAudioHint": "En la demo el audio ya viene cargado: es la narración de la historia elegida y cambia con el estilo y el formato."
     },
     "script": {
       "label": "Guion",
@@ -448,7 +449,8 @@
       "voiceLibraryAddFailed": "No se pudo añadir la voz de la biblioteca a tu cuenta de ElevenLabs.",
       "voiceAccountRestricted": "ElevenLabs restringió tu cuenta para esta función. Revisá tu plan en ElevenLabs.",
       "demoNotReady": "La demo no está lista en esta computadora. Volvé a entrar por el botón Demo.",
-      "demoStyleNotIncluded": "La demo no incluye este estilo. Elegí uno de los estilos que muestra la demo."
+      "demoStyleNotIncluded": "La demo no incluye este estilo. Elegí uno de los estilos que muestra la demo.",
+      "demoFormatNotIncluded": "El pack de la demo instalado no trae historias en este formato. Volvé a entrar por el botón Demo para actualizarlo."
     },
     "credits": {
       "balance": "{{amount}} cr.",
