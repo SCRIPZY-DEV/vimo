@@ -13,8 +13,9 @@ import type {
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
-import type { VoiceProviderId } from '@pipeline/types/voices.ts'
+import type { VoiceProviderId, VoiceVendorId } from '@pipeline/types/voices.ts'
 import type { PromptModelBlockReason } from '@/modules/common/types/promptModelBlocks'
+import type { CreditsIssueView } from '@/modules/videos/types/credits'
 import type {
   SelectedCustomStyle,
   StyleSource,
@@ -164,6 +165,13 @@ export interface CreateTask {
   promptsStageActivity: PromptsStageActivity | null
   promptModelIssue: PromptModelIssueView | null
   promptModelSwitch: PromptModelSwitchPhase | null
+  // Proveedor de imagen y vendor de voz del proyecto: con un rechazo por
+  // saldo la tarjeta sabe qué cuenta mostrar y a dónde mandar a recargar.
+  imageProvider: ImageProviderId | null
+  voiceVendor: VoiceVendorId | null
+  // El job cayó por saldo agotado (ADR-0029). Sobrevive al reinicio: el
+  // proyecto quedó pausado en disco por el mismo motivo.
+  creditsIssue: CreditsIssueView | null
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -191,6 +199,8 @@ export interface ProjectRunOptions {
   // de project.json al reanudar.
   usesCustomStyle?: boolean
   promptModel?: string | null
+  imageProvider?: ImageProviderId | null
+  voiceVendor?: VoiceVendorId | null
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.

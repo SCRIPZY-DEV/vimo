@@ -19,6 +19,9 @@ export type ProjectBadge =
   | 'awaitingConfirmation'
   | 'interrupted'
   | 'paused'
+  // Pausado por saldo agotado en el proveedor (ADR-0029): se reanuda tras
+  // recargar.
+  | 'noCredits'
   | 'error'
   | 'draft'
 

@@ -121,6 +121,30 @@ export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   'ytdlp_network',
   'ytdlp_timeout',
 ])
+// Saldo agotado en el proveedor (espejo de pipeline/utils/insufficient-
+// credits.ts, ADR-0029): nunca se reintenta solo ni abre el diálogo del
+// modelo; el proyecto queda pausado y la persona recarga y reanuda.
+export const INSUFFICIENT_CREDITS_CODES: ReadonlySet<string> = new Set([
+  'voice_insufficient_credits',
+  'voice_quota_exceeded',
+  'image_insufficient_credits',
+  'llm_insufficient_credits',
+  'transcription_insufficient_credits',
+  'music_insufficient_credits',
+])
+// Margen sobre la estimación de costo antes de arrancar: estimar de menos y
+// quedarse sin saldo a mitad es peor que pedir un poco más.
+export const COST_ESTIMATE_SAFETY_FACTOR = 1.1
+// Duración de escena del corte automático (espejo de AUTO_SECONDS_PER_SCENE
+// en pipeline/stages/scene-cuts/scene-cuts.ts), para estimar cuántas
+// imágenes va a pedir un guion sin cantidad fija.
+export const AUTO_SECONDS_PER_SCENE = 3
+// Caracteres narrados por segundo (~150 palabras/min): duración aproximada
+// del audio que todavía no existe, solo para estimar escenas.
+export const SPEECH_CHARS_PER_SECOND = 15
+// Tope del rango «~50–200 créditos» de una generación de música (Suno vía
+// Evolink); línea informativa, la música de fondo es opcional.
+export const BGM_CREDITS_ESTIMATE = 200
 // Backoff del origen (v0.11.4): 30 s, 90 s y 3 min entre intentos — el
 // pipeline retoma desde checkpoint en cada uno.
 export const AUTO_RETRY_DELAYS_SECONDS = [30, 90, 180] as const
@@ -187,6 +211,7 @@ export const PROGRESS_BADGES: ReadonlySet<ProjectBadge> = new Set([
   'awaitingConfirmation',
   'interrupted',
   'paused',
+  'noCredits',
 ])
 
 // ── Timeline del editor (valores portados 1:1 del TimelineEditor del origen) ──
@@ -406,30 +431,35 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
 // elegido en el formulario, o el del proyecto en el editor).
 // Los precios (USD por imagen) vienen del catálogo del origen
 // (src/core/costos.ts); si cambian, actualizar también el catálogo
-// informativo de modules/costs/catalog.ts (ADR-0008).
+// informativo de modules/costs/catalog.ts (ADR-0008). Evolink cobra en
+// créditos propios: `credits` por imagen es lo que se compara con su saldo.
 export const EVOLINK_QUALITY_OPTIONS: {
   id: string
   labelKey: string
   noteKey: string
   priceUsd: number
+  credits: number
 }[] = [
   {
     id: '1024x576_low',
     labelKey: 'create.quality.low',
     noteKey: 'create.quality.evolinkLowNote',
     priceUsd: 0.0036,
+    credits: 0.24,
   },
   {
     id: '1024x576_medium',
     labelKey: 'create.quality.medium',
     noteKey: 'create.quality.evolinkMediumNote',
     priceUsd: 0.0273,
+    credits: 1.85,
   },
   {
     id: '1024x576_high',
     labelKey: 'create.quality.high',
     noteKey: 'create.quality.evolinkHighNote',
     priceUsd: 0.1072,
+    credits: 7.29,
   },
 ]
 
@@ -588,11 +618,13 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_download_failed: 'create.errors.voiceDownloadFailed',
   voice_empty_audio: 'create.errors.voiceEmptyAudio',
   voice_quota_exceeded: 'create.errors.voiceQuotaExceeded',
+  voice_insufficient_credits: 'create.errors.voiceInsufficientCredits',
   voice_account_restricted: 'create.errors.voiceAccountRestricted',
   voice_library_add_failed: 'create.errors.voiceLibraryAddFailed',
   // Música y overlay
   music_generation_failed: 'create.errors.musicGenerationFailed',
   music_download_failed: 'create.errors.musicDownloadFailed',
+  music_insufficient_credits: 'create.errors.musicInsufficientCredits',
   ytdlp_invalid_url: 'create.errors.ytdlpInvalidUrl',
   ytdlp_needs_login: 'create.errors.ytdlpNeedsLogin',
   ytdlp_geo_restricted: 'create.errors.ytdlpGeoRestricted',
@@ -610,6 +642,8 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   transcription_rate_limited: 'create.errors.transcriptionRateLimited',
   transcription_network: 'create.errors.transcriptionNetwork',
   transcription_failed: 'create.errors.transcriptionFailed',
+  transcription_insufficient_credits:
+    'create.errors.transcriptionInsufficientCredits',
   transcription_empty: 'create.errors.transcriptionEmpty',
   words_missing: 'create.errors.wordsMissing',
   scenes_missing: 'create.errors.scenesMissing',
@@ -621,6 +655,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_empty_response: 'create.errors.llmProviderError',
   llm_rescue_needed: 'create.errors.llmRescueNeeded',
   llm_auth: 'create.errors.llmAuth',
+  llm_insufficient_credits: 'create.errors.llmInsufficientCredits',
   // Imágenes
   image_network: 'create.errors.imageNetwork',
   image_invalid_api_key: 'create.errors.imageInvalidApiKey',
@@ -630,6 +665,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   image_timeout: 'create.errors.imageTimeout',
   image_download_failed: 'create.errors.imageDownloadFailed',
   image_rate_limited: 'create.errors.imageRateLimited',
+  image_insufficient_credits: 'create.errors.imageInsufficientCredits',
   image_missing_prompt: 'create.errors.imageMissingPrompt',
   image_attempts_exhausted: 'create.errors.imageProviderError',
   images_incomplete: 'create.errors.imagesIncomplete',

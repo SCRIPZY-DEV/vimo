@@ -19,6 +19,7 @@ import { PhaseProgressPanel } from '@/modules/videos/components/PhaseProgressPan
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
 import { GenerationErrorCard } from '@/modules/videos/components/GenerationErrorCard'
+import { InsufficientCreditsCard } from '@/modules/videos/components/InsufficientCreditsCard'
 import { ProgressStatusPill } from '@/modules/videos/components/ProgressStatusPill'
 import { PromptModelIssueDialog } from '@/modules/videos/components/PromptModelIssueDialog'
 import { PromptStageWatchdog } from '@/modules/videos/components/PromptStageWatchdog'
@@ -354,7 +355,23 @@ export function GenerationProgress({
             </motion.div>
           )}
 
-          {failed && (
+          {failed && task.creditsIssue && (
+            <InsufficientCreditsCard
+              message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
+              projectId={task.projectId}
+              context={{
+                domain: task.creditsIssue.domain,
+                imageProvider: task.imageProvider,
+                voiceVendor: task.voiceVendor,
+              }}
+              onRetry={onRetryPipeline}
+              onContinueInEditor={
+                failedStage === 'images' ? onContinueInEditor : undefined
+              }
+            />
+          )}
+
+          {failed && !task.creditsIssue && (
             <GenerationErrorCard
               message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
               failedStage={failedStage}

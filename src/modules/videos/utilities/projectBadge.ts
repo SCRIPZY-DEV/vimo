@@ -4,7 +4,7 @@ import type { ProjectBadge } from '@/modules/videos/types/library'
 
 type ProjectBadgeInput = Pick<
   VideoProjectListItem,
-  'state' | 'hasVideo' | 'videoOutdated'
+  'state' | 'hasVideo' | 'videoOutdated' | 'pauseReason'
 >
 
 // Estado visible de un proyecto, derivado del estado en disco.
@@ -19,7 +19,10 @@ export function projectBadge(
 
   if (state === 'generating') return hasLiveTask ? 'generating' : 'interrupted'
   if (state === 'awaiting-confirmation') return 'awaitingConfirmation'
-  if (state === 'paused') return 'paused'
+  if (state === 'paused')
+    return project.pauseReason === 'insufficient-credits'
+      ? 'noCredits'
+      : 'paused'
   if (state === 'error') return 'error'
   if (state === 'completed' && project.hasVideo)
     return project.videoOutdated ? 'outdated' : 'ready'
