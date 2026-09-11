@@ -70,6 +70,8 @@ export async function runVideoPipeline(
     // el editor lo abre directo con todo generado.
     if (fullRun) {
       videoContext.metadata.state = autoRender ? 'completed' : 'draft'
+      // El render recién hecho es la verdad: el mp4 ya no está atrás de nada.
+      if (autoRender) videoContext.metadata.videoOutdated = false
       await videoContext.saveMetadata()
     }
 
