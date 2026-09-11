@@ -176,7 +176,7 @@ cubrieron los 12 subcomandos nuevos.
 - Harness (`pnpm pipeline:harness`, corrido en la implementación):
   `list-video-projects` salta corruptos/reservados/ids inválidos;
   `update-scenes` de una escena deja las demás byte-idénticas y marca
-  `videoOutdated`; regen sin claves falla limpio sin tocar mtimes ajenos;
+  `videoOutdated` (solo si cambian los tiempos, ver adenda 2026-09-11); regen sin claves falla limpio sin tocar mtimes ajenos;
   `render-video` real (ffmpeg empaquetado) sobreescribe el mp4 con chunks
   cache-hit y limpia `videoOutdated`; `render_missing_images` deja el mp4
   anterior intacto; `export-clips` deja `clips/` con un mp4 por escena +
@@ -220,3 +220,16 @@ yendo al editor (ADR-0016).
 - Origen del port: `02-vimo/cursor-video/app/src/caracteristicas/biblioteca-de-videos/`
   y `app/servidor-local/rutas/proyectos.ts` (referencia de comportamiento,
   solo lectura).
+
+## Adenda 2026-09-11 — `update-scenes` marca `videoOutdated` solo ante cambios que afectan el render
+
+Hasta ahora `update-scenes` marcaba `videoOutdated` en cada guardado, y el
+editor guarda al tocar el selector de proveedor/calidad, marcar personajes o
+salir de la descripción: un proyecto en «Listo» pasaba a «Desactualizado» con
+solo mirarlo. El comando ahora compara cada patch con la escena en disco y
+marca solo si cambian `startSeconds`/`endSeconds` en valor (precisión de
+milisegundos, la misma con que la UI acota fronteras y el manifest de chunks
+fija la duración). Prompt, modelo, calidad y personajes solo afectan a la
+próxima regeneración, y ese job ya marca por su cuenta cuando una imagen
+cambia de verdad. Además, el pipeline completo con auto-render limpia el flag
+al terminar, igual que `render-video`.

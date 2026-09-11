@@ -467,6 +467,8 @@ los tiempos preservando escenas e imágenes. Las escenas se persisten con
 **merge por id** (`scenes-file.ts`): una edición del usuario durante una regen
 no se pisa. Un mp4 que quedó atrás se marca con `videoOutdated` en
 `project.json` — el flag jamás borra el video; lo limpia el próximo render.
+`update-scenes` solo lo marca cuando cambian los tiempos de una escena; prompt,
+modelo, calidad y personajes esperan a la regeneración, que marca por su cuenta.
 Concurrencia: un pipeline completo/render a la vez en la app, y las regens se
 coalescen en UN job por proyecto (cola en la UI); sin replay de eventos — al
 rehidratar, la UI refetchea el disco.
