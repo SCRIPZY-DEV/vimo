@@ -523,6 +523,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   voice: null,
   voiceSettings: VOICE_SETTINGS_DEFAULTS,
   characters: [],
+  withdrawnCharacters: [],
   characterFrequency: 'balanced',
   useBgm: false,
   bgmMode: 'evolink-ai',

@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserRound, X } from 'lucide-react'
+import { Film, Pencil, Sparkles, UserRound, X } from 'lucide-react'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
 import { LabeledSelect } from '@/modules/videos/components/LabeledSelect'
+import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
 import { CHARACTER_FREQUENCIES } from '@/modules/videos/constants'
-import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
+import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
+import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
 import { findStylePreview } from '@/modules/videos/utilities/findStylePreview'
-import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import type {
   CreateFormValue,
@@ -23,6 +24,12 @@ interface CharacterSectionProps {
   onChange: (patch: Partial<CreateFormValue>) => void
 }
 
+// Sección de personaje del formulario. Con un estilo de catálogo es el
+// selector de siempre; con «Mi estilo» cuenta qué decidió la gema en uso
+// sobre su protagonista (ADR-0020) con un chip que, al tocarlo, abre el
+// editor de ESA gema (port de los chips de EditorGuion del origen,
+// v1.19.4–v1.31.2): el fijo, el fijo que se borró de la biblioteca, el
+// genérico/sin personaje y el recibo de los personajes retirados.
 export function CharacterSection({
   value,
   disabled,
@@ -31,24 +38,17 @@ export function CharacterSection({
   const { t } = useTranslation()
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // Qué decidió la gema en uso (ADR-0020): con genérico/sin personaje el
-  // motor lo escribe (o no lleva) y la sección desaparece; con «Mi
-  // personaje» la sección es obligatoria y, si el estilo trae uno fijo, ese
-  // personaje va sembrado y no se cambia.
-  const styleCharacterMode = styleCharacterModeOf(value)
   // El preview se busca por el estilo propio en uso o el del catálogo.
   const previewStyleKey = previewStyleKeyOf(value)
-  const fixedCharacterId =
-    styleCharacterMode === 'own'
-      ? value.customStyle?.character?.defaultCharacterId
-      : undefined
-  const { characters: catalog, isLoading: catalogLoading } =
-    useCharacterCatalog(Boolean(fixedCharacterId))
-  const fixedCharacter = fixedCharacterId
-    ? catalog.find((character) => character.id === fixedCharacterId)
-    : undefined
-  const fixedMissing =
-    Boolean(fixedCharacterId) && !catalogLoading && !fixedCharacter
+  const {
+    mode,
+    fixedCharacterId,
+    fixedCharacter,
+    fixedLoading,
+    fixedMissing,
+    styleWritesCharacter,
+    canEditStyle,
+  } = useStyleCharacter(value)
   const fixedSeeded = value.characters.some(
     (character) => character.characterId === fixedCharacterId,
   )
@@ -68,8 +68,175 @@ export function CharacterSection({
     onChange({ characters: [seeded] })
   }, [fixedCharacter, fixedSeeded, disabled, previewStyleKey, onChange])
 
-  if (styleCharacterMode === 'generic' || styleCharacterMode === 'none')
-    return null
+  // Todos los chips del estilo abren el editor de la gema EN USO (v1.19.5
+  // del origen): ahí vive el bloque «¿Tu estilo lleva personaje?».
+  const editStyleInUse = () => {
+    if (!value.customStyle) return
+    openCustomStyleEditor({ styleId: value.customStyle.styleId })
+  }
+
+  const label = (
+    <Label className="flex items-center gap-2 font-display font-semibold">
+      <UserRound className="h-4 w-4 text-saffron" />
+      {mode === 'own'
+        ? t('create.characters.labelOfStyle')
+        : t('create.characters.label')}
+    </Label>
+  )
+
+  if (styleWritesCharacter) {
+    const withdrawnNames = value.withdrawnCharacters
+      .map((character) => character.name)
+      .filter(Boolean)
+      .join(' + ')
+
+    return (
+      <div className="space-y-2">
+        {label}
+
+        {value.characters.length === 0 && (
+          <StyleCharacterChip
+            kind="style-decides"
+            tone="ocean"
+            editable={canEditStyle}
+            onEdit={editStyleInUse}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ocean/20">
+                {mode === 'none' ? (
+                  <Film className="h-5 w-5 text-ocean" />
+                ) : (
+                  <Sparkles className="h-5 w-5 text-ocean" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-sm font-bold text-ocean">
+                  {t(
+                    mode === 'none'
+                      ? 'create.characters.styleUsesNone'
+                      : 'create.characters.styleUsesGeneric',
+                  )}
+                </p>
+                <p className="mt-0.5 font-body text-xs text-muted-foreground">
+                  {t(
+                    mode === 'none'
+                      ? 'create.characters.styleUsesNoneHint'
+                      : 'create.characters.styleUsesGenericHint',
+                  )}
+                </p>
+              </div>
+              {canEditStyle && (
+                <Pencil
+                  aria-hidden
+                  className="h-4 w-4 shrink-0 text-ocean/70"
+                />
+              )}
+            </div>
+            {canEditStyle && (
+              <p className="mt-3 border-t border-ocean/25 pt-2.5 font-body text-xs text-muted-foreground">
+                {t('create.characters.wantYours')}
+              </p>
+            )}
+          </StyleCharacterChip>
+        )}
+
+        {value.withdrawnCharacters.length > 0 && (
+          <StyleCharacterChip
+            kind="withdrawn"
+            tone="saffron"
+            editable={canEditStyle}
+            onEdit={editStyleInUse}
+          >
+            <p className="font-display text-sm font-bold text-foreground">
+              {withdrawnNames
+                ? t('create.characters.withdrawnTitle', {
+                    names: withdrawnNames,
+                  })
+                : t('create.characters.withdrawnTitleNoName')}
+            </p>
+            <p className="mt-0.5 font-body text-xs text-muted-foreground">
+              {t(
+                mode === 'none'
+                  ? 'create.characters.withdrawnBecauseNone'
+                  : 'create.characters.withdrawnBecauseGeneric',
+              )}{' '}
+              {t(
+                canEditStyle
+                  ? 'create.characters.withdrawnRestoreHint'
+                  : 'create.characters.withdrawnRestoreAuto',
+              )}
+            </p>
+          </StyleCharacterChip>
+        )}
+      </div>
+    )
+  }
+
+  if (fixedCharacterId) {
+    // La carita sale del catálogo (no de la siembra) para no depender del
+    // orden del efecto.
+    const fixedPreview = fixedCharacter
+      ? findStylePreview(fixedCharacter, previewStyleKey)
+      : undefined
+
+    return (
+      <div className="space-y-2">
+        {label}
+
+        {fixedLoading && (
+          <p className="font-body text-xs text-muted-foreground">
+            {t('create.characters.fixedLoading')}
+          </p>
+        )}
+
+        {fixedMissing && (
+          <StyleCharacterChip
+            kind="fixed-missing"
+            tone="destructive"
+            editable
+            onEdit={editStyleInUse}
+          >
+            <p className="font-display text-sm font-bold text-destructive">
+              {t('create.characters.fixedMissingTitle')}
+            </p>
+            <p className="font-body text-xs text-muted-foreground">
+              {t('create.characters.fixedMissingHint')}
+            </p>
+          </StyleCharacterChip>
+        )}
+
+        {fixedCharacter && fixedSeeded && (
+          <StyleCharacterChip
+            kind="fixed"
+            tone="ocean"
+            editable
+            onEdit={editStyleInUse}
+          >
+            <div className="flex items-center gap-3">
+              <CharacterPortrait
+                src={
+                  fixedPreview
+                    ? videosApi.imageSource(fixedPreview.imagePath)
+                    : null
+                }
+                doodleSize={20}
+                className="h-10 w-10 shrink-0 overflow-hidden rounded-full"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-sm font-bold text-ocean">
+                  {fixedCharacter.name}
+                </p>
+                <p className="font-body text-xs text-muted-foreground">
+                  {t('create.characters.broughtByStyle')}
+                </p>
+              </div>
+              <Pencil aria-hidden className="h-4 w-4 shrink-0 text-ocean/70" />
+            </div>
+          </StyleCharacterChip>
+        )}
+      </div>
+    )
+  }
 
   const firstCharacter = value.characters[0] ?? null
   const subtitle =
@@ -77,50 +244,10 @@ export function CharacterSection({
       ? t('create.characters.selectedCount', { count: value.characters.length })
       : (firstCharacter?.description ?? '') || t('create.characters.hint')
 
-  if (fixedCharacterId) {
-    return (
-      <div className="space-y-2">
-        <Label className="flex items-center gap-2 font-display font-semibold">
-          <UserRound className="h-4 w-4 text-saffron" />
-          {t('create.characters.label')}
-        </Label>
-        {fixedMissing && (
-          <p className="font-body text-xs text-coral">
-            {t('create.characters.fixedMissing')}
-          </p>
-        )}
-        {fixedCharacter && fixedSeeded && (
-          <div className="flex items-center gap-3 rounded-xl border-2 border-saffron bg-saffron/5 px-4 py-3">
-            <CharacterPortrait
-              src={
-                firstCharacter?.previewPath
-                  ? videosApi.imageSource(firstCharacter.previewPath)
-                  : null
-              }
-              doodleSize={20}
-              className="h-10 w-10 shrink-0 overflow-hidden rounded-full"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-display text-sm font-bold text-foreground">
-                {fixedCharacter.name}
-              </p>
-              <p className="truncate font-body text-xs text-muted-foreground">
-                {t('create.characters.broughtByStyle')}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-2">
-      <Label className="flex items-center gap-2 font-display font-semibold">
-        <UserRound className="h-4 w-4 text-saffron" />
-        {t('create.characters.label')}
-      </Label>
-      {styleCharacterMode === 'own' && (
+      {label}
+      {mode === 'own' && (
         <p className="font-body text-xs text-saffron">
           {t('create.characters.asksForCharacter')}
         </p>
@@ -242,7 +369,7 @@ export function CharacterSection({
           previewStyleKey={previewStyleKey}
           selected={value.characters}
           styleContext={
-            styleCharacterMode !== null && value.customStyle
+            mode !== null && value.customStyle
               ? {
                   styleId: value.customStyle.styleId,
                   gem: value.customStyle.systemPrompt,

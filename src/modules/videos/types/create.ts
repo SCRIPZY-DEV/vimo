@@ -242,6 +242,10 @@ export interface CreateFormValue {
   voice: SelectedVoice | null
   voiceSettings: VoiceSettingsFormValue
   characters: SelectedCharacter[]
+  // Personajes que una gema «genérico»/«sin personaje» retiró del formulario
+  // (v1.31.2 del origen): vuelven solos cuando un estilo los acepta de nuevo.
+  // No viajan en el payload.
+  withdrawnCharacters: SelectedCharacter[]
   characterFrequency: CharacterFrequency
   useBgm: boolean
   bgmMode: BgmMode
@@ -271,6 +275,16 @@ export interface ProbeCacheEntry {
   ok: boolean
   reason: ProbeTtsReason
   expiresAt: number
+}
+
+// Lo que formBlockers no puede derivar del formulario solo.
+export interface FormBlockersContext {
+  // Todos los modelos de prompts bloqueados (ADR-0028): con estilo propio no
+  // hay quién escriba los prompts.
+  promptModelsBlocked?: boolean
+  // El fijo de la gema ya no está en la biblioteca (lo resuelve
+  // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).
+  fixedCharacterMissing?: boolean
 }
 
 // Cómo se arma el payload de create-video-project desde el formulario.
