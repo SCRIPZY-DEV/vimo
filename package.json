@@ -15,6 +15,7 @@
     "fetch:binaries": "node scripts/fetch-binaries.mjs",
     "check:locales": "node scripts/check-locales.mjs",
     "pipeline:harness": "node scripts/run-pipeline-harness.mjs",
+    "check:demo": "node scripts/check-demo.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -54,7 +55,8 @@
     "react-router": "^7.18.2",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.1",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -62,6 +64,7 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/yauzl": "3.4.0",
     "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.5.4",
     "esbuild": "^0.28.2",
