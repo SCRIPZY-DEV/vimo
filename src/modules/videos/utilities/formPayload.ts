@@ -102,7 +102,12 @@ export function createProjectPayload(
 }
 
 // Motivos por los que el formulario todavía no puede enviarse.
-export function formBlockers(form: CreateFormValue): string[] {
+// `promptModelsBlocked`: todos los modelos de prompts están bloqueados
+// (ADR-0028) — con estilo propio no hay quién escriba los prompts.
+export function formBlockers(
+  form: CreateFormValue,
+  promptModelsBlocked = false,
+): string[] {
   const blockers: string[] = []
 
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
@@ -111,6 +116,9 @@ export function formBlockers(form: CreateFormValue): string[] {
   // elegida no hay estilo con qué generar.
   if (form.styleSource === 'custom' && !form.customStyle)
     blockers.push('create.validation.styleRequired')
+
+  if (form.styleSource === 'custom' && promptModelsBlocked)
+    blockers.push('create.validation.promptModelsBlocked')
 
   // La gema pide TU personaje (ADR-0020): sin uno elegido — o con el fijo
   // del estilo ya borrado de la biblioteca — no hay con qué generar.

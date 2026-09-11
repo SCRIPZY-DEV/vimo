@@ -15,6 +15,9 @@ interface StageBarProps {
   // prompts vuelve a «en curso» (la fase sigue completa para el runner, pero
   // para la persona los prompts NO están listos) y la de imágenes espera.
   recovery: ImagesRecoveryView | null
+  // El modelo de prompts lleva PROMPT_STAGE_STALL_MS sin escribir (ADR-0028):
+  // la fila de prompts lo dice, así el spinner no miente.
+  promptModelStalled: boolean
 }
 
 // Sub-línea de la pasada de recuperación bajo la fila que la sufre: la
@@ -52,6 +55,7 @@ export function StageBar({
   completedStages,
   paused,
   recovery,
+  promptModelStalled,
 }: StageBarProps) {
   const { t } = useTranslation()
 
@@ -122,6 +126,11 @@ export function StageBar({
               {note && (
                 <span className="block font-body text-sm font-normal text-ocean">
                   {t(note.key, note.values)}
+                </span>
+              )}
+              {active && promptModelStalled && stage.id === 'scene-prompts' && (
+                <span className="block font-body text-sm font-normal text-coral">
+                  {t('create.progress.promptModelStalled')}
                 </span>
               )}
             </span>

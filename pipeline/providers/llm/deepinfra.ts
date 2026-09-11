@@ -1,4 +1,5 @@
 import { PipelineFailure } from '../../runner/failure.ts'
+import { isAuthStatus, LLM_AUTH_CODE } from './auth-failure.ts'
 import type {
   ChatCompletionResponse,
   LlmProvider,
@@ -55,6 +56,12 @@ export function createDeepInfraProvider(
         throw new PipelineFailure(
           'llm_rate_limited',
           'DeepInfra rate limit hit',
+        )
+      // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
+      if (isAuthStatus(response.status))
+        throw new PipelineFailure(
+          LLM_AUTH_CODE,
+          `DeepInfra rejected the API key (status=${response.status})`,
         )
       if (!response.ok)
         throw new PipelineFailure(

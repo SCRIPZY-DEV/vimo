@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Wallet } from 'lucide-react'
+import { Alert } from '@/modules/common/components/Alert'
 import { PriceCell } from '@/modules/common/components/PriceCell'
 import { PromptModelCard } from '@/modules/common/components/PromptModelCard'
+import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
+import { allPromptModelsBlocked } from '@/modules/common/utilities/allPromptModelsBlocked'
 import { cn } from '@/modules/common/utilities/cn'
 import {
   PRICE_BANDS,
@@ -27,6 +30,9 @@ interface PromptModelSelectorProps {
   // ¿La gema hace correr la fase del personaje? Solo con «genérico».
   withCharacterPhase: boolean
   disabled: boolean
+  // El simulador de costo sobra en un diálogo de emergencia (cambiar de
+  // modelo a mitad de un video): ahí solo se elige.
+  showSimulator?: boolean
   onChange: (modelId: string) => void
 }
 
@@ -68,16 +74,20 @@ export function PromptModelSelector({
   batchSize,
   withCharacterPhase,
   disabled,
+  showSimulator = true,
   onChange,
 }: PromptModelSelectorProps) {
   const { t } = useTranslation()
   const [scenesSimulated, setScenesSimulated] = useState(
     SIMULATOR_SCENES_DEFAULT,
   )
+  // Bloqueos temporales (ADR-0028): configuración global, se lee acá.
+  const { blockedIds, blockedUntil } = usePromptModelBlocks()
 
   if (models.length === 0) return null
 
   const chosen = models.find((model) => model.id === value) ?? models[0]!
+  const allBlocked = allPromptModelsBlocked(models, blockedIds)
   const cost = estimatePromptCost({
     scenes: scenesSimulated,
     gemChars,
@@ -91,6 +101,12 @@ export function PromptModelSelector({
       <h3 className="font-display text-sm font-bold text-foreground">
         {t('create.promptModel.title')}
       </h3>
+
+      {allBlocked && (
+        <Alert tone="warning">
+          {t('common.promptModelBlocked.allBlocked')}
+        </Alert>
+      )}
 
       {PRICE_BANDS.map(({ band, labelKey, level }) => {
         const group = models.filter(
@@ -119,8 +135,11 @@ export function PromptModelSelector({
                 <PromptModelCard
                   key={model.id}
                   model={model}
-                  active={model.id === chosen.id}
+                  // Un bloqueado nunca se pinta elegido: el padre ya resolvió
+                  // otro y marcarlo confundiría.
+                  active={model.id === chosen.id && !blockedIds.has(model.id)}
                   disabled={disabled}
+                  blockedUntil={blockedUntil(model.id)}
                   onSelect={() => onChange(model.id)}
                 />
               ))}
@@ -133,63 +152,65 @@ export function PromptModelSelector({
           repetidos en cada tarjeta, no se leen. El slider deja probar de 100 a
           600 escenas porque el costo NO es proporcional (la gema y el guion
           viajan en cada lote) y ver la curva es justamente el punto. */}
-      <div className="space-y-3 rounded-xl border-2 border-saffron/40 bg-gradient-to-br from-saffron/15 to-coral/10 p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-saffron/30">
-              <Wallet className="h-5 w-5 text-saffron" />
+      {showSimulator && (
+        <div className="space-y-3 rounded-xl border-2 border-saffron/40 bg-gradient-to-br from-saffron/15 to-coral/10 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-saffron/30">
+                <Wallet className="h-5 w-5 text-saffron" />
+              </div>
+              <div>
+                <p className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {t('create.promptModel.simulatorTitle')}
+                </p>
+                <p className="font-display text-base font-extrabold leading-tight text-foreground">
+                  {t('create.promptModel.simulatorScenes', {
+                    count: scenesSimulated,
+                    model: chosen.label,
+                  })}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">
-                {t('create.promptModel.simulatorTitle')}
-              </p>
-              <p className="font-display text-base font-extrabold leading-tight text-foreground">
-                {t('create.promptModel.simulatorScenes', {
-                  count: scenesSimulated,
-                  model: chosen.label,
-                })}
-              </p>
-            </div>
+            {cost === null ? (
+              <span className="max-w-52 text-right font-body text-sm text-muted-foreground">
+                {t('create.promptModel.noPrice')}
+              </span>
+            ) : (
+              <span className="flex items-baseline gap-1 font-display text-2xl font-extrabold text-saffron">
+                ≈ <PriceCell usd={cost} highlighted className="text-2xl" />
+              </span>
+            )}
           </div>
-          {cost === null ? (
-            <span className="max-w-52 text-right font-body text-sm text-muted-foreground">
-              {t('create.promptModel.noPrice')}
-            </span>
-          ) : (
-            <span className="flex items-baseline gap-1 font-display text-2xl font-extrabold text-saffron">
-              ≈ <PriceCell usd={cost} highlighted className="text-2xl" />
-            </span>
-          )}
-        </div>
 
-        <input
-          type="range"
-          min={SIMULATOR_SCENES_MIN}
-          max={SIMULATOR_SCENES_MAX}
-          step={SIMULATOR_SCENES_STEP}
-          value={scenesSimulated}
-          disabled={disabled}
-          onChange={(event) => setScenesSimulated(Number(event.target.value))}
-          aria-label={t('create.promptModel.sliderLabel')}
-          className="w-full accent-saffron"
-        />
-        <div className="flex justify-between font-display text-xs font-bold text-muted-foreground">
-          <span>
-            {t('create.promptModel.scenesCount', {
-              count: SIMULATOR_SCENES_MIN,
-            })}
-          </span>
-          <span>
-            {t('create.promptModel.scenesCount', {
-              count: SIMULATOR_SCENES_MAX,
-            })}
-          </span>
-        </div>
+          <input
+            type="range"
+            min={SIMULATOR_SCENES_MIN}
+            max={SIMULATOR_SCENES_MAX}
+            step={SIMULATOR_SCENES_STEP}
+            value={scenesSimulated}
+            disabled={disabled}
+            onChange={(event) => setScenesSimulated(Number(event.target.value))}
+            aria-label={t('create.promptModel.sliderLabel')}
+            className="w-full accent-saffron"
+          />
+          <div className="flex justify-between font-display text-xs font-bold text-muted-foreground">
+            <span>
+              {t('create.promptModel.scenesCount', {
+                count: SIMULATOR_SCENES_MIN,
+              })}
+            </span>
+            <span>
+              {t('create.promptModel.scenesCount', {
+                count: SIMULATOR_SCENES_MAX,
+              })}
+            </span>
+          </div>
 
-        <p className="font-body text-xs text-muted-foreground">
-          {t('create.promptModel.onlyPrompts')}
-        </p>
-      </div>
+          <p className="font-body text-xs text-muted-foreground">
+            {t('create.promptModel.onlyPrompts')}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
