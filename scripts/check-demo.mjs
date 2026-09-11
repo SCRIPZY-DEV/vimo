@@ -7,7 +7,7 @@
 //   pnpm check:demo
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -470,7 +470,335 @@ try {
     )
   }
 
-  // GUARD-SECCIONES-7-13
+  const STAGE_IDS = [
+    'voice',
+    'transcription',
+    'scene-cuts',
+    'scene-prompts',
+    'images',
+    'render',
+  ]
+  const KNOWN_EVENTS = new Set([
+    'job-started',
+    'stage-started',
+    'stage-skipped',
+    'stage-completed',
+    'progress',
+    'log',
+    'scenes-planned',
+    'scene-prompt-ready',
+    'scene-prompts-progress',
+    'images-recovery-pass',
+    'scene-image-started',
+    'scene-image-ready',
+    'scene-image-failed',
+    'scene-image-progress',
+    'voice-progress',
+    'bgm-progress',
+    'render-progress',
+    'awaiting-scene-confirmation',
+    'job-completed',
+    'job-failed',
+  ])
+  const projectPayload = (name, options) => ({
+    name,
+    script: 'Guion de prueba de la demo.',
+    options: {
+      styleId: 'normal',
+      sceneCount: 0,
+      narrationMode: 'tts',
+      imageProvider: 'evolink',
+      useBgm: false,
+      useOverlay: false,
+      confirmScenes: false,
+      autoRender: true,
+      ...options,
+    },
+  })
+  const createProject = async (name, options) => {
+    const { events } = await runSidecar('create-video-project', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: projectPayload(name, options),
+    })
+    return resultOf(events)?.projectId
+  }
+  const readMetadata = async (projectId) =>
+    JSON.parse(
+      await readFile(join(projectsRoot, projectId, 'project.json'), 'utf8'),
+    )
+
+  // 7. El flag se valida como booleano.
+  section('7. options.demo debe ser booleano')
+  {
+    const { events } = await runSidecar('create-video-project', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: projectPayload('Demo mal', { demo: 'yes' }),
+    })
+    assert(
+      codeOf(events) === 'invalid_payload',
+      `demo:"yes" → invalid_payload (fue ${codeOf(events)})`,
+    )
+  }
+
+  // 8. La simulación completa: orden de fases, archivos antes que eventos, metadata final.
+  section('8. run-video-pipeline con options.demo')
+  {
+    const projectId = await createProject('Demo normal', { demo: true })
+    assert(
+      typeof projectId === 'string',
+      'create-video-project acepta demo:true',
+    )
+    const started = []
+    const filesAtEvent = []
+    let unknown = 0
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+      onEvent(event) {
+        if (!KNOWN_EVENTS.has(event.type)) unknown += 1
+        if (event.type === 'stage-started') started.push(event.stageId)
+        if (event.type === 'scene-image-ready')
+          filesAtEvent.push(
+            existsSync(event.imagePath) && statSync(event.imagePath).size > 0,
+          )
+        if (event.type === 'job-completed')
+          filesAtEvent.push(
+            existsSync(event.result?.videoPath ?? '') &&
+              statSync(event.result.videoPath).size > 0,
+          )
+      },
+    })
+    assert(
+      last(events)?.type === 'job-completed',
+      `la demo termina en job-completed (fue ${last(events)?.type}: ${last(events)?.message ?? ''})`,
+    )
+    assert(
+      resultOf(events)?.status === 'completed',
+      'result.status es completed',
+    )
+    assert(
+      JSON.stringify(started) === JSON.stringify(STAGE_IDS),
+      `las fases arrancan en el orden de STAGE_IDS (fue ${started.join(',')})`,
+    )
+    assert(
+      events.filter((event) => event.type === 'stage-completed').length === 6,
+      'las seis fases completan',
+    )
+    assert(unknown === 0, 'ningún evento de tipo desconocido')
+    assert(
+      filesAtEvent.length === 3 && filesAtEvent.every(Boolean),
+      'cada imagen y el video existen en disco cuando se emite su evento',
+    )
+    assert(
+      events.filter((event) => event.type === 'voice-progress').length === 4,
+      'cuatro voice-progress',
+    )
+    assert(
+      events.some(
+        (event) =>
+          event.type === 'scenes-planned' &&
+          event.scenes.length === 2 &&
+          event.audioDurationSeconds > 0,
+      ),
+      'scenes-planned con las escenas del pack y duración',
+    )
+    assert(
+      events.filter((event) => event.type === 'scene-prompt-ready').length ===
+        2,
+      'un scene-prompt-ready por escena',
+    )
+    assert(
+      events.filter((event) => event.type === 'scene-image-progress').length ===
+        6,
+      'tres olas de progreso por imagen',
+    )
+    assert(
+      events.some(
+        (event) =>
+          event.type === 'render-progress' &&
+          event.phase === 'final' &&
+          event.percent === 100,
+      ),
+      'el render llega a final 100',
+    )
+    assert(
+      !events.some((event) => event.type === 'awaiting-scene-confirmation'),
+      'nunca pausa a confirmar escenas',
+    )
+    const metadata = await readMetadata(projectId)
+    assert(metadata.state === 'completed', 'project.json queda completed')
+    assert(
+      JSON.stringify(metadata.completedStages) === JSON.stringify(STAGE_IDS),
+      'completedStages trae las seis fases',
+    )
+    assert(
+      metadata.sceneCount === 2 &&
+        metadata.wordCount === 4 &&
+        metadata.audioDurationSeconds > 0,
+      'sceneCount, wordCount y audioDurationSeconds persistidos',
+    )
+    const words = JSON.parse(
+      await readFile(join(projectsRoot, projectId, 'words.json'), 'utf8'),
+    )
+    assert(
+      words.every(
+        (word) => !('confidence' in word) && typeof word.start === 'number',
+      ),
+      'words.json en formato nativo (sin confidence)',
+    )
+    const scenes = JSON.parse(
+      await readFile(join(projectsRoot, projectId, 'scenes.json'), 'utf8'),
+    )
+    assert(
+      scenes.every(
+        (scene) =>
+          typeof scene.text === 'string' &&
+          typeof scene.imagePrompt === 'string' &&
+          typeof scene.startSeconds === 'number',
+      ),
+      'scenes.json en formato nativo',
+    )
+    assert(
+      existsSync(join(projectsRoot, projectId, `${projectId}.mp4`)),
+      'el video final lleva el nombre del proyecto',
+    )
+  }
+
+  // 9. Cancelar a mitad deja paused y no completa.
+  section('9. cancelación')
+  {
+    const projectId = await createProject('Demo cancel', { demo: true })
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig({ delayScale: 0.05 }),
+      payload: { projectId },
+      cancelOn: 'scene-image-started',
+    })
+    assert(
+      codeOf(events) === 'cancelled',
+      `cancelar termina en job-failed cancelled (fue ${codeOf(events)})`,
+    )
+    assert(
+      !events.some((event) => event.type === 'job-completed'),
+      'no hay job-completed tras cancelar',
+    )
+    assert(
+      (await readMetadata(projectId)).state === 'paused',
+      'project.json queda paused',
+    )
+  }
+
+  // 10. Estilo fuera del pack.
+  section('10. estilo sin demo')
+  {
+    const projectId = await createProject('Demo fantasia', {
+      demo: true,
+      styleId: 'fantasia',
+    })
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+    })
+    assert(
+      codeOf(events) === 'demo_style_not_included',
+      `fantasia → demo_style_not_included (fue ${codeOf(events)})`,
+    )
+    const metadata = await readMetadata(projectId)
+    assert(
+      metadata.state === 'error' &&
+        metadata.errorCode === 'demo_style_not_included',
+      'el error queda persistido',
+    )
+  }
+
+  // 11. La gema: customStyle presente → carpeta storytelling.
+  section('11. gema del pack')
+  {
+    const projectId = await createProject('Demo gema', {
+      demo: true,
+      customStyle: {
+        styleId: 'demo-storytelling',
+        name: 'STORYTELLING mini',
+        systemPrompt: 'You write prompts.',
+        shots: [],
+      },
+    })
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+    })
+    assert(
+      resultOf(events)?.status === 'completed',
+      'con customStyle la demo usa la carpeta de la gema y completa',
+    )
+    const scenes = JSON.parse(
+      await readFile(join(projectsRoot, projectId, 'scenes.json'), 'utf8'),
+    )
+    assert(
+      scenes[0]?.imagePrompt === 'storytelling scene one',
+      'los prompts salen de la carpeta storytelling',
+    )
+  }
+
+  // 12. Sin pack instalado.
+  section('12. demo_not_ready')
+  {
+    const bareRoot = join(workspace, 'Vimo-bare')
+    await mkdir(bareRoot, { recursive: true })
+    const created = await runSidecar('create-video-project', {
+      projectsRoot: bareRoot,
+      config: demoConfig(),
+      payload: projectPayload('Demo sin pack', { demo: true }),
+    })
+    const projectId = resultOf(created.events)?.projectId
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot: bareRoot,
+      config: demoConfig(),
+      payload: { projectId },
+    })
+    assert(
+      codeOf(events) === 'demo_not_ready',
+      `sin pack → demo_not_ready (fue ${codeOf(events)})`,
+    )
+  }
+
+  // 13. Los jobs del editor rechazan proyectos demo.
+  section('13. demo_project en el editor')
+  {
+    const projectId = await createProject('Demo editor', { demo: true })
+    await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+    })
+    let run = await runSidecar('regenerate-scene-images', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId, scenes: [{ id: 1, rewritePrompt: false }] },
+    })
+    assert(
+      codeOf(run.events) === 'demo_project',
+      `regenerate-scene-images → demo_project (fue ${codeOf(run.events)})`,
+    )
+    run = await runSidecar('replace-narration', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: {
+        projectId,
+        mode: 'upload',
+        audioPath: join(workspace, 'nada.mp3'),
+      },
+    })
+    assert(
+      codeOf(run.events) === 'demo_project',
+      `replace-narration → demo_project (fue ${codeOf(run.events)})`,
+    )
+  }
 } finally {
   server.close()
   await rm(workspace, { recursive: true, force: true })

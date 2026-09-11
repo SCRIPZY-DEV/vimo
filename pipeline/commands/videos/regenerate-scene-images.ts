@@ -44,6 +44,15 @@ export async function regenerateSceneImages(
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
 
+  // Modo demo (ADR-0027): las imágenes vienen del pack; no hay proveedor que
+  // regenere y nada se gasta. La UI ya deshabilita el botón; esto es la
+  // cerradura del sidecar.
+  if (videoContext.options.demo === true)
+    throw new PipelineFailure(
+      'demo_project',
+      'demo projects cannot regenerate images',
+    )
+
   // Override transitorio del proveedor: SOLO este job; el clon de options no
   // toca metadata (scenes.json está congelado — nada nuevo se persiste ahí).
   if (payload.imageProvider)
