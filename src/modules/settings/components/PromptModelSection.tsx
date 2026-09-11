@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { PromptModelSelector } from '@/modules/common/components/PromptModelSelector'
+import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { Switch } from '@/modules/common/ui/switch'
 import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
@@ -32,10 +33,14 @@ export function PromptModelSection({ focused }: PromptModelSectionProps) {
     saving,
   } = usePromptModelPreference()
 
+  // Bloqueos temporales (ADR-0028): la preferencia guardada no cambia; en
+  // pantalla se pinta el sustituto y las tarjetas bloqueadas quedan inertes.
+  const { blockedIds } = usePromptModelBlocks()
+
   const modelId = promptModelDefaults?.modelId ?? null
   const compact = promptModelDefaults?.compact ?? PROMPT_MODEL_COMPACT_DEFAULT
   const disabled = !isNative || isLoading || saving
-  const chosen = resolvePromptModel(modelId, models, defaultId)
+  const chosen = resolvePromptModel(modelId, models, defaultId, blockedIds)
   const sectionRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
