@@ -18,17 +18,22 @@ import { VideoFormatSection } from '@/modules/videos/components/VideoFormatSecti
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
 import {
   CREATE_BLOCKERS_ID,
+  DEMO_COMING_SOON_FORMATS,
   MAX_SCENE_COUNT,
   PROJECT_NAME_LIMIT,
 } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
+import { demoStyleIds } from '@/modules/videos/utilities/demoForm'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { DemoManifest } from '@pipeline/types/demo.ts'
 
 interface CreateFormProps {
   value: CreateFormValue
   disabled: boolean
   submitting: boolean
+  // Manifest del pack cuando se entra por la puerta de la demo (ADR-0027).
+  demo: DemoManifest | null
   onChange: (patch: Partial<CreateFormValue>) => void
   onPickAudio: () => void
   onSubmit: () => void
@@ -38,6 +43,7 @@ export function CreateForm({
   value,
   disabled,
   submitting,
+  demo,
   onChange,
   onPickAudio,
   onSubmit,
@@ -102,6 +108,7 @@ export function CreateForm({
           <StyleGallery
             value={value.styleId}
             disabled={disabled}
+            visibleIds={demo ? demoStyleIds(demo) : undefined}
             onChange={(styleId) => onChange({ styleId })}
           />
         ) : (
@@ -160,6 +167,7 @@ export function CreateForm({
       <VideoFormatSection
         value={value}
         disabled={disabled}
+        comingSoon={demo ? DEMO_COMING_SOON_FORMATS : undefined}
         onChange={onChange}
       />
 

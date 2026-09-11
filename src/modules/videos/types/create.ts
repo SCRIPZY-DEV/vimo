@@ -233,3 +233,9 @@ export interface ProbeCacheEntry {
   reason: ProbeTtsReason
   expiresAt: number
 }
+
+// Cómo se arma el payload de create-video-project desde el formulario.
+export interface CreateProjectPayloadOptions {
+  // Modo demo (ADR-0027): el proyecto nace con options.demo y sin pausas.
+  demo?: boolean
+}

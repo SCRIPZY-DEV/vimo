@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { Brand } from '@/modules/common/brand/brand'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
@@ -22,11 +22,19 @@ import {
   libraryEditorPath,
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
+import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
+import {
+  demoFollowStyle,
+  demoFormValue,
+} from '@/modules/videos/utilities/demoForm'
+import { readDemoState } from '@/modules/videos/utilities/demoState'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
+import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { DemoManifest } from '@pipeline/types/demo.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
 
@@ -43,6 +51,20 @@ export function Create() {
   const { configuredProviders, isLoading: loadingApiKeys } = useRequiredApiKeys(
     { requirements: MODULE_API_KEY_REQUIREMENTS.videos },
   )
+  const location = useLocation()
+  const navigate = useNavigate()
+  // El manifest de la demo llega una sola vez, en el state del router de la
+  // puerta; se captura al montar y se pasa como dato.
+  const [demo] = useState<DemoManifest | null>(() =>
+    readDemoState(location.state),
+  )
+
+  // Limpia el state del historial (espejo del replaceState del origen):
+  // «atrás» o un reload vuelven a un Crear normal.
+  useEffect(() => {
+    if (readDemoState(location.state) === null) return
+    void navigate(VideosRoutes.create, { replace: true })
+  }, [location.state, navigate])
 
   if (isLoading || loadingSceneDuration || loadingPromptModel || loadingApiKeys)
     return <ViewSpinner />
@@ -64,6 +86,7 @@ export function Create() {
         sceneDuration?.confirmScenes ?? CREATE_FORM_INITIAL_VALUE.confirmScenes
       }
       initialPromptModel={promptModelDefaults?.modelId ?? null}
+      demo={demo}
     />
   )
 }
@@ -77,6 +100,8 @@ interface CreateViewProps {
   // catálogo y fija (sin casilla) la pausa de duración del estilo propio.
   initialConfirmScenes: boolean
   initialPromptModel: string | null
+  // Manifest del pack cuando se entra por la puerta de la demo (ADR-0027).
+  demo: DemoManifest | null
 }
 
 // Es dueña de la tarea: el formulario y la pantalla de progreso son
@@ -90,6 +115,7 @@ function CreateView({
   initialSecondsPerScene,
   initialConfirmScenes,
   initialPromptModel,
+  demo,
 }: CreateViewProps) {
   const { t } = useTranslation()
   const { isNative, missingKeys } = useRequiredApiKeys({
@@ -99,22 +125,36 @@ function CreateView({
     useCreateTask()
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
+  const { styles: customStyles } = useCustomStyles()
 
-  const [form, setForm] = useState<CreateFormValue>(() => ({
-    ...CREATE_FORM_INITIAL_VALUE,
-    sceneCount: initialSceneCount,
-    // Los ids de calidad son por proveedor: la calidad acompaña al elegido.
-    imageProvider: initialImageProvider,
-    imageQuality: defaultQualityFor(
-      initialImageProvider,
-      CREATE_FORM_INITIAL_VALUE.videoFormat,
-    ),
-    secondsPerScene: initialSecondsPerScene,
-    confirmScenes: initialConfirmScenes,
-    // Con estilo propio no hay casilla: la pausa la decide Ajustes.
-    confirmSceneDuration: initialConfirmScenes,
-    promptModel: initialPromptModel,
-  }))
+  const [form, setForm] = useState<CreateFormValue>(() => {
+    const base: CreateFormValue = {
+      ...CREATE_FORM_INITIAL_VALUE,
+      sceneCount: initialSceneCount,
+      // Los ids de calidad son por proveedor: la calidad acompaña al elegido.
+      imageProvider: initialImageProvider,
+      imageQuality: defaultQualityFor(
+        initialImageProvider,
+        CREATE_FORM_INITIAL_VALUE.videoFormat,
+      ),
+      secondsPerScene: initialSecondsPerScene,
+      confirmScenes: initialConfirmScenes,
+      // Con estilo propio no hay casilla: la pausa la decide Ajustes.
+      confirmSceneDuration: initialConfirmScenes,
+      promptModel: initialPromptModel,
+    }
+    return demo ? demoFormValue(base, demo) : base
+  })
+
+  // En demo la gema del pack arranca en uso apenas la galería la lista: se
+  // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
+  const demoGem =
+    demo && form.customStyle === null
+      ? customStyles.find((style) => style.id === demo.customStyleId)
+      : undefined
+  const formValue = demoGem
+    ? { ...form, customStyle: selectedCustomStyleFrom(demoGem) }
+    : form
 
   // Sin auto-export el job termina sin video: el destino natural es el
   // editor (el proyecto quedó en borrador con todo generado, ADR-0016).
@@ -130,7 +170,12 @@ function CreateView({
   usePageTitle(t('create.pageTitle'))
 
   const patchForm = (patch: Partial<CreateFormValue>) => {
-    setForm((current) => ({ ...current, ...patch }))
+    setForm((current) => ({
+      ...current,
+      ...patch,
+      // En demo la historia sigue al estilo elegido.
+      ...(demo ? demoFollowStyle(demo, current, patch) : {}),
+    }))
   }
 
   const pickAudio = async () => {
@@ -140,9 +185,9 @@ function CreateView({
 
   const submit = async () => {
     // Pre-flight del proveedor de voz: avisa antes de arrancar un pipeline
-    // largo. Solo aplica con narración por IA.
-    if (form.narrationMode === 'tts' && form.voice) {
-      const result = await probe(form.voice)
+    // largo. Solo aplica con narración por IA, y no en demo (sin probe).
+    if (!demo && formValue.narrationMode === 'tts' && formValue.voice) {
+      const result = await probe(formValue.voice)
       if (!result.ok) {
         setProbeFailure(result.reason)
         return
@@ -150,9 +195,11 @@ function CreateView({
     }
     setProbeFailure(null)
     await startCreation({
-      payload: createProjectPayload(form),
+      payload: createProjectPayload(formValue, { demo: demo !== null }),
       narrationFilePath:
-        form.narrationMode === 'own-audio' ? form.narrationFilePath : null,
+        formValue.narrationMode === 'own-audio'
+          ? formValue.narrationFilePath
+          : null,
     })
   }
 
@@ -207,7 +254,7 @@ function CreateView({
         </p>
       )}
 
-      {missingKeys && (
+      {missingKeys && !demo && (
         <MissingApiKeysNotice
           requirements={MODULE_API_KEY_REQUIREMENTS.videos}
         />
@@ -219,8 +266,9 @@ function CreateView({
         transition={{ delay: 0.05 }}
       >
         <CreateForm
-          value={form}
-          disabled={!isNative || missingKeys}
+          value={formValue}
+          demo={demo}
+          disabled={!isNative || (missingKeys && !demo)}
           submitting={probing}
           onChange={patchForm}
           onPickAudio={() => void pickAudio()}

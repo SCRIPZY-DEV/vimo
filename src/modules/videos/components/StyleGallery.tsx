@@ -8,10 +8,18 @@ import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 interface StyleGalleryProps {
   value: CharacterStyleId
   disabled: boolean
+  // Si viene, SOLO estos ids del catálogo se muestran (modo demo: los que
+  // tienen historia pre-hecha). Ausente = catálogo completo.
+  visibleIds?: CharacterStyleId[]
   onChange: (styleId: CharacterStyleId) => void
 }
 
-export function StyleGallery({ value, disabled, onChange }: StyleGalleryProps) {
+export function StyleGallery({
+  value,
+  disabled,
+  visibleIds,
+  onChange,
+}: StyleGalleryProps) {
   const { t } = useTranslation()
 
   return (
@@ -31,7 +39,9 @@ export function StyleGallery({ value, disabled, onChange }: StyleGalleryProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {VIDEO_STYLES.map((style) => (
+        {VIDEO_STYLES.filter(
+          (style) => !visibleIds || visibleIds.includes(style.id),
+        ).map((style) => (
           <StyleCard
             key={style.id}
             images={styleReferenceImages(style.id)}

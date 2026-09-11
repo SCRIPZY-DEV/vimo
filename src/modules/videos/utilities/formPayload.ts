@@ -1,5 +1,8 @@
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
-import type { CreateFormValue } from '@/modules/videos/types/create'
+import type {
+  CreateFormValue,
+  CreateProjectPayloadOptions,
+} from '@/modules/videos/types/create'
 import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
 import type {
   CreateVideoProjectPayload,
@@ -11,6 +14,7 @@ import type {
 // URL.
 export function createProjectPayload(
   form: CreateFormValue,
+  { demo = false }: CreateProjectPayloadOptions = {},
 ): CreateVideoProjectPayload {
   // Con estilo propio, styleId viaja como 'normal' (sigue siendo un id de
   // catálogo válido para el contrato) y el snapshot va en customStyle.
@@ -34,6 +38,14 @@ export function createProjectPayload(
     subtitles: form.subtitles,
     autoRender: form.autoRender,
     videoFormat: form.videoFormat,
+  }
+
+  // Modo demo (ADR-0027): el flag viaja al proyecto y la corrida nunca pausa
+  // ni deja borrador — el video pre-hecho se materializa entero.
+  if (demo) {
+    options.demo = true
+    options.confirmScenes = false
+    options.autoRender = true
   }
 
   if (usesCustomStyle && form.customStyle) {
