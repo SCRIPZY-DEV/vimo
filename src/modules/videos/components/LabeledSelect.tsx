@@ -42,8 +42,12 @@ export function LabeledSelect<T extends string>({
 }: LabeledSelectProps<T>) {
   const selected = options.find((option) => option.id === value)
 
+  // Columna flex con el select pegado al fondo (`mt-auto` en el trigger): en
+  // una grilla con otro campo al lado, la celda se estira a la altura de la
+  // fila y, si una etiqueta se parte en dos líneas, los dos selects quedan
+  // igual alineados abajo en vez de uno más arriba que el otro.
   return (
-    <div className={cn('space-y-1.5', className)}>
+    <div className={cn('flex flex-col gap-1.5', className)}>
       <div className="flex items-center gap-1.5">
         <Label className="font-display">{label}</Label>
         {help && (
@@ -74,7 +78,7 @@ export function LabeledSelect<T extends string>({
             suspensivos en una ventana angosta (el line-clamp-1 del trigger
             común cortaba a mitad de palabra). El `text-left` es necesario: el
             trigger es un <button>, que centra su texto por defecto. */}
-        <SelectTrigger className="[&>span]:line-clamp-none [&>span]:min-w-0 [&>span]:flex-1">
+        <SelectTrigger className="mt-auto [&>span]:line-clamp-none [&>span]:min-w-0 [&>span]:flex-1">
           <SelectValue>
             {selected && (
               <span className="block truncate text-left">{selected.label}</span>
