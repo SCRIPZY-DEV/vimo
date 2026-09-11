@@ -114,16 +114,20 @@ export function useDemoPrepare() {
     setView(IDLE)
   }, [])
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // StrictMode monta → desmonta → vuelve a montar en desarrollo, con el
+    // mismo ref: sin este reset al arrancar, el desmontaje falso del primer
+    // ciclo deja unmountedRef en true para siempre y el próximo start() se
+    // autocancela apenas llega su handle.
+    unmountedRef.current = false
+    return () => {
       unmountedRef.current = true
       const job = jobRef.current
       if (!job) return
       job.stop()
       void videosApi.cancelJob(job.jobId).catch(() => undefined)
-    },
-    [],
-  )
+    }
+  }, [])
 
   return { ...view, start, reset }
 }
