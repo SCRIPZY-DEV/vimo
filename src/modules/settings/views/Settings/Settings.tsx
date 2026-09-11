@@ -8,6 +8,7 @@ import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { SceneCountSection } from '@/modules/settings/components/SceneCountSection'
 import { SceneDurationSection } from '@/modules/settings/components/SceneDurationSection'
+import { BlockedPromptModelsSection } from '@/modules/settings/components/BlockedPromptModelsSection'
 import { PromptModelSection } from '@/modules/settings/components/PromptModelSection'
 import { UpdatesSection } from '@/modules/settings/components/UpdatesSection'
 import { VoiceVendorSection } from '@/modules/settings/components/VoiceVendorSection'
@@ -136,6 +137,8 @@ export function Settings() {
       <SceneDurationSection />
 
       <PromptModelSection focused={focusedSection === PROMPT_MODEL_FOCUS} />
+
+      <BlockedPromptModelsSection />
 
       <VoiceVendorSection focused={focusedSection === VOICE_VENDOR_FOCUS} />
 
