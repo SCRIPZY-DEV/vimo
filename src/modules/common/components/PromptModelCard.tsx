@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { Ban } from 'lucide-react'
+import { blockedMinutesLeft } from '@/modules/common/utilities/blockedMinutesLeft'
 import { cn } from '@/modules/common/utilities/cn'
 import type { LlmModelProfile, ModelSpeed } from '@pipeline/types/llm-models.ts'
 
@@ -6,6 +8,9 @@ interface PromptModelCardProps {
   model: LlmModelProfile
   active: boolean
   disabled?: boolean
+  // Bloqueo temporal vigente (ADR-0028): la tarjeta queda inerte y dice
+  // cuánto falta para que vuelva. null/ausente = disponible.
+  blockedUntil?: number | null
   // Sin onSelect la tarjeta es de solo lectura: el modo compacto muestra el
   // modelo en uso, no ofrece elegir.
   onSelect?: () => void
@@ -29,14 +34,17 @@ export function PromptModelCard({
   model,
   active,
   disabled,
+  blockedUntil,
   onSelect,
 }: PromptModelCardProps) {
   const { t } = useTranslation()
 
+  const blocked = blockedUntil !== undefined && blockedUntil !== null
   const className = cn(
     'rounded-2xl border-2 px-5 py-3 text-left transition-colors',
     active ? 'border-saffron bg-saffron/10' : 'border-border bg-card',
-    onSelect && !active && 'hover:bg-muted',
+    onSelect && !active && !blocked && 'hover:bg-muted',
+    blocked && 'cursor-not-allowed opacity-60',
   )
 
   const content = (
@@ -57,6 +65,14 @@ export function PromptModelCard({
       <span className="font-body text-sm text-muted-foreground">
         {model.author}
       </span>
+      {blocked && (
+        <span className="mt-1 flex items-center gap-1 font-display text-xs font-bold text-coral">
+          <Ban className="h-3.5 w-3.5" />
+          {t('common.promptModelBlocked.badge', {
+            minutes: blockedMinutesLeft(blockedUntil),
+          })}
+        </span>
+      )}
     </>
   )
 
@@ -65,8 +81,9 @@ export function PromptModelCard({
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={disabled || blocked}
       aria-pressed={active}
+      aria-disabled={blocked || undefined}
       onClick={onSelect}
       className={className}
     >
