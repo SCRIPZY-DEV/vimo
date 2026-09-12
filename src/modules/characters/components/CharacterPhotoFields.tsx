@@ -88,9 +88,12 @@ export function CharacterPhotoFields({
         {t(buttonKey)}
       </Button>
 
+      {/* Cuadrada y recortada como la tarjeta de la biblioteca: la persona ve
+          la foto tal como va a verse en Personajes y en el picker, sin aire a
+          los costados. */}
       {preview && (
-        <div className="flex h-64 items-center justify-center overflow-hidden rounded-xl border-2 border-saffron/60 bg-muted/40">
-          <img src={preview} alt="" className="h-full w-full object-contain" />
+        <div className="mx-auto aspect-square w-64 overflow-hidden rounded-xl border-2 border-saffron/60 bg-muted/40">
+          <img src={preview} alt="" className="h-full w-full object-cover" />
         </div>
       )}
     </div>
