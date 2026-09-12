@@ -6,12 +6,13 @@ interface ProjectStateBadgeProps {
   badge: ProjectBadge
 }
 
-// «Exportado» va OPACO (saffron pleno, texto oscuro, sombra y filo fino):
-// con el fondo al 15 % desaparecía sobre portadas claras o cálidas (QA del
-// 2026-09-11). Los demás estados quedan como estaban, por pedido del dueño.
+// «Exportado» y «Desactualizado» van OPACOS (color pleno, texto oscuro,
+// sombra y filo fino): con el fondo al 15 % desaparecían sobre portadas
+// claras o cálidas (QA del 2026-09-11). Los demás estados quedan como
+// estaban, por pedido del dueño.
 const BADGE_CLASSES: Record<ProjectBadge, string> = {
   ready: 'bg-saffron text-charcoal shadow-md ring-1 ring-black/10',
-  outdated: 'bg-coral/15 text-coral',
+  outdated: 'bg-coral text-charcoal shadow-md ring-1 ring-black/10',
   generating: 'bg-lavender/20 text-foreground',
   awaitingConfirmation: 'bg-saffron/15 text-saffron',
   interrupted: 'bg-muted text-muted-foreground',
