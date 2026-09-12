@@ -75,6 +75,19 @@ de cada escena (el número sale del audio) en vez del conteo.
 > que la reemplace. El contrato del sidecar no cambia: sigue recibiendo el
 > booleano y pausando igual.
 
+> **Adenda 2026-09-11.** La pregunta «¿Cada cuánto aparece tu personaje?»
+> tampoco se ofrece con «Mi estilo»: es la cara visible del punto 2 de arriba
+> — el carril verbatim saltea el clasificador de presencia, así que en qué
+> escenas sale el protagonista lo decide dónde pone su `[subject]` el prompt
+> de la gema, no un reparto nuestro. Con estilo propio
+> `options.characterFrequency` ya ni siquiera viaja (`createProjectPayload`):
+> una opción que nadie aplica no se guarda en el proyecto. En el catálogo la
+> pregunta pasa a ser la tarjeta de dos niveles del origen (v0.61.0):
+> «Equilibrado» (50 %) y «Siempre» (100 %) — si el usuario eligió personaje es
+> porque quiere verlo. Los niveles intermedios (`rarely`, `often`,
+> `almost-always`) siguen soportados por el sidecar para proyectos ya
+> guardados; la UI no los ofrece.
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por

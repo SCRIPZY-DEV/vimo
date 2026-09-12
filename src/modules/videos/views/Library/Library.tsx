@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   CheckCheck,
   CheckSquare,
@@ -251,38 +251,29 @@ export function Library() {
         <div className="space-y-5">
           <LibraryFormatTabs value={tab} counts={counts} onChange={changeTab} />
 
-          {/* Cambio de pestaña con un fundido corto: la grilla saliente se va
-              antes de que entre la nueva (mode="wait"); el primer montaje no
-              se anima. */}
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={tab}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-            >
-              {visibleProjects.length === 0 ? (
-                <p className="py-16 text-center font-body text-sm text-muted-foreground">
-                  {t(EMPTY_KEYS[tab])}
-                </p>
-              ) : (
-                <div className={GRID_CLASSES[tab]}>
-                  {visibleProjects.map((project) => (
-                    <LibraryProjectCard
-                      key={project.id}
-                      project={project}
-                      badge={badgeOf(project)}
-                      selectionMode={selectionMode}
-                      selected={selection.has(project.id)}
-                      onOpen={() => openProject(project)}
-                      onToggleSelected={() => toggleSelected(project.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+          {/* Cambio de pestaña en seco, como en Personajes: la píldora se
+              desliza y la grilla solo cambia de contenido. El fundido de
+              salida + entrada que había acá se veía como un destello (QA del
+              2026-09-11). */}
+          {visibleProjects.length === 0 ? (
+            <p className="py-16 text-center font-body text-sm text-muted-foreground">
+              {t(EMPTY_KEYS[tab])}
+            </p>
+          ) : (
+            <div className={GRID_CLASSES[tab]}>
+              {visibleProjects.map((project) => (
+                <LibraryProjectCard
+                  key={project.id}
+                  project={project}
+                  badge={badgeOf(project)}
+                  selectionMode={selectionMode}
+                  selected={selection.has(project.id)}
+                  onOpen={() => openProject(project)}
+                  onToggleSelected={() => toggleSelected(project.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

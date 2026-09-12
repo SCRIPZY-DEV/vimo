@@ -27,6 +27,8 @@ import {
 } from '@/modules/videos/constants'
 import { allPromptModelsBlocked } from '@/modules/common/utilities/allPromptModelsBlocked'
 import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
+import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
+import { characterPatchForStyle } from '@/modules/videos/utilities/characterPatchForStyle'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
 import {
   demoAudioFileLabel,
@@ -66,16 +68,20 @@ export function CreateForm({
   const { models } = usePromptModels()
   const { blockedIds } = usePromptModelBlocks()
   const promptModelsBlocked = allPromptModelsBlocked(models, blockedIds)
+  // El fijo de la gema resuelto contra la biblioteca: la misma derivación que
+  // dibuja el chip rojo en la sección de personaje nombra el paso faltante.
+  const { fixedMissing } = useStyleCharacter(value)
 
   // Pre-check de saldo (ADR-0031): con saldo leído e insuficiente el envío
   // se frena como cualquier otro paso faltante; ilegible solo avisa.
   const costCheck = useCreateCostCheck({ form: value })
+  const missingSteps = formBlockers(value, {
+    promptModelsBlocked,
+    fixedCharacterMissing: fixedMissing,
+  })
   const blockers = costCheck.result.blocking
-    ? [
-        ...formBlockers(value, promptModelsBlocked),
-        'create.validation.insufficientCredits',
-      ]
-    : formBlockers(value, promptModelsBlocked)
+    ? [...missingSteps, 'create.validation.insufficientCredits']
+    : missingSteps
 
   // El botón no se deshabilita en silencio: al pulsarlo con pasos faltantes
   // lleva a la alerta y la sacude, en vez de no hacer nada.
@@ -130,7 +136,17 @@ export function CreateForm({
             demo ? 'create.styleSource.catalogHintDemo' : undefined
           }
           customDisabled={promptModelsBlocked}
-          onChange={(styleSource) => onChange({ styleSource })}
+          // Cambiar de fuente también retira o devuelve los personajes según
+          // lo que decida el estilo que queda activo (ADR-0020).
+          onChange={(styleSource) =>
+            onChange({
+              styleSource,
+              ...characterPatchForStyle(value, {
+                styleSource,
+                customStyle: value.customStyle,
+              }),
+            })
+          }
         />
         {value.styleSource === 'catalog' ? (
           <StyleGallery
@@ -148,13 +164,15 @@ export function CreateForm({
               promptModel={value.promptModel}
               onSelect={(customStyle) => {
                 // Si la gema escribe (o no lleva) el protagonista, los
-                // personajes elegidos antes ya no aplican (ADR-0020).
-                const mode = customStyle?.character?.mode ?? 'generic'
-                onChange(
-                  mode === 'own'
-                    ? { customStyle }
-                    : { customStyle, characters: [] },
-                )
+                // personajes elegidos se RETIRAN (no se pierden) y vuelven
+                // solos con un estilo que los acepte (ADR-0020, v1.31.2).
+                onChange({
+                  customStyle,
+                  ...characterPatchForStyle(value, {
+                    styleSource: value.styleSource,
+                    customStyle,
+                  }),
+                })
               }}
             />
             <PromptModelSection

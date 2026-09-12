@@ -18,7 +18,7 @@ import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
-import type { CreateFormValue } from './types/create'
+import type { CreateFormValue, SelectedCharacter } from './types/create'
 import type {
   AudioMixValue,
   LibraryTab,
@@ -522,16 +522,37 @@ export const FAL_QUALITY_OPTIONS_VERTICAL: {
   },
 ]
 
-// Frecuencias de aparición del personaje, de menor a mayor.
+// Pestañas del picker de personajes: filtran por cómo se fijó la identidad
+// (con foto primero, como en la biblioteca).
+export const CHARACTER_PICKER_FILTERS: {
+  id: SelectedCharacter['mode']
+  labelKey: string
+}[] = [
+  { id: 'photo', labelKey: 'create.characters.filter.photo' },
+  { id: 'text', labelKey: 'create.characters.filter.text' },
+]
+
+// Frecuencias de aparición del personaje que ofrece el formulario, de menor a
+// mayor. Solo dos (v0.61.0 del origen): si elegiste personaje es porque lo
+// querés ver — «equilibrado» es la mitad del video bien mezclada y «siempre»
+// todas las escenas. Los niveles intermedios (`rarely`, `often`,
+// `almost-always`) los sigue soportando el sidecar para proyectos ya
+// guardados, pero la UI no los ofrece más.
 export const CHARACTER_FREQUENCIES: {
   id: CharacterFrequency
   labelKey: string
+  percentKey: string
 }[] = [
-  { id: 'rarely', labelKey: 'create.characters.frequency.rarely' },
-  { id: 'balanced', labelKey: 'create.characters.frequency.balanced' },
-  { id: 'often', labelKey: 'create.characters.frequency.often' },
-  { id: 'almost-always', labelKey: 'create.characters.frequency.almostAlways' },
-  { id: 'always', labelKey: 'create.characters.frequency.always' },
+  {
+    id: 'balanced',
+    labelKey: 'create.characters.frequency.balanced',
+    percentKey: 'create.characters.frequency.balancedPercent',
+  },
+  {
+    id: 'always',
+    labelKey: 'create.characters.frequency.always',
+    percentKey: 'create.characters.frequency.alwaysPercent',
+  },
 ]
 
 // Extensiones de audio que acepta el modo "subir mi narración".
@@ -553,6 +574,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   voice: null,
   voiceSettings: VOICE_SETTINGS_DEFAULTS,
   characters: [],
+  withdrawnCharacters: [],
   characterFrequency: 'balanced',
   useBgm: false,
   bgmMode: 'evolink-ai',

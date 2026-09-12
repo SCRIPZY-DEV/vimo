@@ -1,4 +1,7 @@
-import { buildReferenceIdentityLineMulti } from '../../prompts/character-reference.ts'
+import {
+  buildCustomStyleReferencePrompt,
+  buildReferenceIdentityLineMulti,
+} from '../../prompts/character-reference.ts'
 import { sceneImageFile } from '../../project/paths.ts'
 import {
   FAL_BASE_URL,
@@ -40,6 +43,24 @@ export interface CharacterReference {
   imageDataUri: string
 }
 
+// El texto que acompaña a las referencias. Catálogo: la línea de identidad
+// (una o dos personas, con el formato) DELANTE del prompt de la escena.
+// Estilo propio: REFERENCE + escena + APPEARANCE LOCK, nombrando solo a la
+// primera referencia (paridad con el origen, `opts.estiloPropio`).
+function referencePromptFor(
+  references: CharacterReference[],
+  format: VideoFormat,
+  customStyle: boolean,
+): (scenePrompt: string) => string {
+  const names = references.map((reference) => reference.name)
+  if (customStyle)
+    return (scenePrompt) =>
+      buildCustomStyleReferencePrompt(names[0] ?? '', scenePrompt)
+
+  const identityLine = buildReferenceIdentityLineMulti(names, format)
+  return (scenePrompt) => identityLine + scenePrompt
+}
+
 const FAL_EDIT_ENDPOINT = `${FAL_BASE_URL}/openai/gpt-image-2/edit`
 const FAL_MAX_ATTEMPTS = 3
 const FAL_REQUEST_TIMEOUT_MS = 180_000
@@ -66,9 +87,11 @@ async function generateSceneWithFalEdit(
   if (!sceneHasUsablePrompt(scene)) return { scene, imageReady: false }
   if (options.signal.aborted) return { scene, imageReady: false }
 
-  const names = references.map((reference) => reference.name)
-  const prompt =
-    buildReferenceIdentityLineMulti(names, format) + scene.imagePrompt!
+  const prompt = referencePromptFor(
+    references,
+    format,
+    options.customStyle,
+  )(scene.imagePrompt!)
 
   // El reloj de la estimación arranca UNA vez por escena: un reintento sigue
   // subiendo desde donde iba en vez de volver a 0 (avance monótono).
@@ -202,9 +225,10 @@ export async function generateScenesWithEvolinkReferences(
     referenceUrls.push(url)
   }
 
-  const promptPrefix = buildReferenceIdentityLineMulti(
-    references.map((reference) => reference.name),
+  const referencePrompt = referencePromptFor(
+    references,
     format,
+    options.customStyle,
   )
   const limit = limitConcurrency(EVOLINK_CHARACTER_CONCURRENCY)
   return Promise.all(
@@ -217,7 +241,7 @@ export async function generateScenesWithEvolinkReferences(
             apiKey,
             format,
             referenceUrls,
-            promptPrefix,
+            referencePrompt,
           },
           options,
         ),

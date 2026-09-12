@@ -31,7 +31,9 @@ export interface ProjectCharacter {
   // Identidad en inglés, neutra de estilo (misma semántica que la biblioteca).
   description: string
   mode: 'photo' | 'text'
-  // Archivo dentro de `characters/` del proyecto (reference_1.jpg, …).
+  // Archivo dentro de `characters/` del proyecto (reference_1.jpg, …): la
+  // foto del personaje o el preview del estilo actual. El pipeline no
+  // distingue de dónde salió — lo que decide el carril es que exista.
   referenceImageFile?: string
   isProtagonist?: boolean
 }
@@ -161,7 +163,12 @@ export interface VideoProjectMetadata {
 export interface NewVideoProjectCharacter {
   characterId?: string
   name: string
+  // Obligatoria en modo text (es la identidad); opcional con foto.
   description: string
+  // photo = la identidad es una imagen: `photoDataUri` directa o, con
+  // `characterId`, la foto guardada en la biblioteca (ADR-0033). text = la
+  // identidad es la descripción; la referencia visual es el preview del
+  // estilo actual, si existe.
   mode: 'photo' | 'text'
   photoDataUri?: string
   isProtagonist?: boolean

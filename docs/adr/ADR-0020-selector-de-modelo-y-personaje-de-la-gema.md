@@ -78,6 +78,25 @@ sin tres cosas que el origen (`vimo_dev`) ya tenía:
    cross-módulo** (precedente: `useRequiredApiKeys` de api-keys); la
    alternativa — mover el modal y sus cuatro dependencias a `common` — no
    justificaba el radio del cambio.
+8. **El formulario muestra la decisión de la gema como chip y abre su editor**
+   (port de v1.19.4–v1.31.2 del origen, 2026-09-11). Con «Mi estilo» activo
+   la sección de personaje cuenta qué decidió la gema EN USO con un cartel:
+   el fijo (carita + «Este estilo ya trae su personaje»), el fijo borrado de
+   la biblioteca (rojo; `fixedCharacterMissing` bloquea el envío con su
+   propio motivo), «genérico»/«sin personaje» (turquesa) y el recibo del
+   retiro (amarillo). Tocar cualquiera abre el editor de ESA gema con el
+   bloque «¿Tu estilo lleva personaje?» arriba. Quién está abierto vive en un
+   store fuera de React (`useCustomStyleEditor`, patrón de `useCreateTask`)
+   porque la sección y la galería son hermanas y una ref imperativa obligaría
+   al formulario a intermediar; con uno abierto, abrir es no-op (nunca dos
+   modales). La derivación (`useStyleCharacter`) es una sola para el chip y
+   para `formBlockers`. Elegir una gema que escribe el protagonista **retira**
+   los personajes elegidos (`withdrawnCharacters`, no viaja en el payload) y
+   los devuelve solos cuando un estilo vuelve a aceptarlos; el fijo sembrado
+   no cuenta como elección. El predeterminado se guarda al toque en el
+   selector (v1.19.3), no solo al cerrar. Sin gema con texto el chip es un
+   cartel (`div role="status"`), nunca un botón muerto. Sin equivalente en
+   Rust ni en el sidecar.
 
 ## Qué NO cambia
 
@@ -128,6 +147,15 @@ sin tres cosas que el origen (`vimo_dev`) ya tenía:
 - Con claves reales (pendiente conocido del proyecto): video verbatim con
   modelo elegido y `promptModelUsed` en `project.json`; gema `none` sin
   protagonista; «Crear personaje con mi estilo» desde Create.
+- Chips del estilo (punto 8; sin runner de tests todavía, a mano en la app
+  instalada): gema `own` con fijo en la biblioteca → chip con carita y nombre,
+  tocarlo abre el editor de esa gema; fijo borrado → chip rojo y el paso
+  `fixedCharacterMissing` en la lista de bloqueos; gema `generic`/`none` →
+  chip turquesa con su texto e ícono, `div` sin clic cuando la gema no tiene
+  texto; elegir una gema `generic` con un personaje elegido → recibo amarillo
+  con su nombre y, al volver a una gema `own` sin fijo o al catálogo, el
+  personaje vuelve solo; con catálogo no hay ningún chip; elegir el
+  predeterminado en el selector del editor guarda la gema sin esperar «Listo».
 
 ## Referencias
 

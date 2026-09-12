@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { PillTabs } from '@/modules/common/components/PillTabs'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
@@ -13,9 +14,12 @@ import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { CharacterCard } from '@/modules/characters/components/CharacterCard'
 import { CharacterModal } from '@/modules/characters/components/CharacterModal'
+import { CHARACTER_FILTERS } from '@/modules/characters/constants'
 import { useCharacterMutations } from '@/modules/characters/hooks/useCharacterMutations'
 import { useCharacters } from '@/modules/characters/hooks/useCharacters'
+import { identitySourceOf } from '@/modules/characters/utilities/identitySourceOf'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
+import type { CharacterIdentitySource } from '@/modules/characters/types/characters'
 
 export function Characters() {
   const { t } = useTranslation()
@@ -27,8 +31,17 @@ export function Characters() {
 
   const [editing, setEditing] = useState<CharacterSummary | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  // Pestaña elegida por la persona; hasta que elige, la que tenga personajes
+  // (con foto primero, como las sub-pestañas del modal).
+  const [chosenFilter, setChosenFilter] =
+    useState<CharacterIdentitySource | null>(null)
 
   usePageTitle(t('characters.pageTitle'))
+
+  const countOf = (source: CharacterIdentitySource) =>
+    entries.filter((entry) => identitySourceOf(entry) === source).length
+  const filter = chosenFilter ?? (countOf('photo') > 0 ? 'photo' : 'text')
+  const visible = entries.filter((entry) => identitySourceOf(entry) === filter)
 
   const openCreate = () => {
     setEditing(null)
@@ -61,9 +74,11 @@ export function Characters() {
             </p>
           </div>
         </div>
+        {/* Sin claves igual se puede crear un personaje con foto (no usa IA);
+            dentro del modal, la IA y los previews se apagan por su cuenta. */}
         <Button
           size="lg"
-          disabled={!isNative || missingKeys}
+          disabled={!isNative}
           onClick={openCreate}
           className="shrink-0 rounded-xl font-display font-bold"
         >
@@ -95,9 +110,8 @@ export function Characters() {
       {!isLoading && entries.length === 0 && isNative && (
         <button
           type="button"
-          disabled={missingKeys}
           onClick={openCreate}
-          className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50"
         >
           <DoodleCharacter size={64} />
           <span className="font-display text-lg font-bold text-foreground">
@@ -110,28 +124,58 @@ export function Characters() {
       )}
 
       {entries.length > 0 && (
-        <motion.ul
+        <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
-            'grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4',
+            'space-y-4',
             !isNative && 'pointer-events-none opacity-60',
           )}
         >
-          {entries.map((entry) => (
-            <li key={entry.id}>
-              <CharacterCard
-                character={entry}
-                disabled={!isNative}
-                onEdit={openEdit}
-                onDelete={(character) => deleteCharacter(character.id)}
-              />
-            </li>
-          ))}
-        </motion.ul>
+          <PillTabs
+            value={filter}
+            ariaLabel={t('characters.filter.ariaLabel')}
+            layoutId="characters-filter-tab"
+            options={CHARACTER_FILTERS.map(({ id, labelKey }) => ({
+              id,
+              label: t(labelKey),
+              count: countOf(id),
+            }))}
+            onChange={setChosenFilter}
+          />
+
+          {visible.length === 0 ? (
+            <p className="py-8 text-center font-body text-sm text-muted-foreground">
+              {t(
+                filter === 'photo'
+                  ? 'characters.filter.emptyPhoto'
+                  : 'characters.filter.emptyText',
+              )}
+            </p>
+          ) : (
+            <ul className="grid auto-rows-fr grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {visible.map((entry) => (
+                <li key={entry.id}>
+                  <CharacterCard
+                    character={entry}
+                    disabled={!isNative}
+                    onEdit={openEdit}
+                    onDelete={(character) => deleteCharacter(character.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </motion.div>
       )}
 
-      {modalOpen && <CharacterModal character={editing} onClose={closeModal} />}
+      {modalOpen && (
+        <CharacterModal
+          character={editing}
+          initialSource={filter}
+          onClose={closeModal}
+        />
+      )}
     </div>
   )
 }

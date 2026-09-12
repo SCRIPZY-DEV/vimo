@@ -78,6 +78,16 @@ propio; sin preview del estilo actual, el personaje viaja sin referencia.**
    decir la consecuencia («irá sin imagen de referencia») y la lista de elegidos repite
    el aviso corto.
 
+> **Adenda 2026-09-11.** Todo lo anterior describe al personaje **sin foto**. Desde
+> [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md) existe
+> el personaje **con foto**: la imagen subida es su identidad y viaja como referencia
+> en cualquier estilo, sin previews y sin el aviso del punto 5. La regla E20 sigue
+> intacta para el sin foto. El mismo día, por decisión del dueño, el aviso del
+> punto 5 («irá sin imagen de referencia» y su versión corta en la lista) se quitó
+> también para el sin foto: sugería un personaje incompleto cuando su identidad
+> viaja en el prompt. El sidecar sigue copiando el preview del estilo cuando existe
+> y avisando en el log cuando no; solo cambia lo que la UI dice.
+
 ## Alternativas consideradas
 
 - **Usar cualquier otro preview del personaje como referencia** — rechazada: viola E20;

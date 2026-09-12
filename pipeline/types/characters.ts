@@ -4,6 +4,12 @@ import type { ImageProviderId } from './image-provider.ts'
 // La "identidad" es una descripción NEUTRA DE ESTILO (quién es el personaje,
 // nunca cómo se dibuja): el estilo visual se aplica aparte al generar cada
 // imagen, así la misma identidad sirve para los 5 estilos.
+//
+// Dos maneras de fijar quién es (v0.41.0 del origen, ADR-0033): SIN foto la
+// identidad es la descripción, y la referencia visual de un video es el
+// preview del estilo actual si existe; CON foto la identidad es la imagen que
+// subió el usuario, que viaja como referencia en todos los estilos. El modo lo
+// decide el ARCHIVO (hay foto o no), nunca un flag aparte.
 
 export type CharacterStyleId =
   'normal' | 'pov_stickman' | 'cartoon' | 'fantasia' | 'terror'
@@ -23,11 +29,16 @@ export interface CharacterPreview {
 export interface CharacterSummary {
   id: string
   name: string
+  // Con foto puede venir vacía: la identidad la aporta la imagen.
   description: string
   age?: string
   role?: string
   createdAt: string
   previews: CharacterPreview[]
+  // La foto subida por el usuario (ruta absoluta para convertFileSrc, derivada
+  // al listar). Presente = personaje «con foto»: es su referencia en todos
+  // los estilos. Ausente = «sin foto».
+  photoPath?: string
 }
 
 // ─── Contratos de los subcomandos de personajes ───
@@ -43,10 +54,14 @@ export interface CharactersListResult {
 
 export interface CharacterCreatePayload {
   name: string
+  // Sin foto exige MIN_DESCRIPTION_LENGTH; con foto es opcional.
   description: string
   age?: string
   role?: string
   previews?: NewCharacterPreview[]
+  // Ruta absoluta de la foto elegida con el dialog nativo (JPEG/PNG/WEBP,
+  // hasta MAX_PHOTO_BYTES); el sidecar la valida y la copia a la biblioteca.
+  photoPath?: string
 }
 
 export interface CharacterCreateResult {
@@ -60,6 +75,9 @@ export interface CharacterUpdatePayload {
   age?: string
   role?: string
   previews?: NewCharacterPreview[]
+  // Reemplaza la foto de un personaje «con foto» (misma validación que al
+  // crear); la anterior se borra del disco. Un «sin foto» no cambia de modo.
+  photoPath?: string
 }
 
 export interface CharacterUpdateResult {

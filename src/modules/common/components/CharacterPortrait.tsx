@@ -12,12 +12,23 @@ export function CharacterPortrait({
   doodleSize,
   className,
 }: CharacterPortraitProps) {
+  // La imagen va posicionada sobre la caja (no en el flujo): así una foto
+  // vertical no aporta su alto natural al tamaño intrínseco de la tarjeta y
+  // las filas de una grilla `auto-rows-fr` no crecen; la caja manda (por
+  // ejemplo `aspect-square`) y la imagen se recorta con `object-cover`.
   return (
     <div
-      className={cn('flex items-center justify-center bg-muted/40', className)}
+      className={cn(
+        'relative flex items-center justify-center overflow-hidden bg-muted/40',
+        className,
+      )}
     >
       {src ? (
-        <img src={src} alt="" className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       ) : (
         <DoodleCharacter size={doodleSize} />
       )}

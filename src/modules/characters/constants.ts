@@ -1,6 +1,10 @@
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
-import type { CharacterFormValue, LabelledOption } from './types/characters'
+import type {
+  CharacterFormValue,
+  CharacterIdentitySource,
+  LabelledOption,
+} from './types/characters'
 
 export const CharactersRoutes = {
   characters: '/characters',
@@ -17,6 +21,38 @@ export const DESCRIPTION_LIMIT = 1200
 export const MIN_DESCRIPTION_LENGTH = 10
 export const AGE_LIMIT = 40
 export const ROLE_LIMIT = 80
+
+// Las dos sub-pestañas del modal al crear (v0.41.0 del origen): primero la
+// foto, como allá
+export const IDENTITY_SOURCES: {
+  id: CharacterIdentitySource
+  titleKey: string
+  hintKey: string
+}[] = [
+  {
+    id: 'photo',
+    titleKey: 'characters.identity.photo',
+    hintKey: 'characters.identity.photoHint',
+  },
+  {
+    id: 'text',
+    titleKey: 'characters.identity.text',
+    hintKey: 'characters.identity.textHint',
+  },
+]
+
+// Pestañas de la biblioteca: filtran por cómo se fijó la identidad, en el
+// mismo orden que las sub-pestañas del modal
+export const CHARACTER_FILTERS: {
+  id: CharacterIdentitySource
+  labelKey: string
+}[] = [
+  { id: 'photo', labelKey: 'characters.filter.photo' },
+  { id: 'text', labelKey: 'characters.filter.text' },
+]
+
+// Formatos que ofrece el dialog de la foto; el sidecar valida por magic bytes
+export const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
 
 // Estilos del catálogo para el preview, en el orden del origen; los estilos
 // propios de la galería se agregan a continuación en el modal
@@ -61,6 +97,7 @@ export const CHARACTERS_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_empty_response: 'characters.errors.llmProviderError',
   llm_insufficient_credits: 'characters.errors.llmInsufficientCredits',
   character_not_found: 'characters.errors.notFound',
+  character_photo_invalid: 'characters.errors.photoInvalid',
   style_not_found: 'characters.errors.styleNotFound',
   invalid_payload: 'characters.errors.invalid',
   missing_api_key: 'characters.errors.missingApiKey',

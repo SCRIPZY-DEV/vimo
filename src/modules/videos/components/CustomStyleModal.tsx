@@ -67,6 +67,34 @@ interface CharacterDraft {
   lastDefaultCharacterId?: string
 }
 
+// Qué queda en el borrador al cambiar el bloque de personaje. Pura: la
+// elección del predeterminado se guarda en el mismo gesto que la aplica, así
+// que hay que conocer el borrador nuevo antes de que React lo pinte.
+function nextCharacterDraft(
+  draft: CharacterDraft,
+  next: StyleCharacter,
+): CharacterDraft {
+  const current = draft.character
+  const returnsToOwn = next.mode === 'own' && current.mode !== 'own'
+  // Volver a «Mi personaje» desde otro modo recupera el fijado que tenía.
+  if (returnsToOwn && !next.defaultCharacterId && draft.lastDefaultCharacterId)
+    return {
+      ...draft,
+      character: {
+        mode: 'own',
+        defaultCharacterId: draft.lastDefaultCharacterId,
+      },
+    }
+  // Apagar el predeterminado estando en «Mi personaje» lo olvida.
+  if (next.mode === 'own' && !next.defaultCharacterId && !returnsToOwn)
+    return { character: next }
+  return {
+    character: next,
+    lastDefaultCharacterId:
+      next.defaultCharacterId ?? draft.lastDefaultCharacterId,
+  }
+}
+
 // Ids de las muestras mientras el sidecar todavía no reportó ninguna.
 const PLACEHOLDER_SAMPLE_IDS = Array.from(
   { length: CUSTOM_STYLE_SAMPLE_COUNT },
@@ -148,34 +176,10 @@ export function CustomStyleModal({
   const character = characterDraft.character
 
   const changeCharacter = (next: StyleCharacter) => {
-    setCharacterDraft((draft) => {
-      const current = draft.character
-      const returnsToOwn = next.mode === 'own' && current.mode !== 'own'
-      // Volver a «Mi personaje» desde otro modo recupera el fijado que tenía.
-      if (
-        returnsToOwn &&
-        !next.defaultCharacterId &&
-        draft.lastDefaultCharacterId
-      )
-        return {
-          ...draft,
-          character: {
-            mode: 'own',
-            defaultCharacterId: draft.lastDefaultCharacterId,
-          },
-        }
-      // Apagar el predeterminado estando en «Mi personaje» lo olvida.
-      if (next.mode === 'own' && !next.defaultCharacterId && !returnsToOwn)
-        return { character: next }
-      return {
-        character: next,
-        lastDefaultCharacterId:
-          next.defaultCharacterId ?? draft.lastDefaultCharacterId,
-      }
-    })
+    setCharacterDraft((draft) => nextCharacterDraft(draft, next))
   }
 
-  const payload = (): StyleSavePayload => {
+  const payload = (characterToSave: StyleCharacter): StyleSavePayload => {
     return {
       id: styleId,
       // El sidecar exige nombre: sin uno, la tarjeta se llama como en el
@@ -186,18 +190,21 @@ export function CustomStyleModal({
         .split(',')
         .map((shot) => shot.trim())
         .filter(Boolean),
-      character,
+      character: characterToSave,
     }
   }
 
   // Guarda el borrador si tiene estilo escrito. Sin texto no hay nada que
   // guardar (el sidecar lo exige); un fallo se muestra y deja el modal
-  // abierto para no perder lo tipeado.
-  const persist = async (): Promise<boolean> => {
+  // abierto para no perder lo tipeado. `characterToSave` permite guardar un
+  // bloque recién elegido antes de que React lo pinte.
+  const persist = async (
+    characterToSave: StyleCharacter = character,
+  ): Promise<boolean> => {
     if (!hasPrompt) return false
     setSaveErrorKey(null)
     try {
-      await onSave(payload())
+      await onSave(payload(characterToSave))
       return true
     } catch (error) {
       setSaveErrorKey(videosApi.errorMessageKey(error))
@@ -541,12 +548,18 @@ export function CustomStyleModal({
           }
           onConfirm={(characters) => {
             const chosen = characters.at(0)
-            changeCharacter(
+            const draft = nextCharacterDraft(
+              characterDraft,
               chosen
                 ? { mode: 'own', defaultCharacterId: chosen.characterId }
                 : { mode: 'own' },
             )
+            setCharacterDraft(draft)
             setPicking(null)
+            // v1.19.3 del origen: la elección del predeterminado se guarda al
+            // toque, no solo al cerrar (se perdía si la persona salía sin
+            // «Listo»). Sin texto todavía no hay tarjeta: la guarda el cierre.
+            void persist(draft.character)
           }}
           onClose={() => setPicking(null)}
         />

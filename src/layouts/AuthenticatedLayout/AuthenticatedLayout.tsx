@@ -30,7 +30,9 @@ export function AuthenticatedLayout() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Navbar />
-        <main className="relative flex-1 overflow-y-auto">
+        {/* `overscroll-none`: el scroller no rebota al llegar al final ni le
+            pasa el gesto a la raíz (ver main.css). */}
+        <main className="relative flex-1 overflow-y-auto overscroll-none">
           <AnimatePresence mode="wait">
             <motion.div
               key={transitionKey}

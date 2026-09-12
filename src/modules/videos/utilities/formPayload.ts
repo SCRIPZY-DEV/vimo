@@ -2,6 +2,7 @@ import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import type {
   CreateFormValue,
   CreateProjectPayloadOptions,
+  FormBlockersContext,
 } from '@/modules/videos/types/create'
 import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
 import type {
@@ -89,7 +90,10 @@ export function createProjectPayload(
 
   if (form.useOverlay) options.overlayUrl = form.overlayUrl.trim()
 
-  if (form.characters.length > 0) {
+  // La frecuencia viaja solo con un estilo del catálogo: el carril verbatim
+  // saltea el clasificador de presencia (ADR-0019) y la ignoraría, así que
+  // mandarla dejaría en el proyecto una opción que nadie aplica.
+  if (form.characters.length > 0 && !usesCustomStyle) {
     options.characterFrequency = form.characterFrequency
   }
 
@@ -102,23 +106,27 @@ export function createProjectPayload(
   if (script) payload.script = script
 
   if (form.characters.length > 0) {
+    // El sidecar resuelve la referencia por su cuenta: con `photo` copia la
+    // foto de la biblioteca; con `text`, el preview del estilo si existe.
     payload.characters = form.characters.map((character) => ({
       characterId: character.characterId,
       name: character.name,
       description: character.description,
-      mode: 'text',
+      mode: character.mode,
     }))
   }
 
   return payload
 }
 
-// Motivos por los que el formulario todavía no puede enviarse.
-// `promptModelsBlocked`: todos los modelos de prompts están bloqueados
-// (ADR-0028) — con estilo propio no hay quién escriba los prompts.
+// Motivos por los que el formulario todavía no puede enviarse. El contexto
+// trae lo que no se deriva del formulario solo (ver FormBlockersContext).
 export function formBlockers(
   form: CreateFormValue,
-  promptModelsBlocked = false,
+  {
+    promptModelsBlocked = false,
+    fixedCharacterMissing = false,
+  }: FormBlockersContext = {},
 ): string[] {
   const blockers: string[] = []
 
@@ -132,9 +140,12 @@ export function formBlockers(
   if (form.styleSource === 'custom' && promptModelsBlocked)
     blockers.push('create.validation.promptModelsBlocked')
 
-  // La gema pide TU personaje (ADR-0020): sin uno elegido — o con el fijo
-  // del estilo ya borrado de la biblioteca — no hay con qué generar.
-  if (styleCharacterModeOf(form) === 'own' && form.characters.length === 0)
+  // La gema pide TU personaje (ADR-0020): con el fijo del estilo ya borrado
+  // de la biblioteca el remedio es editar el estilo (el chip rojo lo dice);
+  // sin uno elegido, elegirlo.
+  if (fixedCharacterMissing)
+    blockers.push('create.validation.fixedCharacterMissing')
+  else if (styleCharacterModeOf(form) === 'own' && form.characters.length === 0)
     blockers.push('create.validation.characterRequired')
 
   if (form.narrationMode === 'tts') {

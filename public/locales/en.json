@@ -178,10 +178,6 @@
       "pickerTitle": "Pick a voice",
       "pickerDescription": "Listen to the provider's sample and pick the one that fits your video.",
       "edgeNote": "Edge voices have no sample to listen to.",
-      "empty": "No voices match your search.",
-      "loadMore": "Load more voices",
-      "play": "Play sample",
-      "pause": "Pause sample",
       "use": "Use this voice",
       "tabs": {
         "minimax": "Minimax",
@@ -190,11 +186,11 @@
         "fishaudio": "Fish Audio",
         "edge": "Edge",
         "elevenlabs-account": "My voices",
-        "elevenlabs-library": "Library"
+        "elevenlabs-library": "Library",
+        "favorites": "Favorites"
       },
       "hint": "This voice narrates your whole video — pick one before generating.",
       "libraryNote": "Library voices are added to your ElevenLabs account when you use them.",
-      "libraryBadge": "Library",
       "addingLibraryVoice": "Adding the voice…",
       "missingVendorKey": "The {{vendor}} key is missing. Set it up in API Keys or switch voice provider."
     },
@@ -225,26 +221,47 @@
       "choose": "Add character",
       "change": "Change",
       "hint": "Shows up consistently in your video; you choose how often it appears.",
+      "hintOfStyle": "Shows up consistently in your video; this style decides which scenes they appear in.",
       "remove": "Remove character",
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
       "empty": "You don't have any characters in your library yet.",
-      "noPreviewForStyle": "No artwork in this style: it will go without a reference image",
-      "noReferenceHint": "No visual reference",
+      "withPhoto": "With photo · identical face",
+      "filter": {
+        "ariaLabel": "Filter characters",
+        "photo": "Characters with photo",
+        "text": "Characters without photo",
+        "emptyPhoto": "You don't have any characters with a photo yet.",
+        "emptyText": "You don't have any characters without a photo yet."
+      },
       "use": "Use {{count}} character(s)",
       "frequency": {
-        "label": "How often do they appear?",
-        "rarely": "Rarely",
+        "label": "How often does your character appear?",
+        "hint": "With \"Balanced\" your character shows up in half the scenes, evenly spread from start to finish; in the rest we draw whatever is being told (an object, a place, an idea). With \"Always\", they appear in every scene.",
         "balanced": "Balanced",
-        "often": "Often",
-        "almostAlways": "Almost always",
-        "always": "Always"
+        "balancedPercent": "50%",
+        "always": "Always",
+        "alwaysPercent": "100%"
       },
       "selectedCount_one": "{{count}} character",
       "selectedCount_other": "{{count}} characters",
       "asksForCharacter": "This style asks for your character: pick one to generate.",
-      "broughtByStyle": "Brought by your style. Every video with this style comes out with it.",
-      "fixedMissing": "This style's default character is no longer in your library. Edit the style and pick another one.",
+      "labelOfStyle": "Character of this style",
+      "broughtByStyle": "This style already brings its character. Tap here to change it.",
+      "fixedLoading": "Looking it up…",
+      "fixedMissingTitle": "This style lost its character",
+      "fixedMissingHint": "The one it had chosen is no longer in your list. Tap here to open the style and pick another.",
+      "styleUsesGeneric": "This style uses a \"generic character\"",
+      "styleUsesGenericHint": "Vimo writes a protagonist consistent with your script and repeats it in every scene. Nothing to upload.",
+      "styleUsesNone": "This style uses \"no character\"",
+      "styleUsesNoneHint": "Scenes are built from what is narrated. If your script mentions people, they will appear — there is just no fixed protagonist repeated through the video.",
+      "wantYours": "Want your own character? Tap here and choose \"my character\".",
+      "withdrawnTitle": "We removed \"{{names}}\" from this video",
+      "withdrawnTitleNoName": "We removed your character from this video",
+      "withdrawnBecauseGeneric": "This style writes the character itself, so your choice would not have been used.",
+      "withdrawnBecauseNone": "This style has no character, so your choice would not have been used.",
+      "withdrawnRestoreHint": "It is kept: tap here and set the style to \"my character\" to bring it back.",
+      "withdrawnRestoreAuto": "It is kept: it comes back on its own if you pick a style that uses your character.",
       "createNew": "Create new character",
       "createWithStyle": "Create character with my style",
       "pickerTitleSingle": "Pick the default character",
@@ -401,6 +418,7 @@
       "overlayUrlRequired": "Paste the YouTube link for the texture.",
       "styleRequired": "Pick (or create) a custom style to generate.",
       "characterRequired": "This style asks for your character: pick one.",
+      "fixedCharacterMissing": "The character this style had fixed is no longer in your list. Edit the style and pick another.",
       "promptModelsBlocked": "Every prompt-writing model is blocked: pick a Vimo style or wait for them to come back.",
       "insufficientCredits": "A provider doesn't have enough balance for this generation: top up or lower the cost (fewer scenes, another quality)."
     },
@@ -699,7 +717,7 @@
       "imageCount": "{{total}} images",
       "promptAuthor": "Prompts written by <author>{{author}}</author>",
       "badge": {
-        "ready": "✓ Ready",
+        "ready": "Exported",
         "outdated": "Outdated",
         "generating": "Generating",
         "awaitingConfirmation": "Confirm scenes",
@@ -1013,7 +1031,8 @@
     "tarjeta": {
       "editar": "Edit",
       "eliminar": "Delete character",
-      "confirmar": "Confirm"
+      "confirmar": "Confirm",
+      "conFoto": "With photo · identical face"
     },
     "modal": {
       "nuevo": "New character",
@@ -1021,6 +1040,29 @@
       "descripcion": "Describe who the character is. The identity is reused across all your videos.",
       "guardar": "Save",
       "cancelar": "Cancel"
+    },
+    "identity": {
+      "ariaLabel": "How to set the identity",
+      "photo": "With photo",
+      "photoHint": "identical face",
+      "text": "Without photo",
+      "textHint": "cheaper",
+      "textNotice": "Without photo: <strong>cheaper</strong> (no extra cost per image). The character stays consistent through its description, but <strong>the build may vary slightly</strong> between scenes."
+    },
+    "photo": {
+      "namePlaceholder": "Name (e.g. Lia)",
+      "descriptionPlaceholder": "Description (hair, features, usual outfit). Optional, but it helps consistency.",
+      "notice": "<lead>Important:</lead> the photo must show <strong>the character only</strong>, no background. It comes out more consistent, but costs ~2× per image.",
+      "upload": "Upload photo",
+      "change": "Change photo",
+      "replace": "Replace photo"
+    },
+    "filter": {
+      "ariaLabel": "Filter characters",
+      "photo": "Characters with photo",
+      "text": "Characters without photo",
+      "emptyPhoto": "You don't have any characters with a photo yet.",
+      "emptyText": "You don't have any characters without a photo yet."
     },
     "form": {
       "nombre": "Name",
@@ -1075,6 +1117,8 @@
     "errors": {
       "nameRequired": "Give the character a name.",
       "descriptionTooShort": "The identity needs at least 10 characters.",
+      "photoRequired": "Upload a photo of the character.",
+      "photoInvalid": "That photo won't work: it must be a JPG, PNG or WEBP up to 12 MB.",
       "notFound": "That character is no longer in your library.",
       "styleNotFound": "That custom style is no longer in your gallery. Pick another one.",
       "invalid": "Check the character details.",

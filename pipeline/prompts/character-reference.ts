@@ -51,3 +51,28 @@ export function buildReferenceIdentityLineMulti(
     `Frame the shot exactly as the description dictates; when the scene calls for a full-body shot, fit the whole characters inside the ${format} frame.\n\n`
   )
 }
+
+// Con ESTILO PROPIO la nota es otra (port byte a byte de
+// promptReferenciaEstiloPropio, personaje_fal.ts v1.48.2 del origen): la línea
+// REFERENCE arriba, el prompt de la escena en el medio y el «APPEARANCE LOCK»
+// abajo como un único párrafo. No lleva el formato del video: con gema el
+// 16:9 / 9:16 viaja solo en el tamaño del pedido. El ancla del nombre DENTRO
+// del prompt («X (the person from the attached reference image)») no la pone
+// esta función: la teje el carril verbatim en la primera mención de cada
+// escena. Con dos referencias el texto nombra y protege solo a la primera,
+// igual que allá (desde la UI no se llega: con gema el selector acepta una).
+// El fragmento «Apply the scene's art style only to the surroundings» es el
+// marcador que el origen busca en su bundle; no reformular.
+export function buildCustomStyleReferencePrompt(
+  name: string,
+  scenePrompt: string,
+): string {
+  const trimmedName = name.trim() || 'the main character'
+  return (
+    `REFERENCE: the attached image is "${trimmedName}", the main character of this video.\n\n` +
+    `${scenePrompt.trim()}\n\n` +
+    `APPEARANCE LOCK: ${trimmedName} must look exactly like the person in the attached reference image: same face, same hair, same outfit, in EVERY shot, even when ${trimmedName} appears small or far away. ` +
+    `Apply the scene's art style only to the surroundings, never to ${trimmedName}. ` +
+    `Ignore the reference image's background: place ${trimmedName} naturally in the scene, matching its lighting and perspective.`
+  )
+}

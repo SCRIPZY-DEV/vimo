@@ -42,8 +42,10 @@ export function VoiceVendorSwitch({
             key={vendor}
             value={vendor}
             disabled={disabled}
+            // El activo en saffron pleno, como los chips de filtro: el blanco
+            // del trigger común no se distinguía sobre la pista gris.
             className={cn(
-              'rounded-lg font-display',
+              'rounded-lg font-display data-[state=active]:bg-saffron data-[state=active]:font-bold data-[state=active]:text-charcoal',
               size === 'sm' ? 'px-3 text-xs' : 'px-4 text-sm',
             )}
           >

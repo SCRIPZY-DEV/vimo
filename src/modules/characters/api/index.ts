@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import {
   pipelineErrorCode,
   runPipelineJob,
@@ -7,6 +8,7 @@ import {
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   CHARACTERS_ERROR_MESSAGE_KEYS,
+  PHOTO_EXTENSIONS,
   UNKNOWN_CHARACTERS_ERROR_KEY,
 } from '@/modules/characters/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
@@ -52,6 +54,17 @@ export const charactersApi = {
   },
   async remove(id: string): Promise<void> {
     await runPipelineJob('character-delete', { id })
+  },
+  // La foto del personaje se elige con el dialog nativo y viaja como RUTA
+  // (precedente: pickNarrationFile en videos): el sidecar la lee, la valida y
+  // la copia a la biblioteca — nada de base64 por el IPC.
+  async pickPhotoFile(): Promise<string | null> {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: 'image', extensions: PHOTO_EXTENSIONS }],
+    })
+    return typeof selected === 'string' ? selected : null
   },
   // Galería de estilos propios, para generar previews con ellos. Envuelve el
   // mismo subcomando que videos (precedente: listCharacters en videosApi).

@@ -1,8 +1,13 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Plus } from 'lucide-react'
 import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
+import {
+  closeCustomStyleEditor,
+  openCustomStyleEditor,
+  useCustomStyleEditor,
+} from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { newCustomStyleId } from '@/modules/videos/constants'
 import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
@@ -25,13 +30,7 @@ interface CustomStyleGalleryProps {
   onSelect: (style: SelectedCustomStyle | null) => void
 }
 
-interface EditingStyle {
-  styleId: string
-  initial: CustomStyleDraft
-  // Abierto desde «Generar 4 muestras» del menú: arranca a generar apenas se
-  // elige el proveedor, sin pedirle a la persona que repita el pedido.
-  generateOnOpen: boolean
-}
+const EMPTY_DRAFT: CustomStyleDraft = { name: '', systemPrompt: '', shots: [] }
 
 function toDraft(style: CustomStyleSummary): CustomStyleDraft {
   return {
@@ -46,6 +45,8 @@ function toDraft(style: CustomStyleSummary): CustomStyleDraft {
 // tarjeta por estilo guardado + «Crear estilo» SIEMPRE al final, con la misma
 // silueta. Arranca VACÍA (v1.35.0 del origen: el estilo de la casa no existe
 // acá) y el submit queda bloqueado hasta elegir una tarjeta (formBlockers).
+// Qué gema está abierta en el editor vive en un store compartido: la sección
+// de personaje abre desde sus chips el editor de la gema EN USO.
 export function CustomStyleGallery({
   selected,
   disabled,
@@ -57,20 +58,24 @@ export function CustomStyleGallery({
   const { styles, isLoading, saveStyle, deleteStyle, saving } =
     useCustomStyles()
 
-  // Estilo abierto en el modal; null = cerrado.
-  const [editing, setEditing] = useState<EditingStyle | null>(null)
+  // Estilo abierto en el modal; null = cerrado. El borrador inicial sale de
+  // la LISTA VIVA: el editor abre siempre con lo que hay en disco.
+  const editing = useCustomStyleEditor()
+  const editingStyle = editing
+    ? styles.find((style) => style.id === editing.styleId)
+    : undefined
+
+  // Si la galería se desmonta con el editor abierto (cambio a Catálogo), el
+  // pedido no queda colgado para la próxima vez.
+  useEffect(() => closeCustomStyleEditor, [])
 
   const openCreate = () => {
     if (disabled) return
-    setEditing({
-      styleId: newCustomStyleId(),
-      initial: { name: '', systemPrompt: '', shots: [] },
-      generateOnOpen: false,
-    })
+    openCustomStyleEditor({ styleId: newCustomStyleId(), isNew: true })
   }
 
   const openEdit = (style: CustomStyleSummary, generateOnOpen: boolean) => {
-    setEditing({ styleId: style.id, initial: toDraft(style), generateOnOpen })
+    openCustomStyleEditor({ styleId: style.id, generateOnOpen })
   }
 
   const removeStyle = async (style: CustomStyleSummary) => {
@@ -175,21 +180,24 @@ export function CustomStyleGallery({
         </p>
       )}
 
-      {editing && (
+      {editing && (editing.isNew || editingStyle) && (
         <CustomStyleModal
+          // Una gema distinta = un borrador distinto: el modal siembra su
+          // estado desde `initial` UNA sola vez, así que la clave es el id y
+          // no el contenido (una invalidación de la lista con el modal
+          // abierto no re-siembra lo tipeado).
+          key={editing.styleId}
           styleId={editing.styleId}
-          initial={editing.initial}
+          initial={editingStyle ? toDraft(editingStyle) : EMPTY_DRAFT}
           // Derivadas de la query viva: al terminar de generar, la
           // invalidación refetchea y el modal muestra las muestras solo.
-          samples={
-            styles.find((style) => style.id === editing.styleId)?.samples ?? []
-          }
+          samples={editingStyle?.samples ?? []}
           saving={saving}
           generateOnOpen={editing.generateOnOpen}
           script={script}
           promptModel={promptModel}
           onSave={save}
-          onClose={() => setEditing(null)}
+          onClose={closeCustomStyleEditor}
         />
       )}
     </div>

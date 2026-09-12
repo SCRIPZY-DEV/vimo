@@ -16,13 +16,16 @@ import {
   applyNewPreviews,
   charactersRoot,
   newCharacterId,
+  readPhotoFile,
   toCharacterSummary,
   writeCharacterMetadata,
+  writePhotoFile,
   type StoredCharacterMetadata,
 } from './character-library.ts'
 
-// Crea un personaje en la biblioteca con su identidad y los previews que el
-// usuario ya generó.
+// Crea un personaje en la biblioteca: sin foto, con su identidad escrita y
+// los previews que el usuario ya generó; con foto, con la imagen subida como
+// identidad (la descripción queda opcional, ayuda a la consistencia).
 export async function characterCreate(
   context: PipelineContext,
 ): Promise<CharacterCreateResult> {
@@ -32,11 +35,16 @@ export async function characterCreate(
     throw new PipelineFailure('invalid_payload', 'payload.name is required')
 
   const description = payload?.description?.trim() ?? ''
-  if (description.length < MIN_DESCRIPTION_LENGTH)
+  const photoPath = payload?.photoPath?.trim()
+  if (!photoPath && description.length < MIN_DESCRIPTION_LENGTH)
     throw new PipelineFailure(
       'invalid_payload',
       `payload.description must be at least ${MIN_DESCRIPTION_LENGTH} characters`,
     )
+
+  // La foto se lee y valida ANTES de crear la carpeta: una foto inválida no
+  // deja un personaje a medias en disco.
+  const photo = photoPath ? await readPhotoFile(photoPath) : null
 
   const directory = charactersRoot(context)
   const id = newCharacterId(name)
@@ -57,6 +65,7 @@ export async function characterCreate(
   if (age) metadata.age = age.slice(0, AGE_LIMIT)
   const role = payload?.role?.trim()
   if (role) metadata.role = role.slice(0, ROLE_LIMIT)
+  if (photo) metadata.photoFile = await writePhotoFile(entryDirectory, photo)
 
   await writeCharacterMetadata(entryDirectory, metadata)
 

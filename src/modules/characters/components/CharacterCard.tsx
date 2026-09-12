@@ -14,6 +14,10 @@ interface CharacterCardProps {
   onDelete: (character: CharacterSummary) => void
 }
 
+// Tarjeta de la biblioteca. Todas miden lo mismo: el retrato es cuadrado y
+// cada renglón del cuerpo tiene alto fijo (subtítulo de una línea y
+// descripción de dos), con o sin dato — así una descripción larga, una vacía
+// o un personaje sin edad ni rol no descuadran la grilla.
 export function CharacterCard({
   character,
   disabled,
@@ -23,7 +27,12 @@ export function CharacterCard({
   const { t } = useTranslation()
   const [confirming, setConfirming] = useState(false)
 
-  const portrait = character.previews[0]
+  // Con foto, la tarjeta muestra la foto: es su identidad en todos los
+  // estilos. Sin foto, el primer preview que tenga.
+  const portrait = character.photoPath ?? character.previews[0]?.imagePath
+  const subtitle = character.photoPath
+    ? t('characters.tarjeta.conFoto')
+    : [character.age, character.role].filter(Boolean).join(' · ')
 
   // Toda la tarjeta abre la edición; eliminar y confirmar frenan la propagación.
   const edit = () => {
@@ -36,12 +45,12 @@ export function CharacterCard({
       onClick={edit}
       onMouseLeave={() => setConfirming(false)}
       className={cn(
-        'flex flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card transition-transform hover:scale-[1.02]',
+        'flex h-full flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card transition-transform hover:scale-[1.02]',
         !disabled && 'cursor-pointer',
       )}
     >
       <CharacterPortrait
-        src={portrait ? charactersApi.imageSource(portrait.imagePath) : null}
+        src={portrait ? charactersApi.imageSource(portrait) : null}
         doodleSize={72}
         className="aspect-square"
       />
@@ -51,13 +60,16 @@ export function CharacterCard({
           <h3 className="truncate font-display text-base font-bold text-foreground">
             {character.name}
           </h3>
-          {(character.age ?? character.role) && (
-            <p className="truncate font-body text-xs text-muted-foreground">
-              {[character.age, character.role].filter(Boolean).join(' · ')}
-            </p>
-          )}
+          <p
+            className={cn(
+              'h-4 truncate font-body text-xs leading-4',
+              character.photoPath ? 'text-saffron' : 'text-muted-foreground',
+            )}
+          >
+            {subtitle}
+          </p>
         </div>
-        <p className="line-clamp-2 font-body text-xs text-muted-foreground">
+        <p className="line-clamp-2 h-8 font-body text-xs leading-4 text-muted-foreground">
           {character.description}
         </p>
 

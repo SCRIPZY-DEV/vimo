@@ -455,6 +455,7 @@ async function generateImages(
   // ya bajado queda en disco como cache-hit para reanudar (ADR-0029).
   const creditsAbort = new AbortController()
   const laneOptions: ImageLaneOptions = {
+    customStyle: Boolean(context.options.customStyle),
     paths: context.paths,
     signal: AbortSignal.any([context.signal, creditsAbort.signal]),
     events,
