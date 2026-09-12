@@ -27,14 +27,11 @@ interface BadgeLook {
 // BLANCO (no transparencia) y el texto en el color pleno. Con el fondo al
 // 15 % de opacidad, «Listo» y «Desactualizado» desaparecían sobre portadas
 // claras o cálidas (QA del 2026-09-11); mezclar con blanco da el mismo tono
-// pastel pero la portada nunca se cuela detrás. «Generando» va en verde
-// (pedido del dueño).
+// pastel pero la portada nunca se cuela detrás. «Generando» va en verde y
+// «Exportado», el estado que importa, en saffron PLENO como la píldora
+// activa de las pestañas (pedidos del dueño).
 const BADGE_LOOKS: Record<ProjectBadge, BadgeLook> = {
-  ready: {
-    classes:
-      'bg-[color-mix(in_srgb,hsl(var(--saffron))_22%,white)] text-charcoal',
-    Icon: Check,
-  },
+  ready: { classes: 'bg-saffron text-charcoal shadow-md', Icon: Check },
   outdated: {
     classes: 'bg-[color-mix(in_srgb,hsl(var(--coral))_18%,white)] text-coral',
     Icon: History,
