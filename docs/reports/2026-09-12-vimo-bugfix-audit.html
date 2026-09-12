@@ -135,8 +135,8 @@
           <tr>
             <td>Previews lentas y sin recuperación</td>
             <td>
-              Modelo interactivo rápido con rotación, cuatro prompts y cuatro
-              imágenes en paralelo, progreso y publicación individual.
+              Cuatro prompts en un lote, respaldo paralelo y rotación de modelo;
+              cuatro imágenes simultáneas con progreso y publicación individual.
             </td>
           </tr>
           <tr>
@@ -178,7 +178,7 @@
         </li>
       </ol>
       <p class="small">
-        Commits de código: <code>c7f3779</code> Catálogo ·
+        Commits de corrección inicial: <code>c7f3779</code> Catálogo ·
         <code>eb0f1f4</code> previews · <code>249d330</code> voz ·
         <code>8a43e44</code> recuperación del proveedor de respaldo.
       </p>
@@ -213,13 +213,16 @@
           o respuesta inutilizable activan el siguiente candidato.
         </li>
         <li>
-          Se comparte la memoria de modelos fallidos entre las cuatro
-          redacciones del job. Errores de clave o saldo no rotan modelos:
-          cambiar modelo no arregla la cuenta.
+          Se comparte la memoria de modelos fallidos entre los pedidos del job.
+          Errores de clave o saldo no rotan modelos: cambiar modelo no arregla
+          la cuenta.
         </li>
         <li>
-          Las cuatro redacciones corren en paralelo. Solo cuando las cuatro son
-          válidas arrancan los cuatro POSTs de imagen en paralelo.
+          Por ajuste posterior del usuario: primero una petición con cuatro
+          prompts (3600 tokens). Un lote parcial o inválido conserva lo válido y
+          completa solo faltantes en paralelo (900 tokens cada uno).
+          HTTP/timeout del lote cambia de modelo para el respaldo. Con los
+          cuatro válidos arrancan las cuatro imágenes en paralelo.
         </li>
         <li>
           Evolink se consulta cada segundo para estas previews; el resto del
@@ -244,10 +247,11 @@
       </p>
       <h3>Evidencia</h3>
       <p>
-        Ocho regresiones: 429, 503, timeout, formato inválido, 401, 402 y dos
-        casos de concurrencia/publicación individual —Fal y Evolink—. Una
-        barrera exige que existan cuatro POSTs antes de responder; también se
-        comprueba un archivo guardado mientras otra muestra sigue pendiente.
+        Diecisiete regresiones: rotación, auth/saldo, lote
+        parcial/inválido/duplicado, timeout, cancelación y fallo individual. Se
+        exige un único pedido LLM si el lote funciona; faltantes en paralelo,
+        IDs correctos y ningún POST de imagen con prompts incompletos.
+        Fal/Evolink conservan concurrencia y guardado individual.
       </p>
       <div class="box warn">
         No se promete que las cuatro imágenes terminen exactamente juntas ni
@@ -548,7 +552,7 @@
           </tr>
           <tr>
             <td>Regresiones previews / voz</td>
-            <td>8/8 + 12/12</td>
+            <td>17/17 + 12/12</td>
           </tr>
           <tr>
             <td>Interfaz Chrome, APIs simuladas</td>

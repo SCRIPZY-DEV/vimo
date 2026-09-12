@@ -8,7 +8,12 @@ seguidos de cuatro imágenes. Las imágenes se acumulaban en memoria y se guarda
 al final. En la UI, el primer evento de imagen reducía la grilla de cuatro a una
 tarjeta y los porcentajes de prompts se ignoraban.
 
-Las cuatro redacciones ahora corren en paralelo con el cliente streaming existente.
+La redacción intenta primero UN pedido streaming con los cuatro prompts en JSON,
+IDs 1–4 y presupuesto de 3600 tokens de contenido. Reemplaza la política de cuatro
+solicitudes iniciales por pedido explícito del usuario del 2026-09-12.
+Se conservan los prompts válidos del lote; faltantes, duplicados o inválidos se
+redactan individualmente EN PARALELO (900 tokens cada uno). Un fallo HTTP/timeout
+del lote usa los modelos siguientes para ese respaldo, sin insistir con otros lotes.
 La política interactiva usa Llama 4 Scout → GPT OSS Turbo → GPT OSS Ultra,
 modelos ya presentes en el catálogo. Cada intento dispone de 25 segundos;
 un 429, fallo de proveedor o respuesta inutilizable pasa al siguiente candidato.
@@ -27,9 +32,11 @@ El avance de redacción combina actividad del stream y estimación temporal, con
 techo 95 % hasta validar el prompt. No representa un porcentaje real del LLM.
 Evolink informa progreso propio; Fal usa la estimación que ya tenía.
 
-Validación: `node --test scripts/check-preview-regressions.mjs` (8 casos:
+Validación: `node --test scripts/check-preview-regressions.mjs` (17 casos:
 429/503/timeout/formato inválido, auth/saldo, concurrencia y guardado inmediato en
-ambos proveedores). HTTP interceptado, sin gastar créditos. Frontend y pipeline
+ambos proveedores; lote parcial/inválido/duplicado, 429, timeout, auth/saldo,
+cancelación y fallo individual). Se exige una sola petición LLM para el lote
+correcto y concurrencia real para los faltantes. HTTP interceptado, sin gastar créditos. Frontend y pipeline
 deben pasar format/lint/build y tsc del pipeline.
 
 QA: generar cuatro muestras con Evolink y después Fal. Las cuatro tarjetas deben

@@ -22,9 +22,12 @@ La reanudación prioriza el proveedor registrado en los recibos, aunque sea un
 carril de respaldo. Sin su clave o con carriles pendientes contradictorios, bloquea
 antes del troceo para no pagar partes en otro carril.
 
-Solo para muestras de estilos, utilizar cuatro redacciones streaming paralelas
-con Scout → Turbo → Ultra y plazo de 25 segundos por intento; errores de cuenta
-no rotan modelos. Después, cuatro imágenes paralelas y publicación individual
+Solo para muestras de estilos, solicitar los cuatro prompts en un lote streaming
+(3600 tokens), con un intento de hasta 25 segundos. Si está incompleto o falla,
+redactar solo los faltantes en paralelo (900 tokens por pedido). Por instrucción
+del usuario del 2026-09-12, reemplaza las cuatro redacciones iniciales en paralelo.
+Conservar Scout → Turbo → Ultra; tras HTTP/timeout del lote, usar el modelo
+siguiente. Auth/saldo/cancelación abortan sin fallback. Después, cuatro imágenes paralelas y publicación individual
 atómica. Polling Evolink de un segundo solo para esta operación interactiva.
 
 ## Alternativas consideradas
@@ -45,7 +48,9 @@ pueden contener URLs firmadas y no deben compartirse en logs públicos. Un cierr
 forzado puede impedir cosechar respuestas de motores síncronos. No se incorpora
 un endpoint, proveedor, secreto, ruta ni etapa nueva.
 
-Las cuatro muestras aumentan concurrencia, no su número habitual. Un fallback de
+Las cuatro imágenes mantienen concurrencia, no aumentan su número habitual. El
+lote reduce envíos de texto en el camino normal, sin garantizar menor latencia.
+Un fallback de
 texto puede sumar tokens del intento anterior. La protección nativa cubre jobs
 de la misma instancia de app, no procesos CLI independientes ni otra app.
 

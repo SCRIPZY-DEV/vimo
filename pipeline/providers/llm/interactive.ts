@@ -21,6 +21,8 @@ export const INTERACTIVE_ATTEMPT_MS = 25_000
 const CONTENT_TOKENS_BUDGET = 900
 
 interface InteractiveRequest<T> {
+  contentTokensBudget?: number
+  maxAttempts?: number
   messages: VerbatimMessage[]
   parse(content: string): T | null
   onProgress?(content: string): void
@@ -41,6 +43,7 @@ export function createInteractiveLlm(context: PipelineContext) {
 
   return {
     async generate<T>(request: InteractiveRequest<T>): Promise<T> {
+      let attempts = 0
       let lastError: unknown = new PipelineFailure(
         'llm_provider_error',
         'no interactive model available',
@@ -50,6 +53,9 @@ export function createInteractiveLlm(context: PipelineContext) {
         if (unavailable.has(modelId)) continue
         const profile = modelProfile(modelId)
         if (!profile.inCatalog || profile.retired) continue
+        if (attempts >= (request.maxAttempts ?? INTERACTIVE_MODEL_IDS.length))
+          break
+        attempts++
 
         const deadline = AbortSignal.timeout(
           Math.min(INTERACTIVE_ATTEMPT_MS, context.config.llm.timeoutMs),
@@ -58,7 +64,8 @@ export function createInteractiveLlm(context: PipelineContext) {
           const response = await client.call({
             profile,
             messages: request.messages,
-            contentTokensBudget: CONTENT_TOKENS_BUDGET,
+            contentTokensBudget:
+              request.contentTokensBudget ?? CONTENT_TOKENS_BUDGET,
             signal: AbortSignal.any([context.signal, deadline]),
             onProgress: request.onProgress,
           })

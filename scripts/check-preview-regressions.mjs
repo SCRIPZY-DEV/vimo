@@ -11,6 +11,7 @@ import {
   INTERACTIVE_MODEL_IDS,
 } from '../pipeline/providers/llm/interactive.ts'
 import { resolvePipelineConfig } from '../pipeline/config/pipeline-config.ts'
+import { SAMPLE_FRAGMENTS } from '../pipeline/prompts/style-samples.ts'
 
 const imageBytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=',
@@ -134,7 +135,14 @@ for (const provider of ['fal', 'evolink']) {
         if (url.includes('/chat/completions')) {
           promptCalls++
           await delay(550)
-          return stream(JSON.stringify({ prompt_imagen: prompt }))
+          return stream(
+            JSON.stringify({
+              samples: [4, 2, 1, 3].map((sampleId) => ({
+                sampleId,
+                prompt: prompt + ' Scene ' + sampleId,
+              })),
+            }),
+          )
         }
         if (init.method === 'POST') {
           const id = ++imagePosts
@@ -171,7 +179,7 @@ for (const provider of ['fal', 'evolink']) {
         const path = await saved
         assert.deepEqual(await readFile(path), imageBytes)
         assert.equal(imagePosts, 4)
-        assert.equal(promptCalls, 4)
+        assert.equal(promptCalls, 1)
         assert.ok(
           events.some(
             (event) =>
@@ -190,4 +198,164 @@ for (const provider of ['fal', 'evolink']) {
       }
     },
   )
+}
+
+for (const scenario of [
+  'partial',
+  'invalid',
+  'duplicate',
+  '429',
+  'timeout',
+  '401',
+  '402',
+  'cancel',
+  'individual-failure',
+]) {
+  test('preview batch recovery: ' + scenario, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'vimo-batch-regression-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const directory = join(root, '_styles', 'fixture')
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      join(directory, 'style.json'),
+      JSON.stringify({
+        name: 'Fixture',
+        systemPrompt: 'Watercolor illustration.',
+      }),
+    )
+    const events = []
+    const ctx = context(events, scenario === 'timeout' ? 60 : 25000)
+    const controller = new AbortController()
+    ctx.signal = controller.signal
+    ctx.job.projectsRoot = root
+    ctx.job.payload = { styleId: 'fixture', imageProvider: 'fal' }
+    let batchCalls = 0
+    let individualCalls = 0
+    let imagePosts = 0
+    const individualIds = []
+    const models = []
+    const expected =
+      scenario === 'partial' ? 2 : scenario === 'duplicate' ? 1 : 4
+    let releaseIndividuals
+    const allIndividuals = new Promise((resolve) => {
+      releaseIndividuals = resolve
+    })
+    t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+      if (url.includes('/chat/completions')) {
+        const body = JSON.parse(init.body)
+        models.push(body.model)
+        const isBatch = body.messages.some((message) =>
+          message.content.includes('# PREVIEW BATCH OUTPUT FORMAT'),
+        )
+        if (isBatch) {
+          batchCalls++
+          assert.ok(
+            body.max_tokens > 900,
+            'batch needs a budget for four prompts',
+          )
+          if (scenario === 'cancel') {
+            controller.abort()
+            throw controller.signal.reason
+          }
+          if (scenario === 'timeout')
+            await delay(1000, null, { signal: init.signal })
+          if (['429', '401', '402'].includes(scenario))
+            return new Response('', { status: Number(scenario) })
+          if (scenario === 'invalid' || scenario === 'individual-failure')
+            return stream('not a batch')
+          const ids = scenario === 'partial' ? [2, 1] : [4, 2, 1, 1, 3]
+          return stream(
+            JSON.stringify({
+              samples: ids.map((sampleId) => ({
+                sampleId,
+                prompt: prompt + ' Scene ' + sampleId,
+              })),
+            }),
+          )
+        }
+        individualCalls++
+        const fragment = SAMPLE_FRAGMENTS.find((fragment) =>
+          body.messages.some((message) =>
+            message.content.includes('SCENE TO ILLUSTRATE: ' + fragment.text),
+          ),
+        )
+        assert.ok(fragment, 'individual request identifies its scene')
+        individualIds.push(fragment.id)
+        if (individualCalls >= expected) releaseIndividuals()
+        // Se detecta serialización por señal externa (no un timeout del modelo).
+        await allIndividuals
+        if (scenario === 'individual-failure')
+          return new Response('', { status: 401 })
+        return stream(
+          JSON.stringify({ prompt_imagen: prompt + ' Scene ' + fragment.id }),
+        )
+      }
+      if (init.method === 'POST') {
+        imagePosts++
+        const body = JSON.parse(init.body)
+        assert.ok(
+          body.prompt.endsWith('Scene ' + imagePosts),
+          'prompts map to scene IDs, not batch position',
+        )
+        return Response.json({
+          images: [{ url: 'https://fixture/image/' + imagePosts }],
+        })
+      }
+      return new Response(imageBytes, {
+        headers: { 'content-type': 'image/png' },
+      })
+    })
+    // Un fallback serial no alcanza la barrera; cancelarlo hace fallar la prueba
+    // y evita dejar el runner colgado.
+    const timer = setTimeout(() => {
+      controller.abort()
+      releaseIndividuals()
+    }, 2000)
+    try {
+      if (['401', '402', 'cancel', 'individual-failure'].includes(scenario)) {
+        await assert.rejects(generateStyleSamples(ctx))
+        assert.equal(imagePosts, 0)
+        if (scenario !== 'individual-failure') assert.equal(individualCalls, 0)
+      } else {
+        const result = await generateStyleSamples(ctx)
+        assert.equal(result.samples.length, 4)
+        assert.equal(imagePosts, 4)
+        assert.equal(individualCalls, expected)
+        assert.deepEqual(
+          individualIds.sort(),
+          scenario === 'partial'
+            ? [3, 4]
+            : scenario === 'duplicate'
+              ? [1]
+              : [1, 2, 3, 4],
+        )
+        if (scenario === '429' || scenario === 'timeout') {
+          assert.equal(models[0], INTERACTIVE_MODEL_IDS[0])
+          assert.ok(
+            models
+              .slice(1)
+              .every((model) => model === INTERACTIVE_MODEL_IDS[1]),
+          )
+        }
+        for (const fragment of SAMPLE_FRAGMENTS) {
+          const percents = events
+            .filter(
+              (event) =>
+                event.detail?.phase === 'prompts' &&
+                event.detail.sampleId === fragment.id,
+            )
+            .map((event) => event.percent)
+          assert.deepEqual(
+            percents,
+            [...percents].sort((a, b) => a - b),
+            'prompt progress never goes backwards',
+          )
+        }
+      }
+      assert.equal(batchCalls, 1)
+    } finally {
+      clearTimeout(timer)
+      releaseIndividuals()
+    }
+  })
 }
