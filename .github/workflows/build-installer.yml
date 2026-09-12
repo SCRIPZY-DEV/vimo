@@ -21,7 +21,7 @@ on:
         type: string
         required: true
       bundles:
-        description: 'Bundles de Tauri (nsis, dmg)'
+        description: 'Bundles de Tauri (nsis, app,dmg)'
         type: string
         required: true
       artifact:

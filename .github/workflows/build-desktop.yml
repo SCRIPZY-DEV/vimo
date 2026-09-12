@@ -50,7 +50,10 @@ jobs:
     with:
       os: macos-latest
       target: aarch64-apple-darwin
-      bundles: dmg
+      # `app` es obligatorio junto a `dmg`: el Vimo.app.tar.gz del updater solo
+      # se genera para los targets compatibles (app, nsis, msi, appimage). Con
+      # `dmg` solo, la .app se arma para el DMG pero el tar.gz no aparece.
+      bundles: app,dmg
       artifact: Vimo-macos-arm64
       path: |
         src-tauri/target/release/bundle/dmg/*.dmg
