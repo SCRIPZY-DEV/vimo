@@ -23,6 +23,9 @@ impedía dos jobs simultáneos del mismo proyecto.
   parte ya enviada y la guardan; cancelar impide mandar las partes siguientes.
 - Un transporte incierto, error de disco, polling o CDN no activa otro carril.
   Solo rechazo explícito o tarea remota `failed` permite otra generación.
+- El recibo identifica el proveedor que aceptó el encargo. Al reanudar se revisan
+  todos los recibos antes de trocear y se prioriza ese carril, incluso si era
+  fallback del principal. Sin su clave, se bloquea antes de enviar otra solicitud.
 - Partes nuevas se validan también por identidad del motor/voz/ajustes. Los
   manifests antiguos mantienen su compatibilidad por hash de texto.
 - FFmpeg escribe un archivo intermedio; el audio final aparece solo al terminar
@@ -46,13 +49,15 @@ su orden de fases, rutas o transporte invoke/Channel.
 
 ## Validación reproducible
 
-`node --test scripts/check-voice-resume.mjs`: diez casos, HTTP interceptado,
+`node --test scripts/check-voice-resume.mjs`: doce casos, HTTP interceptado,
 sin claves reales ni cargos. Cuenta POSTs y verifica recibos/archivos reales:
 cancelación durante POST; recuperación del mismo ID; fallo de descarga sin
 fallback; envío incierto; ajustes incompatibles; tarea remota fallida;
 cancelación síncrona; URL Minimax; recibo corrupto; progreso recuperado;
 troceo/cancelación/unión fallida y reanudación con FFmpeg real (algunos casos
-agrupan varias verificaciones). Ejecutar también `cargo check` y build de Tauri.
+agrupan varias verificaciones); tarea aceptada por fallback sin repetir el principal
+y falta de clave de un carril con solicitud pendiente. Ejecutar también
+`cargo check` y build de Tauri.
 
 ## Pruebas manuales en la app
 

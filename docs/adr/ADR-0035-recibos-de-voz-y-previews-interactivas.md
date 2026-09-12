@@ -18,6 +18,9 @@ privados por parte TTS y exclusión de jobs nativos del mismo proyecto. Persisti
 antes del POST y después de recibir ID/URL. Reanudar consulta el ID; un resultado
 incierto bloquea regeneración. La cancelación cosecha la respuesta ya enviada,
 sin comenzar la parte siguiente. El fallback queda limitado a rechazos confirmados.
+La reanudación prioriza el proveedor registrado en los recibos, aunque sea un
+carril de respaldo. Sin su clave o con carriles pendientes contradictorios, bloquea
+antes del troceo para no pagar partes en otro carril.
 
 Solo para muestras de estilos, utilizar cuatro redacciones streaming paralelas
 con Scout → Turbo → Ultra y plazo de 25 segundos por intento; errores de cuenta

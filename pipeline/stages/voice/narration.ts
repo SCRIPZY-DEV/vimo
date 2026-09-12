@@ -3,7 +3,10 @@ import {
   type PartsProgress,
 } from '../../providers/tts/chunked-synthesis.ts'
 import type { TtsProvider } from '../../providers/tts/provider.ts'
-import { isUnsettledVoiceRequest } from '../../providers/tts/request-checkpoint.ts'
+import {
+  isUnsettledVoiceRequest,
+  pendingVoiceProvider,
+} from '../../providers/tts/request-checkpoint.ts'
 import {
   TTS_PROVIDER_IDS,
   resolveTtsProvider,
@@ -54,6 +57,24 @@ export async function synthesizeNarration(
       `${provider.vendor} API key is missing`,
     )
 
+  const pendingProviderId = await pendingVoiceProvider(
+    context.paths.narrationFile,
+  )
+  const pendingProvider = resolveTtsProvider(pendingProviderId ?? undefined)
+  if (
+    pendingProviderId &&
+    (!pendingProvider ||
+      ![provider.id, ...(provider.fallbackProviderIds ?? [])].includes(
+        pendingProvider.id,
+      ) ||
+      !pendingProvider.apiKeyOf(context.job.apiKeys))
+  )
+    throw new PipelineFailure(
+      'voice_request_unresolved',
+      'the pending voice lane is not available for this project',
+    )
+  const progressProvider = pendingProvider ?? provider
+
   // Números a palabras ANTES de mandar al proveedor (si no, «41» se
   // pronuncia «cuatro uno»); el idioma detectado también viaja al proveedor.
   const { text, language } = prepareNarrationText(script)
@@ -73,13 +94,13 @@ export async function synthesizeNarration(
   const progressTimer = setInterval(() => {
     context.emitter.emit({
       type: 'voice-progress',
-      provider: provider.id,
+      provider: progressProvider.id,
       totalChars: text.length,
       elapsedSeconds: Math.max(
         lastProgress?.elapsedSeconds ?? 0,
         Math.floor((Date.now() - startedAt) / 1000),
       ),
-      ...progressFields(provider, lastProgress),
+      ...progressFields(progressProvider, lastProgress),
     })
   }, PROGRESS_TICK_MS)
 
@@ -92,6 +113,7 @@ export async function synthesizeNarration(
     (progress) => {
       lastProgress = progress
     },
+    pendingProviderId,
   )
 
   try {
@@ -168,6 +190,7 @@ function buildAttempts(
   text: string,
   apiKey: string,
   onProgress: (progress: PartsProgress) => void,
+  pendingProviderId: string | null,
 ): NarrationAttempt[] {
   const lanes: { provider: TtsProvider; apiKey: string }[] = [
     { provider, apiKey },
@@ -178,6 +201,13 @@ function buildAttempts(
     if (!fallback || !fallbackApiKey) continue
     lanes.push({ provider: fallback, apiKey: fallbackApiKey })
   }
+
+  if (pendingProviderId)
+    lanes.sort(
+      (left, right) =>
+        Number(right.provider.id === pendingProviderId) -
+        Number(left.provider.id === pendingProviderId),
+    )
 
   return lanes.map((lane) => ({
     name: lane.provider.laneName,

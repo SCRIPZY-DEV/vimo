@@ -298,3 +298,95 @@ test('multipart cancellation reuses paid part, and real FFmpeg publishes only co
   ])
   assert.ok((await readFile(input.outputFile)).length > 0)
 })
+
+test('resume follows the pending fallback lane instead of retrying the primary', async (t) => {
+  const input = await fixture(t)
+  const context = {
+    job: { apiKeys: { dubvoice: 'fake', elevenlabs: 'fake' }, binaryPaths: {} },
+    paths: { narrationFile: input.outputFile },
+    options: {
+      voiceProvider: 'elevenlabs-direct',
+      voiceId: 'fixture-voice',
+      voiceSettings: { speed: 1 },
+    },
+    signal: input.signal,
+    emitter: input.emitter,
+  }
+  let primaryPosts = 0
+  let fallbackPosts = 0
+  let polls = 0
+  let failDownload = true
+  t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    if (init.method === 'POST' && url.includes('api.elevenlabs.io')) {
+      primaryPosts++
+      return Response.json(
+        { detail: { status: 'invalid_api_key', message: 'fixture rejection' } },
+        { status: 401 },
+      )
+    }
+    if (init.method === 'POST') {
+      fallbackPosts++
+      return Response.json({ task_id: 'fallback-paid-task' })
+    }
+    if (url.includes('/api/v1/tts?task_id=')) {
+      polls++
+      assert.equal(
+        new URL(url).searchParams.get('task_id'),
+        'fallback-paid-task',
+      )
+      return Response.json({
+        status: 'completed',
+        progress: 100,
+        result: 'https://fixture/fallback-audio',
+      })
+    }
+    assert.equal(url, 'https://fixture/fallback-audio')
+    return failDownload
+      ? new Response('', { status: 503 })
+      : new Response(audio)
+  })
+  await assert.rejects(synthesizeNarration(context, input.text), {
+    code: 'voice_request_pending',
+  })
+  assert.equal(
+    JSON.parse(await readFile(receipt(input), 'utf8')).providerId,
+    'elevenlabs',
+  )
+  failDownload = false
+  await synthesizeNarration(context, input.text)
+  assert.deepEqual(
+    { primaryPosts, fallbackPosts, polls },
+    { primaryPosts: 1, fallbackPosts: 1, polls: 2 },
+  )
+  assert.deepEqual(await readFile(input.outputFile), audio)
+})
+
+test('missing key for a pending fallback blocks any new paid lane', async (t) => {
+  const input = await fixture(t)
+  await writeFile(
+    voiceRequestFile(input.outputFile, 3),
+    JSON.stringify({
+      providerId: 'elevenlabs',
+      fingerprint: 'fixture',
+      startedAt: Date.now(),
+      state: 'pending',
+      taskId: 'paid-later-part',
+    }),
+  )
+  let requests = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests++
+    throw new Error('must never send')
+  })
+  const context = {
+    job: { apiKeys: { elevenlabs: 'fake' }, binaryPaths: {} },
+    paths: { narrationFile: input.outputFile },
+    options: { voiceProvider: 'elevenlabs-direct', voiceId: 'fixture-voice' },
+    signal: input.signal,
+    emitter: input.emitter,
+  }
+  await assert.rejects(synthesizeNarration(context, input.text), {
+    code: 'voice_request_unresolved',
+  })
+  assert.equal(requests, 0)
+})

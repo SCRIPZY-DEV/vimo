@@ -208,6 +208,7 @@ async function synthesizePart(
   const checkpoint = await openVoiceRequest(
     voiceRequestFile(input.outputFile, index),
     fingerprint,
+    provider.id,
   )
   const stopHeuristic = provider.reportsProgress
     ? null

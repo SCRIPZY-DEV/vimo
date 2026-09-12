@@ -1,10 +1,12 @@
-import { rm } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { readTextWithRetry, writeFileAtomic } from '../../utils/atomic-fs.ts'
 
 // Un recibo por parte del proyecto, escrito ANTES del POST. No contiene
 // claves ni texto: la huella identifica todos los parámetros del pedido.
 export interface VoiceRequestReceipt {
+  providerId?: string
   fingerprint: string
   startedAt: number
   state: 'submitting' | 'pending' | 'failed'
@@ -25,6 +27,7 @@ export function voiceRequestFile(outputFile: string, index: number): string {
 export async function openVoiceRequest(
   path: string,
   fingerprint: string,
+  providerId: string,
 ): Promise<VoiceRequestCheckpoint> {
   let receipt: VoiceRequestReceipt | null = null
   try {
@@ -70,7 +73,12 @@ export async function openVoiceRequest(
         'previous voice submission has no recoverable matching receipt',
       )
   } else {
-    receipt = { fingerprint, startedAt: Date.now(), state: 'submitting' }
+    receipt = {
+      providerId,
+      fingerprint,
+      startedAt: Date.now(),
+      state: 'submitting',
+    }
     await writeFileAtomic(path, JSON.stringify(receipt))
   }
 
@@ -85,6 +93,49 @@ export async function openVoiceRequest(
       await writeFileAtomic(path, JSON.stringify(next))
       current = next
     },
+  }
+}
+
+// Localiza el carril que aceptó el encargo ANTES de empezar el troceo:
+// puede ser un fallback y su recibo puede corresponder a la segunda parte.
+export async function pendingVoiceProvider(
+  outputFile: string,
+): Promise<string | null> {
+  const prefix = `${basename(outputFile)}.request-`
+  try {
+    const names = await readdir(dirname(outputFile))
+    const providers = new Set<string>()
+    for (const name of names) {
+      if (
+        !name.startsWith(prefix) ||
+        !/^\d+\.json$/.test(name.slice(prefix.length))
+      )
+        continue
+      const receipt = JSON.parse(
+        await readTextWithRetry(join(dirname(outputFile), name)),
+      ) as VoiceRequestReceipt
+      if (receipt.state === 'failed') continue
+      if (receipt.state !== 'pending' && receipt.state !== 'submitting')
+        throw new Error('invalid receipt state')
+      if (typeof receipt.providerId !== 'string' || !receipt.providerId)
+        throw new Error('pending receipt has no provider')
+      providers.add(receipt.providerId)
+    }
+    if (providers.size > 1)
+      throw new Error('conflicting pending voice providers')
+    return providers.values().next().value ?? null
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    )
+      return null
+    throw new PipelineFailure(
+      'voice_request_unresolved',
+      'pending voice provider cannot be safely determined',
+    )
   }
 }
 
