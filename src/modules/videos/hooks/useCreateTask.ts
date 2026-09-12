@@ -708,6 +708,7 @@ async function startCreation(input: {
   // bloquea si falla. Solo cuenta con estilo propio.
   promptModel?: string | null
 }): Promise<void> {
+  if (rejectIfBusy()) return
   stopActiveJob()
   const taskId = newTaskId()
   const usesCustomStyle = input.payload.options.customStyle !== undefined
@@ -839,6 +840,9 @@ async function confirmScenes(choice: SceneCutChoice): Promise<void> {
 async function resume(): Promise<void> {
   const task = currentTask
   if (!task || !task.projectId) return
+  if (task.status !== 'error' || activeJob || task.cancelRequested) return
+  stopRetryTimer()
+  patchTask(task.id, { retry: null })
   await runPipeline(task.id, task.projectId)
 }
 

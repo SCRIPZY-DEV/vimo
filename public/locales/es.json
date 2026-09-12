@@ -444,6 +444,8 @@
       "voiceMaintenance": "El servicio de voces está en mantenimiento.",
       "voiceProviderError": "El servicio de voces devolvió un error.",
       "voiceTimeout": "La narración tardó demasiado. Reintentá.",
+      "voiceRequestPending": "No se pudo recuperar la narración todavía. Reanudá para consultar la generación en curso.",
+      "voiceRequestUnresolved": "No pudimos confirmar el resultado de la solicitud anterior. Revisá el historial del proveedor. Si el audio está listo, descargalo para usarlo como audio propio.",
       "voiceDownloadFailed": "La voz se generó pero no la pudimos descargar.",
       "voiceEmptyAudio": "El proveedor devolvió un audio vacío.",
       "musicGenerationFailed": "No se pudo generar la música de fondo.",

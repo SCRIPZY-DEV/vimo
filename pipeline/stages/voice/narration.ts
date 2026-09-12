@@ -3,6 +3,7 @@ import {
   type PartsProgress,
 } from '../../providers/tts/chunked-synthesis.ts'
 import type { TtsProvider } from '../../providers/tts/provider.ts'
+import { isUnsettledVoiceRequest } from '../../providers/tts/request-checkpoint.ts'
 import {
   TTS_PROVIDER_IDS,
   resolveTtsProvider,
@@ -18,6 +19,16 @@ import type { CreateVideoContext } from '../context.ts'
 // carriles que declara el motor elegido (TtsProvider), trocea al tope de cada
 // motor (chunked-synthesis, ADR-0025) y emite progreso cada 1s hacia la UI.
 const PROGRESS_TICK_MS = 1000
+// Solo rechazos confirmados permiten otro encargo. Un error de disco o de
+// transporte posterior al cobro debe conservar las partes y el recibo.
+const FALLBACK_REJECTION_CODES = new Set([
+  'voice_generation_failed',
+  'voice_invalid_api_key',
+  'voice_insufficient_credits',
+  'voice_quota_exceeded',
+  'voice_rate_limited',
+  'voice_account_restricted',
+])
 
 interface NarrationAttempt {
   name: string
@@ -64,7 +75,10 @@ export async function synthesizeNarration(
       type: 'voice-progress',
       provider: provider.id,
       totalChars: text.length,
-      elapsedSeconds: Math.floor((Date.now() - startedAt) / 1000),
+      elapsedSeconds: Math.max(
+        lastProgress?.elapsedSeconds ?? 0,
+        Math.floor((Date.now() - startedAt) / 1000),
+      ),
       ...progressFields(provider, lastProgress),
     })
   }, PROGRESS_TICK_MS)
@@ -99,6 +113,12 @@ export async function synthesizeNarration(
       } catch (error) {
         // Cancelación pedida: se propaga tal cual, no es un fallo del carril.
         context.signal.throwIfAborted()
+        if (isUnsettledVoiceRequest(error)) throw error
+        if (
+          !(error instanceof PipelineFailure) ||
+          !FALLBACK_REJECTION_CODES.has(error.code)
+        )
+          throw error
         const message = error instanceof Error ? error.message : String(error)
         failures.push(`${attempt.name}: ${message}`)
         if (!creditsFailure && isInsufficientCreditsFailure(error))

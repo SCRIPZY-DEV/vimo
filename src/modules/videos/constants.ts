@@ -109,6 +109,7 @@ export const PROBE_CACHE_TTL_MS = 2 * 60 * 1000
 export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   'voice_network',
   'voice_timeout',
+  'voice_request_pending',
   'voice_rate_limited',
   'transcription_network',
   'transcription_rate_limited',
@@ -627,6 +628,9 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_provider_error: 'create.errors.voiceProviderError',
   voice_generation_failed: 'create.errors.voiceProviderError',
   voice_timeout: 'create.errors.voiceTimeout',
+  voice_request_pending: 'create.errors.voiceRequestPending',
+  voice_request_unresolved: 'create.errors.voiceRequestUnresolved',
+  project_busy: 'library.errors.projectBusy',
   voice_download_failed: 'create.errors.voiceDownloadFailed',
   voice_empty_audio: 'create.errors.voiceEmptyAudio',
   voice_quota_exceeded: 'create.errors.voiceQuotaExceeded',

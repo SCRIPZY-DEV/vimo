@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                            | Título                                                                          | Estado                   | Área                          |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0035](ADR-0035-recibos-de-voz-y-previews-interactivas.md)                 | Recibos locales de voz y previews interactivas                                  | Aceptada                 | app / pipeline / providers    |
 | [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md)    | Personajes con foto: la imagen subida como identidad                            | Aceptada                 | pipeline / app                |
 | [ADR-0032](ADR-0032-proveedores-en-servidor-y-creditos-de-vimo.md)             | Proveedores unificados en un servidor de Vimo y créditos propios                | Propuesta                | pipeline, providers, app      |
 | [ADR-0031](ADR-0031-saldo-por-proveedor-precheck-y-pausa-retomable.md)         | Saldo por proveedor: pre-check antes de gastar y pausa retomable al agotarse    | Aceptada                 | app, pipeline, providers      |

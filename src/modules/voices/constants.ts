@@ -251,6 +251,8 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_provider_error: 'voices.errores.providerError',
   voice_generation_failed: 'voices.errores.generationFailed',
   voice_timeout: 'voices.errores.timeout',
+  voice_request_pending: 'create.errors.voiceRequestPending',
+  voice_request_unresolved: 'create.errors.voiceRequestUnresolved',
   voice_download_failed: 'voices.errores.downloadFailed',
   voice_empty_audio: 'voices.errores.emptyAudio',
   voice_text_too_long: 'voices.errores.textTooLong',

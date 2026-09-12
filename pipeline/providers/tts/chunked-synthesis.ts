@@ -6,10 +6,20 @@ import { isValidFile } from '../../project/paths.ts'
 import type { PipelineEmitter } from '../../runner/emitter.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { GenerateVoicePayload } from '../../types/voices.ts'
-import { readTextWithRetry, writeFileAtomic } from '../../utils/atomic-fs.ts'
+import {
+  readTextWithRetry,
+  writeFileAtomic,
+  renameAtomic,
+} from '../../utils/atomic-fs.ts'
 import { requireFfmpegPath, runFfmpeg } from '../../utils/ffmpeg.ts'
 import type { AudioDownload } from './dubvoice.ts'
+import { downloadAudioFromUrl } from './dubvoice.ts'
 import type { TtsProvider } from './provider.ts'
+import {
+  openVoiceRequest,
+  voiceRequestFile,
+  clearVoiceRequest,
+} from './request-checkpoint.ts'
 
 // ─── Síntesis por partes (ADR-0025) ───
 //
@@ -54,6 +64,9 @@ export interface SynthesizeInPartsInput {
 
 interface PartsManifest {
   chunkHashes: string[]
+  // Ausente en proyectos anteriores: conserva su reuso por texto. Los
+  // manifests nuevos atan las partes también al motor, voz y ajustes.
+  identityHash?: string
 }
 
 export async function synthesizeInParts(
@@ -77,6 +90,7 @@ export async function synthesizeInParts(
   if (chunks.length === 1) {
     const download = await synthesizePart(input, chunks, 0, reporter)
     await writeFileAtomic(outputFile, download.audio)
+    await clearVoiceRequest(outputFile, 0)
     return download
   }
 
@@ -88,6 +102,15 @@ export async function synthesizeInParts(
 
   const manifestFile = `${outputFile}${MANIFEST_SUFFIX}`
   const manifest = await readPartsManifest(manifestFile)
+  const identityHash = sha256(
+    JSON.stringify({
+      provider: provider.id,
+      voiceId: payload.voiceId,
+      model: payload.model,
+      language: payload.language,
+      settings: payload.settings,
+    }),
+  )
   const chunkHashes = chunks.map((chunk) => sha256(chunk))
   const partFiles = chunks.map(
     (_, index) =>
@@ -101,17 +124,22 @@ export async function synthesizeInParts(
     // Reuso entre reintentos: una parte ya pagada y válida en disco (mismo
     // hash de texto) no se vuelve a sintetizar — plata del usuario.
     const reusable =
+      (!manifest?.identityHash || manifest.identityHash === identityHash) &&
       manifest?.chunkHashes[index] === chunkHashes[index] &&
       (await isValidFile(partFiles[index]))
-    if (reusable) continue
+    if (reusable) {
+      reporter.report(index, 100, 'completed')
+      continue
+    }
 
     const download = await synthesizePart(input, chunks, index, reporter)
     credits.add(download)
     await writeFileAtomic(partFiles[index], download.audio)
     await writeFileAtomic(
       manifestFile,
-      `${JSON.stringify({ chunkHashes: chunkHashes.slice(0, index + 1) } satisfies PartsManifest, null, 2)}\n`,
+      `${JSON.stringify({ identityHash, chunkHashes: chunkHashes.slice(0, index + 1) } satisfies PartsManifest, null, 2)}\n`,
     )
+    await clearVoiceRequest(outputFile, index)
   }
 
   await concatMp3Parts(input, partFiles, outputFile)
@@ -164,28 +192,89 @@ async function synthesizePart(
 ): Promise<AudioDownload> {
   const { provider, payload, apiKey, signal } = input
   const chunk = chunks[index]
+  signal.throwIfAborted()
+  const fingerprint = sha256(
+    JSON.stringify({
+      provider: provider.id,
+      voiceId: payload.voiceId,
+      model: payload.model,
+      language: payload.language,
+      settings: payload.settings,
+      text: chunk,
+      previousText: chunks[index - 1],
+      nextText: chunks[index + 1],
+    }),
+  )
+  const checkpoint = await openVoiceRequest(
+    voiceRequestFile(input.outputFile, index),
+    fingerprint,
+  )
   const stopHeuristic = provider.reportsProgress
     ? null
     : reporter.startHeuristic(index, chunk.length)
 
   try {
+    if (!provider.supportsTaskResume && checkpoint.receipt.resultUrl)
+      return {
+        audio: await downloadAudioFromUrl(checkpoint.receipt.resultUrl, signal),
+      }
     return await provider.synthesize({
       payload,
       text: chunk,
       apiKey,
-      signal,
+      // Los motores síncronos no tienen id consultable: cosechar la parte
+      // enviada aunque se navegue/cancele, guardarla y no enviar la siguiente.
+      signal: provider.supportsTaskResume ? signal : undefined,
+      checkpoint,
       previousText: chunks[index - 1],
       nextText: chunks[index + 1],
       onProgress: (progress) =>
-        reporter.report(index, progress.percent, progress.status),
+        reporter.report(
+          index,
+          progress.percent,
+          progress.status,
+          progress.elapsedSeconds,
+        ),
     })
+  } catch (error) {
+    if (signal.aborted) throw error
+    const receipt = checkpoint.receipt
+    // Solo un rechazo definitivo del POST o un failed remoto permite otro
+    // carril. Una caída de poll/CDN jamás invalida el trabajo pagado.
+    if (
+      error instanceof PipelineFailure &&
+      !receipt.taskId &&
+      !receipt.resultUrl &&
+      [
+        'voice_invalid_api_key',
+        'voice_insufficient_credits',
+        'voice_quota_exceeded',
+        'voice_rate_limited',
+        'voice_account_restricted',
+      ].includes(error.code)
+    ) {
+      await checkpoint.update({ state: 'failed' })
+      throw error
+    }
+    if (receipt.state === 'failed') throw error
+    throw new PipelineFailure(
+      receipt.taskId || receipt.resultUrl
+        ? 'voice_request_pending'
+        : 'voice_request_unresolved',
+      'voice request remains recorded; resume must inspect it before submitting again',
+    )
   } finally {
     stopHeuristic?.()
   }
 }
 
 interface PartsReporter {
-  report(index: number, partPercent: number, status: string): void
+  report(
+    index: number,
+    partPercent: number,
+    status: string,
+    elapsedSeconds?: number,
+  ): void
   startHeuristic(index: number, chunkLength: number): () => void
 }
 
@@ -196,14 +285,22 @@ function createPartsReporter(
   partTotal: number,
   startedAt: number,
 ): PartsReporter {
-  const report = (index: number, partPercent: number, status: string) => {
+  const report = (
+    index: number,
+    partPercent: number,
+    status: string,
+    elapsedSeconds = 0,
+  ) => {
     const percent = ((index + partPercent / 100) / partTotal) * 100
     input.onProgress?.({
       percent: Math.min(100, Math.floor(percent)),
       partIndex: index + 1,
       partTotal,
       status,
-      elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+      elapsedSeconds: Math.max(
+        elapsedSeconds,
+        Math.round((Date.now() - startedAt) / 1000),
+      ),
     })
   }
 
@@ -261,6 +358,7 @@ async function concatMp3Parts(
 ): Promise<void> {
   const ffmpegPath = requireFfmpegPath(input.ffmpegPath)
   const listFile = `${outputFile}.concat_list.txt`
+  const assembledFile = `${outputFile}.assembling.mp3`
 
   // Rutas ABSOLUTAS con / (el demuxer concat resuelve relativo a la lista,
   // no al cwd; en Windows los \ lo rompen).
@@ -287,10 +385,11 @@ async function concatMp3Parts(
         'libmp3lame',
         '-q:a',
         '2',
-        outputFile,
+        assembledFile,
       ],
       { signal: input.signal },
     )
+    await renameAtomic(assembledFile, outputFile)
   } finally {
     await rm(listFile, { force: true })
   }

@@ -6,7 +6,7 @@ use tauri_plugin_shell::ShellExt;
 
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::job::build_pipeline_job;
-use crate::pipeline::jobs::RunningJobs;
+use crate::pipeline::jobs::{RunningJob, RunningJobs};
 
 /// El sidecar empaquetado como externalBin: binario único Node SEA generado
 /// por scripts/build-sidecar.mjs (corre en beforeDev/BuildCommand). Dev y
@@ -39,6 +39,21 @@ pub async fn start_pipeline_job(
     project_dir: Option<String>,
     on_event: Channel<Value>,
 ) -> Result<String, PipelineError> {
+    let project_id = if subcommand == "run-video-pipeline" {
+        payload
+            .as_ref()
+            .and_then(|value| value.get("projectId"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    } else {
+        None
+    };
+    // Comprobar y registrar bajo el MISMO mutex: dos invokes concurrentes
+    // nunca pueden lanzar la narración del mismo proyecto dos veces.
+    let mut running = jobs.0.lock().expect("running jobs mutex poisoned");
+    if project_id.is_some() && running.values().any(|job| job.project_id == project_id) {
+        return Err(PipelineError::ProjectBusy);
+    }
     let job_id = uuid::Uuid::new_v4().to_string();
     let job = build_pipeline_job(&app, &job_id, project_dir, config, payload);
 
@@ -54,10 +69,8 @@ pub async fn start_pipeline_job(
         return Err(PipelineError::SidecarWrite);
     }
 
-    jobs.0
-        .lock()
-        .expect("running jobs mutex poisoned")
-        .insert(job_id.clone(), child);
+    running.insert(job_id.clone(), RunningJob { child, project_id });
+    drop(running);
 
     let app_for_events = app.clone();
     let job_id_for_events = job_id.clone();
@@ -100,15 +113,15 @@ pub fn cancel_pipeline_job(
     job_id: String,
 ) -> Result<(), PipelineError> {
     let mut running = jobs.0.lock().expect("running jobs mutex poisoned");
-    let Some(child) = running.get_mut(&job_id) else {
+    let Some(job) = running.get_mut(&job_id) else {
         return Err(PipelineError::JobNotFound);
     };
 
-    if child.write(b"{\"type\":\"cancel\"}\n").is_ok() {
+    if job.child.write(b"{\"type\":\"cancel\"}\n").is_ok() {
         return Ok(());
     }
-    if let Some(child) = running.remove(&job_id) {
-        let _ = child.kill();
+    if let Some(job) = running.remove(&job_id) {
+        let _ = job.child.kill();
     }
     Ok(())
 }

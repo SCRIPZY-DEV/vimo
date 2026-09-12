@@ -359,6 +359,12 @@ Cuando llegue Create, las fases largas se modelarán como **stages** encadenadas
 reanudar; los subcomandos sueltos de `commands/` siguen siendo el camino para
 operaciones de un solo paso.
 
+Desde 2026-09-12, la narración conserva además recibos atómicos por solicitud
+TTS pendiente. Reanudar consulta la tarea remota conocida; no repite un POST
+incierto. Rust excluye jobs simultáneos del mismo proyecto dentro de la app.
+Ver [ADR-0035](adr/ADR-0035-recibos-de-voz-y-previews-interactivas.md) y
+[límites y pruebas de recuperación](fixes/voice-resume.md).
+
 ---
 
 ## 5. Flujo principal: de guion a video

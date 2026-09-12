@@ -444,6 +444,8 @@
       "voiceMaintenance": "The voice service is under maintenance.",
       "voiceProviderError": "The voice service returned an error.",
       "voiceTimeout": "The narration took too long. Try again.",
+      "voiceRequestPending": "The narration could not be retrieved yet. Resume to check the generation in progress.",
+      "voiceRequestUnresolved": "We could not confirm the result of the previous request. Check your provider's history. If the audio is ready, download it to use as your own audio.",
       "voiceDownloadFailed": "The voice was generated but we couldn't download it.",
       "voiceEmptyAudio": "The provider returned empty audio.",
       "musicGenerationFailed": "The background music could not be generated.",
