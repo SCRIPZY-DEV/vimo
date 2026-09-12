@@ -47,7 +47,13 @@ const BADGE_LOOKS: Record<ProjectBadge, BadgeLook> = {
     Icon: Clock,
   },
   interrupted: { classes: 'bg-muted text-muted-foreground', Icon: Pause },
-  paused: { classes: 'bg-muted text-muted-foreground', Icon: Ban },
+  // «Cancelado» lo frenó la persona: color propio (el turquesa de la app),
+  // para no confundirlo con el gris de interrumpido/borrador ni con el rojo
+  // de error.
+  paused: {
+    classes: 'bg-[color-mix(in_srgb,hsl(var(--ocean))_18%,white)] text-ocean',
+    Icon: Ban,
+  },
   error: {
     classes:
       'bg-[color-mix(in_srgb,hsl(var(--destructive))_16%,white)] text-destructive',
