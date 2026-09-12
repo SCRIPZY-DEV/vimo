@@ -51,6 +51,8 @@ html.theme-changing *::after {
     --charcoal: 231 33% 14%;
     --coral: 0 100% 70%;
     --ocean: 174 56% 55%;
+    /* Verde de «en marcha» (badge «Generando» de la biblioteca). */
+    --mint: 152 55% 38%;
     --lavender: 270 24% 92%;
     --warm-gray: 240 5% 97%;
     --ink: 224 45% 16%;

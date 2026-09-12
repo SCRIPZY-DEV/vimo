@@ -692,7 +692,7 @@
       "imageCount": "{{total}} imagens",
       "promptAuthor": "Prompts escritos por <author>{{author}}</author>",
       "badge": {
-        "ready": "✓ Exportado",
+        "ready": "Exportado",
         "outdated": "Desatualizado",
         "generating": "Gerando",
         "awaitingConfirmation": "Confirmar cenas",

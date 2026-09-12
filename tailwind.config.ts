@@ -60,6 +60,7 @@ export default {
         charcoal: 'hsl(var(--charcoal))',
         coral: 'hsl(var(--coral))',
         ocean: 'hsl(var(--ocean))',
+        mint: 'hsl(var(--mint))',
         lavender: 'hsl(var(--lavender))',
         'warm-gray': 'hsl(var(--warm-gray))',
         ink: 'hsl(var(--ink))',
