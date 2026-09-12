@@ -216,6 +216,13 @@
       "noPreviewForStyle": "Sin ilustración en este estilo: irá sin imagen de referencia",
       "noReferenceHint": "Sin referencia visual",
       "withPhoto": "Con foto · cara idéntica",
+      "filter": {
+        "ariaLabel": "Filtrar personajes",
+        "photo": "Personajes con foto",
+        "text": "Personajes sin foto",
+        "emptyPhoto": "Todavía no tenés personajes con foto.",
+        "emptyText": "Todavía no tenés personajes sin foto."
+      },
       "use": "Usar {{count}} personaje(s)",
       "frequency": {
         "label": "¿Cada cuánto aparece tu personaje?",
@@ -1021,7 +1028,14 @@
       "notice": "<lead>Importante:</lead> la foto tiene que ser <strong>solo el personaje</strong>, sin fondo. Sale más consistente, pero cuesta ~2× por imagen.",
       "upload": "Subir foto",
       "change": "Cambiar foto",
-      "editNote": "Para cambiar la foto, creá un personaje nuevo. Acá editás solo el nombre y la descripción."
+      "replace": "Reemplazar foto"
+    },
+    "filter": {
+      "ariaLabel": "Filtrar personajes",
+      "photo": "Personajes con foto",
+      "text": "Personajes sin foto",
+      "emptyPhoto": "Todavía no tenés personajes con foto.",
+      "emptyText": "Todavía no tenés personajes sin foto."
     },
     "form": {
       "nombre": "Nombre",

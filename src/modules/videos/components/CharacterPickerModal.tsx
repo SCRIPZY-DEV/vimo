@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
+import { SegmentedTabs } from '@/modules/common/components/SegmentedTabs'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -16,6 +17,7 @@ import {
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import {
+  CHARACTER_PICKER_FILTERS,
   MAX_PROJECT_CHARACTERS,
   videosQueryKeys,
 } from '@/modules/videos/constants'
@@ -47,6 +49,16 @@ interface CharacterPickerModalProps {
   onClose: () => void
 }
 
+type IdentityFilter = SelectedCharacter['mode']
+
+function identityFilterOf(character: CharacterSummary): IdentityFilter {
+  return character.photoPath ? 'photo' : 'text'
+}
+
+// Selector de personajes de Crear: pestañas «con foto» / «sin foto» y una
+// grilla de tarjetas iguales (retrato cuadrado + dos renglones de alto fijo)
+// que crece por filas parejas y scrollea adentro del modal — la tarjeta de
+// crear mide lo mismo que las demás para que la grilla no se descuadre.
 export function CharacterPickerModal({
   previewStyleKey,
   selected,
@@ -63,21 +75,34 @@ export function CharacterPickerModal({
   // picker se REEMPLAZA por el modal de personaje y vuelve al guardar; el
   // borrador sobrevive porque este componente sigue montado.
   const [creating, setCreating] = useState(false)
+  // Pestaña elegida por la persona; hasta que elige, la que tenga personajes.
+  const [chosenFilter, setChosenFilter] = useState<IdentityFilter | null>(null)
   const single = max === 1
 
+  const filter =
+    chosenFilter ??
+    (characters.some((character) => identityFilterOf(character) === 'photo')
+      ? 'photo'
+      : 'text')
+  const visible = characters.filter(
+    (character) => identityFilterOf(character) === filter,
+  )
+
   const pick = (character: CharacterSummary) => {
-    const selected = toSelectedCharacter(character, previewStyleKey)
+    const picked = toSelectedCharacter(character, previewStyleKey)
     if (draft.length < max) {
-      setDraft([...draft, selected])
+      setDraft([...draft, picked])
       return
     }
-    if (single) setDraft([selected])
+    if (single) setDraft([picked])
   }
 
   const addCreated = (character: CharacterSummary) => {
     // La biblioteca invalida su propia query; la del picker es otra clave.
     void queryClient.invalidateQueries({ queryKey: videosQueryKeys.characters })
     setCreating(false)
+    // El recién creado se ve en su pestaña, ya elegido.
+    setChosenFilter(identityFilterOf(character))
     pick(character)
   }
 
@@ -86,6 +111,7 @@ export function CharacterPickerModal({
       <CharacterModal
         character={null}
         styleContext={styleContext}
+        initialSource={filter}
         onSaved={addCreated}
         onClose={() => setCreating(false)}
       />
@@ -103,9 +129,20 @@ export function CharacterPickerModal({
     pick(character)
   }
 
+  // Segundo renglón de la tarjeta: qué viajaría con este personaje. Con
+  // foto, la foto; sin foto y sin preview de este estilo, el aviso; con
+  // preview, su descripción.
+  const subtitleOf = (character: CharacterSummary) => {
+    if (character.photoPath)
+      return { text: t('create.characters.withPhoto'), warning: false }
+    if (!hasStyleReference(character, previewStyleKey))
+      return { text: t('create.characters.noPreviewForStyle'), warning: true }
+    return { text: character.description, warning: false }
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
+      <DialogContent className="flex max-h-[85vh] w-[calc(100vw-3rem)] max-w-4xl flex-col">
         <DialogHeader>
           <DialogTitle className="font-display">
             {single
@@ -119,6 +156,16 @@ export function CharacterPickerModal({
           </DialogDescription>
         </DialogHeader>
 
+        <SegmentedTabs
+          value={filter}
+          ariaLabel={t('create.characters.filter.ariaLabel')}
+          options={CHARACTER_PICKER_FILTERS.map(({ id, labelKey }) => ({
+            id,
+            label: t(labelKey),
+          }))}
+          onChange={setChosenFilter}
+        />
+
         {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
         {isLoading && (
@@ -127,17 +174,11 @@ export function CharacterPickerModal({
           </p>
         )}
 
-        {!isLoading && characters.length === 0 && (
-          <p className="py-8 text-center font-body text-sm text-muted-foreground">
-            {t('create.characters.empty')}
-          </p>
-        )}
-
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-y-auto pr-1 md:grid-cols-3">
+        <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-saffron/60 hover:text-foreground"
+            className="flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-saffron/60 hover:text-foreground"
           >
             <Plus className="h-6 w-6" />
             <span className="px-2 text-center font-display text-sm font-bold">
@@ -146,20 +187,17 @@ export function CharacterPickerModal({
                 : t('create.characters.createNew')}
             </span>
           </button>
-          {characters.map((character) => {
+          {visible.map((character) => {
             const isSelected = isPicked(character.id)
-            // La carita sale de cualquier ilustración que tenga; el aviso de
-            // abajo mira SOLO lo que viajaría: la foto, o el preview de este
-            // estilo.
-            const withReference = hasStyleReference(character, previewStyleKey)
             const portrait = characterPortraitPath(character, previewStyleKey)
+            const subtitle = subtitleOf(character)
             return (
               <button
                 key={character.id}
                 type="button"
                 onClick={() => toggle(character)}
                 className={cn(
-                  'flex flex-col overflow-hidden rounded-xl border-2 bg-card text-left transition-colors',
+                  'flex h-full flex-col overflow-hidden rounded-xl border-2 bg-card text-left transition-colors',
                   isSelected
                     ? 'border-saffron'
                     : 'border-border hover:border-saffron/40',
@@ -168,27 +206,39 @@ export function CharacterPickerModal({
                 <CharacterPortrait
                   src={portrait ? videosApi.imageSource(portrait) : null}
                   doodleSize={56}
-                  className="aspect-square"
+                  className="aspect-square w-full shrink-0"
                 />
                 <div className="space-y-0.5 p-2">
                   <p className="truncate font-display text-sm font-bold text-foreground">
                     {character.name}
                   </p>
-                  {character.photoPath && (
-                    <p className="font-body text-[11px] text-muted-foreground">
-                      {t('create.characters.withPhoto')}
-                    </p>
-                  )}
-                  {!withReference && (
-                    <p className="font-body text-[11px] text-saffron">
-                      {t('create.characters.noPreviewForStyle')}
-                    </p>
-                  )}
+                  <p
+                    className={cn(
+                      'line-clamp-2 h-8 font-body text-[11px] leading-4',
+                      subtitle.warning
+                        ? 'text-saffron'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    {subtitle.text}
+                  </p>
                 </div>
               </button>
             )
           })}
         </div>
+
+        {!isLoading && visible.length === 0 && (
+          <p className="text-center font-body text-sm text-muted-foreground">
+            {t(
+              characters.length === 0
+                ? 'create.characters.empty'
+                : filter === 'photo'
+                  ? 'create.characters.filter.emptyPhoto'
+                  : 'create.characters.filter.emptyText',
+            )}
+          </p>
+        )}
 
         <DialogFooter>
           <Button

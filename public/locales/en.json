@@ -215,6 +215,13 @@
       "empty": "You don't have any characters in your library yet.",
       "noPreviewForStyle": "No artwork in this style: it will go without a reference image",
       "withPhoto": "With photo · identical face",
+      "filter": {
+        "ariaLabel": "Filter characters",
+        "photo": "Characters with photo",
+        "text": "Characters without photo",
+        "emptyPhoto": "You don't have any characters with a photo yet.",
+        "emptyText": "You don't have any characters without a photo yet."
+      },
       "noReferenceHint": "No visual reference",
       "use": "Use {{count}} character(s)",
       "frequency": {
@@ -1021,7 +1028,14 @@
       "notice": "<lead>Important:</lead> the photo must show <strong>the character only</strong>, no background. It comes out more consistent, but costs ~2× per image.",
       "upload": "Upload photo",
       "change": "Change photo",
-      "editNote": "To change the photo, create a new character. Here you only edit the name and description."
+      "replace": "Replace photo"
+    },
+    "filter": {
+      "ariaLabel": "Filter characters",
+      "photo": "Characters with photo",
+      "text": "Characters without photo",
+      "emptyPhoto": "You don't have any characters with a photo yet.",
+      "emptyText": "You don't have any characters without a photo yet."
     },
     "form": {
       "nombre": "Name",

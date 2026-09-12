@@ -220,12 +220,18 @@ export async function readPhotoFile(sourcePath: string): Promise<DecodedImage> {
   return image
 }
 
-/** Escribe la foto validada en la carpeta del personaje; devuelve su nombre. */
+/**
+ * Escribe la foto validada en la carpeta del personaje con un nombre ÚNICO
+ * (`photo.<aleatorio>.<ext>`) y devuelve ese nombre. El nombre cambia en cada
+ * reemplazo a propósito: la app muestra la foto por su ruta (asset protocol)
+ * y con la misma ruta el webview seguiría enseñando la vieja desde su caché.
+ */
 export async function writePhotoFile(
   entryDirectory: string,
   image: DecodedImage,
 ): Promise<string> {
-  const file = `${PHOTO_FILE_PREFIX}${image.ext}`
+  const random = Math.random().toString(36).slice(2, 8)
+  const file = `${PHOTO_FILE_PREFIX}${random}.${image.ext}`
   await writeFile(join(entryDirectory, file), image.bytes)
   return file
 }

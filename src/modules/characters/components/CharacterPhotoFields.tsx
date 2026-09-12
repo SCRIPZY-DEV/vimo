@@ -11,8 +11,7 @@ interface CharacterPhotoFieldsProps {
   value: CharacterFormValue
   // La foto elegida (ruta local) o la ya guardada; null hasta que se elige.
   photoPath: string | null
-  // Al editar, la foto no se cambia (criterio del origen): se muestra la
-  // actual con la nota, sin botón de subir.
+  // Al editar, el botón reemplaza la foto guardada por otra.
   editing: boolean
   disabled: boolean
   onChange: (value: CharacterFormValue) => void
@@ -20,8 +19,9 @@ interface CharacterPhotoFieldsProps {
 }
 
 // Formulario del personaje CON foto (port del modal de PaginaPersonajes del
-// origen): nombre, descripción opcional, el cartel «Importante» y el botón de
-// subir con la miniatura al lado. Solo placeholders, como allá.
+// origen): nombre, descripción opcional, el cartel «Importante», el botón de
+// subir/reemplazar a lo ancho y, debajo, la foto elegida en grande — la
+// miniatura de al lado del botón no dejaba ver qué se subió.
 export function CharacterPhotoFields({
   value,
   photoPath,
@@ -32,7 +32,12 @@ export function CharacterPhotoFields({
 }: CharacterPhotoFieldsProps) {
   const { t } = useTranslation()
 
-  const thumbnail = photoPath ? charactersApi.imageSource(photoPath) : null
+  const preview = photoPath ? charactersApi.imageSource(photoPath) : null
+  const buttonKey = editing
+    ? 'characters.photo.replace'
+    : preview
+      ? 'characters.photo.change'
+      : 'characters.photo.upload'
 
   return (
     <div className="space-y-3">
@@ -59,57 +64,34 @@ export function CharacterPhotoFields({
         }
       />
 
-      {editing ? (
-        <div className="flex items-center gap-3">
-          {thumbnail && (
-            <img
-              src={thumbnail}
-              alt=""
-              className="h-14 w-14 shrink-0 rounded-lg border border-border object-cover"
-            />
-          )}
-          <p className="font-body text-[11px] text-muted-foreground">
-            {t('characters.photo.editNote')}
-          </p>
+      <div className="flex items-start gap-2 rounded-lg border-2 border-saffron/50 bg-saffron/15 p-2.5">
+        <ImageOff className="mt-0.5 h-4 w-4 shrink-0 text-saffron" />
+        <p className="font-body text-xs text-foreground">
+          <Trans
+            i18nKey="characters.photo.notice"
+            components={{
+              lead: <span className="font-display font-bold text-saffron" />,
+              strong: <b />,
+            }}
+          />
+        </p>
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        onClick={onPickPhoto}
+        className="w-full rounded-xl font-display font-semibold"
+      >
+        <Upload className="mr-1.5 h-4 w-4" />
+        {t(buttonKey)}
+      </Button>
+
+      {preview && (
+        <div className="flex h-64 items-center justify-center overflow-hidden rounded-xl border-2 border-saffron/60 bg-muted/40">
+          <img src={preview} alt="" className="h-full w-full object-contain" />
         </div>
-      ) : (
-        <>
-          <div className="flex items-start gap-2 rounded-lg border-2 border-saffron/50 bg-saffron/15 p-2.5">
-            <ImageOff className="mt-0.5 h-4 w-4 shrink-0 text-saffron" />
-            <p className="font-body text-xs text-foreground">
-              <Trans
-                i18nKey="characters.photo.notice"
-                components={{
-                  lead: (
-                    <span className="font-display font-bold text-saffron" />
-                  ),
-                  strong: <b />,
-                }}
-              />
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={disabled}
-              onClick={onPickPhoto}
-              className="flex-1 rounded-xl font-display font-semibold"
-            >
-              <Upload className="mr-1.5 h-4 w-4" />
-              {thumbnail
-                ? t('characters.photo.change')
-                : t('characters.photo.upload')}
-            </Button>
-            {thumbnail && (
-              <img
-                src={thumbnail}
-                alt=""
-                className="h-14 w-14 shrink-0 rounded-lg border border-saffron object-cover"
-              />
-            )}
-          </div>
-        </>
       )}
     </div>
   )

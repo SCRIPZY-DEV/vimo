@@ -33,6 +33,7 @@ import {
   toFormValue,
   toPreviewViews,
 } from '@/modules/characters/utilities/characterDraft'
+import { identitySourceOf } from '@/modules/characters/utilities/identitySourceOf'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
@@ -48,6 +49,8 @@ interface CharacterModalProps {
   // el guion como contexto (design-style-character) en vez del experto de la
   // casa. Ausente = el flujo de la biblioteca de siempre.
   styleContext?: CharacterStyleContext
+  // Con qué sub-pestaña arranca al crear (la pestaña activa de quien lo abre).
+  initialSource?: CharacterIdentitySource
   onSaved?: (character: CharacterSummary) => void
   onClose: () => void
 }
@@ -59,11 +62,12 @@ const MIN_SCRIPT_LENGTH = 20
 // Dos maneras de fijar la identidad (ADR-0033): CON foto, la imagen subida es
 // la identidad y no hay previews que generar; SIN foto, la descripción es la
 // identidad y el panel de previews muestra cómo saldría por estilo. Al crear
-// lo elige la sub-pestaña; al editar lo decide el personaje (la foto no se
-// cambia, como en el origen).
+// lo elige la sub-pestaña; al editar lo decide el personaje (el modo no
+// cambia; la foto sí se puede reemplazar).
 export function CharacterModal({
   character,
   styleContext,
+  initialSource,
   onSaved,
   onClose,
 }: CharacterModalProps) {
@@ -88,7 +92,7 @@ export function CharacterModal({
   // Desde Create con una gema el sentido es que ELLA diseñe al protagonista:
   // arranca en «sin foto»; en la biblioteca, la foto va primero como allá.
   const [source, setSource] = useState<CharacterIdentitySource>(
-    styleContext ? 'text' : 'photo',
+    initialSource ?? (styleContext ? 'text' : 'photo'),
   )
   const [photoPath, setPhotoPath] = useState<string | null>(
     character?.photoPath ?? null,
@@ -103,8 +107,13 @@ export function CharacterModal({
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
   const photoMode = character
-    ? Boolean(character.photoPath)
+    ? identitySourceOf(character) === 'photo'
     : source === 'photo'
+  // La foto elegida al editar reemplaza a la guardada solo si es otra.
+  const replacedPhoto =
+    character && photoPath && photoPath !== character.photoPath
+      ? photoPath
+      : null
 
   // Catálogo + galería propia, con el texto ya resuelto para el panel.
   const previewStyles: PreviewStyleOption[] = [
@@ -212,7 +221,12 @@ export function CharacterModal({
     const saved = character
       ? await updateCharacter(
           photoMode
-            ? { id: character.id, name: form.name, description: identity }
+            ? {
+                id: character.id,
+                name: form.name,
+                description: identity,
+                ...(replacedPhoto ? { photoPath: replacedPhoto } : {}),
+              }
             : {
                 id: character.id,
                 name: form.name,

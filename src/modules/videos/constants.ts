@@ -18,7 +18,7 @@ import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
-import type { CreateFormValue } from './types/create'
+import type { CreateFormValue, SelectedCharacter } from './types/create'
 import type {
   AudioMixValue,
   LibraryTab,
@@ -490,6 +490,16 @@ export const FAL_QUALITY_OPTIONS_VERTICAL: {
     noteKey: 'create.reasoningLevel.falVerticalNote',
     priceUsd: 0.158,
   },
+]
+
+// Pestañas del picker de personajes: filtran por cómo se fijó la identidad
+// (con foto primero, como en la biblioteca).
+export const CHARACTER_PICKER_FILTERS: {
+  id: SelectedCharacter['mode']
+  labelKey: string
+}[] = [
+  { id: 'photo', labelKey: 'create.characters.filter.photo' },
+  { id: 'text', labelKey: 'create.characters.filter.text' },
 ]
 
 // Frecuencias de aparición del personaje que ofrece el formulario, de menor a

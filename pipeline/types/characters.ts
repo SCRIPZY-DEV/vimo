@@ -61,7 +61,6 @@ export interface CharacterCreatePayload {
   previews?: NewCharacterPreview[]
   // Ruta absoluta de la foto elegida con el dialog nativo (JPEG/PNG/WEBP,
   // hasta MAX_PHOTO_BYTES); el sidecar la valida y la copia a la biblioteca.
-  // La foto se fija al crear: para cambiarla se crea otro personaje.
   photoPath?: string
 }
 
@@ -76,6 +75,9 @@ export interface CharacterUpdatePayload {
   age?: string
   role?: string
   previews?: NewCharacterPreview[]
+  // Reemplaza la foto de un personaje «con foto» (misma validación que al
+  // crear); la anterior se borra del disco. Un «sin foto» no cambia de modo.
+  photoPath?: string
 }
 
 export interface CharacterUpdateResult {

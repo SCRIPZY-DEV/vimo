@@ -215,6 +215,13 @@
       "empty": "Você ainda não tem personagens na sua biblioteca.",
       "noPreviewForStyle": "Sem ilustração neste estilo: irá sem imagem de referência",
       "withPhoto": "Com foto · rosto idêntico",
+      "filter": {
+        "ariaLabel": "Filtrar personagens",
+        "photo": "Personagens com foto",
+        "text": "Personagens sem foto",
+        "emptyPhoto": "Você ainda não tem personagens com foto.",
+        "emptyText": "Você ainda não tem personagens sem foto."
+      },
       "noReferenceHint": "Sem referência visual",
       "use": "Usar {{count}} personagem(ns)",
       "frequency": {
@@ -1021,7 +1028,14 @@
       "notice": "<lead>Importante:</lead> a foto tem que ser <strong>só o personagem</strong>, sem fundo. Sai mais consistente, mas custa ~2× por imagem.",
       "upload": "Enviar foto",
       "change": "Trocar foto",
-      "editNote": "Para trocar a foto, crie um personagem novo. Aqui você edita só o nome e a descrição."
+      "replace": "Substituir foto"
+    },
+    "filter": {
+      "ariaLabel": "Filtrar personagens",
+      "photo": "Personagens com foto",
+      "text": "Personagens sem foto",
+      "emptyPhoto": "Você ainda não tem personagens com foto.",
+      "emptyText": "Você ainda não tem personagens sem foto."
     },
     "form": {
       "nombre": "Nome",

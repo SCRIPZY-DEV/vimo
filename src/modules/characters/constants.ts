@@ -41,6 +41,16 @@ export const IDENTITY_SOURCES: {
   },
 ]
 
+// Pestañas de la biblioteca: filtran por cómo se fijó la identidad, en el
+// mismo orden que las sub-pestañas del modal
+export const CHARACTER_FILTERS: {
+  id: CharacterIdentitySource
+  labelKey: string
+}[] = [
+  { id: 'photo', labelKey: 'characters.filter.photo' },
+  { id: 'text', labelKey: 'characters.filter.text' },
+]
+
 // Formatos que ofrece el dialog de la foto; el sidecar valida por magic bytes
 export const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
 

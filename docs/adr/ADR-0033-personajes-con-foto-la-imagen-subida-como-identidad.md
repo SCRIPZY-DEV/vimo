@@ -44,8 +44,12 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
    `MAX_PHOTO_BYTES` = 12 MB y valida JPEG/PNG/WEBP por magic bytes, nunca por
    extensión; falla con `character_photo_invalid` ANTES de crear la carpeta). Con
    foto la descripción es opcional en create y update (sin foto sigue exigiendo
-   `MIN_DESCRIPTION_LENGTH`). La foto **no se cambia** al editar: para otra foto se
-   crea otro personaje (como el origen). Borrar sigue siendo el `rm` de la carpeta.
+   `MIN_DESCRIPTION_LENGTH`). La foto se **reemplaza** desde el editor
+   (`CharacterUpdatePayload.photoPath`, misma validación; la nueva se escribe antes
+   de borrar la anterior, así nunca hay un instante sin foto), solo en un personaje
+   que ya es «con foto»: el modo no cambia. Cada foto lleva un nombre único
+   (`photo.<aleatorio>.<ext>`) para que el webview no siga mostrando la anterior
+   desde su caché de URLs. Borrar sigue siendo el `rm` de la carpeta.
 2. **Proyecto.** `NewVideoProjectCharacter.mode: 'photo'` con `characterId` →
    `create-video-project` copia la foto de la biblioteca como `reference_N.<ext>`
    (`storeReferenceImage`); sin foto en la biblioteca es `invalid_payload` (el
@@ -68,12 +72,16 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
 5. **App — Personajes.** Sub-pestañas «Con foto · cara idéntica» / «Sin foto · más
    barato» solo al crear (`CharacterIdentityTabs`, Radix Tabs con la activa en
    saffron); `CharacterPhotoFields` (nombre, descripción opcional, cartel amarillo
-   «Importante», «Subir foto»/«Cambiar foto» con miniatura por el asset protocol; al
-   editar, la foto actual y la nota de que no se cambia); cartel turquesa «Sin foto:
-   más barato…» arriba del formulario sin foto; con foto no viajan edad, rol ni
-   previews. La tarjeta muestra la foto y «Con foto · cara idéntica». El botón
-   «Nuevo personaje» deja de exigir claves: con foto no hay IA; en el modal, la IA y
-   los previews ya se apagan solos si faltan.
+   «Importante», «Subir foto»/«Cambiar foto» a lo ancho y, debajo, la foto elegida
+   en grande por el asset protocol; al editar, el botón es «Reemplazar foto»); cartel
+   turquesa «Sin foto: más barato…» arriba del formulario sin foto; con foto no
+   viajan edad, rol ni previews. La biblioteca y el picker de Create filtran con
+   dos pestañas («Personajes con foto» / «Personajes sin foto», `SegmentedTabs` de
+   `common`, la activa por defecto es la que tiene personajes) y sus grillas usan
+   `auto-rows-fr` con tarjetas de renglones de alto fijo: todas miden lo mismo
+   tenga o no descripción, edad o rol. La tarjeta muestra la foto y «Con foto · cara
+   idéntica». El botón «Nuevo personaje» deja de exigir claves: con foto no hay IA;
+   en el modal, la IA y los previews ya se apagan solos si faltan.
 6. **Copy, con nota honesta.** Los dos carteles se portan palabra por palabra. El
    «no suma costo extra por imagen» del cartel sin foto **no es exacto** cuando el
    personaje sí tiene preview del estilo del video: esa escena pasa por el mismo
@@ -97,8 +105,12 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
   copia en el sidecar sigue el precedente de `upload-narration`.
 - **Flag `sinFoto` en la metadata** (como el origen) — rechazada: un flag puede
   desincronizarse del disco; con `photoFile` el archivo ES el modo.
-- **Permitir cambiar la foto al editar** — pospuesta: el origen tampoco lo permite y
-  los videos hechos ya tienen su copia; se reconsidera si el uso lo pide.
+- **Reemplazar la foto sobre el mismo nombre de archivo** — rechazada: el webview
+  cachea por URL y seguiría mostrando la anterior; el nombre único por foto es lo
+  que hace que la tarjeta, el picker y el chip de la gema cambien solos (las vistas
+  de Create vuelven a leer la biblioteca al montarse, y la gema apunta al id).
+- **No permitir cambiar la foto** (como el origen) — rechazada por el dueño: quien
+  ya usa un personaje en una gema quiere corregirle la foto sin rehacer nada.
 - **Quitar fondo o recortar la foto** — rechazada: el origen la guarda tal cual; «solo
   el personaje, sin fondo» es una instrucción a la persona.
 
@@ -107,6 +119,9 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
 - ✅ Cara idéntica en cualquier estilo con una sola foto, sin generar previews.
 - ✅ Se puede crear un personaje sin ninguna clave de API.
 - ✅ Con gema, el personaje con foto entra al carril `reference` que ya existía.
+- ✅ Reemplazar la foto en Personajes la cambia en todos lados: los videos nuevos
+  copian la foto vigente y el chip de la gema la muestra al volver a Create. Los
+  videos ya generados conservan su copia (el proyecto es autocontenido).
 - ⚠️ Cada escena con el personaje pasa por el carril edit a calidad `low`: el costo
   cambia según proveedor y no lo refleja el estimador.
 - ⚠️ La foto viaja sin procesar a Fal/Evolink (data URI o file-API).
@@ -122,6 +137,8 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
   creada; `characters-list` lo lista con `photoPath`; `create-video-project` con
   `mode: 'photo'` + ese `characterId` → `reference_1.png` copiado y
   `ProjectCharacter.referenceImageFile`; `mode: 'text'` sin descripción →
+  `invalid_payload`; `character-update` con `photoPath` sobre un «con foto» →
+  archivo nuevo con otro nombre y el anterior borrado; sobre un «sin foto» →
   `invalid_payload`.
 - **Cómo se vería una regresión:** el modal deja de mostrar las sub-pestañas al
   crear; un personaje con foto muestra «sin ilustración en este estilo» en el
