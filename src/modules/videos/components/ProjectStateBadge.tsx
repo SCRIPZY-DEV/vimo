@@ -6,19 +6,18 @@ interface ProjectStateBadgeProps {
   badge: ProjectBadge
 }
 
-// Fondos OPACOS: el badge va encima de la portada, y con un fondo al 15 % el
-// «Listo» amarillo desaparecía sobre portadas claras o cálidas (QA del
-// 2026-09-11). Texto oscuro sobre color pleno o blanco sobre oscuro, siempre
-// con sombra y un filo fino para despegarse de cualquier imagen.
+// «Exportado» va OPACO (saffron pleno, texto oscuro, sombra y filo fino):
+// con el fondo al 15 % desaparecía sobre portadas claras o cálidas (QA del
+// 2026-09-11). Los demás estados quedan como estaban, por pedido del dueño.
 const BADGE_CLASSES: Record<ProjectBadge, string> = {
-  ready: 'bg-saffron text-charcoal',
-  outdated: 'bg-coral text-charcoal',
-  generating: 'bg-lavender text-charcoal',
-  awaitingConfirmation: 'bg-saffron text-charcoal',
-  interrupted: 'bg-charcoal text-white',
-  paused: 'bg-charcoal text-white',
-  error: 'bg-destructive text-white',
-  draft: 'bg-charcoal text-white',
+  ready: 'bg-saffron text-charcoal shadow-md ring-1 ring-black/10',
+  outdated: 'bg-coral/15 text-coral',
+  generating: 'bg-lavender/20 text-foreground',
+  awaitingConfirmation: 'bg-saffron/15 text-saffron',
+  interrupted: 'bg-muted text-muted-foreground',
+  paused: 'bg-muted text-muted-foreground',
+  error: 'bg-destructive/10 text-destructive',
+  draft: 'bg-muted text-muted-foreground',
 }
 
 export function ProjectStateBadge({ badge }: ProjectStateBadgeProps) {
@@ -26,7 +25,7 @@ export function ProjectStateBadge({ badge }: ProjectStateBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-display text-xs font-bold shadow-md ring-1 ring-black/10 ${BADGE_CLASSES[badge]}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-display text-xs font-bold ${BADGE_CLASSES[badge]}`}
     >
       {badge === 'generating' && <Loader2 className="h-3 w-3 animate-spin" />}
       {t(`library.list.badge.${badge}`)}

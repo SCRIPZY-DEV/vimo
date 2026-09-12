@@ -45,8 +45,10 @@ export interface EvolinkLaneInputs {
   format: VideoFormat
   // URLs públicas de referencia (carril de personaje); vacío en el normal.
   referenceUrls?: string[]
-  // Prefijo del prompt (línea de identidad del carril de personaje).
-  promptPrefix?: string
+  // Carril de personaje: envuelve el prompt de la escena con la nota de la
+  // referencia (línea de identidad delante, o REFERENCE + escena + LOCK con
+  // estilo propio). Ausente en el carril normal.
+  referencePrompt?: (scenePrompt: string) => string
 }
 
 function reusableTaskId(scene: Scene, currentHash: string): string | null {
@@ -75,7 +77,9 @@ export async function generateSceneWithEvolink(
   }
 
   const quality = evolinkQualityFromOption(inputs.qualityOption)
-  const prompt = `${inputs.promptPrefix ?? ''}${scene.imagePrompt!}`
+  const prompt = inputs.referencePrompt
+    ? inputs.referencePrompt(scene.imagePrompt!)
+    : scene.imagePrompt!
   // El formato NO entra al hash de la tarea (doctrina E26/E27 del origen):
   // agregarlo invalidaría tareas ya pagadas, y una tarea vive en SU escena de
   // SU proyecto, cuyo formato jamás cambia.

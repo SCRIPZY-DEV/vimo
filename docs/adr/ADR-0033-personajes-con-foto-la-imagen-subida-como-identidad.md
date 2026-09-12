@@ -98,10 +98,15 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
 - Personajes sin foto: byte por byte ADR-0021 (E20 estricta, preview del estilo o
   texto, `character_preview_missing` no vuelve).
 - El estimador de costos no cuenta el carril edit (tampoco en el origen).
-- Con gema, el carril de imagen usa la **misma** línea de identidad que el catálogo:
-  la variante del origen para estilo propio (`promptReferenciaEstiloPropio`, con el
-  «APPEARANCE LOCK») no se portó porque no está en el material disponible. Es una
-  brecha previa a esta ADR (ya afectaba al sin-foto con preview de gema).
+- Con gema, el carril de imagen usa la nota del origen para estilo propio
+  (`buildCustomStyleReferencePrompt`, port byte a byte de
+  `promptReferenciaEstiloPropio` v1.48.2, obtenida de la sesión web del dueño el
+  2026-09-11): `REFERENCE: the attached image is "X"…` + el prompt de la escena +
+  el párrafo «APPEARANCE LOCK», sin el formato del video y nombrando solo a la
+  primera referencia. La elige `ImageLaneOptions.customStyle`
+  (`context.options.customStyle`), para Fal y Evolink por igual
+  (`referencePromptFor` en `character-lane.ts`). El catálogo sigue con la línea
+  de identidad de siempre delante del prompt.
 
 ## Alternativas consideradas
 

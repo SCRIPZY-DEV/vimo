@@ -451,6 +451,7 @@ async function generateImages(
   })
 
   const laneOptions: ImageLaneOptions = {
+    customStyle: Boolean(context.options.customStyle),
     paths: context.paths,
     signal: context.signal,
     events,

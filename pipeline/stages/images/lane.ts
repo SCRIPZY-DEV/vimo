@@ -33,6 +33,10 @@ export interface ImageLaneOptions {
   // Ids donde el USUARIO pidió explícitamente OTRA imagen: lo ÚNICO que
   // bypasea la cosecha de una tarea ya pagada (llega con Library).
   explicitNewImage: Set<number>
+  // El proyecto usa estilo propio (gema): el carril de personaje cambia la
+  // nota que acompaña a la referencia (REFERENCE + escena + APPEARANCE LOCK)
+  // en vez de la línea de identidad del catálogo. El carril normal lo ignora.
+  customStyle: boolean
 }
 
 export interface LaneResult {
