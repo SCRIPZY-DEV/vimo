@@ -42,6 +42,7 @@ interface CharacterPickerModalProps {
   max?: number
   // Con «Mi estilo» en uso: el personaje nuevo se diseña con esa gema.
   styleContext?: CharacterStyleContext
+  script?: string
   onConfirm: (characters: SelectedCharacter[]) => void
   onClose: () => void
 }
@@ -61,6 +62,7 @@ export function CharacterPickerModal({
   selected,
   max = MAX_PROJECT_CHARACTERS,
   styleContext,
+  script,
   onConfirm,
   onClose,
 }: CharacterPickerModalProps) {
@@ -107,6 +109,7 @@ export function CharacterPickerModal({
       <CharacterModal
         character={null}
         styleContext={styleContext}
+        script={script}
         initialSource={filter}
         onSaved={addCreated}
         onClose={() => setCreating(false)}

@@ -50,6 +50,7 @@ interface CharacterModalProps {
   // el guion como contexto (design-style-character) en vez del experto de la
   // casa. Ausente = el flujo de la biblioteca de siempre.
   styleContext?: CharacterStyleContext
+  script?: string
   // Con qué sub-pestaña arranca al crear (la pestaña activa de quien lo abre).
   initialSource?: CharacterIdentitySource
   onSaved?: (character: CharacterSummary) => void
@@ -68,13 +69,18 @@ const MIN_SCRIPT_LENGTH = 20
 export function CharacterModal({
   character,
   styleContext,
+  script,
   initialSource,
   onSaved,
   onClose,
 }: CharacterModalProps) {
   const { t } = useTranslation()
   const { createCharacter, updateCharacter, saving } = useCharacterMutations()
-  const { suggestProfile, suggesting } = useSuggestCharacterProfile()
+  const {
+    suggestProfile,
+    suggesting,
+    errorKey: suggestErrorKey,
+  } = useSuggestCharacterProfile()
   const {
     designWithStyle,
     designing,
@@ -139,9 +145,9 @@ export function CharacterModal({
 
   const identity = form.description.trim()
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
-  const withStyle =
-    Boolean(styleContext?.gem.trim()) &&
-    (styleContext?.script.trim().length ?? 0) >= MIN_SCRIPT_LENGTH
+  const contextScript = (styleContext?.script ?? script ?? '').trim()
+  const withScript = contextScript.length >= MIN_SCRIPT_LENGTH
+  const withStyle = Boolean(styleContext?.gem.trim()) && withScript
   const busy = saving || suggesting || designing || preview.generating
 
   // Con texto ya escrito el botón lo dice claro: MEJORA ese texto; vacío,
@@ -158,6 +164,7 @@ export function CharacterModal({
       age: form.age,
       role: form.role,
       description: form.description,
+      ...(withScript ? { script: contextScript } : {}),
     }
     const result = withStyle
       ? await designWithStyle({
@@ -305,7 +312,7 @@ export function CharacterModal({
                 disabled={busy}
                 suggesting={suggesting || designing}
                 missingLlmKey={llmKeys.missingRequirements.length > 0}
-                suggestFromScript={withStyle}
+                suggestFromScript={withScript}
                 suggestLabelKey={suggestLabelKey}
                 onChange={setForm}
                 onSuggest={() => void suggest()}
@@ -313,6 +320,9 @@ export function CharacterModal({
 
               {designErrorKey && (
                 <ErrorMessage>{t(designErrorKey)}</ErrorMessage>
+              )}
+              {suggestErrorKey && (
+                <ErrorMessage>{t(suggestErrorKey)}</ErrorMessage>
               )}
 
               <CharacterPreviewPanel
