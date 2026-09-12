@@ -15,6 +15,8 @@ export interface SampleGenerationState {
   phase: 'prompts' | 'images' | null
   // Progreso por muestra (id → %) durante la fase de imágenes.
   samplePercents: Record<number, number>
+  promptPercents: Record<number, number>
+  sampleImages: Record<number, string>
   completed: boolean
   errorKey: string | null
 }
@@ -23,6 +25,8 @@ const INITIAL_STATE: SampleGenerationState = {
   running: false,
   phase: null,
   samplePercents: {},
+  promptPercents: {},
+  sampleImages: {},
   completed: false,
   errorKey: null,
 }
@@ -44,10 +48,32 @@ export function useStyleSampleGeneration() {
             const detail = (event.detail ?? {}) as {
               phase?: 'prompts' | 'images'
               sampleId?: number
+              status?: string
+              path?: string
+              mtimeMs?: number
             }
             setState((previous) => ({
               ...previous,
               phase: detail.phase ?? previous.phase,
+              promptPercents:
+                detail.phase === 'prompts' && detail.sampleId !== undefined
+                  ? {
+                      ...previous.promptPercents,
+                      [detail.sampleId]: event.percent ?? 0,
+                    }
+                  : previous.promptPercents,
+              sampleImages:
+                detail.status === 'completed' &&
+                detail.path &&
+                detail.sampleId !== undefined
+                  ? {
+                      ...previous.sampleImages,
+                      [detail.sampleId]: videosApi.imageSource(
+                        detail.path,
+                        detail.mtimeMs,
+                      ),
+                    }
+                  : previous.sampleImages,
               samplePercents:
                 detail.phase === 'images' && detail.sampleId !== undefined
                   ? {
@@ -72,6 +98,9 @@ export function useStyleSampleGeneration() {
             return
           }
           if (event.type === 'job-failed') {
+            void queryClient.invalidateQueries({
+              queryKey: videosQueryKeys.customStyles,
+            })
             setState((previous) => ({
               ...previous,
               running: false,

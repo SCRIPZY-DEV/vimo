@@ -273,7 +273,9 @@ export async function pollTask(
   const startedAt = Date.now()
 
   for (;;) {
-    await delay(POLL_INTERVAL_MS, undefined, { signal: order.signal })
+    await delay(options.pollIntervalMs ?? POLL_INTERVAL_MS, undefined, {
+      signal: order.signal,
+    })
 
     let response: Response
     try {

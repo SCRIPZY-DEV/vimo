@@ -19,6 +19,8 @@ export interface ImageProgress {
 
 export interface GenerateImageOptions {
   apiKey: string
+  // Ajuste interno de previews; las escenas conservan su intervalo habitual.
+  pollIntervalMs?: number
   signal?: AbortSignal
   onProgress?(progress: ImageProgress): void
 }
