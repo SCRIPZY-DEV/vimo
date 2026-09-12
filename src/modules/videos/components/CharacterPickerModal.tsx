@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
-import { SegmentedTabs } from '@/modules/common/components/SegmentedTabs'
+import { PillTabs } from '@/modules/common/components/PillTabs'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -27,10 +27,7 @@ import {
 import { CharacterModal } from '@/modules/characters/components/CharacterModal'
 import type { CharacterStyleContext } from '@/modules/characters/types/characters'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
-import {
-  characterPortraitPath,
-  hasStyleReference,
-} from '@/modules/videos/utilities/findStylePreview'
+import { characterPortraitPath } from '@/modules/videos/utilities/findStylePreview'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
@@ -79,11 +76,10 @@ export function CharacterPickerModal({
   const [chosenFilter, setChosenFilter] = useState<IdentityFilter | null>(null)
   const single = max === 1
 
-  const filter =
-    chosenFilter ??
-    (characters.some((character) => identityFilterOf(character) === 'photo')
-      ? 'photo'
-      : 'text')
+  const countOf = (source: IdentityFilter) =>
+    characters.filter((character) => identityFilterOf(character) === source)
+      .length
+  const filter = chosenFilter ?? (countOf('photo') > 0 ? 'photo' : 'text')
   const visible = characters.filter(
     (character) => identityFilterOf(character) === filter,
   )
@@ -129,16 +125,14 @@ export function CharacterPickerModal({
     pick(character)
   }
 
-  // Segundo renglón de la tarjeta: qué viajaría con este personaje. Con
-  // foto, la foto; sin foto y sin preview de este estilo, el aviso; con
-  // preview, su descripción.
-  const subtitleOf = (character: CharacterSummary) => {
-    if (character.photoPath)
-      return { text: t('create.characters.withPhoto'), warning: false }
-    if (!hasStyleReference(character, previewStyleKey))
-      return { text: t('create.characters.noPreviewForStyle'), warning: true }
-    return { text: character.description, warning: false }
-  }
+  // Segundo renglón de la tarjeta: con foto, que viaja con su foto; sin foto,
+  // la descripción, que ES la identidad que viaja. Ningún aviso de «sin
+  // referencia»: decisión del dueño (2026-09-11), hacía creer que el personaje
+  // sin foto viajaba incompleto cuando su identidad va en el prompt.
+  const subtitleOf = (character: CharacterSummary) =>
+    character.photoPath
+      ? t('create.characters.withPhoto')
+      : character.description
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -156,15 +150,19 @@ export function CharacterPickerModal({
           </DialogDescription>
         </DialogHeader>
 
-        <SegmentedTabs
-          value={filter}
-          ariaLabel={t('create.characters.filter.ariaLabel')}
-          options={CHARACTER_PICKER_FILTERS.map(({ id, labelKey }) => ({
-            id,
-            label: t(labelKey),
-          }))}
-          onChange={setChosenFilter}
-        />
+        <div>
+          <PillTabs
+            value={filter}
+            ariaLabel={t('create.characters.filter.ariaLabel')}
+            layoutId="character-picker-filter-tab"
+            options={CHARACTER_PICKER_FILTERS.map(({ id, labelKey }) => ({
+              id,
+              label: t(labelKey),
+              count: countOf(id),
+            }))}
+            onChange={setChosenFilter}
+          />
+        </div>
 
         {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
@@ -190,7 +188,6 @@ export function CharacterPickerModal({
           {visible.map((character) => {
             const isSelected = isPicked(character.id)
             const portrait = characterPortraitPath(character, previewStyleKey)
-            const subtitle = subtitleOf(character)
             return (
               <button
                 key={character.id}
@@ -212,15 +209,8 @@ export function CharacterPickerModal({
                   <p className="truncate font-display text-sm font-bold text-foreground">
                     {character.name}
                   </p>
-                  <p
-                    className={cn(
-                      'line-clamp-2 h-8 font-body text-[11px] leading-4',
-                      subtitle.warning
-                        ? 'text-saffron'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    {subtitle.text}
+                  <p className="line-clamp-2 h-8 font-body text-[11px] leading-4 text-muted-foreground">
+                    {subtitleOf(character)}
                   </p>
                 </div>
               </button>

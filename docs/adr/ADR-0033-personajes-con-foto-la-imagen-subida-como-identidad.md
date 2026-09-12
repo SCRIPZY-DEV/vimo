@@ -64,11 +64,15 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
    biblia (`buildCharacterBibleBlock` ya tolera la vacía): la referencia fija la
    cara y el texto el resto. Con gema la descripción no viaja (modo `reference`).
 4. **App — Create.** `SelectedCharacter.mode` viaja en el payload
-   (`formPayload.ts`); `toSelectedCharacter` fija `previewPath` (lo que viajaría: la
-   foto o el preview estricto) y `portraitPath` (la carita). `hasStyleReference`
-   decide el aviso «sin ilustración en este estilo» (con foto nunca aplica) y
-   `characterPortraitPath` unifica la carita en picker, sección, chip y editor de la
-   gema: foto → preview del estilo → cualquiera de los suyos.
+   (`formPayload.ts`); `toSelectedCharacter` fija `portraitPath` (la carita) y
+   `characterPortraitPath` la unifica en picker, sección, chip y editor de la gema:
+   foto → preview del estilo → cualquiera de los suyos. El formulario **no guarda**
+   la referencia que viajaría: la copia el sidecar. Los avisos «sin ilustración en
+   este estilo: irá sin imagen de referencia» (picker) y «sin referencia visual»
+   (sección) se quitaron por decisión del dueño (2026-09-11): le hacían creer que
+   el personaje sin foto viajaba incompleto, cuando su identidad va en el prompt.
+   Bajo cada tarjeta del picker va, en cambio, «Con foto · cara idéntica» o la
+   descripción del personaje.
 5. **App — Personajes.** Sub-pestañas «Con foto · cara idéntica» / «Sin foto · más
    barato» solo al crear (`CharacterIdentityTabs`, Radix Tabs con la activa en
    saffron); `CharacterPhotoFields` (nombre, descripción opcional, cartel amarillo
@@ -76,8 +80,9 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
    en grande por el asset protocol; al editar, el botón es «Reemplazar foto»); cartel
    turquesa «Sin foto: más barato…» arriba del formulario sin foto; con foto no
    viajan edad, rol ni previews. La biblioteca y el picker de Create filtran con
-   dos pestañas («Personajes con foto» / «Personajes sin foto», `SegmentedTabs` de
-   `common`, la activa por defecto es la que tiene personajes) y sus grillas usan
+   dos pestañas en píldora con contador («Personajes con foto 2 · Personajes sin
+   foto 5», `PillTabs` de `common`, calcadas de las de la Biblioteca por formato;
+   la activa por defecto es la que tiene personajes) y sus grillas usan
    `auto-rows-fr` con tarjetas de renglones de alto fijo: todas miden lo mismo
    tenga o no descripción, edad o rol. La tarjeta muestra la foto y «Con foto · cara
    idéntica». El botón «Nuevo personaje» deja de exigir claves: con foto no hay IA;

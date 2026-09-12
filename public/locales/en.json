@@ -213,7 +213,6 @@
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
       "empty": "You don't have any characters in your library yet.",
-      "noPreviewForStyle": "No artwork in this style: it will go without a reference image",
       "withPhoto": "With photo · identical face",
       "filter": {
         "ariaLabel": "Filter characters",
@@ -222,7 +221,6 @@
         "emptyPhoto": "You don't have any characters with a photo yet.",
         "emptyText": "You don't have any characters without a photo yet."
       },
-      "noReferenceHint": "No visual reference",
       "use": "Use {{count}} character(s)",
       "frequency": {
         "label": "How often does your character appear?",

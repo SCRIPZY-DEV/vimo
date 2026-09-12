@@ -213,7 +213,6 @@
       "pickerTitle": "Escolher personagens",
       "pickerDescription": "Você pode escolher até {{max}} personagens; eles mantêm a identidade no vídeo todo.",
       "empty": "Você ainda não tem personagens na sua biblioteca.",
-      "noPreviewForStyle": "Sem ilustração neste estilo: irá sem imagem de referência",
       "withPhoto": "Com foto · rosto idêntico",
       "filter": {
         "ariaLabel": "Filtrar personagens",
@@ -222,7 +221,6 @@
         "emptyPhoto": "Você ainda não tem personagens com foto.",
         "emptyText": "Você ainda não tem personagens sem foto."
       },
-      "noReferenceHint": "Sem referência visual",
       "use": "Usar {{count}} personagem(ns)",
       "frequency": {
         "label": "Com que frequência seu personagem aparece?",

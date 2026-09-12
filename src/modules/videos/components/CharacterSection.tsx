@@ -321,11 +321,6 @@ export function CharacterSection({
               <span className="font-display text-sm font-bold text-foreground">
                 {character.name}
               </span>
-              {!character.previewPath && (
-                <span className="font-body text-[11px] text-saffron">
-                  {t('create.characters.noReferenceHint')}
-                </span>
-              )}
               <button
                 type="button"
                 disabled={disabled}

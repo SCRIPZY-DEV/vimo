@@ -213,8 +213,6 @@
       "pickerTitle": "Elegir personajes",
       "pickerDescription": "Podés elegir hasta {{max}} personajes; van a aparecer con su identidad en todo el video.",
       "empty": "Todavía no tenés personajes en tu biblioteca.",
-      "noPreviewForStyle": "Sin ilustración en este estilo: irá sin imagen de referencia",
-      "noReferenceHint": "Sin referencia visual",
       "withPhoto": "Con foto · cara idéntica",
       "filter": {
         "ariaLabel": "Filtrar personajes",

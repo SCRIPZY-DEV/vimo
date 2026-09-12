@@ -208,12 +208,9 @@ export interface SelectedCharacter {
   // photo = su identidad es la foto de la biblioteca (referencia en todos los
   // estilos); text = su identidad es la descripción (ADR-0033).
   mode: 'photo' | 'text'
-  // El preview del estilo actual, si la biblioteca ya lo tiene: es la
-  // referencia de identidad, y sin ella el personaje viaja como texto.
-  previewPath: string | null
-  // La ilustración con la que se lo dibuja en el formulario: la de este
-  // estilo o, si todavía no existe, cualquiera de las suyas. Nunca viaja al
-  // proyecto — es solo para que la persona reconozca a quién eligió.
+  // La ilustración con la que se lo dibuja en el formulario: su foto, la del
+  // estilo actual o, si todavía no existe, cualquiera de las suyas. Nunca
+  // viaja al proyecto — es solo para que la persona reconozca a quién eligió.
   portraitPath: string | null
 }
 

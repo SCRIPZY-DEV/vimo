@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
-import { SegmentedTabs } from '@/modules/common/components/SegmentedTabs'
+import { PillTabs } from '@/modules/common/components/PillTabs'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
@@ -38,11 +38,9 @@ export function Characters() {
 
   usePageTitle(t('characters.pageTitle'))
 
-  const filter =
-    chosenFilter ??
-    (entries.some((entry) => identitySourceOf(entry) === 'photo')
-      ? 'photo'
-      : 'text')
+  const countOf = (source: CharacterIdentitySource) =>
+    entries.filter((entry) => identitySourceOf(entry) === source).length
+  const filter = chosenFilter ?? (countOf('photo') > 0 ? 'photo' : 'text')
   const visible = entries.filter((entry) => identitySourceOf(entry) === filter)
 
   const openCreate = () => {
@@ -134,12 +132,14 @@ export function Characters() {
             !isNative && 'pointer-events-none opacity-60',
           )}
         >
-          <SegmentedTabs
+          <PillTabs
             value={filter}
             ariaLabel={t('characters.filter.ariaLabel')}
+            layoutId="characters-filter-tab"
             options={CHARACTER_FILTERS.map(({ id, labelKey }) => ({
               id,
               label: t(labelKey),
+              count: countOf(id),
             }))}
             onChange={setChosenFilter}
           />
