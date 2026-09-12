@@ -308,20 +308,27 @@ async function storeCharacterReferences(
 }
 
 function validateCharacter(character: NewVideoProjectCharacter): void {
-  if (!character.name?.trim() || !character.description?.trim())
-    throw new PipelineFailure(
-      'invalid_payload',
-      'each character needs name and description',
-    )
+  if (!character.name?.trim())
+    throw new PipelineFailure('invalid_payload', 'each character needs a name')
   if (character.mode !== 'photo' && character.mode !== 'text')
     throw new PipelineFailure(
       'invalid_payload',
       'character.mode must be photo or text',
     )
-  if (character.mode === 'photo' && !character.photoDataUri)
+  // Sin foto la descripción ES la identidad; con foto es un refuerzo opcional.
+  if (character.mode === 'text' && !character.description?.trim())
     throw new PipelineFailure(
       'invalid_payload',
-      'photo characters need photoDataUri',
+      'text characters need a description',
+    )
+  if (
+    character.mode === 'photo' &&
+    !character.photoDataUri &&
+    !character.characterId
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'photo characters need photoDataUri or a library characterId',
     )
 }
 
@@ -350,10 +357,6 @@ async function storeReferenceImage(
     return file
   }
 
-  // Modo texto con personaje de biblioteca: se copia el preview del estilo
-  // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el personaje
-  // viaja sin referencia — su identidad va solo como texto — y queda un
-  // aviso en el log; la UI ya lo anticipa en el picker.
   if (!character.characterId) return undefined
   assertValidCharacterId(character.characterId)
 
@@ -363,6 +366,32 @@ async function storeReferenceImage(
     character.characterId,
   )
   const libraryMetadata = await readCharacterMetadata(libraryDirectory)
+
+  // Personaje «con foto» de la biblioteca: la foto es su identidad y viaja
+  // como referencia en TODOS los estilos (ADR-0033). Sin el archivo no hay
+  // personaje que ofrecer — el listado ya lo esconde, así que llegar acá sin
+  // foto es un payload inconsistente, no un caso a degradar.
+  if (character.mode === 'photo') {
+    const photoFile = libraryMetadata?.photoFile
+    if (!photoFile)
+      throw new PipelineFailure(
+        'invalid_payload',
+        `character "${character.characterId}" has no photo in the library`,
+      )
+
+    const extension = photoFile.split('.').pop() ?? 'jpg'
+    const file = `reference_${index + 1}.${extension}`
+    await copyFile(
+      join(libraryDirectory, photoFile),
+      join(charactersDirectory, file),
+    )
+    return file
+  }
+
+  // Modo texto con personaje de biblioteca: se copia el preview del estilo
+  // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el personaje
+  // viaja sin referencia — su identidad va solo como texto — y queda un
+  // aviso en el log; la UI ya lo anticipa en el picker.
   const preview = libraryMetadata?.previews?.find(
     (item) => item.styleId === previewStyleKey,
   )

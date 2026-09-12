@@ -1,7 +1,10 @@
 import { readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { decodeImageDataUri } from '../../providers/image/download.ts'
+import {
+  decodeImageDataUri,
+  validateImageBytes,
+} from '../../providers/image/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type {
@@ -9,11 +12,13 @@ import type {
   CharacterSummary,
   NewCharacterPreview,
 } from '../../types/characters.ts'
+import type { DecodedImage } from '../../types/images.ts'
 import { sanitizeFileName } from '../../utils/sanitize-file-name.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
-// Biblioteca de personajes: `<projectsRoot>/characters/<id>/` con metadata.json
-// y un preview por estilo (del catálogo o propio). A diferencia del origen no hay index.json: una
+// Biblioteca de personajes: `<projectsRoot>/characters/<id>/` con metadata.json,
+// un preview por estilo (del catálogo o propio) y, si el personaje es «con
+// foto», la foto subida (`photo.<ext>`). A diferencia del origen no hay index.json: una
 // carpeta por personaje hace que una metadata corrupta se lleve solo a ese
 // personaje y que borrar sea un rm recursivo (mismo criterio que el historial
 // de música).
@@ -21,6 +26,7 @@ export const CHARACTERS_SUBDIRECTORY = 'characters'
 export const CHARACTER_METADATA_FILE = 'metadata.json'
 
 const PREVIEW_FILE_PREFIX = 'preview.'
+const PHOTO_FILE_PREFIX = 'photo.'
 const ID_NAME_LIMIT = 32
 
 export const NAME_LIMIT = 80
@@ -30,6 +36,10 @@ export const AGE_LIMIT = 40
 export const ROLE_LIMIT = 80
 export const MAX_PREVIEW_BYTES = 6 * 1024 * 1024
 export const MAX_PREVIEWS = 8
+// Tope de la foto subida, como el origen (12 MB). Se guarda tal cual: sin
+// recorte, sin quitar fondo — «solo el personaje, sin fondo» es una
+// instrucción al usuario, no un procesamiento.
+export const MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
 // Id `<slug-del-nombre>-<aleatorio>`: carpetas legibles y estables (el id no
 // cambia al renombrar el personaje).
@@ -72,6 +82,8 @@ export interface StoredCharacterMetadata {
   role?: string
   createdAt: string
   previews: StoredCharacterPreview[]
+  // `photo.<ext>` dentro de la carpeta: presente = personaje «con foto».
+  photoFile?: string
 }
 
 export async function writeCharacterMetadata(
@@ -129,6 +141,10 @@ export async function toCharacterSummary(
   }
   if (metadata.age) entry.age = metadata.age
   if (metadata.role) entry.role = metadata.role
+  if (metadata.photoFile) {
+    const photoPath = join(entryDirectory, metadata.photoFile)
+    if (await fileExists(photoPath)) entry.photoPath = photoPath
+  }
 
   return entry
 }
@@ -141,7 +157,13 @@ export async function readCharacterEntry(
   const metadata = await readCharacterMetadata(entryDirectory)
   if (!metadata?.name) return null
 
-  return toCharacterSummary(entryDirectory, id, metadata)
+  const entry = await toCharacterSummary(entryDirectory, id, metadata)
+  // Un «con foto» que perdió su archivo no se lista (criterio del origen):
+  // sin la imagen no tiene identidad que ofrecer, y mostrarlo como «sin
+  // foto» con una descripción quizás vacía sería prometer lo que no hay.
+  if (metadata.photoFile && !entry.photoPath) return null
+
+  return entry
 }
 
 export async function listCharacterEntries(
@@ -163,6 +185,49 @@ export async function listCharacterEntries(
   }
 
   return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/**
+ * Lee y valida la foto elegida con el dialog nativo. A diferencia de los
+ * previews no es best-effort: sin foto válida no hay personaje «con foto», así
+ * que el fallo es del caller. Ruta del webview → se lee tal cual (el dialog
+ * ya la eligió la persona) y se valida por magic bytes, nunca por extensión.
+ */
+export async function readPhotoFile(sourcePath: string): Promise<DecodedImage> {
+  let bytes: Buffer
+  try {
+    bytes = await readFile(sourcePath)
+  } catch {
+    throw new PipelineFailure(
+      'character_photo_invalid',
+      `could not read the photo at "${sourcePath}"`,
+    )
+  }
+
+  if (!bytes.length || bytes.length > MAX_PHOTO_BYTES)
+    throw new PipelineFailure(
+      'character_photo_invalid',
+      `the photo must be between 1 byte and ${MAX_PHOTO_BYTES} bytes`,
+    )
+
+  const image = validateImageBytes(bytes)
+  if (!image)
+    throw new PipelineFailure(
+      'character_photo_invalid',
+      'the photo must be a JPEG, PNG or WEBP image',
+    )
+
+  return image
+}
+
+/** Escribe la foto validada en la carpeta del personaje; devuelve su nombre. */
+export async function writePhotoFile(
+  entryDirectory: string,
+  image: DecodedImage,
+): Promise<string> {
+  const file = `${PHOTO_FILE_PREFIX}${image.ext}`
+  await writeFile(join(entryDirectory, file), image.bytes)
+  return file
 }
 
 /**

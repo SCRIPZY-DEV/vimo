@@ -34,6 +34,12 @@ export interface PreviewStyleOption {
 // El personaje en edición, o null al crear uno nuevo
 export type CharacterDraft = CharacterSummary | null
 
+// Con qué se fija la identidad al crear un personaje (ADR-0033): con la foto
+// que sube la persona (cara idéntica, referencia en todos los estilos) o sin
+// foto (la descripción es la identidad; más barato). Se decide al crear y no
+// cambia después.
+export type CharacterIdentitySource = 'photo' | 'text'
+
 // Contexto de «Mi estilo» cuando el modal se abre desde Create: con gema y
 // guion, la ficha la diseña el estilo del usuario (design-style-character) y
 // el preview arranca con ese estilo elegido (`styleId` es el id de galería).

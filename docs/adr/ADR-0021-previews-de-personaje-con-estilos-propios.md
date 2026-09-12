@@ -78,6 +78,12 @@ propio; sin preview del estilo actual, el personaje viaja sin referencia.**
    decir la consecuencia («irá sin imagen de referencia») y la lista de elegidos repite
    el aviso corto.
 
+> **Adenda 2026-09-11.** Todo lo anterior describe al personaje **sin foto**. Desde
+> [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md) existe
+> el personaje **con foto**: la imagen subida es su identidad y viaja como referencia
+> en cualquier estilo, sin previews y sin el aviso del punto 5. La regla E20 sigue
+> intacta para el sin foto.
+
 ## Alternativas consideradas
 
 - **Usar cualquier otro preview del personaje como referencia** — rechazada: viola E20;

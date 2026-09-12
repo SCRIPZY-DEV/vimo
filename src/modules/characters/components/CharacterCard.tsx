@@ -23,7 +23,9 @@ export function CharacterCard({
   const { t } = useTranslation()
   const [confirming, setConfirming] = useState(false)
 
-  const portrait = character.previews[0]
+  // Con foto, la tarjeta muestra la foto: es su identidad en todos los
+  // estilos. Sin foto, el primer preview que tenga.
+  const portrait = character.photoPath ?? character.previews[0]?.imagePath
 
   // Toda la tarjeta abre la edición; eliminar y confirmar frenan la propagación.
   const edit = () => {
@@ -41,7 +43,7 @@ export function CharacterCard({
       )}
     >
       <CharacterPortrait
-        src={portrait ? charactersApi.imageSource(portrait.imagePath) : null}
+        src={portrait ? charactersApi.imageSource(portrait) : null}
         doodleSize={72}
         className="aspect-square"
       />
@@ -51,10 +53,16 @@ export function CharacterCard({
           <h3 className="truncate font-display text-base font-bold text-foreground">
             {character.name}
           </h3>
-          {(character.age ?? character.role) && (
-            <p className="truncate font-body text-xs text-muted-foreground">
-              {[character.age, character.role].filter(Boolean).join(' · ')}
+          {character.photoPath ? (
+            <p className="truncate font-body text-xs text-saffron">
+              {t('characters.tarjeta.conFoto')}
             </p>
+          ) : (
+            (character.age ?? character.role) && (
+              <p className="truncate font-body text-xs text-muted-foreground">
+                {[character.age, character.role].filter(Boolean).join(' · ')}
+              </p>
+            )
           )}
         </div>
         <p className="line-clamp-2 font-body text-xs text-muted-foreground">

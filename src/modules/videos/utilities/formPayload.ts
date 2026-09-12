@@ -106,11 +106,13 @@ export function createProjectPayload(
   if (script) payload.script = script
 
   if (form.characters.length > 0) {
+    // El sidecar resuelve la referencia por su cuenta: con `photo` copia la
+    // foto de la biblioteca; con `text`, el preview del estilo si existe.
     payload.characters = form.characters.map((character) => ({
       characterId: character.characterId,
       name: character.name,
       description: character.description,
-      mode: 'text',
+      mode: character.mode,
     }))
   }
 

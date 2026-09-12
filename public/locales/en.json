@@ -214,6 +214,7 @@
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",
       "empty": "You don't have any characters in your library yet.",
       "noPreviewForStyle": "No artwork in this style: it will go without a reference image",
+      "withPhoto": "With photo · identical face",
       "noReferenceHint": "No visual reference",
       "use": "Use {{count}} character(s)",
       "frequency": {
@@ -996,7 +997,8 @@
     "tarjeta": {
       "editar": "Edit",
       "eliminar": "Delete character",
-      "confirmar": "Confirm"
+      "confirmar": "Confirm",
+      "conFoto": "With photo · identical face"
     },
     "modal": {
       "nuevo": "New character",
@@ -1004,6 +1006,22 @@
       "descripcion": "Describe who the character is. The identity is reused across all your videos.",
       "guardar": "Save",
       "cancelar": "Cancel"
+    },
+    "identity": {
+      "ariaLabel": "How to set the identity",
+      "photo": "With photo",
+      "photoHint": "identical face",
+      "text": "Without photo",
+      "textHint": "cheaper",
+      "textNotice": "Without photo: <strong>cheaper</strong> (no extra cost per image). The character stays consistent through its description, but <strong>the build may vary slightly</strong> between scenes."
+    },
+    "photo": {
+      "namePlaceholder": "Name (e.g. Lia)",
+      "descriptionPlaceholder": "Description (hair, features, usual outfit). Optional, but it helps consistency.",
+      "notice": "<lead>Important:</lead> the photo must show <strong>the character only</strong>, no background. It comes out more consistent, but costs ~2× per image.",
+      "upload": "Upload photo",
+      "change": "Change photo",
+      "editNote": "To change the photo, create a new character. Here you only edit the name and description."
     },
     "form": {
       "nombre": "Name",
@@ -1058,6 +1076,8 @@
     "errors": {
       "nameRequired": "Give the character a name.",
       "descriptionTooShort": "The identity needs at least 10 characters.",
+      "photoRequired": "Upload a photo of the character.",
+      "photoInvalid": "That photo won't work: it must be a JPG, PNG or WEBP up to 12 MB.",
       "notFound": "That character is no longer in your library.",
       "styleNotFound": "That custom style is no longer in your gallery. Pick another one.",
       "invalid": "Check the character details.",

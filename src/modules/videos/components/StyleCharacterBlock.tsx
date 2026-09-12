@@ -14,7 +14,7 @@ import {
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
-import { findPortraitPreview } from '@/modules/videos/utilities/findStylePreview'
+import { characterPortraitPath } from '@/modules/videos/utilities/findStylePreview'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
@@ -291,12 +291,12 @@ interface FixedPortraitProps {
   styleId: string
 }
 
-// La carita del fijado: el preview de ESTA gema o, si no lo tiene, el primero
-// que haya. El ícono queda para un personaje sin imagen alguna.
+// La carita del fijado: su foto, el preview de ESTA gema o, si no lo tiene,
+// el primero que haya. El ícono queda para un personaje sin imagen alguna.
 function FixedPortrait({ character, styleId }: FixedPortraitProps) {
-  const preview = findPortraitPreview(character, styleId)
+  const portrait = characterPortraitPath(character, styleId)
 
-  if (!preview)
+  if (!portrait)
     return (
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ocean/15">
         <UserRound className="h-4 w-4 text-ocean" />
@@ -305,7 +305,7 @@ function FixedPortrait({ character, styleId }: FixedPortraitProps) {
 
   return (
     <img
-      src={videosApi.imageSource(preview.imagePath)}
+      src={videosApi.imageSource(portrait)}
       alt=""
       className="h-9 w-9 shrink-0 rounded-full object-cover"
     />

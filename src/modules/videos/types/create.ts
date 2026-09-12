@@ -205,6 +205,9 @@ export interface SelectedCharacter {
   characterId: string
   name: string
   description: string
+  // photo = su identidad es la foto de la biblioteca (referencia en todos los
+  // estilos); text = su identidad es la descripción (ADR-0033).
+  mode: 'photo' | 'text'
   // El preview del estilo actual, si la biblioteca ya lo tiene: es la
   // referencia de identidad, y sin ella el personaje viaja como texto.
   previewPath: string | null

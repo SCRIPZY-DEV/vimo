@@ -26,8 +26,8 @@ import { CharacterModal } from '@/modules/characters/components/CharacterModal'
 import type { CharacterStyleContext } from '@/modules/characters/types/characters'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import {
-  findPortraitPreview,
-  findStylePreview,
+  characterPortraitPath,
+  hasStyleReference,
 } from '@/modules/videos/utilities/findStylePreview'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
@@ -149,9 +149,10 @@ export function CharacterPickerModal({
           {characters.map((character) => {
             const isSelected = isPicked(character.id)
             // La carita sale de cualquier ilustración que tenga; el aviso de
-            // abajo mira SOLO la de este estilo, que es la que viajaría.
-            const preview = findStylePreview(character, previewStyleKey)
-            const portrait = findPortraitPreview(character, previewStyleKey)
+            // abajo mira SOLO lo que viajaría: la foto, o el preview de este
+            // estilo.
+            const withReference = hasStyleReference(character, previewStyleKey)
+            const portrait = characterPortraitPath(character, previewStyleKey)
             return (
               <button
                 key={character.id}
@@ -165,9 +166,7 @@ export function CharacterPickerModal({
                 )}
               >
                 <CharacterPortrait
-                  src={
-                    portrait ? videosApi.imageSource(portrait.imagePath) : null
-                  }
+                  src={portrait ? videosApi.imageSource(portrait) : null}
                   doodleSize={56}
                   className="aspect-square"
                 />
@@ -175,7 +174,12 @@ export function CharacterPickerModal({
                   <p className="truncate font-display text-sm font-bold text-foreground">
                     {character.name}
                   </p>
-                  {!preview && (
+                  {character.photoPath && (
+                    <p className="font-body text-[11px] text-muted-foreground">
+                      {t('create.characters.withPhoto')}
+                    </p>
+                  )}
+                  {!withReference && (
                     <p className="font-body text-[11px] text-saffron">
                       {t('create.characters.noPreviewForStyle')}
                     </p>

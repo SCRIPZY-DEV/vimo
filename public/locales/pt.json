@@ -214,6 +214,7 @@
       "pickerDescription": "Você pode escolher até {{max}} personagens; eles mantêm a identidade no vídeo todo.",
       "empty": "Você ainda não tem personagens na sua biblioteca.",
       "noPreviewForStyle": "Sem ilustração neste estilo: irá sem imagem de referência",
+      "withPhoto": "Com foto · rosto idêntico",
       "noReferenceHint": "Sem referência visual",
       "use": "Usar {{count}} personagem(ns)",
       "frequency": {
@@ -996,7 +997,8 @@
     "tarjeta": {
       "editar": "Editar",
       "eliminar": "Excluir personagem",
-      "confirmar": "Confirmar"
+      "confirmar": "Confirmar",
+      "conFoto": "Com foto · rosto idêntico"
     },
     "modal": {
       "nuevo": "Novo personagem",
@@ -1004,6 +1006,22 @@
       "descripcion": "Conte quem é o personagem. A identidade é reutilizada em todos os seus vídeos.",
       "guardar": "Salvar",
       "cancelar": "Cancelar"
+    },
+    "identity": {
+      "ariaLabel": "Como definir a identidade",
+      "photo": "Com foto",
+      "photoHint": "rosto idêntico",
+      "text": "Sem foto",
+      "textHint": "mais barato",
+      "textNotice": "Sem foto: <strong>mais barato</strong> (não soma custo extra por imagem). O personagem sai consistente pela descrição, mas <strong>o físico pode variar um pouco</strong> entre as cenas."
+    },
+    "photo": {
+      "namePlaceholder": "Nome (ex: Lia)",
+      "descriptionPlaceholder": "Descrição (cabelo, traços, roupa típica). Opcional, mas ajuda na consistência.",
+      "notice": "<lead>Importante:</lead> a foto tem que ser <strong>só o personagem</strong>, sem fundo. Sai mais consistente, mas custa ~2× por imagem.",
+      "upload": "Enviar foto",
+      "change": "Trocar foto",
+      "editNote": "Para trocar a foto, crie um personagem novo. Aqui você edita só o nome e a descrição."
     },
     "form": {
       "nombre": "Nome",
@@ -1058,6 +1076,8 @@
     "errors": {
       "nameRequired": "Dê um nome ao personagem.",
       "descriptionTooShort": "A identidade precisa de pelo menos 10 caracteres.",
+      "photoRequired": "Envie uma foto do personagem.",
+      "photoInvalid": "Essa foto não serve: precisa ser JPG, PNG ou WEBP de até 12 MB.",
       "notFound": "Esse personagem não está mais na sua biblioteca.",
       "styleNotFound": "Esse estilo próprio não está mais na sua galeria. Escolha outro.",
       "invalid": "Revise os dados do personagem.",

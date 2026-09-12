@@ -21,7 +21,9 @@ import {
 } from './character-library.ts'
 
 // Edita un personaje existente. Semántica portada del origen: un nombre vacío
-// conserva el anterior, y edad/rol en blanco borran el campo.
+// conserva el anterior, y edad/rol en blanco borran el campo. La foto no se
+// cambia acá (para otra foto se crea otro personaje, como en el origen), y con
+// foto la descripción puede quedar vacía.
 export async function characterUpdate(
   context: PipelineContext,
 ): Promise<CharacterUpdateResult> {
@@ -43,7 +45,7 @@ export async function characterUpdate(
 
   if (payload.description !== undefined) {
     const description = payload.description.trim()
-    if (description.length < MIN_DESCRIPTION_LENGTH)
+    if (!metadata.photoFile && description.length < MIN_DESCRIPTION_LENGTH)
       throw new PipelineFailure(
         'invalid_payload',
         `payload.description must be at least ${MIN_DESCRIPTION_LENGTH} characters`,

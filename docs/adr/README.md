@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                            | Title                                                                      | Status                   | Area                          |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md)    | Photo characters: the uploaded image as the identity                       | Aceptada                 | pipeline / app                |
 | [ADR-0030](ADR-0030-pack-v3-historias-short-y-narracion-precargada.md)         | Demo pack v3: Short stories per style and pre-loaded narration             | Aceptada                 | app / pipeline                |
 | [ADR-0029](ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md)        | Demo mode: simulated pipeline over a pre-built pack, access via vimo.click | Aceptada                 | app / pipeline                |
 | [ADR-0028](ADR-0028-bloqueo-temporal-de-modelos-de-prompts.md)                 | Temporary block of the prompt models that stall or fail                    | Aceptada                 | app / pipeline                |

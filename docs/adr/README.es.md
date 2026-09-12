@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                            | Título                                                                          | Estado                   | Área                          |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md)    | Personajes con foto: la imagen subida como identidad                            | Aceptada                 | pipeline / app                |
 | [ADR-0030](ADR-0030-pack-v3-historias-short-y-narracion-precargada.md)         | Pack v3 de la demo: historias en Short y narración pre-cargada                  | Aceptada                 | app / pipeline                |
 | [ADR-0029](ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md)        | Modo demo: pipeline simulado sobre un pack pre-hecho, acceso por vimo.click     | Aceptada                 | app / pipeline                |
 | [ADR-0028](ADR-0028-bloqueo-temporal-de-modelos-de-prompts.md)                 | Bloqueo temporal de los modelos de prompts que se traban o fallan               | Aceptada                 | app, pipeline                 |

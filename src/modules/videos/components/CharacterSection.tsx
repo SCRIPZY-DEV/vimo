@@ -10,7 +10,7 @@ import { CharacterPickerModal } from '@/modules/videos/components/CharacterPicke
 import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
 import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
-import { findPortraitPreview } from '@/modules/videos/utilities/findStylePreview'
+import { characterPortraitPath } from '@/modules/videos/utilities/findStylePreview'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -169,8 +169,8 @@ export function CharacterSection({
     // orden del efecto, y de cualquier ilustración suya: una gema recién
     // creada todavía no tiene preview propio del personaje.
     const fixedPortrait = fixedCharacter
-      ? findPortraitPreview(fixedCharacter, previewStyleKey)
-      : undefined
+      ? characterPortraitPath(fixedCharacter, previewStyleKey)
+      : null
 
     return (
       <div className="space-y-2">
@@ -208,9 +208,7 @@ export function CharacterSection({
             <div className="flex items-center gap-3">
               <CharacterPortrait
                 src={
-                  fixedPortrait
-                    ? videosApi.imageSource(fixedPortrait.imagePath)
-                    : null
+                  fixedPortrait ? videosApi.imageSource(fixedPortrait) : null
                 }
                 doodleSize={20}
                 className="h-10 w-10 shrink-0 overflow-hidden rounded-full"

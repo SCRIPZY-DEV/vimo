@@ -61,9 +61,11 @@ export function Characters() {
             </p>
           </div>
         </div>
+        {/* Sin claves igual se puede crear un personaje con foto (no usa IA);
+            dentro del modal, la IA y los previews se apagan por su cuenta. */}
         <Button
           size="lg"
-          disabled={!isNative || missingKeys}
+          disabled={!isNative}
           onClick={openCreate}
           className="shrink-0 rounded-xl font-display font-bold"
         >
@@ -95,9 +97,8 @@ export function Characters() {
       {!isLoading && entries.length === 0 && isNative && (
         <button
           type="button"
-          disabled={missingKeys}
           onClick={openCreate}
-          className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-saffron/50"
         >
           <DoodleCharacter size={64} />
           <span className="font-display text-lg font-bold text-foreground">
