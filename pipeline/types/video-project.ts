@@ -124,6 +124,11 @@ export type VideoProjectState =
   | 'completed'
   | 'error'
 
+// Por qué un proyecto quedó en `paused`: la persona canceló, o el proveedor
+// rechazó por saldo agotado (ADR-0031). Ambos se reanudan igual; cambia el
+// texto y, con saldo, la UI re-chequea antes de relanzar.
+export type PauseReason = 'cancelled' | 'insufficient-credits'
+
 // Metadata persistida en project.json. `completedStages` es lo que permite
 // retomar: una stage cuyo artefacto es válido se saltea al relanzar.
 export interface VideoProjectMetadata {
@@ -139,6 +144,9 @@ export interface VideoProjectMetadata {
   wordCount?: number
   // Clave i18n del último fallo (mismo patrón { code } de los jobs).
   errorCode?: string
+  // Solo con state = 'paused'. Con 'insufficient-credits', errorCode guarda
+  // el código del dominio que rechazó (voice_*, image_*, …).
+  pauseReason?: PauseReason
   // El video renderizado quedó atrás respecto de una edición posterior
   // (escenas, narración o música). Nunca implica borrar el mp4: solo avisa.
   // Lo limpian los jobs que completan un render (ADR-0014).
@@ -252,6 +260,9 @@ export interface VideoProjectStatusPayload {
 export interface VideoProjectStatusResult {
   metadata: VideoProjectMetadata
   scenes: SceneSummary[]
+  // Largo del guion en disco (script.txt), para estimar el costo de la voz
+  // pendiente al reanudar sin volver a mandar el texto.
+  scriptCharCount?: number
 }
 
 // ─── Contratos de Library (ADR-0014) ───
@@ -266,6 +277,7 @@ export interface VideoProjectListItem {
   updatedAt: string
   state: VideoProjectState
   errorCode?: string
+  pauseReason?: PauseReason
   hasVideo: boolean
   videoOutdated: boolean
   // Ausente = 16:9 (proyectos previos al selector de formato).
@@ -420,6 +432,8 @@ export interface ExportClipsResult {
 export interface ProviderCreditsStatus {
   available: boolean
   remaining?: number
+  // Plan sin tope (Evolink enterprise): `remaining` no significa nada.
+  unlimited?: boolean
   currency?: string
   // Con available false: por qué (missing_api_key, fal_admin_key_required…).
   errorCode?: string

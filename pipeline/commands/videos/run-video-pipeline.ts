@@ -6,6 +6,7 @@ import { runStages } from '../../runner/run-stages.ts'
 import { STAGE_IDS, type StageId } from '../../runner/stage-id.ts'
 import { buildCreateVideoContext } from '../../stages/context.ts'
 import { CREATE_VIDEO_STAGES } from '../../stages/registry.ts'
+import { isInsufficientCreditsCode } from '../../utils/insufficient-credits.ts'
 import type {
   RunVideoPipelinePayload,
   RunVideoPipelineResult,
@@ -48,6 +49,7 @@ export async function runVideoPipeline(
 
   videoContext.metadata.state = 'generating'
   videoContext.metadata.errorCode = undefined
+  videoContext.metadata.pauseReason = undefined
   await videoContext.saveMetadata()
 
   try {
@@ -70,6 +72,8 @@ export async function runVideoPipeline(
     // el editor lo abre directo con todo generado.
     if (fullRun) {
       videoContext.metadata.state = autoRender ? 'completed' : 'draft'
+      // El render recién hecho es la verdad: el mp4 ya no está atrás de nada.
+      if (autoRender) videoContext.metadata.videoOutdated = false
       await videoContext.saveMetadata()
     }
 
@@ -78,16 +82,28 @@ export async function runVideoPipeline(
       result.videoPath = videoContext.paths.videoFile
     return result
   } catch (error) {
-    // Cancelación pedida → paused (retomable); cualquier otro fallo → error
-    // con su code persistido para que la UI lo muestre al rehidratar.
+    // Cancelación pedida → paused (retomable); saldo agotado → paused con
+    // motivo y code (la persona recarga y reanuda: todo lo hecho es
+    // cache-hit, ADR-0029); cualquier otro fallo → error con su code
+    // persistido para que la UI lo muestre al rehidratar.
     if (context.signal.aborted) {
       videoContext.metadata.state = 'paused'
+      videoContext.metadata.pauseReason = 'cancelled'
+      await videoContext.saveMetadata()
+      throw error
+    }
+
+    const code = toPipelineFailure(error).code
+    if (isInsufficientCreditsCode(code)) {
+      videoContext.metadata.state = 'paused'
+      videoContext.metadata.pauseReason = 'insufficient-credits'
+      videoContext.metadata.errorCode = code
       await videoContext.saveMetadata()
       throw error
     }
 
     videoContext.metadata.state = 'error'
-    videoContext.metadata.errorCode = toPipelineFailure(error).code
+    videoContext.metadata.errorCode = code
     await videoContext.saveMetadata()
     throw error
   }

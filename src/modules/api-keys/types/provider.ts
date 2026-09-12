@@ -18,6 +18,8 @@ export interface ApiKeyProvider {
   label: string
   /** Página donde el usuario crea/copia su clave. */
   getKeyUrl: string
+  /** Página donde el usuario recarga saldo (solo la UI la usa; Rust no). */
+  billingUrl: string
   /** Hint técnico del formato ('id:secret'): idéntico en los 3 idiomas. */
   keyFormatHint: string
   /** Clave i18n (apiKeys.descripcion.*) con la descripción del servicio. */

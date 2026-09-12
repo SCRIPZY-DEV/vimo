@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { isNative } from '@/modules/common/utilities/isNative'
+import { API_KEY_PROVIDERS } from '@/modules/api-keys/providers'
 import {
   API_KEY_ERROR_MESSAGE_KEYS,
   UNKNOWN_ERROR_MESSAGE_KEY,
@@ -49,6 +50,12 @@ export const apiKeysApi = {
       return
     }
     return openUrl(url)
+  },
+  // Página de recarga del proveedor (aviso de saldo insuficiente, ADR-0031).
+  async openBillingPage(providerId: string): Promise<void> {
+    const provider = API_KEY_PROVIDERS.find((entry) => entry.id === providerId)
+    if (!provider) return
+    return this.openProviderPage(provider.billingUrl)
   },
   errorMessageKey(error: unknown): string {
     if (!isCommandError(error)) return UNKNOWN_ERROR_MESSAGE_KEY

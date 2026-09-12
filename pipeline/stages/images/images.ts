@@ -19,6 +19,7 @@ import type { Scene } from '../../types/scenes.ts'
 import { videoFormatOf } from '../../types/video-format.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
+import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { detectScriptLanguage } from '../../utils/script-language.ts'
 import {
   deriveEraFromBible,
@@ -403,7 +404,6 @@ async function generateImages(
   events: ImageLaneEvents,
 ): Promise<Scene[]> {
   const { context, style } = inputs
-  const provider = context.options.imageProvider
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
 
   // Capa 4: ninguna escena con texto llega al proveedor sin prompt válido.
@@ -450,10 +450,14 @@ async function generateImages(
     }
   })
 
+  // Saldo agotado en cualquier carril: se cortan los que siguen en vuelo (no
+  // piden más imágenes que fallarían igual) y el job cae con el código; lo
+  // ya bajado queda en disco como cache-hit para reanudar (ADR-0029).
+  const creditsAbort = new AbortController()
   const laneOptions: ImageLaneOptions = {
     customStyle: Boolean(context.options.customStyle),
     paths: context.paths,
-    signal: context.signal,
+    signal: AbortSignal.any([context.signal, creditsAbort.signal]),
     events,
     forceRegenerate,
     // ÚNICO bypass de la cosecha de una tarea ya pagada: los ids que el
@@ -461,6 +465,24 @@ async function generateImages(
     // Las pasadas de recuperación de Create siguen cosechando `imageTask`.
     explicitNewImage: new Set(context.regenerateSceneIds ?? []),
   }
+
+  try {
+    return await dispatchLanes(finalScenes, inputs, laneOptions)
+  } catch (error) {
+    if (isInsufficientCreditsFailure(error)) creditsAbort.abort()
+    throw error
+  }
+}
+
+// Carril normal y carril de personaje en paralelo, con degradación de las
+// escenas de personaje que no salieron con referencia al carril normal.
+async function dispatchLanes(
+  finalScenes: Scene[],
+  inputs: GenerationInputs,
+  laneOptions: ImageLaneOptions,
+): Promise<Scene[]> {
+  const { context } = inputs
+  const provider = context.options.imageProvider
 
   // Carril de personaje: solo los personajes CON foto (los sin foto ya viajan
   // inyectados por texto). Sin ninguna foto → todo normal.

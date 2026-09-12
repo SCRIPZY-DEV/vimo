@@ -20,6 +20,19 @@
     "promptModelBlocked": {
       "badge": "Unavailable · back in {{minutes}} min",
       "allBlocked": "Every prompt-writing model is blocked after recent failures. They come back on their own within an hour; meanwhile, generate with a Vimo style."
+    },
+    "credits": {
+      "title": "Insufficient balance",
+      "titleSoft": "Balance to check",
+      "reload": "Top up",
+      "refresh": "Refresh balance",
+      "needed": "you need {{amount}}",
+      "available": "you have {{amount}}",
+      "unavailable": "balance unavailable",
+      "optional": "(optional)",
+      "unitCredits": "{{amount}} cr.",
+      "unitUsd": "US$ {{amount}}",
+      "unitCharacters": "{{amount}} characters"
     }
   },
   "layout": {
@@ -339,7 +352,13 @@
         "enlargeAria": "Enlarge scene {{id}}",
         "alt": "Scene {{id}}"
       },
-      "promptModelStalled": "The model has not written anything for over 2 min"
+      "promptModelStalled": "The model has not written anything for over 2 min",
+      "noCredits": {
+        "title": "You ran out of balance",
+        "body": "The project was saved with everything generated so far. Top up at the provider, refresh and resume: only what's missing gets generated.",
+        "retry": "Resume where it stopped",
+        "retryHint": "Enabled once the balance read is enough. What's done is not repeated or charged again."
+      }
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -400,7 +419,8 @@
       "styleRequired": "Pick (or create) a custom style to generate.",
       "characterRequired": "This style asks for your character: pick one.",
       "fixedCharacterMissing": "The character this style had fixed is no longer in your list. Edit the style and pick another.",
-      "promptModelsBlocked": "Every prompt-writing model is blocked: pick a Vimo style or wait for them to come back."
+      "promptModelsBlocked": "Every prompt-writing model is blocked: pick a Vimo style or wait for them to come back.",
+      "insufficientCredits": "A provider doesn't have enough balance for this generation: top up or lower the cost (fewer scenes, another quality)."
     },
     "errors": {
       "discard": "Discard",
@@ -479,7 +499,12 @@
       "demoStyleNotIncluded": "The demo does not include this style. Pick one of the styles the demo shows.",
       "demoFormatNotIncluded": "The installed demo pack has no stories in this format. Enter again through the Demo button to update it.",
       "llmRescueNeeded": "The chosen model left scenes unwritten and another model rescued them.",
-      "llmAuth": "DeepInfra rejected your API key. Check it in API Keys: without a valid key the prompts cannot be written."
+      "llmAuth": "DeepInfra rejected your API key. Check it in API Keys: without a valid key the prompts cannot be written.",
+      "voiceInsufficientCredits": "Your voice provider account doesn't have enough credits to generate the narration.",
+      "imageInsufficientCredits": "Your image provider account ran out of balance. Everything generated so far is kept.",
+      "llmInsufficientCredits": "Your DeepInfra account has no balance to write the prompts.",
+      "transcriptionInsufficientCredits": "Your Deepgram account has no balance to transcribe the narration.",
+      "musicInsufficientCredits": "Your Evolink account doesn't have enough credits to generate the music."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -699,7 +724,8 @@
         "interrupted": "Interrupted",
         "paused": "Cancelled",
         "error": "Error",
-        "draft": "Draft"
+        "draft": "Draft",
+        "noCredits": "No credits"
       }
     },
     "player": {
@@ -721,7 +747,8 @@
     "progress": {
       "pageTitle": "Progress",
       "interrupted": "The generation was interrupted. You can resume it: finished steps are not repeated.",
-      "cancelled": "You cancelled this generation. You can resume it from the last finished step, or delete the project from the library."
+      "cancelled": "You cancelled this generation. You can resume it from the last finished step, or delete the project from the library.",
+      "noCredits": "The generation paused because the provider rejected the request for lack of balance. Everything done was saved: top up, refresh the balance and resume from the last step."
     },
     "editor": {
       "draftHint": "This project is a draft: nothing has been generated yet. Start the generation to edit it.",
@@ -984,7 +1011,9 @@
       "sidecar": "Could not start the generation engine. Restart the app.",
       "interrumpida": "Generation was interrupted when the app closed. If Evolink completed the task, credits were charged anyway — generate again with the same prompt or wait a few minutes.",
       "cooldown": "Wait {{seconds}} seconds between generations.",
-      "desconocido": "Something went wrong. Try again."
+      "desconocido": "Something went wrong. Try again.",
+      "insufficientCredits": "Your Evolink account doesn't have enough credits to generate music. Top up and try again.",
+      "llmInsufficientCredits": "Your DeepInfra account has no balance to suggest the prompt."
     }
   },
   "characters": {
@@ -1108,7 +1137,9 @@
       "cancelled": "Preview cancelled.",
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
       "interrupted": "The preview was interrupted.",
-      "unknown": "Something went wrong. Try again."
+      "unknown": "Something went wrong. Try again.",
+      "imageInsufficientCredits": "Your image provider account ran out of balance to generate the preview.",
+      "llmInsufficientCredits": "Your DeepInfra account has no balance to write the profile."
     }
   },
   "voices": {
@@ -1272,7 +1303,8 @@
       "desconocido": "Something failed while generating the voice. Try again.",
       "quotaExceeded": "Your ElevenLabs account ran out of characters. Wait for the renewal or upgrade your plan.",
       "libraryAddFailed": "The library voice could not be added to your ElevenLabs account. Check the voice slots of your plan.",
-      "accountRestricted": "ElevenLabs restricted your account for this feature (unusual activity on the free tier, or a paid-plan-only feature). Check your ElevenLabs account."
+      "accountRestricted": "ElevenLabs restricted your account for this feature (unusual activity on the free tier, or a paid-plan-only feature). Check your ElevenLabs account.",
+      "insufficientCredits": "Your account doesn't have enough credits to generate this voice. Top up and try again."
     },
     "credits": {
       "characters": "ElevenLabs characters",

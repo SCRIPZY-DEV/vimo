@@ -40,6 +40,13 @@ export function normalizeQuality(
   return defaultQualityFor(provider, format)
 }
 
+// Créditos Evolink por imagen de la opción elegida; undefined si la opción
+// ya no existe (una calidad retirada cae a la default antes de llegar acá).
+export function creditsForQuality(quality: string): number | undefined {
+  return EVOLINK_QUALITY_OPTIONS.find((option) => option.id === quality)
+    ?.credits
+}
+
 // Precio USD por imagen de la opción elegida (buscando en ambas familias de
 // Fal); undefined si la opción ya no existe en el catálogo del proveedor.
 export function priceForQuality(

@@ -8,6 +8,7 @@ import {
   Loader2,
   Pause,
   Pencil,
+  Wallet,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
@@ -38,6 +39,9 @@ const BADGE_LOOKS: Record<ProjectBadge, BadgeLook> = {
   awaitingConfirmation: { background: 'bg-ocean-deep', Icon: Clock },
   interrupted: { background: 'bg-ember', Icon: Pause },
   paused: { background: 'bg-cherry', Icon: Ban },
+  // Pausado por saldo agotado (ADR-0031, viene de dev): frambuesa con la
+  // billetera como ícono.
+  noCredits: { background: 'bg-raspberry', Icon: Wallet },
   error: { background: 'bg-wine', Icon: AlertCircle },
   draft: { background: 'bg-graphite', Icon: Pencil },
 }

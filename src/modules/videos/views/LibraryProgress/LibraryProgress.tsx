@@ -12,6 +12,7 @@ import { Button } from '@/modules/common/ui/button'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
+import { NoCreditsResumePanel } from '@/modules/videos/components/NoCreditsResumePanel'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import {
   UNKNOWN_CREATE_ERROR_KEY,
@@ -22,6 +23,7 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
+import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type {
   ProjectRunOptions,
   SceneConfirmationView,
@@ -108,6 +110,10 @@ export function LibraryProgress() {
           models,
           defaultId,
         )
+      : null,
+    imageProvider: status?.metadata.options.imageProvider ?? null,
+    voiceVendor: status?.metadata.options.voiceProvider
+      ? vendorOfProvider(status.metadata.options.voiceProvider)
       : null,
   }
   const resume = () =>
@@ -200,6 +206,19 @@ export function LibraryProgress() {
       </div>
     )
   }
+
+  // Pausado por saldo (ADR-0031): saldo actual, recargar y reanudar recién
+  // cuando alcance; las fases hechas son cache-hit igual que al cancelar.
+  if (
+    metadata.state === 'paused' &&
+    metadata.pauseReason === 'insufficient-credits'
+  )
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 px-8 py-10">
+        <LibraryViewHeader title={projectName} />
+        <NoCreditsResumePanel status={status} onResume={resume} />
+      </div>
+    )
 
   // generating (job muerto con la app) o paused (cancelado por la persona):
   // mismo remedio — reanudar; las fases hechas son cache-hit y el disco se

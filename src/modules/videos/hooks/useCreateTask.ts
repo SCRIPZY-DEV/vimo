@@ -10,6 +10,7 @@ import {
   CANCEL_SETTLE_TIMEOUT_MS,
   CREATE_ERROR_MESSAGE_KEYS,
   CREATE_TASK_STORAGE_KEY,
+  INSUFFICIENT_CREDITS_CODES,
   INTERRUPTED_ERROR_KEY,
   LOG_LINES_LIMIT,
   PROMPT_STAGE_STALL_MS,
@@ -17,6 +18,8 @@ import {
   RETRYABLE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
+import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
+import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import {
   libraryTabFor,
@@ -104,6 +107,11 @@ function restoreTask(): CreateTask | null {
       promptsStageActivity: null,
       promptModelIssue: null,
       promptModelSwitch: null,
+      imageProvider: stored.imageProvider ?? null,
+      voiceVendor: stored.voiceVendor ?? null,
+      // El rechazo por saldo sí sobrevive: el proyecto quedó pausado en
+      // disco por eso y la tarjeta tiene que seguir diciéndolo.
+      creditsIssue: stored.creditsIssue ?? null,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -445,6 +453,25 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'job-failed': {
       stopActiveJob()
+      // Saldo agotado (ADR-0031): ni reintento automático ni diálogo del
+      // modelo — el proyecto quedó pausado en disco; la tarjeta muestra el
+      // saldo, manda a recargar y re-chequea antes de reanudar.
+      const creditsDomain = INSUFFICIENT_CREDITS_CODES.has(event.code)
+        ? creditsDomainOf(event.code)
+        : null
+      if (creditsDomain) {
+        patchTask(taskId, {
+          status: 'error',
+          jobId: null,
+          stage: null,
+          imagesRecovery: null,
+          promptsStageActivity: null,
+          errorKey: errorKeyFor(event.code),
+          creditsIssue: { code: event.code, domain: creditsDomain },
+        })
+        scheduleCreditsRefresh()
+        return
+      }
       // El job cayó por el proveedor mientras el modelo elegido escribía
       // (ADR-0028): el modelo queda bloqueado una hora y, en vez del
       // reintento automático con el mismo modelo, se abre la decisión.
@@ -610,6 +637,9 @@ function makeTask(
     promptsStageActivity: null,
     promptModelIssue: null,
     promptModelSwitch: null,
+    imageProvider: options.imageProvider ?? null,
+    voiceVendor: options.voiceVendor ?? null,
+    creditsIssue: null,
   }
 }
 
@@ -640,6 +670,7 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
     promptsStageActivity: null,
     promptModelIssue: null,
     promptModelSwitch: null,
+    creditsIssue: null,
     ...pausePatch,
   })
 
@@ -685,6 +716,10 @@ async function startCreation(input: {
       videoFormat: input.payload.options.videoFormat,
       usesCustomStyle,
       promptModel: usesCustomStyle ? (input.promptModel ?? null) : null,
+      imageProvider: input.payload.options.imageProvider,
+      voiceVendor: input.payload.options.voiceProvider
+        ? vendorOfProvider(input.payload.options.voiceProvider)
+        : null,
     }),
   )
 

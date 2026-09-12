@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
 import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
+import { apiKeysApi } from '@/modules/api-keys/api'
+import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
@@ -24,6 +26,7 @@ import {
   PROJECT_NAME_LIMIT,
 } from '@/modules/videos/constants'
 import { allPromptModelsBlocked } from '@/modules/common/utilities/allPromptModelsBlocked'
+import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
 import { characterPatchForStyle } from '@/modules/videos/utilities/characterPatchForStyle'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
@@ -69,10 +72,16 @@ export function CreateForm({
   // dibuja el chip rojo en la sección de personaje nombra el paso faltante.
   const { fixedMissing } = useStyleCharacter(value)
 
-  const blockers = formBlockers(value, {
+  // Pre-check de saldo (ADR-0031): con saldo leído e insuficiente el envío
+  // se frena como cualquier otro paso faltante; ilegible solo avisa.
+  const costCheck = useCreateCostCheck({ form: value })
+  const missingSteps = formBlockers(value, {
     promptModelsBlocked,
     fixedCharacterMissing: fixedMissing,
   })
+  const blockers = costCheck.result.blocking
+    ? [...missingSteps, 'create.validation.insufficientCredits']
+    : missingSteps
 
   // El botón no se deshabilita en silencio: al pulsarlo con pasos faltantes
   // lleva a la alerta y la sacude, en vez de no hacer nada.
@@ -225,6 +234,16 @@ export function CreateForm({
         disabled={disabled}
         onChange={onChange}
       />
+
+      {costCheck.result.blocking && (
+        <InsufficientCreditsAlert
+          lines={costCheck.result.lines}
+          blocking
+          onReload={(providerId) => void apiKeysApi.openBillingPage(providerId)}
+          onRefresh={costCheck.refresh}
+          refreshing={costCheck.refreshing}
+        />
+      )}
 
       <CreateBlockersAlert
         ref={blockersRef}

@@ -2,7 +2,8 @@ import type { ApiKeyProvider } from './types/provider'
 
 /**
  * Catálogo único de proveedores con clave BYO. Rust lo espeja en
- * `src-tauri/src/api_keys/provider.rs`: todo cambio acá se replica allá.
+ * `src-tauri/src/api_keys/provider.rs`: todo cambio de ids o categorías acá
+ * se replica allá (las URLs son solo de la UI).
  */
 export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
   {
@@ -10,6 +11,7 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     category: 'llm',
     label: 'DeepInfra',
     getKeyUrl: 'https://deepinfra.com/dash/api_keys',
+    billingUrl: 'https://deepinfra.com/dash/billing',
     keyFormatHint: 'sk-...',
     descriptionKey: 'apiKeys.descripcion.deepinfra',
     recommended: true,
@@ -19,6 +21,7 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     category: 'image',
     label: 'Fal.ai',
     getKeyUrl: 'https://fal.ai/dashboard/keys',
+    billingUrl: 'https://fal.ai/dashboard/billing',
     keyFormatHint: 'id:secret',
     descriptionKey: 'apiKeys.descripcion.fal',
     badgeKey: 'apiKeys.badge.falAdmin',
@@ -29,6 +32,7 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     category: 'image',
     label: 'Evolink',
     getKeyUrl: 'https://evolink.ai/',
+    billingUrl: 'https://evolink.ai/',
     keyFormatHint: 'sk-...',
     descriptionKey: 'apiKeys.descripcion.evolink',
     recommended: false,
@@ -38,6 +42,7 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     category: 'voice',
     label: 'DubVoice',
     getKeyUrl: 'https://www.dubvoice.ai/',
+    billingUrl: 'https://www.dubvoice.ai/',
     keyFormatHint: 'sk_live_...',
     descriptionKey: 'apiKeys.descripcion.dubvoice',
     recommended: true,
@@ -47,6 +52,7 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     category: 'voice',
     label: 'ElevenLabs',
     getKeyUrl: 'https://elevenlabs.io/app/settings/api-keys',
+    billingUrl: 'https://elevenlabs.io/app/subscription',
     keyFormatHint: 'sk_...',
     descriptionKey: 'apiKeys.descripcion.elevenlabs',
     recommended: false,
@@ -56,6 +62,7 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     category: 'transcription',
     label: 'Deepgram',
     getKeyUrl: 'https://console.deepgram.com/',
+    billingUrl: 'https://console.deepgram.com/billing',
     keyFormatHint: 'Token',
     descriptionKey: 'apiKeys.descripcion.deepgram',
     recommended: true,

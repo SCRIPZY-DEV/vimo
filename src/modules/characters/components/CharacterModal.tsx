@@ -34,6 +34,7 @@ import {
   toPreviewViews,
 } from '@/modules/characters/utilities/characterDraft'
 import { identitySourceOf } from '@/modules/characters/utilities/identitySourceOf'
+import { previewShortfallLine } from '@/modules/characters/utilities/previewShortfallLine'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
@@ -329,6 +330,7 @@ export function CharacterModal({
                 credits={credits.credits}
                 creditsLoading={credits.isLoading}
                 creditsRefreshing={credits.isRefreshing}
+                creditsLine={previewShortfallLine(provider, credits.credits)}
                 onRefreshCredits={credits.refresh}
                 onStyleChange={setStyleId}
                 onProviderChange={setProvider}

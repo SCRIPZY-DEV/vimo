@@ -1,5 +1,6 @@
 import { PipelineFailure } from '../../runner/failure.ts'
 import { rateLimitDelayMs } from '../../utils/http-retry.ts'
+import { isInsufficientCreditsResponse } from '../../utils/insufficient-credits.ts'
 import { sleep } from '../../utils/sleep.ts'
 import type {
   DubvoiceAccountResponse,
@@ -73,13 +74,21 @@ export async function dubvoiceFetch(
 
     if (response.ok) return response
 
+    const bodyText = await response.text().catch(() => '')
+
+    // Saldo agotado antes que la clave: DubVoice puede responder 402 o 403
+    // con detalle de créditos, y reintentar solo repite el rechazo (ADR-0031).
+    if (isInsufficientCreditsResponse(response.status, bodyText))
+      throw new PipelineFailure(
+        'voice_insufficient_credits',
+        `DubVoice rejected the request for insufficient credits (status=${response.status}): ${bodyText.slice(0, 200)}`,
+      )
+
     if (response.status === 401 || response.status === 403)
       throw new PipelineFailure(
         'voice_invalid_api_key',
         `DubVoice rejected the API key (status=${response.status})`,
       )
-
-    const bodyText = await response.text().catch(() => '')
 
     if (response.status === 429) {
       if (attempt === RATE_LIMIT_MAX_RETRIES)
