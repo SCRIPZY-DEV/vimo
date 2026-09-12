@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="es">
+  <meta charset="utf-8" /><title>
+    VIMO · Informe de correcciones · 2026-09-12
+  </title>
+  <style>
+    @page {
+      size: A4;
+      margin: 17mm 16mm 19mm;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #202c3b;
+      font-size: 10.5pt;
+      line-height: 1.48;
+      margin: 0;
+    }
+    section {
+      break-after: page;
+    }
+    section:last-child {
+      break-after: auto;
+    }
+    h1 {
+      font-size: 30pt;
+      line-height: 1.1;
+      color: #153e69;
+      margin: 12mm 0 6mm;
+    }
+    h2 {
+      font-size: 19pt;
+      color: #153e69;
+      margin: 0 0 6mm;
+      border-bottom: 2px solid #32a9a0;
+      padding-bottom: 3mm;
+    }
+    h3 {
+      font-size: 12pt;
+      margin: 5mm 0 2mm;
+    }
+    p {
+      margin: 2.5mm 0;
+    }
+    li {
+      margin: 1.5mm 0;
+    }
+    ul,
+    ol {
+      padding-left: 5mm;
+    }
+    .tag {
+      font-size: 9pt;
+      color: #507084;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+    }
+    .lead {
+      font-size: 13pt;
+      line-height: 1.5;
+    }
+    .box {
+      background: #edf5fa;
+      border-left: 3px solid #168478;
+      padding: 4mm;
+      margin: 5mm 0;
+    }
+    .warn {
+      background: #fff4e5;
+      border-left-color: #bb7628;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 4mm 0;
+      font-size: 9.2pt;
+    }
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid #d6e1e8;
+      padding: 2.2mm;
+    }
+    th {
+      background: #edf5fa;
+      color: #153e69;
+    }
+    code {
+      font-family: Menlo, monospace;
+      font-size: 8.7pt;
+      overflow-wrap: anywhere;
+    }
+    .files {
+      font-size: 9pt;
+      line-height: 1.4;
+    }
+    .files code {
+      font-size: 8pt;
+    }
+    .small {
+      font-size: 9pt;
+      color: #506171;
+    }
+    a {
+      color: #165a89;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+  </style>
+  <body>
+    <section>
+      <div class="tag">VIMO · Auditoría y correcciones locales</div>
+      <h1>Previews, personajes<br />y reanudación de voz</h1>
+      <p class="lead">
+        Informe de causas, implementación, evidencia y pruebas de aceptación.
+      </p>
+      <p>12 de septiembre de 2026 · Rama <code>feat/fix-bugs-vimo</code></p>
+      <div class="box">
+        <strong>Resultado:</strong> implementados los tres bloques solicitados.
+        Compilan el frontend, el sidecar y Rust; se generó el paquete nativo
+        macOS ARM <code>Vimo.app</code>. No se instaló, publicó ni reemplazó la
+        aplicación existente.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Problema</th>
+            <th>Corrección principal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Previews lentas y sin recuperación</td>
+            <td>
+              Modelo interactivo rápido con rotación, cuatro prompts y cuatro
+              imágenes en paralelo, progreso y publicación individual.
+            </td>
+          </tr>
+          <tr>
+            <td>IA deshabilitada en Catálogo</td>
+            <td>
+              El guion llega al modal y al experto; permite inferir identidad
+              con los campos vacíos.
+            </td>
+          </tr>
+          <tr>
+            <td>Reanudar repite narración</td>
+            <td>
+              Recibos persistentes por solicitud, recuperación de tareas
+              conocidas, partes reutilizables y exclusión de jobs duplicados.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Plan ejecutado</h3>
+      <ol>
+        <li>
+          Leer contexto, arquitectura y decisiones; seguir cada recorrido desde
+          la UI hasta el proveedor.
+        </li>
+        <li>
+          Separar las correcciones y preservar rutas, orden de etapas y
+          transporte nativo.
+        </li>
+        <li>
+          Implementar y documentar cada cambio inmediatamente en Obsidian.
+        </li>
+        <li>
+          Probar fallos controlados, concurrencia, recuperación y artefactos
+          empaquetados.
+        </li>
+        <li>
+          Cerrar bloques con commits locales y entregar este informe con QA
+          manual.
+        </li>
+      </ol>
+      <p class="small">
+        Commits de código: <code>c7f3779</code> Catálogo ·
+        <code>eb0f1f4</code> previews · <code>249d330</code> voz ·
+        <code>8a43e44</code> recuperación del proveedor de respaldo.
+      </p>
+      <div class="box warn">
+        <strong>Alcance de la evidencia:</strong> no se usaron claves reales ni
+        se gastaron créditos. Falta la aceptación con proveedores reales y la
+        comprobación de Windows. Compilar macOS no demuestra funcionamiento de
+        Windows.
+      </div>
+    </section>
+
+    <section>
+      <h2>1. Previews de Mi estilo</h2>
+      <h3>Qué estaba mal</h3>
+      <p>
+        El proceso redactaba cuatro prompts uno por uno, con un modelo grande y
+        esperas/reintentos sobre el mismo proveedor saturado. Después enviaba
+        las cuatro imágenes también de forma serial. Guardaba los resultados
+        juntos al final.
+      </p>
+      <p>
+        La interfaz ignoraba el avance de prompts y la grilla podía reducirse a
+        la primera tarjeta que recibía un evento. Por eso se percibía poca
+        actividad incluso cuando había trabajo en curso.
+      </p>
+      <h3>Cómo se corrigió</h3>
+      <ul>
+        <li>
+          Política exclusiva de previews:
+          <strong>Llama 4 Scout → GPT OSS 120B Turbo → Ultra</strong>. Cada
+          intento tiene un máximo de 25 segundos; saturación, error de proveedor
+          o respuesta inutilizable activan el siguiente candidato.
+        </li>
+        <li>
+          Se comparte la memoria de modelos fallidos entre las cuatro
+          redacciones del job. Errores de clave o saldo no rotan modelos:
+          cambiar modelo no arregla la cuenta.
+        </li>
+        <li>
+          Las cuatro redacciones corren en paralelo. Solo cuando las cuatro son
+          válidas arrancan los cuatro POSTs de imagen en paralelo.
+        </li>
+        <li>
+          Evolink se consulta cada segundo para estas previews; el resto del
+          pipeline conserva sus intervalos.
+        </li>
+        <li>
+          Cada archivo se publica atómicamente al llegar. Su evento incluye ruta
+          y versión temporal para mostrarse antes de que terminen los otros.
+        </li>
+        <li>
+          Se mantienen cuatro tarjetas; los resultados parciales y muestras
+          previas no se borran porque otra generación falle.
+        </li>
+      </ul>
+      <h3>Qué significa el porcentaje</h3>
+      <p>
+        La redacción combina actividad del stream y estimación temporal. Se
+        limita al 95 % hasta validar el prompt:
+        <strong>no es un porcentaje real del modelo</strong>. Para imágenes se
+        conserva el avance remoto de Evolink y la estimación de Fal. El 100 % de
+        una muestra se emite después de guardarla.
+      </p>
+      <h3>Evidencia</h3>
+      <p>
+        Ocho regresiones: 429, 503, timeout, formato inválido, 401, 402 y dos
+        casos de concurrencia/publicación individual —Fal y Evolink—. Una
+        barrera exige que existan cuatro POSTs antes de responder; también se
+        comprueba un archivo guardado mientras otra muestra sigue pendiente.
+      </p>
+      <div class="box warn">
+        No se promete que las cuatro imágenes terminen exactamente juntas ni
+        descargar en menos de dos segundos: resolución, colas, ancho de banda y
+        CDN siguen influyendo. Se quitaron las esperas seriales y el guardado
+        conjunto de la app.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Identidad desde Catálogo</h2>
+      <h3>Qué estaba mal</h3>
+      <p>
+        El guion viajaba dentro de <code>styleContext</code>, que solo existe
+        para Mi estilo. Al abrir el creador de personajes desde Catálogo, el
+        modal desconocía que había un guion y exigía nombre, edad, rol y
+        descripción completos antes de habilitar la IA.
+      </p>
+      <h3>Cómo se corrigió</h3>
+      <p>
+        Se agregó el guion como dato independiente en
+        <code>CharacterSection</code>, <code>CharacterPickerModal</code> y
+        <code>CharacterModal</code>. Con al menos 20 caracteres, la IA puede
+        inferir la ficha aunque esté vacía. La petición existente
+        <code>suggest-character-profile</code> ya aceptaba ese guion: no se creó
+        otro endpoint.
+      </p>
+      <ul>
+        <li>
+          Los campos que el usuario ya completó conservan prioridad sobre las
+          sugerencias.
+        </li>
+        <li>
+          Mi estilo mantiene su experto contextual
+          <code>design-style-character</code>.
+        </li>
+        <li>La biblioteca sin guion sigue exigiendo los campos previos.</li>
+        <li>
+          Se muestran en el modal los errores que propaga la mutación de
+          sugerencia.
+        </li>
+      </ul>
+      <div class="box">
+        Se conserva la política premium y el fallback determinístico del experto
+        de Catálogo. La corrección habilita y conecta la función; no cambia esa
+        decisión de calidad ni garantiza una latencia equivalente entre modelos.
+      </div>
+      <h3>Verificación de interfaz: 3/3</h3>
+      <ol>
+        <li>
+          <strong>Catálogo:</strong> se monta la sección real con catálogo vacío
+          y guion; se abre el selector, la pestaña sin foto y la tarjeta de
+          creación. El botón queda habilitado; la petición lleva el guion exacto
+          y los campos se autocompletan.
+        </li>
+        <li>
+          <strong>Biblioteca sin guion:</strong> con campos vacíos, el botón
+          queda deshabilitado.
+        </li>
+        <li>
+          <strong>Mi estilo:</strong> el botón continúa habilitado y envía guion
+          y estilo por su carril original.
+        </li>
+      </ol>
+      <p>
+        Se ejecutó Chrome headless con componentes y hooks React reales,
+        simulando únicamente APIs y disponibilidad de claves. No sustituye una
+        prueba de WebKit/Tauri ni evalúa la calidad de una respuesta real.
+      </p>
+      <h3>Prueba que debés hacer</h3>
+      <ol>
+        <li>
+          Abrí Crear video → Catálogo y pegá un guion con un protagonista
+          reconocible.
+        </li>
+        <li>
+          Sin seleccionar personajes, abrí Elegir personaje → Sin foto → Crear
+          personaje.
+        </li>
+        <li>Sin completar campos, pulsá Redactar identidad con IA.</li>
+        <li>
+          Confirmá que nombre, rol y descripción correspondan al guion; repetí
+          con otro guion para descartar contexto viejo.
+        </li>
+        <li>
+          Repetí en Mi estilo y sin guion desde Personajes. Sin clave
+          configurada, la IA debe quedar deshabilitada.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>3. Reanudación de narración</h2>
+      <h3>Qué estaba mal</h3>
+      <p>
+        Se reutilizaban el audio final y las partes terminadas, pero no la
+        solicitud en curso: el identificador remoto solo vivía en memoria. Si se
+        cancelaba antes de guardar el audio, reanudar enviaba otra solicitud.
+        Además, errores de descarga podían activar otro carril y Rust no excluía
+        dos jobs del mismo proyecto.
+      </p>
+      <h3>Cómo se corrigió</h3>
+      <ul>
+        <li>
+          <strong>Antes del POST:</strong> recibo atómico por parte, con estado,
+          hora y huella de texto/voz/motor/modelo/idioma/ajustes/contexto. No
+          contiene claves ni texto.
+        </li>
+        <li>
+          <strong>Después de aceptar:</strong> guarda ID remoto y progreso. Si
+          se cancela durante el POST, espera su respuesta para conservar ese ID.
+        </li>
+        <li>
+          <strong>Reanudar:</strong> consulta la misma tarea; recupera
+          tiempo/porcentaje y descarga su resultado. Minimax conserva su URL
+          para reintentar la descarga sin repetir la síntesis.
+        </li>
+        <li>
+          <strong>Motores síncronos:</strong> terminan y guardan la parte ya
+          enviada; cancelar evita enviar las siguientes.
+        </li>
+        <li>
+          <strong>Fallback:</strong> solo ante rechazo confirmado o tarea remota
+          fallida. Un fallo de red, polling, CDN o disco no equivale a permiso
+          para cobrar otra voz. Al reanudar se prioriza el carril registrado,
+          aunque fuera el respaldo; si falta su clave, se bloquea antes de
+          enviar.
+        </li>
+        <li>
+          <strong>Audios largos:</strong> reutiliza partes compatibles; FFmpeg
+          escribe un intermedio y solo publica la narración final cuando termina
+          la unión.
+        </li>
+        <li>
+          <strong>Concurrencia:</strong> Rust comprueba e inserta el job bajo el
+          mismo mutex. La UI bloquea arranques/reanudaciones duplicados.
+        </li>
+      </ul>
+      <h3>Evidencia</h3>
+      <p>
+        Doce casos automatizados verifican número de POSTs, ID/URL persistidos,
+        cancelación, red incierta, cambio de ajustes, error remoto confirmado,
+        recibo corrupto, carril de respaldo y progreso recuperado. El caso de
+        texto largo ejecuta FFmpeg real, fuerza un fallo de unión, reanuda sin
+        nuevos POSTs y decodifica el MP3 completo.
+      </p>
+      <div class="box warn">
+        <strong>Límite de recuperación:</strong> si el proceso muere después de
+        enviar pero antes de recibir ID/URL, no se puede confirmar el resultado
+        automáticamente. Se bloquea el reenvío y se indica revisar el historial
+        remoto; si el audio existe, usarlo como audio propio. Tampoco pueden
+        recuperarse por ID encargos antiguos cuyo identificador nunca se guardó.
+      </div>
+      <p class="small">
+        El bloqueo nativo cubre esta instancia de app, no otros procesos CLI.
+        Una WebView recargada no reconecta al Channel vivo: debe esperar su
+        terminación y reanudar desde disco. Los recibos pueden contener URLs
+        firmadas; no compartirlos públicamente.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Puntos tocados</h2>
+      <p class="small">
+        Rutas relativas al repositorio. Los archivos no listados como código no
+        alteran el comportamiento de producto.
+      </p>
+      <table class="files">
+        <thead>
+          <tr>
+            <th>Área</th>
+            <th>Archivos y responsabilidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Previews / backend</td>
+            <td>
+              <code>pipeline/providers/llm/interactive.ts</code> —
+              selección/rotación con deadline.<br /><code
+                >pipeline/commands/styles/generate-style-samples.ts</code
+              >
+              — concurrencia, progreso y guardado individual.<br /><code
+                >pipeline/providers/image/evolink.ts</code
+              >, <code>pipeline/types/images.ts</code> — intervalo opcional solo
+              para previews.
+            </td>
+          </tr>
+          <tr>
+            <td>Previews / UI</td>
+            <td>
+              <code>src/modules/videos/hooks/useStyleSampleGeneration.ts</code>
+              — progreso de prompts y ruta individual.<br /><code
+                >src/modules/videos/components/CustomStyleModal.tsx</code
+              >
+              — cuatro tarjetas estables y visualización incremental.
+            </td>
+          </tr>
+          <tr>
+            <td>Personajes</td>
+            <td>
+              <code>src/modules/videos/components/CharacterSection.tsx</code
+              ><br /><code
+                >src/modules/videos/components/CharacterPickerModal.tsx</code
+              ><br /><code
+                >src/modules/characters/components/CharacterModal.tsx</code
+              ><br />Conexión del guion, habilitación y presentación del error.
+            </td>
+          </tr>
+          <tr>
+            <td>Voz / persistencia</td>
+            <td>
+              <code>pipeline/providers/tts/request-checkpoint.ts</code> —
+              recibos atómicos y validación.<br /><code
+                >pipeline/providers/tts/chunked-synthesis.ts</code
+              >
+              — recuperación, partes y unión segura.<br /><code
+                >pipeline/stages/voice/narration.ts</code
+              >
+              — fallback seguro y tiempo recuperado.
+            </td>
+          </tr>
+          <tr>
+            <td>Adaptadores TTS</td>
+            <td>
+              <code>pipeline/providers/tts/dubvoice-catalog.ts</code> — ID y
+              polling recuperables.<br /><code
+                >pipeline/providers/tts/provider.ts</code
+              >
+              — contrato interno de checkpoint.<br /><code
+                >pipeline/providers/tts/{elevenlabs,vbee,fishaudio,minimax}.ts</code
+              >
+              — propagación del recibo y URL Minimax.
+            </td>
+          </tr>
+          <tr>
+            <td>Rust y UI de tarea</td>
+            <td>
+              <code>src-tauri/src/pipeline/{commands,jobs,error}.rs</code> —
+              exclusión por proyecto y error ocupado.<br /><code
+                >src/modules/videos/hooks/useCreateTask.ts</code
+              >
+              — guardas de arranque/reanudación.<br /><code
+                >src/modules/{videos,voices}/constants.ts</code
+              >, <code>public/locales/{es,en,pt}.json</code> — recuperación,
+              reintentos y mensajes.
+            </td>
+          </tr>
+          <tr>
+            <td>Pruebas</td>
+            <td>
+              <code>scripts/check-preview-regressions.mjs</code><br /><code
+                >scripts/check-voice-resume.mjs</code
+              ><br /><code>scripts/check-packaged-resume.mjs</code><br /><code
+                >scripts/check-character-ui.mjs</code
+              >, <code>scripts/chrome-session.mjs</code>
+            </td>
+          </tr>
+          <tr>
+            <td>Documentación</td>
+            <td>
+              <code
+                >docs/fixes/{catalog-character-context,style-preview-generation,voice-resume}.md</code
+              ><br /><code
+                >docs/adr/ADR-0035-recibos-de-voz-y-previews-interactivas.md</code
+              >, índices ADR y <code>docs/ARCHITECTURE.md</code>.<br />Este
+              informe y su fuente en <code>docs/reports/</code>; generación PDF
+              en <code>scripts/build-bugfix-report.mjs</code>.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small">
+        En Obsidian: log inmediato de VIMO-TAURI, nota ADR con diagramas Mermaid
+        y APIs compartidas. Se amplió la entrada global existente sobre
+        reintentos que recrean trabajos cobrados. Sin secretos nuevos, cambios
+        de esquema ni dependencias agregadas.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Validación y aceptación</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Chequeo ejecutado</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pnpm format → pnpm lint → pnpm build</code></td>
+            <td>Aprobado</td>
+          </tr>
+          <tr>
+            <td>TypeScript del pipeline + <code>check:locales</code></td>
+            <td>Aprobado; 1183 claves alineadas</td>
+          </tr>
+          <tr>
+            <td>Regresiones previews / voz</td>
+            <td>8/8 + 12/12</td>
+          </tr>
+          <tr>
+            <td>Interfaz Chrome, APIs simuladas</td>
+            <td>3/3 recorridos de personajes</td>
+          </tr>
+          <tr>
+            <td>
+              <code>cargo check</code> + build Tauri <code>--bundles app</code>
+            </td>
+            <td>Aprobado; macOS ARM</td>
+          </tr>
+          <tr>
+            <td>Sidecar dentro de <code>Vimo.app</code></td>
+            <td>3/3: NDJSON, recibo incierto, cache-hit</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Previews: prueba en la app</h3>
+      <ol>
+        <li>
+          Abrí Mi estilo, elegí un estilo guardado y generá cuatro muestras con
+          Evolink. Repetí con Fal.
+        </li>
+        <li>
+          Verificá cuatro tarjetas desde el inicio, barras durante prompts y
+          arranque conjunto de imágenes en el historial remoto.
+        </li>
+        <li>
+          Una muestra lista debe verse mientras otras siguen pendientes. Si
+          falla una, las ya obtenidas deben conservarse.
+        </li>
+        <li>
+          Compará ID/hora de tareas y visualización. No evalúes concurrencia
+          solo por cuál imagen termina primero.
+        </li>
+      </ol>
+      <h3>Voz: prueba en la app</h3>
+      <ol>
+        <li>
+          Generá una narración corta con ElevenLabs vía DubVoice; durante la
+          voz, navegá a Biblioteca y regresá. Debe continuar.
+        </li>
+        <li>
+          Repetí saliendo para crear otro video. Volvé al primer proyecto y
+          reanudá: debe consultar el mismo ID o usar el audio guardado.
+        </li>
+        <li>
+          Cortá la red después de aceptar la tarea y durante una descarga;
+          restablecela y reanudá. Revisá el historial remoto para confirmar que
+          no se creó otro encargo.
+        </li>
+        <li>
+          Repetí con texto largo, Minimax y ElevenLabs directo. Escuchá las
+          uniones y comprobá duración completa. La parte síncrona enviada puede
+          seguir trabajando después de cancelar.
+        </li>
+        <li>
+          Probá doble clic en Reanudar y cierre forzado durante el POST. Un
+          resultado desconocido debe bloquear reenvío, no inventar éxito.
+        </li>
+      </ol>
+      <p class="small">
+        Ejecutar estas pruebas usa tus proveedores y puede consumir créditos. No
+        se ejecutaron contra tus cuentas durante esta intervención. Repetir en
+        Windows antes de distribuir.
+      </p>
+      <h3>Referencias oficiales para la política de previews</h3>
+      <p class="small">
+        <a
+          href="https://deepinfra.com/meta-llama/Llama-4-Scout-17B-16E-Instruct"
+          >DeepInfra · Llama 4 Scout</a
+        >
+        ·
+        <a href="https://deepinfra.com/openai/gpt-oss-120b-Turbo"
+          >GPT OSS Turbo</a
+        >
+        ·
+        <a href="https://deepinfra.com/openai/gpt-oss-120b-Ultra"
+          >GPT OSS Ultra</a
+        >
+        ·
+        <a
+          href="https://evolink.ai/docs/en/api-manual/task-management/get-task-detail"
+          >Evolink · Consulta de tareas</a
+        >. Consultadas el 2026-09-12; no implican garantía de latencia.
+      </p>
+    </section>
+  </body>
+</html>
