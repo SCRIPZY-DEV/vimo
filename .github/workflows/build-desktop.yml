@@ -76,9 +76,13 @@ jobs:
       RELEASES_S3_BUCKET: ${{ secrets.RELEASES_S3_BUCKET }}
       RELEASES_S3_ENDPOINT: ${{ secrets.RELEASES_S3_ENDPOINT }}
     steps:
+      # Sin `fetch-tags`: con un tag anotado, actions/checkout intenta traer el
+      # commit y el tag al mismo ref y falla («Cannot fetch both …»). El
+      # checkout deja un tag ligero, así que se trae el anotado a mano con
+      # --force para que `git tag -l --format='%(contents)'` vea las notas.
       - uses: actions/checkout@v4
-        with:
-          fetch-tags: true
+
+      - run: git fetch --force --no-tags origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
 
       - uses: actions/setup-node@v4
         with:
