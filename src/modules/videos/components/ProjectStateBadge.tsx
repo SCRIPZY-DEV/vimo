@@ -23,15 +23,17 @@ interface BadgeLook {
   spin?: boolean
 }
 
-// Píldora pastel OPACA con ícono: el color del estado al ~18 % MEZCLADO CON
-// BLANCO (no transparencia) y el texto en el color pleno. Con el fondo al
-// 15 % de opacidad, «Listo» y «Desactualizado» desaparecían sobre portadas
+// Píldora pastel OPACA con ícono: el color del estado MEZCLADO CON BLANCO
+// (no transparencia) y el texto en el color pleno o en charcoal. Con el fondo
+// al 15 % de opacidad, «Listo» y «Desactualizado» desaparecían sobre portadas
 // claras o cálidas (QA del 2026-09-11); mezclar con blanco da el mismo tono
-// pastel pero la portada nunca se cuela detrás. «Generando» va en verde y
-// «Exportado», el estado que importa, en saffron PLENO como la píldora
-// activa de las pestañas (pedidos del dueño).
+// pastel pero la portada nunca se cuela detrás. Colores pedidos por el dueño:
+// «Exportado» (el estado que importa) en verde PLENO con texto blanco,
+// «Generando» en el mismo verde pastel, «Confirmar escenas» turquesa claro,
+// «Interrumpido» naranja claro y «Cancelado» rojo como «Error» (es un freno,
+// no un «quedó a medias»); cada uno se distingue además por su ícono.
 const BADGE_LOOKS: Record<ProjectBadge, BadgeLook> = {
-  ready: { classes: 'bg-saffron text-charcoal shadow-md', Icon: Check },
+  ready: { classes: 'bg-mint text-white shadow-md', Icon: Check },
   outdated: {
     classes: 'bg-[color-mix(in_srgb,hsl(var(--coral))_18%,white)] text-coral',
     Icon: History,
@@ -43,15 +45,17 @@ const BADGE_LOOKS: Record<ProjectBadge, BadgeLook> = {
   },
   awaitingConfirmation: {
     classes:
-      'bg-[color-mix(in_srgb,hsl(var(--saffron))_22%,white)] text-charcoal',
+      'bg-[color-mix(in_srgb,hsl(var(--ocean))_30%,white)] text-charcoal',
     Icon: Clock,
   },
-  interrupted: { classes: 'bg-muted text-muted-foreground', Icon: Pause },
-  // «Cancelado» lo frenó la persona: color propio (el turquesa de la app),
-  // para no confundirlo con el gris de interrumpido/borrador ni con el rojo
-  // de error.
+  interrupted: {
+    classes:
+      'bg-[color-mix(in_srgb,hsl(var(--tangerine))_30%,white)] text-charcoal',
+    Icon: Pause,
+  },
   paused: {
-    classes: 'bg-[color-mix(in_srgb,hsl(var(--ocean))_18%,white)] text-ocean',
+    classes:
+      'bg-[color-mix(in_srgb,hsl(var(--destructive))_16%,white)] text-destructive',
     Icon: Ban,
   },
   error: {
