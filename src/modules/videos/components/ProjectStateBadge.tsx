@@ -18,63 +18,39 @@ interface ProjectStateBadgeProps {
 }
 
 interface BadgeLook {
-  classes: string
+  background: string
   Icon: LucideIcon
   spin?: boolean
 }
 
-// Píldora pastel OPACA con ícono: el color del estado MEZCLADO CON BLANCO
-// (no transparencia) y el texto en el color pleno o en charcoal. Con el fondo
-// al 15 % de opacidad, «Listo» y «Desactualizado» desaparecían sobre portadas
-// claras o cálidas (QA del 2026-09-11); mezclar con blanco da el mismo tono
-// pastel pero la portada nunca se cuela detrás. Colores pedidos por el dueño:
-// «Exportado» (el estado que importa) en verde PLENO con texto blanco,
-// «Generando» en el mismo verde pastel, «Confirmar escenas» turquesa claro,
-// «Interrumpido» naranja claro y «Cancelado» rojo como «Error» (es un freno,
-// no un «quedó a medias»); cada uno se distingue además por su ícono.
+// Píldora de color PLENO con ícono y texto blanco, un tono por estado: es el
+// diseño que el dueño aprobó el 2026-09-11 sobre la vista previa. Las
+// versiones anteriores (fondo al 15 % de opacidad, después pastel mezclado
+// con blanco) se perdían sobre portadas claras o cálidas; el pleno se lee
+// sobre cualquier portada. Todos los fondos pasan AA (≥ 4,5:1) con el blanco.
+// «Exportado» y «Generando» comparten el verde y los distingue el ícono
+// girando; «Desactualizado» va en violeta porque el coral no aguanta texto
+// blanco y, oscurecido, era otro rojo al lado de «Cancelado» y «Error».
 const BADGE_LOOKS: Record<ProjectBadge, BadgeLook> = {
-  ready: { classes: 'bg-mint text-white shadow-md', Icon: Check },
-  outdated: {
-    classes: 'bg-[color-mix(in_srgb,hsl(var(--coral))_18%,white)] text-coral',
-    Icon: History,
-  },
-  generating: {
-    classes: 'bg-[color-mix(in_srgb,hsl(var(--mint))_16%,white)] text-mint',
-    Icon: Loader2,
-    spin: true,
-  },
-  awaitingConfirmation: {
-    classes:
-      'bg-[color-mix(in_srgb,hsl(var(--ocean))_30%,white)] text-charcoal',
-    Icon: Clock,
-  },
-  interrupted: {
-    classes:
-      'bg-[color-mix(in_srgb,hsl(var(--tangerine))_30%,white)] text-charcoal',
-    Icon: Pause,
-  },
-  paused: {
-    classes:
-      'bg-[color-mix(in_srgb,hsl(var(--destructive))_16%,white)] text-destructive',
-    Icon: Ban,
-  },
-  error: {
-    classes:
-      'bg-[color-mix(in_srgb,hsl(var(--destructive))_16%,white)] text-destructive',
-    Icon: AlertCircle,
-  },
-  draft: { classes: 'bg-muted text-muted-foreground', Icon: Pencil },
+  ready: { background: 'bg-mint', Icon: Check },
+  outdated: { background: 'bg-iris', Icon: History },
+  generating: { background: 'bg-mint', Icon: Loader2, spin: true },
+  awaitingConfirmation: { background: 'bg-ocean-deep', Icon: Clock },
+  interrupted: { background: 'bg-ember', Icon: Pause },
+  paused: { background: 'bg-cherry', Icon: Ban },
+  error: { background: 'bg-wine', Icon: AlertCircle },
+  draft: { background: 'bg-graphite', Icon: Pencil },
 }
 
 export function ProjectStateBadge({ badge }: ProjectStateBadgeProps) {
   const { t } = useTranslation()
-  const { classes, Icon, spin } = BADGE_LOOKS[badge]
+  const { background, Icon, spin } = BADGE_LOOKS[badge]
 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-display text-xs font-bold shadow-sm ring-1 ring-black/5',
-        classes,
+        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-display text-xs font-bold text-white shadow-md ring-1 ring-black/5',
+        background,
       )}
     >
       <Icon aria-hidden className={cn('h-3.5 w-3.5', spin && 'animate-spin')} />

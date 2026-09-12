@@ -51,11 +51,17 @@ html.theme-changing *::after {
     --charcoal: 231 33% 14%;
     --coral: 0 100% 70%;
     --ocean: 174 56% 55%;
-    /* Verde de «terminado» / «en marcha» (badges «Exportado» y «Generando» de
-       la biblioteca); oscuro para que el texto blanco encima pase AA. */
-    --mint: 152 60% 32%;
-    /* Naranja de «quedó a medias» (badge «Interrumpido» de la biblioteca). */
-    --tangerine: 27 90% 58%;
+    /* Colores plenos de los badges de estado de la Biblioteca, uno por estado;
+       todos pasan AA (≥ 4,5:1) con texto blanco encima. `raspberry` es para
+       «Sin saldo», el estado que llega con dev (#66). */
+    --mint: 152 60% 32%; /* Exportado y Generando */
+    --ocean-deep: 174 62% 30%; /* Confirmar escenas */
+    --ember: 18 82% 43%; /* Interrumpido */
+    --cherry: 354 70% 54%; /* Cancelado */
+    --raspberry: 339 68% 45%; /* Sin saldo */
+    --wine: 354 62% 39%; /* Error */
+    --iris: 253 78% 60%; /* Desactualizado */
+    --graphite: 229 9% 46%; /* Borrador */
     --lavender: 270 24% 92%;
     --warm-gray: 240 5% 97%;
     --ink: 224 45% 16%;
