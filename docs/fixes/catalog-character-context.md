@@ -26,4 +26,7 @@ y hooks reales; únicamente APIs y disponibilidad de claves simuladas. Recorre
 Section → Picker → Modal, verifica botón habilitado con campos vacíos, guion
 exacto enviado y ficha autocompletada; además biblioteca sin guion y Mi estilo.
 No mide latencia del proveedor ni reemplaza QA en WebKit/Tauri. Se conserva la
-política premium y el fallback determinístico del experto de Catálogo.
+política premium; desde la corrección de edad vacía, el fallback determinístico
+solo aplica con datos previos completos. Ambos expertos requieren nombre, edad,
+rol e identidad y reparan una respuesta incompleta antes de devolver éxito.
+Ver [ficha completa](character-profile-completeness.md) y sus 24 regresiones.

@@ -94,7 +94,7 @@ export interface DesignStyleCharacterPayload {
 export interface DesignStyleCharacterResult {
   // Identidad física en inglés, NEUTRA de estilo (ya podada).
   prompt: string
-  name?: string
-  age?: string
-  role?: string
+  name: string
+  age: string
+  role: string
 }

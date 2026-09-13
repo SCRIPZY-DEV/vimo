@@ -28,12 +28,12 @@ ABSOLUTELY FORBIDDEN (these would break generation when combined with a separate
 Keep it 300-600 characters, a single flowing phrase. Translate the identity description to English.
 
 ALSO return, to auto-fill the form fields:
-- "name": the character's name — the one given in the NOTES, or the one you pick from the SCRIPT when inferring (a proper name like "Elena", or a short label like "el mensajero" if the character is unnamed). Keep it in its original language. Never leave it empty when you can name or label the character.
-- "age": a SHORT age in Spanish for the form (e.g. "55 años", "mediana edad", "anciano"); empty string if not evident.
-- "role": a SHORT role/occupation in Spanish for the form (e.g. "sacerdote", "herbolaria"); empty string if not evident.
+- "name": the REQUIRED character's name — the one given in the NOTES, or the one you pick from the SCRIPT when inferring (a proper name like "Elena", or a short label like "el mensajero" if the character is unnamed). Keep it in its original language. Always provide a coherent name or label; never leave it empty.
+- "age": a REQUIRED short age or age range in Spanish for the form (e.g. "55 años", "mediana edad"). Preserve any age given by the user or script; otherwise choose a plausible age/life stage consistent with the character. Never leave it empty. For a character to which age does not apply, explain that briefly instead of inventing a human age.
+- "role": a REQUIRED short role/occupation in Spanish for the form (e.g. "sacerdote", "herbolaria"). If no occupation is stated, infer their role in the story. Never leave it empty.
 
 OUTPUT FORMAT (STRICT): return ONLY this JSON object, no preamble, no markdown:
-{"prompt": "<identity description in English>", "name": "<name or short label>", "age": "<short age in Spanish or empty>", "role": "<short role in Spanish or empty>"}`
+{"prompt": "<identity description in English>", "name": "<name or short label>", "age": "<required short age in Spanish>", "role": "<required short role in Spanish>"}`
 
 // Límites del origen.
 export const NOTES_LIMIT = 1500

@@ -18,7 +18,7 @@ const mocks = {
   '@/modules/common/hooks/useImageCredits':
     'export function useImageCredits() { return { credits: null, isLoading: false, isRefreshing: false, refresh() {} } }',
   '@/modules/characters/api':
-    'export const charactersApi = { isNative: () => false, errorMessageKey: () => "characters.errors.unknown", suggestProfile: async payload => { window.requests.push({ kind: "catalog", payload }); return { name: "Ana", age: "30", role: "Explorer", prompt: "A recognizable explorer with a blue coat and a round face, matching the script." } }, designWithStyle: async payload => { window.requests.push({ kind: "style", payload }); return { name: "Ana", prompt: "A recognizable explorer designed from the supplied style and script." } } }',
+    'export const charactersApi = { isNative: () => false, errorMessageKey: () => "characters.errors.unknown", suggestProfile: async payload => { window.requests.push({ kind: "catalog", payload }); return { name: "Ana", age: "30", role: "Explorer", prompt: "A recognizable explorer with a blue coat and a round face, matching the script." } }, designWithStyle: async payload => { window.requests.push({ kind: "style", payload }); return { name: "Ana", age: "30 años", role: "Exploradora", prompt: "A recognizable explorer designed from the supplied style and script." } } }',
   '@/modules/videos/api':
     'export const videosApi = { listCharacters: async () => ({ entries: [] }), imageSource: path => path, errorMessageKey: () => "error" }',
 }
@@ -64,6 +64,8 @@ try {
   check(window.requests[0].payload.script === script, 'guion atraviesa Section → Picker → Modal → API')
   await waitFor(() => document.getElementById('character-name')?.value === 'Ana', 'nombre autocompletado')
   check(document.getElementById('character-description').value.includes('explorer'), 'identidad autocompletada')
+  check(document.getElementById('character-age').value === '30', 'edad real autocompletada, no placeholder')
+  check(document.getElementById('character-role').value === 'Explorer', 'rol autocompletado')
   render(<CharacterModal character={null} initialSource="text" onClose={() => {}} />)
   await delay()
   check(button('characters.experto.boton')?.disabled, 'Biblioteca sin guion exige campos')
@@ -73,6 +75,10 @@ try {
   style.click()
   await waitFor(() => window.requests.length === 2, 'payload Mi estilo')
   check(window.requests[1].kind === 'style' && window.requests[1].payload.script === script, 'Mi estilo conserva su carril')
+  await waitFor(() => document.getElementById('character-age')?.value === '30 años', 'edad Mi estilo autocompletada')
+  check(document.getElementById('character-role').value === 'Exploradora', 'rol Mi estilo autocompletado')
+  check(document.getElementById('character-name').value === 'Ana', 'nombre Mi estilo autocompletado')
+  check(document.getElementById('character-description').value.includes('explorer'), 'identidad Mi estilo autocompletada')
   document.getElementById('result').textContent = 'PASS: catalog script, empty library, custom style (3/3)'
 } catch (error) {
   document.getElementById('result').textContent = 'FAIL: ' + error.message

@@ -24,6 +24,10 @@
     section:last-child {
       break-after: auto;
     }
+    section:last-child td,
+    section:last-child th {
+      padding: 1.5mm 2.2mm;
+    }
     h1 {
       font-size: 30pt;
       line-height: 1.1;
@@ -121,8 +125,8 @@
       <div class="box">
         <strong>Resultado:</strong> implementados los tres bloques solicitados.
         Compilan el frontend, el sidecar y Rust; se generó el paquete nativo
-        macOS ARM <code>Vimo.app</code>. No se instaló, publicó ni reemplazó la
-        aplicación existente.
+        macOS ARM <code>Vimo_0.8.0_aarch64.dmg</code>. No se instaló, publicó ni
+        reemplazó la aplicación existente.
       </div>
       <table>
         <thead>
@@ -295,9 +299,10 @@
         </li>
       </ul>
       <div class="box">
-        Se conserva la política premium y el fallback determinístico del experto
-        de Catálogo. La corrección habilita y conecta la función; no cambia esa
-        decisión de calidad ni garantiza una latencia equivalente entre modelos.
+        Corrección posterior de edad vacía: el prompt permitía omitir edad/rol y
+        se descartaban edades numéricas. Ambos expertos ahora exigen los cuatro
+        campos y reparan una omisión una vez; no devuelven éxito incompleto. Se
+        conserva premium; el respaldo exige datos previos completos.
       </div>
       <h3>Verificación de interfaz: 3/3</h3>
       <ol>
@@ -318,8 +323,10 @@
       </ol>
       <p>
         Se ejecutó Chrome headless con componentes y hooks React reales,
-        simulando únicamente APIs y disponibilidad de claves. No sustituye una
-        prueba de WebKit/Tauri ni evalúa la calidad de una respuesta real.
+        simulando únicamente APIs y claves. Comprueba valores reales de edad y
+        rol, no placeholders. Además, 24 casos del sidecar verifican ficha
+        completa, reparación y errores; no evalúan calidad ni latencia de
+        respuestas reales.
       </p>
       <h3>Prueba que debés hacer</h3>
       <ol>
@@ -333,8 +340,8 @@
         </li>
         <li>Sin completar campos, pulsá Redactar identidad con IA.</li>
         <li>
-          Confirmá que nombre, rol y descripción correspondan al guion; repetí
-          con otro guion para descartar contexto viejo.
+          Confirmá que nombre, edad, rol e identidad correspondan al guion;
+          repetí con otro guion para descartar contexto viejo.
         </li>
         <li>
           Repetí en Mi estilo y sin guion desde Personajes. Sin clave
@@ -416,8 +423,9 @@
     <section>
       <h2>4. Puntos tocados</h2>
       <p class="small">
-        Rutas relativas al repositorio. Los archivos no listados como código no
-        alteran el comportamiento de producto.
+        Rutas relativas al repositorio. Los archivos adicionales de la
+        corrección posterior de edad vacía están detallados en
+        <code>docs/fixes/character-profile-completeness.md</code>.
       </p>
       <table class="files">
         <thead>
@@ -559,13 +567,15 @@
             <td>3/3 recorridos de personajes</td>
           </tr>
           <tr>
-            <td>
-              <code>cargo check</code> + build Tauri <code>--bundles app</code>
-            </td>
+            <td>Ficha completa de identidad (HTTP simulado)</td>
+            <td>24/24 casos; total 53 regresiones</td>
+          </tr>
+          <tr>
+            <td><code>cargo check</code> + <code>pnpm tauri build</code></td>
             <td>Aprobado; macOS ARM</td>
           </tr>
           <tr>
-            <td>Sidecar dentro de <code>Vimo.app</code></td>
+            <td>Sidecar SEA empaquetado</td>
             <td>3/3: NDJSON, recibo incierto, cache-hit</td>
           </tr>
         </tbody>

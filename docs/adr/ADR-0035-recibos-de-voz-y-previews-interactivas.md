@@ -32,6 +32,18 @@ atómica. Polling Evolink de un segundo solo para esta operación interactiva.
 
 ## Alternativas consideradas
 
+### Corrección posterior: ficha completa de personaje
+
+La prueba manual del usuario mostró edad vacía. Desde esta corrección ambos
+expertos solo devuelven éxito con nombre, edad, rol e identidad completos;
+aceptan edad numérica y reparan una omisión con un segundo pedido que conserva
+el borrador y el contexto. La edad no se rellena con un valor fijo en la UI.
+El respaldo de Catálogo exige datos previos completos y no tapa auth/saldo.
+Ver `scripts/check-character-profile.mjs` (24 casos) y
+[causas y QA](../fixes/character-profile-completeness.md).
+
+### Opciones descartadas
+
 - Repetir el POST al fallar: descartado porque puede duplicar cargos.
 - Reconstruir tareas por hora o texto: descartado sin contrato remoto verificable.
 - Reescribir el transporte o agregar un servicio de jobs: fuera del ajuste
