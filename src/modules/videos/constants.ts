@@ -668,6 +668,8 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_timeout: 'create.errors.llmTimeout',
   llm_rate_limited: 'create.errors.llmRateLimited',
   llm_provider_error: 'create.errors.llmProviderError',
+  catalog_prompts_incomplete: 'create.errors.catalogPromptsIncomplete',
+  catalog_prompt_pending_image: 'create.errors.catalogPromptPendingImage',
   llm_empty_response: 'create.errors.llmProviderError',
   llm_rescue_needed: 'create.errors.llmRescueNeeded',
   llm_auth: 'create.errors.llmAuth',

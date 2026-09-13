@@ -1007,6 +1007,8 @@
       "llmTimeout": "La IA tardó demasiado en responder. Intentá de nuevo.",
       "llmRateLimited": "El servicio de IA está saturado. Esperá unos segundos y reintentá.",
       "llmProviderError": "El servicio de IA devolvió un error. Intentá de nuevo.",
+      "catalogPromptsIncomplete": "No se pudieron completar los prompts con los modelos disponibles. Se conservó el avance y no se enviaron nuevas imágenes con prompts de relleno. Reanudá para intentarlo de nuevo.",
+      "catalogPromptPendingImage": "Una escena tiene un prompt de relleno antiguo y una tarea de imagen pendiente. Revisá esa tarea en el proveedor antes de regenerar para evitar un segundo cobro.",
       "missingApiKey": "Falta una clave API para esta acción. Configurala en Claves API.",
       "missingProjectsRoot": "No hay carpeta de proyectos configurada. Revisá Ajustes.",
       "cancelado": "Generación cancelada.",

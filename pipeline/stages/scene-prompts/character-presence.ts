@@ -166,8 +166,8 @@ function toNonNegativeInteger(value: unknown): number {
 }
 
 // Clasificador name-agnostic (una llamada, tier economy): en qué escenas hay
-// un sujeto humano/acción que el protagonista pueda encarnar. Tolerante: ante
-// cualquier fallo devuelve [] y el rescate del caller cubre.
+// un sujeto humano/acción que el protagonista pueda encarnar. Una lista vacía
+// es válida; un fallo de red/modelo/cancelación no se convierte en clasificación.
 export async function detectSubjectScenes(
   llm: SceneLlm,
   scenes: Scene[],
@@ -184,17 +184,21 @@ export async function detectSubjectScenes(
     )
     .join('\n')
 
-  let content: string
-  try {
-    content = await llm.generate({
-      systemPrompt: SUBJECT_CLASSIFIER_SYSTEM_PROMPT,
-      userPrompt: buildSubjectClassifierUserPrompt(sceneLines),
-      jsonOnly: true,
-      tier: 'economy',
-    })
-  } catch {
-    return []
-  }
+  const content = await llm.generate({
+    systemPrompt: SUBJECT_CLASSIFIER_SYSTEM_PROMPT,
+    userPrompt: buildSubjectClassifierUserPrompt(sceneLines),
+    jsonOnly: true,
+    tier: 'economy',
+    validate(value) {
+      const parsed = extractJson(value)
+      if (Array.isArray(parsed)) return true
+      return (
+        !!parsed &&
+        typeof parsed === 'object' &&
+        Array.isArray((parsed as Record<string, unknown>).ids)
+      )
+    },
+  })
 
   const json = extractJson(content)
   let ids: unknown = null

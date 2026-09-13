@@ -409,6 +409,13 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
 
 ### Las seis fases
 
+**Actualización de Catálogo (2026-09-12, [ADR-0036](adr/ADR-0036-prompts-de-catalogo-sin-relleno.md)):**
+la referencia histórica a «4 capas de garantía» queda reemplazada por streaming
+con rotación acotada de modelos y validación por tarea. Director en lotes de hasta
+12; cancelación sin relleno, checkpoints serializados y barrera de prompts válidos
+antes de imágenes. Una respuesta genérica de respaldo ya no autoriza gasto.
+Las fases y el transporte siguen iguales. [Causa, archivos y QA](fixes/catalog-scene-prompts.md).
+
 Cada una implementa `Stage { id, skip?, run }` y el runner
 (`pipeline/runner/run-stages.ts`) las recorre emitiendo `stage-started` /
 `stage-skipped` / `stage-completed`. **Toda fase es retomable**: si su artefacto

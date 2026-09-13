@@ -31,7 +31,8 @@ import {
   anchorNormalRealism,
   buildDeterministicFallbackPrompt,
 } from '../scene-prompts/fallback-prompt.ts'
-import { createSceneLlm } from '../shared/llm.ts'
+import { createCatalogSceneLlm } from '../shared/catalog-llm.ts'
+import { hasCatalogPrompt } from '../shared/catalog-prompt.ts'
 import { regeneratePromptsForRejected } from '../scene-prompts/prompt-writer.ts'
 import {
   CONTENT_POLICY_RETRY_NOTE,
@@ -248,7 +249,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
           (scene) => isReady(scene.id, readyNow),
           pass,
           {
-            llm: createSceneLlm(context),
+            llm: createCatalogSceneLlm(context),
             style,
             fullScript: script,
             visualBible,
@@ -404,10 +405,31 @@ async function generateImages(
   events: ImageLaneEvents,
 ): Promise<Scene[]> {
   const { context, style } = inputs
+  context.signal.throwIfAborted()
+  if (!context.options.customStyle) {
+    const invalidIds: number[] = []
+    for (const scene of scenes) {
+      if (!hasText(scene) || hasCatalogPrompt(scene, style)) continue
+      if (
+        !forceRegenerate.has(scene.id) &&
+        (await isValidFile(sceneImageFile(context.paths, scene.id)))
+      )
+        continue
+      invalidIds.push(scene.id)
+    }
+    if (invalidIds.length > 0)
+      throw new PipelineFailure(
+        'catalog_prompts_incomplete',
+        'image generation blocked for scenes without narrative prompts: ' +
+          invalidIds.join(', '),
+      )
+  }
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
 
   // Capa 4: ninguna escena con texto llega al proveedor sin prompt válido.
   const safeScenes = scenes.map((scene) => {
+    // Catálogo jamás llega al fallback de compatibilidad de Mi estilo.
+    if (!context.options.customStyle) return scene
     if (!hasText(scene) || isValidPrompt(scene.imagePrompt)) return scene
     return {
       ...scene,
