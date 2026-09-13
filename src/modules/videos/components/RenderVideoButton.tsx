@@ -78,8 +78,7 @@ export function RenderVideoButton({
           {t(LABEL_KEYS[videoState])}
         </Button>
       </TooltipTrigger>
-      {/* Debajo, como el resto de la barra del editor; el botón flotante del
-          formato vertical vive abajo y Radix lo vuelve a subir solo. */}
+      {/* Debajo, como el resto de la barra del editor en ambos formatos. */}
       <TooltipContent side="bottom" className="max-w-xs text-sm leading-snug">
         {t(HELP_KEYS[videoState])}
       </TooltipContent>

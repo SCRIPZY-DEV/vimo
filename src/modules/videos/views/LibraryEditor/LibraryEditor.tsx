@@ -132,7 +132,6 @@ export function LibraryEditor() {
 
   const metadata = detail.metadata
   const videoFormat = metadata.options.videoFormat ?? '16:9'
-  const isShort = videoFormat === '9:16'
   // Modo demo (ADR-0029): las imágenes y la narración vienen del pack; el
   // sidecar rechaza regenerarlas (demo_project) y acá ni se ofrece.
   const demoProject = metadata.options.demo === true
@@ -249,30 +248,14 @@ export function LibraryEditor() {
           busy={busy}
           onExport={() => void editor.editorTask.startExport(projectId)}
         />
-        {!isShort && (
-          <RenderVideoButton
-            render={task?.render ?? null}
-            videoState={videoState}
-            busy={busy}
-            onRender={() => void editor.editorTask.startRender(projectId)}
-            onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
-          />
-        )}
+        <RenderVideoButton
+          render={task?.render ?? null}
+          videoState={videoState}
+          busy={busy}
+          onRender={() => void editor.editorTask.startRender(projectId)}
+          onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
+        />
       </LibraryViewHeader>
-
-      {/* En shorts el botón de render flota sobre el timeline: el layout
-          vertical aleja el header del visor (port del `flotante` del origen). */}
-      {isShort && (
-        <div className="fixed bottom-6 right-6 z-40">
-          <RenderVideoButton
-            render={task?.render ?? null}
-            videoState={videoState}
-            busy={busy}
-            onRender={() => void editor.editorTask.startRender(projectId)}
-            onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
-          />
-        </div>
-      )}
 
       <MissingImagesBanner
         sceneIds={workingScenes
