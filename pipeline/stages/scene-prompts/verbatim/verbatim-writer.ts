@@ -148,6 +148,9 @@ export interface VerbatimWriterOptions {
   modelId?: string
   /** Qué hace este video con el protagonista. Ausente = `generic`. */
   character?: VerbatimCharacterInput
+  /** Contrato local del editor; un incumplimiento se reintenta como defecto
+   *  de esa escena antes de tejer identidad o permitir generar imágenes. */
+  validatePrompt?: (prompt: string, sceneId: number) => boolean
   /** Cliente ya armado con la clave del job (todos los perfiles del catálogo
    *  son DeepInfra: el mismo cliente sirve para el elegido y el rescate). */
   client: VerbatimClient
@@ -402,7 +405,12 @@ async function resolveCharacter(
       options.onLog?.(
         'user character travels identical in every scene it appears in',
       )
-      return { mode: 'text', portrait, description: description || undefined }
+      return {
+        mode: 'text',
+        portrait,
+        description: description || undefined,
+        name,
+      }
     }
     case 'reference': {
       options.onLog?.(
@@ -472,7 +480,7 @@ export function composeFinalPrompt(
   if (character.mode === 'reference')
     return pointSubjectToImage(scenePrompt, character.name ?? '')
   if (character.mode === 'none') return removeSubject(scenePrompt)
-  return weaveSubject(scenePrompt, character.description)
+  return weaveSubject(scenePrompt, character.description, character.name)
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -836,7 +844,18 @@ export async function generateVerbatimPrompts(
             : undefined,
         })
         count(response.inputTokens, response.outputTokens)
-        return readBatchPrompts(response.content, batch)
+        const reading = readBatchPrompts(response.content, batch)
+        if (options.validatePrompt) {
+          reading.good = reading.good.filter((entry) => {
+            if (options.validatePrompt!(entry.prompt, entry.n)) return true
+            reading.defective.push({
+              n: entry.n,
+              reason: 'does not respect the character selection for this scene',
+            })
+            return false
+          })
+        }
+        return reading
       },
       2,
       options.signal,
@@ -1019,7 +1038,8 @@ export async function generateVerbatimPrompts(
       mentionsProtagonist(prompt)
     const carriesSubject =
       namesSubject(prompt) ||
-      (character.mode === 'reference' && namesByName(prompt, character.name)) ||
+      ((character.mode === 'reference' || character.mode === 'text') &&
+        namesByName(prompt, character.name)) ||
       isBare
     if (carriesSubject) {
       scenesWithSubject.push(n)

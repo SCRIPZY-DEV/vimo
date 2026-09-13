@@ -310,6 +310,7 @@ export function identityWordCount(description: string): number {
 export function weaveSubject(
   scenePrompt: string,
   description?: string,
+  name?: string,
 ): string {
   const scene = scenePrompt.trim()
   const identity = description?.trim()
@@ -320,7 +321,7 @@ export function weaveSubject(
     // identidad. Si YA está adentro (el modelo la repitió), no se duplica.
     if (
       identity &&
-      mentionsProtagonist(scene) &&
+      (mentionsProtagonist(scene) || namesByName(scene, name)) &&
       !scene
         .toLowerCase()
         .includes(identity.replace(/[.!?]+$/, '').toLowerCase())

@@ -327,7 +327,7 @@ export function LibraryEditor() {
             creditsLoading={creditsLoading}
             creditsRefreshing={creditsRefreshing}
             onRefreshCredits={refreshCredits}
-            busy={busy}
+            busy={busy || editor.savingChanges}
             regenerateLocked={demoProject}
             userPromptDirty={editor.userPromptDirty}
             errorKey={

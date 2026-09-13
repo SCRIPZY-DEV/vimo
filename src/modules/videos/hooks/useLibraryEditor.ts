@@ -94,14 +94,25 @@ export function useLibraryEditor(projectId: string) {
     mutationFn: (changes: SceneChange[]) => {
       return videosApi.updateScenes(projectId, changes)
     },
-    onError: (error) => {
+    onError: (error, changes) => {
+      // Si el disco no cambió, Query conserva la misma referencia y el
+      // resync de render no corre. Revertir explícitamente las casillas.
+      for (const change of changes) {
+        if (change.charactersPresent === undefined) continue
+        const stored = detail?.scenes.find((scene) => scene.id === change.id)
+        patchWorkingScene(change.id, {
+          charactersPresent: stored?.charactersPresent ?? [],
+        })
+      }
       toast({
         description: t(videosApi.errorMessageKey(error)),
         variant: 'destructive',
       })
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({
+      // El panel se libera con la selección confirmada por disco, también
+      // ante fallo: no hay una ventana clickeable con el optimista viejo.
+      return queryClient.invalidateQueries({
         queryKey: videosQueryKeys.projectDetail(projectId),
       })
     },
@@ -170,13 +181,14 @@ export function useLibraryEditor(projectId: string) {
   }
 
   const changeCharacters = (charactersPresent: number[]) => {
+    if (commitMutation.isPending) return
     updateSelectedScene({ charactersPresent })
   }
 
   // Con descripción sin guardar, se guarda y se reescribe el prompt;
   // si no, un re-roll con el prompt vigente.
   const regenerateSelected = () => {
-    if (!selectedScene) return
+    if (!selectedScene || commitMutation.isPending) return
     const changes: SceneChange[] = userPromptDirty
       ? [{ id: selectedScene.id, userPrompt: userPromptOf(selectedScene) }]
       : []
@@ -257,6 +269,7 @@ export function useLibraryEditor(projectId: string) {
     commitSelectedUserPrompt,
     changeImageChoice,
     changeCharacters,
+    savingChanges: commitMutation.isPending,
     regenerateSelected,
     dragBoundary,
     commitBoundary,

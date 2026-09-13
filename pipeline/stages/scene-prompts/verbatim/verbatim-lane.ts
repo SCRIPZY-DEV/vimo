@@ -16,6 +16,12 @@ import {
   generateVerbatimPrompts,
   type VerbatimCharacterInput,
 } from './verbatim-writer.ts'
+import {
+  descriptionFromUserPrompt,
+  namesByName,
+  namesSubject,
+  mentionsProtagonist,
+} from './subject-weaver.ts'
 
 // El PUENTE entre las stages y el motor verbatim (port de
 // `motor-web/puente/fase_prompts.ts` del origen, sin el carril Storytime):
@@ -151,6 +157,40 @@ export interface VerbatimLaneOptions {
   retryNotes?: ReadonlyMap<number, string>
 }
 
+interface VerbatimSceneGroup {
+  scenes: Scene[]
+  input: VerbatimCharacterInput
+  /** Ausente en Create: allí decide la gema. En el editor, [] es explícito. */
+  indexes?: number[]
+}
+
+// Reutiliza el escritor y agrupa solo por reparto, para no pedir cada escena
+// por separado ni mezclar reglas opuestas en una misma conversación.
+function editorCharacterInput(
+  characters: PipelineCharacter[],
+): VerbatimCharacterInput {
+  if (characters.length === 0)
+    return { mode: 'none', withoutScriptProtagonist: true }
+  if (characters.length === 1)
+    return verbatimCharacterFor(characters, undefined).input
+
+  const name = characters.map((character) => character.name).join(' and ')
+  if (characters.every((character) => character.imageDataUri))
+    return { mode: 'reference', name }
+
+  // Dos identidades: las que tienen foto no reciben descripción física
+  // competidora; las de texto se recortan con la misma regla del escritor.
+  const prompt = characters
+    .map((character) => {
+      const identity = character.imageDataUri
+        ? 'the person from the attached reference image'
+        : descriptionFromUserPrompt(character.description)
+      return `${character.name}, ${identity}`
+    })
+    .join('; ')
+  return { mode: 'text', name, prompt }
+}
+
 /**
  * La fase de prompts con el motor verbatim. Las escenas sin texto no llevan
  * prompt, y las que YA tienen prompt válido no se re-piden: en un resume o en
@@ -178,7 +218,10 @@ export async function runVerbatimLane(
 
   const pending = scenes.filter(
     (scene) =>
-      (scene.text?.trim().length ?? 0) > 0 && !isValidPrompt(scene.imagePrompt),
+      (!context.regenerateSceneIds?.size ||
+        context.regenerateSceneIds.has(scene.id)) &&
+      (scene.text?.trim().length ?? 0) > 0 &&
+      !isValidPrompt(scene.imagePrompt),
   )
   if (pending.length === 0)
     return {
@@ -189,17 +232,6 @@ export async function runVerbatimLane(
       inputTokens: 0,
       outputTokens: 0,
     }
-
-  const fragments: VerbatimFragment[] = pending.map((scene) => {
-    const retryNote = options.retryNotes?.get(scene.id)?.trim()
-    const userNote = scene.userPrompt?.trim()
-    const note = [userNote, retryNote].filter(Boolean).join(' ')
-    return {
-      n: scene.id,
-      text: scene.text!.trim(),
-      ...(note ? { note } : {}),
-    }
-  })
 
   const loadedCharacters = await loadPipelineCharacters(
     context.paths,
@@ -212,77 +244,197 @@ export async function runVerbatimLane(
     (message) => context.emitter.emit({ type: 'log', level: 'warn', message }),
   )
 
+  const groups: VerbatimSceneGroup[] = []
+  const editorSelection = Boolean(
+    context.regenerateSceneIds?.size && loadedCharacters.length > 0,
+  )
+  if (editorSelection) {
+    const bySelection = new Map<string, VerbatimSceneGroup>()
+    for (const scene of pending) {
+      const indexes = [...new Set(scene.charactersPresent ?? [])].sort(
+        (a, b) => a - b,
+      )
+      if (
+        indexes.some(
+          (index) => !Number.isInteger(index) || !loadedCharacters[index],
+        )
+      )
+        throw new PipelineFailure(
+          'invalid_payload',
+          'scene character selection is outside the project cast',
+        )
+      const signature = indexes.join(',')
+      let group = bySelection.get(signature)
+      if (!group) {
+        group = {
+          scenes: [],
+          indexes,
+          input: editorCharacterInput(
+            indexes.map((index) => loadedCharacters[index]!),
+          ),
+        }
+        bySelection.set(signature, group)
+      }
+      group.scenes.push(scene)
+    }
+    groups.push(...bySelection.values())
+  } else {
+    groups.push({ scenes: pending, input: character.input })
+  }
+
   const client = createVerbatimClient({
     apiKey,
     baseUrl: context.config.llm.baseUrl,
   })
 
   let lastReady = 0
-  const result = await generateVerbatimPrompts(fragments, fullScript, {
-    // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
-    // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
-    // origen: los planos solo gobiernan el carril del catálogo).
-    gem: customStyle.systemPrompt,
-    // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
-    // desconocido → el de la casa, con aviso).
-    modelId: context.options.promptModel,
-    character: character.input,
-    client,
-    signal: context.signal,
-    onLog: (message) =>
-      context.emitter.emit({ type: 'log', level: 'info', message }),
-    onWarn: (message) =>
-      context.emitter.emit({ type: 'log', level: 'warn', message }),
-    // El modelo elegido falló de verdad (código del proveedor o rescate):
-    // evento tipado para que la UI lo bloquee un rato y ofrezca cambiarlo.
-    onModelTrouble: (modelId, code, sceneIds) =>
-      context.emitter.emit({
-        type: 'prompt-model-trouble',
-        modelId,
-        code,
-        sceneIds,
-      }),
-    // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
-    // que ya traían prompt cuentan como listas, así la UI muestra
-    // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.
-    // Monótono por construcción: un lote que reporta desde cero no la devuelve.
-    onProgress: (ready) => {
-      const absolute = Math.min(
-        scenes.length,
-        scenes.length - pending.length + ready,
-      )
-      if (absolute <= lastReady) return
-      lastReady = absolute
-      context.emitter.emit({
-        type: 'scene-prompts-progress',
-        ready: absolute,
-        total: scenes.length,
+  const groupProgress = new Map<VerbatimSceneGroup, number>()
+  const settled = await Promise.allSettled(
+    groups.map(async (group) => {
+      const fragments: VerbatimFragment[] = group.scenes.map((scene) => {
+        const retryNote = options.retryNotes?.get(scene.id)?.trim()
+        const userNote = scene.userPrompt?.trim()
+        const selectionNote = group.indexes?.length
+          ? 'El usuario incluyo al personaje en esta escena: [subject] DEBE aparecer en la accion de este fragmento, manteniendo el mismo estilo.'
+          : undefined
+        const note = [userNote, retryNote, selectionNote]
+          .filter(Boolean)
+          .join(' ')
+        return {
+          n: scene.id,
+          text: scene.text!.trim(),
+          ...(note ? { note } : {}),
+        }
       })
-    },
-  })
+      const result = await generateVerbatimPrompts(fragments, fullScript, {
+        // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
+        // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
+        // origen: los planos solo gobiernan el carril del catálogo).
+        gem: customStyle.systemPrompt,
+        // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
+        // desconocido → el de la casa, con aviso).
+        modelId: context.options.promptModel,
+        character: group.input,
+        validatePrompt:
+          group.indexes === undefined
+            ? undefined
+            : (prompt) => {
+                const selected = group.indexes!
+                const excluded = loadedCharacters.filter(
+                  (_, index) => !selected.includes(index),
+                )
+                if (excluded.some((entry) => namesByName(prompt, entry.name)))
+                  return false
+                if (selected.length === 0)
+                  return !namesSubject(prompt) && !mentionsProtagonist(prompt)
+                return (
+                  namesSubject(prompt) ||
+                  selected.every((index) =>
+                    namesByName(prompt, loadedCharacters[index]!.name),
+                  )
+                )
+              },
+        client,
+        signal: context.signal,
+        onLog: (message) =>
+          context.emitter.emit({ type: 'log', level: 'info', message }),
+        onWarn: (message) =>
+          context.emitter.emit({ type: 'log', level: 'warn', message }),
+        // El modelo elegido falló de verdad (código del proveedor o rescate):
+        // evento tipado para que la UI lo bloquee un rato y ofrezca cambiarlo.
+        onModelTrouble: (modelId, code, sceneIds) =>
+          context.emitter.emit({
+            type: 'prompt-model-trouble',
+            modelId,
+            code,
+            sceneIds,
+          }),
+        // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
+        // que ya traían prompt cuentan como listas, así la UI muestra
+        // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.
+        // Monótono por construcción: un lote que reporta desde cero no la devuelve.
+        onProgress: (ready) => {
+          groupProgress.set(group, ready)
+          const groupedReady = [...groupProgress.values()].reduce(
+            (total, count) => total + count,
+            0,
+          )
+          const absolute = Math.min(
+            scenes.length,
+            scenes.length - pending.length + groupedReady,
+          )
+          if (absolute <= lastReady) return
+          lastReady = absolute
+          context.emitter.emit({
+            type: 'scene-prompts-progress',
+            ready: absolute,
+            total: scenes.length,
+          })
+        },
+      })
+      context.signal.throwIfAborted()
+      if (group.indexes !== undefined && result.missing.length > 0)
+        throw new PipelineFailure(
+          'llm_empty_response',
+          'the editor could not write prompts respecting the selected characters; no replacement images requested',
+        )
+      return { group, result }
+    }),
+  )
+  context.signal.throwIfAborted()
+  const results = settled.flatMap((entry) =>
+    entry.status === 'fulfilled' ? [entry.value] : [],
+  )
+  const failure = settled.find((entry) => entry.status === 'rejected')
+  if (failure?.status === 'rejected') throw failure.reason
+  const prompts = new Map(results.flatMap(({ result }) => [...result.prompts]))
+  const presence = new Map(
+    results.flatMap(({ group, result }) => {
+      if (group.indexes === undefined) return []
+      return [...result.prompts.keys()].map((id): [number, number[]] => [
+        id,
+        group.indexes!,
+      ])
+    }),
+  )
 
-  const written = new Set(result.prompts.keys())
+  const written = new Set(prompts.keys())
   const withPrompts = scenes.map((scene) => {
-    const prompt = result.prompts.get(scene.id)
+    const prompt = prompts.get(scene.id)
     // Un prompt del motor nunca es fallback: si la escena traía uno, deja de
     // serlo.
     return prompt
-      ? { ...scene, imagePrompt: prompt, promptIsFallback: false }
+      ? {
+          ...scene,
+          imagePrompt: prompt,
+          promptIsFallback: false,
+          ...(presence.has(scene.id)
+            ? { charactersPresent: presence.get(scene.id)! }
+            : {}),
+        }
       : scene
   })
 
   return {
-    scenes: markSubjectPresence(
-      withPrompts,
-      written,
-      result.scenesWithSubject,
-      character.index,
-    ),
-    missing: result.missing,
+    scenes: editorSelection
+      ? withPrompts
+      : markSubjectPresence(
+          withPrompts,
+          written,
+          results.flatMap(({ result }) => result.scenesWithSubject),
+          character.index,
+        ),
+    missing: results.flatMap(({ result }) => result.missing),
     written,
-    profile: result.profile,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
+    profile: results[0]!.result.profile,
+    inputTokens: results.reduce(
+      (total, { result }) => total + result.inputTokens,
+      0,
+    ),
+    outputTokens: results.reduce(
+      (total, { result }) => total + result.outputTokens,
+      0,
+    ),
   }
 }
 
