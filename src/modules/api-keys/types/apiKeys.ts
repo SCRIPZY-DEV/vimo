@@ -29,6 +29,12 @@ export interface ValidationResult {
   code: ApiKeyErrorCode | null
 }
 
+/** Intento local: una respuesta anterior no puede validar otra edición. */
+export interface ApiKeyValidationAttempt {
+  key: string
+  revision: number
+}
+
 /** Forma del rechazo de un invoke() de este dominio. */
 export interface ApiKeyCommandError {
   code: ApiKeyErrorCode

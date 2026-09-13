@@ -39,6 +39,7 @@ export function ApiKeyCard({
   const { t } = useTranslation()
   const {
     saveKey,
+    canSaveKey,
     testKey,
     removeKey,
     saving,
@@ -173,7 +174,11 @@ export function ApiKeyCard({
             <Input
               type={visible ? 'text' : 'password'}
               value={value}
-              onChange={(event) => setValue(event.target.value)}
+              onChange={(event) => {
+                setValue(event.target.value)
+                resetFeedback()
+              }}
+              disabled={saving}
               placeholder={provider.keyFormatHint}
               className="pr-12 font-mono text-xs"
               autoFocus={manualEditing || primaryFocus}
@@ -231,7 +236,7 @@ export function ApiKeyCard({
               size="sm"
               variant="outline"
               onClick={() => testKey(value.trim())}
-              disabled={testing || value.trim().length === 0}
+              disabled={testing || saving || value.trim().length === 0}
               className="rounded-lg font-display"
             >
               {testing && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
@@ -241,7 +246,7 @@ export function ApiKeyCard({
               type="button"
               size="sm"
               onClick={() => saveKey(value.trim(), closeEditor)}
-              disabled={saving || value.trim().length === 0}
+              disabled={!canSaveKey(value)}
               className="rounded-lg bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
             >
               {saving && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
@@ -252,6 +257,7 @@ export function ApiKeyCard({
               size="sm"
               variant="ghost"
               onClick={closeEditor}
+              disabled={saving}
               className="rounded-lg font-display"
             >
               {t('apiKeys.cancelar')}
