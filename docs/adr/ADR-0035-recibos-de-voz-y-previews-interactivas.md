@@ -40,7 +40,7 @@ aceptan edad numérica y reparan una omisión con un segundo pedido que conserva
 el borrador y el contexto. La edad no se rellena con un valor fijo en la UI.
 El respaldo de Catálogo exige datos previos completos y no tapa auth/saldo.
 Ver `scripts/check-character-profile.mjs` (24 casos) y
-[causas y QA](../fixes/character-profile-completeness.md).
+[causas y QA](../fixes/2026-09-12-fix-character-profile-completeness/character-profile-completeness.md).
 
 ### Opciones descartadas
 
@@ -80,8 +80,8 @@ de la misma instancia de app, no procesos CLI independientes ni otra app.
 
 ## Referencias
 
-- [Previews y pruebas](../fixes/style-preview-generation.md)
-- [Reanudación y pruebas](../fixes/voice-resume.md)
-- [Identidad desde Catálogo](../fixes/catalog-character-context.md)
+- [Previews y pruebas](../fixes/2026-09-12-fix-style-preview-generation/style-preview-generation.md)
+- [Reanudación y pruebas](../fixes/2026-09-12-fix-voice-resume/voice-resume.md)
+- [Identidad desde Catálogo](../fixes/2026-09-12-fix-catalog-character-context/catalog-character-context.md)
 - [ADR-0025](ADR-0025-troceo-universal-de-tts-y-tope-de-90k.md)
 - [ADR-0028](ADR-0028-bloqueo-temporal-de-modelos-de-prompts.md)

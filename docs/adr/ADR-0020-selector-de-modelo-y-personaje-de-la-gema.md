@@ -110,7 +110,7 @@ Se agrupa por reparto dentro del mismo carril, conservando la gema y sin campos
 nuevos en scenes.json. Respuestas contradictorias se reintentan con el rescate
 existente; si no se resuelven, no se solicitan imágenes de relleno. La elección se
 aplica tras guardar; un cambio real invalida el prompt, no la imagen pagada.
-Ver [causa, implementación y QA](../fixes/custom-style-editor-character-selection.md).
+Ver [causa, implementación y QA](../fixes/2026-09-13-fix-custom-style-editor-character-selection/custom-style-editor-character-selection.md).
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por
   byte: `promptModel` ni siquiera se acepta.

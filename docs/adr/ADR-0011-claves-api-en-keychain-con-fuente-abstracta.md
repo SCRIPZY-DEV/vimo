@@ -126,7 +126,7 @@ El hook comprueba el valor exacto normalizado y la revisión del intento: editar
 cancelar o reprobar revoca el éxito anterior y descarta respuestas tardías.
 Esto es una condición del editor de claves, no un nuevo contrato de Rust ni un
 cambio del llavero. Los validadores y el control Fal Admin siguen vigentes.
-Ver [corrección y QA](../fixes/api-key-validation-before-save.md).
+Ver [corrección y QA](../fixes/2026-09-12-fix-api-key-validation-before-save/api-key-validation-before-save.md).
 
 - ADR-0007 (invoke reemplaza al servidor local), ADR-0008 (catálogo como dataset),
   ADR-0009 (plugins nativos y store), ADR-0010 (PipelineJob con apiKeys inyectadas).
