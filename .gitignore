@@ -33,3 +33,14 @@ src-tauri/plugins/*/android/build/
 src-tauri/binaries/
 src-tauri/sidecar-build/
 .harness-keys.json
+
+# Documentación: solo markdown. Imágenes y reportes generados no se trackean
+docs/reports/
+docs/img/
+docs/**/*.png
+docs/**/*.jpg
+docs/**/*.jpeg
+docs/**/*.webp
+docs/**/*.gif
+docs/**/*.pdf
+docs/**/*.html
