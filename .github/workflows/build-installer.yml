@@ -1,7 +1,7 @@
-# Compila un instalador de escritorio para una plataforma (ADR-0026). Es un
-# workflow reutilizable: lo llama build-desktop.yml una vez por plataforma y no
-# se dispara solo. Los secretos VITE_*, APPLE_* y TAURI_SIGNING_* llegan con
-# `secrets: inherit`.
+# Compila un instalador de escritorio para un target (ADR-0026, ADR-0034). Es
+# un workflow reutilizable: lo llama build-desktop.yml una vez por target de
+# scripts/release-targets.mjs y no se dispara solo. Los secretos VITE_*,
+# APPLE_* y TAURI_SIGNING_* llegan con `secrets: inherit`.
 #
 # Además del instalador genera los artefactos del updater firmados con
 # minisign (ADR-0027): en Windows la firma `.exe.sig` del mismo setup, en macOS
@@ -13,7 +13,7 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner (windows-latest, macos-latest)'
+        description: 'Runner de la misma arquitectura que el target (windows-latest, macos-latest, macos-15-intel)'
         type: string
         required: true
       target:
@@ -75,6 +75,12 @@ jobs:
       # `--config tauri.updater.conf.json` activa createUpdaterArtifacts solo
       # acá: así `pnpm tauri build` local sigue compilando sin la clave privada.
       # El Vimo.app.tar.gz del updater se arma con la .app ya firmada.
+      #
+      # `--target` deja el triple explícito en vez de heredarlo del runner: Tauri
+      # lo exporta como TAURI_ENV_TARGET_TRIPLE (fetch-binaries y build-sidecar
+      # eligen pins y runtime con él) y el bundle queda en
+      # target/<triple>/release/bundle, la ruta que arma release-targets.mjs.
+      # Si runner y triple no coinciden, build-sidecar aborta.
       - uses: tauri-apps/tauri-action@v0
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -89,7 +95,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: pnpm tauri
-          args: --bundles ${{ inputs.bundles }} --config src-tauri/tauri.updater.conf.json
+          args: --target ${{ inputs.target }} --bundles ${{ inputs.bundles }} --config src-tauri/tauri.updater.conf.json
 
       # Retención corta: el plan Free de GitHub da 500 MB de artefactos en
       # repos privados y cada corrida pesa ~270 MB.

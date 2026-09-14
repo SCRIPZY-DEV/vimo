@@ -1,8 +1,13 @@
 // Arma el manifiesto latest.json que consulta tauri-plugin-updater (ADR-0027)
 // a partir de los artefactos firmados que dejan los jobs de build-desktop.yml:
-// el setup NSIS de Windows con su .sig y el Vimo.app.tar.gz de macOS con el
-// suyo. Copia los binarios a --output con la versión en el nombre (inmutables
-// en el hosting) y escribe latest.json al lado.
+// uno por target de scripts/release-targets.mjs (el setup NSIS de Windows con
+// su .sig, el Vimo.app.tar.gz de cada macOS con el suyo). Copia los binarios a
+// --output con la versión en el nombre (inmutables en el hosting) y escribe
+// latest.json al lado.
+//
+// Cada artefacto se busca solo dentro de --input/<nombre del artefacto>/, la
+// carpeta que deja actions/download-artifact: los dos macOS producen un
+// Vimo.app.tar.gz con el mismo nombre.
 //
 // Aborta ante cualquier hueco (tag ≠ package.json, artefacto o firma
 // faltante): un manifiesto incompleto dejaría a una plataforma sin poder
@@ -13,6 +18,7 @@
 //     [--notes-file release-notes.txt]
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -21,31 +27,9 @@ import {
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { RELEASE_TARGETS } from './release-targets.mjs'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
-
-// Un artefacto por plataforma del updater. `find` reconoce el archivo
-// producido por Tauri; `publishedName` es cómo se llama en el hosting.
-const PLATFORM_ARTIFACTS = [
-  {
-    platform: 'windows-x86_64',
-    find: (name) => name.endsWith('-setup.exe'),
-    publishedName: (version) => `Vimo_${version}_x64-setup.exe`,
-  },
-  {
-    platform: 'darwin-aarch64',
-    find: (name) => name.endsWith('.app.tar.gz'),
-    publishedName: (version) => `Vimo_${version}_aarch64.app.tar.gz`,
-  },
-]
-
-// Extras que van al hosting para la página de descargas pero no al manifiesto.
-const EXTRA_ARTIFACTS = [
-  {
-    find: (name) => name.endsWith('.dmg'),
-    publishedName: (version) => `Vimo_${version}_aarch64.dmg`,
-  },
-]
 
 const { values: options } = parseArgs({
   options: {
@@ -70,9 +54,9 @@ function listFilesRecursively(directory) {
   })
 }
 
-function findSingle(files, predicate, label) {
+function findSingle(files, predicate, label, directory) {
   const matches = files.filter((path) => predicate(basename(path)))
-  if (matches.length === 0) fail(`no se encontró ${label} en ${options.input}`)
+  if (matches.length === 0) fail(`no se encontró ${label} en ${directory}`)
   if (matches.length > 1) fail(`hay más de un ${label}: ${matches.join(', ')}`)
   return matches[0]
 }
@@ -115,32 +99,44 @@ if (options.tag && options.tag !== `v${version}`) {
 const baseUrl = options['base-url'].endsWith('/')
   ? options['base-url']
   : `${options['base-url']}/`
-const files = listFilesRecursively(options.input)
 mkdirSync(options.output, { recursive: true })
 
 const platforms = {}
-for (const artifact of PLATFORM_ARTIFACTS) {
+for (const target of RELEASE_TARGETS) {
+  const artifactDirectory = join(options.input, target.artifact)
+  if (!existsSync(artifactDirectory)) {
+    fail(
+      `falta el artefacto ${target.artifact} en ${options.input}: ¿terminó el build de ${target.id}?`,
+    )
+  }
+  const files = listFilesRecursively(artifactDirectory)
+
   const source = findSingle(
     files,
-    artifact.find,
-    `el artefacto ${artifact.platform}`,
+    target.updater.find,
+    `el artefacto ${target.updater.platform}`,
+    artifactDirectory,
   )
   const signature = readSignature(source)
-  const publishedName = artifact.publishedName(version)
+  const publishedName = target.updater.publishedName(version)
   copyFileSync(source, join(options.output, publishedName))
-  platforms[artifact.platform] = {
+  platforms[target.updater.platform] = {
     url: new URL(publishedName, baseUrl).href,
     signature,
   }
-  console.log(`${artifact.platform}: ${basename(source)} → ${publishedName}`)
-}
+  console.log(
+    `${target.updater.platform}: ${basename(source)} → ${publishedName}`,
+  )
 
-for (const extra of EXTRA_ARTIFACTS) {
-  const matches = files.filter((path) => extra.find(basename(path)))
-  if (matches.length !== 1) continue
-  const publishedName = extra.publishedName(version)
-  copyFileSync(matches[0], join(options.output, publishedName))
-  console.log(`extra: ${basename(matches[0])} → ${publishedName}`)
+  // Extras que van al hosting para la página de descargas pero no al
+  // manifiesto: si no están, se saltan sin abortar.
+  for (const extra of target.extras) {
+    const matches = files.filter((path) => extra.find(basename(path)))
+    if (matches.length !== 1) continue
+    const extraName = extra.publishedName(version)
+    copyFileSync(matches[0], join(options.output, extraName))
+    console.log(`extra: ${basename(matches[0])} → ${extraName}`)
+  }
 }
 
 const manifest = {
