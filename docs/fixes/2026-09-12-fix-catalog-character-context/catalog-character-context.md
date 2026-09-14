@@ -21,7 +21,7 @@ desde Personajes. Sin clave configurada, la redacción debe permanecer deshabili
 Validación de compilación: `pnpm format`, `pnpm lint`, `pnpm build`.
 La calidad de la inferencia requiere QA con el proveedor real.
 
-`node scripts/check-character-ui.mjs`: tres escenarios en Chrome con componentes
+`node scripts/test/check-character-ui.mjs`: tres escenarios en Chrome con componentes
 y hooks reales; únicamente APIs y disponibilidad de claves simuladas. Recorre
 Section → Picker → Modal, verifica botón habilitado con campos vacíos, guion
 exacto enviado y ficha autocompletada; además biblioteca sin guion y Mi estilo.

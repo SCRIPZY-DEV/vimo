@@ -6,24 +6,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
-import { resolvePipelineConfig } from '../pipeline/config/pipeline-config.ts'
-import { VISUAL_STYLES } from '../pipeline/prompts/visual-styles.ts'
+import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
+import { VISUAL_STYLES } from '../../pipeline/prompts/visual-styles.ts'
 import {
   resolveProjectPaths,
   sceneImageFile,
-} from '../pipeline/project/paths.ts'
-import { readScenes, writeScenes } from '../pipeline/project/scenes-file.ts'
-import { runStages } from '../pipeline/runner/run-stages.ts'
-import { scenePromptsStage } from '../pipeline/stages/scene-prompts/scene-prompts.ts'
-import { imagesStage } from '../pipeline/stages/images/images.ts'
-import { directScenes } from '../pipeline/stages/scene-prompts/scene-director.ts'
-import { guaranteePrompts } from '../pipeline/stages/scene-prompts/prompt-writer.ts'
-import { hasCatalogPrompt } from '../pipeline/stages/shared/catalog-prompt.ts'
+} from '../../pipeline/project/paths.ts'
+import { readScenes, writeScenes } from '../../pipeline/project/scenes-file.ts'
+import { runStages } from '../../pipeline/runner/run-stages.ts'
+import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
+import { imagesStage } from '../../pipeline/stages/images/images.ts'
+import { directScenes } from '../../pipeline/stages/scene-prompts/scene-director.ts'
+import { guaranteePrompts } from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
+import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
 import {
   createCatalogSceneLlm,
   CATALOG_MODEL_IDS,
   CATALOG_LLM_CONCURRENCY,
-} from '../pipeline/stages/shared/catalog-llm.ts'
+} from '../../pipeline/stages/shared/catalog-llm.ts'
 
 const fragments = [
   'Elena repara la antena roja en el exterior de la estación espacial.',

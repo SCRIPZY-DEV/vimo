@@ -6,8 +6,8 @@ import { createServer } from 'node:http'
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { targetTriple, executableSuffix } from './target-triple.mjs'
-import { markBible } from '../pipeline/utils/story-era.ts'
+import { targetTriple, executableSuffix } from '../target-triple.mjs'
+import { markBible } from '../../pipeline/utils/story-era.ts'
 
 const triple = targetTriple()
 const binary = resolve(

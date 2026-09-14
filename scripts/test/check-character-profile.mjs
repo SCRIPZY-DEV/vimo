@@ -1,9 +1,9 @@
 // Fichas reales del sidecar, con HTTP interceptado: ninguna clave ni cargo real.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { suggestCharacterProfile } from '../pipeline/commands/characters/suggest-character-profile.ts'
-import { designStyleCharacter } from '../pipeline/commands/styles/design-style-character.ts'
-import { resolvePipelineConfig } from '../pipeline/config/pipeline-config.ts'
+import { suggestCharacterProfile } from '../../pipeline/commands/characters/suggest-character-profile.ts'
+import { designStyleCharacter } from '../../pipeline/commands/styles/design-style-character.ts'
+import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 
 const identity =
   'Bald astronaut with thick round glasses, a white and blue space suit, broad shoulders, a round face and brown eyes.'

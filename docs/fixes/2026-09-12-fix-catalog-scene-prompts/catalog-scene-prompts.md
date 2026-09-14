@@ -52,12 +52,12 @@ su política; el cliente streaming comparte solo una opción de validación opt-
   no modifica síntesis ni sus recibos.
 - `src/modules/videos/constants.ts` y `public/locales/{es,en,pt}.json`: errores
   traducidos, sin reintentos automáticos adicionales sobre modelos agotados.
-- `scripts/check-catalog-prompts.mjs`, `scripts/check-packaged-catalog.mjs`.
+- `scripts/test/check-catalog-prompts.mjs`, `scripts/test/check-packaged-catalog.mjs`.
 - ADR-0036, índices ADR, arquitectura y este informe; registros en Obsidian.
 
 ## Evidencia y límites
 
-`node --test scripts/check-catalog-prompts.mjs`: 35 casos HTTP simulados, incluidos
+`node --test scripts/test/check-catalog-prompts.mjs`: 35 casos HTTP simulados, incluidos
 cancelación/reanudación, fallo de los tres modelos, duplicación, planes parciales,
 timeout, SSE, cero gasto de imágenes ante prompts inválidos y recorrido completo
 director → redactor → Fal simulado con guardado real de las imágenes fixture.
@@ -65,7 +65,7 @@ También cubre cancelar el director y un rechazo content-policy cuya reescritura
 falla: no debe originar una segunda imagen genérica. Son 88 casos al sumar las
 regresiones previas de identidad, previews y voz.
 
-`node scripts/check-packaged-catalog.mjs`: ejecuta el SEA con un servidor LLM en
+`node scripts/test/check-packaged-catalog.mjs`: ejecuta el SEA con un servidor LLM en
 loopback y comprueba rotación, fallo sin relleno, cancelación por stdin y reanudación.
 Las fases de voz/transcripción se siembran como cache-hit; no evalúa su generación.
 Build Tauri macOS ARM y smoke SEA 4/4 aprobados; UI de personajes 3/3 y smoke de

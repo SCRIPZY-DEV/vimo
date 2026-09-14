@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { crc32 } from 'node:zlib'
 
-const repoRoot = fileURLToPath(new URL('..', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const failures = []
 let checks = 0
 

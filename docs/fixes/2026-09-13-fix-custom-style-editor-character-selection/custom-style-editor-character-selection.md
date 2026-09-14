@@ -44,9 +44,9 @@ Fecha: 2026-09-13. Rama: `feat/fix-bugs-vimo`.
 - `pipeline/stages/scene-prompts/verbatim/subject-weaver.ts`: identidad por nombre sin etiqueta.
 - `src/modules/videos/hooks/useLibraryEditor.ts`: espera y rollback de las casillas.
 - `src/modules/videos/views/LibraryEditor/LibraryEditor.tsx`: bloqueo temporal del panel.
-- `scripts/check-editor-character-selection.mjs`: 21 comprobaciones con HTTP simulado.
-- `scripts/check-editor-character-ui.mjs`: 4 recorridos del hook/query/panel en Chrome.
-- `scripts/check-packaged-editor.mjs`: smoke reproducible de los comandos en el SEA real.
+- `scripts/test/check-editor-character-selection.mjs`: 21 comprobaciones con HTTP simulado.
+- `scripts/test/check-editor-character-ui.mjs`: 4 recorridos del hook/query/panel en Chrome.
+- `scripts/test/check-packaged-editor.mjs`: smoke reproducible de los comandos en el SEA real.
 
 ## Verificación y límites
 
@@ -60,7 +60,7 @@ verificado con `hdiutil verify` (CRC32 `57602DA0`). Después de compilar, smoke 
 SEA: editor 3/3, Catálogo 4/4 y voz 3/3. Build y smoke se ejecutaron en serie.
 El instalador no se instaló ni publicó automáticamente.
 
-Prueba del paquete: `node scripts/check-packaged-editor.mjs`. Usa solo un LLM local
+Prueba del paquete: `node scripts/test/check-packaged-editor.mjs`. Usa solo un LLM local
 y ninguna clave de imagen: verifica la presencia guardada y el cierre antes de
 imágenes sin facturar llamadas. El guard es textual: no demuestra cumplimiento
 visual de cada modelo remoto. Hace falta aceptación con imágenes reales y QA en

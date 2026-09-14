@@ -7,12 +7,12 @@ import { test } from 'node:test'
 import { mkdtemp, readFile, writeFile, rm, access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { targetTriple, executableSuffix } from './target-triple.mjs'
-import { synthesizeInParts } from '../pipeline/providers/tts/chunked-synthesis.ts'
-import { elevenLabsProvider } from '../pipeline/providers/tts/elevenlabs.ts'
-import { minimaxProvider } from '../pipeline/providers/tts/minimax.ts'
-import { synthesizeNarration } from '../pipeline/stages/voice/narration.ts'
-import { voiceRequestFile } from '../pipeline/providers/tts/request-checkpoint.ts'
+import { targetTriple, executableSuffix } from '../target-triple.mjs'
+import { synthesizeInParts } from '../../pipeline/providers/tts/chunked-synthesis.ts'
+import { elevenLabsProvider } from '../../pipeline/providers/tts/elevenlabs.ts'
+import { minimaxProvider } from '../../pipeline/providers/tts/minimax.ts'
+import { synthesizeNarration } from '../../pipeline/stages/voice/narration.ts'
+import { voiceRequestFile } from '../../pipeline/providers/tts/request-checkpoint.ts'
 
 const audio = Buffer.from('ID3 fixture audio')
 async function fixture(t, provider = elevenLabsProvider) {
@@ -238,7 +238,7 @@ test('multipart cancellation reuses paid part, and real FFmpeg publishes only co
   const triple = targetTriple()
   const ffmpeg = fileURLToPath(
     new URL(
-      `../src-tauri/binaries/ffmpeg-${triple}${executableSuffix(triple)}`,
+      `../../src-tauri/binaries/ffmpeg-${triple}${executableSuffix(triple)}`,
       import.meta.url,
     ),
   )

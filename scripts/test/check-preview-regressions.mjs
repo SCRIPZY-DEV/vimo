@@ -5,13 +5,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
-import { generateStyleSamples } from '../pipeline/commands/styles/generate-style-samples.ts'
+import { generateStyleSamples } from '../../pipeline/commands/styles/generate-style-samples.ts'
 import {
   createInteractiveLlm,
   INTERACTIVE_MODEL_IDS,
-} from '../pipeline/providers/llm/interactive.ts'
-import { resolvePipelineConfig } from '../pipeline/config/pipeline-config.ts'
-import { SAMPLE_FRAGMENTS } from '../pipeline/prompts/style-samples.ts'
+} from '../../pipeline/providers/llm/interactive.ts'
+import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
+import { SAMPLE_FRAGMENTS } from '../../pipeline/prompts/style-samples.ts'
 
 const imageBytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=',

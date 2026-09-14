@@ -57,7 +57,7 @@ van SIEMPRE por parámetro (`FrameSize`), nunca en constantes de módulo.
 de Exportar en shorts por la misma barra del encabezado de los proyectos largos.
 Un único `RenderVideoButton` sirve a 9:16 y 16:9, conservando progreso, cancelación,
 bloqueo cuando está ocupado y los handlers existentes. No cambia la exportación,
-el formato del video ni el sidecar. Verificación: `node scripts/check-export-header-ui.mjs`;
+el formato del video ni el sidecar. Verificación: `node scripts/test/check-export-header-ui.mjs`;
 en la app, abrir un short y comprobar Exportar junto a las otras acciones del header,
 sin botón sobre el timeline; repetir en formato largo y durante la exportación.
 

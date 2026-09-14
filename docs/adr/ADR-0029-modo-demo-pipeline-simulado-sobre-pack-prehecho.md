@@ -93,7 +93,7 @@ job-completed { videoPath } ─► biblioteca / editor
 | Rama en el job real               | cambio | `pipeline/commands/videos/run-video-pipeline.ts`                                                                                        | Un guard clause tras `buildCreateVideoContext`: `if (options.demo === true) return runDemoPipeline(…)`                                                                                                                                                        |
 | Rechazos `demo_project`           | cambio | `pipeline/commands/videos/{regenerate-scene-images,replace-narration}.ts`                                                               | `PipelineFailure('demo_project')` antes de tocar cualquier proveedor                                                                                                                                                                                          |
 | `yauzl`                           | nuevo  | `package.json` (+ `@types/yauzl` en dev)                                                                                                | Lector de zip puro JavaScript y por streaming (una sola dependencia transitiva, `pend`); esbuild lo empaqueta en el SEA                                                                                                                                       |
-| Guard ejecutable                  | nuevo  | `scripts/check-demo.mjs` (`pnpm check:demo`)                                                                                            | Genera un pack mínimo en una carpeta temporal, lo sirve por HTTP local y corre el sidecar con overrides de `config.demo`; ver Verificación                                                                                                                    |
+| Guard ejecutable                  | nuevo  | `scripts/test/check-demo.mjs` (`pnpm check:demo`)                                                                                       | Genera un pack mínimo en una carpeta temporal, lo sirve por HTTP local y corre el sidecar con overrides de `config.demo`; ver Verificación                                                                                                                    |
 | Textos                            | cambio | `public/locales/{es,en,pt}.json`                                                                                                        | `layout.nav.demo`, grupo `createDemo.*` (estados, nota, reintentar, `errors.*`), `common.proximamente`, `library.editor.demoLocked`, `library.errors.demoProject`                                                                                             |
 
 ### El pack en disco
@@ -224,7 +224,7 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
 ## Verificación de cumplimiento
 
 - **Tests:** no hay framework de tests en el repo.
-- **Guard:** `pnpm check:demo` (`scripts/check-demo.mjs`) corre en local con el Node
+- **Guard:** `pnpm check:demo` (`scripts/test/check-demo.mjs`) corre en local con el Node
   oficial, sobre una carpeta raíz temporal. No hay fixture en el repo: el guard genera
   un pack mínimo (mismo formato v2, 2 escenas por estilo, archivos diminutos), lo
   empaqueta en un zip en memoria y lo sirve por HTTP local, pasando `packUrl`,

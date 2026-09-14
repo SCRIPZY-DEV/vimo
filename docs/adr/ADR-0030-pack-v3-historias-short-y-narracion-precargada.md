@@ -143,7 +143,7 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
 
 ## Verificación de cumplimiento
 
-- **Guard `pnpm check:demo`** (`scripts/check-demo.mjs`), secciones nuevas sobre el pack
+- **Guard `pnpm check:demo`** (`scripts/test/check-demo.mjs`), secciones nuevas sobre el pack
   mínimo con `short/`: 14. una historia en 9:16 (catálogo y gema) copia desde `short/<estilo>` y completa;
   `project.json` conserva `videoFormat: '9:16'`; 15. con `narrationMode: 'own-audio'` no hay `voice-progress`, la fase `voice` completa
   y `narration.mp3` termina siendo el audio del pack; 16. un pack sin bloque `short` (v2) se instala, `stories['9:16']` no existe y un

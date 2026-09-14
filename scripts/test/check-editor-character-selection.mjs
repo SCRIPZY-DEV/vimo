@@ -41,18 +41,18 @@ import { test } from 'node:test'
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { resolvePipelineConfig } from '../pipeline/config/pipeline-config.ts'
+import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 import {
   resolveProjectPaths,
   sceneImageFile,
-} from '../pipeline/project/paths.ts'
-import { readScenes, writeScenes } from '../pipeline/project/scenes-file.ts'
-import { buildCreateVideoContext } from '../pipeline/stages/context.ts'
-import { updateScenes } from '../pipeline/commands/videos/update-scenes.ts'
-import { regenerateSceneImages } from '../pipeline/commands/videos/regenerate-scene-images.ts'
-import { runVerbatimLane } from '../pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts'
-import { scenePromptsStage } from '../pipeline/stages/scene-prompts/scene-prompts.ts'
-import { SCENE_WITHOUT_PROTAGONIST_RULE } from '../pipeline/prompts/verbatim-messages.ts'
+} from '../../pipeline/project/paths.ts'
+import { readScenes, writeScenes } from '../../pipeline/project/scenes-file.ts'
+import { buildCreateVideoContext } from '../../pipeline/stages/context.ts'
+import { updateScenes } from '../../pipeline/commands/videos/update-scenes.ts'
+import { regenerateSceneImages } from '../../pipeline/commands/videos/regenerate-scene-images.ts'
+import { runVerbatimLane } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts'
+import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
+import { SCENE_WITHOUT_PROTAGONIST_RULE } from '../../pipeline/prompts/verbatim-messages.ts'
 
 const gem =
   'Render every scene as a hand-drawn watercolor illustration with indigo washes and rough paper. Keep the story action and setting.'

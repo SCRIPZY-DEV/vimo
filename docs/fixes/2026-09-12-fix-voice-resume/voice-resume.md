@@ -49,7 +49,7 @@ su orden de fases, rutas o transporte invoke/Channel.
 
 ## Validación reproducible
 
-`node --test scripts/check-voice-resume.mjs`: doce casos, HTTP interceptado,
+`node --test scripts/test/check-voice-resume.mjs`: doce casos, HTTP interceptado,
 sin claves reales ni cargos. Cuenta POSTs y verifica recibos/archivos reales:
 cancelación durante POST; recuperación del mismo ID; fallo de descarga sin
 fallback; envío incierto; ajustes incompatibles; tarea remota fallida;

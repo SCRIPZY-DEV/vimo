@@ -36,13 +36,13 @@ Archivos tocados por este ajuste:
 - `pipeline/commands/characters/suggest-character-profile.ts` y
   `pipeline/commands/styles/design-style-character.ts`: validación y reparación.
 - `pipeline/types/characters.ts`, `styles.ts`: respuesta con campos obligatorios.
-- `scripts/check-character-profile.mjs`, `check-character-ui.mjs`: regresiones.
+- `scripts/test/check-character-profile.mjs`, `check-character-ui.mjs`: regresiones.
 - Este documento, `catalog-character-context.md`, ADR-0035 e informe PDF/HTML.
 
-`node --test scripts/check-character-profile.mjs`: 24 casos con los comandos
+`node --test scripts/test/check-character-profile.mjs`: 24 casos con los comandos
 reales y HTTP simulado; ambos expertos, edad numérica, campos omitidos, reparación,
 fallo persistente, datos previos, poda, errores de cuenta/proveedor y cancelación.
-`node scripts/check-character-ui.mjs`: comprueba valores reales de los cuatro
+`node scripts/test/check-character-ui.mjs`: comprueba valores reales de los cuatro
 inputs, no solo presencia o placeholder, en Catálogo y Mi estilo.
 
 Prueba manual con el nuevo build: repetir el astronauta con guion pero edad vacía;

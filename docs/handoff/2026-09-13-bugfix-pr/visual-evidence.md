@@ -36,7 +36,7 @@ su nombre de archivo.
   porcentaje real del LLM.
 - **`samples-images.png`**: en la fase de imágenes, cada tarjeta muestra su propio
   progreso. Los porcentajes son ficticios. La concurrencia de peticiones se comprueba
-  con `scripts/check-preview-regressions.mjs`, no con una imagen estática.
+  con `scripts/test/check-preview-regressions.mjs`, no con una imagen estática.
 
 ## Editor: Exportar y selección de personaje
 
@@ -59,7 +59,7 @@ Desde la raíz del repo, con las dependencias instaladas y Chrome disponible:
 
 ```sh
 pnpm build
-node scripts/capture-bugfix-pr.mjs
+node scripts/test/capture-bugfix-pr.mjs
 ```
 
 El script acepta la ruta del ejecutable de Chrome como primer argumento. Usa un

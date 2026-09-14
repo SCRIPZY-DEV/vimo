@@ -258,7 +258,9 @@ pnpm build
 
 > **Testing:** todavía no hay framework de tests en el repo. Cuando se decida (Vitest,
 > Playwright), se agrega acá la regla y el comando correspondiente. Hasta entonces, no
-> declares «tests verdes»: no los hay.
+> declares «tests verdes»: no los hay. Los guards y regresiones provisorios viven en
+> [scripts/test/](scripts/test/README.md) y están pendientes de migrar a ese framework;
+> en `scripts/` quedan solo los scripts de build y del sidecar.
 
 ---
 

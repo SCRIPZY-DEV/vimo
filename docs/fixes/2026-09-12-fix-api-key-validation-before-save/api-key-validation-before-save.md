@@ -23,7 +23,7 @@ Una clave guardada antes de este cambio no se elimina ni se revalida sola.
 - `src/modules/api-keys/components/ApiKeyCard.tsx`: controles de la tarjeta.
 - `src/modules/api-keys/hooks/useApiKeyActions.ts`: condición de guardado y vigencia.
 - `src/modules/api-keys/types/apiKeys.ts`: intento local tipado con revisión.
-- `scripts/check-api-key-ui.mjs`: tarjeta y hook reales en Chrome, API simulada.
+- `scripts/test/check-api-key-ui.mjs`: tarjeta y hook reales en Chrome, API simulada.
 
 ## Cómo probar
 
@@ -34,5 +34,5 @@ Una clave guardada antes de este cambio no se elimina ni se revalida sola.
 5. Editar o cancelar mientras prueba: la respuesta vieja no habilita la nueva edición.
 6. Cancelar el cambio de una clave configurada: se conserva la anterior.
 
-Verificación automatizada reproducible: `node scripts/check-api-key-ui.mjs`.
+Verificación automatizada reproducible: `node scripts/test/check-api-key-ui.mjs`.
 Las cuentas y el llavero reales quedan para aceptación manual en la app nativa.

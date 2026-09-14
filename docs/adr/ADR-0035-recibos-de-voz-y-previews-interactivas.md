@@ -39,7 +39,7 @@ expertos solo devuelven éxito con nombre, edad, rol e identidad completos;
 aceptan edad numérica y reparan una omisión con un segundo pedido que conserva
 el borrador y el contexto. La edad no se rellena con un valor fijo en la UI.
 El respaldo de Catálogo exige datos previos completos y no tapa auth/saldo.
-Ver `scripts/check-character-profile.mjs` (24 casos) y
+Ver `scripts/test/check-character-profile.mjs` (24 casos) y
 [causas y QA](../fixes/2026-09-12-fix-character-profile-completeness/character-profile-completeness.md).
 
 ### Opciones descartadas
@@ -68,9 +68,9 @@ de la misma instancia de app, no procesos CLI independientes ni otra app.
 
 ## Verificación de cumplimiento
 
-- Local: `node --test scripts/check-preview-regressions.mjs` verifica rotación,
+- Local: `node --test scripts/test/check-preview-regressions.mjs` verifica rotación,
   cuatro POSTs simultáneos y publicación individual antes del cierre del job.
-- Local: `node --test scripts/check-voice-resume.mjs` cuenta POSTs, verifica
+- Local: `node --test scripts/test/check-voice-resume.mjs` cuenta POSTs, verifica
   recuperación de ID/URL y prueba unión atómica con FFmpeg real.
 - `pnpm format`, `pnpm lint`, `pnpm build`, tsc del pipeline y `cargo check`.
 - Build local `pnpm exec tauri build --bundles app`; QA manual en los documentos

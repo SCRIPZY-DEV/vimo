@@ -32,7 +32,7 @@ El avance de redacción combina actividad del stream y estimación temporal, con
 techo 95 % hasta validar el prompt. No representa un porcentaje real del LLM.
 Evolink informa progreso propio; Fal usa la estimación que ya tenía.
 
-Validación: `node --test scripts/check-preview-regressions.mjs` (17 casos:
+Validación: `node --test scripts/test/check-preview-regressions.mjs` (17 casos:
 429/503/timeout/formato inválido, auth/saldo, concurrencia y guardado inmediato en
 ambos proveedores; lote parcial/inválido/duplicado, 429, timeout, auth/saldo,
 cancelación y fallo individual). Se exige una sola petición LLM para el lote
