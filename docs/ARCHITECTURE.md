@@ -363,7 +363,7 @@ Desde 2026-09-12, la narración conserva además recibos atómicos por solicitud
 TTS pendiente. Reanudar consulta la tarea remota conocida; no repite un POST
 incierto. Rust excluye jobs simultáneos del mismo proyecto dentro de la app.
 Ver [ADR-0035](adr/ADR-0035-recibos-de-voz-y-previews-interactivas.md) y
-[límites y pruebas de recuperación](fixes/voice-resume.md).
+[límites y pruebas de recuperación](fixes/2026-09-12-fix-voice-resume/voice-resume.md).
 
 ---
 
@@ -414,7 +414,7 @@ la referencia histórica a «4 capas de garantía» queda reemplazada por stream
 con rotación acotada de modelos y validación por tarea. Director en lotes de hasta
 12; cancelación sin relleno, checkpoints serializados y barrera de prompts válidos
 antes de imágenes. Una respuesta genérica de respaldo ya no autoriza gasto.
-Las fases y el transporte siguen iguales. [Causa, archivos y QA](fixes/catalog-scene-prompts.md).
+Las fases y el transporte siguen iguales. [Causa, archivos y QA](fixes/2026-09-12-fix-catalog-scene-prompts/catalog-scene-prompts.md).
 
 Cada una implementa `Stage { id, skip?, run }` y el runner
 (`pipeline/runner/run-stages.ts`) las recorre emitiendo `stage-started` /
