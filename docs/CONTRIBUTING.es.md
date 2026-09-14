@@ -44,9 +44,9 @@ Este proceso se encuentra en desarrollo, pero básicamente lo que hace es levant
 
 ## Empaquetar para macOS (firma y notarización)
 
-El DMG que genera GitHub Actions (`Vimo-macos-arm64`, ver la sección de Windows) sale
-**firmado con Developer ID y notarizado**: se descarga, se abre y Gatekeeper no
-interviene. Un `pnpm tauri build` local sin variables, en cambio, deja la app con
+Los DMG que genera GitHub Actions (`Vimo-macos-arm64` para Apple Silicon y
+`Vimo-macos-x64` para Intel, ver la sección de Windows) salen **firmados con Developer
+ID y notarizados**: se descargan, se abren y Gatekeeper no interviene. Un `pnpm tauri build` local sin variables, en cambio, deja la app con
 **firma ad-hoc** (`codesign --sign -`), igual que los binarios de
 `scripts/build-sidecar.mjs` y `scripts/fetch-binaries.mjs`. Eso tiene dos efectos:
 
@@ -65,7 +65,7 @@ Tauri lee la identidad de la variable `APPLE_SIGNING_IDENTITY` al empaquetar; **
 escribe en `tauri.conf.json` porque queda ligada a la cuenta de una persona. La
 configuración que sí es del repo vive en
 [src-tauri/tauri.macos.conf.json](/src-tauri/tauri.macos.conf.json): solo DMG,
-`minimumSystemVersion` y los entitlements de
+`minimumSystemVersion` (11.0, el mínimo que exige el Node 22 del sidecar) y los entitlements de
 [src-tauri/Entitlements.plist](/src-tauri/Entitlements.plist). Estos existen porque la
 notarización exige _hardened runtime_ y bajo él el sidecar `vimo-pipeline` (un Node SEA,
 V8 con JIT) aborta sin `allow-jit` / `allow-unsigned-executable-memory`, y `ffmpeg` y
@@ -126,16 +126,31 @@ permiso una última vez; con «Permitir siempre» el permiso queda anclado al ce
 El instalador de Windows se genera en **GitHub Actions**
 ([.github/workflows/build-desktop.yml](/.github/workflows/build-desktop.yml), ADR-0026):
 Tauri no cross-compila desde macOS. Se dispara a mano desde la pestaña _Actions_
-(«Build desktop installers» → _Run workflow_, eligiendo en _platform_ si se compila
-solo Windows, solo macOS o ambos) o al pushear un tag `v*`, que siempre genera ambos; el
-`Vimo_<versión>_x64-setup.exe` queda como artefacto `Vimo-windows-x64` del run. El
-mismo workflow genera el DMG de macOS Apple Silicon (`Vimo-macos-arm64`) firmado con
-Developer ID y notarizado con los secretos `APPLE_*` de la sección anterior.
+(«Build desktop installers» → _Run workflow_) o al pushear un tag `v*`, que siempre
+genera todos los instaladores. En _platform_ se elige qué compilar: `all`, una familia
+(`windows`, `macos`) o un target puntual (`windows-x64`, `macos-arm64`, `macos-x64`).
+El `Vimo_<versión>_x64-setup.exe` queda como artefacto `Vimo-windows-x64` del run. El
+mismo workflow genera los DMG de macOS Apple Silicon (`Vimo-macos-arm64`) e Intel
+(`Vimo-macos-x64`), firmados con Developer ID y notarizados con los secretos `APPLE_*`
+de la sección anterior.
+
+**Targets.** Los instaladores se declaran en
+[scripts/release-targets.mjs](/scripts/release-targets.mjs) (ADR-0034): runner, target
+triple, bundles, artefacto y nombres publicados. El job `plan` arma la matriz desde ahí
+y `build-update-manifest.mjs` lee la misma lista. Para sumar una plataforma se agrega
+una entrada ahí, sus pins en `fetch-binaries.mjs` y la opción en el input `platform`;
+nunca un job nuevo. Cada target se compila en un runner de su misma arquitectura: el
+sidecar copia el Node del runner y `build:sidecar` aborta si no coinciden. Intel usa
+`macos-15-intel`, la última imagen Intel de GitHub, que **se retira en agosto de 2027**
+(la ADR describe la migración). Como el workflow pasa `--target`, en CI el bundle queda
+en `src-tauri/target/<triple>/release/bundle/`.
 
 **Cuota gratuita.** En repos privados GitHub cuenta los minutos de macOS por diez y los
-de Windows por dos: una corrida completa gasta unos 200-250 de los 2000 minutos
-mensuales del plan Free, y los artefactos (~270 MB por corrida, 3 días de retención)
-comparten un cupo de 500 MB. Por eso el workflow no corre en cada push.
+de Windows por dos. Una corrida completa corre dos jobs de macOS (Apple Silicon e
+Intel): antes gastaba unos 200-250 de los 2000 minutos mensuales del plan Free, y ahora
+el estimado sube a unos 350-400. Los artefactos (~400 MB por corrida, 3 días de
+retención) comparten un cupo de 500 MB, así que dos corridas completas seguidas pueden
+agotarlo. Por eso el workflow no corre en cada push.
 
 **Secretos obligatorios.** El `.env` no se sube al repo, así que el workflow lee
 `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` desde los secretos del repo
@@ -185,7 +200,7 @@ La app busca versiones nuevas al arrancar en `https://vimo.click/releases/latest
    git push origin v0.2.0
    ```
 
-3. `Build desktop installers` compila ambas plataformas, firma los artefactos con
+3. `Build desktop installers` compila todos los targets, firma los artefactos con
    minisign y el job `publish` genera `latest.json`
    ([scripts/build-update-manifest.mjs](/scripts/build-update-manifest.mjs)), sube los
    instaladores a Cloudflare R2 (carpeta `v<versión>/`) y deja el manifiesto como
