@@ -45,6 +45,8 @@ agrega ruido.
 
 | ADR                                                                                | Título                                                                          | Estado                   | Área                          |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0036](ADR-0036-prompts-de-catalogo-sin-relleno.md)                            | Prompts de Catálogo con rotación y sin relleno                                  | Aceptada                 | pipeline / app                |
+| [ADR-0035](ADR-0035-recibos-de-voz-y-previews-interactivas.md)                     | Recibos locales de voz y previews interactivas                                  | Aceptada                 | app / pipeline / providers    |
 | [ADR-0034](ADR-0034-distribucion-macos-intel-y-targets-de-release-declarativos.md) | Distribución en macOS Intel y targets de release declarativos                   | Aceptada                 | distribución                  |
 | [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md)        | Personajes con foto: la imagen subida como identidad                            | Aceptada                 | pipeline / app                |
 | [ADR-0032](ADR-0032-proveedores-en-servidor-y-creditos-de-vimo.md)                 | Proveedores unificados en un servidor de Vimo y créditos propios                | Propuesta                | pipeline, providers, app      |

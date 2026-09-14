@@ -2,7 +2,7 @@ import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import { buildCharactersBibleBlock } from '../../prompts/reference-characters.ts'
 import { resolveProjectStyle } from '../shared/project-style.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
-import { isValidFile } from '../../project/paths.ts'
+import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import {
   readScenes,
   toSceneSummary,
@@ -19,7 +19,9 @@ import {
   detectScenesWithCharacters,
   needsAlwaysCure,
 } from './character-presence.ts'
-import { createSceneLlm, type SceneLlm } from '../shared/llm.ts'
+import type { SceneLlm } from '../shared/llm.ts'
+import { createCatalogSceneLlm } from '../shared/catalog-llm.ts'
+import { hasCatalogPrompt } from '../shared/catalog-prompt.ts'
 import {
   recordPromptModelUsed,
   runVerbatimLane,
@@ -36,12 +38,45 @@ function hasText(scene: Scene): boolean {
   return (scene.text?.trim().length ?? 0) > 0
 }
 
+// No reescribir assets pagados sin pedido explícito. Los rellenos heredados
+// sin imagen se reparan; una tarea remota pendiente no pierde su prompt/hash.
+async function catalogPendingIds(
+  context: CreateVideoContext,
+  scenes: Scene[],
+): Promise<Set<number>> {
+  const ids = new Set<number>()
+  const style = resolveProjectStyle(context.options)
+  for (const scene of scenes) {
+    if (!hasText(scene) && !scene.userPrompt?.trim()) continue
+    if (
+      context.regenerateSceneIds?.size &&
+      !context.regenerateSceneIds.has(scene.id)
+    )
+      continue
+    if (hasCatalogPrompt(scene, style)) continue
+    if (
+      !context.regenerateSceneIds?.has(scene.id) &&
+      (await isValidFile(sceneImageFile(context.paths, scene.id)))
+    )
+      continue
+    if (scene.imageTask && !context.regenerateSceneIds?.has(scene.id))
+      throw new PipelineFailure(
+        'catalog_prompt_pending_image',
+        'a legacy filler prompt has a paid image task; review it before rewriting',
+      )
+    ids.add(scene.id)
+  }
+  return ids
+}
+
 export const scenePromptsStage: Stage<CreateVideoContext> = {
   id: 'scene-prompts',
 
   async skip(context) {
     const scenes = await readScenes(context.paths)
     if (!scenes) return false
+    if (!context.options.customStyle)
+      return (await catalogPendingIds(context, scenes)).size === 0
     // Una escena cuenta como lista solo con prompt VÁLIDO; las sin texto no
     // necesitan prompt.
     return scenes.every(
@@ -50,7 +85,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
   },
 
   async run(context) {
-    const scenes = await readScenes(context.paths)
+    let scenes = await readScenes(context.paths)
     if (!scenes)
       throw new PipelineFailure(
         'scenes_missing',
@@ -92,13 +127,30 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       return undefined
     }
 
-    const llm = createSceneLlm(context)
+    context.signal.throwIfAborted()
+    const pendingIds = await catalogPendingIds(context, scenes)
+    scenes = scenes.map((scene) =>
+      pendingIds.has(scene.id)
+        ? {
+            ...scene,
+            imagePrompt: '',
+            promptIsFallback: false,
+            // El plan adjunto a un relleno heredado también pudo ser ciego.
+            direction: scene.promptIsFallback ? undefined : scene.direction,
+          }
+        : scene,
+    )
+    await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+    const llm = createCatalogSceneLlm(context)
 
     // La biblia normalmente ya viene corriendo desde la Fase 1 (hoisting);
     // con audio propio el guion recién existe tras la transcripción → camino
     // tardío. No se awaitea todavía: ni la presencia ni el director la usan.
-    const bibleTask =
-      context.visualBible ?? loadOrGenerateVisualBible(context, script)
+    const bibleTask = (context.visualBible ??= loadOrGenerateVisualBible(
+      context,
+      script,
+    ))
+    void bibleTask.catch(() => undefined)
 
     const characters = await loadPipelineCharacters(
       context.paths,
@@ -121,14 +173,15 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
 
     // Director de escenas: UNA pasada que planifica el video. Idempotente:
     // un plan persistido completo se reusa.
-    if (scenesNeedPlan(currentScenes)) {
+    const toDirect = currentScenes.filter((scene) => pendingIds.has(scene.id))
+    if (scenesNeedPlan(toDirect)) {
       context.signal.throwIfAborted()
       context.emitter.emit({
         type: 'log',
         level: 'info',
         message: 'planning the visual variety of the video (scene director)',
       })
-      currentScenes = await directScenes(llm, currentScenes, script, {
+      const directed = await directScenes(llm, toDirect, script, {
         styleId: style.id,
         isStickmanStyle: style.id === 'pov_stickman',
         characters: promptCharacters,
@@ -137,6 +190,11 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
         onLog: (message) =>
           context.emitter.emit({ type: 'log', level: 'info', message }),
       })
+      const directions = new Map(directed.map((scene) => [scene.id, scene]))
+      currentScenes = currentScenes.map(
+        (scene) => directions.get(scene.id) ?? scene,
+      )
+      context.signal.throwIfAborted()
       await writeScenesOwned(
         context.paths,
         currentScenes,
@@ -147,6 +205,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     // Recién acá se cobra la biblia; el bloque de identidad de los personajes
     // se le anexa (la referencia de imagen fija la cara; el texto, el resto).
     const bibleBase = await bibleTask
+    context.signal.throwIfAborted()
     const characterBlock = buildCharactersBibleBlock(promptCharacters)
     const visualBible = characterBlock
       ? `${bibleBase ?? ''}${characterBlock}`.trim()
@@ -155,6 +214,10 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     // Persistencia incremental: tras cada escena con prompt nuevo, el buffer
     // se escribe entero — si el job muere a mitad, lo hecho queda en disco.
     const buffer = currentScenes.map((scene) => ({ ...scene }))
+    let persistence = Promise.resolve()
+    const total = currentScenes.filter(hasText).length
+    let ready = total - pendingIds.size
+    context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
     currentScenes = await guaranteePrompts(currentScenes, {
       llm,
       style,
@@ -163,20 +226,28 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       characters: promptCharacters,
       imageTextLanguage,
       signal: context.signal,
+      sceneIds: pendingIds,
       async onSceneProcessed(scene) {
-        const index = buffer.findIndex((item) => item.id === scene.id)
-        if (index >= 0) buffer[index] = scene
-        await writeScenesOwned(
-          context.paths,
-          buffer,
-          context.regenerateSceneIds,
-        )
-        context.emitter.emit({
-          type: 'scene-prompt-ready',
-          scene: await toSceneSummary(context.paths, scene),
+        persistence = persistence.then(async () => {
+          context.signal.throwIfAborted()
+          const index = buffer.findIndex((item) => item.id === scene.id)
+          if (index >= 0) buffer[index] = scene
+          await writeScenesOwned(
+            context.paths,
+            buffer,
+            context.regenerateSceneIds,
+          )
+          context.emitter.emit({
+            type: 'scene-prompt-ready',
+            scene: await toSceneSummary(context.paths, scene),
+          })
+          ready++
+          context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
         })
+        await persistence
       },
     })
+    context.signal.throwIfAborted()
     await writeScenesOwned(
       context.paths,
       currentScenes,
@@ -259,6 +330,7 @@ async function resolveCharacterPresence(
     level: 'info',
     message: `reference character present in ${withCharacter} of ${marked.length} scene(s)`,
   })
+  context.signal.throwIfAborted()
   await writeScenesOwned(context.paths, marked, context.regenerateSceneIds)
   return marked
 }

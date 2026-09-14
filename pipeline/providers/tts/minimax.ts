@@ -16,6 +16,7 @@ import {
   type AudioDownload,
 } from './dubvoice.ts'
 import type { TtsProvider } from './provider.ts'
+import type { VoiceRequestCheckpoint } from './request-checkpoint.ts'
 
 // Motor Minimax vía DubVoice. El voice_id es SIEMPRE el largo del listado
 // ("English_Abbess"): el corto ("Abbess") devuelve 500 — verificado con curl
@@ -105,6 +106,7 @@ export async function synthesizeMinimax(
   text: string,
   apiKey: string,
   signal?: AbortSignal,
+  checkpoint?: VoiceRequestCheckpoint,
 ): Promise<AudioDownload> {
   const settings = payload.settings ?? {}
   const body: Record<string, unknown> = {
@@ -140,6 +142,7 @@ export async function synthesizeMinimax(
       'Minimax synthesis returned neither audio nor audio_url',
     )
 
+  await checkpoint?.update({ resultUrl: audioUrl, state: 'pending' })
   return { audio: await downloadAudioFromUrl(audioUrl, signal) }
 }
 
@@ -167,7 +170,7 @@ export const minimaxProvider: TtsProvider = {
       },
     }
   },
-  synthesize({ payload, text, apiKey, signal }) {
-    return synthesizeMinimax(payload, text, apiKey, signal)
+  synthesize({ payload, text, apiKey, signal, checkpoint }) {
+    return synthesizeMinimax(payload, text, apiKey, signal, checkpoint)
   },
 }

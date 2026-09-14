@@ -1,5 +1,5 @@
+import { PipelineFailure } from '../../runner/failure.ts'
 import {
-  DIRECTOR_BATCH_SIZE,
   SPANISH_TREATMENT_TO_ENGLISH,
   buildDirectorSystemPrompt,
   buildDirectorUserPrompt,
@@ -13,12 +13,11 @@ import {
 } from '../../types/scenes.ts'
 import type { SceneLlm } from '../shared/llm.ts'
 
-// Director de escenas (port de director_escenas.ts): UNA pasada LLM tier
-// balanced que planifica el video completo — tratamiento + lugar + emoción
-// por escena — con el contrato de dinamismo garantizado por CÓDIGO (validador
-// + parche determinístico), nunca por el LLM. No-fatal: si el LLM falla del
-// todo, el parche arma un plan mínimo marcado `provisional` que la próxima
-// corrida re-dirige.
+// Catálogo: el LLM aporta lugar/emoción y el código corrige secuencias.
+// Nunca inventar un plan ciego tras un fallo del proveedor (ADR-0036).
+const CATALOG_DIRECTOR_BATCH_SIZE = 12
+const DIRECTOR_TARGET_BATCHES = 4
+const DIRECTOR_MIN_BATCH_SIZE = 3
 
 // El subconjunto que cuenta para la cuota de dinamismo (≥1 de cada 3): los
 // tratamientos explicativos/alusivos que rompen la monotonía.
@@ -739,17 +738,14 @@ export interface DirectorOptions {
   onLog?(message: string): void
 }
 
-// Asigna `direction` a cada escena con texto. Con la corrida cancelada
-// devuelve las escenas INTACTAS: jamás un parche ciego en una cancelación —
-// se persistiría y las corridas futuras lo reusarían para siempre.
+// Conserva direcciones válidas; solo planifica las faltantes o provisionales.
 export async function directScenes(
   llm: SceneLlm,
   scenes: Scene[],
   fullScript: string,
   options: DirectorOptions,
 ): Promise<Scene[]> {
-  if (options.signal.aborted) return scenes
-
+  options.signal.throwIfAborted()
   const forPlan: DirectorScene[] = scenes
     .filter((scene) => (scene.text ?? '').trim().length > 0)
     .map((scene) => ({
@@ -764,6 +760,17 @@ export async function directScenes(
     isStickmanStyle: options.isStickmanStyle,
     styleId: options.styleId,
   }
+  let plan = new Map<number, SceneDirection>()
+  for (const scene of scenes) {
+    if (scene.direction && !scene.direction.provisional)
+      plan.set(scene.id, scene.direction)
+  }
+  const invalidIds = new Set(
+    validatePlan(plan, forPlan, planContext).contentViolationIds,
+  )
+  const missing = forPlan.filter(
+    (scene) => !plan.has(scene.id) || invalidIds.has(scene.id),
+  )
   const systemPrompt = buildDirectorSystemPrompt({
     styleId: options.styleId,
     isStickmanStyle: options.isStickmanStyle,
@@ -771,135 +778,67 @@ export async function directScenes(
     characterNames: options.characters.map((character) => character.name),
     imageTextLanguage: options.imageTextLanguage,
   })
-
-  // Loteo para videos largos: cada llamada dirige ≤ DIRECTOR_BATCH_SIZE
-  // escenas, así la salida jamás roza el tope de tokens (un JSON truncado es
-  // un plan ciego silencioso). Las tandas van EN PARALELO (no se miran entre
-  // sí) y con allSettled: si una falla, las demás no se pierden.
+  const size = Math.min(
+    CATALOG_DIRECTOR_BATCH_SIZE,
+    Math.max(
+      DIRECTOR_MIN_BATCH_SIZE,
+      Math.ceil(missing.length / DIRECTOR_TARGET_BATCHES),
+    ),
+  )
   const batches: DirectorScene[][] = []
-  for (let index = 0; index < forPlan.length; index += DIRECTOR_BATCH_SIZE) {
-    batches.push(forPlan.slice(index, index + DIRECTOR_BATCH_SIZE))
-  }
+  for (let index = 0; index < missing.length; index += size)
+    batches.push(missing.slice(index, index + size))
 
-  let plan = new Map<number, SceneDirection>()
-  // ¿El LLM aportó CERO entradas? → plan CIEGO, marcado provisional.
-  let llmContributed = false
-  try {
-    const results = await Promise.allSettled(
-      batches.map((batch) =>
-        llm
-          .generate({
-            systemPrompt,
-            userPrompt: buildDirectorUserPrompt(fullScript, batch, {
-              from: batch[0].id,
-              to: batch[batch.length - 1].id,
-              total: forPlan.length,
-            }),
-            jsonOnly: true,
-            tier: 'balanced',
-            maxOutputTokens: computeDirectorMaxTokens(batch.length),
-          })
-          .then((content) =>
-            parseDirectorPlan(
-              content,
-              batch.map((scene) => scene.id),
-            ),
-          ),
-      ),
-    )
-    if (options.signal.aborted) return scenes
-
-    for (const result of results) {
-      if (result.status !== 'fulfilled') continue
-      for (const [id, direction] of result.value) plan.set(id, direction)
-    }
-    llmContributed = plan.size > 0
-
-    let validation = validatePlan(plan, forPlan, planContext)
-
-    // REPARACIÓN QUIRÚRGICA: solo las violaciones de CONTENIDO van al modelo
-    // (y solo esos ids); las de SECUENCIA las resuelve el parche por código.
-    if (
-      !validation.ok &&
-      plan.size > 0 &&
-      validation.contentViolationIds.length > 0 &&
-      !options.signal.aborted
-    ) {
-      const brokenIds = new Set(validation.contentViolationIds)
-      const brokenScenes = forPlan.filter((scene) => brokenIds.has(scene.id))
-      const brokenViolations = validation.violations.filter((text) =>
-        validation.contentViolationIds.some((id) =>
-          text.startsWith(`scene ${id}:`),
-        ),
-      )
-      options.onLog?.(
-        `${brokenScenes.length} plan entr(ies) need rethinking; asking for a correction of ONLY those`,
-      )
-
-      try {
-        const repairContent = await llm.generate({
-          systemPrompt,
-          userPrompt: `${buildDirectorUserPrompt(fullScript, brokenScenes, {
-            from: brokenScenes[0].id,
-            to: brokenScenes[brokenScenes.length - 1].id,
-            total: forPlan.length,
-          })}\n\nYOUR PREVIOUS ENTRIES FOR THESE SCENES:\n${JSON.stringify({
-            escenas: brokenScenes
-              .filter((scene) => plan.has(scene.id))
-              .map((scene) => ({ id: scene.id, ...plan.get(scene.id)! })),
-          })}\n\nThey break these hard rules:\n- ${brokenViolations.join(
-            '\n- ',
-          )}\n\nReturn the corrected JSON for ONLY these scene ids: ${brokenScenes
-            .map((scene) => scene.id)
-            .join(', ')}. Do not include any other scene.`,
-          jsonOnly: true,
-          // Tarea chica y acotada: el tier economy responde en segundos y el
-          // validador vuelve a correr igual.
-          tier: 'economy',
-          maxOutputTokens: computeDirectorMaxTokens(brokenScenes.length),
-        })
-        const repairedPlan = parseDirectorPlan(
-          repairContent,
-          brokenScenes.map((scene) => scene.id),
+  const results = await Promise.allSettled(
+    batches.map(async (batch) => {
+      const ids = batch.map((scene) => scene.id)
+      const validate = (content: string) => {
+        const parsed = parseDirectorPlan(content, ids)
+        return (
+          parsed.size === batch.length &&
+          validatePlan(parsed, batch, planContext).contentViolationIds
+            .length === 0
         )
-        if (repairedPlan.size > 0) {
-          // MERGE antes de comparar: la reparación pisa solo sus escenas.
-          const mergedPlan = new Map([...plan, ...repairedPlan])
-          const mergedValidation = validatePlan(
-            mergedPlan,
-            forPlan,
-            planContext,
-          )
-          // Solo adoptar si mejora (menos violaciones).
-          if (
-            mergedValidation.violations.length < validation.violations.length
-          ) {
-            plan = mergedPlan
-            validation = mergedValidation
-          }
-        }
-      } catch {
-        // La reparación es opcional: el parche determinístico cierra igual.
       }
-    }
-
-    if (options.signal.aborted) return scenes
-    if (!validation.ok) {
-      plan = patchPlanDeterministically(plan, forPlan, planContext)
-    }
-  } catch {
-    if (options.signal.aborted) return scenes
-    options.onLog?.(
-      'scene director failed entirely — falling back to the deterministic minimal plan',
+      const content = await llm.generate({
+        systemPrompt,
+        userPrompt: buildDirectorUserPrompt(fullScript, batch, {
+          from: batch[0].id,
+          to: batch[batch.length - 1].id,
+          total: forPlan.length,
+        }),
+        jsonOnly: true,
+        tier: 'balanced',
+        maxOutputTokens: computeDirectorMaxTokens(batch.length),
+        validate,
+      })
+      options.signal.throwIfAborted()
+      if (!validate(content))
+        throw new PipelineFailure(
+          'catalog_prompts_incomplete',
+          'scene director returned an incomplete plan',
+        )
+      options.onLog?.('scene director completed scene ids: ' + ids.join(', '))
+      return parseDirectorPlan(content, ids)
+    }),
+  )
+  options.signal.throwIfAborted()
+  const rejected = results.find((result) => result.status === 'rejected')
+  if (rejected?.status === 'rejected') throw rejected.reason
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue
+    for (const [id, direction] of result.value) plan.set(id, direction)
+  }
+  const validation = validatePlan(plan, forPlan, planContext)
+  if (validation.contentViolationIds.length > 0)
+    throw new PipelineFailure(
+      'catalog_prompts_incomplete',
+      'scene director could not plan all narrative fragments',
     )
+  // Solo quedan reglas de secuencia, nunca lugares/emociones inventados por
+  // ausencia de respuesta. Se preserva el contrato visual existente.
+  if (!validation.ok)
     plan = patchPlanDeterministically(plan, forPlan, planContext)
-  }
-
-  if (!llmContributed) {
-    for (const [id, direction] of plan)
-      plan.set(id, { ...direction, provisional: true })
-  }
-
   return scenes.map((scene) =>
     plan.has(scene.id) ? { ...scene, direction: plan.get(scene.id)! } : scene,
   )

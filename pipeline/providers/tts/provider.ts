@@ -7,6 +7,7 @@ import type {
   VoiceVendorId,
 } from '../../types/voices.ts'
 import type { AudioDownload } from './dubvoice.ts'
+import type { VoiceRequestCheckpoint } from './request-checkpoint.ts'
 
 // Contrato de un motor de voz: lo que los commands (listar, generar, probe) y
 // la stage de narración necesitan saber, sin ramificar por proveedor.
@@ -24,6 +25,7 @@ export interface SynthesisProgress {
 }
 
 export interface SynthesizeInput {
+  checkpoint?: VoiceRequestCheckpoint
   payload: GenerateVoicePayload
   text: string
   apiKey: string
@@ -50,6 +52,9 @@ export interface TtsProvider {
   chunkCharLimit(payload: GenerateVoicePayload): number
   // Si el proveedor informa avance real; el resto usa un heurístico por parte.
   reportsProgress: boolean
+  // Permite retomar por id; sin esta capacidad, una cancelación espera el
+  // audio de la parte ya enviada antes de detener el resto del trabajo.
+  supportsTaskResume?: boolean
   // Qué clave del keychain usa este motor. Es el ÚNICO lugar donde se lee
   // apiKeys.<vendor>: commands y stage nunca eligen la clave a mano.
   apiKeyOf(apiKeys: ApiKeys): string | undefined

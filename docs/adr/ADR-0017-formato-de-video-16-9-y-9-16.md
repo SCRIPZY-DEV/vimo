@@ -49,9 +49,17 @@ van SIEMPRE por parámetro (`FrameSize`), nunca en constantes de módulo.
 - **UI:** selector de dos cards en Create (cambiar formato resetea la calidad
   a la default del formato); grilla de progreso con celdas `9/16` y más
   columnas; tarjeta de biblioteca con `object-contain`; player limitado por
-  alto; editor con botón de render flotante en shorts y picker de calidad por
+  alto; editor con botón de exportar en el header en ambos formatos y picker de calidad por
   formato. Helpers cliente en `src/modules/videos/utilities/videoFormat.ts`
   (el alias `@pipeline` es solo `import type`).
+
+**Adenda 2026-09-13:** por pedido del usuario, se reemplaza la ubicación flotante
+de Exportar en shorts por la misma barra del encabezado de los proyectos largos.
+Un único `RenderVideoButton` sirve a 9:16 y 16:9, conservando progreso, cancelación,
+bloqueo cuando está ocupado y los handlers existentes. No cambia la exportación,
+el formato del video ni el sidecar. Verificación: `node scripts/test/check-export-header-ui.mjs`;
+en la app, abrir un short y comprobar Exportar junto a las otras acciones del header,
+sin botón sobre el timeline; repetir en formato largo y durante la exportación.
 
 ## Alternativas consideradas
 

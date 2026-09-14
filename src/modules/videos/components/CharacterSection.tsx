@@ -356,6 +356,7 @@ export function CharacterSection({
         <CharacterPickerModal
           previewStyleKey={previewStyleKey}
           selected={value.characters}
+          script={value.script}
           styleContext={
             mode !== null && value.customStyle
               ? {

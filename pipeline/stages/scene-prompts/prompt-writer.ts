@@ -1,5 +1,5 @@
-import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
-import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
+import { hasCatalogNarrative } from '../shared/catalog-prompt.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
@@ -16,7 +16,6 @@ import { neutralizeFamousNames } from '../../utils/content-safety.ts'
 import { neutralizeEraInBible } from '../../utils/story-era.ts'
 import {
   anchorNormalRealism,
-  buildDeterministicFallbackPrompt,
   missingHeadTraits,
   rewriteSceneryWithoutCharacter,
   type PromptCharacter,
@@ -24,27 +23,14 @@ import {
 import { isPhotorealisticStyle } from '../shared/prompt-safety.ts'
 import type { SceneLlm } from '../shared/llm.ts'
 import { buildContextWindow, buildSceneUserPrompt } from './prompt-composer.ts'
-import {
-  cleanPlainTextPrompt,
-  extractImagePrompt,
-} from './prompt-extraction.ts'
+import { extractImagePrompt } from './prompt-extraction.ts'
 import { buildScenePlanBlock } from './scene-director.ts'
 
-// Redactor de prompts por escena (port de generarPromptsImagen /
-// garantizarPrompts / rescatarPromptEscenaTextoPlano /
-// regenerarPromptsParaFaltantes del parser del origen). Invariante: toda
-// escena con texto sale con un prompt VÁLIDO, vía 4 capas en profundidad:
-//   1. pasada principal con reintentos por escena (2 balanced + 3º premium),
-//   2. barrido loop-until-dry SOLO sobre las faltantes, directo a premium,
-//   2.5. rescate en TEXTO PLANO (el modo de falla dominante es el JSON roto),
-//   3. fallback determinístico coherente (sin LLM).
-// Idempotente: una escena con prompt válido nunca se re-genera.
-
+// Catálogo: cada respuesta se valida antes de anclar estilo; el cliente rota
+// modelos. Nunca se persiste relleno. Cancelación y errores dejan el trabajo
+// válido ya guardado para reanudar (ADR-0036).
 const MAX_ATTEMPTS_PER_SCENE = 3
-const MAX_SWEEP_ROUNDS = 3
-const MAX_PLAIN_TEXT_RESCUE_ATTEMPTS = 2
-// DeepInfra sostiene esta concurrencia sin 429 (valor medido del origen).
-const LLM_CONCURRENCY = 100
+const LLM_CONCURRENCY = 6
 
 export interface PromptWriterOptions {
   llm: SceneLlm
@@ -55,6 +41,7 @@ export interface PromptWriterOptions {
   // Nombre inglés del idioma del guion ("" → el LLM lo infiere).
   imageTextLanguage: string
   signal: AbortSignal
+  sceneIds?: ReadonlySet<number>
   // Persistencia incremental: se llama tras cada escena con prompt nuevo —
   // también en la reescritura por content policy desde la fase de imágenes,
   // que lo usa para reemitir scene-prompt-ready.
@@ -180,6 +167,7 @@ export async function generateScenePrompts(
   scenes: Scene[],
   options: GenerateOptions,
 ): Promise<Scene[]> {
+  options.signal.throwIfAborted()
   if (scenes.length === 0) return []
 
   // Gate de época en el punto de entrada: la biblia con era alucinada se
@@ -191,6 +179,7 @@ export async function generateScenePrompts(
 
   const toProcess = scenes.filter(
     (scene) =>
+      (!options.sceneIds || options.sceneIds.has(scene.id)) &&
       !isValidPrompt(scene.imagePrompt) &&
       (hasText(scene) || (scene.userPrompt?.trim().length ?? 0) > 0),
   )
@@ -200,11 +189,21 @@ export async function generateScenePrompts(
   const results = new Map<number, Scene>()
   const failures: { id: number; message: string }[] = []
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
+  const normalize = (text: string) =>
+    text.toLowerCase().replace(/\s+/g, ' ').trim()
+  const accepted = new Map<string, string>()
+  for (const scene of scenes) {
+    if (isValidPrompt(scene.imagePrompt))
+      accepted.set(
+        normalize(scene.imagePrompt),
+        normalize(scene.userPrompt?.trim() || scene.text),
+      )
+  }
 
-  await Promise.all(
+  const settled = await Promise.allSettled(
     toProcess.map((scene) =>
       limit(async () => {
-        if (writerOptions.signal.aborted) return
+        writerOptions.signal.throwIfAborted()
 
         const composed = composeSceneRequest(
           scene,
@@ -224,6 +223,27 @@ export async function generateScenePrompts(
               systemPrompt: writerOptions.style.systemPrompt,
               userPrompt: composed.userPrompt + identityCorrection,
               jsonOnly: true,
+              validate(content) {
+                const prompt = extractImagePrompt(content)
+                if (!hasCatalogNarrative(prompt, writerOptions.style))
+                  return false
+                const final = normalize(
+                  finishLlmPrompt(prompt, scene, composed, writerOptions.style),
+                )
+                const fragment = normalize(
+                  scene.userPrompt?.trim() || scene.text,
+                )
+                const previousFragment = accepted.get(final)
+                if (
+                  previousFragment !== undefined &&
+                  previousFragment !== fragment
+                )
+                  return false
+                // Reserva sin await: respuestas simultáneas no pueden aceptar
+                // el mismo texto exacto para fragmentos narrativos diferentes.
+                accepted.set(final, fragment)
+                return true
+              },
               // Escalada de tiers: el ÚLTIMO intento (y todo el barrido) va
               // al premium con el mismo prompt completo.
               tier:
@@ -232,12 +252,14 @@ export async function generateScenePrompts(
                   : 'balanced',
             })
 
-            const candidate = finishLlmPrompt(
-              extractImagePrompt(content),
-              scene,
-              composed,
+            writerOptions.signal.throwIfAborted()
+            const extracted = extractImagePrompt(content)
+            const candidate = hasCatalogNarrative(
+              extracted,
               writerOptions.style,
             )
+              ? finishLlmPrompt(extracted, scene, composed, writerOptions.style)
+              : ''
             if (!isValidPrompt(candidate)) {
               lastError = 'the LLM returned an empty or invalid prompt'
             } else {
@@ -259,14 +281,15 @@ export async function generateScenePrompts(
               identityCorrection = buildIdentityCorrectionBlock(missing)
             }
           } catch (error) {
-            if (writerOptions.signal.aborted) return
-            // Clave rechazada: ninguna capa de garantía la cura y el
-            // fallback determinístico escondería el problema. Corta el job.
-            if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-              throw error
-            lastError = error instanceof Error ? error.message : String(error)
+            writerOptions.signal.throwIfAborted()
+            // La rotación acotada ya ocurrió dentro del cliente. Repetir esta
+            // excepción en barridos multiplicaba minutos sobre el mismo fallo.
+            throw error
           }
-          if (attempt < MAX_ATTEMPTS_PER_SCENE) await delay(300 * attempt)
+          if (attempt < MAX_ATTEMPTS_PER_SCENE)
+            await delay(300 * attempt, undefined, {
+              signal: writerOptions.signal,
+            })
         }
 
         if (!isValidPrompt(imagePrompt)) {
@@ -286,165 +309,37 @@ export async function generateScenePrompts(
     ),
   )
 
-  if (failures.length === toProcess.length && failures.length > 0) {
-    const sample = failures
-      .slice(0, 3)
-      .map((failure) => `#${failure.id}: ${failure.message}`)
-    throw new Error(
-      `all ${failures.length} scenes that needed a prompt failed: ${sample.join(' | ')}`,
+  options.signal.throwIfAborted()
+  // Esperar todos evita callbacks tardíos escribiendo sobre el siguiente job.
+  const rejected = settled.find((result) => result.status === 'rejected')
+  if (rejected?.status === 'rejected') throw rejected.reason
+  if (failures.length > 0)
+    throw new PipelineFailure(
+      'catalog_prompts_incomplete',
+      'scenes without valid narrative prompts: ' +
+        failures.map((failure) => failure.id).join(', '),
     )
-  }
 
   return scenes.map((scene) => results.get(scene.id) ?? scene)
 }
 
-// ─── Capa 2.5: rescate en texto plano ───
-
-// Cuando una escena agotó los intentos JSON, se le pide al MISMO redactor el
-// prompt en TEXTO PLANO: mismos bloques, solo cambia el formato de salida.
-// Devuelve "" si tampoco lo logró.
-async function rescuePlainTextPrompt(
-  scene: Scene,
-  orderedScenes: Scene[],
-  totalScenes: number,
-  options: PromptWriterOptions,
-): Promise<string> {
-  const composed = composeSceneRequest(
-    scene,
-    orderedScenes,
-    totalScenes,
-    options,
-  )
-  const userPrompt =
-    composed.userPrompt +
-    `\n\n# OUTPUT FORMAT OVERRIDE — PLAIN TEXT ONLY\nIgnore any earlier instruction about JSON. Do NOT return JSON, markdown or commentary. Return ONLY the final image prompt as one plain-text paragraph, nothing else.`
-
-  for (let attempt = 1; attempt <= MAX_PLAIN_TEXT_RESCUE_ATTEMPTS; attempt++) {
-    try {
-      const content = await options.llm.generate({
-        systemPrompt: options.style.systemPrompt,
-        userPrompt,
-        jsonOnly: false,
-        // Último recurso con LLM: directo al premium.
-        tier: 'premium',
-      })
-      const candidate = finishLlmPrompt(
-        cleanPlainTextPrompt(content),
-        scene,
-        composed,
-        options.style,
-      )
-      if (isValidPrompt(candidate)) return candidate
-    } catch (error) {
-      if (options.signal.aborted) return ''
-      if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-        throw error
-      // Transitorio: reintentar abajo con backoff.
-    }
-    if (attempt < MAX_PLAIN_TEXT_RESCUE_ATTEMPTS) await delay(400 * attempt)
-  }
-  return ''
-}
-
-// ─── Punto de entrada: garantía de prompts ───
-
+// Punto de entrada: completar con modelos, nunca con una plantilla genérica.
 export async function guaranteePrompts(
   scenes: Scene[],
   options: PromptWriterOptions,
 ): Promise<Scene[]> {
-  if (scenes.length === 0) return []
-
-  // Capa 1 — si falla entera, el barrido + fallback igual garantizan.
-  let result = scenes
-  try {
-    result = await generateScenePrompts(scenes, options)
-  } catch (error) {
-    // Clave rechazada: ninguna capa la cura; el job tiene que fallar.
-    if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-      throw error
-    // Sigue con barrido + fallback.
-  }
-
-  // Capa 2 — barrido loop-until-dry, directo a premium.
-  for (let round = 1; round <= MAX_SWEEP_ROUNDS; round++) {
-    if (scenesMissingPrompt(result).length === 0) break
-    try {
-      result = await generateScenePrompts(result, {
-        ...options,
-        escalateTier: true,
-      })
-    } catch (error) {
-      if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-        throw error
-      // Siguiente ronda / fallback.
-    }
-  }
-
-  // Capa 2.5 — rescate en texto plano (respeta la cancelación).
-  const pendingRescue = scenesMissingPrompt(result)
-  if (pendingRescue.length > 0 && !options.signal.aborted) {
-    const orderedScenes = [...result].sort((a, b) => a.id - b.id)
-    const limit = limitConcurrency(LLM_CONCURRENCY)
-    const rescued = new Map<number, string>()
-    await Promise.all(
-      pendingRescue.map((scene) =>
-        limit(async () => {
-          if (options.signal.aborted) return
-          const prompt = await rescuePlainTextPrompt(
-            scene,
-            orderedScenes,
-            result.length,
-            options,
-          )
-          if (isValidPrompt(prompt)) rescued.set(scene.id, prompt)
-        }),
-      ),
+  options.signal.throwIfAborted()
+  const result = await generateScenePrompts(scenes, options)
+  options.signal.throwIfAborted()
+  if (
+    scenesMissingPrompt(result).some(
+      (scene) => !options.sceneIds || options.sceneIds.has(scene.id),
     )
-    if (rescued.size > 0) {
-      result = result.map((scene) =>
-        rescued.has(scene.id)
-          ? {
-              ...scene,
-              imagePrompt: rescued.get(scene.id)!,
-              promptIsFallback: false,
-            }
-          : scene,
-      )
-      for (const scene of result) {
-        if (rescued.has(scene.id)) await options.onSceneProcessed?.(scene)
-      }
-    }
-  }
-
-  // Capa 3 — fallback determinístico coherente.
-  const pendingFinal = scenesMissingPrompt(result)
-  if (pendingFinal.length > 0) {
-    const orderedScenes = [...result].sort((a, b) => a.id - b.id)
-    const pendingIds = new Set(pendingFinal.map((scene) => scene.id))
-    const visualBible = neutralizeEraInBible(
-      options.visualBible,
-      options.fullScript,
+  )
+    throw new PipelineFailure(
+      'catalog_prompts_incomplete',
+      'catalog prompts are incomplete',
     )
-    result = result.map((scene) => {
-      if (!pendingIds.has(scene.id)) return scene
-      const prompt = anchorNormalRealism(
-        buildDeterministicFallbackPrompt(
-          scene,
-          visualBible,
-          options.style,
-          orderedScenes,
-          options.characters,
-          options.imageTextLanguage,
-        ),
-        options.style,
-      )
-      return { ...scene, imagePrompt: prompt, promptIsFallback: true }
-    })
-    for (const scene of result) {
-      if (pendingIds.has(scene.id)) await options.onSceneProcessed?.(scene)
-    }
-  }
-
   return result
 }
 
@@ -475,9 +370,10 @@ export async function regeneratePromptsForRejected(
   const retryBlock = buildRetryAttemptBlock(attempt)
   const limit = limitConcurrency(LLM_CONCURRENCY)
 
-  const regenerated = await Promise.all(
+  const settled = await Promise.allSettled(
     missing.map((scene) =>
       limit(async (): Promise<Scene> => {
+        writerOptions.signal.throwIfAborted()
         // Sin texto (corte mid-word): la ventana de vecinas (o el inicio del
         // guion) como fragmento, para igual generar un prompt coherente.
         let text = (scene.text ?? '').trim()
@@ -503,14 +399,21 @@ export async function regeneratePromptsForRejected(
               systemPrompt: writerOptions.style.systemPrompt,
               userPrompt,
               jsonOnly: true,
+              validate: (content) =>
+                hasCatalogNarrative(
+                  extractImagePrompt(content),
+                  writerOptions.style,
+                ),
               tier: retry === MAX_ATTEMPTS_PER_SCENE ? 'premium' : 'balanced',
             })
-            const candidate = finishLlmPrompt(
-              extractImagePrompt(content),
-              scene,
-              composed,
+            writerOptions.signal.throwIfAborted()
+            const extracted = extractImagePrompt(content)
+            const candidate = hasCatalogNarrative(
+              extracted,
               writerOptions.style,
             )
+              ? finishLlmPrompt(extracted, scene, composed, writerOptions.style)
+              : ''
             if (isValidPrompt(candidate)) {
               // En el rescate por content policy el nombre pelado se suelta;
               // los rasgos icónicos que el redactor escribió quedan.
@@ -518,39 +421,38 @@ export async function regeneratePromptsForRejected(
               break
             }
           } catch (error) {
-            if (writerOptions.signal.aborted) return scene
-            if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-              throw error
-            // Transitorio: reintentar abajo.
+            writerOptions.signal.throwIfAborted()
+            throw error
           }
-          if (retry < MAX_ATTEMPTS_PER_SCENE) await delay(300 * retry)
+          if (retry < MAX_ATTEMPTS_PER_SCENE)
+            await delay(300 * retry, undefined, {
+              signal: writerOptions.signal,
+            })
         }
 
-        // NO se conserva el prompt anterior: es JUSTO el que el modelo de
-        // imágenes rechazó — reenviarlo byte-por-byte vuelve a fallar.
-        const updated: Scene = isValidPrompt(imagePrompt)
-          ? { ...scene, imagePrompt, promptIsFallback: false }
-          : {
-              ...scene,
-              imagePrompt: anchorNormalRealism(
-                buildDeterministicFallbackPrompt(
-                  { ...scene, text },
-                  writerOptions.visualBible,
-                  writerOptions.style,
-                  orderedScenes,
-                  writerOptions.characters,
-                  writerOptions.imageTextLanguage,
-                ),
-                writerOptions.style,
-              ),
-              promptIsFallback: true,
-            }
+        writerOptions.signal.throwIfAborted()
+        if (!isValidPrompt(imagePrompt))
+          throw new PipelineFailure(
+            'catalog_prompts_incomplete',
+            'content-policy rewrite failed; no filler image will be requested',
+          )
+        const updated: Scene = {
+          ...scene,
+          imagePrompt,
+          promptIsFallback: false,
+        }
         await writerOptions.onSceneProcessed?.(updated)
         return updated
       }),
     ),
   )
 
+  options.signal.throwIfAborted()
+  const rejected = settled.find((result) => result.status === 'rejected')
+  if (rejected?.status === 'rejected') throw rejected.reason
+  const regenerated = settled.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  )
   const byId = new Map(regenerated.map((scene) => [scene.id, scene]))
   return scenes.map((scene) => byId.get(scene.id) ?? scene)
 }

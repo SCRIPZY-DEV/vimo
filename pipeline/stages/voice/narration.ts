@@ -4,6 +4,10 @@ import {
 } from '../../providers/tts/chunked-synthesis.ts'
 import type { TtsProvider } from '../../providers/tts/provider.ts'
 import {
+  isUnsettledVoiceRequest,
+  pendingVoiceProvider,
+} from '../../providers/tts/request-checkpoint.ts'
+import {
   TTS_PROVIDER_IDS,
   resolveTtsProvider,
 } from '../../providers/tts/registry.ts'
@@ -18,6 +22,16 @@ import type { CreateVideoContext } from '../context.ts'
 // carriles que declara el motor elegido (TtsProvider), trocea al tope de cada
 // motor (chunked-synthesis, ADR-0025) y emite progreso cada 1s hacia la UI.
 const PROGRESS_TICK_MS = 1000
+// Solo rechazos confirmados permiten otro encargo. Un error de disco o de
+// transporte posterior al cobro debe conservar las partes y el recibo.
+const FALLBACK_REJECTION_CODES = new Set([
+  'voice_generation_failed',
+  'voice_invalid_api_key',
+  'voice_insufficient_credits',
+  'voice_quota_exceeded',
+  'voice_rate_limited',
+  'voice_account_restricted',
+])
 
 interface NarrationAttempt {
   name: string
@@ -43,6 +57,24 @@ export async function synthesizeNarration(
       `${provider.vendor} API key is missing`,
     )
 
+  const pendingProviderId = await pendingVoiceProvider(
+    context.paths.narrationFile,
+  )
+  const pendingProvider = resolveTtsProvider(pendingProviderId ?? undefined)
+  if (
+    pendingProviderId &&
+    (!pendingProvider ||
+      ![provider.id, ...(provider.fallbackProviderIds ?? [])].includes(
+        pendingProvider.id,
+      ) ||
+      !pendingProvider.apiKeyOf(context.job.apiKeys))
+  )
+    throw new PipelineFailure(
+      'voice_request_unresolved',
+      'the pending voice lane is not available for this project',
+    )
+  const progressProvider = pendingProvider ?? provider
+
   // Números a palabras ANTES de mandar al proveedor (si no, «41» se
   // pronuncia «cuatro uno»); el idioma detectado también viaja al proveedor.
   const { text, language } = prepareNarrationText(script)
@@ -62,10 +94,13 @@ export async function synthesizeNarration(
   const progressTimer = setInterval(() => {
     context.emitter.emit({
       type: 'voice-progress',
-      provider: provider.id,
+      provider: progressProvider.id,
       totalChars: text.length,
-      elapsedSeconds: Math.floor((Date.now() - startedAt) / 1000),
-      ...progressFields(provider, lastProgress),
+      elapsedSeconds: Math.max(
+        lastProgress?.elapsedSeconds ?? 0,
+        Math.floor((Date.now() - startedAt) / 1000),
+      ),
+      ...progressFields(progressProvider, lastProgress),
     })
   }, PROGRESS_TICK_MS)
 
@@ -78,6 +113,7 @@ export async function synthesizeNarration(
     (progress) => {
       lastProgress = progress
     },
+    pendingProviderId,
   )
 
   try {
@@ -99,6 +135,12 @@ export async function synthesizeNarration(
       } catch (error) {
         // Cancelación pedida: se propaga tal cual, no es un fallo del carril.
         context.signal.throwIfAborted()
+        if (isUnsettledVoiceRequest(error)) throw error
+        if (
+          !(error instanceof PipelineFailure) ||
+          !FALLBACK_REJECTION_CODES.has(error.code)
+        )
+          throw error
         const message = error instanceof Error ? error.message : String(error)
         failures.push(`${attempt.name}: ${message}`)
         if (!creditsFailure && isInsufficientCreditsFailure(error))
@@ -148,6 +190,7 @@ function buildAttempts(
   text: string,
   apiKey: string,
   onProgress: (progress: PartsProgress) => void,
+  pendingProviderId: string | null,
 ): NarrationAttempt[] {
   const lanes: { provider: TtsProvider; apiKey: string }[] = [
     { provider, apiKey },
@@ -158,6 +201,13 @@ function buildAttempts(
     if (!fallback || !fallbackApiKey) continue
     lanes.push({ provider: fallback, apiKey: fallbackApiKey })
   }
+
+  if (pendingProviderId)
+    lanes.sort(
+      (left, right) =>
+        Number(right.provider.id === pendingProviderId) -
+        Number(left.provider.id === pendingProviderId),
+    )
 
   return lanes.map((lane) => ({
     name: lane.provider.laneName,

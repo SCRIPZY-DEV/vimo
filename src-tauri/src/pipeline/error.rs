@@ -14,6 +14,8 @@ pub enum PipelineError {
     SidecarWrite,
     #[error("job not found")]
     JobNotFound,
+    #[error("project already has a running pipeline")]
+    ProjectBusy,
 }
 
 impl PipelineError {
@@ -23,6 +25,7 @@ impl PipelineError {
             PipelineError::SidecarSpawn => "sidecar_spawn",
             PipelineError::SidecarWrite => "sidecar_write",
             PipelineError::JobNotFound => "job_not_found",
+            PipelineError::ProjectBusy => "project_busy",
         }
     }
 }

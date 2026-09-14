@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
+import type { VoiceRequestCheckpoint } from './request-checkpoint.ts'
 import type {
   DubvoiceCatalogVoice,
   DubvoiceCatalogVoicesResponse,
@@ -13,6 +14,7 @@ import type {
 import {
   DUBVOICE_BASE_URL,
   LIST_TIMEOUT_MS,
+  SYNTHESIS_TIMEOUT_MS,
   authHeaders,
   downloadAudioFromUrl,
   dubvoiceFetch,
@@ -137,6 +139,7 @@ export interface DubvoiceTaskProgress {
 }
 
 export interface SynthesizeDubvoiceTaskInput {
+  checkpoint?: VoiceRequestCheckpoint
   // Body completo de POST /api/v1/tts (text, voice_id, voice_settings…).
   body: Record<string, unknown>
   textLength: number
@@ -154,34 +157,52 @@ export async function synthesizeDubvoiceTask({
   laneName,
   signal,
   onProgress,
+  checkpoint,
 }: SynthesizeDubvoiceTaskInput): Promise<Buffer> {
-  const submitResponse = await dubvoiceFetch(
-    `${DUBVOICE_BASE_URL}/api/v1/tts`,
-    {
-      method: 'POST',
-      headers: authHeaders(apiKey),
-      body: JSON.stringify(body),
-    },
-    { timeoutMs: LIST_TIMEOUT_MS, signal },
-  )
-
-  const submitData = (await submitResponse.json()) as DubvoiceTtsTaskResponse
-  if (!submitData.task_id)
-    throw new PipelineFailure(
-      'voice_provider_error',
-      `DubVoice returned no task_id for the ${laneName} synthesis`,
+  let taskId = checkpoint?.receipt.taskId
+  if (!taskId) {
+    signal?.throwIfAborted()
+    const submitResponse = await dubvoiceFetch(
+      `${DUBVOICE_BASE_URL}/api/v1/tts`,
+      {
+        method: 'POST',
+        headers: authHeaders(apiKey),
+        body: JSON.stringify(body),
+      },
+      // Una vez enviado, esperar el recibo incluso si se canceló la UI. El
+      // próximo job podrá consultar ese id en vez de pagar otra generación.
+      { timeoutMs: SYNTHESIS_TIMEOUT_MS },
     )
 
-  const intervalMs = pollIntervalMs(textLength)
-  const startedAt = Date.now()
+    const submitData = (await submitResponse.json()) as DubvoiceTtsTaskResponse
+    if (!submitData.task_id)
+      throw new PipelineFailure(
+        'voice_provider_error',
+        `DubVoice returned no task_id for the ${laneName} synthesis`,
+      )
+    taskId = submitData.task_id
+    await checkpoint?.update({ taskId, state: 'pending' })
+  }
 
-  while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
-    await delay(intervalMs, undefined, { signal })
+  const intervalMs = pollIntervalMs(textLength)
+  const startedAt = checkpoint?.receipt.startedAt ?? Date.now()
+  const pollStartedAt = Date.now()
+  onProgress({
+    percent: checkpoint?.receipt.percent ?? 0,
+    status: 'processing',
+    elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+  })
+  let firstPoll = true
+
+  while (Date.now() - pollStartedAt < POLL_TIMEOUT_MS) {
+    signal?.throwIfAborted()
+    if (!firstPoll) await delay(intervalMs, undefined, { signal })
+    firstPoll = false
 
     let response: Response
     try {
       response = await fetch(
-        `${DUBVOICE_BASE_URL}/api/v1/tts?task_id=${encodeURIComponent(submitData.task_id)}`,
+        `${DUBVOICE_BASE_URL}/api/v1/tts?task_id=${encodeURIComponent(taskId)}`,
         {
           headers: authHeaders(apiKey),
           signal: requestSignal(POLL_REQUEST_TIMEOUT_MS, signal),
@@ -207,20 +228,26 @@ export async function synthesizeDubvoiceTask({
       typeof data.progress === 'number' &&
       data.progress >= 0 &&
       data.progress <= 100
-    )
+    ) {
+      await checkpoint?.update({ percent: data.progress })
       onProgress({
         percent: data.progress,
         status: data.status ?? 'processing',
         elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
       })
+    }
 
-    if (data.status === 'completed' && data.result)
+    if (data.status === 'completed' && data.result) {
+      await checkpoint?.update({ resultUrl: data.result, percent: 100 })
       return downloadAudioFromUrl(data.result, signal)
-    if (data.status === 'failed')
+    }
+    if (data.status === 'failed') {
+      await checkpoint?.update({ state: 'failed' })
       throw new PipelineFailure(
         'voice_generation_failed',
         data.error ?? `${laneName} task failed`,
       )
+    }
   }
 
   throw new PipelineFailure(

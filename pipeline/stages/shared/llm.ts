@@ -7,8 +7,14 @@ import type { LlmRequest } from '../../types/llm.ts'
 // Acceso al LLM para las stages de Create: un provider por job, ligado a la
 // config y la señal del contexto (la cadena reintentos/degradación de tier
 // vive en generateText).
+export interface SceneLlmRequest extends LlmRequest {
+  // Catálogo valida el contrato de cada tarea antes de aceptar un modelo.
+  validate?(content: string): boolean
+  onProgress?(content: string): void
+}
+
 export interface SceneLlm {
-  generate(request: LlmRequest): Promise<string>
+  generate(request: SceneLlmRequest): Promise<string>
 }
 
 export function createSceneLlm(context: PipelineContext): SceneLlm {

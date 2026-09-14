@@ -130,7 +130,7 @@ vimo/
 │   ├── CONTRIBUTING.es.md proceso de trabajo (español)
 │   └── adr/               decisiones de arquitectura
 ├── public/                archivos servidos tal cual (se copian a dist/)
-├── scripts/               build-sidecar.mjs (empaqueta el sidecar Node SEA), fetch-binaries.mjs (descarga ffmpeg/yt-dlp pineados), target-triple.mjs (helper compartido) y check-locales.mjs (guard de los 3 catálogos)
+├── scripts/               build-sidecar.mjs (empaqueta el sidecar Node SEA), fetch-binaries.mjs (descarga ffmpeg/yt-dlp pineados), target-triple.mjs (helper compartido), release-targets.mjs (targets de release, ADR-0034), run-pipeline-harness.mjs, build-update-manifest.mjs y build-demo-pack.mjs; test/ agrupa guards y regresiones provisorios (check-locales, check-demo, …) pendientes de migrar a un framework de pruebas
 ├── pipeline/              el pipeline de video: sidecar Node por stages (ADR-0010)
 ├── src/                   la interfaz  ← el grueso del trabajo
 └── src-tauri/             el lado nativo y los sidecars
@@ -360,6 +360,12 @@ Cuando llegue Create, las fases largas se modelarán como **stages** encadenadas
 reanudar; los subcomandos sueltos de `commands/` siguen siendo el camino para
 operaciones de un solo paso.
 
+Desde 2026-09-12, la narración conserva además recibos atómicos por solicitud
+TTS pendiente. Reanudar consulta la tarea remota conocida; no repite un POST
+incierto. Rust excluye jobs simultáneos del mismo proyecto dentro de la app.
+Ver [ADR-0035](adr/ADR-0035-recibos-de-voz-y-previews-interactivas.md) y
+[límites y pruebas de recuperación](fixes/2026-09-12-fix-voice-resume/voice-resume.md).
+
 ---
 
 ## 5. Flujo principal: de guion a video
@@ -403,6 +409,13 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    `upload-narration` lo copia (o transcodifica) a `narration.mp3`.
 
 ### Las seis fases
+
+**Actualización de Catálogo (2026-09-12, [ADR-0036](adr/ADR-0036-prompts-de-catalogo-sin-relleno.md)):**
+la referencia histórica a «4 capas de garantía» queda reemplazada por streaming
+con rotación acotada de modelos y validación por tarea. Director en lotes de hasta
+12; cancelación sin relleno, checkpoints serializados y barrera de prompts válidos
+antes de imágenes. Una respuesta genérica de respaldo ya no autoriza gasto.
+Las fases y el transporte siguen iguales. [Causa, archivos y QA](fixes/2026-09-12-fix-catalog-scene-prompts/catalog-scene-prompts.md).
 
 Cada una implementa `Stage { id, skip?, run }` y el runner
 (`pipeline/runner/run-stages.ts`) las recorre emitiendo `stage-started` /

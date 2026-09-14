@@ -79,6 +79,9 @@ export interface VerbatimCallOptions {
    * 8 de 9.
    */
   onProgress?: (accumulated: string) => void
+  // Catálogo no acepta un EOF silencioso como respuesta completa. Opt-in:
+  // preserva el contrato previo de los otros consumidores de este cliente.
+  requireComplete?: boolean
 }
 
 export interface VerbatimClient {
@@ -245,6 +248,12 @@ export function createVerbatimClient(
         throw new PipelineFailure(
           LLM_OUTPUT_TRUNCATED,
           `${profile.id} response hit the output token ceiling`,
+        )
+
+      if (callOptions.requireComplete && finishReason !== 'stop')
+        throw new PipelineFailure(
+          'llm_empty_response',
+          `${profile.id} stream ended without a complete text response`,
         )
 
       const content = parts.join('').trim()

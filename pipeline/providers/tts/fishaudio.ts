@@ -32,6 +32,7 @@ export const fishAudioProvider: TtsProvider = {
     return DUBVOICE_CATALOG_CHUNK_CHARS
   },
   reportsProgress: true,
+  supportsTaskResume: true,
   apiKeyOf(apiKeys) {
     return apiKeys.dubvoice
   },
@@ -41,12 +42,13 @@ export const fishAudioProvider: TtsProvider = {
   probeRequest(apiKey) {
     return dubvoiceCatalogProbeRequest('fishaudio', apiKey)
   },
-  async synthesize({ payload, text, apiKey, signal, onProgress }) {
+  async synthesize({ payload, text, apiKey, signal, onProgress, checkpoint }) {
     const audio = await synthesizeDubvoiceTask({
       body: buildBody(payload, text),
       textLength: text.length,
       apiKey,
       laneName: LANE_NAME,
+      checkpoint,
       signal,
       onProgress: (progress) => onProgress?.(progress),
     })

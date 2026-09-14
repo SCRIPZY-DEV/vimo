@@ -240,11 +240,7 @@ export function CustomStyleModal({
   }
 
   const writing = samplesJob.phase !== 'images'
-  const reportedIds = Object.keys(samplesJob.samplePercents)
-    .map(Number)
-    .sort((a, b) => a - b)
-  const progressIds =
-    reportedIds.length > 0 ? reportedIds : PLACEHOLDER_SAMPLE_IDS
+  const progressIds = PLACEHOLDER_SAMPLE_IDS
   const sampleImages = storedSamples.map((sample) =>
     videosApi.imageSource(sample.path, sample.mtimeMs),
   )
@@ -294,35 +290,45 @@ export function CustomStyleModal({
               // la estimación del sidecar.
               <div className="grid grid-cols-2 gap-3">
                 {progressIds.map((id) => {
-                  const percent = samplesJob.samplePercents[id] ?? 0
+                  const percent =
+                    (writing
+                      ? samplesJob.promptPercents[id]
+                      : samplesJob.samplePercents[id]) ?? 0
+                  const image = samplesJob.sampleImages[id]
                   return (
                     <div
                       key={id}
                       className="relative flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-muted/60 px-5"
                     >
+                      {image && (
+                        <img
+                          src={image}
+                          alt={t('create.customStyles.sampleAlt', {
+                            number: id,
+                            name,
+                          })}
+                          className="absolute inset-0 h-full w-full object-contain"
+                        />
+                      )}
                       <span className="absolute left-2.5 top-2 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                         {t('create.customStyles.sampleLabel', { id })}
                       </span>
-                      <p className="font-body text-xs text-muted-foreground">
-                        <SampleProgressText
-                          writing={writing}
-                          percent={percent}
-                        />
-                      </p>
-                      <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-border">
-                        <div
-                          className={
-                            writing
-                              ? 'h-full w-[6%] animate-pulse rounded-full bg-saffron'
-                              : 'h-full rounded-full bg-saffron transition-all duration-500'
-                          }
-                          style={
-                            writing
-                              ? undefined
-                              : { width: `${Math.max(4, percent)}%` }
-                          }
-                        />
-                      </div>
+                      {!image && (
+                        <p className="font-body text-xs text-muted-foreground">
+                          <SampleProgressText
+                            writing={writing}
+                            percent={percent}
+                          />
+                        </p>
+                      )}
+                      {!image && (
+                        <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-border">
+                          <div
+                            className="h-full rounded-full bg-saffron transition-all duration-500"
+                            style={{ width: `${Math.max(4, percent)}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                   )
                 })}

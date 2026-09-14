@@ -73,7 +73,25 @@ export async function updateScenes(
         `scene ${change.id} does not exist`,
       )
     if (hasRenderAffectingChange(scene, change)) renderAffected = true
-    patched.push(applyChange(scene, change))
+    const next = applyChange(scene, change)
+    // La presencia forma parte del prompt de Mi estilo, no solo de las fotos.
+    // Invalidar el texto obliga a reescribirlo en la PRÓXIMA regeneración;
+    // no borra la imagen pagada ni cambia el estado del video al tocar la casilla.
+    if (
+      metadata.options.customStyle &&
+      change.charactersPresent !== undefined
+    ) {
+      const previous = new Set(scene.charactersPresent ?? [])
+      const current = new Set(change.charactersPresent)
+      const changed =
+        previous.size !== current.size ||
+        [...previous].some((index) => !current.has(index))
+      if (changed) {
+        delete next.imagePrompt
+        delete next.promptIsFallback
+      }
+    }
+    patched.push(next)
   }
 
   await mergeScenesById(

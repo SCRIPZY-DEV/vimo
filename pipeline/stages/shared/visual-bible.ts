@@ -14,7 +14,7 @@ import {
   stripBibleMarker,
 } from '../../utils/story-era.ts'
 import type { CreateVideoContext } from '../context.ts'
-import { createSceneLlm } from './llm.ts'
+import { createCatalogSceneLlm } from './catalog-llm.ts'
 
 // Biblia visual global (port de cargarOGenerarContextoVisual): UNA llamada
 // LLM premium por proyecto que fija los HECHOS style-neutral del mundo (y la
@@ -47,7 +47,7 @@ export async function loadOrGenerateVisualBible(
       message: 'generating the global visual context (1 LLM call)',
     })
 
-    const llm = createSceneLlm(context)
+    const llm = createCatalogSceneLlm(context)
     const style = resolveProjectStyle(context.options)
     const referenceCharacters = (context.options.characters ?? [])
       .filter((character) => character.name?.trim())
@@ -64,14 +64,17 @@ export async function loadOrGenerateVisualBible(
       userPrompt: buildVisualBibleUserPrompt(script),
       jsonOnly: false,
       tier: 'premium',
+      validate: (content) => content.trim().length >= 40,
     })
 
+    context.signal.throwIfAborted()
     const bible = content.trim().slice(0, BIBLE_OUTPUT_LIMIT)
     // Se persiste CON marcador; se devuelve limpia (el marcador jamás llega
     // a un prompt).
     await writeFileAtomic(bibleFile, markBible(bible))
     return bible
   } catch (error) {
+    context.signal.throwIfAborted()
     // Clave rechazada: seguir «sin biblia» solo posterga el mismo 401 a la
     // fase de prompts. Se corta acá, que es lo más temprano posible.
     if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))

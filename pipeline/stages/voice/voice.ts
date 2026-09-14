@@ -64,8 +64,12 @@ export const voiceStage: Stage<CreateVideoContext> = {
       context.options.narrationMode === 'tts' &&
       script.trim() &&
       !context.options.customStyle
-    )
+    ) {
       context.visualBible = loadOrGenerateVisualBible(context, script)
+      // La promesa se cobra en scene-prompts; registrar el rechazo ahora
+      // evita un unhandled rejection mientras todavía se genera la voz.
+      void context.visualBible.catch(() => undefined)
+    }
 
     const narrationTask = narrationCached
       ? Promise.resolve()

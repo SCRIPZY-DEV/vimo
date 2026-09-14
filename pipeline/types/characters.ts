@@ -103,9 +103,9 @@ export interface SuggestCharacterProfileResult {
   // Identidad en inglés, neutra de estilo.
   prompt: string
   // Campos que el LLM usó o infirió, para autocompletar el formulario.
-  name?: string
-  age?: string
-  role?: string
+  name: string
+  age: string
+  role: string
 }
 
 export interface GenerateCharacterPreviewPayload {
