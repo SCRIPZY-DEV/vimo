@@ -21,6 +21,7 @@ import { build } from 'esbuild'
 import { inject } from 'postject'
 import {
   executableSuffix,
+  isHostTriple,
   isMacosTriple,
   targetTriple,
 } from './target-triple.mjs'
@@ -33,6 +34,17 @@ const binariesDir = join(repoRoot, 'src-tauri/binaries')
 const SEA_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'
 
 const triple = targetTriple()
+
+// El sidecar es una copia del Node que corre este script: solo sirve para el
+// triple del host. Con otro triple saldría un instalador que abre pero no
+// renderiza, así que se aborta antes (ADR-0034).
+if (!isHostTriple(triple)) {
+  throw new Error(
+    `El sidecar copia el Node del host (${process.platform}-${process.arch}) y no sirve para ${triple}: ` +
+      'compilá ese target en un runner de su arquitectura (scripts/release-targets.mjs).',
+  )
+}
+
 const isMacos = isMacosTriple(triple)
 const binaryPath = join(
   binariesDir,
