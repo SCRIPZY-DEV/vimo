@@ -7,8 +7,9 @@
 //
 // Las URLs y los SHA-256 van pineados: una release nueva se adopta cambiando
 // estas constantes a mano, nunca «latest» (build reproducible). Hay un bloque
-// de pins por target triple: macOS arm64 (ADR-0013) y Windows x64 (ADR-0026);
-// un triple sin pins falla con un mensaje que dice qué agregar.
+// de pins por target triple: macOS arm64 (ADR-0013), Windows x64 (ADR-0026) y
+// macOS Intel (ADR-0034); un triple sin pins falla con un mensaje que dice qué
+// agregar.
 //
 // Nota de licencia: el build estático de ffmpeg-static es GPL; la aspiración
 // LGPL queda para la fase de distribución.
@@ -27,7 +28,15 @@ import {
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const binariesDir = join(repoRoot, 'src-tauri/binaries')
 
-// Un pin por binario y plataforma. Ambas plataformas comparten release de
+// yt-dlp_macos es un binario universal (arm64 + x86_64): los dos triples de
+// macOS lo comparten con la misma URL y el mismo hash.
+const MACOS_YT_DLP_PIN = {
+  name: 'yt-dlp',
+  url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_macos',
+  sha256: '0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202',
+}
+
+// Un pin por binario y plataforma. Todas las plataformas comparten release de
 // ffmpeg-static y de yt-dlp; el hash de yt-dlp se contrasta al pinear con el
 // SHA2-256SUMS oficial de la release.
 const BINARY_PINS = {
@@ -38,12 +47,16 @@ const BINARY_PINS = {
       sha256:
         'a90e3db6a3fd35f6074b013f948b1aa45b31c6375489d39e572bea3f18336584',
     },
+    MACOS_YT_DLP_PIN,
+  ],
+  'x86_64-apple-darwin': [
     {
-      name: 'yt-dlp',
-      url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_macos',
+      name: 'ffmpeg',
+      url: 'https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-darwin-x64',
       sha256:
-        '0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202',
+        'ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894',
     },
+    MACOS_YT_DLP_PIN,
   ],
   'x86_64-pc-windows-msvc': [
     {
@@ -111,7 +124,7 @@ const pins = BINARY_PINS[triple]
 if (!pins) {
   throw new Error(
     `Sin pins de binarios para ${triple}: agregalos a BINARY_PINS ` +
-      '(hoy aarch64-apple-darwin y x86_64-pc-windows-msvc, ver ADR-0026).',
+      `(hoy ${Object.keys(BINARY_PINS).join(', ')}; ver ADR-0026).`,
   )
 }
 
