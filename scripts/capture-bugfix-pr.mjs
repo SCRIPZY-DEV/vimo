@@ -10,7 +10,7 @@ import { withChrome } from './chrome-session.mjs'
 const chrome =
   process.argv[2] ??
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const outputDirectory = resolve('docs/reports/2026-09-13-bugfix-pr')
+const outputDirectory = resolve('docs/handoff/2026-09-13-bugfix-pr/screenshots')
 const temporary = await mkdtemp(join(tmpdir(), 'vimo-pr-captures-'))
 const mocks = {
   '@/modules/api-keys/hooks/useRequiredApiKeys':
