@@ -11,6 +11,8 @@ incumple se devuelve.
 - **Proceso (ramas, PRs, commits):** [docs/CONTRIBUTING.es.md](docs/CONTRIBUTING.es.md).
 - **Decisiones de arquitectura:** [docs/adr/](docs/adr/) — antes de cambiar un patrón,
   revisá si hay una ADR que lo gobierne.
+- **Informes de fixes y hallazgos de IA:** `docs/fixes/` y `docs/handoff/` — ver
+  [Documentación de trabajo](#documentación-de-trabajo).
 
 **Stack:** React 19 + TypeScript + Vite, empaquetado con Tauri 2. Enrutado con React
 Router v7 y estado de servidor con TanStack Query. Gestor de paquetes: **pnpm**.
@@ -257,6 +259,20 @@ pnpm build
 > **Testing:** todavía no hay framework de tests en el repo. Cuando se decida (Vitest,
 > Playwright), se agrega acá la regla y el comando correspondiente. Hasta entonces, no
 > declares «tests verdes»: no los hay.
+
+---
+
+## Documentación de trabajo
+
+- **Informes de fixes** en `docs/fixes/YYYY-MM-DD-fix-<slug>/<slug>.md`: una carpeta
+  por corrección con su informe (causa, corrección, archivos tocados, QA). Claude
+  puede crearlos al cerrar un fix y enlazarlos desde la ADR o la sección de
+  ARCHITECTURE afectada.
+- **Hallazgos de agentes de IA** en `docs/handoff/YYYY-MM-DD-<feature>/<archivo>.md`:
+  auditorías, evidencia de PR y traspasos entre sesiones, siempre en markdown.
+- **Sin binarios en `docs/`**: capturas, PDF y reportes HTML son locales y están
+  ignorados en `.gitignore`. No se enlazan desde los `.md`: se describen en texto y
+  se indica cómo regenerarlos.
 
 ---
 
