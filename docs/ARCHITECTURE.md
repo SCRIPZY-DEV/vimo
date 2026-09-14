@@ -130,7 +130,7 @@ vimo/
 │   ├── CONTRIBUTING.es.md proceso de trabajo (español)
 │   └── adr/               decisiones de arquitectura
 ├── public/                archivos servidos tal cual (se copian a dist/)
-├── scripts/               build-sidecar.mjs (empaqueta el sidecar Node SEA), fetch-binaries.mjs (descarga ffmpeg/yt-dlp pineados), target-triple.mjs (helper compartido), run-pipeline-harness.mjs, build-update-manifest.mjs y build-demo-pack.mjs; test/ agrupa guards y regresiones provisorios (check-locales, check-demo, …) pendientes de migrar a un framework de pruebas
+├── scripts/               build-sidecar.mjs (empaqueta el sidecar Node SEA), fetch-binaries.mjs (descarga ffmpeg/yt-dlp pineados), target-triple.mjs (helper compartido), release-targets.mjs (targets de release, ADR-0034), run-pipeline-harness.mjs, build-update-manifest.mjs y build-demo-pack.mjs; test/ agrupa guards y regresiones provisorios (check-locales, check-demo, …) pendientes de migrar a un framework de pruebas
 ├── pipeline/              el pipeline de video: sidecar Node por stages (ADR-0010)
 ├── src/                   la interfaz  ← el grueso del trabajo
 └── src-tauri/             el lado nativo y los sidecars
