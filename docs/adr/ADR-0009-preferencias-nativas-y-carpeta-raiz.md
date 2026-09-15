@@ -73,6 +73,12 @@ scope estático es determinista. Limitación aceptada: carpetas fuera de `$HOME`
 hace falta. El archivo de prueba va **sin punto inicial**
 (`vimo-write-probe.tmp`): los glob del plugin no matchean dotfiles por defecto.
 
+> **Actualizado por [ADR-0037](ADR-0037-permiso-en-runtime-sobre-la-carpeta-de-proyectos.md)**:
+> la limitación dejó de ser aceptable (en Windows «Documentos» puede estar en
+> otro disco y el default mismo queda fuera de `$HOME`). Rust da permiso en
+> runtime, en cada arranque, sobre la carpeta guardada y la de por defecto;
+> `$HOME/**` se mantiene para los archivos elegidos fuera de esa carpeta.
+
 **4. En web la sección se muestra deshabilitada** («solo disponible en la app
 de escritorio»), detectado con `isNative()` de `modules/common/utilities` —
 compartido para que `settings` no importe el `api/` de `auth`.
