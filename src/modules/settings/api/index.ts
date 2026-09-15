@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { documentDir, join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove, writeTextFile } from '@tauri-apps/plugin-fs'
@@ -77,6 +78,13 @@ async function persistProjectsRoot(path: string): Promise<void> {
   await store.save()
 }
 
+// Rust da permiso al webview sobre la carpeta guardada y la de por defecto
+// (ADR-0037): sin esto, una carpeta fuera de $HOME (otro disco, «Documentos»
+// movida en Windows) no se puede validar ni mostrar sus imágenes.
+async function syncProjectsRootScope(): Promise<void> {
+  return invoke('sync_projects_root_scope')
+}
+
 // Un valor fuera de rango (store editado a mano, versión vieja) cae al rango
 // válido en vez de romper el formulario de Crear.
 function clampSceneCount(value: number): number {
@@ -130,12 +138,18 @@ export const settingsApi = {
     if (selected === null) {
       return null
     }
+    // El dialog ya dio permiso a la elegida en esta sesión; el sync lo repite
+    // desde el store para no depender de ese detalle del plugin.
     await ensureWritableDirectory(selected)
     await persistProjectsRoot(selected)
+    await syncProjectsRootScope()
     return selected
   },
   async resetProjectsRoot(): Promise<string> {
     const path = await defaultProjectsRoot()
+    // Primero el permiso: el default puede estar fuera de $HOME y la
+    // validación fallaría antes de guardarlo.
+    await syncProjectsRootScope()
     await ensureWritableDirectory(path)
     await persistProjectsRoot(path)
     return path
