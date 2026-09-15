@@ -5,6 +5,7 @@ use tauri::Manager;
 
 mod api_keys;
 mod pipeline;
+mod settings;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -52,6 +53,7 @@ pub fn run() {
       api_keys::commands::validate_api_key,
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
+      settings::commands::sync_projects_root_scope,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -61,6 +63,10 @@ pub fn run() {
             .build(),
         )?;
       }
+      // La carpeta de proyectos puede estar fuera de $HOME (otro disco, o
+      // «Documentos» movida en Windows): se le da permiso en cada arranque para
+      // que las imágenes locales se vean y Ajustes pueda validarla (ADR-0037).
+      settings::projects_root::allow_projects_root(app.handle());
       // En Windows/Linux el scheme vimo:// se registra en runtime para que el
       // deep link funcione también en dev; en macOS solo lo registra el bundle
       // (Info.plist), así que en dev el retorno OAuth requiere la app empaquetada e instalad.
