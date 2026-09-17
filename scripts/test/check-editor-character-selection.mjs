@@ -497,3 +497,63 @@ test('stage skips without spending when target is valid even if another prompt i
   await scenePromptsStage.run(context)
   assert.deepEqual(await readScenes(paths), stored)
 })
+
+// Descripción manual: guardarla (blur) no debe dejarla inerte. El sidecar la
+// detecta pendiente aunque la UI mande `rewritePrompt: false`.
+const userRequest = 'A woman looks through a rainy window wearing a silver M'
+const fromUserRequest =
+  '[subject] looks through a rainy window, a silver letter M hangs from a thin chain under soft grey light.'
+test('saved description rewrites the prompt without the UI flag', async (t) => {
+  const { base, paths } = await fixture(t)
+  await updateScenes(
+    command(base, { changes: [{ id: 1, userPrompt: userRequest }] }),
+  )
+  const before = (await readScenes(paths))[0].imagePrompt
+  const requests = providers(t, (request) =>
+    responseFor(request, fromUserRequest),
+  )
+  await regenerateSceneImages(
+    command(base, { scenes: [{ id: 1, rewritePrompt: false }] }),
+  )
+
+  // Mi estilo: la descripción ES el fragmento, no una nota junto a la narración.
+  const message = requests.text[0].messages.at(-1).content
+  assert.match(message, new RegExp('^1\\. ' + userRequest, 'm'))
+  assert.doesNotMatch(message, /Elena repairs the red antenna\./)
+
+  const stored = (await readScenes(paths))[0]
+  assert.notEqual(stored.imagePrompt, before)
+  assert.match(stored.imagePrompt, /rainy window/)
+  assert.equal(stored.appliedUserPrompt, userRequest)
+  assert.equal(requests.image.length, 1)
+
+  // Ya aplicada: el siguiente pedido sin flag vuelve a ser un re-roll.
+  await regenerateSceneImages(
+    command(base, { scenes: [{ id: 1, rewritePrompt: false }] }),
+  )
+  assert.equal(requests.text.length, 1)
+  assert.equal(requests.image.length, 2)
+  assert.equal((await readScenes(paths))[0].imagePrompt, stored.imagePrompt)
+})
+test('clearing an applied description rewrites from the narration', async (t) => {
+  const { base, paths } = await fixture(t)
+  const scenes = await readScenes(paths)
+  await writeScenes(
+    paths,
+    scenes.map((scene) =>
+      scene.id === 1
+        ? { ...scene, userPrompt: userRequest, appliedUserPrompt: userRequest }
+        : scene,
+    ),
+  )
+  await updateScenes(command(base, { changes: [{ id: 1, userPrompt: '' }] }))
+  const requests = providers(t, (request) => responseFor(request, withSubject))
+  await regenerateSceneImages(
+    command(base, { scenes: [{ id: 1, rewritePrompt: false }] }),
+  )
+  assert.match(
+    requests.text[0].messages.at(-1).content,
+    /^1\. Elena repairs the red antenna\./m,
+  )
+  assert.equal((await readScenes(paths))[0].appliedUserPrompt, undefined)
+})

@@ -80,7 +80,9 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     // Una escena cuenta como lista solo con prompt VÁLIDO; las sin texto no
     // necesitan prompt.
     return scenes.every(
-      (scene) => !hasText(scene) || isValidPrompt(scene.imagePrompt),
+      (scene) =>
+        (!hasText(scene) && !scene.userPrompt?.trim()) ||
+        isValidPrompt(scene.imagePrompt),
     )
   },
 

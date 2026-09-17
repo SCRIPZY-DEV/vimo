@@ -258,7 +258,10 @@ export interface VerbatimFragment {
   /** Número GLOBAL del fragmento en el guion (acá, el id de la escena). */
   n: number
   text: string
-  /** Lo que el usuario pidió a mano para esta escena, si escribió algo. */
+  /**
+   * Indicaciones extra para esta escena (reintento, personaje incluido). La
+   * descripción manual del usuario NO viaja acá: reemplaza a `text`.
+   */
   note?: string
 }
 

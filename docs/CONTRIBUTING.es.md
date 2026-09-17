@@ -31,6 +31,17 @@ Este proceso se encuentra en desarrollo, pero básicamente lo que hace es levant
 
   Tipos en uso: `feat` (nueva funcionalidad), `fix` (corrección de error), `docs` (documentación), `style` (formato, sin cambios de lógica), `refactor` (reestructuración sin cambio de comportamiento), `perf` (rendimiento), `test` (pruebas), `chore` (herramientas, dependencias, configuración).
 
+  **Scope opcional**: cuando el cambio vive en un área clara, va entre paréntesis después del tipo — `fix(editor): …`, `fix(pipeline): …`, `fix(ci): …`. Dice _dónde_ se tocó sin abrir el diff. Usá una sola palabra, en minúsculas, que nombre el área: un módulo de `src/modules/` (`editor`, `videos`, `auth`), `pipeline` (el sidecar), `tauri` (`src-tauri/`), `ci`, `updater`. Si el cambio cruza varias áreas, dejá el tipo solo (`fix: …`) o separalo en un commit por área.
+
+- **Los commits siguen el mismo formato que el título del PR**, uno por unidad lógica (el fix del sidecar, el de la UI, los guards, la documentación), ordenados de modo que el proyecto compile en cada uno. El asunto se escribe para que lo entienda cualquiera del equipo: qué cambia para el usuario, no el nombre interno de la función. Si el porqué no entra en el asunto, va en el cuerpo en dos o tres líneas llanas:
+
+  ```
+  fix(editor): stop losing the first click on Regenerate image
+
+  Clicking the button blurred the description field, which saved it and
+  disabled the button before the click landed.
+  ```
+
 - **La descripción del PR debe ser detallada** — suficiente para quien revisa sin haber estado presente. Incluye al menos:
   - **Qué se hizo**: los cambios, área por área.
   - **Por qué**: el problema que resuelve o la tarea/issue que cierra.

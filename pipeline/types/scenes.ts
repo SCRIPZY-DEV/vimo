@@ -61,6 +61,10 @@ export interface Scene {
   imagePrompt?: string
   // Prompt escrito a mano por el usuario en el editor (llega con Library).
   userPrompt?: string
+  // El userPrompt desde el que se redactó el imagePrompt vigente. Si difiere
+  // de `userPrompt`, la descripción está pendiente de aplicar (campo aditivo:
+  // ausente en proyectos viejos = nunca se aplicó ninguna).
+  appliedUserPrompt?: string
   // true si el prompt salió del fallback determinístico (sin LLM).
   promptIsFallback?: boolean
   startSeconds?: number

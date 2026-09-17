@@ -10,6 +10,7 @@ import {
   type ProjectPaths,
 } from '../../project/paths.ts'
 import { readScenes } from '../../project/scenes-file.ts'
+import { hasPendingUserPrompt } from '../../project/user-prompt.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
@@ -85,6 +86,7 @@ async function toSceneDetails(
     }
     if (scene.imagePrompt) detail.imagePrompt = scene.imagePrompt
     if (scene.userPrompt) detail.userPrompt = scene.userPrompt
+    if (hasPendingUserPrompt(scene)) detail.userPromptPending = true
     if (scene.startSeconds !== undefined)
       detail.startSeconds = scene.startSeconds
     if (scene.endSeconds !== undefined) detail.endSeconds = scene.endSeconds

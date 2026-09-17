@@ -220,7 +220,8 @@ export async function runVerbatimLane(
     (scene) =>
       (!context.regenerateSceneIds?.size ||
         context.regenerateSceneIds.has(scene.id)) &&
-      (scene.text?.trim().length ?? 0) > 0 &&
+      ((scene.text?.trim().length ?? 0) > 0 ||
+        (scene.userPrompt?.trim().length ?? 0) > 0) &&
       !isValidPrompt(scene.imagePrompt),
   )
   if (pending.length === 0)
@@ -293,16 +294,17 @@ export async function runVerbatimLane(
     groups.map(async (group) => {
       const fragments: VerbatimFragment[] = group.scenes.map((scene) => {
         const retryNote = options.retryNotes?.get(scene.id)?.trim()
-        const userNote = scene.userPrompt?.trim()
+        // La descripción manual ES el fragmento (paridad con el carril del
+        // catálogo): como nota al lado de la narración, la narración ganaba
+        // y la imagen regenerada salía igual a la anterior.
+        const userRequest = scene.userPrompt?.trim()
         const selectionNote = group.indexes?.length
           ? 'El usuario incluyo al personaje en esta escena: [subject] DEBE aparecer en la accion de este fragmento, manteniendo el mismo estilo.'
           : undefined
-        const note = [userNote, retryNote, selectionNote]
-          .filter(Boolean)
-          .join(' ')
+        const note = [retryNote, selectionNote].filter(Boolean).join(' ')
         return {
           n: scene.id,
-          text: scene.text!.trim(),
+          text: userRequest || scene.text.trim(),
           ...(note ? { note } : {}),
         }
       })

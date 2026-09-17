@@ -312,7 +312,7 @@ export function LibraryEditor() {
             onRefreshCredits={refreshCredits}
             busy={busy || editor.savingChanges}
             regenerateLocked={demoProject}
-            userPromptDirty={editor.userPromptDirty}
+            userPromptPending={editor.userPromptPending}
             errorKey={
               selectedScene ? task?.sceneErrors[selectedScene.id] : undefined
             }

@@ -125,7 +125,11 @@ cubrieron los 12 subcomandos nuevos.
     a las pasadas de recuperación como en el origen, pero el gate final no lo
     trata como hueco (su imagen anterior sigue siendo válida para el render).
     El borrador de la descripción sobrevive a los refetches y se persiste al
-    salir de la textarea; `rewritePrompt` se decide con ese borrador. Y
+    salir de la textarea. Desde 2026-09-17 `rewritePrompt` ya no depende solo
+    de ese borrador: guardar lo dejaba limpio y la descripción quedaba inerte.
+    El sidecar reescribe también cuando `userPrompt` difiere de
+    `appliedUserPrompt` (campo aditivo de `scenes.json`), ver el
+    [informe](../fixes/2026-09-17-fix-editor-regenerate-user-prompt/editor-regenerate-user-prompt.md). Y
     «Re-exportar» (el botón de render del editor; hasta 2026-09-07 decía
     «Re-renderizar») nunca genera imágenes (solo `render`, paridad con el
     origen): la imagen nueva sale de «Regenerar imagen».

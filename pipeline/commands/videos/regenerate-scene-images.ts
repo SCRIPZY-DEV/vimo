@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import { markVideoOutdated } from '../../project/metadata.ts'
 import { sceneImageFile, type ProjectPaths } from '../../project/paths.ts'
 import { mergeScenesById, readScenes } from '../../project/scenes-file.ts'
+import { hasPendingUserPrompt } from '../../project/user-prompt.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { runStages } from '../../runner/run-stages.ts'
@@ -17,9 +18,10 @@ import type {
 
 // Regeneración selectiva de imágenes (ADR-0014): el runner recorre la
 // rebanada [scene-prompts, images] con `regenerateSceneIds` en el contexto.
-// Con `rewritePrompt` el imagePrompt se borra ANTES para que scene-prompts
-// lo reescriba (priorizando el userPrompt persistido); sin él es un re-roll
-// del mismo prompt. No toca `metadata.state` — es cirugía de editor, un job
+// Con `rewritePrompt`, o con una descripción del usuario pendiente de aplicar
+// (`hasPendingUserPrompt`: lo decide el disco, no la UI), el imagePrompt se
+// borra ANTES para que scene-prompts lo reescriba priorizando el userPrompt
+// persistido; si no, es un re-roll del mismo prompt. No toca `metadata.state` — es cirugía de editor, un job
 // muerto no deja un `generating` huérfano.
 export async function regenerateSceneImages(
   context: PipelineContext,
@@ -76,7 +78,7 @@ export async function regenerateSceneImages(
         `scene ${request.id} does not exist`,
       )
     targetIds.add(request.id)
-    if (!request.rewritePrompt) continue
+    if (!request.rewritePrompt && !hasPendingUserPrompt(scene)) continue
 
     // Borrar el prompt fuerza a scene-prompts a redactarlo de nuevo.
     const stripped = { ...scene }
@@ -96,6 +98,12 @@ export async function regenerateSceneImages(
   videoContext.regenerateSceneIds = targetIds
   await runStages([scenePromptsStage, imagesStage], videoContext)
 
+  if (rewrites.length > 0)
+    await markAppliedUserPrompts(
+      videoContext.paths,
+      new Set(rewrites.map((scene) => scene.id)),
+    )
+
   // El archivo viejo se conserva hasta que el nuevo sale OK (contrato del
   // lane): un mtime que no cambió = esa escena no se regeneró.
   const after = await imageMtimes(videoContext.paths, targetIds)
@@ -113,6 +121,32 @@ export async function regenerateSceneImages(
     await markVideoOutdated(videoContext.paths, videoContext.metadata)
 
   return { regenerated, failed }
+}
+
+// Deja constancia de qué descripción quedó aplicada. Una escena que terminó
+// sin prompt no se marca: la próxima regeneración lo vuelve a intentar.
+async function markAppliedUserPrompts(
+  paths: ProjectPaths,
+  rewrittenIds: Set<number>,
+): Promise<void> {
+  const scenes = (await readScenes(paths)) ?? []
+  const applied: Scene[] = []
+  for (const scene of scenes) {
+    if (!rewrittenIds.has(scene.id) || !scene.imagePrompt?.trim()) continue
+
+    const next = { ...scene }
+    const userPrompt = scene.userPrompt?.trim()
+    if (userPrompt) next.appliedUserPrompt = userPrompt
+    else delete next.appliedUserPrompt
+    applied.push(next)
+  }
+  if (applied.length === 0) return
+
+  await mergeScenesById(
+    paths,
+    new Set(applied.map((scene) => scene.id)),
+    applied,
+  )
 }
 
 async function imageMtimes(
