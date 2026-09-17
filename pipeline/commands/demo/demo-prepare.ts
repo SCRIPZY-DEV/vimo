@@ -5,7 +5,7 @@ import { isValidFile, projectsRootOf } from '../../project/paths.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { DemoPrepareResult } from '../../types/demo.ts'
-import { moveDirectoryAtomic } from '../../utils/atomic-fs.ts'
+import { ensureDirectory, moveDirectoryAtomic } from '../../utils/atomic-fs.ts'
 import { downloadFile } from './download.ts'
 import { extractZip } from './extract.ts'
 import {
@@ -46,6 +46,10 @@ async function installPack(
   const projectsRoot = projectsRootOf(context)
   const zipFile = join(projectsRoot, `${DEMO_PACK_SUBDIRECTORY}.zip.download`)
   const stagingRoot = `${packRoot}.tmp`
+
+  // Máquina nueva: la raíz no existe hasta crear el primer proyecto, y la
+  // descarga escribe directo en ella.
+  await ensureDirectory(projectsRoot)
 
   // Restos de una preparación interrumpida: se limpian antes de empezar.
   await rm(zipFile, { force: true })
