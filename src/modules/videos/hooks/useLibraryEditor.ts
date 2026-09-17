@@ -161,6 +161,12 @@ export function useLibraryEditor(projectId: string) {
     selectedScene !== null &&
     userPromptOf(selectedScene) !== userPromptOf(storedSelectedScene)
 
+  // Descripción que el imagePrompt vigente todavía no refleja: el borrador sin
+  // guardar, o una ya guardada que el sidecar marca como pendiente. Guardarla
+  // no la aplica — recién la próxima regeneración reescribe el prompt.
+  const userPromptPending =
+    userPromptDirty || storedSelectedScene?.userPromptPending === true
+
   const patchSelectedUserPrompt = (userPrompt: string) => {
     if (selectedScene) patchWorkingScene(selectedScene.id, { userPrompt })
   }
@@ -185,15 +191,15 @@ export function useLibraryEditor(projectId: string) {
     updateSelectedScene({ charactersPresent })
   }
 
-  // Con descripción sin guardar, se guarda y se reescribe el prompt;
-  // si no, un re-roll con el prompt vigente.
+  // Con descripción pendiente se reescribe el prompt (guardándola antes si
+  // es un borrador); si no, un re-roll con el prompt vigente.
   const regenerateSelected = () => {
     if (!selectedScene || commitMutation.isPending) return
     const changes: SceneChange[] = userPromptDirty
       ? [{ id: selectedScene.id, userPrompt: userPromptOf(selectedScene) }]
       : []
     void commitAndRegenerate(changes, [
-      { id: selectedScene.id, rewritePrompt: userPromptDirty },
+      { id: selectedScene.id, rewritePrompt: userPromptPending },
     ])
   }
 
@@ -264,7 +270,7 @@ export function useLibraryEditor(projectId: string) {
     selectedSceneId,
     setSelectedSceneId,
     imageChoice,
-    userPromptDirty,
+    userPromptPending,
     patchSelectedUserPrompt,
     commitSelectedUserPrompt,
     changeImageChoice,

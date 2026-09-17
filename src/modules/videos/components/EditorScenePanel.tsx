@@ -41,7 +41,8 @@ interface EditorScenePanelProps {
   busy: boolean
   // Proyecto demo: regenerar no aplica (las imágenes son del pack).
   regenerateLocked: boolean
-  userPromptDirty: boolean
+  // Hay una descripción que la imagen actual todavía no refleja.
+  userPromptPending: boolean
   // Clave i18n del último fallo de regeneración de esta escena.
   errorKey: string | undefined
   onUserPromptChange(value: string): void
@@ -69,7 +70,7 @@ export function EditorScenePanel({
   onRefreshCredits,
   busy,
   regenerateLocked,
-  userPromptDirty,
+  userPromptPending,
   errorKey,
   onUserPromptChange,
   onUserPromptBlur,
@@ -250,13 +251,16 @@ export function EditorScenePanel({
         </Tooltip>
       ) : (
         <Button
+          // Sin esto el mousedown le saca el foco a la textarea, su guardado
+          // deshabilita el botón y el clic se pierde. Regenerar ya guarda.
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onRegenerate}
           disabled={busy || creditsCheck.blocking}
           className="w-full min-w-0 rounded-xl font-display font-bold"
         >
           <RefreshCw className="mr-1.5 h-4 w-4" />
           <span className="min-w-0 truncate">
-            {userPromptDirty
+            {userPromptPending
               ? t('library.editor.panel.regenerateWithPrompt')
               : t('library.editor.panel.regenerate')}
           </span>
