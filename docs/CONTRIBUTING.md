@@ -31,6 +31,17 @@ This process is still under development, but what it basically does is spin up s
 
   Types in use: `feat` (new feature), `fix` (bug fix), `docs` (documentation), `style` (formatting, no logic change), `refactor` (restructuring with no behavior change), `perf` (performance), `test` (tests), `chore` (tooling, dependencies, config).
 
+  **Optional scope**: when the change lives in one clear area, put it in parentheses after the type — `fix(editor): …`, `fix(pipeline): …`, `fix(ci): …`. It tells _where_ the change is without opening the diff. Use a single lowercase word naming the area: a module under `src/modules/` (`editor`, `videos`, `auth`), `pipeline` (the sidecar), `tauri` (`src-tauri/`), `ci`, `updater`. If the change spans several areas, keep the bare type (`fix: …`) or split it into one commit per area.
+
+- **Commits use the same format as the PR title**, one per logical unit (the sidecar fix, the UI fix, the guards, the docs), ordered so the project builds at each one. Write the subject so anyone on the team understands it: what changes for the user, not the internal function name. If the why doesn't fit in the subject, put it in the body in two or three plain lines:
+
+  ```
+  fix(editor): stop losing the first click on Regenerate image
+
+  Clicking the button blurred the description field, which saved it and
+  disabled the button before the click landed.
+  ```
+
 - **The PR description must be detailed** — enough for a reviewer who wasn't there. Cover at least:
   - **What was done**: the changes, area by area.
   - **Why**: the problem it solves or the issue/task it closes.
