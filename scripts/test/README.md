@@ -29,7 +29,7 @@ binarios.
 | `check-voice-resume.mjs`               | Reanudar narración sin repetir POSTs; unión con FFmpeg real                      | [fix](../../docs/fixes/2026-09-12-fix-voice-resume/voice-resume.md)                                                       |
 | `check-character-profile.mjs`          | Ficha de personaje completa (nombre, edad, rol, identidad)                       | [fix](../../docs/fixes/2026-09-12-fix-character-profile-completeness/character-profile-completeness.md)                   |
 | `check-catalog-prompts.mjs`            | Prompts de Catálogo sin imágenes de relleno                                      | [fix](../../docs/fixes/2026-09-12-fix-catalog-scene-prompts/catalog-scene-prompts.md)                                     |
-| `check-editor-character-selection.mjs` | Regenerar desde el editor respeta el personaje marcado                           | [fix](../../docs/fixes/2026-09-13-fix-custom-style-editor-character-selection/custom-style-editor-character-selection.md) |
+| `check-editor-character-selection.mjs` | Regenerar desde el editor respeta el personaje marcado y la descripción guardada | [fix](../../docs/fixes/2026-09-13-fix-custom-style-editor-character-selection/custom-style-editor-character-selection.md) |
 
 Se corren con `node --test scripts/test/<script>`.
 
