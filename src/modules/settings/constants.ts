@@ -16,11 +16,34 @@ export const settingsQueryKeys = {
   promptModel: ['settings', 'promptModel'],
   voiceVendor: ['settings', 'voiceVendor'],
   appUpdate: ['settings', 'appUpdate'],
+  updateInstallLocation: ['settings', 'updateInstallLocation'],
 } as const
 
 // Un chequeo por arranque: el resultado se considera fresco durante esta
 // ventana; «Buscar actualizaciones» en Ajustes lo fuerza igual (ADR-0027).
 export const UPDATE_CHECK_STALE_TIME_MS = 60 * 60 * 1000
+
+// Salida manual cuando el updater no puede instalar: la landing con los
+// instaladores. Debe estar permitida en opener:allow-open-url (capabilities).
+export const INSTALLER_DOWNLOAD_URL = 'https://vimo.click/dashboard'
+
+// Errores propios del api del updater (no vienen del plugin).
+export const NO_PENDING_UPDATE_ERROR = 'no_pending_update'
+export const UPDATE_JOB_RUNNING_ERROR = 'update_job_running'
+
+// Clasificación del error del plugin updater. Los errores de E/S llegan con
+// el texto del sistema (traducido en Windows) y un «(os error N)» estable.
+// macOS: 30 = volumen de solo lectura, 18 = rename entre volúmenes.
+export const UPDATE_FAILURE_READ_ONLY_REGEX = /os error (30|18)\)/
+// macOS: se canceló o falló el pedido de contraseña de administrador.
+export const UPDATE_FAILURE_PERMISSION_REGEX =
+  /Failed to move the new app into place|os error 13\)/
+// Windows: 5 = acceso denegado, 225 = antivirus, 1260 = política de grupo,
+// 4551 = Control de aplicaciones.
+export const UPDATE_FAILURE_BLOCKED_REGEX = /os error (5|225|1260|4551)\)/
+export const UPDATE_FAILURE_SIGNATURE_REGEX = /signature/i
+export const UPDATE_FAILURE_NETWORK_REGEX =
+  /network|request|connection|timed out|response body/i
 
 export const SETTINGS_STORE_FILE = 'settings.json'
 export const PROJECTS_ROOT_STORE_KEY = 'projectsRoot'
