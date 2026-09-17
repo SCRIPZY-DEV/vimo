@@ -5,6 +5,7 @@ import { Brand } from '@/modules/common/brand/brand'
 import { LabeledProgress } from '@/modules/common/components/LabeledProgress'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
+import { UpdateInstallHelp } from '@/modules/settings/components/UpdateInstallHelp'
 import { useAppUpdate } from '@/modules/settings/hooks/useAppUpdate'
 import { updateStatusKey } from '@/modules/settings/utilities/updateStatusKey'
 import { UpdatePhase } from '../types/updates'
@@ -14,11 +15,20 @@ import { UpdatePhase } from '../types/updates'
 
 export function UpdatesSection() {
   const { t } = useTranslation()
-  const { isNative, phase, update, progressPercent, checkNow, install } =
-    useAppUpdate()
+  const {
+    isNative,
+    phase,
+    update,
+    progressPercent,
+    canInstallInPlace,
+    checkNow,
+    install,
+  } = useAppUpdate()
 
   const busy =
-    phase === UpdatePhase.checking || phase === UpdatePhase.installing
+    phase === UpdatePhase.checking ||
+    phase === UpdatePhase.downloading ||
+    phase === UpdatePhase.installing
   const status = updateStatusKey(phase)
 
   return (
@@ -66,7 +76,7 @@ export function UpdatesSection() {
           </p>
         )}
 
-        {phase === UpdatePhase.installing && (
+        {phase === UpdatePhase.downloading && (
           <LabeledProgress
             label={t('settings.updatesDownloading')}
             percent={progressPercent}
@@ -89,7 +99,7 @@ export function UpdatesSection() {
             />
             {t('settings.updatesCheck')}
           </Button>
-          {phase === UpdatePhase.available && (
+          {phase === UpdatePhase.available && canInstallInPlace && (
             <Button
               size="sm"
               onClick={install}
@@ -100,6 +110,8 @@ export function UpdatesSection() {
             </Button>
           )}
         </div>
+
+        <UpdateInstallHelp />
       </div>
     </motion.section>
   )
