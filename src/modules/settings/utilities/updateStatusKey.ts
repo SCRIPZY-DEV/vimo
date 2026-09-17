@@ -6,6 +6,7 @@ export function updateStatusKey(phase: UpdatePhase): string | null {
   if (phase === UpdatePhase.checking) return 'settings.updatesChecking'
   if (phase === UpdatePhase.upToDate) return 'settings.updatesUpToDate'
   if (phase === UpdatePhase.available) return 'settings.updatesAvailable'
+  if (phase === UpdatePhase.downloading) return 'settings.updatesDownloading'
   if (phase === UpdatePhase.installing) return 'settings.updatesInstalling'
   if (phase === UpdatePhase.error) return 'settings.updatesCheckError'
   return null
