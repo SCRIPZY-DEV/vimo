@@ -310,6 +310,9 @@ export interface DeleteVideoProjectsResult {
 // esto es una PROYECCIÓN, vive acá y no en types/scenes.ts).
 export interface SceneDetail extends SceneSummary {
   userPrompt?: string
+  // La descripción guardada todavía no se aplicó al imagePrompt: la próxima
+  // regeneración lo reescribe (ver hasPendingUserPrompt).
+  userPromptPending?: boolean
   imageModel?: string
   imageQuality?: string
   charactersPresent?: number[]
@@ -363,7 +366,8 @@ export interface RegenerateSceneImagesPayload {
   projectId: string
   // `rewritePrompt` = borrar el imagePrompt para que scene-prompts lo
   // reescriba (priorizando el userPrompt persistido); false = re-roll de la
-  // imagen con el mismo prompt.
+  // imagen con el mismo prompt, SALVO que la escena tenga una descripción
+  // pendiente de aplicar: ahí el sidecar reescribe igual.
   scenes: { id: number; rewritePrompt: boolean }[]
   // Override transitorio del proveedor SOLO para este job; no se persiste.
   imageProvider?: ImageProviderId
