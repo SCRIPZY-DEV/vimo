@@ -4,11 +4,17 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
 import { settingsApi } from '@/modules/settings/api'
 import { AppUpdateContext } from '@/modules/settings/context/appUpdateContext'
+import { classifyUpdateInstallFailure } from '@/modules/settings/utilities/classifyUpdateInstallFailure'
+import { errorDetail } from '@/modules/settings/utilities/errorDetail'
+import { updateInstallFailureKey } from '@/modules/settings/utilities/updateInstallFailureKey'
 import { UPDATE_CHECK_STALE_TIME_MS, settingsQueryKeys } from '../constants'
 import {
+  UpdateInstallLocation,
+  UpdateInstallStage,
   UpdatePhase,
   type AppUpdateInfo,
   type UpdateDownloadProgress,
+  type UpdateInstallFailureReport,
 } from '../types/updates'
 
 interface AppUpdateProviderProps {
@@ -17,7 +23,7 @@ interface AppUpdateProviderProps {
 
 interface ResolvePhaseInput {
   isNative: boolean
-  installing: boolean
+  installStage: UpdateInstallStage | null
   checking: boolean
   failed: boolean
   checked: boolean
@@ -26,14 +32,19 @@ interface ResolvePhaseInput {
 
 function resolvePhase({
   isNative,
-  installing,
+  installStage,
   checking,
   failed,
   checked,
   update,
 }: ResolvePhaseInput): UpdatePhase {
   if (!isNative) return UpdatePhase.unavailable
-  if (installing) return UpdatePhase.installing
+  if (installStage === UpdateInstallStage.downloading)
+    return UpdatePhase.downloading
+
+  if (installStage === UpdateInstallStage.installing)
+    return UpdatePhase.installing
+
   if (checking) return UpdatePhase.checking
   if (failed) return UpdatePhase.error
   if (update) return UpdatePhase.available
@@ -50,6 +61,11 @@ export function AppUpdateProvider({ children }: AppUpdateProviderProps) {
   const native = settingsApi.isNative()
   const [progress, setProgress] = useState<UpdateDownloadProgress | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const [stage, setStage] = useState<UpdateInstallStage>(
+    UpdateInstallStage.downloading,
+  )
+  const [installFailure, setInstallFailure] =
+    useState<UpdateInstallFailureReport | null>(null)
 
   const checkQuery = useQuery({
     queryKey: settingsQueryKeys.appUpdate,
@@ -60,14 +76,34 @@ export function AppUpdateProvider({ children }: AppUpdateProviderProps) {
     refetchOnWindowFocus: false,
   })
 
+  // La ubicación no cambia mientras la app corre: se consulta una vez.
+  const locationQuery = useQuery({
+    queryKey: settingsQueryKeys.updateInstallLocation,
+    queryFn: () => settingsApi.getUpdateInstallLocation(),
+    enabled: native,
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+
   const installMutation = useMutation({
-    mutationFn: () => settingsApi.downloadAndInstallUpdate(setProgress),
+    mutationFn: async () => {
+      setStage(UpdateInstallStage.downloading)
+      await settingsApi.downloadUpdate(setProgress)
+      setStage(UpdateInstallStage.installing)
+      await settingsApi.installUpdate()
+    },
     // Windows ya cerró la app al lanzar el instalador; acá solo llega macOS.
     onSuccess: () => settingsApi.relaunchApp(),
-    onError: () => {
+    onError: (error) => {
+      const detail = errorDetail(error)
+      const failure = classifyUpdateInstallFailure(detail)
+
       setProgress(null)
+      setInstallFailure({ failure, detail })
+      void settingsApi.reportUpdateInstallFailure(detail)
       toast({
-        description: t('settings.updatesInstallError'),
+        description: t(updateInstallFailureKey(failure)),
         variant: 'destructive',
       })
     },
@@ -80,21 +116,29 @@ export function AppUpdateProvider({ children }: AppUpdateProviderProps) {
       : 0
   const phase = resolvePhase({
     isNative: native,
-    installing: installMutation.isPending,
+    installStage: installMutation.isPending ? stage : null,
     checking: checkQuery.isFetching,
     failed: checkQuery.isError,
     checked: checkQuery.isSuccess,
     update,
   })
+  // Si Rust no contesta, no se bloquea: decide el intento de instalar.
+  const canInstallInPlace =
+    (locationQuery.data ?? UpdateInstallLocation.installable) ===
+    UpdateInstallLocation.installable
 
   function checkNow() {
     setDismissed(false)
+    setInstallFailure(null)
     void checkQuery.refetch()
   }
 
   function install() {
     if (phase !== UpdatePhase.available) return
+    if (!canInstallInPlace) return
+
     setProgress(null)
+    setInstallFailure(null)
     installMutation.mutate()
   }
 
@@ -107,6 +151,9 @@ export function AppUpdateProvider({ children }: AppUpdateProviderProps) {
         progress,
         progressPercent,
         dismissed,
+        canInstallInPlace,
+        installFailure,
+        downloadInstaller: () => void settingsApi.openInstallerDownload(),
         checkNow,
         install,
         dismiss: () => setDismissed(true),

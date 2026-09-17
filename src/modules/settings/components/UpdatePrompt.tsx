@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from '@/modules/common/ui/alert-dialog'
 import { Button } from '@/modules/common/ui/button'
+import { UpdateInstallHelp } from '@/modules/settings/components/UpdateInstallHelp'
 import { useAppUpdate } from '@/modules/settings/hooks/useAppUpdate'
 import { UpdatePhase } from '../types/updates'
 
@@ -19,10 +20,18 @@ import { UpdatePhase } from '../types/updates'
 // hasta el próximo chequeo manual desde Ajustes.
 export function UpdatePrompt() {
   const { t } = useTranslation()
-  const { phase, update, progressPercent, dismissed, install, dismiss } =
-    useAppUpdate()
+  const {
+    phase,
+    update,
+    progressPercent,
+    dismissed,
+    canInstallInPlace,
+    install,
+    dismiss,
+  } = useAppUpdate()
 
-  const installing = phase === UpdatePhase.installing
+  const downloading = phase === UpdatePhase.downloading
+  const installing = downloading || phase === UpdatePhase.installing
   const open =
     !dismissed &&
     update !== null &&
@@ -61,12 +70,20 @@ export function UpdatePrompt() {
           </div>
         )}
 
-        {installing && (
+        {downloading && (
           <LabeledProgress
             label={t('settings.updatesDownloading')}
             percent={progressPercent}
           />
         )}
+
+        {phase === UpdatePhase.installing && (
+          <p className="font-body text-sm text-muted-foreground">
+            {t('settings.updatesInstalling')}
+          </p>
+        )}
+
+        <UpdateInstallHelp />
 
         <AlertDialogFooter>
           <AlertDialogCancel
@@ -77,7 +94,7 @@ export function UpdatePrompt() {
           </AlertDialogCancel>
           <Button
             onClick={install}
-            disabled={installing}
+            disabled={installing || !canInstallInPlace}
             className="rounded-lg font-display"
           >
             <Download className="mr-1.5 h-4 w-4" />

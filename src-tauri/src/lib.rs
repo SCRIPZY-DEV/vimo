@@ -6,6 +6,10 @@ use tauri::Manager;
 mod api_keys;
 mod pipeline;
 mod settings;
+mod updates;
+
+const LOG_FILE_NAME: &str = "vimo";
+const LOG_FILE_MAX_BYTES: u128 = 2_000_000;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -54,15 +58,28 @@ pub fn run() {
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
       settings::commands::sync_projects_root_scope,
+      updates::commands::get_update_install_location,
+      updates::commands::has_running_pipeline_jobs,
+      updates::commands::report_update_install_failure,
     ])
     .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
+      // También en release: sin log no hay forma de diagnosticar un fallo del
+      // updater en la máquina de un usuario. El archivo queda en el directorio
+      // de logs de la app (macOS: ~/Library/Logs/click.vimo.portable).
+      app.handle().plugin(
+        tauri_plugin_log::Builder::default()
+          .level(log::LevelFilter::Info)
+          .level_for("tauri_plugin_updater", log::LevelFilter::Debug)
+          .targets([
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+              file_name: Some(LOG_FILE_NAME.into()),
+            }),
+          ])
+          .max_file_size(LOG_FILE_MAX_BYTES)
+          .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+          .build(),
+      )?;
       // La carpeta de proyectos puede estar fuera de $HOME (otro disco, o
       // «Documentos» movida en Windows): se le da permiso en cada arranque para
       // que las imágenes locales se vean y Ajustes pueda validarla (ADR-0037).

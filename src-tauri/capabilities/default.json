@@ -13,6 +13,7 @@
     {
       "identifier": "opener:allow-open-url",
       "allow": [
+        { "url": "https://vimo.click/*" },
         { "url": "https://*.supabase.co/*" },
         { "url": "https://deepinfra.com/*" },
         { "url": "https://fal.ai/*" },

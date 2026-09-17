@@ -145,7 +145,16 @@ mano en el repo de la landing. La versión vive solo en `package.json`.**
      (Ajustes muestra «Versión instalada: N+1» y «Tenés la última versión»).
   4. Con una firma alterada en `latest.json`, la instalación falla con el toast de
      error y la app sigue en N.
-  5. En web (`pnpm dev` en navegador), la sección aparece deshabilitada y no se hace
+  5. Abrir la app **desde el DMG montado**, sin copiarla a Aplicaciones: el aviso
+     explica que hay que moverla, ofrece «Descargar instalador» y no deja instalar.
+  6. Con un usuario estándar de macOS (no administrador): al cancelar el pedido de
+     contraseña sale el mensaje de permisos, no el genérico.
+  7. Tras cualquier fallo forzado, el archivo `vimo.log` del directorio de logs de la
+     app contiene «fallo al instalar la actualización» con el detalle.
+  8. Windows, tras un fallo: revisar `%TEMP%\Vimo-<versión>-updater-*` (si el exe
+     desapareció, lo puso en cuarentena un antivirus), el Historial de protección de
+     Seguridad de Windows, y si Smart App Control está activo.
+  9. En web (`pnpm dev` en navegador), la sección aparece deshabilitada y no se hace
      ninguna petición a `latest.json`.
 - **Cómo se vería una regresión:** el aviso no aparece nunca (endpoint caído,
   `latest.json` cacheado, o el chequeo dejó de montarse en `App`); «No se pudo
@@ -157,8 +166,17 @@ mano en el repo de la landing. La versión vive solo en `package.json`.**
 
 - Sin red o endpoint caído: el chequeo del arranque falla en silencio; Ajustes
   muestra «No se pudo comprobar…» solo al chequear a mano.
-- Descarga interrumpida o firma inválida: toast de error, la app sigue en la versión
-  actual; el usuario puede reintentar desde Ajustes.
+- Descarga interrumpida o firma inválida: toast con la causa, la app sigue en la
+  versión actual; el usuario puede reintentar desde Ajustes.
+- macOS, app abierta desde el DMG, con App Translocation o desde otro volumen: el
+  plugin no puede reemplazar el bundle (`os error 30` / `18`). Se detecta antes de
+  instalar (`get_update_install_location`) y se ofrece el instalador manual.
+- macOS, usuario sin permisos que cancela el pedido de contraseña: mensaje de permisos.
+- Windows, instalador sin firma Authenticode bloqueado por antivirus o Smart App
+  Control: mensaje de bloqueo y descarga manual.
+- Un video generándose: no se instala hasta que termine.
+- Todo fallo de instalación queda en el log de release con su detalle. Ver el informe
+  [2026-09-17](../fixes/2026-09-17-fix-updater-install-error/updater-install-error.md).
 - Tag sin coincidir con `package.json` o firma faltante: el job `publish` aborta y no
   se sube nada; los instaladores quedan como artefactos del run.
 
