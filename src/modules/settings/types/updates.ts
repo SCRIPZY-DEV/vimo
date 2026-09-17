@@ -27,11 +27,54 @@ export const UpdatePhase = {
   checking: 'checking',
   upToDate: 'upToDate',
   available: 'available',
+  downloading: 'downloading',
   installing: 'installing',
   error: 'error',
 } as const
 
 export type UpdatePhase = (typeof UpdatePhase)[keyof typeof UpdatePhase]
+
+// Etapa de la mutación de instalar: primero baja el paquete, después lo instala.
+export const UpdateInstallStage = {
+  downloading: 'downloading',
+  installing: 'installing',
+} as const
+
+export type UpdateInstallStage =
+  (typeof UpdateInstallStage)[keyof typeof UpdateInstallStage]
+
+// Dónde corre la app, según Rust (get_update_install_location). Solo
+// `installable` permite que el updater reemplace la app.
+export const UpdateInstallLocation = {
+  installable: 'installable',
+  // macOS la ejecuta desde una copia de solo lectura (no se movió a Aplicaciones).
+  translocated: 'translocated',
+  // Corre desde /Volumes: el DMG montado o un disco externo.
+  externalVolume: 'externalVolume',
+} as const
+
+export type UpdateInstallLocation =
+  (typeof UpdateInstallLocation)[keyof typeof UpdateInstallLocation]
+
+// Causa de un fallo al instalar, clasificada desde el texto del error.
+export const UpdateInstallFailure = {
+  readOnlyLocation: 'readOnlyLocation',
+  permissionDenied: 'permissionDenied',
+  installerBlocked: 'installerBlocked',
+  network: 'network',
+  signature: 'signature',
+  jobRunning: 'jobRunning',
+  unknown: 'unknown',
+} as const
+
+export type UpdateInstallFailure =
+  (typeof UpdateInstallFailure)[keyof typeof UpdateInstallFailure]
+
+export interface UpdateInstallFailureReport {
+  failure: UpdateInstallFailure
+  // Texto crudo del error, para soporte.
+  detail: string
+}
 
 export interface AppUpdateContextValue {
   isNative: boolean
@@ -42,6 +85,11 @@ export interface AppUpdateContextValue {
   progressPercent: number
   // «Más tarde» en el aviso: se oculta hasta el próximo chequeo manual.
   dismissed: boolean
+  // false cuando la app corre desde un lugar que el updater no puede reemplazar.
+  canInstallInPlace: boolean
+  // Último fallo al instalar; null si no hubo o si se reintentó.
+  installFailure: UpdateInstallFailureReport | null
+  downloadInstaller: () => void
   checkNow: () => void
   install: () => void
   dismiss: () => void
