@@ -39,6 +39,8 @@ tauri-plugin-store = "2"
 # webview, por eso no hay capability shell en capabilities/default.json.
 tauri-plugin-shell = "2"
 thiserror = "2"
+# Versión del SO para los logs de diagnóstico (ADR-0038).
+os_info = { version = "3", default-features = false }
 # jobId de los jobs del pipeline.
 uuid = { version = "1", features = ["v4"] }
 # rustls (+ roots de Mozilla embebidas) en vez del TLS nativo para que el mismo
@@ -47,6 +49,9 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 
 # El crate keyring no soporta Android: ahí la fuente es el plugin propio
 # tauri-plugin-secure-keys (Android Keystore). Ver ADR-0011.
+[dev-dependencies]
+tempfile = "3"
+
 [target.'cfg(not(target_os = "android"))'.dependencies]
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
