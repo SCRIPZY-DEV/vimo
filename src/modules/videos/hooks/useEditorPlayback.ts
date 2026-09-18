@@ -57,8 +57,11 @@ export function useEditorPlayback({
   // Volúmenes en vivo: la mezcla real ocurre en el render; esto la imita.
   // Por gain, no por element.volume: la mezcla admite hasta 2x y el elemento
   // topa en 1.
-  const narrationGain = useAudioGain(narrationRef, mix.voiceVolume)
-  const musicGain = useAudioGain(musicRef, mix.musicVolume)
+  const narrationGain = useAudioGain(narrationRef, {
+    volume: mix.voiceVolume,
+    muted,
+  })
+  const musicGain = useAudioGain(musicRef, { volume: mix.musicVolume, muted })
 
   // La música arranca en su offset y acompaña el tiempo de la narración.
   const syncMusic = (seconds: number) => {
