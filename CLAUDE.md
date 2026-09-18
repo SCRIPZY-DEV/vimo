@@ -256,11 +256,31 @@ pnpm build
 
 `pnpm build` ejecuta `tsc -b` además del bundling, así que cubre el chequeo de tipos.
 
-> **Testing:** todavía no hay framework de tests en el repo. Cuando se decida (Vitest,
-> Playwright), se agrega acá la regla y el comando correspondiente. Hasta entonces, no
-> declares «tests verdes»: no los hay. Los guards y regresiones provisorios viven en
+> **Testing del frontend:** todavía no hay framework de tests para `src/` ni
+> `pipeline/`. Cuando se decida (Vitest, Playwright), se agrega acá la regla y el
+> comando correspondiente. Hasta entonces, no declares «tests verdes» del frontend:
+> no los hay. Los guards y regresiones provisorios viven en
 > [scripts/test/](scripts/test/README.md) y están pendientes de migrar a ese framework;
 > en `scripts/` quedan solo los scripts de build y del sidecar.
+
+**Testing de Rust (`src-tauri/`)** sí existe y se corre con `pnpm test:tauri`
+(`cargo test --lib`). Un cambio en Rust que toque lógica testeable trae sus tests y
+los deja en verde. La convención (ver «Tests de Rust» en
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)):
+
+- Los tests unitarios de un módulo viven en `src-tauri/src/<módulo>/tests/<archivo>.rs`,
+  uno por archivo de producción, y **no** inline dentro de él.
+- Cada archivo de producción los engancha al final con
+  `#[cfg(test)] #[path = "tests/<archivo>.rs"] mod tests;`. Ese `#[path]` es
+  deliberado: hace que el test sea hijo del módulo y vea sus funciones privadas con
+  `use super::*`. No lo «arregles» moviéndolo a `mod.rs` ni abriendo visibilidad con
+  `pub(crate)` solo para testear.
+- La lógica que depende de `AppHandle` se separa en una función sobre `&Path` (o el
+  dato concreto) que es la que se testea, y un wrapper con `AppHandle` que solo
+  resuelve el path. `spool.rs` es el ejemplo.
+- Archivos en disco: `tempfile::tempdir()` (dev-dependency), nunca rutas reales.
+- `src-tauri/tests/` (tests de integración de Cargo) queda reservado para probar
+  comandos Tauri completos; hoy no hay ninguno.
 
 ---
 
