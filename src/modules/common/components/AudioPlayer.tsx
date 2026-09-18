@@ -26,7 +26,7 @@ export function AudioPlayer({
 }: AudioPlayerProps) {
   const { t } = useTranslation()
   const audioRef = useRef<HTMLAudioElement>(null)
-  const { resume } = useAudioGain(audioRef, volume)
+  const { resume } = useAudioGain(audioRef, { volume })
   const [playing, setPlaying] = useState(false)
   const [duration, setDuration] = useState(0)
   const [position, setPosition] = useState(0)
