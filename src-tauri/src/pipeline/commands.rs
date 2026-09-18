@@ -4,6 +4,8 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
+use crate::diagnostics::recorder::DiagnosticRecorder;
+use crate::diagnostics::report::{build_redactor, store_job_record};
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::job::build_pipeline_job;
 use crate::pipeline::jobs::{RunningJob, RunningJobs};
@@ -55,6 +57,8 @@ pub async fn start_pipeline_job(
         return Err(PipelineError::ProjectBusy);
     }
     let job_id = uuid::Uuid::new_v4().to_string();
+    // Log de diagnóstico del job (ADR-0038): se alimenta en el loop de eventos.
+    let mut recorder = DiagnosticRecorder::new(&subcommand, payload.as_ref(), build_redactor(&app));
     let job = build_pipeline_job(&app, &job_id, project_dir, config, payload);
 
     let (mut events, mut child) = sidecar_command(&app, &subcommand)?
@@ -74,27 +78,42 @@ pub async fn start_pipeline_job(
 
     let app_for_events = app.clone();
     let job_id_for_events = job_id.clone();
+    let subcommand_for_events = subcommand.clone();
     tauri::async_runtime::spawn(async move {
         while let Some(event) = events.recv().await {
             match event {
                 CommandEvent::Stdout(line) => match serde_json::from_slice::<Value>(&line) {
                     Ok(value) => {
+                        recorder.record_event(&value);
                         let _ = on_event.send(value);
                     }
-                    Err(_) => log::warn!(
-                        "sidecar stdout fuera de contrato: {}",
-                        String::from_utf8_lossy(&line)
-                    ),
+                    Err(_) => {
+                        recorder.record_invalid_stdout(&line);
+                        log::warn!(
+                            "sidecar stdout fuera de contrato: {}",
+                            String::from_utf8_lossy(&line)
+                        );
+                    }
                 },
                 CommandEvent::Stderr(line) => {
+                    recorder.record_stderr(&line);
                     log::warn!("sidecar stderr: {}", String::from_utf8_lossy(&line));
                 }
-                CommandEvent::Terminated(_) => {
+                CommandEvent::Terminated(exit) => {
                     let jobs = app_for_events.state::<RunningJobs>();
                     jobs.0
                         .lock()
                         .expect("running jobs mutex poisoned")
                         .remove(&job_id_for_events);
+
+                    let outcome = recorder.finish(exit.code, exit.signal);
+                    store_job_record(
+                        &app_for_events,
+                        &job_id_for_events,
+                        &subcommand_for_events,
+                        outcome,
+                    );
+                    break;
                 }
                 _ => {}
             }
