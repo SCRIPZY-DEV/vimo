@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/modules/common/theme/ThemeProvider'
 import { Toaster } from '@/modules/common/ui/toaster'
 import { Toaster as Sonner } from '@/modules/common/ui/sonner'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
+import { DiagnosticsUploader } from '@/modules/diagnostics/components/DiagnosticsUploader'
 import { AppUpdateProvider } from '@/modules/settings/components/AppUpdateProvider'
 import { UpdatePrompt } from '@/modules/settings/components/UpdatePrompt'
 import { router } from '@/router'
@@ -23,6 +24,8 @@ export function App() {
               <RouterProvider router={router} />
               <UpdatePrompt />
             </AppUpdateProvider>
+            {/* Logs de diagnóstico (ADR-0038): sube a soporte lo que Rust dejó en el spool. */}
+            <DiagnosticsUploader />
             <Toaster />
             <Sonner />
           </TooltipProvider>

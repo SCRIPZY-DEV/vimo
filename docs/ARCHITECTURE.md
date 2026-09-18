@@ -247,6 +247,7 @@ src-tauri/
 ├── Cargo.toml         dependencias de Rust (incluye tauri-plugin-shell, single-instance y updater)
 ├── build.rs           script de build de Tauri
 ├── src/               código Rust: lanza los sidecars y los detiene al salir
+│   └── <módulo>/tests/  tests unitarios del módulo, un archivo por archivo de producción
 ├── binaries/          los sidecars, con sufijo de target triple
 ├── capabilities/      permisos, incluido el de ejecutar sidecars
 ├── icons/             iconos de la aplicación
@@ -259,6 +260,30 @@ instalador incluye únicamente los binarios de su plataforma.
 
 Del lado del bundle, Tauri empaqueta `dist/` (la clave `frontendDist`), los iconos y los
 `externalBin`. Nada de `docs/` viaja dentro de la aplicación.
+
+#### Tests de Rust
+
+Se corren con `pnpm test:tauri` (equivale a `cargo test --lib` en `src-tauri/`); para
+un módulo, `cargo test --lib diagnostics`. Rust ofrece dos tipos de test y acá se
+usa uno solo:
+
+- **Unitarios, en una carpeta `tests/` dentro del módulo.** Cada archivo de
+  producción termina con `#[cfg(test)] #[path = "tests/<archivo>.rs"] mod tests;`
+  y su test vive en `src/<módulo>/tests/<archivo>.rs`. Para el compilador es igual
+  que un `mod tests { … }` inline (es hijo del módulo, `use super::*` ve lo privado,
+  no entra al binario), pero el código de test no ensucia el de producción. Es la
+  única forma de tener los tests en archivo aparte **sin** abrir visibilidad
+  (`pub(crate)`) solo para testear; por eso el `#[path]` es deliberado.
+- **De integración, en `src-tauri/tests/`.** Cada archivo es un crate externo que
+  solo ve la API pública de `app_lib`. Reservado para probar comandos Tauri
+  completos con `tauri::test::mock_app`; hoy no hay ninguno y `diagnostics` ni
+  siquiera es `pub` desde `lib.rs`, así que desde ahí no existe.
+
+Para que un módulo sea testeable, lo que depende de `AppHandle` se parte en dos: una
+función sobre `&Path` (o el dato concreto) con la lógica, y un wrapper público con
+`AppHandle` que solo resuelve el path y delega. Los tests que tocan disco usan
+`tempfile::tempdir()`. `diagnostics/spool.rs` y `diagnostics/tests/spool.rs` son el
+ejemplo de referencia.
 
 ---
 
@@ -365,6 +390,18 @@ TTS pendiente. Reanudar consulta la tarea remota conocida; no repite un POST
 incierto. Rust excluye jobs simultáneos del mismo proyecto dentro de la app.
 Ver [ADR-0035](adr/ADR-0035-recibos-de-voz-y-previews-interactivas.md) y
 [límites y pruebas de recuperación](fixes/2026-09-12-fix-voice-resume/voice-resume.md).
+
+### Logs de diagnóstico
+
+Cada job deja un registro redactado que soporte busca por correo + proyecto
+([ADR-0038](adr/ADR-0038-logs-de-diagnostico-por-ejecucion-en-supabase.md)). Rust
+lo arma mientras reenvía los eventos (`src-tauri/src/diagnostics/`), lo guarda en
+`<appLogDir>/diagnostics/<jobId>.json` y el módulo `src/modules/diagnostics/` lo
+sube a la tabla `diagnostic_logs` de Supabase. Un subcomando nuevo queda cubierto
+sin escribir nada; pero de cada evento solo se sube una **allowlist de claves**
+(`ALLOWED_EVENT_KEYS` en `diagnostics/redaction.rs`): si agregás a un evento una
+clave útil para diagnosticar, sumala ahí — y nunca una que lleve contenido del
+usuario (guion, prompts, rutas).
 
 ---
 

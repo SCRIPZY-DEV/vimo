@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                | Title                                                                      | Status                   | Area                          |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0038](ADR-0038-logs-de-diagnostico-por-ejecucion-en-supabase.md)              | Per-run diagnostic logs uploaded to Supabase                               | Aceptada                 | app / pipeline / soporte      |
 | [ADR-0037](ADR-0037-permiso-en-runtime-sobre-la-carpeta-de-proyectos.md)           | Runtime permission on the projects folder                                  | Aceptada                 | app / seguridad               |
 | [ADR-0036](ADR-0036-prompts-de-catalogo-sin-relleno.md)                            | Catalog prompts with model rotation and no filler                          | Aceptada                 | pipeline / app                |
 | [ADR-0035](ADR-0035-recibos-de-voz-y-previews-interactivas.md)                     | Local voice receipts and interactive previews                              | Aceptada                 | app / pipeline / providers    |

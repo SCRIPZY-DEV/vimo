@@ -4,6 +4,7 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tauri::Manager;
 
 mod api_keys;
+mod diagnostics;
 mod pipeline;
 mod settings;
 mod updates;
@@ -55,6 +56,8 @@ pub fn run() {
       api_keys::commands::save_api_key,
       api_keys::commands::delete_api_key,
       api_keys::commands::validate_api_key,
+      diagnostics::commands::list_pending_diagnostic_logs,
+      diagnostics::commands::delete_diagnostic_log,
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
       settings::commands::sync_projects_root_scope,

@@ -16,6 +16,7 @@
     "check:locales": "node scripts/test/check-locales.mjs",
     "pipeline:harness": "node scripts/run-pipeline-harness.mjs",
     "check:demo": "node scripts/test/check-demo.mjs",
+    "test:tauri": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "build:demo-pack": "node scripts/build-demo-pack.mjs",
     "preview": "vite preview"
   },

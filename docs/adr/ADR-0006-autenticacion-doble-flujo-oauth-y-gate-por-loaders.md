@@ -97,7 +97,8 @@ Redirect URLs): `vimo://auth/callback`, `http://localhost:5173/#/auth/callback` 
 - **Build/lint:** `pnpm format && pnpm lint && pnpm build` en verde.
 - **Greps ejecutables:**
   - `grep -rln "supabase/client" src/ --include="*.ts*"` → solo
-    `src/modules/auth/api/index.ts` (fuera de `common/supabase`).
+    `src/modules/auth/api/index.ts` (fuera de `common/supabase`) y, desde la
+    ADR-0038, `src/modules/diagnostics/api/index.ts`.
   - `grep -rn "fetch(" src/modules/auth` → solo `api/index.ts` (la excepción).
   - `grep -rn "isTauri" src/` → solo `api/index.ts`.
 - **Flujo web (manual):** `pnpm dev` sin sesión → `/` rebota a login → Google →

@@ -1,0 +1,85 @@
+use super::*;
+
+fn recorder(subcommand: &str, payload: Option<&Value>) -> DiagnosticRecorder {
+    DiagnosticRecorder::new(subcommand, payload, Redactor::new([], None, None))
+}
+
+#[test]
+fn failure_keeps_code_and_running_stage() {
+    let payload = json!({ "projectId": "mi-video" });
+    let mut recorder = recorder("run-video-pipeline", Some(&payload));
+    recorder.record_event(&json!({ "type": "stage-started", "stageId": "voice" }));
+    recorder.record_event(&json!({ "type": "stage-completed", "stageId": "voice" }));
+    recorder.record_event(&json!({ "type": "stage-started", "stageId": "images" }));
+    recorder.record_event(
+        &json!({ "type": "job-failed", "code": "image_timeout", "message": "boom" }),
+    );
+    let outcome = recorder.finish(Some(1), None);
+
+    assert_eq!(outcome.status, RunStatus::Failed);
+    assert_eq!(outcome.error_code.as_deref(), Some("image_timeout"));
+    assert_eq!(outcome.failed_stage.as_deref(), Some("images"));
+    assert_eq!(outcome.project_id.as_deref(), Some("mi-video"));
+}
+
+#[test]
+fn missing_terminal_event_is_a_crash() {
+    let mut recorder = recorder("run-video-pipeline", None);
+    recorder.record_event(&json!({ "type": "stage-started", "stageId": "render" }));
+    let outcome = recorder.finish(None, Some(9));
+
+    assert_eq!(outcome.status, RunStatus::Crashed);
+    assert_eq!(outcome.failed_stage.as_deref(), Some("render"));
+    assert_eq!(outcome.events.last().unwrap()["signal"], json!(9));
+}
+
+#[test]
+fn cancelled_and_awaiting_confirmation_are_not_failures() {
+    let mut cancelled = recorder("run-video-pipeline", None);
+    cancelled.record_event(&json!({ "type": "job-failed", "code": "cancelled", "message": "" }));
+    assert_eq!(cancelled.finish(Some(1), None).status, RunStatus::Cancelled);
+
+    let mut paused = recorder("run-video-pipeline", None);
+    paused.record_event(
+        &json!({ "type": "job-completed", "result": { "status": "awaiting-confirmation" } }),
+    );
+    assert_eq!(paused.finish(Some(0), None).status, RunStatus::Paused);
+}
+
+#[test]
+fn created_project_id_comes_from_the_result() {
+    let mut recorder = recorder("create-video-project", None);
+    recorder.record_event(
+        &json!({ "type": "job-completed", "result": { "projectId": "nuevo", "projectDir": "/x" } }),
+    );
+    assert_eq!(recorder.finish(Some(0), None).project_id.as_deref(), Some("nuevo"));
+}
+
+#[test]
+fn progress_is_sampled_by_bucket() {
+    let mut recorder = recorder("render-video", None);
+    for percent in 0..=100 {
+        recorder.record_event(
+            &json!({ "type": "render-progress", "percent": percent, "phase": "final" }),
+        );
+    }
+    recorder.record_event(&json!({ "type": "scene-image-progress", "sceneId": 1, "percent": 5 }));
+    let outcome = recorder.finish(Some(0), None);
+
+    // 11 tramos (0, 10, …, 100) + process-exited.
+    assert_eq!(outcome.events.len(), 12);
+}
+
+#[test]
+fn long_timelines_keep_head_and_tail() {
+    let mut recorder = recorder("run-video-pipeline", None);
+    for index in 0..(HEAD_ENTRIES_LIMIT + TAIL_ENTRIES_LIMIT + 100) {
+        recorder.record_event(&json!({ "type": "log", "level": "info", "message": index.to_string() }));
+    }
+    let outcome = recorder.finish(Some(0), None);
+
+    assert!(outcome.events_truncated);
+    assert_eq!(outcome.events.len(), HEAD_ENTRIES_LIMIT + TAIL_ENTRIES_LIMIT);
+    assert_eq!(outcome.events[0]["message"], json!("0"));
+    assert_eq!(outcome.events.last().unwrap()["type"], json!("process-exited"));
+}
