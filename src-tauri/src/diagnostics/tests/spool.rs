@@ -50,9 +50,11 @@ fn touch(path: &Path, modified: SystemTime) {
         .expect("mtime");
 }
 
+// Deja un registro con un mtime dado sin pasar por `write_record_to`, que poda
+// en cada escritura y alteraría el escenario que arma el test.
 fn write_at(directory: &Path, id: &str, modified: SystemTime) -> PathBuf {
-    write_record_to(directory, &record(id)).expect("escritura");
     let path = record_path(directory, id);
+    fs::write(&path, serde_json::to_vec(&record(id)).unwrap()).expect("escritura");
     touch(&path, modified);
     path
 }
