@@ -31,6 +31,10 @@ import {
   anchorNormalRealism,
   buildDeterministicFallbackPrompt,
 } from '../scene-prompts/fallback-prompt.ts'
+import {
+  effectivePresence,
+  lockCharacterComplexion,
+} from '../scene-prompts/identity-lock.ts'
 import { createCatalogSceneLlm } from '../shared/catalog-llm.ts'
 import { hasCatalogPrompt } from '../shared/catalog-prompt.ts'
 import { regeneratePromptsForRejected } from '../scene-prompts/prompt-writer.ts'
@@ -455,7 +459,37 @@ async function generateImages(
     id: scene.id,
     text: scene.text,
   }))
-  const finalScenes = safeScenes.map((scene) => {
+  // Candado de tez sobre prompts YA guardados: «Regenerar imagen» sin pedido
+  // nuevo reutiliza el prompt del disco, así que el candado del redactor no
+  // alcanza a los proyectos anteriores al fix. Solo para escenas que de verdad
+  // se van a generar, y nunca sobre una tarea ya pagada (ADR-0036): cambiarle
+  // el prompt rompería su cosecha.
+  const explicitNewImage = new Set(context.regenerateSceneIds ?? [])
+  const lockedScenes = await Promise.all(
+    safeScenes.map(async (scene) => {
+      if (context.options.customStyle) return scene
+      if (!isValidPrompt(scene.imagePrompt)) return scene
+      if (scene.imageTask && !explicitNewImage.has(scene.id)) return scene
+
+      const willGenerate =
+        forceRegenerate.has(scene.id) ||
+        !(await isValidFile(sceneImageFile(context.paths, scene.id)))
+      if (!willGenerate) return scene
+
+      return {
+        ...scene,
+        imagePrompt: lockCharacterComplexion(
+          scene.imagePrompt,
+          inputs.promptCharacters,
+          effectivePresence(scene, inputs.promptCharacters),
+          style,
+          { requirePersonMention: true },
+        ),
+      }
+    }),
+  )
+
+  const finalScenes = lockedScenes.map((scene) => {
     if (!isValidPrompt(scene.imagePrompt)) return scene
     // Con pedido manual del usuario el plan del director NO aplica.
     const isDiagram =
@@ -485,7 +519,7 @@ async function generateImages(
     // ÚNICO bypass de la cosecha de una tarea ya pagada: los ids que el
     // usuario pidió regenerar explícitamente desde el editor (ADR-0014).
     // Las pasadas de recuperación de Create siguen cosechando `imageTask`.
-    explicitNewImage: new Set(context.regenerateSceneIds ?? []),
+    explicitNewImage,
   }
 
   try {
@@ -587,6 +621,24 @@ async function dispatchLanes(
   const characterFailures = characterResults
     .filter((result) => !result.imageReady)
     .map((result) => result.scene)
+  // El rescate ya no es silencioso: una escena sin su referencia es la que
+  // sale con otro look, y sin este aviso no había forma de saber cuál fue.
+  if (characterFailures.length > 0) {
+    const describeIds = (scenes: Scene[]) =>
+      scenes.map((scene) => scene.id).join(', ') || 'none'
+    context.emitter.emit({
+      type: 'log',
+      level: 'warn',
+      message:
+        'character reference lost — these scenes are being generated from text only and may not match the character: ' +
+        `rejected by content policy [${describeIds(
+          characterFailures.filter((scene) => scene.contentRejected === true),
+        )}], provider or upload failure [${describeIds(
+          characterFailures.filter((scene) => scene.contentRejected !== true),
+        )}]`,
+    })
+  }
+
   const rescued =
     characterFailures.length > 0
       ? await dispatchNormal(characterFailures, provider, inputs, laneOptions)

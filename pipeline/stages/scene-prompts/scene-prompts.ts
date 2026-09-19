@@ -229,6 +229,8 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       imageTextLanguage,
       signal: context.signal,
       sceneIds: pendingIds,
+      // Desde el editor la presencia por escena la marcó el usuario.
+      promoteUnmarkedProtagonist: !context.regenerateSceneIds,
       async onSceneProcessed(scene) {
         persistence = persistence.then(async () => {
           context.signal.throwIfAborted()
