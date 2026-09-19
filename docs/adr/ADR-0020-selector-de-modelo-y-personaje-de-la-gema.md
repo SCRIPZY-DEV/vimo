@@ -112,6 +112,15 @@ existente; si no se resuelven, no se solicitan imágenes de relleno. La elecció
 aplica tras guardar; un cambio real invalida el prompt, no la imagen pagada.
 Ver [causa, implementación y QA](../fixes/2026-09-13-fix-custom-style-editor-character-selection/custom-style-editor-character-selection.md).
 
+### Adenda 2026-09-18 — el bloque `character` también gobierna las muestras
+
+Las cuatro muestras de una gema salen con el MISMO protagonista que tendrá el video:
+`own` con `defaultCharacterId` → ese personaje (imagen de referencia si la hay; si
+no, su descripción tejida al prompt); `generic`, `own` sin predeterminado o sin
+bloque → el que la gema describe o, si no describe ninguno, uno diseñado para ella;
+`none` → pedidos como siempre. Cambiar el personaje no regenera las muestras sola.
+Ver [causa, implementación y QA](../fixes/2026-09-18-fix-style-samples-character/style-samples-character.md).
+
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por
   byte: `promptModel` ni siquiera se acepta.
 - Un proyecto custom **previo** (sin `promptModel`, sin `character`) escribe
