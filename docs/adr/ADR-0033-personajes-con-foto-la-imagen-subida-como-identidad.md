@@ -167,3 +167,6 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
 - Origen (`vimo_dev`): `PaginaPersonajes.tsx` (ModalPersonaje),
   `SelectorPersonajeCreacion.tsx` v0.41.0, `biblioteca.ts`,
   `personaje_fal.ts` / `personaje_evolink.ts`; doctrinas E14, E15, E20.
+- Fix 2026-09-18: con foto y sin descripción el redactor ya no inventa rasgos y la
+  línea REFERENCE ancla el tono de piel —
+  [realistic-character-identity](../fixes/2026-09-18-fix-realistic-character-identity/realistic-character-identity.md).
