@@ -21,7 +21,8 @@ export function buildSubjectClassifierUserPrompt(sceneLines: string): string {
 // La referencia de IMAGEN fija la cara; este texto fija el resto
 // (cuerpo/ropa/pelo/consistencia). Incluye el override explícito: la
 // apariencia canónica del usuario le GANA a cualquier descripción que la
-// biblia generada haya inventado para ese personaje.
+// biblia generada haya inventado para ese personaje. Sin descripción el
+// personaje es «con foto»: ahí el texto prohíbe inventarle rasgos físicos.
 export function buildCharacterBibleBlock(
   name: string,
   description: string,
@@ -38,7 +39,7 @@ export function buildCharacterBibleBlock(
       : '') +
     (trimmedDescription
       ? ` This canonical appearance OVERRIDES any other description in this guidance: if elsewhere ${trimmedName} is described with a different color, a generic look, or without their usual outfit, IGNORE that and keep ${trimmedName}'s exact identity, outfit and design as stated here. `
-      : ' ') +
+      : ` ${trimmedName}'s look comes from a reference photo attached to the image request, which you cannot see: never invent or describe ${trimmedName}'s skin tone, ethnicity, face, hair, eyes or age anywhere in this guidance or in a scene. `) +
     `Whenever the narration involves ${trimmedName} (by name, pronoun or clear reference), make ${trimmedName} the clear focus with this EXACT same identity and design, kept perfectly consistent across every scene where they appear. ` +
     `Keep ${trimmedName}'s hair IDENTICAL in every scene — same exact color, length and style — and the same face, skin tone and facial hair; never recolor, restyle, lengthen, shorten or change ${trimmedName}'s hair from one scene to the next. ` +
     `Render ${trimmedName} as the scene needs: full body or close-up as appropriate, the pose and action of that moment, and the clothing the narration specifies (otherwise their canonical outfit above — never plain or undressed if their canonical look includes clothing/accessories). ` +

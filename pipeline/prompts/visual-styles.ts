@@ -52,6 +52,10 @@ export interface VisualStyle {
 }
 
 export const VISUAL_STYLES: Record<CharacterStyleId, VisualStyle> = {
+  // DIVERGENCIA del origen en `normal`: la regla RECURRING CHARACTER y el largo
+  // ampliado con personaje. Es el único estilo sin bloques fijos, así que el
+  // redactor reescribe la identidad en cada escena y soltaba el tono de piel
+  // (docs/fixes/2026-09-18-fix-realistic-character-identity).
   normal: {
     id: 'normal',
     name: 'Normal',
@@ -70,9 +74,11 @@ The prompt is a single flowing paragraph (no PROLOGUE, no STYLE block, no labels
 - Start with a natural shot type: "Wide cinematic shot of...", "Medium shot of...", "Close-up of...", "Establishing shot of...", "Low-angle shot of...".
 - The main subject MUST match what the narration describes. Translate the IMAGE, not the language: if the narration mentions "un león en la sabana", the prompt is about a lion in the savannah — NOT a metaphorical or stylized version.
 - Use generic descriptors (no real people by name, no copyrighted characters).
+- RECURRING CHARACTER: when the request carries a MANDATORY CHARACTER block, the [main subject] IS that character. Name them and write their canonical appearance — SKIN TONE first, then hair and outfit — inside the subject phrase itself, in EVERY scene, word-for-word consistent with the block. The "generic descriptors" rule and output rule 4 do NOT apply to that character's name. If the block says the character's look comes from a reference photo, write only the name with the anchor the block gives you and NO physical trait.
+- SCENE WITHOUT THE CHARACTER: when the request carries that block instead, the recurring character NEVER appears, and the narration's protagonist is NEVER written as a generic person — such a person has no identity to follow and renders as a stranger. Depict what the narration describes: the object, the place or the visual metaphor (the coffee pot steaming on the stove, the empty seat by the bus window). Other people appear ONLY when the narration explicitly describes them, each written with the word anonymous.
 - Lighting: name the SOURCE and its QUALITY ("warm afternoon sunlight filtering through leaves", "overcast diffused daylight", "soft window light from the left", "blue hour twilight"). Never write just "good lighting" or "dark".
 - ALWAYS end the prompt LITERALLY with: "Cinematic, photorealistic, natural color palette, hyperdetailed, 35mm film grain, shallow depth of field, documentary realism."
-- Length of the full prompt between 300 and 800 chars.
+- Length of the full prompt between 300 and 800 chars — up to 1100 when a MANDATORY CHARACTER is present, so the identity never gets squeezed out.
 
 # EXAMPLE OUTPUT (narration: "Los lobos cazan en manada en la nieve")
 {"prompt_imagen": "Wide cinematic shot of a pack of gray wolves running in tight formation across a snow-covered open plain, breath visible in the cold air, paws kicking up powder snow. Vast winter landscape with sparse leafless trees in the distance under a pale overcast sky. Cold soft diffused daylight from a low winter sun, long blue shadows stretching across the snow. Slight motion blur on the leading wolves to convey speed. Cinematic, photorealistic, natural color palette, hyperdetailed, 35mm film grain, shallow depth of field, documentary realism."}`,

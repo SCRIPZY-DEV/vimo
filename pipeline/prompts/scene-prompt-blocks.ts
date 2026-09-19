@@ -4,6 +4,9 @@
 // inyecta cada bloque (sanitizado, dedupe, topes de caracteres, reintentos)
 // se porta aparte. Texto en inglés verbatim. Browser-safe: cero APIs de Node.
 
+import { extractComplexionClause } from '../utils/character-complexion.ts'
+import { REFERENCE_PERSON_ANCHOR } from './character-reference.ts'
+
 // Ventana de contexto local por escena: ~1600 chars de narración alrededor de
 // la escena actual (port de VENTANA_MAX_CHARS).
 export const CONTEXT_WINDOW_MAX_CHARS = 1600
@@ -102,7 +105,16 @@ export function buildMandatoryCharacterBlock(
   const n = (name || '').trim()
   const d = (description || '').trim()
   if (!n) return ''
-  const appearance = d ? `"${d}"` : `(keep ${n}'s established design exactly)`
+  // SIN descripción el personaje es «con foto» (ADR-0033): el redactor no ve
+  // la foto, así que cualquier rasgo físico que escriba es inventado y puede
+  // contradecirla (salía blanco un personaje moreno). Stickman queda igual: ahí
+  // el personaje es el muñeco y no se redacta como persona.
+  const looksComeFromPhoto = !d && !isStickmanStyle
+  const appearance = d
+    ? `"${d}"`
+    : looksComeFromPhoto
+      ? `(${n}'s look comes from a REFERENCE PHOTO that is attached to the image request and that YOU CANNOT SEE. In the prompt, write ${n} as ${n} (${REFERENCE_PERSON_ANCHOR}) the first time ${n} is mentioned, and NEVER write any physical trait for ${n} — no skin tone, ethnicity, face, hair, eyes, age or build: anything you invent can contradict the photo. Write ONLY ${n}'s action, facial expression, body language, framing and the clothing the narration calls for.)`
+      : `(keep ${n}'s established design exactly)`
   const traits =
     'species, body, face, skin tone, HAIR (exact color, length and style), facial hair, eyes, outfit, colors and accessories'
   // Rama PELADO bifurcada EN CÓDIGO: si la descripción canónica es
@@ -121,6 +133,14 @@ export function buildMandatoryCharacterBlock(
       ? ` HAIR IS MANDATORY AND INSEPARABLE FROM THE HEAD (critical for this doll-style video that uses a round, blank, white head): read ${n}'s canonical description above. If it includes HAIR, then EVERY SINGLE TIME you mention ${n}'s head you MUST attach that exact hair to it IN THE SAME PHRASE — write it as "round white head WITH ${n}'s <exact hair: color, length, style> on top" (for example "round white head with long grey hair on top"). Treat the hair as a permanent, non-removable part of the head: never write or draw the head without immediately adding the hair, never leave it bald or bare, and never replace the hair with a hat, headscarf, bandana or hood unless ${n}'s canonical look explicitly includes one. ONLY if ${n} is explicitly described as bald or shaven may the head stay hairless. Apply the same rule to any other distinctive head feature ${n} has (beard, glasses).`
       : ` HAIR IS MANDATORY AND INSEPARABLE FROM THE HEAD: read ${n}'s canonical description above. If it includes HAIR, then every time you describe ${n}'s head you MUST attach that exact hair (color, length and style) in the same phrase, rendered naturally in this video's own art style. Never leave ${n} bald or bare-headed, and never replace the hair with a hat, headscarf, bandana or hood unless ${n}'s canonical look explicitly includes one. ONLY if ${n} is explicitly described as bald or shaven may the head stay hairless. Apply the same rule to any other distinctive head feature ${n} has (beard, glasses).`
 
+  // TONO DE PIEL: mismo candado duro que el pelo. Los generadores rellenan con
+  // piel clara cuando el prompt no la nombra, y el redactor la soltaba en
+  // algunas escenas. Nunca en stickman: ahí escribir la piel dibuja un humano.
+  const complexion = isStickmanStyle ? '' : extractComplexionClause(d)
+  const skinToneLock = complexion
+    ? ` SKIN TONE IS MANDATORY IN EVERY SCENE: ${n}'s canonical look states ${complexion} — write that exact skin tone IN THE SAME PHRASE that introduces ${n}, in every prompt, even in wide shots, silhouettes against the light, night scenes or partial framings. Never lighten it, darken it, leave it out or replace it with a vague word: image generators default to a light-skinned person whenever the prompt does not name the skin tone.`
+    : ''
+
   // MUÑECO, NO HUMANO REAL: prohibición de redactar al personaje como humano
   // en estilo stickman (evita que el generador dibuje a AMBOS).
   const dollNotHuman = isStickmanStyle
@@ -137,7 +157,7 @@ export function buildMandatoryCharacterBlock(
     // Mismo candado duro que el camino automático, adaptado al modo
     // pedido-usuario: la identidad es innegociable; el pedido solo define el
     // contenido de la toma.
-    return `\n# MANDATORY CHARACTER — non-negotiable, overrides the user request ("${n}")\nThis scene FEATURES the recurring main character "${n}". ${n} MUST appear, drawn with this EXACT canonical appearance:\n${appearance}\nThis identity is FIXED and OVERRIDES the user request: even if the request describes a different place, a different subject or does not mention ${n} at all, ${n} MUST still appear with the full canonical identity above. The user request only decides WHAT ${n} is doing, WHERE the scene happens and WHAT ELSE appears in the image — never ${n}'s look and never whether ${n} appears. Never change, recolor, simplify, age-down, or omit ${n}'s ${traits}. If the requested action seems to clash with the outfit (fishing, swimming, sleeping...), KEEP the outfit anyway. If the request centers on something else (an object, a place, a diagram), draw ${n} WITH it — presenting, pointing at or interacting with it — NEVER omit ${n}.${hairInSimpleStyle}${dollNotHuman}${drawnSetting}\n`
+    return `\n# MANDATORY CHARACTER — non-negotiable, overrides the user request ("${n}")\nThis scene FEATURES the recurring main character "${n}". ${n} MUST appear, drawn with this EXACT canonical appearance:\n${appearance}\nThis identity is FIXED and OVERRIDES the user request: even if the request describes a different place, a different subject or does not mention ${n} at all, ${n} MUST still appear with the full canonical identity above. The user request only decides WHAT ${n} is doing, WHERE the scene happens and WHAT ELSE appears in the image — never ${n}'s look and never whether ${n} appears. Never change, recolor, simplify, age-down, or omit ${n}'s ${traits}. If the requested action seems to clash with the outfit (fishing, swimming, sleeping...), KEEP the outfit anyway. If the request centers on something else (an object, a place, a diagram), draw ${n} WITH it — presenting, pointing at or interacting with it — NEVER omit ${n}.${hairInSimpleStyle}${skinToneLock}${dollNotHuman}${drawnSetting}\n`
   }
 
   // SETTING que sigue a la narración + permiso de visual explicativo (con
@@ -150,7 +170,7 @@ export function buildMandatoryCharacterBlock(
   // DIRECCIÓN DE ESCENA: el personaje ACTÚA lo narrado, metáfora solo para
   // narración abstracta, burbuja de pensamiento sin texto y encuadre libre.
   const sceneDirection = `\n# SCENE DIRECTION — ${n} ACTS, never poses\n${n} is the story's narrator-protagonist and must be ACTING OUT this scene's narration — physically DOING the action, feeling the emotion or living the moment described right here — NEVER just standing still, posing or facing the camera unless the narration itself says so. That ban targets the accidental default pose ONLY — a deliberate EXPRESSIVE SHOT is NOT posing and OVERRIDES that ban: a waist-up or face close-up of ${n} with the narrated emotion clear on the face and in the body language — even looking straight at the viewer, like a narrator addressing the audience — is welcome and professional; what is banned is the emotionless full-body statue. When the narration speaks TO the viewer or about them ("you", "maybe you have seen..."), prefer that direct-address shot and write the words "looking directly at the viewer" explicitly in the prompt. In EVERY scene, write ${n}'s facial expression and body language explicitly in the prompt (worried, relieved, determined, dejected, hopeful...), matching THIS narration's emotion — a neutral face on an emotional line is a defect. Write ${n}'s ACTION in the SAME sentence that describes ${n}'s appearance — never default to "standing alone" or "standing in the center": if the narration has ANY physical beat (arriving, training, lifting, leaving, being watched), show ${n} MID-ACTION doing it; if it has none, use the metaphor or the thought bubble instead. When the narration is ABSTRACT (an emotion, an idea, an opinion, a life lesson) with no physical action to show, stage a clear VISUAL METAPHOR or allusive scene built AROUND ${n} (e.g. "going your own way" → ${n} walking alone down an open road at dawn), with ${n}'s canonical identity fully intact — use a metaphor ONLY for abstract narration; when the narration describes a concrete action, show that action itself. When the narration says ${n} thinks, remembers or imagines something, you may draw a THOUGHT BUBBLE above ${n} containing ONE simple picture of that thought — imagery only, NEVER any words, letters or text inside the bubble. The bubble is also welcome as an EXPLANATORY device: to CONTRAST what others assume about ${n} with what is actually true, or to show what ${n} wants, misses or rejects — always ONE simple picture, never words. FRAMING IS FREE: ${n} does NOT need to appear full-body in every scene — close-ups of the face, profile shots, over-the-shoulder or partial framings are welcome; in them ${n}'s canonical identity applies to every part that IS visible, and the crop is NEVER an excuse to change or omit a visible trait. Never repeat the same spot of the location with the same pose in consecutive scenes — change ${n}'s action, position and framing every time. Do not spend every scene inside the same room: when neighbouring narration lingers in one place, move ${n} to a different area of it (the entrance, the doorway, the street outside, a corner) or use the allusive cut-away — the video must breathe.`
-  return `\n# MANDATORY CHARACTER — non-negotiable, overrides everything below\nThis scene FEATURES the recurring main character "${n}". ${n} MUST appear, drawn with this EXACT canonical appearance:\n${appearance}\nThis identity is FIXED and OVERRIDES the user request, the narration and the global context. The request/narration only set ${n}'s ACTION, POSE and SETTING for this moment — never ${n}'s look. Never change, recolor, simplify, age-down, or omit ${n}'s ${traits}. If the requested action seems to clash with the outfit (fishing, swimming, sleeping...), KEEP the outfit anyway. Make ${n} the clear focus rendered with this identical design so it stays perfectly consistent with every other scene.${sceneDirection}${settingAndVisuals}${hairInSimpleStyle}${dollNotHuman}${drawnSetting}\n`
+  return `\n# MANDATORY CHARACTER — non-negotiable, overrides everything below\nThis scene FEATURES the recurring main character "${n}". ${n} MUST appear, drawn with this EXACT canonical appearance:\n${appearance}\nThis identity is FIXED and OVERRIDES the user request, the narration and the global context. The request/narration only set ${n}'s ACTION, POSE and SETTING for this moment — never ${n}'s look. Never change, recolor, simplify, age-down, or omit ${n}'s ${traits}. If the requested action seems to clash with the outfit (fishing, swimming, sleeping...), KEEP the outfit anyway. Make ${n} the clear focus rendered with this identical design so it stays perfectly consistent with every other scene.${sceneDirection}${settingAndVisuals}${hairInSimpleStyle}${skinToneLock}${dollNotHuman}${drawnSetting}\n`
 }
 
 // Bloque para proyectos SIN NINGÚN personaje de referencia en estilo
@@ -221,8 +241,16 @@ export function buildIllustrationWithoutCharacterBlock(
   if (list.length === 0) return ''
   const plural = list.length > 1
   const lang = language.trim() || 'the SAME language as the narration'
+  const who = list.join(' or ')
+  // Stickman conserva la regla del origen (nadie en el encuadre: su molde
+  // CONCEPTO no admite figuras). En los demás estilos la escena muestra lo que
+  // narra el guion: sin el personaje, pero CON la gente que la narración
+  // describa — rotulada «anonymous», que es lo que valida el redactor.
+  const peopleRule = isStickmanStyle
+    ? `Draw NO character and NO person at all: no ${list.join(' or ')}, no stickman doll or figure, no bystanders, crowds or silhouettes — not even small, distant or incidental ones. The "character / doll" wording inside the FIXED blocks refers ONLY to the drawing style — do NOT place such a figure here.`
+    : `NEVER draw ${who} here — not under another name, not as "a man", "a young woman", a lone figure, a silhouette, a face or a pair of hands standing in for the narration's protagonist: that person has no identity to follow and renders as a STRANGER the viewer mistakes for ${who}. When the ONLY human in this narration is the protagonist, show NO person at all and illustrate the moment through the object, the place or a visual metaphor, writing the phrase no people anywhere in the frame. OTHER PEOPLE appear ONLY when THIS scene's narration explicitly describes them (a crowd, the fishermen, a guard, a customer): then depict them, write EACH of them with the word anonymous (an anonymous fisherman, an anonymous crowd of commuters) and make them visibly DIFFERENT from ${who} — different hair, build and clothing colours. Never invent bystanders, crowds or silhouettes the narration does not mention. Any character wording inside the FIXED blocks refers ONLY to the drawing style — do NOT place such a figure here.`
   return `\n# SCENE WITHOUT THE CHARACTER — illustrate the CONTENT, same art style
-This moment does NOT feature the recurring character${plural ? 's' : ''} (${list.join(', ')}). Instead, ILLUSTRATE WHAT THE NARRATION IS DESCRIBING here so the idea is instantly clear and engaging for the viewer — with NO character or person in the frame.
+This moment does NOT feature the recurring character${plural ? 's' : ''} (${list.join(', ')}). Instead, ILLUSTRATE WHAT THE NARRATION IS DESCRIBING here so the idea is instantly clear and engaging for the viewer — ${isStickmanStyle ? 'with NO character or person in the frame' : `WITHOUT ${list.join(' or ')} in the frame; other people appear ONLY when THIS scene's narration explicitly describes them`}.
 Read the narration and the surrounding context and pick the SINGLE best visual for THIS moment. The subject must follow THIS scene's narration: when the narration moves on to a new thing, topic or place, illustrate THAT — do not reuse the previous scene's location or subject out of inertia:
 - If the narration names a SPECIFIC known thing — a famous artwork, monument, landmark, building, place, animal or object (e.g. "la Mona Lisa" → the painting itself; "la Torre Eiffel" → the tower; "el ADN" → a DNA double helix) — depict THAT exact thing, recognizably.
 ${isPhotorealistic ? IMMERSIVE_COMPARISON_BULLET : `- IDENTIFICATION LABELS — comparisons and named entities deserve their names: when this scene shows two or more counterpart subjects that STAND FOR named entities (two ships, flags, armies or headquarters standing for two countries; two institutions, brands, teams or eras side by side; any "X versus Y" composition), it COUNTS as an explanatory illustration: put a small clean name-tag or plaque on or next to EACH side so the viewer instantly knows which is which — every tag a SHORT 1-4-word name written in ${lang}, optionally plus ONE short title for the whole composition, and YOU must write ALL those exact words yourself in THIS prompt, in quotes (they follow the in-image text rule below). NEVER write that a subject "represents" or "stands for" something without ALSO writing its name-tag words: naming left unwritten gets invented by the image generator in the WRONG language.`}
@@ -233,7 +261,7 @@ ${isPhotorealistic ? IMMERSIVE_EXPLANATORY_BULLET : `- ONLY if the narration her
 CRITICAL — keep the art style IDENTICAL to the other scenes so the video NEVER mixes styles:
 - Build this prompt the SAME way as every other scene, keeping the style's FIXED blocks (the PROLOGUE and the STYLE block) WORD-FOR-WORD. Those FIXED blocks define the DRAWING STYLE / medium (linework, shapes, colors, shading) only — they do NOT require a character to be present in THIS scene.
 - Render in that exact same style (same medium, linework, palette, shading). NEVER switch to a more realistic, painterly, photographic or different-looking style — mixing styles is the bug we are preventing.
-Draw NO character and NO person at all: no ${list.join(' or ')}, ${isStickmanStyle ? 'no stickman doll or figure' : 'no figure of any kind'}, no bystanders, crowds or silhouettes — not even small, distant or incidental ones. ${isStickmanStyle ? 'The "character / doll" wording inside the FIXED blocks refers ONLY to the drawing style' : 'Any character wording inside the FIXED blocks refers ONLY to the drawing style'} — do NOT place such a figure here. When the best visual is an OBJECT or a metaphor (a tree, a rope, a wall, a machine), draw it as a NORMAL object: the art STYLE (linework, palette, shading) still applies, but the object NEVER gets ${isStickmanStyle ? "the doll's round white head, face, white gloves, rounded shoes or stick limbs" : 'a face, eyes or human limbs'} — a tree is a tree, not a character.
+${peopleRule} When the best visual is an OBJECT or a metaphor (a tree, a rope, a wall, a machine), draw it as a NORMAL object: the art STYLE (linework, palette, shading) still applies, but the object NEVER gets ${isStickmanStyle ? "the doll's round white head, face, white gloves, rounded shoes or stick limbs" : 'a face, eyes or human limbs'} — a tree is a tree, not a character.
 ${isPhotorealistic ? IMMERSIVE_IN_IMAGE_TEXT : `IN-IMAGE TEXT — a genuine diagram MUST be labelled (never blank, never another language): ONLY if this image is a didactic diagram or infographic (per the rule above), it MUST carry a short title and clear labels, and YOU must write those EXACT words yourself in THIS prompt, in quotes, in ${lang}, naming every part in ${lang}. Each title/label is a SHORT noun phrase of 1-4 words that NAMES the topic or a part — NEVER a full sentence and NEVER the narration's own words: the narration is SPOKEN over the video, stamping it (or a summary of it) onto the image is a DEFECT. Do NOT leave a genuine diagram blank or unlabelled, and do NOT leave any wording for the image generator to invent (without the text it makes up labels in the WRONG language). Keep the wording SPARSE and LARGE: at most a short title plus 3 labels, described as big, clearly readable text — NEVER small or tiny lettering and never dense annotations (small in-image text always renders as unreadable scribbles). If the diagram sits on a small object or screen inside the scene (a tablet, a phone, a monitor), write ONLY the title and NO labels. Any NON-diagram scene here carries NO readable text at all.`}
 ${isPhotorealistic ? IMMERSIVE_CAMERA : `Vary the camera angle, distance and framing versus the neighbouring scenes so consecutive images never look like duplicates. If the best visual is a diagram or explanatory illustration, the camera/continuity hints elsewhere in this prompt do NOT apply to it — lay the diagram out clearly instead, but the era rules (BACKGROUND & SETTING / STORY ERA) still apply: the diagram remains an artifact of the story's era.`}\n`
 }
@@ -270,6 +298,21 @@ export function buildMandatoryCharactersBlock(
   const names = present
     .map((index) => characters[index]?.name?.trim())
     .filter((name): name is string => !!name)
+  // Un personaje con foto y sin descripción no tiene pelo ni cara que
+  // redactar: exigirlos obligaba al redactor a inventarlos.
+  const photoOnlyNames = isStickmanStyle
+    ? []
+    : present
+        .map((index) => characters[index])
+        .filter(
+          (character) =>
+            character?.name?.trim() && !character.description?.trim(),
+        )
+        .map((character) => character.name.trim())
+  const photoOnlyException =
+    photoOnlyNames.length > 0
+      ? ` EXCEPTION — ${photoOnlyNames.join(' and ')}: their look comes from an attached reference photo, so write NO physical trait for them (no head, hair, face or skin wording) — only the name followed by (${REFERENCE_PERSON_ANCHOR}), their action, expression and clothing.`
+      : ''
   if (names.length >= 2) {
     const headDetail = isStickmanStyle
       ? `do NOT flesh out one character and reduce the other to "another stickman doll wearing [clothes]". For EACH character explicitly describe their HEAD and HAIR: write it as "round white head WITH <that character's exact hair: color, length, style> on top" (only bald if that character's canonical look is explicitly bald), plus their face and their outfit/accessories.`
@@ -277,7 +320,7 @@ export function buildMandatoryCharactersBlock(
     blocks.push(
       `\n# MULTIPLE CHARACTERS TOGETHER — describe EACH with EQUAL detail\nThis scene shows ${names.join(
         ' and ',
-      )} together in the SAME image. Give EVERY one of them their FULL description with the SAME level of detail — ${headDetail} Every listed character MUST keep their EXACT hair and identity here — none of them turned bald, hatless or generic just because another character in the scene is bald or simpler.\n`,
+      )} together in the SAME image. Give EVERY one of them their FULL description with the SAME level of detail — ${headDetail} Every listed character MUST keep their EXACT hair and identity here — none of them turned bald, hatless or generic just because another character in the scene is bald or simpler.${photoOnlyException}\n`,
     )
   }
   // Anti-clon de EXTRAS: los generadores clonan al protagonista si los extras
@@ -482,4 +525,36 @@ The previous prompt for this scene was rejected by the image model's safety filt
 // de generarPromptsImagen).
 export function buildIdentityCorrectionBlock(missingTraits: string[]): string {
   return `\n\nCORRECTION — YOUR PREVIOUS ATTEMPT DROPPED CANONICAL HEAD FEATURES: the character's canonical look includes [${missingTraits.join(', ')}] and your prompt did not mention them. Rewrite the prompt keeping EVERYTHING else, and attach those exact canonical head features to the character's head IN THE SAME PHRASE where the head is described.`
+}
+
+// Corrección que se anexa al reintento cuando el prompt emitido soltó el tono
+// de piel canónico de un personaje presente. Va aparte del bloque de cabeza:
+// aquel ordena pegar rasgos «a la cabeza», y la piel no va ahí.
+export function buildComplexionCorrectionBlock(
+  missing: { name: string; clause: string }[],
+): string {
+  if (missing.length === 0) return ''
+
+  const list = missing
+    .map((entry) => `${entry.name}: ${entry.clause}`)
+    .join('; ')
+  return `\n\nCORRECTION — YOUR PREVIOUS ATTEMPT DROPPED A CANONICAL SKIN TONE: the canonical look states [${list}] and your prompt did not mention it. Rewrite the prompt keeping EVERYTHING else, and write that exact skin tone IN THE SAME PHRASE that introduces the character.`
+}
+
+// Corrección que se anexa al reintento cuando una escena SIN personaje salió
+// igual con una persona: sin identidad ni referencia, esa persona es un
+// desconocido que el espectador lee como el protagonista cambiado.
+export function buildNoPersonCorrectionBlock(names: string[]): string {
+  const list = names.map((name) => (name || '').trim()).filter(Boolean)
+  const who = list.length > 0 ? list.join(' or ') : 'the main character'
+  return `\n\nCORRECTION — YOUR PREVIOUS ATTEMPT DREW AN UNIDENTIFIED PERSON IN A SCENE WITHOUT THE CHARACTER: this scene does NOT feature ${who}, and the person you wrote has no identity — it renders as a stranger standing in for ${who}. Rewrite the prompt one of these two ways. (1) If the only human in this narration is the protagonist, show NO person at all — no man, woman, face, hands, lone figure or silhouette: illustrate the moment through an OBJECT, a PLACE or a VISUAL METAPHOR of what is said (the steaming coffee pot on the stove, the empty bus seat by the window, the closed workshop door under the rain) and write the phrase no people anywhere in the frame. (2) If the narration explicitly describes OTHER people, keep ONLY those, write each one with the word anonymous (an anonymous fisherman, an anonymous crowd) and make them visibly different from ${who}.`
+}
+
+// Corrección que se anexa al reintento cuando el prompt de una escena MARCADA
+// con personaje salió sin él (o con un sujeto genérico en su lugar).
+export function buildMissingCharacterCorrectionBlock(names: string[]): string {
+  const list = names.map((name) => (name || '').trim()).filter(Boolean)
+  if (list.length === 0) return ''
+
+  return `\n\nCORRECTION — YOUR PREVIOUS ATTEMPT LEFT OUT THE MANDATORY CHARACTER: this scene FEATURES ${list.join(' and ')} and your prompt did not name them — a generic man, woman or figure is NOT ${list.join(' or ')}. Rewrite the prompt keeping the setting and the action, with ${list.join(' and ')} written BY NAME as the main subject, followed by the exact canonical appearance from the MANDATORY CHARACTER block.`
 }

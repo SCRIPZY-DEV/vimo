@@ -4,7 +4,10 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import {
+  buildComplexionCorrectionBlock,
   buildIdentityCorrectionBlock,
+  buildMissingCharacterCorrectionBlock,
+  buildNoPersonCorrectionBlock,
   buildRetryAttemptBlock,
   buildSceneCharacterBlock,
   characterIndicesInRequest,
@@ -20,6 +23,15 @@ import {
   rewriteSceneryWithoutCharacter,
   type PromptCharacter,
 } from './fallback-prompt.ts'
+import {
+  lockCharacterComplexion,
+  lockCharacterPresence,
+  missingCharacterMention,
+  missingComplexion,
+  promptDepictsPerson,
+  promptDepictsStandIn,
+  sealSceneWithoutPeople,
+} from './identity-lock.ts'
 import { isPhotorealisticStyle } from '../shared/prompt-safety.ts'
 import type { SceneLlm } from '../shared/llm.ts'
 import { buildContextWindow, buildSceneUserPrompt } from './prompt-composer.ts'
@@ -42,6 +54,11 @@ export interface PromptWriterOptions {
   imageTextLanguage: string
   signal: AbortSignal
   sceneIds?: ReadonlySet<number>
+  // true en la generación automática: una escena SIN personaje que el redactor
+  // insiste en poblar se PROMUEVE al protagonista (identidad + referencia) en
+  // vez de aceptar a un desconocido. false al regenerar desde el editor: ahí
+  // la presencia por escena la eligió el usuario y se respeta.
+  promoteUnmarkedProtagonist?: boolean
   // Persistencia incremental: se llama tras cada escena con prompt nuevo —
   // también en la reescritura por content policy desde la fase de imágenes,
   // que lo usa para reemitir scene-prompt-ready.
@@ -154,6 +171,45 @@ function finishLlmPrompt(
     : anchored
 }
 
+// Lo que se PERSISTE: la salida terminada más el candado de tez. El candado es
+// no-op cuando el redactor ya escribió el tono de piel del personaje.
+function lockedLlmPrompt(
+  finished: string,
+  composed: ComposedSceneRequest,
+  options: PromptWriterOptions,
+  requirePersonMention = false,
+): string {
+  // Sin personaje y sin pedido manual: se sella contra gente de fondo. Si el
+  // redactor igual dejó a alguien, no se sella (contradiría su propio texto).
+  if (composed.isPlaceOnlyScene) {
+    const isSealable =
+      !composed.isUserRequest &&
+      !promptDepictsPerson(finished, options.style, options.characters)
+    return isSealable
+      ? sealSceneWithoutPeople(finished, options.style)
+      : finished
+  }
+
+  // Primero que el personaje ESTÉ; después, que lleve su tez. La reescritura
+  // por content policy puede volver la escena un paisaje a propósito: ahí no
+  // se fuerza la presencia.
+  const featured = requirePersonMention
+    ? finished
+    : lockCharacterPresence(
+        finished,
+        options.characters,
+        composed.effectivePresent,
+        options.style,
+      )
+  return lockCharacterComplexion(
+    featured,
+    options.characters,
+    composed.effectivePresent,
+    options.style,
+    { requirePersonMention },
+  )
+}
+
 // ─── Capa 1: pasada principal ───
 
 interface GenerateOptions extends PromptWriterOptions {
@@ -205,11 +261,16 @@ export async function generateScenePrompts(
       limit(async () => {
         writerOptions.signal.throwIfAborted()
 
-        const composed = composeSceneRequest(
-          scene,
+        // `let`: una escena sin personaje puede promoverse al protagonista.
+        let currentScene = scene
+        let composed = composeSceneRequest(
+          currentScene,
           orderedScenes,
           scenes.length,
           writerOptions,
+        )
+        const characterNames = writerOptions.characters.map(
+          (character) => character.name,
         )
 
         let imagePrompt = ''
@@ -227,8 +288,18 @@ export async function generateScenePrompts(
                 const prompt = extractImagePrompt(content)
                 if (!hasCatalogNarrative(prompt, writerOptions.style))
                   return false
+                // Con candado: la clave coincide con lo que queda en disco.
                 const final = normalize(
-                  finishLlmPrompt(prompt, scene, composed, writerOptions.style),
+                  lockedLlmPrompt(
+                    finishLlmPrompt(
+                      prompt,
+                      scene,
+                      composed,
+                      writerOptions.style,
+                    ),
+                    composed,
+                    writerOptions,
+                  ),
                 )
                 const fragment = normalize(
                   scene.userPrompt?.trim() || scene.text,
@@ -260,8 +331,40 @@ export async function generateScenePrompts(
             )
               ? finishLlmPrompt(extracted, scene, composed, writerOptions.style)
               : ''
+            // Escena SIN personaje que dibuja a alguien sin rotular: no lleva
+            // identidad ni referencia, así que sale como un desconocido que
+            // hace de protagonista. La gente que la narración describe
+            // («anonymous …») sí es legítima.
+            const drewUnmarkedPerson =
+              isValidPrompt(candidate) &&
+              composed.isPlaceOnlyScene &&
+              !composed.isUserRequest &&
+              promptDepictsStandIn(
+                candidate,
+                writerOptions.style,
+                writerOptions.characters,
+              )
             if (!isValidPrompt(candidate)) {
               lastError = 'the LLM returned an empty or invalid prompt'
+            } else if (drewUnmarkedPerson && attempt < MAX_ATTEMPTS_PER_SCENE) {
+              lastError = 'a scene without the character drew a person'
+              identityCorrection = buildNoPersonCorrectionBlock(characterNames)
+            } else if (
+              drewUnmarkedPerson &&
+              writerOptions.promoteUnmarkedProtagonist
+            ) {
+              // El redactor insiste: la narración ES sobre el protagonista. Se
+              // le da la escena con su identidad completa y se redacta de cero.
+              currentScene = { ...scene, charactersPresent: [0] }
+              composed = composeSceneRequest(
+                currentScene,
+                orderedScenes,
+                scenes.length,
+                writerOptions,
+              )
+              identityCorrection = ''
+              attempt = 0
+              continue
             } else {
               // Backstop de identidad: un prompt que soltó rasgos canónicos de
               // un personaje presente se reintenta con corrección; en el
@@ -273,12 +376,53 @@ export async function generateScenePrompts(
                     writerOptions.characters,
                     composed.effectivePresent,
                   )
-              if (missing.length === 0 || attempt === MAX_ATTEMPTS_PER_SCENE) {
-                imagePrompt = candidate
+              // Mismo backstop para el tono de piel: el generador rellena con
+              // piel clara cuando el prompt no lo nombra.
+              const missingSkin = composed.isPlaceOnlyScene
+                ? []
+                : missingComplexion(
+                    candidate,
+                    writerOptions.characters,
+                    composed.effectivePresent,
+                    writerOptions.style,
+                  )
+              // Y para la PRESENCIA: una escena marcada con personaje (todas,
+              // con frecuencia «always») tiene que traerlo en el prompt.
+              const missingCharacters = composed.isPlaceOnlyScene
+                ? []
+                : missingCharacterMention(
+                    candidate,
+                    writerOptions.characters,
+                    composed.effectivePresent,
+                    writerOptions.style,
+                  ).map((index) => writerOptions.characters[index].name)
+              const isComplete =
+                missing.length === 0 &&
+                missingSkin.length === 0 &&
+                missingCharacters.length === 0
+              if (isComplete || attempt === MAX_ATTEMPTS_PER_SCENE) {
+                // Si el último intento igual dejó afuera al personaje o soltó
+                // la tez, se repara por código.
+                imagePrompt = lockedLlmPrompt(
+                  candidate,
+                  composed,
+                  writerOptions,
+                )
                 break
               }
-              lastError = `the prompt dropped canonical head traits (${missing.join(', ')})`
-              identityCorrection = buildIdentityCorrectionBlock(missing)
+              lastError = `the prompt dropped canonical traits (${[
+                ...missingCharacters.map((name) => `character ${name}`),
+                ...missing,
+                ...missingSkin.map(() => 'skin tone'),
+              ].join(', ')})`
+              // Sin el personaje no tiene sentido corregirle el pelo o la tez:
+              // primero que aparezca.
+              identityCorrection =
+                missingCharacters.length > 0
+                  ? buildMissingCharacterCorrectionBlock(missingCharacters)
+                  : (missing.length > 0
+                      ? buildIdentityCorrectionBlock(missing)
+                      : '') + buildComplexionCorrectionBlock(missingSkin)
             }
           } catch (error) {
             writerOptions.signal.throwIfAborted()
@@ -299,7 +443,7 @@ export async function generateScenePrompts(
 
         // Si tenía un fallback previo y ahora hay prompt LLM, deja de serlo.
         const updated: Scene = {
-          ...scene,
+          ...currentScene,
           imagePrompt,
           promptIsFallback: false,
         }
@@ -417,7 +561,11 @@ export async function regeneratePromptsForRejected(
             if (isValidPrompt(candidate)) {
               // En el rescate por content policy el nombre pelado se suelta;
               // los rasgos icónicos que el redactor escribió quedan.
-              imagePrompt = neutralizeFamousNames(candidate)
+              // El reintento puede volver la escena un paisaje: el candado de
+              // tez solo entra si el prompt todavía muestra a alguien.
+              imagePrompt = neutralizeFamousNames(
+                lockedLlmPrompt(candidate, composed, writerOptions, true),
+              )
               break
             }
           } catch (error) {
