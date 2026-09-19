@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                | Título                                                                          | Estado                   | Área                          |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0039](ADR-0039-catalogo-sobre-el-carril-de-mi-estilo.md)                      | Los estilos del Catálogo migrarán al carril de «Mi estilo» (a futuro)           | Propuesta                | pipeline / Catálogo           |
 | [ADR-0038](ADR-0038-logs-de-diagnostico-por-ejecucion-en-supabase.md)              | Logs de diagnóstico por ejecución, subidos a Supabase                           | Aceptada                 | app / pipeline / soporte      |
 | [ADR-0037](ADR-0037-permiso-en-runtime-sobre-la-carpeta-de-proyectos.md)           | Permiso en runtime sobre la carpeta de proyectos                                | Aceptada                 | app / seguridad               |
 | [ADR-0036](ADR-0036-prompts-de-catalogo-sin-relleno.md)                            | Prompts de Catálogo con rotación y sin relleno                                  | Aceptada                 | pipeline / app                |
