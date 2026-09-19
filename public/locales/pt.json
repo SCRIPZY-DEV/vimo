@@ -275,6 +275,10 @@
       "modeYoutube": "Do YouTube",
       "promptLabel": "Como soa a música",
       "promptPlaceholder": "Ex.: lo-fi tranquilo, violão relaxante…",
+      "suggest": "Sugerir com IA",
+      "suggesting": "Sugerindo…",
+      "suggestCostHint": "Lê o seu roteiro e propõe um prompt. Usa o seu saldo da DeepInfra.",
+      "suggestNeedsScript": "Escreva o roteiro primeiro para poder sugerir.",
       "instrumental": "Só instrumental (sem vocais)",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
       "urlHint": "Baixada com yt-dlp e misturada a 5% de volume sob a voz."

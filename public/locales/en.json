@@ -275,6 +275,10 @@
       "modeYoutube": "From YouTube",
       "promptLabel": "How the music sounds",
       "promptPlaceholder": "e.g.: chill lo-fi, relaxing acoustic guitar…",
+      "suggest": "Suggest with AI",
+      "suggesting": "Suggesting…",
+      "suggestCostHint": "Reads your script and proposes a prompt. Uses your DeepInfra balance.",
+      "suggestNeedsScript": "Write the script first to get a suggestion.",
       "instrumental": "Instrumental only (no vocals)",
       "urlPlaceholder": "https://www.youtube.com/watch?v=…",
       "urlHint": "Downloaded with yt-dlp and mixed at 5% volume under the voice."
