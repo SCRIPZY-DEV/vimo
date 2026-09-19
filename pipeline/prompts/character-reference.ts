@@ -8,7 +8,13 @@ import {
 // fija la IDENTIDAD (cara, pelo, rasgos); el prompt de la escena fija pose,
 // cuerpo, ropa y fondo. El pelo queda anclado explícitamente (en tomas chicas
 // el modelo lo soltaba y salían personajes calvos). Solo el nombre del frame
-// depende del formato: sin argumento la línea es byte-idéntica a la previa.
+// depende del formato. El TONO DE PIEL también queda anclado: en el estilo
+// realista el generador lo aclaraba según la luz de la escena.
+
+// Cómo nombra el redactor a un personaje cuyo look viene SOLO de la foto (sin
+// descripción canónica): el nombre más este ancla, sin rasgos inventados.
+export const REFERENCE_PERSON_ANCHOR =
+  'the person from the attached reference image'
 
 export function buildReferenceIdentityLine(
   name: string,
@@ -16,8 +22,9 @@ export function buildReferenceIdentityLine(
 ): string {
   const trimmedName = name.trim() || 'the main character'
   return (
-    `REFERENCE: the attached image defines the IDENTITY of "${trimmedName}" (face, hair, distinctive features). ` +
+    `REFERENCE: the attached image defines the IDENTITY of "${trimmedName}" (face, skin tone, hair, distinctive features). ` +
     `Render THAT SAME character. ` +
+    `${trimmedName}'s EXACT skin tone is part of that identity: reproduce the reference's skin tone and complexion in EVERY shot, never lighter or darker, whatever the scene's lighting or color grade. ` +
     `${trimmedName}'s EXACT hair is part of that identity: reproduce the reference's hair color, length and style (or bald head) in EVERY shot, no matter how small ${trimmedName} appears — never render ${trimmedName} bald or with different hair unless the reference itself shows it. ` +
     `Use the reference ONLY for who they are — follow the description below for the pose, full body, framing, clothing and scene. ` +
     `Do NOT copy the reference's crop, background or clothes unless the description says so. Keep ${trimmedName} perfectly consistent with the reference identity. ` +
@@ -43,8 +50,9 @@ export function buildReferenceIdentityLineMulti(
     .join('; ')
   const joinedNames = cleaned.join(' and ')
   return (
-    `REFERENCE: ${list} (face, hair, distinctive features). ` +
+    `REFERENCE: ${list} (face, skin tone, hair, distinctive features). ` +
     `Render THOSE SAME characters together in this scene. ` +
+    `Each character's EXACT skin tone is part of their identity: reproduce each reference's skin tone and complexion in EVERY shot, never lighter or darker, whatever the scene's lighting or color grade. ` +
     `Each character's EXACT hair is part of their identity: reproduce each reference's hair color, length and style (or bald head) in EVERY shot, no matter how small the characters appear — never render them bald or with different hair unless their own reference shows it. ` +
     `Use each reference ONLY for who that person is — follow the description below for the pose, full body, framing, clothing and scene. ` +
     `Do NOT copy the references' crops, backgrounds or clothes unless the description says so. Keep ${joinedNames} perfectly consistent with their reference identities, each one matching its OWN reference image. ` +

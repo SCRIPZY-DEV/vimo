@@ -14,10 +14,11 @@ The AVOID list exists so that, when inferring, you don't hand back a character t
 
 You describe ONLY who the character IS (so they look identical in every image). This identity is reused across MANY visual styles — INCLUDING very simple ones (stickman / minimal / flat) where the head is a plain shape with NO facial detail. So the identity MUST be carried by traits that stay recognizable even there. Order the description by how DISTINCTIVE and DRAWABLE each trait is (most recognizable first):
 - HAIR FIRST: exact color, length and style, plus facial hair — OR state explicitly "bald" / "clean-shaven" if that fits. Hair (or baldness) is the single most recognizable trait in every style.
+- SKIN TONE RIGHT AFTER THE HAIR, for every human character: state it explicitly in plain words ("dark brown skin", "light olive skin", "pale freckled skin"). If the NOTES give a skin tone or an ethnicity, keep exactly that one; otherwise choose one that fits the character. Realistic styles default to a light-skinned person when this is missing, so it is NEVER optional and NEVER left for the end. Keep it to a few words.
 - ONE bold SIGNATURE feature that is easy to draw and unmistakable: a thick moustache, a full beard, big round glasses, an eyepatch, a distinctive hat or cap, heavy freckles, a prominent scar, a bold hair color, etc. ALWAYS give the character at least one such simply-drawable trait so they stay consistent.
 - CLOTHING and its DOMINANT COLORS, plus any signature ACCESSORY or PROP that fits their role (a priest -> black cassock and white collar; a baker -> white apron; a soldier -> uniform; etc.). Be specific about colors.
 - body build/contexture and overall silhouette.
-- THEN, briefly and LAST, face shape, skin tone and eyes — keep these short; simple styles cannot show them, so NEVER let the identity rely only on facial micro-features.
+- THEN, briefly and LAST, face shape and eyes — keep these short; simple styles cannot show them, so NEVER let the identity rely only on facial micro-features.
 
 ABSOLUTELY FORBIDDEN (these would break generation when combined with a separate visual style):
 - NO visual style words: photorealistic, cartoon, anime, 3D, CGI, render, illustration, painting, cinematic, stickman, comic, sketch, watercolor, etc.
