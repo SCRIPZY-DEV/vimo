@@ -596,7 +596,7 @@
       "providerRequired": "Elegí el proveedor de arriba para poder generar.",
       "regenerateSamples": "Generar muestras de nuevo",
       "generating": "Generando… (alrededor de un minuto)",
-      "samplesNote": "Son siempre las mismas 4 situaciones para cualquier estilo, así lo único que cambia entre una muestra y otra es el estilo.",
+      "samplesNote": "Son siempre las mismas 4 situaciones para cualquier estilo, así lo único que cambia entre una muestra y otra es el estilo. Si el estilo tiene un personaje predeterminado, las muestras salen con él; si lo cambiás, volvé a generarlas.",
       "nameLabel": "Nombre del estilo",
       "namePlaceholder": "Ponele un nombre — así lo ves en la tarjeta",
       "promptLabel": "El estilo",
