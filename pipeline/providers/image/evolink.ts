@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -171,6 +172,13 @@ export async function createEvolinkImageTask(
 // Sube la referencia de un personaje a la file-API de Evolink UNA vez y
 // devuelve su URL pública (vive 72h; sobra para una corrida). null si falla:
 // el caller cae al carril normal.
+//
+// El nombre del archivo lleva el hash del CONTENIDO. Medido: la URL pública
+// sale del nombre (`…/<cuenta>/images/jpeg/<file_name>`) y el CDN la cachea,
+// así que con un nombre fijo todos los personajes de la cuenta compartían UNA
+// URL y el generador recibía la foto del que se subió primero — se elegía a
+// Juan y salía Tomás. Con el hash, cada imagen tiene su URL y volver a subir
+// la misma cae en la misma (el caché ahí es inofensivo).
 export async function uploadEvolinkReference(
   imageDataUri: string,
   apiKey: string,
@@ -183,7 +191,7 @@ export async function uploadEvolinkReference(
         headers: authHeaders(apiKey),
         body: JSON.stringify({
           base64_data: imageDataUri,
-          file_name: 'character_reference.jpg',
+          file_name: referenceFileName(imageDataUri),
         }),
         signal: AbortSignal.timeout(60_000),
       },
@@ -197,10 +205,19 @@ export async function uploadEvolinkReference(
   }
 }
 
+function referenceFileName(imageDataUri: string): string {
+  const hash = createHash('sha256')
+    .update(imageDataUri)
+    .digest('hex')
+    .slice(0, 16)
+  return `character_reference_${hash}.jpg`
+}
+
 async function createTask(
   prompt: string,
   apiKey: string,
   order: OrderDeadline,
+  referenceImageUrls: string[],
 ): Promise<string> {
   const response = await fetch(`${EVOLINK_BASE_URL}/v1/images/generations`, {
     method: 'POST',
@@ -213,6 +230,7 @@ async function createTask(
       // Un preview no necesita resolución de render.
       quality: 'low',
       n: 1,
+      ...(referenceImageUrls.length > 0 && { image_urls: referenceImageUrls }),
     }),
     // Sin timeout propio: solo el plazo del encargo y la cancelación (regla a).
     signal: order.signal,
@@ -411,7 +429,12 @@ export async function generateEvolinkImage(
     let taskId: string | null = null
 
     try {
-      taskId = await createTask(prompt, options.apiKey, order)
+      taskId = await createTask(
+        prompt,
+        options.apiKey,
+        order,
+        options.referenceImageUrls ?? [],
+      )
       const url = await pollTask(taskId, options.apiKey, order, options)
       return await downloadImage(url, options.signal)
     } catch (error) {

@@ -75,6 +75,8 @@ export async function getFalCredits(
 
 // Único modelo de Fal que se usa (ADR-0015).
 export const FAL_IMAGE_ENDPOINT = 'fal-ai/gpt-image-2'
+// La variante que acepta imágenes de referencia (carril de personaje).
+export const FAL_EDIT_ENDPOINT = 'openai/gpt-image-2/edit'
 
 // Plazo largo ÚNICO (regla de oro): Fal es síncrono y cobra al generar, así
 // que nada de timeouts cortos propios — bajo carga el pedido tarda.
@@ -107,10 +109,11 @@ export function falErrorText(body: FalErrorResponse | null): string {
   return parts.join(' ')
 }
 
-function requestBody(prompt: string): string {
+function requestBody(prompt: string, referenceImageUrls: string[]): string {
   // Siempre la opción más barata: un preview no necesita resolución de render.
   return JSON.stringify({
     prompt,
+    ...(referenceImageUrls.length > 0 && { image_urls: referenceImageUrls }),
     image_size: { width: 1024, height: 768 },
     quality: 'low',
     num_images: 1,
@@ -137,6 +140,10 @@ export async function generateFalImage(
     ? AbortSignal.any([options.signal, deadline])
     : deadline
   let lastError = 'unknown'
+  // Con referencias el pedido va a la variante edit, con las fotos adjuntas.
+  const referenceImageUrls = options.referenceImageUrls ?? []
+  const endpoint =
+    referenceImageUrls.length > 0 ? FAL_EDIT_ENDPOINT : FAL_IMAGE_ENDPOINT
   // Mientras el encargo está en vuelo se estima el avance con el mismo ramp
   // que las lanes del pipeline. El reloj arranca UNA vez por encargo: un
   // reintento sigue subiendo en vez de volver a 0.
@@ -151,13 +158,13 @@ export async function generateFalImage(
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       let response: Response
       try {
-        response = await fetch(`${FAL_BASE_URL}/${FAL_IMAGE_ENDPOINT}`, {
+        response = await fetch(`${FAL_BASE_URL}/${endpoint}`, {
           method: 'POST',
           headers: {
             Authorization: `Key ${options.apiKey}`,
             'Content-Type': 'application/json',
           },
-          body: requestBody(prompt),
+          body: requestBody(prompt, referenceImageUrls),
           signal,
         })
       } catch (error) {

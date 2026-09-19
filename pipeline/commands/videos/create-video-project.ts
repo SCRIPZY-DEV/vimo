@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import {
   readCharacterMetadata,
   assertValidCharacterId,
+  findLibraryPreviewFile,
 } from '../characters/character-library.ts'
 import { writeProjectMetadata } from '../../project/metadata.ts'
 import {
@@ -392,10 +393,8 @@ async function storeReferenceImage(
   // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el personaje
   // viaja sin referencia — su identidad va solo como texto — y queda un
   // aviso en el log; la UI ya lo anticipa en el picker.
-  const preview = libraryMetadata?.previews?.find(
-    (item) => item.styleId === previewStyleKey,
-  )
-  if (!preview) {
+  const previewFile = findLibraryPreviewFile(libraryMetadata, previewStyleKey)
+  if (!previewFile) {
     context.emitter.emit({
       type: 'log',
       level: 'warn',
@@ -404,10 +403,10 @@ async function storeReferenceImage(
     return undefined
   }
 
-  const extension = preview.file.split('.').pop() ?? 'jpg'
+  const extension = previewFile.split('.').pop() ?? 'jpg'
   const file = `reference_${index + 1}.${extension}`
   await copyFile(
-    join(libraryDirectory, preview.file),
+    join(libraryDirectory, previewFile),
     join(charactersDirectory, file),
   )
   return file

@@ -47,7 +47,9 @@ export async function loadPipelineCharacters(
   return loaded
 }
 
-async function readImageAsDataUri(
+// También la usan las muestras de «Mi estilo», que leen la referencia directo
+// de la biblioteca (no hay proyecto todavía).
+export async function readImageAsDataUri(
   imagePath: string,
 ): Promise<string | undefined> {
   try {

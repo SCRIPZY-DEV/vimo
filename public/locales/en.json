@@ -596,7 +596,7 @@
       "providerRequired": "Pick the provider above to be able to generate.",
       "regenerateSamples": "Generate samples again",
       "generating": "Generating… (about a minute)",
-      "samplesNote": "They are always the same 4 situations for any style, so the only thing that changes between samples is the style.",
+      "samplesNote": "They are always the same 4 situations for any style, so the only thing that changes between samples is the style. If the style has a default character, the samples feature them; if you change it, generate them again.",
       "nameLabel": "Style name",
       "namePlaceholder": "Give it a name — that is how you see it on the card",
       "promptLabel": "The style",
