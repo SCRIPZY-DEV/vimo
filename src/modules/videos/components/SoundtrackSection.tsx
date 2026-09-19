@@ -4,6 +4,7 @@ import { Label } from '@/modules/common/ui/label'
 import { Switch } from '@/modules/common/ui/switch'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
+import { BgmPromptSuggestButton } from '@/modules/videos/components/BgmPromptSuggestButton'
 import { BGM_MODES } from '@/modules/videos/constants'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
@@ -79,9 +80,16 @@ export function SoundtrackSection({
                   !value.useBgm && 'pointer-events-none opacity-50',
                 )}
               >
-                <Label htmlFor="create-bgm-prompt" className="font-display">
-                  {t('create.music.promptLabel')}
-                </Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="create-bgm-prompt" className="font-display">
+                    {t('create.music.promptLabel')}
+                  </Label>
+                  <BgmPromptSuggestButton
+                    script={value.script}
+                    disabled={disabled || !value.useBgm}
+                    onSuggested={(bgmPrompt) => onChange({ bgmPrompt })}
+                  />
+                </div>
                 <Textarea
                   id="create-bgm-prompt"
                   value={value.bgmPrompt}
