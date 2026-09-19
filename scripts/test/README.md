@@ -30,6 +30,7 @@ binarios.
 | `check-character-profile.mjs`          | Ficha de personaje completa (nombre, edad, rol, identidad)                                                 | [fix](../../docs/fixes/2026-09-12-fix-character-profile-completeness/character-profile-completeness.md)                                                                                |
 | `check-catalog-prompts.mjs`            | Prompts de Catálogo sin imágenes de relleno                                                                | [fix](../../docs/fixes/2026-09-12-fix-catalog-scene-prompts/catalog-scene-prompts.md)                                                                                                  |
 | `check-editor-character-selection.mjs` | Regenerar desde el editor respeta el personaje marcado y la descripción guardada                           | [fix](../../docs/fixes/2026-09-13-fix-custom-style-editor-character-selection/custom-style-editor-character-selection.md)                                                              |
+| `check-character-identity-lock.mjs`    | Candado de tono de piel del personaje en Catálogo (estilo realista) y aviso de referencia perdida          | [fix](../../docs/fixes/2026-09-18-fix-realistic-character-identity/realistic-character-identity.md)                                                                                    |
 
 Se corren con `node --test scripts/test/<script>`.
 
