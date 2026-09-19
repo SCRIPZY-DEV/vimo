@@ -217,6 +217,7 @@ async function createTask(
   prompt: string,
   apiKey: string,
   order: OrderDeadline,
+  referenceImageUrls: string[],
 ): Promise<string> {
   const response = await fetch(`${EVOLINK_BASE_URL}/v1/images/generations`, {
     method: 'POST',
@@ -229,6 +230,7 @@ async function createTask(
       // Un preview no necesita resolución de render.
       quality: 'low',
       n: 1,
+      ...(referenceImageUrls.length > 0 && { image_urls: referenceImageUrls }),
     }),
     // Sin timeout propio: solo el plazo del encargo y la cancelación (regla a).
     signal: order.signal,
@@ -427,7 +429,12 @@ export async function generateEvolinkImage(
     let taskId: string | null = null
 
     try {
-      taskId = await createTask(prompt, options.apiKey, order)
+      taskId = await createTask(
+        prompt,
+        options.apiKey,
+        order,
+        options.referenceImageUrls ?? [],
+      )
       const url = await pollTask(taskId, options.apiKey, order, options)
       return await downloadImage(url, options.signal)
     } catch (error) {

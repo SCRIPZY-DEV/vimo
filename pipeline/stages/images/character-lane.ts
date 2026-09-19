@@ -6,6 +6,7 @@ import { sceneImageFile } from '../../project/paths.ts'
 import {
   FAL_BASE_URL,
   FAL_CONTENT_POLICY_PATTERN,
+  FAL_EDIT_ENDPOINT,
   FAL_EXPECTED_MS,
   falErrorText,
   readFalErrorBody,
@@ -61,7 +62,7 @@ function referencePromptFor(
   return (scenePrompt) => identityLine + scenePrompt
 }
 
-const FAL_EDIT_ENDPOINT = `${FAL_BASE_URL}/openai/gpt-image-2/edit`
+const FAL_EDIT_URL = `${FAL_BASE_URL}/${FAL_EDIT_ENDPOINT}`
 const FAL_MAX_ATTEMPTS = 3
 const FAL_REQUEST_TIMEOUT_MS = 180_000
 const CHARACTER_QUALITY = 'low'
@@ -106,7 +107,7 @@ async function generateSceneWithFalEdit(
 
     try {
       options.events.onStarted(scene.id, attempt)
-      const response = await fetch(FAL_EDIT_ENDPOINT, {
+      const response = await fetch(FAL_EDIT_URL, {
         method: 'POST',
         headers: {
           Authorization: `Key ${apiKey}`,

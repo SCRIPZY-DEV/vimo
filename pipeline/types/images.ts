@@ -21,6 +21,9 @@ export interface GenerateImageOptions {
   apiKey: string
   // Ajuste interno de previews; las escenas conservan su intervalo habitual.
   pollIntervalMs?: number
+  // Referencias de personaje (muestras de «Mi estilo»): data URIs para Fal,
+  // URLs públicas ya subidas para Evolink. Ausente o vacío = pedido normal.
+  referenceImageUrls?: string[]
   signal?: AbortSignal
   onProgress?(progress: ImageProgress): void
 }
