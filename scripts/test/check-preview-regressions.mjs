@@ -106,6 +106,8 @@ for (const provider of ['fal', 'evolink']) {
         JSON.stringify({
           name: 'Fixture',
           systemPrompt: 'Illustrate the scene as a watercolor.',
+          // Estos casos prueban lote y concurrencia, no al protagonista.
+          character: { mode: 'none' },
         }),
       )
       const events = []
@@ -221,6 +223,8 @@ for (const scenario of [
       JSON.stringify({
         name: 'Fixture',
         systemPrompt: 'Watercolor illustration.',
+        // Estos casos prueban el rescate del lote, no al protagonista.
+        character: { mode: 'none' },
       }),
     )
     const events = []
@@ -359,3 +363,363 @@ for (const scenario of [
     }
   })
 }
+
+// ─── El protagonista de las muestras ───
+const CHARACTER_DESCRIPTION =
+  'A woman in her thirties with curly red hair, green eyes, freckles across her nose and a mustard yellow raincoat.'
+const DESIGNED_DESCRIPTION =
+  'A cartoon man with a round white head, simple dot eyes and short spiky white hair, wearing a chunky maroon cable-knit sweater, dark grey pants and brown shoes.'
+
+// Deja una gema y (opcional) un personaje de biblioteca en un tmpdir.
+async function characterFixture(root, character, library) {
+  const directory = join(root, '_styles', 'fixture')
+  await mkdir(directory, { recursive: true })
+  await writeFile(
+    join(directory, 'style.json'),
+    JSON.stringify({
+      name: 'Fixture',
+      systemPrompt: 'Illustrate the scene as a watercolor.',
+      ...(character ? { character } : {}),
+    }),
+  )
+  for (const entry of library) {
+    const folder = join(root, 'characters', entry.id)
+    await mkdir(folder, { recursive: true })
+    if (entry.photo) await writeFile(join(folder, 'photo.png'), imageBytes)
+    if (entry.preview) await writeFile(join(folder, 'preview.png'), imageBytes)
+    await writeFile(
+      join(folder, 'metadata.json'),
+      JSON.stringify({
+        name: entry.name,
+        description: CHARACTER_DESCRIPTION,
+        createdAt: '2026-09-18T00:00:00.000Z',
+        previews: entry.preview
+          ? [{ styleId: entry.preview, file: 'preview.png' }]
+          : [],
+        ...(entry.photo ? { photoFile: 'photo.png' } : {}),
+      }),
+    )
+  }
+}
+
+// HTTP simulado del job completo. `calls` separa el pedido de diseño del
+// protagonista de la redacción de los prompts.
+function mockSampleHttp(t, scenario, calls) {
+  t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    if (url.includes('/chat/completions')) {
+      const messages = JSON.parse(init.body).messages
+      if (messages[1].content.includes('PROTAGONIST DESIGN')) {
+        calls.design++
+        if (scenario.designFails) return stream('unusable')
+        return stream(JSON.stringify({ description: DESIGNED_DESCRIPTION }))
+      }
+      calls.prompts.push(messages)
+      // Formato propio de la gema, medido: un objeto por escena, sin cerrar.
+      if (scenario.gemFormat)
+        return stream(
+          SAMPLE_FRAGMENTS.map(
+            (fragment) =>
+              '{"prompts":[' +
+              JSON.stringify({
+                id: fragment.id,
+                prompt: 'Wide shot. [subject] explores. Scene ' + fragment.id,
+              }) +
+              '] ',
+          ).join('\n\n'),
+        )
+      return stream(
+        JSON.stringify({
+          samples: SAMPLE_FRAGMENTS.map((fragment) => ({
+            sampleId: fragment.id,
+            prompt:
+              'Wide shot. [subject] explores a bright forest. Scene ' +
+              fragment.id,
+          })),
+        }),
+      )
+    }
+    if (url.includes('/files/upload/base64')) {
+      calls.uploads++
+      if (scenario.uploadFails) return new Response('', { status: 500 })
+      return Response.json({
+        data: { file_url: 'https://fixture/reference.jpg' },
+      })
+    }
+    if (init.method === 'POST') {
+      const body = JSON.parse(init.body)
+      calls.images.push({ url, body })
+      if (scenario.referenceFails && body.image_urls)
+        return Response.json(
+          // Rechazo terminal: Fal no lo reintenta con el mismo pedido.
+          { type: 'content_policy_violation', detail: 'flagged' },
+          { status: 400 },
+        )
+      if (scenario.provider === 'evolink')
+        return Response.json({ id: String(calls.images.length) })
+      return Response.json({
+        images: [{ url: 'https://fixture/image/' + calls.images.length }],
+      })
+    }
+    if (url.includes('/v1/tasks/'))
+      return Response.json({
+        status: 'completed',
+        results: ['https://fixture/image/' + url.split('/').at(-1)],
+      })
+    if (url.startsWith('https://fixture/image/'))
+      return new Response(imageBytes, {
+        headers: { 'content-type': 'image/png' },
+      })
+    throw new Error('Unexpected HTTP: ' + url)
+  })
+}
+
+function newCalls() {
+  return { design: 0, prompts: [], images: [], uploads: 0 }
+}
+
+const OWN = { mode: 'own', defaultCharacterId: 'lucia' }
+const LUCIA = { id: 'lucia', name: 'Lucía' }
+
+for (const scenario of [
+  // Personaje predeterminado de la biblioteca.
+  { name: 'own, text only', character: OWN, library: [LUCIA], expect: 'text' },
+  {
+    name: 'own, photo',
+    character: OWN,
+    library: [{ ...LUCIA, photo: true }],
+    expect: 'reference',
+  },
+  {
+    name: 'own, preview of this style',
+    provider: 'evolink',
+    character: OWN,
+    library: [{ ...LUCIA, preview: 'fixture' }],
+    expect: 'reference',
+  },
+  {
+    name: 'own, preview of another style',
+    character: OWN,
+    library: [{ ...LUCIA, preview: 'other-style' }],
+    expect: 'text',
+  },
+  {
+    name: 'own, reference upload fails',
+    provider: 'evolink',
+    character: OWN,
+    library: [{ ...LUCIA, photo: true }],
+    uploadFails: true,
+    expect: 'text',
+  },
+  {
+    name: 'own, reference order fails',
+    character: OWN,
+    library: [{ ...LUCIA, photo: true }],
+    referenceFails: true,
+    expect: 'fallback',
+  },
+  {
+    name: 'own, style batch format',
+    character: OWN,
+    library: [{ ...LUCIA, photo: true }],
+    gemFormat: true,
+    expect: 'reference',
+  },
+  // Sin personaje del usuario: lo define la gema, el mismo en las cuatro.
+  { name: 'generic', character: { mode: 'generic' }, expect: 'designed' },
+  { name: 'no character block', expect: 'designed' },
+  {
+    name: 'own without default',
+    character: { mode: 'own' },
+    expect: 'designed',
+  },
+  { name: 'own, missing character', character: OWN, expect: 'designed' },
+  {
+    name: 'generic, design fails',
+    character: { mode: 'generic' },
+    designFails: true,
+    expect: 'none',
+  },
+  { name: 'none', character: { mode: 'none' }, expect: 'none' },
+]) {
+  test('style samples protagonist: ' + scenario.name, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'vimo-preview-character-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    scenario.provider ??= 'fal'
+    await characterFixture(root, scenario.character, scenario.library ?? [])
+
+    const events = []
+    const ctx = context(events)
+    ctx.job.projectsRoot = root
+    ctx.job.payload = { styleId: 'fixture', imageProvider: scenario.provider }
+    const calls = newCalls()
+    mockSampleHttp(t, scenario, calls)
+
+    const result = await generateStyleSamples(ctx)
+    assert.equal(result.samples.length, 4)
+    // El lote (también en el formato de la gema) se resuelve en UN pedido.
+    assert.equal(calls.prompts.length, 1)
+
+    const [system, user] = calls.prompts[0]
+    const carriesRule = system.content.includes('PROTAGONIST OF THESE SCENES')
+    const withReference = calls.images.filter((image) => image.body.image_urls)
+    const withoutReference = calls.images.filter(
+      (image) => !image.body.image_urls,
+    )
+    for (const image of calls.images)
+      assert.ok(!image.body.prompt.includes('[subject]'), 'the tag is woven')
+
+    if (scenario.expect === 'none') {
+      assert.equal(calls.design, scenario.designFails ? 1 : 0)
+      assert.equal(carriesRule, false)
+      assert.ok(!user.content.includes('PROTAGONIST'))
+      assert.equal(calls.images.length, 4)
+      assert.equal(withReference.length, 0)
+      for (const image of calls.images)
+        assert.ok(!image.body.prompt.includes('must look exactly like'))
+      return
+    }
+
+    // La regla cierra el system prompt y se repite junto a las escenas.
+    assert.ok(carriesRule)
+    assert.ok(
+      system.content
+        .trimEnd()
+        .endsWith('style tail your style defines intact.'),
+    )
+    assert.ok(
+      user.content.includes('PROTAGONIST: the protagonist of every scene'),
+    )
+
+    if (scenario.expect === 'designed') {
+      assert.equal(calls.design, 1)
+      assert.equal(calls.images.length, 4)
+      assert.equal(withReference.length, 0)
+      for (const image of calls.images) {
+        assert.ok(image.body.prompt.includes('must look exactly like this:'))
+        assert.ok(
+          image.body.prompt.includes('chunky maroon cable-knit sweater'),
+        )
+      }
+      if (scenario.name === 'own, missing character')
+        assert.ok(
+          events.some(
+            (event) =>
+              event.level === 'warn' &&
+              event.message.includes('not in the library'),
+          ),
+        )
+      return
+    }
+
+    // Con personaje de la biblioteca la gema no diseña nada.
+    assert.equal(calls.design, 0)
+
+    if (scenario.expect === 'text') {
+      assert.equal(calls.images.length, 4)
+      assert.equal(withReference.length, 0)
+      for (const image of calls.images) {
+        assert.ok(!image.url.includes('/edit'))
+        assert.ok(image.body.prompt.includes('must look exactly like this:'))
+        assert.ok(image.body.prompt.includes('curly red hair'))
+      }
+      assert.equal(calls.uploads, scenario.uploadFails ? 1 : 0)
+      return
+    }
+
+    if (scenario.expect === 'reference') {
+      assert.equal(calls.images.length, 4)
+      assert.equal(withReference.length, 4)
+      // Evolink sube la referencia UNA vez para las cuatro muestras.
+      assert.equal(calls.uploads, scenario.provider === 'evolink' ? 1 : 0)
+      for (const image of withReference) {
+        assert.ok(image.body.prompt.startsWith('REFERENCE:'))
+        assert.ok(image.body.prompt.includes('APPEARANCE LOCK'))
+        assert.ok(
+          image.body.prompt.includes(
+            'Lucía (the person from the attached reference image)',
+          ),
+        )
+        assert.ok(!image.body.prompt.includes('curly red hair'))
+        if (scenario.provider === 'fal') {
+          assert.ok(image.url.endsWith('/openai/gpt-image-2/edit'))
+          assert.ok(image.body.image_urls[0].startsWith('data:image/png'))
+        } else
+          assert.deepEqual(image.body.image_urls, [
+            'https://fixture/reference.jpg',
+          ])
+      }
+      return
+    }
+
+    // fallback: cada encargo con referencia falla y se rehace como texto.
+    assert.equal(withReference.length, 4)
+    assert.equal(withoutReference.length, 4)
+    for (const image of withoutReference)
+      assert.ok(image.body.prompt.includes('curly red hair'))
+  })
+}
+
+// Cambiar el predeterminado y regenerar: las muestras salen con el NUEVO.
+test('style samples protagonist: changing the default character', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'vimo-preview-character-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const library = [
+    { ...LUCIA, photo: true },
+    { id: 'marta', name: 'Marta', photo: true },
+  ]
+  const scenario = { provider: 'fal' }
+
+  const generateWith = async (characterId) => {
+    await characterFixture(
+      root,
+      { mode: 'own', defaultCharacterId: characterId },
+      library,
+    )
+    const ctx = context()
+    ctx.job.projectsRoot = root
+    ctx.job.payload = { styleId: 'fixture', imageProvider: 'fal' }
+    const calls = newCalls()
+    mockSampleHttp(t, scenario, calls)
+    await generateStyleSamples(ctx)
+    t.mock.restoreAll()
+    return calls.images.map((image) => image.body.prompt)
+  }
+
+  for (const prompt of await generateWith('lucia')) {
+    assert.ok(prompt.includes('"Lucía"'))
+    assert.ok(!prompt.includes('Marta'))
+  }
+  for (const prompt of await generateWith('marta')) {
+    assert.ok(prompt.includes('"Marta"'))
+    assert.ok(!prompt.includes('Lucía'))
+  }
+})
+
+// La URL pública de Evolink sale del nombre del archivo y el CDN la cachea:
+// con un nombre fijo, todos los personajes compartían UNA referencia.
+test('evolink reference upload: one file name per image content', async (t) => {
+  const { uploadEvolinkReference } =
+    await import('../../pipeline/providers/image/evolink.ts')
+  const fileNames = []
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const fileName = JSON.parse(init.body).file_name
+    fileNames.push(fileName)
+    return Response.json({
+      data: { file_url: 'https://fixture/' + fileName },
+    })
+  })
+
+  const juan =
+    'data:image/jpeg;base64,' + Buffer.from('juan').toString('base64')
+  const tomas =
+    'data:image/jpeg;base64,' + Buffer.from('tomas').toString('base64')
+  const urls = []
+  for (const dataUri of [juan, tomas, juan])
+    urls.push(await uploadEvolinkReference(dataUri, 'fake'))
+
+  assert.notEqual(fileNames[0], fileNames[1])
+  assert.equal(fileNames[0], fileNames[2])
+  assert.equal(urls[0], urls[2])
+  for (const fileName of fileNames)
+    assert.match(fileName, /^character_reference_[0-9a-f]{16}\.jpg$/)
+})
