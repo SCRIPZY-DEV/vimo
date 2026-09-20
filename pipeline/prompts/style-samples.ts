@@ -35,7 +35,7 @@ export const SAMPLE_SCRIPT = `${SAMPLE_FRAGMENTS.map(
 // sus videos, el MISMO en las cuatro:
 //  - «Mi personaje» con predeterminado → ese personaje de la biblioteca.
 //  - genérico (o «Mi personaje» sin predeterminado) → el que la gema describe;
-//    si no describe ninguno, uno diseñado para ella (`SAMPLE_PROTAGONIST_REQUEST`).
+//    si no describe ninguno, uno diseñado para ella (`PROTAGONIST_DESIGN_REQUEST`).
 //  - sin personaje → nada de esto: los pedidos quedan como siempre.
 // Los 4 momentos NO cambian: lo único que se agrega es QUIÉN es «el
 // protagonista». Mismo mecanismo que el carril verbatim: el modelo escribe la
@@ -58,15 +58,6 @@ export const SAMPLE_PROTAGONIST_RULE =
 export const SAMPLE_PROTAGONIST_REMINDER =
   'PROTAGONIST: the protagonist of every scene is the tag [subject]. Write [subject] wherever they appear and never describe their appearance — ignore the character your style describes.'
 
-/**
- * Pedido previo para las gemas SIN personaje del usuario: la gema dice quién
- * es su protagonista. Si lo trae escrito, es ESE (las muestras tienen que
- * salir con el personaje del estilo); si no, diseña uno coherente. La
- * descripción vuelve neutra de estilo, pose y fondo: se pega igual en las 4.
- */
-export const SAMPLE_PROTAGONIST_REQUEST =
-  'PROTAGONIST DESIGN (platform technical request — do NOT write scene prompts now). ' +
-  'Define the single protagonist of the script below. If your style already describes its own recurring character, narrator or subject, return THAT character exactly as your style defines it. ' +
-  'If it does not, design one coherent with the script and with the world of your style. ' +
-  'Return JSON only: {"description":"..."}. The description is the protagonist\'s permanent physical appearance in ENGLISH, 40 to 110 words, starting with who they are, then head/hair, one distinctive feature and the outfit with its colors. ' +
-  'No pose, no framing, no expression, no background, no art style or technique words.'
+// El pedido previo para las gemas SIN personaje del usuario (la gema dice
+// quién es su protagonista) vive en `protagonist-request.ts`: lo comparte el
+// video, que lo usa como último recurso de su Fase 1.

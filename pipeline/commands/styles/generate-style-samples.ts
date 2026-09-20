@@ -9,10 +9,10 @@ import { generateFalImage } from '../../providers/image/fal.ts'
 import { createInteractiveLlm } from '../../providers/llm/interactive.ts'
 import { buildCustomStyleReferencePrompt } from '../../prompts/character-reference.ts'
 import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
+import { buildProtagonistDesignMessage } from '../../prompts/protagonist-request.ts'
 import {
   SAMPLE_FRAGMENTS,
   SAMPLE_PROTAGONIST_REMINDER,
-  SAMPLE_PROTAGONIST_REQUEST,
   SAMPLE_PROTAGONIST_RULE,
   SAMPLE_SCRIPT,
 } from '../../prompts/style-samples.ts'
@@ -21,6 +21,10 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { extractImagePrompt } from '../../stages/scene-prompts/prompt-extraction.ts'
+import {
+  parseProtagonistDescription,
+  PROTAGONIST_TOKENS_BUDGET,
+} from '../../stages/shared/protagonist-description.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type {
   GenerateStyleSamplesPayload,
@@ -45,9 +49,6 @@ import {
 const PROMPT_EXPECTED_MS = 15_000
 const PREVIEW_POLL_INTERVAL_MS = 1000
 const PREVIEW_BATCH_TOKENS_BUDGET = 3600
-const PROTAGONIST_TOKENS_BUDGET = 500
-const MIN_PROTAGONIST_LENGTH = 60
-const MAX_PROTAGONIST_LENGTH = 1200
 
 // Un pedido redacta los cuatro prompts; si el lote no sirve, se completan
 // solo los faltantes en paralelo. Después arrancan los cuatro encargos. Cada imagen se guarda y se
@@ -383,10 +384,7 @@ async function designSampleProtagonist(
       contentTokensBudget: PROTAGONIST_TOKENS_BUDGET,
       messages: [
         { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: `${SAMPLE_PROTAGONIST_REQUEST}\n\nSCRIPT: ${SAMPLE_SCRIPT}`,
-        },
+        { role: 'user', content: buildProtagonistDesignMessage(SAMPLE_SCRIPT) },
       ],
       parse: parseProtagonistDescription,
     })
@@ -404,21 +402,6 @@ async function designSampleProtagonist(
         'the style protagonist could not be designed: samples are generated without a shared protagonist',
     })
     return { mode: 'none' }
-  }
-}
-
-function parseProtagonistDescription(content: string): string | null {
-  const match = /\{[\s\S]*\}/.exec(content)
-  if (!match) return null
-  try {
-    const parsed = JSON.parse(match[0]) as { description?: unknown }
-    const description =
-      typeof parsed.description === 'string' ? parsed.description.trim() : ''
-    return description.length >= MIN_PROTAGONIST_LENGTH
-      ? description.slice(0, MAX_PROTAGONIST_LENGTH)
-      : null
-  } catch {
-    return null
   }
 }
 
