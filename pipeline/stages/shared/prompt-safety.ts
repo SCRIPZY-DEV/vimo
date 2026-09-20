@@ -1,4 +1,5 @@
 import { MAX_PROMPT_CHARS } from '../../prompts/prompt-limits.ts'
+import { DESCRIPTION_HEADER_PREFIX } from '../../prompts/verbatim-identity.ts'
 import {
   ANONYMITY_CLAUSE,
   IMAGE_TEXT_LANGUAGE_CLAUSE,
@@ -38,6 +39,98 @@ function endWithPunctuation(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`
 }
 
+// Lo que le queda al CUERPO de un prompt una vez reservadas las dos cláusulas
+// que se anexan siempre (texto-en-imagen y anonimato). Por encima de esto el
+// scrub final recorta. Exportado para que quien arma el prompt pueda AVISAR
+// que se pasó, en vez de enterarse nadie.
+export const FINAL_PROMPT_BODY_BUDGET =
+  MAX_PROMPT_CHARS -
+  IMAGE_TEXT_LANGUAGE_CLAUSE.length -
+  ANONYMITY_CLAUSE.length -
+  2
+
+// Piso del núcleo de escena cuando un prompt del carril verbatim no entra: por
+// debajo de esto la imagen ya no cuenta lo que narra el fragmento, y recién
+// ahí se empieza a ceder cola de estilo.
+const MIN_SCENE_CORE_CHARS = 300
+
+// Dos separadores entre los tres tramos + un punto de cierre por tramo.
+const JOINED_PARTS_OVERHEAD = 5
+
+// Corta en el último cierre de oración que entre; si el cierre queda muy
+// atrás (una oración larguísima, típica de una cola de estilo), corta en
+// palabra entera: perder media frase es mejor que perder medio prompt.
+function cutAtSentence(text: string, space: number): string {
+  if (text.length <= space) return text
+  const cut = text.slice(0, Math.max(0, space))
+  const boundary = Math.max(
+    cut.lastIndexOf('. '),
+    cut.lastIndexOf('! '),
+    cut.lastIndexOf('? '),
+  )
+  if (boundary >= space / 2) return cut.slice(0, boundary + 1).trim()
+
+  const lastSpace = cut.lastIndexOf(' ')
+  const wholeWords = lastSpace > 0 ? cut.slice(0, lastSpace) : cut
+  return wholeWords.replace(/[,;:\s]+$/, '')
+}
+
+// Dónde arranca la cola de estilo de un prompt verbatim: el último "Style:"
+// o, si la gema no lo escribe así, la última oración (la arquitectura del
+// prompt cierra siempre con la cola). Sin cola reconocible devuelve el largo.
+function styleTailIndex(scene: string): number {
+  const styleMarks = [...scene.matchAll(/\bstyle\s*:/gi)]
+  const lastMark = styleMarks.at(-1)
+  if (lastMark?.index) return lastMark.index
+
+  const withoutClosing = scene.replace(/[.!?\s]+$/, '')
+  const boundary = Math.max(
+    withoutClosing.lastIndexOf('. '),
+    withoutClosing.lastIndexOf('! '),
+    withoutClosing.lastIndexOf('? '),
+  )
+  return boundary > 0 ? boundary + 2 : scene.length
+}
+
+// Hace entrar el cuerpo en `space`. Sin identidad tejida (todo el carril del
+// catálogo) es el corte de siempre, byte por byte. Con identidad tejida (carril
+// verbatim) el cuerpo es escena → cola de estilo → identidad, y cortar por el
+// final borraba justo la identidad: el personaje desaparecía en silencio de las
+// escenas con cola de estilo larga. Acá se cede en orden inverso de valor:
+// primero el núcleo de la escena (hasta su piso), después la cola de estilo y
+// la identidad recién al final.
+function fitBody(body: string, space: number): string {
+  if (body.length <= space) return body
+
+  const identityIndex = body.lastIndexOf(DESCRIPTION_HEADER_PREFIX)
+  if (identityIndex < 0) return body.slice(0, Math.max(0, space)).trim()
+
+  const identity = body.slice(identityIndex).trim()
+  const scene = body.slice(0, identityIndex).trim()
+  const tailIndex = styleTailIndex(scene)
+  const core = scene.slice(0, tailIndex).trim()
+  const tail = scene.slice(tailIndex).trim()
+
+  // Lo que se arma al final suma dos separadores y, a lo sumo, un punto de
+  // cierre por tramo cortado: se descuenta acá para que el resultado entre de
+  // verdad (si se pasa por uno, la cláusula siguiente vuelve a recortar).
+  const budget = space - JOINED_PARTS_OVERHEAD
+  const coreSpace = Math.max(
+    MIN_SCENE_CORE_CHARS,
+    budget - identity.length - tail.length,
+  )
+  const fittedCore = cutAtSentence(core, coreSpace)
+  const tailSpace = budget - identity.length - fittedCore.length
+  const fittedTail = cutAtSentence(tail, Math.max(0, tailSpace))
+  const identitySpace = budget - fittedCore.length - fittedTail.length
+  const fittedIdentity = cutAtSentence(identity, Math.max(0, identitySpace))
+
+  return [fittedCore, fittedTail, fittedIdentity]
+    .filter((part) => part.length > 0)
+    .map(endWithPunctuation)
+    .join(' ')
+}
+
 // Anexa una cláusula reservando el espacio de las que vienen DESPUÉS: todas
 // quedan íntegras bajo MAX_PROMPT_CHARS recortando solo el cuerpo.
 function appendReservingSpace(
@@ -45,10 +138,32 @@ function appendReservingSpace(
   clause: string,
   reservedAfter: number,
 ): string {
-  let body = endWithPunctuation(prompt.trim())
   const space = MAX_PROMPT_CHARS - clause.length - reservedAfter - 1
-  if (body.length > space) body = body.slice(0, Math.max(0, space)).trim()
+  const body = fitBody(endWithPunctuation(prompt.trim()), space)
   return `${body} ${clause}`.trim()
+}
+
+// Arranque de cada cláusula final, derivado de su propio texto: así un cambio
+// en la redacción de la cláusula no deja este corte mirando un texto viejo.
+const FINAL_CLAUSE_MARK_CHARS = 32
+const FINAL_CLAUSE_MARKS = [
+  'PERIOD LOCK —',
+  IMMERSIVE_DIAGRAM_CLAUSE,
+  IMMERSIVE_DIAGRAM_PHOTO_CLAUSE,
+  IMMERSIVE_DIAGRAM_PHOTO_PERIOD_CLAUSE,
+  IMAGE_TEXT_LANGUAGE_CLAUSE,
+  ANONYMITY_CLAUSE,
+].map((clause) => clause.slice(0, FINAL_CLAUSE_MARK_CHARS))
+
+// El cuerpo de un prompt YA sanitizado, sin las cláusulas que este archivo le
+// anexó al final. Lo usa quien necesita leer lo que el carril escribió (la
+// identidad tejida) en un prompt guardado.
+export function bodyWithoutFinalClauses(prompt: string): string {
+  const starts = FINAL_CLAUSE_MARKS.map((mark) => prompt.indexOf(mark)).filter(
+    (index) => index >= 0,
+  )
+  if (starts.length === 0) return prompt.trim()
+  return prompt.slice(0, Math.min(...starts)).trim()
 }
 
 function appendAnonymity(prompt: string): string {
@@ -120,10 +235,9 @@ function appendImmersiveDiagram(prompt: string, styleId?: string): string {
     'Do NOT print the narration onto the image',
   )
   if (languageIndex >= 0) {
-    let body = trimmed.slice(0, languageIndex).trim()
     const tail = trimmed.slice(languageIndex).trim()
     const space = MAX_PROMPT_CHARS - clause.length - tail.length - 2
-    if (body.length > space) body = body.slice(0, Math.max(0, space)).trim()
+    const body = fitBody(trimmed.slice(0, languageIndex).trim(), space)
     return `${body} ${clause} ${tail}`.trim()
   }
 

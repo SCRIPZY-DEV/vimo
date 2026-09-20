@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 
 import { readImageAsDataUri } from '../../project/characters.ts'
+import { DESCRIPTION_HEADER } from '../../prompts/verbatim-identity.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import {
-  DESCRIPTION_HEADER,
   descriptionFromUserPrompt,
   pointSubjectToImage,
   removeSubject,
