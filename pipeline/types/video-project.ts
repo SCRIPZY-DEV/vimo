@@ -154,6 +154,30 @@ export interface VideoProjectMetadata {
   // Con qué modelo se escribieron los prompts de verdad (tras la
   // degradación, si la hubo). Solo auditoría: no gobierna nada.
   promptModelUsed?: { id: string; label: string }
+  // El protagonista que el carril verbatim resolvió para este video cuando
+  // NO hay personaje del usuario (el que el estilo describe, o uno diseñado).
+  // A diferencia de `promptModelUsed`, esto SÍ gobierna: reanudar, reescribir
+  // por política de contenido y «Regenerar imagen» lo reusan en vez de
+  // rediseñarlo, así el video no cambia de personaje a mitad de camino.
+  styleProtagonist?: StyleProtagonist
+}
+
+// De dónde salió el protagonista guardado. Solo diagnóstico: no cambia cómo
+// se teje.
+//  - style-phase      — la Fase 1 de la gema lo devolvió.
+//  - platform-phase   — salió de un reintento con la fase de la plataforma.
+//  - fallback-request — la Fase 1 no dejó nada y lo resolvió el pedido JSON.
+//  - recovered        — proyecto anterior a este campo: se leyó de los prompts
+//                       de escena ya guardados.
+export type StyleProtagonistSource =
+  'style-phase' | 'platform-phase' | 'fallback-request' | 'recovered'
+
+export interface StyleProtagonist {
+  // Lo que se replica en el turno de assistant de la Fase 2.
+  portrait: string
+  // Lo que se teje, idéntico, al final de cada escena que lo nombra.
+  description: string
+  source: StyleProtagonistSource
 }
 
 // ─── Contratos de los subcomandos del dominio videos ───

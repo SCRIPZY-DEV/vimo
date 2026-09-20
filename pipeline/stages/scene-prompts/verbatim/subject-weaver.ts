@@ -20,7 +20,12 @@
 // se presenta vive en `prompts/verbatim-identity.ts` (lo lee también el scrub
 // final, para no recortar la identidad primero).
 
-import { DESCRIPTION_HEADER } from '../../../prompts/verbatim-identity.ts'
+import {
+  DESCRIPTION_HEADER,
+  DESCRIPTION_HEADER_PREFIX,
+} from '../../../prompts/verbatim-identity.ts'
+import type { Scene } from '../../../types/scenes.ts'
+import { bodyWithoutFinalClauses } from '../../shared/prompt-safety.ts'
 
 /** Reemplazo de `[subject]` cuando el diseño del personaje falló del todo. */
 export const FALLBACK_SUBJECT = 'the main character'
@@ -472,6 +477,51 @@ export function capWovenIdentity(description: string): string {
     capped = `${hardCut.slice(0, hardCut.lastIndexOf(' ')).replace(/[,;:\s]+$/, '')}.`
   }
   return capped
+}
+
+/**
+ * La identidad que un proyecto YA viene tejiendo, leída de sus prompts
+ * guardados. Para los proyectos creados antes de que el protagonista se
+ * guardara en project.json: sin esto, reanudar o regenerar una escena volvía
+ * a diseñarlo y podía salir OTRO personaje en medio del video.
+ *
+ * Los prompts guardados ya pasaron por el scrub final (`sanitizeFinalPrompt`):
+ * después de la identidad traen las cláusulas de texto-en-imagen y anonimato,
+ * y un prompt largo pudo perder media identidad en el recorte viejo. Por eso
+ * se cortan las cláusulas, se descartan los candidatos que no cierran en
+ * puntuación (truncados) y gana el MÁS REPETIDO — el desempate es el más
+ * largo. Devuelve `undefined` si ninguna escena trae una identidad usable.
+ */
+export function recoverProtagonistFromScenes(
+  scenes: readonly Scene[],
+): string | undefined {
+  const counts = new Map<string, number>()
+  for (const scene of scenes) {
+    if (scene.promptIsFallback) continue
+    const body = bodyWithoutFinalClauses(scene.imagePrompt ?? '')
+    const headerIndex = body.lastIndexOf(DESCRIPTION_HEADER_PREFIX)
+    if (headerIndex < 0) continue
+
+    const candidate = body
+      .slice(headerIndex + DESCRIPTION_HEADER_PREFIX.length)
+      .replace(/^[^:]*:/, '')
+      .trim()
+    if (!/[.!?]$/.test(candidate)) continue
+    if (countWords(candidate) < MIN_DESCRIPTION_WORDS) continue
+    counts.set(candidate, (counts.get(candidate) ?? 0) + 1)
+  }
+
+  let best: string | undefined
+  let bestCount = 0
+  for (const [candidate, count] of counts) {
+    const wins =
+      count > bestCount ||
+      (count === bestCount && candidate.length > (best?.length ?? 0))
+    if (!wins) continue
+    best = candidate
+    bestCount = count
+  }
+  return best
 }
 
 /*

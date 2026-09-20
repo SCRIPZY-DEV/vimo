@@ -9,7 +9,10 @@ import { PipelineFailure } from '../../../runner/failure.ts'
 import type { LlmModelProfile } from '../../../types/llm-models.ts'
 import type { Scene } from '../../../types/scenes.ts'
 import type { StyleCharacter } from '../../../types/styles.ts'
-import type { ProjectCharacter } from '../../../types/video-project.ts'
+import type {
+  ProjectCharacter,
+  StyleProtagonist,
+} from '../../../types/video-project.ts'
 import type { VerbatimFragment } from '../../../prompts/verbatim-messages.ts'
 import type { CreateVideoContext } from '../../context.ts'
 import {
@@ -21,6 +24,7 @@ import {
   namesByName,
   namesSubject,
   mentionsProtagonist,
+  recoverProtagonistFromScenes,
 } from './subject-weaver.ts'
 
 // El PUENTE entre las stages y el motor verbatim (port de
@@ -192,6 +196,30 @@ function editorCharacterInput(
 }
 
 /**
+ * El protagonista que este proyecto YA tiene resuelto para sus grupos
+ * `generic` (sin personaje del usuario): el guardado en project.json o, en
+ * proyectos anteriores a ese campo, el que sus prompts de escena ya vienen
+ * tejiendo. `undefined` = primera vez: lo diseña la Fase 1.
+ *
+ * La recuperación desde los prompts solo aplica SIN personajes en el
+ * proyecto: con reparto del usuario, la identidad tejida en las escenas es la
+ * de SU personaje y no la del estilo.
+ */
+function resolveStyleProtagonist(
+  context: CreateVideoContext,
+  scenes: Scene[],
+  projectHasCharacters: boolean,
+): StyleProtagonist | undefined {
+  const stored = context.metadata.styleProtagonist
+  if (stored?.description.trim()) return stored
+  if (projectHasCharacters) return undefined
+
+  const recovered = recoverProtagonistFromScenes(scenes)
+  if (!recovered) return undefined
+  return { portrait: recovered, description: recovered, source: 'recovered' }
+}
+
+/**
  * La fase de prompts con el motor verbatim. Las escenas sin texto no llevan
  * prompt, y las que YA tienen prompt válido no se re-piden: en un resume o en
  * el rescate llegan 15 escenas con 8 prompts buenos y 7 agujeros —
@@ -283,6 +311,43 @@ export async function runVerbatimLane(
     groups.push({ scenes: pending, input: character.input })
   }
 
+  // El protagonista del estilo se resuelve UNA vez por proyecto, no por
+  // corrida: reanudar, reescribir por política de contenido o regenerar una
+  // escena volvía a diseñarlo y el video cambiaba de personaje a mitad de
+  // camino. Si ya está resuelto, todos los grupos `generic` tejen ese.
+  const saveStyleProtagonist = async (protagonist: StyleProtagonist) => {
+    context.metadata.styleProtagonist = protagonist
+    await context.saveMetadata()
+  }
+  const genericGroups = groups.filter((group) => group.input.mode === 'generic')
+  const knownProtagonist =
+    genericGroups.length > 0
+      ? resolveStyleProtagonist(context, scenes, loadedCharacters.length > 0)
+      : undefined
+  if (knownProtagonist) {
+    if (
+      knownProtagonist.source === 'recovered' &&
+      !context.metadata.styleProtagonist
+    ) {
+      context.emitter.emit({
+        type: 'log',
+        level: 'info',
+        message:
+          'protagonist recovered from the scene prompts this project already has: it is kept instead of designing a new one',
+      })
+      await saveStyleProtagonist(knownProtagonist)
+    }
+    for (const group of genericGroups)
+      group.input = { mode: 'generic', designed: knownProtagonist }
+  }
+  // Sin protagonista resuelto y con MÁS de un grupo `generic` (solo pasa en el
+  // editor), los grupos correrían en paralelo y cada uno diseñaría el suyo: va
+  // uno solo adelante y los demás tejen lo que ese dejó guardado.
+  const leadingGroups =
+    !knownProtagonist && genericGroups.length > 1
+      ? genericGroups.slice(0, 1)
+      : []
+
   const client = createVerbatimClient({
     apiKey,
     baseUrl: context.config.llm.baseUrl,
@@ -290,99 +355,113 @@ export async function runVerbatimLane(
 
   let lastReady = 0
   const groupProgress = new Map<VerbatimSceneGroup, number>()
-  const settled = await Promise.allSettled(
-    groups.map(async (group) => {
-      const fragments: VerbatimFragment[] = group.scenes.map((scene) => {
-        const retryNote = options.retryNotes?.get(scene.id)?.trim()
-        // La descripción manual ES el fragmento (paridad con el carril del
-        // catálogo): como nota al lado de la narración, la narración ganaba
-        // y la imagen regenerada salía igual a la anterior.
-        const userRequest = scene.userPrompt?.trim()
-        const selectionNote = group.indexes?.length
-          ? 'El usuario incluyo al personaje en esta escena: [subject] DEBE aparecer en la accion de este fragmento, manteniendo el mismo estilo.'
-          : undefined
-        const note = [retryNote, selectionNote].filter(Boolean).join(' ')
-        return {
-          n: scene.id,
-          text: userRequest || scene.text.trim(),
-          ...(note ? { note } : {}),
-        }
-      })
-      const result = await generateVerbatimPrompts(fragments, fullScript, {
-        // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
-        // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
-        // origen: los planos solo gobiernan el carril del catálogo).
-        gem: customStyle.systemPrompt,
-        // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
-        // desconocido → el de la casa, con aviso).
-        modelId: context.options.promptModel,
-        character: group.input,
-        validatePrompt:
-          group.indexes === undefined
-            ? undefined
-            : (prompt) => {
-                const selected = group.indexes!
-                const excluded = loadedCharacters.filter(
-                  (_, index) => !selected.includes(index),
+  const runGroup = async (group: VerbatimSceneGroup) => {
+    const fragments: VerbatimFragment[] = group.scenes.map((scene) => {
+      const retryNote = options.retryNotes?.get(scene.id)?.trim()
+      // La descripción manual ES el fragmento (paridad con el carril del
+      // catálogo): como nota al lado de la narración, la narración ganaba
+      // y la imagen regenerada salía igual a la anterior.
+      const userRequest = scene.userPrompt?.trim()
+      const selectionNote = group.indexes?.length
+        ? 'El usuario incluyo al personaje en esta escena: [subject] DEBE aparecer en la accion de este fragmento, manteniendo el mismo estilo.'
+        : undefined
+      const note = [retryNote, selectionNote].filter(Boolean).join(' ')
+      return {
+        n: scene.id,
+        text: userRequest || scene.text.trim(),
+        ...(note ? { note } : {}),
+      }
+    })
+    const result = await generateVerbatimPrompts(fragments, fullScript, {
+      // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
+      // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
+      // origen: los planos solo gobiernan el carril del catálogo).
+      gem: customStyle.systemPrompt,
+      // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
+      // desconocido → el de la casa, con aviso).
+      modelId: context.options.promptModel,
+      character: group.input,
+      validatePrompt:
+        group.indexes === undefined
+          ? undefined
+          : (prompt) => {
+              const selected = group.indexes!
+              const excluded = loadedCharacters.filter(
+                (_, index) => !selected.includes(index),
+              )
+              if (excluded.some((entry) => namesByName(prompt, entry.name)))
+                return false
+              if (selected.length === 0)
+                return !namesSubject(prompt) && !mentionsProtagonist(prompt)
+              return (
+                namesSubject(prompt) ||
+                selected.every((index) =>
+                  namesByName(prompt, loadedCharacters[index]!.name),
                 )
-                if (excluded.some((entry) => namesByName(prompt, entry.name)))
-                  return false
-                if (selected.length === 0)
-                  return !namesSubject(prompt) && !mentionsProtagonist(prompt)
-                return (
-                  namesSubject(prompt) ||
-                  selected.every((index) =>
-                    namesByName(prompt, loadedCharacters[index]!.name),
-                  )
-                )
-              },
-        client,
-        signal: context.signal,
-        onLog: (message) =>
-          context.emitter.emit({ type: 'log', level: 'info', message }),
-        onWarn: (message) =>
-          context.emitter.emit({ type: 'log', level: 'warn', message }),
-        // El modelo elegido falló de verdad (código del proveedor o rescate):
-        // evento tipado para que la UI lo bloquee un rato y ofrezca cambiarlo.
-        onModelTrouble: (modelId, code, sceneIds) =>
-          context.emitter.emit({
-            type: 'prompt-model-trouble',
-            modelId,
-            code,
-            sceneIds,
-          }),
-        // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
-        // que ya traían prompt cuentan como listas, así la UI muestra
-        // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.
-        // Monótono por construcción: un lote que reporta desde cero no la devuelve.
-        onProgress: (ready) => {
-          groupProgress.set(group, ready)
-          const groupedReady = [...groupProgress.values()].reduce(
-            (total, count) => total + count,
-            0,
-          )
-          const absolute = Math.min(
-            scenes.length,
-            scenes.length - pending.length + groupedReady,
-          )
-          if (absolute <= lastReady) return
-          lastReady = absolute
-          context.emitter.emit({
-            type: 'scene-prompts-progress',
-            ready: absolute,
-            total: scenes.length,
-          })
-        },
-      })
-      context.signal.throwIfAborted()
-      if (group.indexes !== undefined && result.missing.length > 0)
-        throw new PipelineFailure(
-          'llm_empty_response',
-          'the editor could not write prompts respecting the selected characters; no replacement images requested',
+              )
+            },
+      client,
+      signal: context.signal,
+      onProtagonistDesigned: saveStyleProtagonist,
+      onLog: (message) =>
+        context.emitter.emit({ type: 'log', level: 'info', message }),
+      onWarn: (message) =>
+        context.emitter.emit({ type: 'log', level: 'warn', message }),
+      // El modelo elegido falló de verdad (código del proveedor o rescate):
+      // evento tipado para que la UI lo bloquee un rato y ofrezca cambiarlo.
+      onModelTrouble: (modelId, code, sceneIds) =>
+        context.emitter.emit({
+          type: 'prompt-model-trouble',
+          modelId,
+          code,
+          sceneIds,
+        }),
+      // Cifras absolutas sobre TODAS las escenas (evento tipado, ADR-0013): las
+      // que ya traían prompt cuentan como listas, así la UI muestra
+      // max(persistidos, escritos) y la barra avanza mientras el modelo escribe.
+      // Monótono por construcción: un lote que reporta desde cero no la devuelve.
+      onProgress: (ready) => {
+        groupProgress.set(group, ready)
+        const groupedReady = [...groupProgress.values()].reduce(
+          (total, count) => total + count,
+          0,
         )
-      return { group, result }
-    }),
-  )
+        const absolute = Math.min(
+          scenes.length,
+          scenes.length - pending.length + groupedReady,
+        )
+        if (absolute <= lastReady) return
+        lastReady = absolute
+        context.emitter.emit({
+          type: 'scene-prompts-progress',
+          ready: absolute,
+          total: scenes.length,
+        })
+      },
+    })
+    context.signal.throwIfAborted()
+    if (group.indexes !== undefined && result.missing.length > 0)
+      throw new PipelineFailure(
+        'llm_empty_response',
+        'the editor could not write prompts respecting the selected characters; no replacement images requested',
+      )
+    return { group, result }
+  }
+
+  const settledLeading = await Promise.allSettled(leadingGroups.map(runGroup))
+  const designedByLeading = context.metadata.styleProtagonist
+  if (leadingGroups.length > 0 && designedByLeading) {
+    for (const group of genericGroups) {
+      if (leadingGroups.includes(group)) continue
+      group.input = { mode: 'generic', designed: designedByLeading }
+    }
+  }
+  const settled = [
+    ...settledLeading,
+    ...(await Promise.allSettled(
+      groups.filter((group) => !leadingGroups.includes(group)).map(runGroup),
+    )),
+  ]
   context.signal.throwIfAborted()
   const results = settled.flatMap((entry) =>
     entry.status === 'fulfilled' ? [entry.value] : [],
