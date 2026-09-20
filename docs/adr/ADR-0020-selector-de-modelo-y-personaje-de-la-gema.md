@@ -121,6 +121,18 @@ bloque → el que la gema describe o, si no describe ninguno, uno diseñado para
 `none` → pedidos como siempre. Cambiar el personaje no regenera las muestras sola.
 Ver [causa, implementación y QA](../fixes/2026-09-18-fix-style-samples-character/style-samples-character.md).
 
+### Adenda 2026-09-19 — en `generic`, el personaje que el estilo describe es el del video
+
+Con la gema en `generic` (o `own` sin personajes en el proyecto), si el texto del
+estilo ya describe a su personaje, la Fase 1 devuelve ESE en vez de sacar uno del
+guion (`STYLE_CHARACTER_PRECEDENCE_RULE`, regla propia sumada antes de la consigna
+portada). El protagonista resuelto se guarda en `project.json`
+(`styleProtagonist`) y lo reusan la reanudación, la reescritura por política de
+contenido y «Regenerar imagen»: ya no se rediseña en cada corrida. La precedencia
+de esta ADR no cambia: el personaje del usuario le gana al del estilo, y `none`
+sigue sin protagonista.
+Ver [causa, implementación y QA](../fixes/2026-09-19-fix-style-character-video/style-character-video.md).
+
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por
   byte: `promptModel` ni siquiera se acepta.
 - Un proyecto custom **previo** (sin `promptModel`, sin `character`) escribe
