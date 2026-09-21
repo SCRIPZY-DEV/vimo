@@ -187,6 +187,37 @@ test('the marker leaves the prompt, the clothing joins the role and the base out
   )
 })
 
+test('a sheet without an Outfit sentence is split at its wearing clause', () => {
+  const detective =
+    'a slim minimalist character with a small round white head, dot eyes, and a simple curved smile. He is wearing a classic dark brown private investigator outfit, including a trench coat with a badge on the left chest, a fedora, and dark tie, holding a small notepad and pen.'
+  assert.deepEqual(splitOutfit(detective), {
+    core: 'a slim minimalist character with a small round white head, dot eyes, and a simple curved smile.',
+    outfit:
+      'a classic dark brown private investigator outfit, including a trench coat with a badge on the left chest, a fedora, and dark tie, holding a small notepad and pen',
+  })
+  assert.deepEqual(
+    splitOutfit(
+      'Lucia, a curious 8-year-old girl with curly brown hair, dressed in a yellow raincoat and green boots. Round face and freckles.',
+    ),
+    {
+      core: 'Lucia, a curious 8-year-old girl with curly brown hair. Round face and freckles.',
+      outfit: 'a yellow raincoat and green boots',
+    },
+  )
+  // Sin identidad antes de la ropa no hay corte.
+  assert.deepEqual(splitOutfit('Wearing a red coat.'), {
+    core: 'Wearing a red coat.',
+  })
+})
+
+test('the wardrobe rule gives no copyable example and no repeat instruction', () => {
+  assert.doesNotMatch(SCENE_WARDROBE_RULE, /red swimsuit|repite EXACTAMENTE/)
+  assert.match(
+    SCENE_WARDROBE_RULE,
+    /nunca la de un fragmento anterior ni una de ejemplo/,
+  )
+})
+
 test('a marker with anything but clothing is discarded, and the base outfit stays', async () => {
   assert.equal(
     extractWardrobe(
