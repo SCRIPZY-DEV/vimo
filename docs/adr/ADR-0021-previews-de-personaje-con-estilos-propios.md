@@ -88,6 +88,15 @@ propio; sin preview del estilo actual, el personaje viaja sin referencia.**
 > viaja en el prompt. El sidecar sigue copiando el preview del estilo cuando existe
 > y avisando en el log cuando no; solo cambia lo que la UI dice.
 
+> **Adenda 2026-09-19.** La regla E20 no cambia: sin preview del estilo actual el
+> personaje sigue viajando como texto. Lo nuevo es que Crear lo DICE: con «Mi
+> estilo» y un personaje sin foto que no tiene preview de ese estilo, un aviso no
+> bloqueante (`create.characters.noStylePreviewHint`) explica que la identidad irá
+> solo como texto y sugiere generar la ilustración en ese estilo desde Personajes.
+> Y si la descripción de biblioteca queda vacía tras los recortes, viaja apenas
+> limpia en vez de no viajar.
+> Ver [causa, implementación y QA](../fixes/2026-09-19-fix-custom-style-library-identity/custom-style-library-identity.md).
+
 ## Alternativas consideradas
 
 - **Usar cualquier otro preview del personaje como referencia** — rechazada: viola E20;
