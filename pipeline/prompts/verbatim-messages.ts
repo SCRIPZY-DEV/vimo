@@ -106,12 +106,18 @@ export const STYLE_CHARACTER_PRECEDENCE_RULE =
  * descripción (ropa incluida) se pega idéntica en todas las escenas, así que
  * el personaje salía en la playa, la nieve o la cama con el mismo buzo.
  *
- * Todo va detrás de esta constante. APAGADA, cada prompt es byte-idéntico al
- * de antes: se enciende recién después del A/B con claves reales (los
- * prompts de este carril se midieron en el origen). El sidecar no lee el
- * entorno (ADR-0010): es una constante, no una variable.
+ * Todo va detrás de esta constante. Apagada, cada prompt es byte-idéntico al
+ * de antes. ENCENDIDA el 2026-09-21 tras el A/B con claves reales (los
+ * prompts de este carril se midieron en el origen; resultados en
+ * docs/handoff/2026-09-21-custom-style-scene-wardrobe/): GPT o4-mini Turbo
+ * marca el 90-100 % de las escenas que exigen otra ropa y el 0 % de las
+ * neutras; DeepSeek V4 Flash 70 % y 3 %, y con un muñeco de palitos solo
+ * 30 % — ahí la escena queda como antes, con la ropa base. Sin fichas
+ * incrustadas ni escenas faltantes en ninguna variante. El sidecar no lee el
+ * entorno (ADR-0010): es una constante, no una variable; apagarla vuelve a
+ * los prompts anteriores byte por byte.
  */
-export const VERBATIM_SCENE_WARDROBE = false
+export const VERBATIM_SCENE_WARDROBE = true
 
 /**
  * La ficha de la Fase 1 termina con UNA oración «Outfit:» para que el código

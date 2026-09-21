@@ -103,21 +103,18 @@ const withWardrobe = {
 
 // ── La constante ──
 
-test('scene wardrobe ships switched off until the A/B with real keys', () => {
-  assert.equal(VERBATIM_SCENE_WARDROBE, false)
+test('scene wardrobe is switched on (after the A/B with real keys)', () => {
+  assert.equal(VERBATIM_SCENE_WARDROBE, true)
 })
 
-test('switched off, every message is byte-identical to before', () => {
-  assert.equal(
-    buildVerbatimSystem(gem, 'generic', { sceneWardrobe: false }),
-    buildVerbatimSystem(gem, 'generic'),
-  )
+test('switched off explicitly, every message is byte-identical to before the wardrobe', () => {
+  const off = { sceneWardrobe: false }
   for (const mode of ['generic', 'text', 'reference', 'none']) {
-    assert.ok(!buildVerbatimSystem(gem, mode).includes('VESTUARIO'))
-    assert.ok(!buildFragmentsMessage(fragments, mode).includes('wearing'))
+    assert.ok(!buildVerbatimSystem(gem, mode, off).includes('VESTUARIO'))
+    assert.ok(!buildFragmentsMessage(fragments, mode, off).includes('wearing'))
   }
   assert.equal(
-    buildCharacterDesignMessage(script),
+    buildCharacterDesignMessage(script, off),
     'GUION: \n\n' +
       script +
       '\n\n' +
@@ -126,9 +123,11 @@ test('switched off, every message is byte-identical to before', () => {
       CHARACTER_DESIGN_INSTRUCTION,
   )
   assert.match(
-    buildCustomStyleReferencePrompt('Elena', 'Scene.'),
+    buildCustomStyleReferencePrompt('Elena', 'Scene.', false),
     /same outfit/,
   )
+  // Y por defecto (encendida) el system cierra con la regla del vestuario.
+  assert.ok(buildVerbatimSystem(gem, 'generic').endsWith(SCENE_WARDROBE_RULE))
 })
 
 test('switched on, the rules are declared and added, and the ported texts stay intact', () => {
@@ -332,7 +331,7 @@ test('switched on: contiguous scenes share the first wardrobe, others keep the b
 })
 
 test('switched off: the same answers produce the same prompts as always, marker or not', async () => {
-  const off = await write(plain)
+  const off = await write(plain, { sceneWardrobe: false })
   for (const [id, scene] of Object.entries(plain))
     assert.equal(
       off.result.prompts.get(Number(id)),
