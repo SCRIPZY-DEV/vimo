@@ -12,6 +12,7 @@ import {
 import {
   extractWardrobe,
   splitOutfit,
+  wardrobesLookAlike,
   weaveSubject,
 } from '../../pipeline/stages/scene-prompts/verbatim/subject-weaver.ts'
 import {
@@ -28,6 +29,7 @@ import {
 import {
   DESCRIPTION_HEADER,
   DESCRIPTION_HEADER_WITH_WARDROBE,
+  signatureLookNote,
 } from '../../pipeline/prompts/verbatim-identity.ts'
 import {
   buildCustomStyleReferencePrompt,
@@ -102,21 +104,18 @@ const withWardrobe = {
 
 // ── La constante ──
 
-test('scene wardrobe ships switched off until the A/B with real keys', () => {
-  assert.equal(VERBATIM_SCENE_WARDROBE, false)
+test('scene wardrobe is switched on (after the A/B with real keys)', () => {
+  assert.equal(VERBATIM_SCENE_WARDROBE, true)
 })
 
-test('switched off, every message is byte-identical to before', () => {
-  assert.equal(
-    buildVerbatimSystem(gem, 'generic', { sceneWardrobe: false }),
-    buildVerbatimSystem(gem, 'generic'),
-  )
+test('switched off explicitly, every message is byte-identical to before the wardrobe', () => {
+  const off = { sceneWardrobe: false }
   for (const mode of ['generic', 'text', 'reference', 'none']) {
-    assert.ok(!buildVerbatimSystem(gem, mode).includes('VESTUARIO'))
-    assert.ok(!buildFragmentsMessage(fragments, mode).includes('wearing'))
+    assert.ok(!buildVerbatimSystem(gem, mode, off).includes('VESTUARIO'))
+    assert.ok(!buildFragmentsMessage(fragments, mode, off).includes('wearing'))
   }
   assert.equal(
-    buildCharacterDesignMessage(script),
+    buildCharacterDesignMessage(script, off),
     'GUION: \n\n' +
       script +
       '\n\n' +
@@ -125,9 +124,11 @@ test('switched off, every message is byte-identical to before', () => {
       CHARACTER_DESIGN_INSTRUCTION,
   )
   assert.match(
-    buildCustomStyleReferencePrompt('Elena', 'Scene.'),
+    buildCustomStyleReferencePrompt('Elena', 'Scene.', false),
     /same outfit/,
   )
+  // Y por defecto (encendida) el system cierra con la regla del vestuario.
+  assert.ok(buildVerbatimSystem(gem, 'generic').endsWith(SCENE_WARDROBE_RULE))
 })
 
 test('switched on, the rules are declared and added, and the ported texts stay intact', () => {
@@ -183,7 +184,65 @@ test('the marker leaves the prompt, the clothing joins the role and the base out
     'Wide shot of the curious red-haired girl, wearing a red swimsuit, running. ' +
       DESCRIPTION_HEADER +
       ' ' +
-      core,
+      core +
+      ' ' +
+      signatureLookNote('a green hoodie, blue jeans and white sneakers'),
+  )
+  assert.match(
+    signatureLookNote('a fedora and a badge'),
+    /clothing stated for this scene above REPLACES the clothes of their usual look/,
+  )
+})
+
+test('a marker may swap an accessory the scene makes impossible, never the face or the hair', () => {
+  assert.equal(
+    extractWardrobe(
+      '[subject] (wearing: a white space suit and a helmet instead of the fedora) floats.',
+    ).wardrobe,
+    'a white space suit and a helmet instead of the fedora',
+  )
+  assert.equal(
+    extractWardrobe('[subject] (wearing: sunglasses and a straw hat) rests.')
+      .wardrobe,
+    'sunglasses and a straw hat',
+  )
+  for (const bad of [
+    'a red swimsuit, long blonde hair',
+    'a suit, older face',
+    'a coat, bald head',
+  ])
+    assert.equal(
+      extractWardrobe(`[subject] (wearing: ${bad}) runs.`).wardrobe,
+      undefined,
+      bad,
+    )
+})
+
+test('a sheet that brings both the wearing clause and the Outfit sentence keeps no clothes in the fixed identity', () => {
+  const both =
+    'a slim minimalist character with a small round white head, dot eyes, and a simple curved smile. He is wearing a classic dark brown private investigator outfit, including a trench coat with a badge on the left chest, a fedora, and dark tie, holding a small notepad and pen. Outfit: Dark brown trench coat with gold badge on left chest, matching fedora, dark tie, white shirt, brown trousers, black shoes, small notepad, and pen.'
+  assert.deepEqual(splitOutfit(both), {
+    core: 'a slim minimalist character with a small round white head, dot eyes, and a simple curved smile.',
+    outfit:
+      'Dark brown trench coat with gold badge on left chest, matching fedora, dark tie, white shirt, brown trousers, black shoes, small notepad, and pen',
+  })
+})
+
+test('wardrobe continuity needs the same clothes, not one shared word', () => {
+  const beach = 'short-sleeved linen shirt, light khaki shorts, flip-flops'
+  assert.equal(
+    wardrobesLookAlike(beach, 'swim shorts'),
+    false,
+    'khaki shorts vs swim shorts',
+  )
+  assert.equal(wardrobesLookAlike(beach, 'khaki shorts and linen shirt'), true)
+  assert.equal(
+    wardrobesLookAlike('a red swimsuit and sandals', 'a red swimsuit'),
+    true,
+  )
+  assert.equal(
+    wardrobesLookAlike('a thick grey winter coat and boots', 'a red swimsuit'),
+    false,
   )
 })
 
@@ -210,11 +269,26 @@ test('a sheet without an Outfit sentence is split at its wearing clause', () => 
   })
 })
 
-test('the wardrobe rule gives no copyable example and no repeat instruction', () => {
+test('the wardrobe rule gives no copyable example, no repeat instruction, and keeps the signature look', () => {
   assert.doesNotMatch(SCENE_WARDROBE_RULE, /red swimsuit|repite EXACTAMENTE/)
   assert.match(
     SCENE_WARDROBE_RULE,
     /nunca la de un fragmento anterior ni una de ejemplo/,
+  )
+  assert.match(
+    SCENE_WARDROBE_RULE,
+    /Lo que CARACTERIZA al personaje .* se queda con el encima/,
+  )
+  assert.match(SCENE_WARDROBE_RULE, /un casco en lugar del sombrero/)
+  // Por rol, no solo por situacion: un astronauta va de astronauta en todas
+  // sus escenas, aunque dentro de la estacion no haga falta.
+  assert.match(
+    SCENE_WARDROBE_RULE,
+    /OFICIO o rol con vestimenta propia .* aplica en TODAS las escenas en que actua en ese rol/,
+  )
+  assert.match(
+    CHARACTER_OUTFIT_SENTENCE_RULE,
+    /TODO lo que el personaje lleva puesto o en la mano/,
   )
 })
 
@@ -263,10 +337,12 @@ test('switched on: contiguous scenes share the first wardrobe, others keep the b
   assert.match(prompt(2), /wearing a red swimsuit and sandals,/)
   assert.doesNotMatch(prompt(2), /one-piece/)
   assert.match(prompt(3), /wearing a thick grey winter coat and boots,/)
-  // Con ropa de escena la ropa base NO viaja; el resto de la identidad, sí.
+  // Con ropa de escena la identidad fija viaja igual y la ropa base pasa a
+  // ser la MARCA que se queda encima de la ropa de la escena.
   for (const id of [1, 2, 3]) {
     assert.ok(prompt(id).includes(DESCRIPTION_HEADER + ' ' + core), String(id))
-    assert.doesNotMatch(prompt(id), /green hoodie|wearing:|\(wearing/)
+    assert.match(prompt(id), /Their usual look, for reference: a green hoodie/)
+    assert.doesNotMatch(prompt(id), /wearing:|\(wearing/)
   }
   // Sin marcador: idéntico a la salida de siempre, ropa base incluida.
   assert.equal(
@@ -290,7 +366,7 @@ test('switched on: contiguous scenes share the first wardrobe, others keep the b
 })
 
 test('switched off: the same answers produce the same prompts as always, marker or not', async () => {
-  const off = await write(plain)
+  const off = await write(plain, { sceneWardrobe: false })
   for (const [id, scene] of Object.entries(plain))
     assert.equal(
       off.result.prompts.get(Number(id)),
@@ -326,12 +402,12 @@ test('the reference lock frees the clothing only when switched on, for one and t
   const on = buildCustomStyleReferencePrompt('Elena', 'Scene.', true)
   assert.match(
     on,
-    /same face, same skin tone, same hair, same distinctive accessories; the clothing is what this scene describes/,
+    /same face, same skin tone, same hair; when this scene describes other clothing, that clothing replaces the reference's, and the reference's signature hat, badge, coat and accessories stay on top/,
   )
   assert.doesNotMatch(on, /same outfit/)
   assert.match(
     buildCustomStyleReferencePromptMulti(['Elena', 'Bruno'], 'Scene.', true),
-    /the clothing is what this scene describes/,
+    /signature hat, badge, coat and accessories stay on top/,
   )
   assert.match(
     buildCustomStyleReferencePromptMulti(['Elena', 'Bruno'], 'Scene.', false),

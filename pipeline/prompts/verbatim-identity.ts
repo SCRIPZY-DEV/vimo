@@ -26,4 +26,16 @@ export const DESCRIPTION_HEADER = `${DESCRIPTION_HEADER_PREFIX}:`
  * la escena le gana a la de la descripción. Comparte el prefijo: quien
  * detecta la identidad (recorte, recuperación) lo reconoce igual.
  */
-export const DESCRIPTION_HEADER_WITH_WARDROBE = `${DESCRIPTION_HEADER_PREFIX}, except for the clothing, which is exactly the one this scene describes:`
+export const DESCRIPTION_HEADER_WITH_WARDROBE = `${DESCRIPTION_HEADER_PREFIX}, except for the clothing, which is exactly the one this scene describes (their signature hat, badge, coat and accessories stay on top of it unless the scene makes one impossible):`
+
+/**
+ * La MARCA del personaje cuando la escena trae su propia ropa: lo que el
+ * estilo le da (gabardina, placa, fedora, libreta) se queda encima de la ropa
+ * de la escena, y solo se deja afuera lo que la escena hace imposible (un
+ * casco en lugar del sombrero). Decisión de producto del 2026-09-21: un
+ * detective que va al espacio lleva la placa en el traje y la gabardina
+ * encima; el fedora, hasta que hay casco.
+ */
+export function signatureLookNote(outfit: string): string {
+  return `The clothing stated for this scene above REPLACES the clothes of their usual look; from that usual look only the signature pieces the scene does not replace (hat, badge, tie, glasses, what they hold in their hands) stay on top of this scene's clothing, and only where the scene allows it — never a coat in the water, never a hat under a helmet. Their usual look, for reference: ${outfit.replace(/[.!?]+$/, '')}.`
+}

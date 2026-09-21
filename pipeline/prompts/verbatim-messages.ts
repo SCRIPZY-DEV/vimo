@@ -106,42 +106,64 @@ export const STYLE_CHARACTER_PRECEDENCE_RULE =
  * descripción (ropa incluida) se pega idéntica en todas las escenas, así que
  * el personaje salía en la playa, la nieve o la cama con el mismo buzo.
  *
- * Todo va detrás de esta constante. APAGADA, cada prompt es byte-idéntico al
- * de antes: se enciende recién después del A/B con claves reales (los
- * prompts de este carril se midieron en el origen). El sidecar no lee el
- * entorno (ADR-0010): es una constante, no una variable.
+ * Todo va detrás de esta constante. Apagada, cada prompt es byte-idéntico al
+ * de antes. ENCENDIDA el 2026-09-21 tras el A/B con claves reales (los
+ * prompts de este carril se midieron en el origen; resultados en
+ * docs/handoff/2026-09-21-custom-style-scene-wardrobe/): GPT o4-mini Turbo
+ * marca el 90-100 % de las escenas que exigen otra ropa y el 0 % de las
+ * neutras; DeepSeek V4 Flash 70 % y 3 %, y con un muñeco de palitos solo
+ * 30 % — ahí la escena queda como antes, con la ropa base. Sin fichas
+ * incrustadas ni escenas faltantes en ninguna variante. El sidecar no lee el
+ * entorno (ADR-0010): es una constante, no una variable; apagarla vuelve a
+ * los prompts anteriores byte por byte.
  */
-export const VERBATIM_SCENE_WARDROBE = false
+export const VERBATIM_SCENE_WARDROBE = true
 
 /**
  * La ficha de la Fase 1 termina con UNA oración «Outfit:» para que el código
- * pueda separar la identidad fija de la ropa base. Regla propia, sumada
- * entre la precedencia y la consigna portada.
+ * pueda separar la identidad fija de la MARCA del personaje: todo lo que
+ * lleva puesto o en la mano (ropa, calzado, sombrero, placa, lentes,
+ * libreta). Esa marca se queda con el personaje encima de la ropa de cada
+ * escena; lo que no se lleva (cicatrices, tatuajes, lunares) va con los
+ * rasgos. Regla propia, sumada entre la precedencia y la consigna portada.
  */
 export const CHARACTER_OUTFIT_SENTENCE_RULE =
   'FORMATO DE LA FICHA (regla tecnica de la plataforma, se suma a la consigna que sigue): ' +
-  'termina la ficha con UNA oracion final que empiece exactamente con "Outfit:" y contenga SOLO la ropa y el calzado con sus colores. ' +
-  'Los accesorios distintivos permanentes (lentes, sombrero, joyas, cicatrices) van ANTES, junto con los rasgos, nunca en esa oracion.'
+  'termina la ficha con UNA oracion final que empiece exactamente con "Outfit:" y contenga TODO lo que el personaje lleva puesto o en la mano: ' +
+  'ropa, calzado, sombrero, lentes, placa, joyas y objetos que lo caracterizan, con sus colores. ' +
+  'Lo que no se lleva puesto (cicatrices, tatuajes, lunares, barba) va ANTES, junto con los rasgos, nunca en esa oracion.'
 
 /**
  * La regla del vestuario, ULTIMA del system de la Fase 2 (modos generic,
  * text y reference). Es la unica excepcion a «no describas a [subject]»: la
- * ropa, solo cuando la situacion del fragmento la exige, en un parentesis
- * pegado a la etiqueta que el codigo lee y separa.
+ * ropa, cuando la situacion del fragmento la exige O cuando el guion pone al
+ * personaje en un oficio con vestimenta propia, en un parentesis pegado a la
+ * etiqueta que el codigo lee y separa.
+ *
+ * El rol se sumo el 2026-09-21: con «eres astronauta en la estacion» y solo
+ * el criterio de situacion, el modelo decidia (con razon realista) que
+ * dentro de la estacion no hace falta otra ropa, y el detective salia sin
+ * traje. Medido sobre 8 escenas del guion real, 2 corridas por modelo:
+ * situacion sola → GPT Ultra 8/16, GPT Turbo 0/16, DeepSeek 9/16; con el rol
+ * → 16/16, 16/16 y 8/16.
  */
 export const SCENE_WARDROBE_RULE =
   'VESTUARIO POR ESCENA (regla tecnica de la plataforma, se suma a todo lo anterior y no cambia tu estilo): ' +
-  'la UNICA excepcion a no describir a [subject] es su ROPA. ' +
-  'SOLO cuando la situacion del fragmento exige claramente otra ropa que la habitual (playa, nieve, dormir, uniforme, deporte, epoca historica, disfraz, gala), ' +
+  'la UNICA excepcion a no describir a [subject] es lo que lleva puesto en ESA escena. ' +
+  'SOLO cuando la situacion del fragmento exige claramente otra ropa que la habitual (playa, nieve, dormir, uniforme, deporte, espacio, epoca historica, disfraz, gala), ' +
   'escribe inmediatamente despues de la etiqueta un parentesis con la forma [subject] (wearing: ...) ' +
-  '— en ingles, solo las prendas y el calzado que ESA situacion pide, con sus colores, maximo 12 palabras; ' +
+  '— en ingles, solo las prendas, el calzado y los accesorios que ESA situacion pide, con sus colores, maximo 14 palabras; ' +
   'la ropa la decide la situacion del fragmento, nunca la de un fragmento anterior ni una de ejemplo. ' +
-  'NUNCA pongas ahi cara, pelo, piel, cuerpo, edad ni accesorios: eso no cambia jamas. ' +
-  'Si el fragmento no exige otra ropa, NO escribas el parentesis.'
+  'Lo que CARACTERIZA al personaje (su sombrero, su placa, su abrigo, sus lentes, lo que lleva en la mano) se queda con el encima de esa ropa: ' +
+  'la plataforma lo agrega sola, no lo repitas. Solo si la situacion hace IMPOSIBLE una de esas cosas, dilo en el mismo parentesis (por ejemplo, un casco en lugar del sombrero). ' +
+  'NUNCA pongas ahi cara, piel, cuerpo, edad, ni el color o el largo del pelo: eso no cambia jamas. ' +
+  'Y si el guion pone al personaje en un OFICIO o rol con vestimenta propia (astronauta, chef, medico, bombero, soldado, buzo, piloto), ' +
+  'ese atuendo aplica en TODAS las escenas en que actua en ese rol, aunque la escena en si no lo exija: escribe el parentesis en cada una de ellas, con el mismo atuendo. ' +
+  'Si el fragmento no exige otra ropa ni un rol asi, NO escribas el parentesis.'
 
 /** El recordatorio del vestuario en el turno del lote, después del preámbulo portado. */
 export const BATCH_WARDROBE_ADDENDUM =
-  'Ropa: solo si un fragmento exige claramente otra ropa, escribe [subject] (wearing: ...) con prendas y colores; si no, la etiqueta sola.'
+  'Ropa: solo si un fragmento exige claramente otra ropa, escribe [subject] (wearing: ...) con las prendas y accesorios de esa situacion; lo que caracteriza al personaje se queda encima; si no, la etiqueta sola.'
 
 export interface VerbatimMessageOptions {
   /** Vestuario por escena. Ausente = la constante `VERBATIM_SCENE_WARDROBE`. */

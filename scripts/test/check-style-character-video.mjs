@@ -235,10 +235,14 @@ test('phase 1 asks for the style character first and keeps the ported instructio
       'con el material segun tu estilo, proporciones, pelo, rasgos fisicos y la ropa con colores concretos. ' +
       "La ficha describe SOLO al personaje: sin escena, sin lugar, sin momento del dia, sin accion y sin encabezados como 'Prompt:'.",
   )
+  // La precedencia va antes de la consigna portada, que cierra el mensaje
+  // (entre ambas puede ir el formato de la ficha del vestuario por escena).
+  const message = buildCharacterDesignMessage(script)
+  assert.ok(message.endsWith('\n\n' + CHARACTER_DESIGN_INSTRUCTION))
   assert.ok(
-    buildCharacterDesignMessage(script).endsWith(
-      STYLE_CHARACTER_PRECEDENCE_RULE + '\n\n' + CHARACTER_DESIGN_INSTRUCTION,
-    ),
+    message.indexOf(STYLE_CHARACTER_PRECEDENCE_RULE) > 0 &&
+      message.indexOf(STYLE_CHARACTER_PRECEDENCE_RULE) <
+        message.indexOf(CHARACTER_DESIGN_INSTRUCTION),
   )
 })
 
@@ -626,20 +630,28 @@ test('the rescue prompt drops the anchor and appends the description before the 
 })
 
 test('the custom style reference lock anchors skin tone and accessories, for one and for two names', () => {
-  const single = buildCustomStyleReferencePrompt('Elena', 'Wide shot.')
+  // Sin vestuario por escena (explícito): el candado fija también la ropa.
+  const single = buildCustomStyleReferencePrompt('Elena', 'Wide shot.', false)
   assert.match(
     single,
     /same face, same skin tone, same hair, same distinctive accessories, same outfit, in EVERY shot/,
   )
   assert.match(single, /Apply the scene's art style only to the surroundings/)
   assert.equal(
-    buildCustomStyleReferencePromptMulti(['Elena'], 'Wide shot.'),
+    buildCustomStyleReferencePromptMulti(['Elena'], 'Wide shot.', false),
     single,
+  )
+  // Por defecto (vestuario encendido) la ropa la pone la escena y la marca
+  // del personaje se queda encima.
+  assert.match(
+    buildCustomStyleReferencePrompt('Elena', 'Wide shot.'),
+    /same face, same skin tone, same hair; when this scene describes other clothing/,
   )
 
   const both = buildCustomStyleReferencePromptMulti(
     ['Elena', 'Bruno'],
     'Wide shot.',
+    false,
   )
   assert.match(both, /attached image 1 is "Elena"; attached image 2 is "Bruno"/)
   assert.match(

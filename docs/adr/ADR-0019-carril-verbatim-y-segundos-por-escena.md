@@ -111,9 +111,11 @@ sumadas; los textos portados intactos): `SCENE_WARDROBE_RULE` al final del syste
 `BATCH_WARDROBE_ADDENDUM` tras el preámbulo, `CHARACTER_OUTFIT_SENTENCE_RULE` en la
 Fase 1. El modelo escribe `[subject] (wearing: …)` solo cuando la situación lo exige;
 el código separa la ropa, la teje junto al rol y deja la ropa base fuera de la
-descripción. Todo detrás de `VERBATIM_SCENE_WARDROBE`, **apagada** hasta el A/B con
-claves reales (`scripts/ab-scene-wardrobe.mjs`): apagada, cada prompt es
-byte-idéntico al anterior.
+descripción; lo que caracteriza al personaje (sombrero, placa, abrigo, lo que lleva
+en la mano) se queda encima de la ropa de la escena salvo que la escena lo haga
+imposible. Todo detrás de `VERBATIM_SCENE_WARDROBE`, encendida el 2026-09-21 tras
+tres A/B con claves reales (`scripts/ab-scene-wardrobe.mjs`); apagada, cada prompt
+vuelve a ser byte-idéntico al anterior.
 Ver [estado, tejido y protocolo del A/B](../handoff/2026-09-21-custom-style-scene-wardrobe/implementation.md).
 
 ## Qué NO cambia

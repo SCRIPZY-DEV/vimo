@@ -1,13 +1,16 @@
 # Vestuario por escena en «Mi estilo» — estado de la implementación
 
 - **Fecha:** 2026-09-21
-- **Decisión de producto:** en un estilo propio el personaje se adapta a la escena
-  **solo en la ropa**; rostro, pelo, piel, contextura y accesorios distintivos
-  quedan fijos. El catálogo no se toca.
-- **Estado:** código completo, detrás de la constante `VERBATIM_SCENE_WARDROBE`
-  (**apagada**). Con la constante apagada, todos los prompts son byte-idénticos a
-  los de antes. **Se enciende recién después del A/B con claves reales** que se
-  describe abajo.
+- **Decisión de producto (revisada el 2026-09-21):** en un estilo propio la escena
+  pone la ropa, pero **lo que caracteriza al personaje se queda encima** mientras la
+  escena lo permita: un detective que va al espacio lleva la placa en el traje y la
+  gabardina encima; el fedora, hasta que hay casco. Fijos siempre: cara, piel, color y
+  largo del pelo, contextura y marcas permanentes. Solo se deja afuera lo que la
+  escena hace imposible, y el modelo lo dice en el marcador («a white space suit and a
+  helmet instead of the fedora»). El catálogo no se toca.
+- **Estado:** código completo, detrás de la constante `VERBATIM_SCENE_WARDROBE`,
+  **encendida el 2026-09-21** tras el tercer A/B (abajo). Apagarla vuelve a los
+  prompts anteriores byte por byte.
 - **Contexto:** cuarto PR del plan que empezó con
   [style-character-video](../../fixes/2026-09-19-fix-style-character-video/style-character-video.md).
 
@@ -179,6 +182,105 @@ Proportions:» del rol y no cortar en una coma que deja un adjetivo colgado. Se 
 constante, y confirmar con imágenes reales. Si además se amplía lo que cambia con
 la escena (accesorios, peinado), la regla cambia de nuevo y el A/B se repite
 después de eso.
+
+## La marca del personaje (revisión del 2026-09-21)
+
+La primera versión dejaba la ropa base fuera del prompt cuando la escena traía la
+suya. El usuario pidió lo contrario para los accesorios: la placa, la gabardina y el
+sombrero caracterizan al personaje y tienen que seguir con él aunque la escena lo
+vista de astronauta. Cambios:
+
+- `CHARACTER_OUTFIT_SENTENCE_RULE`: la oración `Outfit:` incluye TODO lo que el
+  personaje lleva puesto o en la mano (ropa, calzado, sombrero, lentes, placa,
+  libreta); lo que no se lleva (cicatrices, tatuajes, barba) va con los rasgos.
+- `SCENE_WARDROBE_RULE`: el marcador trae las prendas y accesorios de la situación;
+  lo que caracteriza al personaje se queda encima y la plataforma lo agrega sola; si
+  la situación hace imposible una de esas cosas, se dice en el marcador (casco en
+  lugar del sombrero). Prohibido: cara, piel, cuerpo, edad, color y largo del pelo.
+- Tejido (`weaveSubject`): con marcador y ficha partida, la identidad fija va bajo el
+  encabezado de siempre y la ropa base pasa a ser la **marca** con
+  `signatureLookNote`: «Their signature look stays with them on top of this scene's
+  clothing wherever the scene allows it: …. Where the scene's clothing replaces one of
+  those items (a helmet instead of the hat, a swimsuit instead of the coat), the scene
+  wins; everything else stays». Sin ficha partida, el encabezado alternativo dice lo
+  mismo en corto.
+- `WARDROBE_FORBIDDEN_REGEX`: deja pasar sombrero, lentes y accesorios; sigue
+  descartando cara, piel, cuerpo, edad, marcas permanentes y color o largo de pelo.
+- Candado con foto: la ropa de la escena reemplaza a la de la referencia, y el
+  sombrero, la placa, el abrigo y los accesorios de la referencia se quedan encima.
+
+### A/B final con la marca del personaje (`ab-results-signature.md`)
+
+56 corridas: 3 estilos × 2 guiones (el exigente ahora con un fragmento de astronauta)
+× 2 modelos × apagado/encendido × 2 repeticiones.
+
+| Criterio                                | GPT o4-mini Turbo | DeepSeek V4 Flash                                           |
+| --------------------------------------- | ----------------- | ----------------------------------------------------------- |
+| Marcador en fragmentos exigentes (≥70%) | 100 / 90 / 100%   | 70 / 70 / **30%** (el 30 % es el muñeco de palitos)         |
+| Marcador en fragmentos neutros (≤5%)    | 0%                | 1 de 30 (3 %): «simple black pajamas» en un guion de ahorro |
+| Marcadores descartados                  | 0                 | 0                                                           |
+| Fichas incrustadas / escenas faltantes  | 0 / 0             | 0 / 0                                                       |
+| Fragmento del astronauta marcado        | 6/6               | 5/6                                                         |
+
+Los marcadores del espacio salieron como se buscaba: «astronaut suit, helmet»,
+«white spacesuit with helmet», «white astronaut suit with a helmet, visor lifted».
+Con la constante apagada, cero marcadores en las 28 corridas.
+
+Decisión: **encendida.** GPT cumple todos los umbrales; DeepSeek cumple los neutros y
+queda en el umbral en exigentes salvo con el muñeco de palitos, donde no marcar
+significa que la escena sale como hasta ahora, con la ropa base: la degradación es
+el comportamiento anterior, no uno peor. La oración `Outfit:` sigue siendo
+irregular (GPT «sin personaje» 0/2), pero la separación por «wearing…» cubre esos
+casos.
+
+### El rol también viste (2026-09-21, tras `test-7`)
+
+Con la constante encendida y el guion del astronauta, `test-7` salió sin ningún
+marcador: GPT o4-mini Ultra decidió que dentro de la estación no hace falta otra
+ropa (criterio realista) y el detective quedó sin traje. Sonda sobre las primeras 8
+escenas de ese proyecto, 2 corridas por modelo, contando escenas con marcador:
+
+| Regla               | GPT Ultra | GPT Turbo | DeepSeek V4 Flash |
+| ------------------- | --------- | --------- | ----------------- |
+| solo por situación  | 8/16      | 0/16      | 9/16              |
+| situación **o rol** | 16/16     | 16/16     | 8/16              |
+
+`SCENE_WARDROBE_RULE` suma: si el guion pone al personaje en un oficio con
+vestimenta propia (astronauta, chef, médico, bombero, soldado, buzo, piloto), ese
+atuendo aplica en todas las escenas en que actúa en ese rol, con el mismo atuendo.
+DeepSeek sigue siendo todo-o-nada por corrida; con GPT el resultado es estable.
+
+A/B corto con la regla del rol, solo encendido, 2 repeticiones
+(`ab-results-role.md`): los falsos positivos en el guion neutro no suben (GPT 0 %,
+DeepSeek 1 de 30, «comfortable home clothes» en un guion de ahorro). En exigentes GPT
+Turbo mantiene 100 % con los estilos humanos y baja a 40 % con el muñeco de palitos;
+DeepSeek oscila (20–60 %) porque sigue marcando todo o nada por corrida. Con 10
+fragmentos por celda estas cifras tienen mucha varianza: la lectura firme es que el
+rol no genera marcadores donde no hay rol.
+
+### Lo que enseñó `test-8` (oficina → playa → mar)
+
+Con DeepSeek V4 Flash, las escenas de oficina salieron con el detective de siempre y
+la del auto perfecta (camisa de lino, shorts, ojotas; gabardina y fedora en el
+asiento). Las dos del mar salieron con el detective flotando con gabardina, fedora,
+corbata y zapatos, aunque el prompt decía «wearing short-sleeved linen shirt…». Dos
+causas, corregidas:
+
+1. **La ficha trajo las dos cosas:** la frase «He is wearing a classic dark brown
+   private investigator outfit…» y, además, la oración `Outfit:` pedida. La
+   separación tomaba `Outfit:` y dejaba la frase «wearing…» dentro de la identidad
+   fija, que dice «must look exactly like this». El generador obedeció eso.
+   `splitOutfit` ahora también quita la cláusula «wearing…» de lo que queda como
+   identidad fija.
+2. **La continuidad heredaba por una sola palabra:** «khaki **shorts**» y «swim
+   **shorts**» comparten «shorts», y las escenas del mar heredaron la ropa de la
+   caminata. `wardrobesLookAlike` exige ahora que una lista contenga a la otra o que
+   compartan al menos la mitad de las prendas.
+
+Además, `signatureLookNote` pasó a ser directiva: «la ropa de esta escena REEMPLAZA
+la de su look habitual; de ese look solo se quedan las piezas que la escena no
+reemplaza (sombrero, placa, corbata, lentes, lo que lleva en la mano), y solo donde la
+escena lo permite: nunca un abrigo en el agua, nunca un sombrero bajo un casco».
 
 ## Límites conocidos
 
