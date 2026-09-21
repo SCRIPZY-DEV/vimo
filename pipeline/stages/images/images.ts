@@ -57,6 +57,7 @@ import {
   type AccountProbe,
 } from './account-probe.ts'
 import { sanitizeFinalPrompt } from '../shared/prompt-safety.ts'
+import { rescueReferencePrompt } from '../scene-prompts/verbatim/subject-weaver.ts'
 
 // Fase 5 (port de la Fase «imágenes» del orquestador + images.ts): dispatcher
 // con chokepoint único de seguridad, carril normal y carril de personaje en
@@ -681,7 +682,12 @@ async function dispatchLanes(
 
   const rescued =
     characterFailures.length > 0
-      ? await dispatchNormal(characterFailures, provider, inputs, laneOptions)
+      ? await rescueWithoutReference(
+          characterFailures,
+          provider,
+          inputs,
+          laneOptions,
+        )
       : []
 
   return mergeResults(finalScenes, [
@@ -689,6 +695,52 @@ async function dispatchLanes(
     ...normalResults,
     ...rescued,
   ])
+}
+
+// El rescate por el carril normal de las escenas que perdieron su referencia.
+// Con estilo propio el prompt guardado no trae ninguna descripción (la
+// identidad viajaba en la foto) y promete una referencia que ya no va: se le
+// teje la descripción de biblioteca SOLO para este pedido. El prompt guardado
+// no cambia: en la próxima pasada la escena vuelve a intentar con su foto, y
+// un prompt con descripción Y foto pediría dos identidades a la vez. Con
+// estilo de catálogo el prompt ya trae la identidad en texto: va tal cual.
+async function rescueWithoutReference(
+  scenes: Scene[],
+  provider: ImageProviderId,
+  inputs: GenerationInputs,
+  laneOptions: ImageLaneOptions,
+): Promise<LaneResult[]> {
+  if (!laneOptions.customStyle)
+    return dispatchNormal(scenes, provider, inputs, laneOptions)
+
+  const requestScenes = scenes.map((scene) => {
+    const identities = (scene.charactersPresent ?? [])
+      .map((index) => inputs.characters[index])
+      .filter((character) => character !== undefined)
+      .map(({ name, description }) => ({ name, description }))
+    if (!isValidPrompt(scene.imagePrompt) || identities.length === 0)
+      return scene
+    return {
+      ...scene,
+      imagePrompt: sanitizeFinalPrompt(
+        rescueReferencePrompt(scene.imagePrompt, identities),
+      ),
+    }
+  })
+  const results = await dispatchNormal(
+    requestScenes,
+    provider,
+    inputs,
+    laneOptions,
+  )
+
+  const storedPrompts = new Map(
+    scenes.map((scene) => [scene.id, scene.imagePrompt]),
+  )
+  return results.map((result) => ({
+    ...result,
+    scene: { ...result.scene, imagePrompt: storedPrompts.get(result.scene.id) },
+  }))
 }
 
 function resolveCharacterLane(

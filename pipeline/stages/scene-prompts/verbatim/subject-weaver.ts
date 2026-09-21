@@ -421,6 +421,41 @@ export function pointSubjectToImage(scenePrompt: string, name: string): string {
 }
 
 /**
+ * El prompt de una escena que PERDIÓ su imagen de referencia y se rescata por
+ * el carril normal (estilo propio). El prompt guardado promete una referencia
+ * que ya no viaja («Elena (the person from the attached reference image)»)
+ * y no trae ninguna descripción: el generador dibujaba a cualquiera. Acá se
+ * quita el ancla y se pega la descripción de biblioteca al final, como en el
+ * modo texto. Devuelve el prompt SIN las cláusulas finales: quien lo usa lo
+ * vuelve a sanear. Si ningún personaje trae descripción usable, devuelve el
+ * prompt tal cual (sin ancla).
+ */
+export function rescueReferencePrompt(
+  prompt: string,
+  identities: readonly { name: string; description: string }[],
+): string {
+  const anchor = new RegExp(
+    `\\s*\\(${REFERENCE_ANCHOR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`,
+    'g',
+  )
+  const body = bodyWithoutFinalClauses(prompt).replace(anchor, '').trim()
+  const usable = identities
+    .map(({ name, description }) => {
+      const identity =
+        descriptionFromUserPrompt(description) ||
+        fallbackUserDescription(description)
+      if (!identity) return ''
+      const trimmedName = name.trim()
+      return trimmedName ? `${trimmedName}: ${identity}` : identity
+    })
+    .filter(Boolean)
+  if (usable.length === 0) return body
+
+  const separator = /[.!?]$/.test(body) ? ' ' : '. '
+  return `${body}${separator}${DESCRIPTION_HEADER} ${usable.join(' ')}`
+}
+
+/**
  * El video NO lleva protagonista: el tag se degrada a una persona sin
  * identidad fija (ver `NEUTRAL_SUBJECT`). Red por si el modelo escribe la
  * etiqueta igual; el preámbulo ya se la prohibió.
