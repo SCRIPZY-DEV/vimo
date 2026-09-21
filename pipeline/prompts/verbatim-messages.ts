@@ -115,13 +115,17 @@ export const VERBATIM_SCENE_WARDROBE = false
 
 /**
  * La ficha de la Fase 1 termina con UNA oración «Outfit:» para que el código
- * pueda separar la identidad fija de la ropa base. Regla propia, sumada
- * entre la precedencia y la consigna portada.
+ * pueda separar la identidad fija de la MARCA del personaje: todo lo que
+ * lleva puesto o en la mano (ropa, calzado, sombrero, placa, lentes,
+ * libreta). Esa marca se queda con el personaje encima de la ropa de cada
+ * escena; lo que no se lleva (cicatrices, tatuajes, lunares) va con los
+ * rasgos. Regla propia, sumada entre la precedencia y la consigna portada.
  */
 export const CHARACTER_OUTFIT_SENTENCE_RULE =
   'FORMATO DE LA FICHA (regla tecnica de la plataforma, se suma a la consigna que sigue): ' +
-  'termina la ficha con UNA oracion final que empiece exactamente con "Outfit:" y contenga SOLO la ropa y el calzado con sus colores. ' +
-  'Los accesorios distintivos permanentes (lentes, sombrero, joyas, cicatrices) van ANTES, junto con los rasgos, nunca en esa oracion.'
+  'termina la ficha con UNA oracion final que empiece exactamente con "Outfit:" y contenga TODO lo que el personaje lleva puesto o en la mano: ' +
+  'ropa, calzado, sombrero, lentes, placa, joyas y objetos que lo caracterizan, con sus colores. ' +
+  'Lo que no se lleva puesto (cicatrices, tatuajes, lunares, barba) va ANTES, junto con los rasgos, nunca en esa oracion.'
 
 /**
  * La regla del vestuario, ULTIMA del system de la Fase 2 (modos generic,
@@ -131,17 +135,19 @@ export const CHARACTER_OUTFIT_SENTENCE_RULE =
  */
 export const SCENE_WARDROBE_RULE =
   'VESTUARIO POR ESCENA (regla tecnica de la plataforma, se suma a todo lo anterior y no cambia tu estilo): ' +
-  'la UNICA excepcion a no describir a [subject] es su ROPA. ' +
-  'SOLO cuando la situacion del fragmento exige claramente otra ropa que la habitual (playa, nieve, dormir, uniforme, deporte, epoca historica, disfraz, gala), ' +
+  'la UNICA excepcion a no describir a [subject] es lo que lleva puesto en ESA escena. ' +
+  'SOLO cuando la situacion del fragmento exige claramente otra ropa que la habitual (playa, nieve, dormir, uniforme, deporte, espacio, epoca historica, disfraz, gala), ' +
   'escribe inmediatamente despues de la etiqueta un parentesis con la forma [subject] (wearing: ...) ' +
-  '— en ingles, solo las prendas y el calzado que ESA situacion pide, con sus colores, maximo 12 palabras; ' +
+  '— en ingles, solo las prendas, el calzado y los accesorios que ESA situacion pide, con sus colores, maximo 14 palabras; ' +
   'la ropa la decide la situacion del fragmento, nunca la de un fragmento anterior ni una de ejemplo. ' +
-  'NUNCA pongas ahi cara, pelo, piel, cuerpo, edad ni accesorios: eso no cambia jamas. ' +
+  'Lo que CARACTERIZA al personaje (su sombrero, su placa, su abrigo, sus lentes, lo que lleva en la mano) se queda con el encima de esa ropa: ' +
+  'la plataforma lo agrega sola, no lo repitas. Solo si la situacion hace IMPOSIBLE una de esas cosas, dilo en el mismo parentesis (por ejemplo, un casco en lugar del sombrero). ' +
+  'NUNCA pongas ahi cara, piel, cuerpo, edad, ni el color o el largo del pelo: eso no cambia jamas. ' +
   'Si el fragmento no exige otra ropa, NO escribas el parentesis.'
 
 /** El recordatorio del vestuario en el turno del lote, después del preámbulo portado. */
 export const BATCH_WARDROBE_ADDENDUM =
-  'Ropa: solo si un fragmento exige claramente otra ropa, escribe [subject] (wearing: ...) con prendas y colores; si no, la etiqueta sola.'
+  'Ropa: solo si un fragmento exige claramente otra ropa, escribe [subject] (wearing: ...) con las prendas y accesorios de esa situacion; lo que caracteriza al personaje se queda encima; si no, la etiqueta sola.'
 
 export interface VerbatimMessageOptions {
   /** Vestuario por escena. Ausente = la constante `VERBATIM_SCENE_WARDROBE`. */

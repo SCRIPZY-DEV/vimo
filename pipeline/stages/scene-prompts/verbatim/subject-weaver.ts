@@ -24,6 +24,7 @@ import {
   DESCRIPTION_HEADER,
   DESCRIPTION_HEADER_PREFIX,
   DESCRIPTION_HEADER_WITH_WARDROBE,
+  signatureLookNote,
 } from '../../../prompts/verbatim-identity.ts'
 import type { Scene } from '../../../types/scenes.ts'
 import { bodyWithoutFinalClauses } from '../../shared/prompt-safety.ts'
@@ -251,12 +252,14 @@ const WARDROBE_MARKER_REGEX =
   /\[subject\]\s*\((?:wearing|outfit|clothes|clothing)\s*:\s*([^)]{3,160})\)/gi
 
 /**
- * Lo que un marcador NO puede traer: nada que no sea ropa. Si trae alguna de
- * estas palabras se descarta entero (y se avisa): mejor la ropa base que un
- * personaje con otra cara.
+ * Lo que un marcador NO puede traer: nada que no se lleve puesto. Cara, piel,
+ * cuerpo, edad, el color y el largo del pelo y las marcas permanentes están
+ * fijos; si el marcador trae alguna de estas palabras se descarta entero (y
+ * se avisa): mejor la ropa base que un personaje con otra cara. Sombrero,
+ * lentes y demás accesorios SÍ pueden ir (un casco en lugar del sombrero).
  */
 const WARDROBE_FORBIDDEN_REGEX =
-  /\b(?:hair|haircut|face|facial|eyes?|skin|body|build|beard|m(?:ou|u)stache|age|aged|years?[- ]old|head|nose|freckles|glasses|tattoos?|scars?)\b/i
+  /\b(?:face|facial|eyes?|skin|body|build|beard|m(?:ou|u)stache|age|aged|years?[- ]old|nose|freckles|tattoos?|scars?|blonde?|brunette|redhead|ginger|bald|dyed|haircut|hair colou?r|(?:long|short|curly|straight|wavy) hair)\b/i
 
 export interface WardrobeExtraction {
   /** El prompt con los paréntesis quitados (la etiqueta queda). */
@@ -526,16 +529,21 @@ export function weaveSubject(
   ).trimEnd()
   const separator = /[.!?]$/.test(base) ? ' ' : '. '
 
-  // Con ropa de escena, la descripción viaja SIN su ropa base (para que el
-  // prompt no pida dos ropas); si no se puede partir, viaja entera bajo el
-  // encabezado que le da prioridad a la ropa de la escena.
+  // Con ropa de escena, la descripción viaja partida: la identidad fija bajo
+  // el encabezado de siempre y la MARCA del personaje (su ropa base, su
+  // sombrero, su placa) como algo que se queda encima de la ropa de la escena
+  // mientras la escena lo permita. Si no se puede partir, viaja entera bajo
+  // el encabezado que le da prioridad a la ropa de la escena y conserva los
+  // accesorios.
   const split = wardrobe ? splitOutfit(identity) : undefined
-  const header =
-    wardrobe && !split?.outfit
-      ? DESCRIPTION_HEADER_WITH_WARDROBE
-      : DESCRIPTION_HEADER
-  const woven = split?.outfit ? split.core : identity
-  const finalIdentity = /[.!?]$/.test(woven) ? woven : `${woven}.`
+  if (split?.outfit) {
+    const core = /[.!?]$/.test(split.core) ? split.core : `${split.core}.`
+    return `${base}${separator}${DESCRIPTION_HEADER} ${core} ${signatureLookNote(split.outfit)}`
+  }
+  const header = wardrobe
+    ? DESCRIPTION_HEADER_WITH_WARDROBE
+    : DESCRIPTION_HEADER
+  const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
   return `${base}${separator}${header} ${finalIdentity}`
 }
 

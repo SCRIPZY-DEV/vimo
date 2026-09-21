@@ -95,7 +95,7 @@ export function buildCustomStyleReferencePrompt(
 // referencia.
 function lockedTraits(sceneWardrobe: boolean): string {
   return sceneWardrobe
-    ? 'same face, same skin tone, same hair, same distinctive accessories; the clothing is what this scene describes when it specifies it, otherwise the outfit of the reference'
+    ? "same face, same skin tone, same hair; when this scene describes other clothing, that clothing replaces the reference's, and the reference's signature hat, badge, coat and accessories stay on top of it wherever the scene allows it; otherwise the exact outfit of the reference"
     : 'same face, same skin tone, same hair, same distinctive accessories, same outfit'
 }
 
