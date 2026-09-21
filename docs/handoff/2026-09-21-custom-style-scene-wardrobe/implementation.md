@@ -8,10 +8,9 @@
   largo del pelo, contextura y marcas permanentes. Solo se deja afuera lo que la
   escena hace imposible, y el modelo lo dice en el marcador («a white space suit and a
   helmet instead of the fedora»). El catálogo no se toca.
-- **Estado:** código completo, detrás de la constante `VERBATIM_SCENE_WARDROBE`
-  (**apagada**). Con la constante apagada, todos los prompts son byte-idénticos a
-  los de antes. **Se enciende recién después del A/B con claves reales** que se
-  describe abajo.
+- **Estado:** código completo, detrás de la constante `VERBATIM_SCENE_WARDROBE`,
+  **encendida el 2026-09-21** tras el tercer A/B (abajo). Apagarla vuelve a los
+  prompts anteriores byte por byte.
 - **Contexto:** cuarto PR del plan que empezó con
   [style-character-video](../../fixes/2026-09-19-fix-style-character-video/style-character-video.md).
 
@@ -210,9 +209,29 @@ vista de astronauta. Cambios:
 - Candado con foto: la ropa de la escena reemplaza a la de la referencia, y el
   sombrero, la placa, el abrigo y los accesorios de la referencia se quedan encima.
 
-Pendiente: repetir el A/B con estas reglas antes de encender la constante. El
-guion exigente de la matriz ya cubre el caso espacial si se le agrega un fragmento
-de astronauta.
+### A/B final con la marca del personaje (`ab-results-signature.md`)
+
+56 corridas: 3 estilos × 2 guiones (el exigente ahora con un fragmento de astronauta)
+× 2 modelos × apagado/encendido × 2 repeticiones.
+
+| Criterio                                | GPT o4-mini Turbo | DeepSeek V4 Flash                                           |
+| --------------------------------------- | ----------------- | ----------------------------------------------------------- |
+| Marcador en fragmentos exigentes (≥70%) | 100 / 90 / 100%   | 70 / 70 / **30%** (el 30 % es el muñeco de palitos)         |
+| Marcador en fragmentos neutros (≤5%)    | 0%                | 1 de 30 (3 %): «simple black pajamas» en un guion de ahorro |
+| Marcadores descartados                  | 0                 | 0                                                           |
+| Fichas incrustadas / escenas faltantes  | 0 / 0             | 0 / 0                                                       |
+| Fragmento del astronauta marcado        | 6/6               | 5/6                                                         |
+
+Los marcadores del espacio salieron como se buscaba: «astronaut suit, helmet»,
+«white spacesuit with helmet», «white astronaut suit with a helmet, visor lifted».
+Con la constante apagada, cero marcadores en las 28 corridas.
+
+Decisión: **encendida.** GPT cumple todos los umbrales; DeepSeek cumple los neutros y
+queda en el umbral en exigentes salvo con el muñeco de palitos, donde no marcar
+significa que la escena sale como hasta ahora, con la ropa base: la degradación es
+el comportamiento anterior, no uno peor. La oración `Outfit:` sigue siendo
+irregular (GPT «sin personaje» 0/2), pero la separación por «wearing…» cubre esos
+casos.
 
 ## Límites conocidos
 
