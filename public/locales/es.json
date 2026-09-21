@@ -479,6 +479,7 @@
       "llmProviderError": "El servicio de IA devolvió un error.",
       "imageNetwork": "No pudimos llegar al proveedor de imágenes.",
       "imageInvalidApiKey": "Tu clave del proveedor de imágenes no es válida.",
+      "imageAccountRejected": "Tu cuenta del proveedor de imágenes rechazó el pedido. Revisá en su panel que la cuenta esté activa, con saldo y con permiso para generar imágenes. Lo generado hasta acá se conserva.",
       "imageProviderError": "El proveedor de imágenes devolvió un error.",
       "imageContentPolicy": "El proveedor rechazó una imagen por su política de contenido.",
       "imageTimeout": "Una imagen tardó demasiado. Si el proveedor la termina, se aprovecha sin costo extra.",

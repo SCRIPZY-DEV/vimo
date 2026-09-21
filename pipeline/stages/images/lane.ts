@@ -10,6 +10,7 @@ import type { ImageProviderId } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { VideoFormat } from '../../types/video-format.ts'
 import { writeFileAtomic } from '../../utils/atomic-fs.ts'
+import type { AccountProbe } from './account-probe.ts'
 
 // Contrato común de los carriles de imagen (normal Fal/Evolink y personaje):
 // eventos por escena, flags de regeneración y utilidades compartidas.
@@ -37,6 +38,10 @@ export interface ImageLaneOptions {
   // nota que acompaña a la referencia (REFERENCE + escena + APPEARANCE LOCK)
   // en vez de la línea de identidad del catálogo. El carril normal lo ignora.
   customStyle: boolean
+  // A quién preguntarle qué le pasa a la CUENTA cuando el proveedor rechaza
+  // con un status ambiguo (saldo, clave o algo de esa escena). Una por
+  // corrida: todas las pasadas y carriles comparten la misma lectura.
+  accountProbe: AccountProbe
 }
 
 export interface LaneResult {

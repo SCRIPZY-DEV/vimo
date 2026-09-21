@@ -479,6 +479,7 @@
       "llmProviderError": "The AI service returned an error.",
       "imageNetwork": "We couldn't reach the image provider.",
       "imageInvalidApiKey": "Your image provider key is not valid.",
+      "imageAccountRejected": "Your image provider account refused the request. Check in its dashboard that the account is active, has balance and is allowed to generate images. Everything generated so far is kept.",
       "imageProviderError": "The image provider returned an error.",
       "imageContentPolicy": "The provider rejected an image under its content policy.",
       "imageTimeout": "An image took too long. If the provider finishes it, we reuse it at no extra cost.",
