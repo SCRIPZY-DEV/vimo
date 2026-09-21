@@ -30,8 +30,36 @@ export function isInsufficientCreditsFailure(
 // 402 es inequívoco; con otros status (Fal devuelve 403 con detalle de
 // balance, DubVoice 403/400) manda el cuerpo. Un 429 nunca es saldo: es
 // «esperá», y se trata aparte.
-export const INSUFFICIENT_CREDITS_BODY_PATTERN =
-  /insufficient[ _-]?(credits?|balance|funds|quota)|not enough (credits?|balance|funds)|balance (is )?(too low|exhausted|insufficient|depleted)|out of credits|credits? (exhausted|depleted)|payment required|exhausted your (credits?|balance)|top[ -]?up|recharge your/i
+//
+// Las alternativas del segundo renglón en adelante son redacciones de GATEWAY
+// (Evolink revende modelos detrás de uno): «insufficient user quota»,
+// «balance is not enough», «exhausted balance», «user is locked», el
+// `pre_consume_token_quota_failed` de la familia one-api y sus textos en
+// chino. Son redacciones esperables, NO el cuerpo medido de Evolink sin saldo
+// (no hay una clave sin saldo para medirlo): por eso este patrón es solo la
+// primera red — la que no depende del texto es la sonda de cuenta de la fase
+// de imágenes (`stages/images/account-probe.ts`).
+export const INSUFFICIENT_CREDITS_BODY_PATTERN = new RegExp(
+  [
+    'insufficient[ _-]?(credits?|balance|funds|quota)',
+    'not enough (credits?|balance|funds)',
+    'balance (is )?(too low|exhausted|insufficient|depleted)',
+    'out of credits',
+    'credits? (exhausted|depleted)',
+    'payment required',
+    'exhausted your (credits?|balance)',
+    'top[ -]?up',
+    'recharge your',
+    'insufficient[ _-]?(user|account|token)[ _-]?(quota|balance|credits?|funds)',
+    '(balance|credits?|quota) (is |are )?(not enough|not sufficient|used up|empty)',
+    'exhausted (your )?(balance|credits?|quota)',
+    'no (remaining |available )?(credits?|balance)',
+    'user is locked',
+    'pre[ _-]?consume',
+    '余额不足|额度不足|积分不足',
+  ].join('|'),
+  'i',
+)
 
 export function isInsufficientCreditsResponse(
   status: number,
@@ -49,6 +77,9 @@ export const INSUFFICIENT_TASK_ERROR_CODES: ReadonlySet<string> = new Set([
   'resource_exhausted',
   'insufficient_credits',
   'insufficient_balance',
+  'insufficient_quota',
+  'insufficient_user_quota',
+  'pre_consume_token_quota_failed',
 ])
 
 export function isInsufficientTaskError(

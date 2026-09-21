@@ -677,6 +677,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Imágenes
   image_network: 'create.errors.imageNetwork',
   image_invalid_api_key: 'create.errors.imageInvalidApiKey',
+  image_account_rejected: 'create.errors.imageAccountRejected',
   image_provider_error: 'create.errors.imageProviderError',
   image_task_not_found: 'create.errors.imageProviderError',
   image_content_policy: 'create.errors.imageContentPolicy',

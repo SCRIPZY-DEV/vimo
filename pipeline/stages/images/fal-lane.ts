@@ -19,6 +19,7 @@ import { IMAGE_MODEL } from '../../types/image-provider.ts'
 import type { FalImageResponse } from '../../types/images.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { VideoFormat } from '../../types/video-format.ts'
+import { isImageAccountFailure, resolveAuthRejection } from './account-probe.ts'
 import {
   cachedImagePath,
   saveImageToFile,
@@ -143,14 +144,17 @@ export async function generateSceneWithFal(
           `Fal rejected scene ${scene.id} for insufficient balance (status=${response.status}) ${detail}`,
         )
 
-      if (response.status === 401 || response.status === 403) {
-        options.events.onFailed(
-          scene.id,
-          'image_invalid_api_key',
-          `status=${response.status}`,
-        )
-        return { scene, imageReady: false }
-      }
+      // 401/403: es de la CUENTA, no de esta escena — corta la fase en vez
+      // de marcar la escena y repetir el rechazo en las demás. La sonda
+      // distingue saldo agotado de clave inválida sin depender del texto.
+      if (response.status === 401 || response.status === 403)
+        throw await resolveAuthRejection({
+          probe: options.accountProbe,
+          provider: 'fal',
+          apiKey,
+          status: response.status,
+          detail,
+        })
 
       if (
         response.status === 429 ||
@@ -192,7 +196,8 @@ export async function generateSceneWithFal(
       await sleep(2000, options.signal)
     } catch (error) {
       if (options.signal.aborted) return { scene, imageReady: false }
-      if (isInsufficientCreditsFailure(error)) throw error
+      if (isInsufficientCreditsFailure(error) || isImageAccountFailure(error))
+        throw error
       // Descarga fallida u otro transitorio: reintentar; agotado → error.
       if (attempt === MAX_ATTEMPTS) {
         const code =

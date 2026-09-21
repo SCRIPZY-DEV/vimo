@@ -96,6 +96,37 @@ con motivo.
   reintentar ese código; un módulo que gasta debe frenar con `compareCostLines` o una
   `CreditsShortfallLine` y ofrecer `openBillingPage`.
 
+### Adenda 2026-09-19 — la sonda de cuenta y los fallos de cuenta terminales
+
+El riesgo anotado arriba se cumplió peor de lo previsto. El saldo se evalúa antes que
+el 401/403, pero con un TEXTO que el patrón no reconoce el rechazo sí caía en «clave
+inválida» (`image_invalid_api_key`), y los carriles de imagen marcaban ese código
+escena por escena y seguían. Corrían las 4 pasadas de recuperación y el job moría en
+`images_incomplete`: celdas rojas y ningún aviso de recargar. Reporte real con
+Evolink: clave válida, sin saldo.
+
+- **La sonda de cuenta** (`pipeline/stages/images/account-probe.ts`) no depende del
+  texto. Ante un 401/403, o ante un 4xx de Evolink en el primer intento de crear, le
+  pregunta el saldo al proveedor una vez por corrida: `getEvolinkCredits` o
+  `getFalCredits`, con la promesa compartida entre todas las escenas. Saldo leído en
+  cero → `image_insufficient_credits`, que sigue el camino de siempre (pausa
+  retomable y tarjeta de recarga). `EvolinkCredits.balanceReported` evita leer como
+  cero una respuesta que no trae el campo.
+- **Un 401/403 es de la cuenta, nunca de una escena:** corta la fase. Si la sonda
+  también rechaza la clave, o es un 401 y el saldo no se pudo leer, el fallo es
+  `image_invalid_api_key`. En el resto de los casos es el código nuevo
+  `image_account_rejected` (`create.errors.imageAccountRejected`). Con Fal la sonda
+  nunca concluye «clave inválida», porque su billing exige una key ADMIN.
+- **Detección ampliada:** el patrón suma redacciones de gateway y los códigos de
+  tarea `insufficient_quota`, `insufficient_user_quota` y
+  `pre_consume_token_quota_failed`. Evolink lee el cuerpo también en el poll con
+  401/403, en un 2xx sin id de tarea y en la subida de la referencia, y clasifica
+  sobre 4.000 caracteres del cuerpo en vez de 300.
+
+El cuerpo real de Evolink sin saldo sigue sin medirse. Las redacciones del patrón son
+supuestos razonables; la red que no depende de ellas es la sonda.
+Ver [causa, implementación y QA](../fixes/2026-09-19-fix-image-account-failures/image-account-failures.md).
+
 ## Verificación de cumplimiento
 
 - **Guards:** `pnpm build` (tipos del contrato compartidos por `import type`:
@@ -109,7 +140,11 @@ con motivo.
 - **Cómo se vería una regresión:** un 402 que vuelve a mostrarse como
   `imageProviderError` con cuenta regresiva de reintento; un proyecto con saldo
   agotado listado como «Error» y abierto en el player; Crear arrancando con saldo
-  leído en cero.
+  leído en cero. Y desde la adenda 2026-09-19: una generación que termina en
+  `images_incomplete` con todas las celdas en rojo y el log lleno de
+  `scene N image failed: image_invalid_api_key`; más de un pedido a `/v1/credits` por
+  corrida; o pedidos de imagen que siguen saliendo después del primer 401/403.
+- **Regresión automática:** `node --test scripts/test/check-image-account-failures.mjs`.
 
 ## Fuera de alcance
 

@@ -51,6 +51,11 @@ import {
 } from './character-lane.ts'
 import { IMAGE_LANES } from './lanes.ts'
 import type { ImageLaneEvents, ImageLaneOptions, LaneResult } from './lane.ts'
+import {
+  createAccountProbe,
+  isImageAccountFailure,
+  type AccountProbe,
+} from './account-probe.ts'
 import { sanitizeFinalPrompt } from '../shared/prompt-safety.ts'
 
 // Fase 5 (port de la Fase «imágenes» del orquestador + images.ts): dispatcher
@@ -138,6 +143,9 @@ export const imagesStage: Stage<CreateVideoContext> = {
 
     const generation: GenerationInputs = {
       context,
+      // Una sonda por corrida: la primera pasada y las de recuperación
+      // comparten la misma lectura de saldo.
+      accountProbe: createAccountProbe(context.signal),
       style,
       characters,
       promptCharacters,
@@ -154,7 +162,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // pasadas de recuperación, como sí pasa en el origen.
     const targets = new Set(context.regenerateSceneIds ?? [])
     const produced = new Set<number>()
-    const events = laneEvents(context, produced)
+    // El último código de fallo de cada escena: si la fase termina incompleta,
+    // el mensaje dice CUÁL fue el motivo dominante en vez de solo los ids.
+    const lastFailureCodes = new Map<number, string>()
+    const events = laneEvents(context, produced, lastFailureCodes)
     const isReady = (sceneId: number, withFile: Set<number>) =>
       withFile.has(sceneId) && (!targets.has(sceneId) || produced.has(sceneId))
 
@@ -305,7 +316,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     if (stillMissing.length > 0)
       throw new PipelineFailure(
         'images_incomplete',
-        `scenes without image after ${MAX_RECOVERY_PASSES} passes: ${stillMissing.join(', ')}`,
+        `scenes without image after ${MAX_RECOVERY_PASSES} passes: ${stillMissing.join(', ')} (most frequent failure: ${dominantFailureCode(stillMissing, lastFailureCodes)})`,
       )
 
     return undefined
@@ -331,6 +342,7 @@ function applyProjectImageDefaults(
 
 interface GenerationInputs {
   context: CreateVideoContext
+  accountProbe: AccountProbe
   style: (typeof VISUAL_STYLES)[keyof typeof VISUAL_STYLES]
   characters: { name: string; description: string; imageDataUri?: string }[]
   promptCharacters: { name: string; description: string }[]
@@ -339,12 +351,35 @@ interface GenerationInputs {
   imageTextLanguage: string
 }
 
+// El código de fallo que más se repite entre las escenas que quedaron sin
+// imagen. Solo diagnóstico: va en el mensaje del job, no decide nada.
+function dominantFailureCode(
+  sceneIds: number[],
+  lastFailureCodes: Map<number, string>,
+): string {
+  const counts = new Map<string, number>()
+  for (const sceneId of sceneIds) {
+    const code = lastFailureCodes.get(sceneId)
+    if (code) counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+
+  let dominant = 'unknown'
+  let dominantCount = 0
+  for (const [code, count] of counts) {
+    if (count <= dominantCount) continue
+    dominant = code
+    dominantCount = count
+  }
+  return dominant
+}
+
 // `produced` acumula las escenas que salieron con imagen en este job. El
 // motivo técnico de cada fallo viaja en el evento y se loguea en warn: la
 // UI muestra el código traducido y la terminal/harness conservan el detalle.
 function laneEvents(
   context: CreateVideoContext,
   produced: Set<number>,
+  lastFailureCodes: Map<number, string>,
 ): ImageLaneEvents {
   const lastProgressAt = new Map<number, number>()
   // Último % emitido por escena: el avance de una imagen es monótono por
@@ -364,6 +399,7 @@ function laneEvents(
       context.emitter.emit({ type: 'scene-image-ready', sceneId, imagePath })
     },
     onFailed(sceneId, code, detail) {
+      lastFailureCodes.set(sceneId, code)
       context.emitter.emit({
         type: 'scene-image-failed',
         sceneId,
@@ -506,14 +542,17 @@ async function generateImages(
     }
   })
 
-  // Saldo agotado en cualquier carril: se cortan los que siguen en vuelo (no
-  // piden más imágenes que fallarían igual) y el job cae con el código; lo
-  // ya bajado queda en disco como cache-hit para reanudar (ADR-0029).
-  const creditsAbort = new AbortController()
+  // Saldo agotado o cuenta rechazada en cualquier carril: se cortan los que
+  // siguen en vuelo (no piden más imágenes que fallarían igual) y el job cae
+  // con el código; lo ya bajado queda en disco como cache-hit para reanudar
+  // (ADR-0029). Es un fallo de la CUENTA, no de una escena: seguir escena por
+  // escena solo lo repetía hasta morir en un `images_incomplete` mudo.
+  const accountAbort = new AbortController()
   const laneOptions: ImageLaneOptions = {
     customStyle: Boolean(context.options.customStyle),
     paths: context.paths,
-    signal: AbortSignal.any([context.signal, creditsAbort.signal]),
+    signal: AbortSignal.any([context.signal, accountAbort.signal]),
+    accountProbe: inputs.accountProbe,
     events,
     forceRegenerate,
     // ÚNICO bypass de la cosecha de una tarea ya pagada: los ids que el
@@ -525,7 +564,8 @@ async function generateImages(
   try {
     return await dispatchLanes(finalScenes, inputs, laneOptions)
   } catch (error) {
-    if (isInsufficientCreditsFailure(error)) creditsAbort.abort()
+    if (isInsufficientCreditsFailure(error) || isImageAccountFailure(error))
+      accountAbort.abort()
     throw error
   }
 }

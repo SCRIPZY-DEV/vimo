@@ -23,6 +23,7 @@ import {
 } from '../../utils/insufficient-credits.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { sleep } from '../../utils/sleep.ts'
+import { isImageAccountFailure, resolveAuthRejection } from './account-probe.ts'
 import { generateSceneWithEvolink } from './evolink-lane.ts'
 import {
   cachedImagePath,
@@ -157,6 +158,17 @@ async function generateSceneWithFalEdit(
           `Fal rejected scene ${scene.id} (references) for insufficient balance (status=${response.status}) ${signalText}`,
         )
 
+      // 401/403: la cuenta, no la escena. Sin esto se gastaban los intentos
+      // y la escena «caía» al carril normal, donde el rechazo se repetía.
+      if (response.status === 401 || response.status === 403)
+        throw await resolveAuthRejection({
+          probe: options.accountProbe,
+          provider: 'fal',
+          apiKey,
+          status: response.status,
+          detail: signalText,
+        })
+
       if (
         response.status === 429 ||
         errorType === 'concurrent_requests_limit'
@@ -177,7 +189,8 @@ async function generateSceneWithFalEdit(
       await sleep(2000 * attempt, options.signal)
     } catch (error) {
       if (options.signal.aborted) return { scene, imageReady: false }
-      if (isInsufficientCreditsFailure(error)) throw error
+      if (isInsufficientCreditsFailure(error) || isImageAccountFailure(error))
+        throw error
       if (attempt === FAL_MAX_ATTEMPTS) return { scene, imageReady: false }
       await sleep(2000 * attempt, options.signal)
     } finally {
