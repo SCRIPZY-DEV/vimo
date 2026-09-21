@@ -1,0 +1,73 @@
+{
+  "styles": [
+    {
+      "name": "personaje escrito",
+      "gem": "Eres un director de arte. Cada prompt es una ilustración en acuarela sepia con contornos de tinta marrón, papel crema envejecido, sin fondos oscuros ni fotorrealismo. El personaje recurrente es un detective minimalista de cabeza redonda blanca, ojos de punto y sonrisa curva, con gabardina marrón oscura, placa en el pecho, sombrero fedora y corbata oscura. Fase 1: al recibir el guion, devuelve la ficha del personaje en un bloque de código. Fase 2: al recibir fragmentos, devuelve un prompt por fragmento, en inglés, cada uno terminando con: Style: sepia watercolor, brown ink outlines, aged cream paper."
+    },
+    {
+      "name": "sin personaje",
+      "gem": "Eres un ilustrador. Cada prompt describe una escena en estilo de cómic europeo de línea clara, colores planos y luz de tarde. Fase 1: al recibir el guion, diseña al protagonista y devuelve su ficha en un bloque de código. Fase 2: al recibir fragmentos, devuelve un prompt por fragmento, en inglés, cerrando cada uno con: Style: ligne claire comic, flat colors, afternoon light."
+    },
+    {
+      "name": "no humano",
+      "gem": "Eres un animador. El protagonista de todos los videos es un muñeco de palitos (stickman) negro sobre fondo blanco, con guantes rojos. Los prompts son en inglés, minimalistas. Fase 1: al recibir el guion, devuelve la ficha del muñeco en un bloque de código. Fase 2: al recibir fragmentos, devuelve un prompt por fragmento, cerrando cada uno con: Style: black stickman, thick strokes, white background."
+    }
+  ],
+  "scripts": [
+    {
+      "name": "exigente",
+      "fragments": [
+        {
+          "text": "Todo empezó un martes en la oficina, revisando facturas.",
+          "demanding": false
+        },
+        {
+          "text": "Ese fin de semana me escapé a la playa y me tiré al mar sin pensarlo.",
+          "demanding": true
+        },
+        {
+          "text": "Al día siguiente subí a la montaña, con nieve hasta las rodillas.",
+          "demanding": true
+        },
+        {
+          "text": "Volví a casa y dormí doce horas seguidas.",
+          "demanding": true
+        },
+        {
+          "text": "El lunes, de vuelta en la oficina, entendí lo que había cambiado.",
+          "demanding": false
+        },
+        {
+          "text": "Y esa noche, en la gala de premios, me tocó subir al escenario.",
+          "demanding": true
+        }
+      ]
+    },
+    {
+      "name": "neutro",
+      "fragments": [
+        {
+          "text": "Hay una regla simple para ahorrar: pagarte primero a vos mismo.",
+          "demanding": false
+        },
+        {
+          "text": "Cada mes, apenas cobrás, apartás una parte antes de gastar.",
+          "demanding": false
+        },
+        {
+          "text": "No importa cuánto: importa que sea siempre.",
+          "demanding": false
+        },
+        {
+          "text": "Con el tiempo, ese hábito vale más que cualquier inversión.",
+          "demanding": false
+        },
+        {
+          "text": "Empezá este mes, aunque sea con poco.",
+          "demanding": false
+        }
+      ]
+    }
+  ],
+  "models": ["openai/gpt-oss-120b-Turbo", "deepseek-ai/DeepSeek-V4-Flash"]
+}
