@@ -60,17 +60,20 @@ export function buildReferenceIdentityLineMulti(
   )
 }
 
-// Con ESTILO PROPIO la nota es otra (port byte a byte de
-// promptReferenciaEstiloPropio, personaje_fal.ts v1.48.2 del origen): la línea
-// REFERENCE arriba, el prompt de la escena en el medio y el «APPEARANCE LOCK»
-// abajo como un único párrafo. No lleva el formato del video: con gema el
-// 16:9 / 9:16 viaja solo en el tamaño del pedido. El ancla del nombre DENTRO
-// del prompt («X (the person from the attached reference image)») no la pone
-// esta función: la teje el carril verbatim en la primera mención de cada
-// escena. Con dos referencias el texto nombra y protege solo a la primera,
-// igual que allá (desde la UI no se llega: con gema el selector acepta una).
-// El fragmento «Apply the scene's art style only to the surroundings» es el
-// marcador que el origen busca en su bundle; no reformular.
+// Con ESTILO PROPIO la nota es otra (port de promptReferenciaEstiloPropio,
+// personaje_fal.ts v1.48.2 del origen): la línea REFERENCE arriba, el prompt
+// de la escena en el medio y el «APPEARANCE LOCK» abajo como un único párrafo.
+// No lleva el formato del video: con gema el 16:9 / 9:16 viaja solo en el
+// tamaño del pedido. El ancla del nombre DENTRO del prompt («X (the person
+// from the attached reference image)») no la pone esta función: la teje el
+// carril verbatim en la primera mención de cada escena.
+//
+// Desviación DECLARADA del port (2026-09-19): el candado suma «same skin tone»
+// y «same distinctive accessories». El catálogo ancló el tono de piel en el
+// fix del 2026-09-18 (el generador lo aclaraba con la luz de la escena) y el
+// estilo propio se había quedado sin ese ancla. El fragmento «Apply the
+// scene's art style only to the surroundings» es el marcador que el origen
+// busca en su bundle; no reformular.
 export function buildCustomStyleReferencePrompt(
   name: string,
   scenePrompt: string,
@@ -79,8 +82,33 @@ export function buildCustomStyleReferencePrompt(
   return (
     `REFERENCE: the attached image is "${trimmedName}", the main character of this video.\n\n` +
     `${scenePrompt.trim()}\n\n` +
-    `APPEARANCE LOCK: ${trimmedName} must look exactly like the person in the attached reference image: same face, same hair, same outfit, in EVERY shot, even when ${trimmedName} appears small or far away. ` +
+    `APPEARANCE LOCK: ${trimmedName} must look exactly like the person in the attached reference image: same face, same skin tone, same hair, same distinctive accessories, same outfit, in EVERY shot, even when ${trimmedName} appears small or far away. ` +
     `Apply the scene's art style only to the surroundings, never to ${trimmedName}. ` +
     `Ignore the reference image's background: place ${trimmedName} naturally in the scene, matching its lighting and perspective.`
+  )
+}
+
+// Para 1 nombre devuelve EXACTAMENTE la nota simple; para 2, cada imagen
+// adjunta (en orden) es su personaje y el candado protege a los dos. Antes el
+// texto nombraba y protegía solo al primero, y el editor SÍ arma grupos con
+// dos fotos (`editorCharacterInput`): el segundo salía con otra cara.
+export function buildCustomStyleReferencePromptMulti(
+  names: string[],
+  scenePrompt: string,
+): string {
+  const cleaned = names.map((name) => name.trim()).filter(Boolean)
+  if (cleaned.length <= 1)
+    return buildCustomStyleReferencePrompt(cleaned[0] ?? '', scenePrompt)
+
+  const list = cleaned
+    .map((name, index) => `attached image ${index + 1} is "${name}"`)
+    .join('; ')
+  const joinedNames = cleaned.join(' and ')
+  return (
+    `REFERENCE: ${list}, the main characters of this video.\n\n` +
+    `${scenePrompt.trim()}\n\n` +
+    `APPEARANCE LOCK: ${joinedNames} must each look exactly like the person in their OWN attached reference image: same face, same skin tone, same hair, same distinctive accessories, same outfit, in EVERY shot, even when they appear small or far away. ` +
+    `Apply the scene's art style only to the surroundings, never to ${joinedNames}. ` +
+    `Ignore the reference images' backgrounds: place ${joinedNames} naturally in the scene, matching its lighting and perspective.`
   )
 }

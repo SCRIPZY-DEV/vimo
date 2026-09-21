@@ -1,5 +1,5 @@
 import {
-  buildCustomStyleReferencePrompt,
+  buildCustomStyleReferencePromptMulti,
   buildReferenceIdentityLineMulti,
 } from '../../prompts/character-reference.ts'
 import { sceneImageFile } from '../../project/paths.ts'
@@ -47,8 +47,8 @@ export interface CharacterReference {
 
 // El texto que acompaña a las referencias. Catálogo: la línea de identidad
 // (una o dos personas, con el formato) DELANTE del prompt de la escena.
-// Estilo propio: REFERENCE + escena + APPEARANCE LOCK, nombrando solo a la
-// primera referencia (paridad con el origen, `opts.estiloPropio`).
+// Estilo propio: REFERENCE + escena + APPEARANCE LOCK, con todas las
+// referencias nombradas y protegidas.
 function referencePromptFor(
   references: CharacterReference[],
   format: VideoFormat,
@@ -57,7 +57,7 @@ function referencePromptFor(
   const names = references.map((reference) => reference.name)
   if (customStyle)
     return (scenePrompt) =>
-      buildCustomStyleReferencePrompt(names[0] ?? '', scenePrompt)
+      buildCustomStyleReferencePromptMulti(names, scenePrompt)
 
   const identityLine = buildReferenceIdentityLineMulti(names, format)
   return (scenePrompt) => identityLine + scenePrompt
