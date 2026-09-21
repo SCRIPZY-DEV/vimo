@@ -479,6 +479,7 @@
       "llmProviderError": "O serviço de IA retornou um erro.",
       "imageNetwork": "Não conseguimos alcançar o provedor de imagens.",
       "imageInvalidApiKey": "Sua chave do provedor de imagens não é válida.",
+      "imageAccountRejected": "Sua conta do provedor de imagens recusou o pedido. Confira no painel dela se a conta está ativa, com saldo e com permissão para gerar imagens. O que foi gerado até aqui é preservado.",
       "imageProviderError": "O provedor de imagens retornou um erro.",
       "imageContentPolicy": "O provedor rejeitou uma imagem pela política de conteúdo.",
       "imageTimeout": "Uma imagem demorou demais. Se o provedor terminar, aproveitamos sem custo extra.",
