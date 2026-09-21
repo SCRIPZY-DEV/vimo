@@ -233,6 +233,23 @@ el comportamiento anterior, no uno peor. La oración `Outfit:` sigue siendo
 irregular (GPT «sin personaje» 0/2), pero la separación por «wearing…» cubre esos
 casos.
 
+### El rol también viste (2026-09-21, tras `test-7`)
+
+Con la constante encendida y el guion del astronauta, `test-7` salió sin ningún
+marcador: GPT o4-mini Ultra decidió que dentro de la estación no hace falta otra
+ropa (criterio realista) y el detective quedó sin traje. Sonda sobre las primeras 8
+escenas de ese proyecto, 2 corridas por modelo, contando escenas con marcador:
+
+| Regla               | GPT Ultra | GPT Turbo | DeepSeek V4 Flash |
+| ------------------- | --------- | --------- | ----------------- |
+| solo por situación  | 8/16      | 0/16      | 9/16              |
+| situación **o rol** | 16/16     | 16/16     | 8/16              |
+
+`SCENE_WARDROBE_RULE` suma: si el guion pone al personaje en un oficio con
+vestimenta propia (astronauta, chef, médico, bombero, soldado, buzo, piloto), ese
+atuendo aplica en todas las escenas en que actúa en ese rol, con el mismo atuendo.
+DeepSeek sigue siendo todo-o-nada por corrida; con GPT el resultado es estable.
+
 ## Límites conocidos
 
 - La ropa puede variar entre lotes paralelos (la continuidad solo mira la escena
