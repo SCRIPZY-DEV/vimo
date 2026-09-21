@@ -1,9 +1,13 @@
 # Vestuario por escena en «Mi estilo» — estado de la implementación
 
 - **Fecha:** 2026-09-21
-- **Decisión de producto:** en un estilo propio el personaje se adapta a la escena
-  **solo en la ropa**; rostro, pelo, piel, contextura y accesorios distintivos
-  quedan fijos. El catálogo no se toca.
+- **Decisión de producto (revisada el 2026-09-21):** en un estilo propio la escena
+  pone la ropa, pero **lo que caracteriza al personaje se queda encima** mientras la
+  escena lo permita: un detective que va al espacio lleva la placa en el traje y la
+  gabardina encima; el fedora, hasta que hay casco. Fijos siempre: cara, piel, color y
+  largo del pelo, contextura y marcas permanentes. Solo se deja afuera lo que la
+  escena hace imposible, y el modelo lo dice en el marcador («a white space suit and a
+  helmet instead of the fedora»). El catálogo no se toca.
 - **Estado:** código completo, detrás de la constante `VERBATIM_SCENE_WARDROBE`
   (**apagada**). Con la constante apagada, todos los prompts son byte-idénticos a
   los de antes. **Se enciende recién después del A/B con claves reales** que se
@@ -179,6 +183,36 @@ Proportions:» del rol y no cortar en una coma que deja un adjetivo colgado. Se 
 constante, y confirmar con imágenes reales. Si además se amplía lo que cambia con
 la escena (accesorios, peinado), la regla cambia de nuevo y el A/B se repite
 después de eso.
+
+## La marca del personaje (revisión del 2026-09-21)
+
+La primera versión dejaba la ropa base fuera del prompt cuando la escena traía la
+suya. El usuario pidió lo contrario para los accesorios: la placa, la gabardina y el
+sombrero caracterizan al personaje y tienen que seguir con él aunque la escena lo
+vista de astronauta. Cambios:
+
+- `CHARACTER_OUTFIT_SENTENCE_RULE`: la oración `Outfit:` incluye TODO lo que el
+  personaje lleva puesto o en la mano (ropa, calzado, sombrero, lentes, placa,
+  libreta); lo que no se lleva (cicatrices, tatuajes, barba) va con los rasgos.
+- `SCENE_WARDROBE_RULE`: el marcador trae las prendas y accesorios de la situación;
+  lo que caracteriza al personaje se queda encima y la plataforma lo agrega sola; si
+  la situación hace imposible una de esas cosas, se dice en el marcador (casco en
+  lugar del sombrero). Prohibido: cara, piel, cuerpo, edad, color y largo del pelo.
+- Tejido (`weaveSubject`): con marcador y ficha partida, la identidad fija va bajo el
+  encabezado de siempre y la ropa base pasa a ser la **marca** con
+  `signatureLookNote`: «Their signature look stays with them on top of this scene's
+  clothing wherever the scene allows it: …. Where the scene's clothing replaces one of
+  those items (a helmet instead of the hat, a swimsuit instead of the coat), the scene
+  wins; everything else stays». Sin ficha partida, el encabezado alternativo dice lo
+  mismo en corto.
+- `WARDROBE_FORBIDDEN_REGEX`: deja pasar sombrero, lentes y accesorios; sigue
+  descartando cara, piel, cuerpo, edad, marcas permanentes y color o largo de pelo.
+- Candado con foto: la ropa de la escena reemplaza a la de la referencia, y el
+  sombrero, la placa, el abrigo y los accesorios de la referencia se quedan encima.
+
+Pendiente: repetir el A/B con estas reglas antes de encender la constante. El
+guion exigente de la matriz ya cubre el caso espacial si se le agrega un fragmento
+de astronauta.
 
 ## Límites conocidos
 
