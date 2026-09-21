@@ -12,6 +12,11 @@ import {
 } from '../../pipeline/providers/llm/interactive.ts'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 import { SAMPLE_FRAGMENTS } from '../../pipeline/prompts/style-samples.ts'
+import {
+  CHARACTER_DESIGN_INSTRUCTION,
+  STYLE_CHARACTER_PRECEDENCE_RULE,
+} from '../../pipeline/prompts/verbatim-messages.ts'
+import { PROTAGONIST_DESIGN_REQUEST } from '../../pipeline/prompts/protagonist-request.ts'
 
 const imageBytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=',
@@ -403,15 +408,39 @@ async function characterFixture(root, character, library) {
 }
 
 // HTTP simulado del job completo. `calls` separa el pedido de diseño del
-// protagonista de la redacción de los prompts.
+// protagonista de la redacción de los prompts. El diseño es la MISMA Fase 1
+// del video (gema cruda como system, consigna portada con la precedencia del
+// personaje del estilo) y, si no deja nada, el pedido JSON de último recurso.
 function mockSampleHttp(t, scenario, calls) {
   t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
     if (url.includes('/chat/completions')) {
       const messages = JSON.parse(init.body).messages
-      if (messages[1].content.includes('PROTAGONIST DESIGN')) {
+      const isPhaseOne = messages[1].content.includes(
+        CHARACTER_DESIGN_INSTRUCTION,
+      )
+      const isFallback = messages[1].content.includes(
+        PROTAGONIST_DESIGN_REQUEST,
+      )
+      if (isPhaseOne || isFallback) {
         calls.design++
+        if (isPhaseOne) {
+          calls.phaseOne++
+          assert.equal(
+            messages[0].content,
+            'Illustrate the scene as a watercolor.',
+            'la gema cruda como system, sin planos ni reglas de la casa',
+          )
+          assert.ok(
+            messages[1].content.includes(STYLE_CHARACTER_PRECEDENCE_RULE),
+            'la precedencia del personaje del estilo',
+          )
+        }
         if (scenario.designFails) return stream('unusable')
-        return stream(JSON.stringify({ description: DESIGNED_DESCRIPTION }))
+        return stream(
+          isPhaseOne
+            ? '```text\n' + DESIGNED_DESCRIPTION + '\n```'
+            : JSON.stringify({ description: DESIGNED_DESCRIPTION }),
+        )
       }
       calls.prompts.push(messages)
       // Formato propio de la gema, medido: un objeto por escena, sin cerrar.
@@ -474,7 +503,7 @@ function mockSampleHttp(t, scenario, calls) {
 }
 
 function newCalls() {
-  return { design: 0, prompts: [], images: [], uploads: 0 }
+  return { design: 0, phaseOne: 0, prompts: [], images: [], uploads: 0 }
 }
 
 const OWN = { mode: 'own', defaultCharacterId: 'lucia' }
@@ -569,7 +598,10 @@ for (const scenario of [
       assert.ok(!image.body.prompt.includes('[subject]'), 'the tag is woven')
 
     if (scenario.expect === 'none') {
-      assert.equal(calls.design, scenario.designFails ? 1 : 0)
+      // Diseño fallido: la Fase 1 agota sus intentos y el último recurso
+      // tampoco sale; sin diseño no hay ningún pedido.
+      if (scenario.designFails) assert.ok(calls.design > calls.phaseOne)
+      else assert.equal(calls.design, 0)
       assert.equal(carriesRule, false)
       assert.ok(!user.content.includes('PROTAGONIST'))
       assert.equal(calls.images.length, 4)
@@ -592,6 +624,7 @@ for (const scenario of [
 
     if (scenario.expect === 'designed') {
       assert.equal(calls.design, 1)
+      assert.equal(calls.phaseOne, 1, 'lo diseña la Fase 1, sin último recurso')
       assert.equal(calls.images.length, 4)
       assert.equal(withReference.length, 0)
       for (const image of calls.images) {

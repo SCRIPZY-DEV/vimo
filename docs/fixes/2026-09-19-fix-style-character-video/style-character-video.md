@@ -85,6 +85,18 @@ formato formulario: el mismo de las muestras, movido a
 parser en `pipeline/stages/shared/protagonist-description.ts`. El protagonista queda
 con `source: 'fallback-request'`. Clave rechazada y saldo agotado cortan el job.
 
+**Las muestras del estilo diseñan al protagonista con la misma Fase 1.** Caso real
+tras el primer QA: el video ya salía con el personaje tal como el estilo lo describe
+(un muñeco de cabeza blanca y ojos de punto), pero las muestras del mismo estilo lo
+mostraban como una persona normal con la misma ropa. Las muestras le pedían el
+personaje a la gema con el formulario JSON del #76 (`PROTAGONIST_DESIGN_REQUEST`),
+pensado para un humano neutro de estilo («head/hair», «no art style or technique
+words») y con el estilo envuelto en los planos y reglas de la casa como system: el
+modelo NORMALIZABA al personaje. Ahora `generate-style-samples` usa
+`designStyleProtagonist` (exportado por `verbatim-writer.ts`): la gema cruda como
+system, la consigna portada con la precedencia, los mismos recortes y el mismo último
+recurso que el video. Lo que se ve en la muestra es lo que sale en el video.
+
 ## Archivos
 
 - `pipeline/prompts/verbatim-messages.ts`, `verbatim-identity.ts` (nuevo),
@@ -92,9 +104,12 @@ con `source: 'fallback-request'`. Clave rechazada y saldo agotado cortan el job.
 - `pipeline/stages/scene-prompts/verbatim/verbatim-writer.ts`, `verbatim-lane.ts`,
   `subject-weaver.ts`
 - `pipeline/stages/shared/prompt-safety.ts`, `protagonist-description.ts` (nuevo)
-- `pipeline/commands/styles/generate-style-samples.ts`, `sample-character.ts`
+- `pipeline/commands/styles/generate-style-samples.ts` (usa la Fase 1 del video),
+  `sample-character.ts`
 - `pipeline/types/video-project.ts`
-- `scripts/test/check-style-character-video.mjs` (nuevo)
+- `scripts/test/check-style-character-video.mjs` (nuevo),
+  `check-preview-regressions.mjs` (el diseño del protagonista de las muestras es la
+  Fase 1: gema cruda como system y precedencia del personaje del estilo)
 
 Sin cambios en `src/` ni en los catálogos: el frontend no replica
 `VideoProjectMetadata`.
@@ -121,7 +136,12 @@ simulado:
 - un prompt sin identidad se recorta igual que antes;
 - el tope de identidad corta en límite de oración.
 
-Regresiones vecinas en verde: `check-preview-regressions` (32),
+`check-preview-regressions` (32) verifica además que el pedido de diseño de las
+muestras es la Fase 1 del video: la gema cruda como system, la precedencia del
+personaje del estilo en el turno de usuario, sin último recurso cuando la Fase 1
+sale, y último recurso cuando no.
+
+Regresiones vecinas en verde:
 `check-editor-character-selection` (23), `check-character-identity-lock` (24),
 `check-catalog-prompts` (35) y `check-character-profile` (24). También pasan
 `pnpm format`, `pnpm lint` y `pnpm build`.
@@ -135,6 +155,8 @@ muñeco de palitos. En el segundo caso hay que mirar que el chequeo de «ficha f
 crear el video, pausarlo en medio de los prompts, reanudarlo, regenerar una escena
 con reescritura, y comprobar en `scenes.json` que el texto que sigue a «must look
 exactly like this:» es uno solo y que es el personaje de las muestras del estilo.
+Con el estilo del caso real (muñeco de cabeza blanca, ojos de punto, gabardina de
+detective) regenerar las muestras: tienen que mostrar al muñeco, no a una persona.
 
 ## Límites conocidos
 

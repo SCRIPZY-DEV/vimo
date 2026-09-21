@@ -502,75 +502,146 @@ async function resolveCharacter(
         }
       }
 
-      const designed = await designCharacter(
-        script,
-        options,
-        profile,
-        count,
-        cacheKey,
-      )
-      if (designed) {
-        // ¿La gema realmente sabe diseñar un personaje? Tres finales, cada
-        // uno con su verdad: la diseñó bien; no supo pero la fase inyectada
-        // completó la ficha; o ni con eso salió (la conservó el rescate).
-        if (designed.completedByPlatform) {
-          options.onWarn?.(GEM_COMPLETED_BY_PLATFORM_WARNING)
-        } else {
-          const gemWithoutCharacter =
-            roleFromDescription(designed.description) === 'main character' ||
-            identityWordCount(designed.description) < MIN_IDENTITY_WORDS
-          if (gemWithoutCharacter) {
-            options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
-          } else {
-            options.onLog?.(
-              'protagonist designed once: travels identical in every scene it appears in',
-            )
-          }
-        }
-        const description = capWovenIdentity(designed.description)
-        return {
-          mode: 'generic',
-          portrait: designed.portrait,
-          description,
-          designedNow: {
-            portrait: designed.portrait,
-            description,
-            source: designed.completedByPlatform
-              ? 'platform-phase'
-              : 'style-phase',
-          },
-        }
-      }
-
-      // Último recurso: la Fase 1 no dejó NINGUNA ficha. Antes el video salía
-      // entero con "the main character"; ahora se le pide la identidad a la
-      // gema en formato formulario (el mismo pedido de las muestras).
-      const requested = await requestProtagonist(
-        script,
-        options,
-        profile,
-        count,
-        cacheKey,
-      )
-      if (requested) {
-        options.onWarn?.(
-          'the character-design phase left no usable sheet: the protagonist came from the platform fallback request instead',
-        )
-        return {
-          mode: 'generic',
-          portrait: requested,
-          description: requested,
-          designedNow: {
-            portrait: requested,
-            description: requested,
-            source: 'fallback-request',
-          },
-        }
-      }
-      options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
-      return { mode: 'generic' }
+      return designProtagonistPlan(script, options, profile, count, cacheKey)
     }
   }
+}
+
+/**
+ * El protagonista de una gema SIN personaje del usuario: la Fase 1 y, si no
+ * deja ninguna ficha, el pedido de último recurso. Devuelve el plan con
+ * `designedNow` cuando salió algo, o `generic` pelado cuando no.
+ */
+async function designProtagonistPlan(
+  script: string,
+  options: VerbatimWriterOptions,
+  profile: LlmModelProfile,
+  count: (input: number, output: number) => void,
+  cacheKey: string,
+): Promise<CharacterPlan> {
+  const designed = await designCharacter(
+    script,
+    options,
+    profile,
+    count,
+    cacheKey,
+  )
+  if (designed) {
+    // ¿La gema realmente sabe diseñar un personaje? Tres finales, cada
+    // uno con su verdad: la diseñó bien; no supo pero la fase inyectada
+    // completó la ficha; o ni con eso salió (la conservó el rescate).
+    if (designed.completedByPlatform) {
+      options.onWarn?.(GEM_COMPLETED_BY_PLATFORM_WARNING)
+    } else {
+      const gemWithoutCharacter =
+        roleFromDescription(designed.description) === 'main character' ||
+        identityWordCount(designed.description) < MIN_IDENTITY_WORDS
+      if (gemWithoutCharacter) {
+        options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
+      } else {
+        options.onLog?.(
+          'protagonist designed once: travels identical in every scene it appears in',
+        )
+      }
+    }
+    const description = capWovenIdentity(designed.description)
+    return {
+      mode: 'generic',
+      portrait: designed.portrait,
+      description,
+      designedNow: {
+        portrait: designed.portrait,
+        description,
+        source: designed.completedByPlatform ? 'platform-phase' : 'style-phase',
+      },
+    }
+  }
+
+  // Último recurso: la Fase 1 no dejó NINGUNA ficha. Antes el video salía
+  // entero con "the main character"; ahora se le pide la identidad a la
+  // gema en formato formulario (el mismo pedido de las muestras).
+  const requested = await requestProtagonist(
+    script,
+    options,
+    profile,
+    count,
+    cacheKey,
+  )
+  if (requested) {
+    options.onWarn?.(
+      'the character-design phase left no usable sheet: the protagonist came from the platform fallback request instead',
+    )
+    return {
+      mode: 'generic',
+      portrait: requested,
+      description: requested,
+      designedNow: {
+        portrait: requested,
+        description: requested,
+        source: 'fallback-request',
+      },
+    }
+  }
+  options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
+  return { mode: 'generic' }
+}
+
+/** La clave de caché del proveedor: gema + guion, parametrizada por modelo. */
+function verbatimCacheKey(
+  modelId: string,
+  gem: string,
+  script: string,
+): string {
+  return `vimo-verbatim-${createHash('sha1')
+    .update(modelId)
+    .update(' ')
+    .update(gem)
+    .update(' ')
+    .update(script)
+    .digest('hex')
+    .slice(0, 24)}`
+}
+
+export interface StyleProtagonistDesignOptions {
+  /** La gema del usuario, verbatim como `system`. */
+  gem: string
+  script: string
+  client: VerbatimClient
+  signal?: AbortSignal
+  onLog?: (message: string) => void
+  onWarn?: (message: string) => void
+}
+
+/**
+ * El protagonista que una gema define, resuelto EXACTAMENTE como lo resuelve
+ * el video (misma Fase 1, mismos recortes, mismo último recurso), para quien
+ * no corre el carril entero: las muestras del estilo. Antes las muestras se
+ * lo pedían a la gema con un formulario JSON pensado para un humano neutro
+ * («head/hair», «no art style words») y el modelo NORMALIZABA al personaje:
+ * un muñeco de cabeza blanca y ojos de punto salía como una persona con pelo
+ * en las muestras, y como muñeco en el video. Con la misma Fase 1 en los dos
+ * lados, lo que se ve en la muestra es lo que sale en el video. `undefined`
+ * si ni la Fase 1 ni el último recurso dejaron nada (ya avisado por `onWarn`).
+ */
+export async function designStyleProtagonist(
+  options: StyleProtagonistDesignOptions,
+): Promise<StyleProtagonist | undefined> {
+  const profile = resolveVerbatimModel().profile
+  const writerOptions: VerbatimWriterOptions = {
+    gem: options.gem,
+    client: options.client,
+    signal: options.signal,
+    onLog: options.onLog,
+    onWarn: options.onWarn,
+  }
+  const plan = await designProtagonistPlan(
+    options.script,
+    writerOptions,
+    profile,
+    () => {},
+    verbatimCacheKey(profile.id, options.gem, options.script),
+  )
+  return plan.designedNow
 }
 
 /**
@@ -838,14 +909,7 @@ export async function generateVerbatimPrompts(
   // proyecto produce la misma clave y reusa el caché. Parametrizada por
   // modelo: la ronda de rescate necesita SU clave (otras réplicas tibias).
   const cacheKeyFor = (modelId: string) =>
-    `vimo-verbatim-${createHash('sha1')
-      .update(modelId)
-      .update(' ')
-      .update(options.gem)
-      .update(' ')
-      .update(fullScript)
-      .digest('hex')
-      .slice(0, 24)}`
+    verbatimCacheKey(modelId, options.gem, fullScript)
   const cacheKey = cacheKeyFor(profile.id)
 
   options.onLog?.(
