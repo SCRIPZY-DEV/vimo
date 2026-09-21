@@ -88,6 +88,21 @@ de cada escena (el número sale del audio) en vez del conteo.
 > `almost-always`) siguen soportados por el sidecar para proyectos ya
 > guardados; la UI no los ofrece.
 
+### Adenda 2026-09-19 — reglas propias sobre el texto portado, y el recorte final
+
+La regla de este carril se mantiene: los textos portados del origen viajan
+byte-idénticos y la gema va verbatim. Lo que la plataforma agrega es una regla
+técnica DECLARADA, en una constante propia, sumada sin editar el texto portado.
+Bajo esa regla entraron `STYLE_CHARACTER_PRECEDENCE_RULE` (Fase 1) y
+`PLATFORM_CHARACTER_PHASE_STYLE_PRECEDENCE` (reintentos): el personaje que el estilo
+describe es el protagonista del video.
+
+El scrub final (`sanitizeFinalPrompt`) reconoce la identidad tejida de este carril.
+Cuando un prompt no entra, cede primero el núcleo de la escena, después la cola de
+estilo y la identidad recién al final. Antes cortaba por el final, que es donde va
+la identidad. Sin identidad tejida, el corte del carril de la casa no cambia.
+Ver [causa, implementación y QA](../fixes/2026-09-19-fix-style-character-video/style-character-video.md).
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por

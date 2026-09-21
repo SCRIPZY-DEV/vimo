@@ -12,7 +12,6 @@ import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
 import {
   SAMPLE_FRAGMENTS,
   SAMPLE_PROTAGONIST_REMINDER,
-  SAMPLE_PROTAGONIST_REQUEST,
   SAMPLE_PROTAGONIST_RULE,
   SAMPLE_SCRIPT,
 } from '../../prompts/style-samples.ts'
@@ -21,6 +20,8 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { extractImagePrompt } from '../../stages/scene-prompts/prompt-extraction.ts'
+import { designStyleProtagonist } from '../../stages/scene-prompts/verbatim/verbatim-writer.ts'
+import { createVerbatimClient } from '../../providers/llm/verbatim-client.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type {
   GenerateStyleSamplesPayload,
@@ -45,9 +46,6 @@ import {
 const PROMPT_EXPECTED_MS = 15_000
 const PREVIEW_POLL_INTERVAL_MS = 1000
 const PREVIEW_BATCH_TOKENS_BUDGET = 3600
-const PROTAGONIST_TOKENS_BUDGET = 500
-const MIN_PROTAGONIST_LENGTH = 60
-const MAX_PROTAGONIST_LENGTH = 1200
 
 // Un pedido redacta los cuatro prompts; si el lote no sirve, se completan
 // solo los faltantes en paralelo. Después arrancan los cuatro encargos. Cada imagen se guarda y se
@@ -119,7 +117,7 @@ export async function generateStyleSamples(
   try {
     character =
       resolved.mode === 'design'
-        ? await designSampleProtagonist(context, llm, systemPrompt)
+        ? await designSampleProtagonist(context, style.systemPrompt)
         : resolved
     context.emitter.emit({
       type: 'log',
@@ -369,57 +367,44 @@ async function generateSampleImage(
 
 // Gema sin personaje del usuario: ELLA dice quién es su protagonista (el que
 // trae escrito, o uno diseñado) y ese mismo se teje en las cuatro muestras.
-// Un solo intento: si no sale una descripción usable, las muestras se generan
-// como siempre. Clave rechazada y saldo agotado cortan el job, igual que en
-// la redacción.
+// Se resuelve con la MISMA Fase 1 del video (`designStyleProtagonist`): la
+// gema cruda como system, la consigna portada con la precedencia del
+// personaje del estilo, los recortes y el último recurso. Si no sale una
+// descripción usable, las muestras se generan como siempre. Clave rechazada y
+// saldo agotado cortan el job, igual que en la redacción.
 async function designSampleProtagonist(
   context: PipelineContext,
-  llm: ReturnType<typeof createInteractiveLlm>,
-  systemPrompt: string,
+  gem: string,
 ): Promise<SampleCharacter> {
-  try {
-    const description = await llm.generate({
-      maxAttempts: 1,
-      contentTokensBudget: PROTAGONIST_TOKENS_BUDGET,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: `${SAMPLE_PROTAGONIST_REQUEST}\n\nSCRIPT: ${SAMPLE_SCRIPT}`,
-        },
-      ],
-      parse: parseProtagonistDescription,
-    })
-    return { mode: 'text', name: '', description }
-  } catch (error) {
-    context.signal.throwIfAborted()
-    if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-      throw error
-    if (!(error instanceof PipelineFailure)) throw error
+  const apiKey = context.job.apiKeys.deepinfra
+  if (!apiKey)
+    throw new PipelineFailure('missing_api_key', 'deepinfra API key is missing')
 
-    context.emitter.emit({
-      type: 'log',
-      level: 'warn',
-      message:
-        'the style protagonist could not be designed: samples are generated without a shared protagonist',
-    })
-    return { mode: 'none' }
+  const log = (level: 'info' | 'warn') => (message: string) => {
+    context.emitter.emit({ type: 'log', level, message })
   }
-}
+  const protagonist = await designStyleProtagonist({
+    gem,
+    script: SAMPLE_SCRIPT,
+    client: createVerbatimClient({
+      apiKey,
+      baseUrl: context.config.llm.baseUrl,
+    }),
+    signal: context.signal,
+    onLog: log('info'),
+    onWarn: log('warn'),
+  })
+  context.signal.throwIfAborted()
+  if (protagonist)
+    return { mode: 'text', name: '', description: protagonist.description }
 
-function parseProtagonistDescription(content: string): string | null {
-  const match = /\{[\s\S]*\}/.exec(content)
-  if (!match) return null
-  try {
-    const parsed = JSON.parse(match[0]) as { description?: unknown }
-    const description =
-      typeof parsed.description === 'string' ? parsed.description.trim() : ''
-    return description.length >= MIN_PROTAGONIST_LENGTH
-      ? description.slice(0, MAX_PROTAGONIST_LENGTH)
-      : null
-  } catch {
-    return null
-  }
+  context.emitter.emit({
+    type: 'log',
+    level: 'warn',
+    message:
+      'the style protagonist could not be designed: samples are generated without a shared protagonist',
+  })
+  return { mode: 'none' }
 }
 
 function isImageAuthFailure(error: unknown): boolean {

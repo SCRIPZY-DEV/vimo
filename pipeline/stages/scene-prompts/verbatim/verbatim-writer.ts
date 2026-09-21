@@ -13,6 +13,14 @@ import {
   type VerbatimMessage,
 } from '../../../providers/llm/verbatim-client.ts'
 import type { LlmModelProfile } from '../../../types/llm-models.ts'
+import type { StyleProtagonist } from '../../../types/video-project.ts'
+import { isInsufficientCreditsFailure } from '../../../utils/insufficient-credits.ts'
+import { buildProtagonistDesignMessage } from '../../../prompts/protagonist-request.ts'
+import {
+  parseProtagonistDescription,
+  PROTAGONIST_TOKENS_BUDGET,
+} from '../../shared/protagonist-description.ts'
+import { FINAL_PROMPT_BODY_BUDGET } from '../../shared/prompt-safety.ts'
 import {
   buildAssistantCharacterTurn,
   buildCharacterDesignMessage,
@@ -39,6 +47,7 @@ import {
   validateCharacterPrompt,
 } from './parser.ts'
 import {
+  capWovenIdentity,
   cleanDescription,
   descriptionFromUserPrompt,
   dropSentencesWithState,
@@ -130,8 +139,11 @@ export const LLM_RESCUE_NEEDED = 'llm_rescue_needed'
  * «texto sin prompt».
  */
 export type VerbatimCharacterInput =
-  /** El pipeline lo diseña con la Fase 1 de la gema. El default. */
-  | { mode: 'generic' }
+  /** El pipeline lo diseña con la Fase 1 de la gema. El default. Con
+   *  `designed`, el proyecto YA lo tiene resuelto (guardado de una corrida
+   *  anterior, o recuperado de sus prompts): la Fase 1 no corre y se teje ese
+   *  mismo — rediseñarlo cambiaba de personaje a mitad del video. */
+  | { mode: 'generic'; designed?: StyleProtagonist }
   /** Lo escribió el usuario. El nombre (E47) es el rol de tejido de
    *  respaldo: su ficha no tiene por qué abrir con un rol. */
   | { mode: 'text'; prompt: string; name?: string }
@@ -155,6 +167,13 @@ export interface VerbatimWriterOptions {
    *  son DeepInfra: el mismo cliente sirve para el elegido y el rescate). */
   client: VerbatimClient
   signal?: AbortSignal
+  /**
+   * El protagonista se acaba de RESOLVER en esta corrida (no venía en
+   * `character.designed`). Se espera ANTES de pedir el primer lote: quien
+   * llama lo guarda en el proyecto, y un job que muere en plena Fase 2
+   * reanuda con el mismo personaje.
+   */
+  onProtagonistDesigned?: (protagonist: StyleProtagonist) => Promise<void>
   /** Log informativo hacia el canal de eventos del job. */
   onLog?: (message: string) => void
   /** Avisos (fail-soft, degradaciones): en el origen iban por console.warn;
@@ -178,9 +197,6 @@ export interface VerbatimResult {
   /** Prompt de escena por número de fragmento (id de escena). */
   prompts: Map<number, string>
   missing: number[]
-  /** La descripción permanente del personaje, si se pudo: el retrato de la
-   *  gema pasado por los tres tijeretazos. Es la que viaja tejida al final. */
-  characterDescription?: string
   /**
    * Ids de escena cuyo prompt nombró al protagonista (medido ANTES de
    * resolver la etiqueta — la única ventana donde `[subject]` existe). Es el
@@ -334,6 +350,50 @@ async function designCharacter(
 }
 
 /**
+ * ÚLTIMO RECURSO de la Fase 1: un solo pedido, en formato formulario (JSON),
+ * con la gema como system. Devuelve la descripción ya podada y con tope, o
+ * `undefined` si tampoco salió — ahí el video sigue como antes (fail-soft).
+ * Clave rechazada y saldo agotado cortan el job: no son «la gema no supo».
+ */
+async function requestProtagonist(
+  script: string,
+  options: VerbatimWriterOptions,
+  profile: LlmModelProfile,
+  count: (input: number, output: number) => void,
+  cacheKey: string,
+): Promise<string | undefined> {
+  try {
+    options.signal?.throwIfAborted()
+    const response = await options.client.call({
+      profile,
+      messages: [
+        { role: 'system', content: options.gem },
+        { role: 'user', content: buildProtagonistDesignMessage(script) },
+      ],
+      contentTokensBudget: PROTAGONIST_TOKENS_BUDGET,
+      signal: options.signal,
+      cacheKey,
+    })
+    count(response.inputTokens, response.outputTokens)
+    const parsed = parseProtagonistDescription(stripReasoning(response.content))
+    if (!parsed) return undefined
+
+    const flattened = parsed.replace(/\s+/g, ' ').trim()
+    return capWovenIdentity(descriptionFromUserPrompt(parsed) || flattened)
+  } catch (error) {
+    if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+      throw error
+    if (options.signal?.aborted) throw error
+    options.onWarn?.(
+      `the protagonist fallback request failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+    return undefined
+  }
+}
+
+/**
  * El personaje YA RESUELTO de esta corrida: lo que la Fase 1 devolvió, o lo
  * que el usuario trajo, o nada. Lo consumen los dos puntos donde el personaje
  * toca la salida: el turno de `assistant` y el prompt final.
@@ -346,6 +406,9 @@ export interface CharacterPlan {
   description?: string
   /** Con qué nombre se resuelve `[subject]` cuando la identidad está en la foto. */
   name?: string
+  /** Solo cuando el protagonista se resolvió EN ESTA corrida: lo que hay que
+   *  guardar en el proyecto. Ausente si ya venía resuelto o no aplica. */
+  designedNow?: StyleProtagonist
 }
 
 /**
@@ -379,7 +442,7 @@ async function resolveCharacter(
       // (turno de assistant), y su descripción permanente sale de los mismos
       // tres tijeretazos que el retrato de la Fase 1.
       const portrait = input.prompt.trim()
-      let description = descriptionFromUserPrompt(portrait)
+      let description = capWovenIdentity(descriptionFromUserPrompt(portrait))
       // E47 — La ficha del usuario puede abrir con RASGOS y no con un rol: el
       // rol scrapeado de ahí tejía basura. Con nombre disponible y rol
       // inusable, se antepone el nombre (el nombre propio se teje sin
@@ -427,41 +490,158 @@ async function resolveCharacter(
       return { mode: 'none' }
     }
     default: {
-      const designed = await designCharacter(
-        script,
-        options,
-        profile,
-        count,
-        cacheKey,
-      )
-      if (designed) {
-        // ¿La gema realmente sabe diseñar un personaje? Tres finales, cada
-        // uno con su verdad: la diseñó bien; no supo pero la fase inyectada
-        // completó la ficha; o ni con eso salió (la conservó el rescate).
-        if (designed.completedByPlatform) {
-          options.onWarn?.(GEM_COMPLETED_BY_PLATFORM_WARNING)
-        } else {
-          const gemWithoutCharacter =
-            roleFromDescription(designed.description) === 'main character' ||
-            identityWordCount(designed.description) < MIN_IDENTITY_WORDS
-          if (gemWithoutCharacter) {
-            options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
-          } else {
-            options.onLog?.(
-              'protagonist designed once: travels identical in every scene it appears in',
-            )
-          }
-        }
+      // El proyecto ya tiene a su protagonista: se teje ESE, sin Fase 1.
+      if (input.designed) {
+        options.onLog?.(
+          'protagonist already resolved for this project: reused as-is, not redesigned',
+        )
         return {
           mode: 'generic',
-          portrait: designed.portrait,
-          description: designed.description,
+          portrait: input.designed.portrait,
+          description: input.designed.description,
         }
       }
-      options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
-      return { mode: 'generic' }
+
+      return designProtagonistPlan(script, options, profile, count, cacheKey)
     }
   }
+}
+
+/**
+ * El protagonista de una gema SIN personaje del usuario: la Fase 1 y, si no
+ * deja ninguna ficha, el pedido de último recurso. Devuelve el plan con
+ * `designedNow` cuando salió algo, o `generic` pelado cuando no.
+ */
+async function designProtagonistPlan(
+  script: string,
+  options: VerbatimWriterOptions,
+  profile: LlmModelProfile,
+  count: (input: number, output: number) => void,
+  cacheKey: string,
+): Promise<CharacterPlan> {
+  const designed = await designCharacter(
+    script,
+    options,
+    profile,
+    count,
+    cacheKey,
+  )
+  if (designed) {
+    // ¿La gema realmente sabe diseñar un personaje? Tres finales, cada
+    // uno con su verdad: la diseñó bien; no supo pero la fase inyectada
+    // completó la ficha; o ni con eso salió (la conservó el rescate).
+    if (designed.completedByPlatform) {
+      options.onWarn?.(GEM_COMPLETED_BY_PLATFORM_WARNING)
+    } else {
+      const gemWithoutCharacter =
+        roleFromDescription(designed.description) === 'main character' ||
+        identityWordCount(designed.description) < MIN_IDENTITY_WORDS
+      if (gemWithoutCharacter) {
+        options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
+      } else {
+        options.onLog?.(
+          'protagonist designed once: travels identical in every scene it appears in',
+        )
+      }
+    }
+    const description = capWovenIdentity(designed.description)
+    return {
+      mode: 'generic',
+      portrait: designed.portrait,
+      description,
+      designedNow: {
+        portrait: designed.portrait,
+        description,
+        source: designed.completedByPlatform ? 'platform-phase' : 'style-phase',
+      },
+    }
+  }
+
+  // Último recurso: la Fase 1 no dejó NINGUNA ficha. Antes el video salía
+  // entero con "the main character"; ahora se le pide la identidad a la
+  // gema en formato formulario (el mismo pedido de las muestras).
+  const requested = await requestProtagonist(
+    script,
+    options,
+    profile,
+    count,
+    cacheKey,
+  )
+  if (requested) {
+    options.onWarn?.(
+      'the character-design phase left no usable sheet: the protagonist came from the platform fallback request instead',
+    )
+    return {
+      mode: 'generic',
+      portrait: requested,
+      description: requested,
+      designedNow: {
+        portrait: requested,
+        description: requested,
+        source: 'fallback-request',
+      },
+    }
+  }
+  options.onWarn?.(GEM_WITHOUT_CHARACTER_WARNING)
+  return { mode: 'generic' }
+}
+
+/** La clave de caché del proveedor: gema + guion, parametrizada por modelo. */
+function verbatimCacheKey(
+  modelId: string,
+  gem: string,
+  script: string,
+): string {
+  return `vimo-verbatim-${createHash('sha1')
+    .update(modelId)
+    .update(' ')
+    .update(gem)
+    .update(' ')
+    .update(script)
+    .digest('hex')
+    .slice(0, 24)}`
+}
+
+export interface StyleProtagonistDesignOptions {
+  /** La gema del usuario, verbatim como `system`. */
+  gem: string
+  script: string
+  client: VerbatimClient
+  signal?: AbortSignal
+  onLog?: (message: string) => void
+  onWarn?: (message: string) => void
+}
+
+/**
+ * El protagonista que una gema define, resuelto EXACTAMENTE como lo resuelve
+ * el video (misma Fase 1, mismos recortes, mismo último recurso), para quien
+ * no corre el carril entero: las muestras del estilo. Antes las muestras se
+ * lo pedían a la gema con un formulario JSON pensado para un humano neutro
+ * («head/hair», «no art style words») y el modelo NORMALIZABA al personaje:
+ * un muñeco de cabeza blanca y ojos de punto salía como una persona con pelo
+ * en las muestras, y como muñeco en el video. Con la misma Fase 1 en los dos
+ * lados, lo que se ve en la muestra es lo que sale en el video. `undefined`
+ * si ni la Fase 1 ni el último recurso dejaron nada (ya avisado por `onWarn`).
+ */
+export async function designStyleProtagonist(
+  options: StyleProtagonistDesignOptions,
+): Promise<StyleProtagonist | undefined> {
+  const profile = resolveVerbatimModel().profile
+  const writerOptions: VerbatimWriterOptions = {
+    gem: options.gem,
+    client: options.client,
+    signal: options.signal,
+    onLog: options.onLog,
+    onWarn: options.onWarn,
+  }
+  const plan = await designProtagonistPlan(
+    options.script,
+    writerOptions,
+    profile,
+    () => {},
+    verbatimCacheKey(profile.id, options.gem, options.script),
+  )
+  return plan.designedNow
 }
 
 /**
@@ -729,14 +909,7 @@ export async function generateVerbatimPrompts(
   // proyecto produce la misma clave y reusa el caché. Parametrizada por
   // modelo: la ronda de rescate necesita SU clave (otras réplicas tibias).
   const cacheKeyFor = (modelId: string) =>
-    `vimo-verbatim-${createHash('sha1')
-      .update(modelId)
-      .update(' ')
-      .update(options.gem)
-      .update(' ')
-      .update(fullScript)
-      .digest('hex')
-      .slice(0, 24)}`
+    verbatimCacheKey(modelId, options.gem, fullScript)
   const cacheKey = cacheKeyFor(profile.id)
 
   options.onLog?.(
@@ -751,6 +924,10 @@ export async function generateVerbatimPrompts(
     count,
     cacheKey,
   )
+  // Guardado ANTES del primer lote: si el job muere en plena Fase 2, la
+  // reanudación teje a este mismo protagonista en las escenas que faltan.
+  if (character.designedNow)
+    await options.onProtagonistDesigned?.(character.designedNow)
   const mode = character.mode
   // E49 — El flag viaja en la ENTRADA (no en el plan resuelto): solo la
   // reescritura de una escena desmarcada lo enciende.
@@ -1024,6 +1201,7 @@ export async function generateVerbatimPrompts(
   // renglón más abajo la etiqueta ya no existe.
   const prompts = new Map<number, string>()
   const scenesWithSubject: number[] = []
+  const overBudget: number[] = []
   let sneakedIn = 0
   let bare = 0
   for (const [n, prompt] of obtained) {
@@ -1046,9 +1224,21 @@ export async function generateVerbatimPrompts(
       if (mode === 'none') sneakedIn++
       if (isBare) bare++
     }
-    prompts.set(n, composeFinalPrompt(prompt, character))
+    const finalPrompt = composeFinalPrompt(prompt, character)
+    if (finalPrompt.length > FINAL_PROMPT_BODY_BUDGET) overBudget.push(n)
+    prompts.set(n, finalPrompt)
   }
   scenesWithSubject.sort((a, b) => a - b)
+  if (overBudget.length > 0) {
+    // El scrub final va a recortar estas escenas. Ya no borra la identidad
+    // primero (cede escena y cola de estilo antes), pero se dice igual: una
+    // cola de estilo muy larga es algo que el usuario puede acortar.
+    options.onWarn?.(
+      `${overBudget.length} scene prompt(s) exceed the ${FINAL_PROMPT_BODY_BUDGET}-character body budget and will be trimmed before the image request (scene text first, character identity last): ${overBudget
+        .sort((a, b) => a - b)
+        .join(', ')}`,
+    )
+  }
   if (sneakedIn > 0) {
     // La red se disparó: el preámbulo lo prohibió y el modelo la usó igual.
     // No rompe nada (el tag se degradó), pero se dice — un modo que «casi
@@ -1066,7 +1256,6 @@ export async function generateVerbatimPrompts(
   return {
     prompts,
     missing,
-    characterDescription: character.description,
     scenesWithSubject,
     profile,
     inputTokens,

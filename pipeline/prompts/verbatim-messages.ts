@@ -10,6 +10,11 @@
 // técnica de la plataforma DECLARADA y sumada al final, nunca editando su
 // texto (E34).
 //
+// Lo que NO es port y está declarado como regla propia, sumada sin tocar el
+// texto portado: `STYLE_CHARACTER_PRECEDENCE_RULE` y
+// `PLATFORM_CHARACTER_PHASE_STYLE_PRECEDENCE` (el personaje escrito en el
+// estilo es el protagonista del video).
+//
 // Las gemas de chat definen dos fases que se activan por lo que RECIBEN: la
 // Fase 1 con el GUION, la Fase 2 con la lista de FRAGMENTOS. Nuestras
 // llamadas son sin estado, así que la conversación del playground se REPLICA
@@ -61,9 +66,29 @@ export const CHARACTER_DESIGN_INSTRUCTION =
   'con el material segun tu estilo, proporciones, pelo, rasgos fisicos y la ropa con colores concretos. ' +
   "La ficha describe SOLO al personaje: sin escena, sin lugar, sin momento del dia, sin accion y sin encabezados como 'Prompt:'."
 
-/** Fase 1: el guion + la consigna, fuera del system. */
+/**
+ * EL PERSONAJE DEL ESTILO MANDA sobre el que sugiere el guion. NO es un port:
+ * es una regla NUESTRA, declarada y sumada ANTES de la consigna portada (que
+ * queda byte-idéntica). Caso real: el usuario escribe a su personaje DENTRO
+ * del estilo («una chica pelirroja con buzo verde») y el video salía con
+ * otro, porque la consigna pide «el protagonista de este guion: la lectura
+ * mas obvia» y el modelo lo sacaba del guion. Las muestras del estilo ya
+ * respetaban al personaje escrito (`PROTAGONIST_DESIGN_REQUEST`); el video
+ * no. Solo decide QUIÉN es el protagonista: el formato de entrega sigue
+ * siendo el de la consigna, y el personaje del USUARIO (biblioteca) le sigue
+ * ganando a este — esos modos no pasan por la Fase 1.
+ */
+export const STYLE_CHARACTER_PRECEDENCE_RULE =
+  'EL PERSONAJE DE TU ESTILO MANDA (regla tecnica de la plataforma, se suma a la consigna que sigue y no cambia tu estilo): ' +
+  'si tu estilo YA describe a su propio personaje, narrador o sujeto recurrente (una seccion que diga como es, un narrador fijo, una ficha), ' +
+  'el protagonista de este video ES ese personaje: devuelve SU ficha exactamente como tu estilo lo define ' +
+  '— los mismos rasgos, el mismo pelo, la misma ropa con sus colores y los mismos accesorios — sin reinterpretarlo a partir del guion. ' +
+  'Solo si tu estilo NO describe ningun personaje propio, diseñalo como pide la consigna que sigue. ' +
+  'En los dos casos el formato de entrega es el de la consigna que sigue.'
+
+/** Fase 1: el guion + la precedencia del estilo + la consigna, fuera del system. */
 export function buildCharacterDesignMessage(script: string): string {
-  return `${buildScriptMessage(script)}\n\n${CHARACTER_DESIGN_INSTRUCTION}`
+  return `${buildScriptMessage(script)}\n\n${STYLE_CHARACTER_PRECEDENCE_RULE}\n\n${CHARACTER_DESIGN_INSTRUCTION}`
 }
 
 /**
@@ -82,9 +107,22 @@ export const PLATFORM_CHARACTER_PHASE =
   "all rendered in this style's materials and technique. " +
   'The sheet describes ONLY the character: no scene, no place, no time of day, no action, and no labels or headers like "Role:".'
 
+/**
+ * La misma precedencia del estilo, para el reintento con la fase inyectada.
+ * Sin esto la fase («return ONE character sheet…») rediseñaba desde cero
+ * justo cuando la gema trae un personaje escueto (un muñeco de palitos no
+ * junta las palabras de identidad que pide E42) y le inventaba pelo y ropa.
+ * Tampoco es un port: va sumada DESPUÉS de la fase portada, que no se toca.
+ */
+export const PLATFORM_CHARACTER_PHASE_STYLE_PRECEDENCE =
+  ' If this style already describes its own recurring character, narrator or subject, ' +
+  'the sheet is THAT character exactly as the style defines it (same traits, hair, clothing colors and accessories), never a new design.'
+
 /** La gema con la fase de la plataforma sumada al final (la gema no se toca). */
 export function gemWithCharacterPhase(gem: string): string {
-  return gem + PLATFORM_CHARACTER_PHASE
+  return (
+    gem + PLATFORM_CHARACTER_PHASE + PLATFORM_CHARACTER_PHASE_STYLE_PRECEDENCE
+  )
 }
 
 /**

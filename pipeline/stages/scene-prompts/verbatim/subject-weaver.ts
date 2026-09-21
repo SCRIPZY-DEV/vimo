@@ -16,11 +16,16 @@
 //
 // El tejido: `[subject]` se reemplaza por "the <rol>" y la descripción se
 // pega AL FINAL del prompt, idéntica en todas las escenas — la consistencia
-// sale de repetir el mismo texto palabra por palabra.
+// sale de repetir el mismo texto palabra por palabra. El encabezado con el que
+// se presenta vive en `prompts/verbatim-identity.ts` (lo lee también el scrub
+// final, para no recortar la identidad primero).
 
-/** Con qué se presenta la descripción pegada al final del prompt de escena. */
-export const DESCRIPTION_HEADER =
-  'The character in this scene must look exactly like this:'
+import {
+  DESCRIPTION_HEADER,
+  DESCRIPTION_HEADER_PREFIX,
+} from '../../../prompts/verbatim-identity.ts'
+import type { Scene } from '../../../types/scenes.ts'
+import { bodyWithoutFinalClauses } from '../../shared/prompt-safety.ts'
 
 /** Reemplazo de `[subject]` cuando el diseño del personaje falló del todo. */
 export const FALLBACK_SUBJECT = 'the main character'
@@ -443,6 +448,80 @@ export function descriptionFromUserPrompt(prompt: string): string {
   if (portraitStateMark(trimmed) === undefined) return trimmed
   const rescue = dropSentencesWithState(trimmed)
   return rescue && portraitStateMark(rescue) === undefined ? rescue : ''
+}
+
+/**
+ * Tope de la identidad que se teje (modos `generic` y `text`). La descripción
+ * va pegada al final de TODAS las escenas y comparte los ~2.100 caracteres de
+ * cuerpo del prompt final con la escena y la cola de estilo: una ficha sin
+ * tope se comía la escena, o terminaba recortada distinta en cada una. El
+ * corte es en límite de oración y se hace UNA vez, antes de tejer: el texto
+ * ya cortado es el que viaja idéntico (y el que se guarda en el proyecto).
+ */
+export const MAX_WOVEN_IDENTITY_CHARS = 700
+
+export function capWovenIdentity(description: string): string {
+  const identity = description.trim()
+  if (identity.length <= MAX_WOVEN_IDENTITY_CHARS) return identity
+
+  const sentences = identity.split(/(?<=[.!?])\s+/)
+  let capped = ''
+  for (const sentence of sentences) {
+    const next = capped ? `${capped} ${sentence}` : sentence
+    if (next.length > MAX_WOVEN_IDENTITY_CHARS) break
+    capped = next
+  }
+  // Una sola oración más larga que el tope: corte duro en palabra entera.
+  if (!capped) {
+    const hardCut = identity.slice(0, MAX_WOVEN_IDENTITY_CHARS)
+    capped = `${hardCut.slice(0, hardCut.lastIndexOf(' ')).replace(/[,;:\s]+$/, '')}.`
+  }
+  return capped
+}
+
+/**
+ * La identidad que un proyecto YA viene tejiendo, leída de sus prompts
+ * guardados. Para los proyectos creados antes de que el protagonista se
+ * guardara en project.json: sin esto, reanudar o regenerar una escena volvía
+ * a diseñarlo y podía salir OTRO personaje en medio del video.
+ *
+ * Los prompts guardados ya pasaron por el scrub final (`sanitizeFinalPrompt`):
+ * después de la identidad traen las cláusulas de texto-en-imagen y anonimato,
+ * y un prompt largo pudo perder media identidad en el recorte viejo. Por eso
+ * se cortan las cláusulas, se descartan los candidatos que no cierran en
+ * puntuación (truncados) y gana el MÁS REPETIDO — el desempate es el más
+ * largo. Devuelve `undefined` si ninguna escena trae una identidad usable.
+ */
+export function recoverProtagonistFromScenes(
+  scenes: readonly Scene[],
+): string | undefined {
+  const counts = new Map<string, number>()
+  for (const scene of scenes) {
+    if (scene.promptIsFallback) continue
+    const body = bodyWithoutFinalClauses(scene.imagePrompt ?? '')
+    const headerIndex = body.lastIndexOf(DESCRIPTION_HEADER_PREFIX)
+    if (headerIndex < 0) continue
+
+    const candidate = body
+      .slice(headerIndex + DESCRIPTION_HEADER_PREFIX.length)
+      .replace(/^[^:]*:/, '')
+      .trim()
+    if (!/[.!?]$/.test(candidate)) continue
+    if (countWords(candidate) < MIN_DESCRIPTION_WORDS) continue
+    counts.set(candidate, (counts.get(candidate) ?? 0) + 1)
+  }
+
+  let best: string | undefined
+  let bestCount = 0
+  for (const [candidate, count] of counts) {
+    const wins =
+      count > bestCount ||
+      (count === bestCount && candidate.length > (best?.length ?? 0))
+    if (!wins) continue
+    best = candidate
+    bestCount = count
+  }
+  return best
 }
 
 /*
