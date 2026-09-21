@@ -28,6 +28,7 @@ import {
 import {
   DESCRIPTION_HEADER,
   DESCRIPTION_HEADER_WITH_WARDROBE,
+  signatureLookNote,
 } from '../../pipeline/prompts/verbatim-identity.ts'
 import {
   buildCustomStyleReferencePrompt,
@@ -183,8 +184,38 @@ test('the marker leaves the prompt, the clothing joins the role and the base out
     'Wide shot of the curious red-haired girl, wearing a red swimsuit, running. ' +
       DESCRIPTION_HEADER +
       ' ' +
-      core,
+      core +
+      ' ' +
+      signatureLookNote('a green hoodie, blue jeans and white sneakers'),
   )
+  assert.match(
+    signatureLookNote('a fedora and a badge'),
+    /signature look stays with them on top of this scene's clothing/,
+  )
+})
+
+test('a marker may swap an accessory the scene makes impossible, never the face or the hair', () => {
+  assert.equal(
+    extractWardrobe(
+      '[subject] (wearing: a white space suit and a helmet instead of the fedora) floats.',
+    ).wardrobe,
+    'a white space suit and a helmet instead of the fedora',
+  )
+  assert.equal(
+    extractWardrobe('[subject] (wearing: sunglasses and a straw hat) rests.')
+      .wardrobe,
+    'sunglasses and a straw hat',
+  )
+  for (const bad of [
+    'a red swimsuit, long blonde hair',
+    'a suit, older face',
+    'a coat, bald head',
+  ])
+    assert.equal(
+      extractWardrobe(`[subject] (wearing: ${bad}) runs.`).wardrobe,
+      undefined,
+      bad,
+    )
 })
 
 test('a sheet without an Outfit sentence is split at its wearing clause', () => {
@@ -210,11 +241,20 @@ test('a sheet without an Outfit sentence is split at its wearing clause', () => 
   })
 })
 
-test('the wardrobe rule gives no copyable example and no repeat instruction', () => {
+test('the wardrobe rule gives no copyable example, no repeat instruction, and keeps the signature look', () => {
   assert.doesNotMatch(SCENE_WARDROBE_RULE, /red swimsuit|repite EXACTAMENTE/)
   assert.match(
     SCENE_WARDROBE_RULE,
     /nunca la de un fragmento anterior ni una de ejemplo/,
+  )
+  assert.match(
+    SCENE_WARDROBE_RULE,
+    /Lo que CARACTERIZA al personaje .* se queda con el encima/,
+  )
+  assert.match(SCENE_WARDROBE_RULE, /un casco en lugar del sombrero/)
+  assert.match(
+    CHARACTER_OUTFIT_SENTENCE_RULE,
+    /TODO lo que el personaje lleva puesto o en la mano/,
   )
 })
 
@@ -263,10 +303,12 @@ test('switched on: contiguous scenes share the first wardrobe, others keep the b
   assert.match(prompt(2), /wearing a red swimsuit and sandals,/)
   assert.doesNotMatch(prompt(2), /one-piece/)
   assert.match(prompt(3), /wearing a thick grey winter coat and boots,/)
-  // Con ropa de escena la ropa base NO viaja; el resto de la identidad, sí.
+  // Con ropa de escena la identidad fija viaja igual y la ropa base pasa a
+  // ser la MARCA que se queda encima de la ropa de la escena.
   for (const id of [1, 2, 3]) {
     assert.ok(prompt(id).includes(DESCRIPTION_HEADER + ' ' + core), String(id))
-    assert.doesNotMatch(prompt(id), /green hoodie|wearing:|\(wearing/)
+    assert.match(prompt(id), /signature look stays with them .* green hoodie/)
+    assert.doesNotMatch(prompt(id), /wearing:|\(wearing/)
   }
   // Sin marcador: idéntico a la salida de siempre, ropa base incluida.
   assert.equal(
@@ -326,12 +368,12 @@ test('the reference lock frees the clothing only when switched on, for one and t
   const on = buildCustomStyleReferencePrompt('Elena', 'Scene.', true)
   assert.match(
     on,
-    /same face, same skin tone, same hair, same distinctive accessories; the clothing is what this scene describes/,
+    /same face, same skin tone, same hair; when this scene describes other clothing, that clothing replaces the reference's, and the reference's signature hat, badge, coat and accessories stay on top/,
   )
   assert.doesNotMatch(on, /same outfit/)
   assert.match(
     buildCustomStyleReferencePromptMulti(['Elena', 'Bruno'], 'Scene.', true),
-    /the clothing is what this scene describes/,
+    /signature hat, badge, coat and accessories stay on top/,
   )
   assert.match(
     buildCustomStyleReferencePromptMulti(['Elena', 'Bruno'], 'Scene.', false),
