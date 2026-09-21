@@ -10,7 +10,8 @@
 //   - fichas de Fase 1 que terminan con «Outfit:».
 //
 //   node scripts/ab-scene-wardrobe.mjs --matrix scripts/ab/scene-wardrobe.json
-//        [--keys .harness-keys.json] [--repeats 3] [--out docs/handoff/.../ab-results.md]
+//        [--keys .harness-keys.json] [--repeats 3] [--variants off,on]
+//        [--out docs/handoff/.../ab-results.md]
 //
 // El JSON de la matriz: { "styles": [{ "name", "gem" }], "scripts": [{ "name",
 // "fragments": [{ "text", "demanding": true|false }] }], "models": ["id", …] }.
@@ -53,6 +54,11 @@ if (!apiKey) {
 }
 const repeats = Number(readFlag('repeats', '3'))
 const outFile = readFlag('out', null)
+// `--variants on` repite solo la variante encendida (para mirar de cerca los
+// marcadores de una celda sin volver a pagar la apagada).
+const variants = readFlag('variants', 'off,on')
+  .split(',')
+  .map((variant) => variant.trim() === 'on')
 
 const client = createVerbatimClient({
   apiKey,
@@ -104,6 +110,15 @@ async function runCell(style, script, modelId, sceneWardrobe) {
   const markedNeutral = demanding.filter(
     ({ n, demanding: wanted }) => !wanted && MARKER.test(perScene.get(n) ?? ''),
   ).length
+  // Cada marcador tal como lo escribió el modelo, con su fragmento: es lo que
+  // hay que leer para juzgar un falso positivo o un descarte.
+  const markers = [...perScene.entries()].flatMap(([n, text]) =>
+    [...text.matchAll(/\[subject\]\s*\([^)]{0,200}\)/gi)].map((match) => ({
+      n,
+      demanding: Boolean(script.fragments[n - 1]?.demanding),
+      marker: match[0],
+    })),
+  )
   const sheetsInScene = [...result.prompts.values()].filter((prompt) =>
     SHEET_IN_SCENE.test(prompt),
   ).length
@@ -120,6 +135,7 @@ async function runCell(style, script, modelId, sceneWardrobe) {
     missing: result.missing.length,
     rejected,
     outfitSentence,
+    markers,
     prompts: [...result.prompts.entries()].sort((a, b) => a[0] - b[0]),
   }
 }
@@ -129,7 +145,7 @@ const samples = []
 for (const style of matrix.styles)
   for (const script of matrix.scripts)
     for (const modelId of matrix.models)
-      for (const sceneWardrobe of [false, true])
+      for (const sceneWardrobe of variants)
         for (let repeat = 1; repeat <= repeats; repeat++) {
           const label = `${style.name} × ${script.name} × ${modelProfile(modelId).label} × ${sceneWardrobe ? 'on' : 'off'} #${repeat}`
           process.stderr.write(`${label}\n`)
@@ -208,6 +224,20 @@ for (const group of groups.values())
   lines.push(
     `| ${group.style} | ${group.script} | ${modelProfile(group.model).label} | ${group.sceneWardrobe ? 'on' : 'off'} | ${percent(group.markedDemanding, group.demandingTotal)} | ${percent(group.markedNeutral, group.neutralTotal)} | ${group.rejected} | ${group.sheetsInScene} | ${group.missing} | ${group.outfitSentence}/${group.runs - group.errors} | ${group.errors} |`,
   )
+lines.push(
+  '',
+  '## Marcadores escritos por el modelo (vestuario encendido, todas las repeticiones)',
+  '',
+  '| Estilo | Guion | Modelo | # | Escena | Exigente | Marcador |',
+  '| --- | --- | --- | --- | --- | --- | --- |',
+)
+for (const row of rows) {
+  if (!row.sceneWardrobe || row.error) continue
+  for (const entry of row.markers)
+    lines.push(
+      `| ${row.style} | ${row.script} | ${modelProfile(row.model).label} | ${row.repeat} | ${entry.n} | ${entry.demanding ? 'sí' : 'no'} | ${entry.marker.replace(/\|/g, '\\|')} |`,
+    )
+}
 lines.push(
   '',
   '## Prompts de muestra (vestuario encendido, primera repetición)',
