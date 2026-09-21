@@ -177,6 +177,10 @@ export interface StyleProtagonist {
   portrait: string
   // Lo que se teje, idéntico, al final de cada escena que lo nombra.
   description: string
+  // La ropa base separada de la identidad fija (oración «Outfit:» de la
+  // ficha), cuando la Fase 1 la devolvió así. Solo diagnóstico: el tejido la
+  // vuelve a separar de `description` en cada escena.
+  outfit?: string
   source: StyleProtagonistSource
 }
 

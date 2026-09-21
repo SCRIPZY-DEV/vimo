@@ -28,6 +28,7 @@ import {
   buildScriptMessage,
   buildVerbatimSystem,
   gemWithCharacterPhase,
+  VERBATIM_SCENE_WARDROBE,
   type VerbatimCharacterMode,
   type VerbatimFragment,
 } from '../../../prompts/verbatim-messages.ts'
@@ -51,6 +52,7 @@ import {
   cleanDescription,
   descriptionFromUserPrompt,
   dropSentencesWithState,
+  extractWardrobe,
   fallbackUserDescription,
   identityWordCount,
   MIN_IDENTITY_WORDS,
@@ -62,7 +64,9 @@ import {
   removeSubject,
   roleFromDescription,
   roleUsableForWeaving,
+  splitOutfit,
   trimPortrait,
+  wardrobesLookAlike,
   weaveSubject,
 } from './subject-weaver.ts'
 
@@ -164,6 +168,9 @@ export interface VerbatimWriterOptions {
   /** Contrato local del editor; un incumplimiento se reintenta como defecto
    *  de esa escena antes de tejer identidad o permitir generar imágenes. */
   validatePrompt?: (prompt: string, sceneId: number) => boolean
+  /** Vestuario por escena. Ausente = la constante `VERBATIM_SCENE_WARDROBE`
+   *  (inyectable solo para probar las dos variantes sin tocar la constante). */
+  sceneWardrobe?: boolean
   /** Cliente ya armado con la clave del job (todos los perfiles del catálogo
    *  son DeepInfra: el mismo cliente sirve para el elegido y el rescate). */
   client: VerbatimClient
@@ -256,7 +263,12 @@ async function designCharacter(
                 ? gemWithCharacterPhase(options.gem)
                 : options.gem,
             },
-            { role: 'user', content: buildCharacterDesignMessage(script) },
+            {
+              role: 'user',
+              content: buildCharacterDesignMessage(script, {
+                sceneWardrobe: options.sceneWardrobe,
+              }),
+            },
           ],
           contentTokensBudget: TOKENS_PER_FRAGMENT,
           signal: options.signal,
@@ -554,6 +566,16 @@ async function designProtagonistPlan(
       }
     }
     const description = capWovenIdentity(designed.description)
+    const outfit =
+      (options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE)
+        ? splitOutfit(description).outfit
+        : undefined
+    if (options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE)
+      options.onLog?.(
+        outfit
+          ? 'the character sheet separates its base outfit: scene wardrobe can replace it'
+          : 'the character sheet has no separate outfit sentence: scene wardrobe travels with the whole description',
+      )
     return {
       mode: 'generic',
       portrait: designed.portrait,
@@ -561,6 +583,7 @@ async function designProtagonistPlan(
       designedNow: {
         portrait: designed.portrait,
         description,
+        ...(outfit ? { outfit } : {}),
         source: designed.completedByPlatform ? 'platform-phase' : 'style-phase',
       },
     }
@@ -664,12 +687,52 @@ export async function designStyleProtagonist(
 export function composeFinalPrompt(
   scenePrompt: string,
   character?: CharacterPlan,
+  wardrobe?: string,
 ): string {
   if (!character) return weaveSubject(scenePrompt)
   if (character.mode === 'reference')
-    return pointSubjectToImage(scenePrompt, character.name ?? '')
+    return pointSubjectToImage(scenePrompt, character.name ?? '', wardrobe)
   if (character.mode === 'none') return removeSubject(scenePrompt)
-  return weaveSubject(scenePrompt, character.description, character.name)
+  return weaveSubject(
+    scenePrompt,
+    character.description,
+    character.name,
+    wardrobe,
+  )
+}
+
+/**
+ * La ropa de cada escena, leída de los marcadores y con una regla de
+ * continuidad: una escena cuyo marcador se PARECE al de la escena anterior
+ * (comparten una prenda) hereda ese texto palabra por palabra — dos
+ * fragmentos seguidos en la playa no cambian de traje de baño porque el
+ * modelo lo redactó distinto. Una ropa distinta (de la playa a la nieve)
+ * corta la cadena. Devuelve los prompts con el marcador quitado, la ropa por
+ * escena, y los marcadores descartados.
+ */
+function readSceneWardrobes(prompts: ReadonlyMap<number, string>): {
+  scenes: Map<number, string>
+  wardrobes: Map<number, string>
+  rejected: Map<number, string>
+} {
+  const scenes = new Map<number, string>()
+  const wardrobes = new Map<number, string>()
+  const rejected = new Map<number, string>()
+  const ids = [...prompts.keys()].sort((a, b) => a - b)
+  for (const id of ids) {
+    const extraction = extractWardrobe(prompts.get(id)!)
+    scenes.set(id, extraction.scene)
+    if (extraction.rejected) rejected.set(id, extraction.rejected)
+    if (!extraction.wardrobe) continue
+    const previous = wardrobes.get(id - 1)
+    wardrobes.set(
+      id,
+      previous && wardrobesLookAlike(previous, extraction.wardrobe)
+        ? previous
+        : extraction.wardrobe,
+    )
+  }
+  return { scenes, wardrobes, rejected }
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -995,6 +1058,7 @@ export async function generateVerbatimPrompts(
         role: 'system',
         content: buildVerbatimSystem(options.gem, mode, {
           withoutScriptProtagonist,
+          sceneWardrobe: options.sceneWardrobe,
         }),
       },
       { role: 'user', content: buildScriptMessage(fullScript) },
@@ -1006,7 +1070,12 @@ export async function generateVerbatimPrompts(
             },
           ]
         : []),
-      { role: 'user', content: buildFragmentsMessage(batch, mode) },
+      {
+        role: 'user',
+        content: buildFragmentsMessage(batch, mode, {
+          sceneWardrobe: options.sceneWardrobe,
+        }),
+      },
     ]
     return withVerbatimRetry(
       async () => {
@@ -1213,7 +1282,26 @@ export async function generateVerbatimPrompts(
   const overBudget: number[] = []
   let sneakedIn = 0
   let bare = 0
-  for (const [n, prompt] of obtained) {
+  // Vestuario por escena: los marcadores salen del prompt ANTES de mirar
+  // quién nombra al protagonista, y la ropa se teje junto al rol.
+  const sceneWardrobe = options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
+  const wardrobes = sceneWardrobe ? readSceneWardrobes(obtained) : undefined
+  if (wardrobes && wardrobes.rejected.size > 0) {
+    options.onWarn?.(
+      `${wardrobes.rejected.size} scene(s) put something other than clothing in the wardrobe marker and it was discarded: ${[
+        ...wardrobes.rejected,
+      ]
+        .map(([id, text]) => `${id} («${text.slice(0, 40)}»)`)
+        .join(', ')}`,
+    )
+  }
+  if (wardrobes && wardrobes.wardrobes.size > 0) {
+    options.onLog?.(
+      `${wardrobes.wardrobes.size} scene(s) carry their own wardrobe: ${[...wardrobes.wardrobes.keys()].join(', ')}`,
+    )
+  }
+  for (const [n, rawPrompt] of obtained) {
+    const prompt = wardrobes?.scenes.get(n) ?? rawPrompt
     // Con FOTO, una escena también «trae al protagonista» si el modelo
     // escribió su NOMBRE directo en vez de la etiqueta (v1.27.0). Y en los
     // modos con DESCRIPCIÓN, también si lo mencionó de forma genérica sin
@@ -1233,7 +1321,11 @@ export async function generateVerbatimPrompts(
       if (mode === 'none') sneakedIn++
       if (isBare) bare++
     }
-    const finalPrompt = composeFinalPrompt(prompt, character)
+    const finalPrompt = composeFinalPrompt(
+      prompt,
+      character,
+      wardrobes?.wardrobes.get(n),
+    )
     if (finalPrompt.length > FINAL_PROMPT_BODY_BUDGET) overBudget.push(n)
     prompts.set(n, finalPrompt)
   }

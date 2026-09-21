@@ -2,6 +2,7 @@ import {
   DEFAULT_VIDEO_FORMAT,
   type VideoFormat,
 } from '../types/video-format.ts'
+import { VERBATIM_SCENE_WARDROBE } from './verbatim-messages.ts'
 
 // Línea de anclaje de identidad para el carril de imagen CON referencia (port
 // de lineaIdentidad / lineaIdentidadMulti de personaje_fal.ts). La REFERENCIA
@@ -77,15 +78,25 @@ export function buildReferenceIdentityLineMulti(
 export function buildCustomStyleReferencePrompt(
   name: string,
   scenePrompt: string,
+  sceneWardrobe: boolean = VERBATIM_SCENE_WARDROBE,
 ): string {
   const trimmedName = name.trim() || 'the main character'
   return (
     `REFERENCE: the attached image is "${trimmedName}", the main character of this video.\n\n` +
     `${scenePrompt.trim()}\n\n` +
-    `APPEARANCE LOCK: ${trimmedName} must look exactly like the person in the attached reference image: same face, same skin tone, same hair, same distinctive accessories, same outfit, in EVERY shot, even when ${trimmedName} appears small or far away. ` +
+    `APPEARANCE LOCK: ${trimmedName} must look exactly like the person in the attached reference image: ${lockedTraits(sceneWardrobe)}, in EVERY shot, even when ${trimmedName} appears small or far away. ` +
     `Apply the scene's art style only to the surroundings, never to ${trimmedName}. ` +
     `Ignore the reference image's background: place ${trimmedName} naturally in the scene, matching its lighting and perspective.`
   )
+}
+
+// Qué fija el candado. Con vestuario por escena, la ropa deja de estar
+// atada a la foto: la manda la escena cuando la describe, y si no, la de la
+// referencia.
+function lockedTraits(sceneWardrobe: boolean): string {
+  return sceneWardrobe
+    ? 'same face, same skin tone, same hair, same distinctive accessories; the clothing is what this scene describes when it specifies it, otherwise the outfit of the reference'
+    : 'same face, same skin tone, same hair, same distinctive accessories, same outfit'
 }
 
 // Para 1 nombre devuelve EXACTAMENTE la nota simple; para 2, cada imagen
@@ -95,10 +106,15 @@ export function buildCustomStyleReferencePrompt(
 export function buildCustomStyleReferencePromptMulti(
   names: string[],
   scenePrompt: string,
+  sceneWardrobe: boolean = VERBATIM_SCENE_WARDROBE,
 ): string {
   const cleaned = names.map((name) => name.trim()).filter(Boolean)
   if (cleaned.length <= 1)
-    return buildCustomStyleReferencePrompt(cleaned[0] ?? '', scenePrompt)
+    return buildCustomStyleReferencePrompt(
+      cleaned[0] ?? '',
+      scenePrompt,
+      sceneWardrobe,
+    )
 
   const list = cleaned
     .map((name, index) => `attached image ${index + 1} is "${name}"`)
@@ -107,7 +123,7 @@ export function buildCustomStyleReferencePromptMulti(
   return (
     `REFERENCE: ${list}, the main characters of this video.\n\n` +
     `${scenePrompt.trim()}\n\n` +
-    `APPEARANCE LOCK: ${joinedNames} must each look exactly like the person in their OWN attached reference image: same face, same skin tone, same hair, same distinctive accessories, same outfit, in EVERY shot, even when they appear small or far away. ` +
+    `APPEARANCE LOCK: ${joinedNames} must each look exactly like the person in their OWN attached reference image: ${lockedTraits(sceneWardrobe)}, in EVERY shot, even when they appear small or far away. ` +
     `Apply the scene's art style only to the surroundings, never to ${joinedNames}. ` +
     `Ignore the reference images' backgrounds: place ${joinedNames} naturally in the scene, matching its lighting and perspective.`
   )

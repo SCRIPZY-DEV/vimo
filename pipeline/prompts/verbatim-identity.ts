@@ -17,3 +17,13 @@ export const DESCRIPTION_HEADER_PREFIX =
 
 /** Con qué se presenta la descripción pegada al final del prompt de escena. */
 export const DESCRIPTION_HEADER = `${DESCRIPTION_HEADER_PREFIX}:`
+
+/**
+ * El encabezado cuando la escena trae su PROPIA ropa (vestuario por escena)
+ * y la descripción no se pudo partir en identidad fija + ropa base (ficha
+ * escrita por el usuario, protagonista guardado antes del vestuario): viaja
+ * la descripción entera, y el encabezado le dice al generador que la ropa de
+ * la escena le gana a la de la descripción. Comparte el prefijo: quien
+ * detecta la identidad (recorte, recuperación) lo reconoce igual.
+ */
+export const DESCRIPTION_HEADER_WITH_WARDROBE = `${DESCRIPTION_HEADER_PREFIX}, except for the clothing, which is exactly the one this scene describes:`

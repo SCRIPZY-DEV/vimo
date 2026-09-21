@@ -13,7 +13,9 @@
 // Lo que NO es port y está declarado como regla propia, sumada sin tocar el
 // texto portado: `STYLE_CHARACTER_PRECEDENCE_RULE` y
 // `PLATFORM_CHARACTER_PHASE_STYLE_PRECEDENCE` (el personaje escrito en el
-// estilo es el protagonista del video).
+// estilo es el protagonista del video), y el VESTUARIO POR ESCENA
+// (`SCENE_WARDROBE_RULE`, `BATCH_WARDROBE_ADDENDUM`,
+// `CHARACTER_OUTFIT_SENTENCE_RULE`), detrás de `VERBATIM_SCENE_WARDROBE`.
 //
 // Las gemas de chat definen dos fases que se activan por lo que RECIBEN: la
 // Fase 1 con el GUION, la Fase 2 con la lista de FRAGMENTOS. Nuestras
@@ -86,9 +88,66 @@ export const STYLE_CHARACTER_PRECEDENCE_RULE =
   'Solo si tu estilo NO describe ningun personaje propio, diseñalo como pide la consigna que sigue. ' +
   'En los dos casos el formato de entrega es el de la consigna que sigue.'
 
-/** Fase 1: el guion + la precedencia del estilo + la consigna, fuera del system. */
-export function buildCharacterDesignMessage(script: string): string {
-  return `${buildScriptMessage(script)}\n\n${STYLE_CHARACTER_PRECEDENCE_RULE}\n\n${CHARACTER_DESIGN_INSTRUCTION}`
+/*
+ * VESTUARIO POR ESCENA (2026-09-21). Decisión de producto: en «Mi estilo» el
+ * personaje se adapta a la escena SOLO en la ropa; cara, pelo, piel,
+ * contextura y accesorios distintivos quedan fijos. Hasta acá no existía
+ * ningún canal para eso: la arquitectura prohíbe describir a [subject] y la
+ * descripción (ropa incluida) se pega idéntica en todas las escenas, así que
+ * el personaje salía en la playa, la nieve o la cama con el mismo buzo.
+ *
+ * Todo va detrás de esta constante. APAGADA, cada prompt es byte-idéntico al
+ * de antes: se enciende recién después del A/B con claves reales (los
+ * prompts de este carril se midieron en el origen). El sidecar no lee el
+ * entorno (ADR-0010): es una constante, no una variable.
+ */
+export const VERBATIM_SCENE_WARDROBE = false
+
+/**
+ * La ficha de la Fase 1 termina con UNA oración «Outfit:» para que el código
+ * pueda separar la identidad fija de la ropa base. Regla propia, sumada
+ * entre la precedencia y la consigna portada.
+ */
+export const CHARACTER_OUTFIT_SENTENCE_RULE =
+  'FORMATO DE LA FICHA (regla tecnica de la plataforma, se suma a la consigna que sigue): ' +
+  'termina la ficha con UNA oracion final que empiece exactamente con "Outfit:" y contenga SOLO la ropa y el calzado con sus colores. ' +
+  'Los accesorios distintivos permanentes (lentes, sombrero, joyas, cicatrices) van ANTES, junto con los rasgos, nunca en esa oracion.'
+
+/**
+ * La regla del vestuario, ULTIMA del system de la Fase 2 (modos generic,
+ * text y reference). Es la unica excepcion a «no describas a [subject]»: la
+ * ropa, solo cuando la situacion del fragmento la exige, en un parentesis
+ * pegado a la etiqueta que el codigo lee y separa.
+ */
+export const SCENE_WARDROBE_RULE =
+  'VESTUARIO POR ESCENA (regla tecnica de la plataforma, se suma a todo lo anterior y no cambia tu estilo): ' +
+  'la UNICA excepcion a no describir a [subject] es su ROPA. ' +
+  'SOLO cuando la situacion del fragmento exige claramente otra ropa que la habitual (playa, nieve, dormir, uniforme, deporte, epoca historica, disfraz, gala), ' +
+  'escribe inmediatamente despues de la etiqueta un parentesis asi: [subject] (wearing: a red swimsuit and sandals) ' +
+  '— en ingles, solo prendas y calzado con sus colores, maximo 12 palabras. ' +
+  'NUNCA pongas ahi cara, pelo, piel, cuerpo, edad ni accesorios: eso no cambia jamas. ' +
+  'Si varios fragmentos seguidos comparten la situacion, repite EXACTAMENTE el mismo parentesis. ' +
+  'Si el fragmento no exige otra ropa, NO escribas el parentesis.'
+
+/** El recordatorio del vestuario en el turno del lote, después del preámbulo portado. */
+export const BATCH_WARDROBE_ADDENDUM =
+  'Ropa: solo si un fragmento exige claramente otra ropa, escribe [subject] (wearing: ...) con prendas y colores; si no, la etiqueta sola.'
+
+export interface VerbatimMessageOptions {
+  /** Vestuario por escena. Ausente = la constante `VERBATIM_SCENE_WARDROBE`. */
+  sceneWardrobe?: boolean
+}
+
+/** Fase 1: el guion + la precedencia del estilo (+ el formato de la ficha) + la consigna, fuera del system. */
+export function buildCharacterDesignMessage(
+  script: string,
+  options: VerbatimMessageOptions = {},
+): string {
+  const sceneWardrobe = options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
+  const rules = sceneWardrobe
+    ? `${STYLE_CHARACTER_PRECEDENCE_RULE}\n\n${CHARACTER_OUTFIT_SENTENCE_RULE}`
+    : STYLE_CHARACTER_PRECEDENCE_RULE
+  return `${buildScriptMessage(script)}\n\n${rules}\n\n${CHARACTER_DESIGN_INSTRUCTION}`
 }
 
 /**
@@ -277,7 +336,7 @@ function architectureRuleFor(mode: VerbatimCharacterMode): string {
 export function buildVerbatimSystem(
   gem: string,
   mode: VerbatimCharacterMode = 'generic',
-  options?: { withoutScriptProtagonist?: boolean },
+  options?: VerbatimMessageOptions & { withoutScriptProtagonist?: boolean },
 ): string {
   const base = `${gem.trim()}\n\n${SCENE_ID_RULE}\n\n${architectureRuleFor(mode)}`
   // v1.31.3 (E47) — Con el personaje del USUARIO, la identidad de la gema no
@@ -287,9 +346,15 @@ export function buildVerbatimSystem(
     : base
   // v1.32.1 (E49) — Reescritura de escena DESMARCADA: el protagonista del
   // guion tampoco aparece.
-  return mode === 'none' && options?.withoutScriptProtagonist
-    ? `${withProtagonist}\n\n${SCENE_WITHOUT_PROTAGONIST_RULE}`
-    : withProtagonist
+  const withoutScript =
+    mode === 'none' && options?.withoutScriptProtagonist
+      ? `${withProtagonist}\n\n${SCENE_WITHOUT_PROTAGONIST_RULE}`
+      : withProtagonist
+  // Vestuario por escena: la ULTIMA regla, solo con protagonista.
+  const sceneWardrobe = options?.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
+  return sceneWardrobe && mode !== 'none'
+    ? `${withoutScript}\n\n${SCENE_WARDROBE_RULE}`
+    : withoutScript
 }
 
 export interface VerbatimFragment {
@@ -362,7 +427,13 @@ function batchPreambleFor(mode: VerbatimCharacterMode): string {
 export function buildFragmentsMessage(
   fragments: readonly VerbatimFragment[],
   mode: VerbatimCharacterMode = 'generic',
+  options: VerbatimMessageOptions = {},
 ): string {
+  const sceneWardrobe = options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
+  const preamble =
+    sceneWardrobe && mode !== 'none'
+      ? `${batchPreambleFor(mode)} ${BATCH_WARDROBE_ADDENDUM}`
+      : batchPreambleFor(mode)
   const list = fragments
     .map((fragment) => {
       // La indicación manual del usuario viaja pegada a SU fragmento: es
@@ -375,7 +446,7 @@ export function buildFragmentsMessage(
     .join('\n')
   const total = fragments.length
   return (
-    `${batchPreambleFor(mode)}\n\n` +
+    `${preamble}\n\n` +
     `FRAGMENTOS:\n${list}\n\nSon ${total} fragmentos: devuelve EXACTAMENTE ${total} prompts, uno por fragmento y en el mismo orden. Ni uno mas, ni uno menos.`
   )
 }
