@@ -251,6 +251,12 @@ test('the wardrobe rule gives no copyable example, no repeat instruction, and ke
     /Lo que CARACTERIZA al personaje .* se queda con el encima/,
   )
   assert.match(SCENE_WARDROBE_RULE, /un casco en lugar del sombrero/)
+  // Por rol, no solo por situacion: un astronauta va de astronauta en todas
+  // sus escenas, aunque dentro de la estacion no haga falta.
+  assert.match(
+    SCENE_WARDROBE_RULE,
+    /OFICIO o rol con vestimenta propia .* aplica en TODAS las escenas en que actua en ese rol/,
+  )
   assert.match(
     CHARACTER_OUTFIT_SENTENCE_RULE,
     /TODO lo que el personaje lleva puesto o en la mano/,

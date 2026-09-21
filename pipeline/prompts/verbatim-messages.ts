@@ -136,8 +136,16 @@ export const CHARACTER_OUTFIT_SENTENCE_RULE =
 /**
  * La regla del vestuario, ULTIMA del system de la Fase 2 (modos generic,
  * text y reference). Es la unica excepcion a «no describas a [subject]»: la
- * ropa, solo cuando la situacion del fragmento la exige, en un parentesis
- * pegado a la etiqueta que el codigo lee y separa.
+ * ropa, cuando la situacion del fragmento la exige O cuando el guion pone al
+ * personaje en un oficio con vestimenta propia, en un parentesis pegado a la
+ * etiqueta que el codigo lee y separa.
+ *
+ * El rol se sumo el 2026-09-21: con «eres astronauta en la estacion» y solo
+ * el criterio de situacion, el modelo decidia (con razon realista) que
+ * dentro de la estacion no hace falta otra ropa, y el detective salia sin
+ * traje. Medido sobre 8 escenas del guion real, 2 corridas por modelo:
+ * situacion sola → GPT Ultra 8/16, GPT Turbo 0/16, DeepSeek 9/16; con el rol
+ * → 16/16, 16/16 y 8/16.
  */
 export const SCENE_WARDROBE_RULE =
   'VESTUARIO POR ESCENA (regla tecnica de la plataforma, se suma a todo lo anterior y no cambia tu estilo): ' +
@@ -149,7 +157,9 @@ export const SCENE_WARDROBE_RULE =
   'Lo que CARACTERIZA al personaje (su sombrero, su placa, su abrigo, sus lentes, lo que lleva en la mano) se queda con el encima de esa ropa: ' +
   'la plataforma lo agrega sola, no lo repitas. Solo si la situacion hace IMPOSIBLE una de esas cosas, dilo en el mismo parentesis (por ejemplo, un casco en lugar del sombrero). ' +
   'NUNCA pongas ahi cara, piel, cuerpo, edad, ni el color o el largo del pelo: eso no cambia jamas. ' +
-  'Si el fragmento no exige otra ropa, NO escribas el parentesis.'
+  'Y si el guion pone al personaje en un OFICIO o rol con vestimenta propia (astronauta, chef, medico, bombero, soldado, buzo, piloto), ' +
+  'ese atuendo aplica en TODAS las escenas en que actua en ese rol, aunque la escena en si no lo exija: escribe el parentesis en cada una de ellas, con el mismo atuendo. ' +
+  'Si el fragmento no exige otra ropa ni un rol asi, NO escribas el parentesis.'
 
 /** El recordatorio del vestuario en el turno del lote, después del preámbulo portado. */
 export const BATCH_WARDROBE_ADDENDUM =
