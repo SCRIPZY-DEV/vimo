@@ -77,12 +77,22 @@ export const CHARACTER_DESIGN_INSTRUCTION =
  * no. Solo decide QUIÉN es el protagonista: el formato de entrega sigue
  * siendo el de la consigna, y el personaje del USUARIO (biblioteca) le sigue
  * ganando a este — esos modos no pasan por la Fase 1.
+ *
+ * Reforzada el 2026-09-21: con un guion que dice «eres astronauta», el modelo
+ * VESTÍA al personaje del estilo de astronauta (traje espacial en vez de
+ * gabardina, fedora y placa). Medido con la gema real, Fase 1 sola, 4
+ * repeticiones por modelo: la versión anterior conservaba al personaje 1/4
+ * (DeepSeek V4 Flash) y 3/4 (GPT o4-mini Turbo); esta, 4/4 y 4/4. La clave es
+ * decir que el personaje INTERPRETA la historia y que el prompt de diseño
+ * escrito en el estilo se devuelve palabra por palabra.
  */
 export const STYLE_CHARACTER_PRECEDENCE_RULE =
   'EL PERSONAJE DE TU ESTILO MANDA (regla tecnica de la plataforma, se suma a la consigna que sigue y no cambia tu estilo): ' +
-  'si tu estilo YA describe a su propio personaje, narrador o sujeto recurrente (una seccion que diga como es, un narrador fijo, una ficha), ' +
-  'el protagonista de este video ES ese personaje: devuelve SU ficha exactamente como tu estilo lo define ' +
-  '— los mismos rasgos, el mismo pelo, la misma ropa con sus colores y los mismos accesorios — sin reinterpretarlo a partir del guion. ' +
+  'si tu estilo YA describe a su propio personaje, narrador o sujeto recurrente (una seccion que diga como es, un narrador fijo, una ficha, un prompt de diseño), ' +
+  'el protagonista de este video ES ese personaje, aunque el guion hable de otro oficio, otra epoca u otra persona (un astronauta, un chef, un rey): ' +
+  'el personaje de tu estilo es quien INTERPRETA esa historia, con su mismo cuerpo, su misma cara, su misma ropa y sus mismos accesorios. ' +
+  'NO lo conviertas en la persona que el guion narra ni lo vistas como ella, y no le quites ni le cambies nada de lo que tu estilo le da. ' +
+  'Si tu estilo trae escrito el prompt de diseño de ese personaje, devuelve ESE prompt tal cual, palabra por palabra. ' +
   'Solo si tu estilo NO describe ningun personaje propio, diseñalo como pide la consigna que sigue. ' +
   'En los dos casos el formato de entrega es el de la consigna que sigue.'
 
