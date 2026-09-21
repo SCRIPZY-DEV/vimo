@@ -121,6 +121,65 @@ Los resultados van a `ab-results.md` en esta carpeta (el script lo escribe). Si
 pasan, encender la constante es un commit de una línea; si no, ajustar la regla y
 repetir.
 
+## Resultados del A/B (2026-09-21)
+
+Dos pasadas contra DeepInfra, con la matriz de `scripts/ab/scene-wardrobe.json`:
+
+- **Pasada 1** (`ab-results.md`): 72 corridas, apagado y encendido, 3 repeticiones.
+- **Pasada 2** (`ab-markers.md`): 24 corridas solo encendido, 2 repeticiones, con
+  cada marcador registrado junto a su fragmento.
+
+Lo que se midió, contra los umbrales:
+
+| Criterio                                | GPT o4-mini Turbo           | DeepSeek V4 Flash                                    |
+| --------------------------------------- | --------------------------- | ---------------------------------------------------- |
+| Marcador en fragmentos exigentes (≥70%) | 100 / 100 / 83–88%          | 75–83 / 50–75 / 50–75%                               |
+| Marcador en fragmentos neutros (≤5%)    | 0% en todo                  | pasada 1: 17–27%; pasada 2: 1 de 30 (3%)             |
+| Marcadores descartados                  | 2 en 36 corridas (pasada 1) | 0                                                    |
+| Fichas incrustadas / escenas faltantes  | 0 / 0                       | 0 / 0                                                |
+| Ficha con `Outfit:`                     | mayoría                     | irregular; 0/2 con el personaje escrito en el estilo |
+
+Con la constante apagada, cero marcadores en las 36 corridas: apagada nada cambia.
+
+Lecturas y lo que se cambió a partir de ellas:
+
+- **El único falso positivo registrado de DeepSeek copió el ejemplo literal de la
+  regla** («a red swimsuit and sandals», en un guion de ahorro). La regla ya no
+  trae un ejemplo copiable y dice que la ropa la decide la situación del fragmento,
+  «nunca la de un fragmento anterior ni una de ejemplo».
+- **DeepSeek repitió la ropa de la playa en la nieve** en 2 corridas (la frase
+  «repite EXACTAMENTE el mismo paréntesis» lo empujaba). Esa frase salió de la
+  regla: la continuidad entre escenas contiguas la hace el código
+  (`wardrobesLookAlike`), y solo cuando las prendas se parecen.
+- **DeepSeek no marca «dormir»** en ningún estilo (GPT sí, con pijama). Es
+  discutible que dormir exija otra ropa; el 50–75% de DeepSeek en exigentes se
+  explica casi entero por eso y por el stickman. Playa, nieve y gala salen marcadas
+  en la mayoría de sus corridas.
+- **Una gema con su ficha escrita la devuelve tal cual y no cierra con `Outfit:`**
+  (la precedencia del personaje del estilo lo pide). `splitOutfit` corta ahora
+  también por la cláusula «wearing…/dressed in…» de la última oración que la tenga:
+  la ficha del detective queda en identidad fija («…round white head, dot eyes…»)
+  y ropa base («a classic dark brown private investigator outfit…»).
+- Los prompts de las escenas exigentes salieron como se buscaba: «the Detective
+  Minimalist, wearing red swimsuit and sandals, sprinting toward the waves»,
+  «wearing dark coat and boots, climbing a snow-covered trail», «wearing white
+  pajama set, lying on a cozy bed», y en la oficina nada, ropa base.
+
+**Hallazgo aparte, previo a este PR y presente con la constante apagada:** el rol
+tejido arrastra etiquetas de la ficha cuando la Fase 1 la escribe como
+«Clave: valor». En las muestras: «the office worker turned spontaneous adventurer
+Gender: male», «the Thrifty young office worker Gender: Male Age: Late 20s Height:
+Average», «the minimalist black stickman character with a simple» (cortado en la
+coma). `roleFromDescription` toma la primera oración hasta la primera coma y no
+limpia esas etiquetas. Es un fix chico y separado: limpiar «Gender:/Age:/Height:/
+Proportions:» del rol y no cortar en una coma que deja un adjetivo colgado. Se ve en
+11 de los 72 prompts de muestra.
+
+**Pendiente:** repetir el A/B con la regla corregida antes de encender la
+constante, y confirmar con imágenes reales. Si además se amplía lo que cambia con
+la escena (accesorios, peinado), la regla cambia de nuevo y el A/B se repite
+después de eso.
+
 ## Límites conocidos
 
 - La ropa puede variar entre lotes paralelos (la continuidad solo mira la escena
