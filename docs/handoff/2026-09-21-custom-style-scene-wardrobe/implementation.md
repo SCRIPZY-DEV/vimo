@@ -250,6 +250,14 @@ vestimenta propia (astronauta, chef, médico, bombero, soldado, buzo, piloto), e
 atuendo aplica en todas las escenas en que actúa en ese rol, con el mismo atuendo.
 DeepSeek sigue siendo todo-o-nada por corrida; con GPT el resultado es estable.
 
+A/B corto con la regla del rol, solo encendido, 2 repeticiones
+(`ab-results-role.md`): los falsos positivos en el guion neutro no suben (GPT 0 %,
+DeepSeek 1 de 30, «comfortable home clothes» en un guion de ahorro). En exigentes GPT
+Turbo mantiene 100 % con los estilos humanos y baja a 40 % con el muñeco de palitos;
+DeepSeek oscila (20–60 %) porque sigue marcando todo o nada por corrida. Con 10
+fragmentos por celda estas cifras tienen mucha varianza: la lectura firme es que el
+rol no genera marcadores donde no hay rol.
+
 ## Límites conocidos
 
 - La ropa puede variar entre lotes paralelos (la continuidad solo mira la escena
