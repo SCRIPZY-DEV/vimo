@@ -327,22 +327,67 @@ export interface IdentitySplit {
 }
 
 /**
- * Parte la descripción en identidad fija y ropa base. Sin oración «Outfit:»
- * (ficha del usuario, protagonista guardado antes del vestuario) no hay
+ * Dónde arranca la ropa dentro de una oración que no la trae separada:
+ * «…, wearing a dark brown trench coat, a fedora and a tie, holding a
+ * notepad.» Medido en el A/B: una gema que trae su ficha ESCRITA la devuelve
+ * tal cual (la precedencia del personaje del estilo lo pide) y no cierra con
+ * «Outfit:», así que sin esta heurística esa ficha nunca se partía.
+ */
+const OUTFIT_CLAUSE_REGEX = /,?\s*\b(?:wearing|dressed in|clad in)\b/i
+
+/**
+ * Parte la descripción en identidad fija y ropa base. Primero la oración
+ * «Outfit:» de la Fase 1; si no viene, la cláusula «wearing…» de la ÚLTIMA
+ * oración que la tenga (hasta el final de esa oración). Sin ninguna de las
+ * dos (ficha del usuario, protagonista guardado antes del vestuario) no hay
  * corte: `core` es la descripción entera y `outfit` no viene.
  */
 export function splitOutfit(description: string): IdentitySplit {
   const sentences = description.trim().split(/(?<=[.!?])\s+/)
-  const index = sentences.findLastIndex((sentence) =>
+  const labeled = sentences.findLastIndex((sentence) =>
     OUTFIT_SENTENCE_REGEX.test(sentence),
   )
-  if (index < 0) return { core: description.trim() }
+  if (labeled >= 0) {
+    const outfit = sentences[labeled]!.replace(OUTFIT_SENTENCE_REGEX, '')
+      .replace(/[.!?]+$/, '')
+      .trim()
+    return assembleSplit(
+      sentences.filter((_, position) => position !== labeled),
+      outfit,
+      description,
+    )
+  }
 
-  const outfit = sentences[index]!.replace(OUTFIT_SENTENCE_REGEX, '')
+  const clause = sentences.findLastIndex((sentence) =>
+    OUTFIT_CLAUSE_REGEX.test(sentence),
+  )
+  if (clause < 0) return { core: description.trim() }
+  const sentence = sentences[clause]!
+  const match = OUTFIT_CLAUSE_REGEX.exec(sentence)!
+  const outfit = sentence
+    .slice(match.index + match[0].length)
     .replace(/[.!?]+$/, '')
     .trim()
+  // Lo que queda antes de la cláusula: sin el «He is» colgado y cerrado en
+  // punto, para que la identidad no arrastre media frase.
+  const before = sentence
+    .slice(0, match.index)
+    .replace(/\b(?:who|he|she|they|it)\s+(?:is|are)\s*$/i, '')
+    .replace(/[,;:\s]+$/, '')
+    .trim()
+  const rest = sentences.map((item, position) =>
+    position === clause ? (before ? `${before}.` : '') : item,
+  )
+  return assembleSplit(rest, outfit, description)
+}
+
+function assembleSplit(
+  coreSentences: readonly string[],
+  outfit: string,
+  description: string,
+): IdentitySplit {
   const core = tidyPunctuation(
-    sentences.filter((_, position) => position !== index).join(' '),
+    coreSentences.filter((sentence) => sentence.trim()).join(' '),
   )
   if (!outfit || countWords(core) < MIN_DESCRIPTION_WORDS)
     return { core: description.trim() }

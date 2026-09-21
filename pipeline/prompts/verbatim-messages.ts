@@ -123,10 +123,10 @@ export const SCENE_WARDROBE_RULE =
   'VESTUARIO POR ESCENA (regla tecnica de la plataforma, se suma a todo lo anterior y no cambia tu estilo): ' +
   'la UNICA excepcion a no describir a [subject] es su ROPA. ' +
   'SOLO cuando la situacion del fragmento exige claramente otra ropa que la habitual (playa, nieve, dormir, uniforme, deporte, epoca historica, disfraz, gala), ' +
-  'escribe inmediatamente despues de la etiqueta un parentesis asi: [subject] (wearing: a red swimsuit and sandals) ' +
-  '— en ingles, solo prendas y calzado con sus colores, maximo 12 palabras. ' +
+  'escribe inmediatamente despues de la etiqueta un parentesis con la forma [subject] (wearing: ...) ' +
+  '— en ingles, solo las prendas y el calzado que ESA situacion pide, con sus colores, maximo 12 palabras; ' +
+  'la ropa la decide la situacion del fragmento, nunca la de un fragmento anterior ni una de ejemplo. ' +
   'NUNCA pongas ahi cara, pelo, piel, cuerpo, edad ni accesorios: eso no cambia jamas. ' +
-  'Si varios fragmentos seguidos comparten la situacion, repite EXACTAMENTE el mismo parentesis. ' +
   'Si el fragmento no exige otra ropa, NO escribas el parentesis.'
 
 /** El recordatorio del vestuario en el turno del lote, después del preámbulo portado. */
