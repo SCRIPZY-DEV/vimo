@@ -21,6 +21,10 @@ import {
   isInsufficientCreditsFailure,
   isInsufficientCreditsResponse,
 } from '../../utils/insufficient-credits.ts'
+import {
+  reportFromFailure,
+  type ProviderFailureReport,
+} from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { isImageAccountFailure, resolveAuthRejection } from './account-probe.ts'
@@ -70,6 +74,27 @@ const CHARACTER_QUALITY = 'low'
 // Mismo cupo que el carril normal; los 429 los absorbe el backoff.
 const FAL_CHARACTER_CONCURRENCY = 10
 const EVOLINK_CHARACTER_CONCURRENCY = 50
+// Id del proveedor en los fallos del carril Fal/edit (ADR-0038); el carril
+// Evolink delega en evolink-lane, que pone el suyo.
+const FAL_FAILURE_PROVIDER = 'fal'
+
+// Un intento del carril Fal/edit al log de diagnóstico. Salvo los fallos de
+// cuenta, este carril siempre se recupera: la escena cae al carril normal.
+function reportFalAttempt(
+  options: ImageLaneOptions,
+  sceneId: number,
+  attempt: number,
+  failure: Pick<ProviderFailureReport, 'code' | 'httpStatus' | 'detail'>,
+): void {
+  options.events.onProviderFailure({
+    provider: FAL_FAILURE_PROVIDER,
+    ...failure,
+    sceneId,
+    attempt,
+    maxAttempts: FAL_MAX_ATTEMPTS,
+    recovered: true,
+  })
+}
 
 async function generateSceneWithFalEdit(
   scene: Scene,
@@ -133,6 +158,11 @@ async function generateSceneWithFalEdit(
         const data = (await response.json()) as FalImageResponse
         const url = data.images?.[0]?.url
         if (!url) {
+          reportFalAttempt(options, scene.id, attempt, {
+            code: 'image_provider_error',
+            httpStatus: response.status,
+            detail: '200 without an image URL',
+          })
           if (attempt === FAL_MAX_ATTEMPTS) return { scene, imageReady: false }
           await sleep(2000 * attempt, options.signal)
           continue
@@ -156,6 +186,7 @@ async function generateSceneWithFalEdit(
         throw new PipelineFailure(
           'image_insufficient_credits',
           `Fal rejected scene ${scene.id} (references) for insufficient balance (status=${response.status}) ${signalText}`,
+          { provider: FAL_FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       // 401/403: la cuenta, no la escena. Sin esto se gastaban los intentos
@@ -173,6 +204,11 @@ async function generateSceneWithFalEdit(
         response.status === 429 ||
         errorType === 'concurrent_requests_limit'
       ) {
+        reportFalAttempt(options, scene.id, attempt, {
+          code: 'image_rate_limited',
+          httpStatus: response.status,
+          detail: `status=${response.status} ${signalText}`,
+        })
         await sleep(Math.min(2000 * 2 ** (attempt - 1), 20_000), options.signal)
         continue
       }
@@ -182,6 +218,11 @@ async function generateSceneWithFalEdit(
       const isSafety =
         (response.status === 400 || response.status === 422) &&
         FAL_CONTENT_POLICY_PATTERN.test(signalText)
+      reportFalAttempt(options, scene.id, attempt, {
+        code: isSafety ? 'image_content_policy' : 'image_provider_error',
+        httpStatus: response.status,
+        detail: `status=${response.status} ${signalText}`,
+      })
       if (isSafety)
         return { scene: { ...scene, contentRejected: true }, imageReady: false }
 
@@ -189,8 +230,18 @@ async function generateSceneWithFalEdit(
       await sleep(2000 * attempt, options.signal)
     } catch (error) {
       if (options.signal.aborted) return { scene, imageReady: false }
-      if (isInsufficientCreditsFailure(error) || isImageAccountFailure(error))
-        throw error
+      const abortsPhase =
+        isInsufficientCreditsFailure(error) || isImageAccountFailure(error)
+      if (error instanceof PipelineFailure)
+        options.events.onProviderFailure(
+          reportFromFailure(error, {
+            sceneId: scene.id,
+            attempt,
+            maxAttempts: FAL_MAX_ATTEMPTS,
+            recovered: !abortsPhase,
+          }),
+        )
+      if (abortsPhase) throw error
       if (attempt === FAL_MAX_ATTEMPTS) return { scene, imageReady: false }
       await sleep(2000 * attempt, options.signal)
     } finally {

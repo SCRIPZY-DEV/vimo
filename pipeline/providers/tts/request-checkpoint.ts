@@ -60,6 +60,7 @@ export async function openVoiceRequest(
       throw new PipelineFailure(
         'voice_request_unresolved',
         'voice receipt could not be read; refusing another submission',
+        { provider: providerId },
       )
   }
 
@@ -71,6 +72,7 @@ export async function openVoiceRequest(
       throw new PipelineFailure(
         'voice_request_unresolved',
         'previous voice submission has no recoverable matching receipt',
+        { provider: providerId },
       )
   } else {
     receipt = {

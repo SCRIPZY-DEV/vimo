@@ -13,6 +13,10 @@ import {
   isInsufficientCreditsFailure,
   isInsufficientCreditsResponse,
 } from '../../utils/insufficient-credits.ts'
+import {
+  reportFromFailure,
+  type ProviderFailureReport,
+} from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { sleep } from '../../utils/sleep.ts'
 import { IMAGE_MODEL } from '../../types/image-provider.ts'
@@ -38,6 +42,27 @@ import {
 const MAX_ATTEMPTS = 5
 const ORDER_DEADLINE_MS = 210_000
 const RATE_LIMIT_MAX_BACKOFF_MS = 30_000
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'fal'
+
+// Un intento contra Fal que el carril absorbe (reintenta) o con el que
+// abandona la escena: al log de diagnóstico.
+function reportAttempt(
+  options: ImageLaneOptions,
+  sceneId: number,
+  attempt: number,
+  recovered: boolean,
+  failure: Pick<ProviderFailureReport, 'code' | 'httpStatus' | 'detail'>,
+): void {
+  options.events.onProviderFailure({
+    provider: FAILURE_PROVIDER,
+    ...failure,
+    sceneId,
+    attempt,
+    maxAttempts: MAX_ATTEMPTS,
+    recovered,
+  })
+}
 
 export async function generateSceneWithFal(
   scene: Scene,
@@ -94,8 +119,12 @@ export async function generateSceneWithFal(
       } catch (error) {
         if (options.signal.aborted) return { scene, imageReady: false }
         if (deadline.aborted)
-          throw new PipelineFailure('image_timeout', 'order deadline')
-        throw new PipelineFailure('image_network', String(error))
+          throw new PipelineFailure('image_timeout', 'order deadline', {
+            provider: FAILURE_PROVIDER,
+          })
+        throw new PipelineFailure('image_network', String(error), {
+          provider: FAILURE_PROVIDER,
+        })
       }
 
       if (response.ok) {
@@ -104,6 +133,11 @@ export async function generateSceneWithFal(
         // 200 sin URL: transitorio (cuota momentánea) → reintentar, sin
         // tocar el % (nunca se informa un retroceso).
         if (!url) {
+          reportAttempt(options, scene.id, attempt, attempt < MAX_ATTEMPTS, {
+            code: 'image_provider_error',
+            httpStatus: response.status,
+            detail: '200 without an image URL',
+          })
           if (attempt === MAX_ATTEMPTS) {
             options.events.onFailed(
               scene.id,
@@ -142,6 +176,7 @@ export async function generateSceneWithFal(
         throw new PipelineFailure(
           'image_insufficient_credits',
           `Fal rejected scene ${scene.id} for insufficient balance (status=${response.status}) ${detail}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       // 401/403: es de la CUENTA, no de esta escena — corta la fase en vez
@@ -160,6 +195,11 @@ export async function generateSceneWithFal(
         response.status === 429 ||
         errorType === 'concurrent_requests_limit'
       ) {
+        reportAttempt(options, scene.id, attempt, attempt < MAX_ATTEMPTS, {
+          code: 'image_rate_limited',
+          httpStatus: response.status,
+          detail: `status=${response.status} ${detail}`,
+        })
         await sleep(
           Math.min(2000 * 2 ** (attempt - 1), RATE_LIMIT_MAX_BACKOFF_MS),
           options.signal,
@@ -172,6 +212,13 @@ export async function generateSceneWithFal(
         (errorType === 'content_policy_violation' ||
           FAL_CONTENT_POLICY_PATTERN.test(detail))
       if (isSafetyViolation) {
+        // Se abandona la escena en este carril: la pasada de recuperación
+        // reescribe el prompt, pero eso ya no es un reintento del encargo.
+        reportAttempt(options, scene.id, attempt, false, {
+          code: 'image_content_policy',
+          httpStatus: response.status,
+          detail: `status=${response.status} ${detail}`,
+        })
         options.events.onFailed(
           scene.id,
           'image_content_policy',
@@ -179,6 +226,12 @@ export async function generateSceneWithFal(
         )
         return { scene: { ...scene, contentRejected: true }, imageReady: false }
       }
+
+      reportAttempt(options, scene.id, attempt, attempt < MAX_ATTEMPTS, {
+        code: 'image_provider_error',
+        httpStatus: response.status,
+        detail: `status=${response.status} ${detail}`,
+      })
 
       if (response.status >= 500) {
         await sleep(2000 * attempt, options.signal)
@@ -196,8 +249,18 @@ export async function generateSceneWithFal(
       await sleep(2000, options.signal)
     } catch (error) {
       if (options.signal.aborted) return { scene, imageReady: false }
-      if (isInsufficientCreditsFailure(error) || isImageAccountFailure(error))
-        throw error
+      const abortsPhase =
+        isInsufficientCreditsFailure(error) || isImageAccountFailure(error)
+      if (error instanceof PipelineFailure)
+        options.events.onProviderFailure(
+          reportFromFailure(error, {
+            sceneId: scene.id,
+            attempt,
+            maxAttempts: MAX_ATTEMPTS,
+            recovered: !abortsPhase && attempt < MAX_ATTEMPTS,
+          }),
+        )
+      if (abortsPhase) throw error
       // Descarga fallida u otro transitorio: reintentar; agotado → error.
       if (attempt === MAX_ATTEMPTS) {
         const code =

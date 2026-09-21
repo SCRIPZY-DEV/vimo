@@ -11,6 +11,7 @@ import type {
   SuggestMusicPromptPayload,
   SuggestMusicPromptResult,
 } from '../../types/music.ts'
+import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 
 // Sugiere un prompt de música a partir del guion del video, vía LLM.
 export async function suggestMusicPrompt(
@@ -36,7 +37,10 @@ export async function suggestMusicPrompt(
       userPrompt: buildSuggestMusicPromptUserPrompt(script),
     },
     context.config.llm,
-    context.signal,
+    {
+      signal: context.signal,
+      onFailure: createProviderFailureReporter(context.emitter),
+    },
   )
 
   // Post-proceso del origen: sin comillas envolventes ni saltos de línea.

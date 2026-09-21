@@ -19,6 +19,7 @@ import type {
   SuggestCharacterProfilePayload,
   SuggestCharacterProfileResult,
 } from '../../types/characters.ts'
+import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 
 const PROFILE_ATTEMPTS = 2
 const PREVIOUS_DRAFT_LIMIT = 4000
@@ -56,6 +57,7 @@ export async function suggestCharacterProfile(
     config: context.config.llm,
   })
   const request = buildCharacterDesignerUserPrompt(payload, notes)
+  const onFailure = createProviderFailureReporter(context.emitter)
   let previousDraft = ''
   for (let attempt = 0; attempt < PROFILE_ATTEMPTS; attempt++) {
     context.signal.throwIfAborted()
@@ -73,7 +75,7 @@ export async function suggestCharacterProfile(
           tier: 'premium',
         },
         context.config.llm,
-        context.signal,
+        { signal: context.signal, onFailure },
       )
     } catch (error) {
       if (

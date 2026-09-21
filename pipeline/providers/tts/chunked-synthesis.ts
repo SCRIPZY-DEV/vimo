@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 
 import { isValidFile } from '../../project/paths.ts'
 import type { PipelineEmitter } from '../../runner/emitter.ts'
-import { PipelineFailure } from '../../runner/failure.ts'
+import { PipelineFailure, failureDetails } from '../../runner/failure.ts'
 import type { GenerateVoicePayload } from '../../types/voices.ts'
 import {
   readTextWithRetry,
@@ -82,6 +82,7 @@ export async function synthesizeInParts(
     throw new PipelineFailure(
       'voice_chunking_inconsistent',
       `chunking produced ${totalChars} chars out of ${text.length}: aborted to avoid overspending credits`,
+      { provider: provider.id },
     )
 
   const startedAt = Date.now()
@@ -258,11 +259,15 @@ async function synthesizePart(
       throw error
     }
     if (receipt.state === 'failed') throw error
+    // El fallo original (si era del proveedor) conserva proveedor y status.
     throw new PipelineFailure(
       receipt.taskId || receipt.resultUrl
         ? 'voice_request_pending'
         : 'voice_request_unresolved',
       'voice request remains recorded; resume must inspect it before submitting again',
+      error instanceof PipelineFailure
+        ? { provider: provider.id, ...failureDetails(error) }
+        : { provider: provider.id },
     )
   } finally {
     stopHeuristic?.()

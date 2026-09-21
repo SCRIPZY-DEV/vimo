@@ -8,7 +8,11 @@ import { videosSubcommands } from './commands/videos/subcommands.ts'
 import { voicesSubcommands } from './commands/voices/subcommands.ts'
 import { resolvePipelineConfig } from './config/pipeline-config.ts'
 import { createEmitter } from './runner/emitter.ts'
-import { PipelineFailure, toPipelineFailure } from './runner/failure.ts'
+import {
+  PipelineFailure,
+  failureDetails,
+  toPipelineFailure,
+} from './runner/failure.ts'
 import type { PipelineJob } from './runner/job.ts'
 import type { SubcommandHandler } from './runner/subcommand.ts'
 import type { JsonValue } from './types/json.ts'
@@ -145,6 +149,7 @@ async function main(): Promise<number> {
       type: 'job-failed',
       code: failure.code,
       message: failure.message,
+      ...failureDetails(failure),
     })
     return 1
   } finally {

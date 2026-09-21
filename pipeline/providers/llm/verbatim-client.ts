@@ -36,6 +36,9 @@ import {
 // 10 minutos, techo POR LLAMADA (no por corrida): con streaming el pedido
 // normal termina en segundos; esto solo corta una conexión colgada de verdad.
 const VERBATIM_TIMEOUT_MS = 600_000
+// Id del proveedor en los fallos (ADR-0038): el carril verbatim habla con el
+// endpoint chat-completions de DeepInfra (`baseUrl` de la config del LLM).
+const FAILURE_PROVIDER = 'deepinfra'
 
 /** Código estable del fallo determinista: la respuesta se cortó por tokens. */
 export const LLM_OUTPUT_TRUNCATED = 'llm_output_truncated'
@@ -126,10 +129,12 @@ export function createVerbatimClient(
           throw new PipelineFailure(
             'llm_timeout',
             `verbatim request to ${profile.id} timed out`,
+            { provider: FAILURE_PROVIDER },
           )
         throw new PipelineFailure(
           'llm_network',
           `verbatim request to ${profile.id} failed`,
+          { provider: FAILURE_PROVIDER },
         )
       }
 
@@ -165,6 +170,7 @@ export function createVerbatimClient(
         throw new PipelineFailure(
           'llm_rate_limited',
           `verbatim rate limit hit on ${profile.id}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       if (!response.ok || !response.body) {
         const bodyText = (await response.text().catch(() => '')).slice(0, 300)
@@ -173,16 +179,19 @@ export function createVerbatimClient(
           throw new PipelineFailure(
             'llm_insufficient_credits',
             `DeepInfra rejected ${profile.id} for insufficient balance (status=${response.status}) ${bodyText}`,
+            { provider: FAILURE_PROVIDER, httpStatus: response.status },
           )
         // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
         if (isAuthStatus(response.status))
           throw new PipelineFailure(
             LLM_AUTH_CODE,
             `DeepInfra rejected the API key (status=${response.status})`,
+            { provider: FAILURE_PROVIDER, httpStatus: response.status },
           )
         throw new PipelineFailure(
           'llm_provider_error',
           `verbatim request to ${profile.id} failed (status=${response.status}) ${bodyText}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       }
 
@@ -248,12 +257,14 @@ export function createVerbatimClient(
         throw new PipelineFailure(
           LLM_OUTPUT_TRUNCATED,
           `${profile.id} response hit the output token ceiling`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       if (callOptions.requireComplete && finishReason !== 'stop')
         throw new PipelineFailure(
           'llm_empty_response',
           `${profile.id} stream ended without a complete text response`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       const content = parts.join('').trim()
@@ -261,6 +272,7 @@ export function createVerbatimClient(
         throw new PipelineFailure(
           'llm_empty_response',
           `${profile.id} returned an empty verbatim response`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       return {

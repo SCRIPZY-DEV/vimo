@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 /// Todo lo que no está acá se descarta — `scene`, `scenes`, `imagePath`,
 /// `result`: contenido del usuario o rutas. Una clave nueva no se sube hasta
 /// agregarla; nunca sumar una que lleve guion, prompts o rutas.
-pub const ALLOWED_EVENT_KEYS: [&str; 26] = [
+pub const ALLOWED_EVENT_KEYS: [&str; 30] = [
     "type",
     "stageId",
     "level",
@@ -32,6 +32,11 @@ pub const ALLOWED_EVENT_KEYS: [&str; 26] = [
     "audioDurationSeconds",
     "wordCount",
     "secondsPerScene",
+    // provider-failure y job-failed: proveedor, status HTTP y reintento.
+    "httpStatus",
+    "attempt",
+    "maxAttempts",
+    "recovered",
 ];
 
 /// Tope de cada string del log.

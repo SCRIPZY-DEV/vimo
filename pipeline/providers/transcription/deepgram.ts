@@ -12,6 +12,8 @@ const DEEPGRAM_URL =
   'https://api.deepgram.com/v1/listen?model=nova-2&detect_language=true'
 const REQUEST_TIMEOUT_MS = 600_000
 const RATE_LIMIT_MAX_RETRIES = 3
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'deepgram'
 
 interface DeepgramResponse {
   results?: {
@@ -36,6 +38,7 @@ export async function transcribeWithDeepgram(
     throw new PipelineFailure(
       'transcription_empty',
       'Deepgram returned no words — empty or corrupt audio?',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   return words.map((word) => ({
@@ -72,6 +75,7 @@ async function requestTranscription(
       throw new PipelineFailure(
         'transcription_network',
         `Deepgram request failed: ${error instanceof Error ? error.message : String(error)}`,
+        { provider: FAILURE_PROVIDER },
       )
     }
 
@@ -84,12 +88,14 @@ async function requestTranscription(
       throw new PipelineFailure(
         'transcription_insufficient_credits',
         `Deepgram rejected the request for insufficient balance (HTTP ${response.status}): ${detail}`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
 
     if (response.status === 401 || response.status === 403)
       throw new PipelineFailure(
         'transcription_invalid_api_key',
         `Deepgram rejected the API key (HTTP ${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
 
     if (response.status === 429) {
@@ -97,6 +103,7 @@ async function requestTranscription(
         throw new PipelineFailure(
           'transcription_rate_limited',
           `Deepgram rate limit persisted after ${RATE_LIMIT_MAX_RETRIES} retries`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       await sleep(rateLimitDelayMs(response, detail, attempt), signal)
       signal?.throwIfAborted()
@@ -106,6 +113,7 @@ async function requestTranscription(
     throw new PipelineFailure(
       'transcription_failed',
       `Deepgram HTTP ${response.status}: ${detail}`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   }
 }

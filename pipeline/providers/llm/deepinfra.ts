@@ -12,6 +12,8 @@ import type {
 const TEMPERATURE = 0.85
 const TOP_P = 0.95
 const DEFAULT_MAX_OUTPUT_TOKENS = 700
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'deepinfra'
 
 export function createDeepInfraProvider(
   options: LlmProviderOptions,
@@ -49,14 +51,18 @@ export function createDeepInfraProvider(
           throw new PipelineFailure(
             'llm_timeout',
             'DeepInfra request timed out',
+            { provider: FAILURE_PROVIDER },
           )
-        throw new PipelineFailure('llm_network', 'DeepInfra request failed')
+        throw new PipelineFailure('llm_network', 'DeepInfra request failed', {
+          provider: FAILURE_PROVIDER,
+        })
       })
 
       if (response.status === 429)
         throw new PipelineFailure(
           'llm_rate_limited',
           'DeepInfra rate limit hit',
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       if (!response.ok) {
         const bodyText = (await response.text().catch(() => '')).slice(0, 300)
@@ -66,16 +72,19 @@ export function createDeepInfraProvider(
           throw new PipelineFailure(
             'llm_insufficient_credits',
             `DeepInfra rejected the request for insufficient balance (status=${response.status}) ${bodyText}`,
+            { provider: FAILURE_PROVIDER, httpStatus: response.status },
           )
         // Credenciales rechazadas: es la clave, no el modelo (ver auth-failure).
         if (isAuthStatus(response.status))
           throw new PipelineFailure(
             LLM_AUTH_CODE,
             `DeepInfra rejected the API key (status=${response.status})`,
+            { provider: FAILURE_PROVIDER, httpStatus: response.status },
           )
         throw new PipelineFailure(
           'llm_provider_error',
           `DeepInfra failed (status=${response.status}) ${bodyText}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       }
 
@@ -85,6 +94,7 @@ export function createDeepInfraProvider(
         throw new PipelineFailure(
           'llm_empty_response',
           'DeepInfra returned no content',
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       return content

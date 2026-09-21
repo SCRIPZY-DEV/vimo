@@ -123,6 +123,7 @@ function insufficientCreditsFailure(
   return new PipelineFailure(
     'image_insufficient_credits',
     `${provider} rejected the request (status=${status}) and the account balance reads empty: ${detail}`,
+    { provider, httpStatus: status },
   )
 }
 
@@ -146,11 +147,13 @@ export async function resolveAuthRejection(
     return new PipelineFailure(
       'image_invalid_api_key',
       `${provider} rejected the API key (status=${status}): ${detail}`,
+      { provider, httpStatus: status },
     )
 
   return new PipelineFailure(
     'image_account_rejected',
     `${provider} refused to generate for this account (status=${status}, account check: ${verdict}): ${detail}`,
+    { provider, httpStatus: status },
   )
 }
 

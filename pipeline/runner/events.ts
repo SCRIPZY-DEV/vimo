@@ -181,6 +181,28 @@ export interface JobFailedEvent {
   // Clave estable para i18n; `cancelled` marca una cancelación pedida.
   code: string
   message: string
+  // Proveedor externo y status HTTP del fallo, cuando el error los trae
+  // (PipelineFailure con detalles): el log de diagnóstico (ADR-0038) los
+  // registra; la UI no los usa.
+  provider?: string
+  httpStatus?: number
+}
+
+// Fallo de un proveedor externo en el camino: se emite en cada reintento o
+// fallback para que el log de diagnóstico (ADR-0038) lo vea aunque el job
+// termine bien. `recovered: true` = el pipeline reintenta o cae a otro carril.
+export interface ProviderFailureEvent {
+  type: 'provider-failure'
+  provider: string
+  code: string
+  httpStatus?: number
+  attempt?: number
+  maxAttempts?: number
+  recovered: boolean
+  stageId?: StageId
+  sceneId?: number
+  // Motivo técnico, ≤ 300 caracteres; Rust lo redacta antes de subirlo.
+  detail?: string
 }
 
 export type PipelineEventPayload =
@@ -205,6 +227,7 @@ export type PipelineEventPayload =
   | AwaitingSceneConfirmationEvent
   | JobCompletedEvent
   | JobFailedEvent
+  | ProviderFailureEvent
 
 // Lo que viaja de verdad por el canal: el payload sellado con el id del job.
 export type PipelineEvent = PipelineEventPayload & { jobId: string }

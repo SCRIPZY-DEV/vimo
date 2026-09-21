@@ -10,6 +10,7 @@ import type { ImageProviderId } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { VideoFormat } from '../../types/video-format.ts'
 import { writeFileAtomic } from '../../utils/atomic-fs.ts'
+import type { ProviderFailureReport } from '../../utils/provider-failure.ts'
 import type { AccountProbe } from './account-probe.ts'
 
 // Contrato común de los carriles de imagen (normal Fal/Evolink y personaje):
@@ -22,6 +23,10 @@ export interface ImageLaneEvents {
   // el motivo técnico del proveedor (status, mensaje) para diagnóstico.
   onFailed(sceneId: number, code: string, detail?: string): void
   onProgress(sceneId: number, percent: number, status: string): void
+  // Fallo del proveedor en un intento (reintentado, abandonado o que corta
+  // la fase): va al log de diagnóstico como `provider-failure` (ADR-0038).
+  // Nunca cambia el estado de la escena; eso lo hace `onFailed`.
+  onProviderFailure(report: ProviderFailureReport): void
 }
 
 export interface ImageLaneOptions {

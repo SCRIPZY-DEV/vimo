@@ -12,10 +12,17 @@ import {
   resolveTtsProvider,
 } from '../../providers/tts/registry.ts'
 import type { VoiceProgressEvent } from '../../runner/events.ts'
-import { PipelineFailure } from '../../runner/failure.ts'
-import type { GenerateVoicePayload } from '../../types/voices.ts'
+import { PipelineFailure, failureDetails } from '../../runner/failure.ts'
+import type {
+  GenerateVoicePayload,
+  VoiceProviderId,
+} from '../../types/voices.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { prepareNarrationText } from '../../utils/narration-text.ts'
+import {
+  createProviderFailureReporter,
+  reportFromFailure,
+} from '../../utils/provider-failure.ts'
 import type { CreateVideoContext } from '../context.ts'
 
 // Síntesis de la narración maestra (port de generarVozMaestra): recorre los
@@ -35,6 +42,8 @@ const FALLBACK_REJECTION_CODES = new Set([
 
 interface NarrationAttempt {
   name: string
+  // Id del motor del carril: es el `provider` del evento `provider-failure`.
+  providerId: VoiceProviderId
   execute(): Promise<void>
 }
 
@@ -121,6 +130,12 @@ export async function synthesizeNarration(
     // El primer carril rechazado por saldo: si ningún otro carril pudo, el
     // job cae con ESE código (pausa retomable) y no con el genérico.
     let creditsFailure: PipelineFailure | null = null
+    // El último carril rechazado: el fallo final hereda su proveedor/status.
+    let lastFailure: PipelineFailure | null = null
+    const reportProviderFailure = createProviderFailureReporter(
+      context.emitter,
+      'voice',
+    )
     for (const [index, attempt] of attempts.entries()) {
       if (index > 0)
         context.emitter.emit({
@@ -141,10 +156,19 @@ export async function synthesizeNarration(
           !FALLBACK_REJECTION_CODES.has(error.code)
         )
           throw error
-        const message = error instanceof Error ? error.message : String(error)
-        failures.push(`${attempt.name}: ${message}`)
+        failures.push(`${attempt.name}: ${error.message}`)
+        lastFailure = error
         if (!creditsFailure && isInsufficientCreditsFailure(error))
           creditsFailure = error
+        // Al log de diagnóstico aunque otro carril termine bien (ADR-0038).
+        reportProviderFailure(
+          reportFromFailure(error, {
+            provider: attempt.providerId,
+            attempt: index + 1,
+            maxAttempts: attempts.length,
+            recovered: index < attempts.length - 1,
+          }),
+        )
       }
     }
 
@@ -152,11 +176,13 @@ export async function synthesizeNarration(
       throw new PipelineFailure(
         creditsFailure.code,
         `no voice lane could synthesize the narration (insufficient credits):\n${failures.join('\n')}`,
+        failureDetails(creditsFailure),
       )
 
     throw new PipelineFailure(
       'voice_all_lanes_failed',
       `no voice lane could synthesize the narration:\n${failures.join('\n')}`,
+      lastFailure ? failureDetails(lastFailure) : {},
     )
   } finally {
     clearInterval(progressTimer)
@@ -211,6 +237,7 @@ function buildAttempts(
 
   return lanes.map((lane) => ({
     name: lane.provider.laneName,
+    providerId: lane.provider.id,
     execute: () =>
       synthesizeToNarrationFile(
         context,

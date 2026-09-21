@@ -70,3 +70,33 @@ fn keeps_only_allowed_keys() {
         json!({ "type": "scene-prompt-ready", "sceneId": 3, "sceneIds": [1, 2] })
     );
 }
+
+#[test]
+fn provider_failures_keep_their_structured_keys() {
+    let event = json!({
+        "type": "provider-failure",
+        "provider": "fal",
+        "code": "image_provider_error",
+        "httpStatus": 503,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "recovered": true,
+        "detail": "status=503 for /Users/ana/x",
+        "prompt": "contenido",
+    });
+    let entry = redactor().project_event(&event);
+
+    assert_eq!(
+        Value::Object(entry),
+        json!({
+            "type": "provider-failure",
+            "provider": "fal",
+            "code": "image_provider_error",
+            "httpStatus": 503,
+            "attempt": 1,
+            "maxAttempts": 3,
+            "recovered": true,
+            "detail": "status=503 for ~/x",
+        })
+    );
+}

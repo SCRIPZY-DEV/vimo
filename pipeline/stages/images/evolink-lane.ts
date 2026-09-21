@@ -15,6 +15,7 @@ import {
   isInsufficientCreditsFailure,
   isInsufficientTaskError,
 } from '../../utils/insufficient-credits.ts'
+import { reportFromFailure } from '../../utils/provider-failure.ts'
 import { sleep } from '../../utils/sleep.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { VideoFormat } from '../../types/video-format.ts'
@@ -46,6 +47,30 @@ import {
 
 const MAX_ORDERS = 3
 const IMAGE_MODEL = 'gpt-image-2'
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'evolink'
+
+// Un fallo del encargo (reintentado, abandonado o que corta la fase): al log
+// de diagnóstico. Un error que no es PipelineFailure (tarea reintentable,
+// transporte) llega ya descrito como error genérico del proveedor.
+function reportOrderFailure(
+  options: ImageLaneOptions,
+  sceneId: number,
+  attempt: number,
+  recovered: boolean,
+  failure: PipelineFailure | { code: string; detail: string },
+): void {
+  const extra = { sceneId, attempt, maxAttempts: MAX_ORDERS, recovered }
+  if (failure instanceof PipelineFailure) {
+    options.events.onProviderFailure(reportFromFailure(failure, extra))
+    return
+  }
+  options.events.onProviderFailure({
+    provider: FAILURE_PROVIDER,
+    ...failure,
+    ...extra,
+  })
+}
 
 export interface EvolinkLaneInputs {
   qualityOption: string | undefined
@@ -149,6 +174,8 @@ export async function generateSceneWithEvolink(
             progress.percent,
             progress.status,
           ),
+        onFailure: (report) =>
+          options.events.onProviderFailure({ ...report, sceneId: scene.id }),
       })
 
       try {
@@ -173,9 +200,16 @@ export async function generateSceneWithEvolink(
       // persistida (cancelar no la des-factura: al retomar se cosecha).
       if (options.signal.aborted)
         return { scene: withPendingTask(), imageReady: false }
+      const failure =
+        error instanceof PipelineFailure
+          ? error
+          : { code: 'image_provider_error', detail: describeError(error) }
       // Saldo agotado: no es de esta escena sino de la cuenta — corta la
       // fase entera; el proyecto queda pausado y retomable (ADR-0031).
-      if (isInsufficientCreditsFailure(error)) throw error
+      if (isInsufficientCreditsFailure(error)) {
+        reportOrderFailure(options, scene.id, attempt, false, error)
+        throw error
+      }
 
       // Plazo del encargo vencido: verificación FINAL antes de re-encargar.
       if (order.expired()) {
@@ -202,6 +236,10 @@ export async function generateSceneWithEvolink(
             const code = final.error.code ?? 'unknown_error'
             const message = final.error.message ?? ''
             if (isContentPolicy(code, message)) {
+              reportOrderFailure(options, scene.id, attempt, false, {
+                code: 'image_content_policy',
+                detail: `final check reported ${code}: ${message}`,
+              })
               options.events.onFailed(
                 scene.id,
                 'image_content_policy',
@@ -216,12 +254,28 @@ export async function generateSceneWithEvolink(
                 imageReady: false,
               }
             }
-            if (isInsufficientTaskError(code, message))
-              throw new PipelineFailure(
+            if (isInsufficientTaskError(code, message)) {
+              const creditsFailure = new PipelineFailure(
                 'image_insufficient_credits',
                 `Evolink task for scene ${scene.id} rejected for insufficient credits: [${code}] ${message}`,
+                { provider: FAILURE_PROVIDER },
               )
-            if (RETRYABLE_TASK_ERRORS.has(code) && attempt < MAX_ORDERS) {
+              reportOrderFailure(
+                options,
+                scene.id,
+                attempt,
+                false,
+                creditsFailure,
+              )
+              throw creditsFailure
+            }
+            const retryable =
+              RETRYABLE_TASK_ERRORS.has(code) && attempt < MAX_ORDERS
+            reportOrderFailure(options, scene.id, attempt, retryable, {
+              code: 'image_provider_error',
+              detail: `final check reported ${code}: ${message}`,
+            })
+            if (retryable) {
               await sleep(2000 * attempt, options.signal)
               continue
             }
@@ -235,6 +289,12 @@ export async function generateSceneWithEvolink(
         }
         // Sigue en cola (o el create nunca respondió): se corta y se
         // re-encarga, acotado por MAX_ORDERS.
+        reportOrderFailure(options, scene.id, attempt, attempt < MAX_ORDERS, {
+          code: 'image_timeout',
+          detail: activeTask
+            ? `order deadline expired with task ${activeTask} still running`
+            : 'order deadline expired before the create request answered',
+        })
         activeTask = null
         continue
       }
@@ -243,6 +303,13 @@ export async function generateSceneWithEvolink(
         error instanceof PipelineFailure &&
         error.code === 'image_rate_limited'
       ) {
+        reportOrderFailure(
+          options,
+          scene.id,
+          attempt,
+          attempt < MAX_ORDERS,
+          error,
+        )
         const retryAfterSeconds = parseInt(error.message, 10) || 3
         await sleep(retryAfterSeconds * 1000 + attempt * 1000, options.signal)
         continue
@@ -252,6 +319,7 @@ export async function generateSceneWithEvolink(
         error instanceof PipelineFailure &&
         error.code === 'image_content_policy'
       ) {
+        reportOrderFailure(options, scene.id, attempt, false, error)
         options.events.onFailed(scene.id, 'image_content_policy', error.message)
         return {
           scene: { ...scene, contentRejected: true, imageTask: undefined },
@@ -268,6 +336,13 @@ export async function generateSceneWithEvolink(
       if (taskIsDead) {
         activeTask = null
         lastLiveTask = null
+        reportOrderFailure(
+          options,
+          scene.id,
+          attempt,
+          attempt < MAX_ORDERS,
+          failure,
+        )
         if (attempt < MAX_ORDERS) {
           await sleep(2000 * attempt, options.signal)
           continue
@@ -287,14 +362,17 @@ export async function generateSceneWithEvolink(
       if (
         error instanceof PipelineFailure &&
         error.code === 'image_invalid_api_key'
-      )
-        throw await resolveAuthRejection({
+      ) {
+        const accountFailure = await resolveAuthRejection({
           probe: options.accountProbe,
           provider: 'evolink',
           apiKey: inputs.apiKey,
           status: error instanceof EvolinkHttpFailure ? error.status : 401,
           detail: error.message,
         })
+        reportOrderFailure(options, scene.id, attempt, false, accountFailure)
+        throw accountFailure
+      }
 
       if (
         error instanceof PipelineFailure &&
@@ -316,9 +394,25 @@ export async function generateSceneWithEvolink(
             status: error.status,
             detail: error.message,
           })
-          if (accountFailure) throw accountFailure
+          if (accountFailure) {
+            reportOrderFailure(
+              options,
+              scene.id,
+              attempt,
+              false,
+              accountFailure,
+            )
+            throw accountFailure
+          }
         }
         // Fallo genuino al crear (sin tarea viva): reintentar acotado.
+        reportOrderFailure(
+          options,
+          scene.id,
+          attempt,
+          attempt < MAX_ORDERS,
+          error,
+        )
         if (attempt < MAX_ORDERS) {
           await sleep(2000 * attempt, options.signal)
           continue
@@ -333,6 +427,13 @@ export async function generateSceneWithEvolink(
 
       // Transporte (red del poll, 5xx): la tarea puede seguir viva y
       // completarse — se CONSERVA para re-consultarla, no se crea otra.
+      reportOrderFailure(
+        options,
+        scene.id,
+        attempt,
+        attempt < MAX_ORDERS,
+        failure,
+      )
       if (attempt === MAX_ORDERS) {
         options.events.onFailed(
           scene.id,

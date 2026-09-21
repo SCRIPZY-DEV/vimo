@@ -20,6 +20,7 @@ import { videoFormatOf } from '../../types/video-format.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
+import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { detectScriptLanguage } from '../../utils/script-language.ts'
 import {
   deriveEraFromBible,
@@ -395,6 +396,7 @@ function laneEvents(
   // `progress` no la devuelven a cero.
   const lastPercent = new Map<number, number>()
   return {
+    onProviderFailure: createProviderFailureReporter(context.emitter, 'images'),
     onStarted(sceneId, attempt) {
       // Solo el primer intento de cada pasada: los reintentos internos del
       // carril no reinician la celda (spinner y % siguen donde estaban).

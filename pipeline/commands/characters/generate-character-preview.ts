@@ -22,6 +22,7 @@ import type {
 } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
+import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
@@ -137,6 +138,7 @@ async function generateImage(
   const options = {
     apiKey,
     signal: context.signal,
+    onFailure: createProviderFailureReporter(context.emitter),
     onProgress(progress: {
       percent: number
       status: string

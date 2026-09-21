@@ -403,6 +403,20 @@ sin escribir nada; pero de cada evento solo se sube una **allowlist de claves**
 clave útil para diagnosticar, sumala ahí — y nunca una que lleve contenido del
 usuario (guion, prompts, rutas).
 
+Dos reglas más para que el log sirva a soporte:
+
+- **Toda fila lleva `project_name`.** `diagnostics/subject.rs` lo resuelve desde el
+  subcomando y el payload: el proyecto (`projectId` / `projectIds`, o `name` en una
+  creación fallida) o, si no hay proyecto, la entidad con prefijo fijo (`Estilo: X`,
+  `Personaje: X`, `Voz: X`, `Música`, `Demo`). Un subcomando nuevo que trabaje sobre un
+  proyecto manda `projectId` en el payload aunque el handler no lo use.
+- **Los errores de proveedor son estructurados.** Un proveedor lanza
+  `PipelineFailure(code, message, { provider, httpStatus })`; el `job-failed` reenvía
+  ambos y llegan a `error_provider` / `error_http_status`. Todo reintento o fallback
+  de proveedor emite además `provider-failure` (`pipeline/utils/provider-failure.ts`)
+  con `recovered: true`, para que un fallo que el pipeline absorbió no desaparezca del
+  log de una ejecución `completed`.
+
 ---
 
 ## 5. Flujo principal: de guion a video

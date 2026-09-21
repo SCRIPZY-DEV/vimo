@@ -39,6 +39,9 @@ export type DubvoiceCatalogProviderId = Extract<
 export const DUBVOICE_CATALOG_CHUNK_CHARS = 25_000
 
 const POLL_TIMEOUT_MS = 20 * 60 * 1000
+// Id del proveedor en los fallos (ADR-0038): el agregador que sirve estos
+// motores.
+const FAILURE_PROVIDER = 'dubvoice'
 const POLL_REQUEST_TIMEOUT_MS = 30_000
 
 // Intervalo de polling escalado por largo del texto (recomendación DubVoice).
@@ -179,6 +182,7 @@ export async function synthesizeDubvoiceTask({
       throw new PipelineFailure(
         'voice_provider_error',
         `DubVoice returned no task_id for the ${laneName} synthesis`,
+        { provider: FAILURE_PROVIDER, httpStatus: submitResponse.status },
       )
     taskId = submitData.task_id
     await checkpoint?.update({ taskId, state: 'pending' })
@@ -218,6 +222,7 @@ export async function synthesizeDubvoiceTask({
       throw new PipelineFailure(
         'voice_invalid_api_key',
         `DubVoice rejected the API key (status=${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     // Cualquier otro error del poll es transitorio: se sigue esperando.
     if (!response.ok) continue
@@ -246,6 +251,7 @@ export async function synthesizeDubvoiceTask({
       throw new PipelineFailure(
         'voice_generation_failed',
         data.error ?? `${laneName} task failed`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     }
   }
@@ -253,5 +259,6 @@ export async function synthesizeDubvoiceTask({
   throw new PipelineFailure(
     'voice_timeout',
     `${laneName} task did not complete within 20 minutes`,
+    { provider: FAILURE_PROVIDER },
   )
 }

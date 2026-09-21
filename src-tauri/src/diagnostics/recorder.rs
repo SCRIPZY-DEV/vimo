@@ -5,6 +5,7 @@ use serde::Serialize;
 use serde_json::{json, Map, Value};
 
 use crate::diagnostics::redaction::Redactor;
+use crate::diagnostics::subject::{subject_from_payload, Subject, SubjectKind, CREATE_PROJECT_SUBCOMMAND};
 
 /// Tope de entradas de la línea de tiempo: al excederlo se conservan el
 /// arranque y el final, que es donde está el fallo.
@@ -24,7 +25,12 @@ const IGNORED_EVENT_TYPES: [&str; 2] = ["scene-image-progress", "scene-image-sta
 
 const CANCELLED_CODE: &str = "cancelled";
 const AWAITING_CONFIRMATION_STATUS: &str = "awaiting-confirmation";
-const CREATE_PROJECT_SUBCOMMAND: &str = "create-video-project";
+/// Código estable de un proceso que murió sin evento terminal: así un crash
+/// no queda con `error_code` vacío y se filtra como cualquier otro fallo.
+const PROCESS_CRASHED_CODE: &str = "process_crashed";
+/// El emitter espeja los `log` warn/error a stderr con este prefijo: ya
+/// entraron como evento, no se guardan dos veces.
+const MIRRORED_STDERR_PREFIXES: [&str; 2] = ["[warn] ", "[error] "];
 
 pub const PIPELINE_SOURCE: &str = "pipeline";
 pub const UPDATE_SOURCE: &str = "update";
@@ -53,6 +59,8 @@ pub struct DiagnosticRecord {
     pub status: RunStatus,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
+    pub error_provider: Option<String>,
+    pub error_http_status: Option<u64>,
     pub failed_stage: Option<String>,
     pub started_at_ms: u64,
     pub finished_at_ms: u64,
@@ -94,10 +102,12 @@ fn progress_percent(event: &Value) -> Option<f64> {
 /// Lo que el recorder deja al cerrar; el resto del registro (entorno, nombre
 /// del proyecto, contexto) lo completa quien conoce la app.
 pub struct RecorderOutcome {
-    pub project_id: Option<String>,
+    pub subject: Option<Subject>,
     pub status: RunStatus,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
+    pub error_provider: Option<String>,
+    pub error_http_status: Option<u64>,
     pub failed_stage: Option<String>,
     pub started_at_ms: u64,
     pub duration_ms: u64,
@@ -108,7 +118,7 @@ pub struct RecorderOutcome {
 /// Acumula la línea de tiempo de un job mientras Rust reenvía sus eventos.
 pub struct DiagnosticRecorder {
     subcommand: String,
-    project_id: Option<String>,
+    subject: Option<Subject>,
     redactor: Redactor,
     started_at_ms: u64,
     started: Instant,
@@ -120,6 +130,8 @@ pub struct DiagnosticRecorder {
     status: Option<RunStatus>,
     error_code: Option<String>,
     error_message: Option<String>,
+    error_provider: Option<String>,
+    error_http_status: Option<u64>,
     failed_stage: Option<String>,
 }
 
@@ -127,7 +139,7 @@ impl DiagnosticRecorder {
     pub fn new(subcommand: &str, payload: Option<&Value>, redactor: Redactor) -> Self {
         Self {
             subcommand: subcommand.to_owned(),
-            project_id: payload.and_then(|payload| string_field(payload, "projectId")),
+            subject: subject_from_payload(subcommand, payload),
             redactor,
             started_at_ms: now_ms(),
             started: Instant::now(),
@@ -139,6 +151,8 @@ impl DiagnosticRecorder {
             status: None,
             error_code: None,
             error_message: None,
+            error_provider: None,
+            error_http_status: None,
             failed_stage: None,
         }
     }
@@ -192,8 +206,15 @@ impl DiagnosticRecorder {
                 });
 
                 // El proyecto recién creado no viene en el payload: nace acá.
-                if self.project_id.is_none() && self.subcommand == CREATE_PROJECT_SUBCOMMAND {
-                    self.project_id = result.and_then(|result| string_field(result, "projectId"));
+                if self.subcommand == CREATE_PROJECT_SUBCOMMAND {
+                    let subject = self.subject.get_or_insert(Subject {
+                        kind: SubjectKind::Project,
+                        id: None,
+                        name: None,
+                    });
+                    if subject.id.is_none() {
+                        subject.id = result.and_then(|result| string_field(result, "projectId"));
+                    }
                 }
             }
             "job-failed" => {
@@ -209,6 +230,8 @@ impl DiagnosticRecorder {
                     .and_then(Value::as_str)
                     .map(|message| self.redactor.redact(message));
                 self.error_code = code;
+                self.error_provider = string_field(event, "provider");
+                self.error_http_status = event.get("httpStatus").and_then(Value::as_u64);
                 self.failed_stage = self.current_stage.clone();
             }
             _ => {}
@@ -233,7 +256,12 @@ impl DiagnosticRecorder {
     }
 
     pub fn record_stderr(&mut self, line: &[u8]) {
-        let message = self.redactor.redact(String::from_utf8_lossy(line).trim_end());
+        let text = String::from_utf8_lossy(line);
+        if MIRRORED_STDERR_PREFIXES.iter().any(|prefix| text.starts_with(prefix)) {
+            return;
+        }
+
+        let message = self.redactor.redact(text.trim_end());
         let mut entry = Map::new();
         entry.insert("type".into(), json!("sidecar-stderr"));
         entry.insert("message".into(), json!(message));
@@ -258,18 +286,26 @@ impl DiagnosticRecorder {
         self.push(entry);
 
         let status = self.status.unwrap_or(RunStatus::Crashed);
-        let failed_stage = match status {
-            RunStatus::Crashed => self.current_stage.clone(),
-            _ => self.failed_stage,
+        let (error_code, error_message, failed_stage) = match status {
+            RunStatus::Crashed => (
+                Some(PROCESS_CRASHED_CODE.to_owned()),
+                Some(format!(
+                    "process exited without a terminal event (exit code {exit_code:?}, signal {signal:?})"
+                )),
+                self.current_stage.clone(),
+            ),
+            _ => (self.error_code, self.error_message, self.failed_stage),
         };
         let mut events = self.head;
         events.extend(self.tail);
 
         RecorderOutcome {
-            project_id: self.project_id,
+            subject: self.subject,
             status,
-            error_code: self.error_code,
-            error_message: self.error_message,
+            error_code,
+            error_message,
+            error_provider: self.error_provider,
+            error_http_status: self.error_http_status,
             failed_stage,
             started_at_ms: self.started_at_ms,
             duration_ms: self.started.elapsed().as_millis() as u64,

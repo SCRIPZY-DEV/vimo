@@ -3,6 +3,9 @@
 export interface MusicGenerationParams {
   prompt: string
   instrumental?: boolean
+  // Proyecto desde el que se genera (Create/Library). El handler no lo usa:
+  // solo identifica el job en el log de diagnóstico (ADR-0038).
+  projectId?: string
 }
 
 export interface MusicProgress {
