@@ -242,6 +242,15 @@ test('phase 1 asks for the style character first and keeps the ported instructio
   )
 })
 
+test('the precedence rule keeps the style character even when the script narrates someone else', () => {
+  assert.match(STYLE_CHARACTER_PRECEDENCE_RULE, /INTERPRETA esa historia/)
+  assert.match(
+    STYLE_CHARACTER_PRECEDENCE_RULE,
+    /NO lo conviertas en la persona que el guion narra/,
+  )
+  assert.match(STYLE_CHARACTER_PRECEDENCE_RULE, /palabra por palabra/)
+})
+
 test('the platform character phase retry also keeps the style character', () => {
   assert.ok(
     gemWithCharacterPhase(gem).endsWith(
