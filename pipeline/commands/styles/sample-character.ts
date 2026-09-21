@@ -5,6 +5,7 @@ import { DESCRIPTION_HEADER } from '../../prompts/verbatim-identity.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import {
   descriptionFromUserPrompt,
+  fallbackUserDescription,
   pointSubjectToImage,
   removeSubject,
   weaveSubject,
@@ -100,14 +101,15 @@ export async function resolveSampleCharacter(
 // las cuatro muestras. En una muestra el protagonista está SIEMPRE en escena:
 // si el modelo no escribió ni la etiqueta ni una mención, la descripción se
 // pega igual. La poda quita el estado de retrato; si no deja nada usable
-// (descripciones muy cortas) viaja la descripción aplanada.
+// viaja la descripción apenas limpia (la misma red que el video).
 export function weaveSampleIdentity(
   imagePrompt: string,
   description: string,
   name?: string,
 ): string {
-  const flattened = description.trim().replace(/\s+/g, ' ')
-  const identity = descriptionFromUserPrompt(description) || flattened
+  const identity =
+    descriptionFromUserPrompt(description) ||
+    fallbackUserDescription(description)
   const woven = weaveSubject(imagePrompt, identity || undefined, name)
   if (!identity || woven.includes(DESCRIPTION_HEADER)) return woven
 

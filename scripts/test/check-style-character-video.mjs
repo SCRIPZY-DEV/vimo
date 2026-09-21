@@ -14,6 +14,11 @@ import {
 } from '../../pipeline/project/paths.ts'
 import { readScenes, writeScenes } from '../../pipeline/project/scenes-file.ts'
 import { buildCreateVideoContext } from '../../pipeline/stages/context.ts'
+import { imagesStage } from '../../pipeline/stages/images/images.ts'
+import {
+  buildCustomStyleReferencePrompt,
+  buildCustomStyleReferencePromptMulti,
+} from '../../pipeline/prompts/character-reference.ts'
 import { regenerateSceneImages } from '../../pipeline/commands/videos/regenerate-scene-images.ts'
 import {
   runVerbatimLane,
@@ -23,6 +28,8 @@ import {
   recoverProtagonistFromScenes,
   MAX_WOVEN_IDENTITY_CHARS,
   capWovenIdentity,
+  fallbackUserDescription,
+  rescueReferencePrompt,
 } from '../../pipeline/stages/scene-prompts/verbatim/subject-weaver.ts'
 import {
   buildCharacterDesignMessage,
@@ -107,13 +114,21 @@ function identityOf(prompt) {
 
 async function fixture(
   t,
-  { mode = 'generic', characters, prompts = false } = {},
+  {
+    mode = 'generic',
+    characters,
+    prompts = false,
+    photo = false,
+    images = true,
+  } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), 'vimo-style-character-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const paths = resolveProjectPaths(join(root, 'fixture'), 'fixture')
   await mkdir(paths.scenesDirectory, { recursive: true })
   await mkdir(paths.charactersDirectory, { recursive: true })
+  if (photo)
+    await writeFile(join(paths.charactersDirectory, 'reference.png'), bytes)
   const metadata = {
     id: 'fixture',
     name: 'Fixture',
@@ -149,10 +164,13 @@ async function fixture(
       text,
       startSeconds: index * 4,
       endSeconds: (index + 1) * 4,
+      ...(characters ? { charactersPresent: [0] } : {}),
       ...(prompts ? { imagePrompt: prompts[index] } : {}),
     })),
   )
-  for (const id of [1, 2, 3]) await writeFile(sceneImageFile(paths, id), bytes)
+  if (images)
+    for (const id of [1, 2, 3])
+      await writeFile(sceneImageFile(paths, id), bytes)
   const events = []
   const base = {
     job: {
@@ -471,4 +489,180 @@ test('the woven identity is capped once, at a sentence boundary', () => {
   assert.match(capped, /\.$/)
   assert.ok(long.startsWith(capped))
   assert.equal(capWovenIdentity(sheet), sheet)
+})
+
+// ── El personaje de biblioteca en estilos propios ──
+
+const libraryCharacter = {
+  name: 'Elena',
+  description:
+    'a young astronaut with brown hair, green eyes, a blue jacket and silver boots',
+}
+
+test('a scene that loses its reference image is rescued with the library description, and the stored prompt keeps the anchor', async (t) => {
+  const anchored =
+    'Wide shot of Elena (the person from the attached reference image) fixing the red antenna. ' +
+    tail
+  const { base, paths, events } = await fixture(t, {
+    mode: 'own',
+    photo: true,
+    images: false,
+    characters: [
+      {
+        ...libraryCharacter,
+        mode: 'photo',
+        referenceImageFile: 'reference.png',
+      },
+    ],
+    prompts: [anchored, anchored, anchored],
+  })
+  const requests = { edit: [], normal: [] }
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    const target = String(url)
+    if (target.endsWith('/edit')) {
+      requests.edit.push(JSON.parse(init.body))
+      // Rechazo terminal del carril de referencia: la escena cae al normal.
+      return Response.json(
+        { type: 'content_policy_violation', detail: 'flagged' },
+        { status: 400 },
+      )
+    }
+    if (target.startsWith('https://fal.run/')) {
+      requests.normal.push(JSON.parse(init.body))
+      return Response.json({
+        images: [{ url: 'https://fixture.invalid/image.png' }],
+      })
+    }
+    return new Response(bytes, { headers: { 'content-type': 'image/png' } })
+  })
+
+  const context = await buildCreateVideoContext(base, 'fixture')
+  await imagesStage.run(context)
+
+  assert.equal(requests.edit.length, 3, 'primero con la foto')
+  assert.equal(requests.normal.length, 3, 'rescatadas por el carril normal')
+  for (const request of requests.normal) {
+    assert.match(request.prompt, /blue jacket/, 'la identidad viaja en texto')
+    assert.match(request.prompt, /must look exactly like this: Elena:/)
+    assert.doesNotMatch(request.prompt, /attached reference image/)
+    assert.match(request.prompt, /the narration is spoken, not written/)
+  }
+  // El guardado es el saneado de siempre (con sus cláusulas), sin la
+  // descripción tejida y con el ancla intacta: la próxima pasada vuelve a
+  // intentar con la foto.
+  for (const scene of await readScenes(paths)) {
+    assert.ok(scene.imagePrompt.startsWith(anchored), 'el ancla sigue')
+    assert.doesNotMatch(scene.imagePrompt, /blue jacket/)
+  }
+  assert.ok(
+    events.some(
+      (event) =>
+        event.level === 'warn' &&
+        event.message.includes('character reference lost'),
+    ),
+  )
+})
+
+test('a library description that the trims empty still weaves an identity', async (t) => {
+  const description =
+    'Portrait of Elena, full-body, a tall woman with silver hair and a red scarf. Style: watercolor.'
+  const { base, paths, events } = await fixture(t, {
+    mode: 'own',
+    characters: [{ name: 'Elena', description, mode: 'text' }],
+  })
+  providers(t, defaultLlm)
+  await runLane(base, paths)
+
+  const identity = identityOf((await readScenes(paths))[0].imagePrompt)
+  assert.match(identity, /silver hair and a red scarf/)
+  assert.doesNotMatch(identity, /full-body|Style:/)
+  assert.ok(
+    events.some((event) =>
+      event.message?.includes('lightly cleaned user description'),
+    ),
+  )
+})
+
+test('the fallback description keeps the identity and drops what freezes the pose', () => {
+  assert.equal(
+    fallbackUserDescription(
+      '**Elena** — a tall woman with silver hair, standing in a neutral pose on a white background.',
+    ),
+    'Elena — a tall woman with silver hair.',
+  )
+  assert.equal(fallbackUserDescription('Style: watercolor only'), '')
+  assert.equal(fallbackUserDescription('a.'), '')
+})
+
+test('the rescue prompt drops the anchor and appends the description before the final clauses', () => {
+  const rescued = rescueReferencePrompt(
+    'Wide shot of Elena (the person from the attached reference image) fixing an antenna. Style: watercolor. Do NOT print the narration onto the image and do NOT add any caption',
+    [libraryCharacter],
+  )
+  assert.equal(
+    rescued,
+    'Wide shot of Elena fixing an antenna. Style: watercolor. ' +
+      DESCRIPTION_HEADER +
+      ' Elena: ' +
+      libraryCharacter.description +
+      '.',
+  )
+  assert.equal(
+    rescueReferencePrompt(
+      'Wide shot of Elena (the person from the attached reference image).',
+      [{ name: 'Elena', description: 'x' }],
+    ),
+    'Wide shot of Elena.',
+  )
+})
+
+test('the custom style reference lock anchors skin tone and accessories, for one and for two names', () => {
+  const single = buildCustomStyleReferencePrompt('Elena', 'Wide shot.')
+  assert.match(
+    single,
+    /same face, same skin tone, same hair, same distinctive accessories, same outfit, in EVERY shot/,
+  )
+  assert.match(single, /Apply the scene's art style only to the surroundings/)
+  assert.equal(
+    buildCustomStyleReferencePromptMulti(['Elena'], 'Wide shot.'),
+    single,
+  )
+
+  const both = buildCustomStyleReferencePromptMulti(
+    ['Elena', 'Bruno'],
+    'Wide shot.',
+  )
+  assert.match(both, /attached image 1 is "Elena"; attached image 2 is "Bruno"/)
+  assert.match(
+    both,
+    /Elena and Bruno must each look exactly like the person in their OWN attached reference image: same face, same skin tone/,
+  )
+  assert.match(both, /never to Elena and Bruno/)
+})
+
+test('two library characters in Create with a custom style: only the first travels, with a warning', async (t) => {
+  const { base, paths, events } = await fixture(t, {
+    mode: 'own',
+    characters: [
+      { ...libraryCharacter, mode: 'text' },
+      {
+        name: 'Bruno',
+        description: 'an old sailor with a grey beard and a yellow raincoat',
+        mode: 'text',
+      },
+    ],
+  })
+  providers(t, defaultLlm)
+  await runLane(base, paths)
+
+  const prompt = (await readScenes(paths))[0].imagePrompt
+  assert.match(prompt, /blue jacket/)
+  assert.doesNotMatch(prompt, /yellow raincoat/)
+  assert.ok(
+    events.some(
+      (event) =>
+        event.level === 'warn' &&
+        event.message.includes('carries one protagonist: only "Elena" travels'),
+    ),
+  )
 })

@@ -421,6 +421,41 @@ export function pointSubjectToImage(scenePrompt: string, name: string): string {
 }
 
 /**
+ * El prompt de una escena que PERDIÓ su imagen de referencia y se rescata por
+ * el carril normal (estilo propio). El prompt guardado promete una referencia
+ * que ya no viaja («Elena (the person from the attached reference image)»)
+ * y no trae ninguna descripción: el generador dibujaba a cualquiera. Acá se
+ * quita el ancla y se pega la descripción de biblioteca al final, como en el
+ * modo texto. Devuelve el prompt SIN las cláusulas finales: quien lo usa lo
+ * vuelve a sanear. Si ningún personaje trae descripción usable, devuelve el
+ * prompt tal cual (sin ancla).
+ */
+export function rescueReferencePrompt(
+  prompt: string,
+  identities: readonly { name: string; description: string }[],
+): string {
+  const anchor = new RegExp(
+    `\\s*\\(${REFERENCE_ANCHOR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`,
+    'g',
+  )
+  const body = bodyWithoutFinalClauses(prompt).replace(anchor, '').trim()
+  const usable = identities
+    .map(({ name, description }) => {
+      const identity =
+        descriptionFromUserPrompt(description) ||
+        fallbackUserDescription(description)
+      if (!identity) return ''
+      const trimmedName = name.trim()
+      return trimmedName ? `${trimmedName}: ${identity}` : identity
+    })
+    .filter(Boolean)
+  if (usable.length === 0) return body
+
+  const separator = /[.!?]$/.test(body) ? ' ' : '. '
+  return `${body}${separator}${DESCRIPTION_HEADER} ${usable.join(' ')}`
+}
+
+/**
  * El video NO lleva protagonista: el tag se degrada a una persona sin
  * identidad fija (ver `NEUTRAL_SUBJECT`). Red por si el modelo escribe la
  * etiqueta igual; el preámbulo ya se la prohibió.
@@ -448,6 +483,39 @@ export function descriptionFromUserPrompt(prompt: string): string {
   if (portraitStateMark(trimmed) === undefined) return trimmed
   const rescue = dropSentencesWithState(trimmed)
   return rescue && portraitStateMark(rescue) === undefined ? rescue : ''
+}
+
+/**
+ * La descripción del USUARIO cuando los tres tijeretazos no dejan nada. Caso
+ * real: una ficha de biblioteca perfectamente buena que dice «portrait» o
+ * «full-body», o que arranca con «Style:», se recortaba hasta quedar vacía y
+ * el video salía SIN identidad — solo un aviso en el log. Acá se limpia lo
+ * mínimo: markdown, saltos, la cola «Style:» solo si sobrevive texto antes de
+ * ella, y las oraciones con estado de retrato solo si sobrevive alguna sin
+ * estado. Una descripción con una pose fija es peor que una limpia, pero
+ * muchísimo mejor que ninguna. "" si ni así hay tres palabras.
+ */
+export function fallbackUserDescription(raw: string): string {
+  let text = raw
+    .replace(/\*\*|__/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const styleIndex = text.search(/\bstyle\s*:/i)
+  // Solo cola de estilo, sin personaje: no hay identidad que tejer.
+  if (styleIndex === 0) return ''
+  if (
+    styleIndex > 0 &&
+    countWords(text.slice(0, styleIndex)) >= MIN_DESCRIPTION_WORDS
+  )
+    text = text.slice(0, styleIndex)
+
+  // Los recortes de retrato sacan lo que congela (pose, encuadre, fondo) sin
+  // tirar la oración entera; si aun así queda estado, se conserva.
+  const softened = trimPortrait(text) || text
+  const withoutState = dropSentencesWithState(softened)
+  const chosen = withoutState || tidyPunctuation(softened)
+  if (countWords(chosen) < MIN_DESCRIPTION_WORDS) return ''
+  return capWovenIdentity(/[.!?]$/.test(chosen) ? chosen : `${chosen}.`)
 }
 
 /**

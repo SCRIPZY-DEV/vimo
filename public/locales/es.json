@@ -222,6 +222,7 @@
       "change": "Cambiar",
       "hint": "Sale consistente en tu video; vos elegís qué tan seguido aparece.",
       "hintOfStyle": "Sale consistente en tu video; este estilo decide en qué escenas aparece.",
+      "noStylePreviewHint": "Este estilo todavía no tiene una ilustración de {{names}}: su identidad viajará solo como texto y puede no parecerse del todo. Para más fidelidad, generá su ilustración en este estilo desde Personajes.",
       "remove": "Quitar personaje",
       "pickerTitle": "Elegir personajes",
       "pickerDescription": "Podés elegir hasta {{max}} personajes; van a aparecer con su identidad en todo el video.",

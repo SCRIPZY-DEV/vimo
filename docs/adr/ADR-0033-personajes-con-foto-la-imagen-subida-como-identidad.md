@@ -108,6 +108,17 @@ cualquier estilo. Sin foto, nada cambia respecto de ADR-0021.**
   (`referencePromptFor` en `character-lane.ts`). El catálogo sigue con la línea
   de identidad de siempre delante del prompt.
 
+### Adenda 2026-09-19 — la foto que se pierde y el candado del estilo propio
+
+Con estilo propio, la escena que pierde su foto (rechazo por contenido, subida
+caída, sin clave) se rescata por el carril normal con la descripción de biblioteca
+tejida al prompt de ESE pedido; el prompt guardado conserva el ancla de la foto para
+reintentar con ella en la próxima pasada. El candado del estilo propio
+(`buildCustomStyleReferencePrompt`) ancla ahora también el tono de piel y los
+accesorios distintivos, como el del catálogo desde el 2026-09-18, y su variante
+multi nombra y protege a cada referencia.
+Ver [causa, implementación y QA](../fixes/2026-09-19-fix-custom-style-library-identity/custom-style-library-identity.md).
+
 ## Alternativas consideradas
 
 - **Mandar la foto como data URI por el IPC** (`photoDataUri` ya existía) —

@@ -103,6 +103,13 @@ export function verbatimCharacterFor(
     : 0
   const index = foundIndex >= 0 ? foundIndex : 0
   const chosen = loaded[index]!
+  // Con estilo propio el video lleva UN protagonista (la gema escribe
+  // `[subject]` en singular): el selector deja elegir dos, pero el segundo no
+  // viaja. Se dice, para que nadie lo busque en las escenas.
+  if (loaded.length > 1)
+    onWarn?.(
+      `the project brings ${loaded.length} characters but a custom style video carries one protagonist: only "${chosen.name}" travels`,
+    )
 
   if (chosen.imageDataUri)
     return { input: { mode: 'reference', name: chosen.name }, index }
