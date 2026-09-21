@@ -88,6 +88,10 @@ export interface MusicHistoryDeletePayload {
 }
 
 export interface EvolinkCredits {
+  // ¿La respuesta TRAJO un saldo? `remaining` cae a 0 cuando el campo falta,
+  // y quien decide «sin saldo» necesita distinguir un cero leído de un cero
+  // por omisión (un cambio de forma de la API no es una cuenta vacía).
+  balanceReported: boolean
   remaining: number
   used: number
   unlimited: boolean

@@ -313,6 +313,8 @@ export async function getEvolinkCredits(
   const user = data.data?.user
 
   return {
+    balanceReported:
+      typeof (user?.remaining_credits ?? token?.remaining_credits) === 'number',
     // El token puede reportar créditos "infinitos" en planes enterprise: el
     // saldo real es el del usuario cuando existe (bug histórico del origen).
     // Por lo mismo, "ilimitado" solo aplica si no hay saldo de usuario.

@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import { PipelineFailure } from '../../runner/failure.ts'
 import {
+  isInsufficientCreditsFailure,
   isInsufficientCreditsResponse,
   isInsufficientTaskError,
 } from '../../utils/insufficient-credits.ts'
@@ -68,6 +69,20 @@ export class RetryableOrderError extends Error {
     super(reason)
     this.name = 'RetryableOrderError'
     this.reason = reason
+  }
+}
+
+// Un rechazo HTTP de Evolink con su STATUS a la vista. El código solo no
+// alcanza: `image_provider_error` cubre tanto un 400 (la cuenta o el pedido)
+// como un 500 (un mal rato del proveedor), y el carril necesita distinguirlos
+// para saber si vale la pena consultar el saldo antes de reintentar.
+export class EvolinkHttpFailure extends PipelineFailure {
+  readonly status: number
+
+  constructor(code: string, message: string, status: number) {
+    super(code, message)
+    this.name = 'EvolinkHttpFailure'
+    this.status = status
   }
 }
 
@@ -159,14 +174,7 @@ export async function createEvolinkImageTask(
 
   if (!response.ok) throw createFailure(response, await errorBodyText(response))
 
-  const data = (await response.json()) as EvolinkImageCreateResponse
-  if (!data.id)
-    throw new PipelineFailure(
-      'image_provider_error',
-      'Evolink create returned no task id',
-    )
-
-  return data.id
+  return taskIdFromCreate(response)
 }
 
 // Sube la referencia de un personaje a la file-API de Evolink UNA vez y
@@ -196,11 +204,24 @@ export async function uploadEvolinkReference(
         signal: AbortSignal.timeout(60_000),
       },
     )
-    if (!response.ok) return null
+    // Sin saldo, la file-API también rechaza. Devolver null acá mandaba el
+    // grupo entero al carril normal, que fallaba igual: el motivo real se
+    // perdía antes de que nadie lo viera. Solo el saldo sale como fallo; lo
+    // demás sigue degradando al carril normal.
+    if (!response.ok) {
+      const bodyText = await errorBodyText(response)
+      if (isInsufficientCreditsResponse(response.status, bodyText))
+        throw new PipelineFailure(
+          'image_insufficient_credits',
+          `Evolink rejected the reference upload for insufficient credits (status=${response.status}) ${bodyText.slice(0, ERROR_BODY_MESSAGE_CHARS)}`,
+        )
+      return null
+    }
     const data = (await response.json()) as { data?: { file_url?: string } }
     const url = data.data?.file_url
     return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null
-  } catch {
+  } catch (error) {
+    if (isInsufficientCreditsFailure(error)) throw error
     return null
   }
 }
@@ -241,18 +262,43 @@ async function createTask(
 
   if (!response.ok) throw createFailure(response, await errorBodyText(response))
 
-  const data = (await response.json()) as EvolinkImageCreateResponse
-  if (!data.id)
-    throw new PipelineFailure(
-      'image_provider_error',
-      'Evolink create returned no task id',
-    )
-
-  return data.id
+  return taskIdFromCreate(response)
 }
 
+// Cuánto del cuerpo se LEE para clasificar y cuánto viaja en el mensaje. Un
+// gateway envuelve el motivo en JSON verboso: con 300 caracteres la frase del
+// saldo podía quedar afuera del recorte y el rechazo se leía como otra cosa.
+const ERROR_BODY_CLASSIFY_CHARS = 4000
+const ERROR_BODY_MESSAGE_CHARS = 300
+
 async function errorBodyText(response: Response): Promise<string> {
-  return (await response.text().catch(() => '')).slice(0, 300)
+  return (await response.text().catch(() => '')).slice(
+    0,
+    ERROR_BODY_CLASSIFY_CHARS,
+  )
+}
+
+// Un 2xx SIN id de tarea: el gateway puede contestar 200 con el error adentro.
+// Se mira el saldo en ese cuerpo antes de darlo por un fallo cualquiera.
+async function taskIdFromCreate(response: Response): Promise<string> {
+  const bodyText = await errorBodyText(response)
+  let data: EvolinkImageCreateResponse = {}
+  try {
+    data = JSON.parse(bodyText) as EvolinkImageCreateResponse
+  } catch {
+    // Cuerpo no-JSON: cae al chequeo de abajo, sin id.
+  }
+  if (data.id) return data.id
+
+  if (isInsufficientCreditsResponse(response.status, bodyText))
+    throw new PipelineFailure(
+      'image_insufficient_credits',
+      `Evolink accepted the request but reported insufficient credits: ${bodyText.slice(0, ERROR_BODY_MESSAGE_CHARS)}`,
+    )
+  throw new PipelineFailure(
+    'image_provider_error',
+    'Evolink create returned no task id',
+  )
 }
 
 // Clasificación de un create rechazado. El cuerpo se lee ANTES de mirar el
@@ -261,24 +307,27 @@ async function errorBodyText(response: Response): Promise<string> {
 // vez de a recargar (ADR-0031). Un 429 sale con el retry-after en el mensaje
 // para que el caller espere lo que el proveedor pide.
 function createFailure(response: Response, bodyText: string): PipelineFailure {
+  const detail = bodyText.slice(0, ERROR_BODY_MESSAGE_CHARS)
   if (isInsufficientCreditsResponse(response.status, bodyText))
     return new PipelineFailure(
       'image_insufficient_credits',
-      `Evolink rejected the request for insufficient credits (status=${response.status}) ${bodyText}`,
+      `Evolink rejected the request for insufficient credits (status=${response.status}) ${detail}`,
     )
   if (response.status === 401 || response.status === 403)
-    return new PipelineFailure(
+    return new EvolinkHttpFailure(
       'image_invalid_api_key',
-      `Evolink rejected the API key (status=${response.status})`,
+      `Evolink rejected the API key (status=${response.status}) ${detail}`,
+      response.status,
     )
   if (response.status === 429)
     return new PipelineFailure(
       'image_rate_limited',
       response.headers.get('retry-after') ?? '3',
     )
-  return new PipelineFailure(
+  return new EvolinkHttpFailure(
     'image_provider_error',
-    `Evolink create failed (status=${response.status}) ${bodyText}`,
+    `Evolink create failed (status=${response.status}) ${detail}`,
+    response.status,
   )
 }
 
@@ -310,11 +359,10 @@ export async function pollTask(
       continue
     }
 
+    // Mismo orden que en el create: el saldo agotado puede llegar como 403, y
+    // sin leer el cuerpo se leía siempre como clave inválida.
     if (response.status === 401 || response.status === 403)
-      throw new PipelineFailure(
-        'image_invalid_api_key',
-        `Evolink rejected the API key (status=${response.status})`,
-      )
+      throw createFailure(response, await errorBodyText(response))
     if (response.status === 404)
       throw new PipelineFailure(
         'image_task_not_found',
