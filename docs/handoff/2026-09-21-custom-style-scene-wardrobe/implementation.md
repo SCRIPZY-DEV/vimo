@@ -258,6 +258,30 @@ DeepSeek oscila (20–60 %) porque sigue marcando todo o nada por corrida. Con 1
 fragmentos por celda estas cifras tienen mucha varianza: la lectura firme es que el
 rol no genera marcadores donde no hay rol.
 
+### Lo que enseñó `test-8` (oficina → playa → mar)
+
+Con DeepSeek V4 Flash, las escenas de oficina salieron con el detective de siempre y
+la del auto perfecta (camisa de lino, shorts, ojotas; gabardina y fedora en el
+asiento). Las dos del mar salieron con el detective flotando con gabardina, fedora,
+corbata y zapatos, aunque el prompt decía «wearing short-sleeved linen shirt…». Dos
+causas, corregidas:
+
+1. **La ficha trajo las dos cosas:** la frase «He is wearing a classic dark brown
+   private investigator outfit…» y, además, la oración `Outfit:` pedida. La
+   separación tomaba `Outfit:` y dejaba la frase «wearing…» dentro de la identidad
+   fija, que dice «must look exactly like this». El generador obedeció eso.
+   `splitOutfit` ahora también quita la cláusula «wearing…» de lo que queda como
+   identidad fija.
+2. **La continuidad heredaba por una sola palabra:** «khaki **shorts**» y «swim
+   **shorts**» comparten «shorts», y las escenas del mar heredaron la ropa de la
+   caminata. `wardrobesLookAlike` exige ahora que una lista contenga a la otra o que
+   compartan al menos la mitad de las prendas.
+
+Además, `signatureLookNote` pasó a ser directiva: «la ropa de esta escena REEMPLAZA
+la de su look habitual; de ese look solo se quedan las piezas que la escena no
+reemplaza (sombrero, placa, corbata, lentes, lo que lleva en la mano), y solo donde la
+escena lo permite: nunca un abrigo en el agua, nunca un sombrero bajo un casco».
+
 ## Límites conocidos
 
 - La ropa puede variar entre lotes paralelos (la continuidad solo mira la escena
