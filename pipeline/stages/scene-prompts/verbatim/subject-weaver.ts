@@ -23,6 +23,7 @@
 import {
   DESCRIPTION_HEADER,
   DESCRIPTION_HEADER_PREFIX,
+  DESCRIPTION_HEADER_WITH_WARDROBE,
 } from '../../../prompts/verbatim-identity.ts'
 import type { Scene } from '../../../types/scenes.ts'
 import { bodyWithoutFinalClauses } from '../../shared/prompt-safety.ts'
@@ -238,6 +239,176 @@ export function dropSentencesWithState(description: string): string {
 }
 
 /*
+ * Vestuario por escena (2026-09-21): la ropa es lo ÚNICO del personaje que
+ * puede cambiar con la escena. El modelo la escribe en un paréntesis pegado a
+ * la etiqueta, `[subject] (wearing: a red swimsuit)`, y acá se separa: el
+ * paréntesis sale del prompt, la ropa se teje junto al rol y la descripción
+ * viaja SIN su ropa base (o entera, bajo un encabezado que dice que manda la
+ * de la escena, cuando no se puede partir).
+ */
+
+const WARDROBE_MARKER_REGEX =
+  /\[subject\]\s*\((?:wearing|outfit|clothes|clothing)\s*:\s*([^)]{3,160})\)/gi
+
+/**
+ * Lo que un marcador NO puede traer: nada que no sea ropa. Si trae alguna de
+ * estas palabras se descarta entero (y se avisa): mejor la ropa base que un
+ * personaje con otra cara.
+ */
+const WARDROBE_FORBIDDEN_REGEX =
+  /\b(?:hair|haircut|face|facial|eyes?|skin|body|build|beard|m(?:ou|u)stache|age|aged|years?[- ]old|head|nose|freckles|glasses|tattoos?|scars?)\b/i
+
+export interface WardrobeExtraction {
+  /** El prompt con los paréntesis quitados (la etiqueta queda). */
+  scene: string
+  /** La ropa de esta escena, limpia, si el modelo la escribió y sirve. */
+  wardrobe?: string
+  /** Un marcador descartado por traer algo que no es ropa. */
+  rejected?: string
+}
+
+export function extractWardrobe(scenePrompt: string): WardrobeExtraction {
+  let wardrobe: string | undefined
+  let rejected: string | undefined
+  const scene = scenePrompt.replace(
+    WARDROBE_MARKER_REGEX,
+    (_match, inside: string) => {
+      const cleaned = inside
+        .replace(/\s+/g, ' ')
+        .replace(/[.;:,\s]+$/, '')
+        .trim()
+      if (WARDROBE_FORBIDDEN_REGEX.test(cleaned)) rejected ??= cleaned
+      else wardrobe ??= cleaned
+      return '[subject]'
+    },
+  )
+  return { scene, wardrobe, rejected }
+}
+
+/**
+ * Palabras que no distinguen una ropa de otra: colores, cortes y relleno.
+ * Lo que queda son las PRENDAS, y dos marcadores que comparten una prenda
+ * describen la misma situación.
+ */
+const WARDROBE_FILLER_REGEX =
+  /^(?:with|and|the|over|under|plus|pair|long|short|light|dark|thick|thin|heavy|warm|soft|plain|simple|classic|casual|formal|bright|pale|deep|red|blue|green|yellow|orange|purple|pink|black|white|grey|gray|brown|beige|cream|navy|teal|olive|maroon|golden|gold|silver|striped|checked|floral|denim|leather|wool|cotton|linen|old|new|worn|faded|clean|dirty|matching|same)$/i
+
+function wardrobeGarments(wardrobe: string): Set<string> {
+  return new Set(
+    wardrobe
+      .toLowerCase()
+      .split(/[^\p{L}-]+/u)
+      .map((word) => word.replace(/^-+|-+$/g, ''))
+      .filter((word) => word.length >= 4 && !WARDROBE_FILLER_REGEX.test(word)),
+  )
+}
+
+/**
+ * ¿Dos marcadores describen la misma ropa? Sí cuando comparten al menos una
+ * prenda: «a red swimsuit and sandals» y «a red one-piece swimsuit» son la
+ * misma situación (y la escena siguiente hereda la primera, palabra por
+ * palabra); «a thick grey winter coat» no lo es.
+ */
+export function wardrobesLookAlike(first: string, second: string): boolean {
+  const garments = wardrobeGarments(first)
+  for (const garment of wardrobeGarments(second))
+    if (garments.has(garment)) return true
+  return false
+}
+
+/** La oración «Outfit: …» con la que la Fase 1 cierra la ficha. */
+const OUTFIT_SENTENCE_REGEX = /^outfit\s*:\s*/i
+
+export interface IdentitySplit {
+  /** Lo que nunca cambia: rol, cara, pelo, piel, contextura, accesorios. */
+  core: string
+  /** La ropa base, si la ficha la trae separada. */
+  outfit?: string
+}
+
+/**
+ * Dónde arranca la ropa dentro de una oración que no la trae separada:
+ * «…, wearing a dark brown trench coat, a fedora and a tie, holding a
+ * notepad.» Medido en el A/B: una gema que trae su ficha ESCRITA la devuelve
+ * tal cual (la precedencia del personaje del estilo lo pide) y no cierra con
+ * «Outfit:», así que sin esta heurística esa ficha nunca se partía.
+ */
+const OUTFIT_CLAUSE_REGEX = /,?\s*\b(?:wearing|dressed in|clad in)\b/i
+
+/**
+ * Parte la descripción en identidad fija y ropa base. Primero la oración
+ * «Outfit:» de la Fase 1; si no viene, la cláusula «wearing…» de la ÚLTIMA
+ * oración que la tenga (hasta el final de esa oración). Sin ninguna de las
+ * dos (ficha del usuario, protagonista guardado antes del vestuario) no hay
+ * corte: `core` es la descripción entera y `outfit` no viene.
+ */
+export function splitOutfit(description: string): IdentitySplit {
+  const sentences = description.trim().split(/(?<=[.!?])\s+/)
+  const labeled = sentences.findLastIndex((sentence) =>
+    OUTFIT_SENTENCE_REGEX.test(sentence),
+  )
+  if (labeled >= 0) {
+    const outfit = sentences[labeled]!.replace(OUTFIT_SENTENCE_REGEX, '')
+      .replace(/[.!?]+$/, '')
+      .trim()
+    return assembleSplit(
+      sentences.filter((_, position) => position !== labeled),
+      outfit,
+      description,
+    )
+  }
+
+  const clause = sentences.findLastIndex((sentence) =>
+    OUTFIT_CLAUSE_REGEX.test(sentence),
+  )
+  if (clause < 0) return { core: description.trim() }
+  const sentence = sentences[clause]!
+  const match = OUTFIT_CLAUSE_REGEX.exec(sentence)!
+  const outfit = sentence
+    .slice(match.index + match[0].length)
+    .replace(/[.!?]+$/, '')
+    .trim()
+  // Lo que queda antes de la cláusula: sin el «He is» colgado y cerrado en
+  // punto, para que la identidad no arrastre media frase.
+  const before = sentence
+    .slice(0, match.index)
+    .replace(/\b(?:who|he|she|they|it)\s+(?:is|are)\s*$/i, '')
+    .replace(/[,;:\s]+$/, '')
+    .trim()
+  const rest = sentences.map((item, position) =>
+    position === clause ? (before ? `${before}.` : '') : item,
+  )
+  return assembleSplit(rest, outfit, description)
+}
+
+function assembleSplit(
+  coreSentences: readonly string[],
+  outfit: string,
+  description: string,
+): IdentitySplit {
+  const core = tidyPunctuation(
+    coreSentences.filter((sentence) => sentence.trim()).join(' '),
+  )
+  if (!outfit || countWords(core) < MIN_DESCRIPTION_WORDS)
+    return { core: description.trim() }
+  return { core: /[.!?]$/.test(core) ? core : `${core}.`, outfit }
+}
+
+/** Solo el primer `[subject]` lleva la ropa; los demás quedan como el rol. */
+function replaceSubjectTag(
+  scene: string,
+  role: string,
+  wardrobe: string | undefined,
+): string {
+  let first = true
+  return scene.replace(SUBJECT_TAG_REGEX, () => {
+    if (!first || !wardrobe) return role
+    first = false
+    return `${role}, wearing ${wardrobe},`
+  })
+}
+
+/*
  * Rol y tejido final.
  */
 
@@ -316,6 +487,7 @@ export function weaveSubject(
   scenePrompt: string,
   description?: string,
   name?: string,
+  wardrobe?: string,
 ): string {
   const scene = scenePrompt.trim()
   const identity = description?.trim()
@@ -347,12 +519,24 @@ export function weaveSubject(
     /^\p{Lu}/u.test(role) &&
     role.split(/\s+/).length <= 2 &&
     role !== 'main character'
-  const base = scene
-    .replace(SUBJECT_TAG_REGEX, isProperName ? role : `the ${role}`)
-    .trimEnd()
+  const base = replaceSubjectTag(
+    scene,
+    isProperName ? role : `the ${role}`,
+    wardrobe,
+  ).trimEnd()
   const separator = /[.!?]$/.test(base) ? ' ' : '. '
-  const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
-  return `${base}${separator}${DESCRIPTION_HEADER} ${finalIdentity}`
+
+  // Con ropa de escena, la descripción viaja SIN su ropa base (para que el
+  // prompt no pida dos ropas); si no se puede partir, viaja entera bajo el
+  // encabezado que le da prioridad a la ropa de la escena.
+  const split = wardrobe ? splitOutfit(identity) : undefined
+  const header =
+    wardrobe && !split?.outfit
+      ? DESCRIPTION_HEADER_WITH_WARDROBE
+      : DESCRIPTION_HEADER
+  const woven = split?.outfit ? split.core : identity
+  const finalIdentity = /[.!?]$/.test(woven) ? woven : `${woven}.`
+  return `${base}${separator}${header} ${finalIdentity}`
 }
 
 /**
@@ -387,7 +571,11 @@ export function namesByName(scenePrompt: string, name?: string): boolean {
  * generador normal, este prompt promete una referencia que no viaja — misma
  * degradación que el nombre pelado, preferible a una imagen en blanco.
  */
-export function pointSubjectToImage(scenePrompt: string, name: string): string {
+export function pointSubjectToImage(
+  scenePrompt: string,
+  name: string,
+  wardrobe?: string,
+): string {
   const scene = scenePrompt.trim()
   const trimmedName = name.trim()
 
@@ -397,7 +585,9 @@ export function pointSubjectToImage(scenePrompt: string, name: string): string {
     return scene.replace(SUBJECT_TAG_REGEX, () => {
       if (first) {
         first = false
-        return `${resolved} (${REFERENCE_ANCHOR})`
+        return wardrobe
+          ? `${resolved} (${REFERENCE_ANCHOR}), wearing ${wardrobe},`
+          : `${resolved} (${REFERENCE_ANCHOR})`
       }
       return resolved
     })
