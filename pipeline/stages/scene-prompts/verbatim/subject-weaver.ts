@@ -451,6 +451,39 @@ export function descriptionFromUserPrompt(prompt: string): string {
 }
 
 /**
+ * La descripción del USUARIO cuando los tres tijeretazos no dejan nada. Caso
+ * real: una ficha de biblioteca perfectamente buena que dice «portrait» o
+ * «full-body», o que arranca con «Style:», se recortaba hasta quedar vacía y
+ * el video salía SIN identidad — solo un aviso en el log. Acá se limpia lo
+ * mínimo: markdown, saltos, la cola «Style:» solo si sobrevive texto antes de
+ * ella, y las oraciones con estado de retrato solo si sobrevive alguna sin
+ * estado. Una descripción con una pose fija es peor que una limpia, pero
+ * muchísimo mejor que ninguna. "" si ni así hay tres palabras.
+ */
+export function fallbackUserDescription(raw: string): string {
+  let text = raw
+    .replace(/\*\*|__/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const styleIndex = text.search(/\bstyle\s*:/i)
+  // Solo cola de estilo, sin personaje: no hay identidad que tejer.
+  if (styleIndex === 0) return ''
+  if (
+    styleIndex > 0 &&
+    countWords(text.slice(0, styleIndex)) >= MIN_DESCRIPTION_WORDS
+  )
+    text = text.slice(0, styleIndex)
+
+  // Los recortes de retrato sacan lo que congela (pose, encuadre, fondo) sin
+  // tirar la oración entera; si aun así queda estado, se conserva.
+  const softened = trimPortrait(text) || text
+  const withoutState = dropSentencesWithState(softened)
+  const chosen = withoutState || tidyPunctuation(softened)
+  if (countWords(chosen) < MIN_DESCRIPTION_WORDS) return ''
+  return capWovenIdentity(/[.!?]$/.test(chosen) ? chosen : `${chosen}.`)
+}
+
+/**
  * Tope de la identidad que se teje (modos `generic` y `text`). La descripción
  * va pegada al final de TODAS las escenas y comparte los ~2.100 caracteres de
  * cuerpo del prompt final con la escena y la cola de estilo: una ficha sin

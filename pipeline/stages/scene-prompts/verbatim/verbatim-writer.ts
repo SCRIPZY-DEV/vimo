@@ -51,6 +51,7 @@ import {
   cleanDescription,
   descriptionFromUserPrompt,
   dropSentencesWithState,
+  fallbackUserDescription,
   identityWordCount,
   MIN_IDENTITY_WORDS,
   mentionsProtagonist,
@@ -443,6 +444,10 @@ async function resolveCharacter(
       // tres tijeretazos que el retrato de la Fase 1.
       const portrait = input.prompt.trim()
       let description = capWovenIdentity(descriptionFromUserPrompt(portrait))
+      // Los tijeretazos no dejaron nada: mejor la ficha del usuario apenas
+      // limpia que un video sin identidad (antes solo quedaba un aviso).
+      const fromFallback = !description
+      if (fromFallback) description = fallbackUserDescription(portrait)
       // E47 — La ficha del usuario puede abrir con RASGOS y no con un rol: el
       // rol scrapeado de ahí tejía basura. Con nombre disponible y rol
       // inusable, se antepone el nombre (el nombre propio se teje sin
@@ -463,6 +468,10 @@ async function resolveCharacter(
         // reescriba su personaje por esto.
         options.onWarn?.(
           'no usable permanent description survived trimming the user character prompt: it still travels in the conversation, but is not appended to each scene',
+        )
+      } else if (fromFallback) {
+        options.onLog?.(
+          'the trims left no permanent description: the lightly cleaned user description is appended to each scene instead',
         )
       }
       options.onLog?.(
