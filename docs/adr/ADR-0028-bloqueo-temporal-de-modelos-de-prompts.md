@@ -87,6 +87,13 @@ Cómo se materializa:
 - ✅ Un modelo trabado o con errores se ve a los 2 minutos, no a los 10; y no se
   vuelve a ofrecer hasta pasada una hora.
 - ✅ Cambiar de modelo conserva voz, cortes y los prompts ya escritos.
+  **Corregido el 2026-09-21:** esto era falso para el carril verbatim, que escribía
+  `scenes.json` una sola vez al terminar la fase; el halt de acá abajo lo cancelaba antes y
+  tiraba todos los prompts ya pagados, así que «Reintentar» y «Cambiar de modelo» los
+  volvían a comprar enteros. Ahora se persisten lote a lote — ver
+  [causa, implementación y QA](../fixes/2026-09-21-fix-verbatim-prompt-persistence/verbatim-prompt-persistence.md).
+  Lo único que no sobrevive es el lote cuya respuesta llega DESPUÉS de la cancelación: en
+  el editor, cancelar tiene que dejar la escena como estaba.
 - ⚠️ `PROVIDER_TROUBLE_CODES` vive duplicado (pipeline y `videos/constants.ts`),
   como los otros espejos del repo. Si cambia en un lado, cambia en el otro.
 - ⚠️ El bloqueo es por navegador/instalación: otra máquina no se entera.

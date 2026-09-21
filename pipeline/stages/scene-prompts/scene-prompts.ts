@@ -26,6 +26,7 @@ import {
   recordPromptModelUsed,
   runVerbatimLane,
 } from './verbatim/verbatim-lane.ts'
+import { createVerbatimPromptPersistence } from './verbatim/verbatim-persistence.ts'
 import { guaranteePrompts } from './prompt-writer.ts'
 import { directScenes, scenesNeedPlan } from './scene-director.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
@@ -103,7 +104,14 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     // el contexto, y la presencia del sujeto la informa el propio motor). El
     // carril de la casa queda byte-idéntico más abajo.
     if (context.options.customStyle) {
-      const lane = await runVerbatimLane(context, scenes, script)
+      // Los prompts se van a disco LOTE A LOTE: si el job muere a mitad —o la
+      // UI lo cancela porque el modelo da errores (ADR-0028)— lo ya pagado
+      // queda escrito y el reintento solo pide lo que falta. Antes se perdía
+      // todo, porque la única escritura era la de acá abajo.
+      const persistence = createVerbatimPromptPersistence(context, scenes)
+      const lane = await runVerbatimLane(context, scenes, script, {
+        onPrompts: persistence.onPrompts,
+      }).finally(() => persistence.flush())
       await writeScenesOwned(
         context.paths,
         lane.scenes,

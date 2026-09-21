@@ -473,9 +473,11 @@ La narración es **esencial** (si falla, el job muere); música y overlay son
 
 **Con un estilo propio («Mi estilo», ADR-0018/0019/0020)** `scene-prompts` cambia
 de carril: la gema del usuario viaja verbatim como `system`, se saltean la biblia
-y el director, y los prompts salen por lotes con el modelo LLM elegido en Create
+y el director, y los prompts salen **por lotes** con el modelo LLM elegido en Create
 (`options.promptModel`; el catálogo llega por `list-prompt-models` y el
-simulador de costos vive en `utilities/promptCost.ts`). La gema declara además
+simulador de costos vive en `utilities/promptCost.ts`). Cada lote cerrado se
+escribe en `scenes.json` en el acto: sus tokens ya se pagaron, así que un fallo
+posterior no puede tirarlos y el reintento solo pide lo que falta. La gema declara además
 qué hace con su protagonista (`customStyle.character`: propio, genérico o
 ninguno) y puede diseñarlo con el guion como contexto (`design-style-character`).
 Un personaje se ilustra también con la gema (`generate-character-preview` con el
