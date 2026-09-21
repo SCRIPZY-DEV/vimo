@@ -37,5 +37,5 @@ export const DESCRIPTION_HEADER_WITH_WARDROBE = `${DESCRIPTION_HEADER_PREFIX}, e
  * encima; el fedora, hasta que hay casco.
  */
 export function signatureLookNote(outfit: string): string {
-  return `Their signature look stays with them on top of this scene's clothing wherever the scene allows it: ${outfit.replace(/[.!?]+$/, '')}. Where the scene's clothing replaces one of those items (a helmet instead of the hat, a swimsuit instead of the coat), the scene wins; everything else stays.`
+  return `The clothing stated for this scene above REPLACES the clothes of their usual look; from that usual look only the signature pieces the scene does not replace (hat, badge, tie, glasses, what they hold in their hands) stay on top of this scene's clothing, and only where the scene allows it — never a coat in the water, never a hat under a helmet. Their usual look, for reference: ${outfit.replace(/[.!?]+$/, '')}.`
 }

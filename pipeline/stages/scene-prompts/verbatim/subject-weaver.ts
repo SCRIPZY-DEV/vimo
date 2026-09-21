@@ -313,10 +313,18 @@ function wardrobeGarments(wardrobe: string): Set<string> {
  * palabra); «a thick grey winter coat» no lo es.
  */
 export function wardrobesLookAlike(first: string, second: string): boolean {
-  const garments = wardrobeGarments(first)
-  for (const garment of wardrobeGarments(second))
-    if (garments.has(garment)) return true
-  return false
+  const previous = wardrobeGarments(first)
+  const current = wardrobeGarments(second)
+  if (previous.size === 0 || current.size === 0) return false
+
+  // Una sola prenda en común no alcanza: «khaki shorts» y «swim shorts»
+  // comparten «shorts» y son situaciones distintas (medido en test-8: las
+  // escenas del mar heredaron la ropa de la caminata). Se parecen cuando una
+  // lista contiene a la otra, o cuando comparten al menos la mitad.
+  let shared = 0
+  for (const garment of current) if (previous.has(garment)) shared++
+  if (shared === current.size || shared === previous.size) return true
+  return shared * 2 >= Math.max(previous.size, current.size)
 }
 
 /** La oración «Outfit: …» con la que la Fase 1 cierra la ficha. */
@@ -354,11 +362,14 @@ export function splitOutfit(description: string): IdentitySplit {
     const outfit = sentences[labeled]!.replace(OUTFIT_SENTENCE_REGEX, '')
       .replace(/[.!?]+$/, '')
       .trim()
-    return assembleSplit(
-      sentences.filter((_, position) => position !== labeled),
-      outfit,
-      description,
-    )
+    // El modelo puede devolver las DOS cosas: la oración «Outfit:» y, antes,
+    // la frase «He is wearing…» de su ficha (medido en test-8). Esa frase no
+    // puede quedar en la identidad fija: diría «must look exactly like this:
+    // …wearing a trench coat» encima de la ropa de la escena.
+    const rest = sentences
+      .filter((_, position) => position !== labeled)
+      .map(withoutWearingClause)
+    return assembleSplit(rest, outfit, description)
   }
 
   const clause = sentences.findLastIndex((sentence) =>
@@ -382,6 +393,18 @@ export function splitOutfit(description: string): IdentitySplit {
     position === clause ? (before ? `${before}.` : '') : item,
   )
   return assembleSplit(rest, outfit, description)
+}
+
+/** La oración sin su cláusula «wearing…» (y sin el «He is» que quedaba). */
+function withoutWearingClause(sentence: string): string {
+  const match = OUTFIT_CLAUSE_REGEX.exec(sentence)
+  if (!match) return sentence
+  const before = sentence
+    .slice(0, match.index)
+    .replace(/\b(?:who|he|she|they|it)\s+(?:is|are)\s*$/i, '')
+    .replace(/[,;:\s]+$/, '')
+    .trim()
+  return before ? `${before}.` : ''
 }
 
 function assembleSplit(

@@ -12,6 +12,7 @@ import {
 import {
   extractWardrobe,
   splitOutfit,
+  wardrobesLookAlike,
   weaveSubject,
 } from '../../pipeline/stages/scene-prompts/verbatim/subject-weaver.ts'
 import {
@@ -189,7 +190,7 @@ test('the marker leaves the prompt, the clothing joins the role and the base out
   )
   assert.match(
     signatureLookNote('a fedora and a badge'),
-    /signature look stays with them on top of this scene's clothing/,
+    /clothing stated for this scene above REPLACES the clothes of their usual look/,
   )
 })
 
@@ -215,6 +216,34 @@ test('a marker may swap an accessory the scene makes impossible, never the face 
       undefined,
       bad,
     )
+})
+
+test('a sheet that brings both the wearing clause and the Outfit sentence keeps no clothes in the fixed identity', () => {
+  const both =
+    'a slim minimalist character with a small round white head, dot eyes, and a simple curved smile. He is wearing a classic dark brown private investigator outfit, including a trench coat with a badge on the left chest, a fedora, and dark tie, holding a small notepad and pen. Outfit: Dark brown trench coat with gold badge on left chest, matching fedora, dark tie, white shirt, brown trousers, black shoes, small notepad, and pen.'
+  assert.deepEqual(splitOutfit(both), {
+    core: 'a slim minimalist character with a small round white head, dot eyes, and a simple curved smile.',
+    outfit:
+      'Dark brown trench coat with gold badge on left chest, matching fedora, dark tie, white shirt, brown trousers, black shoes, small notepad, and pen',
+  })
+})
+
+test('wardrobe continuity needs the same clothes, not one shared word', () => {
+  const beach = 'short-sleeved linen shirt, light khaki shorts, flip-flops'
+  assert.equal(
+    wardrobesLookAlike(beach, 'swim shorts'),
+    false,
+    'khaki shorts vs swim shorts',
+  )
+  assert.equal(wardrobesLookAlike(beach, 'khaki shorts and linen shirt'), true)
+  assert.equal(
+    wardrobesLookAlike('a red swimsuit and sandals', 'a red swimsuit'),
+    true,
+  )
+  assert.equal(
+    wardrobesLookAlike('a thick grey winter coat and boots', 'a red swimsuit'),
+    false,
+  )
 })
 
 test('a sheet without an Outfit sentence is split at its wearing clause', () => {
@@ -312,7 +341,7 @@ test('switched on: contiguous scenes share the first wardrobe, others keep the b
   // ser la MARCA que se queda encima de la ropa de la escena.
   for (const id of [1, 2, 3]) {
     assert.ok(prompt(id).includes(DESCRIPTION_HEADER + ' ' + core), String(id))
-    assert.match(prompt(id), /signature look stays with them .* green hoodie/)
+    assert.match(prompt(id), /Their usual look, for reference: a green hoodie/)
     assert.doesNotMatch(prompt(id), /wearing:|\(wearing/)
   }
   // Sin marcador: idéntico a la salida de siempre, ropa base incluida.
