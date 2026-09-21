@@ -222,6 +222,7 @@
       "change": "Change",
       "hint": "Shows up consistently in your video; you choose how often it appears.",
       "hintOfStyle": "Shows up consistently in your video; this style decides which scenes they appear in.",
+      "noStylePreviewHint": "This style has no illustration of {{names}} yet: their identity will travel as text only and may not look quite the same. For a closer match, generate their illustration in this style from Characters.",
       "remove": "Remove character",
       "pickerTitle": "Pick characters",
       "pickerDescription": "You can pick up to {{max}} characters; they will keep their identity across the video.",

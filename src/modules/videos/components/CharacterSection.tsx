@@ -9,8 +9,12 @@ import { CharacterFrequencyPicker } from '@/modules/videos/components/CharacterF
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
 import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
 import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
+import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
-import { characterPortraitPath } from '@/modules/videos/utilities/findStylePreview'
+import {
+  characterPortraitPath,
+  findStylePreview,
+} from '@/modules/videos/utilities/findStylePreview'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -49,6 +53,22 @@ export function CharacterSection({
   const fixedSeeded = value.characters.some(
     (character) => character.characterId === fixedCharacterId,
   )
+
+  // Con «Mi estilo», un personaje SIN foto viaja con referencia solo si tiene
+  // preview de ESTE estilo (regla E20; ADR-0021 prohíbe usar el de otro).
+  // Un estilo recién creado casi nunca lo tiene: la identidad va como texto
+  // y el personaje puede no parecerse. Se avisa, sin bloquear.
+  const textCharactersChosen =
+    value.styleSource === 'custom' &&
+    value.characters.some((character) => character.mode === 'text')
+  const { characters: catalog } = useCharacterCatalog(textCharactersChosen)
+  const withoutStylePreview = textCharactersChosen
+    ? value.characters.filter((character) => {
+        if (character.mode !== 'text') return false
+        const entry = catalog.find((item) => item.id === character.characterId)
+        return entry !== undefined && !findStylePreview(entry, previewStyleKey)
+      })
+    : []
 
   // El personaje fijo de la gema se siembra solo, sin pedir un clic: el
   // catálogo llega asíncrono y el formulario lo tiene el padre, así que la
@@ -301,6 +321,16 @@ export function CharacterSection({
           </div>
         )}
       </button>
+
+      {withoutStylePreview.length > 0 && (
+        <p className="font-body text-xs text-muted-foreground">
+          {t('create.characters.noStylePreviewHint', {
+            names: withoutStylePreview
+              .map((character) => character.name)
+              .join(', '),
+          })}
+        </p>
+      )}
 
       {value.characters.length > 0 && (
         <ul className="flex flex-wrap gap-2">
