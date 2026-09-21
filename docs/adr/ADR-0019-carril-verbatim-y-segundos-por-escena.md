@@ -103,6 +103,19 @@ estilo y la identidad recién al final. Antes cortaba por el final, que es donde
 la identidad. Sin identidad tejida, el corte del carril de la casa no cambia.
 Ver [causa, implementación y QA](../fixes/2026-09-19-fix-style-character-video/style-character-video.md).
 
+### Adenda 2026-09-21 — vestuario por escena, detrás de una constante
+
+Decisión de producto: con estilo propio el personaje se adapta a la escena solo en
+la ropa. Entra por el mismo mecanismo de esta ADR (reglas técnicas declaradas y
+sumadas; los textos portados intactos): `SCENE_WARDROBE_RULE` al final del system,
+`BATCH_WARDROBE_ADDENDUM` tras el preámbulo, `CHARACTER_OUTFIT_SENTENCE_RULE` en la
+Fase 1. El modelo escribe `[subject] (wearing: …)` solo cuando la situación lo exige;
+el código separa la ropa, la teje junto al rol y deja la ropa base fuera de la
+descripción. Todo detrás de `VERBATIM_SCENE_WARDROBE`, **apagada** hasta el A/B con
+claves reales (`scripts/ab-scene-wardrobe.mjs`): apagada, cada prompt es
+byte-idéntico al anterior.
+Ver [estado, tejido y protocolo del A/B](../handoff/2026-09-21-custom-style-scene-wardrobe/implementation.md).
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por
