@@ -1,5 +1,6 @@
 import { sceneImageFile } from '../../project/paths.ts'
 import {
+  EvolinkHttpFailure,
   RETRYABLE_TASK_ERRORS,
   RetryableOrderError,
   createEvolinkImageTask,
@@ -17,6 +18,10 @@ import {
 import { sleep } from '../../utils/sleep.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { VideoFormat } from '../../types/video-format.ts'
+import {
+  resolveAuthRejection,
+  resolveClientErrorRejection,
+} from './account-probe.ts'
 import {
   cachedImagePath,
   hashImageRequest,
@@ -275,23 +280,44 @@ export async function generateSceneWithEvolink(
         return { scene: harvested(), imageReady: false }
       }
 
+      // 401/403: es de la CUENTA, no de esta escena. Antes se marcaba la
+      // escena y se seguía — con saldo agotado dicho de una forma que el
+      // patrón no reconoce, el video moría en `images_incomplete` sin avisar
+      // de recargar. La sonda dice si fue saldo, clave u otra cosa, y corta.
       if (
         error instanceof PipelineFailure &&
         error.code === 'image_invalid_api_key'
-      ) {
-        options.events.onFailed(
-          scene.id,
-          'image_invalid_api_key',
-          error.message,
-        )
-        return { scene: withPendingTask(), imageReady: false }
-      }
+      )
+        throw await resolveAuthRejection({
+          probe: options.accountProbe,
+          provider: 'evolink',
+          apiKey: inputs.apiKey,
+          status: error instanceof EvolinkHttpFailure ? error.status : 401,
+          detail: error.message,
+        })
 
       if (
         error instanceof PipelineFailure &&
         error.code === 'image_provider_error' &&
         !activeTask
       ) {
+        // Un 4xx al crear puede ser el saldo dicho de otra forma: se pregunta
+        // UNA vez, en el primer intento, antes de gastar las esperas.
+        if (
+          attempt === 1 &&
+          error instanceof EvolinkHttpFailure &&
+          error.status >= 400 &&
+          error.status < 500
+        ) {
+          const accountFailure = await resolveClientErrorRejection({
+            probe: options.accountProbe,
+            provider: 'evolink',
+            apiKey: inputs.apiKey,
+            status: error.status,
+            detail: error.message,
+          })
+          if (accountFailure) throw accountFailure
+        }
         // Fallo genuino al crear (sin tarea viva): reintentar acotado.
         if (attempt < MAX_ORDERS) {
           await sleep(2000 * attempt, options.signal)
