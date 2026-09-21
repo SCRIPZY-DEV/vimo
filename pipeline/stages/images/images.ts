@@ -43,6 +43,7 @@ import {
   recordPromptModelUsed,
   runVerbatimLane,
 } from '../scene-prompts/verbatim/verbatim-lane.ts'
+import { createVerbatimPromptPersistence } from '../scene-prompts/verbatim/verbatim-persistence.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
 import {
   generateScenesWithEvolinkReferences,
@@ -243,9 +244,15 @@ export const imagesStage: Stage<CreateVideoContext> = {
               ? { ...scene, imagePrompt: '', promptIsFallback: false }
               : scene,
           )
+          // La persistencia se siembra con `scenes`, NUNCA con `cleared`: el
+          // vaciado existe solo para decirle a la lane qué re-pedir y no puede
+          // llegar al disco. Así, si la pasada se corta a mitad, las escenas
+          // que no se alcanzaron a reescribir conservan su prompt viejo.
+          const persistence = createVerbatimPromptPersistence(context, scenes)
           const lane = await runVerbatimLane(context, cleared, script, {
             retryNotes,
-          })
+            onPrompts: persistence.onPrompts,
+          }).finally(() => persistence.flush())
           await recordPromptModelUsed(context, lane)
           scenes = lane.scenes
           // El carril entrega los prompts al cerrar el lote: se reemiten

@@ -148,6 +148,22 @@ function markSubjectPresence(
 }
 
 /**
+ * El reparto de UNA escena recién escrita, con la misma regla que
+ * `markSubjectPresence` y que el mapa `presence` del final — pero por escena,
+ * para poder persistirla apenas cierra su lote. `undefined` = no hay
+ * personaje que indexar y el campo no se toca.
+ */
+function presenceForScene(
+  group: VerbatimSceneGroup,
+  characterIndex: number | undefined,
+  carriesSubject: boolean,
+): number[] | undefined {
+  if (group.indexes !== undefined) return group.indexes
+  if (characterIndex === undefined) return undefined
+  return carriesSubject ? [characterIndex] : []
+}
+
+/**
  * La nota que viaja pegada al fragmento de una escena rechazada por
  * content-policy (v1.20.0 del origen, palabra por palabra — en español porque
  * es un mensaje AL MODELO del mismo idioma que el resto de la mecánica del
@@ -156,6 +172,14 @@ function markSubjectPresence(
  */
 export const CONTENT_POLICY_RETRY_NOTE =
   'El generador de imágenes rechazó la versión anterior de esta escena por sus políticas de contenido. Reescribe el prompt más neutro y family-friendly, sin nombres propios de personas reales ni de famosos, sin violencia gráfica, sangre ni matanzas explícitas (sugiere esas ideas con atmósfera y fuera de cuadro), manteniendo intacto el estilo visual.'
+
+/** Una escena con su prompt recién escrito, lista para ir a disco. */
+export interface VerbatimScenePrompt {
+  id: number
+  imagePrompt: string
+  /** Ausente = el proyecto no trae personaje que indexar: no tocar el campo. */
+  charactersPresent?: number[]
+}
 
 export interface VerbatimLaneOptions {
   /**
@@ -166,6 +190,12 @@ export interface VerbatimLaneOptions {
    * usuario. La clave es el id de la escena.
    */
   retryNotes?: ReadonlyMap<number, string>
+  /**
+   * Prompts recién escritos, al cerrar CADA lote. Quien llame los persiste
+   * en el acto: ya están pagados y la corrida todavía puede morir (la UI
+   * cancela el job cuando el modelo da errores, ADR-0028).
+   */
+  onPrompts?: (prompts: readonly VerbatimScenePrompt[]) => Promise<void>
 }
 
 interface VerbatimSceneGroup {
@@ -355,6 +385,7 @@ export async function runVerbatimLane(
       ? genericGroups.slice(0, 1)
       : []
 
+  const onPrompts = options.onPrompts
   const client = createVerbatimClient({
     apiKey,
     baseUrl: context.config.llm.baseUrl,
@@ -409,6 +440,32 @@ export async function runVerbatimLane(
             },
       client,
       signal: context.signal,
+      // Cada lote cerrado se persiste antes de seguir: si la corrida muere
+      // después, lo pagado ya está en disco y el reintento solo pide lo que
+      // falta.
+      onBatchReady: onPrompts
+        ? async (batch) => {
+            const carriers = new Set(batch.scenesWithSubject)
+            const written: VerbatimScenePrompt[] = []
+            for (const [id, imagePrompt] of batch.prompts) {
+              if (!imagePrompt.trim()) continue
+              const charactersPresent = presenceForScene(
+                group,
+                character.index,
+                carriers.has(id),
+              )
+              written.push({
+                id,
+                imagePrompt,
+                ...(charactersPresent === undefined
+                  ? {}
+                  : { charactersPresent }),
+              })
+            }
+            if (written.length === 0) return
+            await onPrompts(written)
+          }
+        : undefined,
       onProtagonistDesigned: saveStyleProtagonist,
       onLog: (message) =>
         context.emitter.emit({ type: 'log', level: 'info', message }),

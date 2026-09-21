@@ -158,6 +158,16 @@ export type VerbatimCharacterInput =
    *  en la reescritura de una escena DESMARCADA. */
   | { mode: 'none'; withoutScriptProtagonist?: boolean }
 
+/**
+ * Los prompts ya FINALIZADOS de un lote recién cosechado: tejido del sujeto y
+ * vestuario aplicados, o sea exactamente lo que va a recibir el generador de
+ * imágenes. Es lo que se puede persistir sin miedo.
+ */
+export interface VerbatimBatchPrompts {
+  prompts: ReadonlyMap<number, string>
+  scenesWithSubject: readonly number[]
+}
+
 export interface VerbatimWriterOptions {
   /** La gema del usuario. Viaja VERBATIM como `system`. */
   gem: string
@@ -193,6 +203,12 @@ export interface VerbatimWriterOptions {
    * máximos por lote.
    */
   onProgress?: (ready: number, total: number) => void
+  /**
+   * Un lote cerró y sus prompts ya están pagados: quien llame los persiste
+   * ANTES de que la corrida pueda morir. Sin esto, un fallo más adelante
+   * tiraba todo lo escrito y el reintento volvía a comprarlo entero.
+   */
+  onBatchReady?: (batch: VerbatimBatchPrompts) => Promise<void>
   /**
    * El modelo ELEGIDO falló de verdad: un lote agotó sus reintentos con un
    * código de PROVIDER_TROUBLE_CODES, o sus escenas tercas pasan al rescate
@@ -735,6 +751,90 @@ function readSceneWardrobes(prompts: ReadonlyMap<number, string>): {
   return { scenes, wardrobes, rejected }
 }
 
+/**
+ * Lo que el post-proceso produce a partir de lo cosechado: el prompt FINAL de
+ * cada escena —tejido del sujeto y vestuario ya aplicados— y los contadores
+ * con los que el final de la corrida arma sus avisos.
+ */
+interface FinalizedVerbatimPrompts {
+  prompts: Map<number, string>
+  scenesWithSubject: number[]
+  wardrobes: Map<number, string>
+  rejectedWardrobes: Map<number, string>
+  overBudget: number[]
+  sneakedIn: number
+  bare: number
+}
+
+/**
+ * Convierte los prompts crudos cosechados en los que va a recibir el
+ * generador. Es PURA a propósito —ni logs ni disco— porque se llama dos
+ * veces: al cerrar cada lote, para persistir lo que ya se pagó, y una vez al
+ * final, canónica, que es la que alimenta los avisos y el resultado.
+ *
+ * `only` acota qué escenas se COMPONEN y se devuelven, nunca qué arma la
+ * cadena del vestuario: `readSceneWardrobes` corre siempre sobre el
+ * `obtained` completo porque su regla de continuidad mira la escena anterior
+ * (la N hereda la ropa de la N-1 cuando se parecen). Acotar la cadena al lote
+ * rompería esa herencia, que es justo lo que sostiene el vestuario por escena.
+ */
+function finalizeVerbatimPrompts(
+  obtained: ReadonlyMap<number, string>,
+  character: CharacterPlan,
+  sceneWardrobe: boolean,
+  only?: ReadonlySet<number>,
+): FinalizedVerbatimPrompts {
+  const prompts = new Map<number, string>()
+  const scenesWithSubject: number[] = []
+  const overBudget: number[] = []
+  let sneakedIn = 0
+  let bare = 0
+  // Los marcadores salen del prompt ANTES de mirar quién nombra al
+  // protagonista, y la ropa se teje junto al rol.
+  const wardrobes = sceneWardrobe ? readSceneWardrobes(obtained) : undefined
+
+  for (const [n, rawPrompt] of obtained) {
+    if (only && !only.has(n)) continue
+    const prompt = wardrobes?.scenes.get(n) ?? rawPrompt
+    // Con FOTO, una escena también «trae al protagonista» si el modelo
+    // escribió su NOMBRE directo en vez de la etiqueta (v1.27.0). Y en los
+    // modos con DESCRIPCIÓN, también si lo mencionó de forma genérica sin
+    // etiqueta ("The narrator sits...", v1.29.0): el tejido se la pega.
+    const isBare =
+      (character.mode === 'generic' || character.mode === 'text') &&
+      !!character.description &&
+      !namesSubject(prompt) &&
+      mentionsProtagonist(prompt)
+    const carriesSubject =
+      namesSubject(prompt) ||
+      ((character.mode === 'reference' || character.mode === 'text') &&
+        namesByName(prompt, character.name)) ||
+      isBare
+    if (carriesSubject) {
+      scenesWithSubject.push(n)
+      if (character.mode === 'none') sneakedIn++
+      if (isBare) bare++
+    }
+    const finalPrompt = composeFinalPrompt(
+      prompt,
+      character,
+      wardrobes?.wardrobes.get(n),
+    )
+    if (finalPrompt.length > FINAL_PROMPT_BODY_BUDGET) overBudget.push(n)
+    prompts.set(n, finalPrompt)
+  }
+  scenesWithSubject.sort((a, b) => a - b)
+
+  return {
+    prompts,
+    scenesWithSubject,
+    wardrobes: wardrobes?.wardrobes ?? new Map(),
+    rejectedWardrobes: wardrobes?.rejected ?? new Map(),
+    overBudget,
+    sneakedIn,
+    bare,
+  }
+}
 function chunk<T>(items: T[], size: number): T[][] {
   const batches: T[][] = []
   for (let index = 0; index < items.length; index += size)
@@ -1007,6 +1107,10 @@ export async function generateVerbatimPrompts(
     options.character?.mode === 'none' &&
     options.character.withoutScriptProtagonist === true
 
+  // Vestuario por escena: lo miran el cierre de CADA LOTE (que persiste lo ya
+  // pagado) y el pase canónico del final, así que se resuelve una sola vez.
+  const sceneWardrobe = options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
+
   const batchSize = Math.min(VERBATIM_BATCH_SIZE, fragments.length)
   const batchCount = Math.ceil(fragments.length / batchSize)
   options.onLog?.(
@@ -1135,8 +1239,11 @@ export async function generateVerbatimPrompts(
             round * 1000 + index,
             executor,
           )
+          const justObtained = new Set<number>()
           for (const entry of reading.good) {
-            if (!obtained.has(entry.n)) obtained.set(entry.n, entry.prompt)
+            if (obtained.has(entry.n)) continue
+            obtained.set(entry.n, entry.prompt)
+            justObtained.add(entry.n)
           }
           // Trazabilidad del recorte: QUÉ se descartó, no solo cuántos.
           if (reading.trimmed.length > 0) {
@@ -1166,6 +1273,34 @@ export async function generateVerbatimPrompts(
             options.onLog?.(
               `scene ${defect.n} came defective (${defect.reason}): re-requesting it alone, without discarding the batch`,
             )
+          }
+          // Lo de este lote YA SE PAGÓ: se persiste en el acto para que un
+          // fallo posterior —o la cancelación de la UI cuando el modelo da
+          // errores— no lo tire y haya que volver a comprarlo. La cadena del
+          // vestuario se recalcula sobre TODO lo cosechado hasta acá (la
+          // finalización lo exige), pero solo se componen los ids nuevos.
+          if (justObtained.size > 0 && options.onBatchReady) {
+            const ready = finalizeVerbatimPrompts(
+              obtained,
+              character,
+              sceneWardrobe,
+              justObtained,
+            )
+            try {
+              await options.onBatchReady({
+                prompts: ready.prompts,
+                scenesWithSubject: ready.scenesWithSubject,
+              })
+            } catch (error) {
+              // Un problema de disco NO es un fallo del modelo: si esto cayera
+              // en el catch del lote, marcaría `chosenModelBlamed` y la UI
+              // bloquearía una hora a un modelo sano.
+              options.onWarn?.(
+                `the prompts of this batch could not be saved (they stay in memory and the run continues): ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              )
+            }
           }
           // Cosechado: la cifra del stream era una estimación; esto es un hecho.
           reportProgress()
@@ -1277,59 +1412,22 @@ export async function generateVerbatimPrompts(
   // persiste es exactamente lo que va a recibir el generador. Y es la ÚNICA
   // ventana donde se puede saber qué escenas nombran al protagonista: un
   // renglón más abajo la etiqueta ya no existe.
-  const prompts = new Map<number, string>()
-  const scenesWithSubject: number[] = []
-  const overBudget: number[] = []
-  let sneakedIn = 0
-  let bare = 0
-  // Vestuario por escena: los marcadores salen del prompt ANTES de mirar
-  // quién nombra al protagonista, y la ropa se teje junto al rol.
-  const sceneWardrobe = options.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
-  const wardrobes = sceneWardrobe ? readSceneWardrobes(obtained) : undefined
-  if (wardrobes && wardrobes.rejected.size > 0) {
+  const finalized = finalizeVerbatimPrompts(obtained, character, sceneWardrobe)
+  const { prompts, scenesWithSubject, overBudget, sneakedIn, bare } = finalized
+  if (finalized.rejectedWardrobes.size > 0) {
     options.onWarn?.(
-      `${wardrobes.rejected.size} scene(s) put something other than clothing in the wardrobe marker and it was discarded: ${[
-        ...wardrobes.rejected,
+      `${finalized.rejectedWardrobes.size} scene(s) put something other than clothing in the wardrobe marker and it was discarded: ${[
+        ...finalized.rejectedWardrobes,
       ]
         .map(([id, text]) => `${id} («${text.slice(0, 40)}»)`)
         .join(', ')}`,
     )
   }
-  if (wardrobes && wardrobes.wardrobes.size > 0) {
+  if (finalized.wardrobes.size > 0) {
     options.onLog?.(
-      `${wardrobes.wardrobes.size} scene(s) carry their own wardrobe: ${[...wardrobes.wardrobes.keys()].join(', ')}`,
+      `${finalized.wardrobes.size} scene(s) carry their own wardrobe: ${[...finalized.wardrobes.keys()].join(', ')}`,
     )
   }
-  for (const [n, rawPrompt] of obtained) {
-    const prompt = wardrobes?.scenes.get(n) ?? rawPrompt
-    // Con FOTO, una escena también «trae al protagonista» si el modelo
-    // escribió su NOMBRE directo en vez de la etiqueta (v1.27.0). Y en los
-    // modos con DESCRIPCIÓN, también si lo mencionó de forma genérica sin
-    // etiqueta ("The narrator sits...", v1.29.0): el tejido se la pega.
-    const isBare =
-      (character.mode === 'generic' || character.mode === 'text') &&
-      !!character.description &&
-      !namesSubject(prompt) &&
-      mentionsProtagonist(prompt)
-    const carriesSubject =
-      namesSubject(prompt) ||
-      ((character.mode === 'reference' || character.mode === 'text') &&
-        namesByName(prompt, character.name)) ||
-      isBare
-    if (carriesSubject) {
-      scenesWithSubject.push(n)
-      if (mode === 'none') sneakedIn++
-      if (isBare) bare++
-    }
-    const finalPrompt = composeFinalPrompt(
-      prompt,
-      character,
-      wardrobes?.wardrobes.get(n),
-    )
-    if (finalPrompt.length > FINAL_PROMPT_BODY_BUDGET) overBudget.push(n)
-    prompts.set(n, finalPrompt)
-  }
-  scenesWithSubject.sort((a, b) => a - b)
   if (overBudget.length > 0) {
     // El scrub final va a recortar estas escenas. Ya no borra la identidad
     // primero (cede escena y cola de estilo antes), pero se dice igual: una
