@@ -19,7 +19,23 @@ fn failure_keeps_code_and_running_stage() {
     assert_eq!(outcome.status, RunStatus::Failed);
     assert_eq!(outcome.error_code.as_deref(), Some("image_timeout"));
     assert_eq!(outcome.failed_stage.as_deref(), Some("images"));
-    assert_eq!(outcome.project_id.as_deref(), Some("mi-video"));
+    assert_eq!(outcome.subject.and_then(|subject| subject.id).as_deref(), Some("mi-video"));
+}
+
+#[test]
+fn failure_keeps_provider_and_http_status() {
+    let mut recorder = recorder("generate-voice", None);
+    recorder.record_event(&json!({
+        "type": "job-failed",
+        "code": "voice_invalid_api_key",
+        "message": "rejected",
+        "provider": "dubvoice",
+        "httpStatus": 401,
+    }));
+    let outcome = recorder.finish(Some(1), None);
+
+    assert_eq!(outcome.error_provider.as_deref(), Some("dubvoice"));
+    assert_eq!(outcome.error_http_status, Some(401));
 }
 
 #[test]
@@ -29,6 +45,8 @@ fn missing_terminal_event_is_a_crash() {
     let outcome = recorder.finish(None, Some(9));
 
     assert_eq!(outcome.status, RunStatus::Crashed);
+    assert_eq!(outcome.error_code.as_deref(), Some("process_crashed"));
+    assert!(outcome.error_message.unwrap().contains("signal Some(9)"));
     assert_eq!(outcome.failed_stage.as_deref(), Some("render"));
     assert_eq!(outcome.events.last().unwrap()["signal"], json!(9));
 }
@@ -52,7 +70,34 @@ fn created_project_id_comes_from_the_result() {
     recorder.record_event(
         &json!({ "type": "job-completed", "result": { "projectId": "nuevo", "projectDir": "/x" } }),
     );
-    assert_eq!(recorder.finish(Some(0), None).project_id.as_deref(), Some("nuevo"));
+    assert_eq!(
+        recorder.finish(Some(0), None).subject.and_then(|subject| subject.id).as_deref(),
+        Some("nuevo")
+    );
+}
+
+#[test]
+fn failed_creation_keeps_the_name_from_the_payload() {
+    let payload = json!({ "name": "Mi video", "script": "guion privado", "options": {} });
+    let mut recorder = recorder("create-video-project", Some(&payload));
+    recorder.record_event(&json!({ "type": "job-failed", "code": "llm_auth", "message": "401" }));
+    let subject = recorder.finish(Some(1), None).subject.unwrap();
+
+    assert_eq!(subject.id, None);
+    assert_eq!(subject.name.as_deref(), Some("Mi video"));
+}
+
+#[test]
+fn mirrored_stderr_lines_are_not_stored_twice() {
+    let mut recorder = recorder("run-video-pipeline", None);
+    recorder.record_event(&json!({ "type": "log", "level": "warn", "message": "lane failed" }));
+    recorder.record_stderr(b"[warn] lane failed");
+    recorder.record_stderr(b"TypeError: boom");
+    let outcome = recorder.finish(Some(1), None);
+
+    // log + stderr real + process-exited: el espejo del warn no entra.
+    assert_eq!(outcome.events.len(), 3);
+    assert_eq!(outcome.events[1]["type"], json!("sidecar-stderr"));
 }
 
 #[test]

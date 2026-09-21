@@ -19,6 +19,8 @@ fn record(id: &str) -> DiagnosticRecord {
         status: RunStatus::Completed,
         error_code: None,
         error_message: None,
+        error_provider: None,
+        error_http_status: None,
         failed_stage: None,
         started_at_ms: 0,
         finished_at_ms: 0,

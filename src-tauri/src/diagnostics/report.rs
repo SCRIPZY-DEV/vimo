@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 use tauri::{AppHandle, Emitter, Manager};
@@ -9,6 +9,9 @@ use crate::diagnostics::recorder::{
 };
 use crate::diagnostics::redaction::Redactor;
 use crate::diagnostics::spool::write_record;
+use crate::diagnostics::subject::{
+    read_subject_metadata, resolve_subject_name, subject_label, Subject, SubjectKind,
+};
 use crate::settings::projects_root::resolve_projects_root;
 use crate::updates::install_location::current_install_location;
 
@@ -16,7 +19,6 @@ use crate::updates::install_location::current_install_location;
 /// Espejo de src/modules/diagnostics/constants.ts — mantener en sincronía.
 const LOG_READY_EVENT: &str = "diagnostic-log-ready";
 
-const PROJECT_METADATA_FILE: &str = "project.json";
 const UPDATE_INSTALL_FAILED_CODE: &str = "update_install_failed";
 const UPDATE_SUBCOMMAND: &str = "install-update";
 
@@ -71,26 +73,6 @@ fn is_worth_recording(subcommand: &str, status: RunStatus) -> bool {
     status != RunStatus::Completed || !is_quiet_subcommand(subcommand)
 }
 
-// Mismo patrón que PROJECT_ID_PATTERN del sidecar: el id viene del payload del
-// webview y se usa para armar una ruta.
-fn is_valid_project_id(project_id: &str) -> bool {
-    !project_id.is_empty()
-        && project_id
-            .chars()
-            .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-')
-}
-
-fn read_project_metadata(app: &AppHandle, project_id: &str) -> Option<Value> {
-    if !is_valid_project_id(project_id) {
-        return None;
-    }
-
-    let root = resolve_projects_root(app)?;
-    let path = Path::new(&root).join(project_id).join(PROJECT_METADATA_FILE);
-    let body = std::fs::read(path).ok()?;
-    serde_json::from_slice(&body).ok()
-}
-
 fn copy_keys(source: Option<&Value>, keys: &[&str], target: &mut Map<String, Value>) {
     let Some(fields) = source.and_then(Value::as_object) else {
         return;
@@ -119,6 +101,44 @@ fn project_context(metadata: &Value) -> Value {
     }
 
     Value::Object(context)
+}
+
+/// Identidad de la fila: proyecto (id + nombre de project.json + opciones) o,
+/// para lo que no es un proyecto, la etiqueta de la entidad. Separado del
+/// AppHandle para poder testearlo sobre una carpeta temporal.
+struct SubjectDescription {
+    project_id: Option<String>,
+    project_name: Option<String>,
+    context: Value,
+}
+
+fn describe_subject(projects_root: Option<&Path>, subject: Option<&Subject>) -> SubjectDescription {
+    let Some(subject) = subject else {
+        return SubjectDescription {
+            project_id: None,
+            project_name: None,
+            context: json!({}),
+        };
+    };
+
+    let metadata = projects_root.and_then(|root| read_subject_metadata(root, subject));
+    let name = resolve_subject_name(projects_root, subject);
+    let mut context = match (subject.kind, &metadata) {
+        (SubjectKind::Project, Some(metadata)) => project_context(metadata),
+        _ => Value::Object(Map::new()),
+    };
+    if let Some(fields) = context.as_object_mut() {
+        fields.insert("subject".into(), json!({ "kind": subject.kind, "id": subject.id }));
+    }
+
+    SubjectDescription {
+        project_id: match subject.kind {
+            SubjectKind::Project => subject.id.clone(),
+            _ => None,
+        },
+        project_name: subject_label(subject, name.as_deref()),
+        context,
+    }
 }
 
 fn os_version() -> Option<String> {
@@ -155,26 +175,20 @@ pub fn store_job_record(app: &AppHandle, job_id: &str, subcommand: &str, outcome
         return;
     }
 
-    let metadata = outcome
-        .project_id
-        .as_deref()
-        .and_then(|project_id| read_project_metadata(app, project_id));
-    let project_name = metadata
-        .as_ref()
-        .and_then(|metadata| metadata.get("name"))
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-    let context = metadata.as_ref().map(project_context).unwrap_or_else(|| json!({}));
+    let projects_root = resolve_projects_root(app).map(PathBuf::from);
+    let description = describe_subject(projects_root.as_deref(), outcome.subject.as_ref());
 
     let record = DiagnosticRecord {
         id: job_id.to_owned(),
         source: PIPELINE_SOURCE,
         subcommand: Some(subcommand.to_owned()),
-        project_id: outcome.project_id,
-        project_name,
+        project_id: description.project_id,
+        project_name: description.project_name,
         status: outcome.status,
         error_code: outcome.error_code,
         error_message: outcome.error_message,
+        error_provider: outcome.error_provider,
+        error_http_status: outcome.error_http_status,
         failed_stage: outcome.failed_stage,
         started_at_ms: outcome.started_at_ms,
         finished_at_ms: outcome.started_at_ms + outcome.duration_ms,
@@ -183,7 +197,7 @@ pub fn store_job_record(app: &AppHandle, job_id: &str, subcommand: &str, outcome
         os: std::env::consts::OS,
         os_version: os_version(),
         arch: std::env::consts::ARCH,
-        context,
+        context: description.context,
         events: outcome.events,
         events_truncated: outcome.events_truncated,
     };
@@ -205,6 +219,8 @@ pub fn store_update_failure(app: &AppHandle, detail: &str) {
         status: RunStatus::Failed,
         error_code: Some(UPDATE_INSTALL_FAILED_CODE.to_owned()),
         error_message: Some(message.clone()),
+        error_provider: None,
+        error_http_status: None,
         failed_stage: None,
         started_at_ms: now,
         finished_at_ms: now,

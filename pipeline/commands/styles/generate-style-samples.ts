@@ -28,6 +28,7 @@ import type {
   GenerateStyleSamplesResult,
 } from '../../types/styles.ts'
 import { writeFileAtomic } from '../../utils/atomic-fs.ts'
+import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import {
   neutralizeSampleSubject,
@@ -233,6 +234,7 @@ export async function generateStyleSamples(
         apiKey,
         signal: context.signal,
         pollIntervalMs: PREVIEW_POLL_INTERVAL_MS,
+        onFailure: createProviderFailureReporter(context.emitter),
         onProgress(progress: { percent: number; status: string }) {
           // 100 se reserva para el archivo escrito, no para el CDN listo.
           report(

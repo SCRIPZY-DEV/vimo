@@ -24,6 +24,8 @@ import type { VoiceRequestCheckpoint } from './request-checkpoint.ts'
 // Tope del endpoint /api/minimax-tts (~5000 chars por llamada); 4500 deja
 // margen. Un texto más largo se trocea (chunked-synthesis).
 export const MINIMAX_CHUNK_CHARS = 4500
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'minimax'
 
 const VOICES_PAGE_SIZE = 100
 const MAX_VOICES_PAGES = 50
@@ -140,6 +142,7 @@ export async function synthesizeMinimax(
     throw new PipelineFailure(
       'voice_provider_error',
       'Minimax synthesis returned neither audio nor audio_url',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   await checkpoint?.update({ resultUrl: audioUrl, state: 'pending' })

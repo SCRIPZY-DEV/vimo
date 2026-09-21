@@ -1,4 +1,4 @@
-import { PipelineFailure } from '../../runner/failure.ts'
+import { PipelineFailure, failureDetails } from '../../runner/failure.ts'
 import { rateLimitDelayMs } from '../../utils/http-retry.ts'
 import { sleep } from '../../utils/sleep.ts'
 import type {
@@ -35,6 +35,8 @@ import type { SynthesizeInput, TtsProvider } from './provider.ts'
 // cuota de caracteres y síntesis síncrona. Sigue siendo el fallback del motor
 // ElevenLabs vía DubVoice, y viceversa.
 const RATE_LIMIT_MAX_RETRIES = 6
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'elevenlabs'
 // /v2/voices pagina por token; una cuenta tiene decenas de voces, no miles.
 const ACCOUNT_PAGE_SIZE = 100
 const ACCOUNT_MAX_PAGES = 20
@@ -119,7 +121,9 @@ async function elevenLabsFetch(
       signal: requestSignal(options.timeoutMs, options.signal),
     }).catch((error: unknown) => {
       rethrowIfCancelled(options.signal, error)
-      throw new PipelineFailure('voice_network', 'ElevenLabs request failed')
+      throw new PipelineFailure('voice_network', 'ElevenLabs request failed', {
+        provider: FAILURE_PROVIDER,
+      })
     })
 
     if (response.ok) return response
@@ -132,16 +136,19 @@ async function elevenLabsFetch(
       throw new PipelineFailure(
         'voice_quota_exceeded',
         `ElevenLabs character quota exceeded: ${detailText}`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     if (detail.status && RESTRICTED_STATUSES.has(detail.status))
       throw new PipelineFailure(
         'voice_account_restricted',
         `ElevenLabs restricted this account (status=${response.status}): ${detailText}`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     if (response.status === 401 || response.status === 403)
       throw new PipelineFailure(
         'voice_invalid_api_key',
         `ElevenLabs rejected the API key (status=${response.status}): ${detailText}`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
 
     if (response.status === 429) {
@@ -149,6 +156,7 @@ async function elevenLabsFetch(
         throw new PipelineFailure(
           'voice_rate_limited',
           `ElevenLabs rate limit persisted after ${RATE_LIMIT_MAX_RETRIES} retries`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       await sleep(rateLimitDelayMs(response, bodyText, attempt), options.signal)
       options.signal?.throwIfAborted()
@@ -163,16 +171,20 @@ async function elevenLabsFetch(
       throw new PipelineFailure(
         'voice_maintenance',
         `ElevenLabs is unavailable (status=${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
 
     throw new PipelineFailure(
       'voice_provider_error',
       `ElevenLabs request failed (status=${response.status}): ${detailText}`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   }
 
   // Inalcanzable: el loop retorna o lanza; TypeScript no lo sabe.
-  throw new PipelineFailure('voice_provider_error', 'unreachable retry loop')
+  throw new PipelineFailure('voice_provider_error', 'unreachable retry loop', {
+    provider: FAILURE_PROVIDER,
+  })
 }
 
 // ─── Catálogo ───
@@ -333,6 +345,9 @@ export async function addLibraryVoice(
     throw new PipelineFailure(
       'voice_library_add_failed',
       `could not add library voice ${payload.voiceId}: ${error instanceof Error ? error.message : String(error)}`,
+      error instanceof PipelineFailure
+        ? failureDetails(error)
+        : { provider: FAILURE_PROVIDER },
     )
   }
 
@@ -341,6 +356,7 @@ export async function addLibraryVoice(
     throw new PipelineFailure(
       'voice_library_add_failed',
       'ElevenLabs returned no voice_id after adding the library voice',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   return data.voice_id
@@ -432,6 +448,7 @@ export async function synthesizeElevenLabsDirect(
     throw new PipelineFailure(
       'voice_empty_audio',
       `ElevenLabs returned non-audio content (content-type=${contentType})`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   const audio = Buffer.from(await response.arrayBuffer())
@@ -439,6 +456,7 @@ export async function synthesizeElevenLabsDirect(
     throw new PipelineFailure(
       'voice_empty_audio',
       'ElevenLabs returned 0 bytes of audio',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   return { audio, creditsUsed: text.length }

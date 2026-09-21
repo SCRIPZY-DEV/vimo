@@ -18,6 +18,9 @@ const ALLOWED_YOUTUBE_HOSTS = new Set([
   'music.youtube.com',
   'youtu.be',
 ])
+// Id del proveedor en los fallos (ADR-0038). yt-dlp es un binario local:
+// nunca hay status HTTP a mano.
+const FAILURE_PROVIDER = 'ytdlp'
 
 export interface YtDlpOptions {
   ytDlpPath: string
@@ -31,6 +34,7 @@ export function requireYtDlpPath(ytDlpPath: string | undefined): string {
     throw new PipelineFailure(
       'ytdlp_missing',
       'the job did not include binaryPaths.ytDlp',
+      { provider: FAILURE_PROVIDER },
     )
   return ytDlpPath
 }
@@ -55,6 +59,7 @@ export function validateYouTubeUrl(rawUrl: string): string {
     throw new PipelineFailure(
       'ytdlp_invalid_url',
       `not a valid URL: "${rawUrl}"`,
+      { provider: FAILURE_PROVIDER },
     )
   }
 
@@ -62,11 +67,13 @@ export function validateYouTubeUrl(rawUrl: string): string {
     throw new PipelineFailure(
       'ytdlp_invalid_url',
       'only https URLs are allowed',
+      { provider: FAILURE_PROVIDER },
     )
   if (!ALLOWED_YOUTUBE_HOSTS.has(url.hostname.toLowerCase()))
     throw new PipelineFailure(
       'ytdlp_invalid_url',
       `host "${url.hostname}" is not YouTube`,
+      { provider: FAILURE_PROVIDER },
     )
 
   return normalized
@@ -161,6 +168,7 @@ async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
         new PipelineFailure(
           'ytdlp_failed',
           `could not run yt-dlp: ${error.message}`,
+          { provider: FAILURE_PROVIDER },
         ),
       )
     })
@@ -169,7 +177,9 @@ async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
       options.signal?.removeEventListener('abort', onAbort)
       if (options.signal?.aborted) {
         reject(
-          new PipelineFailure('cancelled', 'yt-dlp killed by cancellation'),
+          new PipelineFailure('cancelled', 'yt-dlp killed by cancellation', {
+            provider: FAILURE_PROVIDER,
+          }),
         )
         return
       }
@@ -181,6 +191,7 @@ async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
         new PipelineFailure(
           classifyYtDlpError(stderr),
           `yt-dlp exited with code ${code}: ${stderr.slice(-2000).trim()}`,
+          { provider: FAILURE_PROVIDER },
         ),
       )
     })
@@ -244,5 +255,6 @@ async function assertDownloaded(outputPath: string): Promise<void> {
   throw new PipelineFailure(
     'ytdlp_failed',
     `yt-dlp finished without error but ${outputPath} is missing or empty`,
+    { provider: FAILURE_PROVIDER },
   )
 }

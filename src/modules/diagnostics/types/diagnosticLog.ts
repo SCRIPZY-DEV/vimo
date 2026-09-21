@@ -31,6 +31,8 @@ export interface DiagnosticLogRecord {
   status: DiagnosticLogStatus
   errorCode: string | null
   errorMessage: string | null
+  errorProvider: string | null
+  errorHttpStatus: number | null
   failedStage: string | null
   startedAtMs: number
   finishedAtMs: number
@@ -64,6 +66,8 @@ export interface DiagnosticLogRow {
   status: DiagnosticLogStatus
   error_code: string | null
   error_message: string | null
+  error_provider: string | null
+  error_http_status: number | null
   failed_stage: string | null
   started_at: string
   finished_at: string

@@ -8,3 +8,4 @@ pub mod recorder;
 pub mod redaction;
 pub mod report;
 pub mod spool;
+pub mod subject;

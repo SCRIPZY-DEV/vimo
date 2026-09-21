@@ -3,6 +3,7 @@ import { generateText } from '../../providers/llm/generate.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { LlmRequest } from '../../types/llm.ts'
+import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 
 // Acceso al LLM para las stages de Create: un provider por job, ligado a la
 // config y la señal del contexto (la cadena reintentos/degradación de tier
@@ -27,9 +28,16 @@ export function createSceneLlm(context: PipelineContext): SceneLlm {
     config: context.config.llm,
   })
 
+  // Sin stageId: hoy lo consume un comando (preview de personaje), no una
+  // stage del pipeline.
+  const onFailure = createProviderFailureReporter(context.emitter)
+
   return {
     generate(request) {
-      return generateText(provider, request, context.config.llm, context.signal)
+      return generateText(provider, request, context.config.llm, {
+        signal: context.signal,
+        onFailure,
+      })
     },
   }
 }

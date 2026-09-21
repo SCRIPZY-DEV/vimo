@@ -1,4 +1,5 @@
 import type { ImageExtension } from './image-provider.ts'
+import type { ProviderFailureReporter } from '../utils/provider-failure.ts'
 
 // Dominio de generación de imágenes. Vive separado de characters porque la
 // stage `images` de Create (paso 6 de ADR-0010) reusa estos mismos providers.
@@ -26,6 +27,9 @@ export interface GenerateImageOptions {
   referenceImageUrls?: string[]
   signal?: AbortSignal
   onProgress?(progress: ImageProgress): void
+  // Fallos del proveedor que el pedido absorbe (429, 5xx, tarea reintentable):
+  // el caller los reenvía como `provider-failure` al log de diagnóstico.
+  onFailure?: ProviderFailureReporter
 }
 
 // ─── Formas crudas de las APIs (solo los campos que consumimos) ───

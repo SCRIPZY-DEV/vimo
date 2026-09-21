@@ -32,6 +32,8 @@ import { downloadImage } from './download.ts'
 // tarea, así que acá no aplica.
 export const EVOLINK_BASE_URL = 'https://api.evolink.ai'
 const IMAGE_MODEL = 'gpt-image-2'
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'evolink'
 
 export const ORDER_DEADLINE_MS = 210_000
 // Polling cada 2 s (el origen consultaba cada 1 s): con 5 s la imagen llegaba
@@ -80,7 +82,7 @@ export class EvolinkHttpFailure extends PipelineFailure {
   readonly status: number
 
   constructor(code: string, message: string, status: number) {
-    super(code, message)
+    super(code, message, { provider: FAILURE_PROVIDER, httpStatus: status })
     this.name = 'EvolinkHttpFailure'
     this.status = status
   }
@@ -138,17 +140,20 @@ function taskFailure(error: { code?: string; message?: string }): never {
     throw new PipelineFailure(
       'image_content_policy',
       `Evolink rejected the prompt by content policy: ${message.slice(0, 200)}`,
+      { provider: FAILURE_PROVIDER },
     )
   if (isInsufficientTaskError(code, message))
     throw new PipelineFailure(
       'image_insufficient_credits',
       `Evolink task rejected for insufficient credits: [${code}] ${message.slice(0, 200)}`,
+      { provider: FAILURE_PROVIDER },
     )
   if (RETRYABLE_TASK_ERRORS.has(code)) throw new RetryableOrderError(code)
 
   throw new PipelineFailure(
     'image_provider_error',
     `Evolink task failed: [${code}] ${message.slice(0, 200)}`,
+    { provider: FAILURE_PROVIDER },
   )
 }
 
@@ -169,7 +174,11 @@ export async function createEvolinkImageTask(
     signal,
   }).catch((error: unknown) => {
     if (signal.aborted) throw error
-    throw new PipelineFailure('image_network', 'Evolink create request failed')
+    throw new PipelineFailure(
+      'image_network',
+      'Evolink create request failed',
+      { provider: FAILURE_PROVIDER },
+    )
   })
 
   if (!response.ok) throw createFailure(response, await errorBodyText(response))
@@ -214,6 +223,7 @@ export async function uploadEvolinkReference(
         throw new PipelineFailure(
           'image_insufficient_credits',
           `Evolink rejected the reference upload for insufficient credits (status=${response.status}) ${bodyText.slice(0, ERROR_BODY_MESSAGE_CHARS)}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
       return null
     }
@@ -257,7 +267,11 @@ async function createTask(
     signal: order.signal,
   }).catch((error: unknown) => {
     if (order.signal.aborted) throw error
-    throw new PipelineFailure('image_network', 'Evolink create request failed')
+    throw new PipelineFailure(
+      'image_network',
+      'Evolink create request failed',
+      { provider: FAILURE_PROVIDER },
+    )
   })
 
   if (!response.ok) throw createFailure(response, await errorBodyText(response))
@@ -294,10 +308,12 @@ async function taskIdFromCreate(response: Response): Promise<string> {
     throw new PipelineFailure(
       'image_insufficient_credits',
       `Evolink accepted the request but reported insufficient credits: ${bodyText.slice(0, ERROR_BODY_MESSAGE_CHARS)}`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   throw new PipelineFailure(
     'image_provider_error',
     'Evolink create returned no task id',
+    { provider: FAILURE_PROVIDER, httpStatus: response.status },
   )
 }
 
@@ -312,6 +328,7 @@ function createFailure(response: Response, bodyText: string): PipelineFailure {
     return new PipelineFailure(
       'image_insufficient_credits',
       `Evolink rejected the request for insufficient credits (status=${response.status}) ${detail}`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   if (response.status === 401 || response.status === 403)
     return new EvolinkHttpFailure(
@@ -323,6 +340,7 @@ function createFailure(response: Response, bodyText: string): PipelineFailure {
     return new PipelineFailure(
       'image_rate_limited',
       response.headers.get('retry-after') ?? '3',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   return new EvolinkHttpFailure(
     'image_provider_error',
@@ -356,6 +374,12 @@ export async function pollTask(
     } catch (error) {
       // El plazo o la cancelación mandan; lo demás es transitorio.
       if (order.signal.aborted) throw error
+      options.onFailure?.({
+        provider: FAILURE_PROVIDER,
+        code: 'image_network',
+        recovered: true,
+        detail: `Evolink poll request failed: ${error instanceof Error ? error.message : String(error)}`,
+      })
       continue
     }
 
@@ -367,21 +391,38 @@ export async function pollTask(
       throw new PipelineFailure(
         'image_task_not_found',
         `Evolink task ${taskId} is gone`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     // Rate limit del polling: transitorio, no un fallo de la tarea. Antes
     // caía en el `!response.ok` de abajo y daba la escena por perdida.
     if (response.status === 429) {
-      await delay(rateLimitWaitMs(response), undefined, {
-        signal: order.signal,
+      const waitMs = rateLimitWaitMs(response)
+      options.onFailure?.({
+        provider: FAILURE_PROVIDER,
+        code: 'image_rate_limited',
+        httpStatus: response.status,
+        recovered: true,
+        detail: `Evolink poll rate limited; waiting ${waitMs}ms`,
       })
+      await delay(waitMs, undefined, { signal: order.signal })
       continue
     }
     // 5xx es transitorio del lado de Evolink: se sigue esperando.
-    if (response.status >= 500) continue
+    if (response.status >= 500) {
+      options.onFailure?.({
+        provider: FAILURE_PROVIDER,
+        code: 'image_provider_error',
+        httpStatus: response.status,
+        recovered: true,
+        detail: `Evolink poll failed (status=${response.status}); polling again`,
+      })
+      continue
+    }
     if (!response.ok)
       throw new PipelineFailure(
         'image_provider_error',
         `Evolink poll failed (status=${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
 
     const data = (await response.json()) as EvolinkImageTaskResponse
@@ -392,6 +433,7 @@ export async function pollTask(
         throw new PipelineFailure(
           'image_provider_error',
           'Evolink completed without an image url',
+          { provider: FAILURE_PROVIDER },
         )
 
       return url
@@ -499,6 +541,7 @@ export async function generateEvolinkImage(
           } catch (finalError) {
             if (!(finalError instanceof RetryableOrderError)) throw finalError
             lastReason = finalError.reason
+            reportRetryableOrder(options, attempt, lastReason)
             continue
           }
         }
@@ -508,11 +551,13 @@ export async function generateEvolinkImage(
         throw new PipelineFailure(
           'image_timeout',
           `Evolink task still running after ${ORDER_DEADLINE_MS / 1000}s (taskId=${taskId})`,
+          { provider: FAILURE_PROVIDER },
         )
       }
 
       if (!(error instanceof RetryableOrderError)) throw error
       lastReason = error.reason
+      reportRetryableOrder(options, attempt, lastReason)
     } finally {
       order.close()
     }
@@ -521,7 +566,25 @@ export async function generateEvolinkImage(
   throw new PipelineFailure(
     'image_provider_error',
     `Evolink failed after ${MAX_ORDERS} orders (${lastReason})`,
+    { provider: FAILURE_PROVIDER },
   )
+}
+
+// Una tarea que el proveedor dio por fallida y se re-encarga: al log de
+// diagnóstico, con el motivo que devolvió Evolink.
+function reportRetryableOrder(
+  options: GenerateImageOptions,
+  attempt: number,
+  reason: string,
+): void {
+  options.onFailure?.({
+    provider: FAILURE_PROVIDER,
+    code: 'image_provider_error',
+    attempt,
+    maxAttempts: MAX_ORDERS,
+    recovered: attempt < MAX_ORDERS,
+    detail: `Evolink task failed (${reason})`,
+  })
 }
 
 export type EvolinkQuality = 'low' | 'medium' | 'high'

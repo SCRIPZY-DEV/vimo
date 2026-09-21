@@ -23,6 +23,8 @@ import type {
 // resultados, con la normalización de aliases más amplia de las dos.
 const EVOLINK_BASE_URL = 'https://api.evolink.ai'
 const MUSIC_MODEL = 'suno-v5-beta'
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'evolink'
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_ATTEMPTS = 120 // 120 × 5 s = 10 minutos
 const SIMPLE_PROMPT_LIMIT = 500
@@ -142,7 +144,11 @@ async function createTask(
     signal: requestSignal(CREATE_TIMEOUT_MS, options.signal),
   }).catch((error: unknown) => {
     rethrowIfCancelled(options.signal, error)
-    throw new PipelineFailure('music_network', 'Evolink create request failed')
+    throw new PipelineFailure(
+      'music_network',
+      'Evolink create request failed',
+      { provider: FAILURE_PROVIDER },
+    )
   })
 
   if (!response.ok) {
@@ -152,15 +158,18 @@ async function createTask(
       throw new PipelineFailure(
         'music_insufficient_credits',
         `Evolink rejected the music request for insufficient credits (status=${response.status}) ${bodyText}`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     if (response.status === 401 || response.status === 403)
       throw new PipelineFailure(
         'music_invalid_api_key',
         `Evolink rejected the API key (status=${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     throw new PipelineFailure(
       'music_provider_error',
       `Evolink create failed (status=${response.status}) ${bodyText}`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   }
 
@@ -169,6 +178,7 @@ async function createTask(
     throw new PipelineFailure(
       'music_provider_error',
       'Evolink create returned no task id',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   return {
@@ -203,11 +213,13 @@ export async function generateMusic(
       throw new PipelineFailure(
         'music_invalid_api_key',
         `Evolink rejected the API key (status=${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     if (response.status === 404)
       throw new PipelineFailure(
         'music_task_expired',
         `Evolink task ${taskId} expired`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
     // 5xx es transitorio del lado de Evolink: se sigue esperando.
     if (response.status >= 500) continue
@@ -215,6 +227,7 @@ export async function generateMusic(
       throw new PipelineFailure(
         'music_provider_error',
         `Evolink poll failed (status=${response.status})`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status },
       )
 
     const data = (await response.json()) as EvolinkTaskResponse
@@ -225,6 +238,7 @@ export async function generateMusic(
         throw new PipelineFailure(
           'music_provider_error',
           'Evolink completed without audio results',
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       return { options: musicOptions, estimatedCredits }
@@ -236,8 +250,12 @@ export async function generateMusic(
         throw new PipelineFailure(
           'music_insufficient_credits',
           `Evolink music task rejected for insufficient credits: [${code}] ${message}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
-      throw new PipelineFailure('music_generation_failed', message)
+      throw new PipelineFailure('music_generation_failed', message, {
+        provider: FAILURE_PROVIDER,
+        httpStatus: response.status,
+      })
     }
 
     await options.callbacks?.onProgress?.({
@@ -250,6 +268,7 @@ export async function generateMusic(
   throw new PipelineFailure(
     'music_timeout',
     'Evolink task did not complete within 10 minutes',
+    { provider: FAILURE_PROVIDER },
   )
 }
 
@@ -265,6 +284,7 @@ export async function downloadMusicAudio(
     throw new PipelineFailure(
       'music_download_failed',
       'Music download request failed',
+      { provider: FAILURE_PROVIDER },
     )
   })
 
@@ -272,6 +292,7 @@ export async function downloadMusicAudio(
     throw new PipelineFailure(
       'music_download_failed',
       `Music download failed (status=${response.status})`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   const audio = Buffer.from(await response.arrayBuffer())
@@ -279,6 +300,7 @@ export async function downloadMusicAudio(
     throw new PipelineFailure(
       'music_download_failed',
       'Music download returned 0 bytes',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   await mkdir(dirname(destinationPath), { recursive: true })
@@ -294,18 +316,24 @@ export async function getEvolinkCredits(
     signal: requestSignal(POLL_TIMEOUT_MS, signal),
   }).catch((error: unknown) => {
     rethrowIfCancelled(signal, error)
-    throw new PipelineFailure('music_network', 'Evolink credits request failed')
+    throw new PipelineFailure(
+      'music_network',
+      'Evolink credits request failed',
+      { provider: FAILURE_PROVIDER },
+    )
   })
 
   if (response.status === 401 || response.status === 403)
     throw new PipelineFailure(
       'music_invalid_api_key',
       `Evolink rejected the API key (status=${response.status})`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   if (!response.ok)
     throw new PipelineFailure(
       'music_provider_error',
       `Evolink credits failed (status=${response.status})`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   const data = (await response.json()) as EvolinkCreditsResponse

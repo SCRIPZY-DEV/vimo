@@ -19,6 +19,8 @@ import { downloadImage } from './download.ts'
 // acotado de fal_provider.ts a UNA imagen — la generación por escenas, con
 // caché por archivo y semáforos, llega con la stage `images` de Create.
 export const FAL_BASE_URL = 'https://fal.run'
+// Id del proveedor en los fallos (ADR-0038).
+const FAILURE_PROVIDER = 'fal'
 
 // Cuánto tarda una imagen de Fal en el caso típico. Fal no informa avance: el
 // porcentaje que ve la persona es un ramp simulado que llega al techo en este
@@ -49,18 +51,22 @@ export async function getFalCredits(
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   }).catch((error: unknown) => {
     if (signal?.aborted) throw error
-    throw new PipelineFailure('image_network', 'Fal billing request failed')
+    throw new PipelineFailure('image_network', 'Fal billing request failed', {
+      provider: FAILURE_PROVIDER,
+    })
   })
 
   if (response.status === 401 || response.status === 403)
     throw new PipelineFailure(
       'fal_admin_key_required',
       `Fal billing rejected the key (status=${response.status})`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
   if (!response.ok)
     throw new PipelineFailure(
       'image_provider_error',
       `Fal billing HTTP ${response.status}`,
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
   const data = (await response.json()) as {
@@ -174,8 +180,10 @@ export async function generateFalImage(
           throw new PipelineFailure(
             'image_timeout',
             `Fal did not answer within ${ORDER_DEADLINE_MS / 1000}s`,
+            { provider: FAILURE_PROVIDER },
           )
         lastError = 'network'
+        reportFailure(options, attempt, 'image_network', lastError)
         continue
       }
 
@@ -185,6 +193,13 @@ export async function generateFalImage(
         // 200 sin URL no es terminal: el origen lo vio y reintenta.
         if (!url) {
           lastError = 'Fal returned 200 without an image url'
+          reportFailure(
+            options,
+            attempt,
+            'image_provider_error',
+            lastError,
+            response.status,
+          )
           continue
         }
 
@@ -202,12 +217,14 @@ export async function generateFalImage(
         throw new PipelineFailure(
           'image_insufficient_credits',
           `Fal rejected the request for insufficient balance (status=${response.status}) ${detail.slice(0, 200)}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       if (response.status === 401 || response.status === 403)
         throw new PipelineFailure(
           'image_invalid_api_key',
           `Fal rejected the API key (status=${response.status})`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       if (
@@ -219,6 +236,7 @@ export async function generateFalImage(
         throw new PipelineFailure(
           'image_content_policy',
           `Fal rejected the prompt by content policy: ${detail.slice(0, 200)}`,
+          { provider: FAILURE_PROVIDER, httpStatus: response.status },
         )
 
       if (
@@ -226,6 +244,13 @@ export async function generateFalImage(
         body?.type === 'concurrent_requests_limit'
       ) {
         lastError = 'rate limited'
+        reportFailure(
+          options,
+          attempt,
+          'image_rate_limited',
+          `${lastError} ${detail.slice(0, 200)}`,
+          response.status,
+        )
         await delay(
           Math.min(2000 * 2 ** (attempt - 1), RATE_LIMIT_MAX_BACKOFF_MS),
           undefined,
@@ -236,20 +261,54 @@ export async function generateFalImage(
 
       if (response.status >= 500) {
         lastError = `status=${response.status}`
+        reportFailure(
+          options,
+          attempt,
+          'image_provider_error',
+          lastError,
+          response.status,
+        )
         await delay(2000 * attempt, undefined, { signal: options.signal })
         continue
       }
 
       lastError = `status=${response.status} ${detail.slice(0, 200)}`
+      reportFailure(
+        options,
+        attempt,
+        'image_provider_error',
+        lastError,
+        response.status,
+      )
     }
 
     throw new PipelineFailure(
       'image_provider_error',
       `Fal failed after ${MAX_ATTEMPTS} attempts (${lastError})`,
+      { provider: FAILURE_PROVIDER },
     )
   } finally {
     stopProgress()
   }
+}
+
+// Un intento que el loop absorbe (reintenta o agota): al log de diagnóstico.
+function reportFailure(
+  options: GenerateImageOptions,
+  attempt: number,
+  code: string,
+  detail: string,
+  httpStatus?: number,
+): void {
+  options.onFailure?.({
+    provider: FAILURE_PROVIDER,
+    code,
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+    attempt,
+    maxAttempts: MAX_ATTEMPTS,
+    recovered: attempt < MAX_ATTEMPTS,
+    detail,
+  })
 }
 
 function reportProgress(

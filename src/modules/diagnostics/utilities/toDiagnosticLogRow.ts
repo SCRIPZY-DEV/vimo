@@ -22,6 +22,8 @@ export function toDiagnosticLogRow(
     status: record.status,
     error_code: record.errorCode,
     error_message: record.errorMessage,
+    error_provider: record.errorProvider,
+    error_http_status: record.errorHttpStatus,
     failed_stage: record.failedStage,
     started_at: new Date(record.startedAtMs).toISOString(),
     finished_at: new Date(record.finishedAtMs).toISOString(),

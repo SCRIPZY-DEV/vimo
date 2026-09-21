@@ -104,7 +104,7 @@ export function useProjectAudio(projectId: string) {
     try {
       return await new Promise<MusicOption[]>((resolve, reject) => {
         videosApi
-          .generateProjectMusic(params, (event) => {
+          .generateProjectMusic({ ...params, projectId }, (event) => {
             if (event.type === 'progress' && event.percent !== undefined)
               setMusicPercent(event.percent)
             if (event.type === 'job-completed') {
