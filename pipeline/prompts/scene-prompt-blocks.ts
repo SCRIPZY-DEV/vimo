@@ -11,6 +11,12 @@ import { REFERENCE_PERSON_ANCHOR } from './character-reference.ts'
 // la escena actual (port de VENTANA_MAX_CHARS).
 export const CONTEXT_WINDOW_MAX_CHARS = 1600
 
+// Escena MUDA (el corte clásico cayó en una pausa de la narración): cuántos
+// caracteres de las escenas vecinas se toman como fragmento a ilustrar. Es el
+// mismo tope que ya usaban el rescate por content policy y el fallback
+// determinístico.
+export const SILENT_SCENE_WINDOW_CHARS = 320
+
 // Cláusula de anonimato CONDICIONAL que se anexa a TODO prompt final: extras
 // anónimos; solo la figura pública nombrada conserva su look icónico. El
 // substring "fictional, anonymous individ" es la clave de dedupe (port de
@@ -65,6 +71,16 @@ export const PROMPT_SAFETY_BLOCK = `# REAL PEOPLE, BRANDS & SAFETY (mandatory �
 - NEVER write a real brand, logo, trademark or product name. Use a generic equivalent — e.g. "a generic cola can", "a plain smartphone", "an unbranded sports car".
 - NEVER depict graphic violence, gore, wounds, blood, corpses, weapons in use, or sexual/nude content. Convey any dark or intense tone ONLY through atmosphere, lighting, palette and body language — never literally.
 Staying within the image generator's content policy still matters: be faithful to the role, action and mood — never to a brand. A named public figure is drawn stylized-but-recognizable as above.`
+
+// Bloque para una escena MUDA: en su tramo no se dice nada, así que el
+// FRAGMENT que ve el redactor es la narración vecina. Le pide ilustrar el
+// momento ENTRE esas líneas (una transición o reacción), sin repetir la imagen
+// anterior ni adelantar literalmente la siguiente. Empieza y termina con salto
+// de línea para insertarse entre párrafos del task.
+export const SILENT_PAUSE_BLOCK = `
+# THIS SCENE IS A NARRATION PAUSE
+No words are spoken during this scene's time range: the FRAGMENT below is the narration immediately BEFORE and AFTER the pause, not what is said here. Illustrate the beat BETWEEN those lines — a transition, a reaction, a lingering detail of the same moment or place — that bridges the previous line into the next one. Do NOT repeat the previous scene's image and do NOT illustrate the next line literally.
+`
 
 // Bloque que fija cuándo se permite texto dentro de la imagen y su idioma
 // (port de bloqueIdiomaTextoEnImagen). `languageName` = nombre en inglés del

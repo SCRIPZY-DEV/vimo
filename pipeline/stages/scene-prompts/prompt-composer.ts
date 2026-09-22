@@ -4,6 +4,8 @@ import {
   PROMPT_SAFETY_BLOCK,
   SHOT_TYPE_ROTATION,
   SHOT_VARIETY_ROTATION,
+  SILENT_PAUSE_BLOCK,
+  SILENT_SCENE_WINDOW_CHARS,
   buildBackgroundBlock,
   buildImageTextLanguageBlock,
 } from '../../prompts/scene-prompt-blocks.ts'
@@ -49,6 +51,36 @@ export function buildContextWindow(
     .join(' ')
 }
 
+export interface NarrationFragment {
+  text: string
+  // true si el corte cayó en un silencio: `text` es la narración vecina (o el
+  // inicio del guion), no lo que se dice en esta escena.
+  isSilent: boolean
+}
+
+// La narración que un redactor ilustra para una escena: la propia si la hay;
+// si la escena es muda, la ventana de vecinas, y como último recurso el inicio
+// del guion. Toda escena con tiempos lleva prompt e imagen (el render lo
+// exige), así que ninguna queda sin fragmento.
+export function narrationFragmentFor(
+  scene: Scene,
+  orderedScenes: Scene[],
+  fullScript: string,
+): NarrationFragment {
+  const own = (scene.text ?? '').trim()
+  if (own) return { text: own, isSilent: false }
+
+  const window = buildContextWindow(
+    orderedScenes,
+    scene.id,
+    SILENT_SCENE_WINDOW_CHARS,
+  )
+  return {
+    text: window || fullScript.slice(0, SILENT_SCENE_WINDOW_CHARS).trim(),
+    isSilent: true,
+  }
+}
+
 export interface ScenePromptInputs {
   // Fragmento a ilustrar: narración auto-cortada o pedido manual del usuario.
   fragment: string
@@ -62,6 +94,10 @@ export interface ScenePromptInputs {
   // true cuando `fragment` es una descripción que el USUARIO escribió a
   // propósito (regeneración manual): se dibuja LO QUE PIDE, no la narración.
   isUserRequest: boolean
+  // true cuando la escena es muda y `fragment` es la narración vecina: la rama
+  // automática avisa que hay que ilustrar la pausa entre esas líneas. Sin
+  // efecto en la rama de pedido manual.
+  isSilentPause: boolean
   // Bloque DURO de personajes + SCENE PLAN del director, ya ensamblados
   // (vacíos cuando no aplican). Se inyectan arriba del task en ambas ramas.
   mandatoryBlock: string
@@ -130,7 +166,7 @@ ${safeWindow}
 
 # YOUR TASK
 Generate ONE image prompt for the moment that occurs at video time ${range} (scene ${inputs.sceneId} of ${inputs.totalScenes}).
-
+${inputs.isSilentPause ? SILENT_PAUSE_BLOCK : ''}
 The fragment below was extracted automatically by audio timestamp, so it MAY:
   - Start mid-sentence or mid-word.
   - End mid-sentence or mid-word.

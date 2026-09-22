@@ -240,7 +240,11 @@ async function readConfirmedSceneCount(
 // superior — captura toda palabra restante para que ningún texto de cola se
 // pierda si un timestamp quedó justo en el borde tras el capado al audio
 // real (Bug #4 del origen). Una escena puede quedar con texto vacío (corte
-// en silencio): el resto del pipeline la trata como «sin prompt necesario».
+// en silencio): igual lleva prompt e imagen — el redactor la ilustra como
+// pausa desde la narración vecina (`narrationFragmentFor`), porque el render
+// exige una imagen por cada escena con tiempos. Absorber la ventana muda en
+// la anterior, como hace `by-seconds`, queda como seguimiento: cambiaría el
+// conteo y la caché del corte.
 export function cutScenesByTime(
   words: TranscriptWord[],
   sceneCount: number,

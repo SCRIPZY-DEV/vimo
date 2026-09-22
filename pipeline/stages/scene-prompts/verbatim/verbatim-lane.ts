@@ -15,6 +15,7 @@ import type {
 } from '../../../types/video-project.ts'
 import type { VerbatimFragment } from '../../../prompts/verbatim-messages.ts'
 import type { CreateVideoContext } from '../../context.ts'
+import { narrationFragmentFor } from '../prompt-composer.ts'
 import {
   generateVerbatimPrompts,
   type VerbatimCharacterInput,
@@ -173,6 +174,15 @@ function presenceForScene(
 export const CONTENT_POLICY_RETRY_NOTE =
   'El generador de imágenes rechazó la versión anterior de esta escena por sus políticas de contenido. Reescribe el prompt más neutro y family-friendly, sin nombres propios de personas reales ni de famosos, sin violencia gráfica, sangre ni matanzas explícitas (sugiere esas ideas con atmósfera y fuera de cuadro), manteniendo intacto el estilo visual.'
 
+/**
+ * La nota de una escena MUDA (el corte clásico cayó en una pausa): su
+ * fragmento es la narración vecina, y el modelo tiene que ilustrar el momento
+ * entre esas líneas, no repetir la imagen anterior. Mismo registro que la
+ * nota de content-policy: mensaje al modelo, no texto de UI.
+ */
+export const SILENT_PAUSE_NOTE =
+  'En el tramo de esta escena no se dice nada: el fragmento es la narración inmediatamente anterior y posterior a la pausa. Ilustra el momento ENTRE esas líneas (una transición, una reacción, un detalle del mismo lugar), sin repetir la imagen de la escena anterior ni ilustrar literalmente la línea siguiente, manteniendo intacto el estilo visual.'
+
 /** Una escena con su prompt recién escrito, lista para ir a disco. */
 export interface VerbatimScenePrompt {
   id: number
@@ -257,12 +267,13 @@ function resolveStyleProtagonist(
 }
 
 /**
- * La fase de prompts con el motor verbatim. Las escenas sin texto no llevan
- * prompt, y las que YA tienen prompt válido no se re-piden: en un resume o en
- * el rescate llegan 15 escenas con 8 prompts buenos y 7 agujeros —
- * re-escribir los 8 buenos gastaba tokens y podía CAMBIAR prompts que el
- * usuario ya vio. Quien quiere reescritura en serio primero vacía el
- * `imagePrompt` (el mismo gesto del flujo de regenerar).
+ * La fase de prompts con el motor verbatim. Toda escena lleva prompt —la
+ * muda (texto vacío) se pide con la narración vecina y una nota de pausa—,
+ * y las que YA tienen prompt válido no se re-piden: en un resume o en el
+ * rescate llegan 15 escenas con 8 prompts buenos y 7 agujeros — re-escribir
+ * los 8 buenos gastaba tokens y podía CAMBIAR prompts que el usuario ya vio.
+ * Quien quiere reescritura en serio primero vacía el `imagePrompt` (el mismo
+ * gesto del flujo de regenerar).
  */
 export async function runVerbatimLane(
   context: CreateVideoContext,
@@ -285,8 +296,6 @@ export async function runVerbatimLane(
     (scene) =>
       (!context.regenerateSceneIds?.size ||
         context.regenerateSceneIds.has(scene.id)) &&
-      ((scene.text?.trim().length ?? 0) > 0 ||
-        (scene.userPrompt?.trim().length ?? 0) > 0) &&
       !isValidPrompt(scene.imagePrompt),
   )
   if (pending.length === 0)
@@ -393,6 +402,9 @@ export async function runVerbatimLane(
 
   let lastReady = 0
   const groupProgress = new Map<VerbatimSceneGroup, number>()
+  // La ventana vecina de una escena muda se arma sobre TODAS las escenas del
+  // proyecto (no solo las del grupo), para que la pausa vea sus dos lados.
+  const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
   const runGroup = async (group: VerbatimSceneGroup) => {
     const fragments: VerbatimFragment[] = group.scenes.map((scene) => {
       const retryNote = options.retryNotes?.get(scene.id)?.trim()
@@ -400,13 +412,18 @@ export async function runVerbatimLane(
       // catálogo): como nota al lado de la narración, la narración ganaba
       // y la imagen regenerada salía igual a la anterior.
       const userRequest = scene.userPrompt?.trim()
+      const narration = narrationFragmentFor(scene, orderedScenes, fullScript)
       const selectionNote = group.indexes?.length
         ? 'El usuario incluyo al personaje en esta escena: [subject] DEBE aparecer en la accion de este fragmento, manteniendo el mismo estilo.'
         : undefined
-      const note = [retryNote, selectionNote].filter(Boolean).join(' ')
+      const pauseNote =
+        !userRequest && narration.isSilent ? SILENT_PAUSE_NOTE : undefined
+      const note = [retryNote, selectionNote, pauseNote]
+        .filter(Boolean)
+        .join(' ')
       return {
         n: scene.id,
-        text: userRequest || scene.text.trim(),
+        text: userRequest || narration.text,
         ...(note ? { note } : {}),
       }
     })
