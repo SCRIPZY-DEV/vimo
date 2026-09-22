@@ -138,6 +138,10 @@ export interface CreateTask {
   logs: string[]
   videoPath: string | null
   errorKey: string | null
+  // Código crudo del fallo del pipeline (el mismo que project.json guarda en
+  // metadata.errorCode); null si el error no vino de un job. Aditivo: las
+  // tareas guardadas antes del campo lo restauran como null.
+  errorCode: string | null
   startedAt: number
   // Cronómetro honesto (origen v1.1.0): el tiempo esperando a la persona no
   // cuenta. pausedAt marca la pausa en curso; pausedMs acumula las cerradas.

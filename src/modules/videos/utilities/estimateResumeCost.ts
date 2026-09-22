@@ -79,15 +79,14 @@ function pendingImagesLine(
   )
 }
 
-// Con escenas ya cortadas cuenta las que siguen sin imagen; antes del corte
-// se aproxima como en Crear (cantidad fija, o duración real del audio si ya
-// se transcribió, o el guion).
+// Con escenas ya cortadas cuenta las que siguen sin imagen (también la muda,
+// sin texto: igual lleva imagen); antes del corte se aproxima como en Crear
+// (cantidad fija, o duración real del audio si ya se transcribió, o el guion).
 function pendingImageCount(status: VideoProjectStatusResult): number {
   const { metadata, scenes } = status
   const options = metadata.options
   if (scenes.length > 0)
-    return scenes.filter((scene) => scene.text.trim() && !scene.imagePath)
-      .length
+    return scenes.filter((scene) => !scene.imagePath).length
 
   const usesCustomStyle = options.customStyle !== undefined
   if (!usesCustomStyle && options.sceneCount > 0) return options.sceneCount

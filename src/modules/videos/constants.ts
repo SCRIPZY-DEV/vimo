@@ -171,6 +171,14 @@ export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
   'llm_empty_response',
   'llm_rescue_needed',
 ])
+// Fallos que dejan el proyecto rescatable desde el editor: los prompts y las
+// imágenes que sí salieron están en disco, así que la tarjeta ofrece
+// «Continuar en el editor» además de reanudar. `render_missing_images` cae en
+// `render`, no en `images`: por eso no alcanza con mirar la fase caída.
+export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
+  'images_incomplete',
+  'render_missing_images',
+])
 // Tras pedir cancelar, cuánto se espera el cierre del sidecar antes de dar
 // la tarea por terminada igual (red de seguridad, no el camino normal).
 export const CANCEL_SETTLE_TIMEOUT_MS = 8000

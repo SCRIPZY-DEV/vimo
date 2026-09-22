@@ -12,6 +12,7 @@ import { OutdatedVideoBanner } from '@/modules/videos/components/OutdatedVideoBa
 import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
 import {
+  EDITOR_RESCUE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
   VideosRoutes,
   libraryEditorPath,
@@ -115,6 +116,15 @@ export function LibraryPlayer() {
           )}`}
           retryLabel={t('library.player.retry')}
           onRetry={() => void retry()}
+          // Con imágenes faltantes el proyecto se repara también desde el
+          // editor (regenerar escena por escena); el resto de los fallos solo
+          // ofrece reanudar.
+          onContinueInEditor={
+            metadata.errorCode &&
+            EDITOR_RESCUE_ERROR_CODES.has(metadata.errorCode)
+              ? () => void navigate(libraryEditorPath(projectId))
+              : undefined
+          }
         />
       )}
 

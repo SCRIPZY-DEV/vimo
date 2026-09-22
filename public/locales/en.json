@@ -344,7 +344,7 @@
         "retryRender": "Retry assembly",
         "retryHint": "What was already generated (audio, scenes, prompts and images) is kept; only what failed is retried.",
         "retryRenderHint": "Your images and everything else are ready — only the video assembly is redone. Nothing is lost and no credits are spent.",
-        "continueHint": "Scenes left without an image keep their description: in the editor you can regenerate them one by one, or change the description of the one that fails, and then generate your video.",
+        "continueHint": "In the editor you can regenerate the scenes left without an image one by one — with or without narration — or give them a description of your own, and then generate your video.",
         "switchModel": "Switch model and relaunch",
         "switchModelHint": "The model writing the prompts failed. With another model everything done is kept and only the missing prompts get written."
       },
@@ -820,7 +820,7 @@
       "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept.",
       "missingImagesTitle_one": "1 scene is missing its image (scene {{ids}})",
       "missingImagesTitle_other": "{{count}} scenes are missing their image (scenes {{ids}})",
-      "missingImagesHint": "Their descriptions are saved. Tap an empty scene in the timeline and use \"Regenerate\" to create its image — or change the description if you want something else. Once they all have one, build your video.",
+      "missingImagesHint": "Tap an empty scene in the timeline and use \"Regenerate\" to create its image: it is illustrated from its narration or, if nothing is said in that stretch, from the neighbouring lines — or write a description if you want something else. Once they all have one, build your video.",
       "demoLocked": "In the demo, images and narration come from the sample package: they cannot be regenerated."
     },
     "errors": {
