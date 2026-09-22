@@ -55,7 +55,8 @@ export interface SceneImageTask {
 export interface Scene {
   id: number
   // Fragmento de narración que cubre la escena; puede ser "" si el corte
-  // cayó en un silencio (la escena no necesita prompt).
+  // cayó en un silencio (la escena igual lleva prompt e imagen: se ilustra
+  // como pausa desde la narración vecina).
   text: string
   direction?: SceneDirection
   imagePrompt?: string

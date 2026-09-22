@@ -66,14 +66,11 @@ import { rescueReferencePrompt } from '../scene-prompts/verbatim/subject-weaver.
 // paralelo, cache por archivo y hasta MAX_RECOVERY_PASSES pasadas que
 // reescriben el prompt SOLO de las rechazadas por contenido. Gate final: si
 // queda una escena sin imagen el job falla con sus ids — la UI ya pintó cada
-// fallo con scene-image-failed y el usuario reintenta.
+// fallo con scene-image-failed y el usuario reintenta. TODA escena lleva
+// imagen, también la muda (texto vacío): el render exige una por escena.
 
 const MAX_RECOVERY_PASSES = 4
 const PROGRESS_DEBOUNCE_MS = 250
-
-function hasText(scene: Scene): boolean {
-  return (scene.text?.trim().length ?? 0) > 0
-}
 
 // Qué prompts reescribe una pasada de recuperación: los rechazados por
 // contenido o inválidos, siempre que la escena siga sin imagen. Es el mismo
@@ -107,8 +104,8 @@ export const imagesStage: Stage<CreateVideoContext> = {
     const scenes = await readScenes(context.paths)
     if (!scenes) return false
     const ready = await idsWithValidImage(context, scenes)
-    // Toda escena con texto (las que llevan prompt) tiene su imagen.
-    return scenes.every((scene) => !hasText(scene) || ready.has(scene.id))
+    // Toda escena tiene su imagen.
+    return scenes.every((scene) => ready.has(scene.id))
   },
 
   async run(context) {
@@ -194,9 +191,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     for (let pass = 1; pass <= MAX_RECOVERY_PASSES; pass++) {
       context.signal.throwIfAborted()
       alreadyReady = await idsWithValidImage(context, scenes)
-      const missing = scenes.filter(
-        (scene) => hasText(scene) && !isReady(scene.id, alreadyReady),
-      )
+      const missing = scenes.filter((scene) => !isReady(scene.id, alreadyReady))
       if (missing.length === 0) break
 
       const rejectedCount = missing.filter(
@@ -319,7 +314,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // lo muestra por escena.
     const ready = await idsWithValidImage(context, scenes)
     const stillMissing = scenes
-      .filter((scene) => hasText(scene) && !ready.has(scene.id))
+      .filter((scene) => !ready.has(scene.id))
       .map((scene) => scene.id)
       .sort((a, b) => a - b)
     if (stillMissing.length > 0)
@@ -459,7 +454,7 @@ async function generateImages(
   if (!context.options.customStyle) {
     const invalidIds: number[] = []
     for (const scene of scenes) {
-      if (!hasText(scene) || hasCatalogPrompt(scene, style)) continue
+      if (hasCatalogPrompt(scene, style)) continue
       if (
         !forceRegenerate.has(scene.id) &&
         (await isValidFile(sceneImageFile(context.paths, scene.id)))
@@ -476,11 +471,12 @@ async function generateImages(
   }
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
 
-  // Capa 4: ninguna escena con texto llega al proveedor sin prompt válido.
+  // Capa 4: ninguna escena llega al proveedor sin prompt válido (la muda
+  // también: el fallback la ilustra desde la ventana vecina).
   const safeScenes = scenes.map((scene) => {
     // Catálogo jamás llega al fallback de compatibilidad de Mi estilo.
     if (!context.options.customStyle) return scene
-    if (!hasText(scene) || isValidPrompt(scene.imagePrompt)) return scene
+    if (isValidPrompt(scene.imagePrompt)) return scene
     return {
       ...scene,
       imagePrompt: anchorNormalRealism(

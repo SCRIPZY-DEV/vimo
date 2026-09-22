@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Pencil, RefreshCw, Shuffle } from 'lucide-react'
 import DoodleSadFace from '@/modules/common/doodles/DoodleSadFace'
 import { Button } from '@/modules/common/ui/button'
+import { EDITOR_RESCUE_ERROR_CODES } from '@/modules/videos/constants'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 
 interface GenerationErrorCardProps {
@@ -10,6 +11,10 @@ interface GenerationErrorCardProps {
   // La fase en la que se cayó el job (la primera sin completar): cambia la
   // etiqueta del reintento y habilita el rescate por el editor.
   failedStage: StageId | null
+  // Código crudo del fallo: con imágenes faltantes el render NO está listo
+  // (el reintento vuelve a pasar por prompts e imágenes), así que valen los
+  // textos genéricos del checkpoint y no los de «solo se rehace el armado».
+  errorCode: string | null
   // Reintentar desde el último checkpoint: lo ya hecho se conserva.
   onRetry: () => void
   // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
@@ -25,12 +30,15 @@ interface GenerationErrorCardProps {
 export function GenerationErrorCard({
   message,
   failedStage,
+  errorCode,
   onRetry,
   onContinueInEditor,
   onSwitchPromptModel,
 }: GenerationErrorCardProps) {
   const { t } = useTranslation()
-  const renderFailed = failedStage === 'render'
+  const missingImages =
+    errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(errorCode)
+  const renderFailed = failedStage === 'render' && !missingImages
 
   return (
     <motion.div

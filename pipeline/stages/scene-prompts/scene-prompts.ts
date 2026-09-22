@@ -35,12 +35,10 @@ import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
 // (presencia de personajes → director de escenas) → redactor por escena con
 // persistencia incremental de scenes.json y un evento por escena.
 
-function hasText(scene: Scene): boolean {
-  return (scene.text?.trim().length ?? 0) > 0
-}
-
 // No reescribir assets pagados sin pedido explícito. Los rellenos heredados
 // sin imagen se reparan; una tarea remota pendiente no pierde su prompt/hash.
+// Toda escena cuenta, también la muda (texto vacío): el render exige una
+// imagen por escena, así que la pausa se ilustra desde la narración vecina.
 async function catalogPendingIds(
   context: CreateVideoContext,
   scenes: Scene[],
@@ -48,7 +46,6 @@ async function catalogPendingIds(
   const ids = new Set<number>()
   const style = resolveProjectStyle(context.options)
   for (const scene of scenes) {
-    if (!hasText(scene) && !scene.userPrompt?.trim()) continue
     if (
       context.regenerateSceneIds?.size &&
       !context.regenerateSceneIds.has(scene.id)
@@ -78,13 +75,8 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     if (!scenes) return false
     if (!context.options.customStyle)
       return (await catalogPendingIds(context, scenes)).size === 0
-    // Una escena cuenta como lista solo con prompt VÁLIDO; las sin texto no
-    // necesitan prompt.
-    return scenes.every(
-      (scene) =>
-        (!hasText(scene) && !scene.userPrompt?.trim()) ||
-        isValidPrompt(scene.imagePrompt),
-    )
+    // Una escena cuenta como lista solo con prompt VÁLIDO, tenga texto o no.
+    return scenes.every((scene) => isValidPrompt(scene.imagePrompt))
   },
 
   async run(context) {
@@ -182,7 +174,9 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     const imageTextLanguage = detectScriptLanguage(script)
 
     // Director de escenas: UNA pasada que planifica el video. Idempotente:
-    // un plan persistido completo se reusa.
+    // un plan persistido completo se reusa. La escena muda no se planifica a
+    // propósito (no hay narración que dirigir): el redactor la ilustra como
+    // pausa desde la ventana vecina, sin SCENE PLAN.
     const toDirect = currentScenes.filter((scene) => pendingIds.has(scene.id))
     if (scenesNeedPlan(toDirect)) {
       context.signal.throwIfAborted()
@@ -225,7 +219,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     // se escribe entero — si el job muere a mitad, lo hecho queda en disco.
     const buffer = currentScenes.map((scene) => ({ ...scene }))
     let persistence = Promise.resolve()
-    const total = currentScenes.filter(hasText).length
+    const total = currentScenes.length
     let ready = total - pendingIds.size
     context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
     currentScenes = await guaranteePrompts(currentScenes, {

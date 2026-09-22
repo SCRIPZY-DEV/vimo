@@ -29,6 +29,7 @@ import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerScene
 import { StageBar } from '@/modules/videos/components/StageBar'
 import {
   CANCEL_CONFIRM_WINDOW_MS,
+  EDITOR_RESCUE_ERROR_CODES,
   PIPELINE_STAGES,
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
@@ -149,6 +150,12 @@ export function GenerationProgress({
     ? (PIPELINE_STAGES.find((stage) => !completed.includes(stage.id))?.id ??
       null)
     : null
+  // Rescate por el editor: un fallo de imágenes, o un código que deja el
+  // proyecto reparable desde ahí aunque la fase caída sea otra (el render sin
+  // imágenes cae en `render` con todo lo demás en disco).
+  const editorRescue =
+    failedStage === 'images' ||
+    (task.errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(task.errorCode))
   // Solo el carril verbatim tiene un modelo elegible que cambiar.
   const promptModelSwitchable =
     task.usesCustomStyle && failedStage === 'scene-prompts'
@@ -379,9 +386,7 @@ export function GenerationProgress({
                 voiceVendor: task.voiceVendor,
               }}
               onRetry={onRetryPipeline}
-              onContinueInEditor={
-                failedStage === 'images' ? onContinueInEditor : undefined
-              }
+              onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
             />
           )}
 
@@ -389,10 +394,9 @@ export function GenerationProgress({
             <GenerationErrorCard
               message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
               failedStage={failedStage}
+              errorCode={task.errorCode}
               onRetry={onRetryPipeline}
-              onContinueInEditor={
-                failedStage === 'images' ? onContinueInEditor : undefined
-              }
+              onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
               onSwitchPromptModel={
                 promptModelSwitchable
                   ? () => setSwitchingFromError(true)

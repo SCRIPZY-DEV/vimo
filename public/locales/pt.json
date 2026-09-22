@@ -344,7 +344,7 @@
         "retryRender": "Tentar a montagem de novo",
         "retryHint": "O que já foi gerado (áudio, cenas, prompts e imagens) é mantido; só o que falhou é tentado de novo.",
         "retryRenderHint": "Suas imagens e todo o resto já estão prontos — só a montagem do vídeo é refeita. Nada se perde e não se gastam créditos.",
-        "continueHint": "As cenas que ficaram sem imagem mantêm sua descrição: no editor você pode regenerá-las uma a uma, ou mudar a descrição da que não sair, e depois gerar seu vídeo.",
+        "continueHint": "No editor você pode regenerar uma a uma as cenas que ficaram sem imagem — com ou sem narração — ou dar a elas uma descrição própria, e depois gerar seu vídeo.",
         "switchModel": "Trocar de modelo e relançar",
         "switchModelHint": "O modelo que escrevia os prompts falhou. Com outro modelo tudo o que foi feito é mantido e só os prompts que faltam são escritos."
       },
@@ -820,7 +820,7 @@
       "regenFailed": "Não foi possível regenerar alguma cena: o motivo está em cada cena e a imagem anterior é mantida.",
       "missingImagesTitle_one": "Falta a imagem de 1 cena (cena {{ids}})",
       "missingImagesTitle_other": "Faltam as imagens de {{count}} cenas (cenas {{ids}})",
-      "missingImagesHint": "A descrição delas ficou salva. Toque numa cena vazia na linha do tempo e use «Regenerar» para criar a imagem — ou mude a descrição se quiser outra coisa. Quando todas tiverem, gere seu vídeo.",
+      "missingImagesHint": "Toque numa cena vazia na linha do tempo e use «Regenerar» para criar a imagem: ela é ilustrada a partir da narração ou, se nada é dito nesse trecho, das linhas vizinhas — ou escreva uma descrição se quiser outra coisa. Quando todas tiverem, gere seu vídeo.",
       "demoLocked": "Na demo, as imagens e a narração vêm do pacote de amostra: não podem ser regeneradas."
     },
     "errors": {

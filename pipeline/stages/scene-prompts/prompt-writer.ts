@@ -34,7 +34,11 @@ import {
 } from './identity-lock.ts'
 import { isPhotorealisticStyle } from '../shared/prompt-safety.ts'
 import type { SceneLlm } from '../shared/llm.ts'
-import { buildContextWindow, buildSceneUserPrompt } from './prompt-composer.ts'
+import {
+  buildContextWindow,
+  buildSceneUserPrompt,
+  narrationFragmentFor,
+} from './prompt-composer.ts'
 import { extractImagePrompt } from './prompt-extraction.ts'
 import { buildScenePlanBlock } from './scene-director.ts'
 
@@ -65,14 +69,16 @@ export interface PromptWriterOptions {
   onSceneProcessed?(scene: Scene): Promise<void> | void
 }
 
-function hasText(scene: Scene): boolean {
-  return (scene.text?.trim().length ?? 0) > 0
+// Toda escena lleva prompt: la muda (texto vacío del corte clásico) se
+// ilustra desde la narración vecina, nunca se exime.
+function scenesMissingPrompt(scenes: Scene[]): Scene[] {
+  return scenes.filter((scene) => !isValidPrompt(scene.imagePrompt))
 }
 
-function scenesMissingPrompt(scenes: Scene[]): Scene[] {
-  return scenes.filter(
-    (scene) => hasText(scene) && !isValidPrompt(scene.imagePrompt),
-  )
+// Clave con la que se deduplican prompts entre escenas: dos escenas mudas no
+// comparten fragmento (`''`), así que se distinguen por id.
+function fragmentKey(scene: Scene): string {
+  return scene.userPrompt?.trim() || scene.text || `#${scene.id}`
 }
 
 // Lo que el camino principal, el rescate y la re-sanitización comparten por
@@ -85,6 +91,9 @@ interface ComposedSceneRequest {
   isPlaceOnlyScene: boolean
   // Presencia efectiva (persistida, o la que un pedido manual trae de vuelta).
   effectivePresent: number[]
+  // La narración que respalda el pedido: la propia o, en una escena muda, la
+  // ventana vecina (lo que reconstruye el escenario si el LLM devolvió poco).
+  narration: string
 }
 
 function composeSceneRequest(
@@ -95,9 +104,14 @@ function composeSceneRequest(
   fragmentOverride?: string,
 ): ComposedSceneRequest {
   const isUserRequest = (scene.userPrompt?.trim().length ?? 0) > 0
+  const narration = narrationFragmentFor(
+    scene,
+    orderedScenes,
+    options.fullScript,
+  )
   const fragment = (
     fragmentOverride ??
-    (scene.userPrompt?.trim() || scene.text || '')
+    (scene.userPrompt?.trim() || narration.text)
   ).trim()
   const present = scene.charactersPresent ?? []
   const isStickmanStyle = options.style.id === 'pov_stickman'
@@ -145,6 +159,7 @@ function composeSceneRequest(
     endSeconds: scene.endSeconds,
     visualBible: options.visualBible,
     isUserRequest,
+    isSilentPause: narration.isSilent && !isUserRequest,
     mandatoryBlock: characterBlock + planBlock,
     imageTextLanguage: options.imageTextLanguage,
   })
@@ -154,6 +169,7 @@ function composeSceneRequest(
     isUserRequest,
     isPlaceOnlyScene,
     effectivePresent: present.length > 0 ? present : requestedIndexes,
+    narration: narration.text,
   }
 }
 
@@ -161,13 +177,12 @@ function composeSceneRequest(
 // sin muñeco cuando corresponde.
 function finishLlmPrompt(
   rawPrompt: string,
-  scene: Scene,
   composed: ComposedSceneRequest,
   style: VisualStyle,
 ): string {
   const anchored = anchorNormalRealism(rawPrompt, style)
   return composed.isPlaceOnlyScene
-    ? rewriteSceneryWithoutCharacter(anchored, style, scene.text || '')
+    ? rewriteSceneryWithoutCharacter(anchored, style, composed.narration)
     : anchored
 }
 
@@ -217,8 +232,9 @@ interface GenerateOptions extends PromptWriterOptions {
   escalateTier?: boolean
 }
 
-// Procesa SOLO las escenas sin prompt válido (con texto o pedido manual).
-// Si TODAS fallan lanza; si algunas, devuelve el mix y el caller sigue.
+// Procesa SOLO las escenas sin prompt válido; la muda se ilustra desde la
+// ventana vecina. Si TODAS fallan lanza; si algunas, devuelve el mix y el
+// caller sigue.
 export async function generateScenePrompts(
   scenes: Scene[],
   options: GenerateOptions,
@@ -236,8 +252,7 @@ export async function generateScenePrompts(
   const toProcess = scenes.filter(
     (scene) =>
       (!options.sceneIds || options.sceneIds.has(scene.id)) &&
-      !isValidPrompt(scene.imagePrompt) &&
-      (hasText(scene) || (scene.userPrompt?.trim().length ?? 0) > 0),
+      !isValidPrompt(scene.imagePrompt),
   )
   if (toProcess.length === 0) return scenes
 
@@ -250,10 +265,7 @@ export async function generateScenePrompts(
   const accepted = new Map<string, string>()
   for (const scene of scenes) {
     if (isValidPrompt(scene.imagePrompt))
-      accepted.set(
-        normalize(scene.imagePrompt),
-        normalize(scene.userPrompt?.trim() || scene.text),
-      )
+      accepted.set(normalize(scene.imagePrompt), normalize(fragmentKey(scene)))
   }
 
   const settled = await Promise.allSettled(
@@ -291,19 +303,12 @@ export async function generateScenePrompts(
                 // Con candado: la clave coincide con lo que queda en disco.
                 const final = normalize(
                   lockedLlmPrompt(
-                    finishLlmPrompt(
-                      prompt,
-                      scene,
-                      composed,
-                      writerOptions.style,
-                    ),
+                    finishLlmPrompt(prompt, composed, writerOptions.style),
                     composed,
                     writerOptions,
                   ),
                 )
-                const fragment = normalize(
-                  scene.userPrompt?.trim() || scene.text,
-                )
+                const fragment = normalize(fragmentKey(scene))
                 const previousFragment = accepted.get(final)
                 if (
                   previousFragment !== undefined &&
@@ -329,7 +334,7 @@ export async function generateScenePrompts(
               extracted,
               writerOptions.style,
             )
-              ? finishLlmPrompt(extracted, scene, composed, writerOptions.style)
+              ? finishLlmPrompt(extracted, composed, writerOptions.style)
               : ''
             // Escena SIN personaje que dibuja a alguien sin rotular: no lleva
             // identidad ni referencia, así que sale como un desconocido que
@@ -518,21 +523,16 @@ export async function regeneratePromptsForRejected(
     missing.map((scene) =>
       limit(async (): Promise<Scene> => {
         writerOptions.signal.throwIfAborted()
-        // Sin texto (corte mid-word): la ventana de vecinas (o el inicio del
-        // guion) como fragmento, para igual generar un prompt coherente.
-        let text = (scene.text ?? '').trim()
-        if (!text) {
-          text =
-            buildContextWindow(orderedScenes, scene.id, 320) ||
-            writerOptions.fullScript.slice(0, 320)
-        }
-
+        // En el rescate manda la narración (o la ventana vecina si la escena
+        // es muda), no el pedido manual: el mismo fragmento del redactor
+        // principal, pasado como override para conservar esa precedencia.
         const composed = composeSceneRequest(
           scene,
           orderedScenes,
           scenes.length,
           writerOptions,
-          text,
+          narrationFragmentFor(scene, orderedScenes, writerOptions.fullScript)
+            .text,
         )
         const userPrompt = composed.userPrompt + retryBlock
 
@@ -556,7 +556,7 @@ export async function regeneratePromptsForRejected(
               extracted,
               writerOptions.style,
             )
-              ? finishLlmPrompt(extracted, scene, composed, writerOptions.style)
+              ? finishLlmPrompt(extracted, composed, writerOptions.style)
               : ''
             if (isValidPrompt(candidate)) {
               // En el rescate por content policy el nombre pelado se suelta;

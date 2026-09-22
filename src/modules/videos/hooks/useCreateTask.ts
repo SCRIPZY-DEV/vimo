@@ -112,6 +112,8 @@ function restoreTask(): CreateTask | null {
       // El rechazo por saldo sí sobrevive: el proyecto quedó pausado en
       // disco por eso y la tarjeta tiene que seguir diciéndolo.
       creditsIssue: stored.creditsIssue ?? null,
+      // Tareas guardadas antes del campo: sin código conocido.
+      errorCode: stored.errorCode ?? null,
     }
     // El job muere con la app; el PROYECTO sobrevive en disco. Una tarea que
     // quedó generando se marca interrumpida (el usuario reanuda con el mismo
@@ -124,6 +126,7 @@ function restoreTask(): CreateTask | null {
         stage: null,
         jobId: null,
         errorKey: INTERRUPTED_ERROR_KEY,
+        errorCode: null,
       }
     }
     return task
@@ -153,7 +156,7 @@ function stopRetryTimer() {
 // Cuenta regresiva visible; al llegar a 0 relanza el job (las fases hechas
 // son cache-hit). El timer muere con la app: al restaurar, la tarea vuelve
 // como error interrumpido normal.
-function startAutoRetry(taskId: string, projectId: string, errorKey: string) {
+function startAutoRetry(taskId: string, projectId: string, code: string) {
   const task = currentTask
   if (!task || task.id !== taskId) return
 
@@ -165,7 +168,8 @@ function startAutoRetry(taskId: string, projectId: string, errorKey: string) {
     status: 'generating',
     jobId: null,
     stage: null,
-    errorKey,
+    errorKey: errorKeyFor(code),
+    errorCode: code,
     retry: {
       attempt,
       maxAttempts: AUTO_RETRY_MAX_ATTEMPTS,
@@ -467,6 +471,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           imagesRecovery: null,
           promptsStageActivity: null,
           errorKey: errorKeyFor(event.code),
+          errorCode: event.code,
           creditsIssue: { code: event.code, domain: creditsDomain },
         })
         scheduleCreditsRefresh()
@@ -489,6 +494,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           imagesRecovery: null,
           promptsStageActivity: null,
           errorKey: errorKeyFor(event.code),
+          errorCode: event.code,
           promptModelIssue: {
             reason: 'error',
             modelId: task.promptModel,
@@ -503,7 +509,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         RETRYABLE_ERROR_CODES.has(event.code) &&
         task.retryAttempts < AUTO_RETRY_MAX_ATTEMPTS
       ) {
-        startAutoRetry(taskId, task.projectId, errorKeyFor(event.code))
+        startAutoRetry(taskId, task.projectId, event.code)
         return
       }
       patchTask(taskId, {
@@ -512,6 +518,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         stage: null,
         imagesRecovery: null,
         errorKey: errorKeyFor(event.code),
+        errorCode: event.code,
       })
       return
     }
@@ -624,6 +631,7 @@ function makeTask(
     logs: [],
     videoPath: null,
     errorKey: null,
+    errorCode: null,
     startedAt: Date.now(),
     pausedAt: null,
     pausedMs: 0,
@@ -663,6 +671,7 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
   patchTask(taskId, {
     status: 'generating',
     errorKey: null,
+    errorCode: null,
     confirmation: null,
     imagesRecovery: null,
     // La vigilancia y el aviso del modelo describen un job: nacen con el
@@ -940,6 +949,7 @@ async function haltForPromptModelTrouble(
     promptsStageActivity: null,
     promptModelSwitch: null,
     errorKey: errorKeyFor(code),
+    errorCode: code,
   })
 }
 
@@ -982,6 +992,7 @@ async function switchPromptModel(modelId: string): Promise<void> {
       stage: null,
       promptModelSwitch: null,
       errorKey: videosApi.errorMessageKey(error),
+      errorCode: null,
     })
     return
   }
