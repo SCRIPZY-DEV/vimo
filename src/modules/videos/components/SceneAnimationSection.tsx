@@ -18,8 +18,8 @@ import { useAnimationProgress } from '@/modules/videos/hooks/useAnimationProgres
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import { AnimationCreditEstimate } from '@/modules/videos/components/AnimationCreditEstimate'
 import { AnimationClipSummary } from '@/modules/videos/components/AnimationClipSummary'
+import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
 import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
-import { formatSlotSeconds } from '@/modules/videos/utilities/formatSlotSeconds'
 import type { SceneAnimationControls } from '@/modules/videos/types/library'
 import { MIN_REQUESTED_ANIMATION_SECONDS } from '@pipeline/types/video-provider.ts'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
@@ -37,8 +37,7 @@ export function SceneAnimationSection({
   busy,
   locked,
 }: SceneAnimationSectionProps) {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.resolvedLanguage ?? 'es'
+  const { t } = useTranslation()
   const {
     provider,
     configuredProviders,
@@ -169,16 +168,10 @@ export function SceneAnimationSection({
           />
         </div>
       )}
-      {plan?.unit?.strategy === 'merge' && (
-        <p className="font-body text-xs text-muted-foreground">
-          {t('library.editor.panel.animation.planMerge', {
-            ids: new Intl.ListFormat(locale).format(
-              plan.unit.sceneIds.map(String),
-            ),
-            seconds: formatSlotSeconds(plan.unit.slotSeconds, locale),
-          })}
-        </p>
-      )}
+      <AnimationPairingNotice
+        units={plan?.unit ? [plan.unit] : []}
+        selectedSceneIds={[scene.id]}
+      />
       {rejectionKey && (
         <p className="font-body text-xs text-coral">{t(rejectionKey)}</p>
       )}

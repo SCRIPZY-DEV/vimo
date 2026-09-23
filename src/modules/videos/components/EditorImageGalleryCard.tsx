@@ -140,7 +140,7 @@ export function EditorImageGalleryCard({
     <article
       data-gallery-scene={scene.id}
       className={cn(
-        'overflow-hidden rounded-2xl border-2 bg-card transition-colors',
+        'flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border-2 bg-card transition-colors',
         selected ? 'border-saffron shadow-sm' : 'border-border',
         animating && !selected && 'border-sky/50',
       )}
@@ -157,7 +157,7 @@ export function EditorImageGalleryCard({
         disabled={submitting}
         onClick={onSelect}
         className={cn(
-          'relative flex w-full items-center justify-center bg-muted/40 outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-saffron',
+          'relative flex w-full shrink-0 items-center justify-center bg-muted/40 outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-saffron',
           videoFormat === '9:16' ? 'aspect-[9/16]' : 'aspect-video',
         )}
       >
@@ -193,7 +193,7 @@ export function EditorImageGalleryCard({
           </span>
         )}
       </button>
-      <div className="space-y-3 p-3">
+      <div className="flex-1 space-y-3 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-sm font-bold">
             {t('library.editor.panel.sceneTitle', { id: scene.id })}
@@ -207,7 +207,7 @@ export function EditorImageGalleryCard({
             )}
         </div>
         <p
-          className="line-clamp-2 font-body text-xs leading-relaxed text-muted-foreground"
+          className="line-clamp-2 min-h-[3.25em] font-body text-xs leading-relaxed text-muted-foreground"
           title={scene.text}
         >
           {scene.text}

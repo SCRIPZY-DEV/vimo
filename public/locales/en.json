@@ -537,7 +537,7 @@
       "animationClipMissing": "This scene's clip is no longer on disk. Redo the animation.",
       "animationSubmissionUnknown": "We could not confirm whether the request was accepted. Its record is preserved so the task can be checked before creating another charge.",
       "animationMediaInvalid": "The clip needs to finish local preparation. Retry to recover it without ordering another video.",
-      "animationPromptFailed": "We could not write a valid motion prompt. Review the script and image description, then try again.",
+      "animationPromptFailed": "We could not complete a coherent animation prompt after several attempts. Your images and clips were kept. You can try again.",
       "animationProjectBusy": "Another operation is running for this project. Wait for it to finish.",
       "animationRequestChanged": "This scene has a pending animation. Recover it before ordering a different version.",
       "animationIncomplete": "The animation range still has pending clips. Retry to complete or recover the saved tasks.",
@@ -874,7 +874,12 @@
           "costUnknown": "Cost unavailable",
           "queued": "Queued…",
           "waitingQuota": "Waiting for Kie capacity…",
-          "preparing": "Preparing animation…"
+          "preparing": "Preparing animation…",
+          "pairingTitle": "Scenes that will animate together",
+          "pairingGroup": "Scenes {{ids}} · {{seconds}} s",
+          "pairingAdditional_one": "Scene {{ids}} will also be included, even though you did not select it. Each pair creates one clip.",
+          "pairingAdditional_other": "Scenes {{ids}} will also be included, even though you did not select them. Each pair creates one clip.",
+          "pairingOnce": "Each pair creates one clip, even when both scenes are selected."
         }
       },
       "render": {
@@ -996,7 +1001,8 @@
         "noImageProvider": "Configure an image provider key before regenerating.",
         "insufficientCredits": "The available balance is not enough for this selection.",
         "animateRedoSelection": "Animate / redo clips",
-        "resumeSelection": "Resume clips"
+        "resumeSelection": "Resume clips",
+        "shortPairHint": "3-second scenes: animating one includes the next compatible scene to create a 6-second clip. Pairs are shown here before you start. Without a pair, only that clip is adjusted to its duration."
       }
     },
     "errors": {

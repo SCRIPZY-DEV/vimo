@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Images,
   ListChecks,
+  Link2,
   Loader2,
   RefreshCw,
   X,
@@ -12,13 +13,15 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { EditorImageGalleryCard } from '@/modules/videos/components/EditorImageGalleryCard'
+import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
+import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import { useGalleryActions } from '@/modules/videos/hooks/useGalleryActions'
 import type { GalleryActionsOptions } from '@/modules/videos/types/galleryActions'
 
 // La galería conserva sus borradores; las generaciones pertenecen al almacén del
 // editor y siguen su curso cuando se cierra esta ventana.
 export function EditorImageGallery(options: GalleryActionsOptions) {
-  const { scenes, videoFormat } = options
+  const { scenes, videoFormat, durationSeconds } = options
   const { t } = useTranslation()
   const actions = useGalleryActions(options)
   const [open, setOpen] = useState(false)
@@ -37,6 +40,42 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const imageAvailability = actions.imageAvailability(selection)
   const animationAvailability = actions.animationAvailability(selection)
   const animationLabels = selection.map((id) => actions.getAnimationLabel(id))
+  const animationSelection = selectedAnimationScenes()
+  const animationPlan = open
+    ? galleryAnimationPlan(scenes, animationSelection, {
+        videoFormat,
+        durationSeconds,
+      })
+    : undefined
+  const projectPlan = open
+    ? galleryAnimationPlan(
+        scenes,
+        scenes.map((scene) => scene.id),
+        { videoFormat, durationSeconds },
+      )
+    : undefined
+  const hasShortPairs =
+    videoFormat === '16:9' &&
+    projectPlan?.units.some((unit) => {
+      return (
+        unit.strategy === 'merge' &&
+        unit.sceneIds.length === 2 &&
+        unit.sceneIds.every((id) => {
+          const scene = scenes.find((candidate) => candidate.id === id)
+          return (
+            scene?.startSeconds !== undefined &&
+            scene.endSeconds !== undefined &&
+            Math.round((scene.endSeconds - scene.startSeconds) * 1000) === 3000
+          )
+        })
+      )
+    })
+
+  function selectedAnimationScenes() {
+    if (selecting) return selection
+    if (selectedId === null) return []
+    return [selectedId]
+  }
 
   function selectionAnimationLabel() {
     if (animationLabels.includes('redo'))
@@ -185,6 +224,24 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
               )}
             </p>
           </div>
+          {(hasShortPairs ||
+            animationPlan?.units.some((unit) => unit.strategy === 'merge')) && (
+            <div className="shrink-0 space-y-2 border-b border-border px-5 py-3 sm:px-6">
+              {hasShortPairs && (
+                <p className="flex items-start gap-2 font-body text-xs leading-relaxed text-muted-foreground">
+                  <Link2
+                    aria-hidden
+                    className="mt-0.5 h-4 w-4 shrink-0 text-sky"
+                  />
+                  {t('library.editor.imageGallery.shortPairHint')}
+                </p>
+              )}
+              <AnimationPairingNotice
+                units={animationPlan?.units ?? []}
+                selectedSceneIds={animationSelection}
+              />
+            </div>
+          )}
           {actions.errorKey && (
             <p
               role="alert"
@@ -199,7 +256,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           >
             <div
               className={cn(
-                'grid items-start gap-4',
+                'grid auto-rows-fr items-stretch gap-4',
                 videoFormat === '9:16'
                   ? 'grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
                   : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5',

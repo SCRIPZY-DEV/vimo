@@ -537,7 +537,7 @@
       "animationClipMissing": "O clipe desta cena não está mais no disco. Refaça a animação.",
       "animationSubmissionUnknown": "Não foi possível confirmar se o pedido foi aceito. O registro foi preservado para conferir a tarefa antes de uma nova cobrança.",
       "animationMediaInvalid": "O clipe precisa concluir a preparação local. Tente novamente para recuperá-lo sem encomendar outro vídeo.",
-      "animationPromptFailed": "Não foi possível escrever um prompt de movimento válido. Confira o roteiro e a descrição da imagem e tente novamente.",
+      "animationPromptFailed": "Não foi possível concluir um prompt de animação coerente após várias tentativas. Suas imagens e clipes foram preservados. Você pode tentar novamente.",
       "animationProjectBusy": "Este projeto tem outra operação em andamento. Aguarde a conclusão.",
       "animationRequestChanged": "Esta cena tem uma animação pendente. Recupere-a antes de encomendar outra versão.",
       "animationIncomplete": "O trecho da animação ainda tem clipes pendentes. Tente novamente para concluir ou recuperar as tarefas salvas.",
@@ -874,7 +874,12 @@
           "costUnknown": "Custo indisponível",
           "queued": "Na fila…",
           "waitingQuota": "Aguardando limite da Kie…",
-          "preparing": "Preparando animação…"
+          "preparing": "Preparando animação…",
+          "pairingTitle": "Cenas que serão animadas juntas",
+          "pairingGroup": "Cenas {{ids}} · {{seconds}} s",
+          "pairingAdditional_one": "A cena {{ids}} também será incluída, mesmo sem estar selecionada. Cada dupla gera um único clipe.",
+          "pairingAdditional_other": "As cenas {{ids}} também serão incluídas, mesmo sem estarem selecionadas. Cada dupla gera um único clipe.",
+          "pairingOnce": "Cada dupla gera um único clipe, mesmo quando as duas cenas estão selecionadas."
         }
       },
       "render": {
@@ -996,7 +1001,8 @@
         "noImageProvider": "Configure uma chave de imagens antes de regenerar.",
         "insufficientCredits": "O saldo disponível não é suficiente para esta seleção.",
         "animateRedoSelection": "Animar / refazer clipes",
-        "resumeSelection": "Retomar clipes"
+        "resumeSelection": "Retomar clipes",
+        "shortPairHint": "Cenas de 3 s: ao animar uma, a próxima cena compatível é incluída para criar um clipe de 6 s. As duplas aparecem aqui antes de começar. Sem dupla, apenas esse clipe é ajustado à sua duração."
       }
     },
     "errors": {

@@ -22,6 +22,7 @@ interface PendingGalleryClip {
 }
 
 interface GalleryAnimationPlan extends AnimationPlanPreview {
+  units: AnimationUnit[]
   sceneIds: number[]
   requestedSeconds: number
 }
@@ -102,6 +103,7 @@ export function galleryAnimationPlan(
       .map((clip) => clip.unit),
   ]
   const preview: GalleryAnimationPlan = {
+    units,
     sceneIds: [...new Set(units.flatMap((unit) => unit.sceneIds))],
     slotSeconds: units.reduce((sum, unit) => sum + unit.slotSeconds, 0),
     readyClips: replaced.map((clip) => clip.animation),
