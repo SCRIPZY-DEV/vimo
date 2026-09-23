@@ -305,6 +305,14 @@ export function stripIdMarker(text: string): string {
 }
 
 /**
+ * Motivo de contaminación por IDIOMA, con nombre propio: el redactor lo
+ * distingue de la deliberación filtrada porque NO lo cura la escalera — si
+ * la gema pide otro idioma, cada re-pedido vuelve igual y la culpa es de la
+ * gema, no del modelo (ver `LLM_PROMPT_LANGUAGE` en verbatim-writer).
+ */
+export const LANGUAGE_CONTAMINATION = 'the prompt did not come in English'
+
+/**
  * CONTAMINACIÓN de la respuesta entera: deliberación filtrada o idioma
  * equivocado. Cuando aparece en UN prompt, el lote COMPLETO es sospechoso —
  * la réplica que delibera lo hace en TODA la respuesta y puede haber roto la
@@ -315,8 +323,7 @@ export function stripIdMarker(text: string): string {
 export function responseContamination(prompt: string): string | undefined {
   if (REASONING_TRACES.some((trace) => trace.test(prompt)))
     return 'the model leaked its reasoning inside the prompt'
-  if (!ENGLISH_FUNCTION_WORDS.test(prompt))
-    return 'the prompt did not come in English'
+  if (!ENGLISH_FUNCTION_WORDS.test(prompt)) return LANGUAGE_CONTAMINATION
 
   return undefined
 }
