@@ -162,7 +162,8 @@ export const PROMPT_STAGE_STALL_MS = 2 * 60 * 1000
 export const PROMPT_STAGE_WATCHDOG_TICK_MS = 1000
 // Espejo de PROVIDER_TROUBLE_CODES del redactor verbatim (pipeline): los
 // códigos que delatan al modelo. `llm_network` no está a propósito (es la red
-// del usuario) ni `llm_auth` (es la clave: el job falla con su mensaje).
+// del usuario) ni `llm_auth` (es la clave: el job falla con su mensaje), ni
+// `llm_prompt_language` (es la gema: pide otro idioma, ver STYLE_GEM_ERROR_CODES).
 // `llm_rescue_needed` es el sintético del rescate.
 export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
   'llm_timeout',
@@ -178,6 +179,14 @@ export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
 export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
   'images_incomplete',
   'render_missing_images',
+])
+// Fallos cuya culpa es la GEMA del estilo, no el modelo (espejo de
+// LLM_PROMPT_LANGUAGE del redactor verbatim): el estilo pide los prompts en
+// otro idioma y los prompts de imagen salen siempre en inglés. No bloquean al
+// modelo una hora ni ofrecen cambiarlo — cambiar de modelo repite el fallo —;
+// el remedio es editar la gema.
+export const STYLE_GEM_ERROR_CODES: ReadonlySet<string> = new Set([
+  'llm_prompt_language',
 ])
 // Tras pedir cancelar, cuánto se espera el cierre del sidecar antes de dar
 // la tarea por terminada igual (red de seguridad, no el camino normal).
@@ -680,6 +689,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   catalog_prompt_pending_image: 'create.errors.catalogPromptPendingImage',
   llm_empty_response: 'create.errors.llmProviderError',
   llm_rescue_needed: 'create.errors.llmRescueNeeded',
+  llm_prompt_language: 'create.errors.llmPromptLanguage',
   llm_auth: 'create.errors.llmAuth',
   llm_insufficient_credits: 'create.errors.llmInsufficientCredits',
   // Imágenes

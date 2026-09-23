@@ -118,6 +118,26 @@ tres A/B con claves reales (`scripts/ab-scene-wardrobe.mjs`); apagada, cada prom
 vuelve a ser byte-idéntico al anterior.
 Ver [estado, tejido y protocolo del A/B](../handoff/2026-09-21-custom-style-scene-wardrobe/implementation.md).
 
+### Adenda 2026-09-22 — idioma de salida y el fallo `llm_prompt_language`
+
+Caso real (`test-12`): una gema en español que cerraba con «Escribe cada descripción en
+español» hacía que todos los modelos devolvieran los prompts en español; el parser los
+rechazaba de a lote entero, la escalera y el rescate repetían el mismo pedido (~22
+llamadas cobradas por 7 escenas) y el halt de ADR-0028 bloqueaba al modelo, que no tenía
+la culpa. Este carril nunca había pedido el inglés: solo lo pedían las muestras, vía
+`GLOBAL_RULES`. Entra por el mismo mecanismo de esta ADR: `OUTPUT_LANGUAGE_RULE` en el
+system después de la arquitectura, en los cuatro modos, y `FRAGMENTS_LANGUAGE_REMINDER`
+después de la línea de cierre portada del lote, detrás de
+`VERBATIM_OUTPUT_LANGUAGE_RULE`, encendida tras el A/B con claves reales
+(`scripts/ab-prompt-language.mjs`, 108 corridas): la gema que pide español pasa de 0/18
+a 18/18 corridas aceptadas en los seis modelos, y una gema en español que no pide idioma
+—que sin la regla fallaba 1 de 3 corridas en tres modelos— pasa a 18/18. Y una red
+de seguridad en el redactor: la contaminación por idioma es `PipelineFailure` con código
+`llm_prompt_language`, una ronda entera en otro idioma corta la corrida antes de la
+escalera y del rescate (dos pedidos, con lo ya cosechado persistido), el código no está
+en `PROVIDER_TROUBLE_CODES` y la UI pide editar la gema en vez de bloquear o cambiar el
+modelo. Ver [causa, corrección y QA](../fixes/2026-09-22-fix-verbatim-prompt-language/verbatim-prompt-language.md).
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por
