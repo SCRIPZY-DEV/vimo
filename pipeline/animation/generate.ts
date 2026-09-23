@@ -34,6 +34,7 @@ import { readTextWithRetry } from '../utils/atomic-fs.ts'
 import { limitConcurrency } from '../utils/concurrency.ts'
 import { requireFfmpegPath } from '../utils/ffmpeg.ts'
 import { isInsufficientCreditsFailure } from '../utils/insufficient-credits.ts'
+import { createProviderFailureReporter } from '../utils/provider-failure.ts'
 import { createCircuitBreaker } from './circuit-breaker.ts'
 import { sceneAnimationClipFile } from './clip-path.ts'
 import {
@@ -612,6 +613,7 @@ export async function generateSceneAnimations(
             )
             const written = await buildAnimationPrompt({
               llm,
+              onFailure: createProviderFailureReporter(context.emitter),
               script,
               previousPrompt: atomicReplacement
                 ? ready.find((record) => sameInterval(record.unit, unit))
