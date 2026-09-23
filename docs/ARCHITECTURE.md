@@ -403,7 +403,7 @@ sin escribir nada; pero de cada evento solo se sube una **allowlist de claves**
 clave útil para diagnosticar, sumala ahí — y nunca una que lleve contenido del
 usuario (guion, prompts, rutas).
 
-Dos reglas más para que el log sirva a soporte:
+Tres reglas más para que el log sirva a soporte:
 
 - **Toda fila lleva `project_name`.** `diagnostics/subject.rs` lo resuelve desde el
   subcomando y el payload: el proyecto (`projectId` / `projectIds`, o `name` en una
@@ -416,6 +416,11 @@ Dos reglas más para que el log sirva a soporte:
   de proveedor emite además `provider-failure` (`pipeline/utils/provider-failure.ts`)
   con `recovered: true`, para que un fallo que el pipeline absorbió no desaparezca del
   log de una ejecución `completed`.
+- **La revisión de soporte se marca en la fila.** El panel admin de vimo.click pone
+  `seen` / `seen_at` / `seen_by` en las ejecuciones `failed`, `crashed` y `cancelled`
+  (enmienda 2026-09-23 de la ADR-0038, `PATCH /api/admin/diagnosticos` con service
+  role). La app no lee ni escribe esas columnas y la marca se borra con la fila a los
+  30 días.
 
 ---
 
