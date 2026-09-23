@@ -32,15 +32,15 @@ resuelto en el servidor; columna «Sin revisar» combinada (sin desglose por tip
 
 ## Qué se hizo
 
-| Capa        | Archivos                                                                                                                                                                                                                                                                                                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase    | 3 columnas, check `diagnostic_logs_seen_consistente`, `alter policy` del insert (`and seen = false`), `notify pgrst` — SQL en la enmienda de la ADR y más abajo. Sin índice nuevo (ver decisiones).                                                                                                                                                                       |
-| Function    | `functions/api/admin/diagnosticos.ts` (`onRequestPatch`, filtro `?seen=`, cadena de degradación por columnas en los dos GET, `enmiendas_faltantes` en las respuestas), `functions/_lib/admin.ts` (CORS con PATCH)                                                                                                                                                         |
-| Lógica pura | `src/lib/diagnosticLogs.ts` (`STATUS_REVISABLES`, `esRevisable`, `parsearSeen`, `paramsMarcarVisto`, `cuerpoMarcarVisto`, `sin_revisar` en `agregarPorUsuario`, `CADENA_COLUMNAS_EJECUCION` / `CADENA_COLUMNAS_USUARIOS`, `esColumnaInexistente` con `PGRST204`)                                                                                                       |
-| Hooks       | `src/hooks/useDiagnosticLogs.ts` (`marcarVisto`, filtro `soloNoVistos`, `ajustarSinRevisar`, `actualizarCacheDetalle`, `enmiendasFaltantes` reemplaza a `esquemaIncompleto`)                                                                                                                                                                                             |
-| UI          | `diagnosticos/TarjetaEjecucion.tsx` (checkbox, atenuación, «Visto por … · hace …»), `diagnosticos/PanelEjecuciones.tsx` (chip, banners por enmienda), `diagnosticos/TablaUsuarios.tsx` (columna «Sin revisar»), `SeccionDiagnosticos.tsx` (ajuste del contador, banner), `src/utils/formato.ts` (`textoEnmiendaFaltante`)                                             |
-| Tests       | `src/test/diagnosticLogs.test.ts`, `src/test/SeccionDiagnosticos.test.tsx` (`simularApi` ahora responde PATCH; fixtures con `seen*`, `sin_revisar`, `enmiendas_faltantes`)                                                                                                                                                                                              |
-| Docs        | ADR-0038 (esquema, policy, runbook, consecuencias, verificación, enmienda 2026-09-23), ARCHITECTURE §4 «Logs de diagnóstico», este handoff                                                                                                                                                                                                                                 |
+| Capa        | Archivos                                                                                                                                                                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase    | 3 columnas, check `diagnostic_logs_seen_consistente`, `alter policy` del insert (`and seen = false`), `notify pgrst` — SQL en la enmienda de la ADR y más abajo. Sin índice nuevo (ver decisiones).                                                                                                                       |
+| Function    | `functions/api/admin/diagnosticos.ts` (`onRequestPatch`, filtro `?seen=`, cadena de degradación por columnas en los dos GET, `enmiendas_faltantes` en las respuestas), `functions/_lib/admin.ts` (CORS con PATCH)                                                                                                         |
+| Lógica pura | `src/lib/diagnosticLogs.ts` (`STATUS_REVISABLES`, `esRevisable`, `parsearSeen`, `paramsMarcarVisto`, `cuerpoMarcarVisto`, `sin_revisar` en `agregarPorUsuario`, `CADENA_COLUMNAS_EJECUCION` / `CADENA_COLUMNAS_USUARIOS`, `esColumnaInexistente` con `PGRST204`)                                                          |
+| Hooks       | `src/hooks/useDiagnosticLogs.ts` (`marcarVisto`, filtro `soloNoVistos`, `ajustarSinRevisar`, `actualizarCacheDetalle`, `enmiendasFaltantes` reemplaza a `esquemaIncompleto`)                                                                                                                                              |
+| UI          | `diagnosticos/TarjetaEjecucion.tsx` (checkbox, atenuación, «Visto por … · hace …»), `diagnosticos/PanelEjecuciones.tsx` (chip, banners por enmienda), `diagnosticos/TablaUsuarios.tsx` (columna «Sin revisar»), `SeccionDiagnosticos.tsx` (ajuste del contador, banner), `src/utils/formato.ts` (`textoEnmiendaFaltante`) |
+| Tests       | `src/test/diagnosticLogs.test.ts`, `src/test/SeccionDiagnosticos.test.tsx` (`simularApi` ahora responde PATCH; fixtures con `seen*`, `sin_revisar`, `enmiendas_faltantes`)                                                                                                                                                |
+| Docs        | ADR-0038 (esquema, policy, runbook, consecuencias, verificación, enmienda 2026-09-23), ARCHITECTURE §4 «Logs de diagnóstico», este handoff                                                                                                                                                                                |
 
 Decisiones que no estaban en el plan original o que conviene conocer:
 
@@ -114,8 +114,8 @@ navegador (requieren el SQL aplicado y `wrangler pages dev` con `.dev.vars`).
    ```
 
    Verificación: `select column_name, data_type, column_default from
-   information_schema.columns where table_name = 'diagnostic_logs' and column_name
-   like 'seen%';` → tres filas. `add constraint` no tiene `if not exists`: si se
+information_schema.columns where table_name = 'diagnostic_logs' and column_name
+like 'seen%';` → tres filas. `add constraint` no tiene `if not exists`: si se
    reejecuta el bloque, solo esa línea falla.
 
 2. Commit y PR de vimo-landing (`feat/checkbox-diagnostics` → `main`) y de vimo-portable
@@ -132,14 +132,14 @@ Con el SQL aplicado, `pnpm run build && pnpm dlx wrangler pages dev dist --port 
    checkbox «Visto»; una `completed` no.
 3. Marcar una → la tarjeta se atenúa, dice «Visto por <mi correo> · ahora» y «Sin
    revisar» baja 1. Recargar la página: persiste. En SQL: `select id, seen, seen_at,
-   seen_by from diagnostic_logs where id = '<uuid>'`.
+seen_by from diagnostic_logs where id = '<uuid>'`.
 4. Desmarcar → las tres columnas vuelven a `false / null / null`.
 5. Chip «Solo no vistos»: marcar una la atenúa pero no la saca; al cambiar de filtro
    desaparece. Esperar 15 s (polling): la marcada no vuelve a «no visto».
 6. Abrir la línea de tiempo de una fila marcada: carga desde caché, sin pedir el
    detalle de nuevo.
 7. `curl -i -X PATCH http://localhost:8788/api/admin/diagnosticos -H "Authorization:
-   Bearer $TOKEN" -H "Content-Type: application/json" -d '{"id":"<uuid>","seen":true}'`
+Bearer $TOKEN" -H "Content-Type: application/json" -d '{"id":"<uuid>","seen":true}'`
    → 200 con `item`; `"id":"nope"` → 400 `id-invalido`; `"seen":"si"` → 400
    `seen-invalido`; uuid inexistente → 404; sin Authorization → 401.
 8. Policy: con un JWT de usuario normal, `insert` con `seen: true` → rechazado;

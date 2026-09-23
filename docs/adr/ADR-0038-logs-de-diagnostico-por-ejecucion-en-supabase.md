@@ -373,6 +373,6 @@ listado de un usuario con `seen = false` ya usa `diagnostic_logs_email_created_i
   usuario expone `sin_revisar` y el listado acepta `?seen=false`.
 - La marca es **efímera**: se borra con la fila a los 30 días. No es auditoría.
 - Rollback: `alter policy … with check (user_id = auth.uid() and user_email =
-  lower(auth.jwt() ->> 'email'))`, `drop constraint diagnostic_logs_seen_consistente`,
+lower(auth.jwt() ->> 'email'))`, `drop constraint diagnostic_logs_seen_consistente`,
   `drop column seen_by, seen_at, seen` y `notify pgrst, 'reload schema'`.
 - Handoff: `docs/handoff/2026-09-23-diagnostic-logs-seen/implementation.md`.
