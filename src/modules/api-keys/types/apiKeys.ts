@@ -27,6 +27,8 @@ export interface ApiKeyStatus {
 export interface ValidationResult {
   ok: boolean
   code: ApiKeyErrorCode | null
+  /** Saldo leído al validar (Kie.ai y PoYo); null si el proveedor no lo da. */
+  credits: number | null
 }
 
 /** Intento local: una respuesta anterior no puede validar otra edición. */

@@ -7,12 +7,11 @@ import {
   projectsRootOf,
   resolveProjectDir,
   resolveProjectPaths,
-  sceneImageFile,
 } from '../../project/paths.ts'
 import { readScenes } from '../../project/scenes-file.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
-import type { RenderScene } from '../../stages/render/chunk-renderer.ts'
+import { collectRenderScenes } from '../../stages/render/animated-scenes.ts'
 import { renderSceneClips } from '../../stages/render/scene-clips.ts'
 import { frameSizeFor, videoFormatOf } from '../../types/video-format.ts'
 import type {
@@ -58,21 +57,14 @@ export async function exportClips(
       'the project has no scenes with timestamps',
     )
 
-  const renderScenes: RenderScene[] = []
-  const missingImages: number[] = []
-  for (const scene of timedScenes) {
-    const imagePath = sceneImageFile(paths, scene.id)
-    if (!(await isValidFile(imagePath))) {
-      missingImages.push(scene.id)
-      continue
-    }
-    renderScenes.push({
-      id: scene.id,
-      imagePath,
-      startSeconds: scene.startSeconds!,
-      endSeconds: scene.endSeconds!,
-    })
-  }
+  // Las escenas animadas (ADR-0040) salen como su clip normalizado al tramo,
+  // igual que en el render final: lo exportado coincide 1:1 con el video.
+  const { renderScenes, missingImages } = await collectRenderScenes(
+    paths,
+    ffmpegPath,
+    timedScenes,
+    (message) => context.emitter.emit({ type: 'log', level: 'warn', message }),
+  )
   if (missingImages.length > 0)
     throw new PipelineFailure(
       'clips_no_images',

@@ -5,6 +5,8 @@ import {
   resolveProjectPaths,
 } from '../../project/paths.ts'
 import { readProjectMetadata } from '../../project/metadata.ts'
+import { effectiveAnimationMinutes } from '../../animation/scope.ts'
+import { planPrefixSceneWindows } from '../../animation/prefix-scenes.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { TranscriptWord } from '../../types/scenes.ts'
@@ -55,8 +57,20 @@ export async function previewSceneCuts(
   const audioDurationSeconds =
     metadata.audioDurationSeconds ?? words[words.length - 1].end
 
+  const animationMinutes = effectiveAnimationMinutes(
+    metadata.options,
+    audioDurationSeconds,
+  )
+
   return {
-    sceneCount: cutScenesBySeconds(words, seconds, audioDurationSeconds).length,
+    sceneCount:
+      animationMinutes > 0
+        ? planPrefixSceneWindows({
+            totalSeconds: audioDurationSeconds,
+            minutes: animationMinutes,
+            secondsPerScene: seconds,
+          }).length
+        : cutScenesBySeconds(words, seconds, audioDurationSeconds).length,
     audioDurationSeconds,
   }
 }

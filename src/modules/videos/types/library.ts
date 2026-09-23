@@ -1,3 +1,4 @@
+import type { SceneAnimationReviewOutcome } from '@/modules/videos/types/sceneImageReview'
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { RenderPhase } from '@pipeline/runner/events.ts'
@@ -6,6 +7,13 @@ import type {
   SetProjectMusicPayload,
   UpdateAudioMixPayload,
 } from '@pipeline/types/video-project.ts'
+import type {
+  AnimationRejection,
+  SceneAnimationView,
+  VideoCreditsResult,
+} from '@pipeline/types/animation.ts'
+import type { AnimationUnit } from '@pipeline/animation/planner.ts'
+import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 
 // Tipos de las vistas de biblioteca (Library, Player, Progress, Editor).
 
@@ -77,11 +85,100 @@ export interface EditorExportState {
   percent: number
 }
 
+// Estado transitorio de la animación de una escena mientras corre el job
+// (ADR-0040); lo persistido lo trae el detail en `scene.animation`.
+export type SceneAnimationActivity = 'generating' | 'ok' | 'error'
+
+// Por qué falló el clip de una escena: el mensaje traducido y el motivo
+// técnico crudo del proveedor, que el modal muestra tal cual. `retryable`
+// es false cuando repetir el pedido repite el rechazo (moderación, escena
+// sin imagen, marcas que el planificador no puede convertir en clip).
+export interface SceneAnimationFailure {
+  sceneId: number
+  key: string
+  detail?: string
+  retryable: boolean
+}
+
+// Avance de un clip en curso (ADR-0040). PoYo informa porcentaje real; Kie
+// no, y la UI lo simula desde `startedAt` con la duración típica de un clip.
+// Viaja bajo cada escena que el clip cubre; `leadId` es la que lo encabeza.
+export interface SceneAnimationProgress {
+  leadId: number
+  startedAt: number
+  reportedPercent: number | null
+  phase?: 'queued' | 'preparing' | 'rate-limited' | 'generating'
+  animationId?: string
+  startSeconds?: number
+  endSeconds?: number
+}
+
+// Lo que el planificador haría con la escena seleccionada si se animara
+// ahora (ADR-0041): la unidad (qué escenas absorbe, cuánto mide el hueco) o
+// el motivo del rechazo. Sale del mismo planificador puro que usa el sidecar.
+export interface AnimationPlanPreview {
+  sceneIds?: number[]
+  slotSeconds?: number
+  readyClips?: SceneAnimationView[]
+  unit?: AnimationUnit
+  rejection?: AnimationRejection
+  requestedSeconds?: number
+  canResumeTask?: boolean
+  canRecoverLocally?: boolean
+}
+
+// Todo lo que el panel de la escena necesita para animarla (ADR-0040): lo
+// arma la vista y viaja como un solo objeto para no inflar las props.
+export interface SceneAnimationControls {
+  busy?: boolean
+  provider: VideoProviderId
+  configuredProviders: ReadonlySet<string>
+  credits: VideoCreditsResult | null
+  creditsLoading: boolean
+  creditsRefreshing: boolean
+  onRefreshCredits(): void
+  // Estado transitorio del job, avance del clip y último fallo de ESTA escena.
+  activity: SceneAnimationActivity | undefined
+  progress: SceneAnimationProgress | undefined
+  error: SceneAnimationFailure | undefined
+  // Qué haría el planificador con esta escena (undefined = sin tiempos).
+  plan: AnimationPlanPreview | undefined
+  onAnimate(): void
+}
+
+// El job de animación terminó con escenas sin clip: abre el modal de fallo.
+export interface AnimationFailureNotice {
+  provider: VideoProviderId
+  failures: SceneAnimationFailure[]
+}
+
+export interface EditorAnimationRequest {
+  onReviewFinished?: (outcome: SceneAnimationReviewOutcome) => void
+  readySceneIds?: number[]
+  id: string
+  jobId: string | null
+  sceneIds: number[]
+  provider: VideoProviderId
+  force: boolean
+  minutes?: number
+  retryFailed?: boolean
+  started: boolean
+  cancelled?: boolean
+}
+
+export interface EditorAnimationState {
+  jobId: string | null
+  sceneIds: number[]
+  provider: VideoProviderId
+}
+
 // Estado del editor de UN proyecto: vive fuera de React (los jobs siguen al
 // navegar) y NO se persiste — un job muere con la app y el detail refetchea
 // la verdad del disco al volver.
 export interface LibraryEditorTask {
   projectId: string
+  // Reserva breve durante el guardado de descripciones anterior al encolado.
+  savingScenes: boolean
   regenQueue: RegenQueueEntry[]
   activeRegen: { jobId: string | null; sceneIds: number[] } | null
   // Override transitorio del proveedor para el próximo lote de regen.
@@ -95,9 +192,28 @@ export interface LibraryEditorTask {
   sceneVersions: Record<number, number>
   render: EditorRenderState | null
   export: EditorExportState | null
+  // Job de animación en curso (ADR-0040); exclusión con regen/render/export.
+  animation: EditorAnimationState | null
+  // Proveedor de animación elegido en el editor; null = el del proyecto (o
+  // el primero con clave). Se persiste en project.json al animar.
+  pendingVideoProvider: VideoProviderId | null
+  // Estado transitorio de la animación por escena (encabezado del clip).
+  sceneAnimationStatus: Record<number, SceneAnimationActivity>
+  // Avance del clip en curso, bajo cada escena que cubre; se borra al
+  // terminar (bien o mal) esa unidad.
+  sceneAnimationProgress: Record<number, SceneAnimationProgress>
+  // Último fallo de animación por escena: sobrevive al cierre del job y se
+  // borra al reintentar esa escena.
+  sceneAnimationErrors: Record<number, SceneAnimationFailure>
+  // Fallos del último job de animación, para el modal; null = nada que
+  // mostrar (o ya se cerró).
+  animationFailure: AnimationFailureNotice | null
   // Reemplazo de narración / música en curso (exclusión con regen/render).
   audioBusy: boolean
   errorKey: string | null
+  // Código crudo del último fallo de job: con uno de saldo agotado la vista
+  // muestra la alerta de la cuenta que rechazó (ADR-0031).
+  errorCode: string | null
   // Sube al cerrar cada job: la vista invalida sus queries al verlo cambiar.
   revision: number
 }

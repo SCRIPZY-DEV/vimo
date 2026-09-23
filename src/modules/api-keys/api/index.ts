@@ -54,7 +54,7 @@ export const apiKeysApi = {
   // Página de recarga del proveedor (aviso de saldo insuficiente, ADR-0031).
   async openBillingPage(providerId: string): Promise<void> {
     const provider = API_KEY_PROVIDERS.find((entry) => entry.id === providerId)
-    if (!provider) return
+    if (!provider || provider.hidden) return
     return this.openProviderPage(provider.billingUrl)
   },
   errorMessageKey(error: unknown): string {

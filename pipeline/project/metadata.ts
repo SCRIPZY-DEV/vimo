@@ -1,6 +1,6 @@
 import { PipelineFailure } from '../runner/failure.ts'
 import type { VideoProjectMetadata } from '../types/video-project.ts'
-import { readTextWithRetry, writeFileAtomic } from '../utils/atomic-fs.ts'
+import { readTextWithRetry, writeFileAtomicStrict } from '../utils/atomic-fs.ts'
 import { isValidFile, type ProjectPaths } from './paths.ts'
 
 // Lectura/escritura de project.json. La metadata es la fuente de verdad del
@@ -34,7 +34,7 @@ export async function writeProjectMetadata(
   metadata: VideoProjectMetadata,
 ): Promise<void> {
   metadata.updatedAt = new Date().toISOString()
-  await writeFileAtomic(
+  await writeFileAtomicStrict(
     paths.metadataFile,
     `${JSON.stringify(metadata, null, 2)}\n`,
   )
@@ -50,6 +50,8 @@ export async function markVideoOutdated(
   if (metadata.videoOutdated) return
   if (!(await isValidFile(paths.videoFile))) return
 
+  const next = { ...metadata, videoOutdated: true }
+  await writeProjectMetadata(paths, next)
   metadata.videoOutdated = true
-  await writeProjectMetadata(paths, metadata)
+  metadata.updatedAt = next.updatedAt
 }

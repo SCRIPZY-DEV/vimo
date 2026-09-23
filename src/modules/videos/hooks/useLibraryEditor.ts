@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
@@ -6,11 +6,13 @@ import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import {
   DEFAULT_IMAGE_CHOICE,
+  MAX_USER_PROMPT_CHARS,
   videosQueryKeys,
 } from '@/modules/videos/constants'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
+import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
 import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type {
@@ -18,13 +20,19 @@ import type {
   RegenQueueEntry,
   SceneImageChoice,
 } from '@/modules/videos/types/library'
+import type {
+  GalleryImageRequest,
+  GallerySceneUpdate,
+} from '@/modules/videos/types/galleryActions'
 import type { SceneChange } from '@pipeline/types/video-project.ts'
 import type {
   SceneDetail,
+  VideoProjectDetailResult,
   VideoProjectOptions,
 } from '@pipeline/types/video-project.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
+import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 
 // Núcleo del editor: el detail del disco + una copia de trabajo local de las
 // escenas (drag del timeline y textareas editan la copia; el commit persiste
@@ -37,10 +45,25 @@ export function useLibraryEditor(projectId: string) {
   const editorTask = useLibraryEditorTask(projectId)
   const { configuredProviders } = useRequiredApiKeys()
 
+  const gallerySubmission = useRef(false)
+  const pendingSceneUpdates = useRef(new Map<string, number>())
+  const currentProject = useRef<string | null>(projectId)
+  useLayoutEffect(() => {
+    currentProject.current = projectId
+    return () => {
+      currentProject.current = null
+    }
+  }, [projectId])
+
   // ── Copia de trabajo ──
 
   const [workingScenes, setWorkingScenes] = useState<SceneDetail[]>([])
   const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null)
+  // La intención de reescribir no desaparece cuando el blur guarda el texto.
+  // La clave incluye el proyecto para no transferir ediciones entre rutas.
+  const [promptRewrites, setPromptRewrites] = useState<Record<string, string>>(
+    {},
+  )
   const [syncedScenes, setSyncedScenes] = useState<SceneDetail[] | undefined>(
     undefined,
   )
@@ -91,37 +114,58 @@ export function useLibraryEditor(projectId: string) {
   }, [revision, projectId, queryClient])
 
   const commitMutation = useMutation({
-    mutationFn: (changes: SceneChange[]) => {
-      return videosApi.updateScenes(projectId, changes)
+    mutationFn: ({
+      projectId: targetProjectId,
+      changes,
+    }: GallerySceneUpdate) => {
+      return videosApi.updateScenes(targetProjectId, changes)
     },
-    onError: (error, changes) => {
+    onMutate: (variables) => {
+      const count = pendingSceneUpdates.current.get(variables.projectId) ?? 0
+      pendingSceneUpdates.current.set(variables.projectId, count + 1)
+    },
+    onError: (error, variables) => {
       // Si el disco no cambió, Query conserva la misma referencia y el
-      // resync de render no corre. Revertir explícitamente las casillas.
-      for (const change of changes) {
-        if (change.charactersPresent === undefined) continue
-        const stored = detail?.scenes.find((scene) => scene.id === change.id)
-        patchWorkingScene(change.id, {
-          charactersPresent: stored?.charactersPresent ?? [],
-        })
+      // resync de render no corre. Revertir las casillas del proyecto que
+      // inició la escritura, sin tocar el editor de una ruta posterior.
+      if (currentProject.current === variables.projectId) {
+        const storedDetail = queryClient.getQueryData<VideoProjectDetailResult>(
+          videosQueryKeys.projectDetail(variables.projectId),
+        )
+        for (const change of variables.changes) {
+          if (change.charactersPresent === undefined) continue
+          const stored = storedDetail?.scenes.find(
+            (scene) => scene.id === change.id,
+          )
+          patchWorkingScene(change.id, {
+            charactersPresent: stored?.charactersPresent ?? [],
+          })
+        }
       }
       toast({
         description: t(videosApi.errorMessageKey(error)),
         variant: 'destructive',
       })
     },
-    onSettled: () => {
-      // El panel se libera con la selección confirmada por disco, también
-      // ante fallo: no hay una ventana clickeable con el optimista viejo.
-      return queryClient.invalidateQueries({
-        queryKey: videosQueryKeys.projectDetail(projectId),
-      })
+    onSettled: async (_result, _error, variables) => {
+      // La reserva y el panel siguen bloqueados hasta reconciliar con disco,
+      // también ante fallo. La ruta de destino viene de la mutación.
+      try {
+        await queryClient.invalidateQueries({
+          queryKey: videosQueryKeys.projectDetail(variables.projectId),
+        })
+      } finally {
+        const count = pendingSceneUpdates.current.get(variables.projectId) ?? 1
+        if (count <= 1) pendingSceneUpdates.current.delete(variables.projectId)
+        else pendingSceneUpdates.current.set(variables.projectId, count - 1)
+      }
     },
   })
 
   // Persiste por lote vía update-scenes.
   const commitScenes = (changes: SceneChange[]) => {
-    if (changes.length === 0) return
-    commitMutation.mutate(changes)
+    if (changes.length === 0 || gallerySubmission.current) return
+    commitMutation.mutate({ projectId, changes })
   }
 
   // Aplica a la copia de trabajo y persiste el mismo cambio.
@@ -139,12 +183,13 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     if (changes.length > 0) {
       try {
-        await commitMutation.mutateAsync(changes)
+        await commitMutation.mutateAsync({ projectId, changes })
       } catch {
-        return
+        return false
       }
     }
     editorTask.enqueueRegen(projectId, entries)
+    return true
   }
 
   // ── Escena seleccionada ──
@@ -156,10 +201,14 @@ export function useLibraryEditor(projectId: string) {
     selectedScene,
   )
 
-  // Descripción editada y todavía no guardada en disco.
-  const userPromptDirty =
+  // Guardar una descripción y usarla para rehacer la imagen son decisiones
+  // distintas: el blur solo satisface la primera.
+  const selectedPromptKey = `${projectId}:${selectedSceneId}`
+  const userPromptUnsaved =
     selectedScene !== null &&
     userPromptOf(selectedScene) !== userPromptOf(storedSelectedScene)
+  const userPromptDirty =
+    userPromptUnsaved || promptRewrites[selectedPromptKey] !== undefined
 
   // Descripción que el imagePrompt vigente todavía no refleja: el borrador sin
   // guardar, o una ya guardada que el sidecar marca como pendiente. Guardarla
@@ -168,12 +217,17 @@ export function useLibraryEditor(projectId: string) {
     userPromptDirty || storedSelectedScene?.userPromptPending === true
 
   const patchSelectedUserPrompt = (userPrompt: string) => {
-    if (selectedScene) patchWorkingScene(selectedScene.id, { userPrompt })
+    if (!selectedScene) return
+    setPromptRewrites((current) => ({
+      ...current,
+      [selectedPromptKey]: userPrompt,
+    }))
+    patchWorkingScene(selectedScene.id, { userPrompt })
   }
 
   // Blur de la textarea: la descripción sobrevive a salir del editor.
   const commitSelectedUserPrompt = () => {
-    if (!selectedScene || !userPromptDirty) return
+    if (!selectedScene || !userPromptUnsaved) return
     commitScenes([
       { id: selectedScene.id, userPrompt: userPromptOf(selectedScene) },
     ])
@@ -193,14 +247,119 @@ export function useLibraryEditor(projectId: string) {
 
   // Con descripción pendiente se reescribe el prompt (guardándola antes si
   // es un borrador); si no, un re-roll con el prompt vigente.
-  const regenerateSelected = () => {
-    if (!selectedScene || commitMutation.isPending) return
-    const changes: SceneChange[] = userPromptDirty
+  const regenerateSelected = async () => {
+    if (!selectedScene || commitMutation.isPending || gallerySubmission.current)
+      return false
+    const changes: SceneChange[] = userPromptUnsaved
       ? [{ id: selectedScene.id, userPrompt: userPromptOf(selectedScene) }]
       : []
-    void commitAndRegenerate(changes, [
+    const submittedPrompt = promptRewrites[selectedPromptKey]
+    const queued = await commitAndRegenerate(changes, [
       { id: selectedScene.id, rewritePrompt: userPromptPending },
     ])
+    if (!queued || submittedPrompt === undefined) return queued
+    setPromptRewrites((current) => {
+      if (current[selectedPromptKey] !== submittedPrompt) return current
+      const next = { ...current }
+      delete next[selectedPromptKey]
+      return next
+    })
+    return true
+  }
+
+  // Galería: un guardado por lote antes de encolar; vacío conserva la
+  // descripción guardada. El sidecar aplica cualquier cambio pendiente,
+  // incluida una eliminación, antes de decidir si reutiliza el imagePrompt.
+  const regenerateGalleryImages = async (requests: GalleryImageRequest[]) => {
+    if (
+      gallerySubmission.current ||
+      (pendingSceneUpdates.current.get(projectId) ?? 0) > 0 ||
+      editorTask.isProjectBusy(projectId)
+    )
+      return false
+    const unique = [
+      ...new Map(requests.map((entry) => [entry.id, entry])).values(),
+    ]
+    if (
+      unique.length === 0 ||
+      unique.some(
+        (entry) =>
+          !workingScenes.some((scene) => scene.id === entry.id) ||
+          entry.description.length > MAX_USER_PROMPT_CHARS,
+      )
+    )
+      return false
+
+    if (!editorTask.beginSceneEdit(projectId)) return false
+    gallerySubmission.current = true
+    const changes = unique.flatMap((entry) => {
+      const userPrompt = entry.description.trim()
+      return userPrompt ? [{ id: entry.id, userPrompt }] : []
+    })
+    const previousPrompts = new Map(
+      workingScenes.map((scene) => [scene.id, userPromptOf(scene)]),
+    )
+    try {
+      if (changes.length > 0)
+        await commitMutation.mutateAsync({ projectId, changes })
+      // Cerrar la galería no cancela la operación. Cambiar de proyecto tampoco
+      // debe escribir los borradores en el editor de destino.
+      if (currentProject.current === projectId) {
+        setWorkingScenes((current) =>
+          current.map((scene) => {
+            const change = changes.find((entry) => entry.id === scene.id)
+            if (
+              !change ||
+              userPromptOf(scene) !== previousPrompts.get(scene.id)
+            )
+              return scene
+            return { ...scene, userPrompt: change.userPrompt }
+          }),
+        )
+        setPromptRewrites((current) => {
+          const next = { ...current }
+          for (const change of changes) {
+            const key = `${projectId}:${change.id}`
+            if (current[key] === previousPrompts.get(change.id))
+              delete next[key]
+          }
+          return next
+        })
+      }
+      editorTask.enqueueRegen(
+        projectId,
+        unique.map((entry) => ({
+          id: entry.id,
+          rewritePrompt: entry.description.trim().length > 0,
+        })),
+      )
+      return true
+    } catch {
+      // La mutación ya muestra el error; los inputs se conservan para reintentar.
+      return false
+    } finally {
+      gallerySubmission.current = false
+      editorTask.endSceneEdit(projectId)
+    }
+  }
+
+  // ── Animación de la escena seleccionada (ADR-0040) ──
+
+  const videoProvider: VideoProviderId = 'kie'
+
+  // Sobre una escena ya animada es «rehacer» (se paga otro clip); sobre una
+  // absorbida se rehace el clip de la que encabeza; si no, es un clip nuevo.
+  const animateSelected = () => {
+    if (!selectedScene) return
+    const leadId = selectedScene.absorbedBy ?? selectedScene.id
+    void editorTask.startAnimation(projectId, [leadId], videoProvider, true)
+  }
+
+  // Reintentar autoriza otro presupuesto solo tras fallos terminales. El
+  // backend cosecha siempre primero las tareas existentes aunque force=true.
+  const retryAnimation = (sceneIds: number[]) => {
+    if (sceneIds.length === 0) return
+    void editorTask.startAnimation(projectId, sceneIds, videoProvider, true)
   }
 
   // ── Fronteras del timeline ──
@@ -211,6 +370,11 @@ export function useLibraryEditor(projectId: string) {
     rightId: number,
     boundarySeconds: number,
   ) => {
+    if (
+      editorTask.isProjectBusy(projectId) ||
+      animationTimingLocked(workingScenes, [leftId, rightId])
+    )
+      return
     patchWorkingScene(leftId, { endSeconds: boundarySeconds })
     patchWorkingScene(rightId, { startSeconds: boundarySeconds })
   }
@@ -226,6 +390,11 @@ export function useLibraryEditor(projectId: string) {
     rightId: number,
     boundarySeconds: number,
   ) => {
+    if (
+      editorTask.isProjectBusy(projectId) ||
+      animationTimingLocked(workingScenes, [leftId, rightId])
+    )
+      return
     commitScenes([
       { id: leftId, endSeconds: boundarySeconds },
       { id: rightId, startSeconds: boundarySeconds },
@@ -239,9 +408,22 @@ export function useLibraryEditor(projectId: string) {
   const selectedIndex = workingScenes.findIndex(
     (scene) => scene.id === selectedSceneId,
   )
-  const canEditClipIn = selectedIndex > 0
+  const timingBusy = editorTask.isProjectBusy(projectId)
+  const canEditClipIn =
+    selectedIndex > 0 &&
+    !timingBusy &&
+    !animationTimingLocked(workingScenes, [
+      workingScenes[selectedIndex - 1].id,
+      workingScenes[selectedIndex].id,
+    ])
   const canEditClipOut =
-    selectedIndex >= 0 && selectedIndex < workingScenes.length - 1
+    selectedIndex >= 0 &&
+    selectedIndex < workingScenes.length - 1 &&
+    !timingBusy &&
+    !animationTimingLocked(workingScenes, [
+      workingScenes[selectedIndex].id,
+      workingScenes[selectedIndex + 1].id,
+    ])
 
   // Mueve la frontera del lado pedido de la escena seleccionada, acotada
   // como el drag del timeline, y la persiste por el mismo camino.
@@ -277,6 +459,11 @@ export function useLibraryEditor(projectId: string) {
     changeCharacters,
     savingChanges: commitMutation.isPending,
     regenerateSelected,
+    regenerateGalleryImages,
+    videoProvider,
+    configuredProviders,
+    animateSelected,
+    retryAnimation,
     dragBoundary,
     commitBoundary,
     canEditClipIn,

@@ -51,7 +51,7 @@ export function useApiKeyActions(providerId: ApiKeyProviderId) {
     },
     onError: (error, attempt) => {
       if (attempt.revision !== validationRevision.current) return
-      setValidation({ ok: false, code: null })
+      setValidation({ ok: false, code: null, credits: null })
       setValidatedKey(null)
       setSaveErrorKey(apiKeysApi.errorMessageKey(error))
     },

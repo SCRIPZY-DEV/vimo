@@ -2,6 +2,7 @@ import {
   markVideoOutdated,
   readProjectMetadata,
 } from '../../project/metadata.ts'
+import { sceneAnimationBlocks } from '../../animation/scene-blocks.ts'
 import {
   projectsRootOf,
   resolveProjectDir,
@@ -21,7 +22,7 @@ import type {
 // de 1). Un solo read-modify-write para todo el lote — el drag de fronteras
 // del timeline manda las dos escenas afectadas juntas y jamás se pisan.
 // `videoOutdated` se marca SOLO si algún cambio altera en valor un campo que
-// afecta el render (startSeconds/endSeconds): tocar el selector de calidad o
+// afecta el render (tiempos o fundido): tocar el selector de calidad o
 // los personajes sin regenerar no deja el mp4 atrás de nada.
 
 // Cap del prompt manual (espejado en la UI, port de MAX_CHARS_PROMPT_USUARIO:
@@ -32,7 +33,7 @@ export const MAX_USER_PROMPT_CHARS = 2500
 // Campos de una escena que cambian el mp4 renderizado (el manifest de chunks
 // se deriva de imagen + duración). Prompt/modelo/calidad/personajes solo
 // afectan a la PRÓXIMA regeneración, que marca el flag por su cuenta.
-const RENDER_AFFECTING_FIELDS = ['startSeconds', 'endSeconds'] as const
+const TIMING_FIELDS = ['startSeconds', 'endSeconds'] as const
 
 export async function updateScenes(
   context: PipelineContext,
@@ -72,7 +73,24 @@ export async function updateScenes(
         'invalid_payload',
         `scene ${change.id} does not exist`,
       )
-    if (hasRenderAffectingChange(scene, change)) renderAffected = true
+    if (hasTimingChange(scene, change)) {
+      const protectedTiming = scenes.some((item) =>
+        [...sceneAnimationBlocks(item), ...(item.animationPending ?? [])].some(
+          (animation) => animation.sceneIds.includes(scene.id),
+        ),
+      )
+      if (protectedTiming)
+        throw new PipelineFailure(
+          'animation_timing_locked',
+          'Animation intervals cannot move while clips or generation receipts depend on them',
+        )
+      renderAffected = true
+    }
+    if (
+      change.staticTransitionIn !== undefined &&
+      (scene.staticTransitionIn === true) !== change.staticTransitionIn
+    )
+      renderAffected = true
     const next = applyChange(scene, change)
     // La presencia forma parte del prompt de Mi estilo, no solo de las fotos.
     // Invalidar el texto obliga a reescribirlo en la PRÓXIMA regeneración;
@@ -105,8 +123,8 @@ export async function updateScenes(
 }
 
 // ¿El cambio altera en valor algún campo del que depende el render?
-function hasRenderAffectingChange(scene: Scene, change: SceneChange): boolean {
-  for (const field of RENDER_AFFECTING_FIELDS) {
+function hasTimingChange(scene: Scene, change: SceneChange): boolean {
+  for (const field of TIMING_FIELDS) {
     const next = change[field]
     if (next === undefined) continue
     if (!secondsEqual(scene[field], next)) return true
@@ -123,6 +141,14 @@ function secondsEqual(stored: number | undefined, next: number): boolean {
 }
 
 function assertValidChange(change: SceneChange): void {
+  if (
+    change?.staticTransitionIn !== undefined &&
+    typeof change.staticTransitionIn !== 'boolean'
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'staticTransitionIn must be a boolean',
+    )
   if (typeof change?.id !== 'number')
     throw new PipelineFailure('invalid_payload', 'every change needs an id')
   if (
@@ -149,6 +175,8 @@ function applyChange(scene: Scene, change: SceneChange): Scene {
   const next = { ...scene }
   if (change.startSeconds !== undefined) next.startSeconds = change.startSeconds
   if (change.endSeconds !== undefined) next.endSeconds = change.endSeconds
+  if (change.staticTransitionIn !== undefined)
+    next.staticTransitionIn = change.staticTransitionIn
   if (change.imagePrompt !== undefined) next.imagePrompt = change.imagePrompt
   if (change.imageModel !== undefined) next.imageModel = change.imageModel
   if (change.imageQuality !== undefined) next.imageQuality = change.imageQuality

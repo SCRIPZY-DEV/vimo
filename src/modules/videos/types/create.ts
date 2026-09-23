@@ -101,6 +101,7 @@ export interface SceneConfirmationView {
   // Presente solo en el carril de segundos (estilo propio): el diálogo pasa
   // a modo slider con este valor vigente.
   secondsPerScene?: number
+  animationMinutes?: number
 }
 
 // Lo que el usuario confirmó en el diálogo: el conteo clásico, o los
@@ -111,7 +112,11 @@ export type SceneCutChoice =
 // Escena tal como la ve la pantalla de progreso: la del contrato más el
 // avance de su imagen mientras se genera (scene-image-progress; solo
 // Evolink lo informa).
-export type SceneView = SceneSummary & { imageProgress?: number }
+export type SceneView = SceneSummary & {
+  imageProgress?: number
+  animationActivity?: 'generating' | 'ready' | 'error'
+  animationLeadId?: number
+}
 
 // Una generación de video de punta a punta. Vive fuera de React (módulo
 // store) porque el layout desmonta la vista al navegar y el job sigue
@@ -256,6 +261,10 @@ export interface CreateFormValue {
   // Duración de cada escena en segundos (solo viaja con estilo propio). Se
   // siembra con la preferencia de Ajustes.
   secondsPerScene: number
+  // Activa la animación del inicio del video; la selección técnica es interna.
+  animateScenes: boolean
+  animateWholeVideo: boolean
+  animationMinutes: number
   imageProvider: ImageProviderId
   imageQuality: string
   voice: SelectedVoice | null
@@ -304,6 +313,7 @@ export interface FormBlockersContext {
   // El fijo de la gema ya no está en la biblioteca (lo resuelve
   // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).
   fixedCharacterMissing?: boolean
+  animationKeyMissing?: boolean
 }
 
 // Cómo se arma el payload de create-video-project desde el formulario.

@@ -13,7 +13,17 @@ export const TOOLTIP_DELAY_MS = 300
 export const commonQueryKeys = {
   promptModels: ['common', 'promptModels'],
   imageCredits: ['common', 'imageCredits'],
+  videoCredits: ['common', 'videoCredits'],
 } as const
+
+// Bloqueo temporal de un proveedor de animación que el sidecar dio por caído
+// (evento animation-provider-trouble, ADR-0040). Mismo criterio que los
+// modelos de prompts: estado transitorio con vencimiento en localStorage,
+// no una preferencia. Más corto que el de los modelos porque ningún
+// proveedor publica cuándo vuelve y probar de nuevo cuesta un solo encargo.
+export const ANIMATION_PROVIDER_BLOCKS_STORAGE_KEY =
+  'vimo:animationProviderBlocks:v1'
+export const ANIMATION_PROVIDER_BLOCK_DURATION_MS = 30 * 60 * 1000
 
 // Bloqueo temporal de un modelo de prompts que se trabó o falló (carril
 // verbatim). Vive en localStorage y no en settings.json: es estado transitorio
@@ -37,6 +47,7 @@ export const NOT_CONFIGURED_CREDITS_CODES: ReadonlySet<string> = new Set([
   'missing_api_key',
   'fal_admin_key_required',
   'music_invalid_api_key',
+  'animation_invalid_api_key',
 ])
 
 // Proveedores de voces (ADR-0024). Etiquetas de marca: no se traducen.

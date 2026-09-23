@@ -12,6 +12,7 @@ import { PipelineFailure } from '../runner/failure.ts'
 // ├── words.json  scenes.json  scenes-confirmed.json  visual-context.txt
 // ├── subtitles.ass          (derivado de scenes.json; solo si options.subtitles)
 // ├── scenes/scene_<id>.jpg      characters/reference_N.jpg
+// ├── animations/scene_<id>.mp4  (clip de la escena que encabeza, ADR-0040)
 // ├── cache/chunks/              prompts.md
 // ├── clips/clip_NN.mp4          (export para editar; regenerable, ADR-0014)
 // └── <slug>.mp4
@@ -42,6 +43,9 @@ export interface ProjectPaths {
   subtitlesFile: string
   scenesDirectory: string
   charactersDirectory: string
+  // Clips de animación, uno por escena que encabeza (ADR-0040). Carpeta
+  // propia: `clips/` la vacía el export en cada corrida.
+  animationsDirectory: string
   chunksCacheDirectory: string
   clipsDirectory: string
   promptsExportFile: string
@@ -101,6 +105,7 @@ export function resolveProjectPaths(
     subtitlesFile: join(projectDir, 'subtitles.ass'),
     scenesDirectory: join(projectDir, 'scenes'),
     charactersDirectory: join(projectDir, 'characters'),
+    animationsDirectory: join(projectDir, 'animations'),
     chunksCacheDirectory: join(projectDir, 'cache', 'chunks'),
     clipsDirectory: join(projectDir, 'clips'),
     promptsExportFile: join(projectDir, 'prompts.md'),
@@ -111,6 +116,12 @@ export function resolveProjectPaths(
 
 export function sceneImageFile(paths: ProjectPaths, sceneId: number): string {
   return join(paths.scenesDirectory, `scene_${sceneId}.jpg`)
+}
+
+// Clip de la escena que ENCABEZA una animación (ADR-0040). Misma convención
+// que la imagen: la ruta se deriva del id, nunca se persiste.
+export function sceneClipFile(paths: ProjectPaths, sceneId: number): string {
+  return join(paths.animationsDirectory, `scene_${sceneId}.mp4`)
 }
 
 // «Válido» = existe y no está truncado (el criterio de cache-hit de cada

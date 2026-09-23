@@ -12,6 +12,7 @@ export const INSUFFICIENT_CREDITS_CODES: ReadonlySet<string> = new Set([
   'llm_insufficient_credits',
   'transcription_insufficient_credits',
   'music_insufficient_credits',
+  'animation_insufficient_credits',
 ])
 
 export function isInsufficientCreditsCode(code: string): boolean {

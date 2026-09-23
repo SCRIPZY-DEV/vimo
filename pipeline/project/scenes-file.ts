@@ -1,5 +1,10 @@
+import { stat } from 'node:fs/promises'
+
+import type { SceneAnimation, SceneAnimationView } from '../types/animation.ts'
+import { sceneAnimationBlocks } from '../animation/scene-blocks.ts'
+import { sceneAnimationClipFile } from '../animation/clip-path.ts'
 import type { Scene, SceneSummary } from '../types/scenes.ts'
-import { readTextWithRetry, writeFileAtomic } from '../utils/atomic-fs.ts'
+import { readTextWithRetry, writeFileAtomicStrict } from '../utils/atomic-fs.ts'
 import { isValidFile, sceneImageFile, type ProjectPaths } from './paths.ts'
 
 // Lectura/escritura de scenes.json (port de leerEscenasNormalizadas +
@@ -38,7 +43,7 @@ export async function writeScenes(
   scenes: Scene[],
 ): Promise<void> {
   const ordered = [...scenes].sort((a, b) => a.id - b.id)
-  await writeFileAtomic(
+  await writeFileAtomicStrict(
     paths.scenesFile,
     `${JSON.stringify(ordered, null, 2)}\n`,
   )
@@ -79,6 +84,16 @@ export async function writeScenesOwned(
   await mergeScenesById(paths, ownedIds, scenes)
 }
 
+// Una imagen propia gana sobre el alias histórico de una pausa. Los cortes
+// nuevos generan su visual; el alias solo recupera proyectos anteriores.
+export async function resolveSceneImageSourceId(
+  paths: ProjectPaths,
+  scene: Scene,
+): Promise<number> {
+  if (await isValidFile(sceneImageFile(paths, scene.id))) return scene.id
+  return scene.visualSourceSceneId ?? scene.id
+}
+
 // Vista para la UI: deriva el estado de la imagen de la EXISTENCIA del
 // archivo (la ruta no se persiste en scenes.json, ver types/scenes.ts).
 export async function toSceneSummary(
@@ -94,14 +109,106 @@ export async function toSceneSummary(
   if (scene.startSeconds !== undefined)
     summary.startSeconds = scene.startSeconds
   if (scene.endSeconds !== undefined) summary.endSeconds = scene.endSeconds
+  if (scene.animationRequestedSeconds !== undefined)
+    summary.animationRequestedSeconds = scene.animationRequestedSeconds
+  if (scene.staticTransitionIn !== undefined)
+    summary.staticTransitionIn = scene.staticTransitionIn
 
-  const imagePath = sceneImageFile(paths, scene.id)
+  const imageSourceId = await resolveSceneImageSourceId(paths, scene)
+  const imagePath = sceneImageFile(paths, imageSourceId)
   if (await isValidFile(imagePath)) {
     summary.imagePath = imagePath
     summary.imageStatus = 'ok'
   }
 
+  const animation = await toSceneAnimationView(paths, scene)
+  if (animation) summary.animation = animation
+  if (scene.animations !== undefined)
+    summary.animations = await Promise.all(
+      sceneAnimationBlocks(scene).map((block) =>
+        animationView(paths, scene.id, block),
+      ),
+    )
+  if (scene.animationPending?.length)
+    summary.animationPending = await Promise.all(
+      scene.animationPending.map((block) =>
+        animationView(paths, scene.id, block),
+      ),
+    )
+  if (imageSourceId !== scene.id) summary.visualSourceSceneId = imageSourceId
+  if (scene.animations === undefined && scene.absorbedBy !== undefined)
+    summary.absorbedBy = scene.absorbedBy
+
   return summary
+}
+
+// Vista de la animación de una escena (ADR-0040): el clip se deriva de la
+// EXISTENCIA del archivo, como la imagen. Un `ready` persistido sin archivo
+// sale como error, así la UI nunca promete un clip que el render no va a usar.
+export async function toSceneAnimationView(
+  paths: ProjectPaths,
+  scene: Scene,
+): Promise<SceneAnimationView | undefined> {
+  const animation = scene.animation
+  if (!animation) return undefined
+  return animationView(paths, scene.id, animation)
+}
+
+export async function animationView(
+  paths: ProjectPaths,
+  sceneId: number,
+  animation: SceneAnimation,
+): Promise<SceneAnimationView> {
+  const view: SceneAnimationView = {
+    canResumeTask:
+      animation.attempts?.some(
+        (attempt) =>
+          attempt.state === 'pending' || attempt.state === 'succeeded',
+      ) ||
+      (!animation.attempts?.length && animation.task !== undefined),
+    canRecoverLocally: animation.attempts?.some(
+      (attempt) =>
+        attempt.state === 'succeeded' && attempt.videoUrl !== undefined,
+    ),
+    submissionUnknown: animation.attempts?.some(
+      (attempt) =>
+        attempt.state === 'creating' || attempt.state === 'ambiguous',
+    ),
+    id: animation.id,
+    startSeconds: animation.startSeconds,
+    endSeconds: animation.endSeconds,
+    normalizedSeconds: animation.normalizedSeconds,
+    requestedSeconds: animation.requestedSeconds,
+    provider: animation.provider,
+    status: animation.status,
+    sceneIds: animation.sceneIds,
+    slotSeconds: animation.slotSeconds,
+  }
+  if (animation.strategy) view.strategy = animation.strategy
+  if (animation.creditsConsumed !== undefined)
+    view.creditsConsumed = animation.creditsConsumed
+  if (animation.errorCode) view.errorCode = animation.errorCode
+  if (animation.status !== 'ready') return view
+  if (
+    !Number.isFinite(animation.normalizedSeconds) ||
+    (animation.normalizedSeconds ?? 0) <= 0
+  ) {
+    view.status = 'error'
+    view.errorCode = 'animation_media_invalid'
+    return view
+  }
+  try {
+    const clipPath = sceneAnimationClipFile(paths, sceneId, animation)
+    const info = await stat(clipPath)
+    if (!info.isFile() || info.size === 0) throw new Error('empty clip')
+    view.clipPath = clipPath
+    view.clipMtimeMs = Math.round(info.mtimeMs)
+  } catch {
+    view.status = 'error'
+    view.errorCode = 'animation_clip_missing'
+  }
+
+  return view
 }
 
 export async function toSceneSummaries(

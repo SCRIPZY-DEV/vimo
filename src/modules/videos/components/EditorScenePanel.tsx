@@ -15,8 +15,13 @@ import {
   TooltipTrigger,
 } from '@/modules/common/ui/tooltip'
 import { ClipTimeField } from '@/modules/videos/components/ClipTimeField'
+import { SceneAnimationSection } from '@/modules/videos/components/SceneAnimationSection'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
-import type { ClipEdge, SceneImageChoice } from '@/modules/videos/types/library'
+import type {
+  ClipEdge,
+  SceneAnimationControls,
+  SceneImageChoice,
+} from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
@@ -39,6 +44,8 @@ interface EditorScenePanelProps {
   creditsRefreshing: boolean
   onRefreshCredits(): void
   busy: boolean
+  // El guardado por lote de la galería reserva el proyecto brevemente.
+  savingScenes?: boolean
   // Proyecto demo: regenerar no aplica (las imágenes son del pack).
   regenerateLocked: boolean
   // Hay una descripción que la imagen actual todavía no refleja.
@@ -55,6 +62,8 @@ interface EditorScenePanelProps {
   onImageChoiceChange(value: SceneImageChoice): void
   onCharactersChange(indexes: number[]): void
   onRegenerate(): void
+  // Animación de la escena (ADR-0040): proveedor, saldo, estado y acción.
+  animation: SceneAnimationControls
 }
 
 // Panel lateral del editor para la escena seleccionada. Presentacional: el
@@ -69,6 +78,7 @@ export function EditorScenePanel({
   creditsRefreshing,
   onRefreshCredits,
   busy,
+  savingScenes = false,
   regenerateLocked,
   userPromptPending,
   errorKey,
@@ -80,6 +90,7 @@ export function EditorScenePanel({
   onImageChoiceChange,
   onCharactersChange,
   onRegenerate,
+  animation,
 }: EditorScenePanelProps) {
   const { t } = useTranslation()
 
@@ -128,6 +139,7 @@ export function EditorScenePanel({
         <Textarea
           id="scene-user-prompt"
           value={scene.userPrompt ?? ''}
+          disabled={savingScenes}
           maxLength={MAX_USER_PROMPT_CHARS}
           placeholder={t('library.editor.panel.userPromptPlaceholder')}
           onChange={(event) => onUserPromptChange(event.target.value)}
@@ -266,6 +278,13 @@ export function EditorScenePanel({
           </span>
         </Button>
       )}
+
+      <SceneAnimationSection
+        scene={scene}
+        controls={animation}
+        busy={busy}
+        locked={regenerateLocked}
+      />
     </aside>
   )
 }

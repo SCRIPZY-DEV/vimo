@@ -237,3 +237,35 @@ fija la duración). Prompt, modelo, calidad y personajes solo afectan a la
 próxima regeneración, y ese job ya marca por su cuenta cuando una imagen
 cambia de verdad. Además, el pipeline completo con auto-render limpia el flag
 al terminar, igual que `render-video`.
+
+## Adenda 2026-09-17 — lotes directos desde galería
+
+Por petición del usuario, la galería ejecuta regeneración y animación en su lugar
+de revisión. Se retira la cola humana que navegaba entre escenas. El modal conserva
+solo selección y descripciones; el store sigue siendo dueño de los trabajos.
+Un input vacío reutiliza el prompt; uno no vacío guarda `userPrompt` y encola
+`rewritePrompt: true`. La mutación recibe `projectId` como variable explícita,
+incluida la invalidación, para no redirigir callbacks pendientes al cambiar ruta.
+
+La galería guarda todas las descripciones bajo una reserva local `savingScenes`:
+se adquiere síncronamente antes del primer await de escritura, bloquea trabajos
+competidores y se libera en finally. Las imágenes se encolan bajo esa reserva y
+se despachan al liberarla. No se modifica la lease, el contrato ni los escritores
+del sidecar. Los guardados previos del panel impiden iniciar esa reserva.
+
+```mermaid
+flowchart LR
+    galeria["Galería"] -->|"confirma IDs y descripciones · callback"| hook["Hook del editor"]
+    hook -->|"reserva y encola · store"| store["Store por proyecto"]
+    hook -->|"guarda descripción · API existente"| api["API videos"]
+    store -->|"despacha tras liberar reserva · API existente"| api
+    store -.->|"publica progreso · suscripción React"| galeria
+```
+
+**Fallo y verificación:** guardar falla → no se genera y se conservan los inputs;
+aceptar encolado → selección limpia, progreso independiente. Cerrar el modal no
+cancela jobs. Las animaciones se planifican como una selección conjunta, incluidos
+clips fusionados pendientes, y usan la concurrencia y recibos de ADR-0042. Validar
+un lote mixto de prompts, doble clic, guardado lento, cambio de proyecto, saldo
+insuficiente, fusión y cierre/reapertura; pasos y evidencia en
+[el fix de galería directa](../../fixes/2026-09-17_direct-gallery-actions.md).

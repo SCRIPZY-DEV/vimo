@@ -4,12 +4,14 @@ import { Loader2, Sparkles } from 'lucide-react'
 import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { apiKeysApi } from '@/modules/api-keys/api'
+import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
 import { CharacterSection } from '@/modules/videos/components/CharacterSection'
+import { CreateAnimationSection } from '@/modules/videos/components/CreateAnimationSection'
 import { CreateBlockersAlert } from '@/modules/videos/components/CreateBlockersAlert'
 import { CustomStyleGallery } from '@/modules/videos/components/CustomStyleGallery'
 import { ImageProviderSection } from '@/modules/videos/components/ImageProviderSection'
@@ -60,6 +62,7 @@ export function CreateForm({
   onSubmit,
 }: CreateFormProps) {
   const { t } = useTranslation()
+  const { configuredProviders } = useRequiredApiKeys()
 
   const [attempts, setAttempts] = useState(0)
   const blockersRef = useRef<HTMLDivElement>(null)
@@ -78,6 +81,7 @@ export function CreateForm({
   const missingSteps = formBlockers(value, {
     promptModelsBlocked,
     fixedCharacterMissing: fixedMissing,
+    animationKeyMissing: !configuredProviders.has('kie'),
   })
   const blockers = costCheck.result.blocking
     ? [...missingSteps, 'create.validation.insufficientCredits']
@@ -220,6 +224,12 @@ export function CreateForm({
       <ImageProviderSection
         value={value}
         disabled={disabled}
+        onChange={onChange}
+      />
+
+      <CreateAnimationSection
+        value={value}
+        disabled={disabled || demo !== null}
         onChange={onChange}
       />
 

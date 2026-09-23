@@ -1,8 +1,9 @@
 import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { TRANSITION_POLICY_VERSION } from '../../animation/transitions.ts'
 
 import { resolveProjectStyle } from '../shared/project-style.ts'
-import { isValidFile, sceneImageFile } from '../../project/paths.ts'
+import { isValidFile } from '../../project/paths.ts'
 import { readScenes } from '../../project/scenes-file.ts'
 import type { RenderPhase } from '../../runner/events.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -12,6 +13,7 @@ import { frameSizeFor, videoFormatOf } from '../../types/video-format.ts'
 import { ensureDirectory, readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { requireFfmpegPath } from '../../utils/ffmpeg.ts'
 import type { CreateVideoContext } from '../context.ts'
+import { collectRenderScenes } from './animated-scenes.ts'
 import {
   CHUNK_SIZE,
   chunkDurationSeconds,
@@ -98,7 +100,13 @@ export const renderStage: Stage<CreateVideoContext> = {
       const chunkSeconds = chunkDurationSeconds(chunkScenes)
       const chunkFile = chunkFileFor(chunksDirectory, chunkIndex + 1)
 
-      const expectedManifest = await chunkManifestFor(chunkScenes, start, frame)
+      const previousScene = start > 0 ? renderScenes[start - 1] : undefined
+      const expectedManifest = await chunkManifestFor(
+        chunkScenes,
+        start,
+        frame,
+        previousScene,
+      )
       if (await isChunkCacheValid(chunkFile, expectedManifest)) {
         renderedSeconds += chunkSeconds
         if (totalSeconds > 0)
@@ -106,6 +114,7 @@ export const renderStage: Stage<CreateVideoContext> = {
       } else {
         const secondsBeforeChunk = renderedSeconds
         await renderChunk(ffmpegPath, chunkScenes, start, chunkFile, frame, {
+          previousScene,
           signal: context.signal,
           onProgress(fraction) {
             if (totalSeconds <= 0) return
@@ -175,14 +184,16 @@ export const renderStage: Stage<CreateVideoContext> = {
 
     emitProgress('final', 1)
     await exportPromptsMarkdown(context.paths, scenes, options.styleId)
+    context.metadata.renderTransitionVersion = TRANSITION_POLICY_VERSION
 
     return undefined
   },
 }
 
 // Toda escena que ocupa un tramo del timeline (tiene timestamps) DEBE tener
-// imagen válida: descartarla en silencio dejaría el video más corto que el
-// audio (voz cortada) y desincronizaría todo lo posterior.
+// imagen válida —o formar parte de un clip de animación listo (ADR-0040)—:
+// descartarla en silencio dejaría el video más corto que el audio (voz
+// cortada) y desincronizaría todo lo posterior.
 async function collectRenderableScenes(
   context: CreateVideoContext,
   scenes: Scene[],
@@ -197,26 +208,17 @@ async function collectRenderableScenes(
       'no scenes with timestamps to render',
     )
 
-  const renderScenes: RenderScene[] = []
-  const missing: number[] = []
-  for (const scene of timed) {
-    const imagePath = sceneImageFile(context.paths, scene.id)
-    if (await isValidFile(imagePath)) {
-      renderScenes.push({
-        id: scene.id,
-        imagePath,
-        startSeconds: scene.startSeconds!,
-        endSeconds: scene.endSeconds!,
-      })
-    } else {
-      missing.push(scene.id)
-    }
-  }
+  const { renderScenes, missingImages } = await collectRenderScenes(
+    context.paths,
+    requireFfmpegPath(context.job.binaryPaths.ffmpeg),
+    timed,
+    (message) => context.emitter.emit({ type: 'log', level: 'warn', message }),
+  )
 
-  if (missing.length > 0)
+  if (missingImages.length > 0)
     throw new PipelineFailure(
       'render_missing_images',
-      `scenes without a valid image: ${missing.sort((a, b) => a - b).join(', ')}`,
+      `scenes without a valid image: ${missingImages.sort((a, b) => a - b).join(', ')}`,
     )
 
   return renderScenes
@@ -226,6 +228,8 @@ async function referenceDurationSeconds(
   context: CreateVideoContext,
   renderScenes: RenderScene[],
 ): Promise<number> {
+  if (context.metadata.audioDurationSeconds !== undefined)
+    return context.metadata.audioDurationSeconds
   try {
     if (await isValidFile(context.paths.wordsFile)) {
       const words = JSON.parse(

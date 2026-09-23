@@ -363,7 +363,10 @@
         "body": "The project was saved with everything generated so far. Top up at the provider, refresh and resume: only what's missing gets generated.",
         "retry": "Resume where it stopped",
         "retryHint": "Enabled once the balance read is enough. What's done is not repeated or charged again."
-      }
+      },
+      "animationTitle": "Animating scenes",
+      "animationCount": "{{ready}} scenes ready · {{active}} in progress",
+      "animationError": "{{count}} scenes need a retry."
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -376,6 +379,9 @@
     },
     "secondsStep": {
       "perScene": "per scene",
+      "perSceneAfterAnimation": "per scene after the animated range",
+      "animatedPrefixHint": "The first {{minutes}} min are divided into 6 s scenes. This setting applies to the rest of the video.",
+      "confirmAnimated": "Continue with {{count}} scenes in total",
       "total_one": "scene in total",
       "total_other": "scenes in total",
       "sliderAria": "Seconds per scene",
@@ -386,7 +392,8 @@
       "explanation": "Scenes are cut by the clock, not by sentences: they follow one another and cover the whole audio, with no gaps. If a sentence starts in one image and ends in the next, that's fine — the image changes while the narration goes on.",
       "confirm_one": "Continue with {{count}} scene of {{seconds}} s",
       "confirm_other": "Continue with {{count}} scenes of {{seconds}} s",
-      "footnote": "The video is stopped waiting for this: nothing is generated until you confirm."
+      "footnote": "The video is stopped waiting for this: nothing is generated until you confirm.",
+      "animatedWholeHint": "The entire video is divided into 6 s scenes. The last clip is fitted to the end of the audio."
     },
     "probe": {
       "titles": {
@@ -425,7 +432,9 @@
       "characterRequired": "This style asks for your character: pick one.",
       "fixedCharacterMissing": "The character this style had fixed is no longer in your list. Edit the style and pick another.",
       "promptModelsBlocked": "Every prompt-writing model is blocked: pick a Vimo style or wait for them to come back.",
-      "insufficientCredits": "A provider doesn't have enough balance for this generation: top up or lower the cost (fewer scenes, another quality)."
+      "insufficientCredits": "A provider doesn't have enough balance for this generation: top up or lower the cost (fewer scenes, another quality).",
+      "animationMinutesInvalid": "Choose a whole number of minutes, at least 1.",
+      "animationKeyRequired": "Set up your Kie.ai key to animate scenes."
     },
     "errors": {
       "discard": "Discard",
@@ -512,7 +521,27 @@
       "imageInsufficientCredits": "Your image provider account ran out of balance. Everything generated so far is kept.",
       "llmInsufficientCredits": "Your DeepInfra account has no balance to write the prompts.",
       "transcriptionInsufficientCredits": "Your Deepgram account has no balance to transcribe the narration.",
-      "musicInsufficientCredits": "Your Evolink account doesn't have enough credits to generate the music."
+      "musicInsufficientCredits": "Your Evolink account doesn't have enough credits to generate the music.",
+      "animationInsufficientCredits": "Your animation provider account ran out of credits. The scene stays static until you top up and retry.",
+      "animationInvalidApiKey": "Your animation provider API key is not valid. Check it in API Keys.",
+      "animationRateLimited": "The animation provider is saturated. Retry in a few seconds.",
+      "animationProviderDown": "The animation service is unavailable for now. Please try again later.",
+      "animationProviderError": "The animation provider returned an error while generating the clip.",
+      "animationInvalidRequest": "This interval cannot be animated. Full scenes must last 3 to 12 seconds; check their timings before retrying.",
+      "animationContentPolicy": "The provider rejected the clip under its content policy. Change the scene description and retry.",
+      "animationNetwork": "We couldn't reach the animation provider.",
+      "animationTimeout": "The clip took too long. If the provider finishes it, retrying picks it up at no extra cost.",
+      "animationDownloadFailed": "The clip was generated but we couldn't download it. Retry: it's already paid and won't be charged again.",
+      "animationUploadFailed": "We couldn't upload the scene image to the animation provider.",
+      "animationImageMissing": "The scene has no image: generate it before animating.",
+      "animationClipMissing": "This scene's clip is no longer on disk. Redo the animation.",
+      "animationSubmissionUnknown": "We could not confirm whether the request was accepted. Its record is preserved so the task can be checked before creating another charge.",
+      "animationMediaInvalid": "The clip needs to finish local preparation. Retry to recover it without ordering another video.",
+      "animationPromptFailed": "We could not write a valid motion prompt. Review the script and image description, then try again.",
+      "animationProjectBusy": "Another operation is running for this project. Wait for it to finish.",
+      "animationRequestChanged": "This scene has a pending animation. Recover it before ordering a different version.",
+      "animationIncomplete": "The animation range still has pending clips. Retry to complete or recover the saved tasks.",
+      "animationTimingLocked": "These scene timings are linked to saved animation clips or tasks and cannot be moved."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -680,6 +709,26 @@
       "cancelToLibrary": "Cancel and go back to the library",
       "halting": "Stopping the video… the current job is closing.",
       "retrySame": "Retry with {{model}}"
+    },
+    "animation": {
+      "title": "Animate scenes",
+      "range": "Range to animate",
+      "firstMinute": "Animate the first minute",
+      "customMinutes": "Animate the first N minutes",
+      "minutesLabel": "Number of minutes",
+      "minutesUnit": "minutes",
+      "hint": "The selected range is divided into 6 s scenes and animated without sound in the project format. The remaining video uses your chosen scene duration or count. If the audio ends earlier, the last clip is fitted to its end.",
+      "estimate": "≈ {{credits}} credits",
+      "estimateTitle": "Estimated animation credits",
+      "secondsQuoted": "Duration to generate: {{seconds}} s",
+      "clipsQuoted": "Clips to generate: {{count}}",
+      "noNewCharge": "No new animation needs to be requested.",
+      "slotDuration": "Duration in the video: {{seconds}} s",
+      "wholeVideo": "Animate the entire video ({{duration}})",
+      "durationLimit": "Video duration: {{duration}} · Maximum: {{minutes}} min",
+      "allVideo": "Animate the entire video",
+      "wholeVideoHint": "The entire short is divided into 6 s scenes and animated without sound. The last clip is fitted to the end of the audio.",
+      "durationPending": "Credits will be calculated once the audio duration is known."
     }
   },
   "createDemo": {
@@ -776,7 +825,9 @@
         "zoomOut": "Zoom out (−)",
         "noMusic": "No music — click to add",
         "openAudio": "Open project audio",
-        "openMusic": "Open project music"
+        "openMusic": "Open project music",
+        "animatingPercent": "{{percent}}%",
+        "clipDuration": "{{seconds}} s"
       },
       "panel": {
         "noSelection": "Pick a scene in the timeline to edit it.",
@@ -795,7 +846,36 @@
         "characters": "Characters in this scene",
         "regenerate": "Regenerate image",
         "regenerateWithPrompt": "Regenerate with your description",
-        "lastError": "Last attempt: {{reason}}"
+        "lastError": "Last attempt: {{reason}}",
+        "animation": {
+          "title": "Animation",
+          "provider": "Animation provider",
+          "animate": "Animate clip",
+          "redo": "Redo clip",
+          "redoLead": "Redo the clip of scene {{id}}",
+          "animating": "Animating…",
+          "readyCost": "Cost: {{credits}} credits",
+          "absorbed": "Part of the clip of scene {{id}}.",
+          "costHint": "≈ {{credits}} credits for {{seconds}} s requested.",
+          "noKey": "Add a Kie.ai key to animate scenes.",
+          "configure": "Go to API Keys",
+          "blocked": "{{provider}} failed several times in a row and is hidden for a while.",
+          "lastError": "Last animation attempt: {{reason}}",
+          "animatingPercent": "Animating… {{percent}}%",
+          "planMerge": "It will cover scenes {{ids}} in one continuous shot of {{seconds}} s.",
+          "planDirect": "It will cover this whole scene: {{seconds}} s.",
+          "planTrim": "The scene lasts {{seconds}} s, shorter than the {{clip}} s clip: the clip is fitted to its length.",
+          "resumePaidHint": "Previously requested animations can be recovered. Resume recovers them before checking the balance for new clips.",
+          "ready_one": "Clip for scene {{ids}} · {{seconds}} s",
+          "ready_other": "Clip for scenes {{ids}} · {{seconds}} s",
+          "clipTitle_one": "Clip for scene {{ids}}",
+          "clipTitle_other": "Clip for scenes {{ids}}",
+          "clipDuration": "Duration: {{seconds}} s",
+          "costUnknown": "Cost unavailable",
+          "queued": "Queued…",
+          "waitingQuota": "Waiting for Kie capacity…",
+          "preparing": "Preparing animation…"
+        }
       },
       "render": {
         "render": "Export video",
@@ -821,7 +901,103 @@
       "missingImagesTitle_one": "1 scene is missing its image (scene {{ids}})",
       "missingImagesTitle_other": "{{count}} scenes are missing their image (scenes {{ids}})",
       "missingImagesHint": "Tap an empty scene in the timeline and use \"Regenerate\" to create its image: it is illustrated from its narration or, if nothing is said in that stretch, from the neighbouring lines — or write a description if you want something else. Once they all have one, build your video.",
-      "demoLocked": "In the demo, images and narration come from the sample package: they cannot be regenerated."
+      "demoLocked": "In the demo, images and narration come from the sample package: they cannot be regenerated.",
+      "animationFailed": "Some scenes could not be animated: they stay static with the usual pan, and the reason is in the notice.",
+      "animationFailure": {
+        "title": "Some animations could not be completed",
+        "body": "Your images and previous clips were preserved. You can retry the listed scenes.",
+        "scene": "Scene {{id}}",
+        "detailLabel": "Provider detail",
+        "retry_one": "Retry 1 scene",
+        "retry_other": "Retry {{count}} scenes",
+        "close": "Close"
+      },
+      "animationRange": {
+        "title": "Animate the beginning of the video",
+        "hint": "Generate the missing clips in this range. Completed animations are preserved and the rest of the video keeps its timing.",
+        "animate": "Animate first {{minutes}} min",
+        "complete": "This range is already animated",
+        "invalidScenes": "This range contains scenes outside the supported limits. Adjust their cuts before animating.",
+        "animateShort": "Animate {{seconds}} s"
+      },
+      "animationDialog": {
+        "move": "Move window (or use the arrow keys)",
+        "close": "Close animation window"
+      },
+      "transitions": {
+        "label": "Add crossfades between images",
+        "hint": "Transitions beside animated clips always remain enabled.",
+        "playHint": "Play the video to preview the transitions.",
+        "marker": "Crossfade between scenes {{from}} and {{to}}"
+      },
+      "imageGallery": {
+        "label": "Expanded image view",
+        "description_one": "{{count}} scene. Regenerate images or animate clips without leaving this gallery.",
+        "description_other": "{{count}} scenes. Regenerate images or animate clips without leaving this gallery.",
+        "select": "Select the image for scene {{id}}",
+        "missing": "Image unavailable",
+        "generating": "Generating image…",
+        "failed": "The last generation failed",
+        "review": "Go to regenerate image",
+        "reviewHint": "You will go to its description in the editor. There you can edit the prompt and confirm regeneration.",
+        "locked": "Demo project images cannot be regenerated.",
+        "close": "Close expanded image view",
+        "promptHint": "Want something different? Describe it here. To use the existing image prompt, leave the description unchanged and click “Regenerate image”.",
+        "selectMultiple": "Select",
+        "cancelSelection": "Cancel selection",
+        "selectionHint": "Select scenes to regenerate their images or animate their clips in one step.",
+        "browseHint": "Select an image to regenerate or animate it. Use “Select” to work with several.",
+        "toggleScene": "Select or deselect scene {{id}}",
+        "selectedCount_one": "{{count}} scene selected",
+        "selectedCount_other": "{{count}} scenes selected",
+        "reviewSelection": "Review selection",
+        "queueProgress": "Review {{position}} of {{total}} · Scene {{id}}",
+        "queueFinished": "Review finished",
+        "queueSummary": "Regenerated: {{completed}} · Skipped: {{skipped}}.",
+        "queueGenerating": "Generating this image. When it finishes, we will move to the next selected scene.",
+        "queueFailed": "This image did not complete. Retry with “Regenerate image” or skip to the next scene.",
+        "queueHint": "Edit the description or regenerate with the existing prompt. Only the scene you confirm will be generated.",
+        "endReview": "End review",
+        "resumeReview": "Go to scene {{id}}",
+        "skipScene": "Skip scene",
+        "animate": "Animate clip",
+        "imageAnimation": "Regenerate and animate",
+        "action": "Action for selection",
+        "modeImage": "Regenerate images",
+        "modeAnimation": "Animate clips",
+        "modeImageAnimation": "Regenerate and animate",
+        "queueAnimationProgress": "Animation review {{position}} of {{total}} · Scene {{id}}",
+        "queueAnimationSummary": "Scenes animated: {{completed}} · Skipped: {{skipped}}.",
+        "queueCombinedSummary": "Images regenerated: {{imageCompleted}} · Scenes animated: {{completed}} · Skipped: {{skipped}}.",
+        "queueAnimationFailed": "The animation did not complete. Check the panel notice to resume, retry, or skip to the next scene.",
+        "queueAnimationHint": "Review the clip’s scenes, duration, and credits before confirming its animation. Then we will move to the next one.",
+        "queueImagePass": "Step 1 of 2 · Review the selected images first. Their animations come next.",
+        "queueAnimationPass": "Step 2 of 2 · Confirm each animation in the panel. A clip may cover multiple scenes.",
+        "queueRecoveryRequired": "An animation needs recovery. Resume it in the panel before changing its image to preserve the work already requested.",
+        "queueRefreshFailed": "The result was saved, but we could not refresh the view. Continue the review to read it again without repeating generation.",
+        "continueReview": "Continue review",
+        "reviewPendingAnimation": "Go to pending animation",
+        "endReviewHint": "Close the review. Generations in progress will continue.",
+        "regenerateImages": "Regenerate images",
+        "regenerateCount_one": "Regenerate {{count}} image",
+        "regenerateCount_other": "Regenerate {{count}} images",
+        "animateSelection": "Animate clips",
+        "optionalDescription": "Optional description",
+        "descriptionPlaceholder": "What would you like to change in this image?",
+        "descriptionHint": "Write a description for a different result. If there are no pending changes, leaving it empty reuses the current prompt.",
+        "pendingDescriptionHint": "A description change is pending. Regenerating will apply it; you can write here to replace it. Leaving this empty does not discard the saved change.",
+        "regeneratePending": "Regenerate with pending changes",
+        "closeDescription": "Close description",
+        "closeDescriptions": "Close descriptions",
+        "animated": "Animated clip",
+        "submitFailed": "We could not start. Your selection and descriptions were kept.",
+        "recoveringImage": "Resume the pending animation before changing its image.",
+        "imagesFirst": "Regenerate these images first, or close the descriptions to animate the current images.",
+        "noImageProvider": "Configure an image provider key before regenerating.",
+        "insufficientCredits": "The available balance is not enough for this selection.",
+        "animateRedoSelection": "Animate / redo clips",
+        "resumeSelection": "Resume clips"
+      }
     },
     "errors": {
       "projectBusy": "A generation is already running. Wait for it to finish before starting another.",
@@ -830,7 +1006,9 @@
       "clipsNoScenes": "The project has no timed scenes to export.",
       "clipsNoImages": "Some scenes have no image: generate them before exporting.",
       "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance.",
-      "demoProject": "This video belongs to the demo: its images and narration come from the sample package and cannot be regenerated."
+      "demoProject": "This video belongs to the demo: its images and narration come from the sample package and cannot be regenerated.",
+      "animationAlreadyCovered": "That scene is already part of another animated clip.",
+      "animationSlotOutOfRange": "That scene doesn't fit a clip's length, alone or together with its neighbours."
     },
     "music": {
       "title": "Background music",
@@ -1358,11 +1536,13 @@
     "guardada": "Key saved.",
     "eliminada": "Key deleted.",
     "validacionOk": "Connected successfully.",
+    "validacionOkSaldo": "Connected successfully · balance {{amount}} cr.",
     "categoria": {
       "llm": "script AI (DeepInfra)",
       "image": "images (Fal.ai or Evolink)",
       "voice": "voice (DubVoice or ElevenLabs)",
-      "transcription": "transcription (Deepgram)"
+      "transcription": "transcription (Deepgram)",
+      "animation": "scene animation (Kie.ai)"
     },
     "descripcion": {
       "deepinfra": "Main AI: generates the visual prompts for each scene.",
@@ -1370,7 +1550,9 @@
       "evolink": "Images with gpt-image (pricier, more realistic). The same key works for AI music.",
       "dubvoice": "Narrated voice with Minimax, ElevenLabs, Vbee and Fish Audio behind one key. Human quality in Spanish.",
       "elevenlabs": "Premium voice straight from ElevenLabs.",
-      "deepgram": "Word-by-word audio transcription."
+      "deepgram": "Word-by-word audio transcription.",
+      "kie": "Automatic scene animation from images, paid with account credits.",
+      "poyo": "Animates a scene with Veo. Optional, only if you want animated scenes."
     },
     "badge": {
       "falAdmin": "⚠ Admin type"
@@ -1414,11 +1596,11 @@
     "sceneDurationUnit": "s",
     "sceneDurationValueCaption": "per scene",
     "sceneDurationSecondsValue": "{{seconds}} s",
-    "sceneDurationMinHint": "2 s · many short scenes",
-    "sceneDurationMaxHint": "15 s · few and long",
+    "sceneDurationMinHint": "3 s · many short scenes",
+    "sceneDurationMaxHint": "12 s · fewer, longer scenes",
     "sceneDurationShortcuts": "Shortcuts:",
     "sceneDurationDontAskLabel": "Don't ask me when generating",
-    "sceneDurationDontAskHint": "After transcribing, the video pauses so you can pick the pace and see how many scenes come out.",
+    "sceneDurationDontAskHint": "Use the timing from Settings directly. Turn this off to confirm it after transcription.",
     "sceneDurationSaved": "Preference saved.",
     "sceneDurationError": "Couldn't save the preference.",
     "promptModelTitle": "Your model for writing",

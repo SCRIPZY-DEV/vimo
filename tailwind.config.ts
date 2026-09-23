@@ -68,6 +68,7 @@ export default {
         wine: 'hsl(var(--wine))',
         iris: 'hsl(var(--iris))',
         graphite: 'hsl(var(--graphite))',
+        sky: 'hsl(var(--sky))',
         lavender: 'hsl(var(--lavender))',
         'warm-gray': 'hsl(var(--warm-gray))',
         ink: 'hsl(var(--ink))',

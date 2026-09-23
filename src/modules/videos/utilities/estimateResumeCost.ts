@@ -6,6 +6,12 @@ import {
 } from '@/modules/videos/constants'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
+import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
+import {
+  animatesWholeVideo,
+  hasAutomaticAnimation,
+} from '@pipeline/animation/scope.ts'
+import { animationRangePlan } from '@/modules/videos/utilities/animationRangePlan'
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
@@ -40,6 +46,20 @@ export function estimateResumeCost(
   if (!completed.has('images')) {
     const images = pendingImagesLine(status)
     if (images) lines.push(images)
+  }
+
+  if (hasAutomaticAnimation(options) && status.scenes.length > 0) {
+    const plan = animationRangePlan(
+      status.scenes,
+      options.animationMinutes ?? 0,
+      {
+        durationSeconds: metadata.audioDurationSeconds,
+        videoFormat: options.videoFormat,
+        wholeVideo: animatesWholeVideo(options),
+      },
+    )
+    const seconds = plan.requestedSeconds
+    if (seconds > 0) lines.push(animationCostEstimate('kie', seconds))
   }
 
   return lines

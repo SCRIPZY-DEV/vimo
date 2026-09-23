@@ -5,6 +5,7 @@ import type { MusicGenerationParams } from './music.ts'
 import type { SceneSummary, TranscriptWord } from './scenes.ts'
 import type { StageId } from '../runner/stage-id.ts'
 import type { VideoFormat } from './video-format.ts'
+import type { VideoProviderId } from './video-provider.ts'
 import type { VoiceGenerationSettings, VoiceProviderId } from './voices.ts'
 
 // Dominio del proyecto de video (módulo Create, ADR-0013). Browser-safe: la
@@ -114,6 +115,14 @@ export interface VideoProjectOptions {
   // llamar a proveedores. Solo lo pone ese camino; ausente/false = pipeline
   // real de siempre. Se persiste: el editor lo lee para bloquear acciones.
   demo?: boolean
+  // Proveedor con el que se animan las escenas de este proyecto (ADR-0040).
+  // Lo persiste `animate-scenes` con el elegido en cada pedido: así la
+  // alerta de saldo sabe qué cuenta rechazó. Ausente = nunca se animó.
+  videoProvider?: VideoProviderId
+  // Ausente o cero desactiva animación; enteros positivos seleccionan el prefijo.
+  animationMinutes?: number
+  // Solo 9:16: anima todo el audio, cuya duración se conoce después de la voz.
+  animateWholeVideo?: boolean
 }
 
 export type VideoProjectState =
@@ -151,6 +160,8 @@ export interface VideoProjectMetadata {
   // (escenas, narración o música). Nunca implica borrar el mp4: solo avisa.
   // Lo limpian los jobs que completan un render (ADR-0014).
   videoOutdated?: boolean
+  // Política visual aplicada al último MP4; ausente = render anterior a esta regla.
+  renderTransitionVersion?: number
   // Con qué modelo se escribieron los prompts de verdad (tras la
   // degradación, si la hubo). Solo auditoría: no gobierna nada.
   promptModelUsed?: { id: string; label: string }
@@ -374,6 +385,7 @@ export interface SceneChange {
   id: number
   startSeconds?: number
   endSeconds?: number
+  staticTransitionIn?: boolean
   userPrompt?: string
   imagePrompt?: string
   imageModel?: string

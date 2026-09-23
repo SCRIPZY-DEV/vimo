@@ -21,6 +21,7 @@ import {
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
+import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
 import {
   libraryTabFor,
   rememberLibraryTab,
@@ -99,6 +100,11 @@ function restoreTask(): CreateTask | null {
       promptsWritten: stored.promptsWritten ?? null,
       // La pasada de recuperación pertenece a un job vivo: no sobrevive.
       imagesRecovery: null,
+      scenes: stored.scenes.map((scene) => ({
+        ...scene,
+        animationActivity: undefined,
+        animationLeadId: undefined,
+      })),
       cancelRequested: false,
       // Tareas persistidas antes de ADR-0028: sin carril conocido no hay
       // modelo que vigilar. Lo demás pertenece a un job vivo: no sobrevive.
@@ -356,6 +362,50 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       })
       return
 
+    case 'scene-animation-started':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (!event.sceneIds.includes(scene.id)) return scene
+          return {
+            ...scene,
+            animationActivity: 'generating',
+            animationLeadId: event.sceneId,
+          }
+        }),
+      })
+      return
+
+    case 'scene-animation-ready':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (!event.sceneIds.includes(scene.id)) return scene
+          const animations =
+            scene.id === event.sceneId && event.animation
+              ? [
+                  ...sceneAnimationBlocks(scene).filter(
+                    (animation) => animation.id !== event.animation?.id,
+                  ),
+                  event.animation,
+                ]
+              : scene.animations
+          return { ...scene, animations, animationActivity: 'ready' }
+        }),
+      })
+      return
+
+    case 'scene-animation-failed':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (
+            scene.animationLeadId !== event.sceneId &&
+            scene.id !== event.sceneId
+          )
+            return scene
+          return { ...scene, animationActivity: 'error' }
+        }),
+      })
+      return
+
     // Avance de una imagen en curso (solo Evolink lo informa): la celda de
     // la grilla muestra el porcentaje; se limpia al cerrar la imagen.
     case 'scene-image-progress':
@@ -420,6 +470,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           suggestedScenes: event.suggestedScenes,
           audioDurationSeconds: event.audioDurationSeconds,
           wordCount: event.wordCount,
+          animationMinutes: event.animationMinutes,
           // Solo el carril de segundos lo trae: cambia el diálogo a slider.
           ...(event.secondsPerScene !== undefined
             ? { secondsPerScene: event.secondsPerScene }

@@ -1,4 +1,5 @@
 import { readProjectMetadata } from '../../project/metadata.ts'
+import { ensureLegacyAnimationsForView } from '../../animation/migrate-legacy.ts'
 import {
   isValidFile,
   projectsRootOf,
@@ -30,6 +31,7 @@ export async function videoProjectStatus(
     payload.projectId,
   )
   const paths = resolveProjectPaths(projectDir, payload.projectId)
+  await ensureLegacyAnimationsForView(context)
   const metadata = await readProjectMetadata(paths)
   const scenes = await readScenes(paths)
 

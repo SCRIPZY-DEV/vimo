@@ -2,11 +2,13 @@ import {
   copyFile,
   cp,
   mkdir,
+  open,
   readFile,
   rename,
   unlink,
   writeFile,
 } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 
 // Utilidades de filesystem para escribir, leer y crear directorios de forma
@@ -91,6 +93,40 @@ export async function writeFileAtomic(
   const temporaryPath = `${path}.tmp`
   await writeFile(temporaryPath, data)
   await renameAtomic(temporaryPath, path)
+}
+
+// Los recibos que autorizan compras no admiten la copia sobre el destino
+// bloqueado de Windows: un cierre a mitad perdería el taskId. Se sincroniza
+// el temporal y se exige rename; fallar conserva el checkpoint anterior.
+export async function writeFileAtomicStrict(
+  path: string,
+  data: Buffer | string,
+): Promise<void> {
+  const temporaryPath = path + '.' + randomUUID() + '.tmp'
+  const handle = await open(temporaryPath, 'wx', 0o600)
+  try {
+    await handle.writeFile(data)
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+  try {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        await rename(temporaryPath, path)
+        return
+      } catch (error) {
+        if (
+          !TRANSIENT_LOCK_CODES.has(errorCode(error)) ||
+          attempt === MAX_ATTEMPTS - 1
+        )
+          throw error
+        await delay(BASE_DELAY_MS * (attempt + 1))
+      }
+    }
+  } finally {
+    await unlink(temporaryPath).catch(() => undefined)
+  }
 }
 
 // Lee un archivo de texto y reintenta si está bloqueado temporalmente.

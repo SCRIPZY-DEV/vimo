@@ -1,6 +1,6 @@
 import type { Stage } from '../runner/stage.ts'
 import type { CreateVideoContext } from './context.ts'
-import { imagesStage } from './images/images.ts'
+import { imagesWithAnimationStage } from './images/images-with-animation.ts'
 import { renderStage } from './render/render.ts'
 import { sceneCutsStage } from './scene-cuts/scene-cuts.ts'
 import { scenePromptsStage } from './scene-prompts/scene-prompts.ts'
@@ -14,6 +14,6 @@ export const CREATE_VIDEO_STAGES: Stage<CreateVideoContext>[] = [
   transcriptionStage,
   sceneCutsStage,
   scenePromptsStage,
-  imagesStage,
+  imagesWithAnimationStage,
   renderStage,
 ]

@@ -49,6 +49,12 @@ export function createProjectPayload(
     options.autoRender = true
   }
 
+  if (form.animateScenes && !demo) {
+    if (form.videoFormat === '9:16' && form.animateWholeVideo)
+      options.animateWholeVideo = true
+    else options.animationMinutes = form.animationMinutes
+  }
+
   if (usesCustomStyle && form.customStyle) {
     options.customStyle = {
       styleId: form.customStyle.styleId,
@@ -126,11 +132,22 @@ export function formBlockers(
   {
     promptModelsBlocked = false,
     fixedCharacterMissing = false,
+    animationKeyMissing = false,
   }: FormBlockersContext = {},
 ): string[] {
   const blockers: string[] = []
 
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
+
+  if (form.animateScenes) {
+    if (
+      !(form.videoFormat === '9:16' && form.animateWholeVideo) &&
+      (!Number.isInteger(form.animationMinutes) || form.animationMinutes < 1)
+    )
+      blockers.push('create.validation.animationMinutesInvalid')
+    if (animationKeyMissing)
+      blockers.push('create.validation.animationKeyRequired')
+  }
 
   // v1.35.0 del origen: la galería propia arranca vacía y sin tarjeta
   // elegida no hay estilo con qué generar.

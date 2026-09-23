@@ -101,6 +101,27 @@ function validatePayload(
   const options = payload.options
   if (!options)
     throw new PipelineFailure('invalid_payload', 'payload.options is required')
+  if (
+    options.animationMinutes !== undefined &&
+    (!Number.isSafeInteger(options.animationMinutes) ||
+      options.animationMinutes < 0 ||
+      !Number.isSafeInteger(options.animationMinutes * 60))
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'animationMinutes must be a non-negative integer',
+    )
+  if (
+    options.animateWholeVideo !== undefined &&
+    (typeof options.animateWholeVideo !== 'boolean' ||
+      (options.animateWholeVideo &&
+        (options.videoFormat !== '9:16' ||
+          (options.animationMinutes ?? 0) > 0)))
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'animateWholeVideo requires 9:16 and cannot be combined with animationMinutes',
+    )
   if (!isCharacterStyleId(options.styleId))
     throw new PipelineFailure(
       'invalid_payload',

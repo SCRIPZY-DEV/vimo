@@ -112,6 +112,9 @@ export function GenerationProgress({
   const generating = !finished && !failed
   const completed = task.completedStages
   const voice = task.voiceProgress
+  const animationScenes = task.scenes.filter(
+    (scene) => scene.animationActivity !== undefined,
+  )
 
   // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
   // disco y `stage` es null hasta el primer evento del job.
@@ -384,6 +387,8 @@ export function GenerationProgress({
                 domain: task.creditsIssue.domain,
                 imageProvider: task.imageProvider,
                 voiceVendor: task.voiceVendor,
+                // Crear nunca anima: la animación es cirugía del editor.
+                videoProvider: 'kie',
               }}
               onRetry={onRetryPipeline}
               onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
@@ -418,6 +423,38 @@ export function GenerationProgress({
               }
               recovery={rewriting ? recovery : null}
             />
+          )}
+
+          {animationScenes.length > 0 && (
+            <div
+              className="space-y-1 rounded-xl border-2 border-sky/40 bg-sky/5 p-4"
+              role="status"
+            >
+              <h2 className="font-display text-base font-bold text-foreground">
+                {t('create.progress.animationTitle')}
+              </h2>
+              <p className="font-body text-sm text-muted-foreground">
+                {t('create.progress.animationCount', {
+                  ready: animationScenes.filter(
+                    (scene) => scene.animationActivity === 'ready',
+                  ).length,
+                  active: animationScenes.filter(
+                    (scene) => scene.animationActivity === 'generating',
+                  ).length,
+                })}
+              </p>
+              {animationScenes.some(
+                (scene) => scene.animationActivity === 'error',
+              ) && (
+                <p className="font-body text-xs text-coral">
+                  {t('create.progress.animationError', {
+                    count: animationScenes.filter(
+                      (scene) => scene.animationActivity === 'error',
+                    ).length,
+                  })}
+                </p>
+              )}
+            </div>
           )}
 
           {showImagesPanel && (

@@ -1,3 +1,4 @@
+import { hasAutomaticAnimation } from '@pipeline/animation/scope.ts'
 import { useTranslation } from 'react-i18next'
 import { RotateCcw } from 'lucide-react'
 import { apiKeysApi } from '@/modules/api-keys/api'
@@ -34,6 +35,9 @@ export function NoCreditsResumePanel({
     voiceVendor: metadata.options.voiceProvider
       ? vendorOfProvider(metadata.options.voiceProvider)
       : null,
+    videoProvider: hasAutomaticAnimation(metadata.options)
+      ? 'kie'
+      : (metadata.options.videoProvider ?? null),
   }
   // La estimación de lo pendiente manda; si no toca la cuenta que rechazó
   // (LLM, transcripción: sin saldo legible) se muestra igual esa cuenta.
@@ -44,15 +48,20 @@ export function NoCreditsResumePanel({
   )
     ? check.result.lines
     : [issue.line, ...check.result.lines]
-  const canResume = !check.result.blocking && issue.line.sufficient !== false
+  const canResumePaidAnimation = check.canResumePaidAnimation
+  const canResume =
+    canResumePaidAnimation ||
+    (!check.result.blocking && issue.line.sufficient !== false)
 
   const refresh = () => {
     issue.refresh()
     check.refresh()
   }
   const resume = async () => {
-    const fresh = await check.verify()
-    if (fresh.blocking) return
+    if (!canResumePaidAnimation) {
+      const fresh = await check.verify()
+      if (fresh.blocking) return
+    }
     onResume()
   }
 
@@ -62,7 +71,11 @@ export function NoCreditsResumePanel({
         {t(CREATE_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY)}
       </p>
       <p className="font-body text-sm text-muted-foreground">
-        {t('library.progress.noCredits')}
+        {t(
+          canResumePaidAnimation
+            ? 'library.editor.panel.animation.resumePaidHint'
+            : 'library.progress.noCredits',
+        )}
       </p>
 
       <InsufficientCreditsAlert

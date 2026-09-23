@@ -2,13 +2,17 @@ import type {
   CreditsDomain,
   CreditsShortfallLine,
 } from '@/modules/common/types/credits'
+import type { VideoCreditsResult } from '@pipeline/types/animation.ts'
 import type { ImageCreditsResult } from '@pipeline/types/video-project.ts'
 import type { VoiceCreditsResult } from '@pipeline/types/voices.ts'
 
 // Saldos tal como los devuelve el sidecar; null = no consultado o caído.
+// `video` es el de los proveedores de animación (ADR-0040); quien nunca
+// anima puede omitirlo y ese dominio sale como saldo ilegible.
 export interface CreditsBalances {
   image: ImageCreditsResult | null
   voice: VoiceCreditsResult | null
+  video?: VideoCreditsResult | null
 }
 
 // Saldo leído para un dominio/proveedor, en la unidad en que cobra. Un plan
@@ -37,6 +41,13 @@ export function balanceFor(
       unit: credits?.unit === 'characters' ? 'characters' : 'credits',
       available: credits ? credits.credits : null,
     }
+  }
+  if (domain === 'animation') {
+    // Los dos cobran en créditos propios, del mismo valor (ADR-0040).
+    const status =
+      providerId === 'poyo' ? balances.video?.poyo : balances.video?.kie
+    if (!status?.available) return { unit: 'credits', available: null }
+    return { unit: 'credits', available: status.remaining ?? null }
   }
   return { unit: 'credits', available: null }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PlayCircle } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
+import { clamp } from '@/modules/common/utilities/clamp'
 import { useSceneDurationDefaults } from '@/modules/settings/hooks/useSceneDurationDefaults'
 import {
   SCENE_CUT_PREVIEW_DEBOUNCE_MS,
@@ -13,6 +14,7 @@ import {
 } from '@/modules/videos/constants'
 import { useSceneCutPreview } from '@/modules/videos/hooks/useSceneCutPreview'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
+import { planPrefixSceneWindows } from '@pipeline/animation/prefix-scenes.ts'
 import type {
   SceneConfirmationView,
   SceneCutChoice,
@@ -40,9 +42,15 @@ export function SecondsPerSceneStep({
   const { t } = useTranslation()
   const { sceneDuration, rememberSecondsPerScene } = useSceneDurationDefaults()
   const [seconds, setSeconds] = useState(
-    confirmation.secondsPerScene ??
-      sceneDuration?.secondsPerScene ??
-      SECONDS_PER_SCENE_DEFAULT,
+    clamp(
+      Math.round(
+        confirmation.secondsPerScene ??
+          sceneDuration?.secondsPerScene ??
+          SECONDS_PER_SCENE_DEFAULT,
+      ),
+      SECONDS_PER_SCENE_MIN,
+      SECONDS_PER_SCENE_MAX,
+    ),
   )
   // El corte real se pide con un pequeño retraso: cada valor es un job del
   // sidecar y el slider dispara muchos seguidos.
@@ -63,10 +71,17 @@ export function SecondsPerSceneStep({
   })
   const exact =
     preview.exact && preview.sceneCount !== null && previewSeconds === seconds
-  const count =
-    exact && preview.sceneCount !== null
-      ? preview.sceneCount
+  const animationMinutes = confirmation.animationMinutes ?? 0
+  const estimatedCount =
+    animationMinutes > 0
+      ? planPrefixSceneWindows({
+          totalSeconds: confirmation.audioDurationSeconds,
+          minutes: animationMinutes,
+          secondsPerScene: seconds,
+        }).length
       : estimateSceneCount(confirmation.audioDurationSeconds, seconds)
+  const count =
+    exact && preview.sceneCount !== null ? preview.sceneCount : estimatedCount
 
   const confirm = () => {
     rememberSecondsPerScene(seconds)
@@ -83,7 +98,11 @@ export function SecondsPerSceneStep({
               <span className="text-2xl"> s</span>
             </p>
             <p className={cn(SUPPORT_NOTE_CLASS, 'mt-1 text-muted-foreground')}>
-              {t('create.secondsStep.perScene')}
+              {t(
+                animationMinutes > 0
+                  ? 'create.secondsStep.perSceneAfterAnimation'
+                  : 'create.secondsStep.perScene',
+              )}
             </p>
           </div>
           <div className="text-right">
@@ -96,6 +115,19 @@ export function SecondsPerSceneStep({
             </p>
           </div>
         </div>
+
+        {animationMinutes > 0 && (
+          <p className={cn(SUPPORT_NOTE_CLASS, 'text-sky')}>
+            {t(
+              animationMinutes * 60 >= confirmation.audioDurationSeconds
+                ? 'create.secondsStep.animatedWholeHint'
+                : 'create.secondsStep.animatedPrefixHint',
+              {
+                minutes: animationMinutes,
+              },
+            )}
+          </p>
+        )}
 
         <div>
           <input
@@ -160,7 +192,12 @@ export function SecondsPerSceneStep({
           className="btn-squish flex w-full items-center justify-center gap-3 rounded-xl bg-saffron px-6 py-5 font-display text-xl font-extrabold text-charcoal shadow-lg shadow-saffron/30 transition-opacity"
         >
           <PlayCircle className="h-6 w-6" />
-          {t('create.secondsStep.confirm', { count, seconds })}
+          {t(
+            animationMinutes > 0
+              ? 'create.secondsStep.confirmAnimated'
+              : 'create.secondsStep.confirm',
+            { count, seconds },
+          )}
         </button>
         <p className="text-center font-body text-sm text-muted-foreground">
           {t('create.secondsStep.footnote')}

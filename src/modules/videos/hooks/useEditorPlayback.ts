@@ -3,6 +3,7 @@ import type { RefObject, SyntheticEvent } from 'react'
 import { useAudioGain } from '@/modules/common/hooks/useAudioGain'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { SEEK_TOLERANCE_SECONDS } from '@/modules/videos/constants'
+import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
 import type {
   AudioMixValue,
   EditorPlayerHandle,
@@ -49,6 +50,36 @@ export function useEditorPlayback({
   // Guard anti-timeupdate-tardío: tras un seek, los ticks viejos con un
   // currentTime menor se descartan (saltaban el cursor a 0).
   const lastSeekRef = useRef(0)
+  const onTimeChangeRef = useRef(onTimeChange)
+
+  useEffect(() => {
+    onTimeChangeRef.current = onTimeChange
+  }, [onTimeChange])
+
+  // timeupdate puede llegar solo cuatro veces por segundo. El reloj del
+  // medio sigue mandando, con muestreo por cuadro para cámara y fundidos.
+  useEffect(() => {
+    if (!playing || scrubbing) return
+    let handle = 0
+    let previousFrame = -1
+    const sample = () => {
+      const media = videoMode ? videoRef.current : narrationRef.current
+      if (
+        media &&
+        !media.paused &&
+        media.currentTime >= lastSeekRef.current - SEEK_TOLERANCE_SECONDS
+      ) {
+        const frame = Math.floor(media.currentTime * ANIMATION_FPS)
+        if (frame !== previousFrame) {
+          previousFrame = frame
+          onTimeChangeRef.current(media.currentTime)
+        }
+      }
+      handle = requestAnimationFrame(sample)
+    }
+    handle = requestAnimationFrame(sample)
+    return () => cancelAnimationFrame(handle)
+  }, [playing, scrubbing, videoMode])
 
   const primaryMedia = () => {
     return videoMode ? videoRef.current : narrationRef.current
