@@ -14,6 +14,8 @@ export type AccessReason =
   | 'offline'
 
 //TODO: Esto debe coincidir con el tipo de plan que devuelve supabase. Cambiar a ingles.
+// «trial» es acceso beta sin vencimiento (ADR-0040): el servidor no envía fechas
+// ni días restantes.
 export type AccessPlan = 'trial' | 'activo'
 
 /** Cuerpo crudo que responde POST /api/verificar-acceso. */
@@ -21,8 +23,6 @@ export interface VerifyAccessResponse {
   autorizado: boolean
   motivo: AccessReason
   plan?: AccessPlan
-  diasRestantes?: number
-  trialExpira?: string
   // Modo demo (ADR-0029): true para administradores y correos en demo_accesos.
   demo?: boolean
 }
@@ -32,8 +32,6 @@ export interface AccessStatus {
   authorized: boolean
   reason: AccessReason
   plan: AccessPlan | null
-  daysLeft: number | null
-  trialExpiresAt: string | null
   email: string | null
   name: string | null
   avatar: string | null

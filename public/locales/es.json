@@ -880,10 +880,8 @@
     "saliendo": "Saliendo...",
     "planActivoTitulo": "Suscripción activa",
     "planActivoDescripcion": "Tenés acceso completo a {{nombre}} sin restricciones. ¡Gracias por bancar el proyecto!",
-    "trialTitulo_one": "Te queda {{count}} día de prueba",
-    "trialTitulo_other": "Te quedan {{count}} días de prueba",
-    "trialDescripcion_one": "Después de ese día la suscripción pasa a $20 USD/mes. Te vamos a avisar antes de que se venza.",
-    "trialDescripcion_other": "Después de esos {{count}} días la suscripción pasa a $20 USD/mes. Te vamos a avisar antes de que se venza."
+    "accesoBetaTitulo": "Acceso completo durante la beta",
+    "accesoBetaDescripcion": "Mientras dure la beta usás {{nombre}} sin límite de tiempo ni cobro. Te vamos a avisar antes de cualquier cambio."
   },
   "costs": {
     "pageTitle": "Costos — Vimo",

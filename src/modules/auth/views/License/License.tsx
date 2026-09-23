@@ -1,14 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Clock, LogOut, Sparkles } from 'lucide-react'
+import { LogOut, Sparkles } from 'lucide-react'
 import { useAccess } from '@/modules/auth/hooks/useAccess'
 import { useLogout } from '@/modules/auth/hooks/useLogout'
 import { Brand } from '@/modules/common/brand/brand'
 import DoodleTrophy from '@/modules/common/doodles/DoodleTrophy'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
-
-const TRIAL_URGENT_DAYS = 3
 
 export function License() {
   const { t } = useTranslation()
@@ -28,7 +26,6 @@ export function License() {
   }
 
   const initial = (access.name ?? access.email ?? '?')[0].toUpperCase()
-  const trialUrgent = (access.daysLeft ?? 0) <= TRIAL_URGENT_DAYS
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-8 py-12">
@@ -103,30 +100,21 @@ export function License() {
         </motion.div>
       )}
 
-      {access.plan === 'trial' && access.daysLeft !== null && (
+      {/* Durante la beta el trial no vence (ADR-0040): sin contador ni precio. */}
+      {access.plan === 'trial' && (
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className={
-            trialUrgent
-              ? 'flex items-start gap-3 rounded-2xl border-2 border-coral/50 bg-coral/15 p-5'
-              : 'flex items-start gap-3 rounded-2xl border-2 border-saffron/50 bg-saffron/15 p-5'
-          }
+          className="flex items-start gap-3 rounded-2xl border-2 border-primary/40 bg-primary/10 p-5"
         >
-          <Clock
-            className={
-              trialUrgent
-                ? 'mt-0.5 h-5 w-5 shrink-0 text-coral'
-                : 'mt-0.5 h-5 w-5 shrink-0 text-saffron'
-            }
-          />
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div>
             <p className="font-display font-bold text-foreground">
-              {t('license.trialTitulo', { count: access.daysLeft })}
+              {t('license.accesoBetaTitulo')}
             </p>
             <p className="font-body text-sm text-muted-foreground">
-              {t('license.trialDescripcion', { count: access.daysLeft })}
+              {t('license.accesoBetaDescripcion', { nombre: Brand.name })}
             </p>
           </div>
         </motion.div>

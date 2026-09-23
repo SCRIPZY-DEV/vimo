@@ -880,10 +880,8 @@
     "saliendo": "Signing out...",
     "planActivoTitulo": "Active subscription",
     "planActivoDescripcion": "You have full access to {{nombre}} with no restrictions. Thanks for supporting the project!",
-    "trialTitulo_one": "You have {{count}} trial day left",
-    "trialTitulo_other": "You have {{count}} trial days left",
-    "trialDescripcion_one": "After that day the subscription is $20 USD/month. We'll let you know before it expires.",
-    "trialDescripcion_other": "After those {{count}} days the subscription is $20 USD/month. We'll let you know before it expires."
+    "accesoBetaTitulo": "Full access during the beta",
+    "accesoBetaDescripcion": "While the beta lasts you can use {{nombre}} with no time limit and no charge. We'll let you know before anything changes."
   },
   "costs": {
     "pageTitle": "Pricing — Vimo",
