@@ -1,3 +1,8 @@
+import { finalizeSceneImagePrompt } from '../shared/scene-prompt-finalization.ts'
+import {
+  narrativeCandidateFor,
+  reviewNarrativePrompts,
+} from './narrative-alignment.ts'
 import { hasCatalogNarrative } from '../shared/catalog-prompt.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -50,6 +55,8 @@ const LLM_CONCURRENCY = 6
 
 export interface PromptWriterOptions {
   llm: SceneLlm
+  /** Revisor separado del redactor, con tier premium cuando lo provee la stage. */
+  reviewLlm?: SceneLlm
   style: VisualStyle
   fullScript: string
   visualBible?: string
@@ -290,11 +297,13 @@ export async function generateScenePrompts(
         // Si un intento soltó rasgos de cabeza canónicos, el siguiente lleva
         // la corrección explícita adjunta.
         let identityCorrection = ''
+        let narrativeCorrection = ''
         for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_SCENE; attempt++) {
           try {
             const content = await writerOptions.llm.generate({
               systemPrompt: writerOptions.style.systemPrompt,
-              userPrompt: composed.userPrompt + identityCorrection,
+              userPrompt:
+                composed.userPrompt + identityCorrection + narrativeCorrection,
               jsonOnly: true,
               validate(content) {
                 const prompt = extractImagePrompt(content)
@@ -408,12 +417,35 @@ export async function generateScenePrompts(
               if (isComplete || attempt === MAX_ATTEMPTS_PER_SCENE) {
                 // Si el último intento igual dejó afuera al personaje o soltó
                 // la tez, se repara por código.
-                imagePrompt = lockedLlmPrompt(
-                  candidate,
-                  composed,
-                  writerOptions,
+                const finalPrompt = finalizeSceneImagePrompt(
+                  currentScene,
+                  orderedScenes,
+                  lockedLlmPrompt(candidate, composed, writerOptions),
+                  writerOptions.style.id,
+                  writerOptions.visualBible,
                 )
-                break
+                const rejected = await reviewNarrativePrompts(
+                  [
+                    narrativeCandidateFor(
+                      currentScene,
+                      orderedScenes,
+                      finalPrompt,
+                    ),
+                  ],
+                  {
+                    llm: writerOptions.reviewLlm ?? writerOptions.llm,
+                    signal: writerOptions.signal,
+                  },
+                )
+                const feedback = rejected.get(scene.id)
+                if (feedback) {
+                  lastError = 'narrative alignment rejected'
+                  narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}\nRewrite the prompt to depict its own fragment.`
+                  continue
+                } else {
+                  imagePrompt = finalPrompt
+                  break
+                }
               }
               lastError = `the prompt dropped canonical traits (${[
                 ...missingCharacters.map((name) => `character ${name}`),
@@ -537,11 +569,12 @@ export async function regeneratePromptsForRejected(
         const userPrompt = composed.userPrompt + retryBlock
 
         let imagePrompt = ''
+        let narrativeCorrection = ''
         for (let retry = 1; retry <= MAX_ATTEMPTS_PER_SCENE; retry++) {
           try {
             const content = await writerOptions.llm.generate({
               systemPrompt: writerOptions.style.systemPrompt,
-              userPrompt,
+              userPrompt: userPrompt + narrativeCorrection,
               jsonOnly: true,
               validate: (content) =>
                 hasCatalogNarrative(
@@ -563,10 +596,35 @@ export async function regeneratePromptsForRejected(
               // los rasgos icónicos que el redactor escribió quedan.
               // El reintento puede volver la escena un paisaje: el candado de
               // tez solo entra si el prompt todavía muestra a alguien.
-              imagePrompt = neutralizeFamousNames(
-                lockedLlmPrompt(candidate, composed, writerOptions, true),
+              const finalPrompt = finalizeSceneImagePrompt(
+                scene,
+                orderedScenes,
+                neutralizeFamousNames(
+                  lockedLlmPrompt(candidate, composed, writerOptions, true),
+                ),
+                writerOptions.style.id,
+                writerOptions.visualBible,
               )
-              break
+              const rejected = await reviewNarrativePrompts(
+                [
+                  narrativeCandidateFor(
+                    { ...scene, userPrompt: undefined },
+                    orderedScenes,
+                    finalPrompt,
+                  ),
+                ],
+                {
+                  llm: writerOptions.reviewLlm ?? writerOptions.llm,
+                  signal: writerOptions.signal,
+                },
+              )
+              const feedback = rejected.get(scene.id)
+              if (feedback) {
+                narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
+              } else {
+                imagePrompt = finalPrompt
+                break
+              }
             }
           } catch (error) {
             writerOptions.signal.throwIfAborted()

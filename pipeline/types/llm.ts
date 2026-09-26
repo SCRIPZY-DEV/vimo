@@ -11,6 +11,8 @@ export interface LlmRequest {
   jsonOnly?: boolean
   tier?: LlmTier
   maxOutputTokens?: number
+  /** Sobrescritura por tarea; ausente conserva el muestreo histórico. */
+  temperature?: number
 }
 
 // Contrato strategy de proveedores de texto. Los reintentos y la degradación

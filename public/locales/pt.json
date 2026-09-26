@@ -1197,6 +1197,7 @@
       "llmTimeout": "A IA demorou demais para responder. Tente novamente.",
       "llmRateLimited": "O serviço de IA está saturado. Aguarde alguns segundos e tente de novo.",
       "llmProviderError": "O serviço de IA retornou um erro. Tente novamente.",
+      "scenePromptAlignmentFailed": "Não foi possível verificar se todas as imagens correspondem ao seu trecho de narração. O progresso foi salvo e nenhuma imagem foi gerada com os prompts pendentes. Retome para tentar novamente.",
       "catalogPromptsIncomplete": "Os modelos disponíveis não conseguiram completar os prompts. O progresso foi salvo e nenhuma nova imagem foi solicitada com prompts genéricos de reserva. Retome para tentar novamente.",
       "catalogPromptPendingImage": "Uma cena tem um prompt genérico antigo e uma tarefa de imagem pendente. Confira essa tarefa no provedor antes de gerar novamente para evitar uma segunda cobrança.",
       "missingApiKey": "Falta uma chave API para esta ação. Configure em Chaves API.",

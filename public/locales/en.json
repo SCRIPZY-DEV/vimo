@@ -1197,6 +1197,7 @@
       "llmTimeout": "The AI took too long to respond. Try again.",
       "llmRateLimited": "The AI service is saturated. Wait a few seconds and retry.",
       "llmProviderError": "The AI service returned an error. Try again.",
+      "scenePromptAlignmentFailed": "We could not verify that every image matches its narration segment. Progress was saved and images were not generated from pending prompts. Resume to try again.",
       "catalogPromptsIncomplete": "The available models could not complete the prompts. Progress was saved and no new images were requested with filler prompts. Resume to try again.",
       "catalogPromptPendingImage": "A scene has an old filler prompt and a pending image task. Review that task with the provider before regenerating to avoid a second charge.",
       "missingApiKey": "An API key is missing for this action. Set it up in API Keys.",

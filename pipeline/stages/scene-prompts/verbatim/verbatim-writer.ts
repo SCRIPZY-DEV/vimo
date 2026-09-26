@@ -178,6 +178,12 @@ export interface VerbatimWriterOptions {
   /** Contrato local del editor; un incumplimiento se reintenta como defecto
    *  de esa escena antes de tejer identidad o permitir generar imágenes. */
   validatePrompt?: (prompt: string, sceneId: number) => boolean
+  /** Revisa prompts finales antes de persistir/comprar imágenes. Solo escenas
+   *  temporales; previews conservan su contrato sin este callback. */
+  preparePrompt?: (prompt: string, sceneId: number) => string
+  reviewPrompts?: (
+    prompts: ReadonlyMap<number, string>,
+  ) => Promise<ReadonlyMap<number, string>>
   /** Vestuario por escena. Ausente = la constante `VERBATIM_SCENE_WARDROBE`
    *  (inyectable solo para probar las dos variantes sin tocar la constante). */
   sceneWardrobe?: boolean
@@ -1128,6 +1134,10 @@ export async function generateVerbatimPrompts(
   // los lotes caen con llm_network y no hay a quién culpar.
   let chosenModelBlamed = false
   const obtained = new Map<number, string>()
+  const alignmentFeedback = new Map<number, string>()
+  // Congela el texto efectivamente revisado: un lote paralelo no puede
+  // cambiar su vestuario heredado después de aprobarlo.
+  const reviewedPrompts = new Map<number, string>()
   let lastError = ''
 
   // Progreso REAL: cada lote informa cuántos prompts lleva escritos y acá se
@@ -1176,12 +1186,28 @@ export async function generateVerbatimPrompts(
         : []),
       {
         role: 'user',
-        content: buildFragmentsMessage(batch, mode, {
-          sceneWardrobe: options.sceneWardrobe,
-        }),
+        content: buildFragmentsMessage(
+          batch.map((fragment) => {
+            const feedback = alignmentFeedback.get(fragment.n)
+            if (!feedback) return fragment
+            return {
+              ...fragment,
+              note: [
+                fragment.note,
+                `CORRECCION DE CORRESPONDENCIA: ${feedback}`,
+              ]
+                .filter(Boolean)
+                .join(' '),
+            }
+          }),
+          mode,
+          {
+            sceneWardrobe: options.sceneWardrobe,
+          },
+        ),
       },
     ]
-    return withVerbatimRetry(
+    const reading = await withVerbatimRetry(
       async () => {
         options.signal?.throwIfAborted()
         const response = await options.client.call({
@@ -1219,6 +1245,38 @@ export async function generateVerbatimPrompts(
       2,
       options.signal,
     )
+    if (options.reviewPrompts && reading.good.length > 0) {
+      const pendingPrompts = new Map(obtained)
+      for (const entry of reading.good)
+        pendingPrompts.set(entry.n, entry.prompt)
+      const finalized = finalizeVerbatimPrompts(
+        pendingPrompts,
+        character,
+        sceneWardrobe,
+        new Set(reading.good.map((entry) => entry.n)),
+      )
+      if (options.preparePrompt) {
+        for (const [id, prompt] of finalized.prompts)
+          finalized.prompts.set(id, options.preparePrompt(prompt, id))
+      }
+      const rejected = await options.reviewPrompts(finalized.prompts)
+      options.signal?.throwIfAborted()
+      reading.good = reading.good.filter((entry) => {
+        const feedback = rejected.get(entry.n)
+        if (!feedback) {
+          alignmentFeedback.delete(entry.n)
+          reviewedPrompts.set(entry.n, finalized.prompts.get(entry.n)!)
+          return true
+        }
+        alignmentFeedback.set(entry.n, feedback)
+        reading.defective.push({
+          n: entry.n,
+          reason: 'narrative alignment rejected',
+        })
+        return false
+      })
+    }
+    return reading
   }
 
   // Identifica cada lote para el progreso, por RONDA además de por posición:
@@ -1231,7 +1289,7 @@ export async function generateVerbatimPrompts(
     executor = chosenExecutor,
   ) => {
     const round = currentRound++
-    await Promise.all(
+    const settled = await Promise.allSettled(
       chunk(pending, size).map(async (batch, index) => {
         try {
           const reading = await requestBatch(
@@ -1286,6 +1344,11 @@ export async function generateVerbatimPrompts(
               sceneWardrobe,
               justObtained,
             )
+            for (const id of justObtained) {
+              const reviewed = reviewedPrompts.get(id)
+              if (reviewed !== undefined) ready.prompts.set(id, reviewed)
+            }
+            options.signal?.throwIfAborted()
             try {
               await options.onBatchReady({
                 prompts: ready.prompts,
@@ -1307,7 +1370,14 @@ export async function generateVerbatimPrompts(
         } catch (error) {
           // Clave rechazada: la escalera y el rescate darían el mismo 401 y
           // el video saldría con prompts de relleno. Se corta el job.
-          if (isLlmAuthFailure(error)) throw error
+          options.signal?.throwIfAborted()
+          if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+            throw error
+          if (
+            error instanceof PipelineFailure &&
+            error.code === 'scene_prompt_alignment_failed'
+          )
+            throw error
           // Un lote caído NO tumba la corrida: sus fragmentos quedan como
           // faltantes y entran a la escalera de reintento. Un corte por tope
           // de tokens tampoco: la escalera pide lotes más chicos, que es
@@ -1343,6 +1413,8 @@ export async function generateVerbatimPrompts(
         }
       }),
     )
+    const failed = settled.find((entry) => entry.status === 'rejected')
+    if (failed?.status === 'rejected') throw failed.reason
   }
 
   await runRoundInParallel([...fragments], batchSize)
@@ -1413,6 +1485,8 @@ export async function generateVerbatimPrompts(
   // ventana donde se puede saber qué escenas nombran al protagonista: un
   // renglón más abajo la etiqueta ya no existe.
   const finalized = finalizeVerbatimPrompts(obtained, character, sceneWardrobe)
+  for (const [id, prompt] of reviewedPrompts) finalized.prompts.set(id, prompt)
+  options.signal?.throwIfAborted()
   const { prompts, scenesWithSubject, overBudget, sneakedIn, bare } = finalized
   if (finalized.rejectedWardrobes.size > 0) {
     options.onWarn?.(

@@ -20,6 +20,7 @@ import {
   needsAlwaysCure,
 } from './character-presence.ts'
 import type { SceneLlm } from '../shared/llm.ts'
+import { createNarrativeReviewLlm } from './narrative-alignment.ts'
 import { createCatalogSceneLlm } from '../shared/catalog-llm.ts'
 import { hasCatalogPrompt } from '../shared/catalog-prompt.ts'
 import {
@@ -117,9 +118,8 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
           scene: await toSceneSummary(context.paths, scene),
         })
       }
-      // Faltantes declaradas: no se rellenan acá con el redactor de la casa
-      // (E34 — el estilo del usuario nunca se pisa). La Capa 4 de la fase de
-      // imágenes cubre el hueco con su fallback determinístico si hace falta.
+      // El carril temporal exige completar y revisar todas las escenas antes
+      // de comprar imágenes; no recurre a prompts de relleno.
       if (lane.missing.length > 0)
         context.emitter.emit({
           type: 'log',
@@ -224,6 +224,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
     currentScenes = await guaranteePrompts(currentScenes, {
       llm,
+      reviewLlm: createNarrativeReviewLlm(context),
       style,
       fullScript: script,
       visualBible,

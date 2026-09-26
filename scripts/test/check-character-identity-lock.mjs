@@ -13,6 +13,7 @@ import {
 } from '../../pipeline/prompts/character-reference.ts'
 import { buildCharacterBibleBlock } from '../../pipeline/prompts/reference-characters.ts'
 import { buildMandatoryCharactersBlock } from '../../pipeline/prompts/scene-prompt-blocks.ts'
+import { MAX_PROMPT_CHARS } from '../../pipeline/prompts/prompt-limits.ts'
 import { VISUAL_STYLES } from '../../pipeline/prompts/visual-styles.ts'
 import { resolveProjectPaths } from '../../pipeline/project/paths.ts'
 import { writeScenes } from '../../pipeline/project/scenes-file.ts'
@@ -26,6 +27,8 @@ import {
   promptDepictsStandIn,
 } from '../../pipeline/stages/scene-prompts/identity-lock.ts'
 import { guaranteePrompts } from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
+import { bodyWithoutFinalClauses } from '../../pipeline/stages/shared/prompt-safety.ts'
+import { finalizeSceneImagePrompt } from '../../pipeline/stages/shared/scene-prompt-finalization.ts'
 import { createCatalogSceneLlm } from '../../pipeline/stages/shared/catalog-llm.ts'
 import {
   extractComplexionClause,
@@ -113,9 +116,28 @@ async function fixture(t, initialScenes, character) {
     visualBible: Promise.resolve('ERA: contemporary. A quiet modern city.'),
   }
 }
+// Esta suite aísla identidad, no juzga calidad semántica: un revisor separado
+// aprueba explícitamente cada candidato y mantiene el transporte del redactor
+// disponible para contar sus reintentos reales de personaje/tez.
+const identityReviewFixture = {
+  async generate(request) {
+    const { candidates } = JSON.parse(request.userPrompt)
+    return JSON.stringify({
+      scenes: candidates.map((candidate) => ({
+        sceneId: candidate.sceneId,
+        checks: { focus: true, events: true, setting: true, causality: true },
+        aligned: true,
+        sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
+        promptEvidenceId: candidate.promptEvidence[0].id,
+        reason: 'Explicit approval fixture for identity regression only.',
+      })),
+    })
+  },
+}
 function writerOptions(context, overrides = {}) {
   return {
     llm: createCatalogSceneLlm(context),
+    reviewLlm: identityReviewFixture,
     style: VISUAL_STYLES.normal,
     fullScript: fragment,
     visualBible: 'ERA: contemporary. A quiet modern city.',
@@ -176,6 +198,36 @@ test('lock goes after the first sentence, before the realism anchor, once', () =
     locked,
     'idempotent',
   )
+})
+
+test('a long first sentence preserves the identity through review and image finalization', () => {
+  const longPrompt =
+    'Wide shot of Luis, a man watching green auroras through a space station window with ' +
+    'delicate lighting and pristine surfaces '.repeat(58) +
+    '. Clear green auroras beneath Earth.'
+  const localScene = { ...scene, text: 'Luis observa auroras verdes.' }
+  for (const style of [VISUAL_STYLES.normal, VISUAL_STYLES.cartoon]) {
+    const locked = lockCharacterComplexion(longPrompt, [LUIS], [0], style)
+    const reviewed = finalizeSceneImagePrompt(
+      localScene,
+      [localScene],
+      locked,
+      style.id,
+    )
+    const sent = finalizeSceneImagePrompt(
+      localScene,
+      [localScene],
+      lockCharacterComplexion(reviewed, [LUIS], [0], style, {
+        requirePersonMention: true,
+      }),
+      style.id,
+    )
+    assert.match(reviewed, /Identity lock — Luis: dark-skinned man/)
+    assert.match(reviewed, /green auroras/)
+    assert.ok(reviewed.length <= MAX_PROMPT_CHARS)
+    assert.equal(sent, reviewed, `${style.id}: send exactly the reviewed text`)
+    assert.equal((sent.match(/Identity lock/g) ?? []).length, 1)
+  }
 })
 
 test('lock is a no-op when nothing was dropped or nobody is in frame', () => {
@@ -314,7 +366,9 @@ test('writer: a dropped skin tone is retried with a correction, then locked by c
     /DROPPED A CANONICAL SKIN TONE[^\n]*Luis: dark-skinned man in his 30s/,
   )
   assert.match(written.imagePrompt, /Identity lock — Luis: dark-skinned man/)
-  assert.ok(written.imagePrompt.endsWith(REALISM_ANCHOR))
+  assert.ok(
+    bodyWithoutFinalClauses(written.imagePrompt).endsWith(REALISM_ANCHOR),
+  )
 })
 
 test('writer: a prompt that keeps the skin tone is accepted untouched', async (t) => {
@@ -326,7 +380,7 @@ test('writer: a prompt that keeps the skin tone is accepted untouched', async (t
   })
   const [written] = await guaranteePrompts([scene], writerOptions(context))
   assert.equal(calls, 1)
-  assert.equal(written.imagePrompt, promptWithSkin)
+  assert.equal(bodyWithoutFinalClauses(written.imagePrompt), promptWithSkin)
 })
 
 test('images: a stored prompt from before the fix is locked on its way out', async (t) => {
@@ -466,7 +520,9 @@ test('writer: a scene without the character that draws a stranger is retried emp
     written.imagePrompt,
     /in the frame\. No people anywhere in the frame — not in the background/,
   )
-  assert.ok(written.imagePrompt.endsWith(REALISM_ANCHOR))
+  assert.ok(
+    bodyWithoutFinalClauses(written.imagePrompt).endsWith(REALISM_ANCHOR),
+  )
   assert.deepEqual(written.charactersPresent, [])
 })
 
@@ -491,7 +547,7 @@ test('writer: if the writer insists, the scene is promoted to the protagonist', 
     '3 attempts without + 1 with the character',
   )
   assert.deepEqual(written.charactersPresent, [0])
-  assert.equal(written.imagePrompt, promptWithSkin)
+  assert.equal(bodyWithoutFinalClauses(written.imagePrompt), promptWithSkin)
 })
 
 test('writer: from the editor the unmarked scene is never promoted', async (t) => {
@@ -627,6 +683,10 @@ test('writer: an unmarked scene keeps the people its narration describes', async
     writerOptions(context, { promoteUnmarkedProtagonist: true }),
   )
   assert.equal(calls, 1, 'no retry, no promotion')
-  assert.equal(written.imagePrompt, crowdPrompt, 'and no no-people seal')
+  assert.equal(
+    bodyWithoutFinalClauses(written.imagePrompt),
+    crowdPrompt,
+    'and no no-people seal',
+  )
   assert.deepEqual(written.charactersPresent, [])
 })

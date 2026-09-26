@@ -718,6 +718,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_rate_limited: 'create.errors.llmRateLimited',
   llm_provider_error: 'create.errors.llmProviderError',
   catalog_prompts_incomplete: 'create.errors.catalogPromptsIncomplete',
+  scene_prompt_alignment_failed: 'create.errors.scenePromptAlignmentFailed',
   catalog_prompt_pending_image: 'create.errors.catalogPromptPendingImage',
   llm_empty_response: 'create.errors.llmProviderError',
   llm_rescue_needed: 'create.errors.llmRescueNeeded',

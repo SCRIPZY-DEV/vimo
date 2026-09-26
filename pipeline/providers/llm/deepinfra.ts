@@ -36,7 +36,7 @@ export function createDeepInfraProvider(
             { role: 'system', content: request.systemPrompt },
             { role: 'user', content: request.userPrompt },
           ],
-          temperature: TEMPERATURE,
+          temperature: request.temperature ?? TEMPERATURE,
           top_p: TOP_P,
           max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
           ...(request.jsonOnly

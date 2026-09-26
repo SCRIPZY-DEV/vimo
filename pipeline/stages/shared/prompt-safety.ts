@@ -294,7 +294,31 @@ export function sanitizeFinalPrompt(
     isPhotorealisticStyle(eraContext.styleId) &&
     !result.includes('DIAGRAM MEDIUM:')
   ) {
-    result = `${result} ${IMMERSIVE_DIAGRAM_PHOTO_PERIOD_CLAUSE}`
+    // Reserva TODA la cola antes de añadir el medio: recortar después podía
+    // borrar el addendum y volver a anexarlo en la segunda pasada (>3000).
+    const body = bodyWithoutFinalClauses(result)
+    const tail = result.slice(body.length).trim()
+    const normalized = normalizeForDedupe(result)
+    const reserveLanguage = normalized.includes(
+      'the narration is spoken, not written',
+    )
+      ? 0
+      : IMAGE_TEXT_LANGUAGE_CLAUSE.length + 1
+    const reserveAnonymity = normalized.includes(
+      'fictional, anonymous individual',
+    )
+      ? 0
+      : ANONYMITY_CLAUSE.length + 1
+    const space =
+      MAX_PROMPT_CHARS -
+      tail.length -
+      IMMERSIVE_DIAGRAM_PHOTO_PERIOD_CLAUSE.length -
+      reserveLanguage -
+      reserveAnonymity -
+      2
+    result = [fitBody(body, space), tail, IMMERSIVE_DIAGRAM_PHOTO_PERIOD_CLAUSE]
+      .filter(Boolean)
+      .join(' ')
   }
 
   // 2) Los nombres de personas reales NO se neutralizan acá (el famoso

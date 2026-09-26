@@ -1,3 +1,4 @@
+import { FINAL_PROMPT_BODY_BUDGET } from '../shared/prompt-safety.ts'
 import { REFERENCE_PERSON_ANCHOR } from '../../prompts/character-reference.ts'
 import { characterIndicesInRequest } from '../../prompts/scene-prompt-blocks.ts'
 import type { VisualStyle } from '../../prompts/visual-styles.ts'
@@ -92,6 +93,13 @@ function insertAfterFirstSentence(
 ): string {
   const { start, end } = promptBodyRange(prompt, style)
   const sentenceEnd = FIRST_SENTENCE_END.exec(prompt.slice(start, end))
+  const firstEnd = sentenceEnd
+    ? start + sentenceEnd.index + sentenceEnd[0].length
+    : end
+  // Una primera oración gigante dejaba el candado fuera del presupuesto:
+  // el scrub lo borraba y la fase de imágenes volvía a añadirlo tras revisar.
+  if (firstEnd + sentence.length + 1 > FINAL_PROMPT_BODY_BUDGET)
+    return `${prompt.slice(0, start)} ${sentence} ${prompt.slice(start)}`.trim()
   if (!sentenceEnd) {
     const head = prompt.slice(0, end).trimEnd()
     const tail = prompt.slice(end)
