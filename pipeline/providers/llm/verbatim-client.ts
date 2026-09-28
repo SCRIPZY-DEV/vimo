@@ -85,6 +85,8 @@ export interface VerbatimCallOptions {
   // Catálogo no acepta un EOF silencioso como respuesta completa. Opt-in:
   // preserva el contrato previo de los otros consumidores de este cliente.
   requireComplete?: boolean
+  /** Plazo por petición del consumidor; ausente conserva el contrato previo. */
+  timeoutMs?: number
 }
 
 export interface VerbatimClient {
@@ -117,7 +119,9 @@ export function createVerbatimClient(
   return {
     async call(callOptions) {
       const { profile, signal } = callOptions
-      const timeout = AbortSignal.timeout(VERBATIM_TIMEOUT_MS)
+      const timeout = AbortSignal.timeout(
+        callOptions.timeoutMs ?? VERBATIM_TIMEOUT_MS,
+      )
       const combinedSignal = signal
         ? AbortSignal.any([signal, timeout])
         : timeout

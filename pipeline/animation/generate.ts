@@ -20,7 +20,7 @@ import { isValidPrompt } from '../prompts/prompt-limits.ts'
 import { createKieVideoProvider } from '../providers/video/kie.ts'
 import { PipelineFailure, toPipelineFailure } from '../runner/failure.ts'
 import type { CreateVideoContext } from '../stages/context.ts'
-import { createSceneLlm, type SceneLlm } from '../stages/shared/llm.ts'
+import type { SceneLlm } from '../stages/shared/llm.ts'
 import { resolveProjectStyle } from '../stages/shared/project-style.ts'
 import type { AnimateScenesResult, SceneAnimation } from '../types/animation.ts'
 import type { Scene } from '../types/scenes.ts'
@@ -43,6 +43,7 @@ import {
   withAnimationSceneLease,
 } from './coordination.ts'
 import { animateUnit, type AnimationLaneEvents } from './lane.ts'
+import { createAnimationLlm } from './llm.ts'
 import { normalizeClipToSlot } from './normalization.ts'
 import {
   animationNarrationWithin,
@@ -599,7 +600,7 @@ export async function generateSceneAnimations(
                   'animation_image_missing',
                   'An image-to-video reference is missing',
                 )
-            llm ??= createSceneLlm(context)
+            llm ??= createAnimationLlm(context)
             const fit = normalizeClipToSlot(
               unit.requestedSeconds,
               unit.slotSeconds,

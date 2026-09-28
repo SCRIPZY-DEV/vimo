@@ -35,14 +35,40 @@ import type { LlmModelProfile } from '../../types/llm-models.ts'
 //  - gemini-2.0-flash-001: respondía perfecto pero está DEPRECADO desde
 //    2026-02: «responde 200» no prueba que un modelo esté vigente.
 //
-// Las cifras anteriores son históricas. Validación 2026-09-27: el selector
-// conserva V4 Pro y Haiku (dos lotes completos con menos errores claros).
-// GPT-OSS high solo tiene una muestra completa y exige otro presupuesto;
-// V3.2 conserva su ocultamiento por latencia/saturación. No se cambian los
-// perfiles técnicos de previews/Catálogo ni se retiran globalmente sus modelos.
+// Las cifras anteriores son históricas. Validación 2026-09-28: V4.1 Flash
+// ofrece mejor equilibrio de tiempo/costo y conserva Haiku como alternativa.
+// MiMo Flash usa `none`: el razonamiento por defecto agotó la salida en las
+// pruebas. V4 Pro queda técnico para el revisor temporal, fuera del selector.
+// No se alteran los perfiles de previews/Catálogo ni la configuración de guion.
 // ADR-0044: la redacción elegible y sus rescates usan solo perfiles ofrecidos.
 // El ORDEN del array es el que ve el usuario en el selector.
 export const MODEL_CATALOG: readonly LlmModelProfile[] = [
+  {
+    id: 'deepseek-ai/DeepSeek-V4.1-Flash',
+    label: 'DeepSeek V4.1 Flash',
+    author: 'DeepSeek',
+    speed: 'fast',
+    tokensField: 'max_tokens',
+    outputTokensMargin: 3000,
+    // Tarifa regular conservadora; la promoción temporal no se garantiza.
+    pricing: { input: 0.2, output: 0.6 },
+    outputFactor: 0.85,
+    inCatalog: true,
+    inUi: true,
+  },
+  {
+    id: 'XiaomiMiMo/MiMo-V2.6-Flash',
+    label: 'MiMo V2.6 Flash',
+    author: 'Xiaomi',
+    speed: 'fast',
+    tokensField: 'max_tokens',
+    reasoningEffort: 'none',
+    outputTokensMargin: 3000,
+    pricing: { input: 0.14, output: 0.28 },
+    outputFactor: 0.85,
+    inCatalog: true,
+    inUi: false,
+  },
   {
     id: 'deepseek-ai/DeepSeek-V4-Pro',
     label: 'DeepSeek V4 Pro',
@@ -53,7 +79,7 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     pricing: { input: 1.3, output: 2.6 },
     outputFactor: 0.85,
     inCatalog: true,
-    inUi: true,
+    inUi: false,
   },
   {
     id: 'openai/gpt-oss-120b-Ultra',
@@ -196,10 +222,8 @@ export const DEFAULT_LLM_MODEL_ID = MODEL_CATALOG[0]!.id
  * repetir el intento que ya falló.
  */
 export const RESCUE_MODEL_ORDER: readonly string[] = [
-  // El que más varía los planos (10 encuadres distintos en 15 escenas) y el
-  // más lejano a los o4-mini, que es de donde va a venir casi todo rescate.
-  'deepseek-ai/DeepSeek-V4-Pro',
-  // Para cuando el elegido YA es un DeepSeek: el que mejor escribe de la lista.
+  // Rescates entre familias aprobadas; nunca vuelve a un perfil oculto.
+  'deepseek-ai/DeepSeek-V4.1-Flash',
   'anthropic/claude-haiku-4-5',
 ]
 

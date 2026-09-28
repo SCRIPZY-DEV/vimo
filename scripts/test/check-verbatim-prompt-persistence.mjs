@@ -19,13 +19,20 @@ import { buildCreateVideoContext } from '../../pipeline/stages/context.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
 import { CHARACTER_DESIGN_INSTRUCTION } from '../../pipeline/prompts/verbatim-messages.ts'
 import { runVerbatimLane } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts'
+import { VERBATIM_BATCH_SIZE } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-writer.ts'
 import { createVerbatimPromptPersistence } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-persistence.ts'
 
-const SCENE_COUNT = 25
-// VERBATIM_BATCH_SIZE es 20, así que la primera ronda son DOS lotes: 1-20 y
-// 21-25. Todo este guard vive de esa división.
-const FIRST_BATCH = Array.from({ length: 20 }, (_, index) => index + 1)
-const SECOND_BATCH = [21, 22, 23, 24, 25]
+const SCENE_COUNT = VERBATIM_BATCH_SIZE + 5
+// Una primera tanda completa y cinco pendientes: sigue probando la misma
+// frontera de persistencia cuando cambia el tamaño de lote del producto.
+const FIRST_BATCH = Array.from(
+  { length: VERBATIM_BATCH_SIZE },
+  (_, index) => index + 1,
+)
+const SECOND_BATCH = Array.from(
+  { length: 5 },
+  (_, index) => VERBATIM_BATCH_SIZE + index + 1,
+)
 
 const gem =
   'Render every scene as a hand-drawn watercolor illustration with indigo washes and rough paper. ' +
@@ -70,6 +77,43 @@ function scenesResponse(request) {
       .join('\n\n'),
   )
 }
+// Este guard mide persistencia, no calidad semántica. La revisión usa JSON
+// no-streaming: no se le devuelve el SSE reservado al redactor de escenas.
+function narrativeReviewResponse(request) {
+  if (
+    !request.messages[0].content.startsWith(
+      'You audit the FULL narrative meaning',
+    )
+  )
+    return
+  const { candidates } = JSON.parse(lastUserMessage(request))
+  assert.ok(Array.isArray(candidates) && candidates.length > 0)
+  return Response.json({
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            scenes: candidates.map((candidate) => ({
+              sceneId: candidate.sceneId,
+              checks: {
+                focus: true,
+                events: true,
+                setting: true,
+                causality: true,
+              },
+              aligned: true,
+              sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
+              promptEvidenceId: candidate.promptEvidence[0].id,
+              reason:
+                'Explicit approval fixture for prompt persistence regression only.',
+            })),
+          }),
+        },
+      },
+    ],
+  })
+}
+
 function unauthorized() {
   return new Response(JSON.stringify({ error: 'invalid api key' }), {
     status: 401,
@@ -154,6 +198,8 @@ function llm(t, handler) {
     if (!String(url).includes('chat/completions'))
       throw new Error('unexpected call to ' + url)
     const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request)
+    if (review) return review
     requests.push(request)
     if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
     return handler(request, fragmentsOf(request))
@@ -164,7 +210,7 @@ function llm(t, handler) {
 test('a batch that dies does not burn the ones already harvested', async (t) => {
   const { paths, base } = await fixture(t)
   llm(t, (request, ids) =>
-    ids.includes(21) ? unauthorized() : scenesResponse(request),
+    ids.includes(SECOND_BATCH[0]) ? unauthorized() : scenesResponse(request),
   )
   const context = await buildCreateVideoContext(base, 'fixture')
 
@@ -177,7 +223,7 @@ test('a batch that dies does not burn the ones already harvested', async (t) => 
 test('resuming after that death only re-asks the scenes that are missing', async (t) => {
   const { paths, base } = await fixture(t)
   llm(t, (request, ids) =>
-    ids.includes(21) ? unauthorized() : scenesResponse(request),
+    ids.includes(SECOND_BATCH[0]) ? unauthorized() : scenesResponse(request),
   )
   await assert.rejects(
     scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture')),
@@ -258,7 +304,7 @@ test('the partial write carries the character presence, not just the text', asyn
     ],
   })
   llm(t, (request, ids) =>
-    ids.includes(21) ? unauthorized() : scenesResponse(request),
+    ids.includes(SECOND_BATCH[0]) ? unauthorized() : scenesResponse(request),
   )
   await assert.rejects(
     scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture')),
@@ -282,7 +328,7 @@ test('a cut recovery pass never leaves an emptied prompt on disk', async (t) => 
   const old = (id) => 'the previous prompt of scene ' + id + '. ' + tail
   const { paths, base } = await fixture(t, { prompts: old, images: true })
   llm(t, (request, ids) =>
-    ids.includes(21) ? unauthorized() : scenesResponse(request),
+    ids.includes(SECOND_BATCH[0]) ? unauthorized() : scenesResponse(request),
   )
   const context = await buildCreateVideoContext(base, 'fixture')
   const scenes = await readScenes(paths)

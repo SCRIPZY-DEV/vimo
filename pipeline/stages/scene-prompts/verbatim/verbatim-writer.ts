@@ -7,6 +7,7 @@ import {
 } from '../../../providers/llm/model-catalog.ts'
 import { isLlmAuthFailure } from '../../../providers/llm/auth-failure.ts'
 import { PipelineFailure } from '../../../runner/failure.ts'
+import { limitConcurrency } from '../../../utils/concurrency.ts'
 import {
   isOutputTruncated,
   withVerbatimRetry,
@@ -34,11 +35,12 @@ import {
   type VerbatimFragment,
 } from '../../../prompts/verbatim-messages.ts'
 import {
+  completedPromptPrefix,
   countCompletedPrompts,
   extractCodeBlock,
   LIMIT_PROTOCOL_REGEX,
   localSceneDefect,
-  readIdMarkers,
+  readIdMarker,
   responseContamination,
   restoreStyleTail,
   splitPrompts,
@@ -92,18 +94,14 @@ import {
 const TOKENS_PER_FRAGMENT = 320
 
 /**
- * Tamaño de lote PROPIO del carril verbatim (E34 del origen): hasta 20
- * fragmentos por pedido. La gema está escrita para recibir la LISTA de
- * fragmentos («si recibes 15 fragmentos, devuelves EXACTAMENTE 15 prompts»);
- * con lotes chicos el patrón de lista se desdibuja y el 1:1 se viola más — y
- * cada lote extra es otro boleto para la lotería del 429. El costo es
- * latencia, y se paga a propósito: acá la fidelidad al estilo vale más que la
- * velocidad de la fase.
- *
- * Exportado: el simulador de costos del selector (rama del selector) necesita
- * saber cuántas veces se repite el guion, y ese número sale de acá.
+ * Lotes cortos medidos con el mismo guion/contexto: 19 escenas en dos pedidos
+ * de 10/9 tardaron 23,7 s con V4.1 Flash frente a 31–65 s en un solo lote.
+ * Cada pedido conserva la gema, el guion completo y los IDs globales.
+ * El selector consume esta constante para estimar la repetición de entrada.
  */
-export const VERBATIM_BATCH_SIZE = 20
+export const VERBATIM_BATCH_SIZE = 10
+const VERBATIM_BATCH_CONCURRENCY = 8
+const SCENE_REQUEST_TIMEOUT_MS = 45_000
 
 /**
  * Rondas extra de reintento, cada vez más quirúrgicas: la PRIMERA re-pide
@@ -854,25 +852,15 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Convierte la respuesta de un lote en prompts, mapeando POR ORDEN (o por ID
- * si vinieron los marcadores).
- *
- * De MÁS no es un fallo: se recorta y se sigue (medido: el modelo se
- * entusiasma y agrega escenas al final, +1/+2, todas bien formadas). De MENOS
- * sí: falta un fragmento y no hay forma de saber cuál — se descarta el lote
- * ENTERO y se reintenta (una lista corrida pondría la imagen equivocada en
- * cada escena desde ahí hasta el final).
- *
- * Taxonomía de fallos (E35): CONTEO/ORDEN roto o CONTAMINACIÓN → lote entero
- * (no hay mapeo confiable que salvar). Defecto LOCAL de una escena (hueco de
- * plantilla, ficha de personaje) → esa escena vuelve en `defective` y las
- * demás se COSECHAN.
+ * Lee por ID en cuanto aparece un marcador; los IDs faltantes, duplicados o
+ * defectuosos se reintentan solos. El formato histórico sin IDs se admite
+ * únicamente con conteo exacto y respuesta completa, nunca en un prefijo.
  */
 export interface BatchReading {
   good: { n: number; prompt: string }[]
   defective: { n: number; reason: string }[]
-  /** Prompts sobrantes descartados del final, textuales: el log dice QUÉ se
-   *  tiró y no solo cuántos. */
+  /** Prompts sobrantes o sin identidad descartados, textuales: el log dice
+   *  QUÉ se tiró y no solo cuántos. */
   trimmed: string[]
   /** Escenas SALVADAS en el acto (traían la ficha adentro, E35): además del
    *  número va LO QUE SE QUITÓ, textual — la única forma de auditar desde
@@ -929,68 +917,66 @@ function classifyScene(n: number, prompt: string, target: BatchReading): void {
 export function readBatchPrompts(
   raw: string,
   batch: readonly VerbatimFragment[],
+  requireIds = false,
 ): BatchReading {
   const clean = stripReasoning(raw)
   const block = extractCodeBlock(clean)
-  // RED DE DES-ENVOLTURA (v1.29.0): si la respuesta vino en JSON (una gema
-  // del usuario que lo pida), se desenvuelve ANTES de trocear. Con ids en el
-  // JSON, la correspondencia es por ID directo (mejor dato que el orden).
   const fromJson = unwrapJsonPrompts(block)
-  if (fromJson && fromJson.every((item) => typeof item.n === 'number')) {
-    return readById(
-      fromJson
-        .map((item) => ({
-          n: item.n as number,
-          text: stripIdMarker(item.text),
-        }))
-        .filter((item) => item.text.length > 0),
-      batch,
+  if (fromJson?.some((item) => typeof item.n === 'number')) {
+    const identified = fromJson.flatMap((item) => {
+      if (item.n === undefined) return []
+      const marker = readIdMarker(item.text)
+      // Dos IDs distintos para el mismo prompt no autorizan elegir uno.
+      const text = marker && marker.n !== item.n ? '' : stripIdMarker(item.text)
+      return [{ n: item.n, text }]
+    })
+    const reading = readById(identified, batch)
+    reading.trimmed.push(
+      ...fromJson
+        .filter((item) => item.n === undefined)
+        .map((item) => item.text),
     )
+    return reading
   }
+
+  const hasExplicitIds = /^[ \t]*\(\(\d{1,4}\)\)/m.test(block)
   const pieces = fromJson
     ? fromJson.map((item) => item.text)
-    : splitPrompts(block, batch.length)
-  const first = batch[0]?.n ?? 0
-  const last = batch[batch.length - 1]?.n ?? 0
-
-  // DOBLE LECTURA: con los marcadores `((n))` en TODOS los trozos, la
-  // correspondencia es por ID y el conteo deja de ser un juicio de vida o
-  // muerte. Sin marcadores completos, el camino por ORDEN de siempre.
-  const byId = readIdMarkers(pieces)
-  if (byId) return readById(byId, batch)
-
-  const texts = pieces.map(stripIdMarker)
-
-  // El recorte del entusiasmo tiene TOPE: +1/+2 es lo medido. Muchos más ya
-  // no es entusiasmo: es el modelo re-haciendo el video entero, y ahí el
-  // primer prompt del bloque NO corresponde al primer fragmento del lote —
-  // recortar mapearía la imagen de otra escena, en silencio.
-  if (texts.length > batch.length + 2)
-    throw new Error(
-      `the model returned ${texts.length} prompts for a batch of ${batch.length} fragments (${first}-${last}): it rewrote too much and the order is no longer reliable; discarding the whole batch`,
-    )
-
-  const trimmed: string[] = []
-  if (texts.length > batch.length) {
-    trimmed.push(...texts.slice(batch.length))
-    texts.length = batch.length
+    : splitPrompts(block, hasExplicitIds ? undefined : batch.length).flatMap(
+        (piece) => {
+          // Con IDs, una línea envuelta es parte del mismo prompt. Solo otro
+          // marcador o la separación de párrafos termina esa escena.
+          return piece
+            .split(/\r?\n(?=[ \t]*\(\(\d{1,4}\)\))/)
+            .map((part) => part.trim())
+        },
+      )
+  const identified = pieces.flatMap((piece) => {
+    const entry = readIdMarker(piece)
+    return entry ? [entry] : []
+  })
+  if (identified.length > 0 || requireIds) {
+    const reading = readById(identified, batch)
+    reading.trimmed.push(...pieces.filter((piece) => !readIdMarker(piece)))
+    return reading
   }
 
+  const texts = pieces.map(stripIdMarker)
   if (texts.length !== batch.length) {
     const limit = LIMIT_PROTOCOL_REGEX.exec(clean)
     if (limit)
       throw new Error(
-        `the model cut its answer with its limit protocol (up to fragment ${limit[1]}): ${texts.length} prompts for the ${batch.length} in the batch (${first}-${last}); retrying with a smaller batch`,
+        `the model cut its answer with its limit protocol (up to fragment ${limit[1]}): ${texts.length} prompts for ${batch.length} fragments; no reliable scene IDs`,
       )
     throw new Error(
-      `the model returned ${texts.length} prompts for a batch of ${batch.length} fragments (${first}-${last}); without a 1:1 mapping the batch is discarded and retried`,
+      `the model returned ${texts.length} prompts for ${batch.length} fragments; without IDs an incomplete or oversized batch cannot be mapped safely`,
     )
   }
 
   const reading: BatchReading = {
     good: [],
     defective: [],
-    trimmed,
+    trimmed: [],
     repaired: [],
     styleRestored: [],
   }
@@ -999,7 +985,7 @@ export function readBatchPrompts(
     const contamination = responseContamination(prompt)
     if (contamination)
       throw new Error(
-        `in the prompt for fragment ${fragment.n}: ${contamination}; the whole answer is suspect — discarding the batch`,
+        `in the prompt for fragment ${fragment.n}: ${contamination}; without IDs the batch cannot be mapped safely`,
       )
     classifyScene(fragment.n, prompt, reading)
   })
@@ -1008,50 +994,54 @@ export function readBatchPrompts(
 }
 
 /**
- * Lectura POR ID: faltante identificado exacto → `defective` (la ronda
- * siguiente lo re-pide SOLO); duplicado → queda la PRIMERA aparición y el
- * resto a `trimmed` con su texto; id fuera del lote → `trimmed`;
- * contaminación en CUALQUIER trozo → condena al lote entero.
+ * Un ID inequívoco permite conservar las demás escenas aunque una falte o
+ * llegue contaminada. Ante duplicados no se elige una versión arbitraria:
+ * ese ID queda pendiente. Los extras nunca sustituyen fragmentos pedidos.
  */
 function readById(
   byId: readonly { n: number; text: string }[],
   batch: readonly VerbatimFragment[],
 ): BatchReading {
-  for (const { n, text } of byId) {
-    const contamination = responseContamination(text)
-    if (contamination)
-      throw new Error(
-        `in the prompt for fragment ${n}: ${contamination}; the whole answer is suspect — discarding the batch`,
-      )
+  const reading: BatchReading = {
+    good: [],
+    defective: [],
+    trimmed: [],
+    repaired: [],
+    styleRestored: [],
   }
-
-  const trimmed: string[] = []
   const batchIds = new Set(batch.map((fragment) => fragment.n))
   const byNumber = new Map<number, string>()
+  const duplicates = new Set<number>()
   for (const { n, text } of byId) {
     if (!batchIds.has(n)) {
-      trimmed.push(`((${n})) outside the batch: ${text}`)
+      reading.trimmed.push(`((${n})) outside the batch: ${text}`)
     } else if (byNumber.has(n)) {
-      trimmed.push(`((${n})) duplicated: ${text}`)
+      duplicates.add(n)
+      reading.trimmed.push(`((${n})) duplicated: ${text}`)
     } else {
       byNumber.set(n, text)
     }
   }
 
-  const reading: BatchReading = {
-    good: [],
-    defective: [],
-    trimmed,
-    repaired: [],
-    styleRestored: [],
-  }
   for (const fragment of batch) {
     const prompt = byNumber.get(fragment.n)
-    if (prompt === undefined) {
+    if (duplicates.has(fragment.n)) {
+      reading.defective.push({
+        n: fragment.n,
+        reason: 'ambiguous duplicate scene ID',
+      })
+      continue
+    }
+    if (prompt === undefined || !prompt.trim()) {
       reading.defective.push({
         n: fragment.n,
         reason: 'missing from the answer (identified by id)',
       })
+      continue
+    }
+    const contamination = responseContamination(prompt)
+    if (contamination) {
+      reading.defective.push({ n: fragment.n, reason: contamination })
       continue
     }
     classifyScene(fragment.n, prompt, reading)
@@ -1061,10 +1051,9 @@ function readById(
 }
 
 /**
- * FASE 2 — los prompts de escena, en lotes que salen TODOS a la vez. Ningún
- * lote espera al anterior: la fase dura lo que tarda UNO. Un lote caído no
- * tumba la corrida — sus fragmentos quedan como faltantes y entran a la
- * escalera de reintento con lotes más chicos.
+ * FASE 2 — prompts en lotes concurrentes acotados. El límite evita un pico
+ * de peticiones al reducir el tamaño de lote. Un fallo recuperable deja solo
+ * sus fragmentos pendientes para la escalera selectiva.
  */
 export async function generateVerbatimPrompts(
   fragments: readonly VerbatimFragment[],
@@ -1215,26 +1204,51 @@ export async function generateVerbatimPrompts(
     const reading = await withVerbatimRetry(
       async () => {
         options.signal?.throwIfAborted()
-        const response = await options.client.call({
-          profile: executor.profile,
-          messages,
-          contentTokensBudget: batch.length * TOKENS_PER_FRAGMENT,
-          signal: options.signal,
-          cacheKey: executor.cacheKey,
-          onProgress: options.onProgress
-            ? (partial) => {
-                const written = countCompletedPrompts(partial, batch.length)
-                // Solo hacia adelante: un reintento de este mismo lote
-                // arranca de cero y no puede hacer retroceder la barra.
-                if (written > (writtenPerBatch.get(batchId) ?? 0)) {
-                  writtenPerBatch.set(batchId, written)
-                  reportProgress()
-                }
+        let streamed = ''
+        let reading: BatchReading
+        try {
+          const response = await options.client.call({
+            profile: executor.profile,
+            messages,
+            contentTokensBudget: batch.length * TOKENS_PER_FRAGMENT,
+            signal: options.signal,
+            cacheKey: executor.cacheKey,
+            requireComplete: true,
+            ...(batch.some((fragment) => fragment.temporalContext)
+              ? { timeoutMs: SCENE_REQUEST_TIMEOUT_MS }
+              : {}),
+            onProgress: (partial) => {
+              streamed = partial
+              const written = countCompletedPrompts(partial, batch.length)
+              if (written > (writtenPerBatch.get(batchId) ?? 0)) {
+                writtenPerBatch.set(batchId, written)
+                reportProgress()
               }
-            : undefined,
-        })
-        count(response.inputTokens, response.outputTokens)
-        const reading = readBatchPrompts(response.content, batch)
+            },
+          })
+          count(response.inputTokens, response.outputTokens)
+          // Los intervalos de narración exigen identidad explícita: tener
+          // el conteo exacto no demuestra que el modelo respetó el orden.
+          // Las previews sin audio conservan su lectura histórica.
+          reading = readBatchPrompts(
+            response.content,
+            batch,
+            batch.some((fragment) => !!fragment.temporalContext),
+          )
+        } catch (error) {
+          options.signal?.throwIfAborted()
+          if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+            throw error
+          const completed = completedPromptPrefix(streamed)
+          const partial = completed
+            ? readBatchPrompts(completed, batch, true)
+            : undefined
+          if (!partial?.good.length) throw error
+          options.onWarn?.(
+            `the response was interrupted; preserving ${partial.good.length} complete identified prompts and retrying only unresolved scenes`,
+          )
+          reading = partial
+        }
         if (options.validatePrompt) {
           reading.good = reading.good.filter((entry) => {
             if (options.validatePrompt!(entry.prompt, entry.n)) return true
@@ -1294,129 +1308,145 @@ export async function generateVerbatimPrompts(
     executor = chosenExecutor,
   ) => {
     const round = currentRound++
-    const settled = await Promise.allSettled(
-      chunk(pending, size).map(async (batch, index) => {
-        try {
-          const reading = await requestBatch(
-            batch,
-            round * 1000 + index,
-            executor,
+    const batches = chunk(pending, size)
+    const limited = limitConcurrency(VERBATIM_BATCH_CONCURRENCY)
+    let stopped = false
+    const processBatch = async (batch: VerbatimFragment[], index: number) => {
+      try {
+        const reading = await requestBatch(
+          batch,
+          round * 1000 + index,
+          executor,
+        )
+        const justObtained = new Set<number>()
+        for (const entry of reading.good) {
+          if (obtained.has(entry.n)) continue
+          obtained.set(entry.n, entry.prompt)
+          justObtained.add(entry.n)
+        }
+        // Trazabilidad del recorte: QUÉ se descartó, no solo cuántos.
+        if (reading.trimmed.length > 0) {
+          options.onLog?.(
+            `the batch brought ${reading.trimmed.length} extra prompt(s) at the end, discarded: ${reading.trimmed
+              .map((text) => `"${text.slice(0, 45)}…"`)
+              .join(' · ')}`,
           )
-          const justObtained = new Set<number>()
-          for (const entry of reading.good) {
-            if (obtained.has(entry.n)) continue
-            obtained.set(entry.n, entry.prompt)
-            justObtained.add(entry.n)
+        }
+        // E35 reparado EN EL ACTO — y se dice TEXTUALMENTE qué se sacó.
+        for (const repair of reading.repaired) {
+          options.onLog?.(
+            `scene ${repair.n} carried the character sheet inside: removed «${repair.removed}» and used the rest as-is, without re-requesting`,
+          )
+        }
+        // La cola de estilo que el modelo se olvidó: se le devuelve la
+        // MISMA que traen las otras escenas del lote.
+        for (const restore of reading.styleRestored) {
+          options.onLog?.(
+            `scene ${restore.n} came without the style tail: restored the same one the others carry («${restore.added}»)`,
+          )
+        }
+        // Defecto LOCAL: las buenas ya quedaron cosechadas; la defectuosa
+        // no entra a `obtained` y la próxima ronda la re-pide SOLA.
+        for (const defect of reading.defective) {
+          lastError = `scene ${defect.n} came with ${defect.reason}`
+          options.onLog?.(
+            `scene ${defect.n} came defective (${defect.reason}): re-requesting it alone, without discarding the batch`,
+          )
+        }
+        // Lo de este lote YA SE PAGÓ: se persiste en el acto para que un
+        // fallo posterior —o la cancelación de la UI cuando el modelo da
+        // errores— no lo tire y haya que volver a comprarlo. La cadena del
+        // vestuario se recalcula sobre TODO lo cosechado hasta acá (la
+        // finalización lo exige), pero solo se componen los ids nuevos.
+        if (justObtained.size > 0 && options.onBatchReady) {
+          const ready = finalizeVerbatimPrompts(
+            obtained,
+            character,
+            sceneWardrobe,
+            justObtained,
+          )
+          for (const id of justObtained) {
+            const reviewed = reviewedPrompts.get(id)
+            if (reviewed !== undefined) ready.prompts.set(id, reviewed)
           }
-          // Trazabilidad del recorte: QUÉ se descartó, no solo cuántos.
-          if (reading.trimmed.length > 0) {
-            options.onLog?.(
-              `the batch brought ${reading.trimmed.length} extra prompt(s) at the end, discarded: ${reading.trimmed
-                .map((text) => `"${text.slice(0, 45)}…"`)
-                .join(' · ')}`,
-            )
-          }
-          // E35 reparado EN EL ACTO — y se dice TEXTUALMENTE qué se sacó.
-          for (const repair of reading.repaired) {
-            options.onLog?.(
-              `scene ${repair.n} carried the character sheet inside: removed «${repair.removed}» and used the rest as-is, without re-requesting`,
-            )
-          }
-          // La cola de estilo que el modelo se olvidó: se le devuelve la
-          // MISMA que traen las otras escenas del lote.
-          for (const restore of reading.styleRestored) {
-            options.onLog?.(
-              `scene ${restore.n} came without the style tail: restored the same one the others carry («${restore.added}»)`,
-            )
-          }
-          // Defecto LOCAL: las buenas ya quedaron cosechadas; la defectuosa
-          // no entra a `obtained` y la próxima ronda la re-pide SOLA.
-          for (const defect of reading.defective) {
-            lastError = `scene ${defect.n} came with ${defect.reason}`
-            options.onLog?.(
-              `scene ${defect.n} came defective (${defect.reason}): re-requesting it alone, without discarding the batch`,
-            )
-          }
-          // Lo de este lote YA SE PAGÓ: se persiste en el acto para que un
-          // fallo posterior —o la cancelación de la UI cuando el modelo da
-          // errores— no lo tire y haya que volver a comprarlo. La cadena del
-          // vestuario se recalcula sobre TODO lo cosechado hasta acá (la
-          // finalización lo exige), pero solo se componen los ids nuevos.
-          if (justObtained.size > 0 && options.onBatchReady) {
-            const ready = finalizeVerbatimPrompts(
-              obtained,
-              character,
-              sceneWardrobe,
-              justObtained,
-            )
-            for (const id of justObtained) {
-              const reviewed = reviewedPrompts.get(id)
-              if (reviewed !== undefined) ready.prompts.set(id, reviewed)
-            }
-            options.signal?.throwIfAborted()
-            try {
-              await options.onBatchReady({
-                prompts: ready.prompts,
-                scenesWithSubject: ready.scenesWithSubject,
-              })
-            } catch (error) {
-              // Un problema de disco NO es un fallo del modelo: si esto cayera
-              // en el catch del lote, marcaría `chosenModelBlamed` y la UI
-              // bloquearía una hora a un modelo sano.
-              options.onWarn?.(
-                `the prompts of this batch could not be saved (they stay in memory and the run continues): ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-              )
-            }
-          }
-          // Cosechado: la cifra del stream era una estimación; esto es un hecho.
-          reportProgress()
-        } catch (error) {
-          // Clave rechazada: la escalera y el rescate darían el mismo 401 y
-          // el video saldría con prompts de relleno. Se corta el job.
           options.signal?.throwIfAborted()
-          if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
-            throw error
-          if (
-            error instanceof PipelineFailure &&
-            error.code === 'scene_prompt_alignment_failed'
-          )
-            throw error
-          // Un lote caído NO tumba la corrida: sus fragmentos quedan como
-          // faltantes y entran a la escalera de reintento. Un corte por tope
-          // de tokens tampoco: la escalera pide lotes más chicos, que es
-          // justo la cura para ese fallo determinista.
-          if (isOutputTruncated(error)) {
-            lastError = 'the answer hit the output token ceiling'
-          } else {
-            lastError = error instanceof Error ? error.message : String(error)
-          }
-          // El motivo real, en el acto y por lote: sin esto el único rastro
-          // de un fallo del proveedor era el «last notice» del final.
-          options.onWarn?.(
-            `batch ${batch[0]?.n}-${batch[batch.length - 1]?.n} failed with ${executor.profile.label}: ${lastError}`,
-          )
-          const networkFailure =
-            error instanceof PipelineFailure && error.code === 'llm_network'
-          if (executor.profile.id === profile.id && !networkFailure)
-            chosenModelBlamed = true
-          // Fallo del PROVEEDOR con el modelo elegido (no en el rescate): la
-          // UI se entera para bloquearlo un rato. No cambia nada acá: el
-          // lote entra igual a la escalera de reintento.
-          if (
-            executor.profile.id === profile.id &&
-            error instanceof PipelineFailure &&
-            PROVIDER_TROUBLE_CODES.has(error.code)
-          ) {
-            options.onModelTrouble?.(
-              profile.id,
-              error.code,
-              batch.map((fragment) => fragment.n),
+          try {
+            await options.onBatchReady({
+              prompts: ready.prompts,
+              scenesWithSubject: ready.scenesWithSubject,
+            })
+          } catch (error) {
+            // Un problema de disco NO es un fallo del modelo: si esto cayera
+            // en el catch del lote, marcaría `chosenModelBlamed` y la UI
+            // bloquearía una hora a un modelo sano.
+            options.onWarn?.(
+              `the prompts of this batch could not be saved (they stay in memory and the run continues): ${
+                error instanceof Error ? error.message : String(error)
+              }`,
             )
           }
         }
-      }),
+        // Cosechado: la cifra del stream era una estimación; esto es un hecho.
+        reportProgress()
+      } catch (error) {
+        // Clave rechazada: la escalera y el rescate darían el mismo 401 y
+        // el video saldría con prompts de relleno. Se corta el job.
+        options.signal?.throwIfAborted()
+        if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+          throw error
+        if (
+          error instanceof PipelineFailure &&
+          error.code === 'scene_prompt_alignment_failed'
+        )
+          throw error
+        // Un lote caído NO tumba la corrida: sus fragmentos quedan como
+        // faltantes y entran a la escalera de reintento. Un corte por tope
+        // de tokens tampoco: la escalera pide lotes más chicos, que es
+        // justo la cura para ese fallo determinista.
+        if (isOutputTruncated(error)) {
+          lastError = 'the answer hit the output token ceiling'
+        } else {
+          lastError = error instanceof Error ? error.message : String(error)
+        }
+        // El motivo real, en el acto y por lote: sin esto el único rastro
+        // de un fallo del proveedor era el «last notice» del final.
+        options.onWarn?.(
+          `batch ${batch[0]?.n}-${batch[batch.length - 1]?.n} failed with ${executor.profile.label}: ${lastError}`,
+        )
+        const networkFailure =
+          error instanceof PipelineFailure && error.code === 'llm_network'
+        if (executor.profile.id === profile.id && !networkFailure)
+          chosenModelBlamed = true
+        // Fallo del PROVEEDOR con el modelo elegido (no en el rescate): la
+        // UI se entera para bloquearlo un rato. No cambia nada acá: el
+        // lote entra igual a la escalera de reintento.
+        if (
+          executor.profile.id === profile.id &&
+          error instanceof PipelineFailure &&
+          PROVIDER_TROUBLE_CODES.has(error.code)
+        ) {
+          options.onModelTrouble?.(
+            profile.id,
+            error.code,
+            batch.map((fragment) => fragment.n),
+          )
+        }
+      }
+    }
+    const settled = await Promise.allSettled(
+      batches.map((batch, index) =>
+        limited(async () => {
+          // Auth, saldo, cancelación o fallo de revisión detienen también la
+          // cola local; lo ya persistido por otros lotes no se descarta.
+          if (stopped) return
+          try {
+            await processBatch(batch, index)
+          } catch (error) {
+            stopped = true
+            throw error
+          }
+        }),
+      ),
     )
     const failed = settled.find((entry) => entry.status === 'rejected')
     if (failed?.status === 'rejected') throw failed.reason

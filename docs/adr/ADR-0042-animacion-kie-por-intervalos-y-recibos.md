@@ -45,6 +45,8 @@ La auditoría de `video-3.3.3` verificó clips de cinco segundos sin desplazamie
 
 ### Rescate del redactor y diagnóstico (2026-09-22)
 
+> La selección de modelos, el transporte JSON no streaming y la recuperación después de una revisión agotada descritos aquí quedan sustituidos por la revisión del 2026-09-28. Se conservan las reglas de evidencia, reparto, cronología, recibos y fallo seguro.
+
 La recuperación de contenido es exclusiva de `buildAnimationPrompt`: tres candidatos como máximo, con tiers `premium → economy → balanced` (defaults DeepSeek V3.2, Mistral Small 3.2 y Qwen3 235B). La preferencia inicial se mantiene y los otros dos modelos reutilizan configuración, clave y transporte existentes. El benchmark previo favorecía Mistral como respaldo de relación calidad/precio; la elección no demuestra superioridad universal. Se pide `json_object` también al redactor, hasta 2000 tokens por candidato, y se devuelve feedback concreto sobre JSON, campos, IDs, repetición o longitud. Un rechazo semántico adjunta el borrador fallido de este mismo encargo como `candidate_to_repair` junto al feedback; se corrigen sus problemas conservando lo válido. Nunca se reenvía el prompt histórico de un video pagado. No se modifica el dispatcher global ni el redactor de guiones/previews.
 
 Una revisión válida que rechaza el candidato exige corregirlo: nunca se consulta otro revisor para conseguir un voto favorable sobre esa misma contradicción. Solo una revisión malformada o un fallo recuperable de transporte habilita otra revisión del mismo candidato, con tier `balanced`; la revisión empieza siempre en `premium`, incluso si el redactor fue otro. Máximo dos revisiones de 1000 tokens por candidato. El máximo es tres redacciones y seis revisiones, aparte del backoff/fallback de transporte existente. Autenticación, saldo, cancelación y cuota agotada se propagan sin reiniciar la cadena de tres redactores.
@@ -76,6 +78,39 @@ flowchart LR
 **Fallo:** agotado el rescate, permanece el modal de reintento y el clip/imagen previo. Un error de red/servicio final conserva su código LLM; un candidato nunca aprobado termina en `animation_prompt_failed`. No se compra video con un prompt de relleno. Los recibos conocidos omiten todo este proceso y se recuperan sin nueva redacción.
 
 **Motivo:** se reprodujo JSON truncado repetido sin feedback y un 401 convertido erróneamente en fallo genérico del prompt. Los logs históricos solo guardaban el mensaje final y no permiten atribuir la causa exacta a cada ejecución anterior. El refuerzo conserva la revisión semántica y vuelve observable la clasificación de los fallos futuros.
+
+### Redacción y revisión rápidas aisladas (2026-09-28)
+
+La autorización del usuario del 2026-09-28 extiende los modelos evaluados al generador de prompts de video. `animation/llm.ts` implementa el mismo contrato `SceneLlm` mediante el cliente streaming existente. Solo `animation/generate.ts` cambia su factoría; no cambian `createSceneLlm`, los tiers globales, guiones, previews, fragmentación, audio, Rust ni fases del sidecar.
+
+El mapa local es `premium = DeepSeek V4.1 Flash`, `economy = MiMo V2.6 Flash` con `reasoning_effort: none` y `balanced = Claude Haiku 4.5`. El redactor usa premium → economy → premium (V4.1 → MiMo → V4.1 con feedback) y la revisión premium → balanced. Haiku queda fuera de las redacciones normales de reparación, aunque puede escribir como rescate de transporte ante timeout; ese candidato también debe revisarse antes de comprar video. La revisión de un rechazo no se somete a votación; debe corregirse el candidato. Los modelos internos de movimiento no dependen de cuáles se ofrecen en el selector de imágenes.
+
+La llamada usa los dos mensajes originales, respuesta streaming completa obligatoria y 2000 tokens de contenido del redactor o 1000 del revisor, sin margen adicional de razonamiento. El sistema pide JSON y el parser lo valida; no se envía `response_format` ni muestreo distinto al del cliente medido. Cada llamada tiene techo de 45 s, conserva el backoff ante 429 y el rescate de timeout del dispatcher existente, pero todos sus destinos son ahora modelos de esta política local. La cancelación previa corta antes de solicitar nada. Autenticación y saldo no cambian de modelo.
+
+Si se agotan las dos revisiones por transporte o contrato inválido, se propaga ese fallo sin reescribir el candidato ya válido. Se reprodujo una redacción multiplicada a tres y su revisión a seis únicamente por caída del revisor; ahora ese caso hace una redacción y dos revisiones. Un rechazo semántico válido sí permite reparar el mismo clip con sus fuentes y feedback. No se regeneran otros clips ni se modifica el prompt de recibos pagados.
+
+La revisión incluye audio explícito y marcas de tiempo fuera de la ventana global de cada segmento. Estas clases de defecto aparecieron en borradores reales: sonido pese al contrato mudo y segunda escena con reloj reiniciado en cero. No se promete detección perfecta. El revisor narrativo temporal del redactor de imágenes y este control de movimiento son componentes distintos; esta decisión no convierte el validador temporal de imágenes en una dependencia permanente.
+
+```mermaid
+flowchart LR
+    clip["Animación · unidad de clip"]:::propio
+    plan[["buildAnimationPrompt"]]:::propio
+    adapter[["createAnimationLlm · política local"]]:::propio
+    stream[["Cliente streaming existente"]]:::propio
+    provider(["DeepInfra"]):::externo
+    kie(["Kie · clip pagado"]):::externo
+    clip -->|"solicita plan revisado · función"| plan
+    plan -->|"redacta o revisa · SceneLlm"| adapter
+    adapter -->|"aplica perfil y plazo · función"| stream
+    stream -->|"solicita texto · HTTPS SSE"| provider
+    clip -->|"compra solo tras aprobación · HTTPS"| kie
+    classDef externo fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray:4
+    classDef propio fill:#e3f2fd,stroke:#1976d2
+```
+
+**Contratos y fallos:** no hay cambios de IPC ni de reloj; la falta de un plan aprobado impide comprar un video nuevo. Conservar una imagen o clip anterior no se presenta como generación exitosa. Los tiempos observados son medidas de solicitudes individuales, no un SLA de menos de un minuto para una cantidad arbitraria de clips, la cola del proveedor o sus reintentos.
+
+**Evidencia:** seis redacciones reales y cuatro revisiones adicionales sobre controles explícitos, total USD 0,0248572608. V4.1 Flash redactó en 7,53 y 13,28 s y revisó en 5,17 y 10,30 s; MiMo redactó en 14,84 y 30,88 s; Haiku redactó en 5,78 y 8,59 s. Ambos revisores aprobaron el control apoyado en la fuente y rechazaron el caso con actor añadido, conexión alterada, sonido y reloj inválido. Son medidas textuales con muestras pequeñas: no certifican fidelidad del MP4 ni equivalen a una ejecución completa escritor → revisor → Kie. [Causa, límites y validación](../../fixes/2026-09-28_animation-text-models-and-review-retries.md).
 
 ## Contrato de ejecución
 

@@ -2,6 +2,7 @@
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-27
+- **Actualizada:** 2026-09-28 — oferta y ejecución rápida descritas abajo.
 - **Área:** pipeline / app
 - **Complementa:** ADR-0020, ADR-0022 y ADR-0028.
 - **Origen:** pedido explícito de limitar todos los selectores a los modelos con menos errores, preservando arquitectura y previews.
@@ -14,7 +15,9 @@ V4 Pro completó dos lotes sin contradicciones claras detectadas; Haiku complet�
 
 La evidencia íntegra, costos y desacuerdos se conservan fuera del repo, en el vault del proyecto: `Reportes/2026-09-27-redactor-full-comparison/Comparacion completa - Redactores antes del validador.md`. No se suben scripts locales ni imágenes de las pruebas.
 
-## Decisión
+## Decisión original del 2026-09-27
+
+Los puntos 1 y 4 sobre modelos, y el costo del predeterminado, quedan **superados** por la actualización del 2026-09-28. Se conservan como historia. Los contratos de resolución, UI, auditoría y protección de previews siguen vigentes.
 
 1. Ofrecer únicamente **DeepSeek V4 Pro** y **Claude Haiku 4.5**. V4 Pro queda predeterminado. Se usa el catálogo central existente, sin listas duplicadas en React o Rust.
 2. `inUi` gobierna tanto la oferta como la ejecución del redactor elegible. `resolveVerbatimModel` sustituye un ID oculto, retirado o desconocido por el predeterminado con aviso. Se aplica al generar, reanudar, regenerar y diseñar personajes con una preferencia de proyecto. No se migran archivos históricos ni se borran prompts pagados.
@@ -44,3 +47,19 @@ El nuevo default es más caro que el anterior. El selector conserva las estimaci
 ## Validación
 
 Ver el fix de esta fecha para comandos y resultados: catálogo del sidecar empaquetado, resolución de preferencias antiguas, rescate, protección de previews, render de selectores y compilación. Las simulaciones verifican contratos; la calidad narrativa procede de las llamadas reales conservadas, no de respuestas ficticias.
+
+## Actualización del 2026-09-28 — velocidad, costo y recuperación selectiva
+
+Pedido explícito: modelos rápidos/económicos, también para animación, y reintentar solo los fragmentos que faltan o fallan. No se cambia guion, fragmentador, audio, timeline ni el contrato NDJSON/Rust.
+
+- Oferta central: **DeepSeek V4.1 Flash** predeterminado y **Claude Haiku 4.5** alternativo. Los rescates cruzan esas dos familias. V4 Pro queda técnico para el revisor temporal, oculto como redactor elegible. Preferencias antiguas se resuelven al nuevo default con aviso, conservando prompts y auditoría previos.
+- MiMo V2.6 Flash con esfuerzo `none` queda técnico para animación (ADR-0042), sin tarjeta en Ajustes ni Crear. Aunque rápido en lotes menores, omitió vestuario contextual en diez escenas de la muestra; no se ofrece como equivalente del redactor estático. Su razonamiento por defecto agotó tokens sin texto útil en las pruebas.
+- Los lotes de Mi estilo pasan de 20 a **10 fragmentos**, conservando gema, guion completo, personaje y contextos temporales. Máximo **8 lotes simultáneos por invocación** usando el limitador existente; el resto espera. La concurrencia se mantiene ocupada hasta finalizar también la revisión/persistencia del lote, evitando multiplicar revisiones sin límite. No es un limitador global entre proyectos.
+- Peticiones de escenas con contexto temporal tienen plazo **45 segundos por intento**; el cliente ofrece un timeout opcional que no cambia los consumidores heredados. El timeout sigue siendo recuperable. El plazo no garantiza una fase completa menor a un minuto: revisar, corregir, la cola de un video largo y fallos externos pueden prolongarla.
+- Los IDs son obligatorios para escenas temporales. Duplicados, ausencias o contenido inválido afectan únicamente a esos IDs. Un stream cortado conserva solo prompts inequívocos y delimitados, que pasan por la revisión habitual antes de guardarse. No se inventan tokens cobrados si el proveedor no entregó `usage`.
+- Cancelación, auth/saldo y fallos terminales de revisión detienen la cola pendiente. Los lotes guardados se conservan. La compatibilidad sin IDs queda limitada al formato histórico sin contexto temporal y conteo exacto; no se adivina un emparejamiento inseguro para ahorrar un reintento.
+- `list-prompt-models` informa el nuevo tamaño; el respaldo del simulador usa también 10. Las estimaciones usan tarifa regular de Flash USD0,20/M entrada y USD0,60/M salida para no depender de una promoción temporal.
+
+Evidencia: 24 llamadas previas sobre el mismo guion y cuatro adicionales de lotes menores; los 19 prompts en dos lotes concurrentes demoraron **23,68 s / USD0,00211642** con DeepSeek y **30,49 s / USD0,00203126** con MiMo. Son redacción aislada, con caché variable y sin revisión: no representan la fase entera ni un SLA. Ambos conservaron anclajes temporales en esta muestra, con seis respuestas parcialmente completas por modelo. No se declara cero incoherencias universales.
+
+La revisión de ADR-0043 continúa **temporal**; su medición integrada, límites y comandos de verificación se registran en `fixes/2026-09-28_fast-scene-prompt-models.md`. Los experimentos y scripts auxiliares permanecen fuera del repo.
