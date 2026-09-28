@@ -76,14 +76,16 @@ export function PromptModelIssueDialog({
 
   const reason = issue?.reason ?? 'error'
   const troubledId = issue?.modelId ?? task.promptModel
-  const troubledLabel =
-    models.find((model) => model.id === troubledId)?.label ?? troubledId ?? ''
+  const troubledModel = models.find((model) => model.id === troubledId)
+  const troubledLabel = troubledModel?.label ?? troubledId ?? ''
   const allBlocked = allPromptModelsBlocked(models, blockedIds)
   const candidate = resolvePromptModel(picked, models, defaultId, blockedIds)
   const candidateLabel =
     models.find((model) => model.id === candidate)?.label ?? candidate ?? ''
   // Desde la tarjeta de error no hay job que seguir esperando: se elige.
-  const choosing = picking || forceOpen || switching
+  // Una tarea antigua puede apuntar a un modelo que ya no se ofrece. Tampoco
+  // se habilita reintentarlo mientras el catálogo todavía no esté disponible.
+  const choosing = picking || forceOpen || switching || !troubledModel
 
   const close = () => {
     setPicking(false)
@@ -118,9 +120,11 @@ export function PromptModelIssueDialog({
           </div>
         </DialogHeader>
 
-        <div className="mt-2 rounded-lg bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
-          {t('create.promptModelIssue.blockedHint', { model: troubledLabel })}
-        </div>
+        {troubledModel && (
+          <div className="mt-2 rounded-lg bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+            {t('create.promptModelIssue.blockedHint', { model: troubledLabel })}
+          </div>
+        )}
 
         {busy && (
           <div className="mt-4 flex items-center gap-3 rounded-xl border-2 border-saffron/40 bg-saffron/5 p-4">
@@ -162,6 +166,12 @@ export function PromptModelIssueDialog({
         )}
 
         <DialogFooter className="mt-4 gap-2 sm:gap-2">
+          {!troubledModel && generating && !candidate && !busy && (
+            <Button variant="outline" onClick={close}>
+              <Hourglass className="mr-1.5 h-4 w-4" />
+              {t('create.promptModelIssue.keepWaiting')}
+            </Button>
+          )}
           {!choosing && !halting && (
             <>
               {halted ? (
@@ -195,7 +205,7 @@ export function PromptModelIssueDialog({
               {t('create.promptModelIssue.cancelToLibrary')}
             </Button>
           )}
-          {choosing && !allBlocked && (
+          {choosing && !allBlocked && candidate && (
             <>
               {generating && (
                 <Button variant="outline" disabled={busy} onClick={close}>

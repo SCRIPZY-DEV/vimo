@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import {
+  modelProfile,
   rescueModelFor,
   resolveVerbatimModel,
 } from '../../../providers/llm/model-catalog.ts'
@@ -656,6 +657,10 @@ function verbatimCacheKey(
     .slice(0, 24)}`
 }
 
+// Las muestras no heredan cambios del selector de escenas: conservan el
+// perfil previo, sin high ni nuevos plazos (ADR-0044).
+const STYLE_PREVIEW_PROTAGONIST_MODEL_ID = 'openai/gpt-oss-120b-Ultra'
+
 export interface StyleProtagonistDesignOptions {
   /** La gema del usuario, verbatim como `system`. */
   gem: string
@@ -680,7 +685,7 @@ export interface StyleProtagonistDesignOptions {
 export async function designStyleProtagonist(
   options: StyleProtagonistDesignOptions,
 ): Promise<StyleProtagonist | undefined> {
-  const profile = resolveVerbatimModel().profile
+  const profile = modelProfile(STYLE_PREVIEW_PROTAGONIST_MODEL_ID)
   const writerOptions: VerbatimWriterOptions = {
     gem: options.gem,
     client: options.client,
@@ -1071,7 +1076,7 @@ export async function generateVerbatimPrompts(
   if (resolved.degradedFrom) {
     // El motivo verdadero, nunca un cambio callado de modelo.
     options.onWarn?.(
-      `the project asked for ${resolved.degradedFrom.label}: that model is retired, writing with ${profile.label} instead`,
+      `the project asked for ${resolved.degradedFrom.label}: that model is not available for scene writing, writing with ${profile.label} instead`,
     )
   }
   let inputTokens = 0

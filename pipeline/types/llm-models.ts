@@ -45,17 +45,17 @@ export interface LlmModelProfile {
   /** `false` cuando el perfil se dedujo por familia (id fuera del catálogo). */
   inCatalog: boolean
   /**
-   * Si se OFRECE en el selector. Ocultar NO es borrar: un proyecto guardado
-   * con un modelo oculto sigue generando con su perfil. Solo cambia qué ve el
-   * usuario en la lista.
+   * Si se ofrece para redacción elegible (ADR-0044). Un proyecto antiguo con
+   * un modelo oculto se resuelve al predeterminado; el perfil técnico queda
+   * disponible para servicios internos con política propia, como previews.
    */
   inUi: boolean
   /**
    * RETIRADO: el modelo no se usa más, ni siquiera si un proyecto guardado lo
    * tiene elegido — se degrada al de la casa con aviso por log. Es distinto de
-   * `inUi: false` (ocultar es «no me lo ofrezcas, pero si algo lo pide,
-   * corrélo»). La entrada se queda en el catálogo justamente para poder decir
-   * que no: un id borrado caería en el perfil genérico y correría igual.
+   * `inUi: false`, que restringe la elección del usuario pero conserva el
+   * perfil para políticas internas. La entrada permite identificar pedidos
+   * históricos sin volver a ofrecerlos ni borrar su auditoría.
    */
   retired?: true
   /**

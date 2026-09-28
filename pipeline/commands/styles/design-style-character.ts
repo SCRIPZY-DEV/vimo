@@ -81,7 +81,7 @@ export async function designStyleCharacter(
     context.emitter.emit({
       type: 'log',
       level: 'warn',
-      message: `${resolved.degradedFrom.label} is retired: designing the character with ${resolved.profile.label} instead`,
+      message: `${resolved.degradedFrom.label} is not available for scene writing: designing the character with ${resolved.profile.label} instead`,
     })
   const client = createVerbatimClient({
     apiKey,

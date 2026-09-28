@@ -50,12 +50,13 @@ export function PromptModelSection({
   // El que la persona quería (o su default) está bloqueado: se dice cuál
   // escribe en su lugar y hasta cuándo.
   const wanted = value.promptModel ?? defaultId
-  const wantedBlockedUntil = wanted ? blockedUntil(wanted) : null
+  const wantedModel = models.find((model) => model.id === wanted)
+  const wantedBlockedUntil = wantedModel ? blockedUntil(wantedModel.id) : null
   const fallbackNotice =
     wanted && wantedBlockedUntil !== null && wanted !== chosen ? (
       <Alert tone="info">
         {t('create.promptModel.blockedFallback', {
-          model: models.find((model) => model.id === wanted)?.label ?? wanted,
+          model: wantedModel?.label ?? wanted,
           minutes: blockedMinutesLeft(wantedBlockedUntil),
           fallback:
             models.find((model) => model.id === chosen)?.label ?? chosen,

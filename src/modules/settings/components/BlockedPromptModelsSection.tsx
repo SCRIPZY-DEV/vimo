@@ -5,10 +5,7 @@ import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlock
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { Button } from '@/modules/common/ui/button'
 import { blockedMinutesLeft } from '@/modules/common/utilities/blockedMinutesLeft'
-import {
-  clearPromptModelBlocks,
-  unblockPromptModel,
-} from '@/modules/common/utilities/promptModelBlocks'
+import { unblockPromptModel } from '@/modules/common/utilities/promptModelBlocks'
 
 // Modelos de prompts bloqueados ahora mismo (ADR-0028), con su motivo y
 // cuánto falta, y el desbloqueo manual: en producción no hay devtools y esta
@@ -17,6 +14,9 @@ export function BlockedPromptModelsSection() {
   const { t } = useTranslation()
   const { blocks } = usePromptModelBlocks()
   const { models } = usePromptModels()
+  const visibleBlocks = blocks.filter((block) =>
+    models.some((model) => model.id === block.modelId),
+  )
 
   const labelOf = (modelId: string) =>
     models.find((model) => model.id === modelId)?.label ?? modelId
@@ -37,11 +37,15 @@ export function BlockedPromptModelsSection() {
             {t('settings.blockedModelsTagline')}
           </p>
         </div>
-        {blocks.length > 1 && (
+        {visibleBlocks.length > 1 && (
           <Button
             variant="outline"
             size="sm"
-            onClick={clearPromptModelBlocks}
+            onClick={() => {
+              visibleBlocks.forEach((block) =>
+                unblockPromptModel(block.modelId),
+              )
+            }}
             className="shrink-0 rounded-lg font-display"
           >
             <LockOpen className="mr-1.5 h-4 w-4" />
@@ -50,15 +54,15 @@ export function BlockedPromptModelsSection() {
         )}
       </div>
 
-      {blocks.length === 0 && (
+      {visibleBlocks.length === 0 && (
         <p className="font-body text-sm text-muted-foreground">
           {t('settings.blockedModelsEmpty')}
         </p>
       )}
 
-      {blocks.length > 0 && (
+      {visibleBlocks.length > 0 && (
         <ul className="space-y-2">
-          {blocks.map((block) => (
+          {visibleBlocks.map((block) => (
             <li
               key={block.modelId}
               className="flex items-center gap-3 rounded-xl border-2 border-coral/40 bg-coral/5 px-4 py-3"
