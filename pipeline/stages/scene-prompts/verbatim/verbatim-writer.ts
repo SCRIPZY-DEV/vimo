@@ -94,14 +94,12 @@ import {
 const TOKENS_PER_FRAGMENT = 320
 
 /**
- * Lotes cortos medidos con el mismo guion/contexto: 19 escenas en dos pedidos
- * de 10/9 tardaron 23,7 s con V4.1 Flash frente a 31–65 s en un solo lote.
- * Cada pedido conserva la gema, el guion completo y los IDs globales.
- * El selector consume esta constante para estimar la repetición de entrada.
+ * Contrato histórico de Mi estilo: hasta 20 fragmentos por petición. El
+ * selector consume este valor para estimar cuántas veces viaja el contexto.
+ * El límite de peticiones simultáneas es por invocación, no por cuenta.
  */
-export const VERBATIM_BATCH_SIZE = 10
-const VERBATIM_BATCH_CONCURRENCY = 8
-const SCENE_REQUEST_TIMEOUT_MS = 45_000
+export const VERBATIM_BATCH_SIZE = 20
+const VERBATIM_BATCH_CONCURRENCY = 200
 
 /**
  * Rondas extra de reintento, cada vez más quirúrgicas: la PRIMERA re-pide
@@ -871,6 +869,11 @@ export interface BatchReading {
   styleRestored: { n: number; added: string }[]
 }
 
+interface BatchProviderTrouble {
+  code: string
+  sceneIds: number[]
+}
+
 /**
  * El trozo que la reparación se llevó: lo que hay en el original y no en el
  * reparado. Por prefijo y sufijo comunes, así sirve igual para el corte del
@@ -944,10 +947,11 @@ export function readBatchPrompts(
     ? fromJson.map((item) => item.text)
     : splitPrompts(block, hasExplicitIds ? undefined : batch.length).flatMap(
         (piece) => {
-          // Con IDs, una línea envuelta es parte del mismo prompt. Solo otro
-          // marcador o la separación de párrafos termina esa escena.
+          // Los IDs reservados delimitan escenas incluso si el modelo omite
+          // el salto de línea. No enviar diez escenas juntas como prompt 1.
+          // Una línea envuelta sin otro marcador sigue siendo el mismo prompt.
           return piece
-            .split(/\r?\n(?=[ \t]*\(\(\d{1,4}\)\))/)
+            .split(/\s+(?=\(\(\d{1,4}\)\))/)
             .map((part) => part.trim())
         },
       )
@@ -1129,6 +1133,10 @@ export async function generateVerbatimPrompts(
   let chosenModelBlamed = false
   const obtained = new Map<number, string>()
   const alignmentFeedback = new Map<number, string>()
+  // Un stream parcial conserva texto, pero no borra el intento fallido. El
+  // contador acompaña SOLO los IDs pendientes cuando la siguiente ronda los
+  // agrupa de otra manera; así dos fallos siguen abriendo la decisión de UI.
+  const failedAttemptsByExecutor = new Map<string, Map<number, number>>()
   // Congela el texto efectivamente revisado: un lote paralelo no puede
   // cambiar su vestuario heredado después de aprobarlo.
   const reviewedPrompts = new Map<number, string>()
@@ -1201,6 +1209,19 @@ export async function generateVerbatimPrompts(
         ),
       },
     ]
+    let failedAttemptsByScene = failedAttemptsByExecutor.get(
+      executor.profile.id,
+    )
+    if (!failedAttemptsByScene) {
+      failedAttemptsByScene = new Map<number, number>()
+      failedAttemptsByExecutor.set(executor.profile.id, failedAttemptsByScene)
+    }
+    let interrupted = false
+    let providerTrouble: BatchProviderTrouble | undefined
+    const precedingFailures = Math.max(
+      0,
+      ...batch.map((fragment) => failedAttemptsByScene.get(fragment.n) ?? 0),
+    )
     const reading = await withVerbatimRetry(
       async () => {
         options.signal?.throwIfAborted()
@@ -1214,9 +1235,6 @@ export async function generateVerbatimPrompts(
             signal: options.signal,
             cacheKey: executor.cacheKey,
             requireComplete: true,
-            ...(batch.some((fragment) => fragment.temporalContext)
-              ? { timeoutMs: SCENE_REQUEST_TIMEOUT_MS }
-              : {}),
             onProgress: (partial) => {
               streamed = partial
               const written = countCompletedPrompts(partial, batch.length)
@@ -1235,19 +1253,56 @@ export async function generateVerbatimPrompts(
             batch,
             batch.some((fragment) => !!fragment.temporalContext),
           )
+          for (const fragment of batch) failedAttemptsByScene.delete(fragment.n)
         } catch (error) {
           options.signal?.throwIfAborted()
           if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
             throw error
+          const failureCode =
+            error instanceof PipelineFailure ? error.code : undefined
+          // El corte por tokens cierra el intento determinista: la siguiente
+          // ronda empieza con el presupuesto histórico completo. El 429
+          // conserva sus esperas propias, sin consumir intentos normales.
+          if (isOutputTruncated(error)) {
+            for (const fragment of batch)
+              failedAttemptsByScene.delete(fragment.n)
+          } else if (failureCode !== 'llm_rate_limited') {
+            for (const fragment of batch)
+              failedAttemptsByScene.set(
+                fragment.n,
+                (failedAttemptsByScene.get(fragment.n) ?? 0) + 1,
+              )
+          }
           const completed = completedPromptPrefix(streamed)
           const partial = completed
             ? readBatchPrompts(completed, batch, true)
             : undefined
           if (!partial?.good.length) throw error
           options.onWarn?.(
-            `the response was interrupted; preserving ${partial.good.length} complete identified prompts and retrying only unresolved scenes`,
+            `the response was interrupted (${failureCode ?? 'unexpected error'}: ${error instanceof Error ? error.message : String(error)}); preserving ${partial.good.length} complete identified prompts and retrying only unresolved scenes`,
           )
           reading = partial
+          interrupted = true
+          if (
+            executor.profile.id === profile.id &&
+            failureCode !== 'llm_network'
+          )
+            chosenModelBlamed = true
+          if (failureCode && PROVIDER_TROUBLE_CODES.has(failureCode)) {
+            const failedTwice = batch
+              .filter(
+                (fragment) => (failedAttemptsByScene.get(fragment.n) ?? 0) >= 2,
+              )
+              .map((fragment) => fragment.n)
+            if (failedTwice.length > 0)
+              providerTrouble = { code: failureCode, sceneIds: failedTwice }
+          }
+          // Se agotó esta pareja de intentos. Sin cancelación de la UI, una
+          // ronda posterior conserva sus dos intentos históricos propios.
+          for (const fragment of batch) {
+            if ((failedAttemptsByScene.get(fragment.n) ?? 0) >= 2)
+              failedAttemptsByScene.delete(fragment.n)
+          }
         }
         if (options.validatePrompt) {
           reading.good = reading.good.filter((entry) => {
@@ -1261,7 +1316,7 @@ export async function generateVerbatimPrompts(
         }
         return reading
       },
-      2,
+      Math.max(1, 2 - precedingFailures),
       options.signal,
     )
     if (options.reviewPrompts && reading.good.length > 0) {
@@ -1295,7 +1350,7 @@ export async function generateVerbatimPrompts(
         return false
       })
     }
-    return reading
+    return { ...reading, interrupted, providerTrouble }
   }
 
   // Identifica cada lote para el progreso, por RONDA además de por posición:
@@ -1308,7 +1363,21 @@ export async function generateVerbatimPrompts(
     executor = chosenExecutor,
   ) => {
     const round = currentRound++
-    const batches = chunk(pending, size)
+    // No mezclar una escena que ya gastó un intento de transporte con otra
+    // que todavía dispone de ambos: el fallo de una no se hereda a la otra.
+    const pendingByAttempts = new Map<number, VerbatimFragment[]>()
+    const failedAttemptsByScene = failedAttemptsByExecutor.get(
+      executor.profile.id,
+    )
+    for (const fragment of pending) {
+      const attempts = failedAttemptsByScene?.get(fragment.n) ?? 0
+      const group = pendingByAttempts.get(attempts) ?? []
+      group.push(fragment)
+      pendingByAttempts.set(attempts, group)
+    }
+    const batches = [...pendingByAttempts.values()].flatMap((group) =>
+      chunk(group, size),
+    )
     const limited = limitConcurrency(VERBATIM_BATCH_CONCURRENCY)
     let stopped = false
     const processBatch = async (batch: VerbatimFragment[], index: number) => {
@@ -1318,6 +1387,15 @@ export async function generateVerbatimPrompts(
           round * 1000 + index,
           executor,
         )
+        // Un defecto identificado sigue siendo un fallo del modelo aunque
+        // ahora salvemos los demás prompts. Una caída de red con texto
+        // parcial, en cambio, conserva su clasificación ajena al modelo.
+        if (
+          executor.profile.id === profile.id &&
+          !reading.interrupted &&
+          reading.defective.length > 0
+        )
+          chosenModelBlamed = true
         const justObtained = new Set<number>()
         for (const entry of reading.good) {
           if (obtained.has(entry.n)) continue
@@ -1388,7 +1466,19 @@ export async function generateVerbatimPrompts(
         }
         // Cosechado: la cifra del stream era una estimación; esto es un hecho.
         reportProgress()
+        // El evento hace que la UI cancele: primero persistimos lo aprobado.
+        // Recuperar texto no puede ocultar el segundo fallo del proveedor.
+        if (executor.profile.id === profile.id && reading.providerTrouble)
+          options.onModelTrouble?.(
+            profile.id,
+            reading.providerTrouble.code,
+            reading.providerTrouble.sceneIds,
+          )
       } catch (error) {
+        // La pareja de intentos terminó sin texto recuperable; la siguiente
+        // ronda y cualquier otro ejecutor mantienen su presupuesto propio.
+        for (const fragment of batch)
+          failedAttemptsByExecutor.get(executor.profile.id)?.delete(fragment.n)
         // Clave rechazada: la escalera y el rescate darían el mismo 401 y
         // el video saldría con prompts de relleno. Se corta el job.
         options.signal?.throwIfAborted()

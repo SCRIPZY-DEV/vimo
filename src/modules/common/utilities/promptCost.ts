@@ -71,7 +71,7 @@ export const SIMULATOR_SCENES_DEFAULT = 200
 
 // Tamaño de lote de respaldo si el sidecar no lo informó (mismo valor que
 // VERBATIM_BATCH_SIZE).
-const FALLBACK_BATCH_SIZE = 10
+const FALLBACK_BATCH_SIZE = 20
 
 // v1.16.0 del origen — CADA MODELO ESCRIBE LO QUE QUIERE. Hay modelos que
 // «piensan» antes de escribir y ese razonamiento se factura como salida.

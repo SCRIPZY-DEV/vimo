@@ -149,9 +149,7 @@ export function completedPromptPrefix(partial: string): string {
     return unwrapJsonPrompts(body) ? body.trim() : ''
 
   let end = 0
-  for (const match of body.matchAll(
-    /\r?\n[ \t]*\r?\n|\r?\n(?=[ \t]*\(\(\d{1,4}\)\))/g,
-  ))
+  for (const match of body.matchAll(/\r?\n[ \t]*\r?\n|\s+(?=\(\(\d{1,4}\)\))/g))
     end = match.index + match[0].length
   const prefix = body.slice(0, end).trim()
   const unfinished = readIdMarker(body.slice(end).trim())
