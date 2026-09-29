@@ -7,11 +7,17 @@
 
 ## Decisión
 
+> **Actualización vigente del 2026-09-29:** [ADR-0045](ADR-0045-prefijo-animado-por-parejas-y-fase-propia.md) sustituye el prefijo de imágenes de 6 s por fuentes de 3 s agrupadas en clips de 6 s, separa `animation` como séptima fase y limita el formulario nuevo al primer minuto. Las opciones de alcance del editor, sus reglas de selección y los recibos permanecen. Los párrafos históricos afectados se identifican debajo; no deben reimplementarse como política vigente.
+
+**Histórico — seis fases e imágenes de 6 s, SUPERADO el 2026-09-29 por ADR-0045:**
+
 El usuario autorizó explícitamente implementar su revisión del 2026-09-14. Se preservan invoke/Channel, el sidecar por job y las seis fases: la operación opcional de animación corre después de completar imágenes, dentro de esa fase, y también desde animate-scenes en el editor.
 
 Revisión del 2026-09-14: al activar animación en el formulario, los primeros N minutos se cortan cada 6 s antes de generar imágenes y prompts. Un minuto completo crea diez escenas; dos minutos, veinte. El resto sigue los segundos elegidos en Mi estilo o la cantidad total de Catálogo, ajustada a escenas de 3–12 s. El plan puro de ventanas se comparte con las estimaciones y la vista previa de cortes. La pausa existente comunica animationMinutes y persiste el conteo sugerido; no añade preguntas.
 
 Las escenas de ese prefijo guardan animationRequestedSeconds=6: incluso si el audio termina en un fragmento incompleto, el encargo es de 6 s y el archivo final se ajusta al intervalo real, sin alargar la narración. Si ya existen prompts, imágenes, tareas o clips, se conservan los cortes históricos. Reanudar no redistribuye trabajo pagado.
+
+**Reglas del editor que se conservan:**
 
 En el editor, las escenas existentes conservan sus tiempos: 4–12 se animan individualmente. Revisión autorizada del 2026-09-15: en shorts 9:16 cada escena se anima por separado, incluidas las de 3 s (encargo de 4 s ajustado a 3 s). En 16:9 se conserva la fusión de dos escenas contiguas de 3 s en 6 s aunque expresen lugares distintos. Una escena de 3 s sin pareja encarga 4 s y usa velocidad exacta 4/3 para ocupar su intervalo. Un fragmento menor de 3 s en el borde de un minuto o de un proyecto muy corto conserva el inicio del clip a velocidad normal y se recorta: no se acelera 20 veces un tramo de 0,2 s. Nunca compensa tiempo tomando segundos de la siguiente. Los bordes absolutos se cuantizan al reloj visual de 25 FPS, sin sumar redondeos por escena.
 
@@ -23,7 +29,11 @@ Revisión autorizada del 2026-09-16: la interacción del 2026-09-14 que abría u
 
 El selector del editor admite minutos enteros entre 1 y floor(duración real / 60). En videos menores de un minuto se ofrece animar su duración completa, sin selector imposible. Un borrador vacío conserva la estimación de un minuto y se normaliza a 1 al salir; cero y valores fuera de rango se corrigen antes de presupuestar o enviar. La duración de creación todavía desconocida no se usa como límite ficticio. Se mantiene el contrato existente de minutos enteros y el corte del plan al final del video.
 
+**Histórico — alcance del formulario y ausencia de fase propia, SUPERADO el 2026-09-29 por ADR-0045; la opción del editor se conserva:**
+
 Revisión autorizada del 2026-09-15: «Animar todo el video» se ofrece en shorts 9:16, tanto al crear como en el editor, sin extender por ahora esa opción visible a 16:9. Crear persiste `animateWholeVideo`, mutuamente excluyente con un prefijo positivo; al conocer la duración del audio se reutiliza el cortador de 6 s y la confirmación existentes. No se añaden fases, comandos, IPC ni cambios Rust. El editor envía los ids del trabajo pendiente al comando `animate-scenes` existente, sin `force`. El límite del audio se aplica también al pedir minutos; ninguna solicitud nueva puede rebasarlo. Antes de medir audio propio, la estimación total se presenta como pendiente, nunca como cero créditos.
+
+**Reglas de continuidad y recibos que se conservan:**
 
 Ampliar del primer minuto a todo conserva cada clip listo y su recibo, en ambos formatos. Solo se generan intervalos faltantes, incluida la cola estática de una escena parcialmente animada. Un reemplazo pagado pendiente conserva ids válidos aunque el clip anterior todavía lo cubra.
 
@@ -134,7 +144,7 @@ Tarifas públicas verificadas el 2026-09-14: Grok480p 2,4 cr/s, Seedance480p sin
 
 Los fundidos viven dentro del intervalo asignado; no reducen su duración ni añaden una cola fija. La imagen de respaldo se conserva si falla una generación. No se promete exactitud semántica por fotograma ni se verifica visión: eso requiere revisar el resultado.
 
-Revisión autorizada del 2026-09-15: los límites contiguos con un clip animado listo en cualquiera de los lados siempre llevan fundido. Entre dos imágenes estáticas el valor inicial es corte directo; el checkbox del editor habilita el fundido mediante `Scene.staticTransitionIn`, persistido por `update-scenes`. Los marcadores morados, preview, render y exportación de clips comparten la política pura. Se conserva Ken Burns y el reloj de 25 FPS. El fundido usa hasta 8 cuadros del bloque entrante, sin alterar sus límites. No se modifica el transporte, los subcomandos ni las fases.
+Revisión autorizada del 2026-09-15: los límites contiguos con un clip animado listo en cualquiera de los lados siempre llevan fundido. Entre dos imágenes estáticas el valor inicial es corte directo; el checkbox del editor habilita el fundido mediante `Scene.staticTransitionIn`, persistido por `update-scenes`. Los marcadores morados, preview, render y exportación de clips comparten la política pura. Se conserva Ken Burns y el reloj de 25 FPS. El fundido usa hasta 8 cuadros del bloque entrante, sin alterar sus límites. Esa revisión de transiciones no modificó el transporte, los subcomandos ni las fases; la separación posterior de animación está descrita en ADR-0045.
 
 La inspección pausada muestra el bloque actual opaco; si el render vigente contiene un fundido en ese instante, se superpone el recurso editable sin desmontar el video. Fuera del fundido se conserva la pausa del render final. El campo `renderTransitionVersion` se publica al completar el render y el editor considera desactualizados los renders de una política anterior; no elimina sus archivos. La versión de caché de chunks también cambia. Causa reproducida, superficies protegidas y alcance en [la auditoría de selección y transiciones](../fixes/editor-selection-transitions.md).
 

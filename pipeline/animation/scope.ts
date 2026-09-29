@@ -16,7 +16,7 @@ export function hasAutomaticAnimation(options: AnimationScope): boolean {
 }
 
 // El cortador y su confirmación ya trabajan con minutos. Resolverlos aquí,
-// con el audio medido, permite reutilizarlos y conservar las seis fases.
+// con el audio medido permite reutilizar su contrato de confirmación.
 export function effectiveAnimationMinutes(
   options: AnimationScope,
   durationSeconds: number,

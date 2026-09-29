@@ -9,7 +9,8 @@ export const VIDEO_MODELS: Record<VideoProviderId, string> = {
 }
 export const MIN_REQUESTED_ANIMATION_SECONDS = 4
 export const MAX_REQUESTED_ANIMATION_SECONDS = 12
-// Duración fija del prefijo animado al crear. El editor conserva los cortes existentes.
+// El prefijo usa dos imágenes de3s por clip de6s. El editor conserva sus cortes.
+export const ANIMATION_PREFIX_IMAGE_SECONDS = 3
 export const ANIMATION_PREFIX_SCENE_SECONDS = 6
 // Compatibilidad de clips históricos de seis segundos.
 export const ANIMATION_CLIP_SECONDS = 6

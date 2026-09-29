@@ -56,6 +56,7 @@ export function estimateResumeCost(
         durationSeconds: metadata.audioDurationSeconds,
         videoFormat: options.videoFormat,
         wholeVideo: animatesWholeVideo(options),
+        pairPrefixScenes: true,
       },
     )
     const seconds = plan.requestedSeconds

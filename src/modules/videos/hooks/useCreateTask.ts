@@ -21,6 +21,7 @@ import {
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
+import { hasAutomaticAnimation } from '@pipeline/animation/scope.ts'
 import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
 import {
   libraryTabFor,
@@ -104,6 +105,7 @@ function restoreTask(): CreateTask | null {
         ...scene,
         animationActivity: undefined,
         animationLeadId: undefined,
+        animationProgress: undefined,
       })),
       cancelRequested: false,
       // Tareas persistidas antes de ADR-0028: sin carril conocido no hay
@@ -370,6 +372,34 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
             ...scene,
             animationActivity: 'generating',
             animationLeadId: event.sceneId,
+            animationProgress: {
+              leadId: event.sceneId,
+              startedAt: scene.animationProgress?.startedAt ?? Date.now(),
+              reportedPercent: scene.animationProgress?.reportedPercent ?? 0,
+              phase: 'generating',
+            },
+          }
+        }),
+      })
+      return
+
+    case 'scene-animation-progress':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (
+            scene.animationLeadId !== event.sceneId ||
+            !scene.animationProgress
+          )
+            return scene
+          return {
+            ...scene,
+            animationProgress: {
+              ...scene.animationProgress,
+              reportedPercent: Math.max(
+                scene.animationProgress.reportedPercent ?? 0,
+                event.percent ?? 0,
+              ),
+            },
           }
         }),
       })
@@ -388,7 +418,12 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
                   event.animation,
                 ]
               : scene.animations
-          return { ...scene, animations, animationActivity: 'ready' }
+          return {
+            ...scene,
+            animations,
+            animationActivity: 'ready',
+            animationProgress: undefined,
+          }
         }),
       })
       return
@@ -401,7 +436,11 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
             scene.id !== event.sceneId
           )
             return scene
-          return { ...scene, animationActivity: 'error' }
+          return {
+            ...scene,
+            animationActivity: 'error',
+            animationProgress: undefined,
+          }
         }),
       })
       return
@@ -691,6 +730,11 @@ function makeTask(
     retryAttempts: 0,
     videoFormat: options.videoFormat ?? '16:9',
     cancelRequested: false,
+    automaticAnimation:
+      options.automaticAnimation ??
+      seed?.scenes.some(
+        (scene) => scene.animationRequestedSeconds !== undefined,
+      ),
     usesCustomStyle: options.usesCustomStyle ?? false,
     promptModel: options.promptModel ?? null,
     promptsStageActivity: null,
@@ -775,6 +819,7 @@ async function startCreation(input: {
   setTask(
     makeTask(taskId, '', input.payload.name, {
       videoFormat: input.payload.options.videoFormat,
+      automaticAnimation: hasAutomaticAnimation(input.payload.options),
       usesCustomStyle,
       promptModel: usesCustomStyle ? (input.promptModel ?? null) : null,
       imageProvider: input.payload.options.imageProvider,

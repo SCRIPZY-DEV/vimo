@@ -7,6 +7,7 @@ import type { ImagesRecoveryView } from '@/modules/videos/types/create'
 
 interface StageBarProps {
   currentStage: StageId | null
+  showAnimation?: boolean
   completedStages: StageId[]
   // En pausa de confirmación: la fase que espera muestra pausa honesta en
   // vez de un spinner mentiroso (el job está cerrado).
@@ -52,6 +53,7 @@ function recoveryNote(
 // ícono y texto): a ventana completa la lista se veía diminuta.
 export function StageBar({
   currentStage,
+  showAnimation = false,
   completedStages,
   paused,
   recovery,
@@ -60,17 +62,19 @@ export function StageBar({
   const { t } = useTranslation()
 
   const rewriting = recovery?.kind === 'rewrite'
+  const stages = PIPELINE_STAGES.filter(
+    (stage) => stage.id !== 'animation' || showAnimation,
+  )
 
   // Con el job cerrado en pausa no hay currentStage: la fase que espera es
   // la primera sin completar.
   const pausedStageId = paused
-    ? (PIPELINE_STAGES.find((stage) => !completedStages.includes(stage.id))
-        ?.id ?? null)
+    ? (stages.find((stage) => !completedStages.includes(stage.id))?.id ?? null)
     : null
 
   return (
     <ul className="space-y-2">
-      {PIPELINE_STAGES.map((stage) => {
+      {stages.map((stage) => {
         const reopened = rewriting && stage.id === 'scene-prompts'
         const done = completedStages.includes(stage.id) && !reopened
         const waiting = stage.id === pausedStageId
@@ -87,7 +91,10 @@ export function StageBar({
             className={cn(
               'flex items-center gap-3 rounded-lg border-2 px-4 py-3.5 transition-colors',
               done && 'border-saffron/40 bg-saffron/5',
-              active && 'border-ocean/60 bg-ocean/5',
+              active &&
+                (stage.id === 'animation'
+                  ? 'border-sky/60 bg-sky/5'
+                  : 'border-ocean/60 bg-ocean/5'),
               waiting && 'border-saffron bg-saffron/10',
               pending && 'border-border bg-card',
             )}
@@ -96,7 +103,10 @@ export function StageBar({
               className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
                 done && 'bg-saffron text-charcoal',
-                active && 'bg-ocean text-white',
+                active &&
+                  (stage.id === 'animation'
+                    ? 'bg-sky text-white'
+                    : 'bg-ocean text-white'),
                 waiting && 'bg-saffron text-charcoal',
                 pending && 'bg-muted text-muted-foreground',
               )}

@@ -1,3 +1,4 @@
+import { ANIMATION_MINUTES_DEFAULT } from '@/modules/videos/constants'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import type {
   CreateFormValue,
@@ -50,9 +51,10 @@ export function createProjectPayload(
   }
 
   if (form.animateScenes && !demo) {
-    if (form.videoFormat === '9:16' && form.animateWholeVideo)
-      options.animateWholeVideo = true
-    else options.animationMinutes = form.animationMinutes
+    // El formulario solo encarga el primer minuto, incluso si se recupera
+    // un borrador con opciones anteriores de N minutos o video completo.
+    options.animationMinutes = ANIMATION_MINUTES_DEFAULT
+    options.animateWholeVideo = false
   }
 
   if (usesCustomStyle && form.customStyle) {
@@ -140,11 +142,6 @@ export function formBlockers(
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
 
   if (form.animateScenes) {
-    if (
-      !(form.videoFormat === '9:16' && form.animateWholeVideo) &&
-      (!Number.isInteger(form.animationMinutes) || form.animationMinutes < 1)
-    )
-      blockers.push('create.validation.animationMinutesInvalid')
     if (animationKeyMissing)
       blockers.push('create.validation.animationKeyRequired')
   }

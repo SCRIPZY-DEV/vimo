@@ -301,6 +301,7 @@ export const PIPELINE_STAGES: { id: StageId; labelKey: string }[] = [
   { id: 'scene-cuts', labelKey: 'create.stages.sceneCuts' },
   { id: 'scene-prompts', labelKey: 'create.stages.scenePrompts' },
   { id: 'images', labelKey: 'create.stages.images' },
+  { id: 'animation', labelKey: 'create.stages.animation' },
   { id: 'render', labelKey: 'create.stages.render' },
 ]
 

@@ -2,6 +2,7 @@ import type {
   ImagesRecoveryKind,
   RenderPhase,
 } from '@pipeline/runner/events.ts'
+import type { SceneAnimationProgress } from '@/modules/videos/types/library'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
 import type {
@@ -116,6 +117,7 @@ export type SceneView = SceneSummary & {
   imageProgress?: number
   animationActivity?: 'generating' | 'ready' | 'error'
   animationLeadId?: number
+  animationProgress?: SceneAnimationProgress
 }
 
 // Una generación de video de punta a punta. Vive fuera de React (módulo
@@ -166,6 +168,7 @@ export interface CreateTask {
   // El proyecto usa un estilo propio (carril verbatim): ahí el modelo elegido
   // escribe los prompts y puede bloquearse (ADR-0028). Con estilo de Vimo no
   // hay modelo que vigilar.
+  automaticAnimation?: boolean
   usesCustomStyle: boolean
   // Modelo de prompts RESUELTO (nunca null con estilo propio: el default de
   // la casa ya viene aplicado). Es el que se bloquea si falla.
@@ -206,6 +209,7 @@ export interface ProjectRunOptions {
   seed?: CreateTaskSeed
   // Carril del proyecto y modelo resuelto (ver CreateTask): la vista los saca
   // de project.json al reanudar.
+  automaticAnimation?: boolean
   usesCustomStyle?: boolean
   promptModel?: string | null
   imageProvider?: ImageProviderId | null

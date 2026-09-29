@@ -295,7 +295,8 @@
       "sceneCuts": "Dividindo em cenas",
       "scenePrompts": "Gerando prompts com IA",
       "images": "Gerando imagens",
-      "render": "Montando vídeo"
+      "render": "Montando vídeo",
+      "animation": "Gerando animação"
     },
     "progress": {
       "createAnother": "Criar outro",
@@ -366,7 +367,15 @@
       },
       "animationTitle": "Animando cenas",
       "animationCount": "{{ready}} cenas prontas · {{active}} em andamento",
-      "animationError": "{{count}} cenas precisam de nova tentativa."
+      "animationError": "{{count}} cenas precisam de nova tentativa.",
+      "animationClipsCount": "{{ready}} de {{total}} clipes prontos",
+      "animationProgressHint": "As porcentagens durante a geração são aproximadas. Amplie e reproduza os clipes assim que estiverem prontos.",
+      "animationPlay": "Reproduzir",
+      "animationWorking": "Animando · {{percent}}%",
+      "animationScenes_one": "Cena {{ids}}",
+      "animationScenes_other": "Cenas {{ids}}",
+      "animationClipFailed": "Não foi possível animar. A imagem foi preservada.",
+      "animationPending": "Pendente"
     },
     "confirmScenes": {
       "title": "Confirme a quantidade de cenas",
@@ -379,8 +388,8 @@
     },
     "secondsStep": {
       "perScene": "dura cada cena",
-      "perSceneAfterAnimation": "por cena depois do trecho animado",
-      "animatedPrefixHint": "Os primeiros {{minutes}} min são divididos em cenas de 6 s. Este ajuste vale para o restante do vídeo.",
+      "perSceneAfterAnimation": "por imagem após o trecho animado",
+      "animatedPrefixHint": "Os primeiros {{minutes}} min terão imagens a cada 3 s, agrupadas em pares em clipes de 6 s. Escolha a duração das imagens estáticas no restante do vídeo.",
       "confirmAnimated": "Seguir com {{count}} cenas no total",
       "total_one": "cena no total",
       "total_other": "cenas no total",
@@ -393,7 +402,10 @@
       "confirm_one": "Seguir com {{count}} cena de {{seconds}} s",
       "confirm_other": "Seguir com {{count}} cenas de {{seconds}} s",
       "footnote": "O vídeo está parado esperando isto: nada é gerado até você confirmar.",
-      "animatedWholeHint": "Todo o vídeo é dividido em cenas de 6 s. O último clipe é ajustado ao final do áudio."
+      "animatedWholeHint": "Todo o áudio está dentro do trecho animado: serão criadas imagens a cada 3 s e agrupadas em pares em clipes de 6 s. O último clipe será ajustado ao final do áudio.",
+      "perAnimatedClip": "por clipe animado",
+      "sliderAfterAnimationAria": "Segundos por imagem após o trecho animado",
+      "animationExplanation": "A narração mantém seus tempos. O último clipe é ajustado ao final do trecho animado, e as imagens seguintes começam ali, sem deslocar o áudio."
     },
     "probe": {
       "titles": {
@@ -565,7 +577,9 @@
       "writingAria": "Escrevendo este prompt",
       "rewritingTitle": "Reescrevendo {{total}} prompts rejeitados",
       "rewritingSubtitle": "{{done}} de {{total}} reescritos · {{percent}}% · passagem {{pass}} de {{maxPasses}}",
-      "rewritingHint": "O gerador de imagens rejeitou estas cenas por conteúdo: são reescritas mais neutras, no mesmo estilo."
+      "rewritingHint": "O gerador de imagens rejeitou estas cenas por conteúdo: são reescritas mais neutras, no mesmo estilo.",
+      "finalizingTitle": "Revisando e salvando os prompts",
+      "draftsHint": "{{drafted}} de {{total}} rascunhos recebidos. Só contam como prontos após revisão e salvamento."
     },
     "viewer": {
       "title": "Cena {{id}}",
@@ -717,7 +731,7 @@
       "customMinutes": "Animar os primeiros N minutos",
       "minutesLabel": "Quantidade de minutos",
       "minutesUnit": "minutos",
-      "hint": "O trecho escolhido é dividido em cenas de 6 s e animado sem som, no formato do projeto. Depois, vale a duração ou quantidade de cenas que você escolheu. Se o áudio terminar antes, o último clipe é ajustado ao seu final.",
+      "hint": "Serão criadas imagens a cada 3 s durante o primeiro minuto e animadas em pares como clipes de 6 s, sem som. Se o áudio for mais curto, apenas sua duração será animada. O restante usará imagens estáticas.",
       "estimate": "≈ {{credits}} créditos",
       "estimateTitle": "Créditos estimados de animação",
       "secondsQuoted": "Duração a gerar: {{seconds}} s",
@@ -728,7 +742,8 @@
       "durationLimit": "Duração do vídeo: {{duration}} · Máximo: {{minutes}} min",
       "allVideo": "Animar todo o vídeo",
       "wholeVideoHint": "Todo o short é dividido em cenas de 6 s e animado sem som. O último clipe é ajustado ao final do áudio.",
-      "durationPending": "Os créditos serão calculados quando a duração do áudio for conhecida."
+      "durationPending": "Os créditos serão calculados quando a duração do áudio for conhecida.",
+      "firstMinuteEstimateHint": "Estimativa para um minuto completo. Se o áudio for mais curto, serão gerados apenas os clipes necessários."
     }
   },
   "createDemo": {

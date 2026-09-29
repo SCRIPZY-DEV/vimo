@@ -72,6 +72,8 @@ export interface AnimationSelection {
   minutes?: number
   force?: boolean
   retryFailed?: boolean
+  // Interno del pipeline completo; el comando del editor no lo propaga.
+  pairPrefixScenes?: boolean
 }
 
 interface StoredBlock {
@@ -152,14 +154,15 @@ export async function hasAnimationWork(
     [],
     {
       endSeconds,
-      mergeShortScenes: context.options.videoFormat !== '9:16',
+      mergeShortScenes: true,
+      pairPrefixScenes: true,
       coveredIntervals: ready.map((record) => record.unit),
     },
   )
   return plan.units.length > 0 || plan.rejected.length > 0
 }
 
-// Operación compartida por la fase images y el comando del editor. La entrada
+// Operación compartida por la fase animation y el comando del editor. La entrada
 // del sidecar excluye otros mutadores; los jobs de animación comparten el
 // proyecto y serializan únicamente sus checkpoints, con grupos exclusivos.
 export async function generateSceneAnimations(
@@ -293,7 +296,10 @@ export async function generateSceneAnimations(
   }
   const plan = planAnimationUnits(scenes, [...selected], [], {
     endSeconds: rangeEnd,
-    mergeShortScenes: context.options.videoFormat !== '9:16',
+    mergeShortScenes:
+      selection.pairPrefixScenes === true ||
+      context.options.videoFormat !== '9:16',
+    pairPrefixScenes: selection.pairPrefixScenes,
     replacementUnits: atomicReplacement
       ? ready
           .filter((record) =>
@@ -528,8 +534,13 @@ export async function generateSceneAnimations(
               status: 'pending',
             }
         if (atomicReplacement) animation.replacementSceneIds = [...selected]
+        let started = false
         const events: AnimationLaneEvents = {
           onStarted(sceneId, sceneIds, attempt) {
+            // La fase automática ya anunció el clip antes de redactar. Los
+            // reintentos del proveedor no reinician su porcentaje visible.
+            if (selection.pairPrefixScenes && started) return
+            started = true
             context.emitter.emit({
               type: 'scene-animation-started',
               sceneId,
@@ -569,6 +580,8 @@ export async function generateSceneAnimations(
             })
           },
         }
+        if (selection.pairPrefixScenes)
+          events.onStarted(unit.leadSceneId, unit.sceneIds, 1)
         try {
           const canDownload = animation.attempts?.some(
             (attempt) =>

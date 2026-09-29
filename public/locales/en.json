@@ -295,7 +295,8 @@
       "sceneCuts": "Splitting into scenes",
       "scenePrompts": "Generating prompts with AI",
       "images": "Generating images",
-      "render": "Assembling video"
+      "render": "Assembling video",
+      "animation": "Generating animation"
     },
     "progress": {
       "createAnother": "Create another",
@@ -366,7 +367,15 @@
       },
       "animationTitle": "Animating scenes",
       "animationCount": "{{ready}} scenes ready · {{active}} in progress",
-      "animationError": "{{count}} scenes need a retry."
+      "animationError": "{{count}} scenes need a retry.",
+      "animationClipsCount": "{{ready}} of {{total}} clips ready",
+      "animationProgressHint": "Generation percentages are approximate. Enlarge and play clips as soon as they are ready.",
+      "animationPlay": "Play",
+      "animationWorking": "Animating · {{percent}}%",
+      "animationScenes_one": "Scene {{ids}}",
+      "animationScenes_other": "Scenes {{ids}}",
+      "animationClipFailed": "Animation failed. The image is preserved.",
+      "animationPending": "Pending"
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -379,8 +388,8 @@
     },
     "secondsStep": {
       "perScene": "per scene",
-      "perSceneAfterAnimation": "per scene after the animated range",
-      "animatedPrefixHint": "The first {{minutes}} min are divided into 6 s scenes. This setting applies to the rest of the video.",
+      "perSceneAfterAnimation": "per image after the animated section",
+      "animatedPrefixHint": "The first {{minutes}} min will have images every 3 s, paired into 6 s clips. Choose how long still images should last in the rest of the video.",
       "confirmAnimated": "Continue with {{count}} scenes in total",
       "total_one": "scene in total",
       "total_other": "scenes in total",
@@ -393,7 +402,10 @@
       "confirm_one": "Continue with {{count}} scene of {{seconds}} s",
       "confirm_other": "Continue with {{count}} scenes of {{seconds}} s",
       "footnote": "The video is stopped waiting for this: nothing is generated until you confirm.",
-      "animatedWholeHint": "The entire video is divided into 6 s scenes. The last clip is fitted to the end of the audio."
+      "animatedWholeHint": "All the audio fits within the animated section: images will be created every 3 s and paired into 6 s clips. The last clip will be adjusted to the end of the audio.",
+      "perAnimatedClip": "per animated clip",
+      "sliderAfterAnimationAria": "Seconds per image after the animated section",
+      "animationExplanation": "Narration keeps its timing. The last clip is adjusted to the end of the animated section, and subsequent images start there without shifting the audio."
     },
     "probe": {
       "titles": {
@@ -565,7 +577,9 @@
       "writingAria": "Writing this prompt",
       "rewritingTitle": "Rewriting {{total}} rejected prompts",
       "rewritingSubtitle": "{{done}} of {{total}} rewritten · {{percent}}% · pass {{pass}} of {{maxPasses}}",
-      "rewritingHint": "The image generator rejected these scenes for content: they are rewritten more neutral, in the same style."
+      "rewritingHint": "The image generator rejected these scenes for content: they are rewritten more neutral, in the same style.",
+      "finalizingTitle": "Reviewing and saving prompts",
+      "draftsHint": "{{drafted}} of {{total}} drafts received. They count as ready only after review and saving."
     },
     "viewer": {
       "title": "Scene {{id}}",
@@ -717,7 +731,7 @@
       "customMinutes": "Animate the first N minutes",
       "minutesLabel": "Number of minutes",
       "minutesUnit": "minutes",
-      "hint": "The selected range is divided into 6 s scenes and animated without sound in the project format. The remaining video uses your chosen scene duration or count. If the audio ends earlier, the last clip is fitted to its end.",
+      "hint": "Images will be created every 3 s during the first minute, then animated in pairs as silent 6 s clips. If the audio is shorter, only its duration will be animated. The rest will use still images.",
       "estimate": "≈ {{credits}} credits",
       "estimateTitle": "Estimated animation credits",
       "secondsQuoted": "Duration to generate: {{seconds}} s",
@@ -728,7 +742,8 @@
       "durationLimit": "Video duration: {{duration}} · Maximum: {{minutes}} min",
       "allVideo": "Animate the entire video",
       "wholeVideoHint": "The entire short is divided into 6 s scenes and animated without sound. The last clip is fitted to the end of the audio.",
-      "durationPending": "Credits will be calculated once the audio duration is known."
+      "durationPending": "Credits will be calculated once the audio duration is known.",
+      "firstMinuteEstimateHint": "Estimate for a full minute. If the audio is shorter, only the necessary clips will be generated."
     }
   },
   "createDemo": {

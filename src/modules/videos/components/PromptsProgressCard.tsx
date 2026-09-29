@@ -6,6 +6,8 @@ import { SUPPORT_NOTE_CLASS } from '@/modules/videos/constants'
 interface PromptsProgressCardProps {
   done: number
   total: number
+  drafted: number
+  complete: boolean
   // Pasada de reescritura (fase de imágenes): los títulos cambian y el
   // spinner se mantiene aunque el conteo llegue al total — la pasada la
   // cierra el evento de reintento, no el contador.
@@ -18,17 +20,25 @@ interface PromptsProgressCardProps {
 export function PromptsProgressCard({
   done,
   total,
+  drafted,
+  complete,
   rewrite,
 }: PromptsProgressCardProps) {
   const { t } = useTranslation()
 
-  const percent = total > 0 ? Math.round((done / total) * 100) : 0
-  const writing = rewrite !== null || done < total
+  const writing = rewrite !== null || !complete || done < total
+  const percent =
+    total > 0
+      ? Math.min(writing ? 99 : 100, Math.floor((done / total) * 100))
+      : 0
+  const finalizing = writing && drafted >= total && !rewrite
   const title = rewrite
     ? t('create.prompts.rewritingTitle', { total })
-    : writing
-      ? t('create.prompts.writingTitle', { total })
-      : t('create.prompts.doneTitle', { total })
+    : finalizing
+      ? t('create.prompts.finalizingTitle')
+      : writing
+        ? t('create.prompts.writingTitle', { total })
+        : t('create.prompts.doneTitle', { total })
   const subtitle = rewrite
     ? t('create.prompts.rewritingSubtitle', {
         done,
@@ -55,6 +65,13 @@ export function PromptsProgressCard({
             <p className={cn(SUPPORT_NOTE_CLASS, 'text-muted-foreground')}>
               {subtitle}
             </p>
+            {writing && drafted > done && (
+              <p
+                className={cn(SUPPORT_NOTE_CLASS, 'mt-1 text-muted-foreground')}
+              >
+                {t('create.prompts.draftsHint', { drafted, total })}
+              </p>
+            )}
             {rewrite && (
               <p
                 className={cn(SUPPORT_NOTE_CLASS, 'mt-1 text-muted-foreground')}

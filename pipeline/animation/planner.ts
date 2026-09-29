@@ -44,6 +44,8 @@ export interface AnimationPlannerOptions {
   endSeconds?: number
   coveredIntervals?: AnimationInterval[]
   mergeShortScenes?: boolean
+  // Solo creación automática: pareja3+3 o3+cola parcial; el editor no lo activa.
+  pairPrefixScenes?: boolean
   replacementUnits?: AnimationUnit[]
 }
 
@@ -211,19 +213,24 @@ export function planAnimationUnits(
       const next = scenes[index + 1]
       let endSeconds = part.endSeconds
       const sceneIds = [scene.id]
-      // Solo 3+3 completas, hacia adelante. Distintos lugares/ideas son
-      // trabajo del director temporal, no un motivo para descartar pareja.
+      // El editor conserva3+3 completas. La creación admite además la cola
+      // parcial del audio: sus dos imágenes permanecen dentro del clip.
       if (
         options.mergeShortScenes !== false &&
-        scene.animationRequestedSeconds === undefined &&
+        (scene.animationRequestedSeconds === undefined ||
+          options.pairPrefixScenes === true) &&
         Math.abs(duration - SHORT_SCENE_SECONDS) < TIME_EPSILON &&
         part.startSeconds === startSeconds &&
         part.endSeconds === sceneEnd &&
         next?.startSeconds !== undefined &&
         next.endSeconds !== undefined &&
         Math.abs(next.startSeconds - sceneEnd) < TIME_EPSILON &&
-        Math.abs(next.endSeconds - next.startSeconds - SHORT_SCENE_SECONDS) <
-          TIME_EPSILON &&
+        (Math.abs(next.endSeconds - next.startSeconds - SHORT_SCENE_SECONDS) <
+          TIME_EPSILON ||
+          (options.pairPrefixScenes === true &&
+            next.endSeconds > next.startSeconds &&
+            next.endSeconds - next.startSeconds < SHORT_SCENE_SECONDS &&
+            Math.abs(next.endSeconds - rangeEnd) < TIME_EPSILON)) &&
         next.endSeconds <= rangeEnd &&
         !coveredIds.has(next.id) &&
         uncoveredIntervals(

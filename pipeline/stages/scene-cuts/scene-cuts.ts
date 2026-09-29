@@ -14,6 +14,10 @@ import {
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import type { Scene, TranscriptWord } from '../../types/scenes.ts'
+import {
+  ANIMATION_PREFIX_IMAGE_SECONDS,
+  ANIMATION_PREFIX_SCENE_SECONDS,
+} from '../../types/video-provider.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 import type { CreateVideoContext } from '../context.ts'
 import {
@@ -59,7 +63,7 @@ async function hasDerivedSceneAssets(
   if (!scenes) return false
   if (
     context.metadata.completedStages.some((stage) =>
-      ['scene-prompts', 'images', 'render'].includes(stage),
+      ['scene-prompts', 'images', 'animation', 'render'].includes(stage),
     )
   )
     return true
@@ -195,7 +199,18 @@ export const sceneCutsStage: Stage<CreateVideoContext> = {
     let scenes: Scene[]
     let reusable: boolean
     const previous = await readScenes(context.paths)
-    const preserveDerived = await hasDerivedSceneAssets(context, previous)
+    // Un prefijo guardado con la política anterior6s conserva sus cortes
+    // incluso si se pausó antes de redactar: actualizar no redivide proyectos.
+    const legacyPrefix =
+      animationEnabled &&
+      previous?.some(
+        (scene) =>
+          scene.animationRequestedSeconds === ANIMATION_PREFIX_SCENE_SECONDS &&
+          (scene.endSeconds ?? 0) - (scene.startSeconds ?? 0) >
+            ANIMATION_PREFIX_IMAGE_SECONDS + 1e-9,
+      )
+    const preserveDerived =
+      legacyPrefix || (await hasDerivedSceneAssets(context, previous))
     if (secondsLane) {
       // Red de seguridad (v1.31.1 del origen): una confirmación por CONTEO
       // en el carril de segundos se traduce a los segundos equivalentes —

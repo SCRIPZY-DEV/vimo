@@ -8,6 +8,9 @@ interface AnimationRangeOptions {
   durationSeconds?: number
   videoFormat?: VideoFormat
   wholeVideo?: boolean
+  // Reanudación del pipeline: usa las mismas parejas que la creación.
+  // El editor conserva su política cuando esta opción está ausente.
+  pairPrefixScenes?: boolean
 }
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 
@@ -21,7 +24,8 @@ export function animationRangePlan(
     options.wholeVideo ? undefined : minutes,
     options.durationSeconds,
   )
-  const mergeShortScenes = options.videoFormat !== '9:16'
+  const mergeShortScenes =
+    options.pairPrefixScenes === true || options.videoFormat !== '9:16'
   const sceneIds = scenes
     .filter(
       (scene) =>
@@ -35,6 +39,7 @@ export function animationRangePlan(
   const plan = planAnimationUnits(scenes, sceneIds, [], {
     endSeconds,
     mergeShortScenes,
+    pairPrefixScenes: options.pairPrefixScenes,
     coveredIntervals,
   })
   const resumableIntervals = resumableAnimationIntervals(scenes).filter(
@@ -43,6 +48,7 @@ export function animationRangePlan(
   const unpaid = planAnimationUnits(scenes, sceneIds, [], {
     endSeconds,
     mergeShortScenes,
+    pairPrefixScenes: options.pairPrefixScenes,
     coveredIntervals: [...coveredIntervals, ...resumableIntervals],
   })
   return {

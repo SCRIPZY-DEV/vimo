@@ -9,23 +9,15 @@ import {
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import type { CreateVideoContext } from '../context.ts'
-import { imagesStage } from './images.ts'
 
-// Mantiene las seis fases y la implementación de imágenes. La fase no se
-// saltea solo porque haya JPG si todavía falta el prefijo animado solicitado.
-export const imagesWithAnimationStage: Stage<CreateVideoContext> = {
-  id: imagesStage.id,
+// Fase independiente: todas las imágenes ya existen. Reanudar consulta los
+// recibos y solo completa intervalos pendientes; nunca recompra los listos.
+export const animationStage: Stage<CreateVideoContext> = {
+  id: 'animation',
   async skip(context) {
-    return (
-      (await imagesStage.skip?.(context)) === true &&
-      !(await hasAnimationWork(context))
-    )
+    return !(await hasAnimationWork(context))
   },
   async run(context) {
-    if (!(await imagesStage.skip?.(context))) {
-      const outcome = await imagesStage.run(context)
-      if (outcome?.pause) return outcome
-    }
     context.signal.throwIfAborted()
     if (!hasAutomaticAnimation(context.options) || context.regenerateSceneIds)
       return
@@ -33,6 +25,7 @@ export const imagesWithAnimationStage: Stage<CreateVideoContext> = {
       minutes: animatesWholeVideo(context.options)
         ? undefined
         : context.options.animationMinutes,
+      pairPrefixScenes: true,
     })
     context.signal.throwIfAborted()
     if (result.failed.length || result.rejected.length)

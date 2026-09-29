@@ -1,4 +1,5 @@
 import {
+  ANIMATION_MINUTES_DEFAULT,
   AUTO_SECONDS_PER_SCENE,
   BGM_CREDITS_ESTIMATE,
   COST_ESTIMATE_SAFETY_FACTOR,
@@ -8,7 +9,6 @@ import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCoun
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import { estimateAnimationSeconds } from '@/modules/videos/utilities/estimateAnimationSeconds'
-import { effectiveAnimationMinutes } from '@pipeline/animation/scope.ts'
 import { planPrefixSceneWindows } from '@pipeline/animation/prefix-scenes.ts'
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
@@ -76,7 +76,8 @@ function estimateImagesLine(
   )
 }
 
-// Usa el mismo corte puro del sidecar: prefijo6s y resto configurado.
+// Usa el mismo corte puro del sidecar: imágenes cada3s en el primer minuto
+// y el resto con la duración configurada.
 // El audio propio conserva su cantidad manual hasta medir la duración.
 function estimatedSceneCount(form: CreateFormValue, script: string): number {
   const usesCustomStyle = form.styleSource === 'custom'
@@ -94,7 +95,7 @@ function estimatedSceneCount(form: CreateFormValue, script: string): number {
   if (!form.animateScenes) return count
   return planPrefixSceneWindows({
     totalSeconds: durationSeconds,
-    minutes: effectiveAnimationMinutes(form, durationSeconds),
+    minutes: ANIMATION_MINUTES_DEFAULT,
     secondsPerScene: usesCustomStyle ? form.secondsPerScene : undefined,
     sceneCount: hasFixedCount ? form.sceneCount : undefined,
   }).length

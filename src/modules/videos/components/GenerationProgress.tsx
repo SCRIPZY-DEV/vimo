@@ -24,6 +24,7 @@ import { ProgressStatusPill } from '@/modules/videos/components/ProgressStatusPi
 import { PromptModelIssueDialog } from '@/modules/videos/components/PromptModelIssueDialog'
 import { PromptStageWatchdog } from '@/modules/videos/components/PromptStageWatchdog'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
+import { PipelineAnimationPanel } from '@/modules/videos/components/PipelineAnimationPanel'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
@@ -112,9 +113,17 @@ export function GenerationProgress({
   const generating = !finished && !failed
   const completed = task.completedStages
   const voice = task.voiceProgress
-  const animationScenes = task.scenes.filter(
-    (scene) => scene.animationActivity !== undefined,
+  const hasAnimation = Boolean(
+    task.automaticAnimation ||
+    task.confirmation?.animationMinutes ||
+    task.stage === 'animation' ||
+    task.scenes.some((scene) => scene.animationRequestedSeconds !== undefined),
   )
+  const showAnimationPanel =
+    hasAnimation &&
+    (task.stage === 'animation' ||
+      task.scenes.some((scene) => scene.animationActivity !== undefined) ||
+      completed.includes('animation'))
 
   // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
   // disco y `stage` es null hasta el primer evento del job.
@@ -150,14 +159,18 @@ export function GenerationProgress({
       !generating)
   // La fase en la que se cayó el job: la primera sin completar.
   const failedStage = failed
-    ? (PIPELINE_STAGES.find((stage) => !completed.includes(stage.id))?.id ??
-      null)
+    ? (PIPELINE_STAGES.find(
+        (stage) =>
+          (stage.id !== 'animation' || hasAnimation) &&
+          !completed.includes(stage.id),
+      )?.id ?? null)
     : null
   // Rescate por el editor: un fallo de imágenes, o un código que deja el
   // proyecto reparable desde ahí aunque la fase caída sea otra (el render sin
   // imágenes cae en `render` con todo lo demás en disco).
   const editorRescue =
     failedStage === 'images' ||
+    failedStage === 'animation' ||
     (task.errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(task.errorCode))
   // Solo el carril verbatim tiene un modelo elegible que cambiar.
   const promptModelSwitchable =
@@ -235,6 +248,7 @@ export function GenerationProgress({
           </h2>
           <StageBar
             currentStage={task.stage}
+            showAnimation={hasAnimation}
             completedStages={completed}
             paused={paused}
             recovery={recovery}
@@ -387,7 +401,7 @@ export function GenerationProgress({
                 domain: task.creditsIssue.domain,
                 imageProvider: task.imageProvider,
                 voiceVendor: task.voiceVendor,
-                // Crear nunca anima: la animación es cirugía del editor.
+                // Las animaciones automáticas también usan el saldo de Kie.
                 videoProvider: 'kie',
               }}
               onRetry={onRetryPipeline}
@@ -413,6 +427,7 @@ export function GenerationProgress({
           {showPromptsPanel && (
             <PromptsGrid
               scenes={rewritingScenes}
+              complete={completed.includes('scene-prompts') && !rewriting}
               written={
                 rewriting
                   ? {
@@ -425,36 +440,13 @@ export function GenerationProgress({
             />
           )}
 
-          {animationScenes.length > 0 && (
-            <div
-              className="space-y-1 rounded-xl border-2 border-sky/40 bg-sky/5 p-4"
-              role="status"
-            >
-              <h2 className="font-display text-base font-bold text-foreground">
-                {t('create.progress.animationTitle')}
-              </h2>
-              <p className="font-body text-sm text-muted-foreground">
-                {t('create.progress.animationCount', {
-                  ready: animationScenes.filter(
-                    (scene) => scene.animationActivity === 'ready',
-                  ).length,
-                  active: animationScenes.filter(
-                    (scene) => scene.animationActivity === 'generating',
-                  ).length,
-                })}
-              </p>
-              {animationScenes.some(
-                (scene) => scene.animationActivity === 'error',
-              ) && (
-                <p className="font-body text-xs text-coral">
-                  {t('create.progress.animationError', {
-                    count: animationScenes.filter(
-                      (scene) => scene.animationActivity === 'error',
-                    ).length,
-                  })}
-                </p>
-              )}
-            </div>
+          {showAnimationPanel && (
+            <PipelineAnimationPanel
+              scenes={task.scenes}
+              videoFormat={task.videoFormat}
+              active={generating && task.stage === 'animation'}
+              complete={completed.includes('animation')}
+            />
           )}
 
           {showImagesPanel && (

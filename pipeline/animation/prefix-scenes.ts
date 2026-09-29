@@ -4,11 +4,14 @@ import {
   MIN_SECONDS_PER_SCENE,
   sceneBoundariesBySeconds,
 } from '../stages/scene-cuts/by-seconds.ts'
-import { ANIMATION_PREFIX_SCENE_SECONDS } from '../types/video-provider.ts'
+import {
+  ANIMATION_PREFIX_IMAGE_SECONDS,
+  ANIMATION_PREFIX_SCENE_SECONDS,
+} from '../types/video-provider.ts'
 
 // Plan puro compartido por el corte real y la estimación del formulario.
-// Los primeros N minutos tienen imágenes propias cada6s. El último fragmento
-// conserva el final real del audio, aunque su encargo al proveedor sea de6s.
+// El prefijo tiene imágenes propias cada3s; la fase de animación agrupa
+// parejas en clips de6s. La última imagen conserva el final real del audio.
 const SECONDS_PER_MINUTE = 60
 const TIME_EPSILON = 1e-9
 
@@ -45,11 +48,11 @@ export function planPrefixSceneWindows({
   for (
     let start = 0;
     start < prefixEnd - TIME_EPSILON;
-    start += ANIMATION_PREFIX_SCENE_SECONDS
+    start += ANIMATION_PREFIX_IMAGE_SECONDS
   )
     windows.push({
       startSeconds: start,
-      endSeconds: Math.min(prefixEnd, start + ANIMATION_PREFIX_SCENE_SECONDS),
+      endSeconds: Math.min(prefixEnd, start + ANIMATION_PREFIX_IMAGE_SECONDS),
       animationRequestedSeconds: ANIMATION_PREFIX_SCENE_SECONDS,
     })
 
