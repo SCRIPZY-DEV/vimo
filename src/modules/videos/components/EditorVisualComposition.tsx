@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
 import { EditorVisualFrame } from '@/modules/videos/components/EditorVisualFrame'
 import { timelineBlocks } from '@/modules/videos/utilities/timelineBlocks'
@@ -9,6 +10,7 @@ interface EditorVisualCompositionProps {
   versions: Record<number, number>
   seconds: number
   playing: boolean
+  clockRef: RefObject<HTMLMediaElement | null>
   onClick(): void
 }
 
@@ -19,6 +21,7 @@ export function EditorVisualComposition({
   versions,
   seconds,
   playing,
+  clockRef,
   onClick,
 }: EditorVisualCompositionProps) {
   const blocks = timelineBlocks(scenes, {})
@@ -55,6 +58,7 @@ export function EditorVisualComposition({
           >
             <EditorVisualFrame
               block={block}
+              clockRef={clockRef}
               sceneIndex={scenes.findIndex((scene) => scene.id === sceneId)}
               offsetSeconds={
                 active

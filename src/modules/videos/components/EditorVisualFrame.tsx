@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { RefObject } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { ANIMATION_FPS, slotFrames } from '@pipeline/animation/timing.ts'
 import { videosApi } from '@/modules/videos/api'
@@ -13,6 +14,7 @@ interface EditorVisualFrameProps {
   offsetSeconds: number
   versions: Record<number, number>
   playing: boolean
+  clockRef: RefObject<HTMLMediaElement | null>
   onClick(): void
 }
 
@@ -22,6 +24,7 @@ export function EditorVisualFrame({
   offsetSeconds,
   versions,
   playing,
+  clockRef,
   onClick,
 }: EditorVisualFrameProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null)
@@ -35,6 +38,8 @@ export function EditorVisualFrame({
     return (
       <ClipPreviewVideo
         src={source}
+        clockRef={clockRef}
+        startSeconds={block.startSeconds}
         offsetSeconds={offsetSeconds}
         slotSeconds={
           animation?.normalizedSeconds ?? block.endSeconds - block.startSeconds

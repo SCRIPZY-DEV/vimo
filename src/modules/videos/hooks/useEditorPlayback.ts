@@ -51,10 +51,17 @@ export function useEditorPlayback({
   // currentTime menor se descartan (saltaban el cursor a 0).
   const lastSeekRef = useRef(0)
   const onTimeChangeRef = useRef(onTimeChange)
+  const cancelPendingSeekRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     onTimeChangeRef.current = onTimeChange
   }, [onTimeChange])
+
+  // Un seek pendiente pertenece al medio actual, no al siguiente modo ni
+  // a una instancia del editor que ya se desmontó.
+  useEffect(() => {
+    return () => cancelPendingSeekRef.current?.()
+  }, [videoMode])
 
   // timeupdate puede llegar solo cuatro veces por segundo. El reloj del
   // medio sigue mandando, con muestreo por cuadro para cámara y fundidos.
@@ -102,17 +109,32 @@ export function useEditorPlayback({
     music.currentTime = (mix.bgmOffsetSeconds + seconds) % music.duration
   }
 
-  // Seek atómico: con el media listo aplica ya; si no, espera canplay UNA
-  // vez. Jamás llama load() — resetearía el currentTime.
+  // Seek atómico: con el media listo aplica ya; si no, solo la última
+  // intención espera canplay. Jamás llama load(): resetearía currentTime.
   const applyWhenReady = (element: HTMLMediaElement, apply: () => void) => {
     const ready =
       element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
       Number.isFinite(element.duration)
     if (ready) return apply()
-    element.addEventListener('canplay', apply, { once: true })
+
+    const source = element.src
+    const cancel = () => {
+      element.removeEventListener('canplay', applyPending)
+      if (cancelPendingSeekRef.current === cancel)
+        cancelPendingSeekRef.current = null
+    }
+    const applyPending = () => {
+      if (cancelPendingSeekRef.current !== cancel) return
+      cancel()
+      if (element !== primaryMedia() || element.src !== source) return
+      apply()
+    }
+    cancelPendingSeekRef.current = cancel
+    element.addEventListener('canplay', applyPending, { once: true })
   }
 
   const seekTo = (seconds: number) => {
+    cancelPendingSeekRef.current?.()
     const clamped = clamp(seconds, 0, durationSeconds)
     lastSeekRef.current = clamped
     onTimeChange(clamped)

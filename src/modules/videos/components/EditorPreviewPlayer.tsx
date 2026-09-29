@@ -104,6 +104,7 @@ export function EditorPreviewPlayer({
               versions={sceneVersions}
               seconds={cursorSeconds}
               playing={false}
+              clockRef={videoRef}
               onClick={handle.togglePlay}
             />
           )}
@@ -116,6 +117,7 @@ export function EditorPreviewPlayer({
         versions={sceneVersions}
         seconds={cursorSeconds}
         playing={playing && !scrubbing}
+        clockRef={narrationRef}
         onClick={handle.togglePlay}
       />
     )
