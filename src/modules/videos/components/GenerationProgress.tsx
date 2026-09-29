@@ -7,6 +7,7 @@ import {
   Clapperboard,
   FolderOpen,
   Mic,
+  Loader2,
   Music2,
   PlayCircle,
   RefreshCw,
@@ -267,6 +268,15 @@ export function GenerationProgress({
         {/* `min-w-0`: sin esto la columna 1fr usa su min-content como mínimo y
             un mensaje largo la ensancha más allá del viewport. */}
         <div className="min-w-0 space-y-6">
+          {task.status === 'creating' && (
+            <div
+              role="status"
+              className="flex items-center gap-3 rounded-xl border-2 border-saffron/30 bg-saffron/5 p-6 font-display font-semibold"
+            >
+              <Loader2 className="h-5 w-5 animate-spin text-saffron" />
+              {t('create.progress.startingTitle')}
+            </div>
+          )}
           {/* Va arriba de todo: el pipeline está detenido esperándolo. */}
           {secondsLane && task.confirmation && (
             <SecondsPerSceneStep
@@ -443,6 +453,7 @@ export function GenerationProgress({
           {showAnimationPanel && (
             <PipelineAnimationPanel
               scenes={task.scenes}
+              endSeconds={task.animationEndSeconds}
               videoFormat={task.videoFormat}
               active={generating && task.stage === 'animation'}
               complete={completed.includes('animation')}

@@ -30,8 +30,8 @@ export function PromptsGrid({
 }: PromptsGridProps) {
   if (scenes.length === 0) return null
 
-  // El stream prueba actividad, no aprobación. Solo los prompts recibidos
-  // por scene-prompt-ready cuentan como listos; el watchdog conserva su stream.
+  // La barra cuenta escritura recibida; las filas solo muestran prompts ya
+  // persistidos. La fase sigue cargando al 100% mientras termina la validación.
   const done = scenes.filter(hasPrompt).length
   const drafted = Math.min(scenes.length, Math.max(done, written?.ready ?? 0))
 

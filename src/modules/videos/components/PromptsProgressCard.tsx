@@ -14,9 +14,9 @@ interface PromptsProgressCardProps {
   rewrite: { pass: number; maxPasses: number } | null
 }
 
-// Cabecera del avance de prompts. El porcentaje es REAL: cuenta los prompts
-// que llegaron por evento. Si el modelo se traba, la barra se queda quieta —
-// exactamente lo que hay que mostrar cuando eso pasa.
+// El porcentaje refleja la escritura recibida por stream. Llegar al 100%
+// no completa la fase: sigue cargando mientras se validan y guardan los
+// prompts, hasta recibir la confirmación del pipeline.
 export function PromptsProgressCard({
   done,
   total,
@@ -27,11 +27,9 @@ export function PromptsProgressCard({
   const { t } = useTranslation()
 
   const writing = rewrite !== null || !complete || done < total
-  const percent =
-    total > 0
-      ? Math.min(writing ? 99 : 100, Math.floor((done / total) * 100))
-      : 0
-  const finalizing = writing && drafted >= total && !rewrite
+  const written = Math.min(total, Math.max(done, drafted))
+  const percent = total > 0 ? Math.floor((written / total) * 100) : 0
+  const finalizing = writing && total > 0 && written >= total && !rewrite
   const title = rewrite
     ? t('create.prompts.rewritingTitle', { total })
     : finalizing
@@ -41,14 +39,14 @@ export function PromptsProgressCard({
         : t('create.prompts.doneTitle', { total })
   const subtitle = rewrite
     ? t('create.prompts.rewritingSubtitle', {
-        done,
+        done: written,
         total,
         percent,
         pass: rewrite.pass,
         maxPasses: rewrite.maxPasses,
       })
     : writing
-      ? t('create.prompts.writingSubtitle', { done, total, percent })
+      ? t('create.prompts.writingSubtitle', { done: written, total, percent })
       : t('create.prompts.doneSubtitle')
 
   return (
@@ -65,13 +63,6 @@ export function PromptsProgressCard({
             <p className={cn(SUPPORT_NOTE_CLASS, 'text-muted-foreground')}>
               {subtitle}
             </p>
-            {writing && drafted > done && (
-              <p
-                className={cn(SUPPORT_NOTE_CLASS, 'mt-1 text-muted-foreground')}
-              >
-                {t('create.prompts.draftsHint', { drafted, total })}
-              </p>
-            )}
             {rewrite && (
               <p
                 className={cn(SUPPORT_NOTE_CLASS, 'mt-1 text-muted-foreground')}

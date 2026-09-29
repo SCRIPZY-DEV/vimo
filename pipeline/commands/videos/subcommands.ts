@@ -22,6 +22,7 @@ import { setProjectMusic } from './set-project-music.ts'
 import { setPromptModel } from './set-prompt-model.ts'
 import { updateAudioMix } from './update-audio-mix.ts'
 import { updateScenes } from './update-scenes.ts'
+import { undoSceneAnimation } from './undo-scene-animation.ts'
 import { uploadNarration } from './upload-narration.ts'
 import { videoProjectDetail } from './video-project-detail.ts'
 import { videoProjectStatus } from './video-project-status.ts'
@@ -39,6 +40,7 @@ const handlers: Record<string, SubcommandHandler> = {
   'delete-video-projects': deleteVideoProjects,
   'video-project-detail': videoProjectDetail,
   'update-scenes': updateScenes,
+  'undo-scene-animation': undoSceneAnimation,
   'regenerate-scene-images': regenerateSceneImages,
   'render-video': renderVideo,
   'update-audio-mix': updateAudioMix,

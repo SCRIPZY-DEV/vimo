@@ -16,7 +16,10 @@ import {
 } from '@/modules/videos/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
-import type { AnimateScenesPayload } from '@pipeline/types/animation.ts'
+import type {
+  AnimateScenesPayload,
+  UndoSceneAnimationResult,
+} from '@pipeline/types/animation.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
 import type { DemoStatusResult } from '@pipeline/types/demo.ts'
 import type {
@@ -142,6 +145,15 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('animate-scenes', payload, onEvent)
+  },
+  async undoAnimation(
+    projectId: string,
+    sceneId: number,
+  ): Promise<UndoSceneAnimationResult> {
+    return runPipelineJob<UndoSceneAnimationResult>('undo-scene-animation', {
+      projectId,
+      sceneId,
+    })
   },
   async startRender(
     payload: RenderVideoPayload,

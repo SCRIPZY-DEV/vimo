@@ -143,6 +143,18 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
     }
   }
 
+  async function undo(sceneId: number) {
+    if (submissionRef.current) return
+    submissionRef.current = true
+    try {
+      if (!(await actions.undo(sceneId))) return
+      setEditingSceneId(null)
+      setEditingSelection(false)
+    } finally {
+      submissionRef.current = false
+    }
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <label className="ml-auto flex cursor-pointer items-center gap-2 rounded-xl border border-saffron/40 bg-saffron/5 px-3 py-2 font-body text-xs transition-colors hover:bg-saffron/10">
@@ -268,6 +280,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                   : selectedId === scene.id
                 const editing =
                   selected &&
+                  actions.getUndoSceneCount(scene.id) === 0 &&
                   (selecting ? editingSelection : editingSceneId === scene.id)
                 return (
                   <EditorImageGalleryCard
@@ -287,6 +300,9 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                       actions.task?.sceneAnimationErrors[scene.id]
                     }
                     animationLabel={actions.getAnimationLabel(scene.id)}
+                    undoSceneCount={actions.getUndoSceneCount(scene.id)}
+                    undoing={actions.undoingSceneId === scene.id}
+                    undoAvailability={actions.undoAvailability(scene.id)}
                     imageAvailability={
                       selected
                         ? actions.imageAvailability([scene.id])
@@ -327,6 +343,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                     }
                     onRegenerate={() => void regenerate([scene.id])}
                     onAnimate={() => void animate([scene.id])}
+                    onUndo={() => void undo(scene.id)}
                   />
                 )
               })}

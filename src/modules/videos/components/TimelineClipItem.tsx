@@ -37,7 +37,12 @@ export function TimelineClipItem({
   const percent = useAnimationProgress(generating ? progress : undefined)
   const slotSeconds = block.endSeconds - block.startSeconds
   const title = generating
-    ? t('library.editor.panel.animation.animating')
+    ? t(
+        progress?.phase === 'retrying'
+          ? 'library.editor.panel.animation.retrying'
+          : 'library.editor.panel.animation.animating',
+        { attempt: progress?.attempt, maxAttempts: progress?.maxAttempts },
+      )
     : errorKey
       ? t('library.editor.panel.animation.lastError', { reason: t(errorKey) })
       : t('library.editor.panel.animation.ready', {
@@ -122,7 +127,12 @@ export function TimelineClipItem({
           <Loader2 className="h-5 w-5 animate-spin text-sky" />
           {percent !== undefined && (
             <span className="font-display text-[10px] font-bold tabular-nums text-white">
-              {t('library.editor.timeline.animatingPercent', { percent })}
+              {t(
+                progress?.phase === 'retrying'
+                  ? 'library.editor.timeline.retryingPercent'
+                  : 'library.editor.timeline.animatingPercent',
+                { percent },
+              )}
             </span>
           )}
         </span>

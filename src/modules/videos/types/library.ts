@@ -107,7 +107,9 @@ export interface SceneAnimationProgress {
   leadId: number
   startedAt: number
   reportedPercent: number | null
-  phase?: 'queued' | 'preparing' | 'rate-limited' | 'generating'
+  phase?: 'queued' | 'preparing' | 'rate-limited' | 'generating' | 'retrying'
+  attempt?: number
+  maxAttempts?: number
   animationId?: string
   startSeconds?: number
   endSeconds?: number
@@ -129,6 +131,14 @@ export interface AnimationPlanPreview {
 
 // Todo lo que el panel de la escena necesita para animarla (ADR-0040): lo
 // arma la vista y viaja como un solo objeto para no inflar las props.
+export interface SceneAnimationUndoControls {
+  sceneCount: number
+  pending: boolean
+  disabled: boolean
+  reason?: string
+  onUndo(): void
+}
+
 export interface SceneAnimationControls {
   busy?: boolean
   provider: VideoProviderId
@@ -143,6 +153,7 @@ export interface SceneAnimationControls {
   error: SceneAnimationFailure | undefined
   // Qué haría el planificador con esta escena (undefined = sin tiempos).
   plan: AnimationPlanPreview | undefined
+  undo?: SceneAnimationUndoControls
   onAnimate(): void
 }
 

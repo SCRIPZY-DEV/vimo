@@ -7,6 +7,7 @@ import {
   Loader2,
   RefreshCw,
   Clapperboard,
+  Undo2,
 } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { Textarea } from '@/modules/common/ui/textarea'
@@ -40,6 +41,9 @@ interface EditorImageGalleryCardProps {
   animationProgress?: SceneAnimationProgress
   animationError?: SceneAnimationFailure
   animationLabel: 'animate' | 'redo' | 'resume'
+  undoSceneCount: number
+  undoing: boolean
+  undoAvailability: GalleryActionAvailability
   imageAvailability: GalleryActionAvailability
   animationAvailability: GalleryActionAvailability
   selected: boolean
@@ -54,6 +58,7 @@ interface EditorImageGalleryCardProps {
   onDescriptionChange(description: string): void
   onRegenerate(): void
   onAnimate(): void
+  onUndo(): void
 }
 
 export function EditorImageGalleryCard({
@@ -66,6 +71,9 @@ export function EditorImageGalleryCard({
   animationProgress,
   animationError,
   animationLabel,
+  undoSceneCount,
+  undoing,
+  undoAvailability,
   imageAvailability,
   animationAvailability,
   selected,
@@ -80,6 +88,7 @@ export function EditorImageGalleryCard({
   onDescriptionChange,
   onRegenerate,
   onAnimate,
+  onUndo,
 }: EditorImageGalleryCardProps) {
   const { t } = useTranslation()
   const source = sceneImageSource(scene, version)
@@ -108,6 +117,9 @@ export function EditorImageGalleryCard({
     !editing ? animationAvailability.reason : undefined,
   ]
     .filter((reason): reason is string => Boolean(reason))
+    .filter(
+      (reason) => reason !== 'library.editor.panel.animation.undoBeforeImage',
+    )
     .filter((reason, index, values) => values.indexOf(reason) === index)
 
   function regenerateButtonLabel() {
@@ -120,6 +132,11 @@ export function EditorImageGalleryCard({
   }
 
   function animationStatusLabel() {
+    if (animationProgress?.phase === 'retrying')
+      return t('library.editor.panel.animation.retrying', {
+        attempt: animationProgress.attempt,
+        maxAttempts: animationProgress.maxAttempts,
+      })
     if (animationProgress?.phase === 'queued')
       return t('library.editor.panel.animation.queued')
     if (animationProgress?.phase === 'rate-limited')
@@ -318,20 +335,25 @@ export function EditorImageGalleryCard({
             )}
             {!selecting && (
               <>
-                <Button
-                  type="button"
-                  onClick={editing ? onRegenerate : onEdit}
-                  disabled={submitting || imageAvailability.disabled}
-                  title={
-                    imageAvailability.reason
-                      ? t(imageAvailability.reason)
-                      : undefined
-                  }
-                  className="btn-squish h-auto min-h-10 w-full whitespace-normal rounded-xl bg-saffron px-2 font-display text-xs font-bold text-midnight hover:bg-saffron/90"
-                >
-                  <RefreshCw aria-hidden className="mr-1.5 h-4 w-4 shrink-0" />
-                  {regenerateButtonLabel()}
-                </Button>
+                {undoSceneCount === 0 && (
+                  <Button
+                    type="button"
+                    onClick={editing ? onRegenerate : onEdit}
+                    disabled={submitting || imageAvailability.disabled}
+                    title={
+                      imageAvailability.reason
+                        ? t(imageAvailability.reason)
+                        : undefined
+                    }
+                    className="btn-squish h-auto min-h-10 w-full whitespace-normal rounded-xl bg-saffron px-2 font-display text-xs font-bold text-midnight hover:bg-saffron/90"
+                  >
+                    <RefreshCw
+                      aria-hidden
+                      className="mr-1.5 h-4 w-4 shrink-0"
+                    />
+                    {regenerateButtonLabel()}
+                  </Button>
+                )}
                 {editing && (
                   <Button
                     type="button"
@@ -379,6 +401,51 @@ export function EditorImageGalleryCard({
                     </p>
                   ))}
               </>
+            )}
+            {undoSceneCount > 0 && (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onUndo}
+                  disabled={submitting || undoAvailability.disabled}
+                  title={
+                    undoAvailability.reason
+                      ? t(undoAvailability.reason)
+                      : undefined
+                  }
+                  className="h-auto min-h-10 w-full whitespace-normal rounded-xl border-sky/40 px-2 font-display text-xs font-bold text-sky hover:bg-sky/10"
+                >
+                  {undoing ? (
+                    <Loader2
+                      aria-hidden
+                      className="mr-1.5 h-4 w-4 shrink-0 animate-spin"
+                    />
+                  ) : (
+                    <Undo2 aria-hidden className="mr-1.5 h-4 w-4 shrink-0" />
+                  )}
+                  {t(
+                    undoing
+                      ? 'library.editor.panel.animation.undoing'
+                      : 'library.editor.panel.animation.undo',
+                  )}
+                </Button>
+                <p className="font-body text-[11px] leading-relaxed text-muted-foreground">
+                  {t('library.editor.panel.animation.undoBeforeImage')}
+                </p>
+                {undoSceneCount > 1 && (
+                  <p className="font-body text-[11px] leading-relaxed text-muted-foreground">
+                    {t('library.editor.panel.animation.undoGroupHint', {
+                      sceneCount: undoSceneCount,
+                    })}
+                  </p>
+                )}
+                {undoAvailability.reason && (
+                  <p className="font-body text-[11px] leading-relaxed text-muted-foreground">
+                    {t(undoAvailability.reason)}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

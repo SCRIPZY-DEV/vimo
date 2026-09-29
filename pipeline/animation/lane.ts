@@ -49,6 +49,7 @@ const ORDER_DEADLINE_MS = 15 * 60_000
 const RETRY_BACKOFF_MS = 3000
 const UPLOAD_ATTEMPTS = 3
 const MAX_RATE_LIMIT_RETRIES = 8
+const MAX_GENERATION_ATTEMPTS = 3
 
 export interface AnimationLaneEvents {
   onStarted(sceneId: number, sceneIds: number[], attempt: number): void
@@ -145,6 +146,18 @@ export async function animateUnit(
     attempts: (original.attempts ?? []).map((attempt) => ({ ...attempt })),
   }
   let attempts = animation.attempts!
+  let activeVideoAttempt = 1
+  const reportVideoProgress = (progress: VideoTaskProgress) => {
+    events.onProgress(leadId, {
+      ...progress,
+      ...(activeVideoAttempt > 1 && progress.status !== 'rate-limited'
+        ? { status: 'retrying' }
+        : {}),
+      attempt: activeVideoAttempt,
+      maxAttempts: MAX_GENERATION_ATTEMPTS,
+      retryPhase: 'video',
+    })
+  }
   // Un recibo viejo se cosecha aunque haya cambiado la configuración global.
   if (!attempts.length && original.task?.taskId) {
     attempts.push({
@@ -314,6 +327,13 @@ export async function animateUnit(
             )
               throw error
             if (retry === UPLOAD_ATTEMPTS - 1) throw error
+            events.onProgress(leadId, {
+              status: 'retrying',
+              elapsedSeconds: 0,
+              attempt: retry + 2,
+              maxAttempts: UPLOAD_ATTEMPTS,
+              retryPhase: 'upload',
+            })
             await sleep(RETRY_BACKOFF_MS * (retry + 1), signal)
           }
         }
@@ -360,11 +380,14 @@ export async function animateUnit(
       })
     const order = startOrderDeadline(signal, ORDER_DEADLINE_MS)
     try {
-      events.onStarted(
-        leadId,
-        unit.sceneIds,
-        Math.max(1, attempts.length + (stored ? 0 : 1)),
-      )
+      activeVideoAttempt =
+        attempts.filter(
+          (attempt) =>
+            attempt.state === 'failed' &&
+            attempt.errorCode === 'animation_provider_error',
+        ).length + 1
+      events.onStarted(leadId, unit.sceneIds, activeVideoAttempt)
+      reportVideoProgress({ status: 'generating', elapsedSeconds: 0 })
       if (!stored) {
         await prepareReferences(provider)
         await options.beforeCreate?.()
@@ -463,7 +486,7 @@ export async function animateUnit(
         }
         await checkpoint()
         await options.onTaskCreated?.(animation.task!)
-        events.onProgress(leadId, { status: 'generating', elapsedSeconds: 0 })
+        reportVideoProgress({ status: 'generating', elapsedSeconds: 0 })
       }
       const active = attempts[index]
       if (!active.taskId)
@@ -475,7 +498,7 @@ export async function animateUnit(
         active.taskId,
         inputs.apiKey,
         order.signal,
-        (progress) => events.onProgress(leadId, progress),
+        reportVideoProgress,
       )
       return await download(index, result)
     } catch (error) {
@@ -516,7 +539,11 @@ export async function animateUnit(
         }
         delete animation.task
         await checkpoint()
-        await sleep(RETRY_BACKOFF_MS, signal)
+        if (nextModel(attempts, inputs)) {
+          activeVideoAttempt += 1
+          reportVideoProgress({ status: 'retrying', elapsedSeconds: 0 })
+          await sleep(RETRY_BACKOFF_MS, signal)
+        }
         continue
       }
       if (reason instanceof DeadTaskFailure && index >= 0) {

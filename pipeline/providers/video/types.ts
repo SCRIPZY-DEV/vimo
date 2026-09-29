@@ -28,6 +28,10 @@ export interface VideoTaskProgress {
   percent?: number
   status: string
   elapsedSeconds: number
+  // Los reintentos locales mantienen el clip visible sin anunciar un fallo final.
+  attempt?: number
+  maxAttempts?: number
+  retryPhase?: 'prompt' | 'video' | 'upload'
 }
 
 // Lo que devuelve una verificación final de la tarea: terminada, fallida, o

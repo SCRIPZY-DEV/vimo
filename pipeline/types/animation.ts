@@ -108,6 +108,16 @@ export interface AnimateScenesPayload {
   force?: boolean
 }
 
+// Deshacer restaura las fuentes estáticas de todos los clips que cubren la escena.
+export interface UndoSceneAnimationPayload {
+  projectId: string
+  sceneId: number
+}
+
+export interface UndoSceneAnimationResult {
+  restored: number[]
+}
+
 export interface AnimateScenesResult {
   animated: number[]
   failed: number[]

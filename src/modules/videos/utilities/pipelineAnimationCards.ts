@@ -10,14 +10,17 @@ import type { PipelineAnimationCard } from '@/modules/videos/types/pipelineAnima
 // Primero se muestran los archivos reales; solo se planifica lo que falta.
 export function pipelineAnimationCards(
   scenes: SceneView[],
+  animationEndSeconds?: number,
 ): PipelineAnimationCard[] {
   const sources = scenes.filter(
     (scene) => scene.animationRequestedSeconds !== undefined,
   )
-  const endSeconds = Math.max(
-    0,
-    ...sources.map((scene) => scene.endSeconds ?? 0),
-  )
+  // Una imagen heredada puede cruzar el minuto solicitado. Su extremo no
+  // autoriza otra animación: prevalece el rango real emitido por el sidecar.
+  const endSeconds =
+    animationEndSeconds !== undefined && Number.isFinite(animationEndSeconds)
+      ? Math.max(0, animationEndSeconds)
+      : Math.max(0, ...sources.map((scene) => scene.endSeconds ?? 0))
   const ready: PipelineAnimationCard[] = []
   for (const scene of scenes) {
     for (const animation of sceneAnimationBlocks(scene)) {

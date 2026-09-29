@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                      | Status                   | Area                          |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0046](ADR-0046-recuperacion-y-deshacer-animaciones.md)                              | Visible recovery and undoing animations                                    | Aceptada                 | app / pipeline                |
 | [ADR-0045](ADR-0045-prefijo-animado-por-parejas-y-fase-propia.md)                        | Animated prefix pairs and dedicated stage                                  | Accepted                 | pipeline / app                |
 | [ADR-0042](ADR-0042-animacion-kie-por-intervalos-y-recibos.md)                           | Animación Kie por intervalos, recibos y respaldo automático                | Accepted                 | pipeline / editor             |
 | [ADR-0041](ADR-0041-animacion-motor-del-tablero-prompt-con-vision-y-clip-como-bloque.md) | Motor de animación y clip como bloque (historical)                         | Replaced by ADR-0042     | pipeline / editor             |

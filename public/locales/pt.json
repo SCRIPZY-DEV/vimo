@@ -374,8 +374,10 @@
       "animationWorking": "Animando · {{percent}}%",
       "animationScenes_one": "Cena {{ids}}",
       "animationScenes_other": "Cenas {{ids}}",
-      "animationClipFailed": "Não foi possível animar. A imagem foi preservada.",
-      "animationPending": "Pendente"
+      "animationClipFailed": "Não foi possível concluir. Tente novamente ao terminar esta etapa ou continue no editor.",
+      "animationPending": "Pendente",
+      "animationRetrying": "Tentando novamente · {{attempt}}/{{maxAttempts}}",
+      "startingTitle": "Verificando serviços e saldo"
     },
     "confirmScenes": {
       "title": "Confirme a quantidade de cenas",
@@ -402,7 +404,7 @@
       "confirm_one": "Seguir com {{count}} cena de {{seconds}} s",
       "confirm_other": "Seguir com {{count}} cenas de {{seconds}} s",
       "footnote": "O vídeo está parado esperando isto: nada é gerado até você confirmar.",
-      "animatedWholeHint": "Todo o áudio está dentro do trecho animado: serão criadas imagens a cada 3 s e agrupadas em pares em clipes de 6 s. O último clipe será ajustado ao final do áudio.",
+      "animatedWholeHint": "Serão criados clipes de 6 s. O último clipe será ajustado ao final do áudio.",
       "perAnimatedClip": "por clipe animado",
       "sliderAfterAnimationAria": "Segundos por imagem após o trecho animado",
       "animationExplanation": "A narração mantém seus tempos. O último clipe é ajustado ao final do trecho animado, e as imagens seguintes começam ali, sem deslocar o áudio."
@@ -572,13 +574,13 @@
     "prompts": {
       "writingTitle": "Escrevendo {{total}} prompts, um por cena",
       "doneTitle": "{{total}} prompts prontos, um por cena",
-      "writingSubtitle": "{{done}} de {{total}} prontos · {{percent}}%",
+      "writingSubtitle": "{{done}} de {{total}} escritos · {{percent}}%",
       "doneSubtitle": "Um por cena, no estilo escolhido.",
       "writingAria": "Escrevendo este prompt",
       "rewritingTitle": "Reescrevendo {{total}} prompts rejeitados",
       "rewritingSubtitle": "{{done}} de {{total}} reescritos · {{percent}}% · passagem {{pass}} de {{maxPasses}}",
       "rewritingHint": "O gerador de imagens rejeitou estas cenas por conteúdo: são reescritas mais neutras, no mesmo estilo.",
-      "finalizingTitle": "Revisando e salvando os prompts",
+      "finalizingTitle": "Validando prompts",
       "draftsHint": "{{drafted}} de {{total}} rascunhos recebidos. Só contam como prontos após revisão e salvamento."
     },
     "viewer": {
@@ -842,7 +844,8 @@
         "openAudio": "Abrir o áudio do projeto",
         "openMusic": "Abrir a música do projeto",
         "animatingPercent": "{{percent}}%",
-        "clipDuration": "{{seconds}} s"
+        "clipDuration": "{{seconds}} s",
+        "retryingPercent": "Tentando novamente · {{percent}}%"
       },
       "panel": {
         "noSelection": "Escolha uma cena na linha do tempo para editá-la.",
@@ -894,7 +897,13 @@
           "pairingGroup": "Cenas {{ids}} · {{seconds}} s",
           "pairingAdditional_one": "A cena {{ids}} também será incluída, mesmo sem estar selecionada. Cada dupla gera um único clipe.",
           "pairingAdditional_other": "As cenas {{ids}} também serão incluídas, mesmo sem estarem selecionadas. Cada dupla gera um único clipe.",
-          "pairingOnce": "Cada dupla gera um único clipe, mesmo quando as duas cenas estão selecionadas."
+          "pairingOnce": "Cada dupla gera um único clipe, mesmo quando as duas cenas estão selecionadas.",
+          "retrying": "Tentando novamente · {{attempt}}/{{maxAttempts}}",
+          "undo": "Desfazer animação",
+          "undoing": "Restaurando imagens…",
+          "undoBeforeImage": "Para alterar as imagens, desfaça primeiro a animação. Depois, você poderá gerar as imagens novamente e animá-las.",
+          "undoFailed": "Não foi possível desfazer a animação. O clipe anterior foi preservado.",
+          "undoGroupHint": "Este clipe abrange {{sceneCount}} cenas. As imagens e durações originais serão restauradas juntas."
         }
       },
       "render": {
@@ -1029,7 +1038,10 @@
       "falAdminKeyRequired": "Sua chave Fal não é do tipo Admin: crie uma nova com permissão Admin para ver o saldo.",
       "demoProject": "Este vídeo é da demo: as imagens e a narração vêm do pacote de amostra e não são regeneradas.",
       "animationAlreadyCovered": "Essa cena já faz parte de outro clipe animado.",
-      "animationSlotOutOfRange": "Essa cena não cabe na duração de um clipe, nem sozinha nem junto com as vizinhas."
+      "animationSlotOutOfRange": "Essa cena não cabe na duração de um clipe, nem sozinha nem junto com as vizinhas.",
+      "animationImageLocked": "Desfaça a animação antes de gerar suas imagens novamente. Recupere qualquer tarefa pendente primeiro.",
+      "animationUndoPending": "Estas cenas têm uma animação aguardando recuperação. Recupere-a antes de desfazer o clipe para preservar a geração enviada.",
+      "animationSourceMissing": "Uma imagem original está ausente. O clipe animado é preservado para não deixar a cena vazia."
     },
     "music": {
       "title": "Música de fundo",

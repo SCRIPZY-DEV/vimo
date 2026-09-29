@@ -20,6 +20,13 @@ export interface GalleryActionsOptions {
   locked: boolean
   imageProvider: ImageProviderId
   onRegenerateImages(requests: GalleryImageRequest[]): Promise<boolean>
+  onUndoAnimation(sceneId: number): Promise<boolean>
+  undoingSceneId: number | null
+}
+
+export interface UndoGalleryAnimation {
+  projectId: string
+  sceneId: number
 }
 
 export interface GallerySceneUpdate {

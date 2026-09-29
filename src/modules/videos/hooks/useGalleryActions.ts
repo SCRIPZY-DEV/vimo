@@ -14,6 +14,10 @@ import {
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
+import {
+  animationUndoPending,
+  undoableAnimationClips,
+} from '@/modules/videos/utilities/animationUndo'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import {
@@ -36,6 +40,8 @@ export function useGalleryActions({
   locked,
   imageProvider,
   onRegenerateImages,
+  onUndoAnimation,
+  undoingSceneId,
 }: GalleryActionsOptions) {
   const editorTask = useLibraryEditorTask(projectId)
   const { detail } = useLibraryProjectDetail(projectId)
@@ -54,6 +60,13 @@ export function useGalleryActions({
     galleryAnimationPlan(scenes, ids, { videoFormat, durationSeconds })
   const validSelection = (ids: number[]) =>
     ids.length > 0 && ids.every((id) => scenes.some((scene) => scene.id === id))
+  const readyClips = undoableAnimationClips(scenes)
+  const getUndoSceneCount = (id: number) =>
+    new Set(
+      readyClips
+        .filter((clip) => clip.sceneIds.includes(id))
+        .flatMap((clip) => clip.sceneIds),
+    ).size
   const imageEstimate = (ids: number[]) => {
     const lines = scenes
       .filter((scene) => ids.includes(scene.id))
@@ -81,6 +94,8 @@ export function useGalleryActions({
     if (locked) return 'library.editor.demoLocked'
     if (!validSelection(ids)) return 'library.editor.imageGallery.submitFailed'
     if (editorTask.isProjectBusy(projectId)) return 'library.errors.projectBusy'
+    if (ids.some((id) => getUndoSceneCount(id) > 0))
+      return 'library.editor.panel.animation.undoBeforeImage'
     if (!configuredProviders.has(imageProvider))
       return 'library.editor.imageGallery.noImageProvider'
     if (ids.some((id) => planFor([id]).canResumeTask))
@@ -93,6 +108,16 @@ export function useGalleryActions({
       ).blocking
     )
       return 'library.editor.imageGallery.insufficientCredits'
+    return undefined
+  }
+  const undoRejection = (id: number) => {
+    if (locked) return 'library.editor.demoLocked'
+    if (!validSelection([id]) || getUndoSceneCount(id) === 0)
+      return 'library.editor.panel.animation.undoFailed'
+    if (editorTask.isProjectBusy(projectId) || undoingSceneId !== null)
+      return 'library.errors.projectBusy'
+    if (animationUndoPending(scenes, id))
+      return 'library.errors.animationUndoPending'
     return undefined
   }
   const animationRejection = (ids: number[]) => {
@@ -249,6 +274,29 @@ export function useGalleryActions({
     }
   }
 
+  const undo = async (id: number) => {
+    if (submission.current) return false
+    const reason = undoRejection(id)
+    if (reason) {
+      setErrorKey(reason)
+      return false
+    }
+    submission.current = true
+    setSubmitting(true)
+    setErrorKey(null)
+    try {
+      const restored = await onUndoAnimation(id)
+      if (!restored) setErrorKey('library.editor.panel.animation.undoFailed')
+      return restored
+    } catch {
+      setErrorKey('library.editor.panel.animation.undoFailed')
+      return false
+    } finally {
+      submission.current = false
+      setSubmitting(false)
+    }
+  }
+
   const getAnimationLabel = (id: number): 'animate' | 'redo' | 'resume' => {
     const plan = planFor([id])
     if (plan.canResumeTask) return 'resume'
@@ -263,6 +311,10 @@ export function useGalleryActions({
     regenerate,
     animate,
     getAnimationLabel,
+    getUndoSceneCount,
+    undo,
+    undoingSceneId,
+    undoAvailability: (id: number) => availability(undoRejection(id)),
     imageAvailability: (ids: number[]) => availability(imageRejection(ids)),
     animationAvailability: (ids: number[]) =>
       availability(animationRejection(ids)),

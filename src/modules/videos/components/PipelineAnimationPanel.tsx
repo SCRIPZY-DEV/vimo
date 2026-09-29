@@ -19,6 +19,7 @@ import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 interface PipelineAnimationPanelProps {
   scenes: SceneView[]
+  endSeconds?: number
   videoFormat: VideoFormat
   active: boolean
   complete: boolean
@@ -29,6 +30,7 @@ interface PipelineAnimationPanelProps {
 // el 100% requiere el archivo listo y el cierre de la fase.
 export function PipelineAnimationPanel({
   scenes,
+  endSeconds,
   videoFormat,
   active,
   complete,
@@ -36,7 +38,7 @@ export function PipelineAnimationPanel({
   const { t } = useTranslation()
   const [now, setNow] = useState(() => Date.now())
   const [openCardId, setOpenCardId] = useState<string | null>(null)
-  const cards = pipelineAnimationCards(scenes).map((card) => {
+  const cards = pipelineAnimationCards(scenes, endSeconds).map((card) => {
     const { scene, animation } = card
     const ready = Boolean(animation?.clipPath)
     const failed = scene.animationActivity === 'error'
@@ -143,9 +145,16 @@ export function PipelineAnimationPanel({
                     <span className="flex items-center gap-2 rounded-full bg-sky px-3 py-2 font-display text-sm font-bold">
                       {active && <Loader2 className="h-4 w-4 animate-spin" />}
                       {active
-                        ? t('create.progress.animationWorking', {
-                            percent: clipPercent,
-                          })
+                        ? t(
+                            scene.animationProgress?.phase === 'retrying'
+                              ? 'create.progress.animationRetrying'
+                              : 'create.progress.animationWorking',
+                            {
+                              percent: clipPercent,
+                              attempt: scene.animationProgress?.attempt,
+                              maxAttempts: scene.animationProgress?.maxAttempts,
+                            },
+                          )
                         : t('create.progress.animationPending')}
                     </span>
                   )}

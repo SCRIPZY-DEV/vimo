@@ -1,5 +1,7 @@
 import { stat } from 'node:fs/promises'
 
+import { sceneAnimationBlocks } from '../../animation/scene-blocks.ts'
+
 import { markVideoOutdated } from '../../project/metadata.ts'
 import { sceneImageFile, type ProjectPaths } from '../../project/paths.ts'
 import { mergeScenesById, readScenes } from '../../project/scenes-file.ts'
@@ -66,6 +68,23 @@ export async function regenerateSceneImages(
   const scenes = await readScenes(videoContext.paths)
   if (!scenes)
     throw new PipelineFailure('scenes_missing', 'the project has no scenes')
+
+  const selectedIds = new Set(requests.map((request) => request.id))
+  const protectedSource = scenes.some((scene) =>
+    [...sceneAnimationBlocks(scene), ...(scene.animationPending ?? [])].some(
+      (animation) =>
+        animation.sceneIds.some((id) => selectedIds.has(id)) &&
+        (animation.status === 'ready' ||
+          animation.status === 'pending' ||
+          animation.attempts?.some((attempt) => attempt.state !== 'failed') ||
+          (!animation.attempts?.length && animation.task !== undefined)),
+    ),
+  )
+  if (protectedSource)
+    throw new PipelineFailure(
+      'animation_image_locked',
+      'Undo the animation or recover its pending task before regenerating source images',
+    )
 
   const scenesById = new Map(scenes.map((scene) => [scene.id, scene]))
   const targetIds = new Set<number>()

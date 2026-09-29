@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Clapperboard, Loader2, RefreshCw } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Undo2 } from 'lucide-react'
 import { apiKeysApi } from '@/modules/api-keys/api'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
@@ -100,6 +100,11 @@ export function SceneAnimationSection({
     : undefined
 
   const buttonLabel = () => {
+    if (animating && progress?.phase === 'retrying')
+      return t('library.editor.panel.animation.retrying', {
+        attempt: progress.attempt,
+        maxAttempts: progress.maxAttempts,
+      })
     if (animating && progress?.phase === 'queued')
       return t('library.editor.panel.animation.queued')
     if (animating && progress?.phase === 'rate-limited')
@@ -245,6 +250,46 @@ export function SceneAnimationSection({
               {t('library.editor.panel.animation.configure')}
             </Link>
           </Button>
+        </div>
+      )}
+      {controls.undo && (
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={controls.undo.onUndo}
+            disabled={
+              controls.undo.disabled ||
+              controls.undo.pending ||
+              busy ||
+              animating ||
+              locked
+            }
+            className="w-full min-w-0 rounded-xl border-sky/40 font-display font-bold text-sky hover:bg-sky/10"
+          >
+            {controls.undo.pending ? (
+              <Loader2 aria-hidden className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Undo2 aria-hidden className="mr-1.5 h-4 w-4" />
+            )}
+            {t(
+              controls.undo.pending
+                ? 'library.editor.panel.animation.undoing'
+                : 'library.editor.panel.animation.undo',
+            )}
+          </Button>
+          {controls.undo.reason && (
+            <p className="font-body text-xs leading-relaxed text-muted-foreground">
+              {t(controls.undo.reason)}
+            </p>
+          )}
+          {controls.undo.sceneCount > 1 && (
+            <p className="font-body text-xs leading-relaxed text-muted-foreground">
+              {t('library.editor.panel.animation.undoGroupHint', {
+                sceneCount: controls.undo.sceneCount,
+              })}
+            </p>
+          )}
         </div>
       )}
       {locked && (

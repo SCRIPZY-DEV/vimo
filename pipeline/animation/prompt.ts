@@ -18,7 +18,7 @@ const PROMPT_REVIEW_OUTPUT_TOKENS = 1000
 // V4.1 con feedback. Haiku queda de rescate de revisión/transporte en llm.ts.
 // No cambia el dispatcher de guiones ni previews.
 const PROMPT_WRITER_TIERS: LlmTier[] = ['premium', 'economy', 'premium']
-const PROMPT_REVIEW_TIERS: LlmTier[] = ['premium', 'balanced']
+const PROMPT_REVIEW_TIERS: LlmTier[] = ['premium', 'balanced', 'premium']
 const PROVIDER_BODY_FAILURE_CODES = new Set([
   'UND_ERR_SOCKET',
   'UND_ERR_BODY_TIMEOUT',
@@ -477,6 +477,53 @@ function reportPromptFailure(
   })
 }
 
+function reviewContractFeedback(
+  raw: string,
+  inputs: AnimationPromptInputs,
+  rawCandidate: string,
+): string {
+  const review = extractJsonObject(raw)
+  if (!review)
+    return 'Return a complete JSON object, without markdown or commentary.'
+  if (typeof review.approved !== 'boolean')
+    return 'approved must be a boolean, not a string or a missing field.'
+  if (!Array.isArray(review.source_checks) || !Array.isArray(review.issues))
+    return 'source_checks and issues must both be arrays, including an empty issues array for approval.'
+  if (review.approved && review.issues.length)
+    return 'An approval must have an empty issues array; substantively rejected candidates must use approved:false.'
+  if (!review.approved && !review.issues.length)
+    return 'A rejection requires at least one grounded issue; do not invent an issue to satisfy the schema.'
+  const candidate = extractJsonObject(rawCandidate)
+  const segments = Array.isArray(candidate?.segments) ? candidate.segments : []
+  for (const [index, check] of review.source_checks.entries()) {
+    const source = inputs.segments.find(
+      ({ scene }) => scene.id === check?.scene_id,
+    )
+    const segment = segments.find((item) => item?.scene_id === check?.scene_id)
+    if (!source || !segment)
+      return `source_checks[${index}] must use one of the supplied scene ids.`
+    const fields = [
+      segment.primary_subject,
+      segment.primary_action,
+      segment.camera,
+      segment.secondary_motion,
+      segment.continuity,
+    ]
+    if (
+      !fields.some(
+        (field) =>
+          typeof field === 'string' &&
+          containsQuote(field, check.candidate_quote),
+      )
+    )
+      return `source_checks[${index}].candidate_quote must be an exact substring of a field from candidate scene ${source.scene.id}; copy a short phrase without paraphrasing.`
+    if (check.reference_quote === null && !review.approved) continue
+    if (!containsQuote(source.scene.imagePrompt ?? '', check.reference_quote))
+      return `source_checks[${index}].reference_quote must be copied exactly from static_image_prompt of scene ${source.scene.id}; narration or another scene cannot supply evidence. If the element lacks evidence, use null and reject the addition.`
+  }
+  return 'Cover every supplied scene when approving. Every rejection issue must use its own scene id, an exact candidate quote, a concrete reason and a supported correction, backed by that scene source_checks. Preserve your substantive judgment; repair only the response contract.'
+}
+
 async function reviewCandidate(
   raw: string,
   inputs: AnimationPromptInputs,
@@ -484,6 +531,7 @@ async function reviewCandidate(
   // Una revisión malformada no obliga a pagar otra redacción. Solo se repite
   // la revisión; un rechazo válido vuelve al redactor con sus correcciones,
   // nunca se somete a votación hasta conseguir una aprobación.
+  let contractFeedback: string | undefined
   for (const [attempt, tier] of PROMPT_REVIEW_TIERS.entries()) {
     inputs.signal?.throwIfAborted()
     try {
@@ -506,6 +554,9 @@ async function reviewCandidate(
             narration_cues: segment.narration_cues,
           })),
           candidate: extractJsonObject(raw),
+          ...(contractFeedback
+            ? { response_contract_feedback: contractFeedback }
+            : {}),
         }),
         tier,
         jsonOnly: true,
@@ -517,13 +568,18 @@ async function reviewCandidate(
 
       throw new PipelineFailure(
         'animation_prompt_review_invalid',
-        'The continuity review requires complete source_checks, approved and issues; quotes must match the candidate and the same scene reference.',
+        reviewContractFeedback(rawReview, inputs, raw),
       )
     } catch (error) {
       inputs.signal?.throwIfAborted()
       if (!(error instanceof PipelineFailure) || stopsPromptRecovery(error))
         throw error
       const retry = attempt + 1 < PROMPT_REVIEW_TIERS.length
+      if (error.code === 'animation_prompt_review_invalid')
+        contractFeedback = error.message
+      if (error.code === 'llm_output_truncated')
+        contractFeedback =
+          'The previous response was truncated. Use short exact quotations and concise reasons, and return the complete JSON for all supplied scenes.'
       reportPromptFailure(
         inputs,
         error,

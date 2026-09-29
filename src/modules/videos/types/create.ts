@@ -169,6 +169,8 @@ export interface CreateTask {
   // escribe los prompts y puede bloquearse (ADR-0028). Con estilo de Vimo no
   // hay modelo que vigilar.
   automaticAnimation?: boolean
+  // Recibido del sidecar; puede atravesar una imagen heredada sin recortarla.
+  animationEndSeconds?: number
   usesCustomStyle: boolean
   // Modelo de prompts RESUELTO (nunca null con estilo propio: el default de
   // la casa ya viene aplicado). Es el que se bloquea si falla.

@@ -308,6 +308,8 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         // lleguen los eventos.
         scenes: mergePlannedScenes(task.scenes, event.scenes),
         audioDurationSeconds: event.audioDurationSeconds,
+        animationEndSeconds:
+          event.animationEndSeconds ?? task.animationEndSeconds,
       })
       return
 
@@ -395,6 +397,14 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
             ...scene,
             animationProgress: {
               ...scene.animationProgress,
+              phase:
+                event.status === 'retrying'
+                  ? 'retrying'
+                  : event.status === 'rate-limited'
+                    ? 'rate-limited'
+                    : 'generating',
+              attempt: event.attempt,
+              maxAttempts: event.maxAttempts,
               reportedPercent: Math.max(
                 scene.animationProgress.reportedPercent ?? 0,
                 event.percent ?? 0,
@@ -730,6 +740,7 @@ function makeTask(
     retryAttempts: 0,
     videoFormat: options.videoFormat ?? '16:9',
     cancelRequested: false,
+    animationEndSeconds: undefined,
     automaticAnimation:
       options.automaticAnimation ??
       seed?.scenes.some(
@@ -811,6 +822,9 @@ async function startCreation(input: {
   // Modelo de prompts YA resuelto (el default aplicado): es el que se
   // bloquea si falla. Solo cuenta con estilo propio.
   promptModel?: string | null
+  // La pantalla aparece antes del preflight; ningún proyecto se crea hasta
+  // que sus verificaciones aprueban. El callback descarta respuestas tardías.
+  beforeCreate?: (isCurrent: () => boolean) => Promise<boolean>
 }): Promise<void> {
   if (rejectIfBusy()) return
   stopActiveJob()
@@ -829,9 +843,22 @@ async function startCreation(input: {
     }),
   )
 
+  const isCurrent = () =>
+    currentTask?.id === taskId && !currentTask.cancelRequested
+
   let projectId: string
   try {
+    if (input.beforeCreate) {
+      const accepted = await input.beforeCreate(isCurrent)
+      if (!isCurrent()) return
+      if (!accepted) {
+        setTask(null)
+        return
+      }
+    }
+
     const project = await videosApi.createProject(input.payload)
+    if (!isCurrent()) return
     projectId = project.projectId
     patchTask(taskId, { projectId })
     // La biblioteca abre en la pestaña del formato recién creado.

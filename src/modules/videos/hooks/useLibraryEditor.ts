@@ -13,6 +13,10 @@ import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTas
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
 import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import {
+  animationUndoPending,
+  undoableAnimationClips,
+} from '@/modules/videos/utilities/animationUndo'
 import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type {
@@ -23,6 +27,7 @@ import type {
 import type {
   GalleryImageRequest,
   GallerySceneUpdate,
+  UndoGalleryAnimation,
 } from '@/modules/videos/types/galleryActions'
 import type { SceneChange } from '@pipeline/types/video-project.ts'
 import type {
@@ -162,6 +167,67 @@ export function useLibraryEditor(projectId: string) {
     },
   })
 
+  // La reserva compartida impide iniciar render/animación mientras se restaura
+  // una pareja. La mutación identifica su proyecto aunque cambie la ruta.
+  const undoMutation = useMutation({
+    mutationFn: ({
+      projectId: targetProjectId,
+      sceneId,
+    }: UndoGalleryAnimation) => {
+      return videosApi.undoAnimation(targetProjectId, sceneId)
+    },
+    onError: (error) => {
+      toast({
+        description: t(videosApi.errorMessageKey(error)),
+        variant: 'destructive',
+      })
+    },
+    onSettled: async (_result, _error, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: videosQueryKeys.projectDetail(variables.projectId),
+        }),
+        queryClient.invalidateQueries({ queryKey: videosQueryKeys.projects }),
+      ])
+    },
+  })
+  const readyClips = undoableAnimationClips(workingScenes)
+  const hasReadyAnimation = (sceneIds: number[]) =>
+    readyClips.some((clip) => clip.sceneIds.some((id) => sceneIds.includes(id)))
+  const selectedAnimationSceneCount = new Set(
+    readyClips
+      .filter((clip) => clip.sceneIds.includes(selectedSceneId ?? -1))
+      .flatMap((clip) => clip.sceneIds),
+  ).size
+  const selectedAnimationUndoPending =
+    selectedSceneId !== null &&
+    animationUndoPending(workingScenes, selectedSceneId)
+  const undoingSceneId =
+    undoMutation.isPending && undoMutation.variables?.projectId === projectId
+      ? undoMutation.variables.sceneId
+      : null
+
+  const undoAnimation = async (sceneId: number) => {
+    if (
+      undoMutation.isPending ||
+      gallerySubmission.current ||
+      (pendingSceneUpdates.current.get(projectId) ?? 0) > 0 ||
+      !hasReadyAnimation([sceneId]) ||
+      animationUndoPending(workingScenes, sceneId) ||
+      !editorTask.beginSceneEdit(projectId)
+    )
+      return false
+    try {
+      const result = await undoMutation.mutateAsync({ projectId, sceneId })
+      editorTask.clearRestoredAnimations(projectId, result.restored)
+      return true
+    } catch {
+      return false
+    } finally {
+      editorTask.endSceneEdit(projectId)
+    }
+  }
+
   // Persiste por lote vía update-scenes.
   const commitScenes = (changes: SceneChange[]) => {
     if (changes.length === 0 || gallerySubmission.current) return
@@ -248,7 +314,13 @@ export function useLibraryEditor(projectId: string) {
   // Con descripción pendiente se reescribe el prompt (guardándola antes si
   // es un borrador); si no, un re-roll con el prompt vigente.
   const regenerateSelected = async () => {
-    if (!selectedScene || commitMutation.isPending || gallerySubmission.current)
+    if (
+      !selectedScene ||
+      commitMutation.isPending ||
+      gallerySubmission.current ||
+      undoMutation.isPending ||
+      hasReadyAnimation([selectedScene.id])
+    )
       return false
     const changes: SceneChange[] = userPromptUnsaved
       ? [{ id: selectedScene.id, userPrompt: userPromptOf(selectedScene) }]
@@ -282,6 +354,7 @@ export function useLibraryEditor(projectId: string) {
     ]
     if (
       unique.length === 0 ||
+      hasReadyAnimation(unique.map((entry) => entry.id)) ||
       unique.some(
         (entry) =>
           !workingScenes.some((scene) => scene.id === entry.id) ||
@@ -457,7 +530,11 @@ export function useLibraryEditor(projectId: string) {
     commitSelectedUserPrompt,
     changeImageChoice,
     changeCharacters,
-    savingChanges: commitMutation.isPending,
+    savingChanges: commitMutation.isPending || undoMutation.isPending,
+    undoAnimation,
+    undoingSceneId,
+    selectedAnimationSceneCount,
+    selectedAnimationUndoPending,
     regenerateSelected,
     regenerateGalleryImages,
     videoProvider,

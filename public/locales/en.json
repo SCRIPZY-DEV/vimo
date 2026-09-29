@@ -374,8 +374,10 @@
       "animationWorking": "Animating · {{percent}}%",
       "animationScenes_one": "Scene {{ids}}",
       "animationScenes_other": "Scenes {{ids}}",
-      "animationClipFailed": "Animation failed. The image is preserved.",
-      "animationPending": "Pending"
+      "animationClipFailed": "Could not complete. Retry after this step finishes or continue in the editor.",
+      "animationPending": "Pending",
+      "animationRetrying": "Retrying · {{attempt}}/{{maxAttempts}}",
+      "startingTitle": "Checking services and balance"
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -402,7 +404,7 @@
       "confirm_one": "Continue with {{count}} scene of {{seconds}} s",
       "confirm_other": "Continue with {{count}} scenes of {{seconds}} s",
       "footnote": "The video is stopped waiting for this: nothing is generated until you confirm.",
-      "animatedWholeHint": "All the audio fits within the animated section: images will be created every 3 s and paired into 6 s clips. The last clip will be adjusted to the end of the audio.",
+      "animatedWholeHint": "Clips of 6 s will be created. The last clip will be adjusted to the end of the audio.",
       "perAnimatedClip": "per animated clip",
       "sliderAfterAnimationAria": "Seconds per image after the animated section",
       "animationExplanation": "Narration keeps its timing. The last clip is adjusted to the end of the animated section, and subsequent images start there without shifting the audio."
@@ -572,13 +574,13 @@
     "prompts": {
       "writingTitle": "Writing {{total}} prompts, one per scene",
       "doneTitle": "{{total}} prompts ready, one per scene",
-      "writingSubtitle": "{{done}} of {{total}} ready · {{percent}}%",
+      "writingSubtitle": "{{done}} of {{total}} written · {{percent}}%",
       "doneSubtitle": "One per scene, in the style you picked.",
       "writingAria": "Writing this prompt",
       "rewritingTitle": "Rewriting {{total}} rejected prompts",
       "rewritingSubtitle": "{{done}} of {{total}} rewritten · {{percent}}% · pass {{pass}} of {{maxPasses}}",
       "rewritingHint": "The image generator rejected these scenes for content: they are rewritten more neutral, in the same style.",
-      "finalizingTitle": "Reviewing and saving prompts",
+      "finalizingTitle": "Validating prompts",
       "draftsHint": "{{drafted}} of {{total}} drafts received. They count as ready only after review and saving."
     },
     "viewer": {
@@ -842,7 +844,8 @@
         "openAudio": "Open project audio",
         "openMusic": "Open project music",
         "animatingPercent": "{{percent}}%",
-        "clipDuration": "{{seconds}} s"
+        "clipDuration": "{{seconds}} s",
+        "retryingPercent": "Retrying · {{percent}}%"
       },
       "panel": {
         "noSelection": "Pick a scene in the timeline to edit it.",
@@ -894,7 +897,13 @@
           "pairingGroup": "Scenes {{ids}} · {{seconds}} s",
           "pairingAdditional_one": "Scene {{ids}} will also be included, even though you did not select it. Each pair creates one clip.",
           "pairingAdditional_other": "Scenes {{ids}} will also be included, even though you did not select them. Each pair creates one clip.",
-          "pairingOnce": "Each pair creates one clip, even when both scenes are selected."
+          "pairingOnce": "Each pair creates one clip, even when both scenes are selected.",
+          "retrying": "Retrying · {{attempt}}/{{maxAttempts}}",
+          "undo": "Undo animation",
+          "undoing": "Restoring images…",
+          "undoBeforeImage": "To change the images, undo the animation first. You can then regenerate the images and animate them again.",
+          "undoFailed": "We couldn't undo the animation. The previous clip is preserved.",
+          "undoGroupHint": "This clip covers {{sceneCount}} scenes. Their original images and durations will be restored together."
         }
       },
       "render": {
@@ -1029,7 +1038,10 @@
       "falAdminKeyRequired": "Your Fal key is not an Admin key: create a new one with Admin permission to see the balance.",
       "demoProject": "This video belongs to the demo: its images and narration come from the sample package and cannot be regenerated.",
       "animationAlreadyCovered": "That scene is already part of another animated clip.",
-      "animationSlotOutOfRange": "That scene doesn't fit a clip's length, alone or together with its neighbours."
+      "animationSlotOutOfRange": "That scene doesn't fit a clip's length, alone or together with its neighbours.",
+      "animationImageLocked": "Undo the animation before regenerating its images. Recover any pending task first.",
+      "animationUndoPending": "These scenes have an animation awaiting recovery. Recover it before undoing the clip to preserve the submitted generation.",
+      "animationSourceMissing": "An original image is missing. The animated clip is preserved to avoid leaving the scene empty."
     },
     "music": {
       "title": "Background music",

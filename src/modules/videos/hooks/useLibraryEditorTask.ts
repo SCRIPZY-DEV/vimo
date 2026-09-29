@@ -504,7 +504,13 @@ function handleAnimationEvent(
           ...progress,
           reportedPercent: event.percent ?? progress.reportedPercent,
           phase:
-            event.status === 'rate-limited' ? 'rate-limited' : 'generating',
+            event.status === 'retrying'
+              ? 'retrying'
+              : event.status === 'rate-limited'
+                ? 'rate-limited'
+                : 'generating',
+          attempt: event.attempt,
+          maxAttempts: event.maxAttempts,
         }
       }
       patchTask(projectId, { sceneAnimationProgress })
@@ -655,6 +661,41 @@ function finishAnimation(
   scheduleCreditsRefresh()
   dispatchAnimation(projectId)
   void dispatchRegen(projectId)
+}
+
+// Restaurar fuentes es una decisión nueva: no reofrecer el fallo de un clip
+// retirado. Otros intervalos fallidos y su diálogo siguen disponibles.
+function clearRestoredAnimations(projectId: string, sceneIds: number[]) {
+  if (sceneIds.length === 0) return
+  const restored = new Set(sceneIds)
+  const task = taskOf(projectId)
+  const sceneAnimationStatus = { ...task.sceneAnimationStatus }
+  const sceneAnimationProgress = { ...task.sceneAnimationProgress }
+  const sceneAnimationErrors = { ...task.sceneAnimationErrors }
+  for (const id of restored) {
+    delete sceneAnimationStatus[id]
+    delete sceneAnimationProgress[id]
+    delete sceneAnimationErrors[id]
+  }
+  const failures =
+    task.animationFailure?.failures.filter(
+      (failure) => !restored.has(failure.sceneId),
+    ) ?? []
+  const animationFailure =
+    task.animationFailure && failures.length > 0
+      ? { ...task.animationFailure, failures }
+      : null
+  const clearedLastAnimationError =
+    Object.keys(sceneAnimationErrors).length === 0 &&
+    task.errorKey === 'library.editor.animationFailed'
+  patchTask(projectId, {
+    sceneAnimationStatus,
+    sceneAnimationProgress,
+    sceneAnimationErrors,
+    animationFailure,
+    errorKey: clearedLastAnimationError ? null : task.errorKey,
+    errorCode: clearedLastAnimationError ? null : task.errorCode,
+  })
 }
 
 function dismissAnimationFailure(projectId: string) {
@@ -933,6 +974,7 @@ export function useLibraryEditorTask(projectId: string) {
     startAnimation,
     observeSceneAnimation,
     dismissAnimationFailure,
+    clearRestoredAnimations,
     startRender,
     startExport,
     beginAudioOperation,

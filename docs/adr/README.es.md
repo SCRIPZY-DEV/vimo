@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                          | Estado                   | Área                          |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| [ADR-0046](ADR-0046-recuperacion-y-deshacer-animaciones.md)                              | Recuperación visible y deshacer animaciones                                     | Aceptada                 | app / pipeline                |
 | [ADR-0045](ADR-0045-prefijo-animado-por-parejas-y-fase-propia.md)                        | Prefijo animado por parejas y fase propia                                       | Aceptada                 | pipeline / app                |
 | [ADR-0042](ADR-0042-animacion-kie-por-intervalos-y-recibos.md)                           | Animación Kie por intervalos, recibos y respaldo automático                     | Aceptada                 | pipeline / editor             |
 | [ADR-0041](ADR-0041-animacion-motor-del-tablero-prompt-con-vision-y-clip-como-bloque.md) | Motor de animación y clip como bloque (histórico)                               | Reemplazada por ADR-0042 | pipeline / editor             |

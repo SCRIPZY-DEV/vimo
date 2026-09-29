@@ -132,151 +132,162 @@ export function EditorScenePanel({
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="scene-user-prompt" className="font-display">
-          {t('library.editor.panel.userPrompt')}
-        </Label>
-        <Textarea
-          id="scene-user-prompt"
-          value={scene.userPrompt ?? ''}
-          disabled={savingScenes}
-          maxLength={MAX_USER_PROMPT_CHARS}
-          placeholder={t('library.editor.panel.userPromptPlaceholder')}
-          onChange={(event) => onUserPromptChange(event.target.value)}
-          onBlur={onUserPromptBlur}
-          className="min-h-32 font-body text-sm"
-        />
-        {/* Como en el origen: la ayuda a la izquierda, el contador a la
+      {animation.undo ? (
+        <p className="rounded-xl border border-sky/30 bg-sky/5 p-3 font-body text-xs leading-relaxed text-muted-foreground">
+          {t('library.editor.panel.animation.undoBeforeImage')}
+        </p>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="scene-user-prompt" className="font-display">
+              {t('library.editor.panel.userPrompt')}
+            </Label>
+            <Textarea
+              id="scene-user-prompt"
+              value={scene.userPrompt ?? ''}
+              disabled={savingScenes}
+              maxLength={MAX_USER_PROMPT_CHARS}
+              placeholder={t('library.editor.panel.userPromptPlaceholder')}
+              onChange={(event) => onUserPromptChange(event.target.value)}
+              onBlur={onUserPromptBlur}
+              className="min-h-32 font-body text-sm"
+            />
+            {/* Como en el origen: la ayuda a la izquierda, el contador a la
             derecha, y debajo los tiempos de entrada y salida del clip. */}
-        <div className="flex items-start justify-between gap-3 font-body text-[11px] text-muted-foreground">
-          <p>
-            <span className="font-semibold text-foreground">
-              {t('library.editor.panel.promptHintLead')}
-            </span>{' '}
-            {t('library.editor.panel.promptHint', {
-              max: MAX_USER_PROMPT_CHARS,
-            })}
-          </p>
-          <span className="shrink-0 font-mono tabular-nums">
-            {t('library.editor.panel.promptChars', {
-              used: (scene.userPrompt ?? '').length,
-              max: MAX_USER_PROMPT_CHARS,
-            })}
-          </span>
-        </div>
-        {scene.startSeconds !== undefined && scene.endSeconds !== undefined && (
-          <div className="flex items-center justify-between pt-1 font-body text-xs">
-            <ClipTimeField
-              label={t('library.editor.panel.clipIn')}
-              editLabel={t('library.editor.panel.clipInEdit')}
-              seconds={scene.startSeconds}
-              editable={canEditClipIn}
-              onCommit={(seconds) => onClipTimeChange('in', seconds)}
-            />
-            <ClipTimeField
-              label={t('library.editor.panel.clipOut')}
-              editLabel={t('library.editor.panel.clipOutEdit')}
-              seconds={scene.endSeconds}
-              editable={canEditClipOut}
-              onCommit={(seconds) => onClipTimeChange('out', seconds)}
-            />
+            <div className="flex items-start justify-between gap-3 font-body text-[11px] text-muted-foreground">
+              <p>
+                <span className="font-semibold text-foreground">
+                  {t('library.editor.panel.promptHintLead')}
+                </span>{' '}
+                {t('library.editor.panel.promptHint', {
+                  max: MAX_USER_PROMPT_CHARS,
+                })}
+              </p>
+              <span className="shrink-0 font-mono tabular-nums">
+                {t('library.editor.panel.promptChars', {
+                  used: (scene.userPrompt ?? '').length,
+                  max: MAX_USER_PROMPT_CHARS,
+                })}
+              </span>
+            </div>
+            {scene.startSeconds !== undefined &&
+              scene.endSeconds !== undefined && (
+                <div className="flex items-center justify-between pt-1 font-body text-xs">
+                  <ClipTimeField
+                    label={t('library.editor.panel.clipIn')}
+                    editLabel={t('library.editor.panel.clipInEdit')}
+                    seconds={scene.startSeconds}
+                    editable={canEditClipIn}
+                    onCommit={(seconds) => onClipTimeChange('in', seconds)}
+                  />
+                  <ClipTimeField
+                    label={t('library.editor.panel.clipOut')}
+                    editLabel={t('library.editor.panel.clipOutEdit')}
+                    seconds={scene.endSeconds}
+                    editable={canEditClipOut}
+                    onCommit={(seconds) => onClipTimeChange('out', seconds)}
+                  />
+                </div>
+              )}
           </div>
-        )}
-      </div>
 
-      <SceneQualityPicker
-        value={imageChoice}
-        videoFormat={videoFormat}
-        disabled={busy}
-        onChange={onImageChoiceChange}
-      />
+          <SceneQualityPicker
+            value={imageChoice}
+            videoFormat={videoFormat}
+            disabled={busy}
+            onChange={onImageChoiceChange}
+          />
 
-      {/* Saldo por proveedor, con el elegido para esta escena resaltado, y
+          {/* Saldo por proveedor, con el elegido para esta escena resaltado, y
           el botón de refrescar. Tras regenerar, el saldo se vuelve a pedir
           solo (scheduleCreditsRefresh): el botón es para revisarlo a mano. */}
-      <ImageCreditsBadges
-        credits={credits}
-        loading={creditsLoading}
-        refreshing={creditsRefreshing}
-        active={imageChoice.provider}
-        onlyActive
-        onRefresh={onRefreshCredits}
-      />
+          <ImageCreditsBadges
+            credits={credits}
+            loading={creditsLoading}
+            refreshing={creditsRefreshing}
+            active={imageChoice.provider}
+            onlyActive
+            onRefresh={onRefreshCredits}
+          />
 
-      {characters.length > 0 && (
-        <div className="space-y-1.5">
-          <Label className="font-display">
-            {t('library.editor.panel.characters')}
-          </Label>
-          {characters.map((character, index) => (
-            <CheckboxRow
-              key={`${character.name}-${index}`}
-              label={character.name}
-              checked={charactersPresent.includes(index)}
-              disabled={busy}
-              onChange={() => toggleCharacter(index)}
+          {characters.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="font-display">
+                {t('library.editor.panel.characters')}
+              </Label>
+              {characters.map((character, index) => (
+                <CheckboxRow
+                  key={`${character.name}-${index}`}
+                  label={character.name}
+                  checked={charactersPresent.includes(index)}
+                  disabled={busy}
+                  onChange={() => toggleCharacter(index)}
+                />
+              ))}
+            </div>
+          )}
+
+          {creditsCheck.blocking && (
+            <InsufficientCreditsAlert
+              lines={creditsCheck.lines}
+              blocking
+              onReload={(providerId) =>
+                void apiKeysApi.openBillingPage(providerId)
+              }
+              onRefresh={onRefreshCredits}
+              refreshing={creditsLoading || creditsRefreshing}
             />
-          ))}
-        </div>
-      )}
+          )}
 
-      {creditsCheck.blocking && (
-        <InsufficientCreditsAlert
-          lines={creditsCheck.lines}
-          blocking
-          onReload={(providerId) => void apiKeysApi.openBillingPage(providerId)}
-          onRefresh={onRefreshCredits}
-          refreshing={creditsLoading || creditsRefreshing}
-        />
-      )}
+          {errorKey && (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive">
+              {t('library.editor.panel.lastError', { reason: t(errorKey) })}
+            </p>
+          )}
 
-      {errorKey && (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive">
-          {t('library.editor.panel.lastError', { reason: t(errorKey) })}
-        </p>
-      )}
-
-      {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
+          {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
           trunca en vez de salirse del botón junto con el ícono. En un proyecto
           demo el botón queda deshabilitado con el porqué en el tooltip (el
           <span> recibe el hover que un botón deshabilitado no recibe, y con
           tabIndex es también quien llega por teclado para que el foco
           dispare el mismo tooltip). */}
-      {regenerateLocked ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="block" tabIndex={0}>
-              <Button
-                disabled
-                className="w-full min-w-0 rounded-xl font-display font-bold"
-              >
-                <RefreshCw className="mr-1.5 h-4 w-4" />
-                <span className="min-w-0 truncate">
-                  {t('library.editor.panel.regenerate')}
+          {regenerateLocked ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block" tabIndex={0}>
+                  <Button
+                    disabled
+                    className="w-full min-w-0 rounded-xl font-display font-bold"
+                  >
+                    <RefreshCw className="mr-1.5 h-4 w-4" />
+                    <span className="min-w-0 truncate">
+                      {t('library.editor.panel.regenerate')}
+                    </span>
+                  </Button>
                 </span>
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-sm leading-snug">
-            {t('library.editor.demoLocked')}
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        <Button
-          // Sin esto el mousedown le saca el foco a la textarea, su guardado
-          // deshabilita el botón y el clic se pierde. Regenerar ya guarda.
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={onRegenerate}
-          disabled={busy || creditsCheck.blocking}
-          className="w-full min-w-0 rounded-xl font-display font-bold"
-        >
-          <RefreshCw className="mr-1.5 h-4 w-4" />
-          <span className="min-w-0 truncate">
-            {userPromptPending
-              ? t('library.editor.panel.regenerateWithPrompt')
-              : t('library.editor.panel.regenerate')}
-          </span>
-        </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-sm leading-snug">
+                {t('library.editor.demoLocked')}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              // Sin esto el mousedown le saca el foco a la textarea, su guardado
+              // deshabilita el botón y el clic se pierde. Regenerar ya guarda.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onRegenerate}
+              disabled={busy || creditsCheck.blocking}
+              className="w-full min-w-0 rounded-xl font-display font-bold"
+            >
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              <span className="min-w-0 truncate">
+                {userPromptPending
+                  ? t('library.editor.panel.regenerateWithPrompt')
+                  : t('library.editor.panel.regenerate')}
+              </span>
+            </Button>
+          )}
+        </>
       )}
 
       <SceneAnimationSection

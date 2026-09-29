@@ -3,11 +3,20 @@ import type { PipelineContext } from '../../runner/context.ts'
 import { failureDetails, PipelineFailure } from '../../runner/failure.ts'
 import type { Scene } from '../../types/scenes.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
+import {
+  limitConcurrency,
+  type ConcurrencyLimiter,
+} from '../../utils/concurrency.ts'
 import { createSceneLlm, type SceneLlm } from '../shared/llm.ts'
 
 const NARRATIVE_REVIEW_MODEL = 'deepseek-ai/DeepSeek-V4-Pro'
 const REVIEW_BATCH_SIZE = 6
-const REVIEW_CONCURRENCY = 2
+const REVIEW_CONCURRENCY = 4
+const MAX_REVIEW_CONCURRENCY = 200
+// Cuatro lotes cubren los 20 candidatos de una petición del redactor. El cupo
+// compartido evita multiplicar ese paralelismo sin serializar otros callbacks:
+// hasta 200 revisiones por job/señal, igual al presupuesto por modelo vigente.
+const reviewLimiters = new WeakMap<AbortSignal, ConcurrencyLimiter>()
 const REVIEW_ATTEMPTS = 2
 const REVIEW_OUTPUT_TOKENS = 3000
 const EVIDENCE_WORDS = 20
@@ -434,6 +443,12 @@ export async function reviewNarrativePrompts(
   for (let offset = 0; offset < candidates.length; offset += REVIEW_BATCH_SIZE)
     batches.push(candidates.slice(offset, offset + REVIEW_BATCH_SIZE))
 
+  let limited = reviewLimiters.get(options.signal)
+  if (!limited) {
+    limited = limitConcurrency(MAX_REVIEW_CONCURRENCY)
+    reviewLimiters.set(options.signal, limited)
+  }
+  const reviewWithinLimit = limited
   const results: Map<number, string>[] = []
   let nextBatch = 0
   let failed = false
@@ -442,7 +457,11 @@ export async function reviewNarrativePrompts(
     while (!failed && nextBatch < batches.length) {
       const index = nextBatch++
       try {
-        results[index] = await reviewBatch(batches[index], options)
+        results[index] = await reviewWithinLimit(async () => {
+          options.signal.throwIfAborted()
+          if (failed) return new Map<number, string>()
+          return reviewBatch(batches[index], options)
+        })
       } catch (error) {
         // No arrancar lotes pendientes tras un fallo de cuenta o revisión.
         // SceneLlm conserva la señal/cancelación del job que creó el cliente.

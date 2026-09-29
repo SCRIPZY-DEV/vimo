@@ -790,6 +790,9 @@ export const INTERRUPTED_ERROR_KEY = 'create.errors.interrupted'
 // Create más los propios del editor.
 export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   ...CREATE_ERROR_MESSAGE_KEYS,
+  animation_image_locked: 'library.errors.animationImageLocked',
+  animation_undo_pending: 'library.errors.animationUndoPending',
+  animation_source_missing: 'library.errors.animationSourceMissing',
   invalid_audio_url: 'library.errors.invalidAudioUrl',
   audio_too_large: 'library.errors.audioTooLarge',
   clips_no_scenes: 'library.errors.clipsNoScenes',

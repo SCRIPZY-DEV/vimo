@@ -627,7 +627,17 @@ export async function generateSceneAnimations(
             )
             const written = await buildAnimationPrompt({
               llm,
-              onFailure: createProviderFailureReporter(context.emitter),
+              onFailure(report) {
+                createProviderFailureReporter(context.emitter)(report)
+                if (!report.recovered) return
+                events.onProgress(unit.leadSceneId, {
+                  status: 'retrying',
+                  elapsedSeconds: 0,
+                  attempt: (report.attempt ?? 1) + 1,
+                  maxAttempts: report.maxAttempts,
+                  retryPhase: 'prompt',
+                })
+              },
               script,
               previousPrompt: atomicReplacement
                 ? ready.find((record) => sameInterval(record.unit, unit))

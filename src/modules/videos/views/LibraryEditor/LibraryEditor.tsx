@@ -361,6 +361,8 @@ export function LibraryEditor() {
           imageProvider={editor.imageChoice.provider}
           locked={demoProject}
           onRegenerateImages={editor.regenerateGalleryImages}
+          onUndoAnimation={editor.undoAnimation}
+          undoingSceneId={editor.undoingSceneId}
         />
       </div>
 
@@ -435,6 +437,26 @@ export function LibraryEditor() {
                 ? task?.sceneAnimationErrors[selectedScene.id]
                 : undefined,
               plan: animationPlan,
+              undo:
+                editor.selectedAnimationSceneCount > 0
+                  ? {
+                      sceneCount: editor.selectedAnimationSceneCount,
+                      pending: editor.undoingSceneId !== null,
+                      disabled:
+                        busy ||
+                        editor.savingChanges ||
+                        creatingHere ||
+                        audio.audioBusy ||
+                        editor.selectedAnimationUndoPending,
+                      reason: editor.selectedAnimationUndoPending
+                        ? 'library.errors.animationUndoPending'
+                        : undefined,
+                      onUndo: () => {
+                        if (selectedScene)
+                          void editor.undoAnimation(selectedScene.id)
+                      },
+                    }
+                  : undefined,
               onAnimate: () => {
                 void editor.editorTask.startAnimation(
                   projectId,

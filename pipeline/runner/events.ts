@@ -53,6 +53,8 @@ export interface ScenesPlannedEvent {
   type: 'scenes-planned'
   scenes: SceneSummary[]
   audioDurationSeconds: number
+  // Fin real de la animación automática; no modifica los cortes de imágenes.
+  animationEndSeconds?: number
 }
 
 // Una escena ya tiene su prompt de imagen (Fase 4, incremental).
@@ -153,6 +155,9 @@ export interface SceneAnimationProgressEvent {
   percent?: number
   status: string
   elapsedSeconds: number
+  attempt?: number
+  maxAttempts?: number
+  retryPhase?: 'prompt' | 'video' | 'upload'
 }
 
 export interface SceneAnimationReadyEvent {
