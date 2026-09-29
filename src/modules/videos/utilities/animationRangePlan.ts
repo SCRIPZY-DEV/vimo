@@ -1,6 +1,9 @@
 import { planAnimationUnits } from '@pipeline/animation/planner.ts'
 import { readyAnimationClips } from '@/modules/videos/utilities/animationClips'
-import { resumableAnimationIntervals } from '@/modules/videos/utilities/resumableAnimationIntervals'
+import {
+  resumableAnimationIntervals,
+  shortTailPendingAnimationUnits,
+} from '@/modules/videos/utilities/resumableAnimationIntervals'
 import { animationRangeEnd } from '@pipeline/animation/scope.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
@@ -32,6 +35,7 @@ export function animationRangePlan(
         scene.startSeconds !== undefined && scene.startSeconds < endSeconds,
     )
     .map((scene) => scene.id)
+  const preservedPending = shortTailPendingAnimationUnits(scenes)
   const coveredIntervals = readyAnimationClips(scenes).map((clip) => ({
     startSeconds: clip.startSeconds,
     endSeconds: clip.endSeconds,
@@ -40,7 +44,8 @@ export function animationRangePlan(
     endSeconds,
     mergeShortScenes,
     pairPrefixScenes: options.pairPrefixScenes,
-    coveredIntervals,
+    coveredIntervals: [...coveredIntervals, ...preservedPending],
+    replacementUnits: preservedPending,
   })
   const resumableIntervals = resumableAnimationIntervals(scenes).filter(
     (interval) => interval.startSeconds < endSeconds && interval.endSeconds > 0,
@@ -49,10 +54,18 @@ export function animationRangePlan(
     endSeconds,
     mergeShortScenes,
     pairPrefixScenes: options.pairPrefixScenes,
-    coveredIntervals: [...coveredIntervals, ...resumableIntervals],
+    coveredIntervals: [
+      ...coveredIntervals,
+      ...resumableIntervals,
+      ...preservedPending,
+    ],
+    replacementUnits: preservedPending,
   })
   return {
     ...plan,
+    staticTailPending: preservedPending.some(
+      (unit) => unit.startSeconds < endSeconds,
+    ),
     // Un reemplazo pendiente puede seguir cubierto por su clip anterior.
     // Debe conservar una selección válida aunque no falte un intervalo nuevo.
     sceneIds: [

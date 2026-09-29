@@ -1,10 +1,12 @@
 import {
   planAnimationUnits,
   animationUnitFromBlock,
+  overlapsShortFinalAnimationScene,
 } from '@pipeline/animation/planner.ts'
 import { animationRangeEnd } from '@pipeline/animation/scope.ts'
 import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
 import { readyAnimationClips } from '@/modules/videos/utilities/animationClips'
+import { shortTailPendingAnimationUnits } from '@/modules/videos/utilities/resumableAnimationIntervals'
 import type { AnimationPlanPreview } from '@/modules/videos/types/library'
 import type { AnimationUnit } from '@pipeline/animation/planner.ts'
 import type { SceneAnimationView } from '@pipeline/types/animation.ts'
@@ -43,6 +45,7 @@ export function galleryAnimationPlan(
       .map((scene) => scene.absorbedBy ?? scene.id),
   )
   const ready = readyAnimationClips(scenes)
+  const preservedPending = shortTailPendingAnimationUnits(scenes)
   const pending: PendingGalleryClip[] = []
   for (const scene of scenes) {
     const historical = sceneAnimationBlocks(scene).filter(
@@ -53,6 +56,7 @@ export function galleryAnimationPlan(
       ...historical,
     ]) {
       const unit = animationUnitFromBlock(scene.id, animation, scenes)
+      if (overlapsShortFinalAnimationScene(scenes, unit)) continue
       // El sidecar cosecha un único recibo por intervalo, incluso si aparece
       // como candidato y en el manifiesto histórico a la vez.
       if (pending.some((clip) => sameInterval(clip.unit, unit))) continue
@@ -80,9 +84,12 @@ export function galleryAnimationPlan(
   const plannerOptions = {
     endSeconds: animationRangeEnd(undefined, options.durationSeconds),
     mergeShortScenes: options.videoFormat !== '9:16',
-    replacementUnits: replaced.map((clip) =>
-      animationUnitFromBlock(clip.lead.id, clip.animation, scenes),
-    ),
+    replacementUnits: [
+      ...replaced.map((clip) =>
+        animationUnitFromBlock(clip.lead.id, clip.animation, scenes),
+      ),
+      ...preservedPending,
+    ],
     coveredIntervals: [
       ...coveredIntervals,
       ...selectedPending.map((clip) => clip.unit),
@@ -107,6 +114,10 @@ export function galleryAnimationPlan(
     sceneIds: [...new Set(units.flatMap((unit) => unit.sceneIds))],
     slotSeconds: units.reduce((sum, unit) => sum + unit.slotSeconds, 0),
     readyClips: replaced.map((clip) => clip.animation),
+    staticTailSceneId: plan.staticTailSceneId,
+    staticTailPending: preservedPending.some((unit) =>
+      unit.sceneIds.some((id) => selectedIds.has(id)),
+    ),
     requestedSeconds: unpaid.reduce(
       (sum, unit) => sum + unit.requestedSeconds,
       0,

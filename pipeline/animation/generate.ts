@@ -55,6 +55,7 @@ import {
 } from './migrate-legacy.ts'
 import {
   planAnimationUnits,
+  overlapsShortFinalAnimationScene,
   animationUnitFromBlock as blockUnit,
   type AnimationInterval,
   type AnimationUnit,
@@ -141,10 +142,13 @@ export async function hasAnimationWork(
   const ready = await readyAnimationBlocks(context.paths, scenes)
   if (
     scenes.some((scene) =>
-      scene.animationPending?.some(
-        (animation) =>
-          blockUnit(scene.id, animation, scenes).startSeconds < endSeconds,
-      ),
+      scene.animationPending?.some((animation) => {
+        const unit = blockUnit(scene.id, animation, scenes)
+        return (
+          unit.startSeconds < endSeconds &&
+          !overlapsShortFinalAnimationScene(scenes, unit)
+        )
+      }),
     )
   )
     return true
@@ -156,6 +160,11 @@ export async function hasAnimationWork(
       endSeconds,
       mergeShortScenes: true,
       pairPrefixScenes: true,
+      replacementUnits: scenes.flatMap((scene) =>
+        [...sceneAnimationBlocks(scene), ...(scene.animationPending ?? [])]
+          .map((animation) => blockUnit(scene.id, animation, scenes))
+          .filter((unit) => overlapsShortFinalAnimationScene(scenes, unit)),
+      ),
       coveredIntervals: ready.map((record) => record.unit),
     },
   )
@@ -272,6 +281,7 @@ export async function generateSceneAnimations(
       !targetIntervals.some((interval) => overlaps(interval, record.unit)),
   )
   const pending: StoredBlock[] = []
+  const preservedPending: StoredBlock[] = []
   for (const scene of scenes) {
     const historical = sceneAnimationBlocks(scene).filter(
       (animation) =>
@@ -285,6 +295,12 @@ export async function generateSceneAnimations(
       const unit = blockUnit(scene.id, animation, scenes)
       if (!targetIntervals.some((interval) => overlaps(interval, unit)))
         continue
+      // Conservar todo el grupo pendiente evita otra compra de su primera
+      // imagen cuando la segunda es una cola ahora excluida.
+      if (overlapsShortFinalAnimationScene(scenes, unit)) {
+        preservedPending.push({ leadSceneId: scene.id, animation, unit })
+        continue
+      }
       if (unit.endSeconds > rangeEnd + EPSILON_SECONDS)
         throw new PipelineFailure(
           'animation_request_changed',
@@ -300,13 +316,16 @@ export async function generateSceneAnimations(
       selection.pairPrefixScenes === true ||
       context.options.videoFormat !== '9:16',
     pairPrefixScenes: selection.pairPrefixScenes,
-    replacementUnits: atomicReplacement
-      ? ready
-          .filter((record) =>
-            record.animation.sceneIds.some((id) => selected.has(id)),
-          )
-          .map((record) => record.unit)
-      : [],
+    replacementUnits: [
+      ...preservedPending.map((record) => record.unit),
+      ...(atomicReplacement
+        ? ready
+            .filter((record) =>
+              record.animation.sceneIds.some((id) => selected.has(id)),
+            )
+            .map((record) => record.unit)
+        : []),
+    ],
     coveredIntervals: [
       ...activeCoverage.map((record) => record.unit),
       ...pending.map((record) => record.unit),

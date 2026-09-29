@@ -404,10 +404,10 @@
       "confirm_one": "Seguir con {{count}} escena de {{seconds}} s",
       "confirm_other": "Seguir con {{count}} escenas de {{seconds}} s",
       "footnote": "El video está detenido esperando esto: no se genera nada hasta que confirmes.",
-      "animatedWholeHint": "Se crearán clips de 6 s. El último clip se ajustará al final del audio.",
+      "animatedWholeHint": "Se crearán clips de 6 s. Si la última escena dura menos de 3 s, quedará como imagen estática.",
       "perAnimatedClip": "por clip animado",
       "sliderAfterAnimationAria": "Segundos por imagen después del tramo animado",
-      "animationExplanation": "La narración conserva sus tiempos. El último clip se ajusta al final del tramo animado y las imágenes siguientes empiezan allí, sin desplazar el audio."
+      "animationExplanation": "Los clips conservan los tiempos de la narración. Si la última escena dura menos de 3 s, quedará como imagen estática."
     },
     "probe": {
       "titles": {
@@ -744,7 +744,7 @@
       "wholeVideo": "Animar el video completo ({{duration}})",
       "durationLimit": "Duración del video: {{duration}} · Máximo: {{minutes}} min",
       "allVideo": "Animar todo el video",
-      "wholeVideoHint": "Todo el short se divide en escenas de 6 s y se anima sin sonido. El último clip se ajusta al final del audio.",
+      "wholeVideoHint": "El short se anima sin sonido. Si la última escena dura menos de 3 s, quedará como imagen estática.",
       "durationPending": "Los créditos se calcularán al conocer la duración del audio.",
       "firstMinuteEstimateHint": "Estimación para un minuto completo. Si el audio dura menos, se generarán solo los clips necesarios."
     }
@@ -904,7 +904,10 @@
           "undoing": "Restaurando imágenes…",
           "undoBeforeImage": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas y animarlas de nuevo.",
           "undoFailed": "No pudimos deshacer la animación. El clip anterior se conserva.",
-          "undoGroupHint": "Este clip cubre {{sceneCount}} escenas. Se restaurarán juntas con sus imágenes y duraciones originales."
+          "undoGroupHint": "Este clip cubre {{sceneCount}} escenas. Se restaurarán juntas con sus imágenes y duraciones originales.",
+          "staticTailHint": "La última escena dura menos de 3 s y se mantendrá como imagen estática.",
+          "staticTailUndoHint": "Este clip incluye la última escena de menos de 3 s. Deshacé la animación antes de volver a animar las escenas anteriores.",
+          "staticTailPendingHint": "Este intento incluye la última escena de menos de 3 s. No se reanudará ni se cobrará otra animación para este grupo."
         }
       },
       "render": {
@@ -948,7 +951,8 @@
         "animate": "Animar primeros {{minutes}} min",
         "complete": "Este tramo ya está animado",
         "invalidScenes": "El tramo contiene escenas fuera de los límites admitidos. Ajustá sus cortes antes de animarlo.",
-        "animateShort": "Animar {{seconds}} s"
+        "animateShort": "Animar {{seconds}} s",
+        "staticTailOnly": "La última escena queda estática"
       },
       "animationDialog": {
         "move": "Mover ventana (también con las flechas del teclado)",

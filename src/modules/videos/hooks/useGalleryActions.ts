@@ -126,6 +126,14 @@ export function useGalleryActions({
     if (locked) return 'library.editor.demoLocked'
     if (!validSelection(ids)) return 'library.editor.imageGallery.submitFailed'
     const plan = planFor(ids)
+    if (!plan.unit && plan.staticTailPending)
+      return 'library.editor.panel.animation.staticTailPendingHint'
+    if (!plan.unit && plan.staticTailSceneId !== undefined)
+      return plan.readyClips?.some((clip) =>
+        clip.sceneIds.some((id) => id === plan.staticTailSceneId),
+      )
+        ? 'library.editor.panel.animation.staticTailUndoHint'
+        : 'library.editor.panel.animation.staticTailHint'
     if (plan.rejection || !plan.unit)
       return (
         LIBRARY_ERROR_MESSAGE_KEYS[`animation_${plan.rejection?.reason}`] ??

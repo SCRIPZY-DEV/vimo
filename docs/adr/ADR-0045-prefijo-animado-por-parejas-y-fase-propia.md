@@ -2,6 +2,7 @@
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-29
+- **Actualizada:** 2026-09-29 — exclusión de la última escena menor a 3 s, también en el editor.
 - **Área:** app | pipeline
 - **Sustituye parcialmente:** ADR-0042: fuentes de 6 s al crear, animación dentro de `images` y alcance configurable de animación en el formulario. El usuario autorizó expresamente la nueva fase y delimitó el editor como superficie que debe conservar su planificación.
 
@@ -15,9 +16,9 @@ Crear primero las imágenes del prefijo cada 3 s y animarlas de dos en dos en un
 
 - El formulario ofrece solamente activar el primer minuto. El intervalo real es `[0, min(duración del audio, 60)]`. Minutos arbitrarios y «todo» se conservan en las superficies del editor que ya los admitían.
 - `planPrefixSceneWindows` usa `ANIMATION_PREFIX_IMAGE_SECONDS = 3`. Veinte imágenes fuente cubren un minuto completo. La duración elegida por el usuario se aplica después de 60 s; si el audio no llega al minuto, no hay tramo estático posterior que configurar.
-- La nueva fase `animation`, registrada entre `images` y `render`, activa `pairPrefixScenes` únicamente desde la creación automática. Agrupa 1+2, 3+4, etc., incluso en formato vertical. La pareja terminal admite 3 s más la cola parcial del audio.
-- Las fuentes del prefijo conservan `animationRequestedSeconds = 6`: un clip automático solicita 6 s al proveedor. La normalización vigente ajusta el archivo al intervalo real. Si sobra una única imagen, usa esa referencia; no toma una escena después del minuto para completar una pareja.
-- El editor no activa la nueva opción. Conserva sus reglas de parejas, escenas individuales, ampliación de rango y remake de grupos históricos. Tampoco cambia su límite temporal ni se resta tiempo a la escena siguiente.
+- La nueva fase `animation`, registrada entre `images` y `render`, activa `pairPrefixScenes` únicamente desde la creación automática. Agrupa 1+2, 3+4, etc., incluso en formato vertical. La pareja terminal solo admite dos fuentes completas de 3 s. **Sustituye la decisión inicial de esta fecha que permitía 3 s más la cola parcial del audio:** por petición del usuario, la última escena real menor a 3 s queda estática.
+- Las fuentes del prefijo conservan `animationRequestedSeconds = 6`: un clip automático solicita 6 s al proveedor. La normalización vigente ajusta el archivo al intervalo real. Si sobra una única imagen de al menos 3 s, usa esa referencia; una cola final menor a 3 s no se encarga al proveedor ni se absorbe. No toma una escena después del minuto para completar una pareja.
+- El editor no activa la opción de parejas del prefijo. Conserva sus reglas de parejas, escenas individuales y ampliación de rango, aplicando también la exclusión de la última escena real menor a 3 s. Un grupo histórico que incluya esa cola no se rehace parcialmente: primero debe deshacerse completo. Tampoco cambia su límite temporal ni se resta tiempo a la escena siguiente.
 
 ### Flujo
 
@@ -74,7 +75,7 @@ El reloj sigue siendo el existente de 25 FPS: se cuantizan los bordes absolutos.
 
 ## Consecuencias
 
-Un minuto nuevo requiere veinte imágenes fuente en lugar de diez, con su costo y generación correspondientes, pero sigue produciendo diez clips solicitados de 6 s. La estimación de animación cuenta los segundos solicitados; la de imágenes cuenta las fuentes. Una cola parcial puede costar un clip completo aunque ocupe menos tiempo en el video.
+Un minuto nuevo requiere veinte imágenes fuente en lugar de diez, con su costo y generación correspondientes, pero sigue produciendo diez clips solicitados de 6 s. La estimación de animación cuenta los segundos solicitados; la de imágenes cuenta las fuentes. La cola final menor a 3 s cuesta cero créditos de animación. Una última imagen de exactamente 3 s sigue siendo elegible y puede solicitar un clip completo que se ajusta a su intervalo.
 
 El registro incorpora siete fases; sin animación automática, `animation` se saltea. Con auto-render apagado, la creación termina después de animar y abre el editor sin ensamblar. La demo conserva sus fases simuladas existentes y no invoca proveedores.
 
@@ -90,3 +91,15 @@ El registro incorpora siete fases; sin animación automática, `animation` se sa
 - [ADR-0042](ADR-0042-animacion-kie-por-intervalos-y-recibos.md): recibos, normalización, concurrencia y respaldo.
 - [ADR-0043](ADR-0043-correspondencia-temporal-de-prompts.md): fragmentos temporales y narración.
 - [Arquitectura](../ARCHITECTURE.md): runner, contrato y fases vigentes.
+
+## Rectificación: cola final estática
+
+La omisión es deliberada y no se comunica como fallo/reintento. Se determina por
+el final real de todas las escenas, no por el último elemento seleccionado ni por
+un recorte de rango. No altera cortes, narración ni la política de escenas cortas
+intermedias. Estimaciones y contadores usan el mismo plan que el sidecar.
+
+Los clips ya pagados no se borran al actualizar. Rehacer un grupo antiguo que
+incluye cola corta requiere deshacerlo antes; un recibo pendiente con esa cola se
+conserva sin ejecutarse ni provocar una nueva compra de su primera imagen. Detalle
+y comprobaciones: [fix de cola estática](../../fixes/2026-09-29_short-final-scene-stays-static.md).

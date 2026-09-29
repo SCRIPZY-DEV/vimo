@@ -7,6 +7,7 @@ import {
   MIN_REQUESTED_ANIMATION_SECONDS,
   MAX_REQUESTED_ANIMATION_SECONDS,
   ANIMATION_PREFIX_SCENE_SECONDS,
+  MIN_ANIMATION_SLOT_SECONDS,
 } from '../types/video-provider.ts'
 import { slotFrames } from './timing.ts'
 
@@ -14,6 +15,7 @@ import { slotFrames } from './timing.ts'
 // acelerar nunca cambia el inicio de una escena posterior.
 const SHORT_SCENE_SECONDS = 3
 const TIME_EPSILON = 0.001
+const DURATION_PRECISION_EPSILON = 1e-9
 
 export interface PlannerScene {
   id: number
@@ -38,13 +40,15 @@ export interface AnimationUnit extends AnimationInterval {
 export interface AnimationPlan {
   units: AnimationUnit[]
   rejected: AnimationRejection[]
+  // Omisión deliberada, no fallo del proveedor ni candidato a reintento.
+  staticTailSceneId?: number
 }
 
 export interface AnimationPlannerOptions {
   endSeconds?: number
   coveredIntervals?: AnimationInterval[]
   mergeShortScenes?: boolean
-  // Solo creación automática: pareja3+3 o3+cola parcial; el editor no lo activa.
+  // Solo creación automática: pareja3+3; la cola final menor a3s queda estática.
   pairPrefixScenes?: boolean
   replacementUnits?: AnimationUnit[]
 }
@@ -92,6 +96,37 @@ function validInterval(interval: AnimationInterval): boolean {
     Number.isFinite(interval.endSeconds) &&
     interval.startSeconds >= 0 &&
     interval.endSeconds > interval.startSeconds
+  )
+}
+
+// Se usa el final real del proyecto, nunca el corte del rango seleccionado.
+// No se modifica la política de una escena corta intermedia ni sus tiempos.
+export function shortFinalAnimationScene(
+  scenes: PlannerScene[],
+): PlannerScene | undefined {
+  let last: PlannerScene | undefined
+  for (const scene of scenes) {
+    const startSeconds = scene.startSeconds ?? Number.NaN
+    const endSeconds = scene.endSeconds ?? Number.NaN
+    if (!validInterval({ startSeconds, endSeconds })) continue
+    if (!last || endSeconds > (last.endSeconds ?? 0)) last = scene
+  }
+  if (!last) return undefined
+  const duration = (last.endSeconds ?? 0) - (last.startSeconds ?? 0)
+  if (duration >= MIN_ANIMATION_SLOT_SECONDS - DURATION_PRECISION_EPSILON)
+    return undefined
+  return last
+}
+
+export function overlapsShortFinalAnimationScene(
+  scenes: PlannerScene[],
+  interval: AnimationInterval,
+): boolean {
+  const tail = shortFinalAnimationScene(scenes)
+  if (!tail) return false
+  return (
+    interval.startSeconds < (tail.endSeconds ?? 0) &&
+    interval.endSeconds > (tail.startSeconds ?? 0)
   )
 }
 
@@ -156,10 +191,34 @@ export function planAnimationUnits(
   const rejected: AnimationRejection[] = []
   const rangeEnd = options.endSeconds ?? Number.POSITIVE_INFINITY
   if (Number.isNaN(rangeEnd) || rangeEnd <= 0) return { units, rejected }
+  const staticTail = shortFinalAnimationScene(scenes)
+  let staticTailSceneId =
+    staticTail &&
+    marked.has(staticTail.id) &&
+    !coveredIds.has(staticTail.id) &&
+    (staticTail.startSeconds ?? Infinity) < rangeEnd &&
+    uncoveredIntervals(
+      {
+        startSeconds: staticTail.startSeconds ?? 0,
+        endSeconds: staticTail.endSeconds ?? 0,
+      },
+      covered,
+    ).length > 0
+      ? staticTail.id
+      : undefined
+  const preservedReplacementIds = new Set<number>()
 
   for (const unit of options.replacementUnits ?? []) {
     if (!unit.sceneIds.some((id) => marked.has(id))) continue
-    if (!validInterval(unit) || unit.endSeconds > rangeEnd) continue
+    if (!validInterval(unit) || unit.startSeconds >= rangeEnd) continue
+    if (overlapsShortFinalAnimationScene(scenes, unit)) {
+      // No comprar otro clip histórico que incluya la cola ni reemplazar solo
+      // media pareja. Se conserva el clip pagado hasta que se deshaga completo.
+      staticTailSceneId = staticTail?.id
+      for (const id of unit.sceneIds) preservedReplacementIds.add(id)
+      continue
+    }
+    if (unit.endSeconds > rangeEnd) continue
     if (
       covered.some(
         (interval) =>
@@ -180,6 +239,8 @@ export function planAnimationUnits(
 
   for (const [index, scene] of scenes.entries()) {
     if (!marked.has(scene.id)) continue
+    if (scene.id === staticTail?.id || preservedReplacementIds.has(scene.id))
+      continue
     const startSeconds = scene.startSeconds ?? Number.NaN
     const sceneEnd = scene.endSeconds ?? Number.NaN
     const duration = sceneEnd - startSeconds
@@ -213,8 +274,7 @@ export function planAnimationUnits(
       const next = scenes[index + 1]
       let endSeconds = part.endSeconds
       const sceneIds = [scene.id]
-      // El editor conserva3+3 completas. La creación admite además la cola
-      // parcial del audio: sus dos imágenes permanecen dentro del clip.
+      // Solo parejas completas de3+3; nunca absorber la cola final corta.
       if (
         options.mergeShortScenes !== false &&
         (scene.animationRequestedSeconds === undefined ||
@@ -225,12 +285,10 @@ export function planAnimationUnits(
         next?.startSeconds !== undefined &&
         next.endSeconds !== undefined &&
         Math.abs(next.startSeconds - sceneEnd) < TIME_EPSILON &&
-        (Math.abs(next.endSeconds - next.startSeconds - SHORT_SCENE_SECONDS) <
-          TIME_EPSILON ||
-          (options.pairPrefixScenes === true &&
-            next.endSeconds > next.startSeconds &&
-            next.endSeconds - next.startSeconds < SHORT_SCENE_SECONDS &&
-            Math.abs(next.endSeconds - rangeEnd) < TIME_EPSILON)) &&
+        next.id !== staticTail?.id &&
+        !preservedReplacementIds.has(next.id) &&
+        Math.abs(next.endSeconds - next.startSeconds - SHORT_SCENE_SECONDS) <
+          TIME_EPSILON &&
         next.endSeconds <= rangeEnd &&
         !coveredIds.has(next.id) &&
         uncoveredIntervals(
@@ -277,6 +335,7 @@ export function planAnimationUnits(
   return {
     units: units.sort((a, b) => a.startSeconds - b.startSeconds),
     rejected,
+    ...(staticTailSceneId !== undefined ? { staticTailSceneId } : {}),
   }
 }
 

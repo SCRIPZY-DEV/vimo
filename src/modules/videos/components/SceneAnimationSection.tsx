@@ -94,6 +94,12 @@ export function SceneAnimationSection({
     providerLabel,
   )
   const planRejected = plan !== undefined && plan.unit === undefined
+  const staticTailOnly = plan?.staticTailSceneId !== undefined && !plan.unit
+  const staticTailHint = readyClips.some((clip) =>
+    clip.sceneIds.includes(plan?.staticTailSceneId ?? -1),
+  )
+    ? 'library.editor.panel.animation.staticTailUndoHint'
+    : 'library.editor.panel.animation.staticTailHint'
   const rejectionKey = plan?.rejection
     ? (LIBRARY_ERROR_MESSAGE_KEYS[`animation_${plan.rejection.reason}`] ??
       UNKNOWN_CREATE_ERROR_KEY)
@@ -151,7 +157,7 @@ export function SceneAnimationSection({
           })}
         </p>
       )}
-      {lastErrorKey && !animating && (
+      {lastErrorKey && !animating && !staticTailOnly && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive">
           {t('library.editor.panel.animation.lastError', {
             reason: t(lastErrorKey),
@@ -177,6 +183,15 @@ export function SceneAnimationSection({
         units={plan?.unit ? [plan.unit] : []}
         selectedSceneIds={[scene.id]}
       />
+      {plan?.staticTailSceneId !== undefined && (
+        <p className="font-body text-xs leading-relaxed text-muted-foreground">
+          {t(
+            plan.staticTailPending
+              ? 'library.editor.panel.animation.staticTailPendingHint'
+              : staticTailHint,
+          )}
+        </p>
+      )}
       {rejectionKey && (
         <p className="font-body text-xs text-coral">{t(rejectionKey)}</p>
       )}
@@ -208,7 +223,7 @@ export function SceneAnimationSection({
           />
         </button>
       </div>
-      {anyConfigured ? (
+      {anyConfigured || staticTailOnly ? (
         <>
           {canResumeTask && (
             <p className="font-body text-xs text-muted-foreground">

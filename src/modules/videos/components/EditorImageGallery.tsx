@@ -71,6 +71,18 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
       )
     })
 
+  function staticTailHint() {
+    if (animationPlan?.staticTailPending)
+      return 'library.editor.panel.animation.staticTailPendingHint'
+    if (
+      animationPlan?.readyClips?.some((clip) =>
+        clip.sceneIds.some((id) => id === animationPlan.staticTailSceneId),
+      )
+    )
+      return 'library.editor.panel.animation.staticTailUndoHint'
+    return 'library.editor.panel.animation.staticTailHint'
+  }
+
   function selectedAnimationScenes() {
     if (selecting) return selection
     if (selectedId === null) return []
@@ -256,6 +268,11 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                 selectedSceneIds={animationSelection}
               />
             </div>
+          )}
+          {selecting && animationPlan?.staticTailSceneId !== undefined && (
+            <p className="shrink-0 border-b border-border px-5 py-3 font-body text-xs leading-relaxed text-muted-foreground sm:px-6">
+              {t(staticTailHint())}
+            </p>
           )}
           {actions.errorKey && (
             <p

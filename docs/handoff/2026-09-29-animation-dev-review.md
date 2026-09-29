@@ -12,8 +12,9 @@
 Kie permite animar desde Crear, el editor y la galería. El formulario ofrece el
 primer minuto: genera imágenes cada 3 s y las empareja en clips de 6 s, hasta el
 menor valor entre 60 s y la duración del audio. Después del minuto se respeta la
-duración estática elegida. La última pieza se ajusta a su intervalo, sin desplazar
-la narración. Rangos personalizados y todo el video quedan en el editor.
+duración estática elegida. La última pieza elegible se ajusta a su intervalo, sin desplazar
+la narración. Si la última escena real dura menos de 3 s, queda estática, no se
+absorbe en una pareja y no suma créditos de animación. Rangos personalizados y todo el video quedan en el editor.
 
 Hay planificación por intervalos, estimaciones, saldo, recibos, reintentos y
 respaldo automático Grok/Seedance. La exportación normaliza clips sin sonido,
@@ -113,7 +114,8 @@ no las sustituyen. El PR es para revisión, no una certificación de producción
 - [ ] Reexportar video-rural-4: mirar escenas 17/18, escuchar narración y confirmar
       que no cambian cortes ni duración. Repetir un export 9:16 y exportar para editar.
 - [ ] Crear un video menor a un minuto con animación inicial: cubre solo el audio
-      disponible; el último clip termina junto con él.
+      disponible; si sobra una escena menor a 3 s queda estática hasta el final
+      del audio. Exactamente 3 s sigue siendo elegible.
 - [ ] Crear uno mayor a un minuto: clips de 6 s al inicio, fuentes de 3 s por pareja
       y escenas posteriores con los segundos elegidos; revisar el cruce de 60 s.
 - [ ] Animar y rehacer una escena sola y una pareja de 3+3 s: duración y cobertura
@@ -137,3 +139,10 @@ Los commits anteriores se conservan. Los pendientes finales se separan en
 integración de dev, corrección de movimiento y esta guía de revisión. El PR apunta
 a dev y queda abierto para el compañero. Conservar el worktree durante revisión
 permite aplicar observaciones; no implica publicar ni firmar una release.
+
+## Corrección posterior a la apertura del PR
+
+La exclusión de cola final <3 s también cubre editor, selección múltiple, rangos y
+reanudaciones. Una selección mixta anima solo las escenas aptas. Los intentos
+históricos3+cola no compran una sustitución parcial; los clips listos conservan
+«Deshacer animación». Ver [causa, límites y validación](../../fixes/2026-09-29_short-final-scene-stays-static.md).

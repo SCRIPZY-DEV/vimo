@@ -3,6 +3,7 @@ import {
   planAnimationUnits,
 } from '@pipeline/animation/planner.ts'
 import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
+import { shortTailPendingAnimationUnits } from '@/modules/videos/utilities/resumableAnimationIntervals'
 import type { SceneView } from '@/modules/videos/types/create'
 import type { PipelineAnimationCard } from '@/modules/videos/types/pipelineAnimation'
 
@@ -42,6 +43,7 @@ export function pipelineAnimationCards(
     {
       endSeconds,
       coveredIntervals: ready.map((card) => card.unit),
+      replacementUnits: shortTailPendingAnimationUnits(scenes),
       mergeShortScenes: true,
       pairPrefixScenes: true,
     },

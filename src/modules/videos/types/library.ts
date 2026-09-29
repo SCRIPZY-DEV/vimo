@@ -131,6 +131,8 @@ export interface AnimationPlanPreview {
   readyClips?: SceneAnimationView[]
   unit?: AnimationUnit
   rejection?: AnimationRejection
+  staticTailSceneId?: number
+  staticTailPending?: boolean
   requestedSeconds?: number
   canResumeTask?: boolean
   canRecoverLocally?: boolean

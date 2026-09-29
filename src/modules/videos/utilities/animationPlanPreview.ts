@@ -4,7 +4,10 @@ import {
 } from '@pipeline/animation/planner.ts'
 import { animationRangeEnd } from '@pipeline/animation/scope.ts'
 import { readyAnimationClips } from '@/modules/videos/utilities/animationClips'
-import { resumableAnimationIntervals } from '@/modules/videos/utilities/resumableAnimationIntervals'
+import {
+  resumableAnimationIntervals,
+  shortTailPendingAnimationUnits,
+} from '@/modules/videos/utilities/resumableAnimationIntervals'
 import type { AnimationPlanPreview } from '@/modules/videos/types/library'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -36,12 +39,16 @@ export function animationPlanPreview(
     clip.animation.sceneIds.some((id) => selectedIds.has(id)),
   )
   const coveredIntervals = ready.filter((clip) => !replaced.includes(clip))
+  const preservedPending = shortTailPendingAnimationUnits(timedScenes)
   const plannerOptions = {
     endSeconds: animationRangeEnd(undefined, options.durationSeconds),
     mergeShortScenes: options.videoFormat !== '9:16',
-    replacementUnits: replaced.map((clip) =>
-      animationUnitFromBlock(clip.lead.id, clip.animation, timedScenes),
-    ),
+    replacementUnits: [
+      ...replaced.map((clip) =>
+        animationUnitFromBlock(clip.lead.id, clip.animation, timedScenes),
+      ),
+      ...preservedPending,
+    ],
     coveredIntervals,
   }
   const plan = planAnimationUnits(
@@ -72,6 +79,10 @@ export function animationPlanPreview(
     requestedSeconds: unpaid.units.reduce(
       (sum, unit) => sum + unit.requestedSeconds,
       0,
+    ),
+    staticTailSceneId: plan.staticTailSceneId,
+    staticTailPending: preservedPending.some((unit) =>
+      unit.sceneIds.some((id) => selectedIds.has(id)),
     ),
     canResumeTask: resumable.length > 0,
     canRecoverLocally: resumable.some((interval) => interval.canRecoverLocally),

@@ -404,10 +404,10 @@
       "confirm_one": "Continue with {{count}} scene of {{seconds}} s",
       "confirm_other": "Continue with {{count}} scenes of {{seconds}} s",
       "footnote": "The video is stopped waiting for this: nothing is generated until you confirm.",
-      "animatedWholeHint": "Clips of 6 s will be created. The last clip will be adjusted to the end of the audio.",
+      "animatedWholeHint": "Clips of 6 s will be created. If the last scene is shorter than 3 s, it will remain a still image.",
       "perAnimatedClip": "per animated clip",
       "sliderAfterAnimationAria": "Seconds per image after the animated section",
-      "animationExplanation": "Narration keeps its timing. The last clip is adjusted to the end of the animated section, and subsequent images start there without shifting the audio."
+      "animationExplanation": "Clips preserve the narration timing. If the last scene is shorter than 3 s, it will remain a still image."
     },
     "probe": {
       "titles": {
@@ -744,7 +744,7 @@
       "wholeVideo": "Animate the entire video ({{duration}})",
       "durationLimit": "Video duration: {{duration}} · Maximum: {{minutes}} min",
       "allVideo": "Animate the entire video",
-      "wholeVideoHint": "The entire short is divided into 6 s scenes and animated without sound. The last clip is fitted to the end of the audio.",
+      "wholeVideoHint": "The short is animated without sound. If the last scene is shorter than 3 s, it will remain a still image.",
       "durationPending": "Credits will be calculated once the audio duration is known.",
       "firstMinuteEstimateHint": "Estimate for a full minute. If the audio is shorter, only the necessary clips will be generated."
     }
@@ -904,7 +904,10 @@
           "undoing": "Restoring images…",
           "undoBeforeImage": "To change the images, undo the animation first. You can then regenerate the images and animate them again.",
           "undoFailed": "We couldn't undo the animation. The previous clip is preserved.",
-          "undoGroupHint": "This clip covers {{sceneCount}} scenes. Their original images and durations will be restored together."
+          "undoGroupHint": "This clip covers {{sceneCount}} scenes. Their original images and durations will be restored together.",
+          "staticTailHint": "The last scene is shorter than 3 s and will remain a still image.",
+          "staticTailUndoHint": "This clip includes the last scene, which is shorter than 3 s. Undo the animation before animating the earlier scenes again.",
+          "staticTailPendingHint": "This attempt includes the last scene, which is shorter than 3 s. This group will not be resumed or charged for another animation."
         }
       },
       "render": {
@@ -948,7 +951,8 @@
         "animate": "Animate first {{minutes}} min",
         "complete": "This range is already animated",
         "invalidScenes": "This range contains scenes outside the supported limits. Adjust their cuts before animating.",
-        "animateShort": "Animate {{seconds}} s"
+        "animateShort": "Animate {{seconds}} s",
+        "staticTailOnly": "The last scene stays still"
       },
       "animationDialog": {
         "move": "Move window (or use the arrow keys)",

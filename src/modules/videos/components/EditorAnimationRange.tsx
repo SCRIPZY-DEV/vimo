@@ -103,6 +103,11 @@ export function EditorAnimationRange({
   }
   const buttonLabel = () => {
     if (canResumeTask) return t('common.resume')
+    if (
+      requestedSeconds === 0 &&
+      (plan.staticTailSceneId !== undefined || plan.staticTailPending)
+    )
+      return t('library.editor.animationRange.staticTailOnly')
     if (requestedSeconds === 0 && !rejected)
       return t('library.editor.animationRange.complete')
     if (animateWholeVideo) return t('create.animation.allVideo')
@@ -145,7 +150,18 @@ export function EditorAnimationRange({
         )}
         clipCount={plan.newClipCount}
       />
-      {configured ? (
+      {(plan.staticTailSceneId !== undefined || plan.staticTailPending) && (
+        <p className="font-body text-xs leading-relaxed text-muted-foreground">
+          {t(
+            plan.staticTailPending
+              ? 'library.editor.panel.animation.staticTailPendingHint'
+              : 'library.editor.panel.animation.staticTailHint',
+          )}
+        </p>
+      )}
+      {configured ||
+      (requestedSeconds === 0 &&
+        (plan.staticTailSceneId !== undefined || plan.staticTailPending)) ? (
         <>
           {canResumeTask && (
             <p className="font-body text-xs text-muted-foreground">
