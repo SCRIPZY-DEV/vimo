@@ -1026,7 +1026,10 @@
         "insufficientCredits": "The available balance is not enough for this selection.",
         "animateRedoSelection": "Animate / redo clips",
         "resumeSelection": "Resume clips",
-        "shortPairHint": "3-second scenes: animating one includes the next compatible scene to create a 6-second clip. Pairs are shown here before you start. Without a pair, only that clip is adjusted to its duration."
+        "shortPairHint": "3-second scenes: animating one includes the next compatible scene to create a 6-second clip. Pairs are shown here before you start. Without a pair, only that clip is adjusted to its duration.",
+        "undoHint_one": "To change the images, undo the animation first. Then you can regenerate them. This clip covers {{count}} scene.",
+        "undoHint_other": "To change the images, undo the animation first. Then you can regenerate them. This clip covers {{count}} scenes.",
+        "undoBeforeImages": "To change the images, undo the animation first. Then you can regenerate them."
       }
     },
     "errors": {

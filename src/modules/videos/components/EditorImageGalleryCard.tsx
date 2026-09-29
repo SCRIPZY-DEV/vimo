@@ -113,7 +113,7 @@ export function EditorImageGalleryCard({
   const promptId = `gallery-description-${scene.id}`
   const promptHintId = `${promptId}-hint`
   const reasons = [
-    imageAvailability.reason,
+    undoSceneCount === 0 ? imageAvailability.reason : undefined,
     !editing ? animationAvailability.reason : undefined,
   ]
     .filter((reason): reason is string => Boolean(reason))
@@ -157,7 +157,7 @@ export function EditorImageGalleryCard({
     <article
       data-gallery-scene={scene.id}
       className={cn(
-        'flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border-2 bg-card transition-colors',
+        'flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 bg-card transition-colors',
         selected ? 'border-saffron shadow-sm' : 'border-border',
         animating && !selected && 'border-sky/50',
       )}
@@ -173,8 +173,9 @@ export function EditorImageGalleryCard({
         aria-pressed={selected}
         disabled={submitting}
         onClick={onSelect}
+        onDragStart={(event) => event.preventDefault()}
         className={cn(
-          'relative flex w-full shrink-0 items-center justify-center bg-muted/40 outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-saffron',
+          'relative flex w-full shrink-0 select-none items-center justify-center overflow-hidden bg-muted/40 outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-saffron',
           videoFormat === '9:16' ? 'aspect-[9/16]' : 'aspect-video',
         )}
       >
@@ -187,10 +188,11 @@ export function EditorImageGalleryCard({
           <img
             src={source}
             alt={t('create.progress.cell.alt', { id: scene.id })}
+            draggable={false}
             loading="lazy"
             decoding="async"
             onError={() => setFailedSource(source)}
-            className="h-full w-full object-contain"
+            className="pointer-events-none h-full w-full select-none object-contain [-webkit-user-drag:none]"
           />
         )}
         {(selected || selecting) && (
@@ -210,7 +212,7 @@ export function EditorImageGalleryCard({
           </span>
         )}
       </button>
-      <div className="flex-1 space-y-3 p-3">
+      <div className="space-y-3 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-sm font-bold">
             {t('library.editor.panel.sceneTitle', { id: scene.id })}
@@ -431,20 +433,10 @@ export function EditorImageGalleryCard({
                   )}
                 </Button>
                 <p className="font-body text-[11px] leading-relaxed text-muted-foreground">
-                  {t('library.editor.panel.animation.undoBeforeImage')}
+                  {t('library.editor.imageGallery.undoHint', {
+                    count: undoSceneCount,
+                  })}
                 </p>
-                {undoSceneCount > 1 && (
-                  <p className="font-body text-[11px] leading-relaxed text-muted-foreground">
-                    {t('library.editor.panel.animation.undoGroupHint', {
-                      sceneCount: undoSceneCount,
-                    })}
-                  </p>
-                )}
-                {undoAvailability.reason && (
-                  <p className="font-body text-[11px] leading-relaxed text-muted-foreground">
-                    {t(undoAvailability.reason)}
-                  </p>
-                )}
               </div>
             )}
           </div>

@@ -96,6 +96,9 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
     const draft = descriptions[sceneId]
     if (draft !== undefined) return draft
 
+    const queuedDraft = actions.task?.sceneRegenDrafts[sceneId]
+    if (queuedDraft !== undefined) return queuedDraft
+
     const scene = scenes.find((item) => item.id === sceneId)
     if (scene?.userPromptPending) return scene.userPrompt ?? ''
 
@@ -268,7 +271,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           >
             <div
               className={cn(
-                'grid auto-rows-fr items-stretch gap-4',
+                'grid items-start gap-4',
                 videoFormat === '9:16'
                   ? 'grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
                   : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5',
@@ -324,7 +327,10 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                     onSelect={() => {
                       if (submissionRef.current) return
                       if (!selecting) {
-                        setSelectedId(scene.id)
+                        setSelectedId((current) =>
+                          current === scene.id ? null : scene.id,
+                        )
+                        setEditingSceneId(null)
                         return
                       }
                       setSelectedIds((current) => {
@@ -447,7 +453,12 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                       key={reason}
                       className="font-body text-xs text-muted-foreground"
                     >
-                      {t(reason)}
+                      {t(
+                        reason ===
+                          'library.editor.panel.animation.undoBeforeImage'
+                          ? 'library.editor.imageGallery.undoBeforeImages'
+                          : reason,
+                      )}
                     </p>
                   ))}
             </div>

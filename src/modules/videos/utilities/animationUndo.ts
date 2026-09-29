@@ -38,3 +38,24 @@ export function animationUndoPending(
       )
     })
 }
+
+// Una tarea aceptada o de envío incierto conserva sus fuentes, también antes
+// de que exista MP4. No editar su descripción ni regenerar una imagen de la pareja.
+export function hasPendingAnimationSource(
+  scenes: SceneDetail[],
+  sceneIds: number[],
+): boolean {
+  const selected = new Set(sceneIds)
+  return scenes
+    .flatMap((scene) => [
+      ...sceneAnimationBlocks(scene),
+      ...(scene.animationPending ?? []),
+    ])
+    .some(
+      (animation) =>
+        animation.sceneIds.some((id) => selected.has(id)) &&
+        (animation.status === 'pending' ||
+          animation.canResumeTask === true ||
+          animation.submissionUnknown === true),
+    )
+}

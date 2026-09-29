@@ -1026,7 +1026,10 @@
         "insufficientCredits": "El saldo disponible no alcanza para esta selección.",
         "animateRedoSelection": "Animar / rehacer clips",
         "resumeSelection": "Reanudar clips",
-        "shortPairHint": "Escenas de 3 s: al animar una, se incluye la siguiente compatible para crear un clip de 6 s. Las parejas se indican aquí antes de empezar. Sin pareja, se ajusta solo ese clip a su duración."
+        "shortPairHint": "Escenas de 3 s: al animar una, se incluye la siguiente compatible para crear un clip de 6 s. Las parejas se indican aquí antes de empezar. Sin pareja, se ajusta solo ese clip a su duración.",
+        "undoHint_one": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas. Este clip cubre {{count}} escena.",
+        "undoHint_other": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas. Este clip cubre {{count}} escenas.",
+        "undoBeforeImages": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas."
       }
     },
     "errors": {

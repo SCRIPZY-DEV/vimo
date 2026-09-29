@@ -16,6 +16,7 @@ import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjec
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import {
   animationUndoPending,
+  hasPendingAnimationSource,
   undoableAnimationClips,
 } from '@/modules/videos/utilities/animationUndo'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
@@ -93,12 +94,13 @@ export function useGalleryActions({
   const imageRejection = (ids: number[]) => {
     if (locked) return 'library.editor.demoLocked'
     if (!validSelection(ids)) return 'library.editor.imageGallery.submitFailed'
-    if (editorTask.isProjectBusy(projectId)) return 'library.errors.projectBusy'
+    if (!editorTask.canQueueRegeneration(projectId, ids))
+      return 'library.errors.projectBusy'
     if (ids.some((id) => getUndoSceneCount(id) > 0))
       return 'library.editor.panel.animation.undoBeforeImage'
     if (!configuredProviders.has(imageProvider))
       return 'library.editor.imageGallery.noImageProvider'
-    if (ids.some((id) => planFor([id]).canResumeTask))
+    if (hasPendingAnimationSource(scenes, ids))
       return 'library.editor.imageGallery.recoveringImage'
     if (
       compareCostLines(

@@ -13,8 +13,10 @@ import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTas
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
 import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import {
   animationUndoPending,
+  hasPendingAnimationSource,
   undoableAnimationClips,
 } from '@/modules/videos/utilities/animationUndo'
 import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
@@ -254,8 +256,7 @@ export function useLibraryEditor(projectId: string) {
         return false
       }
     }
-    editorTask.enqueueRegen(projectId, entries)
-    return true
+    return editorTask.enqueueRegen(projectId, entries)
   }
 
   // ── Escena seleccionada ──
@@ -319,7 +320,8 @@ export function useLibraryEditor(projectId: string) {
       commitMutation.isPending ||
       gallerySubmission.current ||
       undoMutation.isPending ||
-      hasReadyAnimation([selectedScene.id])
+      hasReadyAnimation([selectedScene.id]) ||
+      hasPendingAnimationSource(workingScenes, [selectedScene.id])
     )
       return false
     const changes: SceneChange[] = userPromptUnsaved
@@ -339,14 +341,12 @@ export function useLibraryEditor(projectId: string) {
     return true
   }
 
-  // Galería: un guardado por lote antes de encolar; vacío conserva la
-  // descripción guardada. El sidecar aplica cualquier cambio pendiente,
-  // incluida una eliminación, antes de decidir si reutiliza el imagePrompt.
+  // La galería entrega la intención al store: persiste las descripciones cuando
+  // obtiene turno, incluso si el modal se cierra o cambia la ruta del editor.
   const regenerateGalleryImages = async (requests: GalleryImageRequest[]) => {
     if (
       gallerySubmission.current ||
-      (pendingSceneUpdates.current.get(projectId) ?? 0) > 0 ||
-      editorTask.isProjectBusy(projectId)
+      (pendingSceneUpdates.current.get(projectId) ?? 0) > 0
     )
       return false
     const unique = [
@@ -355,6 +355,10 @@ export function useLibraryEditor(projectId: string) {
     if (
       unique.length === 0 ||
       hasReadyAnimation(unique.map((entry) => entry.id)) ||
+      hasPendingAnimationSource(
+        workingScenes,
+        unique.map((entry) => entry.id),
+      ) ||
       unique.some(
         (entry) =>
           !workingScenes.some((scene) => scene.id === entry.id) ||
@@ -362,58 +366,48 @@ export function useLibraryEditor(projectId: string) {
       )
     )
       return false
-
-    if (!editorTask.beginSceneEdit(projectId)) return false
-    gallerySubmission.current = true
-    const changes = unique.flatMap((entry) => {
-      const userPrompt = entry.description.trim()
-      return userPrompt ? [{ id: entry.id, userPrompt }] : []
-    })
+    const accepted = editorTask.enqueueRegen(
+      projectId,
+      unique.map((entry) => {
+        const description = entry.description.trim()
+        return {
+          id: entry.id,
+          rewritePrompt: description.length > 0,
+          ...(description ? { userPrompt: description } : {}),
+        }
+      }),
+    )
+    if (!accepted) return false
+    // La descripción explícita de la galería sustituye el borrador anterior
+    // del panel. Sigue siendo un borrador hasta que el store confirme el disco.
+    const descriptions = new Map(
+      unique
+        .filter((entry) => entry.description.trim())
+        .map((entry) => [entry.id, entry.description.trim()]),
+    )
     const previousPrompts = new Map(
       workingScenes.map((scene) => [scene.id, userPromptOf(scene)]),
     )
-    try {
-      if (changes.length > 0)
-        await commitMutation.mutateAsync({ projectId, changes })
-      // Cerrar la galería no cancela la operación. Cambiar de proyecto tampoco
-      // debe escribir los borradores en el editor de destino.
-      if (currentProject.current === projectId) {
-        setWorkingScenes((current) =>
-          current.map((scene) => {
-            const change = changes.find((entry) => entry.id === scene.id)
-            if (
-              !change ||
-              userPromptOf(scene) !== previousPrompts.get(scene.id)
-            )
-              return scene
-            return { ...scene, userPrompt: change.userPrompt }
-          }),
+    setWorkingScenes((current) =>
+      current.map((scene) => {
+        const description = descriptions.get(scene.id)
+        if (
+          description === undefined ||
+          userPromptOf(scene) !== previousPrompts.get(scene.id)
         )
-        setPromptRewrites((current) => {
-          const next = { ...current }
-          for (const change of changes) {
-            const key = `${projectId}:${change.id}`
-            if (current[key] === previousPrompts.get(change.id))
-              delete next[key]
-          }
-          return next
-        })
+          return scene
+        return { ...scene, userPrompt: description }
+      }),
+    )
+    setPromptRewrites((current) => {
+      const next = { ...current }
+      for (const id of descriptions.keys()) {
+        const key = `${projectId}:${id}`
+        if (next[key] === previousPrompts.get(id)) delete next[key]
       }
-      editorTask.enqueueRegen(
-        projectId,
-        unique.map((entry) => ({
-          id: entry.id,
-          rewritePrompt: entry.description.trim().length > 0,
-        })),
-      )
-      return true
-    } catch {
-      // La mutación ya muestra el error; los inputs se conservan para reintentar.
-      return false
-    } finally {
-      gallerySubmission.current = false
-      editorTask.endSceneEdit(projectId)
-    }
+      return next
+    })
+    return true
   }
 
   // ── Animación de la escena seleccionada (ADR-0040) ──
@@ -424,15 +418,24 @@ export function useLibraryEditor(projectId: string) {
   // absorbida se rehace el clip de la que encabeza; si no, es un clip nuevo.
   const animateSelected = () => {
     if (!selectedScene) return
-    const leadId = selectedScene.absorbedBy ?? selectedScene.id
-    void editorTask.startAnimation(projectId, [leadId], videoProvider, true)
+    retryAnimation([selectedScene.id])
   }
 
   // Reintentar autoriza otro presupuesto solo tras fallos terminales. El
   // backend cosecha siempre primero las tareas existentes aunque force=true.
   const retryAnimation = (sceneIds: number[]) => {
     if (sceneIds.length === 0) return
-    void editorTask.startAnimation(projectId, sceneIds, videoProvider, true)
+    const plan = galleryAnimationPlan(workingScenes, sceneIds, {
+      videoFormat: detail?.metadata.options.videoFormat ?? '16:9',
+      durationSeconds: detail?.metadata.audioDurationSeconds,
+    })
+    if (plan.rejection || plan.sceneIds.length === 0) return
+    void editorTask.startAnimation(
+      projectId,
+      plan.sceneIds,
+      videoProvider,
+      true,
+    )
   }
 
   // ── Fronteras del timeline ──

@@ -72,6 +72,13 @@ export interface EditorPlayerHandle {
 export interface RegenQueueEntry {
   id: number
   rewritePrompt: boolean
+  // Instantánea de la intención; se guarda al adquirir el turno de escritura.
+  userPrompt?: string
+  imageProvider?: ImageProviderId
+}
+
+export interface QueuedRegenEntry extends RegenQueueEntry {
+  order: number
 }
 
 export interface EditorRenderState {
@@ -174,6 +181,7 @@ export interface EditorAnimationRequest {
   minutes?: number
   retryFailed?: boolean
   started: boolean
+  order: number
   cancelled?: boolean
 }
 
@@ -190,8 +198,15 @@ export interface LibraryEditorTask {
   projectId: string
   // Reserva breve durante el guardado de descripciones anterior al encolado.
   savingScenes: boolean
-  regenQueue: RegenQueueEntry[]
-  activeRegen: { jobId: string | null; sceneIds: number[] } | null
+  regenQueue: QueuedRegenEntry[]
+  activeRegen: {
+    requestId: string
+    jobId: string | null
+    sceneIds: number[]
+    cancelled?: boolean
+  } | null
+  // Descripciones aceptadas que deben seguir disponibles ante fallo de guardado.
+  sceneRegenDrafts: Record<number, string>
   // Override transitorio del proveedor para el próximo lote de regen.
   pendingImageProvider: ImageProviderId | null
   // Estados transitorios por escena (spinner de la cola y del job).
