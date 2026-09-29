@@ -45,4 +45,4 @@ export const PAD_MARGIN_SECONDS = 0.2
 export const ANIMATION_CLIP_PAD_SECONDS = 1
 
 // Versión del cache de chunks: bumpearla invalida todos los manifests.
-export const RENDER_CACHE_VERSION = 4
+export const RENDER_CACHE_VERSION = 5
