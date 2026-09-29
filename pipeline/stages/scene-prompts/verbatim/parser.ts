@@ -341,6 +341,12 @@ export function stripIdMarker(text: string): string {
 }
 
 /**
+ * Motivo de contaminación por idioma: permite distinguir la gema de un
+ * fallo del proveedor sin bloquear el modelo ni repetir la escalera entera.
+ */
+export const LANGUAGE_CONTAMINATION = 'the prompt did not come in English'
+
+/**
  * CONTAMINACIÓN: deliberación filtrada o idioma equivocado. El lector decide
  * su alcance: con ID único se rechaza solo esa escena; sin IDs no se puede
  * confiar en la separación ni en el orden del lote.
@@ -348,8 +354,7 @@ export function stripIdMarker(text: string): string {
 export function responseContamination(prompt: string): string | undefined {
   if (REASONING_TRACES.some((trace) => trace.test(prompt)))
     return 'the model leaked its reasoning inside the prompt'
-  if (!ENGLISH_FUNCTION_WORDS.test(prompt))
-    return 'the prompt did not come in English'
+  if (!ENGLISH_FUNCTION_WORDS.test(prompt)) return LANGUAGE_CONTAMINATION
 
   return undefined
 }

@@ -1,6 +1,6 @@
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 
-// Un proveedor de animación que el sidecar dio por caído (ADR-0040): varios
+// Un proveedor de animación que el sidecar dio por caído (ADR-0047): varios
 // encargos seguidos fallaron por él. Vencido = ya no bloquea.
 export interface AnimationProviderBlock {
   providerId: VideoProviderId

@@ -1,4 +1,4 @@
-// Cortacircuitos por proveedor de animación dentro de UN job (ADR-0040).
+// Cortacircuitos por proveedor de animación dentro de UN job (ADR-0047).
 // Ninguno de los dos proveedores publica si un modelo está caído, así que se
 // detecta contando fallos terminales seguidos atribuibles al proveedor
 // (455 de Kie, 5xx, tareas que mueren del lado del servidor). Los rechazos

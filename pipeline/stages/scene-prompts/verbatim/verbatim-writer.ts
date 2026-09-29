@@ -38,6 +38,7 @@ import {
   completedPromptPrefix,
   countCompletedPrompts,
   extractCodeBlock,
+  LANGUAGE_CONTAMINATION,
   LIMIT_PROTOCOL_REGEX,
   localSceneDefect,
   readIdMarker,
@@ -135,6 +136,22 @@ export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
 export const LLM_RESCUE_NEEDED = 'llm_rescue_needed'
 
 /**
+ * Código del fallo DETERMINISTA de idioma: la gema pide los prompts en otro
+ * idioma (o el modelo la obedece por encima de la regla de plataforma) y la
+ * ronda entera vuelve sin una palabra de inglés. No es un fallo del modelo ni
+ * de la red: repetir el pedido con lotes más chicos o con otro modelo da lo
+ * mismo (medido: 22 llamadas cobradas por 7 escenas, con dos modelos), y el
+ * generador de imágenes no lee ese idioma. Por eso NO está en
+ * `PROVIDER_TROUBLE_CODES` — la UI no bloquea al modelo ni ofrece cambiarlo —
+ * y corta la corrida antes de la escalera y del rescate.
+ */
+export const LLM_PROMPT_LANGUAGE = 'llm_prompt_language'
+
+export function isPromptLanguageFailure(error: unknown): boolean {
+  return error instanceof PipelineFailure && error.code === LLM_PROMPT_LANGUAGE
+}
+
+/**
  * Lo que el proyecto declaró sobre su protagonista, ya resuelto por la stage.
  * Unión discriminada a propósito: cada modo trae exactamente el material que
  * necesita, así que no existe el estado imposible «referencia sin nombre» ni
@@ -184,6 +201,9 @@ export interface VerbatimWriterOptions {
   /** Vestuario por escena. Ausente = la constante `VERBATIM_SCENE_WARDROBE`
    *  (inyectable solo para probar las dos variantes sin tocar la constante). */
   sceneWardrobe?: boolean
+  /** Regla de idioma de salida. Ausente = `VERBATIM_OUTPUT_LANGUAGE_RULE`
+   *  (inyectable solo para el A/B y los guards). */
+  outputLanguageRule?: boolean
   /** Cliente ya armado con la clave del job (todos los perfiles del catálogo
    *  son DeepInfra: el mismo cliente sirve para el elegido y el rescate). */
   client: VerbatimClient
@@ -917,6 +937,20 @@ function classifyScene(n: number, prompt: string, target: BatchReading): void {
   target.defective.push({ n, reason: defect })
 }
 
+/**
+ * La contaminación de UN trozo condena al lote entero; el TIPO del error dice
+ * quién tiene la culpa. La deliberación filtrada es un `Error` común (la
+ * escalera lo cura re-pidiendo); el idioma equivocado es
+ * `llm_prompt_language`, que la ronda lee para cortar la corrida — re-pedir
+ * no lo cura.
+ */
+function contaminationFailure(n: number, contamination: string): Error {
+  const message = `in the prompt for fragment ${n}: ${contamination}; the whole answer is suspect — discarding the batch`
+  if (contamination === LANGUAGE_CONTAMINATION)
+    return new PipelineFailure(LLM_PROMPT_LANGUAGE, message)
+  return new Error(message)
+}
+
 export function readBatchPrompts(
   raw: string,
   batch: readonly VerbatimFragment[],
@@ -933,7 +967,7 @@ export function readBatchPrompts(
       const text = marker && marker.n !== item.n ? '' : stripIdMarker(item.text)
       return [{ n: item.n, text }]
     })
-    const reading = readById(identified, batch)
+    const reading = readById(identified, batch, requireIds)
     reading.trimmed.push(
       ...fromJson
         .filter((item) => item.n === undefined)
@@ -960,7 +994,7 @@ export function readBatchPrompts(
     return entry ? [entry] : []
   })
   if (identified.length > 0 || requireIds) {
-    const reading = readById(identified, batch)
+    const reading = readById(identified, batch, requireIds)
     reading.trimmed.push(...pieces.filter((piece) => !readIdMarker(piece)))
     return reading
   }
@@ -986,11 +1020,15 @@ export function readBatchPrompts(
   }
   batch.forEach((fragment, index) => {
     const prompt = texts[index] ?? ''
-    const contamination = responseContamination(prompt)
-    if (contamination)
+    // Un trozo que era SOLO el marcador `((n))` queda vacío al pelarlo. Vacío
+    // no es «otro idioma»: es formato roto del lote, y se dice así para que
+    // la escalera lo re-pida en vez de culpar a la gema.
+    if (!prompt)
       throw new Error(
-        `in the prompt for fragment ${fragment.n}: ${contamination}; without IDs the batch cannot be mapped safely`,
+        `fragment ${fragment.n} came empty (only its ((n)) marker); the batch is discarded and retried`,
       )
+    const contamination = responseContamination(prompt)
+    if (contamination) throw contaminationFailure(fragment.n, contamination)
     classifyScene(fragment.n, prompt, reading)
   })
   reading.styleRestored = restoreStyleTail(reading.good)
@@ -1005,7 +1043,20 @@ export function readBatchPrompts(
 function readById(
   byId: readonly { n: number; text: string }[],
   batch: readonly VerbatimFragment[],
+  allowPartial: boolean,
 ): BatchReading {
+  // Las previews sin contexto mantienen el rechazo histórico del lote;
+  // los proyectos con intervalos conservan los IDs sanos de una respuesta mixta.
+  if (!allowPartial) {
+    for (const { n, text } of byId) {
+      if (!text.trim())
+        throw new Error(
+          `fragment ${n} came empty (only its ((n)) marker); the batch is discarded and retried`,
+        )
+      const contamination = responseContamination(text)
+      if (contamination) throw contaminationFailure(n, contamination)
+    }
+  }
   const reading: BatchReading = {
     good: [],
     defective: [],
@@ -1050,6 +1101,14 @@ function readById(
     }
     classifyScene(fragment.n, prompt, reading)
   }
+  // Un lote entero en otro idioma conserva el error de dev. Si hay IDs
+  // válidos o defectos de formato, se guardan los sanos y solo se reintenta el resto.
+  if (
+    reading.defective.length === batch.length &&
+    reading.defective.length > 0 &&
+    reading.defective.every((entry) => entry.reason === LANGUAGE_CONTAMINATION)
+  )
+    throw contaminationFailure(reading.defective[0].n, LANGUAGE_CONTAMINATION)
   reading.styleRestored = restoreStyleTail(reading.good)
   return reading
 }
@@ -1175,6 +1234,7 @@ export async function generateVerbatimPrompts(
         content: buildVerbatimSystem(options.gem, mode, {
           withoutScriptProtagonist,
           sceneWardrobe: options.sceneWardrobe,
+          outputLanguageRule: options.outputLanguageRule,
         }),
       },
       { role: 'user', content: buildScriptMessage(fullScript) },
@@ -1205,6 +1265,7 @@ export async function generateVerbatimPrompts(
           mode,
           {
             sceneWardrobe: options.sceneWardrobe,
+            outputLanguageRule: options.outputLanguageRule,
           },
         ),
       },
@@ -1274,9 +1335,15 @@ export async function generateVerbatimPrompts(
               )
           }
           const completed = completedPromptPrefix(streamed)
-          const partial = completed
-            ? readBatchPrompts(completed, batch, true)
-            : undefined
+          let partial: BatchReading | undefined
+          if (completed && !isPromptLanguageFailure(error)) {
+            try {
+              partial = readBatchPrompts(completed, batch, true)
+            } catch {
+              // Un prefijo inválido no sustituye la causa del transporte;
+              // sin texto rescatable se conserva el error original.
+            }
+          }
           if (!partial?.good.length) throw error
           options.onWarn?.(
             `the response was interrupted (${failureCode ?? 'unexpected error'}: ${error instanceof Error ? error.message : String(error)}); preserving ${partial.good.length} complete identified prompts and retrying only unresolved scenes`,
@@ -1285,7 +1352,8 @@ export async function generateVerbatimPrompts(
           interrupted = true
           if (
             executor.profile.id === profile.id &&
-            failureCode !== 'llm_network'
+            failureCode !== 'llm_network' &&
+            !isPromptLanguageFailure(error)
           )
             chosenModelBlamed = true
           if (failureCode && PROVIDER_TROUBLE_CODES.has(failureCode)) {
@@ -1363,6 +1431,13 @@ export async function generateVerbatimPrompts(
     executor = chosenExecutor,
   ) => {
     const round = currentRound++
+    // Se decide después de esperar todos los lotes y sus escrituras: una
+    // ronda mixta conserva los prompts sanos y no culpa al modelo por idioma.
+    const tally = {
+      read: 0,
+      otherFailures: 0,
+      languageRejected: [] as number[],
+    }
     // No mezclar una escena que ya gastó un intento de transporte con otra
     // que todavía dispone de ambos: el fallo de una no se hereda a la otra.
     const pendingByAttempts = new Map<number, VerbatimFragment[]>()
@@ -1387,13 +1462,16 @@ export async function generateVerbatimPrompts(
           round * 1000 + index,
           executor,
         )
+        tally.read += 1
         // Un defecto identificado sigue siendo un fallo del modelo aunque
         // ahora salvemos los demás prompts. Una caída de red con texto
         // parcial, en cambio, conserva su clasificación ajena al modelo.
         if (
           executor.profile.id === profile.id &&
           !reading.interrupted &&
-          reading.defective.length > 0
+          reading.defective.some(
+            (entry) => entry.reason !== LANGUAGE_CONTAMINATION,
+          )
         )
           chosenModelBlamed = true
         const justObtained = new Set<number>()
@@ -1505,7 +1583,15 @@ export async function generateVerbatimPrompts(
         )
         const networkFailure =
           error instanceof PipelineFailure && error.code === 'llm_network'
-        if (executor.profile.id === profile.id && !networkFailure)
+        const languageFailure = isPromptLanguageFailure(error)
+        if (languageFailure)
+          tally.languageRejected.push(...batch.map((fragment) => fragment.n))
+        else tally.otherFailures += 1
+        if (
+          executor.profile.id === profile.id &&
+          !networkFailure &&
+          !languageFailure
+        )
           chosenModelBlamed = true
         // Fallo del PROVEEDOR con el modelo elegido (no en el rescate): la
         // UI se entera para bloquearlo un rato. No cambia nada acá: el
@@ -1540,6 +1626,29 @@ export async function generateVerbatimPrompts(
     )
     const failed = settled.find((entry) => entry.status === 'rejected')
     if (failed?.status === 'rejected') throw failed.reason
+    // Ronda ENTERA en otro idioma, sin un solo lote leído ni otro motivo de
+    // fallo: la gema pide otro idioma y el modelo la obedece. Seguir con la
+    // escalera y el rescate repetiría el mismo pedido ~20 veces y terminaría
+    // con relleno que ignora la gema. Se corta acá, con lo ya cosechado
+    // persistido y sin culpar al modelo; la UI le pide a la persona que edite
+    // su gema. Una ronda mixta (un lote bien, otro en español) sigue: el
+    // modelo caprichoso recibe una vuelta más, solo con lo que falta.
+    if (
+      tally.read === 0 &&
+      tally.otherFailures === 0 &&
+      tally.languageRejected.length > 0
+    ) {
+      const scenes = [...tally.languageRejected]
+        .sort((a, b) => a - b)
+        .join(', ')
+      options.onLog?.(
+        `the style asks for prompts in another language: scene(s) ${scenes} came back not in English in every attempt; image prompts must be in English — stopping before the retry ladder and the rescue (no model is blamed)`,
+      )
+      throw new PipelineFailure(
+        LLM_PROMPT_LANGUAGE,
+        `the style asks for prompts in another language; image prompts must be in English (scenes ${scenes} came back in another language)`,
+      )
+    }
   }
 
   await runRoundInParallel([...fragments], batchSize)

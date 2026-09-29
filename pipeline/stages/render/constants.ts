@@ -40,7 +40,7 @@ export const SUBTITLE_SHADOW = 1
 export const PAD_MARGIN_SECONDS = 0.2
 
 // Cuánto se clona el último cuadro de un clip de animación antes de recortar
-// al tramo exacto (ADR-0040): cubre el redondeo de estirar/comprimir para que
+// al tramo exacto (ADR-0047): cubre el redondeo de estirar/comprimir para que
 // el chunk jamás quede más corto que su hueco.
 export const ANIMATION_CLIP_PAD_SECONDS = 1
 

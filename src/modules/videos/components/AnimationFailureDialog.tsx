@@ -19,7 +19,7 @@ interface AnimationFailureDialogProps {
   onRetry: (sceneIds: number[]) => void
 }
 
-// El job de animación terminó con escenas sin clip (ADR-0040): se dice cuál
+// El job de animación terminó con escenas sin clip (ADR-0047): se dice cuál
 // falló, por qué (el mensaje traducido) y el detalle técnico del proveedor
 // tal cual llegó, que es lo que permite entender un fallo raro. Las escenas
 // quedaron estáticas con el paneo de siempre: no se perdió nada del video.

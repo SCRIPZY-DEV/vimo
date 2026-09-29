@@ -1,6 +1,6 @@
 import type { VideoProviderId } from './video-provider.ts'
 
-// Contrato de la animación de escenas (ADR-0040). Browser-safe: la UI importa
+// Contrato de la animación de escenas (ADR-0047). Browser-safe: la UI importa
 // estos tipos con `import type`, igual que scenes.ts y video-provider.ts.
 
 // Estado PERSISTIDO de la animación de una escena. Solo tres valores, y

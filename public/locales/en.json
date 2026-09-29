@@ -529,7 +529,8 @@
       "demoNotReady": "The demo is not ready on this computer. Enter again through the Demo button.",
       "demoStyleNotIncluded": "The demo does not include this style. Pick one of the styles the demo shows.",
       "demoFormatNotIncluded": "The installed demo pack has no stories in this format. Enter again through the Demo button to update it.",
-      "llmRescueNeeded": "The chosen model left scenes unwritten and another model rescued them.",
+      "llmRescueNeeded": "The chosen model left scenes unwritten after several attempts. Retry with the same model or switch models: what was already written is kept.",
+      "llmPromptLanguage": "Your style asks the model to write in another language, but image prompts always come out in English. Edit the style's gem, remove that instruction and create the video again: this project saved the gem as it was.",
       "llmAuth": "DeepInfra rejected your API key. Check it in API Keys: without a valid key the prompts cannot be written.",
       "voiceInsufficientCredits": "Your voice provider account doesn't have enough credits to generate the narration.",
       "imageInsufficientCredits": "Your image provider account ran out of balance. Everything generated so far is kept.",
@@ -651,7 +652,7 @@
       "nameLabel": "Style name",
       "namePlaceholder": "Give it a name — that is how you see it on the card",
       "promptLabel": "The style",
-      "promptPlaceholder": "Paste the full visual style here (it is the model's system prompt).\n\nDescribe how the images look: line, colors, light, framing, era, character.\n\nIf you want DYNAMISM, ask for it explicitly and as an obligation, not a suggestion:\n  · \"Every prompt must start with one of these shots: ...\"\n  · \"Never repeat the same shot twice in a row.\"\n  · \"Change location when the narration moves somewhere else.\"\n  · \"Text drawn in the image goes in the script's language.\"\n\nA permission is not an instruction: whatever you want to happen, write it as an obligation.",
+      "promptPlaceholder": "Paste the full visual style here (it is the model's system prompt).\n\nDescribe how the images look: line, colors, light, framing, era, character.\n\nIf you want DYNAMISM, ask for it explicitly and as an obligation, not a suggestion:\n  · \"Every prompt must start with one of these shots: ...\"\n  · \"Never repeat the same shot twice in a row.\"\n  · \"Change location when the narration moves somewhere else.\"\n  · \"Text drawn in the image goes in the script's language.\"\n\nImage prompts always come out in English (the generator only reads English): do not ask the style to write in another language.\n\nA permission is not an instruction: whatever you want to happen, write it as an obligation.",
       "shotsLabel": "Allowed shots",
       "shotsOptional": "(optional)",
       "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
@@ -1093,10 +1094,8 @@
     "saliendo": "Signing out...",
     "planActivoTitulo": "Active subscription",
     "planActivoDescripcion": "You have full access to {{nombre}} with no restrictions. Thanks for supporting the project!",
-    "trialTitulo_one": "You have {{count}} trial day left",
-    "trialTitulo_other": "You have {{count}} trial days left",
-    "trialDescripcion_one": "After that day the subscription is $20 USD/month. We'll let you know before it expires.",
-    "trialDescripcion_other": "After those {{count}} days the subscription is $20 USD/month. We'll let you know before it expires."
+    "accesoBetaTitulo": "Full access during the beta",
+    "accesoBetaDescripcion": "While the beta lasts you can use {{nombre}} with no time limit and no charge. We'll let you know before anything changes."
   },
   "costs": {
     "pageTitle": "Pricing — Vimo",

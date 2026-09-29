@@ -33,6 +33,7 @@ import {
   CANCEL_CONFIRM_WINDOW_MS,
   EDITOR_RESCUE_ERROR_CODES,
   PIPELINE_STAGES,
+  STYLE_GEM_ERROR_CODES,
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
@@ -173,9 +174,12 @@ export function GenerationProgress({
     failedStage === 'images' ||
     failedStage === 'animation' ||
     (task.errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(task.errorCode))
-  // Solo el carril verbatim tiene un modelo elegible que cambiar.
+  // Solo el carril verbatim tiene un modelo elegible que cambiar — y no
+  // cuando la culpa es de la gema: cambiar de modelo repetiría el fallo.
+  const gemAtFault =
+    task.errorCode !== null && STYLE_GEM_ERROR_CODES.has(task.errorCode)
   const promptModelSwitchable =
-    task.usesCustomStyle && failedStage === 'scene-prompts'
+    task.usesCustomStyle && failedStage === 'scene-prompts' && !gemAtFault
   const promptModelStalled =
     generating && task.promptModelIssue?.reason === 'stalled'
 

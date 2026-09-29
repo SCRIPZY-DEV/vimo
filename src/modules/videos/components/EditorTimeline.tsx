@@ -50,7 +50,7 @@ interface EditorTimelineProps {
   // Motivo (clave i18n) del último fallo de regeneración por escena.
   sceneErrors: Record<number, string>
   sceneVersions: Record<number, number>
-  // Animación en curso y último fallo de animación por escena (ADR-0040).
+  // Animación en curso y último fallo de animación por escena (ADR-0047).
   sceneAnimationStatus: Record<number, SceneAnimationActivity>
   sceneAnimationProgress: Record<number, SceneAnimationProgress>
   sceneAnimationErrors: Record<number, SceneAnimationFailure>

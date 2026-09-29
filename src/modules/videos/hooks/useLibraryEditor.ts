@@ -410,7 +410,7 @@ export function useLibraryEditor(projectId: string) {
     return true
   }
 
-  // ── Animación de la escena seleccionada (ADR-0040) ──
+  // ── Animación de la escena seleccionada (ADR-0047) ──
 
   const videoProvider: VideoProviderId = 'kie'
 

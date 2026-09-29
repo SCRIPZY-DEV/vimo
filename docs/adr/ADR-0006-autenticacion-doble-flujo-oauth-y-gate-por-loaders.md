@@ -112,6 +112,8 @@ Redirect URLs): `vimo://auth/callback`, `http://localhost:5173/#/auth/callback` 
 ## Referencias
 
 - ADR-0005 (gate por composición en el router), ADR-0007 (futuro del backend local).
+- ADR-0040 (el trial no vence durante la beta: el veredicto `trial` llega sin fechas ni
+  días restantes).
 - Origen portado: `caracteristicas/gestion-de-licencias/` de `02-vimo/cursor-video`
   (`useAcceso.ts`, `supabase.ts`, `PantallaCallback.tsx`).
 - Docs Tauri: plugins `deep-link` y `opener`.

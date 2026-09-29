@@ -8,7 +8,7 @@ import {
   type VideoProviderId,
 } from '@pipeline/types/video-provider.ts'
 
-// Bloqueos temporales de proveedores de animación (ADR-0040), como store
+// Bloqueos temporales de proveedores de animación (ADR-0047), como store
 // fuera de React: lo escribe el store del editor al recibir
 // `animation-provider-trouble` (sin árbol de React) y lo lee el selector del
 // panel. Mismo patrón que promptModelBlocks.

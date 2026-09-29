@@ -17,7 +17,7 @@ export const commonQueryKeys = {
 } as const
 
 // Bloqueo temporal de un proveedor de animación que el sidecar dio por caído
-// (evento animation-provider-trouble, ADR-0040). Mismo criterio que los
+// (evento animation-provider-trouble, ADR-0047). Mismo criterio que los
 // modelos de prompts: estado transitorio con vencimiento en localStorage,
 // no una preferencia. Más corto que el de los modelos porque ningún
 // proveedor publica cuándo vuelve y probar de nuevo cuesta un solo encargo.

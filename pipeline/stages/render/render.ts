@@ -191,7 +191,7 @@ export const renderStage: Stage<CreateVideoContext> = {
 }
 
 // Toda escena que ocupa un tramo del timeline (tiene timestamps) DEBE tener
-// imagen válida —o formar parte de un clip de animación listo (ADR-0040)—:
+// imagen válida —o formar parte de un clip de animación listo (ADR-0047)—:
 // descartarla en silencio dejaría el video más corto que el audio (voz
 // cortada) y desincronizaría todo lo posterior.
 async function collectRenderableScenes(

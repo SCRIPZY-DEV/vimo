@@ -115,7 +115,7 @@ export interface VideoProjectOptions {
   // llamar a proveedores. Solo lo pone ese camino; ausente/false = pipeline
   // real de siempre. Se persiste: el editor lo lee para bloquear acciones.
   demo?: boolean
-  // Proveedor con el que se animan las escenas de este proyecto (ADR-0040).
+  // Proveedor con el que se animan las escenas de este proyecto (ADR-0047).
   // Lo persiste `animate-scenes` con el elegido en cada pedido: así la
   // alerta de saldo sabe qué cuenta rechazó. Ausente = nunca se animó.
   videoProvider?: VideoProviderId

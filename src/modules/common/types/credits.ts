@@ -3,7 +3,7 @@
 export type CreditsUnit = 'credits' | 'usd' | 'characters'
 
 // Qué familia de proveedor gasta (prefijo de los códigos del sidecar).
-// `animation` es la de los clips de video (Kie.ai y PoYo, ADR-0040).
+// `animation` es la de los clips de video (Kie.ai y PoYo, ADR-0047).
 export type CreditsDomain =
   'voice' | 'image' | 'llm' | 'transcription' | 'music' | 'animation'
 

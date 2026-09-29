@@ -57,7 +57,7 @@ export async function exportClips(
       'the project has no scenes with timestamps',
     )
 
-  // Las escenas animadas (ADR-0040) salen como su clip normalizado al tramo,
+  // Las escenas animadas (ADR-0047) salen como su clip normalizado al tramo,
   // igual que en el render final: lo exportado coincide 1:1 con el video.
   const { renderScenes, missingImages } = await collectRenderScenes(
     paths,

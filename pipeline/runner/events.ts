@@ -132,7 +132,7 @@ export interface SceneImageProgressEvent {
   status: string
 }
 
-// ─── Eventos de la animación de escenas (ADR-0040, `animate-scenes`) ───
+// ─── Eventos de la animación de escenas (ADR-0047, `animate-scenes`) ───
 // Espejo de los eventos de imagen: `sceneId` es siempre la escena que
 // ENCABEZA el clip; `sceneIds` son todas las que cubre, para que la UI pinte
 // el bloque entero y no solo la marcada.

@@ -3,7 +3,7 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-14
 - **Área:** pipeline | providers | app
-- **Sustituye:** las reglas de duración, selección de proveedor, visión y recorte de ADR-0040 y ADR-0041.
+- **Sustituye:** las reglas de duración, selección de proveedor, visión y recorte de ADR-0047 y ADR-0041.
 
 ## Decisión
 

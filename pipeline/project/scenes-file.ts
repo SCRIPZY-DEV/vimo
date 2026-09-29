@@ -142,7 +142,7 @@ export async function toSceneSummary(
   return summary
 }
 
-// Vista de la animación de una escena (ADR-0040): el clip se deriva de la
+// Vista de la animación de una escena (ADR-0047): el clip se deriva de la
 // EXISTENCIA del archivo, como la imagen. Un `ready` persistido sin archivo
 // sale como error, así la UI nunca promete un clip que el render no va a usar.
 export async function toSceneAnimationView(

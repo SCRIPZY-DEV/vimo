@@ -93,7 +93,7 @@ export interface EditorExportState {
 }
 
 // Estado transitorio de la animación de una escena mientras corre el job
-// (ADR-0040); lo persistido lo trae el detail en `scene.animation`.
+// (ADR-0047); lo persistido lo trae el detail en `scene.animation`.
 export type SceneAnimationActivity = 'generating' | 'ok' | 'error'
 
 // Por qué falló el clip de una escena: el mensaje traducido y el motivo
@@ -107,7 +107,7 @@ export interface SceneAnimationFailure {
   retryable: boolean
 }
 
-// Avance de un clip en curso (ADR-0040). PoYo informa porcentaje real; Kie
+// Avance de un clip en curso (ADR-0047). PoYo informa porcentaje real; Kie
 // no, y la UI lo simula desde `startedAt` con la duración típica de un clip.
 // Viaja bajo cada escena que el clip cubre; `leadId` es la que lo encabeza.
 export interface SceneAnimationProgress {
@@ -136,7 +136,7 @@ export interface AnimationPlanPreview {
   canRecoverLocally?: boolean
 }
 
-// Todo lo que el panel de la escena necesita para animarla (ADR-0040): lo
+// Todo lo que el panel de la escena necesita para animarla (ADR-0047): lo
 // arma la vista y viaja como un solo objeto para no inflar las props.
 export interface SceneAnimationUndoControls {
   sceneCount: number
@@ -218,7 +218,7 @@ export interface LibraryEditorTask {
   sceneVersions: Record<number, number>
   render: EditorRenderState | null
   export: EditorExportState | null
-  // Job de animación en curso (ADR-0040); exclusión con regen/render/export.
+  // Job de animación en curso (ADR-0047); exclusión con regen/render/export.
   animation: EditorAnimationState | null
   // Proveedor de animación elegido en el editor; null = el del proyecto (o
   // el primero con clave). Se persiste en project.json al animar.

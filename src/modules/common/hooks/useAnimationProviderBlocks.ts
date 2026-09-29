@@ -6,7 +6,7 @@ import {
 } from '@/modules/common/utilities/animationProviderBlocks'
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 
-// Los proveedores de animación bloqueados ahora mismo (ADR-0040).
+// Los proveedores de animación bloqueados ahora mismo (ADR-0047).
 // Configuración global: se lee directo desde el componente que lo necesita.
 // El snapshot ya viene sin vencidos (el store los purga con un timer).
 export function useAnimationProviderBlocks() {

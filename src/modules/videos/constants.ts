@@ -169,7 +169,8 @@ export const PROMPT_STAGE_STALL_MS = 2 * 60 * 1000
 export const PROMPT_STAGE_WATCHDOG_TICK_MS = 1000
 // Espejo de PROVIDER_TROUBLE_CODES del redactor verbatim (pipeline): los
 // códigos que delatan al modelo. `llm_network` no está a propósito (es la red
-// del usuario) ni `llm_auth` (es la clave: el job falla con su mensaje).
+// del usuario) ni `llm_auth` (es la clave: el job falla con su mensaje), ni
+// `llm_prompt_language` (es la gema: pide otro idioma, ver STYLE_GEM_ERROR_CODES).
 // `llm_rescue_needed` es el sintético del rescate.
 export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
   'llm_timeout',
@@ -185,6 +186,14 @@ export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
 export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
   'images_incomplete',
   'render_missing_images',
+])
+// Fallos cuya culpa es la GEMA del estilo, no el modelo (espejo de
+// LLM_PROMPT_LANGUAGE del redactor verbatim): el estilo pide los prompts en
+// otro idioma y los prompts de imagen salen siempre en inglés. No bloquean al
+// modelo una hora ni ofrecen cambiarlo — cambiar de modelo repite el fallo —;
+// el remedio es editar la gema.
+export const STYLE_GEM_ERROR_CODES: ReadonlySet<string> = new Set([
+  'llm_prompt_language',
 ])
 // Tras pedir cancelar, cuánto se espera el cierre del sidecar antes de dar
 // la tarea por terminada igual (red de seguridad, no el camino normal).
@@ -447,7 +456,7 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'fal', label: 'Fal' },
 ]
 
-// Proveedores de animación de escenas (ADR-0040), en el orden del selector.
+// Proveedores de animación de escenas (ADR-0047), en el orden del selector.
 // Etiquetas de marca: no se traducen.
 export const VIDEO_PROVIDERS: { id: VideoProviderId; label: string }[] = [
   { id: 'kie', label: 'Kie.ai' },
@@ -464,7 +473,7 @@ export const NON_RETRYABLE_ANIMATION_CODES: ReadonlySet<string> = new Set([
   'animation_slot_out_of_range',
 ])
 
-// Avance simulado de un clip (ADR-0040): Kie no informa porcentaje y PoYo lo
+// Avance simulado de un clip (ADR-0047): Kie no informa porcentaje y PoYo lo
 // deja en 0 hasta terminar. Medido con clips reales el 2026-09-12: 78 s (PoYo)
 // y 88 s (Kie) desde el clic, contando los ~10 s de escribir el prompt. El
 // porcentaje sube en línea recta hasta ANIMATION_RAMP_PERCENT en ese tiempo y
@@ -723,6 +732,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   catalog_prompt_pending_image: 'create.errors.catalogPromptPendingImage',
   llm_empty_response: 'create.errors.llmProviderError',
   llm_rescue_needed: 'create.errors.llmRescueNeeded',
+  llm_prompt_language: 'create.errors.llmPromptLanguage',
   llm_auth: 'create.errors.llmAuth',
   llm_insufficient_credits: 'create.errors.llmInsufficientCredits',
   // Imágenes
@@ -742,7 +752,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Render
   render_missing_images: 'create.errors.renderMissingImages',
   render_stalled: 'create.errors.renderStalled',
-  // Animación de escenas (ADR-0040)
+  // Animación de escenas (ADR-0047)
   animation_insufficient_credits: 'create.errors.animationInsufficientCredits',
   animation_invalid_api_key: 'create.errors.animationInvalidApiKey',
   animation_rate_limited: 'create.errors.animationRateLimited',
@@ -801,7 +811,7 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   music_invalid_api_key: 'create.errors.missingApiKey',
   music_network: 'create.errors.musicGenerationFailed',
   demo_project: 'library.errors.demoProject',
-  // Rechazos del planificador de animación (ADR-0040): no son fallos del
+  // Rechazos del planificador de animación (ADR-0047): no son fallos del
   // proveedor, son marcas que no se pueden convertir en clip.
   animation_already_covered: 'library.errors.animationAlreadyCovered',
   animation_slot_out_of_range: 'library.errors.animationSlotOutOfRange',

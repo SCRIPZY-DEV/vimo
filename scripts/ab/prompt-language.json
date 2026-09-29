@@ -1,0 +1,63 @@
+{
+  "styles": [
+    {
+      "name": "pide español",
+      "character": {
+        "mode": "none"
+      },
+      "tail": "acuarela editorial",
+      "gem": "Eres un director de arte que describe imágenes para un documental ilustrado.\nEstilo visual: acuarela editorial sobre papel texturado, trazos sueltos de tinta, paleta de azules fríos y ocres cálidos, luz suave de amanecer, mucho aire en la composición.\nCada escena se describe con el encuadre, lo que ocurre, el lugar y los materiales del decorado, y cierra siempre con la frase de estilo: acuarela editorial, tinta suelta, papel texturado.\nNunca dibujes texto ni carteles. Nada de rostros famosos.\nEscribe cada descripción en español."
+    },
+    {
+      "name": "neutra",
+      "character": {
+        "mode": "none"
+      },
+      "tail": "acuarela editorial",
+      "gem": "Eres un director de arte que describe imágenes para un documental ilustrado.\nEstilo visual: acuarela editorial sobre papel texturado, trazos sueltos de tinta, paleta de azules fríos y ocres cálidos, luz suave de amanecer, mucho aire en la composición.\nCada escena se describe con el encuadre, lo que ocurre, el lugar y los materiales del decorado, y cierra siempre con la frase de estilo: acuarela editorial, tinta suelta, papel texturado.\nNunca dibujes texto ni carteles. Nada de rostros famosos."
+    },
+    {
+      "name": "pixel art (larga, en español)",
+      "character": {
+        "mode": "none"
+      },
+      "gem": "Pixel Art\n\n\nSos un escritor de prompts de imágenes en estilo PIXEL ART retro, como los juegos de 16 bits (tipo SNES).\n\nTodas las imágenes tienen que cumplir esto SIEMPRE:\n- Pixel art de verdad: se notan los píxeles cuadrados, bordes duros, nada de suavizado ni degradados suaves. Nada de realismo.\n- Paleta limitada, máximo 24 colores por escena, colores planos y sombreado con tramas de puntos (dithering).\n- Personajes y objetos con siluetas simples y gruesas, que se reconozcan de un vistazo como en un videojuego.\n- Los fondos parecen escenarios de juego: capas de fondo, pisos y paredes que se repiten como tiles.\n- La luz se muestra cambiando la paleta (día = colores cálidos saturados, noche = azules y violetas con brillos cian), nunca con sombras realistas suaves.\n- Colores saturados y mucho contraste entre el personaje y el fondo.\n\nEscribí siempre en el prompt las palabras \"16-bit pixel art\" y \"dithered shading\" para que el modelo no se vaya a pintura digital suave. Nunca menciones grano de película, desenfoque ni lentes de cámara: eso no existe en este estilo."
+    }
+  ],
+  "scripts": [
+    {
+      "name": "puerto",
+      "fragments": [
+        {
+          "text": "Antes de que salga el sol, el puerto ya está despierto."
+        },
+        {
+          "text": "Los pescadores revisan las redes bajo la luz de los faroles."
+        },
+        {
+          "text": "Una grúa levanta cajas de hielo hacia el muelle."
+        },
+        {
+          "text": "El mercado abre sus puertas y el olor a café se mezcla con el del mar."
+        },
+        {
+          "text": "A las nueve, las calles se llenan de bicicletas."
+        },
+        {
+          "text": "Cuando el último barco zarpa, la ciudad recién empieza su día."
+        },
+        {
+          "text": "Y el faro se apaga con la primera luz."
+        }
+      ]
+    }
+  ],
+  "models": [
+    "openai/gpt-oss-120b-Ultra",
+    "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+    "deepseek-ai/DeepSeek-V4-Flash",
+    "deepseek-ai/DeepSeek-V4-Pro",
+    "anthropic/claude-haiku-4-5",
+    "openai/gpt-oss-120b-Turbo"
+  ]
+}

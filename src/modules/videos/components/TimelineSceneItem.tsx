@@ -19,7 +19,7 @@ interface TimelineSceneItemProps {
   transientStatus: SceneImageStatus | undefined
   // Último fallo de regeneración (clave i18n): velo rojo persistente + title.
   errorKey: string | undefined
-  // Animación en curso (ADR-0040), su avance y el último fallo (clave i18n).
+  // Animación en curso (ADR-0047), su avance y el último fallo (clave i18n).
   animationActivity: SceneAnimationActivity | undefined
   animationProgress: SceneAnimationProgress | undefined
   animationErrorKey: string | undefined

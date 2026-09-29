@@ -85,7 +85,7 @@ export interface Scene {
   // escenas se reescriben en las pasadas de recuperación.
   contentRejected?: boolean
   imageTask?: SceneImageTask
-  // Animación de la escena (ADR-0040). Presente solo en la escena que
+  // Animación de la escena (ADR-0047). Presente solo en la escena que
   // ENCABEZA un clip; la ruta del clip no se persiste, se deriva igual que la
   // de la imagen. Ausente = escena estática, que es como renderizan todos los
   // proyectos anteriores: sin estos campos el video sale byte-idéntico.
@@ -115,7 +115,7 @@ export interface SceneSummary {
   // Ruta absoluta para mostrarla vía convertFileSrc(); solo si existe.
   imagePath?: string
   imageStatus: SceneImageStatus
-  // Animación de la escena que encabeza un clip (ADR-0040); ausente en las
+  // Animación de la escena que encabeza un clip (ADR-0047); ausente en las
   // escenas estáticas. `absorbedBy` apunta a la que encabeza el clip que
   // cubre a esta: la UI la muestra plegada dentro de él.
   animation?: SceneAnimationView

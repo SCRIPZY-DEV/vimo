@@ -118,7 +118,14 @@ create table public.diagnostic_logs (
   events           jsonb not null default '[]',
   events_truncated boolean not null default false,
   created_at       timestamptz not null default now(),
-  constraint diagnostic_logs_events_size check (pg_column_size(events) < 524288)
+  seen             boolean not null default false,   -- revisada por soporte (enmienda 2026-09-23)
+  seen_at          timestamptz,                      -- cuándo se marcó
+  seen_by          text,                             -- correo del admin que marcó
+  constraint diagnostic_logs_events_size check (pg_column_size(events) < 524288),
+  constraint diagnostic_logs_seen_consistente check (
+    (seen and seen_at is not null and seen_by is not null)
+    or (not seen and seen_at is null and seen_by is null)
+  )
 );
 
 create index diagnostic_logs_email_created_idx on public.diagnostic_logs (user_email, created_at desc);
@@ -129,13 +136,15 @@ create index diagnostic_logs_created_idx       on public.diagnostic_logs (create
 
 alter table public.diagnostic_logs enable row level security;
 
--- Solo insertar filas propias. Sin select/update/delete para el cliente:
--- soporte lee desde el dashboard o con service role.
+-- El cliente solo inserta filas propias, y nunca ya marcadas como vistas. Sin
+-- select/update/delete para el cliente: soporte lee y marca «visto» desde el
+-- panel admin de vimo.click (service role, enmienda 2026-09-23).
 create policy diagnostic_logs_insert_own on public.diagnostic_logs
   for insert to authenticated
   with check (
     user_id = auth.uid()
     and user_email = lower(auth.jwt() ->> 'email')
+    and seen = false
   );
 
 -- Retención de 30 días (requiere la extensión pg_cron).
@@ -212,6 +221,15 @@ group by 1, 2 order by 3 desc;
 -- Filas sin identidad (debería tender a cero):
 select subcommand, count(*) from diagnostic_logs
 where project_name is null group by 1 order by 2 desc;
+
+-- Fallos todavía sin revisar por soporte, por usuario (el panel admin los marca):
+select user_email, count(*) from diagnostic_logs
+where status in ('failed', 'crashed', 'cancelled') and not seen
+group by 1 order by 2 desc;
+
+-- Marcar visto a mano (el check exige las tres columnas):
+update diagnostic_logs set seen = true, seen_at = now(), seen_by = '<correo>'
+where id = '<id>';
 ```
 
 Cada entrada de `events` tiene `t` (milisegundos desde el inicio del job) y las
@@ -247,6 +265,8 @@ claves de la allowlist:
   falla hacia el lado seguro, pero hay que acordarse.
 - ⚠️ Los `message` de proveedor incrustan hasta 300 caracteres de su respuesta;
   la redacción cubre claves y rutas, no contenido arbitrario.
+- ⚠️ La marca «visto» (`seen`, `seen_at`, `seen_by`) vive 30 días con la fila: no es
+  historial de auditoría. Si hiciera falta, iría a otra tabla.
 - 🔒 **Enmienda a ADR-0006:** el cliente de Supabase deja de ser exclusivo de
   `auth/api`; también lo importa `diagnostics/api`. Sigue prohibido en hooks,
   componentes y vistas.
@@ -266,7 +286,8 @@ claves de la allowlist:
   y se sube al reabrir.
 - **Fugas:** buscar en las filas las claves reales, `/Users/`, `C:\Users\` y texto
   del guion → cero coincidencias.
-- **RLS:** con otra cuenta autenticada, `select` sobre la tabla devuelve 0 filas.
+- **RLS:** con otra cuenta autenticada, `select` sobre la tabla devuelve 0 filas y
+  un `update … set seen = true` no toca ninguna.
 - **Cómo se vería una regresión:** filas con `imagePrompt` o rutas absolutas en
   `events`; archivos acumulándose en `<appLogDir>/diagnostics/`.
 
@@ -298,3 +319,60 @@ claves de la allowlist:
 - Un crash ya no queda con `error_code` vacío: `process_crashed`.
 - Los `log` warn/error que el emitter espeja a stderr entran una sola vez en `events`
   (se descarta la copia `sidecar-stderr` con prefijo `[warn] ` / `[error] `).
+
+## Enmienda 2026-09-23 — marca de revisión de soporte (`seen`)
+
+El panel de Diagnósticos de vimo.click necesitaba distinguir los fallos ya revisados
+de los nuevos: con 30 días de retención, la lista de un usuario activo mezcla lo
+recién llegado con lo ya triado. Tres columnas nuevas, un check y la policy de insert
+más estricta. Compatible en ambos sentidos: la app no las nombra, y la landing degrada
+con un aviso si la migración falta. Se puede aplicar antes o después del deploy de la
+landing; antes evita el aviso.
+
+```sql
+alter table public.diagnostic_logs
+  add column if not exists seen    boolean     not null default false,
+  add column if not exists seen_at timestamptz,
+  add column if not exists seen_by text;              -- correo del admin que marcó
+
+-- seen_at / seen_by van juntos con seen = true (marcar a mano exige las tres).
+alter table public.diagnostic_logs
+  add constraint diagnostic_logs_seen_consistente check (
+    (seen and seen_at is not null and seen_by is not null)
+    or (not seen and seen_at is null and seen_by is null)
+  );
+
+-- El cliente nunca manda `seen`; ahora tampoco podría (el default cubre el insert).
+alter policy diagnostic_logs_insert_own on public.diagnostic_logs
+  with check (
+    user_id = auth.uid()
+    and user_email = lower(auth.jwt() ->> 'email')
+    and seen = false
+  );
+
+-- PostgREST cachea el esquema: si tras el ALTER sigue sin ver `seen`, forzar.
+notify pgrst, 'reload schema';
+
+-- Opcional, solo si el filtro «Solo no vistos» del panel se nota lento:
+-- create index if not exists diagnostic_logs_sin_revisar_idx
+--   on public.diagnostic_logs (user_email, created_at desc) where seen = false;
+```
+
+Sin índice por defecto: el resumen por usuario filtra solo por `created_at`, y el
+listado de un usuario con `seen = false` ya usa `diagnostic_logs_email_created_idx`.
+
+- La tabla **deja de ser estrictamente insert-only por el lado admin**: la Pages
+  Function `PATCH /api/admin/diagnosticos` de vimo-landing actualiza `seen` /
+  `seen_at` / `seen_by` con service role (`seen_at` lo sella la Function: PostgREST
+  no puede llamar a `now()` en un PATCH). El cliente de escritorio sigue siendo
+  insert-only y no lee ni actualiza nada.
+- **La app no cambia**: no manda ni lee estas columnas; una app vieja contra la tabla
+  nueva funciona igual. No hace falta release.
+- Solo llevan checkbox las ejecuciones `failed`, `crashed` y `cancelled`
+  (`STATUS_REVISABLES` en `src/lib/diagnosticLogs.ts` de vimo-landing); el resumen por
+  usuario expone `sin_revisar` y el listado acepta `?seen=false`.
+- La marca es **efímera**: se borra con la fila a los 30 días. No es auditoría.
+- Rollback: `alter policy … with check (user_id = auth.uid() and user_email =
+lower(auth.jwt() ->> 'email'))`, `drop constraint diagnostic_logs_seen_consistente`,
+  `drop column seen_by, seen_at, seen` y `notify pgrst, 'reload schema'`.
+- Handoff: `docs/handoff/2026-09-23-diagnostic-logs-seen/implementation.md`.

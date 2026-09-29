@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { commonApi } from '@/modules/common/api'
 import { commonQueryKeys } from '@/modules/common/constants'
 
-// Saldos de los proveedores de animación (Kie.ai y PoYo, ADR-0040): el panel
+// Saldos de los proveedores de animación (Kie.ai y PoYo, ADR-0047): el panel
 // del editor, la alerta de saldo y el panel de reanudar. Espejo exacto de
 // useImageCredits: cada proveedor llega con su propio errorCode; uno caído
 // no oculta al otro.

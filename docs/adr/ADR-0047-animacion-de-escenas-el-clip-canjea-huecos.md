@@ -1,4 +1,6 @@
-# ADR-0040 — Animación de escenas: el clip canjea huecos, no los crea
+# ADR-0047 — Animación de escenas: el clip canjea huecos, no los crea
+
+> Identificador reasignado el 2026-09-29 al integrar dev: antes ADR-0040. Se conserva el contenido histórico; ADR-0040 pertenece a la política de beta de dev.
 
 - **Estado:** Reemplazada en duración, proveedores y planificación por [ADR-0042](ADR-0042-animacion-kie-por-intervalos-y-recibos.md) el 2026-09-14. Se conserva el principio de ocupar intervalos existentes.
 - **Fecha:** 2026-09-12

@@ -3,12 +3,12 @@
 - **Estado:** Reemplazada en redactor, planificación y representación por [ADR-0042](ADR-0042-animacion-kie-por-intervalos-y-recibos.md) el 2026-09-14. Los nuevos prompts usan guion y texto estático, sin visión.
 - **Fecha:** 2026-09-13
 - **Área:** pipeline | providers | app
-- **Extiende a:** [ADR-0040](ADR-0040-animacion-de-escenas-el-clip-canjea-huecos.md)
+- **Extiende a:** [ADR-0047](ADR-0047-animacion-de-escenas-el-clip-canjea-huecos.md)
   (el clip canjea huecos, el contrato con la app y el guard de tareas pagas).
 
 ## Problema
 
-La primera prueba real de ADR-0040 la hizo el dueño sobre un short de 15
+La primera prueba real de ADR-0047 la hizo el dueño sobre un short de 15
 escenas de 4,13 s y devolvió cuatro fallos que tienen una sola causa:
 
 1. Con PoYo, el clip quedó **solo sobre la escena marcada** (4 s, acelerado) y
@@ -66,7 +66,7 @@ del `<video>`. Lo que la persona ve antes de renderizar es lo que sale.
 
 ### 3. El prompt lo escribe un modelo que mira los fotogramas
 
-ADR-0040 dejó la visión afuera «por ahora» a pedido del dueño; probado el
+ADR-0047 dejó la visión afuera «por ahora» a pedido del dueño; probado el
 resultado, la pidió. El redactor (`pipeline/animation/prompt.ts`) es el
 generador del marco «6 · Prompts de animación» del tablero con dos cambios:
 
@@ -146,7 +146,7 @@ proveedor y el recorte en fin de oración no cambian.
   unos segundos más. Si la visión cae, nada se pierde: el texto escribe.
 - Los clips anteriores a esta ADR no tienen `strategy`: se leen como `merge` si
   cubren varias escenas y como `direct` si cubren una. Nada se migra.
-- ADR-0040 queda superada en dos puntos: la regla «entre dos agrupaciones igual
+- ADR-0047 queda superada en dos puntos: la regla «entre dos agrupaciones igual
   de buenas prefiere la más corta» y la alternativa «un modelo con visión —
   descartada por ahora».
 

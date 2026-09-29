@@ -389,7 +389,7 @@ function finishRegen(
   dispatchGenerations(projectId)
 }
 
-// ── Animación de escenas (ADR-0040) ──
+// ── Animación de escenas (ADR-0047) ──
 
 function setPendingVideoProvider(
   projectId: string,

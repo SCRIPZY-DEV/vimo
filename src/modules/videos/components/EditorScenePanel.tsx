@@ -62,7 +62,7 @@ interface EditorScenePanelProps {
   onImageChoiceChange(value: SceneImageChoice): void
   onCharactersChange(indexes: number[]): void
   onRegenerate(): void
-  // Animación de la escena (ADR-0040): proveedor, saldo, estado y acción.
+  // Animación de la escena (ADR-0047): proveedor, saldo, estado y acción.
   animation: SceneAnimationControls
 }
 

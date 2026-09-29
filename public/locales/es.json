@@ -529,7 +529,8 @@
       "demoNotReady": "La demo no está lista en esta computadora. Volvé a entrar por el botón Demo.",
       "demoStyleNotIncluded": "La demo no incluye este estilo. Elegí uno de los estilos que muestra la demo.",
       "demoFormatNotIncluded": "El pack de la demo instalado no trae historias en este formato. Volvé a entrar por el botón Demo para actualizarlo.",
-      "llmRescueNeeded": "El modelo elegido dejó escenas sin escribir y otro modelo las rescató.",
+      "llmRescueNeeded": "El modelo elegido dejó escenas sin escribir después de varios intentos. Reintentá con el mismo modelo o cambiá de modelo: lo ya escrito se conserva.",
+      "llmPromptLanguage": "Tu estilo le pide al modelo que escriba en otro idioma, pero los prompts de imagen salen siempre en inglés. Editá la gema del estilo, quitá esa instrucción y creá el video de nuevo: este proyecto guardó la gema tal como estaba.",
       "llmAuth": "DeepInfra rechazó tu clave de API. Revisala en Claves API: sin una clave válida no se pueden escribir los prompts.",
       "voiceInsufficientCredits": "Tu cuenta del proveedor de voz no tiene créditos suficientes para generar la narración.",
       "imageInsufficientCredits": "Tu cuenta del proveedor de imágenes se quedó sin saldo. Lo generado hasta acá se conserva.",
@@ -651,7 +652,7 @@
       "nameLabel": "Nombre del estilo",
       "namePlaceholder": "Ponele un nombre — así lo ves en la tarjeta",
       "promptLabel": "El estilo",
-      "promptPlaceholder": "Pegá acá el estilo visual completo (es el system prompt del modelo).\n\nDescribí cómo se ven las imágenes: trazo, colores, luz, encuadre, época, personaje.\n\nSi querés DINAMISMO, pedilo explícitamente y como obligación, no como sugerencia:\n  · \"Todo prompt debe empezar con uno de estos planos: ...\"\n  · \"Nunca repitas el mismo plano dos veces seguidas.\"\n  · \"Cambiá de lugar cuando la narración se mueve a otro lado.\"\n  · \"El texto dibujado en la imagen va en el idioma del guion.\"\n\nUn permiso no es una instrucción: lo que quieras que pase, escribilo como obligación.",
+      "promptPlaceholder": "Pegá acá el estilo visual completo (es el system prompt del modelo).\n\nDescribí cómo se ven las imágenes: trazo, colores, luz, encuadre, época, personaje.\n\nSi querés DINAMISMO, pedilo explícitamente y como obligación, no como sugerencia:\n  · \"Todo prompt debe empezar con uno de estos planos: ...\"\n  · \"Nunca repitas el mismo plano dos veces seguidas.\"\n  · \"Cambiá de lugar cuando la narración se mueve a otro lado.\"\n  · \"El texto dibujado en la imagen va en el idioma del guion.\"\n\nLos prompts de imagen salen siempre en inglés (el generador solo lee inglés): no le pidas al estilo que escriba en otro idioma.\n\nUn permiso no es una instrucción: lo que quieras que pase, escribilo como obligación.",
       "shotsLabel": "Planos permitidos",
       "shotsOptional": "(opcional)",
       "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
@@ -1093,10 +1094,8 @@
     "saliendo": "Saliendo...",
     "planActivoTitulo": "Suscripción activa",
     "planActivoDescripcion": "Tenés acceso completo a {{nombre}} sin restricciones. ¡Gracias por bancar el proyecto!",
-    "trialTitulo_one": "Te queda {{count}} día de prueba",
-    "trialTitulo_other": "Te quedan {{count}} días de prueba",
-    "trialDescripcion_one": "Después de ese día la suscripción pasa a $20 USD/mes. Te vamos a avisar antes de que se venza.",
-    "trialDescripcion_other": "Después de esos {{count}} días la suscripción pasa a $20 USD/mes. Te vamos a avisar antes de que se venza."
+    "accesoBetaTitulo": "Acceso completo durante la beta",
+    "accesoBetaDescripcion": "Mientras dure la beta usás {{nombre}} sin límite de tiempo ni cobro. Te vamos a avisar antes de cualquier cambio."
   },
   "costs": {
     "pageTitle": "Costos — Vimo",

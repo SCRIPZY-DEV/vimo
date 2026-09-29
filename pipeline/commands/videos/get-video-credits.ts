@@ -7,7 +7,7 @@ import type {
   VideoCreditsResult,
 } from '../../types/animation.ts'
 
-// Saldos de los proveedores de animación (ADR-0040), con la misma forma que
+// Saldos de los proveedores de animación (ADR-0047), con la misma forma que
 // get-image-credits: cada proveedor resuelve por separado y uno caído (o sin
 // clave) no tumba al otro — el resultado siempre completa.
 export async function getVideoCredits(

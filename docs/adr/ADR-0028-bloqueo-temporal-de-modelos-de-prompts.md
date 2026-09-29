@@ -135,6 +135,15 @@ Cómo se materializa:
   con código del proveedor durante la fase tampoco entra al reintento automático:
   abre la misma decisión. La traba de 2 minutos sí deja «seguir esperando»: ahí el
   modelo puede estar escribiendo.
+- **La gema pide los prompts en otro idioma (`llm_prompt_language`).** No es culpa del
+  modelo: la gema del usuario le pide español (o lo obedece por encima de la regla de
+  idioma de ADR-0019) y ningún modelo lo arregla. El redactor corta en una ronda (dos
+  pedidos) en vez de recorrer la escalera y el rescate; el código **no** está en
+  `PROVIDER_TROUBLE_CODES` (no bloquea, no abre el diálogo) y la tarjeta no ofrece
+  «Cambiar de modelo» (`STYLE_GEM_ERROR_CODES`): el remedio es editar la gema. Antes
+  (incidente 2026-09-22) este caso quemaba ~22 llamadas, llegaba al rescate, el halt de
+  arriba lo cancelaba y bloqueaba al modelo; «Cambiar de modelo» bloqueaba al siguiente.
+  Ver [fix](../fixes/2026-09-22-fix-verbatim-prompt-language/verbatim-prompt-language.md).
 
 ## Fuera de alcance
 
