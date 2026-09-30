@@ -1,5 +1,6 @@
 import { runPipelineJob } from '@/modules/common/fetcher/pipeline'
 import { isNative } from '@/modules/common/utilities/isNative'
+import type { VideoCreditsResult } from '@pipeline/types/animation.ts'
 import type { ListPromptModelsResult } from '@pipeline/types/llm-models.ts'
 import type { ImageCreditsResult } from '@pipeline/types/video-project.ts'
 import type {
@@ -29,5 +30,8 @@ export const commonApi = {
   },
   async getImageCredits(): Promise<ImageCreditsResult> {
     return runPipelineJob<ImageCreditsResult>('get-image-credits')
+  },
+  async getVideoCredits(): Promise<VideoCreditsResult> {
+    return runPipelineJob<VideoCreditsResult>('get-video-credits')
   },
 }

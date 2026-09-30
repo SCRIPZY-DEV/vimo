@@ -7,6 +7,7 @@ import {
   Clapperboard,
   FolderOpen,
   Mic,
+  Loader2,
   Music2,
   PlayCircle,
   RefreshCw,
@@ -24,6 +25,7 @@ import { ProgressStatusPill } from '@/modules/videos/components/ProgressStatusPi
 import { PromptModelIssueDialog } from '@/modules/videos/components/PromptModelIssueDialog'
 import { PromptStageWatchdog } from '@/modules/videos/components/PromptStageWatchdog'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
+import { PipelineAnimationPanel } from '@/modules/videos/components/PipelineAnimationPanel'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
@@ -113,6 +115,17 @@ export function GenerationProgress({
   const generating = !finished && !failed
   const completed = task.completedStages
   const voice = task.voiceProgress
+  const hasAnimation = Boolean(
+    task.automaticAnimation ||
+    task.confirmation?.animationMinutes ||
+    task.stage === 'animation' ||
+    task.scenes.some((scene) => scene.animationRequestedSeconds !== undefined),
+  )
+  const showAnimationPanel =
+    hasAnimation &&
+    (task.stage === 'animation' ||
+      task.scenes.some((scene) => scene.animationActivity !== undefined) ||
+      completed.includes('animation'))
 
   // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
   // disco y `stage` es null hasta el primer evento del job.
@@ -148,14 +161,18 @@ export function GenerationProgress({
       !generating)
   // La fase en la que se cayó el job: la primera sin completar.
   const failedStage = failed
-    ? (PIPELINE_STAGES.find((stage) => !completed.includes(stage.id))?.id ??
-      null)
+    ? (PIPELINE_STAGES.find(
+        (stage) =>
+          (stage.id !== 'animation' || hasAnimation) &&
+          !completed.includes(stage.id),
+      )?.id ?? null)
     : null
   // Rescate por el editor: un fallo de imágenes, o un código que deja el
   // proyecto reparable desde ahí aunque la fase caída sea otra (el render sin
   // imágenes cae en `render` con todo lo demás en disco).
   const editorRescue =
     failedStage === 'images' ||
+    failedStage === 'animation' ||
     (task.errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(task.errorCode))
   // Solo el carril verbatim tiene un modelo elegible que cambiar — y no
   // cuando la culpa es de la gema: cambiar de modelo repetiría el fallo.
@@ -236,6 +253,7 @@ export function GenerationProgress({
           </h2>
           <StageBar
             currentStage={task.stage}
+            showAnimation={hasAnimation}
             completedStages={completed}
             paused={paused}
             recovery={recovery}
@@ -254,6 +272,15 @@ export function GenerationProgress({
         {/* `min-w-0`: sin esto la columna 1fr usa su min-content como mínimo y
             un mensaje largo la ensancha más allá del viewport. */}
         <div className="min-w-0 space-y-6">
+          {task.status === 'creating' && (
+            <div
+              role="status"
+              className="flex items-center gap-3 rounded-xl border-2 border-saffron/30 bg-saffron/5 p-6 font-display font-semibold"
+            >
+              <Loader2 className="h-5 w-5 animate-spin text-saffron" />
+              {t('create.progress.startingTitle')}
+            </div>
+          )}
           {/* Va arriba de todo: el pipeline está detenido esperándolo. */}
           {secondsLane && task.confirmation && (
             <SecondsPerSceneStep
@@ -388,6 +415,8 @@ export function GenerationProgress({
                 domain: task.creditsIssue.domain,
                 imageProvider: task.imageProvider,
                 voiceVendor: task.voiceVendor,
+                // Las animaciones automáticas también usan el saldo de Kie.
+                videoProvider: 'kie',
               }}
               onRetry={onRetryPipeline}
               onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
@@ -412,6 +441,7 @@ export function GenerationProgress({
           {showPromptsPanel && (
             <PromptsGrid
               scenes={rewritingScenes}
+              complete={completed.includes('scene-prompts') && !rewriting}
               written={
                 rewriting
                   ? {
@@ -421,6 +451,16 @@ export function GenerationProgress({
                   : task.promptsWritten
               }
               recovery={rewriting ? recovery : null}
+            />
+          )}
+
+          {showAnimationPanel && (
+            <PipelineAnimationPanel
+              scenes={task.scenes}
+              endSeconds={task.animationEndSeconds}
+              videoFormat={task.videoFormat}
+              active={generating && task.stage === 'animation'}
+              complete={completed.includes('animation')}
             />
           )}
 

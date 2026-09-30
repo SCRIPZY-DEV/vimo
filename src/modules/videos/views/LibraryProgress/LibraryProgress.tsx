@@ -1,3 +1,4 @@
+import { effectiveAnimationMinutes } from '@pipeline/animation/scope.ts'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
@@ -180,6 +181,10 @@ export function LibraryProgress() {
       suggestedScenes: metadata.sceneCount ?? status.scenes.length,
       audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
       wordCount: metadata.wordCount ?? 0,
+      animationMinutes: effectiveAnimationMinutes(
+        metadata.options,
+        metadata.audioDurationSeconds ?? 0,
+      ),
       ...(metadata.options.customStyle &&
       metadata.options.secondsPerScene !== undefined
         ? { secondsPerScene: metadata.options.secondsPerScene }

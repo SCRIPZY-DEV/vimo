@@ -237,3 +237,72 @@ fija la duración). Prompt, modelo, calidad y personajes solo afectan a la
 próxima regeneración, y ese job ya marca por su cuenta cuando una imagen
 cambia de verdad. Además, el pipeline completo con auto-render limpia el flag
 al terminar, igual que `render-video`.
+
+## Adenda 2026-09-17 — lotes directos desde galería
+
+Por petición del usuario, la galería ejecuta regeneración y animación en su lugar
+de revisión. Se retira la cola humana que navegaba entre escenas. El modal conserva
+solo selección y descripciones; el store sigue siendo dueño de los trabajos.
+Un input vacío reutiliza el prompt; uno no vacío guarda `userPrompt` y encola
+`rewritePrompt: true`. La mutación recibe `projectId` como variable explícita,
+incluida la invalidación, para no redirigir callbacks pendientes al cambiar ruta.
+
+**Regla reemplazada por la adenda 2026-09-29 para regeneración desde galería.**
+La galería guardaba todas las descripciones bajo una reserva local `savingScenes`:
+se adquiere síncronamente antes del primer await de escritura, bloquea trabajos
+competidores y se libera en finally. Las imágenes se encolan bajo esa reserva y
+se despachan al liberarla. No se modifica la lease, el contrato ni los escritores
+del sidecar. Los guardados previos del panel impiden iniciar esa reserva.
+
+```mermaid
+flowchart LR
+    galeria["Galería"] -->|"confirma IDs y descripciones · callback"| hook["Hook del editor"]
+    hook -->|"reserva y encola · store"| store["Store por proyecto"]
+    hook -->|"guarda descripción · API existente"| api["API videos"]
+    store -->|"despacha tras liberar reserva · API existente"| api
+    store -.->|"publica progreso · suscripción React"| galeria
+```
+
+**Fallo y verificación:** guardar falla → no se genera y se conservan los inputs;
+aceptar encolado → selección limpia, progreso independiente. Cerrar el modal no
+cancela jobs. Las animaciones se planifican como una selección conjunta, incluidos
+clips fusionados pendientes, y usan la concurrencia y recibos de ADR-0042. Validar
+un lote mixto de prompts, doble clic, guardado lento, cambio de proyecto, saldo
+insuficiente, fusión y cierre/reapertura; pasos y evidencia en
+[el fix de galería directa](../../fixes/2026-09-17_direct-gallery-actions.md).
+
+## Adenda 2026-09-29 — admitir trabajos disjuntos sin escritores simultáneos
+
+Por petición del usuario se permite enviar nuevos lotes de imágenes o clips mientras
+otros trabajan. Se mantiene el store existente por proyecto y los mismos comandos
+del sidecar. La admisión reserva las fuentes y conserva una instantánea del prompt
+y proveedor; el guardado se realiza al obtener turno, antes de regenerar. Las
+ediciones exclusivas (deshacer, audio y exportación) siguen usando sus reservas.
+
+```mermaid
+flowchart LR
+    gallery["Galería o panel del editor"] -->|"reserva fuentes e intención · callback"| store["Store del editor por proyecto"]
+    store -->|"ordena turnos compatibles · llamada local"| dispatch["Despacho de imágenes y animaciones"]
+    dispatch -->|"guarda descripciones y regenera · API existente"| api["API videos"]
+    dispatch -->|"anima fuentes reservadas · API existente"| api
+    api -.->|"notifica resultados · eventos existentes"| store
+    store -.->|"actualiza progreso por escena · suscripción React"| gallery
+```
+
+**Contratos:** una fuente no admite dos trabajos superpuestos, incluidas las dos
+imágenes de un clip fusionado y los recibos de envío incierto. Los clips conservan
+sus carriles concurrentes y cuotas. Un lote de imágenes espera a los clips activos;
+solicitudes más nuevas no lo adelantan indefinidamente. Solo el lote activo guarda
+sus descripciones. Un identificador por solicitud impide que eventos o handles
+atrasados se adjudiquen al lote siguiente.
+
+**Fallo:** si guardar falla, no se llama al generador; se conserva la descripción
+para reintentar. Cancelar durante ese guardado evita iniciar después el job.
+Cerrar la galería o cambiar de ruta conserva los encargos en memoria; cerrar la
+aplicación no ofrece persistencia de los trabajos todavía no enviados. Una tarea
+con recibo pendiente o incierto mantiene sus fuentes bloqueadas hasta resolverse.
+
+**Motivo y validación:** admitir trabajo no equivale a escribir simultáneamente.
+Se elimina el bloqueo global de la galería sin alterar las leases, el contrato del
+sidecar, la planificación de tiempos ni las cuotas. Ver
+[el fix de selección y cola](../../fixes/2026-09-29_gallery-selection-and-queue.md).

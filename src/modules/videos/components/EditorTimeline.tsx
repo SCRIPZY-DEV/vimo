@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Film, Mic, Minus, Music2, Plus } from 'lucide-react'
+import { ArrowLeftRight, Film, Mic, Minus, Music2, Plus } from 'lucide-react'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { formatTime } from '@/modules/common/utilities/formatTime'
+import { TimelineClipItem } from '@/modules/videos/components/TimelineClipItem'
 import { TimelineSceneItem } from '@/modules/videos/components/TimelineSceneItem'
 import { TimelineWaveform } from '@/modules/videos/components/TimelineWaveform'
+import { timelineTransitionFrames } from '@/modules/videos/utilities/timelineTransitionFrames'
 import {
   AUTOSCROLL_EDGE_PX,
   AUTOSCROLL_MANUAL_PAUSE_MS,
@@ -22,18 +24,38 @@ import {
 } from '@/modules/videos/constants'
 import { useAudioPeaks } from '@/modules/videos/hooks/useAudioPeaks'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
+import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import {
+  firstSceneOf,
+  lastSceneOf,
+  timelineBlocks,
+} from '@/modules/videos/utilities/timelineBlocks'
+import type {
+  SceneAnimationActivity,
+  SceneAnimationFailure,
+  SceneAnimationProgress,
+} from '@/modules/videos/types/library'
+import type { SceneImageReviewRequest } from '@/modules/videos/types/sceneImageReview'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 
 interface EditorTimelineProps {
   scenes: SceneDetail[]
+  timingBusy: boolean
   durationSeconds: number
   playheadSeconds: number
   selectedSceneId: number | null
+  revealScene?: SceneImageReviewRequest
   sceneStatus: Record<number, SceneImageStatus>
   // Motivo (clave i18n) del último fallo de regeneración por escena.
   sceneErrors: Record<number, string>
   sceneVersions: Record<number, number>
+  // Animación en curso y último fallo de animación por escena (ADR-0047).
+  sceneAnimationStatus: Record<number, SceneAnimationActivity>
+  sceneAnimationProgress: Record<number, SceneAnimationProgress>
+  sceneAnimationErrors: Record<number, SceneAnimationFailure>
+  // Escenas que absorbería el clip de la escena seleccionada (ADR-0041).
+  plannedSceneIds: number[]
   narrationSrc: string | null
   musicSrc: string | null
   zoomIndex: number
@@ -66,12 +88,18 @@ interface EditorTimelineProps {
 // origen (que pintaba barras planas).
 export function EditorTimeline({
   scenes,
+  timingBusy,
   durationSeconds,
   playheadSeconds,
   selectedSceneId,
+  revealScene,
   sceneStatus,
   sceneErrors,
   sceneVersions,
+  sceneAnimationStatus,
+  sceneAnimationProgress,
+  sceneAnimationErrors,
+  plannedSceneIds,
   narrationSrc,
   musicSrc,
   zoomIndex,
@@ -113,6 +141,9 @@ export function EditorTimeline({
   )
   const totalWidth = Math.max(duration * pxPerSecond + 16, viewportWidth)
   const tracksHeight = TIMELINE_RULER_HEIGHT + 3 * TIMELINE_TRACK_HEIGHT
+  // Un clip que cubre varias escenas es UN bloque del largo del hueco entero
+  // (ADR-0041); las fronteras arrastrables quedan solo entre bloques.
+  const blocks = timelineBlocks(timedScenes, sceneAnimationProgress)
 
   const xOfSeconds = (seconds: number) => seconds * pxPerSecond
   const markManualInteraction = () => {
@@ -183,6 +214,19 @@ export function EditorTimeline({
       })
     }
   }, [playheadSeconds, pxPerSecond, viewportWidth])
+
+  // Un salto explícito desde la galería debe verse incluso si el usuario
+  // acaba de scrollear manualmente. No cambia el reloj ni el follow-playhead.
+  const revealStart = scenes.find(
+    (scene) => scene.id === revealScene?.sceneId,
+  )?.startSeconds
+  useEffect(() => {
+    if (!revealScene || revealStart === undefined) return
+    scrollRef.current?.scrollTo({
+      left: Math.max(0, revealStart * pxPerSecond - viewportWidth * 0.25),
+      behavior: 'instant',
+    })
+  }, [revealScene, revealStart, pxPerSecond, viewportWidth])
 
   // ── Drag del playhead (seek sin play) con autoscroll por borde ──
 
@@ -259,6 +303,7 @@ export function EditorTimeline({
     left: SceneDetail,
     right: SceneDetail,
   ) => {
+    if (timingBusy || animationTimingLocked(scenes, [left.id, right.id])) return
     event.preventDefault()
     event.stopPropagation()
     markManualInteraction()
@@ -466,42 +511,104 @@ export function EditorTimeline({
               style={{ top: trackTop(0), height: TIMELINE_TRACK_HEIGHT }}
               className="absolute left-0 w-full border-b border-border/50"
             >
-              {timedScenes.map((scene, index) => {
-                const left = xOfSeconds(scene.startSeconds ?? 0)
-                const width = Math.max(
-                  xOfSeconds(scene.endSeconds ?? 0) - left,
-                  4,
-                )
-                const next = timedScenes[index + 1]
+              {blocks.map((block, index) => {
+                const left = xOfSeconds(block.startSeconds)
+                const width = Math.max(xOfSeconds(block.endSeconds) - left, 4)
+                const next = blocks[index + 1]
+                const key =
+                  block.kind === 'clip'
+                    ? `clip-${block.id}`
+                    : `scene-${block.scene.id}-${block.startSeconds}`
                 return (
                   <div
-                    key={scene.id}
+                    key={key}
                     style={{ left, width }}
                     className="absolute top-0 h-full"
                   >
-                    <TimelineSceneItem
-                      scene={scene}
-                      selected={scene.id === selectedSceneId}
-                      transientStatus={sceneStatus[scene.id]}
-                      errorKey={sceneErrors[scene.id]}
-                      version={sceneVersions[scene.id]}
-                      onSelect={() => onSelectScene(scene.id)}
-                    />
-                    {next && (
-                      <div
-                        role="separator"
-                        aria-label={t('library.editor.timeline.boundary')}
-                        {...NO_SEEK_PROPS}
-                        onMouseDown={(event) =>
-                          startBoundaryDrag(event, scene, next)
+                    {block.kind === 'clip' ? (
+                      <TimelineClipItem
+                        block={block}
+                        selected={block.scenes.some(
+                          (scene) => scene.id === selectedSceneId,
+                        )}
+                        progress={sceneAnimationProgress[block.lead.id]}
+                        errorKey={sceneAnimationErrors[block.lead.id]?.key}
+                        versions={sceneVersions}
+                        onSelect={() => onSelectScene(block.lead.id)}
+                      />
+                    ) : (
+                      <TimelineSceneItem
+                        scene={block.scene}
+                        selected={block.scene.id === selectedSceneId}
+                        transientStatus={sceneStatus[block.scene.id]}
+                        errorKey={sceneErrors[block.scene.id]}
+                        animationActivity={sceneAnimationStatus[block.scene.id]}
+                        animationProgress={
+                          sceneAnimationProgress[block.scene.id]
                         }
-                        className="absolute -right-1.5 top-0 z-30 h-full w-3 cursor-ew-resize hover:bg-saffron/50"
+                        animationErrorKey={
+                          sceneAnimationErrors[block.scene.id]?.key
+                        }
+                        planned={plannedSceneIds.includes(block.scene.id)}
+                        version={sceneVersions[block.scene.id]}
+                        onSelect={() => onSelectScene(block.scene.id)}
                       />
                     )}
+                    {next &&
+                      !timingBusy &&
+                      lastSceneOf(block).id !== firstSceneOf(next).id &&
+                      !animationTimingLocked(scenes, [
+                        lastSceneOf(block).id,
+                        firstSceneOf(next).id,
+                      ]) && (
+                        <div
+                          role="separator"
+                          aria-label={t('library.editor.timeline.boundary')}
+                          {...NO_SEEK_PROPS}
+                          onMouseDown={(event) =>
+                            startBoundaryDrag(
+                              event,
+                              lastSceneOf(block),
+                              firstSceneOf(next),
+                            )
+                          }
+                          className="absolute -right-1.5 top-0 z-30 h-full w-3 cursor-ew-resize hover:bg-saffron/50"
+                        />
+                      )}
                   </div>
                 )
               })}
             </div>
+
+            {/* Marcadores de fundido: no interceptan selección ni fronteras. */}
+            {timelineBlocks(timedScenes, {}).map(
+              (block, index, visualBlocks) => {
+                const previous = visualBlocks[index - 1]
+                if (
+                  !previous ||
+                  timelineTransitionFrames(previous, block) === 0
+                )
+                  return null
+                return (
+                  <span
+                    key={'transition-' + block.startSeconds}
+                    role="img"
+                    aria-label={t('library.editor.transitions.marker', {
+                      from: lastSceneOf(previous).id,
+                      to: firstSceneOf(block).id,
+                    })}
+                    data-transition-start={block.startSeconds}
+                    style={{
+                      left: xOfSeconds(block.startSeconds) - 9,
+                      top: trackTop(0) + TIMELINE_TRACK_HEIGHT / 2 - 10,
+                    }}
+                    className="pointer-events-none absolute z-20 flex h-5 w-[18px] items-center justify-center rounded border border-violet-200 bg-violet-600 text-[11px] font-bold text-white shadow-sm"
+                  >
+                    <ArrowLeftRight aria-hidden className="h-3 w-3" />
+                  </span>
+                )
+              },
+            )}
 
             {/* Pista A1: narración */}
             <div

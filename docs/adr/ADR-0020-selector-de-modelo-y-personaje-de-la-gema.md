@@ -8,6 +8,12 @@
   [ADR-0019](ADR-0019-carril-verbatim-y-segundos-por-escena.md) (selector de
   modelo, personaje declarado por la gema).
 
+> Actualización 2026-09-27: [ADR-0044](ADR-0044-oferta-de-redactores-validada.md)
+> limita la oferta y ejecución elegible a V4 Pro/Haiku, cambia el predeterminado
+> y sustituye IDs ocultos/desconocidos al ejecutar. Las descripciones históricas
+> de catálogo/default y compatibilidad de esta ADR quedan reemplazadas en ese
+> alcance; persistencia de preferencias y contratos siguen vigentes.
+
 ## Problema
 
 El carril verbatim de ADR-0019 dejó el catálogo LLM y el cliente listos, pero

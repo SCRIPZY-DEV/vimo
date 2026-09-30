@@ -35,8 +35,52 @@ import type { LlmModelProfile } from '../../types/llm-models.ts'
 //  - gemini-2.0-flash-001: respondía perfecto pero está DEPRECADO desde
 //    2026-02: «responde 200» no prueba que un modelo esté vigente.
 //
+// Las cifras anteriores son históricas. Validación 2026-09-28: V4.1 Flash
+// ofrece mejor equilibrio de tiempo/costo y conserva Haiku como alternativa.
+// MiMo Flash usa `none`: el razonamiento por defecto agotó la salida en las
+// pruebas. V4 Pro queda técnico para el revisor temporal, fuera del selector.
+// No se alteran los perfiles de previews/Catálogo ni la configuración de guion.
+// ADR-0044: la redacción elegible y sus rescates usan solo perfiles ofrecidos.
 // El ORDEN del array es el que ve el usuario en el selector.
 export const MODEL_CATALOG: readonly LlmModelProfile[] = [
+  {
+    id: 'deepseek-ai/DeepSeek-V4.1-Flash',
+    label: 'DeepSeek V4.1 Flash',
+    author: 'DeepSeek',
+    speed: 'fast',
+    tokensField: 'max_tokens',
+    outputTokensMargin: 3000,
+    // Tarifa regular conservadora; la promoción temporal no se garantiza.
+    pricing: { input: 0.2, output: 0.6 },
+    outputFactor: 0.85,
+    inCatalog: true,
+    inUi: true,
+  },
+  {
+    id: 'XiaomiMiMo/MiMo-V2.6-Flash',
+    label: 'MiMo V2.6 Flash',
+    author: 'Xiaomi',
+    speed: 'fast',
+    tokensField: 'max_tokens',
+    reasoningEffort: 'none',
+    outputTokensMargin: 3000,
+    pricing: { input: 0.14, output: 0.28 },
+    outputFactor: 0.85,
+    inCatalog: true,
+    inUi: false,
+  },
+  {
+    id: 'deepseek-ai/DeepSeek-V4-Pro',
+    label: 'DeepSeek V4 Pro',
+    author: 'DeepSeek',
+    speed: 'medium',
+    tokensField: 'max_tokens',
+    outputTokensMargin: 3000,
+    pricing: { input: 1.3, output: 2.6 },
+    outputFactor: 0.85,
+    inCatalog: true,
+    inUi: false,
+  },
   {
     id: 'openai/gpt-oss-120b-Ultra',
     label: 'GPT o4-mini ULTRA',
@@ -53,10 +97,10 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     // de escribir y ese razonamiento se factura como salida. Medido 5 veces
     // (15 escenas): 1,69× a 2,33×, media 1,93×. Se deja en 2 porque el
     // simulador se equivoca del lado caro a propósito, y porque es el modelo
-    // que viene elegido: si alguna cifra tiene que estar bien, es esta.
+    // que entonces venía elegido; se conserva la calibración histórica.
     outputFactor: 2,
     inCatalog: true,
-    inUi: true,
+    inUi: false,
   },
   {
     id: 'Qwen/Qwen3-235B-A22B-Instruct-2507',
@@ -87,7 +131,7 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     // medidas. Escribe escenas más cortas, pero completas.
     outputFactor: 0.6,
     inCatalog: true,
-    inUi: true,
+    inUi: false,
   },
   {
     id: 'deepseek-ai/DeepSeek-V4-Flash',
@@ -101,19 +145,7 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     pricing: { input: 0.09, output: 0.18 },
     outputFactor: 0.85,
     inCatalog: true,
-    inUi: true,
-  },
-  {
-    id: 'deepseek-ai/DeepSeek-V4-Pro',
-    label: 'DeepSeek V4 Pro',
-    author: 'DeepSeek',
-    speed: 'medium',
-    tokensField: 'max_tokens',
-    outputTokensMargin: 3000,
-    pricing: { input: 1.3, output: 2.6 },
-    outputFactor: 0.85,
-    inCatalog: true,
-    inUi: true,
+    inUi: false,
   },
   {
     id: 'anthropic/claude-haiku-4-5',
@@ -146,7 +178,8 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     inCatalog: true,
     // FUERA de la UI (v1.5.0 del origen): por DeepInfra vive ocupado — 429
     // «model busy» crónico, medido 10/10 en hora pico. Se CONSERVA en catálogo
-    // para que un proyecto viejo que lo eligió siga corriendo con su perfil.
+    // para identificarlo y para políticas internas. Desde ADR-0044, la
+    // redacción elegible de un proyecto antiguo se resuelve al predeterminado.
     inUi: false,
   },
   {
@@ -165,10 +198,10 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     // haberlo medido 5 veces y no una.
     outputFactor: 1.3,
     inCatalog: true,
-    // Entra a la UI sabiendo el dato medido: devuelve 14/15 escenas en 4 de 6
+    // Históricamente entró a la UI: devuelve 14/15 escenas en 4 de 6
     // corridas — la escalera de reintentos del motor lo absorbe (lotes de 5 y
     // de 1). Decisión explícita del origen (v1.6.0).
-    inUi: true,
+    inUi: false,
   },
 ]
 
@@ -189,14 +222,9 @@ export const DEFAULT_LLM_MODEL_ID = MODEL_CATALOG[0]!.id
  * repetir el intento que ya falló.
  */
 export const RESCUE_MODEL_ORDER: readonly string[] = [
-  // El que más varía los planos (10 encuadres distintos en 15 escenas) y el
-  // más lejano a los o4-mini, que es de donde va a venir casi todo rescate.
-  'deepseek-ai/DeepSeek-V4-Pro',
-  // Para cuando el elegido YA es un DeepSeek: el que mejor escribe de la lista.
+  // Rescates entre familias aprobadas; nunca vuelve a un perfil oculto.
+  'deepseek-ai/DeepSeek-V4.1-Flash',
   'anthropic/claude-haiku-4-5',
-  // Red de seguridad, por si alguna vez se retiran los dos de arriba.
-  'meta-llama/Llama-4-Scout-17B-16E-Instruct',
-  'openai/gpt-oss-120b-Ultra',
 ]
 
 /**
@@ -223,7 +251,7 @@ export function rescueModelFor(chosenId: string): LlmModelProfile | undefined {
   for (const id of RESCUE_MODEL_ORDER) {
     if (modelFamily(id) === chosenFamily) continue
     const profile = modelProfile(id)
-    if (!profile.inCatalog || profile.retired) continue
+    if (!profile.inCatalog || !profile.inUi || profile.retired) continue
     return profile
   }
   return undefined
@@ -231,10 +259,10 @@ export function rescueModelFor(chosenId: string): LlmModelProfile | undefined {
 
 /**
  * Perfil deducido por FAMILIA para un id que no está en el catálogo. En el
- * origen existía por los overrides de `.env`; acá queda como red de seguridad
- * para un `project.json` editado a mano o venido de otra versión: degradarlo
- * en silencio al modelo de la casa sería peor que intentarlo. Lo que NO se
- * hace es adivinar `reasoning_effort`: cada familia acepta un enum distinto.
+ * origen existía por los overrides de `.env`; acá permite identificar un
+ * pedido desconocido para informar su sustitución. `resolveVerbatimModel`
+ * nunca lo ejecuta: la redacción elegible requiere pertenecer a la oferta.
+ * No se adivina `reasoning_effort`: cada familia acepta un enum distinto.
  */
 function genericProfile(id: string): LlmModelProfile {
   return {
@@ -251,10 +279,10 @@ function genericProfile(id: string): LlmModelProfile {
 }
 
 /**
- * Resuelve el perfil con el que se arma la petición. NUNCA lanza: un proyecto
- * viejo, o un modelo que el proveedor retire, no puede dejar al usuario sin
- * poder generar. Id vacío → modelo de la casa; id del catálogo → su perfil;
- * id desconocido → perfil genérico por familia.
+ * Perfil técnico, también usado por políticas internas de previews/Catálogo.
+ * No decide qué modelos puede elegir un proyecto: eso corresponde a
+ * `resolveVerbatimModel`. Id vacío → predeterminado; desconocido → perfil
+ * genérico solo para identificarlo, nunca para ofrecerlo en un selector.
  */
 export function modelProfile(id: string | null | undefined): LlmModelProfile {
   const requested = typeof id === 'string' ? id.trim() : ''
@@ -270,7 +298,7 @@ export interface ResolvedVerbatimModel {
   profile: LlmModelProfile
   /**
    * Presente cuando el pedido del proyecto se degradó al modelo de la casa
-   * (hoy, solo por retiro). Quien llama lo anuncia por el canal de eventos
+   * (oculto, retirado o desconocido). Quien llama lo anuncia por los eventos
    * del job — preferimos un renglón visible antes que un cambio callado de
    * modelo; en el sidecar no hay `console`: stdout es el canal NDJSON.
    */
@@ -278,9 +306,10 @@ export interface ResolvedVerbatimModel {
 }
 
 /**
- * El modelo que corre de verdad: el elegido en el proyecto, salvo que esté
- * retirado — un modelo retirado no corre aunque el proyecto lo pida, se
- * degrada al de la casa y se informa el motivo verdadero.
+ * La oferta también gobierna la ejecución del redactor elegible: un modelo
+ * oculto, retirado o desconocido de un proyecto antiguo se sustituye por el
+ * predeterminado con aviso. No reescribe preferencias ni artefactos pagados.
+ * Los servicios internos con política propia consultan `modelProfile`.
  */
 export function resolveVerbatimModel(chosenId?: string): ResolvedVerbatimModel {
   const fallback = MODEL_CATALOG[0]!
@@ -288,12 +317,15 @@ export function resolveVerbatimModel(chosenId?: string): ResolvedVerbatimModel {
   if (!requested) return { profile: fallback }
 
   const profile = modelProfile(requested)
-  if (profile.retired) return { profile: fallback, degradedFrom: profile }
+  if (!profile.inCatalog || !profile.inUi || profile.retired)
+    return { profile: fallback, degradedFrom: profile }
 
   return { profile }
 }
 
 /** Lo que se le OFRECE al usuario en el selector (rama del selector, B3). */
 export function offeredModels(): LlmModelProfile[] {
-  return MODEL_CATALOG.filter((model) => model.inUi && !model.retired)
+  return MODEL_CATALOG.filter(
+    (model) => model.inCatalog && model.inUi && !model.retired,
+  )
 }

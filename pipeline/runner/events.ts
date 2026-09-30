@@ -1,5 +1,7 @@
 import type { JsonValue } from '../types/json.ts'
+import type { SceneAnimationView } from '../types/animation.ts'
 import type { SceneSummary } from '../types/scenes.ts'
+import type { VideoProviderId } from '../types/video-provider.ts'
 import type { VoiceProviderId } from '../types/voices.ts'
 import type { StageId } from './stage-id.ts'
 
@@ -51,6 +53,8 @@ export interface ScenesPlannedEvent {
   type: 'scenes-planned'
   scenes: SceneSummary[]
   audioDurationSeconds: number
+  // Fin real de la animación automática; no modifica los cortes de imágenes.
+  animationEndSeconds?: number
 }
 
 // Una escena ya tiene su prompt de imagen (Fase 4, incremental).
@@ -128,6 +132,64 @@ export interface SceneImageProgressEvent {
   status: string
 }
 
+// ─── Eventos de la animación de escenas (ADR-0047, `animate-scenes`) ───
+// Espejo de los eventos de imagen: `sceneId` es siempre la escena que
+// ENCABEZA el clip; `sceneIds` son todas las que cubre, para que la UI pinte
+// el bloque entero y no solo la marcada.
+
+export interface SceneAnimationStartedEvent {
+  type: 'scene-animation-started'
+  sceneId: number
+  sceneIds: number[]
+  attempt: number
+  animationId?: string
+  startSeconds?: number
+  endSeconds?: number
+}
+
+// Progreso de un clip en curso. Solo PoYo informa porcentaje; con Kie viaja
+// el estado y el tiempo transcurrido, y la UI simula el avance por tiempo.
+export interface SceneAnimationProgressEvent {
+  type: 'scene-animation-progress'
+  sceneId: number
+  percent?: number
+  status: string
+  elapsedSeconds: number
+  attempt?: number
+  maxAttempts?: number
+  retryPhase?: 'prompt' | 'video' | 'upload'
+}
+
+export interface SceneAnimationReadyEvent {
+  type: 'scene-animation-ready'
+  sceneId: number
+  sceneIds: number[]
+  // Ruta absoluta; la UI la muestra vía convertFileSrc().
+  clipPath: string
+  // Lo que el proveedor dice haber cobrado por este clip, si lo informa.
+  creditsConsumed?: number
+  animation?: SceneAnimationView
+}
+
+export interface SceneAnimationFailedEvent {
+  type: 'scene-animation-failed'
+  sceneId: number
+  // Clave estable para i18n, como el code de job-failed.
+  code: string
+  // Detalle técnico del proveedor: es lo que el modal de fallo muestra como
+  // «por qué», además del mensaje traducido.
+  detail?: string
+}
+
+// El proveedor de animación está caído o degradado: varios encargos seguidos
+// fallaron por él (nunca por saldo, validación o moderación). El job sigue
+// con lo que pueda; la UI esconde ese proveedor un rato y ofrece el otro.
+export interface AnimationProviderTroubleEvent {
+  type: 'animation-provider-trouble'
+  provider: VideoProviderId
+  code: string
+}
+
 // Progreso de la síntesis de voz. Sin `percent` real (Minimax/Edge no lo
 // informan) la UI dibuja su curva sintética desde elapsedSeconds. Con texto
 // troceado viajan la parte en curso (1-based) y el total, y `percent` es el
@@ -169,6 +231,8 @@ export interface AwaitingSceneConfirmationEvent {
   // Presente solo en el carril de segundos (estilo propio): el diálogo pasa
   // a modo slider y `suggestedScenes` es el conteo que sale de ESTE valor.
   secondsPerScene?: number
+  // El prefijo usa cortes fijos; el slider solo modifica el tramo restante.
+  animationMinutes?: number
 }
 
 export interface JobCompletedEvent {
@@ -221,6 +285,11 @@ export type PipelineEventPayload =
   | SceneImageReadyEvent
   | SceneImageFailedEvent
   | SceneImageProgressEvent
+  | SceneAnimationStartedEvent
+  | SceneAnimationProgressEvent
+  | SceneAnimationReadyEvent
+  | SceneAnimationFailedEvent
+  | AnimationProviderTroubleEvent
   | VoiceProgressEvent
   | BgmProgressEvent
   | RenderProgressEvent

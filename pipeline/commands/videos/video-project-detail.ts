@@ -1,15 +1,15 @@
 import { stat } from 'node:fs/promises'
 
 import { readProjectMetadata } from '../../project/metadata.ts'
+import { ensureLegacyAnimationsForView } from '../../animation/migrate-legacy.ts'
 import {
   isValidFile,
   projectsRootOf,
   resolveProjectDir,
   resolveProjectPaths,
-  sceneImageFile,
   type ProjectPaths,
 } from '../../project/paths.ts'
-import { readScenes } from '../../project/scenes-file.ts'
+import { readScenes, toSceneSummary } from '../../project/scenes-file.ts'
 import { hasPendingUserPrompt } from '../../project/user-prompt.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -40,6 +40,7 @@ export async function videoProjectDetail(
     payload.projectId,
   )
   const paths = resolveProjectPaths(projectDir, payload.projectId)
+  await ensureLegacyAnimationsForView(context)
   const metadata = await readProjectMetadata(paths)
 
   const scenes = await readScenes(paths)
@@ -79,11 +80,7 @@ async function toSceneDetails(
 ): Promise<SceneDetail[]> {
   const details: SceneDetail[] = []
   for (const scene of scenes) {
-    const detail: SceneDetail = {
-      id: scene.id,
-      text: scene.text,
-      imageStatus: 'pending',
-    }
+    const detail: SceneDetail = await toSceneSummary(paths, scene)
     if (scene.imagePrompt) detail.imagePrompt = scene.imagePrompt
     if (scene.userPrompt) detail.userPrompt = scene.userPrompt
     if (hasPendingUserPrompt(scene)) detail.userPromptPending = true
@@ -95,7 +92,7 @@ async function toSceneDetails(
     if (scene.charactersPresent)
       detail.charactersPresent = scene.charactersPresent
 
-    const image = await statMedia(sceneImageFile(paths, scene.id))
+    const image = detail.imagePath ? await statMedia(detail.imagePath) : null
     if (image) {
       detail.imagePath = image.path
       detail.imageMtimeMs = image.mtimeMs

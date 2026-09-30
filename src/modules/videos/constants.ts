@@ -14,6 +14,7 @@ import type {
   CharacterFrequency,
   NarrationMode,
 } from '@pipeline/types/video-project.ts'
+import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
@@ -85,11 +86,16 @@ export const MAX_SCENE_COUNT = 500
 // Carril de segundos-por-escena de los estilos propios. Espejo de
 // pipeline/stages/scene-cuts/by-seconds.ts (el slider se mueve entre estos).
 // El valor por defecto es una preferencia de Ajustes (useSceneDurationDefaults).
-export const SECONDS_PER_SCENE_MIN = 2
-export const SECONDS_PER_SCENE_MAX = 15
+export const SECONDS_PER_SCENE_MIN = 3
+export const SECONDS_PER_SCENE_MAX = 12
 export const SECONDS_PER_SCENE_DEFAULT = 3
 // Atajos del paso de segundos por escena (las píldoras bajo el slider).
-export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10]
+export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10, 12]
+export const ANIMATION_MINUTES_MIN = 1
+export const ANIMATION_MINUTES_DEFAULT = 1
+export const ANIMATION_DIALOG_MARGIN_PX = 16
+export const ANIMATION_DIALOG_KEY_STEP_PX = 16
+export const SECONDS_PER_MINUTE = 60
 // El slider dispara muchos valores seguidos y cada corte real es un job del
 // sidecar: se espera este rato antes de pedirlo.
 export const SCENE_CUT_PREVIEW_DEBOUNCE_MS = 120
@@ -133,6 +139,7 @@ export const INSUFFICIENT_CREDITS_CODES: ReadonlySet<string> = new Set([
   'llm_insufficient_credits',
   'transcription_insufficient_credits',
   'music_insufficient_credits',
+  'animation_insufficient_credits',
 ])
 // Margen sobre la estimación de costo antes de arrancar: estimar de menos y
 // quedarse sin saldo a mitad es peor que pedir un poco más.
@@ -285,6 +292,9 @@ export const WAVEFORM_MIN_BAR_HEIGHT = 1
 // Preview: un timeupdate más viejo que el último seek por más de esto se
 // descarta (tick tardío del media, no un avance real).
 export const SEEK_TOLERANCE_SECONDS = 0.5
+// Preview: el clip de animación se re-sincroniza con la narración solo si se
+// desvía más que esto mientras suena (un seek por tick lo trabaría).
+export const CLIP_PREVIEW_DRIFT_SECONDS = 0.3
 // Timeline: un click a menos de esto del final lleva exactamente al cierre.
 export const TIMELINE_END_SNAP_SECONDS = 0.5
 
@@ -300,6 +310,7 @@ export const PIPELINE_STAGES: { id: StageId; labelKey: string }[] = [
   { id: 'scene-cuts', labelKey: 'create.stages.sceneCuts' },
   { id: 'scene-prompts', labelKey: 'create.stages.scenePrompts' },
   { id: 'images', labelKey: 'create.stages.images' },
+  { id: 'animation', labelKey: 'create.stages.animation' },
   { id: 'render', labelKey: 'create.stages.render' },
 ]
 
@@ -445,6 +456,34 @@ export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
   { id: 'fal', label: 'Fal' },
 ]
 
+// Proveedores de animación de escenas (ADR-0047), en el orden del selector.
+// Etiquetas de marca: no se traducen.
+export const VIDEO_PROVIDERS: { id: VideoProviderId; label: string }[] = [
+  { id: 'kie', label: 'Kie.ai' },
+]
+
+// Fallos de animación que repetir el pedido no arregla: el modal de fallo
+// no ofrece reintentar esas escenas (moderación, escena sin imagen y las
+// marcas que el planificador rechaza).
+export const NON_RETRYABLE_ANIMATION_CODES: ReadonlySet<string> = new Set([
+  'animation_content_policy',
+  'animation_invalid_request',
+  'animation_image_missing',
+  'animation_already_covered',
+  'animation_slot_out_of_range',
+])
+
+// Avance simulado de un clip (ADR-0047): Kie no informa porcentaje y PoYo lo
+// deja en 0 hasta terminar. Medido con clips reales el 2026-09-12: 78 s (PoYo)
+// y 88 s (Kie) desde el clic, contando los ~10 s de escribir el prompt. El
+// porcentaje sube en línea recta hasta ANIMATION_RAMP_PERCENT en ese tiempo y
+// después se frena asintóticamente hacia el tope; el 100 % lo pone solo el
+// clip listo.
+export const ANIMATION_EXPECTED_SECONDS = 75
+export const ANIMATION_RAMP_PERCENT = 90
+export const ANIMATION_PROGRESS_CAP_PERCENT = 99
+export const ANIMATION_PROGRESS_TICK_MS = 1000
+
 // Opciones de nivel de razonamiento por proveedor (ambos generan con
 // gpt-image-2, ADR-0015). Para la persona es «cuánto razona el modelo antes
 // de dibujar»; para el sidecar sigue siendo la calidad del catálogo del
@@ -587,6 +626,9 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   sceneCount: 0,
   // Create lo siembra con la preferencia de Ajustes.
   secondsPerScene: SECONDS_PER_SCENE_DEFAULT,
+  animateScenes: false,
+  animateWholeVideo: false,
+  animationMinutes: ANIMATION_MINUTES_DEFAULT,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
   voice: null,
@@ -686,6 +728,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   llm_rate_limited: 'create.errors.llmRateLimited',
   llm_provider_error: 'create.errors.llmProviderError',
   catalog_prompts_incomplete: 'create.errors.catalogPromptsIncomplete',
+  scene_prompt_alignment_failed: 'create.errors.scenePromptAlignmentFailed',
   catalog_prompt_pending_image: 'create.errors.catalogPromptPendingImage',
   llm_empty_response: 'create.errors.llmProviderError',
   llm_rescue_needed: 'create.errors.llmRescueNeeded',
@@ -709,6 +752,29 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Render
   render_missing_images: 'create.errors.renderMissingImages',
   render_stalled: 'create.errors.renderStalled',
+  // Animación de escenas (ADR-0047)
+  animation_insufficient_credits: 'create.errors.animationInsufficientCredits',
+  animation_invalid_api_key: 'create.errors.animationInvalidApiKey',
+  animation_rate_limited: 'create.errors.animationRateLimited',
+  animation_provider_down: 'create.errors.animationProviderDown',
+  animation_provider_error: 'create.errors.animationProviderError',
+  animation_invalid_request: 'create.errors.animationInvalidRequest',
+  animation_task_not_found: 'create.errors.animationProviderError',
+  animation_attempts_exhausted: 'create.errors.animationProviderError',
+  animation_content_policy: 'create.errors.animationContentPolicy',
+  animation_network: 'create.errors.animationNetwork',
+  animation_timeout: 'create.errors.animationTimeout',
+  animation_download_failed: 'create.errors.animationDownloadFailed',
+  animation_upload_failed: 'create.errors.animationUploadFailed',
+  animation_image_missing: 'create.errors.animationImageMissing',
+  animation_clip_missing: 'create.errors.animationClipMissing',
+  animation_submission_unknown: 'create.errors.animationSubmissionUnknown',
+  animation_media_invalid: 'create.errors.animationMediaInvalid',
+  animation_prompt_failed: 'create.errors.animationPromptFailed',
+  animation_project_busy: 'create.errors.animationProjectBusy',
+  animation_request_changed: 'create.errors.animationRequestChanged',
+  animation_incomplete: 'create.errors.animationIncomplete',
+  animation_timing_locked: 'create.errors.animationTimingLocked',
   // Transversales
   missing_api_key: 'create.errors.missingApiKey',
   missing_projects_root: 'create.errors.missingProjectsRoot',
@@ -734,6 +800,9 @@ export const INTERRUPTED_ERROR_KEY = 'create.errors.interrupted'
 // Create más los propios del editor.
 export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   ...CREATE_ERROR_MESSAGE_KEYS,
+  animation_image_locked: 'library.errors.animationImageLocked',
+  animation_undo_pending: 'library.errors.animationUndoPending',
+  animation_source_missing: 'library.errors.animationSourceMissing',
   invalid_audio_url: 'library.errors.invalidAudioUrl',
   audio_too_large: 'library.errors.audioTooLarge',
   clips_no_scenes: 'library.errors.clipsNoScenes',
@@ -742,6 +811,10 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   music_invalid_api_key: 'create.errors.missingApiKey',
   music_network: 'create.errors.musicGenerationFailed',
   demo_project: 'library.errors.demoProject',
+  // Rechazos del planificador de animación (ADR-0047): no son fallos del
+  // proveedor, son marcas que no se pueden convertir en clip.
+  animation_already_covered: 'library.errors.animationAlreadyCovered',
+  animation_slot_out_of_range: 'library.errors.animationSlotOutOfRange',
 }
 
 // Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0029).

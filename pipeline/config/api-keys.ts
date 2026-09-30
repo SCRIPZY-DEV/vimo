@@ -2,7 +2,14 @@
 // (src/modules/api-keys/providers.ts) y de src-tauri/src/api_keys/provider.rs:
 // los tres deben declarar los mismos ids.
 export type ProviderId =
-  'deepinfra' | 'fal' | 'evolink' | 'dubvoice' | 'elevenlabs' | 'deepgram'
+  | 'deepinfra'
+  | 'fal'
+  | 'evolink'
+  | 'dubvoice'
+  | 'elevenlabs'
+  | 'deepgram'
+  | 'kie'
+  | 'poyo'
 
 // Claves BYO del usuario, inyectadas por Rust desde la fuente de claves
 // (ADR-0011). Solo viajan dentro del PipelineJob por stdin; nada en pipeline/

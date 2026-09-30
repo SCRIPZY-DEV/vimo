@@ -12,6 +12,7 @@ import {
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { cn } from '@/modules/common/utilities/cn'
+import { formatCompact } from '@/modules/common/utilities/formatCompact'
 import { apiKeysApi } from '@/modules/api-keys/api'
 import { useApiKeyActions } from '@/modules/api-keys/hooks/useApiKeyActions'
 import {
@@ -80,8 +81,14 @@ export function ApiKeyCard({
     resetFeedback()
   }
 
+  // Con saldo leído en la misma comprobación (Kie.ai, PoYo) se muestra junto
+  // al «Conectado»: es la prueba de que la clave sirve de verdad.
   const validationMessage = () => {
     if (!validation) return null
+    if (validation.ok && validation.credits !== null)
+      return t('apiKeys.validacionOkSaldo', {
+        amount: formatCompact(validation.credits),
+      })
     if (validation.ok) return t('apiKeys.validacionOk')
     if (validation.code === null) return t(UNKNOWN_ERROR_MESSAGE_KEY)
 

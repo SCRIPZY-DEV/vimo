@@ -1,3 +1,4 @@
+import { finalizeSceneImagePrompt } from '../../shared/scene-prompt-finalization.ts'
 import { isValidPrompt } from '../../../prompts/prompt-limits.ts'
 import { resolveVerbatimModel } from '../../../providers/llm/model-catalog.ts'
 import { createVerbatimClient } from '../../../providers/llm/verbatim-client.ts'
@@ -15,7 +16,11 @@ import type {
 } from '../../../types/video-project.ts'
 import type { VerbatimFragment } from '../../../prompts/verbatim-messages.ts'
 import type { CreateVideoContext } from '../../context.ts'
-import { narrationFragmentFor } from '../prompt-composer.ts'
+import {
+  createNarrativeReviewLlm,
+  narrativeCandidateFor,
+  reviewNarrativePrompts,
+} from '../narrative-alignment.ts'
 import {
   generateVerbatimPrompts,
   type VerbatimCharacterInput,
@@ -43,8 +48,8 @@ import {
 
 export interface VerbatimLaneResult {
   scenes: Scene[]
-  /** Ids que ningún lote devolvió. El llamador decide si sigue (la Capa 4 de
-   *  images cubre el hueco con su fallback determinístico). */
+  /** Compatibilidad del resultado: el carril temporal ahora detiene la fase
+   *  si no pudo validar todos los prompts, sin comprar imágenes de relleno. */
   missing: number[]
   /** Ids de escena que este pase ESCRIBIÓ (para persistir/emitir solo esas). */
   written: Set<number>
@@ -405,6 +410,8 @@ export async function runVerbatimLane(
   // La ventana vecina de una escena muda se arma sobre TODAS las escenas del
   // proyecto (no solo las del grupo), para que la pausa vea sus dos lados.
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
+  const scenesById = new Map(orderedScenes.map((scene) => [scene.id, scene]))
+  const reviewLlm = createNarrativeReviewLlm(context)
   const runGroup = async (group: VerbatimSceneGroup) => {
     const fragments: VerbatimFragment[] = group.scenes.map((scene) => {
       const retryNote = options.retryNotes?.get(scene.id)?.trim()
@@ -412,18 +419,29 @@ export async function runVerbatimLane(
       // catálogo): como nota al lado de la narración, la narración ganaba
       // y la imagen regenerada salía igual a la anterior.
       const userRequest = scene.userPrompt?.trim()
-      const narration = narrationFragmentFor(scene, orderedScenes, fullScript)
+      const narrative = narrativeCandidateFor(scene, orderedScenes, '')
       const selectionNote = group.indexes?.length
         ? 'El usuario incluyo al personaje en esta escena: [subject] DEBE aparecer en la accion de este fragmento, manteniendo el mismo estilo.'
         : undefined
       const pauseNote =
-        !userRequest && narration.isSilent ? SILENT_PAUSE_NOTE : undefined
+        !userRequest && narrative.sourceKind === 'silent-hold'
+          ? SILENT_PAUSE_NOTE
+          : undefined
       const note = [retryNote, selectionNote, pauseNote]
         .filter(Boolean)
         .join(' ')
       return {
         n: scene.id,
-        text: userRequest || narration.text,
+        text: narrative.source,
+        temporalContext: JSON.stringify({
+          sceneId: scene.id,
+          startSeconds: scene.startSeconds,
+          endSeconds: scene.endSeconds,
+          sourceKind: narrative.sourceKind,
+          fragment: narrative.source,
+          previous: narrative.previous,
+          next: narrative.next,
+        }),
         ...(note ? { note } : {}),
       }
     })
@@ -457,6 +475,20 @@ export async function runVerbatimLane(
             },
       client,
       signal: context.signal,
+      preparePrompt: (prompt, id) =>
+        finalizeSceneImagePrompt(
+          scenesById.get(id)!,
+          orderedScenes,
+          prompt,
+          'custom',
+        ),
+      reviewPrompts: (prompts) =>
+        reviewNarrativePrompts(
+          [...prompts].map(([id, prompt]) =>
+            narrativeCandidateFor(scenesById.get(id)!, orderedScenes, prompt),
+          ),
+          { llm: reviewLlm, signal: context.signal },
+        ),
       // Cada lote cerrado se persiste antes de seguir: si la corrida muere
       // después, lo pagado ya está en disco y el reintento solo pide lo que
       // falta.
@@ -521,10 +553,10 @@ export async function runVerbatimLane(
       },
     })
     context.signal.throwIfAborted()
-    if (group.indexes !== undefined && result.missing.length > 0)
+    if (result.missing.length > 0)
       throw new PipelineFailure(
-        'llm_empty_response',
-        'the editor could not write prompts respecting the selected characters; no replacement images requested',
+        'scene_prompt_alignment_failed',
+        `scene prompts could not satisfy the narrative contract for IDs ${result.missing.join(', ')}; no filler images requested`,
       )
     return { group, result }
   }

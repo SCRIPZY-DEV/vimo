@@ -39,15 +39,19 @@ export function InsufficientCreditsCard({
   )
     ? check.result.lines
     : [issue.line, ...check.result.lines]
-  const canRetry = !check.result.blocking && issue.line.sufficient !== false
+  const canRetry =
+    check.canResumePaidAnimation ||
+    (!check.result.blocking && issue.line.sufficient !== false)
 
   const refresh = () => {
     issue.refresh()
     check.refresh()
   }
   const retry = async () => {
-    const fresh = await check.verify()
-    if (fresh.blocking) return
+    if (!check.canResumePaidAnimation) {
+      const fresh = await check.verify()
+      if (fresh.blocking) return
+    }
     onRetry()
   }
 
@@ -65,7 +69,11 @@ export function InsufficientCreditsCard({
           </p>
           <p className="mt-1 font-body text-sm text-foreground/80">{message}</p>
           <p className="mt-1 font-body text-xs text-muted-foreground">
-            {t('create.progress.noCredits.body')}
+            {t(
+              check.canResumePaidAnimation
+                ? 'library.editor.panel.animation.resumePaidHint'
+                : 'create.progress.noCredits.body',
+            )}
           </p>
         </div>
       </div>

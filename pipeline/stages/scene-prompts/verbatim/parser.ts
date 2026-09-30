@@ -2,12 +2,10 @@
 // `motor-web/verbatim/parseo.ts` del origen — funciones PURAS sobre texto,
 // testeables sin gastar un crédito.
 //
-// El formato de salida lo fija la gema del usuario: **un único bloque de
-// código, prompts separados por una línea en blanco, sin numeración y sin
-// IDs**. No se pide `response_format: json_object` — pedir JSON contradice el
-// prompt del usuario y lo pisa. Sin números, el único amarre posible es la
-// POSICIÓN: de ahí que el conteo sea sagrado — un corrimiento pondría la
-// imagen equivocada en cada escena, y eso es peor que fallar.
+// La gema fija el formato visual; la plataforma añade IDs ((n)) para unir
+// cada prompt a su fragmento sin depender del orden. No se exige JSON. La
+// lectura histórica sin IDs permanece solo para entradas sin contexto
+// temporal y respuestas completas con conteo exacto.
 
 /** Etiquetas con las que las réplicas envuelven su razonamiento. */
 const REASONING_TAGS = 'think|thinking|reasoning'
@@ -132,6 +130,35 @@ export function countCompletedPrompts(
   return Math.max(0, Math.min(expected, completed))
 }
 
+/**
+ * Lo ya delimitado de un stream interrumpido. Nunca adivina que una frase
+ * final está completa: exige cierre de bloque, separador o el ID siguiente.
+ * Quien cosecha este prefijo debe exigir IDs, porque un prefijo sin ellos no
+ * permite saber qué fragmento omitió o reordenó el modelo.
+ */
+export function completedPromptPrefix(partial: string): string {
+  const clean = removeReasoning(partial)
+  const opening = /```[a-z]*[ \t]*\r?\n?/i.exec(clean)
+  const body = opening ? clean.slice(opening.index + opening[0].length) : clean
+  const closing = opening ? body.indexOf('```') : -1
+  if (closing >= 0) return body.slice(0, closing).trim()
+
+  // Un JSON completo ya define sus límites; un JSON cortado no se interpreta
+  // como prosa ni se reconstruye inventando corchetes de cierre.
+  if (/^[ \t\r\n]*[[{]/.test(body))
+    return unwrapJsonPrompts(body) ? body.trim() : ''
+
+  let end = 0
+  for (const match of body.matchAll(/\r?\n[ \t]*\r?\n|\s+(?=\(\(\d{1,4}\)\))/g))
+    end = match.index + match[0].length
+  const prefix = body.slice(0, end).trim()
+  const unfinished = readIdMarker(body.slice(end).trim())
+  // Conserva el ID incompleto sin su texto: si duplica uno ya terminado,
+  // ese ID también es ambiguo y no debe darse por aceptado.
+  if (unfinished) return `${prefix}\n\n((${unfinished.n}))`.trim()
+  return prefix
+}
+
 /*
  * RED DE DES-ENVOLTURA JSON (v1.29.0 del origen). Este lector espera TEXTO,
  * pero una gema del usuario puede pedir JSON a su manera y un modelo
@@ -152,25 +179,27 @@ function itemsFromJsonValue(value: unknown): UnwrappedPrompt[] | null {
     const items: UnwrappedPrompt[] = []
     for (const entry of value) {
       const sub = itemsFromJsonValue(entry)
-      if (sub === null) return null
-      items.push(...sub)
+      // Un elemento JSON malformado no invalida los hermanos identificados.
+      // Conserva un hueco anónimo: jamás se elimina para correr posiciones.
+      items.push(...(sub ?? [{ text: '' }]))
     }
     return items
   }
   if (value === null || typeof value !== 'object') return null
   const record = value as { prompts?: unknown; prompt?: unknown; id?: unknown }
   if (Array.isArray(record.prompts)) return itemsFromJsonValue(record.prompts)
-  if (typeof record.prompt === 'string' && record.prompt.trim()) {
-    const n =
-      typeof record.id === 'number' && Number.isInteger(record.id)
-        ? record.id
-        : undefined
-    return [
-      n !== undefined
-        ? { n, text: record.prompt.trim() }
-        : { text: record.prompt.trim() },
-    ]
+  const n =
+    typeof record.id === 'number' && Number.isInteger(record.id)
+      ? record.id
+      : undefined
+  if (typeof record.prompt === 'string') {
+    const text = record.prompt.trim()
+    return [n !== undefined ? { n, text } : { text }]
   }
+  // El ID se conserva incluso con prompt vacío, nulo o de tipo incorrecto:
+  // ese fragmento queda pendiente y los demás no se vuelven a comprar.
+  if (n !== undefined) return [{ n, text: '' }]
+
   return null
 }
 
@@ -280,17 +309,24 @@ function unfilledSlot(prompt: string): string | undefined {
  */
 const ID_MARKER_REGEX = /^\(\((\d{1,4})\)\)[.:\s-]*/
 
+/** Conserva también un ID cuyo texto quedó vacío: nunca se infiere por posición. */
+export function readIdMarker(
+  piece: string,
+): { n: number; text: string } | undefined {
+  const match = ID_MARKER_REGEX.exec(piece)
+  if (!match) return undefined
+  return { n: Number(match[1]), text: piece.slice(match[0].length).trim() }
+}
+
 export function readIdMarkers(
   pieces: readonly string[],
 ): { n: number; text: string }[] | null {
   if (pieces.length === 0) return null
   const withId: { n: number; text: string }[] = []
   for (const piece of pieces) {
-    const match = ID_MARKER_REGEX.exec(piece)
-    if (!match) return null
-    const text = piece.slice(match[0].length).trim()
-    if (!text) return null
-    withId.push({ n: Number(match[1]), text })
+    const identified = readIdMarker(piece)
+    if (!identified?.text) return null
+    withId.push(identified)
   }
   return withId
 }
@@ -305,20 +341,15 @@ export function stripIdMarker(text: string): string {
 }
 
 /**
- * Motivo de contaminación por IDIOMA, con nombre propio: el redactor lo
- * distingue de la deliberación filtrada porque NO lo cura la escalera — si
- * la gema pide otro idioma, cada re-pedido vuelve igual y la culpa es de la
- * gema, no del modelo (ver `LLM_PROMPT_LANGUAGE` en verbatim-writer).
+ * Motivo de contaminación por idioma: permite distinguir la gema de un
+ * fallo del proveedor sin bloquear el modelo ni repetir la escalera entera.
  */
 export const LANGUAGE_CONTAMINATION = 'the prompt did not come in English'
 
 /**
- * CONTAMINACIÓN de la respuesta entera: deliberación filtrada o idioma
- * equivocado. Cuando aparece en UN prompt, el lote COMPLETO es sospechoso —
- * la réplica que delibera lo hace en TODA la respuesta y puede haber roto la
- * separación misma de los prompts. Por eso condena al lote, a diferencia de
- * los defectos LOCALES (`localSceneDefect`), que se reparan escena por
- * escena.
+ * CONTAMINACIÓN: deliberación filtrada o idioma equivocado. El lector decide
+ * su alcance: con ID único se rechaza solo esa escena; sin IDs no se puede
+ * confiar en la separación ni en el orden del lote.
  */
 export function responseContamination(prompt: string): string | undefined {
   if (REASONING_TRACES.some((trace) => trace.test(prompt)))

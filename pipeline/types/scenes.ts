@@ -5,6 +5,8 @@
 // ⚠️ Los nombres de campos de `Scene` son el formato persistido en
 // scenes.json: Library (paso 7) lee este formato — no se retocan después.
 
+import type { SceneAnimation, SceneAnimationView } from './animation.ts'
+
 // Una palabra transcrita con sus timestamps (salida de Deepgram, Fase 2).
 export interface TranscriptWord {
   word: string
@@ -70,6 +72,10 @@ export interface Scene {
   promptIsFallback?: boolean
   startSeconds?: number
   endSeconds?: number
+  // Fundido opcional al entrar desde otra imagen; los clips mantienen su fundido.
+  staticTransitionIn?: boolean
+  // Encargo previsto del prefijo animado; conserva6s incluso en la cola del audio.
+  animationRequestedSeconds?: number
   // Overrides por escena del modelo/calidad de imagen (los usa Library).
   imageModel?: string
   imageQuality?: string
@@ -79,6 +85,19 @@ export interface Scene {
   // escenas se reescriben en las pasadas de recuperación.
   contentRejected?: boolean
   imageTask?: SceneImageTask
+  // Animación de la escena (ADR-0047). Presente solo en la escena que
+  // ENCABEZA un clip; la ruta del clip no se persiste, se deriva igual que la
+  // de la imagen. Ausente = escena estática, que es como renderizan todos los
+  // proyectos anteriores: sin estos campos el video sale byte-idéntico.
+  animation?: SceneAnimation
+  // El candidato nunca reemplaza un clip pagado antes de validarse.
+  animations?: SceneAnimation[]
+  animationPending?: SceneAnimation[]
+  animationHistory?: SceneAnimation[]
+  visualSourceSceneId?: number
+  // Id de la escena que encabeza el clip que cubre a esta. Una escena
+  // absorbida no se renderiza sola ni se edita por su cuenta.
+  absorbedBy?: number
 }
 
 export type SceneImageStatus = 'pending' | 'generating' | 'ok' | 'error'
@@ -91,7 +110,17 @@ export interface SceneSummary {
   imagePrompt?: string
   startSeconds?: number
   endSeconds?: number
+  animationRequestedSeconds?: number
+  staticTransitionIn?: boolean
   // Ruta absoluta para mostrarla vía convertFileSrc(); solo si existe.
   imagePath?: string
   imageStatus: SceneImageStatus
+  // Animación de la escena que encabeza un clip (ADR-0047); ausente en las
+  // escenas estáticas. `absorbedBy` apunta a la que encabeza el clip que
+  // cubre a esta: la UI la muestra plegada dentro de él.
+  animation?: SceneAnimationView
+  animations?: SceneAnimationView[]
+  animationPending?: SceneAnimationView[]
+  visualSourceSceneId?: number
+  absorbedBy?: number
 }

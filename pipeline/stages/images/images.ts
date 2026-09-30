@@ -1,3 +1,9 @@
+import {
+  createNarrativeReviewLlm,
+  narrativeCandidateFor,
+  reviewNarrativePrompts,
+} from '../scene-prompts/narrative-alignment.ts'
+import { finalizeSceneImagePrompt } from '../shared/scene-prompt-finalization.ts'
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import { buildCharactersBibleBlock } from '../../prompts/reference-characters.ts'
 import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
@@ -22,11 +28,7 @@ import { limitConcurrency } from '../../utils/concurrency.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { detectScriptLanguage } from '../../utils/script-language.ts'
-import {
-  deriveEraFromBible,
-  eraEscapeWindow,
-  neutralizeEraInBible,
-} from '../../utils/story-era.ts'
+import { neutralizeEraInBible } from '../../utils/story-era.ts'
 import type { CreateVideoContext } from '../context.ts'
 import {
   anchorNormalRealism,
@@ -251,9 +253,8 @@ export const imagesStage: Stage<CreateVideoContext> = {
           }).finally(() => persistence.flush())
           await recordPromptModelUsed(context, lane)
           scenes = lane.scenes
-          // El carril entrega los prompts al cerrar el lote: se reemiten
-          // acá los reescritos (las `missing` quedan sin prompt y las cubre
-          // el fallback de generateImages, como hasta ahora).
+          // El carril entrega únicamente prompts revisados al cerrar el lote;
+          // si quedan pendientes detiene el rescate antes de comprar imágenes.
           for (const scene of lane.scenes) {
             if (!lane.written.has(scene.id)) continue
             context.emitter.emit({
@@ -269,6 +270,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
           pass,
           {
             llm: createCatalogSceneLlm(context),
+            reviewLlm: createNarrativeReviewLlm(context),
             style,
             fullScript: script,
             visualBible,
@@ -496,11 +498,6 @@ async function generateImages(
 
   // Capa 3: scrub final + cláusulas duras (época, diagrama diegético,
   // texto-en-imagen, anonimato) — único chokepoint antes de los proveedores.
-  const globalEra = deriveEraFromBible(inputs.visualBible)
-  const sceneTexts = orderedScenes.map((scene) => ({
-    id: scene.id,
-    text: scene.text,
-  }))
   // Candado de tez sobre prompts YA guardados: «Regenerar imagen» sin pedido
   // nuevo reutiliza el prompt del disco, así que el candado del redactor no
   // alcanza a los proyectos anteriores al fix. Solo para escenas que de verdad
@@ -533,18 +530,15 @@ async function generateImages(
 
   const finalScenes = lockedScenes.map((scene) => {
     if (!isValidPrompt(scene.imagePrompt)) return scene
-    // Con pedido manual del usuario el plan del director NO aplica.
-    const isDiagram =
-      !scene.userPrompt?.trim() && scene.direction?.treatment === 'diagram'
     return {
       ...scene,
-      imagePrompt: sanitizeFinalPrompt(scene.imagePrompt, {
-        era: globalEra,
-        sceneText: scene.userPrompt?.trim() || scene.text || '',
-        window: eraEscapeWindow(sceneTexts, scene.id),
-        isDiagram,
-        styleId: style.id,
-      }),
+      imagePrompt: finalizeSceneImagePrompt(
+        scene,
+        orderedScenes,
+        scene.imagePrompt,
+        style.id,
+        inputs.visualBible,
+      ),
     }
   })
 
@@ -689,6 +683,7 @@ async function dispatchLanes(
     characterFailures.length > 0
       ? await rescueWithoutReference(
           characterFailures,
+          [...finalScenes].sort((a, b) => a.id - b.id),
           provider,
           inputs,
           laneOptions,
@@ -711,6 +706,7 @@ async function dispatchLanes(
 // estilo de catálogo el prompt ya trae la identidad en texto: va tal cual.
 async function rescueWithoutReference(
   scenes: Scene[],
+  orderedScenes: Scene[],
   provider: ImageProviderId,
   inputs: GenerationInputs,
   laneOptions: ImageLaneOptions,
@@ -732,6 +728,30 @@ async function rescueWithoutReference(
       ),
     }
   })
+  // Perder la foto añade identidad en texto y puede recortar la narración.
+  // Revisa exactamente esa variante antes de comprar la imagen de rescate.
+  const originals = new Map(
+    scenes.map((scene) => [scene.id, scene.imagePrompt]),
+  )
+  const changed = requestScenes.filter(
+    (scene) => scene.imagePrompt !== originals.get(scene.id),
+  )
+  if (changed.length > 0) {
+    const rejected = await reviewNarrativePrompts(
+      changed.map((scene) =>
+        narrativeCandidateFor(scene, orderedScenes, scene.imagePrompt!),
+      ),
+      {
+        llm: createNarrativeReviewLlm(inputs.context),
+        signal: inputs.context.signal,
+      },
+    )
+    if (rejected.size > 0)
+      throw new PipelineFailure(
+        'scene_prompt_alignment_failed',
+        `Reference-free rescue changed narration for scenes: ${[...rejected.keys()].join(', ')}`,
+      )
+  }
   const results = await dispatchNormal(
     requestScenes,
     provider,

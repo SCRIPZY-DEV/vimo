@@ -7,7 +7,7 @@ import {
   measureExactDurationSeconds,
 } from '../../utils/media-duration.ts'
 import type { FrameSize } from '../../types/video-format.ts'
-import { PAD_MARGIN_SECONDS } from './constants.ts'
+import { FPS } from './constants.ts'
 import { runRenderFfmpeg } from './render-ffmpeg.ts'
 
 // Concat de chunks + mezcla final (port de concatenarChunks +
@@ -140,15 +140,12 @@ export async function mixFinalVideo(
       ? measuredVideoSeconds
       : (options.totalSeconds ?? 0)
 
-  let padSeconds: number
-  if (audioSeconds > 0) {
-    padSeconds = Math.max(0, audioSeconds - videoSeconds) + PAD_MARGIN_SECONDS
-  } else {
-    // Audio inmedible (caso raro, archivo dañado): pad fijo generoso para no
-    // cortar la voz.
-    padSeconds = 8.0
-  }
-  const outputSeconds = videoSeconds + padSeconds
+  // El audio maestro fija el fin: solo se permite el cuadro necesario para
+  // representarlo en CFR. No se añade la colita histórica de0,2s ni se
+  // compensa una escena moviendo las siguientes.
+  const outputSeconds =
+    audioSeconds > 0 ? Math.ceil(audioSeconds * FPS - 1e-6) / FPS : videoSeconds
+  const padSeconds = Math.max(0, outputSeconds - videoSeconds)
 
   // Port de filtroOverlay del origen: con 1920×1080 el string queda EXACTO
   // como siempre (byte-idéntico); con otra dimensión, un overlay 16:9

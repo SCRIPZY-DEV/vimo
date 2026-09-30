@@ -1,43 +1,52 @@
 import type { FrameSize } from '../../types/video-format.ts'
 import { FPS, ZOOM_MAX, ZOOM_PAN } from './constants.ts'
 
-// Catálogo de 8 movimientos de cámara (Ken Burns) claramente perceptibles
-// (port de efectoCamara). La asignación es DETERMINÍSTICA por índice global
-// (mismo índice → mismo movimiento: clave para que el re-render de un chunk
-// sea byte-idéntico y el cache por manifest funcione), con un paso coprimo a
-// la cantidad de variantes para que dos escenas consecutivas NUNCA repitan
-// el mismo efecto. Sin variante estática: toda escena se mueve. Del formato
-// solo cambia el `s=` de salida (port de efectoCamara con dimensiones).
+// Los mismos ocho Ken Burns y el mismo orden por índice global. La ventana
+// se transforma con precisión subpíxel: zoompan redondeaba el recorte a enteros
+// y hacía vibrar los zooms, especialmente al centrar o anclar una esquina.
 export function cameraEffect(
   globalSceneIndex: number,
   frames: number,
   frame: FrameSize,
 ): string {
-  const tail = `:d=${frames}:s=${frame.width}x${frame.height}:fps=${FPS}`
+  // perspective cuenta desde 1; zoompan y la vista previa arrancan en 0.
+  const position = `(on-1)/${frames}`
   const zoomDelta = (ZOOM_MAX - 1.0).toFixed(3)
-  const zoomIn = `min(1.0+(${zoomDelta})*on/${frames},${ZOOM_MAX})`
-  const zoomOut = `${ZOOM_MAX}-(${zoomDelta})*on/${frames}`
+  const zoomIn = `min(1.0+(${zoomDelta})*(${position}),${ZOOM_MAX})`
+  const zoomOut = `${ZOOM_MAX}-(${zoomDelta})*(${position})`
+  const progress = position
+  const reverseProgress = `1-(${position})`
 
-  const movements: string[] = [
-    // 1. Zoom in al centro.
-    `zoompan=z='${zoomIn}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'${tail}`,
-    // 2. Zoom out desde el centro.
-    `zoompan=z='${zoomOut}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'${tail}`,
-    // 3. Zoom in hacia la esquina superior izquierda.
-    `zoompan=z='${zoomIn}':x='0':y='0'${tail}`,
-    // 4. Zoom in hacia la esquina inferior derecha.
-    `zoompan=z='${zoomIn}':x='iw-iw/zoom':y='ih-ih/zoom'${tail}`,
-    // 5. Paneo izquierda → derecha (zoom fijo).
-    `zoompan=z='${ZOOM_PAN}':x='(iw-iw/zoom)*on/${frames}':y='ih/2-(ih/zoom/2)'${tail}`,
-    // 6. Paneo derecha → izquierda.
-    `zoompan=z='${ZOOM_PAN}':x='(iw-iw/zoom)*(1-on/${frames})':y='ih/2-(ih/zoom/2)'${tail}`,
-    // 7. Paneo arriba → abajo.
-    `zoompan=z='${ZOOM_PAN}':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/${frames}'${tail}`,
-    // 8. Paneo abajo → arriba.
-    `zoompan=z='${ZOOM_PAN}':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*(1-on/${frames})'${tail}`,
+  // Posición relativa dentro del margen disponible: 0 = inicio, 1 = final.
+  const movements = [
+    { zoom: zoomIn, horizontal: '0.5', vertical: '0.5' },
+    { zoom: zoomOut, horizontal: '0.5', vertical: '0.5' },
+    { zoom: zoomIn, horizontal: '0', vertical: '0' },
+    { zoom: zoomIn, horizontal: '1', vertical: '1' },
+    { zoom: String(ZOOM_PAN), horizontal: progress, vertical: '0.5' },
+    { zoom: String(ZOOM_PAN), horizontal: reverseProgress, vertical: '0.5' },
+    { zoom: String(ZOOM_PAN), horizontal: '0.5', vertical: progress },
+    { zoom: String(ZOOM_PAN), horizontal: '0.5', vertical: reverseProgress },
   ]
 
-  // Paso 3, coprimo con 8: recorre las variantes en orden 0,3,6,1,4,7,2,5.
+  // Paso 3, coprimo con 8: conserva 0,3,6,1,4,7,2,5 sin repetir vecinos.
   const STEP = 3
-  return movements[(globalSceneIndex * STEP) % movements.length]
+  const movement = movements[(globalSceneIndex * STEP) % movements.length]
+  const width = `W/(${movement.zoom})`
+  const height = `H/(${movement.zoom})`
+  const left = `(W-${width})*(${movement.horizontal})`
+  const top = `(H-${height})*(${movement.vertical})`
+  const right = `${left}+${width}`
+  const bottom = `${top}+${height}`
+
+  // sense=source proyecta esta ventana a la salida, sin rotación/perspectiva
+  // artística. fps fija el reloj antes de evaluar on; trim del chunk conserva
+  // el número de cuadros. No amplía imágenes a 8K ni afecta clips animados.
+  return (
+    `fps=${FPS},format=yuv420p,` +
+    `perspective=x0='${left}':y0='${top}':x1='${right}':y1='${top}':` +
+    `x2='${left}':y2='${bottom}':x3='${right}':y3='${bottom}':` +
+    `sense=source:eval=frame:interpolation=cubic,` +
+    `scale=${frame.width}:${frame.height}`
+  )
 }

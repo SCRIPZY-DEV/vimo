@@ -5,6 +5,7 @@ import { commonApi } from '@/modules/common/api'
 import { commonQueryKeys } from '@/modules/common/constants'
 import { videosApi } from '@/modules/videos/api'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
+import { useVideoCredits } from '@/modules/common/hooks/useVideoCredits'
 import { voicesApi } from '@/modules/voices/api'
 import { voicesQueryKeys } from '@/modules/voices/constants'
 import { useVoiceCredits } from '@/modules/voices/hooks/useVoiceCredits'
@@ -29,28 +30,31 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
   )
   const needsVoice =
     voiceVendor !== null && estimates.some((line) => line.domain === 'voice')
+  const needsVideo = estimates.some((line) => line.domain === 'animation')
 
   const image = useImageCredits({ enabled: needsImage })
   const voice = useVoiceCredits({
     vendor: voiceVendor ?? 'dubvoice',
     enabled: needsVoice,
   })
+  const video = useVideoCredits({ enabled: needsVideo })
 
   const result = compareCostLines(
     estimates,
-    { image: image.credits, voice: voice.credits },
+    { image: image.credits, voice: voice.credits, video: video.credits },
     providerLabel,
   )
 
   const refresh = () => {
     if (needsImage) image.refresh()
     if (needsVoice) voice.refresh()
+    if (needsVideo) video.refresh()
   }
 
   const verify = async (): Promise<CostCheckResult> => {
     if (!videosApi.isNative() || estimates.length === 0) return result
 
-    const [freshImage, freshVoice] = await Promise.all([
+    const [freshImage, freshVoice, freshVideo] = await Promise.all([
       needsImage
         ? queryClient
             .fetchQuery({
@@ -69,10 +73,19 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
             })
             .catch(() => null)
         : null,
+      needsVideo
+        ? queryClient
+            .fetchQuery({
+              queryKey: commonQueryKeys.videoCredits,
+              queryFn: () => commonApi.getVideoCredits(),
+              staleTime: 0,
+            })
+            .catch(() => null)
+        : null,
     ])
     return compareCostLines(
       estimates,
-      { image: freshImage, voice: freshVoice },
+      { image: freshImage, voice: freshVoice, video: freshVideo },
       providerLabel,
     )
   }
@@ -84,7 +97,9 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
       image.isLoading ||
       image.isRefreshing ||
       voice.isLoading ||
-      voice.isRefreshing,
+      voice.isRefreshing ||
+      video.isLoading ||
+      video.isRefreshing,
     verify,
   }
 }

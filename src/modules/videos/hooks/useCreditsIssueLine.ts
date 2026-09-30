@@ -1,4 +1,5 @@
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
+import { useVideoCredits } from '@/modules/common/hooks/useVideoCredits'
 import { creditsIssueLine } from '@/modules/videos/utilities/creditsIssueLine'
 import { useVoiceCredits } from '@/modules/voices/hooks/useVoiceCredits'
 import type { CreditsIssueContext } from '@/modules/videos/types/credits'
@@ -10,7 +11,7 @@ interface UseCreditsIssueLineOptions {
 }
 
 // La fila del aviso de saldo para un rechazo: consulta solo la cuenta que
-// rechazó (imagen o voz) y la compara con la estimación si la hay.
+// rechazó (imagen, voz o animación) y la compara con la estimación si la hay.
 export function useCreditsIssueLine({
   context,
   estimated = null,
@@ -20,15 +21,17 @@ export function useCreditsIssueLine({
     vendor: context.voiceVendor ?? 'dubvoice',
     enabled: context.domain === 'voice',
   })
+  const video = useVideoCredits({ enabled: context.domain === 'animation' })
 
   const line = creditsIssueLine(
     context,
-    { image: image.credits, voice: voice.credits },
+    { image: image.credits, voice: voice.credits, video: video.credits },
     estimated,
   )
   const refresh = () => {
     if (context.domain === 'image') image.refresh()
     if (context.domain === 'voice') voice.refresh()
+    if (context.domain === 'animation') video.refresh()
   }
 
   return {
@@ -38,6 +41,8 @@ export function useCreditsIssueLine({
       image.isLoading ||
       image.isRefreshing ||
       voice.isLoading ||
-      voice.isRefreshing,
+      voice.isRefreshing ||
+      video.isLoading ||
+      video.isRefreshing,
   }
 }

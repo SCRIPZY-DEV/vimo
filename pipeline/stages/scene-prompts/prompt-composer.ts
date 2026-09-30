@@ -1,3 +1,4 @@
+import { NARRATION_ALIGNMENT_RULE } from '../../prompts/narration-alignment.ts'
 import {
   CAMERA_HINT_ROTATION,
   CONTEXT_WINDOW_MAX_CHARS,
@@ -70,11 +71,17 @@ export function narrationFragmentFor(
   const own = (scene.text ?? '').trim()
   if (own) return { text: own, isSilent: false }
 
-  const window = buildContextWindow(
-    orderedScenes,
-    scene.id,
-    SILENT_SCENE_WINDOW_CHARS,
-  )
+  const index = orderedScenes.findIndex((entry) => entry.id === scene.id)
+  const previous = orderedScenes
+    .slice(0, Math.max(0, index))
+    .reverse()
+    .find((entry) => entry.text?.trim())
+  const next = orderedScenes
+    .slice(index + 1)
+    .find((entry) => entry.text?.trim())
+  const window = (previous?.text || next?.text || '')
+    .slice(0, SILENT_SCENE_WINDOW_CHARS)
+    .trim()
   return {
     text: window || fullScript.slice(0, SILENT_SCENE_WINDOW_CHARS).trim(),
     isSilent: true,
@@ -172,9 +179,10 @@ The fragment below was extracted automatically by audio timestamp, so it MAY:
   - End mid-sentence or mid-word.
   - Lack pronoun antecedents or connectors.
 
-Do NOT generate the image based on the literal cut-off words. Instead:
-  1. Read the surrounding narration above to see what is actually happening at this point.
-  2. Understand the narrative beat (which character, where, what action, what emotion).
+${NARRATION_ALIGNMENT_RULE}
+Use the exact local fragment as the authority for what happens now:
+  1. Read the fragment first; use surrounding narration only to resolve its cut-off phrase or pronoun.
+  2. Keep this fragment's subject and action. Do not replace them with an event from before or after this interval.
   3. Decide the SUBJECT of THIS image from the narration:
      - If the narration here names or clearly refers to a SPECIFIC subject — a character, a place, an object, an action — make THAT subject the clear focus of the image. If it is a recurring character/object from the GLOBAL VISUAL CONTEXT, draw it with its established design so it stays consistent across the video.
      - If the narration here is ABSTRACT — an emotion, an idea, an opinion or a life lesson with no concrete action or place to point at — do NOT default to a character standing in the usual location and do NOT show a generic empty place: stage a clear VISUAL METAPHOR or allusive mini-scene that embodies the idea (e.g. "promises break" → a snapped rope still swinging). If a MANDATORY CHARACTER block above puts a character in this scene, build the metaphor AROUND that character with their canonical identity fully intact; otherwise stage the symbolic scene on its own, following the character rules above.

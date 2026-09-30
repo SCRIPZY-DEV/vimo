@@ -3,12 +3,11 @@
 
 // Las dimensiones del frame ya no viven acá: dependen del formato del
 // proyecto y viajan por parámetro (pipeline/types/video-format.ts).
-export const FPS = 25
+export { ANIMATION_FPS as FPS } from '../../animation/timing.ts'
 
 // Movimiento de cámara "evidente pero sutil": TODA escena se mueve con un
 // zoom/paneo perceptible (sin marear).
-export const ZOOM_MAX = 1.11
-export const ZOOM_PAN = 1.1
+export { ZOOM_MAX, ZOOM_PAN } from '../../animation/timing.ts'
 
 // Escenas por chunk: evita el pthread_create EAGAIN de FFmpeg con >100 inputs.
 export const CHUNK_SIZE = 30
@@ -40,5 +39,10 @@ export const SUBTITLE_SHADOW = 1
 // Colita visual tras el fin del audio: la última imagen no corta en seco.
 export const PAD_MARGIN_SECONDS = 0.2
 
+// Cuánto se clona el último cuadro de un clip de animación antes de recortar
+// al tramo exacto (ADR-0047): cubre el redondeo de estirar/comprimir para que
+// el chunk jamás quede más corto que su hueco.
+export const ANIMATION_CLIP_PAD_SECONDS = 1
+
 // Versión del cache de chunks: bumpearla invalida todos los manifests.
-export const RENDER_CACHE_VERSION = 2
+export const RENDER_CACHE_VERSION = 5

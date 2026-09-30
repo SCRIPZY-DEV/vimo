@@ -19,28 +19,29 @@ interface PromptsGridProps {
   written: PromptsWrittenView | null
   // Pasada de reescritura desde la fase de imágenes: la cabecera lo dice.
   recovery?: ImagesRecoveryView | null
+  complete?: boolean
 }
 
 export function PromptsGrid({
   scenes,
   written,
   recovery = null,
+  complete = false,
 }: PromptsGridProps) {
   if (scenes.length === 0) return null
 
-  // max(persistidos, escritos), acotado al total — origen: la barra avanza
-  // mientras el modelo escribe y nunca retrocede cuando la persistencia
-  // alcanza al stream.
-  const done = Math.min(
-    scenes.length,
-    Math.max(scenes.filter(hasPrompt).length, written?.ready ?? 0),
-  )
+  // La barra cuenta escritura recibida; las filas solo muestran prompts ya
+  // persistidos. La fase sigue cargando al 100% mientras termina la validación.
+  const done = scenes.filter(hasPrompt).length
+  const drafted = Math.min(scenes.length, Math.max(done, written?.ready ?? 0))
 
   return (
     <div className="space-y-3">
       <PromptsProgressCard
         done={done}
         total={scenes.length}
+        drafted={drafted}
+        complete={complete}
         rewrite={
           recovery
             ? { pass: recovery.pass, maxPasses: recovery.maxPasses }

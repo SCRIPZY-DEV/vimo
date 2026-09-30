@@ -7,6 +7,7 @@ export const STAGE_IDS = [
   'scene-cuts',
   'scene-prompts',
   'images',
+  'animation',
   'render',
 ] as const
 

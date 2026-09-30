@@ -68,11 +68,11 @@ export const AUTOMATIC_SCENE_COUNT = 0
 
 // Espejo del carril de segundos-por-escena de videos (mismo criterio: se
 // duplica para no acoplar módulos).
-export const SECONDS_PER_SCENE_MIN = 2
-export const SECONDS_PER_SCENE_MAX = 15
+export const SECONDS_PER_SCENE_MIN = 3
+export const SECONDS_PER_SCENE_MAX = 12
 export const SECONDS_PER_SCENE_DEFAULT = 3
 // Valores de un click para no arrastrar el slider hasta los más usados.
-export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10]
+export const SECONDS_PER_SCENE_SHORTCUTS = [3, 4, 5, 6, 8, 10, 12]
 
 // Espejo del límite del sidecar (create-video-project.ts): un id más largo no
 // es un modelo, es basura en el store.

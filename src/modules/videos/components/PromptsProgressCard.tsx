@@ -6,39 +6,47 @@ import { SUPPORT_NOTE_CLASS } from '@/modules/videos/constants'
 interface PromptsProgressCardProps {
   done: number
   total: number
+  drafted: number
+  complete: boolean
   // Pasada de reescritura (fase de imágenes): los títulos cambian y el
   // spinner se mantiene aunque el conteo llegue al total — la pasada la
   // cierra el evento de reintento, no el contador.
   rewrite: { pass: number; maxPasses: number } | null
 }
 
-// Cabecera del avance de prompts. El porcentaje es REAL: cuenta los prompts
-// que llegaron por evento. Si el modelo se traba, la barra se queda quieta —
-// exactamente lo que hay que mostrar cuando eso pasa.
+// El porcentaje refleja la escritura recibida por stream. Llegar al 100%
+// no completa la fase: sigue cargando mientras se validan y guardan los
+// prompts, hasta recibir la confirmación del pipeline.
 export function PromptsProgressCard({
   done,
   total,
+  drafted,
+  complete,
   rewrite,
 }: PromptsProgressCardProps) {
   const { t } = useTranslation()
 
-  const percent = total > 0 ? Math.round((done / total) * 100) : 0
-  const writing = rewrite !== null || done < total
+  const writing = rewrite !== null || !complete || done < total
+  const written = Math.min(total, Math.max(done, drafted))
+  const percent = total > 0 ? Math.floor((written / total) * 100) : 0
+  const finalizing = writing && total > 0 && written >= total && !rewrite
   const title = rewrite
     ? t('create.prompts.rewritingTitle', { total })
-    : writing
-      ? t('create.prompts.writingTitle', { total })
-      : t('create.prompts.doneTitle', { total })
+    : finalizing
+      ? t('create.prompts.finalizingTitle')
+      : writing
+        ? t('create.prompts.writingTitle', { total })
+        : t('create.prompts.doneTitle', { total })
   const subtitle = rewrite
     ? t('create.prompts.rewritingSubtitle', {
-        done,
+        done: written,
         total,
         percent,
         pass: rewrite.pass,
         maxPasses: rewrite.maxPasses,
       })
     : writing
-      ? t('create.prompts.writingSubtitle', { done, total, percent })
+      ? t('create.prompts.writingSubtitle', { done: written, total, percent })
       : t('create.prompts.doneSubtitle')
 
   return (

@@ -18,6 +18,7 @@ import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-pro
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { directScenes } from '../../pipeline/stages/scene-prompts/scene-director.ts'
 import { guaranteePrompts } from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
+import { bodyWithoutFinalClauses } from '../../pipeline/stages/shared/prompt-safety.ts'
 import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
 import {
   createCatalogSceneLlm,
@@ -130,7 +131,46 @@ function requestScene(request) {
     )?.[1] ?? ''
   return fragments.findIndex((text) => fragment.includes(text))
 }
+// La suite valida transporte, checkpoints y mapeo, no calidad del revisor.
+// Las llamadas reales de revisión se simulan aparte del stream del redactor:
+// aprobar acá nunca cuenta como otro intento del modelo de Catálogo.
+function narrativeReviewResponse(request) {
+  if (
+    !request.messages[0].content.startsWith(
+      'You audit the FULL narrative meaning',
+    )
+  )
+    return
+  const { candidates } = JSON.parse(request.messages.at(-1).content)
+  assert.ok(Array.isArray(candidates) && candidates.length > 0)
+  return Response.json({
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            scenes: candidates.map((candidate) => ({
+              sceneId: candidate.sceneId,
+              checks: {
+                focus: true,
+                events: true,
+                setting: true,
+                causality: true,
+              },
+              aligned: true,
+              sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
+              promptEvidenceId: candidate.promptEvidence[0].id,
+              reason:
+                'Explicit approval fixture for catalog transport regression only.',
+            })),
+          }),
+        },
+      },
+    ],
+  })
+}
 function promptResponse(request) {
+  const review = narrativeReviewResponse(request)
+  if (review) return review
   const index = requestScene(request)
   assert.ok(
     index >= 0,
@@ -391,6 +431,8 @@ test('cancel mid-writing then resume: valid checkpoints only, correct scene mapp
   const calls = []
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request)
+    if (review) return review
     const index = requestScene(request)
     calls.push({ index, resumed })
     if (!resumed && index > 0) await delay(5000, null, { signal: init.signal })
@@ -434,7 +476,10 @@ test('cancel mid-writing then resume: valid checkpoints only, correct scene mapp
     scenes.length,
   )
   for (let index = 0; index < completed.length; index++)
-    assert.equal(completed[index].imagePrompt, descriptions[index])
+    assert.equal(
+      bodyWithoutFinalClauses(completed[index].imagePrompt),
+      descriptions[index],
+    )
   assert.equal(await scenePromptsStage.skip(next), true)
   const progress = next.events.filter(
     (event) => event.type === 'scene-prompts-progress',
@@ -503,6 +548,8 @@ test('resume repairs old filler while preserving valid prompts', async (t) => {
   const ids = []
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request)
+    if (review) return review
     if (request.messages[0].content.includes('VISUAL DIRECTOR'))
       return stream(directorReply(request))
     ids.push(requestScene(request) + 1)
@@ -518,7 +565,10 @@ test('resume repairs old filler while preserving valid prompts', async (t) => {
   assert.deepEqual(ids, [2])
   const completed = await readScenes(context.paths)
   assert.equal(completed[0].imagePrompt, descriptions[0])
-  assert.equal(completed[1].imagePrompt, descriptions[1])
+  assert.equal(
+    bodyWithoutFinalClauses(completed[1].imagePrompt),
+    descriptions[1],
+  )
   assert.equal(completed[1].promptIsFallback, false)
 })
 test('paid images remain untouched; legacy pending tasks block rewriting', async (t) => {
@@ -562,7 +612,7 @@ test('selective regeneration writes only requested ids', async (t) => {
   await scenePromptsStage.run(context)
   const stored = await readScenes(context.paths)
   assert.deepEqual(stored[0], scenes[0])
-  assert.equal(stored[1].imagePrompt, descriptions[1])
+  assert.equal(bodyWithoutFinalClauses(stored[1].imagePrompt), descriptions[1])
 })
 
 test('a silent SSE EOF is retried on another model, never accepted as a prompt', async (t) => {
@@ -597,6 +647,8 @@ test('director → prompts → Fal preserves each narrative and style after mode
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (String(url).includes('chat/completions')) {
       const request = JSON.parse(init.body)
+      const review = narrativeReviewResponse(request)
+      if (review) return review
       if (request.model === CATALOG_MODEL_IDS[0]) {
         firstFailed = true
         return new Response('', { status: 503 })
@@ -660,6 +712,8 @@ test('identical prompts for different fragments rotate instead of repeating the 
   let switches = 0
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request)
+    if (review) return review
     if (request.model === CATALOG_MODEL_IDS[0])
       return stream(
         JSON.stringify({

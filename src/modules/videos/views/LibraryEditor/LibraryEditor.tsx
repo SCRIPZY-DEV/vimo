@@ -6,6 +6,7 @@ import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
+import { useVideoCredits } from '@/modules/common/hooks/useVideoCredits'
 import { Button } from '@/modules/common/ui/button'
 import {
   Tooltip,
@@ -14,9 +15,15 @@ import {
 } from '@/modules/common/ui/tooltip'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { videosApi } from '@/modules/videos/api'
+import { AnimationFailureDialog } from '@/modules/videos/components/AnimationFailureDialog'
 import { AudioMixDialog } from '@/modules/videos/components/AudioMixDialog'
+import { EditorCreditsIssue } from '@/modules/videos/components/EditorCreditsIssue'
+import { EditorAnimationRange } from '@/modules/videos/components/EditorAnimationRange'
+import { EditorTransitionToggle } from '@/modules/videos/components/EditorTransitionToggle'
+import { TRANSITION_POLICY_VERSION } from '@pipeline/animation/transitions.ts'
 import { EditorPreviewPlayer } from '@/modules/videos/components/EditorPreviewPlayer'
 import { MissingImagesBanner } from '@/modules/videos/components/MissingImagesBanner'
+import { EditorImageGallery } from '@/modules/videos/components/EditorImageGallery'
 import { EditorScenePanel } from '@/modules/videos/components/EditorScenePanel'
 import { EditorTimeline } from '@/modules/videos/components/EditorTimeline'
 import { ExportClipsButton } from '@/modules/videos/components/ExportClipsButton'
@@ -26,6 +33,7 @@ import { RenderVideoButton } from '@/modules/videos/components/RenderVideoButton
 import {
   AUDIO_MIX_DEFAULTS,
   DEFAULT_TIMELINE_ZOOM_INDEX,
+  INSUFFICIENT_CREDITS_CODES,
   TIMELINE_ZOOM_LEVELS,
   UNKNOWN_CREATE_ERROR_KEY,
   VideosRoutes,
@@ -35,6 +43,7 @@ import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useEditorShortcuts } from '@/modules/videos/hooks/useEditorShortcuts'
 import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
 import { useProjectAudio } from '@/modules/videos/hooks/useProjectAudio'
+import { animationPlanPreview } from '@/modules/videos/utilities/animationPlanPreview'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { renderedVideoState } from '@/modules/videos/utilities/renderedVideoState'
 import type { EditorPlayerHandle } from '@/modules/videos/types/library'
@@ -57,6 +66,11 @@ export function LibraryEditor() {
     isRefreshing: creditsRefreshing,
     refresh: refreshCredits,
   } = useImageCredits()
+  // Saldo de animación solo si hay alguna clave cargada: sin clave la
+  // consulta no tiene nada que leer (y cada consulta levanta un proceso).
+  const videoCredits = useVideoCredits({
+    enabled: editor.configuredProviders.has(editor.videoProvider),
+  })
   const { task: createTask, startPipelineForProject } = useCreateTask()
 
   const [cursorSeconds, setCursorSeconds] = useState(0)
@@ -74,6 +88,36 @@ export function LibraryEditor() {
   // valor vigente sin re-suscribirse.
   const playerRef = useRef<EditorPlayerHandle | null>(null)
   const cursorRef = useRef(0)
+
+  const selectSceneFromTimeline = (sceneId: number) => {
+    editor.setSelectedSceneId(sceneId)
+    const scene = workingScenes.find((item) => item.id === sceneId)
+    // Seleccionar lleva el cursor al arranque de la escena (con un pelito de
+    // margen), sin cambiar el estado de reproducción.
+    if (scene?.startSeconds !== undefined)
+      playerRef.current?.seekTo(scene.startSeconds + 0.05)
+  }
+
+  const previewSceneAnimation = (sceneId: number) => {
+    const scene = workingScenes.find((item) => item.id === sceneId)
+    if (!scene) return undefined
+    return animationPlanPreview(
+      workingScenes.filter(
+        (item) =>
+          item.startSeconds !== undefined && item.endSeconds !== undefined,
+      ),
+      scene,
+      {
+        videoFormat: detail?.metadata.options.videoFormat ?? '16:9',
+        durationSeconds:
+          detail?.metadata.audioDurationSeconds ??
+          workingScenes.reduce(
+            (total, item) => Math.max(total, item.endSeconds ?? 0),
+            0,
+          ),
+      },
+    )
+  }
 
   const handleTimeChange = (seconds: number) => {
     cursorRef.current = seconds
@@ -142,7 +186,8 @@ export function LibraryEditor() {
   const task = editor.editorTask.task
   const videoState = renderedVideoState(
     Boolean(detail.videoPath),
-    metadata.videoOutdated === true,
+    metadata.videoOutdated === true ||
+      metadata.renderTransitionVersion !== TRANSITION_POLICY_VERSION,
   )
   const busy =
     editor.editorTask.isProjectBusy(projectId) ||
@@ -156,6 +201,18 @@ export function LibraryEditor() {
     )
   const hasMusic = Boolean(detail.musicPath)
 
+  // Qué haría el planificador con la escena seleccionada (ADR-0041): el
+  // panel lo dice en una línea y el timeline marca las escenas que absorbería.
+  const animationPlan = selectedScene
+    ? previewSceneAnimation(selectedScene.id)
+    : undefined
+  const plannedSceneIds = animationPlan?.sceneIds ?? []
+  const missingAnimationImage =
+    (animationPlan?.requestedSeconds ?? 0) > 0 &&
+    plannedSceneIds.some(
+      (id) => !workingScenes.find((scene) => scene.id === id)?.imagePath,
+    )
+
   // Fuentes de media compartidas por el player y el timeline (waveforms).
   // El mp4 solo se reproduce con render vigente; si no, el player simula.
   const narrationSrc = detail.narrationPath
@@ -168,15 +225,6 @@ export function LibraryEditor() {
     videoState === 'current' && detail.videoPath
       ? videosApi.videoSource(detail.videoPath, detail.videoMtimeMs)
       : null
-
-  const selectSceneFromTimeline = (sceneId: number) => {
-    editor.setSelectedSceneId(sceneId)
-    const scene = workingScenes.find((item) => item.id === sceneId)
-    // Seleccionar lleva el cursor al arranque de la escena (con un pelito de
-    // margen), sin cambiar el estado de reproducción.
-    if (scene?.startSeconds !== undefined)
-      playerRef.current?.seekTo(scene.startSeconds + 0.05)
-  }
 
   const generateDraft = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
@@ -280,6 +328,44 @@ export function LibraryEditor() {
         </div>
       )}
 
+      {/* El job cayó por saldo agotado (ADR-0031): qué cuenta rechazó, cuánto
+          hay y a dónde recargar. Vale para regenerar imágenes y para animar. */}
+      {task?.errorCode && INSUFFICIENT_CREDITS_CODES.has(task.errorCode) && (
+        <EditorCreditsIssue
+          code={task.errorCode}
+          imageProvider={editor.imageChoice.provider}
+          videoProvider={editor.videoProvider}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <EditorAnimationRange
+          projectId={projectId}
+          scenes={workingScenes}
+          durationSeconds={durationSeconds}
+          videoFormat={videoFormat}
+          busy={busy}
+          locked={demoProject}
+        />
+        <EditorTransitionToggle
+          projectId={projectId}
+          scenes={workingScenes}
+          busy={busy}
+        />
+        <EditorImageGallery
+          key={projectId}
+          projectId={projectId}
+          scenes={workingScenes}
+          videoFormat={videoFormat}
+          durationSeconds={durationSeconds}
+          imageProvider={editor.imageChoice.provider}
+          locked={demoProject}
+          onRegenerateImages={editor.regenerateGalleryImages}
+          onUndoAnimation={editor.undoAnimation}
+          undoingSceneId={editor.undoingSceneId}
+        />
+      </div>
+
       {/* Fila superior: desde lg toma toda la altura libre (≈70/30 entre visor
           y panel); el panel scrollea por dentro si se pasa. */}
       <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
@@ -311,6 +397,7 @@ export function LibraryEditor() {
             creditsRefreshing={creditsRefreshing}
             onRefreshCredits={refreshCredits}
             busy={busy || editor.savingChanges}
+            savingScenes={task?.savingScenes === true}
             regenerateLocked={demoProject}
             userPromptPending={editor.userPromptPending}
             errorKey={
@@ -323,13 +410,69 @@ export function LibraryEditor() {
             onClipTimeChange={editor.moveSelectedClipEdge}
             onImageChoiceChange={editor.changeImageChoice}
             onCharactersChange={editor.changeCharacters}
-            onRegenerate={editor.regenerateSelected}
+            onRegenerate={() => void editor.regenerateSelected()}
+            animation={{
+              busy:
+                editor.savingChanges ||
+                creatingHere ||
+                audio.audioBusy ||
+                missingAnimationImage ||
+                !editor.editorTask.canStartAnimation(
+                  projectId,
+                  plannedSceneIds,
+                ),
+              provider: editor.videoProvider,
+              configuredProviders: editor.configuredProviders,
+              credits: videoCredits.credits,
+              creditsLoading: videoCredits.isLoading,
+              creditsRefreshing: videoCredits.isRefreshing,
+              onRefreshCredits: videoCredits.refresh,
+              activity: selectedScene
+                ? task?.sceneAnimationStatus[selectedScene.id]
+                : undefined,
+              progress: selectedScene
+                ? task?.sceneAnimationProgress[selectedScene.id]
+                : undefined,
+              error: selectedScene
+                ? task?.sceneAnimationErrors[selectedScene.id]
+                : undefined,
+              plan: animationPlan,
+              undo:
+                editor.selectedAnimationSceneCount > 0
+                  ? {
+                      sceneCount: editor.selectedAnimationSceneCount,
+                      pending: editor.undoingSceneId !== null,
+                      disabled:
+                        busy ||
+                        editor.savingChanges ||
+                        creatingHere ||
+                        audio.audioBusy ||
+                        editor.selectedAnimationUndoPending,
+                      reason: editor.selectedAnimationUndoPending
+                        ? 'library.errors.animationUndoPending'
+                        : undefined,
+                      onUndo: () => {
+                        if (selectedScene)
+                          void editor.undoAnimation(selectedScene.id)
+                      },
+                    }
+                  : undefined,
+              onAnimate: () => {
+                void editor.editorTask.startAnimation(
+                  projectId,
+                  plannedSceneIds,
+                  'kie',
+                  true,
+                )
+              },
+            }}
           />
         </div>
       </div>
 
       <div className="shrink-0">
         <EditorTimeline
+          timingBusy={busy}
           scenes={workingScenes}
           durationSeconds={durationSeconds}
           playheadSeconds={cursorSeconds}
@@ -337,6 +480,10 @@ export function LibraryEditor() {
           sceneStatus={task?.sceneStatus ?? {}}
           sceneErrors={task?.sceneErrors ?? {}}
           sceneVersions={task?.sceneVersions ?? {}}
+          sceneAnimationStatus={task?.sceneAnimationStatus ?? {}}
+          sceneAnimationProgress={task?.sceneAnimationProgress ?? {}}
+          sceneAnimationErrors={task?.sceneAnimationErrors ?? {}}
+          plannedSceneIds={plannedSceneIds}
           narrationSrc={narrationSrc}
           musicSrc={musicSrc}
           zoomIndex={zoomIndex}
@@ -368,6 +515,13 @@ export function LibraryEditor() {
         }
         onSuggestPrompt={() => audio.suggestMusicPrompt(detail.script)}
         onPickFile={audio.pickAudioFile}
+      />
+
+      <AnimationFailureDialog
+        notice={task?.animationFailure ?? null}
+        busy={busy}
+        onClose={() => editor.editorTask.dismissAnimationFailure(projectId)}
+        onRetry={editor.retryAnimation}
       />
 
       <AudioMixDialog

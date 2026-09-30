@@ -1,3 +1,4 @@
+import { ANIMATION_MINUTES_DEFAULT } from '@/modules/videos/constants'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import type {
   CreateFormValue,
@@ -47,6 +48,13 @@ export function createProjectPayload(
     options.demo = true
     options.confirmScenes = false
     options.autoRender = true
+  }
+
+  if (form.animateScenes && !demo) {
+    // El formulario solo encarga el primer minuto, incluso si se recupera
+    // un borrador con opciones anteriores de N minutos o video completo.
+    options.animationMinutes = ANIMATION_MINUTES_DEFAULT
+    options.animateWholeVideo = false
   }
 
   if (usesCustomStyle && form.customStyle) {
@@ -126,11 +134,17 @@ export function formBlockers(
   {
     promptModelsBlocked = false,
     fixedCharacterMissing = false,
+    animationKeyMissing = false,
   }: FormBlockersContext = {},
 ): string[] {
   const blockers: string[] = []
 
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
+
+  if (form.animateScenes) {
+    if (animationKeyMissing)
+      blockers.push('create.validation.animationKeyRequired')
+  }
 
   // v1.35.0 del origen: la galería propia arranca vacía y sin tarjeta
   // elegida no hay estilo con qué generar.

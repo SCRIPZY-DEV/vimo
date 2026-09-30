@@ -16,6 +16,10 @@ import {
 } from '@/modules/videos/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
+import type {
+  AnimateScenesPayload,
+  UndoSceneAnimationResult,
+} from '@pipeline/types/animation.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
 import type { DemoStatusResult } from '@pipeline/types/demo.ts'
 import type {
@@ -136,6 +140,21 @@ export const videosApi = {
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('regenerate-scene-images', payload, onEvent)
   },
+  async startAnimation(
+    payload: AnimateScenesPayload,
+    onEvent: (event: PipelineEventPayload) => void,
+  ): Promise<PipelineJobHandle> {
+    return startPipelineJob('animate-scenes', payload, onEvent)
+  },
+  async undoAnimation(
+    projectId: string,
+    sceneId: number,
+  ): Promise<UndoSceneAnimationResult> {
+    return runPipelineJob<UndoSceneAnimationResult>('undo-scene-animation', {
+      projectId,
+      sceneId,
+    })
+  },
   async startRender(
     payload: RenderVideoPayload,
     onEvent: (event: PipelineEventPayload) => void,
@@ -230,5 +249,10 @@ export const videosApi = {
     const code = pipelineErrorCode(error)
     if (!code) return UNKNOWN_CREATE_ERROR_KEY
     return LIBRARY_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY
+  },
+  // El código crudo, para las decisiones que no dependen del texto (saldo
+  // agotado → alerta de la cuenta que rechazó, ADR-0031).
+  errorCode(error: unknown): string | null {
+    return pipelineErrorCode(error)
   },
 }

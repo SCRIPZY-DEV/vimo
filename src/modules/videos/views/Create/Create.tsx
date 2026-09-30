@@ -205,20 +205,7 @@ function CreateView({
   }
 
   const submit = async () => {
-    // Pre-flight del proveedor de voz: avisa antes de arrancar un pipeline
-    // largo. Solo aplica con narración por IA, y no en demo (sin probe).
-    if (!demo && formValue.narrationMode === 'tts' && formValue.voice) {
-      const result = await probe(formValue.voice)
-      if (!result.ok) {
-        setProbeFailure(result.reason)
-        return
-      }
-    }
     setProbeFailure(null)
-    // Con saldo insuficiente recién leído el formulario muestra la alerta
-    // (la caché fresca la alimenta) y no se arranca un job condenado.
-    const costCheck = await verifyCredits()
-    if (costCheck.blocking) return
     const promptModel = resolvePromptModel(
       form.promptModel,
       models,
@@ -226,6 +213,22 @@ function CreateView({
       blockedIds,
     )
     await startCreation({
+      // La tarea se muestra en el acto. Voz y saldo se comprueban en paralelo
+      // antes de crear el proyecto o consumir créditos en generaciones.
+      beforeCreate: async (isCurrent) => {
+        const [voiceCheck, costCheck] = await Promise.all([
+          !demo && formValue.narrationMode === 'tts' && formValue.voice
+            ? probe(formValue.voice)
+            : null,
+          verifyCredits(),
+        ])
+        if (!isCurrent()) return false
+        if (voiceCheck && !voiceCheck.ok) {
+          setProbeFailure(voiceCheck.reason)
+          return false
+        }
+        return !costCheck.blocking
+      },
       // `formValue` (y no `form`): en demo lleva la gema derivada en el render.
       payload: createProjectPayload(
         { ...formValue, promptModel },

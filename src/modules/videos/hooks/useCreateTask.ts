@@ -21,6 +21,8 @@ import {
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
+import { hasAutomaticAnimation } from '@pipeline/animation/scope.ts'
+import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
 import {
   libraryTabFor,
   rememberLibraryTab,
@@ -99,6 +101,12 @@ function restoreTask(): CreateTask | null {
       promptsWritten: stored.promptsWritten ?? null,
       // La pasada de recuperación pertenece a un job vivo: no sobrevive.
       imagesRecovery: null,
+      scenes: stored.scenes.map((scene) => ({
+        ...scene,
+        animationActivity: undefined,
+        animationLeadId: undefined,
+        animationProgress: undefined,
+      })),
       cancelRequested: false,
       // Tareas persistidas antes de ADR-0028: sin carril conocido no hay
       // modelo que vigilar. Lo demás pertenece a un job vivo: no sobrevive.
@@ -300,6 +308,8 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         // lleguen los eventos.
         scenes: mergePlannedScenes(task.scenes, event.scenes),
         audioDurationSeconds: event.audioDurationSeconds,
+        animationEndSeconds:
+          event.animationEndSeconds ?? task.animationEndSeconds,
       })
       return
 
@@ -352,6 +362,95 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageStatus: 'generating',
           imageProgress: undefined,
+        }),
+      })
+      return
+
+    case 'scene-animation-started':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (!event.sceneIds.includes(scene.id)) return scene
+          return {
+            ...scene,
+            animationActivity: 'generating',
+            animationLeadId: event.sceneId,
+            animationProgress: {
+              leadId: event.sceneId,
+              startedAt: scene.animationProgress?.startedAt ?? Date.now(),
+              reportedPercent: scene.animationProgress?.reportedPercent ?? 0,
+              phase: 'generating',
+            },
+          }
+        }),
+      })
+      return
+
+    case 'scene-animation-progress':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (
+            scene.animationLeadId !== event.sceneId ||
+            !scene.animationProgress
+          )
+            return scene
+          return {
+            ...scene,
+            animationProgress: {
+              ...scene.animationProgress,
+              phase:
+                event.status === 'retrying'
+                  ? 'retrying'
+                  : event.status === 'rate-limited'
+                    ? 'rate-limited'
+                    : 'generating',
+              attempt: event.attempt,
+              maxAttempts: event.maxAttempts,
+              reportedPercent: Math.max(
+                scene.animationProgress.reportedPercent ?? 0,
+                event.percent ?? 0,
+              ),
+            },
+          }
+        }),
+      })
+      return
+
+    case 'scene-animation-ready':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (!event.sceneIds.includes(scene.id)) return scene
+          const animations =
+            scene.id === event.sceneId && event.animation
+              ? [
+                  ...sceneAnimationBlocks(scene).filter(
+                    (animation) => animation.id !== event.animation?.id,
+                  ),
+                  event.animation,
+                ]
+              : scene.animations
+          return {
+            ...scene,
+            animations,
+            animationActivity: 'ready',
+            animationProgress: undefined,
+          }
+        }),
+      })
+      return
+
+    case 'scene-animation-failed':
+      patchTask(taskId, {
+        scenes: task.scenes.map((scene) => {
+          if (
+            scene.animationLeadId !== event.sceneId &&
+            scene.id !== event.sceneId
+          )
+            return scene
+          return {
+            ...scene,
+            animationActivity: 'error',
+            animationProgress: undefined,
+          }
         }),
       })
       return
@@ -420,6 +519,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           suggestedScenes: event.suggestedScenes,
           audioDurationSeconds: event.audioDurationSeconds,
           wordCount: event.wordCount,
+          animationMinutes: event.animationMinutes,
           // Solo el carril de segundos lo trae: cambia el diálogo a slider.
           ...(event.secondsPerScene !== undefined
             ? { secondsPerScene: event.secondsPerScene }
@@ -640,6 +740,12 @@ function makeTask(
     retryAttempts: 0,
     videoFormat: options.videoFormat ?? '16:9',
     cancelRequested: false,
+    animationEndSeconds: undefined,
+    automaticAnimation:
+      options.automaticAnimation ??
+      seed?.scenes.some(
+        (scene) => scene.animationRequestedSeconds !== undefined,
+      ),
     usesCustomStyle: options.usesCustomStyle ?? false,
     promptModel: options.promptModel ?? null,
     promptsStageActivity: null,
@@ -716,6 +822,9 @@ async function startCreation(input: {
   // Modelo de prompts YA resuelto (el default aplicado): es el que se
   // bloquea si falla. Solo cuenta con estilo propio.
   promptModel?: string | null
+  // La pantalla aparece antes del preflight; ningún proyecto se crea hasta
+  // que sus verificaciones aprueban. El callback descarta respuestas tardías.
+  beforeCreate?: (isCurrent: () => boolean) => Promise<boolean>
 }): Promise<void> {
   if (rejectIfBusy()) return
   stopActiveJob()
@@ -724,6 +833,7 @@ async function startCreation(input: {
   setTask(
     makeTask(taskId, '', input.payload.name, {
       videoFormat: input.payload.options.videoFormat,
+      automaticAnimation: hasAutomaticAnimation(input.payload.options),
       usesCustomStyle,
       promptModel: usesCustomStyle ? (input.promptModel ?? null) : null,
       imageProvider: input.payload.options.imageProvider,
@@ -733,9 +843,22 @@ async function startCreation(input: {
     }),
   )
 
+  const isCurrent = () =>
+    currentTask?.id === taskId && !currentTask.cancelRequested
+
   let projectId: string
   try {
+    if (input.beforeCreate) {
+      const accepted = await input.beforeCreate(isCurrent)
+      if (!isCurrent()) return
+      if (!accepted) {
+        setTask(null)
+        return
+      }
+    }
+
     const project = await videosApi.createProject(input.payload)
+    if (!isCurrent()) return
     projectId = project.projectId
     patchTask(taskId, { projectId })
     // La biblioteca abre en la pestaña del formato recién creado.

@@ -27,8 +27,15 @@ export function ApiKeys() {
   const statusByProvider = new Map(
     statuses.map((status) => [status.providerId, status]),
   )
-  const requiredProviders = API_KEY_PROVIDERS.filter((p) => p.recommended)
-  const optionalProviders = API_KEY_PROVIDERS.filter((p) => !p.recommended)
+  const visibleProviders = API_KEY_PROVIDERS.filter(
+    (provider) => !provider.hidden,
+  )
+  const requiredProviders = visibleProviders.filter(
+    (provider) => provider.recommended,
+  )
+  const optionalProviders = visibleProviders.filter(
+    (provider) => !provider.recommended,
+  )
   const configuredRequired = requiredProviders.filter(
     (provider) => statusByProvider.get(provider.id)?.configured,
   ).length
@@ -40,7 +47,7 @@ export function ApiKeys() {
   )
   const focusedProviders = isLoading
     ? []
-    : API_KEY_PROVIDERS.filter(
+    : visibleProviders.filter(
         (provider) =>
           focusIds.has(provider.id) &&
           !statusByProvider.get(provider.id)?.configured,

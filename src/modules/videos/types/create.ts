@@ -2,6 +2,7 @@ import type {
   ImagesRecoveryKind,
   RenderPhase,
 } from '@pipeline/runner/events.ts'
+import type { SceneAnimationProgress } from '@/modules/videos/types/library'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
 import type {
@@ -101,6 +102,7 @@ export interface SceneConfirmationView {
   // Presente solo en el carril de segundos (estilo propio): el diálogo pasa
   // a modo slider con este valor vigente.
   secondsPerScene?: number
+  animationMinutes?: number
 }
 
 // Lo que el usuario confirmó en el diálogo: el conteo clásico, o los
@@ -111,7 +113,12 @@ export type SceneCutChoice =
 // Escena tal como la ve la pantalla de progreso: la del contrato más el
 // avance de su imagen mientras se genera (scene-image-progress; solo
 // Evolink lo informa).
-export type SceneView = SceneSummary & { imageProgress?: number }
+export type SceneView = SceneSummary & {
+  imageProgress?: number
+  animationActivity?: 'generating' | 'ready' | 'error'
+  animationLeadId?: number
+  animationProgress?: SceneAnimationProgress
+}
 
 // Una generación de video de punta a punta. Vive fuera de React (módulo
 // store) porque el layout desmonta la vista al navegar y el job sigue
@@ -161,6 +168,9 @@ export interface CreateTask {
   // El proyecto usa un estilo propio (carril verbatim): ahí el modelo elegido
   // escribe los prompts y puede bloquearse (ADR-0028). Con estilo de Vimo no
   // hay modelo que vigilar.
+  automaticAnimation?: boolean
+  // Recibido del sidecar; puede atravesar una imagen heredada sin recortarla.
+  animationEndSeconds?: number
   usesCustomStyle: boolean
   // Modelo de prompts RESUELTO (nunca null con estilo propio: el default de
   // la casa ya viene aplicado). Es el que se bloquea si falla.
@@ -201,6 +211,7 @@ export interface ProjectRunOptions {
   seed?: CreateTaskSeed
   // Carril del proyecto y modelo resuelto (ver CreateTask): la vista los saca
   // de project.json al reanudar.
+  automaticAnimation?: boolean
   usesCustomStyle?: boolean
   promptModel?: string | null
   imageProvider?: ImageProviderId | null
@@ -256,6 +267,10 @@ export interface CreateFormValue {
   // Duración de cada escena en segundos (solo viaja con estilo propio). Se
   // siembra con la preferencia de Ajustes.
   secondsPerScene: number
+  // Activa la animación del inicio del video; la selección técnica es interna.
+  animateScenes: boolean
+  animateWholeVideo: boolean
+  animationMinutes: number
   imageProvider: ImageProviderId
   imageQuality: string
   voice: SelectedVoice | null
@@ -304,6 +319,7 @@ export interface FormBlockersContext {
   // El fijo de la gema ya no está en la biblioteca (lo resuelve
   // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).
   fixedCharacterMissing?: boolean
+  animationKeyMissing?: boolean
 }
 
 // Cómo se arma el payload de create-video-project desde el formulario.

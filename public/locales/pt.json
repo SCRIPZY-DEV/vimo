@@ -295,7 +295,8 @@
       "sceneCuts": "Dividindo em cenas",
       "scenePrompts": "Gerando prompts com IA",
       "images": "Gerando imagens",
-      "render": "Montando vídeo"
+      "render": "Montando vídeo",
+      "animation": "Gerando animação"
     },
     "progress": {
       "createAnother": "Criar outro",
@@ -363,7 +364,20 @@
         "body": "O projeto foi salvo com tudo o que foi gerado até aqui. Recarregue no provedor, atualize e retome: só o que falta é gerado.",
         "retry": "Retomar de onde parou",
         "retryHint": "Habilitado quando o saldo lido for suficiente. O que já foi feito não se repete nem é cobrado de novo."
-      }
+      },
+      "animationTitle": "Animando cenas",
+      "animationCount": "{{ready}} cenas prontas · {{active}} em andamento",
+      "animationError": "{{count}} cenas precisam de nova tentativa.",
+      "animationClipsCount": "{{ready}} de {{total}} clipes prontos",
+      "animationProgressHint": "As porcentagens durante a geração são aproximadas. Amplie e reproduza os clipes assim que estiverem prontos.",
+      "animationPlay": "Reproduzir",
+      "animationWorking": "Animando · {{percent}}%",
+      "animationScenes_one": "Cena {{ids}}",
+      "animationScenes_other": "Cenas {{ids}}",
+      "animationClipFailed": "Não foi possível concluir. Tente novamente ao terminar esta etapa ou continue no editor.",
+      "animationPending": "Pendente",
+      "animationRetrying": "Tentando novamente · {{attempt}}/{{maxAttempts}}",
+      "startingTitle": "Verificando serviços e saldo"
     },
     "confirmScenes": {
       "title": "Confirme a quantidade de cenas",
@@ -376,6 +390,9 @@
     },
     "secondsStep": {
       "perScene": "dura cada cena",
+      "perSceneAfterAnimation": "por imagem após o trecho animado",
+      "animatedPrefixHint": "Os primeiros {{minutes}} min terão imagens a cada 3 s, agrupadas em pares em clipes de 6 s. Escolha a duração das imagens estáticas no restante do vídeo.",
+      "confirmAnimated": "Seguir com {{count}} cenas no total",
       "total_one": "cena no total",
       "total_other": "cenas no total",
       "sliderAria": "Segundos por cena",
@@ -386,7 +403,11 @@
       "explanation": "As cenas são cortadas pelo relógio, não por frases: vêm coladas uma atrás da outra e cobrem todo o áudio, sem buracos. Se uma frase começa em uma imagem e termina na seguinte, tudo bem — a imagem muda enquanto a narração continua.",
       "confirm_one": "Seguir com {{count}} cena de {{seconds}} s",
       "confirm_other": "Seguir com {{count}} cenas de {{seconds}} s",
-      "footnote": "O vídeo está parado esperando isto: nada é gerado até você confirmar."
+      "footnote": "O vídeo está parado esperando isto: nada é gerado até você confirmar.",
+      "animatedWholeHint": "Serão criados clipes de 6 s. Se a última cena tiver menos de 3 s, ficará como imagem estática.",
+      "perAnimatedClip": "por clipe animado",
+      "sliderAfterAnimationAria": "Segundos por imagem após o trecho animado",
+      "animationExplanation": "Os clipes preservam os tempos da narração. Se a última cena tiver menos de 3 s, ficará como imagem estática."
     },
     "probe": {
       "titles": {
@@ -425,7 +446,9 @@
       "characterRequired": "Este estilo pede seu personagem: escolha um.",
       "fixedCharacterMissing": "O personagem fixado neste estilo não está mais na sua lista. Edite o estilo e escolha outro.",
       "promptModelsBlocked": "Todos os modelos para escrever prompts estão bloqueados: escolha um estilo da Vimo ou espere eles voltarem.",
-      "insufficientCredits": "Um provedor não tem saldo suficiente para esta geração: recarregue ou reduza o custo (menos cenas, outra qualidade)."
+      "insufficientCredits": "Um provedor não tem saldo suficiente para esta geração: recarregue ou reduza o custo (menos cenas, outra qualidade).",
+      "animationMinutesInvalid": "Escolha uma quantidade inteira de minutos, no mínimo 1.",
+      "animationKeyRequired": "Configure sua chave da Kie.ai para animar cenas."
     },
     "errors": {
       "discard": "Descartar",
@@ -513,7 +536,27 @@
       "imageInsufficientCredits": "Sua conta do provedor de imagens ficou sem saldo. O que foi gerado até aqui é preservado.",
       "llmInsufficientCredits": "Sua conta da DeepInfra não tem saldo para escrever os prompts.",
       "transcriptionInsufficientCredits": "Sua conta da Deepgram não tem saldo para transcrever a narração.",
-      "musicInsufficientCredits": "Sua conta da Evolink não tem créditos suficientes para gerar a música."
+      "musicInsufficientCredits": "Sua conta da Evolink não tem créditos suficientes para gerar a música.",
+      "animationInsufficientCredits": "Sua conta do provedor de animação ficou sem créditos. A cena fica estática até você recarregar e tentar de novo.",
+      "animationInvalidApiKey": "Sua chave do provedor de animação não é válida. Confira em Chaves de API.",
+      "animationRateLimited": "O provedor de animação está saturado. Tente de novo em alguns segundos.",
+      "animationProviderDown": "O serviço de animação está indisponível no momento. Tente novamente mais tarde.",
+      "animationProviderError": "O provedor de animação devolveu um erro ao gerar o clipe.",
+      "animationInvalidRequest": "Não é possível animar este intervalo. As cenas completas devem durar entre 3 e 12 segundos; revise os tempos antes de tentar novamente.",
+      "animationContentPolicy": "O provedor rejeitou o clipe pela política de conteúdo. Mude a descrição da cena e tente de novo.",
+      "animationNetwork": "Não conseguimos chegar ao provedor de animação.",
+      "animationTimeout": "O clipe demorou demais. Se o provedor terminar, tentar de novo aproveita sem custo extra.",
+      "animationDownloadFailed": "O clipe foi gerado mas não conseguimos baixá-lo. Tente de novo: já está pago e não é cobrado outra vez.",
+      "animationUploadFailed": "Não conseguimos enviar a imagem da cena ao provedor de animação.",
+      "animationImageMissing": "A cena não tem imagem: gere-a antes de animar.",
+      "animationClipMissing": "O clipe desta cena não está mais no disco. Refaça a animação.",
+      "animationSubmissionUnknown": "Não foi possível confirmar se o pedido foi aceito. O registro foi preservado para conferir a tarefa antes de uma nova cobrança.",
+      "animationMediaInvalid": "O clipe precisa concluir a preparação local. Tente novamente para recuperá-lo sem encomendar outro vídeo.",
+      "animationPromptFailed": "Não foi possível concluir um prompt de animação coerente após várias tentativas. Suas imagens e clipes foram preservados. Você pode tentar novamente.",
+      "animationProjectBusy": "Este projeto tem outra operação em andamento. Aguarde a conclusão.",
+      "animationRequestChanged": "Esta cena tem uma animação pendente. Recupere-a antes de encomendar outra versão.",
+      "animationIncomplete": "O trecho da animação ainda tem clipes pendentes. Tente novamente para concluir ou recuperar as tarefas salvas.",
+      "animationTimingLocked": "Os tempos destas cenas estão vinculados a clipes ou tarefas de animação salvos e não podem ser movidos."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -532,12 +575,14 @@
     "prompts": {
       "writingTitle": "Escrevendo {{total}} prompts, um por cena",
       "doneTitle": "{{total}} prompts prontos, um por cena",
-      "writingSubtitle": "{{done}} de {{total}} prontos · {{percent}}%",
+      "writingSubtitle": "{{done}} de {{total}} escritos · {{percent}}%",
       "doneSubtitle": "Um por cena, no estilo escolhido.",
       "writingAria": "Escrevendo este prompt",
       "rewritingTitle": "Reescrevendo {{total}} prompts rejeitados",
       "rewritingSubtitle": "{{done}} de {{total}} reescritos · {{percent}}% · passagem {{pass}} de {{maxPasses}}",
-      "rewritingHint": "O gerador de imagens rejeitou estas cenas por conteúdo: são reescritas mais neutras, no mesmo estilo."
+      "rewritingHint": "O gerador de imagens rejeitou estas cenas por conteúdo: são reescritas mais neutras, no mesmo estilo.",
+      "finalizingTitle": "Validando prompts",
+      "draftsHint": "{{drafted}} de {{total}} rascunhos recebidos. Só contam como prontos após revisão e salvamento."
     },
     "viewer": {
       "title": "Cena {{id}}",
@@ -681,6 +726,27 @@
       "cancelToLibrary": "Cancelar e voltar para a biblioteca",
       "halting": "Parando o vídeo… o job atual está fechando.",
       "retrySame": "Tentar de novo com {{model}}"
+    },
+    "animation": {
+      "title": "Animar cenas",
+      "range": "Trecho para animar",
+      "firstMinute": "Animar o primeiro minuto",
+      "customMinutes": "Animar os primeiros N minutos",
+      "minutesLabel": "Quantidade de minutos",
+      "minutesUnit": "minutos",
+      "hint": "Serão criadas imagens a cada 3 s durante o primeiro minuto e animadas em pares como clipes de 6 s, sem som. Se o áudio for mais curto, apenas sua duração será animada. O restante usará imagens estáticas.",
+      "estimate": "≈ {{credits}} créditos",
+      "estimateTitle": "Créditos estimados de animação",
+      "secondsQuoted": "Duração a gerar: {{seconds}} s",
+      "clipsQuoted": "Clipes a gerar: {{count}}",
+      "noNewCharge": "Não é necessário solicitar uma nova animação.",
+      "slotDuration": "Duração no vídeo: {{seconds}} s",
+      "wholeVideo": "Animar o vídeo inteiro ({{duration}})",
+      "durationLimit": "Duração do vídeo: {{duration}} · Máximo: {{minutes}} min",
+      "allVideo": "Animar todo o vídeo",
+      "wholeVideoHint": "O short é animado sem som. Se a última cena tiver menos de 3 s, ficará como imagem estática.",
+      "durationPending": "Os créditos serão calculados quando a duração do áudio for conhecida.",
+      "firstMinuteEstimateHint": "Estimativa para um minuto completo. Se o áudio for mais curto, serão gerados apenas os clipes necessários."
     }
   },
   "createDemo": {
@@ -777,7 +843,10 @@
         "zoomOut": "Afastar (−)",
         "noMusic": "Sem música — clique para adicionar",
         "openAudio": "Abrir o áudio do projeto",
-        "openMusic": "Abrir a música do projeto"
+        "openMusic": "Abrir a música do projeto",
+        "animatingPercent": "{{percent}}%",
+        "clipDuration": "{{seconds}} s",
+        "retryingPercent": "Tentando novamente · {{percent}}%"
       },
       "panel": {
         "noSelection": "Escolha uma cena na linha do tempo para editá-la.",
@@ -796,7 +865,50 @@
         "characters": "Personagens nesta cena",
         "regenerate": "Regenerar imagem",
         "regenerateWithPrompt": "Regenerar com sua descrição",
-        "lastError": "Última tentativa: {{reason}}"
+        "lastError": "Última tentativa: {{reason}}",
+        "animation": {
+          "title": "Animação",
+          "provider": "Provedor de animação",
+          "animate": "Animar clipe",
+          "redo": "Refazer clipe",
+          "redoLead": "Refazer o clipe da cena {{id}}",
+          "animating": "Animando…",
+          "readyCost": "Custo: {{credits}} créditos",
+          "absorbed": "Faz parte do clipe da cena {{id}}.",
+          "costHint": "≈ {{credits}} créditos por {{seconds}} s solicitados.",
+          "noKey": "Adicione uma chave da Kie.ai para animar cenas.",
+          "configure": "Ir para Chaves de API",
+          "blocked": "{{provider}} falhou várias vezes seguidas e fica oculto por um tempo.",
+          "lastError": "Última tentativa de animação: {{reason}}",
+          "animatingPercent": "Animando… {{percent}}%",
+          "planMerge": "Vai cobrir as cenas {{ids}} em um único plano de {{seconds}} s.",
+          "planDirect": "Vai cobrir esta cena inteira: {{seconds}} s.",
+          "planTrim": "A cena dura {{seconds}} s, menos que o clipe de {{clip}} s: o clipe se ajusta ao seu comprimento.",
+          "resumePaidHint": "Há animações já solicitadas que podem ser recuperadas. Retomar as recupera antes de verificar o saldo para novos clipes.",
+          "ready_one": "Clipe da cena {{ids}} · {{seconds}} s",
+          "ready_other": "Clipe das cenas {{ids}} · {{seconds}} s",
+          "clipTitle_one": "Clipe da cena {{ids}}",
+          "clipTitle_other": "Clipe das cenas {{ids}}",
+          "clipDuration": "Duração: {{seconds}} s",
+          "costUnknown": "Custo indisponível",
+          "queued": "Na fila…",
+          "waitingQuota": "Aguardando limite da Kie…",
+          "preparing": "Preparando animação…",
+          "pairingTitle": "Cenas que serão animadas juntas",
+          "pairingGroup": "Cenas {{ids}} · {{seconds}} s",
+          "pairingAdditional_one": "A cena {{ids}} também será incluída, mesmo sem estar selecionada. Cada dupla gera um único clipe.",
+          "pairingAdditional_other": "As cenas {{ids}} também serão incluídas, mesmo sem estarem selecionadas. Cada dupla gera um único clipe.",
+          "pairingOnce": "Cada dupla gera um único clipe, mesmo quando as duas cenas estão selecionadas.",
+          "retrying": "Tentando novamente · {{attempt}}/{{maxAttempts}}",
+          "undo": "Desfazer animação",
+          "undoing": "Restaurando imagens…",
+          "undoBeforeImage": "Para alterar as imagens, desfaça primeiro a animação. Depois, você poderá gerar as imagens novamente e animá-las.",
+          "undoFailed": "Não foi possível desfazer a animação. O clipe anterior foi preservado.",
+          "undoGroupHint": "Este clipe abrange {{sceneCount}} cenas. As imagens e durações originais serão restauradas juntas.",
+          "staticTailHint": "A última cena tem menos de 3 s e permanecerá como imagem estática.",
+          "staticTailUndoHint": "Este clipe inclui a última cena, com menos de 3 s. Desfaça a animação antes de animar novamente as cenas anteriores.",
+          "staticTailPendingHint": "Esta tentativa inclui a última cena, com menos de 3 s. Este grupo não será retomado nem cobrado por outra animação."
+        }
       },
       "render": {
         "render": "Exportar vídeo",
@@ -822,7 +934,108 @@
       "missingImagesTitle_one": "Falta a imagem de 1 cena (cena {{ids}})",
       "missingImagesTitle_other": "Faltam as imagens de {{count}} cenas (cenas {{ids}})",
       "missingImagesHint": "Toque numa cena vazia na linha do tempo e use «Regenerar» para criar a imagem: ela é ilustrada a partir da narração ou, se nada é dito nesse trecho, das linhas vizinhas — ou escreva uma descrição se quiser outra coisa. Quando todas tiverem, gere seu vídeo.",
-      "demoLocked": "Na demo, as imagens e a narração vêm do pacote de amostra: não podem ser regeneradas."
+      "demoLocked": "Na demo, as imagens e a narração vêm do pacote de amostra: não podem ser regeneradas.",
+      "animationFailed": "Alguma cena não pôde ser animada: ficou estática com o movimento de sempre e o motivo está no aviso.",
+      "animationFailure": {
+        "title": "Algumas animações não foram concluídas",
+        "body": "As imagens e os clipes anteriores foram preservados. Você pode tentar novamente nas cenas indicadas.",
+        "scene": "Cena {{id}}",
+        "detailLabel": "Detalhe do provedor",
+        "retry_one": "Tentar de novo 1 cena",
+        "retry_other": "Tentar de novo {{count}} cenas",
+        "close": "Fechar"
+      },
+      "animationRange": {
+        "title": "Animar o início do vídeo",
+        "hint": "Gera os clipes que faltam neste trecho. As animações prontas são preservadas e o restante do vídeo mantém seus tempos.",
+        "animate": "Animar primeiros {{minutes}} min",
+        "complete": "Este trecho já está animado",
+        "invalidScenes": "O trecho contém cenas fora dos limites aceitos. Ajuste seus cortes antes de animar.",
+        "animateShort": "Animar {{seconds}} s",
+        "staticTailOnly": "A última cena fica estática"
+      },
+      "animationDialog": {
+        "move": "Mover janela (também com as setas do teclado)",
+        "close": "Fechar janela de animação"
+      },
+      "transitions": {
+        "label": "Adicionar transições entre imagens",
+        "hint": "As transições junto a clipes animados permanecem sempre ativas.",
+        "playHint": "Reproduza o vídeo para ver as transições.",
+        "marker": "Transição entre as cenas {{from}} e {{to}}"
+      },
+      "imageGallery": {
+        "label": "Visualização ampliada de imagens",
+        "description_one": "{{count}} cena. Regenere imagens ou anime clipes sem sair desta galeria.",
+        "description_other": "{{count}} cenas. Regenere imagens ou anime clipes sem sair desta galeria.",
+        "select": "Selecionar imagem da cena {{id}}",
+        "missing": "Imagem indisponível",
+        "generating": "Gerando imagem…",
+        "failed": "A última geração falhou",
+        "review": "Ir para regenerar imagem",
+        "reviewHint": "Você irá à descrição no editor. Lá pode editar o prompt e confirmar a regeneração.",
+        "locked": "As imagens do projeto demo não podem ser regeneradas.",
+        "close": "Fechar visualização ampliada de imagens",
+        "promptHint": "Quer algo diferente? Descreva aqui. Para usar o prompt que a imagem já tinha, mantenha a descrição e clique em “Regenerar imagem”.",
+        "selectMultiple": "Selecionar",
+        "cancelSelection": "Cancelar seleção",
+        "selectionHint": "Marque as cenas e regenere suas imagens ou anime seus clipes de uma só vez.",
+        "browseHint": "Selecione uma imagem para regenerar ou animar. Use “Selecionar” para trabalhar com várias.",
+        "toggleScene": "Selecionar ou desmarcar cena {{id}}",
+        "selectedCount_one": "{{count}} cena selecionada",
+        "selectedCount_other": "{{count}} cenas selecionadas",
+        "reviewSelection": "Revisar seleção",
+        "queueProgress": "Revisão {{position}} de {{total}} · Cena {{id}}",
+        "queueFinished": "Revisão finalizada",
+        "queueSummary": "Regeneradas: {{completed}} · Ignoradas: {{skipped}}.",
+        "queueGenerating": "Gerando esta imagem. Quando terminar, iremos para a próxima cena selecionada.",
+        "queueFailed": "Esta imagem não foi concluída. Tente novamente com “Regenerar imagem” ou pule para a próxima cena.",
+        "queueHint": "Edite a descrição ou regenere com o prompt existente. Só será gerada a cena que você confirmar.",
+        "endReview": "Finalizar revisão",
+        "resumeReview": "Ir para cena {{id}}",
+        "skipScene": "Pular cena",
+        "animate": "Animar clipe",
+        "imageAnimation": "Regenerar e animar",
+        "action": "Ação para a seleção",
+        "modeImage": "Regenerar imagens",
+        "modeAnimation": "Animar clipes",
+        "modeImageAnimation": "Regenerar e animar",
+        "queueAnimationProgress": "Revisão de animações {{position}} de {{total}} · Cena {{id}}",
+        "queueAnimationSummary": "Cenas animadas: {{completed}} · Ignoradas: {{skipped}}.",
+        "queueCombinedSummary": "Imagens regeneradas: {{imageCompleted}} · Cenas animadas: {{completed}} · Ignoradas: {{skipped}}.",
+        "queueAnimationFailed": "A animação não foi concluída. Confira o aviso no painel para retomar, tentar novamente ou pular para a próxima cena.",
+        "queueAnimationHint": "Revise as cenas, a duração e os créditos do clipe antes de confirmar a animação. Depois iremos para o próximo.",
+        "queueImagePass": "Etapa 1 de 2 · Revise primeiro as imagens selecionadas. As animações vêm depois.",
+        "queueAnimationPass": "Etapa 2 de 2 · Confirme cada animação no painel. Um clipe pode abranger várias cenas.",
+        "queueRecoveryRequired": "Há uma animação pendente de recuperação. Retome-a no painel antes de alterar sua imagem para preservar o trabalho já solicitado.",
+        "queueRefreshFailed": "O resultado foi salvo, mas não foi possível atualizar a visualização. Continue a revisão para lê-lo novamente sem repetir a geração.",
+        "continueReview": "Continuar revisão",
+        "reviewPendingAnimation": "Ir à animação pendente",
+        "endReviewHint": "Fecha a revisão. As gerações em andamento continuam.",
+        "regenerateImages": "Regenerar imagens",
+        "regenerateCount_one": "Regenerar {{count}} imagem",
+        "regenerateCount_other": "Regenerar {{count}} imagens",
+        "animateSelection": "Animar clipes",
+        "optionalDescription": "Descrição opcional",
+        "descriptionPlaceholder": "O que você quer mudar nesta imagem?",
+        "descriptionHint": "Escreva uma descrição para obter algo diferente. Sem alterações pendentes, deixar vazio reutiliza o prompt atual.",
+        "pendingDescriptionHint": "Há uma alteração de descrição pendente. Ela será aplicada ao regenerar; você pode escrever aqui para substituí-la. Deixar vazio não descarta a alteração salva.",
+        "regeneratePending": "Regenerar com alterações pendentes",
+        "closeDescription": "Fechar descrição",
+        "closeDescriptions": "Fechar descrições",
+        "animated": "Clipe animado",
+        "submitFailed": "Não foi possível iniciar. Sua seleção e descrições foram mantidas.",
+        "recoveringImage": "Retome a animação pendente antes de alterar sua imagem.",
+        "imagesFirst": "Primeiro regenere estas imagens ou feche as descrições para animar as imagens atuais.",
+        "noImageProvider": "Configure uma chave de imagens antes de regenerar.",
+        "insufficientCredits": "O saldo disponível não é suficiente para esta seleção.",
+        "animateRedoSelection": "Animar / refazer clipes",
+        "resumeSelection": "Retomar clipes",
+        "shortPairHint": "Cenas de 3 s: ao animar uma, a próxima cena compatível é incluída para criar um clipe de 6 s. As duplas aparecem aqui antes de começar. Sem dupla, apenas esse clipe é ajustado à sua duração.",
+        "undoHint_one": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente. Este clipe abrange {{count}} cena.",
+        "undoHint_other": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente. Este clipe abrange {{count}} cenas.",
+        "undoBeforeImages": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente."
+      }
     },
     "errors": {
       "projectBusy": "Já há uma geração em andamento. Espere terminar antes de iniciar outra.",
@@ -831,7 +1044,12 @@
       "clipsNoScenes": "O projeto não tem cenas com tempos para exportar.",
       "clipsNoImages": "Há cenas sem imagem: gere-as antes de exportar.",
       "falAdminKeyRequired": "Sua chave Fal não é do tipo Admin: crie uma nova com permissão Admin para ver o saldo.",
-      "demoProject": "Este vídeo é da demo: as imagens e a narração vêm do pacote de amostra e não são regeneradas."
+      "demoProject": "Este vídeo é da demo: as imagens e a narração vêm do pacote de amostra e não são regeneradas.",
+      "animationAlreadyCovered": "Essa cena já faz parte de outro clipe animado.",
+      "animationSlotOutOfRange": "Essa cena não cabe na duração de um clipe, nem sozinha nem junto com as vizinhas.",
+      "animationImageLocked": "Desfaça a animação antes de gerar suas imagens novamente. Recupere qualquer tarefa pendente primeiro.",
+      "animationUndoPending": "Estas cenas têm uma animação aguardando recuperação. Recupere-a antes de desfazer o clipe para preservar a geração enviada.",
+      "animationSourceMissing": "Uma imagem original está ausente. O clipe animado é preservado para não deixar a cena vazia."
     },
     "music": {
       "title": "Música de fundo",
@@ -1012,6 +1230,7 @@
       "llmTimeout": "A IA demorou demais para responder. Tente novamente.",
       "llmRateLimited": "O serviço de IA está saturado. Aguarde alguns segundos e tente de novo.",
       "llmProviderError": "O serviço de IA retornou um erro. Tente novamente.",
+      "scenePromptAlignmentFailed": "Não foi possível verificar se todas as imagens correspondem ao seu trecho de narração. O progresso foi salvo e nenhuma imagem foi gerada com os prompts pendentes. Retome para tentar novamente.",
       "catalogPromptsIncomplete": "Os modelos disponíveis não conseguiram completar os prompts. O progresso foi salvo e nenhuma nova imagem foi solicitada com prompts genéricos de reserva. Retome para tentar novamente.",
       "catalogPromptPendingImage": "Uma cena tem um prompt genérico antigo e uma tarefa de imagem pendente. Confira essa tarefa no provedor antes de gerar novamente para evitar uma segunda cobrança.",
       "missingApiKey": "Falta uma chave API para esta ação. Configure em Chaves API.",
@@ -1357,11 +1576,13 @@
     "guardada": "Chave salva.",
     "eliminada": "Chave excluída.",
     "validacionOk": "Conectado com sucesso.",
+    "validacionOkSaldo": "Conectado com sucesso · saldo {{amount}} cr.",
     "categoria": {
       "llm": "IA de roteiros (DeepInfra)",
       "image": "imagens (Fal.ai ou Evolink)",
       "voice": "voz (DubVoice ou ElevenLabs)",
-      "transcription": "transcrição (Deepgram)"
+      "transcription": "transcrição (Deepgram)",
+      "animation": "animação de cenas (Kie.ai)"
     },
     "descripcion": {
       "deepinfra": "IA principal: gera os prompts visuais de cada cena.",
@@ -1369,7 +1590,9 @@
       "evolink": "Imagens com gpt-image (mais caro, mais realista). A mesma chave serve para a música IA.",
       "dubvoice": "Voz narrada com Minimax, ElevenLabs, Vbee e Fish Audio com uma única chave. Qualidade humana em espanhol.",
       "elevenlabs": "Voz premium direto da ElevenLabs.",
-      "deepgram": "Transcrição palavra por palavra do áudio."
+      "deepgram": "Transcrição palavra por palavra do áudio.",
+      "kie": "Animação automática de cenas a partir das imagens, com saldo em créditos.",
+      "poyo": "Anima uma cena com Veo. Opcional, só se você quiser cenas animadas."
     },
     "badge": {
       "falAdmin": "⚠ Tipo Admin"
@@ -1413,11 +1636,11 @@
     "sceneDurationUnit": "s",
     "sceneDurationValueCaption": "dura cada cena",
     "sceneDurationSecondsValue": "{{seconds}} s",
-    "sceneDurationMinHint": "2 s · muitas cenas curtas",
-    "sceneDurationMaxHint": "15 s · poucas e longas",
+    "sceneDurationMinHint": "3 s · muitas cenas curtas",
+    "sceneDurationMaxHint": "12 s · poucas e longas",
     "sceneDurationShortcuts": "Atalhos:",
     "sceneDurationDontAskLabel": "Não me perguntar ao gerar",
-    "sceneDurationDontAskHint": "Depois de transcrever, o vídeo para para você escolher o ritmo e ver quantas cenas saem.",
+    "sceneDurationDontAskHint": "Use diretamente o ritmo dos Ajustes. Desative esta opção para confirmar após a transcrição.",
     "sceneDurationSaved": "Preferência salva.",
     "sceneDurationError": "Não foi possível salvar a preferência.",
     "promptModelTitle": "Seu modelo para escrever",

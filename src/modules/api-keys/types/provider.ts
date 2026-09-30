@@ -1,7 +1,15 @@
 export type ApiKeyProviderId =
-  'deepinfra' | 'fal' | 'evolink' | 'dubvoice' | 'elevenlabs' | 'deepgram'
+  | 'deepinfra'
+  | 'fal'
+  | 'evolink'
+  | 'dubvoice'
+  | 'elevenlabs'
+  | 'deepgram'
+  | 'kie'
+  | 'poyo'
 
-export type ApiKeyCategory = 'llm' | 'image' | 'voice' | 'transcription'
+export type ApiKeyCategory =
+  'llm' | 'image' | 'voice' | 'transcription' | 'animation'
 
 // Un requisito: lista de proveedores alternativos, basta uno configurado.
 export type ApiKeyRequirement = ApiKeyProviderId[]
@@ -28,4 +36,6 @@ export interface ApiKeyProvider {
   badgeKey?: string
   /** Proveedor por defecto de su categoría: se lista en Obligatorias. */
   recommended: boolean
+  /** Conservado para proyectos históricos, sin tarjeta ni enlace de compra. */
+  hidden?: boolean
 }

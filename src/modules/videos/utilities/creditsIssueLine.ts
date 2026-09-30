@@ -20,6 +20,7 @@ const FIXED_PROVIDERS = {
 export function creditsIssueProviderId(context: CreditsIssueContext): string {
   if (context.domain === 'image') return context.imageProvider ?? 'fal'
   if (context.domain === 'voice') return context.voiceVendor ?? 'dubvoice'
+  if (context.domain === 'animation') return context.videoProvider ?? 'kie'
   return FIXED_PROVIDERS[context.domain]
 }
 

@@ -1,4 +1,5 @@
 import {
+  ANIMATION_MINUTES_DEFAULT,
   AUTO_SECONDS_PER_SCENE,
   BGM_CREDITS_ESTIMATE,
   COST_ESTIMATE_SAFETY_FACTOR,
@@ -6,6 +7,9 @@ import {
 } from '@/modules/videos/constants'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
+import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
+import { estimateAnimationSeconds } from '@/modules/videos/utilities/estimateAnimationSeconds'
+import { planPrefixSceneWindows } from '@pipeline/animation/prefix-scenes.ts'
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -25,6 +29,10 @@ export function estimateCreateCost(form: CreateFormValue): CostEstimateLine[] {
 
   const images = estimateImagesLine(form, script)
   if (images) lines.push(images)
+
+  const animationSeconds = estimateAnimationSeconds(form)
+  if (animationSeconds > 0)
+    lines.push(animationCostEstimate('kie', animationSeconds))
 
   if (form.useBgm && form.bgmMode === 'evolink-ai')
     lines.push({
@@ -68,16 +76,27 @@ function estimateImagesLine(
   )
 }
 
-// Con estilo de catálogo y cantidad fija, esa; si no, por duración: con
-// narración por IA se aproxima desde el guion, con audio propio no hay dato.
+// Usa el mismo corte puro del sidecar: imágenes cada3s en el primer minuto
+// y el resto con la duración configurada.
+// El audio propio conserva su cantidad manual hasta medir la duración.
 function estimatedSceneCount(form: CreateFormValue, script: string): number {
   const usesCustomStyle = form.styleSource === 'custom'
-  if (!usesCustomStyle && form.sceneCount > 0) return form.sceneCount
-  if (form.narrationMode !== 'tts' || !script) return 0
+  const hasFixedCount = !usesCustomStyle && form.sceneCount > 0
+  if (form.narrationMode !== 'tts' || !script)
+    return hasFixedCount ? form.sceneCount : 0
 
   const durationSeconds = script.length / SPEECH_CHARS_PER_SECOND
   const secondsPerScene = usesCustomStyle
     ? form.secondsPerScene
     : AUTO_SECONDS_PER_SCENE
-  return estimateSceneCount(durationSeconds, secondsPerScene)
+  const count = hasFixedCount
+    ? form.sceneCount
+    : estimateSceneCount(durationSeconds, secondsPerScene)
+  if (!form.animateScenes) return count
+  return planPrefixSceneWindows({
+    totalSeconds: durationSeconds,
+    minutes: ANIMATION_MINUTES_DEFAULT,
+    secondsPerScene: usesCustomStyle ? form.secondsPerScene : undefined,
+    sceneCount: hasFixedCount ? form.sceneCount : undefined,
+  }).length
 }
