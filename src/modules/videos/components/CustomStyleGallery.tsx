@@ -10,7 +10,10 @@ import {
 } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { newCustomStyleId } from '@/modules/videos/constants'
-import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
+import {
+  customStyleDraftFrom,
+  selectedCustomStyleFrom,
+} from '@/modules/videos/utilities/selectedCustomStyle'
 import type {
   CustomStyleDraft,
   SelectedCustomStyle,
@@ -31,15 +34,6 @@ interface CustomStyleGalleryProps {
 }
 
 const EMPTY_DRAFT: CustomStyleDraft = { name: '', systemPrompt: '', shots: [] }
-
-function toDraft(style: CustomStyleSummary): CustomStyleDraft {
-  return {
-    name: style.name,
-    systemPrompt: style.systemPrompt ?? '',
-    shots: style.shots,
-    ...(style.character ? { character: style.character } : {}),
-  }
-}
 
 // Galería de estilos propios (port de GaleriaEstilosPropios del origen): una
 // tarjeta por estilo guardado + «Crear estilo» SIEMPRE al final, con la misma
@@ -91,18 +85,13 @@ export function CustomStyleGallery({
 
   const save = async (payload: StyleSavePayload) => {
     const wasNew = !styles.some((style) => style.id === payload.id)
-    await saveStyle(payload)
+    const { entry } = await saveStyle(payload)
     // Una tarjeta recién creada queda EN USO: la persona la acaba de armar
     // para usarla. Una editada solo si ya lo estaba — editar un estilo no
-    // cambia cuál se usa (origen).
+    // cambia cuál se usa (origen). El snapshot sale de lo que quedó guardado
+    // (con sus secciones, si es de plantilla), no del pedido.
     if (!wasNew && selected?.styleId !== payload.id) return
-    onSelect({
-      styleId: payload.id,
-      name: payload.name,
-      systemPrompt: payload.systemPrompt ?? '',
-      shots: payload.shots ?? [],
-      ...(payload.character ? { character: payload.character } : {}),
-    })
+    onSelect(selectedCustomStyleFrom(entry))
   }
 
   return (
@@ -188,7 +177,10 @@ export function CustomStyleGallery({
           // abierto no re-siembra lo tipeado).
           key={editing.styleId}
           styleId={editing.styleId}
-          initial={editingStyle ? toDraft(editingStyle) : EMPTY_DRAFT}
+          initial={
+            editingStyle ? customStyleDraftFrom(editingStyle) : EMPTY_DRAFT
+          }
+          isNew={editing.isNew}
           // Derivadas de la query viva: al terminar de generar, la
           // invalidación refetchea y el modal muestra las muestras solo.
           samples={editingStyle?.samples ?? []}

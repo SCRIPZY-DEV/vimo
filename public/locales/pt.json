@@ -709,6 +709,10 @@
       "defaultMissing": "O personagem padrão que você tinha escolhido não está mais na sua lista. Escolha outro para usar este estilo."
     },
     "gemTemplate": {
+      "pasteHint": "Cole o texto completo da sua gema. A IA do Vimo o organiza em seções (estilo visual, personagem, dinamismo, câmera e regras) sem inventar nada: o que não está na sua gema não aparece.",
+      "replaceGem": "Colar gema nova",
+      "replaceHint": "Substitui todas as seções pelas de outra gema.",
+      "replaceConfirm": "A gema nova substitui todas as seções e o que você não salvou se perde. Continuar?",
       "pasteTitle": "Cole sua gema",
       "pastePlaceholder": "Cole aqui sua gema completa…",
       "pasteCount": "{{used}} / {{limit}} caracteres",

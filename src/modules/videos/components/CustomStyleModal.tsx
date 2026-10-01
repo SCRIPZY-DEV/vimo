@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Clapperboard, Loader2, Sparkles } from 'lucide-react'
+import { Clapperboard, ClipboardPaste, Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -16,6 +17,10 @@ import { cn } from '@/modules/common/utilities/cn'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
+import { ColorFilterPicker } from '@/modules/videos/components/ColorFilterPicker'
+import { GemAgentWarnings } from '@/modules/videos/components/GemAgentWarnings'
+import { GemPasteStep } from '@/modules/videos/components/GemPasteStep'
+import { GemSectionsEditor } from '@/modules/videos/components/GemSectionsEditor'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
 import { apiKeysApi } from '@/modules/api-keys/api'
@@ -24,9 +29,16 @@ import { InsufficientCreditsAlert } from '@/modules/common/components/Insufficie
 import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
+import { useGemRebuild } from '@/modules/videos/hooks/useGemRebuild'
+import { useGemTemplateDraft } from '@/modules/videos/hooks/useGemTemplateDraft'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
+import {
+  hasGemText,
+  templateStyleSavePayload,
+} from '@/modules/videos/utilities/gemTemplate'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import {
+  CUSTOM_STYLE_FIELD_CLASS,
   CUSTOM_STYLE_NAME_LIMIT,
   CUSTOM_STYLE_PROMPT_LIMIT,
   CUSTOM_STYLE_SAMPLE_COUNT,
@@ -45,6 +57,9 @@ import type {
 interface CustomStyleModalProps {
   styleId: string
   initial: CustomStyleDraft
+  // Estilo nuevo, todavía fuera de la galería: con la plantilla encendida
+  // arranca en «Pegá tu gema» (ADR-0048).
+  isNew: boolean
   // Muestras VIVAS del estilo (derivadas de la query de la galería): se ven
   // al abrir y aparecen solas al terminar de generar.
   samples: StyleSample[]
@@ -101,20 +116,20 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
   (_, index) => index + 1,
 )
 
-const FIELD_CLASS =
-  'w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-primary disabled:opacity-60'
-
 // Modal del estilo (port de ModalEstilo del origen): verlo entero, editarlo y
 // probarlo. Orden a propósito: personaje → muestras → proveedor → generar →
-// nombre → estilo → planos → Listo, porque el personaje cambia cómo salen
-// las muestras y elegirlo después sería generar dos veces. Cerrar (Listo, la
-// X o clic afuera) GUARDA el borrador como tarjeta: no hay «Cancelar».
-// Regla de modales del origen: nunca dos Radix abiertos — mientras se elige
-// el personaje predeterminado, este se ESCONDE en vez de apilarse (Radix
-// apaga los clicks del body con el de arriba abierto).
+// nombre → estilo → Listo, porque el personaje cambia cómo salen las muestras
+// y elegirlo después sería generar dos veces. El «estilo» es el texto y los
+// planos de siempre en una gema vieja, o sus secciones y su filtro de color en
+// una de plantilla (ADR-0048), que antes de existir pasa por «Pegá tu gema».
+// Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta: no hay
+// «Cancelar». Regla de modales del origen: nunca dos Radix abiertos —
+// mientras se elige el personaje predeterminado, este se ESCONDE en vez de
+// apilarse (Radix apaga los clicks del body con el de arriba abierto).
 export function CustomStyleModal({
   styleId,
   initial,
+  isNew,
   samples: storedSamples,
   saving,
   generateOnOpen,
@@ -129,6 +144,17 @@ export function CustomStyleModal({
   // cobra, y el job difiere el refetch al terminar para que el gasto se vea acá.
   const credits = useImageCredits()
   const { configuredProviders } = useRequiredApiKeys()
+  // Interruptor de la plantilla (ADR-0048): configuración global, se lee acá.
+  const gemTemplateEnabled = useAccessFeature('gemTemplate')
+  // Qué editor usa esta apertura, fijo hasta cerrar. Una gema con secciones se
+  // edita por secciones aunque el interruptor se haya apagado después (volver
+  // atrás no rompe lo guardado); una nueva, solo con el interruptor encendido.
+  // Las viejas siguen con el editor de siempre.
+  const [templateMode] = useState(
+    () => initial.sections !== undefined || (isNew && gemTemplateEnabled),
+  )
+  const gemDraft = useGemTemplateDraft(initial)
+  const gemRebuild = useGemRebuild()
 
   const [name, setName] = useState(initial.name)
   const [systemPrompt, setSystemPrompt] = useState(initial.systemPrompt)
@@ -152,7 +178,13 @@ export function CustomStyleModal({
   // La generación automática del menú corre UNA vez por apertura.
   const autoStarted = useRef(false)
 
-  const hasPrompt = systemPrompt.trim().length > 0
+  // Hay estilo que guardar: el texto de una gema vieja o el estilo visual de
+  // una de plantilla (sin él, el sidecar no la acepta).
+  const hasStyleText = templateMode
+    ? hasGemText({ sections: gemDraft.sections })
+    : systemPrompt.trim().length > 0
+  // «Pegá tu gema»: un estilo nuevo por plantilla, o «Pegar gema nueva».
+  const pasting = templateMode && gemDraft.pasting
   // Las muestras se cobran como N imágenes en calidad base (ADR-0029): con
   // saldo leído insuficiente el botón se frena y se ofrece recargar.
   const samplesEstimate = provider
@@ -168,7 +200,7 @@ export function CustomStyleModal({
     providerLabel,
   )
   const canGenerate =
-    hasPrompt &&
+    hasStyleText &&
     provider !== null &&
     !samplesJob.running &&
     !saving &&
@@ -180,11 +212,23 @@ export function CustomStyleModal({
   }
 
   const payload = (characterToSave: StyleCharacter): StyleSavePayload => {
+    // El sidecar exige nombre: sin uno, la tarjeta se llama como en el
+    // origen («Estilo sin nombre») en vez de perder el texto.
+    const styleName = name.trim() || t('create.customStyles.unnamed')
+    if (templateMode)
+      return templateStyleSavePayload({
+        id: styleId,
+        name: styleName,
+        sections: gemDraft.sections,
+        templateVersion: gemDraft.templateVersion,
+        colorFilter: gemDraft.colorFilter,
+        character: characterToSave,
+        sourcePrompt: gemDraft.sourcePrompt,
+      })
+
     return {
       id: styleId,
-      // El sidecar exige nombre: sin uno, la tarjeta se llama como en el
-      // origen («Estilo sin nombre») en vez de perder el texto.
-      name: name.trim() || t('create.customStyles.unnamed'),
+      name: styleName,
       systemPrompt: systemPrompt.trim(),
       shots: shots
         .split(',')
@@ -201,10 +245,13 @@ export function CustomStyleModal({
   const persist = async (
     characterToSave: StyleCharacter = character,
   ): Promise<boolean> => {
-    if (!hasPrompt) return false
+    if (!hasStyleText) return false
     setSaveErrorKey(null)
+    const toSave = payload(characterToSave)
     try {
-      await onSave(payload(characterToSave))
+      await onSave(toSave)
+      // Lo guardado es la referencia de «Pegar gema nueva».
+      if (toSave.sections) gemDraft.markSaved(toSave.sections)
       return true
     } catch (error) {
       setSaveErrorKey(videosApi.errorMessageKey(error))
@@ -212,11 +259,11 @@ export function CustomStyleModal({
     }
   }
 
-  // Con muestras generándose no se cierra: el trabajo cuesta y se vería a
-  // medias; el botón lo dice con su spinner.
+  // Con muestras generándose o la IA preparando la gema no se cierra: los dos
+  // trabajos cuestan y se verían a medias; los botones lo dicen con su spinner.
   const close = async () => {
-    if (samplesJob.running) return
-    if (hasPrompt) {
+    if (samplesJob.running || gemRebuild.pending) return
+    if (hasStyleText) {
       const saved = await persist()
       if (!saved) return
     }
@@ -226,7 +273,7 @@ export function CustomStyleModal({
   // El estilo se guarda ANTES de generar (guard del origen: «muestras sin
   // estilo, no»): el sidecar genera para una tarjeta que ya existe.
   const generate = async (imageProvider: ImageProviderId) => {
-    if (!hasPrompt) return
+    if (!hasStyleText) return
     const saved = await persist()
     if (!saved) return
     await samplesJob.generate(styleId, imageProvider)
@@ -237,6 +284,28 @@ export function CustomStyleModal({
     if (!generateOnOpen || autoStarted.current) return
     autoStarted.current = true
     void generate(imageProvider)
+  }
+
+  // «Preparar con IA»: la gema pegada va al agente y vuelve por secciones. Si
+  // falla, el texto sigue en la caja y el botón pasa a «Reintentar».
+  const prepare = async () => {
+    const sourceText = gemDraft.pasteText.trim()
+    const response = await gemRebuild.rebuild(styleId, sourceText, 'mi-estilo')
+    if (!response) return
+    gemDraft.applyRebuild(response, sourceText)
+  }
+
+  // «Pegar gema nueva» reemplaza todas las secciones: con algo sin guardar,
+  // primero se confirma (nativo, como al borrar una tarjeta: nunca otro modal
+  // encima de este).
+  const replaceGem = () => {
+    if (
+      gemDraft.unsavedSections &&
+      !window.confirm(t('create.gemTemplate.replaceConfirm'))
+    )
+      return
+    gemRebuild.reset()
+    gemDraft.startPasting()
   }
 
   const writing = samplesJob.phase !== 'images'
@@ -269,271 +338,325 @@ export function CustomStyleModal({
               {t('create.customStyles.modalTitle')}
             </DialogTitle>
             <DialogDescription>
-              {t('create.customStyles.modalDescription')}
+              {pasting
+                ? t('create.gemTemplate.pasteHint')
+                : t('create.customStyles.modalDescription')}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <StyleCharacterBlock
-              value={character}
-              disabled={saving}
-              styleId={styleId}
-              onChange={changeCharacter}
-              onPickCharacter={(current) =>
-                setPicking(current ? [current] : [])
-              }
+          {pasting ? (
+            <GemPasteStep
+              text={gemDraft.pasteText}
+              pending={gemRebuild.pending}
+              error={gemRebuild.error}
+              onTextChange={gemDraft.setPasteText}
+              onPrepare={() => void prepare()}
+              // Volver solo tiene sentido si ya hay secciones (reemplazo).
+              onBack={hasStyleText ? gemDraft.stopPasting : undefined}
             />
+          ) : (
+            <div className="space-y-4">
+              {templateMode && (
+                <GemAgentWarnings warnings={gemDraft.warnings} />
+              )}
 
-            {samplesJob.running ? (
-              // Mientras se generan, las 4 muestras se ven como tarjetas
-              // cargando con su barra y su %: Evolink el real del poll, Fal
-              // la estimación del sidecar.
-              <div className="grid grid-cols-2 gap-3">
-                {progressIds.map((id) => {
-                  const percent =
-                    (writing
-                      ? samplesJob.promptPercents[id]
-                      : samplesJob.samplePercents[id]) ?? 0
-                  const image = samplesJob.sampleImages[id]
-                  return (
-                    <div
-                      key={id}
-                      className="relative flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-muted/60 px-5"
-                    >
-                      {image && (
-                        <img
-                          src={image}
-                          alt={t('create.customStyles.sampleAlt', {
-                            number: id,
-                            name,
-                          })}
-                          className="absolute inset-0 h-full w-full object-contain"
-                        />
-                      )}
-                      <span className="absolute left-2.5 top-2 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                        {t('create.customStyles.sampleLabel', { id })}
-                      </span>
-                      {!image && (
-                        <p className="font-body text-xs text-muted-foreground">
-                          <SampleProgressText
-                            writing={writing}
-                            percent={percent}
-                          />
-                        </p>
-                      )}
-                      {!image && (
-                        <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-border">
-                          <div
-                            className="h-full rounded-full bg-saffron transition-all duration-500"
-                            style={{ width: `${Math.max(4, percent)}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ) : sampleImages.length > 0 ? (
-              <StyleSamplesCarousel
-                key={carouselKey}
-                images={sampleImages}
-                name={name.trim() || t('create.customStyles.modalTitle')}
+              <StyleCharacterBlock
+                value={character}
+                disabled={saving}
+                styleId={styleId}
+                onChange={changeCharacter}
+                onPickCharacter={(current) =>
+                  setPicking(current ? [current] : [])
+                }
               />
-            ) : (
-              <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
-                <p className="px-6 font-body text-sm text-muted-foreground">
-                  {t('create.customStyles.samplesEmpty')}
-                  <br />
-                  {t('create.customStyles.samplesEmptyHint')}
-                </p>
-              </div>
-            )}
 
-            <div>
-              <p className="mb-1.5 text-xs font-medium">
-                {t('create.customStyles.providerQuestion')}
-              </p>
-              {/* El mismo control segmentado que el formulario de Crear (el
-                  elegido en saffron pleno), con el saldo de cada proveedor y
-                  el botón de refrescar al lado. */}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
-                  {IMAGE_PROVIDERS.map((imageProvider) => {
-                    const chosen = provider === imageProvider.id
+              {samplesJob.running ? (
+                // Mientras se generan, las 4 muestras se ven como tarjetas
+                // cargando con su barra y su %: Evolink el real del poll, Fal
+                // la estimación del sidecar.
+                <div className="grid grid-cols-2 gap-3">
+                  {progressIds.map((id) => {
+                    const percent =
+                      (writing
+                        ? samplesJob.promptPercents[id]
+                        : samplesJob.samplePercents[id]) ?? 0
+                    const image = samplesJob.sampleImages[id]
                     return (
-                      <button
-                        key={imageProvider.id}
-                        type="button"
-                        disabled={samplesJob.running}
-                        onClick={() => chooseProvider(imageProvider.id)}
-                        className={cn(
-                          'cursor-pointer rounded-full px-4 py-1.5 font-display text-sm font-bold transition-colors disabled:cursor-default disabled:opacity-60',
-                          chosen
-                            ? 'bg-saffron text-charcoal shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
+                      <div
+                        key={id}
+                        className="relative flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-muted/60 px-5"
                       >
-                        {imageProvider.label}
-                      </button>
+                        {image && (
+                          <img
+                            src={image}
+                            alt={t('create.customStyles.sampleAlt', {
+                              number: id,
+                              name,
+                            })}
+                            className="absolute inset-0 h-full w-full object-contain"
+                          />
+                        )}
+                        <span className="absolute left-2.5 top-2 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {t('create.customStyles.sampleLabel', { id })}
+                        </span>
+                        {!image && (
+                          <p className="font-body text-xs text-muted-foreground">
+                            <SampleProgressText
+                              writing={writing}
+                              percent={percent}
+                            />
+                          </p>
+                        )}
+                        {!image && (
+                          <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-border">
+                            <div
+                              className="h-full rounded-full bg-saffron transition-all duration-500"
+                              style={{ width: `${Math.max(4, percent)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
-                <ImageCreditsBadges
-                  credits={credits.credits}
-                  loading={credits.isLoading}
-                  refreshing={credits.isRefreshing}
-                  active={provider}
+              ) : sampleImages.length > 0 ? (
+                <StyleSamplesCarousel
+                  key={carouselKey}
+                  images={sampleImages}
+                  name={name.trim() || t('create.customStyles.modalTitle')}
+                />
+              ) : (
+                <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
+                  <p className="px-6 font-body text-sm text-muted-foreground">
+                    {t('create.customStyles.samplesEmpty')}
+                    <br />
+                    {t('create.customStyles.samplesEmptyHint')}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <p className="mb-1.5 text-xs font-medium">
+                  {t('create.customStyles.providerQuestion')}
+                </p>
+                {/* El mismo control segmentado que el formulario de Crear (el
+                  elegido en saffron pleno), con el saldo de cada proveedor y
+                  el botón de refrescar al lado. */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
+                    {IMAGE_PROVIDERS.map((imageProvider) => {
+                      const chosen = provider === imageProvider.id
+                      return (
+                        <button
+                          key={imageProvider.id}
+                          type="button"
+                          disabled={samplesJob.running}
+                          onClick={() => chooseProvider(imageProvider.id)}
+                          className={cn(
+                            'cursor-pointer rounded-full px-4 py-1.5 font-display text-sm font-bold transition-colors disabled:cursor-default disabled:opacity-60',
+                            chosen
+                              ? 'bg-saffron text-charcoal shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {imageProvider.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <ImageCreditsBadges
+                    credits={credits.credits}
+                    loading={credits.isLoading}
+                    refreshing={credits.isRefreshing}
+                    active={provider}
+                    onRefresh={credits.refresh}
+                  />
+                </div>
+                <p className="mt-1.5 font-body text-xs text-muted-foreground">
+                  {t('create.customStyles.providerHint')}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!canGenerate}
+                  onClick={() => {
+                    if (provider) void generate(provider)
+                  }}
+                >
+                  {samplesJob.running ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t('create.customStyles.generating')}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {sampleImages.length > 0
+                        ? t('create.customStyles.regenerateSamples')
+                        : t('create.customStyles.generateSamples')}
+                    </>
+                  )}
+                </Button>
+                {provider === null && (
+                  <span className="font-body text-xs text-muted-foreground">
+                    {t('create.customStyles.providerRequired')}
+                  </span>
+                )}
+              </div>
+              <p className="font-body text-xs text-muted-foreground">
+                {t('create.customStyles.samplesNote')}
+              </p>
+
+              {creditsCheck.blocking && (
+                <InsufficientCreditsAlert
+                  lines={creditsCheck.lines}
+                  blocking
+                  onReload={(providerId) =>
+                    void apiKeysApi.openBillingPage(providerId)
+                  }
                   onRefresh={credits.refresh}
+                  refreshing={credits.isLoading || credits.isRefreshing}
+                />
+              )}
+
+              {saveErrorKey && <ErrorMessage>{t(saveErrorKey)}</ErrorMessage>}
+              {samplesJob.errorKey && (
+                <ErrorMessage>{t(samplesJob.errorKey)}</ErrorMessage>
+              )}
+
+              <div>
+                <label
+                  htmlFor="custom-style-name"
+                  className="mb-1 block text-xs font-medium"
+                >
+                  {t('create.customStyles.nameLabel')}
+                </label>
+                <input
+                  id="custom-style-name"
+                  value={name}
+                  maxLength={CUSTOM_STYLE_NAME_LIMIT}
+                  disabled={saving}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t('create.customStyles.namePlaceholder')}
+                  className={cn(CUSTOM_STYLE_FIELD_CLASS, 'text-sm')}
                 />
               </div>
-              <p className="mt-1.5 font-body text-xs text-muted-foreground">
-                {t('create.customStyles.providerHint')}
-              </p>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!canGenerate}
-                onClick={() => {
-                  if (provider) void generate(provider)
-                }}
-              >
-                {samplesJob.running ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('create.customStyles.generating')}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {sampleImages.length > 0
-                      ? t('create.customStyles.regenerateSamples')
-                      : t('create.customStyles.generateSamples')}
-                  </>
-                )}
-              </Button>
-              {provider === null && (
-                <span className="font-body text-xs text-muted-foreground">
-                  {t('create.customStyles.providerRequired')}
-                </span>
-              )}
-            </div>
-            <p className="font-body text-xs text-muted-foreground">
-              {t('create.customStyles.samplesNote')}
-            </p>
+              {templateMode ? (
+                <>
+                  <GemSectionsEditor
+                    sections={gemDraft.sections}
+                    disabled={saving}
+                    onChange={gemDraft.editSection}
+                  />
+                  {/* Al agente solo con el interruptor encendido: apagado, una
+                    gema de plantilla se edita pero no se reemplaza. */}
+                  {gemTemplateEnabled && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={saving || samplesJob.running}
+                        onClick={replaceGem}
+                      >
+                        <ClipboardPaste className="mr-2 h-4 w-4" />
+                        {t('create.gemTemplate.replaceGem')}
+                      </Button>
+                      <span className="font-body text-xs text-muted-foreground">
+                        {t('create.gemTemplate.replaceHint')}
+                      </span>
+                    </div>
+                  )}
+                  <ColorFilterPicker
+                    value={gemDraft.colorFilter}
+                    disabled={saving}
+                    onChange={gemDraft.setColorFilter}
+                  />
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label
+                      htmlFor="custom-style-prompt"
+                      className="mb-1 block text-xs font-medium"
+                    >
+                      {t('create.customStyles.promptLabel')}
+                    </label>
+                    <textarea
+                      id="custom-style-prompt"
+                      value={systemPrompt}
+                      maxLength={CUSTOM_STYLE_PROMPT_LIMIT}
+                      disabled={saving}
+                      onChange={(event) => setSystemPrompt(event.target.value)}
+                      placeholder={t('create.customStyles.promptPlaceholder')}
+                      rows={14}
+                      spellCheck={false}
+                      className={cn(
+                        CUSTOM_STYLE_FIELD_CLASS,
+                        'resize-y font-mono text-xs leading-relaxed placeholder:text-muted-foreground/70',
+                      )}
+                    />
+                  </div>
 
-            {creditsCheck.blocking && (
-              <InsufficientCreditsAlert
-                lines={creditsCheck.lines}
-                blocking
-                onReload={(providerId) =>
-                  void apiKeysApi.openBillingPage(providerId)
-                }
-                onRefresh={credits.refresh}
-                refreshing={credits.isLoading || credits.isRefreshing}
-              />
-            )}
-
-            {saveErrorKey && <ErrorMessage>{t(saveErrorKey)}</ErrorMessage>}
-            {samplesJob.errorKey && (
-              <ErrorMessage>{t(samplesJob.errorKey)}</ErrorMessage>
-            )}
-
-            <div>
-              <label
-                htmlFor="custom-style-name"
-                className="mb-1 block text-xs font-medium"
-              >
-                {t('create.customStyles.nameLabel')}
-              </label>
-              <input
-                id="custom-style-name"
-                value={name}
-                maxLength={CUSTOM_STYLE_NAME_LIMIT}
-                disabled={saving}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t('create.customStyles.namePlaceholder')}
-                className={cn(FIELD_CLASS, 'text-sm')}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="custom-style-prompt"
-                className="mb-1 block text-xs font-medium"
-              >
-                {t('create.customStyles.promptLabel')}
-              </label>
-              <textarea
-                id="custom-style-prompt"
-                value={systemPrompt}
-                maxLength={CUSTOM_STYLE_PROMPT_LIMIT}
-                disabled={saving}
-                onChange={(event) => setSystemPrompt(event.target.value)}
-                placeholder={t('create.customStyles.promptPlaceholder')}
-                rows={14}
-                spellCheck={false}
-                className={cn(
-                  FIELD_CLASS,
-                  'resize-y font-mono text-xs leading-relaxed placeholder:text-muted-foreground/70',
-                )}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="custom-style-shots"
-                className="mb-1 block text-xs font-medium"
-              >
-                {t('create.customStyles.shotsLabel')}{' '}
-                <span className="font-normal text-muted-foreground">
-                  {t('create.customStyles.shotsOptional')}
-                </span>
-              </label>
-              <input
-                id="custom-style-shots"
-                value={shots}
-                disabled={saving}
-                onChange={(event) => setShots(event.target.value)}
-                placeholder={t('create.customStyles.shotsPlaceholder')}
-                spellCheck={false}
-                className={cn(
-                  FIELD_CLASS,
-                  'font-mono text-xs placeholder:text-muted-foreground/70',
-                )}
-              />
-              {/* Los pedidos de prompts van en paralelo, así que uno no sabe
+                  <div>
+                    <label
+                      htmlFor="custom-style-shots"
+                      className="mb-1 block text-xs font-medium"
+                    >
+                      {t('create.customStyles.shotsLabel')}{' '}
+                      <span className="font-normal text-muted-foreground">
+                        {t('create.customStyles.shotsOptional')}
+                      </span>
+                    </label>
+                    <input
+                      id="custom-style-shots"
+                      value={shots}
+                      disabled={saving}
+                      onChange={(event) => setShots(event.target.value)}
+                      placeholder={t('create.customStyles.shotsPlaceholder')}
+                      spellCheck={false}
+                      className={cn(
+                        CUSTOM_STYLE_FIELD_CLASS,
+                        'font-mono text-xs placeholder:text-muted-foreground/70',
+                      )}
+                    />
+                    {/* Los pedidos de prompts van en paralelo, así que uno no sabe
                   con qué plano terminó el anterior: con la lista se reparten
                   de antemano. Sin ella funciona igual. */}
-              <p className="mt-1 font-body text-xs text-muted-foreground">
-                {t('create.customStyles.shotsHint')}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={saving}
-                className="mt-2"
-                onClick={() => setShots(RECOMMENDED_SHOTS.join(', '))}
-              >
-                <Clapperboard className="mr-2 h-4 w-4" />
-                {t('create.customStyles.recommendedShots')}
-              </Button>
-            </div>
+                    <p className="mt-1 font-body text-xs text-muted-foreground">
+                      {t('create.customStyles.shotsHint')}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={saving}
+                      className="mt-2"
+                      onClick={() => setShots(RECOMMENDED_SHOTS.join(', '))}
+                    >
+                      <Clapperboard className="mr-2 h-4 w-4" />
+                      {t('create.customStyles.recommendedShots')}
+                    </Button>
+                  </div>
+                </>
+              )}
 
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                disabled={saving || samplesJob.running}
-                onClick={() => void close()}
-              >
-                {t('create.customStyles.save')}
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  disabled={saving || samplesJob.running}
+                  onClick={() => void close()}
+                >
+                  {t('create.customStyles.save')}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -543,7 +666,8 @@ export function CustomStyleModal({
           selected={picking}
           max={1}
           styleContext={
-            hasPrompt
+            // Solo una gema vieja diseña el personaje nuevo: manda su texto.
+            hasStyleText && !templateMode
               ? {
                   styleId,
                   gem: systemPrompt,
