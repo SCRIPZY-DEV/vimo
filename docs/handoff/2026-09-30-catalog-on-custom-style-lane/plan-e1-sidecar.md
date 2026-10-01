@@ -88,7 +88,7 @@ tarea y en este orden.
 
 ## Cómo se trabaja en este frente
 
-- **Orden.** La Tarea 0 corre sola (Ola 0) y se commitea con la ADR-0041. Después A1 → A2 → … → A8,
+- **Orden.** La Tarea 0 corre sola (Ola 0) y se commitea con la ADR-0048. Después A1 → A2 → … → A8,
   en ese orden: cada tarea parte del árbol que dejó la anterior.
 - **Cómo leer los pasos de código.** «Crear» y «Reemplazar el contenido completo» traen el archivo
   entero. «Edición n de N — reemplazar … por …» es un reemplazo exacto de texto: el bloque viejo
@@ -164,7 +164,7 @@ por:
   defaultCharacterId?: string
 }
 
-/** Secciones de una gema de plantilla (ADR-0041). */
+/** Secciones de una gema de plantilla (ADR-0048). */
 export interface GemSections {
   visualStyle: string
   character?: string
@@ -356,7 +356,7 @@ por:
 //  - fallback-request — la Fase 1 no dejó nada y lo resolvió el pedido JSON.
 //  - recovered        — proyecto anterior a este campo: se leyó de los prompts
 //                       de escena ya guardados.
-//  - style-section    — gema de plantilla (ADR-0041): lo define su sección
+//  - style-section    — gema de plantilla (ADR-0048): lo define su sección
 //                       `character`, sin Fase 1.
 export type StyleProtagonistSource =
   | 'style-phase'
@@ -391,7 +391,7 @@ por:
   contentRejected?: boolean
   imageTask?: SceneImageTask
   // El tratamiento que declaró la etiqueta `[T:…]` del prompt de una gema de
-  // plantilla con dinamismo (ADR-0041). Solo diagnóstico: mide el reparto.
+  // plantilla con dinamismo (ADR-0048). Solo diagnóstico: mide el reparto.
   treatment?: SceneTreatment
 }
 
@@ -660,10 +660,10 @@ Expected: cada archivo listado como `(unchanged)`.
 Run: `pnpm exec eslint pipeline/types/styles.ts pipeline/types/video-project.ts pipeline/types/scenes.ts pipeline/prompts/custom-style.ts pipeline/commands/styles/generate-style-samples.ts pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts src/modules/videos/utilities/selectedCustomStyle.ts src/modules/videos/components/CustomStyleGallery.tsx src/modules/videos/components/CustomStyleCard.tsx`
 Expected: sin salida (exit 0).
 
-- [ ] **Paso 6: Commit (orquestador), junto con la ADR-0041 de la Tarea O1**
+- [ ] **Paso 6: Commit (orquestador), junto con la ADR-0048 de la Tarea O1**
 
 ```bash
-git add pipeline/types/styles.ts pipeline/types/video-project.ts pipeline/types/scenes.ts pipeline/prompts/custom-style.ts pipeline/commands/styles/generate-style-samples.ts pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts src/modules/videos/utilities/selectedCustomStyle.ts src/modules/videos/components/CustomStyleGallery.tsx src/modules/videos/components/CustomStyleCard.tsx docs/adr/ADR-0041-gemas-por-secciones-y-agente-reconstructor.md docs/adr/README.es.md docs/adr/README.md
+git add pipeline/types/styles.ts pipeline/types/video-project.ts pipeline/types/scenes.ts pipeline/prompts/custom-style.ts pipeline/commands/styles/generate-style-samples.ts pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts src/modules/videos/utilities/selectedCustomStyle.ts src/modules/videos/components/CustomStyleGallery.tsx src/modules/videos/components/CustomStyleCard.tsx docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md docs/adr/README.es.md docs/adr/README.md
 git commit -F- <<'EOF'
 feat: add section-based gem contracts
 
@@ -675,7 +675,7 @@ ProjectCustomStyle, donde systemPrompt pasa a ser opcional; la fuente
 'style-section' del protagonista y Scene.treatment. Donde el código asumía que
 systemPrompt siempre existe van arreglos mínimos (`?? ''`): custom-style,
 generate-style-samples y verbatim-lane en pipeline/, y selectedCustomStyle,
-CustomStyleGallery y CustomStyleCard en src/. Suma la ADR-0041.
+CustomStyleGallery y CustomStyleCard en src/. Suma la ADR-0048.
 
 Por qué: congela en la Ola 0 el contrato que comparten los frentes A (sidecar),
 B (vimo-landing) y C (app) de la Entrega 1, antes de abrir el trabajo en
@@ -731,7 +731,7 @@ Crear `scripts/test/check-gem-sections-store.mjs`:
 
 <!-- prettier-ignore -->
 ```js
-// Gemas por secciones en la galería de «Mi estilo» (ADR-0041): style-save
+// Gemas por secciones en la galería de «Mi estilo» (ADR-0048): style-save
 // valida y guarda las secciones con los límites del spec §4.1, una gema es
 // vieja o de plantilla (nunca las dos), el respaldo del agente, el filtro de
 // color y el origen se conservan cuando la escritura no los trae, y la lectura
@@ -1118,7 +1118,7 @@ export const MAX_SAMPLE_BYTES = 4 * 1024 * 1024
 export const STYLE_NAME_LIMIT = 80
 export const DEFAULT_CHARACTER_ID_LIMIT = 120
 
-// Límites de una gema de plantilla (spec §4.1, ADR-0041): cada sección hasta
+// Límites de una gema de plantilla (spec §4.1, ADR-0048): cada sección hasta
 // 12 000 y la suma hasta el tope de siempre. `character` se teje entera en
 // cada escena, así que su tope es el de la identidad tejida; el inicio y el
 // final fijos se pegan en cada prompt de imagen.
@@ -1372,7 +1372,7 @@ export function styleDirectory(context: PipelineContext, id: string): string {
 
 // Lo persistido en style.json: sin rutas absolutas ni muestras — se derivan
 // al leer, así la carpeta puede moverse. Una gema es VIEJA (`systemPrompt`) o
-// de PLANTILLA (`sections`), nunca las dos (ADR-0041).
+// de PLANTILLA (`sections`), nunca las dos (ADR-0048).
 export interface StoredStyle {
   name: string
   systemPrompt?: string
@@ -1515,7 +1515,7 @@ import {
 } from './style-store.ts'
 
 // Lo que define el estilo: el texto de una gema vieja o las secciones de una
-// de plantilla (ADR-0041), nunca las dos.
+// de plantilla (ADR-0048), nunca las dos.
 type GemContent = { systemPrompt: string } | { sections: GemSections }
 
 // Crea o actualiza un estilo propio. Un update conserva el createdAt y las
@@ -1572,7 +1572,7 @@ export async function styleSave(
   // camino que guarde el estilo sin conocer el campo le borra al usuario, en
   // silencio, la decisión que tomó sobre su protagonista. El mismo guard
   // protege el respaldo del agente, el filtro de color y el origen de una
-  // copia del catálogo (ADR-0041).
+  // copia del catálogo (ADR-0048).
   const character = payload.character ?? existing?.character
   const colorFilter = payload.colorFilter ?? existing?.colorFilter
   const origin = payload.origin ?? existing?.origin
@@ -1686,7 +1686,7 @@ secciones deja afuera el systemPrompt viejo, y el respaldo del agente, el
 filtro, el origen y el personaje se conservan cuando la escritura no los trae.
 Cada guardado deja updatedAt.
 
-Por qué: la gema por secciones (ADR-0041, spec §4) necesita un almacén que la
+Por qué: la gema por secciones (ADR-0048, spec §4) necesita un almacén que la
 acepte sin romper las gemas viejas ni sus muestras, y editar una sección no
 puede borrar en silencio lo que el modal no manda.
 
@@ -2307,7 +2307,7 @@ import {
   type VerbatimSystemOptions,
 } from './verbatim-messages.ts'
 
-// EL MARCO DE VIMO (ADR-0041, spec §5): cómo se arma el `system` de la Fase 2
+// EL MARCO DE VIMO (ADR-0048, spec §5): cómo se arma el `system` de la Fase 2
 // cuando la gema viene por SECCIONES. La gema vieja (texto libre) sigue por
 // `buildVerbatimSystem`, byte por byte; acá las secciones del autor van bajo
 // títulos fijos y la plataforma suma sus reglas DECLARADAS, con el mismo
@@ -2555,7 +2555,7 @@ export type VerbatimSystemOptions = VerbatimMessageOptions & {
  * su orden de siempre: ids de escena, arquitectura, idioma y — solo cuando
  * corresponde — el protagonista del usuario, la escena desmarcada y el
  * vestuario. Las comparten la gema vieja (`buildVerbatimSystem`) y el marco
- * de las gemas de plantilla (`buildTemplateSystem`, ADR-0041).
+ * de las gemas de plantilla (`buildTemplateSystem`, ADR-0048).
  */
 export function platformSystemRules(
   mode: VerbatimCharacterMode = 'generic',
@@ -2628,7 +2628,7 @@ TREATMENT_TAG_RULE y DYNAMISM_WITHOUT_PROTAGONIST_RULE. verbatim-messages
 extrae platformSystemRules y exporta architectureRuleFor, así la gema vieja y
 el marco suman las mismas reglas en el mismo orden.
 
-Por qué: spec §5.1 y ADR-0041: con una sola estructura de gema, el personaje,
+Por qué: spec §5.1 y ADR-0048: con una sola estructura de gema, el personaje,
 el dinamismo, la seguridad y el formato se aplican por código, igual para
 todas.
 
@@ -2678,7 +2678,7 @@ tras la Tarea 0): no se recalculan.
 
 <!-- prettier-ignore -->
 ````js
-// El carril verbatim con gemas por secciones (ADR-0041, spec §5.2): el marco
+// El carril verbatim con gemas por secciones (ADR-0048, spec §5.2): el marco
 // arma el system en los cuatro modos, la sección `character` es el
 // protagonista del modo genérico sin Fase 1 y no viaja en «Mi personaje» ni
 // en cinemático, y la recuperación por política de contenido y el editor usan
@@ -3245,7 +3245,7 @@ por:
 
 /**
  * El protagonista que define la sección `character` de una gema de plantilla
- * (modo genérico, ADR-0041): sin Fase 1. La sección llega con el formato de la
+ * (modo genérico, ADR-0048): sin Fase 1. La sección llega con el formato de la
  * ficha de la Fase 1 —la identidad y, al final, la oración «Outfit: …» con la
  * ropa base (`CHARACTER_OUTFIT_SENTENCE_RULE`)—, así que es a la vez el retrato
  * del turno de assistant y la descripción que se teje, y `splitOutfit` separa
@@ -3345,7 +3345,7 @@ export interface VerbatimWriterOptions {
   /** La gema del usuario. Viaja VERBATIM como `system` (en una gema de
    *  plantilla, sus secciones como texto: la Fase 1 la recibe así). */
   gem: string
-  /** Gema de plantilla (ADR-0041): el `system` de la Fase 2 lo arma el marco
+  /** Gema de plantilla (ADR-0048): el `system` de la Fase 2 lo arma el marco
    *  de Vimo con estas secciones. Ausente = gema vieja, camino de siempre. */
   sections?: GemSections
   /** Modelo elegido en el proyecto. Vacío → el de la casa. */
@@ -3580,7 +3580,7 @@ por:
       // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
       // origen: los planos solo gobiernan el carril del catálogo). Una gema de
       // plantilla viaja por secciones: el marco arma su system y la Fase 1
-      // recibe su texto (ADR-0041).
+      // recibe su texto (ADR-0048).
       gem: customStyle.sections
         ? composeGemText(customStyle.sections)
         : (customStyle.systemPrompt ?? ''),
@@ -4051,7 +4051,7 @@ por:
 
 /**
  * La etiqueta de tratamiento que `TREATMENT_TAG_RULE` pide a una gema de
- * plantilla con dinamismo (ADR-0041): `[T:<tratamiento>]` al frente del
+ * plantilla con dinamismo (ADR-0048): `[T:<tratamiento>]` al frente del
  * prompt, después del id `((n))`. Hay que quitarla ANTES de mirar defectos:
  * por su mayúscula, el guard de huecos (E33) la leería como una ranura de
  * plantilla sin rellenar.
@@ -4332,7 +4332,7 @@ por:
 
 export interface BatchReadingOptions {
   /** La gema de plantilla tiene dinamismo: cada prompt puede abrir con la
-   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0041). Ausente
+   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0048). Ausente
    *  = la lectura de siempre, byte por byte. */
   treatmentTags?: boolean
 }
@@ -4672,7 +4672,7 @@ import {
 } from '../../../types/scenes.ts'
 
 // El TRATAMIENTO de las escenas de una gema de plantilla con dinamismo
-// (ADR-0041, spec §5.3): lo declara la etiqueta `[T:…]` de cada prompt y se
+// (ADR-0048, spec §5.3): lo declara la etiqueta `[T:…]` de cada prompt y se
 // guarda en `scene.treatment` para medir el reparto del video. Solo
 // diagnóstico: no hay verificación por código (decisión F6).
 
@@ -5744,7 +5744,7 @@ Edición 5 de 15 — reemplazar:
 
 <!-- prettier-ignore -->
 ```ts
-   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0041). Ausente
+   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0048). Ausente
    *  = la lectura de siempre, byte por byte. */
   treatmentTags?: boolean
 }
@@ -5756,7 +5756,7 @@ por:
 
 <!-- prettier-ignore -->
 ```ts
-   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0041). Ausente
+   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0048). Ausente
    *  = la lectura de siempre, byte por byte. */
   treatmentTags?: boolean
   /** false = no devolverle la cola de estilo a quien la perdió: con final
@@ -7159,7 +7159,7 @@ type SampleImageRequest = (
 // encargo con referencia que falla se reintenta una vez como texto. Una gema
 // «sin personaje» genera sus pedidos como siempre.
 //
-// Una gema de PLANTILLA (ADR-0041, spec §5.6) no usa este camino: sus cuatro
+// Una gema de PLANTILLA (ADR-0048, spec §5.6) no usa este camino: sus cuatro
 // momentos salen del mismo carril que el video (`generateTemplateSamples`).
 export async function generateStyleSamples(
   context: PipelineContext,
@@ -8265,7 +8265,7 @@ por:
     )
 }
 
-// El snapshot de la gema (ADR-0018, ADR-0041): vieja (`systemPrompt`) o de
+// El snapshot de la gema (ADR-0018, ADR-0048): vieja (`systemPrompt`) o de
 // plantilla (`sections`), nunca las dos, con los mismos límites que la
 // galería. Lo demás del snapshot se valida igual para los dos tipos.
 function assertProjectCustomStyle(customStyle: ProjectCustomStyle): void {
@@ -8374,7 +8374,7 @@ por:
 // prompt-extraction). Se le anexan los planos permitidos y las GLOBAL_RULES
 // (CONTENT SAFETY + OUTPUT FORMAT) — mismo criterio que el carril Storytime
 // del origen. El envío VERBATIM sin envoltorio es del carril verbatim (rama
-// posterior del roadmap, ADR-0016). Una gema de PLANTILLA (ADR-0041) entra
+// posterior del roadmap, ADR-0016). Una gema de PLANTILLA (ADR-0048) entra
 // como el texto de sus secciones: su sección de cámara reemplaza a los planos.
 export function buildCustomStyleSystemPrompt(style: {
   systemPrompt?: string
@@ -8651,7 +8651,7 @@ por:
 export interface DesignStyleCharacterPayload {
   /** Gema vieja como texto. Excluyente con `sections`. */
   gem?: string
-  /** Gema de plantilla (ADR-0041): el sidecar la pasa a texto. Excluyente
+  /** Gema de plantilla (ADR-0048): el sidecar la pasa a texto. Excluyente
    *  con `gem`. */
   sections?: GemSections
   script: string
@@ -8892,7 +8892,7 @@ excepción explícita), o ampliar `isCatalogStyleId`.
 - El reparto del log cuenta las escenas escritas en esa pasada; el porcentaje con protagonista usa las escenas cuyo prompt lo nombró (en cinemático, las que lo colaron igual).
 - Las muestras de una gema de plantilla, como hoy las de una gema vieja, no pasan por `sanitizeFinalPrompt`.
 
-**P5 · Límites deliberados (documentar en la ADR-0041 o en ARCHITECTURE).**
+**P5 · Límites deliberados (documentar en la ADR-0048 o en ARCHITECTURE).**
 
 - Cuando una escena pierde su referencia de foto, `rescueReferencePrompt` pega la identidad al final del cuerpo, después de `promptEnd`. En ese rescate el orden queda inicio → escena → final → identidad, y el recorte trata al final fijo como parte de la escena (cede antes que la identidad).
 - `recoverProtagonistFromScenes` no reconoce el final fijo. No hace falta: un proyecto con gema de plantilla siempre guarda `styleProtagonist` (de la sección o de la Fase 1) antes del primer lote.

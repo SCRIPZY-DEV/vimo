@@ -4,6 +4,13 @@
 > o superpowers:executing-plans para implementar este plan tarea por tarea. Los pasos usan casillas
 > (`- [ ]`) para el seguimiento.
 
+> **Nota de ejecución (2026-09-30, 19:23).** Antes de implementar, la rama se actualizó sobre `dev`
+> (`c007e008`, PR #91 de animación de escenas) con la aprobación del dueño. Los planes de los
+> frentes se verificaron sobre `e50be2a1`. Donde el PR #91 cambió un archivo que el plan edita, el
+> ejecutor aplica la misma intención sobre el código de `dev`, conserva lo que trajo el PR y lo anota
+> en su informe. La ADR de esta entrega pasa a ser la ADR-0048, y la de la Entrega 3 será la
+> siguiente libre (hoy, la ADR-0049), porque `dev` ya usa de la ADR-0041 a la ADR-0047.
+
 **Goal:** Implementar la Entrega 1 del spec con tres frentes en paralelo que no se pisan: gemas por
 secciones, marco de Vimo, agente reconstructor con registro, flags de acceso y UI de Mi estilo. Dejar
 trazadas las Entregas 2 y 3 y el retiro del carril viejo.
@@ -91,7 +98,7 @@ pg_cron.
 ### Olas
 
 ```
-Ola 0  Tarea 0 (contratos) + ADR-0041  ──►  commit del orquestador
+Ola 0  Tarea 0 (contratos) + ADR-0048  ──►  commit del orquestador
 Ola 1  A1…A8c  ║  B0…B8  ║  C1…C6b       (tres frentes en paralelo; C6b después de A8c)
 Ola 2  I1…I4  integración (orquestador)
 Ola 3  pasos del dueño: SQL, variables de entorno, push/deploy aprobados, pruebas con claves reales
@@ -122,7 +129,7 @@ Ola 3  pasos del dueño: SQL, variables de entorno, push/deploy aprobados, prueb
 `pipeline/types/styles.ts`:
 
 ```ts
-/** Secciones de una gema de plantilla (ADR-0041). */
+/** Secciones de una gema de plantilla (ADR-0048). */
 export interface GemSections {
   visualStyle: string
   character?: string
@@ -312,11 +319,11 @@ export interface GemRebuildResponse {
 
 ## Ola 0
 
-### Tarea O1: ADR-0041 (orquestador, antes del commit de la Tarea 0)
+### Tarea O1: ADR-0048 (orquestador, antes del commit de la Tarea 0)
 
 **Files:**
 
-- Create: `docs/adr/ADR-0041-gemas-por-secciones-y-agente-reconstructor.md`
+- Create: `docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md`
 - Modify: `docs/adr/README.es.md` y `docs/adr/README.md` (índice)
 
 - [ ] **Paso 1:** escribir la ADR con la plantilla `docs/adr/TEMPLATE.es.md`:
@@ -333,8 +340,8 @@ export interface GemRebuildResponse {
     solo importa tipos del sidecar.
   - Verificación: los guards de las Tareas A1 a A8 y los tests de B.
   - Relación: retoma la ADR-0039 y extiende las ADR-0018, 0019 y 0020.
-- [ ] **Paso 2:** agregar la fila de la ADR-0041 a los dos índices.
-- [ ] **Paso 3:** `pnpm exec prettier --write docs/adr/ADR-0041-*.md docs/adr/README*.md`.
+- [ ] **Paso 2:** agregar la fila de la ADR-0048 a los dos índices.
+- [ ] **Paso 3:** `pnpm exec prettier --write docs/adr/ADR-0048-*.md docs/adr/README*.md`.
 - [ ] **Paso 4:** la ADR viaja en el mismo commit que la Tarea 0.
 
 ### Tarea 0: contratos
@@ -360,7 +367,7 @@ C6b se omite y «Crear personaje con mi estilo» sigue con el experto de la casa
 
 - `src/` no puede importar valores de `pipeline/`. `GEM_SECTION_KEYS`, `GEM_TEMPLATE_VERSION` y
   `COLOR_FILTER_IDS` se copian en la app con una anotación `typeof`, que deja de compilar si se
-  desalinean. Se menciona en la ADR-0041.
+  desalinean. Se menciona en la ADR-0048.
 - El frente C lee los interruptores con `useAccessFeature` en `common`. La clave de caché del veredicto
   pasa a `commonQueryKeys.access`, y `videos` no importa nada de `auth`. Es una enmienda de la ADR-0006.
 - La memoria sin red de los flags conserva la clave `vimo:demo:access:v1`, así que nadie pierde lo ya
@@ -463,7 +470,7 @@ Se detalla en `plan-e3.md` al cerrar la Entrega 2.
 | E3-2 | `GET /api/catalogo` y endpoints de admin (crear, editar, muestras, publicar, ocultar, eliminar)                                                           | `vimo-landing/functions/api/catalogo.ts`, `functions/api/admin/catalogo/**` | vitest               |
 | E3-3 | `catalog-sync` (muestras a `_catalog/`) y `catalog-list` con caché y semilla                                                                              | `pipeline/commands/catalog/`, `pipeline/project/paths.ts`                   | guard con HTTP local |
 | E3-4 | Sincronización en la app y UI del admin: borradores, crear, editar, muestras, publicar, ocultar, eliminar, posición, nombres en 3 idiomas, modos y filtro | `src/modules/videos/*`                                                      | build y QA manual    |
-| E3-5 | ADR-0042, ARCHITECTURE y vault                                                                                                                            | `docs/`, vault                                                              | —                    |
+| E3-5 | ADR-0049, ARCHITECTURE y vault                                                                                                                            | `docs/`, vault                                                              | —                    |
 | E3-6 | QA con admins reales                                                                                                                                      | —                                                                           | aprobación del dueño |
 
 ## Retiro del carril viejo: esquema

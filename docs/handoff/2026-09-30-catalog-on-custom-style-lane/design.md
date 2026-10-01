@@ -761,11 +761,11 @@ sections, templateVersion, allowedModes, sampleMode, colorFilter, samples }`.
 
 ## 13. Documentación que viaja con el código
 
-- **ADR-0041** (gemas por secciones, marco y agente reconstructor): Entrega 1.
+- **ADR-0048** (gemas por secciones, marco y agente reconstructor): Entrega 1.
 - **Enmienda a la ADR-0006** (cliente de vimo.click en `common`): Entrega 1.
 - **Nota en la ADR-0038** sobre `gem_rebuild_logs` y su excepción de texto: Entrega 1.
 - **ADR-0039** pasa a Aceptada, con lo resuelto: Entrega 2.
-- **ADR-0042** (catálogo remoto administrado): Entrega 3.
+- **ADR-0049** (catálogo remoto administrado): Entrega 3.
 - **`docs/ARCHITECTURE.md`**: la frontera del sistema (piezas en el servidor) y las secciones 4, 5 y 6,
   en cada entrega.
 - **`vimo-landing`**: las variables de entorno nuevas en su README o setup.

@@ -228,7 +228,7 @@ Crear `scripts/test/check-app-access-flags.mjs`:
 
 <!-- prettier-ignore -->
 ```js
-// Flags del veredicto de acceso (ADR-0006, ADR-0041): `admin` y los
+// Flags del veredicto de acceso (ADR-0006, ADR-0048): `admin` y los
 // interruptores de salida se normalizan a false si faltan o llegan raros, y se
 // recuerdan por correo para el modo sin red, igual que `demo`. También la
 // lectura de un interruptor desde cualquier módulo, sin conocer el veredicto.
@@ -293,7 +293,7 @@ test('memoria: el mismo correo recupera sus flags; otro no hereda nada', () => {
   assert.deepEqual(parseRememberedAccess(raw, null), ALL_OFF)
 })
 
-test('una memoria anterior a ADR-0041 (solo demo) sigue valiendo', () => {
+test('una memoria anterior a ADR-0048 (solo demo) sigue valiendo', () => {
   const legacy = JSON.stringify({ email: 'ana@example.com', demo: true })
   assert.deepEqual(parseRememberedAccess(legacy, 'ana@example.com'), {
     ...ALL_OFF,
@@ -358,7 +358,7 @@ export type AccessReason =
 export type AccessPlan = 'trial' | 'activo'
 
 /**
- * Interruptores de salida (ADR-0041): vimo.click decide para quién se encienden
+ * Interruptores de salida (ADR-0048): vimo.click decide para quién se encienden
  * (`off`, `admins` o `all`) sin sacar versión de la app. Otros módulos los leen
  * por nombre con `useAccessFeature` (common): uno nuevo se suma acá y en
  * `AccessFeatureName` (ADR-0006, enmienda 2026-09-30).
@@ -398,7 +398,7 @@ export interface AccessStatus {
   features: AccessFeatures
 }
 
-// Lo que se recuerda por correo para el veredicto sin red (ADR-0029, ADR-0041).
+// Lo que se recuerda por correo para el veredicto sin red (ADR-0029, ADR-0048).
 export type AccessFlags = Pick<AccessStatus, 'demo' | 'admin' | 'features'>
 ```
 
@@ -417,7 +417,7 @@ import type {
 // Flags del veredicto de vimo.click, normalizados: solo un `true` explícito
 // enciende. Un servidor viejo sin `admin` ni `features`, o uno a medio
 // desplegar que los manda incompletos, deja todo apagado y la app se comporta
-// como antes (ADR-0041). Puro, solo con `import type`: lo corre
+// como antes (ADR-0048). Puro, solo con `import type`: lo corre
 // scripts/test/check-app-access-flags.mjs con Node.
 
 export function normalizeAccessFeatures(
@@ -449,7 +449,7 @@ export function serializeRememberedAccess(
 
 // El veredicto sin red (ADR-0006) no puede inventar flags: valen los últimos
 // recibidos para ESTE correo. Otro correo, nada guardado o algo ilegible: todo
-// apagado. Una memoria anterior a ADR-0041 (solo `demo`) sigue valiendo.
+// apagado. Una memoria anterior a ADR-0048 (solo `demo`) sigue valiendo.
 export function parseRememberedAccess(
   raw: string | null,
   email: string | null,
@@ -479,7 +479,7 @@ Crear `src/modules/common/types/accessFeatures.ts`:
 
 <!-- prettier-ignore -->
 ```ts
-// Nombre de cada interruptor de salida del veredicto de acceso (ADR-0041). La
+// Nombre de cada interruptor de salida del veredicto de acceso (ADR-0048). La
 // forma completa del veredicto es de auth (`AccessFeatures`): common conoce
 // solo los nombres, para que cualquier módulo lea un interruptor sin importar
 // auth (ADR-0006, enmienda 2026-09-30). Uno nuevo se suma acá y en auth.
@@ -530,7 +530,7 @@ import type { AccessFlags } from '@/modules/auth/types/access'
 // El veredicto de vimo.click es fail-open sin red (ADR-0006), pero sus flags
 // no se pueden inventar: se recuerda lo último recibido para ESTE correo y se
 // reutiliza offline (`demo` desde ADR-0029; `admin` y los interruptores desde
-// ADR-0041). Otro correo no lo hereda.
+// ADR-0048). Otro correo no lo hereda.
 export function rememberAccessFlags(
   email: string | null,
   flags: AccessFlags,
@@ -616,7 +616,7 @@ por:
 ```ts
 /**
  * Últimos flags del veredicto (demo, admin e interruptores), por correo:
- * sobreviven al modo sin red (ADR-0029, ADR-0041). La clave conserva su
+ * sobreviven al modo sin red (ADR-0029, ADR-0048). La clave conserva su
  * nombre histórico para no perder lo que ya estaba recordado.
  */
 export const ACCESS_FLAGS_STORAGE_KEY = 'vimo:demo:access:v1'
@@ -679,7 +679,7 @@ por:
       const body = (await response.json()) as VerifyAccessResponse
       // Demo, admin e interruptores: solo un true explícito enciende (un
       // servidor viejo sin `features` deja todo apagado) y se recuerdan por
-      // correo para el modo sin red (ADR-0029, ADR-0041).
+      // correo para el modo sin red (ADR-0029, ADR-0048).
       const flags = accessFlagsFrom(body)
       rememberAccessFlags(email, flags)
       return {
@@ -739,7 +739,7 @@ import { commonQueryKeys } from '@/modules/common/constants'
 import { readAccessFeature } from '@/modules/common/utilities/readAccessFeature'
 import type { AccessFeatureName } from '@/modules/common/types/accessFeatures'
 
-// ¿Está encendido este interruptor para la persona (ADR-0041)? Lee el
+// ¿Está encendido este interruptor para la persona (ADR-0048)? Lee el
 // veredicto que el loader del layout ya cacheó, sin disparar otra verificación
 // (como el Sidebar con `demo`). Es configuración global: se lee donde se usa y
 // no viaja por props. Sin veredicto en caché: apagado.
@@ -763,7 +763,7 @@ En `docs/adr/ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md`:
 <!-- prettier-ignore -->
 ```markdown
 - **Enmendada:** 2026-09-30, con la
-  [ADR-0041](ADR-0041-gemas-por-secciones-y-agente-reconstructor.md) (ver
+  [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) (ver
   «Enmiendas»).
 ```
 
@@ -810,7 +810,7 @@ por:
 
 ### 2026-09-30 — Interruptores del veredicto y cómo los lee otro módulo
 
-Con la [ADR-0041](ADR-0041-gemas-por-secciones-y-agente-reconstructor.md), el
+Con la [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md), el
 veredicto suma `admin` (solo para los correos de la tabla `admins`) y `features`
 (`gemTemplate` y `newCatalog`): interruptores de salida que vimo.click enciende para
 nadie, para los admins o para todos, sin sacar versión de la app.
@@ -876,7 +876,7 @@ localStorage. La clave del veredicto sube a common (commonQueryKeys.access;
 authQueryKeys.access es la misma) y common suma useAccessFeature, que lee un
 interruptor del caché sin verificar ni importar auth.
 
-Por qué: la Entrega 1 del catálogo sobre el carril de Mi estilo (ADR-0041) se
+Por qué: la Entrega 1 del catálogo sobre el carril de Mi estilo (ADR-0048) se
 enciende con interruptores que decide vimo.click (off, admins o all). Un
 servidor viejo o a medio desplegar no manda `features` y la app tiene que
 seguir como hoy. El módulo videos necesita leer `gemTemplate` sin importar
@@ -1569,7 +1569,7 @@ por:
 ```markdown
 ### 2026-09-30 — Cliente de vimo.click en `common`
 
-El agente reconstructor de gemas (ADR-0041) es el segundo endpoint de vimo.click que
+El agente reconstructor de gemas (ADR-0048) es el segundo endpoint de vimo.click que
 usa la app. En vez de otra excepción de `fetch` por módulo hay un cliente único,
 `vimoServerFetch` (`src/modules/common/fetcher/vimoServer.ts`): el tercer transporte
 del borde con el exterior, junto a `fetcher.ts` y `pipeline.ts`.
@@ -1629,7 +1629,7 @@ cuerpo y retryAfterSeconds. La clasificación vive en vimoServerError.ts
 (puro). La URL base pasa a common (VIMO_SERVER_BASE_URL) y VERIFY_ACCESS_URL
 se arma con ella.
 
-Por qué: el agente reconstructor (ADR-0041) es el segundo endpoint de
+Por qué: el agente reconstructor (ADR-0048) es el segundo endpoint de
 vimo.click que usa la app; en vez de otra excepción de fetch por módulo hay
 un cliente único, con errores que cada módulo traduce por código.
 
@@ -1964,7 +1964,7 @@ import type {
   GemRebuildResponse,
 } from '@/modules/videos/types/gemRebuild'
 
-// La gema por secciones del lado de la app (ADR-0041, spec §4 y §6.1). Módulo
+// La gema por secciones del lado de la app (ADR-0048, spec §4 y §6.1). Módulo
 // puro, sin imports de runtime, como utilities/promptCost.ts (ADR-0020): así
 // los guards scripts/test/check-app-gem-*.mjs lo corren con Node, sin bundler.
 // Por eso sus constantes viven acá y no en constants.ts.
@@ -2176,7 +2176,7 @@ agregar:
 
 <!-- prettier-ignore -->
 ```ts
-// ── Agente reconstructor de gemas (vimo.click, ADR-0041) ──
+// ── Agente reconstructor de gemas (vimo.click, ADR-0048) ──
 
 // Ruta del endpoint; la URL base es de common (VIMO_SERVER_BASE_URL).
 export const GEM_REBUILD_PATH = '/api/estilos/reconstruir'
@@ -2264,7 +2264,7 @@ agregar:
 
 <!-- prettier-ignore -->
 ```ts
-  // Agente reconstructor de vimo.click (ADR-0041): la gema entera vuelve por
+  // Agente reconstructor de vimo.click (ADR-0048): la gema entera vuelve por
   // secciones. Una respuesta 200 que no cumple el contrato no se usa.
   async rebuildGem(request: GemRebuildRequest): Promise<GemRebuildResponse> {
     const body = await vimoServerFetch<unknown>(GEM_REBUILD_PATH, {
@@ -2307,7 +2307,7 @@ import type {
 // gasta cupo diario y deja una fila en gem_rebuild_logs).
 const rebuildFlights = createSingleFlight<GemRebuildResponse>()
 
-// Manda una gema completa al agente reconstructor de vimo.click (ADR-0041),
+// Manda una gema completa al agente reconstructor de vimo.click (ADR-0048),
 // con la versión de la app (Brand.version, de package.json) y su idioma, en el
 // que el agente escribe los avisos. Devuelve null si falla: el error queda en
 // `error` para mostrarlo y el texto pegado lo conserva quien llama.
@@ -2484,7 +2484,7 @@ los espejos de GEM_SECTION_KEYS y GEM_TEMPLATE_VERSION (un `typeof` los ata
 al sidecar), los límites de la spec §4.1 y la lectura de la respuesta.
 
 Por qué: una gema completa (nueva, reemplazada o vieja por migrar) solo se
-ordena por secciones con el agente reconstructor de vimo.click (ADR-0041).
+ordena por secciones con el agente reconstructor de vimo.click (ADR-0048).
 Cada pedido gasta cupo y deja una fila en gem_rebuild_logs: un doble clic no
 puede mandar dos.
 
@@ -2795,7 +2795,7 @@ export interface SelectedCustomStyle {
   shots: string[]
   // Qué declaró la gema sobre su protagonista (ausente = genérico).
   character?: StyleCharacter
-  // Gema de plantilla (ADR-0041): las secciones que envuelve el marco de Vimo.
+  // Gema de plantilla (ADR-0048): las secciones que envuelve el marco de Vimo.
   sections?: GemSections
   templateVersion?: number
   colorFilter?: ColorFilterId
@@ -2808,7 +2808,7 @@ export interface CustomStyleDraft {
   systemPrompt: string
   shots: string[]
   character?: StyleCharacter
-  // Gema de plantilla (ADR-0041).
+  // Gema de plantilla (ADR-0048).
   sections?: GemSections
   templateVersion?: number
   colorFilter?: ColorFilterId
@@ -3083,7 +3083,7 @@ import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
 // Una tarjeta de la galería como estilo elegido del formulario (snapshot
 // inline; el proyecto es autocontenido). Una gema vieja queda exactamente como
-// antes de ADR-0041; una de plantilla suma secciones, versión y filtro, y su
+// antes de ADR-0048; una de plantilla suma secciones, versión y filtro, y su
 // `systemPrompt` queda vacío porque no lo tiene.
 export function selectedCustomStyleFrom(
   style: CustomStyleSummary,
@@ -3414,7 +3414,7 @@ import type {
   GemSections,
 } from '@pipeline/types/styles.ts'
 
-// Borrador de una gema de plantilla en el modal (ADR-0041): el paso «Pegá tu
+// Borrador de una gema de plantilla en el modal (ADR-0048): el paso «Pegá tu
 // gema», las secciones que se editan y lo que devolvió el agente. Todo queda
 // en memoria: el modal lo guarda al cerrar (o antes de generar muestras) con
 // style-save, sin volver a pasar por el agente.
@@ -4133,7 +4133,7 @@ interface CustomStyleModalProps {
   styleId: string
   initial: CustomStyleDraft
   // Estilo nuevo, todavía fuera de la galería: con la plantilla encendida
-  // arranca en «Pegá tu gema» (ADR-0041).
+  // arranca en «Pegá tu gema» (ADR-0048).
   isNew: boolean
   // Muestras VIVAS del estilo (derivadas de la query de la galería): se ven
   // al abrir y aparecen solas al terminar de generar.
@@ -4196,7 +4196,7 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
 // nombre → estilo → Listo, porque el personaje cambia cómo salen las muestras
 // y elegirlo después sería generar dos veces. El «estilo» es el texto y los
 // planos de siempre en una gema vieja, o sus secciones y su filtro de color en
-// una de plantilla (ADR-0041), que antes de existir pasa por «Pegá tu gema».
+// una de plantilla (ADR-0048), que antes de existir pasa por «Pegá tu gema».
 // Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta: no hay
 // «Cancelar». Regla de modales del origen: nunca dos Radix abiertos —
 // mientras se elige el personaje predeterminado, este se ESCONDE en vez de
@@ -4219,7 +4219,7 @@ export function CustomStyleModal({
   // cobra, y el job difiere el refetch al terminar para que el gasto se vea acá.
   const credits = useImageCredits()
   const { configuredProviders } = useRequiredApiKeys()
-  // Interruptor de la plantilla (ADR-0041): configuración global, se lee acá.
+  // Interruptor de la plantilla (ADR-0048): configuración global, se lee acá.
   const gemTemplateEnabled = useAccessFeature('gemTemplate')
   // Qué editor usa esta apertura, fijo hasta cerrar. Una gema con secciones se
   // edita por secciones aunque el interruptor se haya apagado después (volver
@@ -5721,7 +5721,7 @@ function editorLayoutOf(
 // acá) y el submit queda bloqueado hasta elegir una tarjeta (formBlockers).
 // Qué gema está abierta en el editor vive en un store compartido: la sección
 // de personaje abre desde sus chips el editor de la gema EN USO. Con la
-// plantilla encendida (ADR-0041), una gema vieja se actualiza sola la primera
+// plantilla encendida (ADR-0048), una gema vieja se actualiza sola la primera
 // vez que se abre o se elige (spec §4.4), sin bloquear su uso.
 export function CustomStyleGallery({
   selected,
@@ -6266,7 +6266,7 @@ Crear `scripts/test/check-app-custom-style-payload.mjs`:
 <!-- prettier-ignore -->
 ```js
 // El estilo propio en el proyecto (options.customStyle): una gema vieja viaja
-// byte por byte como antes de ADR-0041 y una de plantilla viaja por secciones,
+// byte por byte como antes de ADR-0048 y una de plantilla viaja por secciones,
 // sin `systemPrompt` ni `shots` (spec §4.2). Decide el dato, no el interruptor.
 // Módulos puros de src/ corridos con Node (type stripping), sin bundler.
 import assert from 'node:assert/strict'
@@ -6301,7 +6301,7 @@ const TEMPLATE_GEM = {
   sourcePrompt: 'La gema original.',
 }
 
-// Cómo armaba el snapshot formPayload.ts antes de ADR-0041 (copia literal).
+// Cómo armaba el snapshot formPayload.ts antes de ADR-0048 (copia literal).
 function legacySnapshot(customStyle) {
   return {
     styleId: customStyle.styleId,
@@ -6374,7 +6374,7 @@ import type { ProjectCustomStyle } from '@pipeline/types/video-project.ts'
 // de plantilla viaja con sus secciones, su versión y su filtro, sin
 // `systemPrompt` ni `shots`: create-video-project exige uno de los dos
 // caminos, nunca ambos (spec §4.2). Una vieja viaja EXACTAMENTE como antes de
-// ADR-0041 (mismos campos, mismo orden), así el carril verbatim la recibe byte
+// ADR-0048 (mismos campos, mismo orden), así el carril verbatim la recibe byte
 // por byte. Decide el dato, no el interruptor: una gema de plantilla sigue
 // viajando por secciones aunque el interruptor se apague. Puro: lo corre
 // scripts/test/check-app-custom-style-payload.mjs.
@@ -6435,7 +6435,7 @@ por:
 <!-- prettier-ignore -->
 ```ts
   if (usesCustomStyle && form.customStyle) {
-    // Por secciones si la gema es de plantilla; si no, como siempre (ADR-0041).
+    // Por secciones si la gema es de plantilla; si no, como siempre (ADR-0048).
     options.customStyle = projectCustomStyleFrom(form.customStyle)
 ```
 
@@ -6667,7 +6667,7 @@ por:
 ```ts
   const gemChars = value.customStyle ? gemCharCount(value.customStyle) : 0
   // La fase del personaje solo corre cuando la gema lo diseña (genérico) y no
-  // trae su personaje escrito en la sección `character` (ADR-0041); con
+  // trae su personaje escrito en la sección `character` (ADR-0048); con
   // personaje propio o sin personaje tampoco hay llamada que cobrar.
   const withCharacterPhase =
     styleCharacterModeOf(value) === 'generic' &&
@@ -6801,7 +6801,7 @@ Crear `scripts/test/check-app-style-character-gem.mjs`:
 
 <!-- prettier-ignore -->
 ```js
-// «Crear personaje con mi estilo» con una gema de plantilla (ADR-0041): la
+// «Crear personaje con mi estilo» con una gema de plantilla (ADR-0048): la
 // gema en uso viaja a design-style-character por secciones (el sidecar la pasa
 // a texto sin su sección `character`) y una vieja como su texto, nunca las
 // dos. Módulos puros de src/ corridos con Node (type stripping), sin bundler.
@@ -6925,7 +6925,7 @@ por:
 // guion, la ficha la diseña el estilo del usuario (design-style-character) y
 // el preview arranca con ese estilo elegido (`styleId` es el id de galería).
 // La gema viaja como texto (`gem`, una vieja) o por secciones (`sections`,
-// una de plantilla, ADR-0041), nunca las dos.
+// una de plantilla, ADR-0048), nunca las dos.
 export interface CharacterStyleContext {
   styleId: string
   gem?: string
@@ -6953,7 +6953,7 @@ import type {
 } from '@/modules/characters/types/characters'
 
 // La gema del contexto de «Mi estilo» tal como la pide design-style-character
-// (ADR-0020, ADR-0041): una de plantilla por secciones (el sidecar las pasa a
+// (ADR-0020, ADR-0048): una de plantilla por secciones (el sidecar las pasa a
 // texto sin su sección `character`) o una vieja como texto, nunca las dos: si
 // un contexto trajera las dos, van las secciones. null = no hay gema que
 // diseñe y el modal usa el experto de la casa. Puro: lo corre
@@ -6981,7 +6981,7 @@ Al final de `src/modules/videos/types/styles.ts` agregar:
 ```ts
 
 // La gema en uso como contexto de «Crear personaje con mi estilo»: una vieja
-// como texto, una de plantilla por secciones (ADR-0041). Nunca las dos.
+// como texto, una de plantilla por secciones (ADR-0048). Nunca las dos.
 export type StyleContextGem = { gem: string } | { sections: GemSections }
 ```
 
@@ -7013,7 +7013,7 @@ y al final del archivo agregar:
 
 /**
  * La gema en uso como contexto de «Crear personaje con mi estilo»
- * (design-style-character, ADR-0041): una de plantilla viaja por secciones,
+ * (design-style-character, ADR-0048): una de plantilla viaja por secciones,
  * limpias, y el sidecar la pasa a texto sin su sección `character` (ahí se
  * diseña OTRO personaje, el de la persona); una vieja viaja como su texto.
  * Nunca las dos.
@@ -7045,7 +7045,7 @@ por:
 <!-- prettier-ignore -->
 ```ts
   // La gema que diseña al protagonista: una vieja como texto o una de
-  // plantilla por secciones (ADR-0041). null = el experto de la casa.
+  // plantilla por secciones (ADR-0048). null = el experto de la casa.
   const styleGem = styleDesignGemOf(styleContext)
   const withStyle = styleGem !== null && withScript
 ```
@@ -7084,7 +7084,7 @@ por:
 <!-- prettier-ignore -->
 ```tsx
                   // Una gema de plantilla viaja por secciones: el sidecar la
-                  // pasa a texto sin su sección de personaje (ADR-0041).
+                  // pasa a texto sin su sección de personaje (ADR-0048).
                   ...styleContextGemOf(value.customStyle),
 ```
 
@@ -7135,7 +7135,7 @@ por:
               ? {
                   styleId,
                   // Una gema de plantilla viaja por secciones: el sidecar la
-                  // pasa a texto sin su sección de personaje (ADR-0041).
+                  // pasa a texto sin su sección de personaje (ADR-0048).
                   ...styleContextGemOf(
                     templateMode
                       ? { sections: gemDraft.sections }
@@ -7259,7 +7259,7 @@ servidor desplegado en `admins` y un correo admin, no hace falta.
    y `COLOR_FILTER_IDS` son valores y `src/` solo importa tipos de `pipeline/` (ADR-0010; Vite no
    resuelve `@pipeline` en runtime). Se espejan en `videos/utilities/gemTemplate.ts` con una
    anotación `typeof` que no compila si divergen. Propuesta: dejar el contrato como está y
-   nombrarlo en la ADR-0041.
+   nombrarlo en la ADR-0048.
 2. **`AccessFeatures` vive en `auth`.** Ningún otro módulo puede importar ese tipo sin romper la
    regla de dependencias; por eso `common` declara solo los nombres (`AccessFeatureName`) y la
    lectura va por `useAccessFeature`. Los nombres quedan en dos lugares; si divergen, falla la
