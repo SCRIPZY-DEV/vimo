@@ -376,3 +376,35 @@ listado de un usuario con `seen = false` ya usa `diagnostic_logs_email_created_i
 lower(auth.jwt() ->> 'email'))`, `drop constraint diagnostic_logs_seen_consistente`,
   `drop column seen_by, seen_at, seen` y `notify pgrst, 'reload schema'`.
 - Handoff: `docs/handoff/2026-09-23-diagnostic-logs-seen/implementation.md`.
+
+## Nota posterior 2026-09-30 — `gem_rebuild_logs`, una excepción de texto en otra tabla
+
+La Entrega 1 de las gemas por secciones
+([ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)) suma al servidor de
+vimo.click el agente reconstructor (`POST /api/estilos/reconstruir`). Cada reconstrucción
+intentada, con éxito o con error, deja una fila en una tabla nueva de Supabase,
+`gem_rebuild_logs`. Esa tabla **no respeta la restricción de esta ADR** de no subir
+contenido del usuario («el guion, el texto de las escenas y los prompts […] no deben
+subirse»): es una excepción deliberada, no un olvido.
+
+- **Sí guarda texto.** `input_text` es la gema completa que mandó el usuario y `output_json` lo
+  que devolvió el modelo (en una fila `error`, su último contenido crudo, hasta 50 000
+  caracteres). Fue decisión del dueño, para poder diagnosticar el agente: por qué una gema salió
+  mal separada en secciones o por qué el modelo no pasó el esquema. Sin el texto, un
+  `modelo-fallo` no se podría explicar.
+- **Es una tabla aparte.** `diagnostic_logs` no cambia: sigue sin contenido del usuario y la app
+  sigue subiéndola con su `insert` protegido por RLS. La app no escribe en `gem_rebuild_logs`: la
+  escribe la Function de vimo-landing, por un pedido ya autenticado y con el cuerpo validado.
+- **Solo el service role la toca.** RLS activo y sin políticas, como `demo_accesos`: la app no
+  inserta, no lee ni actualiza nada. No hay panel; los registros se consultan en Supabase.
+- **Retención de 30 días** con pg_cron (`gem-rebuild-logs-retention`), igual que
+  `diagnostic_logs`: el texto vive lo que vive la fila.
+- **El log de la Function no repite el contenido.** Nunca escribe `input_text` ni el
+  `output_json` crudo. Su `error_detail`, acotado a 500 caracteres en la línea de log y a 2000
+  en la fila, no es neutro: según la causa puede citar un fragmento del cuerpo de error del
+  proveedor o los valores que escribió el modelo.
+
+El SQL (columnas, índice y retención) está en el spec
+(`docs/handoff/2026-09-30-catalog-on-custom-style-lane/design.md`, §6.5) y en
+`SETUP_RECONSTRUCTOR_GEMAS.md` de vimo-landing, y lo aplica el dueño. La ADR-0048 documenta el
+registro (L1), el cupo y los modos de falla.

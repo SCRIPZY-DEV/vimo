@@ -8895,6 +8895,7 @@ excepción explícita), o ampliar `isCatalogStyleId`.
 **P5 · Límites deliberados (documentar en la ADR-0048 o en ARCHITECTURE).**
 
 - Cuando una escena pierde su referencia de foto, `rescueReferencePrompt` pega la identidad al final del cuerpo, después de `promptEnd`. En ese rescate el orden queda inicio → escena → final → identidad, y el recorte trata al final fijo como parte de la escena (cede antes que la identidad).
+  - Superado en la revisión de A6 (2026-09-30): el rescate sin referencia también sigue el orden del spec §5.4.
 - `recoverProtagonistFromScenes` no reconoce el final fijo. No hace falta: un proyecto con gema de plantilla siempre guarda `styleProtagonist` (de la sección o de la Fase 1) antes del primer lote.
 - `create-video-project` guarda el snapshot tal como llega (sin recortar). El marco trata una sección en blanco como ausente, así que un snapshot con `camera: ''` no deja título vacío.
 - En una gema de plantilla, `shots` se guarda pero nadie lo usa (lo reemplaza la sección `camera`). Si la migración de una gema vieja (frente C) quiere conservar sus planos, tiene que sumarlos al texto que manda al agente.

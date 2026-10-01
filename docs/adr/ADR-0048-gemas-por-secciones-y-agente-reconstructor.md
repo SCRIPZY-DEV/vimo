@@ -155,22 +155,44 @@ el final los agrega el código.
   `((n)) [T:<tratamiento>]`, uno de los `SceneTreatment` que ya existen. El parser quita la
   etiqueta y guarda el valor en `scene.treatment`; si falta o no es válida, el prompt igual vale y
   no se reintenta. Al cerrar la fase, un evento `log` informa el reparto. Sin `dynamism` no se pide
-  etiqueta.
+  etiqueta. Cuando el tratamiento elegido no incluye al protagonista (una metáfora, un objeto, un
+  lugar), la regla pide escribir la escena sin `[subject]`, aunque la arquitectura general del
+  prompt lo nombre: si no, el dinamismo no podría dar escenas sin protagonista.
 - **Frases fijas.** Después de tejer `[subject]`, el código arma
   `promptStart + ' ' + escena + ' ' + promptEnd`. Con `promptEnd` no corre `restoreStyleTail`. Si
   el prompt no entra en `MAX_PROMPT_CHARS`, `sanitizeFinalPrompt` cede primero el núcleo de la
-  escena, después `promptEnd` y la identidad al final; `promptStart` no se corta.
+  escena, después `promptEnd` y la identidad al final; `promptStart` no se corta. El rescate de una
+  escena que pierde su foto de referencia (`rescueWithoutReference`, en la fase de imágenes) sigue
+  el mismo orden: quita las frases del prompt guardado, teje la identidad de biblioteca dentro de
+  la escena y vuelve a pegarlas, así que el prompt es inicio → escena → identidad → final y el
+  recorte cede igual. **Corregido en la implementación (2026-09-30):** el plan del sidecar (P5)
+  pegaba la identidad después del final fijo, y entonces el recorte tomaba el final por el cierre
+  de la escena y lo cedía antes que el núcleo; la revisión de la Tarea A6 lo revirtió porque
+  contradecía el spec §5.4.
 - **Filtro de color (F5).** `pipeline/prompts/color-filters.ts` define `none` (Natural), `fantasy`
   (Fantasía) y `horror-bw` (Terror) con los filtros de FFmpeg que hoy viven en `VISUAL_STYLES`.
   `resolveProjectStyle` toma `filterFinal` de `customStyle.colorFilter`; ausente es `none`.
 - **Muestras.** `generate-style-samples` usa el mismo marco y el mismo modo de personaje que el
   video: un lote verbatim con los 4 momentos fijos, el modelo de Ajustes (`promptModel` en el
-  payload) y las frases fijas pegadas por código. Las gemas viejas siguen por el camino de hoy.
-- **La gema como texto.** El diseño de un personaje con el estilo, el retrato de un personaje de la
-  biblioteca y el estilo del respaldo de imágenes reciben `composeGemText(sections)`: las secciones
-  con sus títulos, sin las reglas de la plataforma y sin `character`, para que el personaje del
-  estilo no se cuele en otro. `DesignStyleCharacterPayload` acepta `gem` o `sections`, nunca los
-  dos.
+  payload, resuelto con `resolveVerbatimModel` contra la oferta validada de la ADR-0044) y las
+  frases fijas pegadas por código. Con una gema de plantilla, la Fase 1 de las muestras también
+  corre con ese modelo: es la excepción, para estas gemas, al modelo fijo que la ADR-0044 §3 usa
+  para diseñar el protagonista de las muestras. Con foto, solo las muestras cuyo momento nombra al
+  protagonista llevan la referencia y el `APPEARANCE LOCK`, como en el video; si ninguna lo nombra,
+  la foto no se sube. Las gemas viejas siguen por el camino de hoy.
+- **La gema como texto.** Los usos que no escriben escenas reciben `composeGemText(sections)`: las
+  secciones con sus títulos, sin las reglas de la plataforma y sin `character`, para que el
+  personaje del estilo no se cuele en otro. La Fase 1 del carril y el diseño de un personaje con el
+  estilo («Crear personaje con mi estilo», `design-style-character`) la reciben con
+  `composeGemText(sections, { fixedPhrases: false })`, sin el inicio ni el final fijos: la ficha de
+  un retrato no es un prompt de escena, y un final fijo copiado ahí haría rechazar la ficha o se
+  tejería con la identidad en cada escena, antes del mismo final que pega el código. El retrato de
+  un personaje de la biblioteca (preview) y el estilo del respaldo de imágenes la reciben completa,
+  con las frases, porque son prompts de imagen; antes de pegarlas por código quitan la copia exacta
+  que el modelo haya escrito (`stripFixedPhrases`). `DesignStyleCharacterPayload` acepta `gem` o
+  `sections`, nunca los dos. **Corregido en la implementación (2026-09-30):** el spec §5.6 bis daba
+  el texto completo a todos esos usos; la revisión de la Tarea A3 mostró que en la Fase 1 las
+  frases se colaban en la identidad tejida.
 - **El marco vive en el código del sidecar, que viaja dentro de la app (B4):** cambiarlo cambia
   todos los videos nuevos con la actualización, sin reprocesar ninguna gema.
 - **No cambian:** lotes de 20, escalera [20, 5, 1], ronda de rescate, parser, tejido de
@@ -310,7 +332,7 @@ el final los agrega el código.
 | `check-gem-template-frame.mjs`         | A3       | El `system` del marco byte a byte en los cuatro modos del carril (`generic`, `text`, `reference` y `none`); `character` fuera del `system`; la gema vieja sale igual que antes |
 | `check-gem-verbatim-lane.mjs`          | A4       | Huellas SHA-256 del camino sin secciones; `character` como protagonista en genérico y ausente en `own` y `none`; E34 y el editor con el mismo marco                            |
 | `check-gem-treatment-tags.mjs`         | A5       | Etiqueta `[T:…]`, `scene.treatment`, prompt válido sin etiqueta y log del reparto                                                                                              |
-| `check-gem-fixed-phrases.mjs`          | A6       | Frases pegadas por código, sin `restoreStyleTail` con `promptEnd`, recorte con prioridad y `promptStart` intacto                                                               |
+| `check-gem-fixed-phrases.mjs`          | A6       | Frases pegadas por código, sin `restoreStyleTail` con `promptEnd`, recorte con prioridad (también en el rescate sin foto) y `promptStart` intacto                              |
 | `check-gem-style-samples.mjs`          | A7       | Muestras con el marco, el modo y el modelo de Ajustes; la gema vieja por el lote de siempre                                                                                    |
 | `check-gem-project-snapshot.mjs`       | A8a, A8b | `create-video-project` exige uno de `sections` o `systemPrompt`; la gema como texto con `composeGemText`                                                                       |
 | `check-gem-style-character-design.mjs` | A8c      | `design-style-character` con `sections`, sin la sección `character`                                                                                                            |

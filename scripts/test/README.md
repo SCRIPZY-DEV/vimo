@@ -41,6 +41,69 @@ binarios.
 
 Se corren con `node --test scripts/test/<script>`.
 
+> **Ojo:** en `dev` tres de estos guards fallan desde el PR #91 (33 tests):
+> `check-style-character-video.mjs` (10), `check-editor-character-selection.mjs` (19) y
+> `check-silent-scene-images.mjs` (4). El PR sumó al carril verbatim la revisión de
+> alineación narrativa ([ADR-0043](../../docs/adr/ADR-0043-correspondencia-temporal-de-prompts.md)),
+> una llamada JSON propia a un juez, y esos tres no la simulan. No es una regresión de las
+> gemas por secciones y queda fuera de su rama; el arreglo es contestarle al juez como lo hace
+> `narrativeReviewResponse` en `check-verbatim-prompt-persistence.mjs`. Los guards de gemas
+> por secciones que recorren el carril (abajo) sí lo simulan.
+
+## Sidecar: gemas por secciones (ADR-0048)
+
+Los guards de la Entrega 1 del catálogo sobre el carril de Mi estilo. Importan comandos,
+stages y prompts reales de `pipeline/`, con el LLM, el proveedor de imágenes y el juez de
+correspondencia simulados y la galería o el proyecto en carpetas temporales. Migran a
+**Vitest** sin Chrome ni binarios.
+
+| Script                                 | Qué verifica                                                                                                                                                                                                                                                                                                                                                   | Informe                                                                           |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `check-gem-sections-store.mjs`         | Almacén de la galería: topes (12 000 por sección y 30 000 en total; `character` 700; cada frase fija 600), `sections` o `systemPrompt` y nunca los dos, `style-save` conserva respaldo, filtro, origen y personaje si la escritura no los trae, y la lectura tolera un `style.json` raro                                                                       | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-color-filters.mjs`          | Los tres presets de color (`none`, `fantasy`, `horror-bw`) con los filtros de FFmpeg de `VISUAL_STYLES`; `resolveProjectStyle` toma el del estilo propio y, sin estilo propio, devuelve el mismo objeto del catálogo                                                                                                                                           | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-template-frame.mjs`         | El `system` del marco de Vimo byte a byte en los cuatro modos del carril (`generic`, `text`, `reference` y `none`) con y sin cada sección opcional: `character` nunca entra, las reglas nuevas son de plataforma, `composeGemText` con y sin frases fijas, y el `system` de una gema vieja sale igual que antes                                                | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-verbatim-lane.mjs`          | El carril con secciones y el camino viejo intacto: huellas SHA-256 de la conversación del redactor y de los prompts finales de una gema vieja en los cuatro modos; `character` como protagonista del modo genérico sin Fase 1 y ausente en «Mi personaje» y cinemático; política de contenido y editor con el mismo marco (cómo re-tomar las huellas, abajo)   | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-treatment-tags.mjs`         | Etiqueta `[T:…]` tras el id `((n))`: el parser la quita y guarda `scene.treatment`; ausente o inválida no invalida el prompt ni reintenta; el log del reparto al cerrar `scene-prompts`; sin dinamismo y con gema vieja no hay etiqueta ni reparto                                                                                                             | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-fixed-phrases.mjs`          | Inicio y final fijos pegados por código (inicio + escena tejida + final, sin duplicar una copia del modelo); con final fijo no se restaura la cola de estilo; el recorte cede primero la escena, después el final y la identidad al último, y nunca corta el inicio (también en el rescate sin foto y en el respaldo de imágenes)                              | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-style-samples.mjs`          | Muestras de una gema de plantilla: un lote verbatim con los 4 momentos fijos, el marco y el modo de personaje del video, el modelo de Ajustes (`promptModel`) y las frases fijas pegadas por código; la Fase 1 sin las frases fijas; con foto, solo las muestras que nombran al protagonista llevan la referencia; una gema vieja sigue por el lote de siempre | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-project-snapshot.mjs`       | `create-video-project` exige exactamente uno de `sections` o `systemPrompt` (con los límites de la galería, el filtro, la versión y el id de catálogo); la gema como texto usa `composeGemText` en el respaldo de imágenes y el preview de personaje, que quita la copia exacta de las frases fijas antes de pegarlas; una gema vieja sigue igual              | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-gem-style-character-design.mjs` | `design-style-character` recibe `sections` o `gem` (nunca los dos) y con secciones usa la gema como texto, sin la sección `character` ni las frases fijas; la gema vieja, como siempre                                                                                                                                                                         | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+
+Se corren juntos con `node --test scripts/test/check-gem-*.mjs scripts/test/check-app-*.mjs`
+(los de la app, abajo).
+
+**Re-tomar las huellas de `check-gem-verbatim-lane.mjs`.** Las cuatro `LEGACY_FINGERPRINTS`
+(una por modo) son el SHA-256 de lo que recibe el redactor —los mensajes de cada pedido— y de
+los prompts finales de una gema vieja. Se tomaron con el código de `dev` **sin** los cambios de
+plantilla (`c007e008`, el PR #91) y sostienen el «byte por byte» de la ADR-0048. Si una
+integración con `dev` cambia a propósito el carril viejo (otro texto en el turno del lote,
+otro saneado), el guard falla aunque la rama no haya roto nada. Para re-tomarlas, corré el
+fixture de gema vieja —el bucle sobre `LEGACY_MODES` con `runLane` y `fingerprint`— en un árbol
+sin los cambios de plantilla, por ejemplo un worktree del commit de `dev` que se integra, e
+imprimí los cuatro hashes. El resto del archivo importa código que solo existe con la
+plantilla (`template-frame.ts`, `protagonistFromSection`), así que ahí se corre una copia
+reducida a ese bucle: un script local y descartable, que no se commitea. Pegá los hashes en
+`LEGACY_FINGERPRINTS` y recién entonces corré el guard en la rama. **Nunca se re-toman con el
+código de la rama:** ese es justo el cambio que el guard existe para detectar.
+
+## App: gemas por secciones (ADR-0048)
+
+Módulos puros de `src/` corridos con Node (_type stripping_), sin Chrome ni bundler; la
+excepción es `check-app-vimo-server.mjs`, que empaqueta el cliente real con esbuild y lo prueba
+contra un servidor HTTP local. Migran a **Vitest**.
+
+| Script                               | Qué verifica                                                                                                                                                                                                                                                                                  | Informe                                                                           |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `check-app-access-flags.mjs`         | `admin` y los interruptores del veredicto de acceso (`features.gemTemplate` y `features.newCatalog`): ausentes o raros valen `false`, se recuerdan por correo para el modo sin red y cualquier módulo los lee sin conocer el veredicto (`useAccessFeature`)                                   | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-app-vimo-server.mjs`          | El cliente de vimo.click (`vimoServerFetch`): adjunta la sesión de Supabase y falla siempre con un `VimoServerError` tipado (`network`, `timeout` o `http` con `code` y `retryAfterSeconds`), también cuando WebKit aborta el fetch con un `AbortError` fijo                                  | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-app-gem-rebuild.mjs`          | El pedido al agente reconstructor (la gema sin bordes, el origen, la versión y el idioma), la respuesta que se usa o se descarta (otra versión, sin `visualStyle` o fuera de los topes no se usa) y un solo pedido en vuelo por clave (el doble clic en «Preparar con IA» no gasta dos cupos) | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-app-gem-sections.mjs`         | La gema por secciones en el modal: topes por sección y en total, qué cuenta como cambio, el guardado con `templateVersion` y sin `systemPrompt` ni `shots`, el aviso de inglés para `character`, `promptStart` y `promptEnd`, y el snapshot del formulario (el de una gema vieja no cambia)   | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-app-gem-migration.mjs`        | Migración de gemas viejas: una sola en vuelo por gema y una por sesión, sin repetirse sola tras un fallo; al agente va el texto de la gema con sus planos como `# ALLOWED SHOTS` y queda de respaldo; una gema borrada mientras migra no vuelve                                               | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-app-custom-style-payload.mjs` | La gema en el proyecto (`options.customStyle`): una vieja viaja byte por byte como antes de la ADR-0048 y una de plantilla viaja por secciones, sin `systemPrompt` ni `shots`; decide el dato guardado y no el interruptor                                                                    | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+| `check-app-style-character-gem.mjs`  | «Crear personaje con mi estilo»: la app manda `sections` (gema de plantilla) o `gem` (gema vieja), nunca los dos; sin gema, el experto de la casa                                                                                                                                             | [ADR-0048](../../docs/adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) |
+
+Se corren con `node --test scripts/test/<script>`.
+
 ## Interfaz en Chrome headless
 
 Bundlean componentes y hooks reales con esbuild y simulan solo las APIs. Necesitan

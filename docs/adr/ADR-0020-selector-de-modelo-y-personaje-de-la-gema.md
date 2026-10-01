@@ -204,3 +204,12 @@ Ver [causa, implementación y QA](../fixes/2026-09-19-fix-style-character-video/
   (`resolverModelo`), `pipelineProyecto.ts` (`personajeParaElMotor`).
 - Doctrinas v1.10.0/v1.14.0/v1.16.0 (simulador), v1.19.0–v1.19.2 (personaje
   de la gema), v1.21.0 (consigna como system), E34/E39/E47/E49.
+
+## Nota posterior 2026-10-01 — el contexto de estilo con una gema de plantilla
+
+Con las gemas por secciones ([ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)),
+el `styleContext` del punto 7 lleva la gema como texto (`gem`, una gema vieja) **o** por secciones
+(`sections`, una gema de plantilla), nunca las dos. `CharacterModal` manda exactamente una de las dos a
+`design-style-character`; con secciones, el sidecar arma el texto sin la sección `character` ni las
+frases fijas. Sin gema sigue el experto de la casa. La excepción cross-módulo de este punto no
+cambia.

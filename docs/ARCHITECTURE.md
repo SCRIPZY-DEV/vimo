@@ -33,10 +33,10 @@ diagramas, está en [docs/diagrams/](diagrams/).
 
 ## 1. Frontera del sistema
 
-**Todo corre en la máquina del usuario.** No hay servidor que desplegar ni costo de
-infraestructura: la aplicación empaqueta el pipeline (sidecar Node) y el binario de
-FFmpeg, y las únicas llamadas remotas son a los proveedores externos, con las claves
-del propio usuario.
+**Todo corre en la máquina del usuario.** Este repositorio no despliega ningún
+servidor: la aplicación empaqueta el pipeline (sidecar Node) y el binario de FFmpeg, y
+las únicas llamadas remotas del pipeline son a los proveedores externos, con las
+claves del propio usuario.
 
 El repositorio tiene **tres carpetas de código**, una por pieza del sistema: `src/`
 (la SPA en la webview), `src-tauri/` (Rust) y `pipeline/` (el sidecar del pipeline,
@@ -49,8 +49,25 @@ UI ◄── Channel del invoke (eventos) ──────────── R
 
 El sidecar invoca a FFmpeg y llama a los proveedores externos (TTS · transcripción ·
 LLM · imágenes · música). La SPA solo habla con Rust vía `invoke()` (con un `Channel`
-para los eventos de cada job) y con **Supabase**, la única pieza remota propia: la
-identidad del usuario.
+para los eventos de cada job) y con las dos piezas remotas propias de Vimo, que no
+generan video: **Supabase** (la identidad del usuario y la subida de diagnósticos) y el
+servidor de **vimo.click**.
+
+El servidor de vimo.click (`vimo-landing`, otro repositorio: Pages Functions de
+Cloudflare) resuelve el veredicto de acceso y los interruptores de salida
+(`verificar-acceso`,
+[ADR-0006](adr/ADR-0006-autenticacion-doble-flujo-oauth-y-gate-por-loaders.md)), ofrece
+a soporte el panel donde se revisan los diagnósticos
+([ADR-0038](adr/ADR-0038-logs-de-diagnostico-por-ejecucion-en-supabase.md)) y, desde la
+Entrega 1 de las gemas por secciones
+([ADR-0048](adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)), aloja el
+**agente reconstructor** (`POST /api/estilos/reconstruir`): recibe la gema completa que
+pegó el usuario, la ordena en secciones con un modelo y deja una fila por intento en
+`gem_rebuild_logs`. Corre ahí y no en el sidecar porque usa la clave de Vimo, que no
+puede viajar dentro de la app: el sidecar solo tiene las del usuario. La SPA lo llama
+únicamente desde el `api/` de `videos`, con `vimoServerFetch`
+(`src/modules/common/fetcher/`), que adjunta la sesión de Supabase; el sidecar no lo
+conoce.
 
 | Responsabilidad                               | Dónde vive                      |
 | --------------------------------------------- | ------------------------------- |
@@ -61,6 +78,7 @@ identidad del usuario.
 | Llamadas a los proveedores externos           | `pipeline/` (providers)         |
 | Ensamblado del video                          | FFmpeg, invocado por el sidecar |
 | Registro, login y sesión                      | Supabase                        |
+| Acceso y reconstrucción de gemas (agente)     | Servidor de vimo.click          |
 | Claves de los servicios pagos (BYO-keys)      | keychain del SO (ADR-0011)      |
 
 Lo que **no** existe en `src/` y no debe aparecer: FFmpeg, modelos de IA, llamadas
@@ -232,10 +250,11 @@ dónde vive cada tipo de archivo, cómo se colocan las traducciones— están en
 componente → hook (TanStack Query) → api/ del módulo → common/fetcher → exterior
 ```
 
-`modules/common/fetcher/` es el único borde de la interfaz con el exterior y tiene dos
-transportes: `fetcher.ts` (HTTP, legado del servidor local) y `pipeline.ts` (jobs del
-sidecar vía `invoke` + `Channel` — ver la sección 4). Ningún componente ni hook llama
-a `fetch`, `invoke` de pipeline ni `listen` directamente.
+`modules/common/fetcher/` es el único borde de la interfaz con el exterior y tiene tres
+transportes: `fetcher.ts` (HTTP, legado del servidor local), `pipeline.ts` (jobs del
+sidecar vía `invoke` + `Channel` — ver la sección 4) y `vimoServer.ts` (vimo.click con
+la sesión de Supabase, `vimoServerFetch` — ver la sección 1). Ningún componente ni hook
+llama a `fetch`, `invoke` de pipeline ni `listen` directamente.
 
 ### `src-tauri/` — el lado nativo y los sidecars
 
@@ -516,8 +535,9 @@ La narración es **esencial** (si falla, el job muere); música y overlay son
 **opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
 
 **Con un estilo propio («Mi estilo», ADR-0018/0019/0020)** `scene-prompts` cambia
-de carril: la gema del usuario viaja verbatim como `system`, se saltean la biblia
-y el director, y los prompts salen **por lotes** con el modelo LLM elegido en Create
+de carril: la gema del usuario viaja verbatim como `system` (si es por secciones, la
+arma el marco de Vimo: ver más abajo), se saltean la biblia y el director, y los
+prompts salen **por lotes** con el modelo LLM elegido en Create
 (`options.promptModel`; el catálogo llega por `list-prompt-models` y el
 simulador de costos vive en `utilities/promptCost.ts`). Cada lote cerrado se
 escribe en `scenes.json` en el acto: sus tokens ya se pagaron, así que un fallo
@@ -542,6 +562,47 @@ queda bloqueado localmente una hora (`common/utilities/promptModelBlocks.ts`) y
 un diálogo ofrece seguir esperando o cancelar y relanzar el mismo proyecto con
 otro modelo (`set-prompt-model` + `run-video-pipeline`, prompts ya escritos
 intactos). Con todos los modelos bloqueados solo quedan los estilos de Vimo.
+
+**Gemas por secciones (Entrega 1,
+[ADR-0048](adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)).** Con el
+interruptor `features.gemTemplate` (primero solo para admins), una gema nueva ya no es
+un texto libre: se guarda en siete secciones fijas (`visualStyle`, la única
+obligatoria, `character`, `dynamism`, `camera`, `rules`, `promptStart` y `promptEnd`)
+que ordena el agente reconstructor de vimo.click (sección 1) a partir de lo que pegó el
+autor; editar una sección guarda directo con `style-save`, sin agente. El proyecto
+copia la gema en `options.customStyle` (`sections`, `templateVersion` y `colorFilter`;
+una gema vieja lleva `systemPrompt`, nunca los dos). Al generar, el sidecar la
+envuelve con el **marco de Vimo** (`pipeline/prompts/template-frame.ts`):
+`buildTemplateSystem` arma el `system` con que el carril escribe los lotes de prompts
+(su Fase 2; la Fase 1 diseña al protagonista desde el guion) con las secciones, la
+seguridad de contenido, el formato de salida y las reglas de plataforma de siempre, y
+`composeGemText` arma la gema como texto para lo que no escribe escenas (la Fase 1, el
+diseño y el preview de personajes y el respaldo de imágenes). La sección `character`
+nunca entra al `system`: el modo de personaje decide si viaja y cómo.
+
+- **Genérico:** con `character`, ese texto es el protagonista —se teje en cada escena
+  que lo nombra— y **no corre la Fase 1**; queda en `styleProtagonist` con
+  `source: 'style-section'`. Sin la sección, la Fase 1 lo diseña como siempre.
+- **Mi personaje:** `character` no viaja; el protagonista es el del usuario (con texto,
+  dibujado en el estilo; con foto, `APPEARANCE LOCK`).
+- **Cinemático:** `character` no viaja y la arquitectura va sin `[subject]`; si el
+  dinamismo nombra al protagonista, esa escena sale sin protagonista recurrente.
+
+Con `dynamism`, cada prompt de lote empieza con una **etiqueta de tratamiento**,
+`((n)) [T:<tratamiento>]`: el parser la quita y la guarda en `scene.treatment`, un `log`
+informa el reparto al cerrar la fase, una escena cuyo tratamiento no muestra al
+protagonista va sin `[subject]`, y una etiqueta ausente o inválida ni invalida el prompt
+ni reintenta. Con `promptStart` y `promptEnd`, **el código** —no el modelo— arma cada
+prompt de imagen como inicio fijo + escena tejida + final fijo: con final fijo no corre
+`restoreStyleTail` y, si el prompt no entra, el recorte cede primero el núcleo de la
+escena, después el final y la identidad al último, sin cortar nunca el inicio. El
+**filtro de color** es un preset del estilo (`none`, `fantasy` u `horror-bw`, en
+`pipeline/prompts/color-filters.ts`) que `resolveProjectStyle` vuelca en el
+`filterFinal` del render. Una gema **sin secciones** —todas las anteriores a la
+Entrega 1 y las que aún no se migraron— sigue por `buildVerbatimSystem` **byte por
+byte** (lo fija `check-gem-verbatim-lane.mjs` con huellas SHA-256); con el interruptor
+encendido la app la migra con el agente la primera vez que se abre o se elige en Crear
+y, si la migración falla, la gema sigue por el camino viejo.
 
 ### La pausa de confirmación de escenas
 
@@ -639,7 +700,7 @@ Este documento describe el destino. El código todavía no llegó ahí:
 | Módulo `voices` (Voces TTS)                        | listo — ADR-0010 paso 3: explorador de voces de DubVoice (Minimax · ElevenLabs · Edge) y, desde ADR-0024, de ElevenLabs directo («Mis voces» + «Biblioteca», cuota de caracteres) según el proveedor elegido; filtros, favoritos e historial en `<carpeta raíz>/_history/voices/`; probador con progreso y cancelación; saldo de créditos. Las muestras suenan desde la URL del proveedor: los previews precomputados del origen (81 MB) y su síntesis con créditos no se portaron, y Edge queda sin muestra                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Módulo `characters` (Personajes)                   | listo — ADR-0010 paso 4: biblioteca de identidades en `<carpeta raíz>/characters/` (una carpeta por personaje con `metadata.json` y un preview por estilo); el "experto" redacta la identidad neutra de estilo con el LLM en tier premium, y los previews estrenan los providers de imagen (Fal · Evolink) con la regla de oro de los proveedores pagos. El selector de hasta 2 personajes ya vive en Create (ADR-0013); desde ADR-0033 un personaje también se crea CON foto («cara idéntica»: la imagen subida es su identidad y viaja como referencia en todos los estilos, sin previews)                                                                                                                                                                                                                                                                                                                                                            |
 | FFmpeg y yt-dlp empaquetados                       | listos para **macOS arm64, macOS x64 y Windows x64** — ADR-0013 / ADR-0026 / ADR-0034: `scripts/fetch-binaries.mjs` los descarga con URL y SHA-256 pineados por target triple (firma ad-hoc en macOS en desarrollo; en CI Tauri los re-firma con Developer ID y notariza el DMG) y los deja como `externalBin`; Rust los resuelve junto a `current_exe` con el sufijo de la plataforma y los inyecta en `PipelineJob.binaryPaths`. Los instaladores (NSIS de Windows y DMG de macOS arm64 e Intel) salen del workflow `.github/workflows/build-desktop.yml`, con los targets declarados en `scripts/release-targets.mjs`; un tag `v*` además firma los artefactos y publica `latest.json` para el updater de la app (ADR-0027, módulo `settings`). Pendientes: Linux, firma Authenticode y la revisión GPL→LGPL de ffmpeg                                                                                                                               |
-| Módulo `videos` (Create)                           | listo — ADR-0013: pantalla completa de creación (formulario con guion o audio propio, estilo, escenas, proveedor de imagen, selector de voz y de hasta 2 personajes, música y overlay), progreso en vivo por fases con grilla de escenas, pausa de confirmación de escenas, cancelar y reanudar, y panel del video terminado. La tarea vive en un store con `localStorage` y sobrevive a navegación y reload. Desde 2026-09-03 la pantalla de progreso calca la del origen (rama 7 de ADR-0016, port visual de `vimo-ui-pipeline`): página entera con cronómetro que descuenta la pausa, fases a la izquierda y un panel por fase, grilla de imágenes con visor a pantalla completa, paso de segundos por escena inline y el error dentro de la pantalla                                                                                                                                                                                                |
+| Módulo `videos` (Create)                           | listo — ADR-0013: pantalla completa de creación (formulario con guion o audio propio, estilo, escenas, proveedor de imagen, selector de voz y de hasta 2 personajes, música y overlay), progreso en vivo por fases con grilla de escenas, pausa de confirmación de escenas, cancelar y reanudar, y panel del video terminado. La tarea vive en un store con `localStorage` y sobrevive a navegación y reload. Desde 2026-09-03 la pantalla de progreso calca la del origen (rama 7 de ADR-0016, port visual de `vimo-ui-pipeline`): página entera con cronómetro que descuenta la pausa, fases a la izquierda y un panel por fase, grilla de imágenes con visor a pantalla completa, paso de segundos por escena inline y el error dentro de la pantalla. Entrega 1 de gemas por secciones (ADR-0048), tras `features.gemTemplate`: modal de Mi estilo por secciones, migración de gemas viejas, `vimoServerFetch` y `useAccessFeature` en `common`.    |
 | Runner de stages y las 7 fases                     | listos — ADR-0013: `pipeline/runner/run-stages.ts` + `pipeline/stages/` (voice, transcription, scene-cuts, scene-prompts, images, animation, render; ADR-0045) con el registro declarativo en `stages/registry.ts`. Toda fase es retomable por `skip()`; los guards de gasto del origen se conservan textualmente (anti-doble-gasto del TTS, concat con re-encode, cosecha de tarea Evolink ya pagada, `-t` explícito en el render)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Módulo `videos` (Library)                          | listo — ADR-0014: biblioteca completa (grilla con estados y borrado en lote, partida en dos pestañas por formato desde 2026-09-08 —«Formato largo» con tarjetas 16:9 y «Shorts» con tarjetas 9:16 en una columna más—, la pestaña se recuerda en `localStorage` y queda en la del último proyecto creado; reproductor con velocidades, pantalla de progreso rehidratable) + editor (regeneración selectiva de imágenes con prompt propio y modelo/calidad por escena, drag de fronteras en el timeline, re-render con cache de chunks, export de clips a `clips/`, reemplazo de narración con re-transcripción, música IA/YouTube/archivo, mezcla de volúmenes y offset). 11 subcomandos nuevos en `pipeline/commands/videos/` sin tocar Rust; flag `videoOutdated` en `project.json`. Pendiente: prueba con claves reales en build instalado                                                                                                           |
 | Modo demo (`videos` + sidecar)                     | listo — ADR-0029 + ADR-0030: entrada «Demo» del sidebar (flag `demo` del veredicto de vimo.click: administradores y `demo_accesos`), puerta `/create-demo` que descarga una sola vez el pack v3 (318,7 MB, SHA-256 pineado; raíz v2 con cuatro historias 16:9 más `short/` con cuatro shorts 9:16) a `<carpeta raíz>/_demo-pack` y siembra la gema del pack en `_styles/demo-storytelling/`, Crear pre-llenado desde el manifest (la historia sigue a formato y estilo; «Subir mi audio» ya cargado con el audio de la historia) y `run-video-pipeline` simulando las seis fases (~40 s) con los archivos del pack, sin claves ni proveedores; regenerar imágenes y cambiar narración se rechazan (`demo_project`). Dominio `pipeline/commands/demo/` (`demo-status`, `demo-prepare`, `run-demo-pipeline`) sin tocar Rust. Guard `pnpm check:demo` (19 secciones) y armador `pnpm build:demo-pack`                                                      |

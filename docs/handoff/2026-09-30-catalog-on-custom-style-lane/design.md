@@ -316,6 +316,9 @@ En el catálogo, la UI solo ofrece los modos que el estilo permite (`allowedMode
   primero el núcleo de la escena, después `promptEnd` y la identidad al final. `promptStart` no se
   corta.
 
+> **Nota de implementación (2026-10-01).** El rescate de una escena que pierde su foto de referencia
+> también sigue este orden (el plan del sidecar decía otro en su P5). Ver la ADR-0048.
+
 ### 5.5 Filtro de color
 
 `pipeline/prompts/color-filters.ts` define los presets con los filtros que hoy viven en
@@ -337,6 +340,9 @@ que el video: un lote verbatim con los 4 momentos fijos de hoy, escrito con el m
 payload suma `promptModel`) y con el inicio y el final fijos agregados por código. Las gemas viejas
 siguen por el camino actual.
 
+> **Nota de implementación (2026-10-01).** Con foto, solo las muestras cuyo momento nombra al
+> protagonista llevan la referencia, como en el video. Ver la ADR-0048.
+
 ### 5.6 bis «La gema como texto»
 
 Hay usos que no generan escenas pero hoy reciben la gema como un texto entero: el diseño de un
@@ -347,6 +353,10 @@ plataforma y **sin la sección `character`**, para que el personaje fijo del est
 personaje. El retrato y el respaldo también llevan el inicio y el final fijos, porque son prompts de
 imagen. `DesignStyleCharacterPayload` acepta `gem` o `sections`, nunca los dos, porque la app no puede
 componer ese texto.
+
+> **Nota de implementación (2026-10-01).** El diseño de un personaje y la Fase 1 reciben
+> `composeGemText(sections, { fixedPhrases: false })`, sin el inicio ni el final fijos; el retrato y el
+> respaldo los llevan y quitan antes la copia exacta que haya escrito el modelo. Ver la ADR-0048.
 
 ### 5.7 Lo que no cambia
 
