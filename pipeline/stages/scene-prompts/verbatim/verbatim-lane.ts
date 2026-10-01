@@ -12,8 +12,10 @@ import type { Scene } from '../../../types/scenes.ts'
 import type { StyleCharacter } from '../../../types/styles.ts'
 import type {
   ProjectCharacter,
+  ProjectCustomStyle,
   StyleProtagonist,
 } from '../../../types/video-project.ts'
+import { composeGemText } from '../../../prompts/template-frame.ts'
 import type { VerbatimFragment } from '../../../prompts/verbatim-messages.ts'
 import type { CreateVideoContext } from '../../context.ts'
 import {
@@ -30,6 +32,7 @@ import {
   namesByName,
   namesSubject,
   mentionsProtagonist,
+  protagonistFromSection,
   recoverProtagonistFromScenes,
 } from './subject-weaver.ts'
 
@@ -248,8 +251,22 @@ function editorCharacterInput(
 }
 
 /**
+ * La sección `character` de una gema de plantilla, cuando viaja: solo en el
+ * modo genérico (declarado o ausente). En «Mi personaje» el protagonista es el
+ * del usuario y en cinemático no hay (spec §5.2).
+ */
+function sectionCharacterOf(
+  customStyle: ProjectCustomStyle | undefined,
+): string | undefined {
+  const mode = customStyle?.character?.mode
+  if (mode === 'own' || mode === 'none') return undefined
+  return customStyle?.sections?.character?.trim() || undefined
+}
+
+/**
  * El protagonista que este proyecto YA tiene resuelto para sus grupos
- * `generic` (sin personaje del usuario): el guardado en project.json o, en
+ * `generic` (sin personaje del usuario): el guardado en project.json; el que
+ * define la sección `character` de una gema de plantilla (sin Fase 1); o, en
  * proyectos anteriores a ese campo, el que sus prompts de escena ya vienen
  * tejiendo. `undefined` = primera vez: lo diseña la Fase 1.
  *
@@ -264,6 +281,8 @@ function resolveStyleProtagonist(
 ): StyleProtagonist | undefined {
   const stored = context.metadata.styleProtagonist
   if (stored?.description.trim()) return stored
+  const section = sectionCharacterOf(context.options.customStyle)
+  if (section) return protagonistFromSection(section)
   if (projectHasCharacters) return undefined
 
   const recovered = recoverProtagonistFromScenes(scenes)
@@ -388,6 +407,18 @@ export async function runVerbatimLane(
       })
       await saveStyleProtagonist(knownProtagonist)
     }
+    if (
+      knownProtagonist.source === 'style-section' &&
+      !context.metadata.styleProtagonist
+    ) {
+      context.emitter.emit({
+        type: 'log',
+        level: 'info',
+        message:
+          'protagonist taken from the character section of the style: no character design phase',
+      })
+      await saveStyleProtagonist(knownProtagonist)
+    }
     for (const group of genericGroups)
       group.input = { mode: 'generic', designed: knownProtagonist }
   }
@@ -448,8 +479,14 @@ export async function runVerbatimLane(
     const result = await generateVerbatimPrompts(fragments, fullScript, {
       // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
       // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
-      // origen: los planos solo gobiernan el carril del catálogo).
-      gem: customStyle.systemPrompt ?? '',
+      // origen: los planos solo gobiernan el carril del catálogo). Una gema de
+      // plantilla viaja por secciones: el marco arma su system y la Fase 1 (y
+      // su último recurso) recibe su texto sin las frases fijas, que pega el
+      // código y no son parte de la ficha del retrato (ADR-0048).
+      gem: customStyle.sections
+        ? composeGemText(customStyle.sections, { fixedPhrases: false })
+        : (customStyle.systemPrompt ?? ''),
+      sections: customStyle.sections,
       // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
       // desconocido → el de la casa, con aviso).
       modelId: context.options.promptModel,

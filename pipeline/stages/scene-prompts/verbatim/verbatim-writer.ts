@@ -15,6 +15,7 @@ import {
   type VerbatimMessage,
 } from '../../../providers/llm/verbatim-client.ts'
 import type { LlmModelProfile } from '../../../types/llm-models.ts'
+import type { GemSections } from '../../../types/styles.ts'
 import type { StyleProtagonist } from '../../../types/video-project.ts'
 import { isInsufficientCreditsFailure } from '../../../utils/insufficient-credits.ts'
 import { buildProtagonistDesignMessage } from '../../../prompts/protagonist-request.ts'
@@ -23,6 +24,7 @@ import {
   PROTAGONIST_TOKENS_BUDGET,
 } from '../../shared/protagonist-description.ts'
 import { FINAL_PROMPT_BODY_BUDGET } from '../../shared/prompt-safety.ts'
+import { buildTemplateSystem } from '../../../prompts/template-frame.ts'
 import {
   buildAssistantCharacterTurn,
   buildCharacterDesignMessage,
@@ -183,8 +185,12 @@ export interface VerbatimBatchPrompts {
 }
 
 export interface VerbatimWriterOptions {
-  /** La gema del usuario. Viaja VERBATIM como `system`. */
+  /** La gema del usuario. Viaja VERBATIM como `system` (en una gema de
+   *  plantilla, sus secciones como texto: la Fase 1 la recibe así). */
   gem: string
+  /** Gema de plantilla (ADR-0048): el `system` de la Fase 2 lo arma el marco
+   *  de Vimo con estas secciones. Ausente = gema vieja, camino de siempre. */
+  sections?: GemSections
   /** Modelo elegido en el proyecto. Vacío → el de la casa. */
   modelId?: string
   /** Qué hace este video con el protagonista. Ausente = `generic`. */
@@ -1228,14 +1234,17 @@ export async function generateVerbatimPrompts(
     // devolvió (con personaje del usuario, su texto: el modelo cree que ese
     // retrato lo escribió él). Con FOTO o SIN protagonista no hay turno que
     // replicar — el preámbulo del lote es el que dice qué hacer.
+    const systemOptions = {
+      withoutScriptProtagonist,
+      sceneWardrobe: options.sceneWardrobe,
+      outputLanguageRule: options.outputLanguageRule,
+    }
     const messages: VerbatimMessage[] = [
       {
         role: 'system',
-        content: buildVerbatimSystem(options.gem, mode, {
-          withoutScriptProtagonist,
-          sceneWardrobe: options.sceneWardrobe,
-          outputLanguageRule: options.outputLanguageRule,
-        }),
+        content: options.sections
+          ? buildTemplateSystem(options.sections, mode, systemOptions)
+          : buildVerbatimSystem(options.gem, mode, systemOptions),
       },
       { role: 'user', content: buildScriptMessage(fullScript) },
       ...(character.portrait
