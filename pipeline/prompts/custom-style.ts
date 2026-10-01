@@ -7,7 +7,7 @@ import { GLOBAL_RULES } from './visual-styles.ts'
 // del origen. El envío VERBATIM sin envoltorio es del carril verbatim (rama
 // posterior del roadmap, ADR-0016).
 export function buildCustomStyleSystemPrompt(style: {
-  systemPrompt: string
+  systemPrompt?: string
   shots?: string[]
 }): string {
   const shots = (style.shots ?? []).filter(Boolean)
@@ -18,5 +18,5 @@ export function buildCustomStyleSystemPrompt(style: {
           .join('\n')}`
       : ''
 
-  return `${style.systemPrompt}${shotsBlock}\n\n${GLOBAL_RULES}`
+  return `${style.systemPrompt ?? ''}${shotsBlock}\n\n${GLOBAL_RULES}`
 }

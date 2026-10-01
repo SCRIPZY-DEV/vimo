@@ -30,11 +30,54 @@ export interface StyleCharacter {
   defaultCharacterId?: string
 }
 
+/** Secciones de una gema de plantilla (ADR-0048). */
+export interface GemSections {
+  visualStyle: string
+  character?: string
+  dynamism?: string
+  camera?: string
+  rules?: string
+  promptStart?: string
+  promptEnd?: string
+}
+
+export type GemSectionKey = keyof GemSections
+
+/** Orden canónico de las secciones: el mismo en el marco, en el modal y en el agente. */
+export const GEM_SECTION_KEYS = [
+  'visualStyle',
+  'character',
+  'dynamism',
+  'camera',
+  'rules',
+  'promptStart',
+  'promptEnd',
+] as const satisfies readonly GemSectionKey[]
+
+/** Versión de la estructura de secciones que entienden este sidecar y esta app. */
+export const GEM_TEMPLATE_VERSION = 1
+
+export const COLOR_FILTER_IDS = ['none', 'fantasy', 'horror-bw'] as const
+export type ColorFilterId = (typeof COLOR_FILTER_IDS)[number]
+
+/** Solo en las copias de «Pasar a mi estilo» (Entrega 2). */
+export interface GemOrigin {
+  kind: 'catalog'
+  catalogStyleId: string
+  name: string
+}
+
 export interface CustomStyleSummary {
   id: string
   name: string
-  // El estilo ES este system prompt: se manda al LLM que escribe los prompts.
-  systemPrompt: string
+  /** Solo gemas viejas (sin secciones). */
+  systemPrompt?: string
+  sections?: GemSections
+  templateVersion?: number
+  sourcePrompt?: string
+  colorFilter?: ColorFilterId
+  origin?: GemOrigin
+  updatedAt?: string
   // Planos permitidos (vacío = sin restricción declarada).
   shots: string[]
   // Ausente = { mode: 'generic' }.
@@ -50,7 +93,17 @@ export interface StylesListResult {
 export interface StyleSavePayload {
   id: string
   name: string
-  systemPrompt: string
+  /** Gema vieja. Excluyente con `sections`. */
+  systemPrompt?: string
+  /** Gema de plantilla. Excluyente con `systemPrompt`. */
+  sections?: GemSections
+  templateVersion?: number
+  /** Ausente = conservar el guardado. */
+  sourcePrompt?: string
+  /** Ausente = conservar el guardado. */
+  colorFilter?: ColorFilterId
+  /** Ausente = conservar el guardado. */
+  origin?: GemOrigin
   shots?: string[]
   // Ausente = CONSERVAR el bloque guardado (guard v1.19.2 del origen); quien
   // quiera cambiarlo manda el bloque nuevo.
@@ -68,6 +121,8 @@ export interface StyleDeletePayload {
 export interface GenerateStyleSamplesPayload {
   styleId: string
   imageProvider: ImageProviderId
+  /** Modelo de Ajustes para las gemas de plantilla. Ausente = el de la casa. */
+  promptModel?: string
 }
 
 export interface GenerateStyleSamplesResult {

@@ -35,7 +35,7 @@ const EMPTY_DRAFT: CustomStyleDraft = { name: '', systemPrompt: '', shots: [] }
 function toDraft(style: CustomStyleSummary): CustomStyleDraft {
   return {
     name: style.name,
-    systemPrompt: style.systemPrompt,
+    systemPrompt: style.systemPrompt ?? '',
     shots: style.shots,
     ...(style.character ? { character: style.character } : {}),
   }
@@ -99,7 +99,7 @@ export function CustomStyleGallery({
     onSelect({
       styleId: payload.id,
       name: payload.name,
-      systemPrompt: payload.systemPrompt,
+      systemPrompt: payload.systemPrompt ?? '',
       shots: payload.shots ?? [],
       ...(payload.character ? { character: payload.character } : {}),
     })

@@ -9,7 +9,7 @@ export function selectedCustomStyleFrom(
   return {
     styleId: style.id,
     name: style.name,
-    systemPrompt: style.systemPrompt,
+    systemPrompt: style.systemPrompt ?? '',
     shots: style.shots,
     ...(style.character ? { character: style.character } : {}),
   }

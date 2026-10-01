@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                     | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)                       | Section-based gems and the rebuild agent                                            | Accepted                   | pipeline / app / server       |
 | [ADR-0046](ADR-0046-recuperacion-y-deshacer-animaciones.md)                              | Visible recovery and undoing animations                                             | Aceptada                   | app / pipeline                |
 | [ADR-0045](ADR-0045-prefijo-animado-por-parejas-y-fase-propia.md)                        | Animated prefix pairs and dedicated stage                                           | Accepted                   | pipeline / app                |
 | [ADR-0044](ADR-0044-oferta-de-redactores-validada.md)                                    | Prompt writers selected through narrative validation                                | Accepted                   | pipeline / app                |

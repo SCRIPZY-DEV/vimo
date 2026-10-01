@@ -1,5 +1,5 @@
 import type { CharacterStyleId } from './characters.ts'
-import type { StyleCharacter } from './styles.ts'
+import type { ColorFilterId, GemSections, StyleCharacter } from './styles.ts'
 import type { ImageProviderId } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
 import type { SceneSummary, TranscriptWord } from './scenes.ts'
@@ -47,7 +47,13 @@ export interface ProjectCharacter {
 export interface ProjectCustomStyle {
   styleId: string
   name: string
-  systemPrompt: string
+  /** Gema vieja. Excluyente con `sections`. */
+  systemPrompt?: string
+  sections?: GemSections
+  templateVersion?: number
+  colorFilter?: ColorFilterId
+  /** Entrega 2: estilo del catálogo del que sale esta copia. */
+  catalogStyleId?: string
   shots?: string[]
   // Qué declaró la gema sobre su protagonista (snapshot). Ausente = el
   // proyecto manda (comportamiento previo a ADR-0020, intacto).
@@ -180,8 +186,14 @@ export interface VideoProjectMetadata {
 //  - fallback-request — la Fase 1 no dejó nada y lo resolvió el pedido JSON.
 //  - recovered        — proyecto anterior a este campo: se leyó de los prompts
 //                       de escena ya guardados.
+//  - style-section    — gema de plantilla (ADR-0048): lo define su sección
+//                       `character`, sin Fase 1.
 export type StyleProtagonistSource =
-  'style-phase' | 'platform-phase' | 'fallback-request' | 'recovered'
+  | 'style-phase'
+  | 'platform-phase'
+  | 'fallback-request'
+  | 'recovered'
+  | 'style-section'
 
 export interface StyleProtagonist {
   // Lo que se replica en el turno de assistant de la Fase 2.

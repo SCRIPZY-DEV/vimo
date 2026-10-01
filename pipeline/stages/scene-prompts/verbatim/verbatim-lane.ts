@@ -449,7 +449,7 @@ export async function runVerbatimLane(
       // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
       // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
       // origen: los planos solo gobiernan el carril del catálogo).
-      gem: customStyle.systemPrompt,
+      gem: customStyle.systemPrompt ?? '',
       // El modelo elegido en el proyecto; el writer lo resuelve (retirado o
       // desconocido → el de la casa, con aviso).
       modelId: context.options.promptModel,

@@ -118,7 +118,7 @@ export async function generateStyleSamples(
   try {
     character =
       resolved.mode === 'design'
-        ? await designSampleProtagonist(context, style.systemPrompt)
+        ? await designSampleProtagonist(context, style.systemPrompt ?? '')
         : resolved
     context.emitter.emit({
       type: 'log',

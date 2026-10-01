@@ -223,7 +223,7 @@ export function CustomStyleCard({
         </p>
         <p className="truncate font-body text-xs text-muted-foreground">
           {t('create.customStyles.charsCount', {
-            chars: style.systemPrompt.length.toLocaleString(),
+            chars: (style.systemPrompt ?? '').length.toLocaleString(),
           })}
         </p>
       </div>
