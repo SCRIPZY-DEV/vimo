@@ -7,6 +7,10 @@ import {
 } from '../../prompts/character-preview.ts'
 import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
 import {
+  applyFixedPhrases,
+  stripFixedPhrases,
+} from '../../prompts/template-frame.ts'
+import {
   VISUAL_STYLES,
   assembleUserScenePrompt,
   isCharacterStyleId,
@@ -125,6 +129,15 @@ async function writeCustomStylePrompt(
       'the style did not write a usable preview prompt',
     )
 
+  // Una gema de plantilla pega sus frases fijas también al retrato: van en
+  // cada prompt de imagen (spec §4.1). El texto de la gema se las muestra al
+  // modelo, así que si las copió se quita esa copia antes de pegarlas: cada
+  // frase va una sola vez.
+  if (style.sections)
+    return applyFixedPhrases(
+      stripFixedPhrases(imagePrompt, style.sections),
+      style.sections,
+    )
   return imagePrompt
 }
 
