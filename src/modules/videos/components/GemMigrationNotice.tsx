@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, RefreshCw, X } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { Button } from '@/modules/common/ui/button'
+import { videosApi } from '@/modules/videos/api'
 import { GemRebuildErrorText } from '@/modules/videos/components/GemRebuildErrorText'
 import type { GemMigrationState } from '@/modules/videos/types/styles'
 
@@ -95,6 +96,10 @@ export function GemMigrationNotice({
       </Alert>
     )
 
+  // Una gema vieja que el agente no reconoce como estilo visual no se arregla
+  // reintentando: el aviso solo explica por qué y la gema sigue como antes.
+  const retryable = videosApi.gemRebuildErrorRetryable(migration.error)
+
   return (
     <Alert
       tone="warning"
@@ -106,16 +111,18 @@ export function GemMigrationNotice({
           : t('create.gemTemplate.migrationFailed')
       }
       actions={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={retryDisabled}
-          onClick={onRetry}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {t('create.gemTemplate.retry')}
-        </Button>
+        retryable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={retryDisabled}
+            onClick={onRetry}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {t('create.gemTemplate.retry')}
+          </Button>
+        )
       }
     >
       <GemRebuildErrorText error={migration.error} />

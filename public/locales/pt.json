@@ -785,6 +785,7 @@
         "featureOff": "Preparar estilos com IA não está disponível para sua conta no momento.",
         "invalidRequest": "O Vimo não entendeu o pedido do app. Atualize o Vimo e tente de novo.",
         "invalidText": "A gema está vazia ou passa de {{limit}} caracteres.",
+        "noVisualStyle": "O texto não descreve um estilo visual: não diz como as imagens são (técnica, cores, luz, traços). Uma gema de estilo precisa descrever isso; um roteiro ou o tema do vídeo não servem.",
         "quotaExhausted": "Você chegou ao limite de estilos preparados de hoje. Poderá tentar de novo em {{when}}.",
         "quotaExhaustedLater": "Você chegou ao limite de estilos preparados de hoje. Tente de novo mais tarde.",
         "modelFailed": "A IA não conseguiu organizar sua gema. Tente de novo em instantes.",

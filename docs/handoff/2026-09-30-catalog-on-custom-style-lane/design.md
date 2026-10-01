@@ -422,6 +422,7 @@ Errores, con `{ "code": "…" }` en el cuerpo:
 | 403  | `funcion-desactivada` | `features.gemTemplate` está apagado para ese usuario, o pide `origin: "catalogo"` sin ser admin. |
 | 400  | `pedido-invalido`     | JSON roto, o `origin`, `locale` o `appVersion` inválidos.                                        |
 | 400  | `texto-invalido`      | Texto vacío o de más de 30 000 caracteres.                                                       |
+| 422  | `sin-estilo-visual`   | El texto no dice cómo se ven las imágenes (un guion, una lista de temas). No gasta cupo.         |
 | 429  | `cupo-agotado`        | Superó el cupo diario (sección 6.4). Trae `retryAfterSeconds`.                                   |
 | 500  | `error-interno`       | Falla interna del servidor: Supabase caído, configuración faltante o una excepción inesperada.   |
 | 502  | `modelo-fallo`        | El modelo falló, cortó la respuesta por largo o devolvió algo inválido después del reintento.    |
@@ -453,6 +454,10 @@ Las instrucciones del agente viven versionadas en `vimo-landing/functions/_lib/r
 7. Escribir las secciones descriptivas en el idioma de la gema.
 8. Devolver solo JSON con el esquema de la sección 6.1.
 9. Listar en `warnings` lo que se descartó o era ambiguo.
+10. Si el texto no dice nada de cómo se ven las imágenes (un guion, una lista de temas, solo
+    instrucciones de formato), no inventar un estilo: responder `{ "noVisualStyle": true, "reason" }`.
+    Basta una oración sobre las imágenes para que cuente como gema. El servidor responde 422
+    `sin-estilo-visual` y la app explica qué tiene que tener una gema (pedido del dueño, 2026-10-01).
 
 El servidor valida la respuesta con zod (límites de la sección 4.1 y `visualStyle` obligatorio). Si no
 pasa, reintenta una vez con el error de validación. Si vuelve a fallar, responde `modelo-fallo`.

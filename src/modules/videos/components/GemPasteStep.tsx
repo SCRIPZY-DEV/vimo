@@ -3,6 +3,7 @@ import { Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
+import { videosApi } from '@/modules/videos/api'
 import { GemRebuildErrorText } from '@/modules/videos/components/GemRebuildErrorText'
 import {
   CUSTOM_STYLE_FIELD_CLASS,
@@ -22,7 +23,9 @@ interface GemPasteStepProps {
 
 // «Pegá tu gema» (spec §7): una caja grande y «Preparar con IA». Mientras la IA
 // trabaja todo queda quieto (el botón deshabilitado evita un segundo pedido);
-// si falla, el texto sigue en la caja y el botón pasa a «Reintentar».
+// si falla, el texto sigue en la caja y el botón pasa a «Reintentar», salvo
+// cuando el texto no es una gema: reintentarlo igual daría lo mismo, así que
+// el botón vuelve a «Preparar con IA» para el texto que se pegue en su lugar.
 export function GemPasteStep({
   text,
   pending,
@@ -38,6 +41,7 @@ export function GemPasteStep({
   // botón espera a que la gema entre en el tope.
   const overLimit = text.length > CUSTOM_STYLE_PROMPT_LIMIT
   const canPrepare = text.trim().length > 0 && !pending && !overLimit
+  const retrying = error !== null && videosApi.gemRebuildErrorRetryable(error)
 
   return (
     <div className="space-y-3">
@@ -113,7 +117,7 @@ export function GemPasteStep({
           ) : (
             <>
               <Sparkles className="mr-2 h-4 w-4" />
-              {error
+              {retrying
                 ? t('create.gemTemplate.retry')
                 : t('create.gemTemplate.prepare')}
             </>

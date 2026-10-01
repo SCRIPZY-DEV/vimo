@@ -207,9 +207,14 @@ el final los agrega el código.
   `mi-estilo`, `catalogo` o `migracion`. Respuesta 200:
   `{ templateVersion, sections, suggestions, warnings }`, con los `warnings` en el idioma de la app.
 - Errores con `{ code }`: 401 `sin-token` y `token-invalido`; 403 `sin-acceso` y
-  `funcion-desactivada`; 400 `pedido-invalido` y `texto-invalido`; 429 `cupo-agotado` (con
-  `retryAfterSeconds`); 500 `error-interno`; 502 `modelo-fallo`; 504 `modelo-timeout`. La app
-  traduce cada código con su clave de i18n.
+  `funcion-desactivada`; 400 `pedido-invalido` y `texto-invalido`; 422 `sin-estilo-visual`; 429
+  `cupo-agotado` (con `retryAfterSeconds`); 500 `error-interno`; 502 `modelo-fallo`; 504
+  `modelo-timeout`. La app traduce cada código con su clave de i18n.
+- **Un texto que no es una gema tiene su código** (sumado el 2026-10-01, a pedido del dueño). Si el
+  texto no dice nada de cómo se ven las imágenes (un guion, una lista de temas), el modelo responde
+  `{ noVisualStyle, reason }` en vez de inventar un estilo, y el endpoint devuelve 422
+  `sin-estilo-visual` sin gastar cupo. La app explica qué tiene que tener una gema y no ofrece
+  «Reintentar», porque el mismo texto daría lo mismo.
 - **El servidor no confía en la app.** Valida la sesión y las reglas de acceso con
   `functions/_lib/acceso.ts`, extraído de `verificar-acceso` sin cambiar su respuesta (con tests de
   caracterización escritos antes de extraer). Vuelve a comprobar el interruptor y el cupo, y
@@ -234,7 +239,8 @@ el final los agrega el código.
 ### Registro en `gem_rebuild_logs` (L1)
 
 - Deja fila todo pedido que pasó la sesión, el acceso y la validación del cuerpo: `status` `ok`,
-  `error` (`modelo-fallo`, `modelo-timeout`, `funcion-desactivada` o `error-interno`) o `quota`
+  `error` (`modelo-fallo`, `modelo-timeout`, `sin-estilo-visual`, `funcion-desactivada` o
+  `error-interno`) o `quota`
   (`cupo-agotado`). Los 401, el 403 `sin-acceso` y los 400 se deciden antes de tener un cuerpo
   válido y quedan solo en el log de la Function.
 - La fila guarda el usuario y su correo, el origen, el código y el detalle del error, el proveedor

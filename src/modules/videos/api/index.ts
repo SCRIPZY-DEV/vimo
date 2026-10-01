@@ -16,6 +16,7 @@ import { isNative } from '@/modules/common/utilities/isNative'
 import {
   DEMO_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_ERROR_MESSAGE_KEYS,
+  GEM_REBUILD_NO_VISUAL_STYLE_CODE,
   GEM_REBUILD_PATH,
   GEM_REBUILD_QUOTA_CODE,
   GEM_REBUILD_QUOTA_LATER_KEY,
@@ -248,6 +249,9 @@ export const videosApi = {
     if (!Object.hasOwn(GEM_REBUILD_ERROR_MESSAGE_KEYS, code))
       return UNKNOWN_GEM_REBUILD_ERROR_KEY
     return GEM_REBUILD_ERROR_MESSAGE_KEYS[code]
+  },
+  gemRebuildErrorRetryable(error: unknown): boolean {
+    return vimoServerErrorCode(error) !== GEM_REBUILD_NO_VISUAL_STYLE_CODE
   },
   async demoStatus(): Promise<DemoStatusResult> {
     return runPipelineJob<DemoStatusResult>('demo-status')

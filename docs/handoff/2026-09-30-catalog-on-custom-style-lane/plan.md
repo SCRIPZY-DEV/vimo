@@ -290,7 +290,8 @@ export interface GemRebuildResponse {
 - Error: el HTTP de la tabla del spec §6.1 con cuerpo `{ "code": string, "retryAfterSeconds"?: number }`.
   Los códigos son `sin-token`, `token-invalido`, `sin-acceso`, `funcion-desactivada`,
   `pedido-invalido`, `texto-invalido`, `cupo-agotado`, `error-interno`, `modelo-fallo` y
-  `modelo-timeout`.
+  `modelo-timeout`, más `sin-estilo-visual` (422), sumado en la Ola 3 a pedido del dueño
+  (2026-10-01): el texto no describe un estilo visual.
 - El endpoint vuelve a comprobar el interruptor: sin `features.gemTemplate` para ese usuario, o con
   `origin: "catalogo"` sin ser admin, responde 403 `funcion-desactivada`.
 - La sección `character` termina con una oración que empieza con «Outfit:», el formato que ya exige la

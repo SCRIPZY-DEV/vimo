@@ -473,9 +473,9 @@ export const GEM_REBUILD_PATH = '/api/estilos/reconstruir'
 // recibir su `modelo-timeout` en vez de adelantarse con un timeout propio.
 export const GEM_REBUILD_TIMEOUT_MS = 150_000
 // Código → clave i18n: los del servidor (spec §6.1 más los tres que sumó el
-// contrato: `pedido-invalido`, `funcion-desactivada` y `error-interno`; se
-// comparan tal cual llegan) y los del cliente común de vimo.click (`network`
-// y `timeout`).
+// contrato: `pedido-invalido`, `funcion-desactivada` y `error-interno`, y
+// `sin-estilo-visual`, que pidió el dueño el 2026-10-01; se comparan tal cual
+// llegan) y los del cliente común de vimo.click (`network` y `timeout`).
 export const GEM_REBUILD_ERROR_MESSAGE_KEYS: Record<string, string> = {
   'sin-token': 'create.gemTemplate.errors.session',
   'token-invalido': 'create.gemTemplate.errors.session',
@@ -483,6 +483,7 @@ export const GEM_REBUILD_ERROR_MESSAGE_KEYS: Record<string, string> = {
   'funcion-desactivada': 'create.gemTemplate.errors.featureOff',
   'pedido-invalido': 'create.gemTemplate.errors.invalidRequest',
   'texto-invalido': 'create.gemTemplate.errors.invalidText',
+  'sin-estilo-visual': 'create.gemTemplate.errors.noVisualStyle',
   'cupo-agotado': 'create.gemTemplate.errors.quotaExhausted',
   'modelo-fallo': 'create.gemTemplate.errors.modelFailed',
   'modelo-timeout': 'create.gemTemplate.errors.modelTimeout',
@@ -491,6 +492,9 @@ export const GEM_REBUILD_ERROR_MESSAGE_KEYS: Record<string, string> = {
   timeout: 'create.gemTemplate.errors.timeout',
 }
 export const UNKNOWN_GEM_REBUILD_ERROR_KEY = 'create.gemTemplate.errors.unknown'
+// El texto no describe un estilo visual (un guion, una lista de temas):
+// reintentar con el mismo texto daría lo mismo, así que no se ofrece.
+export const GEM_REBUILD_NO_VISUAL_STYLE_CODE = 'sin-estilo-visual'
 // Cupo agotado sin la hora en que vuelve (el contrato la manda siempre; si
 // falta, el mensaje no la promete).
 export const GEM_REBUILD_QUOTA_CODE = 'cupo-agotado'

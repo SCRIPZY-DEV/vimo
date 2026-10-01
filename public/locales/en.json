@@ -785,6 +785,7 @@
         "featureOff": "Preparing styles with AI isn't available for your account right now.",
         "invalidRequest": "Vimo couldn't understand the app's request. Update Vimo and try again.",
         "invalidText": "The gem is empty or longer than {{limit}} characters.",
+        "noVisualStyle": "The text doesn't describe a visual style: it doesn't say how the images look (technique, colors, lighting, strokes). A style gem has to describe that; a script or the video's topic won't work.",
         "quotaExhausted": "You've reached today's limit of prepared styles. You can try again on {{when}}.",
         "quotaExhaustedLater": "You've reached today's limit of prepared styles. Try again later.",
         "modelFailed": "The AI couldn't sort your gem. Try again in a moment.",
