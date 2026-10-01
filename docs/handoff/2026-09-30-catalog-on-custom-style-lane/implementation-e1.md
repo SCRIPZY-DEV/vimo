@@ -6,10 +6,10 @@ revisión propia y todo el conjunto, una revisión final de las dos ramas.
 
 ## Ramas
 
-| Repo           | Rama                       | Estado                                                                                                      |
-| -------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| VIMO-TAURI     | `feat/catalogo-estilos`    | Local, sin push. Sobre `dev` `c007e008` (PR #91), con rebase aprobado por el dueño. 2 commits de plan + 25. |
-| `vimo-landing` | `feat/reconstructor-gemas` | En `origin` (push aprobado por el dueño), sin PR. 14 commits sobre `origin/main` `cf728fb`.                 |
+| Repo           | Rama                       | Estado                                                                                                                                                                  |
+| -------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VIMO-TAURI     | `feat/catalogo-estilos`    | Local, sin push hasta que el dueño pruebe todo. Sobre `dev` `c007e008` (PR #91), con rebase aprobado por el dueño.                                                      |
+| `vimo-landing` | `feat/reconstructor-gemas` | En `origin` con 14 commits sobre `origin/main` `cf728fb` (push aprobado por el dueño), más 3 locales de la Ola 3. Sin PR: el dueño aprobó push y merge a `main` sin PR. |
 
 ## Qué quedó
 
@@ -41,37 +41,60 @@ SHA-256 de `check-gem-verbatim-lane.mjs`, tomadas del código de `dev`.
 - `vimo-landing`: 15 archivos y 592 tests en verde, lint igual a la base, build en verde y el bundle
   de wrangler compila.
 
-## Pasos del dueño (Ola 3)
+## Ola 3
 
-1. Aplicar en Supabase el SQL de `gem_rebuild_logs` de `vimo-landing/SETUP_RECONSTRUCTOR_GEMAS.md`.
-2. Cargar en Cloudflare Pages las variables `RECONSTRUCTOR_*` y poner `VIMO_FLAG_GEM_TEMPLATE` en
-   `admins` (`VIMO_FLAG_NEW_CATALOG` sigue en `off`: es de las Entregas 2 y 3).
-3. Desplegar `vimo-landing` (merge o deploy de la rama, con aprobación).
-4. Recompilar el sidecar de la app con esta rama (`pnpm build:sidecar`): un sidecar viejo rechaza un
-   pedido de «Crear personaje con mi estilo» que solo trae `sections`.
-5. Comparar modelos del agente con 10 gemas, incluidas 2 o 3 largas (25 000 a 30 000 caracteres): el
-   cliente llama al modelo sin streaming con 120 s de plazo, y los errores conocidos registran cortes
-   de conexión cerca de los 120 s y primeros bytes lentos en CometAPI con prompts grandes. Revisar en
-   especial el estilo POV Stickman (regla de figura y frase fija con el protagonista).
-6. QA manual en `pnpm tauri dev` (pasos A a F de [plan-e1-app.md](plan-e1-app.md), «QA manual»). Para
-   encender el interruptor sin servidor, en la consola del webview:
-   `localStorage.setItem('vimo:demo:access:v1', JSON.stringify({ email: '<correo de la sesión>', demo: false, admin: true, features: { gemTemplate: true, newCatalog: false } }))`,
-   cortar la red y recargar.
-7. Aprobar el push de `feat/catalogo-estilos` y el PR a `dev`.
+El 2026-10-01 el dueño le pidió a Claude los pasos de esta ola y respondió las preguntas abiertas.
+
+**Decisiones del dueño:**
+
+- **Agente:** CometAPI con `gpt-5.4-nano` y reintentos ante fallos.
+- **Texto sin estilo visual:** con código y mensaje propios.
+- **Registro de reconstrucciones:** `gem_rebuild_logs` guarda 60 días (es solo un registro) y la página
+  de privacidad lo dice.
+- **QA con claves:** presupuesto de 5 USD.
+- **Catálogo inicial:** las 34 gemas de Imperio Pro de `estilos/` son sus estilos iniciales.
+- **Esta rama:** queda local hasta que el dueño pruebe todo.
+
+**Estado de cada paso:**
+
+1. **SQL de `gem_rebuild_logs`** (ya con 60 días): pendiente. Espera que el dueño abra sesión en el CLI
+   de Supabase (`supabase login`); después lo aplica Claude con `supabase db query --linked`.
+2. **Variables en Cloudflare Pages:** cargadas en Production el 2026-10-01, como secretos:
+   - `RECONSTRUCTOR_API_URL=https://api.cometapi.com/v1`;
+   - `RECONSTRUCTOR_MODEL=gpt-5.4-nano`;
+   - `RECONSTRUCTOR_EXTRA_BODY={"reasoning_effort":"medium"}`;
+   - `VIMO_FLAG_GEM_TEMPLATE=admins` y `VIMO_FLAG_NEW_CATALOG=off`;
+   - una `RECONSTRUCTOR_API_KEY` provisoria, la de FLUJO-VIANI, que se reemplaza por la de Vimo.
+3. **Deploy de `vimo-landing`:** pendiente, después del SQL. El dueño aprobó el push y el merge a `main`
+   sin PR. Suma tres commits de esta ola:
+   - `3177bad`: código `sin-estilo-visual`;
+   - `9ff0188`: dos reintentos;
+   - `f2080cc`: 60 días y la política de privacidad.
+4. **Sidecar:** recompilado con esta rama y el Node oficial.
+5. **Comparación de modelos:** hecha (spec §6.3). `gpt-5.4-nano` con `reasoning_effort: medium` fue la
+   única de 5 configuraciones que acertó los 13 casos, a unos 0,42 centavos de dólar por
+   reconstrucción. Tarda hasta 48 s, y 87 s la gema de 29 745 caracteres con su ronda de corrección.
+6. **QA manual:** la hace el dueño en `pnpm tauri dev` cuando el deploy esté arriba (pasos A a F de
+   [plan-e1-app.md](plan-e1-app.md), «QA manual»). Con su correo en la tabla `admins` y el interruptor
+   en `admins`, no hace falta el truco del `localStorage`.
+7. **Push de `feat/catalogo-estilos` y PR a `dev`:** cuando el dueño lo diga.
 
 ## Compuertas antes de `VIMO_FLAG_GEM_TEMPLATE=all`
 
 De la revisión final (ninguna bloquea el merge a `dev`, porque el interruptor arranca en `admins`):
 
 - **Costo:** el cupo cuenta solo las filas `ok`; pedidos concurrentes pasan juntos el chequeo y los
-  intentos fallidos (hasta 4 llamadas al proveedor cada uno) no tienen tope. Falta decidir un tope
-  de fallos o un pedido en vuelo por usuario.
-- **Texto sin estilo visual:** un texto pegado que no es una gema termina en `modelo-fallo` (502) y
-  la app dice «Reintentá». Falta decidir un código y un mensaje propios.
-- **Privacidad:** la página de privacidad de vimo.click no menciona que `gem_rebuild_logs` guarda el
-  texto de las gemas 30 días.
+  intentos fallidos (hasta 6 llamadas al proveedor cada uno, unos 0,42 centavos de dólar por
+  reconstrucción) no tienen tope. Falta decidir un tope de fallos o un pedido en vuelo por usuario.
+- **Texto sin estilo visual:** resuelto el 2026-10-01. El servidor responde 422
+  `sin-estilo-visual` y la app muestra un mensaje propio, sin «Reintentar».
+- **Privacidad:** resuelto en `vimo-landing` (`f2080cc`): la política dice que el texto se guarda 60
+  días. Sale con el deploy.
 - **Guards rojos de `dev`:** arreglarlos en `dev` (simular al juez) y volver a correrlos sobre esta
   rama: cubren justo los modos de personaje que cambió el carril.
+- **POV Stickman** (comparación de modelos): el agente deja «A simple stickman doll character
+  drawing.» como `promptStart` sin avisar del recorte, y pierde de `visualStyle` la regla «los demás
+  personajes son muñecos iguales». Revisarlo en la QA antes de usar el agente con el catálogo.
 - **QA con claves:** etiquetas `[T:…]` fuera del frente del prompt, la sección `character` sin la
   limpieza de la Fase 1, el preámbulo del lote frente a la regla del tratamiento sin protagonista,
   el CPU del Worker en el plan gratuito (un error 1102 llega sin CORS).

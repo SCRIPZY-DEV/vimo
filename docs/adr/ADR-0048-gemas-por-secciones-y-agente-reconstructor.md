@@ -229,10 +229,11 @@ el final los agrega el código.
   pasa, se reintenta una vez con el error de validación; si vuelve a fallar, `modelo-fallo`.
 - **Modelo:** cliente de Chat Completions compatible con OpenAI, configurado con
   `RECONSTRUCTOR_API_URL`, `RECONSTRUCTOR_API_KEY` y `RECONSTRUCTOR_MODEL`; los parámetros propios
-  de cada modelo van en `RECONSTRUCTOR_EXTRA_BODY`. Timeout de 120 s y un reintento ante 429 o 5xx.
-  Una respuesta cortada por largo es `modelo-fallo` y no se reintenta igual. El cliente sirve sin
-  cambios para CometAPI y DeepInfra; el proveedor y el modelo salen de una comparación sobre 10
-  gemas que juzga el dueño (spec §6.3 y §15).
+  de cada modelo van en `RECONSTRUCTOR_EXTRA_BODY`. Timeout de 120 s y hasta dos reintentos ante 429
+  o 5xx (desde el 2026-10-01; antes uno). Una respuesta cortada por largo es `modelo-fallo` y no se
+  reintenta igual. El cliente sirve sin cambios para CometAPI y DeepInfra. El proveedor y el modelo
+  salieron de una comparación de 13 casos, elegidos el 2026-10-01: CometAPI con `gpt-5.4-nano` y
+  `{"reasoning_effort":"medium"}`, la única configuración que acertó todos (spec §6.3).
 - **Cupo:** 30 reconstrucciones `ok` por usuario en las últimas 24 h, contadas en
   `gem_rebuild_logs`. Los admins no tienen cupo.
 
@@ -248,7 +249,7 @@ el final los agrega el código.
   tokens, los `warnings`, la versión de la app y **el texto de entrada y el JSON de salida**, para
   poder diagnosticar.
 - RLS activo y sin políticas: solo el service role, desde `vimo-landing`, como `demo_accesos`.
-  Retención de 30 días con pg_cron, como `diagnostic_logs`. El SQL está en el spec (§6.5) y lo
+  Retención de 60 días con pg_cron (el dueño la llevó de 30 a 60 el 2026-10-01). El SQL está en el spec (§6.5) y lo
   aplica el dueño.
 - Si falla la escritura del registro, el usuario igual recibe su respuesta y el error queda en el
   log de la Function.
@@ -317,8 +318,8 @@ el final los agrega el código.
   próximo video puede salir con las secciones sin revisar.
 - ⚠️ **Excepción de texto frente a la ADR-0038.** `diagnostic_logs` no sube contenido del usuario;
   `gem_rebuild_logs` guarda el texto de la gema y el JSON de salida, por decisión del dueño, para
-  poder diagnosticar el agente. Es una tabla aparte, solo accesible con el service role y con 30
-  días de retención.
+  poder diagnosticar el agente. Es una tabla aparte, solo accesible con el service role y con 60
+  días de retención, y la política de privacidad de vimo.click lo dice.
 - ⚠️ **Valores espejados.** `GEM_SECTION_KEYS`, `GEM_TEMPLATE_VERSION` y `COLOR_FILTER_IDS` viven en
   `pipeline/types/styles.ts`, y `src/` solo importa tipos del sidecar (el alias `@pipeline` es solo
   para `import type`, ADR-0010). La app los copia en `src/modules/videos/utilities/gemTemplate.ts`

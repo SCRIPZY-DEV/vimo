@@ -474,8 +474,16 @@ pasa, reintenta una vez con el error de validación. Si vuelve a fallar, respond
   (temperatura, tope de tokens, nivel de razonamiento) van en `RECONSTRUCTOR_EXTRA_BODY`, un JSON
   opcional que se mezcla al final. La comparación de modelos deja escrita la configuración de cada
   uno. Por ejemplo, la familia `gpt-5*` por CometAPI no acepta otra temperatura.
-- Timeout de 120 s y un reintento ante 429 o 5xx. Una respuesta cortada por largo
+- Timeout de 120 s y hasta dos reintentos ante 429 o 5xx, con pausas de 1 s y 2 s (el dueño pidió
+  reintentos el 2026-10-01; antes era uno). Una respuesta cortada por largo
   (`finish_reason: "length"`) es `modelo-fallo` y no se reintenta igual.
+- **Elegido el 2026-10-01:** CometAPI con `gpt-5.4-nano` y `RECONSTRUCTOR_EXTRA_BODY` en
+  `{"reasoning_effort":"medium"}`. De 5 configuraciones probadas (nano sin parámetros, con `low` y con
+  `medium`; mini sin parámetros y con `medium`), es la única que acertó los 13 casos. Los casos fueron
+  10 gemas (POV Stickman, 6 de Imperio Pro, una del dueño y 2 sintéticas de 25 804 y 29 745
+  caracteres, porque no hay gemas reales tan largas) y 3 textos que no son gemas o casi. Tarda de 18 a
+  48 s, y hasta 87 s la más larga con su ronda de corrección. Cuesta unos 0,42 centavos de dólar por
+  reconstrucción. La clave es provisoria (la de FLUJO-VIANI) hasta cargar la de Vimo.
 
 ### 6.4 Cupo diario
 
@@ -519,11 +527,13 @@ alter table public.gem_rebuild_logs enable row level security;
 create index gem_rebuild_logs_user_created_idx
   on public.gem_rebuild_logs (user_id, created_at desc);
 
--- Retención de 30 días con pg_cron, igual que diagnostic_logs (ADR-0038).
+-- Retención de 60 días con pg_cron, como diagnostic_logs (ADR-0038), que tiene 30.
 ```
 
 - Se guardan el texto de entrada y el JSON de salida para poder diagnosticar. Es una excepción
-  deliberada a la ADR-0038, que no sube el texto de las gemas; la retención de 30 días la acota.
+  deliberada a la ADR-0038, que no sube el texto de las gemas; la retención de 60 días la acota (el
+  dueño la llevó de 30 a 60 el 2026-10-01). Es solo un registro: las gemas de los usuarios viven en su
+  computadora y el catálogo tiene su propia tabla. La política de privacidad de vimo.click lo dice.
 - Si falla la escritura del registro, el usuario igual recibe su respuesta y el error queda en el log
   de la función.
 
@@ -707,6 +717,10 @@ sections, templateVersion, allowedModes, sampleMode, colorFilter, samples }`.
 
 - Un SQL inserta las 5 gemas como publicadas, con sus muestras subidas, para que los admins puedan
   editarlas.
+- **Decisión del dueño (2026-10-01):** las 34 gemas de Imperio Pro de la carpeta `estilos/` (sin
+  trackear, foto del 2026-09-18 de `viani-web/app/ImperioPro/estilos.ts`) serán los estilos iniciales
+  del catálogo de Vimo. Cómo entran (secciones con el agente, muestras, cuáles se publican y en qué
+  entrega) se decide al planear las Entregas 2 y 3.
 
 ---
 
@@ -810,6 +824,8 @@ sections, templateVersion, allowedModes, sampleMode, colorFilter, samples }`.
 
 1. **Proveedor del agente:** ¿CometAPI o DeepInfra con una clave de Vimo, o Anthropic directo con
    cuenta nueva? El cliente sirve para los dos primeros sin cambios. La elección de modelo sale de la
-   comparación de la sección 6.3.
-2. **QA con claves reales (G2):** qué guiones se usan y cuál es el presupuesto máximo.
+   comparación de la sección 6.3. **Respondida el 2026-10-01:** CometAPI con `gpt-5.4-nano`
+   (sección 6.3).
+2. **QA con claves reales (G2):** qué guiones se usan y cuál es el presupuesto máximo. Presupuesto:
+   5 USD (dueño, 2026-10-01). Los guiones siguen sin definir.
 3. **Cupo diario:** ¿30 reconstrucciones por usuario alcanzan?

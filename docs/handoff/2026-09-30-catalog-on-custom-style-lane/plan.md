@@ -401,7 +401,7 @@ C6b se omite y «Crear personaje con mi estilo» sigue con el experto de la casa
   - §5: el párrafo «Con un estilo propio» explica las gemas por secciones y el marco.
   - §6: la fila de `videos` menciona la Entrega 1.
 - [ ] `docs/adr/ADR-0038-*.md`: nota posterior sobre `gem_rebuild_logs` (tabla aparte, guarda texto
-      por decisión del dueño, 30 días).
+      por decisión del dueño, 30 días; 60 desde el 2026-10-01).
 - [ ] `scripts/test/README.md`: los guards nuevos.
 - [ ] `pnpm exec prettier --write` sobre los archivos tocados. Commit
       `docs: document section-based gems and the rebuild agent`.

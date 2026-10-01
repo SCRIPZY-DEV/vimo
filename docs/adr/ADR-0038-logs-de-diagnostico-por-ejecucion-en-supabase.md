@@ -397,8 +397,9 @@ subirse»): es una excepción deliberada, no un olvido.
   escribe la Function de vimo-landing, por un pedido ya autenticado y con el cuerpo validado.
 - **Solo el service role la toca.** RLS activo y sin políticas, como `demo_accesos`: la app no
   inserta, no lee ni actualiza nada. No hay panel; los registros se consultan en Supabase.
-- **Retención de 30 días** con pg_cron (`gem-rebuild-logs-retention`), igual que
-  `diagnostic_logs`: el texto vive lo que vive la fila.
+- **Retención de 60 días** con pg_cron (`gem-rebuild-logs-retention`; eran 30, como
+  `diagnostic_logs`, hasta que el dueño la llevó a 60 el 2026-10-01): el texto vive lo que vive la
+  fila.
 - **El log de la Function no repite el contenido.** Nunca escribe `input_text` ni el
   `output_json` crudo. Su `error_detail`, acotado a 500 caracteres en la línea de log y a 2000
   en la fila, no es neutro: según la causa puede citar un fragmento del cuerpo de error del
