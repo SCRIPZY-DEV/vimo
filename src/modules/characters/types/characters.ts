@@ -1,4 +1,8 @@
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
+import type {
+  DesignStyleCharacterPayload,
+  GemSections,
+} from '@pipeline/types/styles.ts'
 
 // Campos del formulario (la identidad va en `description`)
 export interface CharacterFormValue {
@@ -43,9 +47,18 @@ export type CharacterIdentitySource = 'photo' | 'text'
 // Contexto de «Mi estilo» cuando el modal se abre desde Create: con gema y
 // guion, la ficha la diseña el estilo del usuario (design-style-character) y
 // el preview arranca con ese estilo elegido (`styleId` es el id de galería).
+// La gema viaja como texto (`gem`, una vieja) o por secciones (`sections`,
+// una de plantilla, ADR-0048), nunca las dos.
 export interface CharacterStyleContext {
   styleId: string
-  gem: string
+  gem?: string
+  sections?: GemSections
   script: string
   promptModel?: string
 }
+
+// La gema como la pide design-style-character: exactamente una de las dos.
+export type StyleDesignGem = Pick<
+  DesignStyleCharacterPayload,
+  'gem' | 'sections'
+>

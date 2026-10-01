@@ -15,6 +15,7 @@ import {
   characterPortraitPath,
   findStylePreview,
 } from '@/modules/videos/utilities/findStylePreview'
+import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -391,7 +392,9 @@ export function CharacterSection({
             mode !== null && value.customStyle
               ? {
                   styleId: value.customStyle.styleId,
-                  gem: value.customStyle.systemPrompt,
+                  // Una gema de plantilla viaja por secciones: el sidecar la
+                  // pasa a texto sin su sección de personaje (ADR-0048).
+                  ...styleContextGemOf(value.customStyle),
                   script: value.script,
                   ...(value.promptModel
                     ? { promptModel: value.promptModel }

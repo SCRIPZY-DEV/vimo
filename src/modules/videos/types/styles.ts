@@ -93,3 +93,7 @@ export interface SampleGenerationOptions {
   // §5.6). Una vieja sigue por el camino de siempre.
   templateGem: boolean
 }
+
+// La gema en uso como contexto de «Crear personaje con mi estilo»: una vieja
+// como texto, una de plantilla por secciones (ADR-0048). Nunca las dos.
+export type StyleContextGem = { gem: string } | { sections: GemSections }

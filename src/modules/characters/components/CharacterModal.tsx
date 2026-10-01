@@ -35,6 +35,7 @@ import {
 } from '@/modules/characters/utilities/characterDraft'
 import { identitySourceOf } from '@/modules/characters/utilities/identitySourceOf'
 import { previewShortfallLine } from '@/modules/characters/utilities/previewShortfallLine'
+import { styleDesignGemOf } from '@/modules/characters/utilities/styleDesignGem'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
@@ -147,7 +148,10 @@ export function CharacterModal({
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
   const contextScript = (styleContext?.script ?? script ?? '').trim()
   const withScript = contextScript.length >= MIN_SCRIPT_LENGTH
-  const withStyle = Boolean(styleContext?.gem.trim()) && withScript
+  // La gema que diseña al protagonista: una vieja como texto o una de
+  // plantilla por secciones (ADR-0048). null = el experto de la casa.
+  const styleGem = styleDesignGemOf(styleContext)
+  const withStyle = styleGem !== null && withScript
   const busy = saving || suggesting || designing || preview.generating
 
   // Con texto ya escrito el botón lo dice claro: MEJORA ese texto; vacío,
@@ -168,7 +172,7 @@ export function CharacterModal({
     }
     const result = withStyle
       ? await designWithStyle({
-          gem: styleContext!.gem.trim(),
+          ...styleGem,
           script: styleContext!.script.trim(),
           ...(styleContext!.promptModel
             ? { promptModel: styleContext!.promptModel }

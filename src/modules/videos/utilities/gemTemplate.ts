@@ -15,6 +15,7 @@ import type {
 } from '@/modules/videos/types/gemRebuild'
 import type {
   GemTextSource,
+  StyleContextGem,
   TemplateStyleDraft,
 } from '@/modules/videos/types/styles'
 
@@ -298,4 +299,16 @@ export function migrationStyleSavePayload(
     templateVersion: response.templateVersion,
     sourcePrompt: migrationRebuildText(style),
   }
+}
+
+/**
+ * La gema en uso como contexto de «Crear personaje con mi estilo»
+ * (design-style-character, ADR-0048): una de plantilla viaja por secciones,
+ * limpias, y el sidecar la pasa a texto sin su sección `character` (ahí se
+ * diseña OTRO personaje, el de la persona); una vieja viaja como su texto.
+ * Nunca las dos.
+ */
+export function styleContextGemOf(gem: GemTextSource): StyleContextGem {
+  if (gem.sections) return { sections: cleanGemSections(gem.sections) }
+  return { gem: gem.systemPrompt ?? '' }
 }

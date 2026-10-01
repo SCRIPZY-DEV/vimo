@@ -35,6 +35,7 @@ import { useGemTemplateDraft } from '@/modules/videos/hooks/useGemTemplateDraft'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
 import {
   hasGemText,
+  styleContextGemOf,
   templateStyleSavePayload,
 } from '@/modules/videos/utilities/gemTemplate'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
@@ -711,11 +712,16 @@ export function CustomStyleModal({
           selected={picking}
           max={1}
           styleContext={
-            // Solo una gema vieja diseña el personaje nuevo: manda su texto.
-            hasStyleText && !templateMode
+            hasStyleText
               ? {
                   styleId,
-                  gem: systemPrompt,
+                  // Una gema de plantilla viaja por secciones: el sidecar la
+                  // pasa a texto sin su sección de personaje (ADR-0048).
+                  ...styleContextGemOf(
+                    templateMode
+                      ? { sections: gemDraft.sections }
+                      : { systemPrompt },
+                  ),
                   script,
                   ...(promptModel ? { promptModel } : {}),
                 }
