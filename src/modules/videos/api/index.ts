@@ -6,15 +6,32 @@ import {
   runPipelineJob,
   startPipelineJob,
 } from '@/modules/common/fetcher/pipeline'
+import { vimoServerFetch } from '@/modules/common/fetcher/vimoServer'
+import {
+  VimoServerError,
+  vimoServerErrorCode,
+  vimoServerRetryAt,
+} from '@/modules/common/fetcher/vimoServerError'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   DEMO_ERROR_MESSAGE_KEYS,
+  GEM_REBUILD_ERROR_MESSAGE_KEYS,
+  GEM_REBUILD_PATH,
+  GEM_REBUILD_QUOTA_CODE,
+  GEM_REBUILD_QUOTA_LATER_KEY,
+  GEM_REBUILD_TIMEOUT_MS,
   LIBRARY_ERROR_MESSAGE_KEYS,
   NARRATION_AUDIO_EXTENSIONS,
   UNKNOWN_CREATE_ERROR_KEY,
   UNKNOWN_DEMO_ERROR_KEY,
+  UNKNOWN_GEM_REBUILD_ERROR_KEY,
 } from '@/modules/videos/constants'
+import { readGemRebuildResponse } from '@/modules/videos/utilities/gemTemplate'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
+import type {
+  GemRebuildRequest,
+  GemRebuildResponse,
+} from '@/modules/videos/types/gemRebuild'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
   AnimateScenesPayload,
@@ -209,6 +226,28 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('generate-style-samples', payload, onEvent)
+  },
+  // Agente reconstructor de vimo.click (ADR-0048): la gema entera vuelve por
+  // secciones. Una respuesta 200 que no cumple el contrato no se usa.
+  async rebuildGem(request: GemRebuildRequest): Promise<GemRebuildResponse> {
+    const body = await vimoServerFetch<unknown>(GEM_REBUILD_PATH, {
+      body: request,
+      timeoutMs: GEM_REBUILD_TIMEOUT_MS,
+    })
+    const response = readGemRebuildResponse(body)
+    if (!response) throw new VimoServerError('http', { status: 200 })
+    return response
+  },
+  gemRebuildErrorKey(error: unknown): string {
+    const code = vimoServerErrorCode(error)
+    if (!code) return UNKNOWN_GEM_REBUILD_ERROR_KEY
+    if (code === GEM_REBUILD_QUOTA_CODE && vimoServerRetryAt(error) === null)
+      return GEM_REBUILD_QUOTA_LATER_KEY
+    // El código viene del cuerpo de la respuesta: `constructor` o `__proto__`
+    // no son códigos del servidor aunque el objeto del mapa los herede.
+    if (!Object.hasOwn(GEM_REBUILD_ERROR_MESSAGE_KEYS, code))
+      return UNKNOWN_GEM_REBUILD_ERROR_KEY
+    return GEM_REBUILD_ERROR_MESSAGE_KEYS[code]
   },
   async demoStatus(): Promise<DemoStatusResult> {
     return runPipelineJob<DemoStatusResult>('demo-status')

@@ -708,6 +708,23 @@
       "defaultChange": "Tap to change it",
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     },
+    "gemTemplate": {
+      "errors": {
+        "session": "Your session expired. Sign out and sign in again.",
+        "noAccess": "Your account doesn't have access to Vimo right now.",
+        "featureOff": "Preparing styles with AI isn't available for your account right now.",
+        "invalidRequest": "Vimo couldn't understand the app's request. Update Vimo and try again.",
+        "invalidText": "The gem is empty or longer than {{limit}} characters.",
+        "quotaExhausted": "You've reached today's limit of prepared styles. You can try again on {{when}}.",
+        "quotaExhaustedLater": "You've reached today's limit of prepared styles. Try again later.",
+        "modelFailed": "The AI couldn't sort your gem. Try again in a moment.",
+        "modelTimeout": "The AI took too long to answer. Try again.",
+        "network": "We couldn't reach Vimo. Check your connection and try again.",
+        "timeout": "Vimo took too long to answer. Try again.",
+        "serverError": "Vimo had a problem on its side. Try again in a few minutes.",
+        "unknown": "We couldn't prepare your style. Try again."
+      }
+    },
     "promptModelIssue": {
       "stalled": {
         "title": "{{model}} got stuck",

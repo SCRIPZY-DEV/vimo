@@ -708,6 +708,23 @@
       "defaultChange": "Toque para trocar",
       "defaultMissing": "O personagem padrão que você tinha escolhido não está mais na sua lista. Escolha outro para usar este estilo."
     },
+    "gemTemplate": {
+      "errors": {
+        "session": "Sua sessão expirou. Saia e entre de novo.",
+        "noAccess": "Sua conta não tem acesso ao Vimo no momento.",
+        "featureOff": "Preparar estilos com IA não está disponível para sua conta no momento.",
+        "invalidRequest": "O Vimo não entendeu o pedido do app. Atualize o Vimo e tente de novo.",
+        "invalidText": "A gema está vazia ou passa de {{limit}} caracteres.",
+        "quotaExhausted": "Você chegou ao limite de estilos preparados de hoje. Poderá tentar de novo em {{when}}.",
+        "quotaExhaustedLater": "Você chegou ao limite de estilos preparados de hoje. Tente de novo mais tarde.",
+        "modelFailed": "A IA não conseguiu organizar sua gema. Tente de novo em instantes.",
+        "modelTimeout": "A IA demorou demais para responder. Tente de novo.",
+        "network": "Não conseguimos nos conectar ao Vimo. Verifique sua conexão e tente de novo.",
+        "timeout": "O Vimo demorou demais para responder. Tente de novo.",
+        "serverError": "O Vimo teve um problema do lado dele. Tente de novo em alguns minutos.",
+        "unknown": "Não conseguimos preparar seu estilo. Tente de novo."
+      }
+    },
     "promptModelIssue": {
       "stalled": {
         "title": "{{model}} travou",

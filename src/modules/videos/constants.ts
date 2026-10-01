@@ -416,6 +416,38 @@ export const RECOMMENDED_SHOTS = [
   'Two shot',
 ] as const
 
+// ── Agente reconstructor de gemas (vimo.click, ADR-0048) ──
+
+// Ruta del endpoint; la URL base es de common (VIMO_SERVER_BASE_URL).
+export const GEM_REBUILD_PATH = '/api/estilos/reconstruir'
+// El servidor corta al modelo a los 120 s: el cliente espera un poco más para
+// recibir su `modelo-timeout` en vez de adelantarse con un timeout propio.
+export const GEM_REBUILD_TIMEOUT_MS = 150_000
+// Código → clave i18n: los del servidor (spec §6.1 más los tres que sumó el
+// contrato: `pedido-invalido`, `funcion-desactivada` y `error-interno`; se
+// comparan tal cual llegan) y los del cliente común de vimo.click (`network`
+// y `timeout`).
+export const GEM_REBUILD_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  'sin-token': 'create.gemTemplate.errors.session',
+  'token-invalido': 'create.gemTemplate.errors.session',
+  'sin-acceso': 'create.gemTemplate.errors.noAccess',
+  'funcion-desactivada': 'create.gemTemplate.errors.featureOff',
+  'pedido-invalido': 'create.gemTemplate.errors.invalidRequest',
+  'texto-invalido': 'create.gemTemplate.errors.invalidText',
+  'cupo-agotado': 'create.gemTemplate.errors.quotaExhausted',
+  'modelo-fallo': 'create.gemTemplate.errors.modelFailed',
+  'modelo-timeout': 'create.gemTemplate.errors.modelTimeout',
+  'error-interno': 'create.gemTemplate.errors.serverError',
+  network: 'create.gemTemplate.errors.network',
+  timeout: 'create.gemTemplate.errors.timeout',
+}
+export const UNKNOWN_GEM_REBUILD_ERROR_KEY = 'create.gemTemplate.errors.unknown'
+// Cupo agotado sin la hora en que vuelve (el contrato la manda siempre; si
+// falta, el mensaje no la promete).
+export const GEM_REBUILD_QUOTA_CODE = 'cupo-agotado'
+export const GEM_REBUILD_QUOTA_LATER_KEY =
+  'create.gemTemplate.errors.quotaExhaustedLater'
+
 // Ids `st-<timestamp36>-<rand>`: cronológicos y dentro del STYLE_ID_PATTERN
 // del sidecar (≤ 40 chars, minúsculas).
 export function newCustomStyleId(): string {
