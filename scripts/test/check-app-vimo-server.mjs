@@ -95,6 +95,26 @@ test('cuándo vuelve el cupo: desde que llegó la respuesta', () => {
   assert.equal(vimoServerRetryAt(new Error('otro')), null)
 })
 
+test('cuándo vuelve el cupo: una espera que no es una fecha es null y no lanza', () => {
+  // Un número finito y positivo pasa la validación del cuerpo, pero la fecha
+  // resultante puede salirse del rango de Date y toISOString lanzaría
+  // RangeError. Se pide al renderizar el error: no puede romper el modal.
+  const receivedAt = Date.UTC(2026, 8, 30, 12, 0, 0)
+  const retryAt = (retryAfterSeconds) =>
+    vimoServerRetryAt(
+      vimoServerErrorFromResponse(
+        429,
+        { code: 'cupo-agotado', retryAfterSeconds },
+        receivedAt,
+      ),
+    )
+  assert.equal(retryAt(1e13), null)
+  assert.equal(retryAt(Number.MAX_VALUE), null)
+  // Lo que Date sí representa no cambia: el último segundo da su fecha.
+  assert.equal(retryAt(8_638_209_230_400), '+275760-09-13T00:00:00.000Z')
+  assert.equal(retryAt(8_638_209_230_401), null)
+})
+
 test('encabezados: el Bearer viaja solo con sesión', () => {
   assert.deepEqual(vimoServerHeaders('abc'), {
     'Content-Type': 'application/json',

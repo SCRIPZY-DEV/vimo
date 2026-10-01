@@ -107,12 +107,17 @@ export function vimoServerErrorCode(error: unknown): string | null {
   return error.code
 }
 
-/** Cuándo vuelve a haber cupo (ISO 8601), si el servidor lo dijo; si no, null. */
+/**
+ * Cuándo vuelve a haber cupo (ISO 8601), si el servidor lo dijo; si no, null.
+ * Total: una espera desmedida (un número finito que se sale del rango de Date)
+ * no es una fecha, y toISOString lanzaría RangeError al renderizar el error.
+ */
 export function vimoServerRetryAt(error: unknown): string | null {
   if (!(error instanceof VimoServerError)) return null
   if (error.retryAfterSeconds === null || error.receivedAt === null) return null
 
-  return new Date(
-    error.receivedAt + error.retryAfterSeconds * 1000,
-  ).toISOString()
+  const retryAt = new Date(error.receivedAt + error.retryAfterSeconds * 1000)
+  if (Number.isNaN(retryAt.getTime())) return null
+
+  return retryAt.toISOString()
 }
