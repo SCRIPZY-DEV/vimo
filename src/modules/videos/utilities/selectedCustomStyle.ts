@@ -41,3 +41,17 @@ export function customStyleDraftFrom(
     ...(style.colorFilter ? { colorFilter: style.colorFilter } : {}),
   }
 }
+
+// La gema elegida en Crear es un snapshot. Si mientras tanto se migró a la
+// plantilla (spec §4.4), el snapshot viejo se cambia por lo guardado: el envío
+// sale por el marco nuevo sin volver a elegirla. En cualquier otro caso
+// devuelve el MISMO objeto, así el formulario no cambia de identidad.
+export function refreshedCustomStyle(
+  selected: SelectedCustomStyle | null,
+  styles: CustomStyleSummary[],
+): SelectedCustomStyle | null {
+  if (!selected || selected.sections) return selected
+  const stored = styles.find((style) => style.id === selected.styleId)
+  if (!stored?.sections) return selected
+  return selectedCustomStyleFrom(stored)
+}

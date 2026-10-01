@@ -1,5 +1,6 @@
 import type {
   COLOR_FILTER_IDS as PIPELINE_COLOR_FILTER_IDS,
+  CustomStyleSummary,
   GEM_SECTION_KEYS as PIPELINE_GEM_SECTION_KEYS,
   GEM_TEMPLATE_VERSION as PIPELINE_GEM_TEMPLATE_VERSION,
   GemSectionKey,
@@ -250,5 +251,51 @@ export function templateStyleSavePayload(
     ...(draft.sourcePrompt === null
       ? {}
       : { sourcePrompt: draft.sourcePrompt }),
+  }
+}
+
+// Los planos de una gema vieja en el formato con que el sidecar se los suma al
+// componerla (buildCustomStyleSystemPrompt, pipeline/prompts/custom-style.ts):
+// copia literal, porque `src/` no importa valores de `pipeline/`.
+function allowedShotsBlock(shots: string[]): string {
+  const allowed = shots.filter(Boolean)
+  if (allowed.length === 0) return ''
+  return `\n\n# ALLOWED SHOTS (use ONLY these framings)\n${allowed
+    .map((shot) => `- ${shot}`)
+    .join('\n')}`
+}
+
+/**
+ * El texto que va al agente al migrar una gema vieja (spec §4.4): su
+ * `systemPrompt` y, si tiene planos, el bloque «# ALLOWED SHOTS» del sidecar,
+ * para que el agente los pase a la sección `camera` (una gema de plantilla no
+ * guarda planos). Sin planos, el `systemPrompt` tal cual. Si con los planos
+ * pasara el tope de una gema, va sin ellos: mejor perder los planos que no
+ * poder migrarla nunca.
+ */
+export function migrationRebuildText(style: CustomStyleSummary): string {
+  const systemPrompt = (style.systemPrompt ?? '').trim()
+  const withShots = `${systemPrompt}${allowedShotsBlock(style.shots)}`.trim()
+  if (withShots.length > GEM_TOTAL_CHAR_LIMIT) return systemPrompt
+  return withShots
+}
+
+/**
+ * style-save de una gema vieja reconstruida sola (spec §4.4): sus secciones,
+ * el `templateVersion` que devolvió el agente y, de respaldo, el texto que se
+ * le mandó (su `systemPrompt` y sus planos) como `sourcePrompt`. No manda
+ * `systemPrompt` (una gema tiene secciones o texto, nunca los dos) ni
+ * personaje ni filtro: ausentes, el sidecar conserva los guardados.
+ */
+export function migrationStyleSavePayload(
+  style: CustomStyleSummary,
+  response: GemRebuildResponse,
+): StyleSavePayload {
+  return {
+    id: style.id,
+    name: style.name,
+    sections: cleanGemSections(response.sections),
+    templateVersion: response.templateVersion,
+    sourcePrompt: migrationRebuildText(style),
   }
 }

@@ -1,3 +1,4 @@
+import type { GemRebuildResponse } from '@/modules/videos/types/gemRebuild'
 import type {
   ColorFilterId,
   CustomStyleSummary,
@@ -58,3 +59,30 @@ export type GemTextSource = Pick<
   CustomStyleSummary,
   'systemPrompt' | 'sections'
 >
+
+// Migración automática de una gema vieja a la plantilla (spec §4.4).
+export interface GemMigrationState {
+  status: 'pending' | 'failed'
+  // El nombre al empezar: el aviso de la galería lo muestra.
+  name: string
+  // Por qué falló; null mientras está en vuelo.
+  error: unknown
+}
+
+// Cómo termina una migración que no falla: guardada, o la gema ya no estaba
+// (la persona la borró) y no se guardó nada.
+export type GemMigrationOutcome = 'migrated' | 'deleted'
+
+// Lo que una migración necesita de afuera: el hook pone el sidecar y el
+// agente; el guard los simula.
+export interface GemMigrationSteps {
+  // La gema como está guardada AHORA; undefined si ya no existe.
+  findStored: (styleId: string) => Promise<CustomStyleSummary | undefined>
+  // El agente reconstructor con el texto de migración de esa gema.
+  rebuild: (style: CustomStyleSummary) => Promise<GemRebuildResponse>
+  // Guarda las secciones de esa gema y espera la lista nueva.
+  save: (
+    style: CustomStyleSummary,
+    response: GemRebuildResponse,
+  ) => Promise<void>
+}

@@ -1,19 +1,27 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Plus } from 'lucide-react'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
+import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
 import {
   closeCustomStyleEditor,
   openCustomStyleEditor,
   useCustomStyleEditor,
 } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
+import {
+  migrateGemOnce,
+  retryGemMigration,
+  useGemMigrations,
+} from '@/modules/videos/hooks/useGemMigrations'
 import { newCustomStyleId } from '@/modules/videos/constants'
 import {
   customStyleDraftFrom,
   selectedCustomStyleFrom,
 } from '@/modules/videos/utilities/selectedCustomStyle'
+import type { CustomStyleEditorRequest } from '@/modules/videos/hooks/useCustomStyleEditor'
 import type {
   CustomStyleDraft,
   SelectedCustomStyle,
@@ -35,12 +43,26 @@ interface CustomStyleGalleryProps {
 
 const EMPTY_DRAFT: CustomStyleDraft = { name: '', systemPrompt: '', shots: [] }
 
+// Qué editor dibuja el modal. Una gema nueva conserva el suyo al guardarse;
+// una vieja que termina de migrarse pasa a «template» y la clave nueva del
+// modal lo vuelve a sembrar con sus secciones.
+function editorLayoutOf(
+  request: CustomStyleEditorRequest,
+  style: CustomStyleSummary | undefined,
+): string {
+  if (request.isNew) return 'new'
+  if (style?.sections) return 'template'
+  return 'legacy'
+}
+
 // Galería de estilos propios (port de GaleriaEstilosPropios del origen): una
 // tarjeta por estilo guardado + «Crear estilo» SIEMPRE al final, con la misma
 // silueta. Arranca VACÍA (v1.35.0 del origen: el estilo de la casa no existe
 // acá) y el submit queda bloqueado hasta elegir una tarjeta (formBlockers).
 // Qué gema está abierta en el editor vive en un store compartido: la sección
-// de personaje abre desde sus chips el editor de la gema EN USO.
+// de personaje abre desde sus chips el editor de la gema EN USO. Con la
+// plantilla encendida (ADR-0048), una gema vieja se actualiza sola la primera
+// vez que se abre o se elige (spec §4.4), sin bloquear su uso.
 export function CustomStyleGallery({
   selected,
   disabled,
@@ -51,6 +73,8 @@ export function CustomStyleGallery({
   const { t } = useTranslation()
   const { styles, isLoading, saveStyle, deleteStyle, saving } =
     useCustomStyles()
+  const gemTemplateEnabled = useAccessFeature('gemTemplate')
+  const migrations = useGemMigrations()
 
   // Estilo abierto en el modal; null = cerrado. El borrador inicial sale de
   // la LISTA VIVA: el editor abre siempre con lo que hay en disco.
@@ -63,6 +87,14 @@ export function CustomStyleGallery({
   // pedido no queda colgado para la próxima vez.
   useEffect(() => closeCustomStyleEditor, [])
 
+  // Abrir una gema vieja en el editor la manda a migrar, una vez por sesión.
+  // Efecto y no manejador: el editor también se abre desde el chip de
+  // personaje de Crear, no solo desde esta galería.
+  useEffect(() => {
+    if (!gemTemplateEnabled || !editingStyle) return
+    migrateGemOnce(editingStyle)
+  }, [gemTemplateEnabled, editingStyle])
+
   const openCreate = () => {
     if (disabled) return
     openCustomStyleEditor({ styleId: newCustomStyleId(), isNew: true })
@@ -70,6 +102,13 @@ export function CustomStyleGallery({
 
   const openEdit = (style: CustomStyleSummary, generateOnOpen: boolean) => {
     openCustomStyleEditor({ styleId: style.id, generateOnOpen })
+  }
+
+  // Elegir una gema vieja también la manda a migrar; mientras tanto se usa
+  // como está y el envío de Crear no espera.
+  const selectStyle = (style: CustomStyleSummary) => {
+    onSelect(selectedCustomStyleFrom(style))
+    if (gemTemplateEnabled) migrateGemOnce(style)
   }
 
   const removeStyle = async (style: CustomStyleSummary) => {
@@ -93,6 +132,18 @@ export function CustomStyleGallery({
     if (!wasNew && selected?.styleId !== payload.id) return
     onSelect(selectedCustomStyleFrom(entry))
   }
+
+  // Avisos de migración de las gemas de la lista, en su orden.
+  const migrationNotices = gemTemplateEnabled
+    ? styles.flatMap((style) => {
+        const migration = migrations.get(style.id)
+        return migration ? [{ style, migration }] : []
+      })
+    : []
+  const editingMigration =
+    gemTemplateEnabled && editingStyle
+      ? (migrations.get(editingStyle.id) ?? null)
+      : null
 
   return (
     <div className="space-y-3">
@@ -123,7 +174,7 @@ export function CustomStyleGallery({
             style={style}
             selected={selected?.styleId === style.id}
             disabled={disabled}
-            onSelect={() => onSelect(selectedCustomStyleFrom(style))}
+            onSelect={() => selectStyle(style)}
             onEdit={() => openEdit(style, false)}
             onGenerateSamples={() => openEdit(style, true)}
             onDelete={() => void removeStyle(style)}
@@ -161,6 +212,15 @@ export function CustomStyleGallery({
         </div>
       </div>
 
+      {migrationNotices.map(({ style, migration }) => (
+        <GemMigrationNotice
+          key={style.id}
+          migration={migration}
+          named
+          onRetry={() => retryGemMigration(style)}
+        />
+      ))}
+
       {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la
           galería (origen), además de en la lista de bloqueos del envío. */}
       {!selected && !isLoading && (
@@ -172,15 +232,20 @@ export function CustomStyleGallery({
       {editing && (editing.isNew || editingStyle) && (
         <CustomStyleModal
           // Una gema distinta = un borrador distinto: el modal siembra su
-          // estado desde `initial` UNA sola vez, así que la clave es el id y
-          // no el contenido (una invalidación de la lista con el modal
-          // abierto no re-siembra lo tipeado).
-          key={editing.styleId}
+          // estado desde `initial` UNA sola vez, así que la clave es el id (y
+          // el editor, que cambia cuando una gema vieja termina de migrarse)
+          // y no el contenido: una invalidación de la lista con el modal
+          // abierto no re-siembra lo tipeado.
+          key={`${editing.styleId}:${editorLayoutOf(editing, editingStyle)}`}
           styleId={editing.styleId}
           initial={
             editingStyle ? customStyleDraftFrom(editingStyle) : EMPTY_DRAFT
           }
           isNew={editing.isNew}
+          migration={editingMigration}
+          onRetryMigration={() => {
+            if (editingStyle) retryGemMigration(editingStyle)
+          }}
           // Derivadas de la query viva: al terminar de generar, la
           // invalidación refetchea y el modal muestra las muestras solo.
           samples={editingStyle?.samples ?? []}

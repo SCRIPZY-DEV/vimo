@@ -709,6 +709,10 @@
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     },
     "gemTemplate": {
+      "migrationPending": "Updating your style to Vimo's template…",
+      "migrationPendingNamed": "Updating “{{name}}” to Vimo's template…",
+      "migrationFailed": "We couldn't update your style to Vimo's template. Meanwhile it keeps working as before.",
+      "migrationFailedNamed": "We couldn't update “{{name}}” to Vimo's template. Meanwhile it keeps working as before.",
       "pasteHint": "Paste the full text of your gem. Vimo's AI sorts it into sections (visual style, character, dynamism, camera and rules) without inventing anything: what isn't in your gem won't show up.",
       "replaceGem": "Paste a new gem",
       "replaceHint": "Replaces every section with those of another gem.",

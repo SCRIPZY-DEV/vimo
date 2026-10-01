@@ -1,0 +1,301 @@
+// Gemas viejas a la plantilla (spec §4.4): una sola migración en vuelo por
+// gema, una vez por sesión, sin repetirse sola después de un fallo; el texto
+// que va al agente (con los planos de la gema); el guardado con ese texto de
+// respaldo; y el snapshot de Crear que se refresca cuando la gema elegida ya se
+// migró. Se migra lo guardado en ese momento, y una gema borrada mientras el
+// agente trabaja no se vuelve a crear. Módulos puros de src/ corridos con Node
+// (type stripping), con el agente y el guardado simulados.
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import {
+  createGemMigrations,
+  migrateStoredGem,
+} from '../../src/modules/videos/utilities/gemMigrations.ts'
+import {
+  migrationRebuildText,
+  migrationStyleSavePayload,
+} from '../../src/modules/videos/utilities/gemTemplate.ts'
+import {
+  refreshedCustomStyle,
+  selectedCustomStyleFrom,
+} from '../../src/modules/videos/utilities/selectedCustomStyle.ts'
+
+const OLD_GEM = {
+  id: 'st-vieja',
+  name: 'Vieja',
+  systemPrompt: '  Acuarela editorial con tinta suelta. Escribí en español.  ',
+  shots: ['Wide shot'],
+  character: { mode: 'none' },
+  createdAt: '2026-09-01T00:00:00.000Z',
+  samples: [],
+}
+
+const MIGRATED_GEM = {
+  ...OLD_GEM,
+  systemPrompt: undefined,
+  shots: [],
+  sections: { visualStyle: 'Acuarela editorial con tinta suelta.' },
+  templateVersion: 1,
+  sourcePrompt: 'Acuarela editorial con tinta suelta. Escribí en español.',
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((done, fail) => {
+    resolve = done
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
+// Un migrate simulado que se resuelve a mano, y cuántas veces se llamó.
+function fakeMigrate() {
+  const calls = []
+  return {
+    calls,
+    migrate(style) {
+      const call = deferred()
+      calls.push({ style, ...call })
+      return call.promise
+    },
+  }
+}
+
+const settle = () => new Promise((done) => setTimeout(done, 0))
+
+test('una gema vieja se manda una sola vez aunque se pida dos veces', () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  migrations.migrateOnce(OLD_GEM)
+  migrations.retry(OLD_GEM)
+  assert.equal(agent.calls.length, 1)
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
+    status: 'pending',
+    name: 'Vieja',
+    error: null,
+  })
+})
+
+test('al salir bien se apaga el aviso y no se repite aunque la lista siga vieja', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve('migrated')
+  await settle()
+  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+  migrations.migrateOnce(OLD_GEM)
+  migrations.retry(OLD_GEM)
+  assert.equal(agent.calls.length, 1)
+})
+
+test('si falla queda el aviso con el error; no se repite solo, sí con Reintentar', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  const failure = new Error('sin red')
+  agent.calls[0].reject(failure)
+  await settle()
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
+    status: 'failed',
+    name: 'Vieja',
+    error: failure,
+  })
+  migrations.migrateOnce(OLD_GEM)
+  assert.equal(agent.calls.length, 1)
+  migrations.retry(OLD_GEM)
+  migrations.retry(OLD_GEM)
+  assert.equal(agent.calls.length, 2)
+  assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'pending')
+})
+
+test('una gema de plantilla o sin texto no se migra', () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(MIGRATED_GEM)
+  migrations.migrateOnce({ ...OLD_GEM, id: 'st-vacia', systemPrompt: '   ' })
+  migrations.retry(MIGRATED_GEM)
+  assert.equal(agent.calls.length, 0)
+  assert.equal(migrations.getSnapshot().size, 0)
+})
+
+test('quien escucha se entera de cada cambio', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  let notified = 0
+  const unsubscribe = migrations.subscribe(() => {
+    notified += 1
+  })
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve('migrated')
+  await settle()
+  assert.equal(notified, 2)
+  unsubscribe()
+  migrations.migrateOnce({ ...OLD_GEM, id: 'st-otra' })
+  assert.equal(notified, 2)
+})
+
+// Lo guardado en el sidecar y el agente, simulados para migrateStoredGem: cada
+// paso queda anotado en orden, con la gema que recibió.
+function fakeSteps(stored) {
+  const disk = new Map(stored.map((style) => [style.id, style]))
+  const agent = deferred()
+  const log = []
+  return {
+    disk,
+    agent,
+    log,
+    order: () => log.map(({ step }) => step),
+    count: (name) => log.filter(({ step }) => step === name).length,
+    steps: {
+      async findStored(styleId) {
+        log.push({ step: 'findStored', styleId })
+        return disk.get(styleId)
+      },
+      rebuild(style) {
+        log.push({ step: 'rebuild', style })
+        return agent.promise
+      },
+      async save(style, response) {
+        log.push({ step: 'save', style, response })
+      },
+    },
+  }
+}
+
+const AGENT_RESPONSE = {
+  templateVersion: 1,
+  sections: { visualStyle: 'Acuarela editorial.' },
+  suggestions: {},
+  warnings: [],
+}
+
+test('se migra lo guardado ahora y no la tarjeta de la lista: texto, nombre y respaldo salen de la misma gema', async () => {
+  // La persona la renombró y la editó («Reintentar» desde el modal guarda
+  // primero) y la lista todavía muestra la versión anterior.
+  const saved = {
+    ...OLD_GEM,
+    name: 'Vieja renombrada',
+    systemPrompt: 'Acuarela con tinta corrida.',
+  }
+  const fake = fakeSteps([saved])
+  const migrations = createGemMigrations((style) =>
+    migrateStoredGem(style.id, fake.steps),
+  )
+  migrations.migrateOnce(OLD_GEM)
+  await settle()
+  fake.agent.resolve(AGENT_RESPONSE)
+  await settle()
+  assert.deepEqual(fake.order(), [
+    'findStored',
+    'rebuild',
+    'findStored',
+    'save',
+  ])
+  const sent = fake.log[1].style
+  const { style: savedStyle, response } = fake.log[3]
+  assert.equal(sent, saved)
+  assert.equal(savedStyle, saved)
+  assert.equal(response, AGENT_RESPONSE)
+  const payload = migrationStyleSavePayload(savedStyle, response)
+  assert.equal(payload.name, 'Vieja renombrada')
+  assert.equal(payload.sourcePrompt, migrationRebuildText(sent))
+  assert.equal(
+    payload.sourcePrompt,
+    'Acuarela con tinta corrida.\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot',
+  )
+  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+})
+
+test('borrada mientras el agente trabaja: no se guarda (no vuelve a aparecer) y no queda aviso ni Reintentar', async () => {
+  const fake = fakeSteps([OLD_GEM])
+  const migrations = createGemMigrations((style) =>
+    migrateStoredGem(style.id, fake.steps),
+  )
+  migrations.migrateOnce(OLD_GEM)
+  await settle()
+  fake.disk.delete('st-vieja')
+  fake.agent.resolve(AGENT_RESPONSE)
+  await settle()
+  assert.equal(fake.count('save'), 0)
+  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+  // La lista todavía la muestra un instante: elegirla otra vez no llega al
+  // agente ni guarda.
+  migrations.migrateOnce(OLD_GEM)
+  await settle()
+  assert.equal(fake.count('rebuild'), 1)
+  assert.equal(fake.count('save'), 0)
+  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+})
+
+test('ya borrada al empezar (la lista todavía la mostraba): ni agente ni guardado', async () => {
+  const fake = fakeSteps([])
+  assert.equal(await migrateStoredGem('st-vieja', fake.steps), 'deleted')
+  assert.deepEqual(fake.order(), ['findStored'])
+})
+
+test('sin planos, al agente va el systemPrompt tal cual', () => {
+  for (const shots of [[], ['', '']])
+    assert.equal(
+      migrationRebuildText({ ...OLD_GEM, shots }),
+      'Acuarela editorial con tinta suelta. Escribí en español.',
+    )
+})
+
+test('con planos, se suma el bloque # ALLOWED SHOTS del sidecar', () => {
+  assert.equal(
+    migrationRebuildText({ ...OLD_GEM, shots: ['Wide shot', '', 'Close-up'] }),
+    'Acuarela editorial con tinta suelta. Escribí en español.\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot\n- Close-up',
+  )
+})
+
+test('si con los planos pasara el tope de una gema, va sin ellos', () => {
+  const tooLong = 'a'.repeat(29_990)
+  assert.equal(
+    migrationRebuildText({ ...OLD_GEM, systemPrompt: tooLong }),
+    tooLong,
+  )
+  const fits = 'a'.repeat(29_900)
+  assert.equal(
+    migrationRebuildText({ ...OLD_GEM, systemPrompt: fits }),
+    `${fits}\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot`,
+  )
+})
+
+test('guardar la migración: secciones, el templateVersion del agente y, de respaldo, el texto que se le mandó; nada más', () => {
+  const response = {
+    templateVersion: 1,
+    sections: { visualStyle: ' Acuarela editorial. ', character: '' },
+    suggestions: {},
+    warnings: ['Se quitó el pedido de escribir en español.'],
+  }
+  const payload = migrationStyleSavePayload(OLD_GEM, response)
+  assert.deepEqual(payload, {
+    id: 'st-vieja',
+    name: 'Vieja',
+    sections: { visualStyle: 'Acuarela editorial.' },
+    templateVersion: 1,
+    sourcePrompt:
+      'Acuarela editorial con tinta suelta. Escribí en español.\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot',
+  })
+  assert.equal(payload.sourcePrompt, migrationRebuildText(OLD_GEM))
+  for (const field of ['systemPrompt', 'shots', 'character', 'colorFilter'])
+    assert.equal(field in payload, false, field)
+})
+
+test('Crear: el snapshot viejo se cambia por la gema migrada', () => {
+  const chosen = selectedCustomStyleFrom(OLD_GEM)
+  const refreshed = refreshedCustomStyle(chosen, [MIGRATED_GEM])
+  assert.deepEqual(refreshed?.sections, MIGRATED_GEM.sections)
+  assert.equal(refreshed?.templateVersion, 1)
+})
+
+test('Crear: sin migración, el mismo objeto (el formulario no cambia de identidad)', () => {
+  const chosen = selectedCustomStyleFrom(OLD_GEM)
+  assert.equal(refreshedCustomStyle(chosen, [OLD_GEM]), chosen)
+  assert.equal(refreshedCustomStyle(chosen, []), chosen)
+  assert.equal(refreshedCustomStyle(null, [MIGRATED_GEM]), null)
+  const template = selectedCustomStyleFrom(MIGRATED_GEM)
+  assert.equal(refreshedCustomStyle(template, [MIGRATED_GEM]), template)
+})

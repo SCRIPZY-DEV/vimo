@@ -19,6 +19,7 @@ import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
 import { ColorFilterPicker } from '@/modules/videos/components/ColorFilterPicker'
 import { GemAgentWarnings } from '@/modules/videos/components/GemAgentWarnings'
+import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
 import { GemPasteStep } from '@/modules/videos/components/GemPasteStep'
 import { GemSectionsEditor } from '@/modules/videos/components/GemSectionsEditor'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
@@ -47,7 +48,10 @@ import {
 } from '@/modules/videos/constants'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
-import type { CustomStyleDraft } from '@/modules/videos/types/styles'
+import type {
+  CustomStyleDraft,
+  GemMigrationState,
+} from '@/modules/videos/types/styles'
 import type {
   StyleCharacter,
   StyleSample,
@@ -67,6 +71,9 @@ interface CustomStyleModalProps {
   // Abierto desde «Generar 4 muestras» del menú: la intención ya se declaró
   // ahí, así que arranca apenas se elige el proveedor.
   generateOnOpen: boolean
+  // Migración de ESTA gema vieja a la plantilla (spec §4.4); null = ninguna.
+  migration: GemMigrationState | null
+  onRetryMigration: () => void
   // Contexto para diseñar un personaje nuevo con esta gema desde el selector.
   script: string
   promptModel: string | null
@@ -133,6 +140,8 @@ export function CustomStyleModal({
   samples: storedSamples,
   saving,
   generateOnOpen,
+  migration,
+  onRetryMigration,
   script,
   promptModel,
   onSave,
@@ -185,6 +194,10 @@ export function CustomStyleModal({
     : systemPrompt.trim().length > 0
   // «Pegá tu gema»: un estilo nuevo por plantilla, o «Pegar gema nueva».
   const pasting = templateMode && gemDraft.pasting
+  // Mientras la gema vieja se migra, su editor queda quieto: lo que se
+  // escribiera acá chocaría con las secciones que está por guardar la migración.
+  const migrating = migration?.status === 'pending'
+  const locked = saving || migrating
   // Las muestras se cobran como N imágenes en calidad base (ADR-0029): con
   // saldo leído insuficiente el botón se frena y se ofrece recargar.
   const samplesEstimate = provider
@@ -203,7 +216,7 @@ export function CustomStyleModal({
     hasStyleText &&
     provider !== null &&
     !samplesJob.running &&
-    !saving &&
+    !locked &&
     !creditsCheck.blocking
   const character = characterDraft.character
 
@@ -263,6 +276,11 @@ export function CustomStyleModal({
   // trabajos cuestan y se verían a medias; los botones lo dicen con su spinner.
   const close = async () => {
     if (samplesJob.running || gemRebuild.pending) return
+    // Sin cambios posibles durante la migración: se cierra sin guardar.
+    if (migrating) {
+      onClose()
+      return
+    }
     if (hasStyleText) {
       const saved = await persist()
       if (!saved) return
@@ -270,10 +288,22 @@ export function CustomStyleModal({
     onClose()
   }
 
+  // «Reintentar» la migración desde el modal: primero se guarda el editor viejo
+  // (el mismo camino que al cerrar), así la migración manda lo que la persona
+  // ve y lo tipeado no se pierde cuando el modal se vuelve a sembrar por
+  // secciones. Sin texto no hay nada que guardar: se migra lo guardado.
+  const retryMigration = async () => {
+    if (hasStyleText) {
+      const saved = await persist()
+      if (!saved) return
+    }
+    onRetryMigration()
+  }
+
   // El estilo se guarda ANTES de generar (guard del origen: «muestras sin
   // estilo, no»): el sidecar genera para una tarjeta que ya existe.
   const generate = async (imageProvider: ImageProviderId) => {
-    if (!hasStyleText) return
+    if (!hasStyleText || migrating) return
     const saved = await persist()
     if (!saved) return
     await samplesJob.generate(styleId, imageProvider)
@@ -361,13 +391,21 @@ export function CustomStyleModal({
             </div>
           ) : (
             <div className="space-y-4">
+              {migration && (
+                <GemMigrationNotice
+                  migration={migration}
+                  named={false}
+                  retryDisabled={saving || samplesJob.running}
+                  onRetry={() => void retryMigration()}
+                />
+              )}
               {templateMode && (
                 <GemAgentWarnings warnings={gemDraft.warnings} />
               )}
 
               <StyleCharacterBlock
                 value={character}
-                disabled={saving}
+                disabled={locked}
                 styleId={styleId}
                 onChange={changeCharacter}
                 onPickCharacter={(current) =>
@@ -544,7 +582,7 @@ export function CustomStyleModal({
                   id="custom-style-name"
                   value={name}
                   maxLength={CUSTOM_STYLE_NAME_LIMIT}
-                  disabled={saving}
+                  disabled={locked}
                   onChange={(event) => setName(event.target.value)}
                   placeholder={t('create.customStyles.namePlaceholder')}
                   className={cn(CUSTOM_STYLE_FIELD_CLASS, 'text-sm')}
@@ -596,7 +634,7 @@ export function CustomStyleModal({
                       id="custom-style-prompt"
                       value={systemPrompt}
                       maxLength={CUSTOM_STYLE_PROMPT_LIMIT}
-                      disabled={saving}
+                      disabled={locked}
                       onChange={(event) => setSystemPrompt(event.target.value)}
                       placeholder={t('create.customStyles.promptPlaceholder')}
                       rows={14}
@@ -621,7 +659,7 @@ export function CustomStyleModal({
                     <input
                       id="custom-style-shots"
                       value={shots}
-                      disabled={saving}
+                      disabled={locked}
                       onChange={(event) => setShots(event.target.value)}
                       placeholder={t('create.customStyles.shotsPlaceholder')}
                       spellCheck={false}
@@ -640,7 +678,7 @@ export function CustomStyleModal({
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={saving}
+                      disabled={locked}
                       className="mt-2"
                       onClick={() => setShots(RECOMMENDED_SHOTS.join(', '))}
                     >

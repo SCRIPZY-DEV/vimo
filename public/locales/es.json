@@ -709,6 +709,10 @@
       "defaultMissing": "El personaje predeterminado que tenías elegido ya no está en tu lista. Elegí otro para poder usar este estilo."
     },
     "gemTemplate": {
+      "migrationPending": "Actualizando tu estilo a la plantilla de Vimo…",
+      "migrationPendingNamed": "Actualizando «{{name}}» a la plantilla de Vimo…",
+      "migrationFailed": "No pudimos actualizar tu estilo a la plantilla de Vimo. Mientras tanto sigue funcionando como antes.",
+      "migrationFailedNamed": "No pudimos actualizar «{{name}}» a la plantilla de Vimo. Mientras tanto sigue funcionando como antes.",
       "pasteHint": "Pegá el texto completo de tu gema. La IA de Vimo lo ordena en secciones (estilo visual, personaje, dinamismo, cámara y reglas) sin inventar nada: lo que no está en tu gema no aparece.",
       "replaceGem": "Pegar gema nueva",
       "replaceHint": "Reemplaza todas las secciones por las de otra gema.",
