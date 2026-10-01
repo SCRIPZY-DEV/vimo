@@ -22,6 +22,7 @@ import { GemAgentWarnings } from '@/modules/videos/components/GemAgentWarnings'
 import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
 import { GemPasteStep } from '@/modules/videos/components/GemPasteStep'
 import { GemSectionsEditor } from '@/modules/videos/components/GemSectionsEditor'
+import { GemSourceText } from '@/modules/videos/components/GemSourceText'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
 import { apiKeysApi } from '@/modules/api-keys/api'
@@ -75,6 +76,8 @@ interface CustomStyleModalProps {
   // Migración de ESTA gema vieja a la plantilla (spec §4.4); null = ninguna.
   migration: GemMigrationState | null
   onRetryMigration: () => void
+  // Descarta el aviso de una migración ya hecha.
+  onDismissMigration: () => void
   // Contexto para diseñar un personaje nuevo con esta gema desde el selector.
   script: string
   promptModel: string | null
@@ -131,9 +134,11 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
 // planos de siempre en una gema vieja, o sus secciones y su filtro de color en
 // una de plantilla (ADR-0048), que antes de existir pasa por «Pegá tu gema».
 // Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta: no hay
-// «Cancelar». Regla de modales del origen: nunca dos Radix abiertos —
-// mientras se elige el personaje predeterminado, este se ESCONDE en vez de
-// apilarse (Radix apaga los clicks del body con el de arriba abierto).
+// «Cancelar». En «Pegá tu gema» de una gema nueva no hay nada que guardar,
+// así que con texto pegado se pregunta antes de tirarlo. Regla de modales del
+// origen: nunca dos Radix abiertos — mientras se elige el personaje
+// predeterminado, este se ESCONDE en vez de apilarse (Radix apaga los clicks
+// del body con el de arriba abierto).
 export function CustomStyleModal({
   styleId,
   initial,
@@ -143,6 +148,7 @@ export function CustomStyleModal({
   generateOnOpen,
   migration,
   onRetryMigration,
+  onDismissMigration,
   script,
   promptModel,
   onSave,
@@ -195,9 +201,16 @@ export function CustomStyleModal({
     : systemPrompt.trim().length > 0
   // «Pegá tu gema»: un estilo nuevo por plantilla, o «Pegar gema nueva».
   const pasting = templateMode && gemDraft.pasting
+  // Cerrar el paso de pegado sin secciones que guardar (una gema nueva) tira
+  // lo pegado: con texto en la caja, primero se pregunta.
+  const dropsPastedText =
+    pasting && !hasStyleText && gemDraft.pasteText.trim().length > 0
   // Mientras la gema vieja se migra, su editor queda quieto: lo que se
   // escribiera acá chocaría con las secciones que está por guardar la migración.
   const migrating = migration?.status === 'pending'
+  // La migración ya se guardó, sin que la persona viera las secciones: sus
+  // avisos se muestran con el pedido de revisarlas hasta que se descartan.
+  const migrated = migration?.status === 'migrated' ? migration : null
   const locked = saving || migrating
   // Las muestras se cobran como N imágenes en calidad base (ADR-0029): con
   // saldo leído insuficiente el botón se frena y se ofrece recargar.
@@ -282,6 +295,15 @@ export function CustomStyleModal({
       onClose()
       return
     }
+
+    // Nativo, como «Pegar gema nueva»: nunca otro modal encima de este.
+    // Cancelar deja el modal abierto con lo pegado.
+    if (
+      dropsPastedText &&
+      !window.confirm(t('create.gemTemplate.discardPasteConfirm'))
+    )
+      return
+
     if (hasStyleText) {
       const saved = await persist()
       if (!saved) return
@@ -326,6 +348,8 @@ export function CustomStyleModal({
     const response = await gemRebuild.rebuild(styleId, sourceText, 'mi-estilo')
     if (!response) return
     gemDraft.applyRebuild(response, sourceText)
+    // Las secciones de la migración ya no están: su aviso tampoco aplica.
+    if (migrated) onDismissMigration()
   }
 
   // «Pegar gema nueva» reemplaza todas las secciones: con algo sin guardar,
@@ -394,7 +418,7 @@ export function CustomStyleModal({
             </div>
           ) : (
             <div className="space-y-4">
-              {migration && (
+              {migration && migration.status !== 'migrated' && (
                 <GemMigrationNotice
                   migration={migration}
                   named={false}
@@ -402,9 +426,16 @@ export function CustomStyleModal({
                   onRetry={() => void retryMigration()}
                 />
               )}
-              {templateMode && (
-                <GemAgentWarnings warnings={gemDraft.warnings} />
-              )}
+              {templateMode &&
+                (migrated ? (
+                  <GemAgentWarnings
+                    warnings={migrated.warnings}
+                    migrated
+                    onDismiss={onDismissMigration}
+                  />
+                ) : (
+                  <GemAgentWarnings warnings={gemDraft.warnings} />
+                ))}
 
               <StyleCharacterBlock
                 value={character}
@@ -599,6 +630,11 @@ export function CustomStyleModal({
                     disabled={saving}
                     onChange={gemDraft.editSection}
                   />
+                  {/* El respaldo de la gema (spec §4.4), solo de lectura. Con
+                    el interruptor apagado el modal queda como hoy (spec §7). */}
+                  {gemTemplateEnabled && gemDraft.originalText && (
+                    <GemSourceText text={gemDraft.originalText} />
+                  )}
                   {/* Al agente solo con el interruptor encendido: apagado, una
                     gema de plantilla se edita pero no se reemplaza. */}
                   {gemTemplateEnabled && (

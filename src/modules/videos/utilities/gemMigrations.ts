@@ -8,6 +8,9 @@ import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 // Migración de gemas viejas a la plantilla (spec §4.4), como store fuera de
 // React (patrón de useCustomStyleEditor): la dispara la galería (al abrir una
 // gema en el modal o al elegirla en Crear) y la leen la galería y el modal.
+// Una migración se guarda ANTES de que la persona vea las secciones, así que la
+// que sale bien queda como «migrada», con los avisos del agente, hasta que la
+// persona descarta el aviso (memoria de la sesión, no se guarda).
 // Puro: `migrate` llega inyectado (migrateStoredGem con el agente y el
 // sidecar), así el guard scripts/test/check-app-gem-migration.mjs lo prueba sin
 // red ni sidecar.
@@ -43,8 +46,17 @@ export function createGemMigrations(
       const outcome = await migrate(style)
       // Borrada mientras tanto: no se guardó nada y no queda aviso ni
       // «Reintentar»; tampoco cuenta como migrada.
-      if (outcome === 'migrated') migrated.add(style.id)
-      remove(style.id)
+      if (outcome.status === 'deleted') {
+        remove(style.id)
+        return
+      }
+
+      migrated.add(style.id)
+      put(style.id, {
+        status: 'migrated',
+        name: style.name,
+        warnings: outcome.warnings,
+      })
     } catch (error) {
       put(style.id, { status: 'failed', name: style.name, error })
     }
@@ -69,6 +81,12 @@ export function createGemMigrations(
         return
       void run(style)
     },
+    // Descartar el aviso de una gema ya migrada (o reemplazada a mano). Una
+    // en vuelo o fallida sigue con su aviso: no se descarta.
+    dismiss(styleId: string): void {
+      if (states.get(styleId)?.status !== 'migrated') return
+      remove(styleId)
+    },
     subscribe(listener: () => void): () => void {
       subscribers.add(listener)
       return () => {
@@ -88,19 +106,20 @@ export function createGemMigrations(
  * lo que la persona ve, y el guardado (nombre y respaldo) sale de la misma gema
  * que se le mandó. Después del agente (hasta 150 s) se vuelve a mirar: si la
  * persona la borró mientras tanto, no se guarda nada, porque style-save la
- * volvería a crear.
+ * volvería a crear. Los avisos del agente vuelven con el resultado: nadie los
+ * vio todavía.
  */
 export async function migrateStoredGem(
   styleId: string,
   steps: GemMigrationSteps,
 ): Promise<GemMigrationOutcome> {
   const stored = await steps.findStored(styleId)
-  if (!stored) return 'deleted'
+  if (!stored) return { status: 'deleted' }
 
   const response = await steps.rebuild(stored)
   const stillStored = await steps.findStored(styleId)
-  if (!stillStored) return 'deleted'
+  if (!stillStored) return { status: 'deleted' }
 
   await steps.save(stored, response)
-  return 'migrated'
+  return { status: 'migrated', warnings: response.warnings }
 }

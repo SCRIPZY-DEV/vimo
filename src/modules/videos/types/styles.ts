@@ -38,6 +38,9 @@ export interface CustomStyleDraft {
   sections?: GemSections
   templateVersion?: number
   colorFilter?: ColorFilterId
+  // El texto del que salieron las secciones, guardado de respaldo: el modal
+  // lo muestra solo de lectura y no vuelve a guardarlo.
+  sourcePrompt?: string
 }
 
 // Lo que el modal guarda de una gema de plantilla con style-save.
@@ -60,18 +63,28 @@ export type GemTextSource = Pick<
   'systemPrompt' | 'sections'
 >
 
-// Migración automática de una gema vieja a la plantilla (spec §4.4).
-export interface GemMigrationState {
-  status: 'pending' | 'failed'
-  // El nombre al empezar: el aviso de la galería lo muestra.
-  name: string
-  // Por qué falló; null mientras está en vuelo.
-  error: unknown
-}
+// Migración automática de una gema vieja a la plantilla (spec §4.4): en vuelo,
+// fallida o hecha. El nombre es el del momento de empezar: los avisos de la
+// galería lo muestran.
+export type GemMigrationState =
+  | {
+      status: 'pending' | 'failed'
+      name: string
+      // Por qué falló; null mientras está en vuelo.
+      error: unknown
+    }
+  | {
+      // Guardada sin que la persona la viera: el aviso le pide revisar las
+      // secciones, con lo que avisó el agente, hasta que lo descarte.
+      status: 'migrated'
+      name: string
+      warnings: string[]
+    }
 
-// Cómo termina una migración que no falla: guardada, o la gema ya no estaba
-// (la persona la borró) y no se guardó nada.
-export type GemMigrationOutcome = 'migrated' | 'deleted'
+// Cómo termina una migración que no falla: guardada, con los avisos del
+// agente, o la gema ya no estaba (la persona la borró) y no se guardó nada.
+export type GemMigrationOutcome =
+  { status: 'migrated'; warnings: string[] } | { status: 'deleted' }
 
 // Lo que una migración necesita de afuera: el hook pone el sidecar y el
 // agente; el guard los simula.

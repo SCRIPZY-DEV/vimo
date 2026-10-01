@@ -12,6 +12,7 @@ import {
 } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import {
+  dismissGemMigration,
   migrateGemOnce,
   retryGemMigration,
   useGemMigrations,
@@ -62,7 +63,9 @@ function editorLayoutOf(
 // Qué gema está abierta en el editor vive en un store compartido: la sección
 // de personaje abre desde sus chips el editor de la gema EN USO. Con la
 // plantilla encendida (ADR-0048), una gema vieja se actualiza sola la primera
-// vez que se abre o se elige (spec §4.4), sin bloquear su uso.
+// vez que se abre o se elige (spec §4.4), sin bloquear su uso; como se guarda
+// sin que la persona vea las secciones, queda un aviso para revisarlas hasta
+// que lo descarta.
 export function CustomStyleGallery({
   selected,
   disabled,
@@ -133,7 +136,8 @@ export function CustomStyleGallery({
     onSelect(selectedCustomStyleFrom(entry))
   }
 
-  // Avisos de migración de las gemas de la lista, en su orden.
+  // Avisos de migración de las gemas de la lista, en su orden: en vuelo,
+  // fallidas o hechas y sin descartar.
   const migrationNotices = gemTemplateEnabled
     ? styles.flatMap((style) => {
         const migration = migrations.get(style.id)
@@ -218,6 +222,9 @@ export function CustomStyleGallery({
           migration={migration}
           named
           onRetry={() => retryGemMigration(style)}
+          reviewDisabled={disabled}
+          onReview={() => openEdit(style, false)}
+          onDismiss={() => dismissGemMigration(style.id)}
         />
       ))}
 
@@ -246,6 +253,7 @@ export function CustomStyleGallery({
           onRetryMigration={() => {
             if (editingStyle) retryGemMigration(editingStyle)
           }}
+          onDismissMigration={() => dismissGemMigration(editing.styleId)}
           // Derivadas de la query viva: al terminar de generar, la
           // invalidación refetchea y el modal muestra las muestras solo.
           samples={editingStyle?.samples ?? []}

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw, X } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { Button } from '@/modules/common/ui/button'
 import { GemRebuildErrorText } from '@/modules/videos/components/GemRebuildErrorText'
@@ -13,16 +13,26 @@ interface GemMigrationNoticeProps {
   // termina vuelve a sembrar el modal y cortaría ese trabajo a la vista.
   retryDisabled?: boolean
   onRetry: () => void
+  // Gema ya migrada (solo en la galería): abrirla para revisar sus secciones
+  // y descartar el aviso.
+  reviewDisabled?: boolean
+  onReview?: () => void
+  onDismiss?: () => void
 }
 
 // Aviso de la actualización automática de una gema vieja a la plantilla (spec
-// §4.4): en curso, o fallida con «Reintentar». Mientras falla, la gema sigue
-// funcionando por el camino viejo. Presentacional.
+// §4.4): en curso; fallida, con «Reintentar» (mientras tanto la gema sigue
+// funcionando por el camino viejo); o hecha, porque se guardó sin que la
+// persona viera las secciones. La hecha se avisa solo en la galería: en su
+// modal la dice GemAgentWarnings, junto a las secciones. Presentacional.
 export function GemMigrationNotice({
   migration,
   named,
   retryDisabled,
   onRetry,
+  reviewDisabled,
+  onReview,
+  onDismiss,
 }: GemMigrationNoticeProps) {
   const { t } = useTranslation()
 
@@ -39,6 +49,50 @@ export function GemMigrationNotice({
             })
           : t('create.gemTemplate.migrationPending')}
       </p>
+    )
+
+  if (migration.status === 'migrated')
+    return (
+      <Alert
+        tone="info"
+        title={t('create.gemTemplate.migrationDoneNamed', {
+          name: migration.name,
+        })}
+        actions={
+          <>
+            {onReview && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={reviewDisabled}
+                onClick={onReview}
+              >
+                {t('create.gemTemplate.migrationReviewAction')}
+              </Button>
+            )}
+            {onDismiss && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('create.gemTemplate.migrationDismiss')}
+                onClick={onDismiss}
+                className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </>
+        }
+      >
+        <p>{t('create.gemTemplate.migrationReview')}</p>
+        {migration.warnings.length > 0 && (
+          <p className="mt-1">
+            {t('create.gemTemplate.migrationWarningsHint')}
+          </p>
+        )}
+      </Alert>
     )
 
   return (

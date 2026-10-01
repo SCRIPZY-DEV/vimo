@@ -179,7 +179,8 @@ el final los agrega el código.
   corre con ese modelo: es la excepción, para estas gemas, al modelo fijo que la ADR-0044 §3 usa
   para diseñar el protagonista de las muestras. Con foto, solo las muestras cuyo momento nombra al
   protagonista llevan la referencia y el `APPEARANCE LOCK`, como en el video; si ninguna lo nombra,
-  la foto no se sube. Las gemas viejas siguen por el camino de hoy.
+  la foto no se sube y un `log` de nivel `info` lo explica. Las gemas viejas siguen por el camino de
+  hoy.
 - **La gema como texto.** Los usos que no escriben escenas reciben `composeGemText(sections)`: las
   secciones con sus títulos, sin las reglas de la plataforma y sin `character`, para que el
   personaje del estilo no se cuele en otro. La Fase 1 del carril y el diseño de un personaje con el
@@ -260,8 +261,13 @@ el final los agrega el código.
 - **Gemas viejas (B5).** La primera vez que una gema sin secciones se abre en el modal o se elige en
   Crear, la app la manda al agente con `origin: 'migracion'`, con sus `shots` en el texto (el
   bloque `# ALLOWED SHOTS` de hoy) para que el agente los pase a `camera`. Si sale bien, guarda las
-  secciones y el texto enviado como `sourcePrompt`. Si falla, avisa con un botón para reintentar y
-  la gema sigue funcionando por el camino viejo, sin bloquear al usuario.
+  secciones y el texto enviado como `sourcePrompt`, **antes** de que el autor las vea. Por eso la
+  galería muestra un aviso para revisar las secciones y el modal de esa gema muestra los avisos del
+  agente en `GemAgentWarnings`. Es un solo aviso, en memoria de la sesión, y se va cuando el autor
+  lo descarta en cualquiera de los dos lugares o cuando vuelve a preparar la gema con «Pegar gema
+  nueva». El `sourcePrompt` se ve, solo de lectura, en la
+  caja «Texto original» del modal. Si falla, avisa con un botón para reintentar y la gema sigue
+  funcionando por el camino viejo, sin bloquear al usuario.
 - Un `customStyle` sin `sections` sigue por `buildVerbatimSystem(gema)`, byte por byte. El payload
   depende de lo guardado y no del interruptor: si `gemTemplate` vuelve a `off`, las gemas ya
   reconstruidas siguen generando por secciones (sin agente) y las viejas no se migran.
@@ -298,7 +304,11 @@ el final los agrega el código.
   comparación de modelos.
 - ⚠️ **El control del personaje depende de que el agente lo separe bien.** Una mención que quede
   en `visualStyle` viaja al `system` en todos los modos. Lo vigilan la comparación de modelos con
-  claves reales y el autor, que ve las secciones y los avisos del agente antes de guardar.
+  claves reales y el autor. Al pegar una gema, el autor ve las secciones y los avisos del agente
+  antes de guardar. Una gema vieja, en cambio, se migra y se guarda **antes** de que el autor la
+  revise: los avisos del agente y el texto original se le muestran después (el aviso de la
+  galería, `GemAgentWarnings` en el modal y la caja «Texto original»), y hasta que los mira, su
+  próximo video puede salir con las secciones sin revisar.
 - ⚠️ **Excepción de texto frente a la ADR-0038.** `diagnostic_logs` no sube contenido del usuario;
   `gem_rebuild_logs` guarda el texto de la gema y el JSON de salida, por decisión del dueño, para
   poder diagnosticar el agente. Es una tabla aparte, solo accesible con el service role y con 30
@@ -355,7 +365,8 @@ tests son su red principal.
 `check-app-vimo-server.mjs` (el cliente contra un servidor HTTP local), `check-app-gem-rebuild.mjs`
 (un solo pedido en vuelo por clave), `check-app-gem-sections.mjs` (topes, guardado con
 `templateVersion` y aviso de inglés), `check-app-gem-migration.mjs` (una gema vieja se manda una
-sola vez y un fallo no se repite solo), `check-app-custom-style-payload.mjs` (la gema vieja viaja
+sola vez, un fallo no se repite solo y la migrada queda con los avisos del agente hasta que se
+descarta), `check-app-custom-style-payload.mjs` (la gema vieja viaja
 byte por byte; decide el dato, no el interruptor) y `check-app-style-character-gem.mjs`
 (`sections` o `gem`, nunca los dos).
 

@@ -43,6 +43,9 @@ export function useGemTemplateDraft(initial: CustomStyleDraft) {
     templateVersion,
     colorFilter,
     sourcePrompt,
+    // De qué texto salieron las secciones: lo preparado en esta apertura o el
+    // respaldo guardado (spec §4.4). null = la gema no tiene respaldo.
+    originalText: sourcePrompt ?? initial.sourcePrompt ?? null,
     warnings,
     unsavedSections: !sameGemSections(sections, savedSections),
     setPasteText,

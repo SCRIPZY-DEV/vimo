@@ -3,8 +3,11 @@
 // que va al agente (con los planos de la gema); el guardado con ese texto de
 // respaldo; y el snapshot de Crear que se refresca cuando la gema elegida ya se
 // migró. Se migra lo guardado en ese momento, y una gema borrada mientras el
-// agente trabaja no se vuelve a crear. Módulos puros de src/ corridos con Node
-// (type stripping), con el agente y el guardado simulados.
+// agente trabaja no se vuelve a crear. Como la migración se guarda sin que la
+// persona vea las secciones, la que sale bien queda «migrada» con los avisos
+// del agente hasta que se descarta, y el borrador del modal trae el respaldo
+// para mostrarlo. Módulos puros de src/ corridos con Node (type stripping),
+// con el agente y el guardado simulados.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
@@ -16,6 +19,7 @@ import {
   migrationStyleSavePayload,
 } from '../../src/modules/videos/utilities/gemTemplate.ts'
 import {
+  customStyleDraftFrom,
   refreshedCustomStyle,
   selectedCustomStyleFrom,
 } from '../../src/modules/videos/utilities/selectedCustomStyle.ts'
@@ -64,6 +68,9 @@ function fakeMigrate() {
 
 const settle = () => new Promise((done) => setTimeout(done, 0))
 
+const WARNINGS = ['Se quitó el pedido de escribir en español.']
+const MIGRATED = { status: 'migrated', warnings: WARNINGS }
+
 test('una gema vieja se manda una sola vez aunque se pida dos veces', () => {
   const agent = fakeMigrate()
   const migrations = createGemMigrations(agent.migrate)
@@ -78,16 +85,69 @@ test('una gema vieja se manda una sola vez aunque se pida dos veces', () => {
   })
 })
 
-test('al salir bien se apaga el aviso y no se repite aunque la lista siga vieja', async () => {
+test('al salir bien el aviso pasa a «migrada» con los avisos del agente y no se repite aunque la lista siga vieja', async () => {
   const agent = fakeMigrate()
   const migrations = createGemMigrations(agent.migrate)
   migrations.migrateOnce(OLD_GEM)
-  agent.calls[0].resolve('migrated')
+  agent.calls[0].resolve(MIGRATED)
   await settle()
-  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
+    status: 'migrated',
+    name: 'Vieja',
+    warnings: WARNINGS,
+  })
   migrations.migrateOnce(OLD_GEM)
   migrations.retry(OLD_GEM)
   assert.equal(agent.calls.length, 1)
+})
+
+test('migrada sin avisos del agente: el aviso queda igual, para revisar las secciones', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve({ status: 'migrated', warnings: [] })
+  await settle()
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
+    status: 'migrated',
+    name: 'Vieja',
+    warnings: [],
+  })
+})
+
+test('descartar el aviso de una migrada lo borra y avisa; la gema no se vuelve a migrar', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  let notified = 0
+  migrations.subscribe(() => {
+    notified += 1
+  })
+  migrations.dismiss('st-vieja')
+  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+  assert.equal(notified, 1)
+  // Descartar otra vez (o una gema sin aviso) no cambia nada ni avisa.
+  migrations.dismiss('st-vieja')
+  migrations.dismiss('st-otra')
+  assert.equal(notified, 1)
+  // La lista todavía puede mostrarla vieja: ni el agente ni el aviso vuelven.
+  migrations.migrateOnce(OLD_GEM)
+  migrations.retry(OLD_GEM)
+  assert.equal(agent.calls.length, 1)
+  assert.equal(migrations.getSnapshot().size, 0)
+})
+
+test('descartar no toca una migración en vuelo ni una fallida', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  migrations.dismiss('st-vieja')
+  assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'pending')
+  agent.calls[0].reject(new Error('sin red'))
+  await settle()
+  migrations.dismiss('st-vieja')
+  assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'failed')
 })
 
 test('si falla queda el aviso con el error; no se repite solo, sí con Reintentar', async () => {
@@ -128,7 +188,7 @@ test('quien escucha se entera de cada cambio', async () => {
     notified += 1
   })
   migrations.migrateOnce(OLD_GEM)
-  agent.calls[0].resolve('migrated')
+  agent.calls[0].resolve(MIGRATED)
   await settle()
   assert.equal(notified, 2)
   unsubscribe()
@@ -168,7 +228,7 @@ const AGENT_RESPONSE = {
   templateVersion: 1,
   sections: { visualStyle: 'Acuarela editorial.' },
   suggestions: {},
-  warnings: [],
+  warnings: WARNINGS,
 }
 
 test('se migra lo guardado ahora y no la tarjeta de la lista: texto, nombre y respaldo salen de la misma gema', async () => {
@@ -205,7 +265,20 @@ test('se migra lo guardado ahora y no la tarjeta de la lista: texto, nombre y re
     payload.sourcePrompt,
     'Acuarela con tinta corrida.\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot',
   )
-  assert.equal(migrations.getSnapshot().has('st-vieja'), false)
+  // Guardada sin revisión: el aviso queda con lo que avisó el agente.
+  const state = migrations.getSnapshot().get('st-vieja')
+  assert.equal(state?.status, 'migrated')
+  assert.deepEqual(state?.warnings, WARNINGS)
+})
+
+test('guardada, la migración devuelve los avisos del agente', async () => {
+  const fake = fakeSteps([OLD_GEM])
+  fake.agent.resolve(AGENT_RESPONSE)
+  assert.deepEqual(await migrateStoredGem('st-vieja', fake.steps), {
+    status: 'migrated',
+    warnings: WARNINGS,
+  })
+  assert.equal(fake.count('save'), 1)
 })
 
 test('borrada mientras el agente trabaja: no se guarda (no vuelve a aparecer) y no queda aviso ni Reintentar', async () => {
@@ -231,7 +304,9 @@ test('borrada mientras el agente trabaja: no se guarda (no vuelve a aparecer) y 
 
 test('ya borrada al empezar (la lista todavía la mostraba): ni agente ni guardado', async () => {
   const fake = fakeSteps([])
-  assert.equal(await migrateStoredGem('st-vieja', fake.steps), 'deleted')
+  assert.deepEqual(await migrateStoredGem('st-vieja', fake.steps), {
+    status: 'deleted',
+  })
   assert.deepEqual(fake.order(), ['findStored'])
 })
 
@@ -282,6 +357,19 @@ test('guardar la migración: secciones, el templateVersion del agente y, de resp
   assert.equal(payload.sourcePrompt, migrationRebuildText(OLD_GEM))
   for (const field of ['systemPrompt', 'shots', 'character', 'colorFilter'])
     assert.equal(field in payload, false, field)
+})
+
+test('el borrador del modal trae el respaldo de una gema de plantilla; el de una vieja sigue igual', () => {
+  assert.equal(
+    customStyleDraftFrom(MIGRATED_GEM).sourcePrompt,
+    MIGRATED_GEM.sourcePrompt,
+  )
+  assert.equal('sourcePrompt' in customStyleDraftFrom(OLD_GEM), false)
+  assert.equal(
+    'sourcePrompt' in
+      customStyleDraftFrom({ ...MIGRATED_GEM, sourcePrompt: '' }),
+    false,
+  )
 })
 
 test('Crear: el snapshot viejo se cambia por la gema migrada', () => {

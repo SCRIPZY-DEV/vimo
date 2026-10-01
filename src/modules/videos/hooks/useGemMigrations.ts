@@ -21,8 +21,8 @@ import type {
 // Los pasos reales de una migración (migrateStoredGem decide el orden): lo
 // guardado en el sidecar; el agente con `origin: 'migracion'` (el texto de la
 // gema y sus planos); y el guardado de sus secciones con ese texto de
-// respaldo, que espera la lista nueva: el aviso se apaga recién cuando la
-// galería ya muestra la gema migrada.
+// respaldo, que espera la lista nueva. Al terminar bien, el aviso pasa a
+// «migrada» (con los avisos del agente) hasta que el autor lo descarta.
 const migrationSteps: GemMigrationSteps = {
   async findStored(styleId) {
     const { entries } = await videosApi.listCustomStyles()
@@ -54,8 +54,10 @@ const gemMigrations = createGemMigrations((style) =>
 export const migrateGemOnce = gemMigrations.migrateOnce
 // «Reintentar» del aviso.
 export const retryGemMigration = gemMigrations.retry
+// Descartar el aviso de una gema ya migrada.
+export const dismissGemMigration = gemMigrations.dismiss
 
-// Las migraciones en vuelo o fallidas, por id de gema.
+// Las migraciones en vuelo, fallidas o hechas y sin descartar, por id de gema.
 export function useGemMigrations(): ReadonlyMap<string, GemMigrationState> {
   return useSyncExternalStore(
     gemMigrations.subscribe,
