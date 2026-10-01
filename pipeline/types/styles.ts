@@ -43,7 +43,10 @@ export interface GemSections {
 
 export type GemSectionKey = keyof GemSections
 
-/** Orden canónico de las secciones: el mismo en el marco, en el modal y en el agente. */
+/**
+ * Orden canónico de las secciones: el mismo en el modal y en el agente; el
+ * marco usa el orden del spec §5.1.
+ */
 export const GEM_SECTION_KEYS = [
   'visualStyle',
   'character',
@@ -133,7 +136,11 @@ export interface GenerateStyleSamplesResult {
 // del usuario como contexto (port de POST /estilos/personaje del origen) ───
 
 export interface DesignStyleCharacterPayload {
-  gem: string
+  /** Gema vieja como texto. Excluyente con `sections`. */
+  gem?: string
+  /** Gema de plantilla (ADR-0048): el sidecar la pasa a texto. Excluyente
+   *  con `gem`. */
+  sections?: GemSections
   script: string
   // Modelo del carril verbatim; ausente = el de la casa.
   promptModel?: string
