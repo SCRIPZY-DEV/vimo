@@ -709,6 +709,41 @@
       "defaultMissing": "O personagem padrão que você tinha escolhido não está mais na sua lista. Escolha outro para usar este estilo."
     },
     "gemTemplate": {
+      "sections": {
+        "visualStyle": {
+          "title": "Estilo visual",
+          "hint": "Técnica, paleta, luz, textura e composição. É a única seção obrigatória: sem ela o estilo não é salvo."
+        },
+        "character": {
+          "title": "Personagem do estilo",
+          "hint": "Só é usado quando você escolhe «Personagem genérico» acima: é o protagonista dos seus vídeos com este estilo. Com «Meu personagem» ou «Sem personagem» não é usado. Vai em inglês: primeiro como ele é fisicamente e, no final, uma frase «Outfit: …» com a roupa base."
+        },
+        "dynamism": {
+          "title": "Dinamismo",
+          "hint": "Quando o protagonista aparece e quando aparece uma metáfora, um objeto ou um lugar, e em que proporção."
+        },
+        "camera": {
+          "title": "Enquadramentos e câmera",
+          "hint": "Planos, ângulos e regras de variedade."
+        },
+        "rules": {
+          "title": "Regras e proibições",
+          "hint": "O que o estilo nunca faz."
+        },
+        "promptStart": {
+          "title": "Início fixo de cada imagem",
+          "hint": "Frase em inglês que o Vimo coloca no início de cada prompt de imagem."
+        },
+        "promptEnd": {
+          "title": "Final fixo de cada imagem",
+          "hint": "Frase em inglês que o Vimo adiciona no final de cada prompt de imagem."
+        }
+      },
+      "colorFilters": {
+        "none": "Natural",
+        "fantasy": "Fantasia (cores vivas)",
+        "horror-bw": "Terror (preto e branco)"
+      },
       "errors": {
         "session": "Sua sessão expirou. Saia e entre de novo.",
         "noAccess": "Sua conta não tem acesso ao Vimo no momento.",

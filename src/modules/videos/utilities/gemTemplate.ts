@@ -1,15 +1,21 @@
 import type {
+  COLOR_FILTER_IDS as PIPELINE_COLOR_FILTER_IDS,
   GEM_SECTION_KEYS as PIPELINE_GEM_SECTION_KEYS,
   GEM_TEMPLATE_VERSION as PIPELINE_GEM_TEMPLATE_VERSION,
   GemSectionKey,
   GemSections,
   StyleCharacterMode,
+  StyleSavePayload,
 } from '@pipeline/types/styles.ts'
 import type {
   GemRebuildOrigin,
   GemRebuildRequest,
   GemRebuildResponse,
 } from '@/modules/videos/types/gemRebuild'
+import type {
+  GemTextSource,
+  TemplateStyleDraft,
+} from '@/modules/videos/types/styles'
 
 // La gema por secciones del lado de la app (ADR-0048, spec §4 y §6.1). Módulo
 // puro, sin imports de runtime, como utilities/promptCost.ts (ADR-0020): así
@@ -31,6 +37,13 @@ export const GEM_SECTION_KEYS: typeof PIPELINE_GEM_SECTION_KEYS = [
   'promptEnd',
 ]
 export const GEM_TEMPLATE_VERSION: typeof PIPELINE_GEM_TEMPLATE_VERSION = 1
+
+// Presets de color del estilo (spec §5.5), en el orden en que se ofrecen.
+export const COLOR_FILTER_IDS: typeof PIPELINE_COLOR_FILTER_IDS = [
+  'none',
+  'fantasy',
+  'horror-bw',
+]
 
 // Límites de la spec §4.1: cada sección hasta 12 000 caracteres, `character`
 // hasta 700 (la identidad tejida), las frases fijas hasta 600 y la suma hasta
@@ -173,5 +186,69 @@ export function readGemRebuildResponse(
     sections,
     suggestions: readSuggestions(Reflect.get(body, 'suggestions')),
     warnings: readWarnings(Reflect.get(body, 'warnings')),
+  }
+}
+
+/**
+ * Tope del textarea de una sección: su propio límite o lo que queda del total,
+ * lo que llegue primero. Así el modal nunca arma una gema que style-save
+ * rechace.
+ */
+export function sectionMaxLength(
+  sections: GemSections,
+  key: GemSectionKey,
+): number {
+  const own = (sections[key] ?? '').length
+  const others = gemSectionsLength(sections) - own
+  return Math.max(
+    0,
+    Math.min(GEM_SECTION_LIMITS[key], GEM_TOTAL_CHAR_LIMIT - others),
+  )
+}
+
+/** ¿Las mismas secciones una vez limpias? Espacios de más o una opcional vacía no son un cambio. */
+export function sameGemSections(
+  first: GemSections,
+  second: GemSections,
+): boolean {
+  const firstClean = cleanGemSections(first)
+  const secondClean = cleanGemSections(second)
+  return GEM_SECTION_KEYS.every(
+    (key) => (firstClean[key] ?? '') === (secondClean[key] ?? ''),
+  )
+}
+
+/** ¿Hay estilo escrito? En una gema de plantilla, su estilo visual; en una vieja, su texto. */
+export function hasGemText(gem: GemTextSource): boolean {
+  if (gem.sections) return gem.sections.visualStyle.trim().length > 0
+  return (gem.systemPrompt ?? '').trim().length > 0
+}
+
+/** Caracteres de la gema: las secciones limpias sumadas, o el texto de una vieja. */
+export function gemCharCount(gem: GemTextSource): number {
+  if (gem.sections) return gemSectionsLength(cleanGemSections(gem.sections))
+  return (gem.systemPrompt ?? '').trim().length
+}
+
+/**
+ * style-save de una gema de plantilla editada en el modal: las secciones
+ * limpias y SIEMPRE su `templateVersion` (la que devolvió el agente o la
+ * guardada), sin `systemPrompt` ni `shots` (spec §4.2: los planos los
+ * reemplaza la sección `camera`). `sourcePrompt` viaja solo si la gema pasó
+ * por el agente en esta apertura; ausente, el sidecar conserva el guardado.
+ */
+export function templateStyleSavePayload(
+  draft: TemplateStyleDraft,
+): StyleSavePayload {
+  return {
+    id: draft.id,
+    name: draft.name,
+    sections: cleanGemSections(draft.sections),
+    templateVersion: draft.templateVersion,
+    colorFilter: draft.colorFilter,
+    character: draft.character,
+    ...(draft.sourcePrompt === null
+      ? {}
+      : { sourcePrompt: draft.sourcePrompt }),
   }
 }

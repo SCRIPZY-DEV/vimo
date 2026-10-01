@@ -709,6 +709,41 @@
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     },
     "gemTemplate": {
+      "sections": {
+        "visualStyle": {
+          "title": "Visual style",
+          "hint": "Technique, palette, lighting, texture and composition. It's the only required section: without it the style isn't saved."
+        },
+        "character": {
+          "title": "Style character",
+          "hint": "Only used when you pick “Generic character” above: it's the protagonist of your videos with this style. With “My character” or “No character” it isn't used. Write it in English: physical identity first and, at the end, an “Outfit: …” sentence with the base outfit."
+        },
+        "dynamism": {
+          "title": "Dynamism",
+          "hint": "When the protagonist appears and when a metaphor, an object or a place does, and in what proportion."
+        },
+        "camera": {
+          "title": "Framing and camera",
+          "hint": "Shots, angles and variety rules."
+        },
+        "rules": {
+          "title": "Rules and prohibitions",
+          "hint": "What the style never does."
+        },
+        "promptStart": {
+          "title": "Fixed start of every image",
+          "hint": "English phrase Vimo puts at the start of every image prompt."
+        },
+        "promptEnd": {
+          "title": "Fixed end of every image",
+          "hint": "English phrase Vimo adds at the end of every image prompt."
+        }
+      },
+      "colorFilters": {
+        "none": "Natural",
+        "fantasy": "Fantasy (vivid colors)",
+        "horror-bw": "Horror (black and white)"
+      },
       "errors": {
         "session": "Your session expired. Sign out and sign in again.",
         "noAccess": "Your account doesn't have access to Vimo right now.",

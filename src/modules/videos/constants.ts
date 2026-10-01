@@ -15,6 +15,7 @@ import type {
   NarrationMode,
 } from '@pipeline/types/video-project.ts'
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
+import type { ColorFilterId, GemSectionKey } from '@pipeline/types/styles.ts'
 import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
@@ -403,6 +404,54 @@ export const CUSTOM_STYLE_SAMPLE_COUNT = 4
 export const CUSTOM_STYLE_NAME_LIMIT = 80
 export const CUSTOM_STYLE_PROMPT_LIMIT = 30_000
 export const CUSTOM_STYLE_MAX_SHOTS = 20
+
+// Campo de texto del modal de estilo: nombre, gema, secciones y planos.
+export const CUSTOM_STYLE_FIELD_CLASS =
+  'w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-primary disabled:opacity-60'
+
+// Título y ayuda de cada sección de la gema en el modal (spec §4.1). El orden
+// en que se muestran es GEM_SECTION_KEYS (utilities/gemTemplate.ts).
+export const GEM_SECTION_TEXT_KEYS: Record<
+  GemSectionKey,
+  { titleKey: string; hintKey: string }
+> = {
+  visualStyle: {
+    titleKey: 'create.gemTemplate.sections.visualStyle.title',
+    hintKey: 'create.gemTemplate.sections.visualStyle.hint',
+  },
+  character: {
+    titleKey: 'create.gemTemplate.sections.character.title',
+    hintKey: 'create.gemTemplate.sections.character.hint',
+  },
+  dynamism: {
+    titleKey: 'create.gemTemplate.sections.dynamism.title',
+    hintKey: 'create.gemTemplate.sections.dynamism.hint',
+  },
+  camera: {
+    titleKey: 'create.gemTemplate.sections.camera.title',
+    hintKey: 'create.gemTemplate.sections.camera.hint',
+  },
+  rules: {
+    titleKey: 'create.gemTemplate.sections.rules.title',
+    hintKey: 'create.gemTemplate.sections.rules.hint',
+  },
+  promptStart: {
+    titleKey: 'create.gemTemplate.sections.promptStart.title',
+    hintKey: 'create.gemTemplate.sections.promptStart.hint',
+  },
+  promptEnd: {
+    titleKey: 'create.gemTemplate.sections.promptEnd.title',
+    hintKey: 'create.gemTemplate.sections.promptEnd.hint',
+  },
+}
+
+// Nombre de cada preset de color del estilo (spec §5.5). El filtro de FFmpeg
+// lo aplica el sidecar al render.
+export const COLOR_FILTER_LABEL_KEYS: Record<ColorFilterId, string> = {
+  none: 'create.gemTemplate.colorFilters.none',
+  fantasy: 'create.gemTemplate.colorFilters.fantasy',
+  'horror-bw': 'create.gemTemplate.colorFilters.horror-bw',
+}
 
 // Planos recomendados que llena el botón del modal (verbatim del origen).
 export const RECOMMENDED_SHOTS = [
