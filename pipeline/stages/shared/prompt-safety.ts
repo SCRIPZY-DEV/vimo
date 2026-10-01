@@ -466,8 +466,9 @@ export function sanitizeFinalPrompt(
   // recorte del paso 4 pudo llevársela entera o en parte. Si quedó
   // incompleta, se rehacen los pasos 3 y 4 anexando SIEMPRE la de la
   // plataforma, que el recorte nunca toca. Es más larga que la del fallback:
-  // el recorte, ahora más justo, se lleva lo que quedaba de esta.
-  if (phrases && !carriesImageTextClause(result)) {
+  // el recorte, ahora más justo, se lleva lo que quedaba de esta. Un prompt
+  // vacío sigue vacío, como en los pasos 3 y 4: no hay escena que proteger.
+  if (phrases && result && !carriesImageTextClause(result)) {
     result = appendAnonymity(
       appendReservingSpace(
         beforeClauses,

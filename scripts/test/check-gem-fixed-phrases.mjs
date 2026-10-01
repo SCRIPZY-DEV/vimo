@@ -226,6 +226,15 @@ test('without phrases the cut is the one of always', () => {
   )
 })
 
+test('an empty or blank prompt stays empty with phrases too', () => {
+  // El contrato de las cláusulas: un prompt vacío vuelve vacío. Con frases,
+  // rehacer la cláusula de texto no puede inventar un prompt que sea solo eso.
+  for (const empty of ['', '   ', '\n\t ']) {
+    assert.equal(sanitizeFinalPrompt(empty), '')
+    assert.equal(sanitizeFinalPrompt(empty, undefined, phrases), '')
+  }
+})
+
 // ── La fase de imágenes ──
 
 const bytes = Buffer.from(
