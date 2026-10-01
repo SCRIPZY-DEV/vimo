@@ -1,4 +1,7 @@
-import { commonQueryKeys } from '@/modules/common/constants'
+import {
+  commonQueryKeys,
+  VIMO_SERVER_BASE_URL,
+} from '@/modules/common/constants'
 
 export const AuthRoutesPaths = {
   login: '/login',
@@ -17,7 +20,7 @@ export const authQueryKeys = {
 } as const
 
 /** Edge function que valida allowlist + trial (excepción al fetcher, ver ADR-0006). */
-export const VERIFY_ACCESS_URL = 'https://vimo.click/api/verificar-acceso'
+export const VERIFY_ACCESS_URL = `${VIMO_SERVER_BASE_URL}/api/verificar-acceso`
 /** Deep link de retorno del OAuth en desktop — debe estar en el allowlist de Supabase. */
 export const AUTH_DEEP_LINK_URL = 'vimo://auth/callback'
 

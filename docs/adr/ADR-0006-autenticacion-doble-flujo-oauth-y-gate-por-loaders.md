@@ -100,14 +100,22 @@ Redirect URLs): `vimo://auth/callback`, `http://localhost:5173/#/auth/callback` 
 - **Build/lint:** `pnpm format && pnpm lint && pnpm build` en verde.
 - **Greps ejecutables:**
   - `grep -rln "supabase/client" src/ --include="*.ts*"` → solo
-    `src/modules/auth/api/index.ts` (fuera de `common/supabase`) y, desde la
-    ADR-0038, `src/modules/diagnostics/api/index.ts`.
+    `src/modules/auth/api/index.ts` (fuera de `common/supabase`), desde la
+    ADR-0038 `src/modules/diagnostics/api/index.ts` y, desde la enmienda
+    2026-09-30, `src/modules/common/fetcher/vimoServer.ts`.
+  - `grep -rln "vimoServerFetch" src/ --include="*.ts*"` → solo
+    `src/modules/common/fetcher/vimoServer.ts` y los `api/index.ts` de los módulos
+    (el primero, `src/modules/videos/api/index.ts`).
+  - `grep -rn "https://vimo.click" src/ --include="*.ts*"` → la URL base en
+    `src/modules/common/constants.ts` y el enlace de descarga del instalador en
+    `src/modules/settings/constants.ts` (una página, no un endpoint).
   - `grep -rn "fetch(" src/modules/auth` → solo `api/index.ts` (la excepción).
   - `grep -rn "isTauri" src/` → solo `api/index.ts`.
   - `grep -rn "commonQueryKeys.access" src/ --include="*.ts*"` → solo
     `src/modules/auth/constants.ts` y `src/modules/common/hooks/useAccessFeature.ts`
     (enmienda 2026-09-30): nadie más arma la clave del veredicto.
-  - `node --test scripts/test/check-app-access-flags.mjs` en verde.
+  - `node --test scripts/test/check-app-access-flags.mjs` y
+    `node --test scripts/test/check-app-vimo-server.mjs` en verde.
 - **Flujo web (manual):** `pnpm dev` sin sesión → `/` rebota a login → Google →
   `/create`; cuenta fuera de allowlist → `/access-denied` con email real; «Cambiar de
   cuenta» → login; sin red → entra con motivo `offline`.
@@ -116,7 +124,8 @@ Redirect URLs): `vimo://auth/callback`, `http://localhost:5173/#/auth/callback` 
 - **Regresión típica:** una vista importando `supabase` o llamando `fetch`; un loader
   con su propio array de query key en lugar de `authQueryKeys.access`; un módulo que
   importa `authQueryKeys` o `AccessStatus` para leer un interruptor en vez de
-  `useAccessFeature`.
+  `useAccessFeature`; un hook o componente que llama a `vimoServerFetch` (o a `fetch`
+  contra vimo.click) en vez de pasar por el `api/` de su módulo.
 
 ## Enmiendas
 
@@ -150,6 +159,31 @@ nadie, para los admins o para todos, sin sacar versión de la app.
   devuelve `null`, no se revalida al navegar entre rutas hijas y el tipo seguiría
   siendo de `auth`); pasar el interruptor por props (es configuración global: se lee
   donde se usa).
+
+### 2026-09-30 — Cliente de vimo.click en `common`
+
+El agente reconstructor de gemas (ADR-0048) es el segundo endpoint de vimo.click que
+usa la app. En vez de otra excepción de `fetch` por módulo hay un cliente único,
+`vimoServerFetch` (`src/modules/common/fetcher/vimoServer.ts`): el tercer transporte
+del borde con el exterior, junto a `fetcher.ts` y `pipeline.ts`.
+
+- Adjunta `Authorization: Bearer <access_token>` de la sesión de Supabase
+  (`common/supabase/client`). Sin sesión, el pedido viaja sin ese encabezado y el
+  servidor responde `401 sin-token`.
+- La URL base vive en `src/modules/common/constants.ts` (`VIMO_SERVER_BASE_URL`;
+  `VERIFY_ACCESS_URL` de `auth` se arma con ella). La ruta de cada endpoint va en el
+  `constants.ts` de su módulo.
+- Cada pedido tiene su tope (`timeoutMs`; por defecto `VIMO_SERVER_TIMEOUT_MS`, 15 s;
+  el agente usa 150 s), que cubre también la lectura de la sesión.
+- Falla siempre con `VimoServerError` (`src/modules/common/fetcher/vimoServerError.ts`):
+  `kind` `network`, `timeout` o `http`, con `status`, el `code` del cuerpo y
+  `retryAfterSeconds`. `vimoServerErrorCode` da el código estable que cada módulo
+  traduce en su `constants.ts`.
+- Solo lo llama el `api/` de un módulo (el primero, `videos/api`).
+- **Excepción ampliada:** el SDK de Supabase y `fetch` directo se permiten en
+  `auth/api`, en `diagnostics/api` (ADR-0038) y en este cliente. `verifyAccess` sigue
+  con su `fetch` propio en `auth/api`: es fail-open y recuerda flags, dos cosas que el
+  cliente común no hace.
 
 ## Referencias
 

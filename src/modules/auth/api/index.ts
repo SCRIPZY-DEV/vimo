@@ -131,7 +131,8 @@ export const authApi = {
     }
     try {
       const response = await fetch(VERIFY_ACCESS_URL, {
-        // fetch directo a propósito: el fetcher común es sidecar-only (ADR-0006).
+        // fetch directo a propósito: el veredicto es fail-open y recuerda sus
+        // flags, dos cosas que vimoServerFetch no hace (ADR-0006).
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
