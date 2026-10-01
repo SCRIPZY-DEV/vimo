@@ -499,10 +499,22 @@ test('my character with a photo on Evolink: the photo is uploaded only when some
     [[1, 2, 3, 4], 0, 0],
   ]) {
     const calls = providers(t, { withoutSubject })
+    const events = []
     const result = await generateStyleSamples(
-      context(root, { imageProvider: 'evolink' }),
+      context(root, { imageProvider: 'evolink' }, events),
     )
     assert.equal(result.samples.length, 4)
+    // Sin ningún momento con el protagonista, el log explica por qué la foto
+    // no se usó; con alguno, no hay nada que explicar.
+    assert.equal(
+      events.some(
+        (event) =>
+          event.type === 'log' &&
+          event.level === 'info' &&
+          event.message.includes('no sample moment shows the protagonist'),
+      ),
+      withPhoto === 0,
+    )
     assert.equal(calls.uploads, uploads)
     assert.equal(calls.images.length, 4)
     const referenced = calls.images.filter((image) => image.image_urls)

@@ -369,8 +369,13 @@ async function generateTemplateSamples(
   // Como en el video, la foto viaja solo con los momentos que nombran al
   // protagonista (`scenesWithSubject`, el dato que reparte la referencia): sin
   // la regla que lo obligaba en las cuatro muestras, un momento de objeto o de
-  // lugar no lo lleva. Si ninguno lo nombra, la foto ni se sube.
+  // lugar no lo lleva. Si ninguno lo nombra, la foto ni se sube, y el log lo
+  // dice: sin él, cuatro muestras sin el personaje parecen una foto ignorada.
   const withSubject = new Set(written.scenesWithSubject)
+  if (resolved.mode === 'reference' && withSubject.size === 0)
+    log('info')(
+      'no sample moment shows the protagonist: the character photo was not used',
+    )
   const referenceImageUrls = await sampleReferenceUrls(
     context,
     resolved.mode === 'reference' && withSubject.size > 0
