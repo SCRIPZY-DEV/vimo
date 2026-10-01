@@ -709,6 +709,25 @@
       "defaultMissing": "El personaje predeterminado que tenías elegido ya no está en tu lista. Elegí otro para poder usar este estilo."
     },
     "gemTemplate": {
+      "pasteTitle": "Pegá tu gema",
+      "pastePlaceholder": "Pegá acá tu gema completa…",
+      "pasteCount": "{{used}} / {{limit}} caracteres",
+      "prepare": "Preparar con IA",
+      "preparing": "Preparando…",
+      "preparingHint": "La IA está ordenando tu gema. Puede tardar hasta dos minutos.",
+      "retry": "Reintentar",
+      "backToSections": "Volver a las secciones",
+      "sectionsTitle": "Secciones del estilo",
+      "sectionsHint": "Editá cada sección acá mismo: se guarda al cerrar, sin volver a pasar por la IA.",
+      "addSection": "Agregar sección: {{title}}",
+      "sectionCount": "{{used}} / {{limit}}",
+      "totalCount": "Total del estilo: {{used}} / {{limit}} caracteres",
+      "totalFull": "Llegaste al máximo del estilo. Acortá alguna sección para seguir escribiendo.",
+      "notEnglish": "No parece estar en inglés. Vimo pega este texto tal cual en cada imagen, así que conviene escribirlo en inglés.",
+      "notEnglishDismiss": "Descartar aviso",
+      "warningsTitle": "Lo que la IA ajustó de tu gema",
+      "colorFilterTitle": "Filtro de color",
+      "colorFilterHint": "Se aplica al video terminado.",
       "sections": {
         "visualStyle": {
           "title": "Estilo visual",

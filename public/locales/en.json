@@ -709,6 +709,25 @@
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
     },
     "gemTemplate": {
+      "pasteTitle": "Paste your gem",
+      "pastePlaceholder": "Paste your full gem here…",
+      "pasteCount": "{{used}} / {{limit}} characters",
+      "prepare": "Prepare with AI",
+      "preparing": "Preparing…",
+      "preparingHint": "The AI is sorting your gem. It can take up to two minutes.",
+      "retry": "Try again",
+      "backToSections": "Back to the sections",
+      "sectionsTitle": "Style sections",
+      "sectionsHint": "Edit each section right here: it's saved when you close, without going through the AI again.",
+      "addSection": "Add section: {{title}}",
+      "sectionCount": "{{used}} / {{limit}}",
+      "totalCount": "Style total: {{used}} / {{limit}} characters",
+      "totalFull": "You've reached the style's maximum. Shorten a section to keep writing.",
+      "notEnglish": "This doesn't look like English. Vimo pastes this text as is into every image, so it's best written in English.",
+      "notEnglishDismiss": "Dismiss notice",
+      "warningsTitle": "What the AI adjusted in your gem",
+      "colorFilterTitle": "Color filter",
+      "colorFilterHint": "Applied to the finished video.",
       "sections": {
         "visualStyle": {
           "title": "Visual style",
