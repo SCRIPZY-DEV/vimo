@@ -11,11 +11,15 @@ import {
   VERIFY_ACCESS_URL,
   VERIFY_TIMEOUT_MS,
 } from '../constants'
-import type { AccessStatus, VerifyAccessResponse } from '../types/access'
+import { accessFlagsFrom } from '@/modules/auth/utilities/accessFlags'
 import {
-  recallDemoAccess,
-  rememberDemoAccess,
-} from '../utilities/demoAccessMemory'
+  recallAccessFlags,
+  rememberAccessFlags,
+} from '@/modules/auth/utilities/accessFlagsMemory'
+import type {
+  AccessStatus,
+  VerifyAccessResponse,
+} from '@/modules/auth/types/access'
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -122,7 +126,7 @@ export const authApi = {
         email,
         name,
         avatar,
-        demo: false,
+        ...accessFlagsFrom({}),
       }
     }
     try {
@@ -136,9 +140,11 @@ export const authApi = {
         signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
       })
       const body = (await response.json()) as VerifyAccessResponse
-      // El flag de la demo se recuerda por correo para el modo sin red.
-      const demo = body.demo === true
-      rememberDemoAccess(email, demo)
+      // Demo, admin e interruptores: solo un true explícito enciende (un
+      // servidor viejo sin `features` deja todo apagado) y se recuerdan por
+      // correo para el modo sin red (ADR-0029, ADR-0048).
+      const flags = accessFlagsFrom(body)
+      rememberAccessFlags(email, flags)
       return {
         authorized: body.autorizado,
         reason: body.motivo,
@@ -146,11 +152,12 @@ export const authApi = {
         email,
         name,
         avatar,
-        demo,
+        ...flags,
       }
     } catch {
       // Fail-open deliberado (regla del origen): sin red o con el server caído
       // se asume acceso vigente para no bloquear el trabajo local del usuario.
+      // Los flags no se inventan: valen los últimos recibidos para este correo.
       return {
         authorized: true,
         reason: 'offline',
@@ -158,7 +165,7 @@ export const authApi = {
         email,
         name,
         avatar,
-        demo: recallDemoAccess(email),
+        ...recallAccessFlags(email),
       }
     }
   },

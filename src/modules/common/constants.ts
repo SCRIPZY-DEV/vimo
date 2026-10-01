@@ -11,6 +11,10 @@ export const TOAST_REMOVE_DELAY = 1000000
 export const TOOLTIP_DELAY_MS = 300
 
 export const commonQueryKeys = {
+  // Veredicto de acceso de vimo.click (ADR-0006): lo verifica y lo cachea
+  // auth (`authQueryKeys.access` es esta misma clave); los demás módulos solo
+  // leen sus interruptores con useAccessFeature, sin verificar.
+  access: ['auth', 'access'],
   promptModels: ['common', 'promptModels'],
   imageCredits: ['common', 'imageCredits'],
   videoCredits: ['common', 'videoCredits'],

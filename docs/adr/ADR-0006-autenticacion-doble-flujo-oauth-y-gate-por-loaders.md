@@ -3,6 +3,9 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-08-13
 - **Área:** app
+- **Enmendada:** 2026-09-30, con la
+  [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) (ver
+  «Enmiendas»).
 
 ## Problema
 
@@ -101,13 +104,52 @@ Redirect URLs): `vimo://auth/callback`, `http://localhost:5173/#/auth/callback` 
     ADR-0038, `src/modules/diagnostics/api/index.ts`.
   - `grep -rn "fetch(" src/modules/auth` → solo `api/index.ts` (la excepción).
   - `grep -rn "isTauri" src/` → solo `api/index.ts`.
+  - `grep -rn "commonQueryKeys.access" src/ --include="*.ts*"` → solo
+    `src/modules/auth/constants.ts` y `src/modules/common/hooks/useAccessFeature.ts`
+    (enmienda 2026-09-30): nadie más arma la clave del veredicto.
+  - `node --test scripts/test/check-app-access-flags.mjs` en verde.
 - **Flujo web (manual):** `pnpm dev` sin sesión → `/` rebota a login → Google →
   `/create`; cuenta fuera de allowlist → `/access-denied` con email real; «Cambiar de
   cuenta» → login; sin red → entra con motivo `offline`.
 - **Flujo deep link (manual):** Windows/Linux `pnpm tauri dev` (macOS: bundle
   instalado) → botón abre el navegador del sistema → retorno `vimo://` → `/create`.
 - **Regresión típica:** una vista importando `supabase` o llamando `fetch`; un loader
-  con su propio array de query key en lugar de `authQueryKeys.access`.
+  con su propio array de query key en lugar de `authQueryKeys.access`; un módulo que
+  importa `authQueryKeys` o `AccessStatus` para leer un interruptor en vez de
+  `useAccessFeature`.
+
+## Enmiendas
+
+### 2026-09-30 — Interruptores del veredicto y cómo los lee otro módulo
+
+Con la [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md), el
+veredicto suma `admin` (solo para los correos de la tabla `admins`) y `features`
+(`gemTemplate` y `newCatalog`): interruptores de salida que vimo.click enciende para
+nadie, para los admins o para todos, sin sacar versión de la app.
+
+- **Normalización.** `verifyAccess` los pasa por `accessFlagsFrom`
+  (`src/modules/auth/utilities/accessFlags.ts`): solo un `true` explícito enciende.
+  Un servidor viejo sin `admin` ni `features`, o uno a medio desplegar, deja todo
+  apagado y la app sigue como antes.
+- **Sin red.** Como `demo` (ADR-0029), `demo`, `admin` y `features` se recuerdan por
+  correo (`accessFlagsMemory.ts`, que reemplaza a `demoAccessMemory.ts` y conserva su
+  clave `vimo:demo:access:v1` para no perder lo ya recordado) y el veredicto
+  `offline` los reutiliza. Otro correo no los hereda.
+- **Lectura desde otro módulo.** La clave del veredicto sube a `common`
+  (`commonQueryKeys.access`; `authQueryKeys.access` apunta a la misma, así que los
+  loaders y `useAccess` no cambian). Un módulo que no es `auth` lee un interruptor
+  con `useAccessFeature(nombre)` (`src/modules/common/hooks/useAccessFeature.ts`): lee
+  el caché que ya pobló el loader del layout (`queryFn: skipToken`, como el `Sidebar`
+  con `demo`), nunca verifica y no importa tipos ni hooks de `auth`. `common` conoce
+  solo los nombres (`AccessFeatureName`); la forma del veredicto sigue siendo de
+  `auth` (`AccessFeatures`). Un interruptor nuevo se suma en los dos lugares: si falta
+  en `common`, el módulo que lo pide no compila; si falta en `auth`, se lee apagado.
+- **Descartado.** Importar `authQueryKeys` y `AccessStatus` desde `videos` como hace el
+  `Sidebar` (un layout puede importar constantes de un módulo; otro módulo, solo sus
+  rutas); leer el loader del layout con `useRouteLoaderData` (`requireAuthLoader`
+  devuelve `null`, no se revalida al navegar entre rutas hijas y el tipo seguiría
+  siendo de `auth`); pasar el interruptor por props (es configuración global: se lee
+  donde se usa).
 
 ## Referencias
 
