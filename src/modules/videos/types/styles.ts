@@ -86,3 +86,10 @@ export interface GemMigrationSteps {
     response: GemRebuildResponse,
   ) => Promise<void>
 }
+
+// Cómo se piden las muestras de un estilo.
+export interface SampleGenerationOptions {
+  // Gema de plantilla: sus muestras se escriben con el modelo de Ajustes (spec
+  // §5.6). Una vieja sigue por el camino de siempre.
+  templateGem: boolean
+}

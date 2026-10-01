@@ -11,6 +11,7 @@ import { usePromptModelPreference } from '@/modules/settings/hooks/usePromptMode
 import { PROMPT_MODEL_COMPACT_DEFAULT } from '@/modules/settings/constants'
 import { PromptModelSettingsLink } from '@/modules/videos/components/PromptModelSettingsLink'
 import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
+import { gemCharCount } from '@/modules/videos/utilities/gemTemplate'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
 interface PromptModelSectionProps {
@@ -83,10 +84,13 @@ export function PromptModelSection({
     )
   }
 
-  const gemChars = value.customStyle?.systemPrompt.trim().length ?? 0
-  // La fase del personaje solo corre cuando la gema lo diseña (genérico); con
-  // personaje propio o sin personaje no hay llamada que cobrar.
-  const withCharacterPhase = styleCharacterModeOf(value) === 'generic'
+  const gemChars = value.customStyle ? gemCharCount(value.customStyle) : 0
+  // La fase del personaje solo corre cuando la gema lo diseña (genérico) y no
+  // trae su personaje escrito en la sección `character` (ADR-0048); con
+  // personaje propio o sin personaje tampoco hay llamada que cobrar.
+  const withCharacterPhase =
+    styleCharacterModeOf(value) === 'generic' &&
+    !value.customStyle?.sections?.character
 
   return (
     <div className="space-y-2">

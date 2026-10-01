@@ -12,6 +12,7 @@ import {
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { useSampleCarousel } from '@/modules/videos/hooks/useSampleCarousel'
+import { gemCharCount } from '@/modules/videos/utilities/gemTemplate'
 import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
 interface CustomStyleCardProps {
@@ -223,7 +224,7 @@ export function CustomStyleCard({
         </p>
         <p className="truncate font-body text-xs text-muted-foreground">
           {t('create.customStyles.charsCount', {
-            chars: (style.systemPrompt ?? '').length.toLocaleString(),
+            chars: gemCharCount(style).toLocaleString(),
           })}
         </p>
       </div>

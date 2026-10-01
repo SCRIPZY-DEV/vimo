@@ -306,7 +306,9 @@ export function CustomStyleModal({
     if (!hasStyleText || migrating) return
     const saved = await persist()
     if (!saved) return
-    await samplesJob.generate(styleId, imageProvider)
+    await samplesJob.generate(styleId, imageProvider, {
+      templateGem: templateMode,
+    })
   }
 
   const chooseProvider = (imageProvider: ImageProviderId) => {

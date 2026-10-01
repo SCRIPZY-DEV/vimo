@@ -1,5 +1,6 @@
 import { ANIMATION_MINUTES_DEFAULT } from '@/modules/videos/constants'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
+import { projectCustomStyleFrom } from '@/modules/videos/utilities/projectCustomStyle'
 import type {
   CreateFormValue,
   CreateProjectPayloadOptions,
@@ -58,15 +59,8 @@ export function createProjectPayload(
   }
 
   if (usesCustomStyle && form.customStyle) {
-    options.customStyle = {
-      styleId: form.customStyle.styleId,
-      name: form.customStyle.name,
-      systemPrompt: form.customStyle.systemPrompt,
-      shots: form.customStyle.shots,
-      ...(form.customStyle.character
-        ? { character: form.customStyle.character }
-        : {}),
-    }
+    // Por secciones si la gema es de plantilla; si no, como siempre (ADR-0048).
+    options.customStyle = projectCustomStyleFrom(form.customStyle)
     // Carril de segundos-por-escena: el proyecto nace con la preferencia de
     // Ajustes. El diálogo de confirmación lo ajusta con el slider; sin
     // confirmación, este valor corta directo.

@@ -1,5 +1,6 @@
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
+import { hasGemText } from '@/modules/videos/utilities/gemTemplate'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
@@ -44,7 +45,10 @@ export function useStyleCharacter(form: CreateFormValue): StyleCharacterState {
     fixedLoading: Boolean(fixedCharacterId) && isLoading,
     fixedMissing: Boolean(fixedCharacterId) && !isLoading && !fixedCharacter,
     styleWritesCharacter: mode === 'generic' || mode === 'none',
+    // Texto de la gema: el de una vieja o el estilo visual de una de plantilla.
     canEditStyle:
-      mode !== null && Boolean(form.customStyle?.systemPrompt.trim()),
+      mode !== null &&
+      form.customStyle !== null &&
+      hasGemText(form.customStyle),
   }
 }
