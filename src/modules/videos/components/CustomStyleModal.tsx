@@ -345,15 +345,20 @@ export function CustomStyleModal({
           </DialogHeader>
 
           {pasting ? (
-            <GemPasteStep
-              text={gemDraft.pasteText}
-              pending={gemRebuild.pending}
-              error={gemRebuild.error}
-              onTextChange={gemDraft.setPasteText}
-              onPrepare={() => void prepare()}
-              // Volver solo tiene sentido si ya hay secciones (reemplazo).
-              onBack={hasStyleText ? gemDraft.stopPasting : undefined}
-            />
+            // Cerrar desde «Pegar gema nueva» guarda las secciones de antes: si
+            // ese guardado falla, el modal sigue abierto y dice por qué acá.
+            <div className="space-y-3">
+              <GemPasteStep
+                text={gemDraft.pasteText}
+                pending={gemRebuild.pending}
+                error={gemRebuild.error}
+                onTextChange={gemDraft.setPasteText}
+                onPrepare={() => void prepare()}
+                // Volver solo tiene sentido si ya hay secciones (reemplazo).
+                onBack={hasStyleText ? gemDraft.stopPasting : undefined}
+              />
+              {saveErrorKey && <ErrorMessage>{t(saveErrorKey)}</ErrorMessage>}
+            </div>
           ) : (
             <div className="space-y-4">
               {templateMode && (
