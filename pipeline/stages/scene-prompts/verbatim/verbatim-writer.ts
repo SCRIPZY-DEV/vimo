@@ -15,6 +15,7 @@ import {
   type VerbatimMessage,
 } from '../../../providers/llm/verbatim-client.ts'
 import type { LlmModelProfile } from '../../../types/llm-models.ts'
+import type { SceneTreatment } from '../../../types/scenes.ts'
 import type { GemSections } from '../../../types/styles.ts'
 import type { StyleProtagonist } from '../../../types/video-project.ts'
 import { isInsufficientCreditsFailure } from '../../../utils/insufficient-credits.ts'
@@ -44,6 +45,7 @@ import {
   LIMIT_PROTOCOL_REGEX,
   localSceneDefect,
   readIdMarker,
+  readTreatmentTag,
   responseContamination,
   restoreStyleTail,
   splitPrompts,
@@ -52,6 +54,7 @@ import {
   trimEmbeddedCharacterSheet,
   unwrapJsonPrompts,
   validateCharacterPrompt,
+  type TreatmentTagReading,
 } from './parser.ts'
 import {
   capWovenIdentity,
@@ -182,6 +185,9 @@ export type VerbatimCharacterInput =
 export interface VerbatimBatchPrompts {
   prompts: ReadonlyMap<number, string>
   scenesWithSubject: readonly number[]
+  /** El tratamiento que declaró la etiqueta `[T:…]` de cada escena que la
+   *  trajo válida (gema de plantilla con dinamismo). */
+  treatments: ReadonlyMap<number, SceneTreatment>
 }
 
 export interface VerbatimWriterOptions {
@@ -256,6 +262,8 @@ export interface VerbatimResult {
    * dato que decide qué escenas llevan la foto de referencia adjunta.
    */
   scenesWithSubject: number[]
+  /** Tratamiento por escena, de las etiquetas `[T:…]` válidas. */
+  treatments: Map<number, SceneTreatment>
   profile: LlmModelProfile
   inputTokens: number
   outputTokens: number
@@ -881,7 +889,7 @@ function chunk<T>(items: T[], size: number): T[][] {
  * únicamente con conteo exacto y respuesta completa, nunca en un prefijo.
  */
 export interface BatchReading {
-  good: { n: number; prompt: string }[]
+  good: { n: number; prompt: string; treatment?: SceneTreatment }[]
   defective: { n: number; reason: string }[]
   /** Prompts sobrantes o sin identidad descartados, textuales: el log dice
    *  QUÉ se tiró y no solo cuántos. */
@@ -925,10 +933,16 @@ function whatWasRemoved(original: string, repaired: string): string {
  * vuelve con la misma ficha (un video real quemó las 3 rondas). El recorte se
  * re-valida ENTERO: un hueco E33 no se cura cortando.
  */
-function classifyScene(n: number, prompt: string, target: BatchReading): void {
+function classifyScene(
+  n: number,
+  prompt: string,
+  target: BatchReading,
+  treatment?: SceneTreatment,
+): void {
+  const tagged = treatment ? { treatment } : {}
   const defect = localSceneDefect(prompt)
   if (!defect) {
-    target.good.push({ n, prompt })
+    target.good.push({ n, prompt, ...tagged })
     return
   }
   const trimmedPrompt = trimEmbeddedCharacterSheet(prompt)
@@ -936,7 +950,7 @@ function classifyScene(n: number, prompt: string, target: BatchReading): void {
     trimmedPrompt !== undefined &&
     localSceneDefect(trimmedPrompt) === undefined
   ) {
-    target.good.push({ n, prompt: trimmedPrompt })
+    target.good.push({ n, prompt: trimmedPrompt, ...tagged })
     target.repaired.push({ n, removed: whatWasRemoved(prompt, trimmedPrompt) })
     return
   }
@@ -957,11 +971,46 @@ function contaminationFailure(n: number, contamination: string): Error {
   return new Error(message)
 }
 
+export interface BatchReadingOptions {
+  /** Exige ids `((n))` (ADR-0043): con intervalos de narración, el conteo
+   *  exacto no prueba que el modelo respetó el orden, y una respuesta mixta
+   *  conserva sus ids sanos. Ausente = la lectura histórica de las previews
+   *  sin contexto temporal. */
+  requireIds?: boolean
+  /** La gema de plantilla tiene dinamismo: cada prompt puede abrir con la
+   *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0048). Ausente
+   *  = la lectura de siempre, byte por byte. */
+  treatmentTags?: boolean
+}
+
+/**
+ * La etiqueta de tratamiento de cada trozo ya identificado por su id, leída y
+ * quitada. Un trozo que era SOLO el id y la etiqueta queda vacío: esa escena
+ * FALTA y se aparta acá, porque la lectura por id tomaría el vacío por un
+ * prompt vacío (que tira el lote) y la etiqueta sola por otro idioma. Un id
+ * pelado, sin etiqueta, sigue su lectura de siempre.
+ */
+function readIdentifiedTags(
+  identified: readonly { n: number; text: string }[],
+  treatmentTags: boolean | undefined,
+): readonly { n: number; text: string; treatment?: SceneTreatment }[] {
+  if (!treatmentTags) return identified
+
+  return identified.flatMap((entry) => {
+    const reading = readTreatmentTag(entry.text)
+    if (entry.text && !reading.text) return []
+    return [{ n: entry.n, ...reading }]
+  })
+}
+
 export function readBatchPrompts(
   raw: string,
   batch: readonly VerbatimFragment[],
-  requireIds = false,
+  options: BatchReadingOptions = {},
 ): BatchReading {
+  const requireIds = options.requireIds ?? false
+  const tagged = (text: string): TreatmentTagReading =>
+    options.treatmentTags ? readTreatmentTag(text) : { text }
   const clean = stripReasoning(raw)
   const block = extractCodeBlock(clean)
   const fromJson = unwrapJsonPrompts(block)
@@ -973,7 +1022,11 @@ export function readBatchPrompts(
       const text = marker && marker.n !== item.n ? '' : stripIdMarker(item.text)
       return [{ n: item.n, text }]
     })
-    const reading = readById(identified, batch, requireIds)
+    const reading = readById(
+      readIdentifiedTags(identified, options.treatmentTags),
+      batch,
+      requireIds,
+    )
     reading.trimmed.push(
       ...fromJson
         .filter((item) => item.n === undefined)
@@ -1000,12 +1053,17 @@ export function readBatchPrompts(
     return entry ? [entry] : []
   })
   if (identified.length > 0 || requireIds) {
-    const reading = readById(identified, batch, requireIds)
+    const reading = readById(
+      readIdentifiedTags(identified, options.treatmentTags),
+      batch,
+      requireIds,
+    )
     reading.trimmed.push(...pieces.filter((piece) => !readIdMarker(piece)))
     return reading
   }
 
-  const texts = pieces.map(stripIdMarker)
+  const readings = pieces.map((piece) => tagged(stripIdMarker(piece)))
+  const texts = readings.map((reading) => reading.text)
   if (texts.length !== batch.length) {
     const limit = LIMIT_PROTOCOL_REGEX.exec(clean)
     if (limit)
@@ -1035,7 +1093,7 @@ export function readBatchPrompts(
       )
     const contamination = responseContamination(prompt)
     if (contamination) throw contaminationFailure(fragment.n, contamination)
-    classifyScene(fragment.n, prompt, reading)
+    classifyScene(fragment.n, prompt, reading, readings[index]?.treatment)
   })
   reading.styleRestored = restoreStyleTail(reading.good)
   return reading
@@ -1047,7 +1105,7 @@ export function readBatchPrompts(
  * ese ID queda pendiente. Los extras nunca sustituyen fragmentos pedidos.
  */
 function readById(
-  byId: readonly { n: number; text: string }[],
+  byId: readonly { n: number; text: string; treatment?: SceneTreatment }[],
   batch: readonly VerbatimFragment[],
   allowPartial: boolean,
 ): BatchReading {
@@ -1072,8 +1130,9 @@ function readById(
   }
   const batchIds = new Set(batch.map((fragment) => fragment.n))
   const byNumber = new Map<number, string>()
+  const treatments = new Map<number, SceneTreatment>()
   const duplicates = new Set<number>()
-  for (const { n, text } of byId) {
+  for (const { n, text, treatment } of byId) {
     if (!batchIds.has(n)) {
       reading.trimmed.push(`((${n})) outside the batch: ${text}`)
     } else if (byNumber.has(n)) {
@@ -1081,6 +1140,7 @@ function readById(
       reading.trimmed.push(`((${n})) duplicated: ${text}`)
     } else {
       byNumber.set(n, text)
+      if (treatment) treatments.set(n, treatment)
     }
   }
 
@@ -1105,7 +1165,7 @@ function readById(
       reading.defective.push({ n: fragment.n, reason: contamination })
       continue
     }
-    classifyScene(fragment.n, prompt, reading)
+    classifyScene(fragment.n, prompt, reading, treatments.get(fragment.n))
   }
   // Un lote entero en otro idioma conserva el error de dev. Si hay IDs
   // válidos o defectos de formato, se guardan los sanos y solo se reintenta el resto.
@@ -1197,6 +1257,9 @@ export async function generateVerbatimPrompts(
   // los lotes caen con llm_network y no hay a quién culpar.
   let chosenModelBlamed = false
   const obtained = new Map<number, string>()
+  // El tratamiento de cada escena cosechada, si su etiqueta era válida.
+  const treatments = new Map<number, SceneTreatment>()
+  const treatmentTags = Boolean(options.sections?.dynamism?.trim())
   const alignmentFeedback = new Map<number, string>()
   // Un stream parcial conserva texto, pero no borra el intento fallido. El
   // contador acompaña SOLO los IDs pendientes cuando la siguiente ronda los
@@ -1318,11 +1381,10 @@ export async function generateVerbatimPrompts(
           // Los intervalos de narración exigen identidad explícita: tener
           // el conteo exacto no demuestra que el modelo respetó el orden.
           // Las previews sin audio conservan su lectura histórica.
-          reading = readBatchPrompts(
-            response.content,
-            batch,
-            batch.some((fragment) => !!fragment.temporalContext),
-          )
+          reading = readBatchPrompts(response.content, batch, {
+            requireIds: batch.some((fragment) => !!fragment.temporalContext),
+            treatmentTags,
+          })
           for (const fragment of batch) failedAttemptsByScene.delete(fragment.n)
         } catch (error) {
           options.signal?.throwIfAborted()
@@ -1347,7 +1409,12 @@ export async function generateVerbatimPrompts(
           let partial: BatchReading | undefined
           if (completed && !isPromptLanguageFailure(error)) {
             try {
-              partial = readBatchPrompts(completed, batch, true)
+              // La etiqueta se lee igual que en una respuesta entera: sin
+              // esto, los prompts rescatados caerían por E33 y se re-pedirían.
+              partial = readBatchPrompts(completed, batch, {
+                requireIds: true,
+                treatmentTags,
+              })
             } catch {
               // Un prefijo inválido no sustituye la causa del transporte;
               // sin texto rescatable se conserva el error original.
@@ -1487,6 +1554,7 @@ export async function generateVerbatimPrompts(
         for (const entry of reading.good) {
           if (obtained.has(entry.n)) continue
           obtained.set(entry.n, entry.prompt)
+          if (entry.treatment) treatments.set(entry.n, entry.treatment)
           justObtained.add(entry.n)
         }
         // Trazabilidad del recorte: QUÉ se descartó, no solo cuántos.
@@ -1539,6 +1607,7 @@ export async function generateVerbatimPrompts(
             await options.onBatchReady({
               prompts: ready.prompts,
               scenesWithSubject: ready.scenesWithSubject,
+              treatments,
             })
           } catch (error) {
             // Un problema de disco NO es un fallo del modelo: si esto cayera
@@ -1773,6 +1842,7 @@ export async function generateVerbatimPrompts(
     prompts,
     missing,
     scenesWithSubject,
+    treatments,
     profile,
     inputTokens,
     outputTokens,

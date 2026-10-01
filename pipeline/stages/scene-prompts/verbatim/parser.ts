@@ -1,3 +1,5 @@
+import { SCENE_TREATMENTS, type SceneTreatment } from '../../../types/scenes.ts'
+
 // PARSEO de la respuesta del carril verbatim. Port de
 // `motor-web/verbatim/parseo.ts` del origen — funciones PURAS sobre texto,
 // testeables sin gastar un crédito.
@@ -329,6 +331,36 @@ export function readIdMarkers(
     withId.push(identified)
   }
   return withId
+}
+
+/**
+ * La etiqueta de tratamiento que `TREATMENT_TAG_RULE` pide a una gema de
+ * plantilla con dinamismo (ADR-0048): `[T:<tratamiento>]` al frente del
+ * prompt, después del id `((n))`. Hay que quitarla ANTES de mirar defectos:
+ * por su mayúscula, el guard de huecos (E33) la leería como una ranura de
+ * plantilla sin rellenar.
+ */
+const TREATMENT_TAG_REGEX = /^\[\s*T\s*:\s*([^\]\n]{0,40})\]\s*/i
+
+export interface TreatmentTagReading {
+  /** El prompt sin la etiqueta. */
+  text: string
+  /** Solo si la etiqueta nombra un tratamiento del catálogo. */
+  treatment?: SceneTreatment
+}
+
+/**
+ * Lee y QUITA la etiqueta del frente del prompt. Una etiqueta inválida se
+ * quita igual y la escena queda sin tratamiento; sin etiqueta, el texto va
+ * tal cual. En ningún caso el prompt deja de valer ni se re-pide (spec §5.3).
+ */
+export function readTreatmentTag(prompt: string): TreatmentTagReading {
+  const match = TREATMENT_TAG_REGEX.exec(prompt)
+  if (!match) return { text: prompt }
+  const text = prompt.slice(match[0].length).trim()
+  const value = match[1].trim().toLowerCase()
+  const treatment = SCENE_TREATMENTS.find((candidate) => candidate === value)
+  return treatment ? { text, treatment } : { text }
 }
 
 /**

@@ -8,7 +8,7 @@ import {
 } from '../../../project/characters.ts'
 import { PipelineFailure } from '../../../runner/failure.ts'
 import type { LlmModelProfile } from '../../../types/llm-models.ts'
-import type { Scene } from '../../../types/scenes.ts'
+import type { Scene, SceneTreatment } from '../../../types/scenes.ts'
 import type { StyleCharacter } from '../../../types/styles.ts'
 import type {
   ProjectCharacter,
@@ -35,6 +35,7 @@ import {
   protagonistFromSection,
   recoverProtagonistFromScenes,
 } from './subject-weaver.ts'
+import { withTreatment } from './treatments.ts'
 
 // El PUENTE entre las stages y el motor verbatim (port de
 // `motor-web/puente/fase_prompts.ts` del origen, sin el carril Storytime):
@@ -56,6 +57,9 @@ export interface VerbatimLaneResult {
   missing: number[]
   /** Ids de escena que este pase ESCRIBIÓ (para persistir/emitir solo esas). */
   written: Set<number>
+  /** Ids de las escritas en este pase que nombraron al protagonista (el
+   *  reparto del log de una gema con dinamismo). */
+  scenesWithSubject: number[]
   /** El modelo que escribió de verdad (tras la degradación, si la hubo) y lo
    *  que movió: el llamador lo persiste como auditoría en project.json. */
   profile: LlmModelProfile
@@ -197,6 +201,8 @@ export interface VerbatimScenePrompt {
   imagePrompt: string
   /** Ausente = el proyecto no trae personaje que indexar: no tocar el campo. */
   charactersPresent?: number[]
+  /** El tratamiento que declaró su etiqueta `[T:…]` (gema con dinamismo). */
+  treatment?: SceneTreatment
 }
 
 export interface VerbatimLaneOptions {
@@ -327,6 +333,7 @@ export async function runVerbatimLane(
       scenes,
       missing: [],
       written: new Set(),
+      scenesWithSubject: [],
       profile: resolveVerbatimModel(context.options.promptModel).profile,
       inputTokens: 0,
       outputTokens: 0,
@@ -540,12 +547,14 @@ export async function runVerbatimLane(
                 character.index,
                 carriers.has(id),
               )
+              const treatment = batch.treatments.get(id)
               written.push({
                 id,
                 imagePrompt,
                 ...(charactersPresent === undefined
                   ? {}
                   : { charactersPresent }),
+                ...(treatment ? { treatment } : {}),
               })
             }
             if (written.length === 0) return
@@ -629,21 +638,30 @@ export async function runVerbatimLane(
     }),
   )
 
+  const treatments = new Map(
+    results.flatMap(({ result }) => [...result.treatments]),
+  )
+  const scenesWithSubject = results.flatMap(
+    ({ result }) => result.scenesWithSubject,
+  )
+
   const written = new Set(prompts.keys())
   const withPrompts = scenes.map((scene) => {
     const prompt = prompts.get(scene.id)
+    if (!prompt) return scene
     // Un prompt del motor nunca es fallback: si la escena traía uno, deja de
-    // serlo.
-    return prompt
-      ? {
-          ...scene,
-          imagePrompt: prompt,
-          promptIsFallback: false,
-          ...(presence.has(scene.id)
-            ? { charactersPresent: presence.get(scene.id)! }
-            : {}),
-        }
-      : scene
+    // serlo. Su tratamiento es el del prompt nuevo.
+    return withTreatment(
+      {
+        ...scene,
+        imagePrompt: prompt,
+        promptIsFallback: false,
+        ...(presence.has(scene.id)
+          ? { charactersPresent: presence.get(scene.id)! }
+          : {}),
+      },
+      treatments.get(scene.id),
+    )
   })
 
   return {
@@ -652,11 +670,12 @@ export async function runVerbatimLane(
       : markSubjectPresence(
           withPrompts,
           written,
-          results.flatMap(({ result }) => result.scenesWithSubject),
+          scenesWithSubject,
           character.index,
         ),
     missing: results.flatMap(({ result }) => result.missing),
     written,
+    scenesWithSubject,
     profile: results[0]!.result.profile,
     inputTokens: results.reduce(
       (total, { result }) => total + result.inputTokens,
