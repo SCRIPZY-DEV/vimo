@@ -25,7 +25,12 @@ import {
   PROTAGONIST_TOKENS_BUDGET,
 } from '../../shared/protagonist-description.ts'
 import { FINAL_PROMPT_BODY_BUDGET } from '../../shared/prompt-safety.ts'
-import { buildTemplateSystem } from '../../../prompts/template-frame.ts'
+import {
+  applyFixedPhrases,
+  buildTemplateSystem,
+  stripFixedPhrases,
+  type FixedPhrases,
+} from '../../../prompts/template-frame.ts'
 import {
   buildAssistantCharacterTurn,
   buildCharacterDesignMessage,
@@ -818,11 +823,16 @@ interface FinalizedVerbatimPrompts {
  * `obtained` completo porque su regla de continuidad mira la escena anterior
  * (la N hereda la ropa de la N-1 cuando se parecen). Acotar la cadena al lote
  * rompería esa herencia, que es justo lo que sostiene el vestuario por escena.
+ *
+ * Con las frases fijas de una gema de plantilla (spec §5.4), la copia que el
+ * modelo haya escrito se quita antes de tejer y el inicio y el final se pegan
+ * después: `promptStart + ' ' + escena tejida + ' ' + promptEnd`.
  */
 function finalizeVerbatimPrompts(
   obtained: ReadonlyMap<number, string>,
   character: CharacterPlan,
   sceneWardrobe: boolean,
+  phrases: FixedPhrases | undefined,
   only?: ReadonlySet<number>,
 ): FinalizedVerbatimPrompts {
   const prompts = new Map<number, string>()
@@ -836,7 +846,10 @@ function finalizeVerbatimPrompts(
 
   for (const [n, rawPrompt] of obtained) {
     if (only && !only.has(n)) continue
-    const prompt = wardrobes?.scenes.get(n) ?? rawPrompt
+    const withoutMarkers = wardrobes?.scenes.get(n) ?? rawPrompt
+    const prompt = phrases
+      ? stripFixedPhrases(withoutMarkers, phrases)
+      : withoutMarkers
     // Con FOTO, una escena también «trae al protagonista» si el modelo
     // escribió su NOMBRE directo en vez de la etiqueta (v1.27.0). Y en los
     // modos con DESCRIPCIÓN, también si lo mencionó de forma genérica sin
@@ -856,11 +869,12 @@ function finalizeVerbatimPrompts(
       if (character.mode === 'none') sneakedIn++
       if (isBare) bare++
     }
-    const finalPrompt = composeFinalPrompt(
+    const woven = composeFinalPrompt(
       prompt,
       character,
       wardrobes?.wardrobes.get(n),
     )
+    const finalPrompt = phrases ? applyFixedPhrases(woven, phrases) : woven
     if (finalPrompt.length > FINAL_PROMPT_BODY_BUDGET) overBudget.push(n)
     prompts.set(n, finalPrompt)
   }
@@ -981,6 +995,9 @@ export interface BatchReadingOptions {
    *  etiqueta `[T:<tratamiento>]`, que se lee y se quita (ADR-0048). Ausente
    *  = la lectura de siempre, byte por byte. */
   treatmentTags?: boolean
+  /** false = no devolverle la cola de estilo a quien la perdió: con final
+   *  fijo (spec §5.4) el cierre ya lo pega el código. Ausente = true. */
+  restoreTail?: boolean
 }
 
 /**
@@ -1011,6 +1028,7 @@ export function readBatchPrompts(
   const requireIds = options.requireIds ?? false
   const tagged = (text: string): TreatmentTagReading =>
     options.treatmentTags ? readTreatmentTag(text) : { text }
+  const restoreTail = options.restoreTail ?? true
   const clean = stripReasoning(raw)
   const block = extractCodeBlock(clean)
   const fromJson = unwrapJsonPrompts(block)
@@ -1026,6 +1044,7 @@ export function readBatchPrompts(
       readIdentifiedTags(identified, options.treatmentTags),
       batch,
       requireIds,
+      restoreTail,
     )
     reading.trimmed.push(
       ...fromJson
@@ -1057,6 +1076,7 @@ export function readBatchPrompts(
       readIdentifiedTags(identified, options.treatmentTags),
       batch,
       requireIds,
+      restoreTail,
     )
     reading.trimmed.push(...pieces.filter((piece) => !readIdMarker(piece)))
     return reading
@@ -1095,7 +1115,7 @@ export function readBatchPrompts(
     if (contamination) throw contaminationFailure(fragment.n, contamination)
     classifyScene(fragment.n, prompt, reading, readings[index]?.treatment)
   })
-  reading.styleRestored = restoreStyleTail(reading.good)
+  if (restoreTail) reading.styleRestored = restoreStyleTail(reading.good)
   return reading
 }
 
@@ -1108,6 +1128,7 @@ function readById(
   byId: readonly { n: number; text: string; treatment?: SceneTreatment }[],
   batch: readonly VerbatimFragment[],
   allowPartial: boolean,
+  restoreTail: boolean,
 ): BatchReading {
   // Las previews sin contexto mantienen el rechazo histórico del lote;
   // los proyectos con intervalos conservan los IDs sanos de una respuesta mixta.
@@ -1175,7 +1196,7 @@ function readById(
     reading.defective.every((entry) => entry.reason === LANGUAGE_CONTAMINATION)
   )
     throw contaminationFailure(reading.defective[0].n, LANGUAGE_CONTAMINATION)
-  reading.styleRestored = restoreStyleTail(reading.good)
+  if (restoreTail) reading.styleRestored = restoreStyleTail(reading.good)
   return reading
 }
 
@@ -1260,6 +1281,8 @@ export async function generateVerbatimPrompts(
   // El tratamiento de cada escena cosechada, si su etiqueta era válida.
   const treatments = new Map<number, SceneTreatment>()
   const treatmentTags = Boolean(options.sections?.dynamism?.trim())
+  // Con final fijo la cola de estilo ya es determinística (spec §5.4).
+  const restoreTail = !options.sections?.promptEnd?.trim()
   const alignmentFeedback = new Map<number, string>()
   // Un stream parcial conserva texto, pero no borra el intento fallido. El
   // contador acompaña SOLO los IDs pendientes cuando la siguiente ronda los
@@ -1384,6 +1407,7 @@ export async function generateVerbatimPrompts(
           reading = readBatchPrompts(response.content, batch, {
             requireIds: batch.some((fragment) => !!fragment.temporalContext),
             treatmentTags,
+            restoreTail,
           })
           for (const fragment of batch) failedAttemptsByScene.delete(fragment.n)
         } catch (error) {
@@ -1411,9 +1435,11 @@ export async function generateVerbatimPrompts(
             try {
               // La etiqueta se lee igual que en una respuesta entera: sin
               // esto, los prompts rescatados caerían por E33 y se re-pedirían.
+              // Y con final fijo tampoco se les devuelve la cola de estilo.
               partial = readBatchPrompts(completed, batch, {
                 requireIds: true,
                 treatmentTags,
+                restoreTail,
               })
             } catch {
               // Un prefijo inválido no sustituye la causa del transporte;
@@ -1467,10 +1493,13 @@ export async function generateVerbatimPrompts(
       const pendingPrompts = new Map(obtained)
       for (const entry of reading.good)
         pendingPrompts.set(entry.n, entry.prompt)
+      // El juez revisa el prompt que se va a guardar y comprar: ya con las
+      // frases fijas pegadas y recortado con ellas (`preparePrompt`).
       const finalized = finalizeVerbatimPrompts(
         pendingPrompts,
         character,
         sceneWardrobe,
+        options.sections,
         new Set(reading.good.map((entry) => entry.n)),
       )
       if (options.preparePrompt) {
@@ -1596,6 +1625,7 @@ export async function generateVerbatimPrompts(
             obtained,
             character,
             sceneWardrobe,
+            options.sections,
             justObtained,
           )
           for (const id of justObtained) {
@@ -1796,7 +1826,12 @@ export async function generateVerbatimPrompts(
   // persiste es exactamente lo que va a recibir el generador. Y es la ÚNICA
   // ventana donde se puede saber qué escenas nombran al protagonista: un
   // renglón más abajo la etiqueta ya no existe.
-  const finalized = finalizeVerbatimPrompts(obtained, character, sceneWardrobe)
+  const finalized = finalizeVerbatimPrompts(
+    obtained,
+    character,
+    sceneWardrobe,
+    options.sections,
+  )
   for (const [id, prompt] of reviewedPrompts) finalized.prompts.set(id, prompt)
   options.signal?.throwIfAborted()
   const { prompts, scenesWithSubject, overBudget, sneakedIn, bare } = finalized

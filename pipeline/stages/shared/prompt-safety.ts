@@ -1,4 +1,5 @@
 import { MAX_PROMPT_CHARS } from '../../prompts/prompt-limits.ts'
+import type { FixedPhrases } from '../../prompts/template-frame.ts'
 import { DESCRIPTION_HEADER_PREFIX } from '../../prompts/verbatim-identity.ts'
 import {
   ANONYMITY_CLAUSE,
@@ -57,6 +58,10 @@ const MIN_SCENE_CORE_CHARS = 300
 // Dos separadores entre los tres tramos + un punto de cierre por tramo.
 const JOINED_PARTS_OVERHEAD = 5
 
+// Con frases fijas: tres separadores entre los cuatro tramos + un punto de
+// cierre por cada tramo que se puede cortar.
+const FRAMED_PARTS_OVERHEAD = 6
+
 // Corta en el último cierre de oración que entre; si el cierre queda muy
 // atrás (una oración larguísima, típica de una cola de estilo), corta en
 // palabra entera: perder media frase es mejor que perder medio prompt.
@@ -92,15 +97,97 @@ function styleTailIndex(scene: string): number {
   return boundary > 0 ? boundary + 2 : scene.length
 }
 
+interface FramedBody {
+  start: string
+  middle: string
+  end: string
+}
+
+// Las frases fijas como quedan dentro de un prompt saneado: el paso 1 de
+// `sanitizeFinalPrompt` cambia los términos marcables y colapsa los espacios
+// de TODO el prompt, también los de las frases, y el recorte (y el rescate sin
+// foto, que las quita de un prompt guardado) las buscan tal cual.
+export function sanitizedFixedPhrases(phrases: FixedPhrases): FixedPhrases {
+  return {
+    promptStart:
+      phrases.promptStart && applySafetyReplacements(phrases.promptStart),
+    promptEnd: phrases.promptEnd && applySafetyReplacements(phrases.promptEnd),
+  }
+}
+
+// El inicio y el final fijos de una gema de plantilla, separados del cuerpo.
+// undefined = el cuerpo no los trae (otro camino, o un prompt anterior a la
+// plantilla): se recorta como siempre.
+function splitFixedPhrases(
+  body: string,
+  phrases: FixedPhrases,
+): FramedBody | undefined {
+  const start = phrases.promptStart?.trim() ?? ''
+  const end = phrases.promptEnd?.trim() ?? ''
+  const hasStart = start.length > 0 && body.startsWith(start)
+  const middleStart = hasStart ? start.length : 0
+  // `endWithPunctuation` pudo sumarle un punto al final fijo.
+  const endIndex = end ? body.lastIndexOf(end) : -1
+  const hasEnd =
+    endIndex >= middleStart &&
+    /^[.!?\s]*$/.test(body.slice(endIndex + end.length))
+  if (!hasStart && !hasEnd) return undefined
+  return {
+    start: hasStart ? start : '',
+    middle: body.slice(middleStart, hasEnd ? endIndex : body.length).trim(),
+    end: hasEnd ? body.slice(endIndex).trim() : '',
+  }
+}
+
+// Con frases fijas (spec §5.4) el cuerpo es inicio → escena → identidad →
+// final. Si no entra, cede primero el núcleo de la escena (hasta su piso),
+// después el final fijo y la identidad recién al final. El inicio fijo no se
+// corta nunca.
+function fitFramedBody(framed: FramedBody, space: number): string {
+  const budget = space - framed.start.length - FRAMED_PARTS_OVERHEAD
+  const identityIndex = framed.middle.lastIndexOf(DESCRIPTION_HEADER_PREFIX)
+  const scene =
+    identityIndex < 0
+      ? framed.middle
+      : framed.middle.slice(0, identityIndex).trim()
+  const identity =
+    identityIndex < 0 ? '' : framed.middle.slice(identityIndex).trim()
+
+  const sceneSpace = Math.max(
+    MIN_SCENE_CORE_CHARS,
+    budget - identity.length - framed.end.length,
+  )
+  const fittedScene = cutAtSentence(scene, sceneSpace)
+  const endSpace = budget - fittedScene.length - identity.length
+  const fittedEnd = cutAtSentence(framed.end, Math.max(0, endSpace))
+  const identitySpace = budget - fittedScene.length - fittedEnd.length
+  const fittedIdentity = cutAtSentence(identity, Math.max(0, identitySpace))
+
+  const cut = [fittedScene, fittedIdentity, fittedEnd]
+    .filter((part) => part.length > 0)
+    .map(endWithPunctuation)
+  return [framed.start, ...cut].filter((part) => part.length > 0).join(' ')
+}
+
 // Hace entrar el cuerpo en `space`. Sin identidad tejida (todo el carril del
 // catálogo) es el corte de siempre, byte por byte. Con identidad tejida (carril
 // verbatim) el cuerpo es escena → cola de estilo → identidad, y cortar por el
 // final borraba justo la identidad: el personaje desaparecía en silencio de las
 // escenas con cola de estilo larga. Acá se cede en orden inverso de valor:
 // primero el núcleo de la escena (hasta su piso), después la cola de estilo y
-// la identidad recién al final.
-function fitBody(body: string, space: number): string {
+// la identidad recién al final. Con las frases fijas de una gema de plantilla,
+// el corte de `fitFramedBody`.
+function fitBody(
+  body: string,
+  space: number,
+  fixedPhrases?: FixedPhrases,
+): string {
   if (body.length <= space) return body
+
+  const framed = fixedPhrases
+    ? splitFixedPhrases(body, fixedPhrases)
+    : undefined
+  if (framed) return fitFramedBody(framed, space)
 
   const identityIndex = body.lastIndexOf(DESCRIPTION_HEADER_PREFIX)
   if (identityIndex < 0) return body.slice(0, Math.max(0, space)).trim()
@@ -137,9 +224,10 @@ function appendReservingSpace(
   prompt: string,
   clause: string,
   reservedAfter: number,
+  fixedPhrases?: FixedPhrases,
 ): string {
   const space = MAX_PROMPT_CHARS - clause.length - reservedAfter - 1
-  const body = fitBody(endWithPunctuation(prompt.trim()), space)
+  const body = fitBody(endWithPunctuation(prompt.trim()), space, fixedPhrases)
   return `${body} ${clause}`.trim()
 }
 
@@ -166,15 +254,33 @@ export function bodyWithoutFinalClauses(prompt: string): string {
   return prompt.slice(0, Math.min(...starts)).trim()
 }
 
-function appendAnonymity(prompt: string): string {
+// Lo que la cláusula de texto-en-imagen le garantiza al generador, la traiga
+// el fallback adentro o la anexe este archivo.
+const IMAGE_TEXT_GUARANTEES = [
+  'do not print the narration',
+  'no readable text',
+  'the narration is spoken, not written',
+]
+
+function carriesImageTextClause(prompt: string): boolean {
+  const normalized = normalizeForDedupe(prompt)
+  return IMAGE_TEXT_GUARANTEES.every((guarantee) =>
+    normalized.includes(guarantee),
+  )
+}
+
+function appendAnonymity(prompt: string, fixedPhrases?: FixedPhrases): string {
   const trimmed = prompt.trim()
   if (!trimmed) return trimmed
   if (normalizeForDedupe(trimmed).includes('fictional, anonymous individual'))
     return trimmed
-  return appendReservingSpace(trimmed, ANONYMITY_CLAUSE, 0)
+  return appendReservingSpace(trimmed, ANONYMITY_CLAUSE, 0, fixedPhrases)
 }
 
-function appendImageTextClause(prompt: string): string {
+function appendImageTextClause(
+  prompt: string,
+  fixedPhrases?: FixedPhrases,
+): string {
   const trimmed = prompt.trim()
   if (!trimmed) return trimmed
   // Mismo substring que traen las cláusulas del fallback determinístico: ni
@@ -187,10 +293,15 @@ function appendImageTextClause(prompt: string): string {
     trimmed,
     IMAGE_TEXT_LANGUAGE_CLAUSE,
     ANONYMITY_CLAUSE.length + 1,
+    fixedPhrases,
   )
 }
 
-function appendPeriodLock(prompt: string, era: string): string {
+function appendPeriodLock(
+  prompt: string,
+  era: string,
+  fixedPhrases?: FixedPhrases,
+): string {
   const trimmed = prompt.trim()
   if (!trimmed || !era.trim()) return trimmed
   if (
@@ -202,10 +313,15 @@ function appendPeriodLock(prompt: string, era: string): string {
     trimmed,
     clause,
     IMAGE_TEXT_LANGUAGE_CLAUSE.length + ANONYMITY_CLAUSE.length + 2,
+    fixedPhrases,
   )
 }
 
-function appendImmersiveDiagram(prompt: string, styleId?: string): string {
+function appendImmersiveDiagram(
+  prompt: string,
+  styleId?: string,
+  fixedPhrases?: FixedPhrases,
+): string {
   const isPhoto = isPhotorealisticStyle(styleId)
   const clause = isPhoto
     ? IMMERSIVE_DIAGRAM_PHOTO_CLAUSE
@@ -237,7 +353,11 @@ function appendImmersiveDiagram(prompt: string, styleId?: string): string {
   if (languageIndex >= 0) {
     const tail = trimmed.slice(languageIndex).trim()
     const space = MAX_PROMPT_CHARS - clause.length - tail.length - 2
-    const body = fitBody(trimmed.slice(0, languageIndex).trim(), space)
+    const body = fitBody(
+      trimmed.slice(0, languageIndex).trim(),
+      space,
+      fixedPhrases,
+    )
     return `${body} ${clause} ${tail}`.trim()
   }
 
@@ -245,6 +365,7 @@ function appendImmersiveDiagram(prompt: string, styleId?: string): string {
     trimmed,
     clause,
     IMAGE_TEXT_LANGUAGE_CLAUSE.length + ANONYMITY_CLAUSE.length + 2,
+    fixedPhrases,
   )
 }
 
@@ -261,10 +382,16 @@ export interface FinalPromptEraContext {
 }
 
 // Scrub FINAL del prompt ya ensamblado, justo antes del generador de imágenes.
+// `fixedPhrases`: las frases fijas de una gema de plantilla, que el recorte
+// protege (spec §5.4). Ausente = el recorte de siempre.
 export function sanitizeFinalPrompt(
   prompt: string,
   eraContext?: FinalPromptEraContext,
+  fixedPhrases?: FixedPhrases,
 ): string {
+  // Las frases fijas, saneadas como el resto del prompt en el paso 1: el
+  // recorte las busca tal cual dentro de él.
+  const phrases = fixedPhrases && sanitizedFixedPhrases(fixedPhrases)
   // 1) Violencia/gore/armas/sexual/drogas → términos seguros.
   let result = applySafetyReplacements(prompt ?? '')
 
@@ -278,7 +405,7 @@ export function sanitizeFinalPrompt(
       eraContext.window ?? '',
     )
   ) {
-    result = appendPeriodLock(result, eraContext.era)
+    result = appendPeriodLock(result, eraContext.era, phrases)
   }
 
   // 1.75) Escena de DIAGRAMA sin PERIOD LOCK → cláusula diegética. Con lock
@@ -288,7 +415,7 @@ export function sanitizeFinalPrompt(
     'period lock — this story is set in',
   )
   if (eraContext?.isDiagram && !hasPeriodLock) {
-    result = appendImmersiveDiagram(result, eraContext.styleId)
+    result = appendImmersiveDiagram(result, eraContext.styleId, phrases)
   } else if (
     eraContext?.isDiagram &&
     isPhotorealisticStyle(eraContext.styleId) &&
@@ -316,7 +443,11 @@ export function sanitizeFinalPrompt(
       reserveLanguage -
       reserveAnonymity -
       2
-    result = [fitBody(body, space), tail, IMMERSIVE_DIAGRAM_PHOTO_PERIOD_CLAUSE]
+    result = [
+      fitBody(body, space, phrases),
+      tail,
+      IMMERSIVE_DIAGRAM_PHOTO_PERIOD_CLAUSE,
+    ]
       .filter(Boolean)
       .join(' ')
   }
@@ -326,9 +457,27 @@ export function sanitizeFinalPrompt(
   // solo para el rescate por content policy.
   // 3) Cláusula dura de texto-en-imagen, antes de la de anonimato (reserva el
   // espacio de ambas).
-  result = appendImageTextClause(result)
+  const beforeClauses = result
+  result = appendImageTextClause(result, phrases)
   // 4) Cláusula condicional de anonimato.
-  result = appendAnonymity(result)
+  result = appendAnonymity(result, phrases)
+  // 5) Con frases fijas, la cláusula de texto que el fallback trae adentro es
+  // parte de la escena para el recorte: el paso 3 la dio por puesta y el
+  // recorte del paso 4 pudo llevársela entera o en parte. Si quedó
+  // incompleta, se rehacen los pasos 3 y 4 anexando SIEMPRE la de la
+  // plataforma, que el recorte nunca toca. Es más larga que la del fallback:
+  // el recorte, ahora más justo, se lleva lo que quedaba de esta.
+  if (phrases && !carriesImageTextClause(result)) {
+    result = appendAnonymity(
+      appendReservingSpace(
+        beforeClauses,
+        IMAGE_TEXT_LANGUAGE_CLAUSE,
+        ANONYMITY_CLAUSE.length + 1,
+        phrases,
+      ),
+      phrases,
+    )
+  }
 
   return result
 }

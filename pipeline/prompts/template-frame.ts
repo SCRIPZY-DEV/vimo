@@ -193,3 +193,75 @@ export function composeGemText(
     )
     .join('\n\n')
 }
+
+// ─── Inicio y final fijos (spec §5.4) ───
+
+/** Las frases que Vimo pega por código a cada prompt de imagen (spec §4.1). */
+export type FixedPhrases = Pick<GemSections, 'promptStart' | 'promptEnd'>
+
+const TRAILING_PUNCTUATION_REGEX = /[\s.!?,;:]+$/
+const WORD_CHARACTER_REGEX = /[\p{L}\p{N}]/u
+
+// Una coincidencia que corta una palabra a la mitad no es una copia de la
+// frase: «Pixel art of» no es el arranque de «Pixel art often», ni «art.» el
+// cierre de «a dart.». Quitarla partía la palabra del modelo.
+function splitsAWord(phraseEdge: string, neighbor: string): boolean {
+  return (
+    WORD_CHARACTER_REGEX.test(phraseEdge) && WORD_CHARACTER_REGEX.test(neighbor)
+  )
+}
+
+function opensWith(text: string, phrase: string): boolean {
+  if (!text.toLowerCase().startsWith(phrase.toLowerCase())) return false
+  return !splitsAWord(phrase.slice(-1), text.charAt(phrase.length))
+}
+
+function closesWith(text: string, phrase: string): boolean {
+  if (!text.toLowerCase().endsWith(phrase.toLowerCase())) return false
+  return !splitsAWord(
+    phrase.charAt(0),
+    text.charAt(text.length - phrase.length - 1),
+  )
+}
+
+/**
+ * El texto del modelo SIN una copia de las frases fijas: si igual las
+ * escribió (la regla se lo prohíbe), el código no las duplica. Solo quita una
+ * coincidencia exacta, sin distinguir mayúsculas, al frente o al final, que
+ * no corte una palabra. Si no quedara nada, devuelve el texto tal cual.
+ */
+export function stripFixedPhrases(
+  scenePrompt: string,
+  phrases: FixedPhrases,
+): string {
+  let text = scenePrompt.trim()
+  const start = phrases.promptStart?.trim()
+  if (start && opensWith(text, start)) text = text.slice(start.length).trim()
+
+  const end = phrases.promptEnd?.trim().replace(TRAILING_PUNCTUATION_REGEX, '')
+  const body = text.replace(TRAILING_PUNCTUATION_REGEX, '')
+  if (end && closesWith(body, end))
+    text = body
+      .slice(0, body.length - end.length)
+      .replace(/[\s,;:]+$/, '')
+      .trim()
+  return text || scenePrompt.trim()
+}
+
+/**
+ * El prompt final de una gema de plantilla: el inicio fijo, la escena ya
+ * tejida y el final fijo, separados por un espacio (spec §5.4). Sin frases,
+ * la escena tal cual.
+ */
+export function applyFixedPhrases(
+  wovenPrompt: string,
+  phrases: FixedPhrases,
+): string {
+  return [
+    phrases.promptStart?.trim(),
+    wovenPrompt.trim(),
+    phrases.promptEnd?.trim(),
+  ]
+    .filter((part) => part)
+    .join(' ')
+}

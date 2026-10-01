@@ -519,12 +519,16 @@ export async function runVerbatimLane(
             },
       client,
       signal: context.signal,
+      // El recorte previo al juez protege las frases fijas igual que el de
+      // la fase de imágenes (spec §5.4): el juez aprueba lo que se compra.
       preparePrompt: (prompt, id) =>
         finalizeSceneImagePrompt(
           scenesById.get(id)!,
           orderedScenes,
           prompt,
           'custom',
+          undefined,
+          customStyle.sections,
         ),
       reviewPrompts: (prompts) =>
         reviewNarrativePrompts(

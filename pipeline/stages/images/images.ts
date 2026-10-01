@@ -60,7 +60,16 @@ import {
   isImageAccountFailure,
   type AccountProbe,
 } from './account-probe.ts'
-import { sanitizeFinalPrompt } from '../shared/prompt-safety.ts'
+import {
+  bodyWithoutFinalClauses,
+  sanitizedFixedPhrases,
+  sanitizeFinalPrompt,
+} from '../shared/prompt-safety.ts'
+import {
+  applyFixedPhrases,
+  stripFixedPhrases,
+  type FixedPhrases,
+} from '../../prompts/template-frame.ts'
 import { rescueReferencePrompt } from '../scene-prompts/verbatim/subject-weaver.ts'
 
 // Fase 5 (port de la Fase «imágenes» del orquestador + images.ts): dispatcher
@@ -452,6 +461,9 @@ async function generateImages(
   events: ImageLaneEvents,
 ): Promise<Scene[]> {
   const { context, style } = inputs
+  // Las frases fijas de una gema de plantilla (spec §5.4): van también en el
+  // fallback y el recorte final las protege.
+  const fixedPhrases = context.options.customStyle?.sections
   context.signal.throwIfAborted()
   if (!context.options.customStyle) {
     const invalidIds: number[] = []
@@ -479,19 +491,27 @@ async function generateImages(
     // Catálogo jamás llega al fallback de compatibilidad de Mi estilo.
     if (!context.options.customStyle) return scene
     if (isValidPrompt(scene.imagePrompt)) return scene
+    const fallback = anchorNormalRealism(
+      buildDeterministicFallbackPrompt(
+        scene,
+        inputs.visualBible,
+        style,
+        orderedScenes,
+        inputs.promptCharacters,
+        inputs.imageTextLanguage,
+      ),
+      style,
+    )
+    // Como en el carril, una copia exacta de una frase en el borde del
+    // fallback se quita antes de pegarlas: cada frase va una sola vez.
     return {
       ...scene,
-      imagePrompt: anchorNormalRealism(
-        buildDeterministicFallbackPrompt(
-          scene,
-          inputs.visualBible,
-          style,
-          orderedScenes,
-          inputs.promptCharacters,
-          inputs.imageTextLanguage,
-        ),
-        style,
-      ),
+      imagePrompt: fixedPhrases
+        ? applyFixedPhrases(
+            stripFixedPhrases(fallback, fixedPhrases),
+            fixedPhrases,
+          )
+        : fallback,
       promptIsFallback: true,
     }
   })
@@ -538,6 +558,7 @@ async function generateImages(
         scene.imagePrompt,
         style.id,
         inputs.visualBible,
+        fixedPhrases,
       ),
     }
   })
@@ -704,6 +725,8 @@ async function dispatchLanes(
 // no cambia: en la próxima pasada la escena vuelve a intentar con su foto, y
 // un prompt con descripción Y foto pediría dos identidades a la vez. Con
 // estilo de catálogo el prompt ya trae la identidad en texto: va tal cual.
+// Con las frases fijas de una gema de plantilla rige también acá el orden del
+// spec §5.4 (`rescuedPromptWithPhrases`).
 async function rescueWithoutReference(
   scenes: Scene[],
   orderedScenes: Scene[],
@@ -714,6 +737,7 @@ async function rescueWithoutReference(
   if (!laneOptions.customStyle)
     return dispatchNormal(scenes, provider, inputs, laneOptions)
 
+  const fixedPhrases = inputs.context.options.customStyle?.sections
   const requestScenes = scenes.map((scene) => {
     const identities = (scene.charactersPresent ?? [])
       .map((index) => inputs.characters[index])
@@ -724,7 +748,15 @@ async function rescueWithoutReference(
     return {
       ...scene,
       imagePrompt: sanitizeFinalPrompt(
-        rescueReferencePrompt(scene.imagePrompt, identities),
+        fixedPhrases
+          ? rescuedPromptWithPhrases(
+              scene.imagePrompt,
+              identities,
+              fixedPhrases,
+            )
+          : rescueReferencePrompt(scene.imagePrompt, identities),
+        undefined,
+        fixedPhrases,
       ),
     }
   })
@@ -766,6 +798,27 @@ async function rescueWithoutReference(
     ...result,
     scene: { ...result.scene, imagePrompt: storedPrompts.get(result.scene.id) },
   }))
+}
+
+// El rescate de una gema de plantilla: la identidad de biblioteca va DENTRO
+// de la escena, antes del final fijo, como en el carril (spec §5.4). Pegada
+// después del final, el recorte tomaba al final fijo por el cierre de la
+// escena y lo cedía antes que cualquier oración. Se quitan las frases del
+// prompt guardado (ya saneado: se buscan saneadas), se teje la identidad y se
+// vuelven a pegar: inicio → escena → identidad → final.
+function rescuedPromptWithPhrases(
+  prompt: string,
+  identities: readonly { name: string; description: string }[],
+  fixedPhrases: FixedPhrases,
+): string {
+  const scene = stripFixedPhrases(
+    bodyWithoutFinalClauses(prompt),
+    sanitizedFixedPhrases(fixedPhrases),
+  )
+  return applyFixedPhrases(
+    rescueReferencePrompt(scene, identities),
+    fixedPhrases,
+  )
 }
 
 function resolveCharacterLane(
