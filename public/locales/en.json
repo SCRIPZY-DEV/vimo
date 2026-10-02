@@ -869,6 +869,12 @@
         "regenerate": "Regenerate image",
         "regenerateWithPrompt": "Regenerate with your description",
         "lastError": "Last attempt: {{reason}}",
+        "promptFailureTitle": "This scene has no prompt",
+        "promptFailureWriter": "The writer couldn't produce a valid prompt for this scene in 3 attempts.",
+        "promptFailureReviewer": "The narrative reviewer rejected the writer's prompts: they didn't show what this scene narrates.",
+        "promptFailureModels": "No AI model responded in time while this scene was being written (network or overloaded service).",
+        "promptFailureReviewerNote": "Reviewer’s objection: “{{note}}”",
+        "promptFailureHint": "Regenerate it: the prompt is rewritten with the full video context (whole script, neighboring scenes, visual bible, scene direction and characters). To steer it, write a description above.",
         "animation": {
           "title": "Animation",
           "provider": "Animation provider",

@@ -869,6 +869,12 @@
         "regenerate": "Regenerar imagem",
         "regenerateWithPrompt": "Regenerar com sua descrição",
         "lastError": "Última tentativa: {{reason}}",
+        "promptFailureTitle": "Esta cena ficou sem prompt",
+        "promptFailureWriter": "O redator não conseguiu escrever um prompt válido para esta cena em 3 tentativas.",
+        "promptFailureReviewer": "O revisor narrativo rejeitou os prompts do redator: não mostravam o que esta cena narra.",
+        "promptFailureModels": "Nenhum modelo de IA respondeu a tempo enquanto esta cena era escrita (rede ou serviço sobrecarregado).",
+        "promptFailureReviewerNote": "Objeção do revisor: “{{note}}”",
+        "promptFailureHint": "Regenere-a: o prompt é reescrito com todo o contexto do vídeo (roteiro completo, cenas vizinhas, bíblia visual, direção da cena e personagens). Para orientá-la, escreva uma descrição acima.",
         "animation": {
           "title": "Animação",
           "provider": "Provedor de animação",
