@@ -236,7 +236,11 @@ el final los agrega el código.
   o 5xx (desde el 2026-10-01; antes uno). Una respuesta cortada por largo es `modelo-fallo` y no se
   reintenta igual. El cliente sirve sin cambios para CometAPI y DeepInfra. El proveedor y el modelo
   salieron de una comparación de 13 casos, elegidos el 2026-10-01: CometAPI con `gpt-5.4-nano` y
-  `{"reasoning_effort":"medium"}`, la única configuración que acertó todos (spec §6.3).
+  `{"reasoning_effort":"medium"}`, la única configuración que acertó todos (spec §6.3). Una segunda
+  ronda contra Gemini, Grok, Haiku y otros lo confirmó: es el que menos reglas de estilo pierde, a unos
+  0,39 centavos de dólar por reconstrucción. Se pide con su id con fecha, `gpt-5.4-nano-2026-03-17`,
+  porque CometAPI llegó a atender el alias con `gpt-5.4-mini`. La columna `model` de
+  `gem_rebuild_logs` guarda «pedido → respondió» cuando no coinciden.
 - **Cupo:** 30 reconstrucciones `ok` por usuario en las últimas 24 h, contadas en
   `gem_rebuild_logs`. Los admins no tienen cupo.
 

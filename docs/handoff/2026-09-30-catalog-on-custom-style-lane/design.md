@@ -480,13 +480,29 @@ pasa, reintenta una vez con el error de validación. Si vuelve a fallar, respond
 - Timeout de 120 s y hasta dos reintentos ante 429 o 5xx, con pausas de 1 s y 2 s (el dueño pidió
   reintentos el 2026-10-01; antes era uno). Una respuesta cortada por largo
   (`finish_reason: "length"`) es `modelo-fallo` y no se reintenta igual.
-- **Elegido el 2026-10-01:** CometAPI con `gpt-5.4-nano` y `RECONSTRUCTOR_EXTRA_BODY` en
-  `{"reasoning_effort":"medium"}`. De 5 configuraciones probadas (nano sin parámetros, con `low` y con
-  `medium`; mini sin parámetros y con `medium`), es la única que acertó los 13 casos. Los casos fueron
-  10 gemas (POV Stickman, 6 de Imperio Pro, una del dueño y 2 sintéticas de 25 804 y 29 745
-  caracteres, porque no hay gemas reales tan largas) y 3 textos que no son gemas o casi. Tarda de 18 a
-  48 s, y hasta 87 s la más larga con su ronda de corrección. Cuesta unos 0,42 centavos de dólar por
-  reconstrucción. La clave es provisoria (la de FLUJO-VIANI) hasta cargar la de Vimo.
+- **Elegido el 2026-10-01:** CometAPI con `gpt-5.4-nano-2026-03-17` y `RECONSTRUCTOR_EXTRA_BODY` en
+  `{"reasoning_effort":"medium"}`. Se pide el id con fecha porque CometAPI llegó a atender el alias
+  `gpt-5.4-nano` con `gpt-5.4-mini`, cobrando nano. La clave es provisoria (la de FLUJO-VIANI) hasta
+  cargar la de Vimo. Salió de dos rondas, siempre con el código real del agente:
+  - **Casos:** 10 gemas y 3 textos de control (un guion, una lista de temas y una gema de una sola
+    frase), y en la segunda ronda 2 gemas más de 44 735 y 94 054 caracteres. Las 10 gemas son POV
+    Stickman, 6 de Imperio Pro, una del dueño y 2 sintéticas de 25 804 y 29 745 caracteres. Las
+    sintéticas juntan gemas reales, porque no hay gemas reales tan largas.
+  - **Primera ronda:** de 5 configuraciones (nano sin parámetros, con `low` y con `medium`; mini sin
+    parámetros y con `medium`), nano `medium` fue la única que acertó los 13 casos.
+  - **Segunda ronda**, a pedido del dueño, buscando algo más barato:
+    - Gemini 3 Flash y 3 Flash preview, 3.5 Flash y 3.5 Flash-Lite, y 3.1 Flash-Lite (preview y estable);
+    - Grok 4.1 Fast, Claude Haiku 4.5, GPT-4.1 mini, DeepSeek V4 Flash, Qwen 3.8 Flash y Gemini 3.8 Flash.
+
+    Unos fallaron casos, otros rechazaron gemas largas como «sin estilo visual» o se pasaron del
+    plazo, y otros razonaron tanto que salían caros y lentos.
+
+  - **Fidelidad:** dos revisores a ciegas compararon las 8 gemas reales contra una lista fija de 105
+    reglas de estilo. Nano perdió 6 y fue el mejor en 6 de 8 gemas. Los Gemini perdieron de 22 a 27.
+  - **Costo y tiempo de nano:** unos 0,39 centavos de dólar por reconstrucción (0,16 y 1,00 USD por
+    millón de tokens de entrada y salida). Tarda de 15 a 36 s en una gema real, y 29 s en la de
+    94 054. Gemini 3 Flash costaba lo mismo y tardaba 4 s, pero perdía casi cuatro veces más
+    reglas.
 
 ### 6.4 Cupo diario
 
