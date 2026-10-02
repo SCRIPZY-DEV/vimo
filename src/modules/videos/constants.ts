@@ -15,6 +15,7 @@ import type {
   NarrationMode,
 } from '@pipeline/types/video-project.ts'
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
+import type { ScenePromptFailureSource } from '@pipeline/types/scenes.ts'
 import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
@@ -187,6 +188,16 @@ export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
   'images_incomplete',
   'render_missing_images',
 ])
+// Por qué una escena de Catálogo quedó sin prompt (rescate por el editor):
+// quién falló, el redactor, el revisor narrativo o los modelos de texto.
+export const PROMPT_FAILURE_REASON_KEYS: Record<
+  ScenePromptFailureSource,
+  string
+> = {
+  writer: 'library.editor.panel.promptFailureWriter',
+  reviewer: 'library.editor.panel.promptFailureReviewer',
+  models: 'library.editor.panel.promptFailureModels',
+}
 // Fallos cuya culpa es la GEMA del estilo, no el modelo (espejo de
 // LLM_PROMPT_LANGUAGE del redactor verbatim): el estilo pide los prompts en
 // otro idioma y los prompts de imagen salen siempre en inglés. No bloquean al
