@@ -596,7 +596,9 @@ create index gem_rebuild_logs_user_created_idx
   Desde el 2026-10-02, por decisión del dueño, el botón guarda la gema tal cual, como texto, y la
   adapta en segundo plano como una gema vieja (sección 4.4):
   - El modal pasa a esa gema con «Generando adaptación a ficha de Vimo manteniendo tu gema…» y se
-    puede cerrar. La adaptación sigue, y la galería muestra el mismo aviso.
+    puede cerrar. La adaptación sigue, y su tarjeta en la galería se atenúa y muestra el avance:
+    las tres fases (guardada tal cual, la IA ordena las secciones, guardando) con la que está en
+    curso, una barra y el porcentaje en número, estimado por tiempo (el agente no informa avance).
   - Al terminar, las secciones se guardan solas. El modal o la galería muestran las cajas con los
     avisos del agente para revisarlas.
   - Si falla, la gema sigue funcionando como texto, con «Reintentar», salvo cuando el texto no es una

@@ -1,5 +1,6 @@
 import type { GemRebuildOrigin } from '@/modules/videos/types/gemRebuild'
 import type {
+  GemAdaptationPhase,
   GemMigrationOutcome,
   GemMigrationState,
   GemMigrationSteps,
@@ -15,13 +16,16 @@ import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 // que sale bien queda como «migrada», con los avisos del agente, hasta que la
 // persona descarta el aviso (memoria de la sesión, no se guarda).
 // Puro: `migrate` llega inyectado (migrateStoredGem con el agente y el
-// sidecar), así el guard scripts/test/check-app-gem-migration.mjs lo prueba sin
-// red ni sidecar.
+// sidecar) y avisa por `report` cuándo pasa al guardado; `now` también, así el
+// guard scripts/test/check-app-gem-migration.mjs lo prueba sin red, sin sidecar
+// y con un reloj fijo.
 export function createGemMigrations(
   migrate: (
     style: CustomStyleSummary,
     origin: GemRebuildOrigin,
+    report: (phase: GemAdaptationPhase) => void,
   ) => Promise<GemMigrationOutcome>,
+  now: () => number = () => Date.now(),
 ) {
   let states: ReadonlyMap<string, GemMigrationState> = new Map()
   const subscribers = new Set<() => void>()
@@ -48,11 +52,26 @@ export function createGemMigrations(
     publish(next)
   }
 
+  // El paso en que va la corrida en vuelo de esa gema. Una que ya terminó (o
+  // falló) no cambia: el aviso llega siempre antes de que `migrate` resuelva.
+  const report = (styleId: string, phase: GemAdaptationPhase) => {
+    const current = states.get(styleId)
+    if (current?.status !== 'pending') return
+    put(styleId, { ...current, phase })
+  }
+
   const run = async (style: CustomStyleSummary, origin: GemRebuildOrigin) => {
     origins.set(style.id, origin)
-    put(style.id, { status: 'pending', name: style.name, error: null })
+    put(style.id, {
+      status: 'pending',
+      name: style.name,
+      startedAt: now(),
+      phase: 'agent',
+    })
     try {
-      const outcome = await migrate(style, origin)
+      const outcome = await migrate(style, origin, (phase) =>
+        report(style.id, phase),
+      )
       // Borrada mientras tanto: no se guardó nada y no queda aviso ni
       // «Reintentar»; tampoco cuenta como migrada.
       if (outcome.status === 'deleted') {
@@ -127,7 +146,8 @@ export function createGemMigrations(
  * que se le mandó. Después del agente (hasta 150 s) se vuelve a mirar: si la
  * persona la borró mientras tanto, no se guarda nada, porque style-save la
  * volvería a crear. Los avisos del agente vuelven con el resultado: nadie los
- * vio todavía.
+ * vio todavía. Con la respuesta en mano avisa que pasa al guardado
+ * (`steps.report`): la tarjeta lo muestra como fase.
  */
 export async function migrateStoredGem(
   styleId: string,
@@ -138,6 +158,7 @@ export async function migrateStoredGem(
   if (!stored) return { status: 'deleted' }
 
   const response = await steps.rebuild(stored, origin)
+  steps.report?.('saving')
   const stillStored = await steps.findStored(styleId)
   if (!stillStored) return { status: 'deleted' }
 

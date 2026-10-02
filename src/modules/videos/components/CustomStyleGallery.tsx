@@ -152,14 +152,17 @@ export function CustomStyleGallery({
     markCustomStyleEditorSaved(entry.id)
   }
 
-  // Avisos de migración de las gemas de la lista, en su orden: en vuelo,
-  // fallidas o hechas y sin descartar.
-  const migrationNotices = gemTemplateEnabled
-    ? styles.flatMap((style) => {
-        const migration = migrations.get(style.id)
-        return migration ? [{ style, migration }] : []
-      })
-    : []
+  // La adaptación de cada gema, para su tarjeta (en vuelo: el avance encima).
+  const migrationOf = (style: CustomStyleSummary) =>
+    gemTemplateEnabled ? (migrations.get(style.id) ?? null) : null
+  // Avisos de migración de las gemas de la lista, en su orden: fallidas o
+  // hechas y sin descartar. Una en vuelo se ve en su tarjeta, no acá.
+  const migrationNotices = styles.flatMap((style) => {
+    const migration = migrationOf(style)
+    return migration && migration.status !== 'pending'
+      ? [{ style, migration }]
+      : []
+  })
   const editingMigration =
     gemTemplateEnabled && editingStyle
       ? (migrations.get(editingStyle.id) ?? null)
@@ -194,6 +197,7 @@ export function CustomStyleGallery({
             style={style}
             selected={selected?.styleId === style.id}
             disabled={disabled}
+            migration={migrationOf(style)}
             onSelect={() => selectStyle(style)}
             onEdit={() => openEdit(style, false)}
             onGenerateSamples={() => openEdit(style, true)}

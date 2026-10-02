@@ -448,6 +448,11 @@ export const GEM_SECTION_TEXT_KEYS: Record<
   },
 }
 
+// Cada cuánto se refresca el porcentaje simulado de la adaptación de una gema
+// en su tarjeta (spec §4.4). La curva y sus tiempos viven con
+// `gemAdaptationPercent` (utilities), que corre bajo un guard con Node pelado.
+export const GEM_ADAPTATION_TICK_MS = 500
+
 // Nombre de cada preset de color del estilo (spec §5.5). El filtro de FFmpeg
 // lo aplica el sidecar al render.
 export const COLOR_FILTER_LABEL_KEYS: Record<ColorFilterId, string> = {

@@ -711,6 +711,11 @@
     },
     "gemTemplate": {
       "migrationPending": "Adapting to Vimo's template while keeping your gem…",
+      "adaptingTitle": "Adapting to Vimo's template",
+      "adaptStepSaved": "Your gem is saved as is",
+      "adaptStepAgent": "The AI sorts the sections",
+      "adaptStepSaving": "Saving the sections",
+      "adaptPercent": "{{percent}}%",
       "migrationPendingNamed": "Adapting “{{name}}” to Vimo's template while keeping your gem…",
       "migrationFailed": "We couldn't adapt your gem to Vimo's template. Meanwhile it keeps working as it is.",
       "migrationFailedNamed": "We couldn't adapt “{{name}}” to Vimo's template. Meanwhile it keeps working as it is.",

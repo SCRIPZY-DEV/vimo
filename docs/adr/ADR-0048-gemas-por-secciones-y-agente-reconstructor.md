@@ -472,3 +472,12 @@ tu gema», siga aunque se cierre el modal y se guarde sola.
   - si la app se cierra en el medio, la adaptación se retoma con `origin: 'migracion'`;
   - después de un `sin-estilo-visual`, corregir el texto en el editor viejo no reintenta solo en esa
     sesión.
+- **El avance se ve en la tarjeta** (pedido del dueño, más tarde el mismo día): mientras la gema se
+  adapta, su tarjeta en la galería se atenúa y muestra encima las tres fases (la gema guardada tal
+  cual, la IA ordenando las secciones, el guardado) con la que está en curso, una barra y el
+  porcentaje en número. El agente no informa avance, así que el porcentaje es una simulación por
+  tiempo con la curva de los clips de animación (ADR-0047): en línea recta hasta el 85 % a los 30 s
+  (lo medido con gemas reales), después frenando hacia el 95 %, y un 98 % fijo mientras se guardan
+  las secciones (`gemAdaptationPercent`, `GEM_ADAPTATION_*`). El store guarda `startedAt` y `phase`
+  en la migración en vuelo; `migrateStoredGem` avisa `saving` al recibir la respuesta. El aviso de
+  «en vuelo» debajo de la grilla se quitó (lo reemplaza la tarjeta); en el modal sigue.

@@ -55,15 +55,16 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-// Un migrate simulado que se resuelve a mano, cuántas veces se llamó y con
-// qué origin (el que queda en gem_rebuild_logs).
+// Un migrate simulado que se resuelve a mano, cuántas veces se llamó, con
+// qué origin (el que queda en gem_rebuild_logs) y el `report` con el que avisa
+// el paso.
 function fakeMigrate() {
   const calls = []
   return {
     calls,
-    migrate(style, origin) {
+    migrate(style, origin, report) {
       const call = deferred()
-      calls.push({ style, origin, ...call })
+      calls.push({ style, origin, report, ...call })
       return call.promise
     },
   }
@@ -73,19 +74,58 @@ const settle = () => new Promise((done) => setTimeout(done, 0))
 
 const WARNINGS = ['Se quitó el pedido de escribir en español.']
 const MIGRATED = { status: 'migrated', warnings: WARNINGS }
+// Reloj fijo: lo que la tarjeta usa para estimar el porcentaje.
+const NOW = 1_700_000_000_000
+const clock = () => NOW
+const PENDING = {
+  status: 'pending',
+  name: 'Vieja',
+  startedAt: NOW,
+  phase: 'agent',
+}
 
 test('una gema vieja se manda una sola vez aunque se pida dos veces', () => {
   const agent = fakeMigrate()
-  const migrations = createGemMigrations(agent.migrate)
+  const migrations = createGemMigrations(agent.migrate, clock)
   migrations.migrateOnce(OLD_GEM)
   migrations.migrateOnce(OLD_GEM)
   migrations.retry(OLD_GEM)
   assert.equal(agent.calls.length, 1)
-  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
-    status: 'pending',
-    name: 'Vieja',
-    error: null,
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), PENDING)
+})
+
+test('en vuelo arranca con el agente y, cuando este responde, pasa a guardar; el arranque no cambia', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate, clock)
+  migrations.migrateOnce(OLD_GEM)
+  let notified = 0
+  migrations.subscribe(() => {
+    notified += 1
   })
+  agent.calls[0].report('saving')
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
+    ...PENDING,
+    phase: 'saving',
+  })
+  assert.equal(notified, 1)
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'migrated')
+})
+
+test('un aviso de paso que llega con la migración ya terminada o fallida no cambia nada', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate, clock)
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].reject(new Error('sin red'))
+  await settle()
+  let notified = 0
+  migrations.subscribe(() => {
+    notified += 1
+  })
+  agent.calls[0].report('saving')
+  assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'failed')
+  assert.equal(notified, 0)
 })
 
 test('al salir bien el aviso pasa a «migrada» con los avisos del agente y no se repite aunque la lista siga vieja', async () => {
@@ -194,7 +234,7 @@ test('la migración automática de una gema vieja va con origin «migracion»', 
 
 test('una gema pegada se adapta enseguida con origin «mi-estilo», aunque esa gema ya se hubiera migrado en la sesión', async () => {
   const agent = fakeMigrate()
-  const migrations = createGemMigrations(agent.migrate)
+  const migrations = createGemMigrations(agent.migrate, clock)
   migrations.migrateOnce(OLD_GEM)
   agent.calls[0].resolve(MIGRATED)
   await settle()
@@ -202,11 +242,7 @@ test('una gema pegada se adapta enseguida con origin «mi-estilo», aunque esa g
   migrations.adapt(OLD_GEM)
   assert.equal(agent.calls.length, 2)
   assert.equal(agent.calls[1].origin, 'mi-estilo')
-  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
-    status: 'pending',
-    name: 'Vieja',
-    error: null,
-  })
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), PENDING)
 })
 
 test('con una adaptación en vuelo no sale otra: ni otro clic ni la migración automática', () => {
@@ -277,7 +313,8 @@ test('quien escucha se entera de cada cambio', async () => {
 })
 
 // Lo guardado en el sidecar y el agente, simulados para migrateStoredGem: cada
-// paso queda anotado en orden, con la gema que recibió.
+// paso queda anotado en orden, con la gema que recibió, incluido el aviso de
+// paso que la tarjeta muestra.
 function fakeSteps(stored) {
   const disk = new Map(stored.map((style) => [style.id, style]))
   const agent = deferred()
@@ -296,6 +333,9 @@ function fakeSteps(stored) {
       rebuild(style, origin) {
         log.push({ step: 'rebuild', style, origin })
         return agent.promise
+      },
+      report(phase) {
+        log.push({ step: 'report', phase })
       },
       async save(style, response) {
         log.push({ step: 'save', style, response })
@@ -327,14 +367,17 @@ test('se migra lo guardado ahora y no la tarjeta de la lista: texto, nombre y re
   await settle()
   fake.agent.resolve(AGENT_RESPONSE)
   await settle()
+  // Con la respuesta del agente avisa que pasa a guardar, antes de releer.
   assert.deepEqual(fake.order(), [
     'findStored',
     'rebuild',
+    'report',
     'findStored',
     'save',
   ])
+  assert.equal(fake.log[2].phase, 'saving')
   const sent = fake.log[1].style
-  const { style: savedStyle, response } = fake.log[3]
+  const { style: savedStyle, response } = fake.log[4]
   assert.equal(sent, saved)
   assert.equal(savedStyle, saved)
   assert.equal(response, AGENT_RESPONSE)
@@ -395,6 +438,22 @@ test('ya borrada al empezar (la lista todavía la mostraba): ni agente ni guarda
     status: 'deleted',
   })
   assert.deepEqual(fake.order(), ['findStored'])
+})
+
+test('sin `report` en los pasos (el guard viejo), la migración sigue igual', async () => {
+  const fake = fakeSteps([OLD_GEM])
+  const { report: _report, ...steps } = fake.steps
+  fake.agent.resolve(AGENT_RESPONSE)
+  assert.deepEqual(await migrateStoredGem('st-vieja', steps), {
+    status: 'migrated',
+    warnings: WARNINGS,
+  })
+  assert.deepEqual(fake.order(), [
+    'findStored',
+    'rebuild',
+    'findStored',
+    'save',
+  ])
 })
 
 test('sin planos, al agente va el systemPrompt tal cual', () => {

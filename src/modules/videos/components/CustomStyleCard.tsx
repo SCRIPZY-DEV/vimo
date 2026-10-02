@@ -11,14 +11,20 @@ import {
 } from '@/modules/common/ui/dropdown-menu'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
+import { GemAdaptationProgress } from '@/modules/videos/components/GemAdaptationProgress'
+import { useGemAdaptationProgress } from '@/modules/videos/hooks/useGemAdaptationProgress'
 import { useSampleCarousel } from '@/modules/videos/hooks/useSampleCarousel'
 import { gemCharCount } from '@/modules/videos/utilities/gemTemplate'
+import type { GemMigrationState } from '@/modules/videos/types/styles'
 import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
 interface CustomStyleCardProps {
   style: CustomStyleSummary
   selected: boolean
   disabled: boolean
+  // Adaptación de esta gema a la plantilla (ADR-0048); null = ninguna. En
+  // vuelo, la tarjeta se atenúa y muestra el avance encima.
+  migration: GemMigrationState | null
   onSelect: () => void
   onEdit: () => void
   onGenerateSamples: () => void
@@ -41,6 +47,7 @@ export function CustomStyleCard({
   style,
   selected,
   disabled,
+  migration,
   onSelect,
   onEdit,
   onGenerateSamples,
@@ -55,6 +62,9 @@ export function CustomStyleCard({
     paused: overMenu,
   })
   const samples = style.samples
+  // La adaptación en vuelo, con su porcentaje estimado por tiempo.
+  const adapting = migration?.status === 'pending' ? migration : null
+  const adaptationPercent = useGemAdaptationProgress(adapting)
 
   const choose = () => {
     if (!disabled) onSelect()
@@ -99,50 +109,61 @@ export function CustomStyleCard({
     >
       {/* 4:3 — con el pie de texto abajo, la TARJETA queda casi cuadrada. */}
       <div className="relative aspect-[4/3] bg-muted">
-        {samples.length === 0 ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center text-muted-foreground">
-            <Sparkles className="h-6 w-6" />
-            <p className="font-body text-xs">
-              {t('create.customStyles.noSamples')}
-            </p>
-          </div>
-        ) : (
-          <>
-            {samples.map((sample, index) => (
-              <img
-                key={sample.file}
-                src={videosApi.imageSource(sample.path, sample.mtimeMs)}
-                alt={index === 0 ? style.name : ''}
-                loading="lazy"
-                // Una <img> se arrastra de fábrica: apretar y mover sobre
-                // ella mete al navegador en modo arrastre (cursor congelado).
-                draggable={false}
-                className={cn(
-                  'pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500',
-                  index === carousel.index ? 'opacity-100' : 'opacity-0',
-                )}
-              />
-            ))}
-            {samples.length > 1 && (
-              <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1.5">
-                {samples.map((sample, index) => (
-                  <span
-                    key={sample.file}
-                    className={cn(
-                      'h-1.5 rounded-full shadow transition-all duration-300',
-                      index === carousel.index
-                        ? 'w-4 bg-white'
-                        : 'w-1.5 bg-white/60',
-                    )}
-                  />
-                ))}
-              </div>
-            )}
-          </>
+        {/* Mientras la gema se adapta, las muestras se atenúan en bloque (la
+            opacidad del carrusel vive en cada imagen) y el avance va encima. */}
+        <div className={cn('absolute inset-0', adapting && 'opacity-40')}>
+          {samples.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center text-muted-foreground">
+              <Sparkles className="h-6 w-6" />
+              <p className="font-body text-xs">
+                {t('create.customStyles.noSamples')}
+              </p>
+            </div>
+          ) : (
+            <>
+              {samples.map((sample, index) => (
+                <img
+                  key={sample.file}
+                  src={videosApi.imageSource(sample.path, sample.mtimeMs)}
+                  alt={index === 0 ? style.name : ''}
+                  loading="lazy"
+                  // Una <img> se arrastra de fábrica: apretar y mover sobre
+                  // ella mete al navegador en modo arrastre (cursor congelado).
+                  draggable={false}
+                  className={cn(
+                    'pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500',
+                    index === carousel.index ? 'opacity-100' : 'opacity-0',
+                  )}
+                />
+              ))}
+              {samples.length > 1 && (
+                <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1.5">
+                  {samples.map((sample, index) => (
+                    <span
+                      key={sample.file}
+                      className={cn(
+                        'h-1.5 rounded-full shadow transition-all duration-300',
+                        index === carousel.index
+                          ? 'w-4 bg-white'
+                          : 'w-1.5 bg-white/60',
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {adapting && adaptationPercent !== null && (
+          <GemAdaptationProgress
+            phase={adapting.phase}
+            percent={adaptationPercent}
+          />
         )}
 
         {selected && (
-          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-saffron px-2 py-0.5 font-display text-[10px] font-bold text-charcoal shadow">
+          <span className="absolute left-2 top-2 z-[6] inline-flex items-center gap-1 rounded-full bg-saffron px-2 py-0.5 font-display text-[10px] font-bold text-charcoal shadow">
             <Check className="h-3 w-3" />
             {t('create.style.inUse')}
           </span>
@@ -201,7 +222,12 @@ export function CustomStyleCard({
                 <Pencil className="mr-2 h-4 w-4" />
                 {t('create.customStyles.edit')}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onGenerateSamples}>
+              {/* Con la adaptación en vuelo el modal no genera (su editor
+                  queda quieto hasta que se guarden las secciones). */}
+              <DropdownMenuItem
+                disabled={adapting !== null}
+                onSelect={onGenerateSamples}
+              >
                 <Sparkles className="mr-2 h-4 w-4" />
                 {t('create.customStyles.generateSamples')}
               </DropdownMenuItem>
@@ -218,7 +244,7 @@ export function CustomStyleCard({
         </div>
       </div>
 
-      <div className="px-3.5 py-2.5">
+      <div className={cn('px-3.5 py-2.5', adapting && 'opacity-40')}>
         <p className="truncate font-display text-base font-bold text-foreground">
           {style.name}
         </p>

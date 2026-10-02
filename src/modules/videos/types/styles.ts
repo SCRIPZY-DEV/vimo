@@ -76,14 +76,27 @@ export type GemTextSource = Pick<
   'systemPrompt' | 'sections'
 >
 
+// En qué paso va una adaptación en vuelo: el agente ordena la gema o ya
+// respondió y se guardan las secciones. La gema ya quedó guardada tal cual
+// antes de empezar, así que ese paso siempre está hecho.
+export type GemAdaptationPhase = 'agent' | 'saving'
+
 // Migración automática de una gema vieja a la plantilla (spec §4.4): en vuelo,
 // fallida o hecha. El nombre es el del momento de empezar: los avisos de la
 // galería lo muestran.
 export type GemMigrationState =
   | {
-      status: 'pending' | 'failed'
+      status: 'pending'
       name: string
-      // Por qué falló; null mientras está en vuelo.
+      // Cuándo arrancó y en qué paso va: la tarjeta estima el porcentaje por
+      // tiempo, porque el agente no informa avance.
+      startedAt: number
+      phase: GemAdaptationPhase
+    }
+  | {
+      status: 'failed'
+      name: string
+      // Por qué falló.
       error: unknown
     }
   | {
@@ -110,6 +123,8 @@ export interface GemMigrationSteps {
     style: CustomStyleSummary,
     origin: GemRebuildOrigin,
   ) => Promise<GemRebuildResponse>
+  // Avisa en qué paso va (el agente respondió: se guardan las secciones).
+  report?: (phase: GemAdaptationPhase) => void
   // Guarda las secciones de esa gema y espera la lista nueva.
   save: (
     style: CustomStyleSummary,

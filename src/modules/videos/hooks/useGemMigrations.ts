@@ -47,8 +47,9 @@ const migrationSteps: GemMigrationSteps = {
   },
 }
 
-const gemMigrations = createGemMigrations((style, origin) =>
-  migrateStoredGem(style.id, migrationSteps, origin),
+// Cada corrida lleva su propio `report`: el store lo ata a la gema en vuelo.
+const gemMigrations = createGemMigrations((style, origin, report) =>
+  migrateStoredGem(style.id, { ...migrationSteps, report }, origin),
 )
 
 // Automática: una vez por gema y por sesión (spec §4.4).

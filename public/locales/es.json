@@ -711,6 +711,11 @@
     },
     "gemTemplate": {
       "migrationPending": "Generando adaptación a ficha de Vimo manteniendo tu gema…",
+      "adaptingTitle": "Adaptando a la ficha de Vimo",
+      "adaptStepSaved": "Tu gema quedó guardada tal cual",
+      "adaptStepAgent": "La IA ordena las secciones",
+      "adaptStepSaving": "Guardando las secciones",
+      "adaptPercent": "{{percent}}%",
       "migrationPendingNamed": "Generando adaptación de «{{name}}» a ficha de Vimo manteniendo tu gema…",
       "migrationFailed": "No pudimos adaptar tu gema a la ficha de Vimo. Mientras tanto sigue funcionando tal como está.",
       "migrationFailedNamed": "No pudimos adaptar «{{name}}» a la ficha de Vimo. Mientras tanto sigue funcionando tal como está.",
