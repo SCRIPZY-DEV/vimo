@@ -6,16 +6,18 @@ import type { ProjectCharacter } from '../types/video-project.ts'
 import type { ProjectPaths } from './paths.ts'
 
 // Personajes del proyecto listos para el pipeline: identidad canónica + su
-// referencia visual como data URI (la foto subida o el preview del estilo
-// copiado por create-video-project). Port acotado de prepararPersonaje: acá
-// la referencia ya quedó resuelta DENTRO del proyecto al crearlo, así que no
-// hay búsqueda por estilo ni fallbacks de nombres históricos.
+// referencia visual como data URI. Solo un personaje «con foto» carga
+// referencia: uno de identidad de prompt viaja SIEMPRE como texto, aunque el
+// proyecto (creado antes del 2026-10-02) traiga copiado su retrato del estilo.
+// Port acotado de prepararPersonaje: la referencia ya quedó resuelta DENTRO
+// del proyecto al crearlo, así que no hay búsqueda por estilo ni fallbacks de
+// nombres históricos.
 
 export interface PipelineCharacter {
   name: string
   description: string
-  // Ausente si la referencia no se pudo leer: la identidad viaja solo como
-  // texto y el estilo del video manda (mismo degradado que el origen).
+  // Ausente en los personajes de texto y si la foto no se pudo leer: la
+  // identidad viaja solo como texto y el estilo del video manda.
   imageDataUri?: string
 }
 
@@ -32,7 +34,7 @@ export async function loadPipelineCharacters(
       description: character.description?.trim() ?? '',
     }
 
-    if (character.referenceImageFile) {
+    if (character.mode === 'photo' && character.referenceImageFile) {
       const imagePath = join(
         paths.charactersDirectory,
         character.referenceImageFile,

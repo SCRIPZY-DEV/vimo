@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import {
   readCharacterMetadata,
   assertValidCharacterId,
-  findLibraryPreviewFile,
 } from '../characters/character-library.ts'
 import { writeProjectMetadata } from '../../project/metadata.ts'
 import {
@@ -80,7 +79,6 @@ export async function createVideoProject(
   if (payload.script) await writeFile(paths.scriptFile, payload.script, 'utf8')
 
   const characters = await storeCharacterReferences(
-    context,
     projectsRoot,
     paths.charactersDirectory,
     payload,
@@ -371,11 +369,10 @@ async function resolveAvailableSlug(
   )
 }
 
-// Deja cada referencia visual DENTRO del proyecto (foto subida o preview de
-// la biblioteca del estilo actual): el pipeline nunca vuelve a mirar la
-// biblioteca, así el proyecto es autocontenido y la biblioteca puede cambiar.
+// Deja la foto de cada personaje «con foto» DENTRO del proyecto: el pipeline
+// nunca vuelve a mirar la biblioteca, así el proyecto es autocontenido y la
+// biblioteca puede cambiar.
 async function storeCharacterReferences(
-  context: PipelineContext,
   projectsRoot: string,
   charactersDirectory: string,
   payload: CreateVideoProjectPayload,
@@ -385,21 +382,14 @@ async function storeCharacterReferences(
 
   await ensureDirectory(charactersDirectory)
 
-  // Con estilo propio el preview se busca por el id de galería de la gema
-  // (options.styleId viaja como 'normal' solo para el contrato).
-  const previewStyleKey =
-    payload.options.customStyle?.styleId ?? payload.options.styleId
-
   const stored: ProjectCharacter[] = []
   for (const [index, character] of incoming.entries()) {
     validateCharacter(character)
     const referenceImageFile = await storeReferenceImage(
-      context,
       projectsRoot,
       charactersDirectory,
       character,
       index,
-      previewStyleKey,
     )
 
     const entry: ProjectCharacter = {
@@ -439,17 +429,23 @@ function validateCharacter(character: NewVideoProjectCharacter): void {
       'invalid_payload',
       'photo characters need photoDataUri or a library characterId',
     )
+  // El id de biblioteca queda en project.json aunque el personaje no busque
+  // nada en ella (uno de texto ya no copia referencia): se valida siempre.
+  if (character.characterId) assertValidCharacterId(character.characterId)
 }
 
 async function storeReferenceImage(
-  context: PipelineContext,
   projectsRoot: string,
   charactersDirectory: string,
   character: NewVideoProjectCharacter,
   index: number,
-  previewStyleKey: string,
 ): Promise<string | undefined> {
-  // La foto (o el preview ya generado) puede venir directa como data URI.
+  // Un personaje de identidad de prompt viaja SIEMPRE como texto, tenga o no
+  // retrato del estilo (enmienda del 2026-10-02 a la ADR-0021): no lleva
+  // referencia.
+  if (character.mode !== 'photo') return undefined
+
+  // La foto puede venir directa como data URI.
   if (character.photoDataUri) {
     const image = decodeImageDataUri(
       character.photoDataUri,
@@ -467,7 +463,6 @@ async function storeReferenceImage(
   }
 
   if (!character.characterId) return undefined
-  assertValidCharacterId(character.characterId)
 
   const libraryDirectory = join(
     projectsRoot,
@@ -480,41 +475,17 @@ async function storeReferenceImage(
   // como referencia en TODOS los estilos (ADR-0033). Sin el archivo no hay
   // personaje que ofrecer — el listado ya lo esconde, así que llegar acá sin
   // foto es un payload inconsistente, no un caso a degradar.
-  if (character.mode === 'photo') {
-    const photoFile = libraryMetadata?.photoFile
-    if (!photoFile)
-      throw new PipelineFailure(
-        'invalid_payload',
-        `character "${character.characterId}" has no photo in the library`,
-      )
-
-    const extension = photoFile.split('.').pop() ?? 'jpg'
-    const file = `reference_${index + 1}.${extension}`
-    await copyFile(
-      join(libraryDirectory, photoFile),
-      join(charactersDirectory, file),
+  const photoFile = libraryMetadata?.photoFile
+  if (!photoFile)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `character "${character.characterId}" has no photo in the library`,
     )
-    return file
-  }
 
-  // Modo texto con personaje de biblioteca: se copia el preview del estilo
-  // ACTUAL (regla E20: jamás el de otro estilo). Si no existe, el personaje
-  // viaja sin referencia — su identidad va solo como texto — y queda un
-  // aviso en el log; la UI ya lo anticipa en el picker.
-  const previewFile = findLibraryPreviewFile(libraryMetadata, previewStyleKey)
-  if (!previewFile) {
-    context.emitter.emit({
-      type: 'log',
-      level: 'warn',
-      message: `character "${character.characterId}" has no preview for style "${previewStyleKey}" — its identity travels as text only`,
-    })
-    return undefined
-  }
-
-  const extension = previewFile.split('.').pop() ?? 'jpg'
+  const extension = photoFile.split('.').pop() ?? 'jpg'
   const file = `reference_${index + 1}.${extension}`
   await copyFile(
-    join(libraryDirectory, previewFile),
+    join(libraryDirectory, photoFile),
     join(charactersDirectory, file),
   )
   return file

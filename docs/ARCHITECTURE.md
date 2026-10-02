@@ -554,11 +554,11 @@ posterior no puede tirarlos y el reintento solo pide lo que falta. La gema decla
 qué hace con su protagonista (`customStyle.character`: propio, genérico o
 ninguno) y puede diseñarlo con el guion como contexto (`design-style-character`).
 Un personaje se ilustra también con la gema (`generate-character-preview` con el
-id de galería: la gema escribe el prompt del retrato por el LLM) y esa es la
-referencia que `create-video-project` copia al proyecto; si el personaje no tiene
-preview del estilo actual, va sin referencia con un aviso en el log, nunca con el
-preview de otro estilo (ADR-0021). Un personaje **con foto** (ADR-0033) no depende
-de previews: su foto es la referencia en cualquier estilo, y con gema entra al
+id de galería: la gema escribe el prompt del retrato por el LLM), pero ese retrato
+es solo para verlo: un personaje de identidad de prompt viaja siempre como texto,
+en cualquier estilo, y `create-video-project` no le copia ninguna referencia
+(enmienda del 2026-10-02 a la ADR-0021). Solo un personaje **con foto** (ADR-0033)
+lleva referencia: su foto es la referencia en cualquier estilo, y con gema entra al
 modo `reference` del carril (la identidad viaja en la imagen, no en texto). Los
 prompts salen **siempre en inglés**: la plataforma suma a la gema una regla de idioma
 (`OUTPUT_LANGUAGE_RULE`, ADR-0019) y, si el modelo igual escribe en otro idioma, la fase

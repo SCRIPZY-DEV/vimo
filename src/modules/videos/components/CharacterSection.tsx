@@ -10,12 +10,8 @@ import { CharacterPickerModal } from '@/modules/videos/components/CharacterPicke
 import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
 import { openCatalogStyleViewer } from '@/modules/videos/hooks/useCatalogStyleViewer'
 import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
-import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
-import {
-  characterPortraitPath,
-  findStylePreview,
-} from '@/modules/videos/utilities/findStylePreview'
+import { characterPortraitPath } from '@/modules/videos/utilities/findStylePreview'
 import {
   gemBringsCharacter,
   styleContextGemOf,
@@ -64,24 +60,6 @@ export function CharacterSection({
   const fixedSeeded = value.characters.some(
     (character) => character.characterId === fixedCharacterId,
   )
-
-  // Con «Mi estilo», un personaje SIN foto viaja con referencia solo si tiene
-  // preview de ESTE estilo (regla E20; ADR-0021 prohíbe usar el de otro). Un
-  // estilo recién creado casi nunca lo tiene: la identidad va como texto y el
-  // personaje puede no parecerse. Se avisa, sin bloquear. Con un estilo del
-  // catálogo nuevo no: el aviso manda a Personajes, que no conoce esos
-  // estilos (el retrato se genera desde el modal del selector).
-  const textCharactersChosen =
-    lane === 'custom' &&
-    value.characters.some((character) => character.mode === 'text')
-  const { characters: catalog } = useCharacterCatalog(textCharactersChosen)
-  const withoutStylePreview = textCharactersChosen
-    ? value.characters.filter((character) => {
-        if (character.mode !== 'text') return false
-        const entry = catalog.find((item) => item.id === character.characterId)
-        return entry !== undefined && !findStylePreview(entry, previewStyleKey)
-      })
-    : []
 
   // El personaje fijo de la gema se siembra solo, sin pedir un clic: el
   // catálogo llega asíncrono y el formulario lo tiene el padre, así que la
@@ -367,16 +345,6 @@ export function CharacterSection({
           </div>
         )}
       </button>
-
-      {withoutStylePreview.length > 0 && (
-        <p className="font-body text-xs text-muted-foreground">
-          {t('create.characters.noStylePreviewHint', {
-            names: withoutStylePreview
-              .map((character) => character.name)
-              .join(', '),
-          })}
-        </p>
-      )}
 
       {value.characters.length > 0 && (
         <ul className="flex flex-wrap gap-2">

@@ -1,6 +1,7 @@
 # ADR-0021 — Previews de personaje con estilos propios y referencia opcional
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada; enmendada el 2026-10-02 (los personajes sin foto viajan
+  siempre como texto, ver la enmienda al final de la decisión)
 - **Fecha:** 2026-09-04
 - **Área:** pipeline / app
 - **Extiende:** [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md) (estilos
@@ -96,6 +97,31 @@ propio; sin preview del estilo actual, el personaje viaja sin referencia.**
 > Y si la descripción de biblioteca queda vacía tras los recortes, viaja apenas
 > limpia en vez de no viajar.
 > Ver [causa, implementación y QA](../fixes/2026-09-19-fix-custom-style-library-identity/custom-style-library-identity.md).
+
+> **Enmienda 2026-10-02 — un personaje sin foto viaja siempre como texto.** Por
+> decisión del dueño, el preview de un personaje sin foto (de identidad de prompt)
+> deja de ser su referencia visual: viaja **siempre como texto**, en todos los estilos
+> (catálogo y Mi estilo), tenga o no preview del estilo del video. Su preview queda
+> para verlo en la app. **Solo un personaje con foto (ADR-0033) viaja como imagen de
+> referencia.** Reemplaza:
+>
+> - El punto 3: `create-video-project` ya no copia el preview del estilo para un
+>   personaje de texto ni avisa en el log cuando falta (falte o no, no viaja).
+> - La regla E20 como regla de **referencia**: queda solo como regla de qué preview se
+>   **muestra** (el del estilo actual, si existe).
+> - El aviso de la adenda del 2026-09-19 (`create.characters.noStylePreviewHint`), que
+>   se quita de la UI y de los tres catálogos.
+> - La primera consecuencia («el carril de personaje recibe una referencia en ese
+>   estilo»): con texto no hay referencia.
+>
+> Los proyectos ya creados también cambian: `loadPipelineCharacters` carga la
+> referencia solo si el personaje es `photo`, así que el preview que un proyecto viejo
+> tenga copiado para un personaje de texto no viaja en las regeneraciones. Las muestras
+> de Mi estilo siguen la misma regla (`resolveSampleCharacter`): el personaje de texto
+> sale dibujado desde su descripción. Efectos aceptados: en los estilos donde el
+> personaje tenía preview puede variar más entre escenas, y sus escenas pasan del
+> carril con referencia (siempre en calidad baja) a la calidad elegida para el video.
+> Ver [causa, corrección y QA](../../fixes/2026-10-02_prompt-identity-travels-as-text.md).
 
 ## Alternativas consideradas
 

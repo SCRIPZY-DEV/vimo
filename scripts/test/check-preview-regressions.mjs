@@ -518,12 +518,14 @@ for (const scenario of [
     library: [{ ...LUCIA, photo: true }],
     expect: 'reference',
   },
+  // Con identidad de prompt el retrato del estilo no viaja: el personaje sale
+  // dibujado desde su texto, igual que en el video.
   {
-    name: 'own, preview of this style',
+    name: 'own, text with a portrait of this style',
     provider: 'evolink',
     character: OWN,
     library: [{ ...LUCIA, preview: 'fixture' }],
-    expect: 'reference',
+    expect: 'text',
   },
   {
     name: 'own, preview of another style',

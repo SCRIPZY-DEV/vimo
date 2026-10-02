@@ -223,7 +223,6 @@
       "change": "Trocar",
       "hint": "Aparece consistente no seu vídeo; você escolhe com que frequência.",
       "hintOfStyle": "Aparece consistente no seu vídeo; este estilo decide em quais cenas ele aparece.",
-      "noStylePreviewHint": "Este estilo ainda não tem uma ilustração de {{names}}: a identidade vai viajar só como texto e pode não ficar igual. Para mais fidelidade, gere a ilustração nesse estilo em Personagens.",
       "remove": "Remover personagem",
       "pickerTitle": "Escolher personagens",
       "pickerDescription": "Você pode escolher até {{max}} personagens; eles mantêm a identidade no vídeo todo.",
