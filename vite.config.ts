@@ -18,6 +18,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Desde la animación (PR #91), `src/` importa VALORES puros de
+      // `pipeline/` (bloques de escena, planificador, constantes de video). El
+      // build los resolvía por los paths de tsconfig y el servidor de dev no:
+      // sin este alias, `pnpm tauri dev` no cargaba la app. Ver ADR-0010.
+      '@pipeline': fileURLToPath(new URL('./pipeline', import.meta.url)),
     },
   },
 })
