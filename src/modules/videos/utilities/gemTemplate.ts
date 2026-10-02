@@ -49,7 +49,8 @@ export const COLOR_FILTER_IDS: typeof PIPELINE_COLOR_FILTER_IDS = [
 
 // Límites de la spec §4.1: cada sección hasta 12 000 caracteres, `character`
 // hasta 700 (la identidad tejida), las frases fijas hasta 600 y la suma hasta
-// 30 000 (el tope de siempre de una gema).
+// 30 000, porque las secciones van en cada pedido de prompts. La gema que se
+// pega puede ser más larga (GEM_REBUILD_TEXT_LIMIT): el agente la condensa.
 export const GEM_SECTION_LIMITS: Record<GemSectionKey, number> = {
   visualStyle: 12_000,
   character: 700,
@@ -60,6 +61,10 @@ export const GEM_SECTION_LIMITS: Record<GemSectionKey, number> = {
   promptEnd: 600,
 }
 export const GEM_TOTAL_CHAR_LIMIT = 30_000
+
+// El texto más largo que acepta el agente: espejo de LIMITE_TEXTO_GEMA de
+// vimo-landing y de CUSTOM_STYLE_PROMPT_LIMIT (lo que se puede pegar).
+export const GEM_REBUILD_TEXT_LIMIT = 100_000
 
 /**
  * Las secciones como se guardan: sin espacios en los bordes y sin las
@@ -271,13 +276,13 @@ function allowedShotsBlock(shots: string[]): string {
  * `systemPrompt` y, si tiene planos, el bloque «# ALLOWED SHOTS» del sidecar,
  * para que el agente los pase a la sección `camera` (una gema de plantilla no
  * guarda planos). Sin planos, el `systemPrompt` tal cual. Si con los planos
- * pasara el tope de una gema, va sin ellos: mejor perder los planos que no
+ * pasara lo que acepta el agente, va sin ellos: mejor perder los planos que no
  * poder migrarla nunca.
  */
 export function migrationRebuildText(style: CustomStyleSummary): string {
   const systemPrompt = (style.systemPrompt ?? '').trim()
   const withShots = `${systemPrompt}${allowedShotsBlock(style.shots)}`.trim()
-  if (withShots.length > GEM_TOTAL_CHAR_LIMIT) return systemPrompt
+  if (withShots.length > GEM_REBUILD_TEXT_LIMIT) return systemPrompt
   return withShots
 }
 

@@ -104,8 +104,11 @@ render ────────► filterFinal del preset de color
 | `promptStart`               | Inglés       | Frase que el código antepone a cada prompt de imagen.                                                                                                                   | 600    |
 | `promptEnd`                 | Inglés       | Frase que el código agrega al final de cada prompt de imagen.                                                                                                           | 600    |
 
-- La suma tiene el tope de siempre de una gema, 30 000 caracteres (`SYSTEM_PROMPT_CHAR_LIMIT`). El
-  de `character` es el de la identidad tejida (`MAX_WOVEN_IDENTITY_CHARS`).
+- La suma tiene un tope de 30 000 caracteres (`GEM_SECTIONS_TOTAL_CHAR_LIMIT`), el que tenía una
+  gema, porque las secciones van en cada pedido de prompts. La gema que se pega admite hasta 100 000
+  (`SYSTEM_PROMPT_CHAR_LIMIT`, también para las gemas viejas y el respaldo): el dueño lo subió el
+  2026-10-01 porque hay gemas más largas, y el agente las condensa. El de `character` es el de la
+  identidad tejida (`MAX_WOVEN_IDENTITY_CHARS`).
 - `style.json` y `CustomStyleSummary` suman `sections`, `templateVersion`, `sourcePrompt` (el texto
   que se mandó al agente: solo respaldo, no se usa para generar), `colorFilter`, `origin` (copias
   del catálogo, Entrega 2) y `updatedAt`. `systemPrompt` pasa a ser opcional: solo lo tienen las
@@ -203,7 +206,7 @@ el final los agrega el código.
 ### El agente reconstructor
 
 - `POST https://vimo.click/api/estilos/reconstruir` con `Authorization: Bearer <access_token>`.
-  Pedido: `{ text, origin, appVersion, locale }`, con `text` de 1 a 30 000 caracteres y `origin`
+  Pedido: `{ text, origin, appVersion, locale }`, con `text` de 1 a 100 000 caracteres y `origin`
   `mi-estilo`, `catalogo` o `migracion`. Respuesta 200:
   `{ templateVersion, sections, suggestions, warnings }`, con los `warnings` en el idioma de la app.
 - Errores con `{ code }`: 401 `sin-token` y `token-invalido`; 403 `sin-acceso` y

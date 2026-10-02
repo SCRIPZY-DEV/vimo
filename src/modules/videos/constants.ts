@@ -401,8 +401,11 @@ export const SAMPLE_SWIPE_SETTLE_TRANSITION =
 export const CUSTOM_STYLE_SAMPLE_COUNT = 4
 
 // Espejo de los límites del sidecar (pipeline/commands/styles/style-store.ts).
+// La gema que se pega admite hasta 100 000 caracteres (eran 30 000, el tope del
+// origen): hay gemas más largas. También es lo que acepta el agente
+// reconstructor (GEM_REBUILD_TEXT_LIMIT en utilities/gemTemplate.ts).
 export const CUSTOM_STYLE_NAME_LIMIT = 80
-export const CUSTOM_STYLE_PROMPT_LIMIT = 30_000
+export const CUSTOM_STYLE_PROMPT_LIMIT = 100_000
 export const CUSTOM_STYLE_MAX_SHOTS = 20
 
 // Campo de texto del modal de estilo: nombre, gema, secciones y planos.

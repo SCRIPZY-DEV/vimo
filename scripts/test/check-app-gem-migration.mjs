@@ -15,6 +15,7 @@ import {
   migrateStoredGem,
 } from '../../src/modules/videos/utilities/gemMigrations.ts'
 import {
+  GEM_REBUILD_TEXT_LIMIT,
   migrationRebuildText,
   migrationStyleSavePayload,
 } from '../../src/modules/videos/utilities/gemTemplate.ts'
@@ -325,13 +326,15 @@ test('con planos, se suma el bloque # ALLOWED SHOTS del sidecar', () => {
   )
 })
 
-test('si con los planos pasara el tope de una gema, va sin ellos', () => {
-  const tooLong = 'a'.repeat(29_990)
+test('si con los planos pasara lo que acepta el agente, va sin ellos', () => {
+  // El tope de LIMITE_TEXTO_GEMA en vimo-landing (eran 30 000).
+  assert.equal(GEM_REBUILD_TEXT_LIMIT, 100_000)
+  const tooLong = 'a'.repeat(99_990)
   assert.equal(
     migrationRebuildText({ ...OLD_GEM, systemPrompt: tooLong }),
     tooLong,
   )
-  const fits = 'a'.repeat(29_900)
+  const fits = 'a'.repeat(99_900)
   assert.equal(
     migrationRebuildText({ ...OLD_GEM, systemPrompt: fits }),
     `${fits}\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot`,

@@ -81,7 +81,9 @@ const invalid = { code: 'invalid_payload' }
 test('the limits are the ones of the spec', () => {
   assert.equal(GEM_SECTION_CHAR_LIMIT, 12_000)
   assert.equal(GEM_SECTIONS_TOTAL_CHAR_LIMIT, 30_000)
-  assert.equal(GEM_SECTIONS_TOTAL_CHAR_LIMIT, SYSTEM_PROMPT_CHAR_LIMIT)
+  // Una gema pegada (y el respaldo de la original) puede ser más larga que la
+  // suma de las secciones: el agente la condensa.
+  assert.equal(SYSTEM_PROMPT_CHAR_LIMIT, 100_000)
   assert.equal(CHARACTER_SECTION_CHAR_LIMIT, 700)
   assert.equal(FIXED_PHRASE_CHAR_LIMIT, 600)
 })
@@ -244,7 +246,7 @@ for (const [name, payload] of [
     },
   ],
   [
-    'a backup over 30 000',
+    'a backup over 100 000',
     { sections, sourcePrompt: 'x'.repeat(SYSTEM_PROMPT_CHAR_LIMIT + 1) },
   ],
 ]) {

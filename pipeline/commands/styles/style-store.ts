@@ -26,8 +26,10 @@ export const STYLE_FILE = 'style.json'
 export const SAMPLE_FILE_PATTERN = /^sample-(\d+)\.jpg$/
 
 // Límites portados del origen (rutas/estilos.ts + util/estilosPropios.ts).
+// Desviación deliberada: una gema admite hasta 100 000 caracteres, no los
+// 30 000 del origen, porque hay gemas más largas (ADR-0048).
 export const STYLE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/
-export const SYSTEM_PROMPT_CHAR_LIMIT = 30_000
+export const SYSTEM_PROMPT_CHAR_LIMIT = 100_000
 export const MAX_SHOTS = 20
 export const MAX_SAMPLES = 8
 export const MAX_SAMPLE_BYTES = 4 * 1024 * 1024
@@ -37,11 +39,12 @@ export const STYLE_NAME_LIMIT = 80
 export const DEFAULT_CHARACTER_ID_LIMIT = 120
 
 // Límites de una gema de plantilla (spec §4.1, ADR-0048): cada sección hasta
-// 12 000 y la suma hasta el tope de siempre. `character` se teje entera en
-// cada escena, así que su tope es el de la identidad tejida; el inicio y el
-// final fijos se pegan en cada prompt de imagen.
+// 12 000 y la suma hasta 30 000, porque las secciones van en cada pedido de
+// prompts; una gema pegada más larga la condensa el agente. `character` se
+// teje entera en cada escena, así que su tope es el de la identidad tejida;
+// el inicio y el final fijos se pegan en cada prompt de imagen.
 export const GEM_SECTION_CHAR_LIMIT = 12_000
-export const GEM_SECTIONS_TOTAL_CHAR_LIMIT = SYSTEM_PROMPT_CHAR_LIMIT
+export const GEM_SECTIONS_TOTAL_CHAR_LIMIT = 30_000
 export const CHARACTER_SECTION_CHAR_LIMIT = MAX_WOVEN_IDENTITY_CHARS
 export const FIXED_PHRASE_CHAR_LIMIT = 600
 // El texto original que se mandó al agente (solo respaldo): el mismo tope

@@ -181,9 +181,12 @@ Las tres secciones en inglés se pegan tal cual en el prompt de imagen, por eso 
 que el modelo las traduzca. Las demás las lee el modelo, que ya traduce al inglés gracias a
 `OUTPUT_LANGUAGE_RULE` (ADR-0019).
 
-**Límites:** cada sección hasta 12 000 caracteres y la suma hasta 30 000, el tope de hoy
-(`SYSTEM_PROMPT_CHAR_LIMIT`). `character` hasta 700, el tope de la identidad tejida
-(`MAX_WOVEN_IDENTITY_CHARS`). `promptStart` y `promptEnd` hasta 600 cada una.
+**Límites:** cada sección hasta 12 000 caracteres y la suma hasta 30 000
+(`GEM_SECTIONS_TOTAL_CHAR_LIMIT`), porque las secciones van en cada pedido de prompts. `character`
+hasta 700, el tope de la identidad tejida (`MAX_WOVEN_IDENTITY_CHARS`). `promptStart` y `promptEnd`
+hasta 600 cada una. La gema que se pega admite hasta 100 000 caracteres (`SYSTEM_PROMPT_CHAR_LIMIT`;
+eran 30 000, el tope de siempre): el dueño lo subió el 2026-10-01 porque hay gemas más largas, y el
+agente las condensa en las secciones.
 
 ### 4.2 Datos
 
@@ -378,7 +381,7 @@ Pedido:
 
 ```json
 {
-  "text": "<gema completa, 1 a 30000 caracteres>",
+  "text": "<gema completa, 1 a 100000 caracteres>",
   "origin": "mi-estilo",
   "appVersion": "0.9.0",
   "locale": "es"
@@ -421,7 +424,7 @@ Errores, con `{ "code": "…" }` en el cuerpo:
 | 403  | `sin-acceso`          | El usuario no pasa las reglas de `verificar-acceso`.                                             |
 | 403  | `funcion-desactivada` | `features.gemTemplate` está apagado para ese usuario, o pide `origin: "catalogo"` sin ser admin. |
 | 400  | `pedido-invalido`     | JSON roto, o `origin`, `locale` o `appVersion` inválidos.                                        |
-| 400  | `texto-invalido`      | Texto vacío o de más de 30 000 caracteres.                                                       |
+| 400  | `texto-invalido`      | Texto vacío o de más de 100 000 caracteres.                                                      |
 | 422  | `sin-estilo-visual`   | El texto no dice cómo se ven las imágenes (un guion, una lista de temas). No gasta cupo.         |
 | 429  | `cupo-agotado`        | Superó el cupo diario (sección 6.4). Trae `retryAfterSeconds`.                                   |
 | 500  | `error-interno`       | Falla interna del servidor: Supabase caído, configuración faltante o una excepción inesperada.   |

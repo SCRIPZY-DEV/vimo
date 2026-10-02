@@ -137,7 +137,7 @@ for (const [name, payload, message] of [
   ['neither kind of gem', {}, 'payload.gem is required'],
   [
     'an old gem over the limit',
-    { gem: 'a'.repeat(30_001) },
+    { gem: 'a'.repeat(100_001) },
     'payload.gem is too long',
   ],
   [
