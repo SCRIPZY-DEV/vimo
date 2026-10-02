@@ -52,6 +52,17 @@ export interface SceneImageTask {
   hash: string
 }
 
+// Quién dejó a una escena sin prompt de Catálogo: el redactor (no logró un
+// prompt válido), el revisor narrativo (rechazó lo que el redactor escribió)
+// o ningún modelo de texto respondió (red, saturación o timeout).
+export type ScenePromptFailureSource = 'writer' | 'reviewer' | 'models'
+
+export interface ScenePromptFailure {
+  source: ScenePromptFailureSource
+  // La objeción del revisor, tal como la escribió (en inglés).
+  detail?: string
+}
+
 // Una escena del video. La ruta de su imagen NO se persiste: se deriva de
 // `scenes/scene_<id>.jpg` dentro de la carpeta del proyecto.
 export interface Scene {
@@ -84,6 +95,9 @@ export interface Scene {
   // El proveedor de imagen rechazó el prompt por contenido: solo estas
   // escenas se reescriben en las pasadas de recuperación.
   contentRejected?: boolean
+  // Catálogo: la escena quedó sin prompt y la corrida siguió sin ella para
+  // rescatarla desde el editor. Se borra cuando un prompt nuevo sale bien.
+  promptFailure?: ScenePromptFailure
   imageTask?: SceneImageTask
   // Animación de la escena (ADR-0047). Presente solo en la escena que
   // ENCABEZA un clip; la ruta del clip no se persiste, se deriva igual que la

@@ -16,6 +16,7 @@ import {
 } from '@/modules/common/ui/tooltip'
 import { ClipTimeField } from '@/modules/videos/components/ClipTimeField'
 import { SceneAnimationSection } from '@/modules/videos/components/SceneAnimationSection'
+import { ScenePromptFailureNotice } from '@/modules/videos/components/ScenePromptFailureNotice'
 import { SceneQualityPicker } from '@/modules/videos/components/SceneQualityPicker'
 import type {
   ClipEdge,
@@ -138,6 +139,8 @@ export function EditorScenePanel({
         </p>
       ) : (
         <>
+          <ScenePromptFailureNotice failure={scene.promptFailure} />
+
           <div className="space-y-1.5">
             <Label htmlFor="scene-user-prompt" className="font-display">
               {t('library.editor.panel.userPrompt')}

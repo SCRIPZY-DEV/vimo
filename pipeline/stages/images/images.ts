@@ -83,6 +83,20 @@ function needsPromptRewrite(scene: Scene, ready: boolean): boolean {
   return scene.contentRejected === true || !isValidPrompt(scene.imagePrompt)
 }
 
+// Catálogo: escena que el redactor dejó sin prompt para rescatarla desde el
+// editor. No se manda al proveedor (no hay prompt real) ni frena al resto.
+function parkedForEditor(
+  scene: Scene,
+  context: CreateVideoContext,
+  style: (typeof VISUAL_STYLES)[keyof typeof VISUAL_STYLES],
+): boolean {
+  return (
+    !context.options.customStyle &&
+    scene.promptFailure !== undefined &&
+    !hasCatalogPrompt(scene, style)
+  )
+}
+
 async function idsWithValidImage(
   context: CreateVideoContext,
   scenes: Scene[],
@@ -183,6 +197,15 @@ export const imagesStage: Stage<CreateVideoContext> = {
       context,
     )
 
+    const isParked = (scene: Scene) => parkedForEditor(scene, context, style)
+    // Cada apartada se anuncia como fallida (la grilla la marca y el log
+    // dice por qué); al regenerar, solo las que el usuario pidió.
+    for (const scene of scenes) {
+      if (!isParked(scene) || alreadyReady.has(scene.id)) continue
+      if (targets.size > 0 && !targets.has(scene.id)) continue
+      events.onFailed(scene.id, 'catalog_prompts_incomplete')
+    }
+
     // En modo regeneración selectiva los objetivos se fuerzan desde la
     // primera pasada; en Create el set vacío deja todo el cache intacto.
     scenes = await generateImages(scenes, generation, targets, events)
@@ -193,7 +216,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
     for (let pass = 1; pass <= MAX_RECOVERY_PASSES; pass++) {
       context.signal.throwIfAborted()
       alreadyReady = await idsWithValidImage(context, scenes)
-      const missing = scenes.filter((scene) => !isReady(scene.id, alreadyReady))
+      // Las apartadas no tienen prompt que reintentar: esperan al editor.
+      const missing = scenes.filter(
+        (scene) => !isReady(scene.id, alreadyReady) && !isParked(scene),
+      )
       if (missing.length === 0) break
 
       const rejectedCount = missing.filter(
@@ -314,9 +340,12 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // regeneración que no salió NO es un hueco (su imagen vieja sigue siendo
     // válida para el render): el subcomando lo reporta en `failed` y la UI
     // lo muestra por escena.
+    // Al regenerar desde el editor, una escena apartada tampoco es un hueco
+    // de ESTE job: el subcomando la reporta en `failed` con su motivo.
     const ready = await idsWithValidImage(context, scenes)
     const stillMissing = scenes
       .filter((scene) => !ready.has(scene.id))
+      .filter((scene) => targets.size === 0 || !isParked(scene))
       .map((scene) => scene.id)
       .sort((a, b) => a - b)
     if (stillMissing.length > 0)
@@ -462,6 +491,7 @@ async function generateImages(
         (await isValidFile(sceneImageFile(context.paths, scene.id)))
       )
         continue
+      if (parkedForEditor(scene, context, style)) continue
       invalidIds.push(scene.id)
     }
     if (invalidIds.length > 0)
@@ -562,7 +592,20 @@ async function generateImages(
   }
 
   try {
-    return await dispatchLanes(finalScenes, inputs, laneOptions)
+    const parkedIds = new Set(
+      finalScenes
+        .filter((scene) => parkedForEditor(scene, context, style))
+        .map((scene) => scene.id),
+    )
+    if (parkedIds.size === 0)
+      return await dispatchLanes(finalScenes, inputs, laneOptions)
+    const dispatched = await dispatchLanes(
+      finalScenes.filter((scene) => !parkedIds.has(scene.id)),
+      inputs,
+      laneOptions,
+    )
+    const byId = new Map(dispatched.map((scene) => [scene.id, scene]))
+    return finalScenes.map((scene) => byId.get(scene.id) ?? scene)
   } catch (error) {
     if (isInsufficientCreditsFailure(error) || isImageAccountFailure(error))
       accountAbort.abort()
