@@ -271,6 +271,46 @@ test('catalog shares unavailable models and limits concurrency across requests',
   )
   assert.ok(maximum > 1 && maximum <= CATALOG_LLM_CONCURRENCY)
 })
+test('a brief network outage on every model retries instead of exhausting the catalog', async (t) => {
+  let outage = true
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls.push(JSON.parse(init.body).model)
+    if (outage) {
+      outage = calls.length < CATALOG_MODEL_IDS.length
+      throw new TypeError('fetch failed')
+    }
+    return stream('{"ok":true}')
+  })
+  const context = baseContext()
+  const pending = createCatalogSceneLlm(context).generate({
+    systemPrompt: '',
+    userPrompt: 'story',
+    validate: (content) => content === '{"ok":true}',
+  })
+  assert.equal(await pending, '{"ok":true}')
+  // Espera real de 2 s. Tras el parpadeo vuelve a probar desde el primero: nadie quedó descartado.
+  assert.deepEqual(calls, [...CATALOG_MODEL_IDS, CATALOG_MODEL_IDS[0]])
+  assert.ok(
+    context.events.some((event) =>
+      /transient failures; retrying/.test(event.message ?? ''),
+    ),
+  )
+})
+test('persistent network failure still exhausts the catalog after bounded retries', async (t) => {
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls.push(JSON.parse(init.body).model)
+    throw new TypeError('fetch failed')
+  })
+  const pending = createCatalogSceneLlm(baseContext()).generate({
+    systemPrompt: '',
+    userPrompt: 'story',
+  })
+  await assert.rejects(pending, { code: 'catalog_prompts_incomplete' })
+  // Esperas reales de 2 s + 5 s. Tres barridos y cada modelo cae tras sus tres strikes: no hay un cuarto.
+  assert.equal(calls.length, CATALOG_MODEL_IDS.length * 3)
+})
 test('already cancelled writer never saves filler (original repro)', async () => {
   const controller = new AbortController()
   controller.abort()
