@@ -14,6 +14,7 @@ import {
 } from '../../pipeline/project/paths.ts'
 import { readScenes, writeScenes } from '../../pipeline/project/scenes-file.ts'
 import { runStages } from '../../pipeline/runner/run-stages.ts'
+import { PipelineFailure } from '../../pipeline/runner/failure.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { directScenes } from '../../pipeline/stages/scene-prompts/scene-director.ts'
@@ -124,7 +125,9 @@ function writerOptions(context, overrides = {}) {
   }
 }
 function requestScene(request) {
-  const user = request.messages.at(-1).content
+  return fragmentIndex(request.messages.at(-1).content)
+}
+function fragmentIndex(user) {
   const fragment =
     user.match(
       /--- FRAGMENT[^\n]*---\n([\s\S]*?)\n--- END FRAGMENT ---/,
@@ -134,35 +137,43 @@ function requestScene(request) {
 // La suite valida transporte, checkpoints y mapeo, no calidad del revisor.
 // Las llamadas reales de revisión se simulan aparte del stream del redactor:
 // aprobar acá nunca cuenta como otro intento del modelo de Catálogo.
-function narrativeReviewResponse(request) {
-  if (
-    !request.messages[0].content.startsWith(
-      'You audit the FULL narrative meaning',
-    )
-  )
-    return
-  const { candidates } = JSON.parse(request.messages.at(-1).content)
+const REVIEWER_OBJECTION =
+  'The prompt shows a desert landing instead of Elena watching Earth from the window.'
+function isReviewRequest(systemPrompt) {
+  return systemPrompt.startsWith('You audit the FULL narrative meaning')
+}
+// `rejectedIds`: escenas que el revisor rechaza siempre, con REVIEWER_OBJECTION.
+function reviewContent(userPrompt, rejectedIds = new Set()) {
+  const { candidates } = JSON.parse(userPrompt)
   assert.ok(Array.isArray(candidates) && candidates.length > 0)
+  return JSON.stringify({
+    scenes: candidates.map((candidate) => {
+      const aligned = !rejectedIds.has(candidate.sceneId)
+      return {
+        sceneId: candidate.sceneId,
+        checks: {
+          focus: aligned,
+          events: aligned,
+          setting: aligned,
+          causality: aligned,
+        },
+        aligned,
+        sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
+        promptEvidenceId: candidate.promptEvidence[0].id,
+        reason: aligned
+          ? 'Explicit approval fixture for catalog transport regression only.'
+          : REVIEWER_OBJECTION,
+      }
+    }),
+  })
+}
+function narrativeReviewResponse(request, rejectedIds) {
+  if (!isReviewRequest(request.messages[0].content)) return
   return Response.json({
     choices: [
       {
         message: {
-          content: JSON.stringify({
-            scenes: candidates.map((candidate) => ({
-              sceneId: candidate.sceneId,
-              checks: {
-                focus: true,
-                events: true,
-                setting: true,
-                causality: true,
-              },
-              aligned: true,
-              sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
-              promptEvidenceId: candidate.promptEvidence[0].id,
-              reason:
-                'Explicit approval fixture for catalog transport regression only.',
-            })),
-          }),
+          content: reviewContent(request.messages.at(-1).content, rejectedIds),
         },
       },
     ],
@@ -809,6 +820,211 @@ test('exhausted timeouts are bounded to one attempt per model', async (t) => {
   assert.ok(Date.now() - start < 500)
 })
 
+const hasValidPrompt = (scene) => hasCatalogPrompt(scene, VISUAL_STYLES.cartoon)
+const PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=',
+  'base64',
+)
+// Fal simulado: devuelve una imagen por pedido y anota el prompt.
+function falResponse(url, init, imagePrompts) {
+  if (String(url).startsWith('https://fal.run/')) {
+    imagePrompts.push(JSON.parse(init.body).prompt)
+    return Response.json({
+      images: [{ url: 'https://fixture.invalid/image.png' }],
+    })
+  }
+  assert.equal(String(url), 'https://fixture.invalid/image.png')
+  return new Response(PIXEL, { headers: { 'content-type': 'image/png' } })
+}
+test('a scene the reviewer always rejects waits for the editor; the rest get images', async (t) => {
+  const context = await fixture(t)
+  const imagePrompts = []
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, imagePrompts)
+    const request = JSON.parse(init.body)
+    return (
+      narrativeReviewResponse(request, new Set([3])) ?? promptResponse(request)
+    )
+  })
+  await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
+    code: 'images_incomplete',
+  })
+
+  const stored = await readScenes(context.paths)
+  assert.equal(stored[2].imagePrompt, '')
+  assert.deepEqual(stored[2].promptFailure, {
+    source: 'reviewer',
+    detail: REVIEWER_OBJECTION,
+  })
+  assert.ok(stored.filter((scene) => scene.id !== 3).every(hasValidPrompt))
+  assert.equal(imagePrompts.length, 3)
+  assert.ok(!imagePrompts.some((prompt) => prompt.includes(descriptions[2])))
+  await assert.rejects(readFile(sceneImageFile(context.paths, 3)))
+  assert.ok(
+    context.events.some(
+      (event) =>
+        event.type === 'scene-image-failed' &&
+        event.sceneId === 3 &&
+        event.code === 'catalog_prompts_incomplete',
+    ),
+  )
+
+  // Desde el editor: solo la escena 3, con todo el contexto del video y la
+  // objeción del revisor sembrada en el primer intento.
+  context.regenerateSceneIds = new Set([3])
+  const writerRequests = []
+  imagePrompts.length = 0
+  t.mock.restoreAll()
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, imagePrompts)
+    const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request)
+    if (review) return review
+    writerRequests.push(request)
+    return promptResponse(request)
+  })
+  await runStages([scenePromptsStage, imagesStage], context)
+
+  assert.equal(writerRequests.length, 1)
+  const [system, user] = writerRequests[0].messages
+  assert.equal(system.content, VISUAL_STYLES.cartoon.systemPrompt)
+  assert.ok(user.content.includes(fragments[2]), 'its own fragment')
+  assert.ok(user.content.includes(fragments[1]), 'the previous scene')
+  assert.ok(user.content.includes(fragments[3]), 'the next scene')
+  assert.ok(user.content.includes('observation modules'), 'the visual bible')
+  assert.ok(user.content.includes('observation module'), 'the scene plan')
+  assert.match(user.content, /Elena/)
+  assert.ok(user.content.includes('adult astronaut'), 'the character')
+  assert.ok(user.content.includes(REVIEWER_OBJECTION), 'the reviewer note')
+
+  const repaired = await readScenes(context.paths)
+  assert.equal(repaired[2].promptFailure, undefined)
+  assert.equal(
+    bodyWithoutFinalClauses(repaired[2].imagePrompt),
+    descriptions[2],
+  )
+  assert.equal(imagePrompts.length, 1)
+  assert.deepEqual(await readFile(sceneImageFile(context.paths, 3)), PIXEL)
+})
+test('regenerating one parked scene from the editor ignores the other parked one', async (t) => {
+  const context = await fixture(t)
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, [])
+    const request = JSON.parse(init.body)
+    return (
+      narrativeReviewResponse(request, new Set([2, 3])) ??
+      promptResponse(request)
+    )
+  })
+  await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
+    code: 'images_incomplete',
+  })
+
+  context.regenerateSceneIds = new Set([2])
+  t.mock.restoreAll()
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, [])
+    const request = JSON.parse(init.body)
+    return narrativeReviewResponse(request) ?? promptResponse(request)
+  })
+  await runStages([scenePromptsStage, imagesStage], context)
+
+  const stored = await readScenes(context.paths)
+  assert.equal(stored[1].promptFailure, undefined)
+  assert.equal(stored[2].promptFailure?.source, 'reviewer')
+  assert.deepEqual(await readFile(sceneImageFile(context.paths, 2)), PIXEL)
+  await assert.rejects(readFile(sceneImageFile(context.paths, 3)))
+})
+test('when every scene fails there is nothing to rescue: no image is requested', async (t) => {
+  const context = await fixture(t)
+  let imageCalls = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions')) {
+      imageCalls++
+      return falResponse(url, init, [])
+    }
+    const request = JSON.parse(init.body)
+    return (
+      narrativeReviewResponse(request, new Set([1, 2, 3, 4])) ??
+      promptResponse(request)
+    )
+  })
+  await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
+    code: 'catalog_prompts_incomplete',
+  })
+  assert.equal(imageCalls, 0)
+  // Igual quedan los motivos en disco para el diagnóstico.
+  const stored = await readScenes(context.paths)
+  assert.ok(stored.every((scene) => scene.promptFailure?.source === 'reviewer'))
+})
+test('more failed scenes than the rescue limit stop the run, keeping their reasons', async () => {
+  const context = baseContext()
+  const llm = {
+    async generate(request) {
+      if (isReviewRequest(request.systemPrompt))
+        return reviewContent(request.userPrompt)
+      const index = fragmentIndex(request.userPrompt)
+      if (index === 1 || index === 2)
+        throw new PipelineFailure('catalog_prompts_incomplete', 'exhausted')
+      return JSON.stringify({ prompt_imagen: descriptions[index] })
+    },
+  }
+  const failed = []
+  await assert.rejects(
+    guaranteePrompts(
+      scenes,
+      writerOptions(context, {
+        llm,
+        rescueLimit: 1,
+        onSceneFailed(scene) {
+          failed.push(scene.id)
+        },
+      }),
+    ),
+    {
+      code: 'catalog_prompts_incomplete',
+      message: 'scenes without valid narrative prompts: 2 (models), 3 (models)',
+    },
+  )
+  assert.deepEqual(failed, [2, 3])
+})
+test('a scene with no text model available is parked with source models', async () => {
+  const context = baseContext()
+  const llm = {
+    async generate(request) {
+      if (isReviewRequest(request.systemPrompt))
+        return reviewContent(request.userPrompt)
+      const index = fragmentIndex(request.userPrompt)
+      if (index === 1)
+        throw new PipelineFailure(
+          'catalog_prompts_incomplete',
+          'catalog text models exhausted; images must not be generated from filler',
+        )
+      return JSON.stringify({ prompt_imagen: descriptions[index] })
+    },
+  }
+  const failed = []
+  const result = await guaranteePrompts(
+    scenes,
+    writerOptions(context, {
+      llm,
+      rescueLimit: 3,
+      onSceneFailed(scene) {
+        failed.push(scene)
+      },
+    }),
+  )
+  assert.deepEqual(
+    failed.map((scene) => [scene.id, scene.promptFailure]),
+    [[2, { source: 'models' }]],
+  )
+  assert.equal(result[1].imagePrompt, '')
+  assert.ok(result.filter((scene) => scene.id !== 2).every(hasValidPrompt))
+})
 test('content-policy rewrite failure never sends a generic second image', async (t) => {
   const context = await fixture(t, [
     { ...scenes[0], imagePrompt: descriptions[0] },
