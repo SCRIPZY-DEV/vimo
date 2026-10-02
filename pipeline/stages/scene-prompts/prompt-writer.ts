@@ -18,7 +18,7 @@ import {
   characterIndicesInRequest,
 } from '../../prompts/scene-prompt-blocks.ts'
 import type { VisualStyle } from '../../prompts/visual-styles.ts'
-import type { Scene } from '../../types/scenes.ts'
+import type { Scene, ScenePromptFailure } from '../../types/scenes.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
 import { neutralizeFamousNames } from '../../utils/content-safety.ts'
 import { neutralizeEraInBible } from '../../utils/story-era.ts'
@@ -52,6 +52,16 @@ import { buildScenePlanBlock } from './scene-director.ts'
 // válido ya guardado para reanudar (ADR-0036).
 const MAX_ATTEMPTS_PER_SCENE = 3
 const LLM_CONCURRENCY = 6
+// Hasta cuántas escenas sin prompt puede dejar una corrida para rescatarlas
+// desde el editor. Con más, el problema no es la escena: se reintenta todo.
+export const MAX_RESCUABLE_PROMPT_FAILURES = 5
+// Fallos de un pedido en los que ningún modelo de texto respondió (el
+// redactor o el revisor): la escena queda sin prompt, el resto sigue.
+const MODELS_UNAVAILABLE_CODES = [
+  'catalog_prompts_incomplete',
+  'scene_prompt_alignment_failed',
+]
+const MAX_FAILURE_DETAIL_CHARS = 500
 
 export interface PromptWriterOptions {
   llm: SceneLlm
@@ -74,6 +84,11 @@ export interface PromptWriterOptions {
   // también en la reescritura por content policy desde la fase de imágenes,
   // que lo usa para reemitir scene-prompt-ready.
   onSceneProcessed?(scene: Scene): Promise<void> | void
+  // Cuántas escenas pueden quedar sin prompt (con `promptFailure`) sin tumbar
+  // la corrida. 0 o ausente: cualquier hueco lanza, como siempre.
+  rescueLimit?: number
+  // Se llama con cada escena que quedó sin prompt, ya con su motivo.
+  onSceneFailed?(scene: Scene): Promise<void> | void
 }
 
 // Toda escena lleva prompt: la muda (texto vacío del corte clásico) se
@@ -265,7 +280,7 @@ export async function generateScenePrompts(
 
   const limit = limitConcurrency(LLM_CONCURRENCY)
   const results = new Map<number, Scene>()
-  const failures: { id: number; message: string }[] = []
+  const failures: { scene: Scene; failure: ScenePromptFailure }[] = []
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
   const normalize = (text: string) =>
     text.toLowerCase().replace(/\s+/g, ' ').trim()
@@ -293,11 +308,17 @@ export async function generateScenePrompts(
         )
 
         let imagePrompt = ''
-        let lastError = ''
+        let lastFailure: ScenePromptFailure = { source: 'writer' }
         // Si un intento soltó rasgos de cabeza canónicos, el siguiente lleva
         // la corrección explícita adjunta.
         let identityCorrection = ''
-        let narrativeCorrection = ''
+        // Una escena que el revisor ya rechazó en otra corrida arranca con su
+        // objeción: reintentar a ciegas repetía el mismo prompt rechazado.
+        let narrativeCorrection =
+          scene.promptFailure?.source === 'reviewer' &&
+          scene.promptFailure.detail
+            ? narrativeCorrectionBlock(scene.promptFailure.detail)
+            : ''
         for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_SCENE; attempt++) {
           try {
             const content = await writerOptions.llm.generate({
@@ -359,9 +380,9 @@ export async function generateScenePrompts(
                 writerOptions.characters,
               )
             if (!isValidPrompt(candidate)) {
-              lastError = 'the LLM returned an empty or invalid prompt'
+              lastFailure = { source: 'writer' }
             } else if (drewUnmarkedPerson && attempt < MAX_ATTEMPTS_PER_SCENE) {
-              lastError = 'a scene without the character drew a person'
+              lastFailure = { source: 'writer' }
               identityCorrection = buildNoPersonCorrectionBlock(characterNames)
             } else if (
               drewUnmarkedPerson &&
@@ -439,19 +460,18 @@ export async function generateScenePrompts(
                 )
                 const feedback = rejected.get(scene.id)
                 if (feedback) {
-                  lastError = 'narrative alignment rejected'
-                  narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}\nRewrite the prompt to depict its own fragment.`
+                  lastFailure = {
+                    source: 'reviewer',
+                    detail: reviewerCorrection(feedback),
+                  }
+                  narrativeCorrection = narrativeCorrectionBlock(feedback)
                   continue
                 } else {
                   imagePrompt = finalPrompt
                   break
                 }
               }
-              lastError = `the prompt dropped canonical traits (${[
-                ...missingCharacters.map((name) => `character ${name}`),
-                ...missing,
-                ...missingSkin.map(() => 'skin tone'),
-              ].join(', ')})`
+              lastFailure = { source: 'writer' }
               // Sin el personaje no tiene sentido corregirle el pelo o la tez:
               // primero que aparezca.
               identityCorrection =
@@ -465,7 +485,15 @@ export async function generateScenePrompts(
             writerOptions.signal.throwIfAborted()
             // La rotación acotada ya ocurrió dentro del cliente. Repetir esta
             // excepción en barridos multiplicaba minutos sobre el mismo fallo.
-            throw error
+            // Sin modelos para ESTA escena, queda sin prompt y el resto sigue;
+            // la cuenta (clave, saldo) o un fallo desconocido tumban todo.
+            if (
+              !(error instanceof PipelineFailure) ||
+              !MODELS_UNAVAILABLE_CODES.includes(error.code)
+            )
+              throw error
+            failures.push({ scene, failure: { source: 'models' } })
+            return
           }
           if (attempt < MAX_ATTEMPTS_PER_SCENE)
             await delay(300 * attempt, undefined, {
@@ -474,7 +502,7 @@ export async function generateScenePrompts(
         }
 
         if (!isValidPrompt(imagePrompt)) {
-          failures.push({ id: scene.id, message: lastError })
+          failures.push({ scene, failure: lastFailure })
           return
         }
 
@@ -484,6 +512,7 @@ export async function generateScenePrompts(
           imagePrompt,
           promptIsFallback: false,
         }
+        delete updated.promptFailure
         results.set(scene.id, updated)
         await writerOptions.onSceneProcessed?.(updated)
       }),
@@ -494,14 +523,54 @@ export async function generateScenePrompts(
   // Esperar todos evita callbacks tardíos escribiendo sobre el siguiente job.
   const rejected = settled.find((result) => result.status === 'rejected')
   if (rejected?.status === 'rejected') throw rejected.reason
-  if (failures.length > 0)
+  failures.sort((a, b) => a.scene.id - b.scene.id)
+  for (const { scene, failure } of failures) {
+    const failed: Scene = {
+      ...scene,
+      imagePrompt: '',
+      promptIsFallback: false,
+      promptFailure: failure,
+    }
+    results.set(scene.id, failed)
+    await writerOptions.onSceneFailed?.(failed)
+  }
+  // Pocos huecos en un proyecto que sí tiene el resto: la corrida sigue y
+  // esas escenas se rescatan desde el editor. Jamás se rellenan.
+  const rescuable =
+    failures.length <= (options.rescueLimit ?? 0) &&
+    failures.length < scenes.length
+  if (failures.length > 0 && !rescuable)
     throw new PipelineFailure(
       'catalog_prompts_incomplete',
       'scenes without valid narrative prompts: ' +
-        failures.map((failure) => failure.id).join(', '),
+        failures
+          .map(({ scene, failure }) => `${scene.id} (${failure.source})`)
+          .join(', '),
     )
 
   return scenes.map((scene) => results.get(scene.id) ?? scene)
+}
+
+// La objeción del revisor viaja como JSON con evidencia; a disco (y a la UI)
+// va solo su corrección, que también siembra el próximo intento.
+function reviewerCorrection(feedback: string): string {
+  try {
+    const parsed: unknown = JSON.parse(feedback)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'correction' in parsed &&
+      typeof parsed.correction === 'string'
+    )
+      return parsed.correction.slice(0, MAX_FAILURE_DETAIL_CHARS)
+  } catch {
+    // Texto plano: se guarda tal cual.
+  }
+  return feedback.slice(0, MAX_FAILURE_DETAIL_CHARS)
+}
+
+function narrativeCorrectionBlock(feedback: string): string {
+  return `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}\nRewrite the prompt to depict its own fragment.`
 }
 
 // Punto de entrada: completar con modelos, nunca con una plantilla genérica.
@@ -514,7 +583,9 @@ export async function guaranteePrompts(
   options.signal.throwIfAborted()
   if (
     scenesMissingPrompt(result).some(
-      (scene) => !options.sceneIds || options.sceneIds.has(scene.id),
+      (scene) =>
+        (!options.sceneIds || options.sceneIds.has(scene.id)) &&
+        !scene.promptFailure,
     )
   )
     throw new PipelineFailure(

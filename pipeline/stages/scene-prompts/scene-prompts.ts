@@ -28,7 +28,10 @@ import {
   runVerbatimLane,
 } from './verbatim/verbatim-lane.ts'
 import { createVerbatimPromptPersistence } from './verbatim/verbatim-persistence.ts'
-import { guaranteePrompts } from './prompt-writer.ts'
+import {
+  guaranteePrompts,
+  MAX_RESCUABLE_PROMPT_FAILURES,
+} from './prompt-writer.ts'
 import { directScenes, scenesNeedPlan } from './scene-director.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
 
@@ -253,6 +256,28 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
         })
         await persistence
       },
+      // Unas pocas escenas sin prompt no tiran el video: quedan sin imagen
+      // y con su motivo, para regenerarlas desde el editor.
+      rescueLimit: MAX_RESCUABLE_PROMPT_FAILURES,
+      async onSceneFailed(scene) {
+        persistence = persistence.then(async () => {
+          context.signal.throwIfAborted()
+          const index = buffer.findIndex((item) => item.id === scene.id)
+          if (index >= 0) buffer[index] = scene
+          await writeScenesOwned(
+            context.paths,
+            buffer,
+            context.regenerateSceneIds,
+          )
+          const failure = scene.promptFailure
+          context.emitter.emit({
+            type: 'log',
+            level: 'warn',
+            message: `scene ${scene.id} left without prompt (${failure?.source ?? 'writer'}${failure?.detail ? `: ${failure.detail}` : ''})`,
+          })
+        })
+        await persistence
+      },
     })
     context.signal.throwIfAborted()
     await writeScenesOwned(
@@ -260,6 +285,15 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       currentScenes,
       context.regenerateSceneIds,
     )
+    const parked = currentScenes
+      .filter((scene) => pendingIds.has(scene.id) && scene.promptFailure)
+      .map((scene) => scene.id)
+    if (parked.length > 0)
+      context.emitter.emit({
+        type: 'log',
+        level: 'warn',
+        message: `continuing without prompts for scene(s) ${parked.join(', ')}; regenerate them from the editor`,
+      })
 
     return undefined
   },
