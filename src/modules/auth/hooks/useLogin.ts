@@ -10,10 +10,14 @@ import { authQueryKeys } from '../constants'
  *  - Web: redirect clásico — la vista Callback completa el flujo.
  *  - Tauri: navegador del sistema + retorno por deep link, que se escucha acá
  *    (el flujo siempre nace en Login, así que el listener vive con la vista).
+ * Con el navegador ya abierto el botón vuelve a estar disponible: si el
+ * retorno no llega (pestaña cerrada, otra Vimo instalada que se queda con el
+ * deep link) se reintenta desde acá, sin reiniciar la app.
  */
 export function useLogin() {
   const navigate = useNavigate()
   const [opening, setOpening] = useState(false)
+  const [waiting, setWaiting] = useState(false)
   const [hasError, setHasError] = useState(false)
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export function useLogin() {
             navigate(VideosRoutes.create, { replace: true })
           })
           .catch(() => {
-            setOpening(false)
+            setWaiting(false)
             setHasError(true)
           })
       })
@@ -54,14 +58,18 @@ export function useLogin() {
     }
     setOpening(true)
     setHasError(false)
-    const signIn = authApi.isNative()
+    const native = authApi.isNative()
+    const signIn = native
       ? authApi.signInWithGoogleDesktop()
       : authApi.signInWithGoogleWeb()
-    signIn.catch(() => {
-      setOpening(false)
-      setHasError(true)
-    })
+    signIn
+      .then(() => setWaiting(native))
+      .catch(() => {
+        setWaiting(false)
+        setHasError(true)
+      })
+      .finally(() => setOpening(false))
   }
 
-  return { login, opening, hasError }
+  return { login, opening, waiting, hasError }
 }

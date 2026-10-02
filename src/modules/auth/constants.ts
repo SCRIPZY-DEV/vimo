@@ -23,6 +23,15 @@ export const authQueryKeys = {
 export const VERIFY_ACCESS_URL = `${VIMO_SERVER_BASE_URL}/api/verificar-acceso`
 /** Deep link de retorno del OAuth en desktop — debe estar en el allowlist de Supabase. */
 export const AUTH_DEEP_LINK_URL = 'vimo://auth/callback'
+/**
+ * Retorno del OAuth en `pnpm tauri dev` (ADR-0006, nota del 2026-10-02): en
+ * macOS el deep link solo llega a la app empaquetada, así que en dev el
+ * navegador vuelve al servidor de Vite (lo cubre `http://localhost:5173/**` en
+ * el allowlist de Supabase) y la app le pide el código a ese mismo servidor.
+ * Lo atiende un plugin de vite.config.ts, con la misma ruta.
+ */
+export const AUTH_DEV_CALLBACK_PATH = '/auth/desktop-callback'
+export const AUTH_DEV_CALLBACK_POLL_MS = 1000
 
 /** getSession puede colgarse con varias pestañas (navigator.locks): tope duro. */
 export const SESSION_TIMEOUT_MS = 10_000

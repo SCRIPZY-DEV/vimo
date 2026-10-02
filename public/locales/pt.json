@@ -75,6 +75,7 @@
     "info": "Entre com sua conta do Google para ativar seu teste grátis de 10 dias. Só guardamos seu email — seu trabalho de vídeo nunca sai do seu PC.",
     "boton": "Entrar com Google",
     "abriendo": "Abrindo o Google...",
+    "esperando": "Termine de entrar no navegador: o Vimo abre sozinho. Se ele não voltou, clique no botão de novo.",
     "problemas": "Problemas para entrar? Escreva para",
     "errorInicio": "Não foi possível abrir o Google. Tente de novo."
   },

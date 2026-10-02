@@ -75,6 +75,7 @@
     "info": "Iniciá sesión con tu cuenta de Google para activar tu prueba de 10 días gratis. Solo guardamos tu email — tu trabajo de video nunca sale de tu PC.",
     "boton": "Iniciar sesión con Google",
     "abriendo": "Abriendo Google...",
+    "esperando": "Terminá de iniciar sesión en el navegador: Vimo se abre solo. Si no volvió, tocá el botón de nuevo.",
     "problemas": "¿Problemas para entrar? Escribinos a",
     "errorInicio": "No se pudo abrir Google. Probá de nuevo."
   },

@@ -5,6 +5,8 @@ import { supabase } from '@/modules/common/supabase/client'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   AUTH_DEEP_LINK_URL,
+  AUTH_DEV_CALLBACK_PATH,
+  AUTH_DEV_CALLBACK_POLL_MS,
   AuthRoutesPaths,
   SESSION_TIMEOUT_MS,
   SIGN_OUT_TIMEOUT_MS,
@@ -20,6 +22,7 @@ import type {
   AccessStatus,
   VerifyAccessResponse,
 } from '@/modules/auth/types/access'
+import type { DevAuthCallbackResponse } from '@/modules/auth/types/login'
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -72,11 +75,15 @@ export const authApi = {
   },
   async signInWithGoogleDesktop(): Promise<void> {
     // En Tauri el webview no puede recibir el redirect: se abre el consent en
-    // el navegador del sistema y el retorno llega por deep link (vimo://).
+    // el navegador del sistema y el retorno llega por deep link (vimo://). En
+    // dev vuelve al servidor de Vite: el deep link de macOS solo llega a la
+    // app empaquetada (AUTH_DEV_CALLBACK_PATH).
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: AUTH_DEEP_LINK_URL,
+        redirectTo: import.meta.env.DEV
+          ? `${window.location.origin}${AUTH_DEV_CALLBACK_PATH}`
+          : AUTH_DEEP_LINK_URL,
         skipBrowserRedirect: true,
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
@@ -94,7 +101,7 @@ export const authApi = {
   ): Promise<() => void> {
     // El code PKCE vuelve como vimo://auth/callback?code=...; el code_verifier
     // ya quedó en el storage del webview cuando se llamó signInWithOAuth.
-    return onOpenUrl((urls) => {
+    const unlisten = await onOpenUrl((urls) => {
       for (const url of urls) {
         const code = new URL(url).searchParams.get('code')
         if (code) {
@@ -103,6 +110,22 @@ export const authApi = {
         }
       }
     })
+    if (!import.meta.env.DEV) return unlisten
+
+    // En dev el code vuelve al servidor de Vite (signInWithGoogleDesktop):
+    // la app, que corre en ese mismo origen, se lo pide cada segundo.
+    const poll = window.setInterval(() => {
+      void fetch(`${AUTH_DEV_CALLBACK_PATH}/code`)
+        .then((response) => response.json() as Promise<DevAuthCallbackResponse>)
+        .then(({ code }) => {
+          if (code) onCode(code)
+        })
+        .catch(() => undefined)
+    }, AUTH_DEV_CALLBACK_POLL_MS)
+    return () => {
+      window.clearInterval(poll)
+      unlisten()
+    }
   },
   async exchangeCodeForSession(code: string): Promise<void> {
     const { error } = await supabase.auth.exchangeCodeForSession(code)

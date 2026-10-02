@@ -75,6 +75,7 @@
     "info": "Sign in with your Google account to activate your free 10-day trial. We only store your email — your video work never leaves your PC.",
     "boton": "Sign in with Google",
     "abriendo": "Opening Google...",
+    "esperando": "Finish signing in in your browser: Vimo opens on its own. If it didn’t come back, click the button again.",
     "problemas": "Trouble signing in? Write to us at",
     "errorInicio": "Couldn't open Google. Please try again."
   },

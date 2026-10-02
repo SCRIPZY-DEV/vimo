@@ -193,3 +193,21 @@ del borde con el exterior, junto a `fetcher.ts` y `pipeline.ts`.
 - Origen portado: `caracteristicas/gestion-de-licencias/` de `02-vimo/cursor-video`
   (`useAcceso.ts`, `supabase.ts`, `PantallaCallback.tsx`).
 - Docs Tauri: plugins `deep-link` y `opener`.
+
+## Nota posterior 2026-10-02 — retorno del login en dev y botón que no se traba
+
+- **Dev en macOS:** el deep link solo llega a la app empaquetada. Con `pnpm tauri dev` el navegador
+  le entregaba `vimo://` a la Vimo instalada y la instancia de dev esperaba para siempre. Ahora, en
+  dev (`import.meta.env.DEV`), el retorno es `http://localhost:5173/auth/desktop-callback`, que ya
+  cubre `http://localhost:5173/**` en el allowlist de Supabase.
+  - Un plugin de `vite.config.ts`, que solo existe en el servidor de dev, guarda el código.
+  - La app se lo pide a ese mismo origen (`AUTH_DEV_CALLBACK_PATH`) y lo canjea con su verificador
+    PKCE.
+  - No es el loopback descartado arriba: no suma un proceso ni un puerto, usa el servidor de Vite
+    que ya corre en dev.
+  - En producción sigue el deep link.
+- **Botón de login:** `useLogin` separa abrir el navegador (`opening`) de esperar el retorno
+  (`waiting`). Con el navegador abierto el botón vuelve a estar disponible y la vista avisa que se
+  puede reintentar. Antes, si el retorno no llegaba, quedaba en «Abriendo Google...» hasta reiniciar
+  la app.
+- Detalle en `fixes/2026-10-02_desktop-login-dev-and-stuck-button.md`.
