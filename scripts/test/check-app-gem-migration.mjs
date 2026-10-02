@@ -18,6 +18,7 @@ import {
   GEM_REBUILD_TEXT_LIMIT,
   migrationRebuildText,
   migrationStyleSavePayload,
+  pastedGemSavePayload,
 } from '../../src/modules/videos/utilities/gemTemplate.ts'
 import {
   customStyleDraftFrom,
@@ -54,14 +55,15 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-// Un migrate simulado que se resuelve a mano, y cuántas veces se llamó.
+// Un migrate simulado que se resuelve a mano, cuántas veces se llamó y con
+// qué origin (el que queda en gem_rebuild_logs).
 function fakeMigrate() {
   const calls = []
   return {
     calls,
-    migrate(style) {
+    migrate(style, origin) {
       const call = deferred()
-      calls.push({ style, ...call })
+      calls.push({ style, origin, ...call })
       return call.promise
     },
   }
@@ -181,6 +183,83 @@ test('una gema de plantilla o sin texto no se migra', () => {
   assert.equal(migrations.getSnapshot().size, 0)
 })
 
+// ── Gema pegada: se guarda tal cual y se adapta en segundo plano ──
+
+test('la migración automática de una gema vieja va con origin «migracion»', () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  assert.equal(agent.calls[0].origin, 'migracion')
+})
+
+test('una gema pegada se adapta enseguida con origin «mi-estilo», aunque esa gema ya se hubiera migrado en la sesión', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  // «Pegar gema nueva» la volvió a guardar como texto: se adapta otra vez.
+  migrations.adapt(OLD_GEM)
+  assert.equal(agent.calls.length, 2)
+  assert.equal(agent.calls[1].origin, 'mi-estilo')
+  assert.deepEqual(migrations.getSnapshot().get('st-vieja'), {
+    status: 'pending',
+    name: 'Vieja',
+    error: null,
+  })
+})
+
+test('con una adaptación en vuelo no sale otra: ni otro clic ni la migración automática', () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.adapt(OLD_GEM)
+  migrations.adapt(OLD_GEM)
+  migrations.migrateOnce(OLD_GEM)
+  migrations.retry(OLD_GEM)
+  assert.equal(agent.calls.length, 1)
+})
+
+test('«Reintentar» repite con el origin de la que falló', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.adapt(OLD_GEM)
+  agent.calls[0].reject(new Error('modelo-timeout'))
+  await settle()
+  assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'failed')
+  migrations.retry(OLD_GEM)
+  assert.equal(agent.calls.length, 2)
+  assert.equal(agent.calls[1].origin, 'mi-estilo')
+})
+
+test('adaptar una gema de plantilla o sin texto no hace nada', () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.adapt(MIGRATED_GEM)
+  migrations.adapt({ ...OLD_GEM, id: 'st-vacia', systemPrompt: '  ' })
+  assert.equal(agent.calls.length, 0)
+})
+
+test('la gema pegada se guarda tal cual, como texto: sin secciones, sin planos y sin el respaldo de la que reemplaza; personaje y filtro como están en el modal', () => {
+  assert.deepEqual(
+    pastedGemSavePayload({
+      id: 'st-nueva',
+      name: 'Mi gema',
+      text: '  Acuarela suave con un zorro rojo.  ',
+      character: { mode: 'generic' },
+      colorFilter: 'horror-bw',
+    }),
+    {
+      id: 'st-nueva',
+      name: 'Mi gema',
+      systemPrompt: 'Acuarela suave con un zorro rojo.',
+      shots: [],
+      character: { mode: 'generic' },
+      colorFilter: 'horror-bw',
+      sourcePrompt: '',
+    },
+  )
+})
+
 test('quien escucha se entera de cada cambio', async () => {
   const agent = fakeMigrate()
   const migrations = createGemMigrations(agent.migrate)
@@ -214,8 +293,8 @@ function fakeSteps(stored) {
         log.push({ step: 'findStored', styleId })
         return disk.get(styleId)
       },
-      rebuild(style) {
-        log.push({ step: 'rebuild', style })
+      rebuild(style, origin) {
+        log.push({ step: 'rebuild', style, origin })
         return agent.promise
       },
       async save(style, response) {
@@ -270,6 +349,13 @@ test('se migra lo guardado ahora y no la tarjeta de la lista: texto, nombre y re
   const state = migrations.getSnapshot().get('st-vieja')
   assert.equal(state?.status, 'migrated')
   assert.deepEqual(state?.warnings, WARNINGS)
+})
+
+test('el origin llega al agente: «mi-estilo» para una gema pegada', async () => {
+  const fake = fakeSteps([OLD_GEM])
+  fake.agent.resolve(AGENT_RESPONSE)
+  await migrateStoredGem('st-vieja', fake.steps, 'mi-estilo')
+  assert.equal(fake.log[1].origin, 'mi-estilo')
 })
 
 test('guardada, la migración devuelve los avisos del agente', async () => {

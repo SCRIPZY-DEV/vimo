@@ -7,11 +7,13 @@ import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
 import {
   closeCustomStyleEditor,
+  markCustomStyleEditorSaved,
   openCustomStyleEditor,
   useCustomStyleEditor,
 } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import {
+  adaptPastedGem,
   dismissGemMigration,
   migrateGemOnce,
   retryGemMigration,
@@ -74,7 +76,7 @@ export function CustomStyleGallery({
   onSelect,
 }: CustomStyleGalleryProps) {
   const { t } = useTranslation()
-  const { styles, isLoading, saveStyle, deleteStyle, saving } =
+  const { styles, isLoading, saveStyle, showSavedStyle, deleteStyle, saving } =
     useCustomStyles()
   const gemTemplateEnabled = useAccessFeature('gemTemplate')
   const migrations = useGemMigrations()
@@ -132,8 +134,22 @@ export function CustomStyleGallery({
     // para usarla. Una editada solo si ya lo estaba — editar un estilo no
     // cambia cuál se usa (origen). El snapshot sale de lo que quedó guardado
     // (con sus secciones, si es de plantilla), no del pedido.
-    if (!wasNew && selected?.styleId !== payload.id) return
-    onSelect(selectedCustomStyleFrom(entry))
+    if (wasNew || selected?.styleId === payload.id)
+      onSelect(selectedCustomStyleFrom(entry))
+    return entry
+  }
+
+  // «Preparar con IA»: la gema pegada se guarda como texto y se adapta en
+  // segundo plano (el mismo trabajo que migra una gema vieja), aunque se
+  // cierre el modal. La adaptación arranca antes de que la lista traiga la
+  // gema: así la migración automática de esa gema de texto no se adelanta con
+  // otro origin. Con la gema ya en la lista, el modal pasa a ella (con su aviso
+  // «Generando adaptación…») y, al terminar, a sus secciones.
+  const adaptPasted = async (payload: StyleSavePayload) => {
+    const entry = await save(payload)
+    adaptPastedGem(entry)
+    showSavedStyle(entry)
+    markCustomStyleEditorSaved(entry.id)
   }
 
   // Avisos de migración de las gemas de la lista, en su orden: en vuelo,
@@ -261,7 +277,10 @@ export function CustomStyleGallery({
           generateOnOpen={editing.generateOnOpen}
           script={script}
           promptModel={promptModel}
-          onSave={save}
+          onSave={async (payload) => {
+            await save(payload)
+          }}
+          onAdaptPastedGem={adaptPasted}
           onClose={closeCustomStyleEditor}
         />
       )}

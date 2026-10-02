@@ -1,7 +1,7 @@
 // El pedido y la respuesta del agente reconstructor (spec §6.1) del lado de la
-// app, los límites de la gema por secciones (spec §4.1) y la regla de un solo
-// pedido en vuelo por clave (el doble clic en «Preparar con IA»). Módulos puros
-// de src/ corridos con Node (type stripping), sin bundler ni red.
+// app y los límites de la gema por secciones (spec §4.1). Un solo pedido en
+// vuelo por gema lo cuida el store de migraciones (check-app-gem-migration.mjs).
+// Módulos puros de src/ corridos con Node (type stripping), sin bundler ni red.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
@@ -15,7 +15,6 @@ import {
   gemSectionsWithinLimits,
   readGemRebuildResponse,
 } from '../../src/modules/videos/utilities/gemTemplate.ts'
-import { createSingleFlight } from '../../src/modules/videos/utilities/singleFlight.ts'
 
 const VALID_RESPONSE = {
   templateVersion: 1,
@@ -30,16 +29,6 @@ const VALID_RESPONSE = {
     characterMode: 'generic',
   },
   warnings: ['La gema pedía escribir en español: se quitó.'],
-}
-
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((done, fail) => {
-    resolve = done
-    reject = fail
-  })
-  return { promise, resolve, reject }
 }
 
 test('orden, versión y límites de la spec §4.1', () => {
@@ -178,43 +167,4 @@ test('avisos y sugerencias tolerantes: lo que no sirve se descarta', () => {
   }
   assert.deepEqual(readGemRebuildResponse(bare)?.suggestions, {})
   assert.deepEqual(readGemRebuildResponse(bare)?.warnings, [])
-})
-
-test('una sola ejecución en vuelo por clave (doble clic)', async () => {
-  const flights = createSingleFlight()
-  const pending = deferred()
-  let calls = 0
-  const task = () => {
-    calls += 1
-    return pending.promise
-  }
-  const first = flights.run('st-1', task)
-  const second = flights.run('st-1', task)
-  assert.equal(first, second)
-  pending.resolve('secciones')
-  assert.deepEqual(await Promise.all([first, second]), [
-    'secciones',
-    'secciones',
-  ])
-  assert.equal(calls, 1)
-})
-
-test('al terminar, bien o mal, la clave queda libre para otro intento', async () => {
-  const flights = createSingleFlight()
-  const failing = deferred()
-  const first = flights.run('st-1', () => failing.promise)
-  failing.reject(new Error('sin red'))
-  await assert.rejects(first, /sin red/)
-  assert.equal(await flights.run('st-1', async () => 'reintento'), 'reintento')
-})
-
-test('claves distintas corren a la vez', async () => {
-  const flights = createSingleFlight()
-  let calls = 0
-  const task = async () => {
-    calls += 1
-    return calls
-  }
-  await Promise.all([flights.run('st-1', task), flights.run('st-2', task)])
-  assert.equal(calls, 2)
 })

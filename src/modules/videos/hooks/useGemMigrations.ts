@@ -19,20 +19,21 @@ import type {
 } from '@/modules/videos/types/styles'
 
 // Los pasos reales de una migración (migrateStoredGem decide el orden): lo
-// guardado en el sidecar; el agente con `origin: 'migracion'` (el texto de la
-// gema y sus planos); y el guardado de sus secciones con ese texto de
-// respaldo, que espera la lista nueva. Al terminar bien, el aviso pasa a
-// «migrada» (con los avisos del agente) hasta que el autor lo descarta.
+// guardado en el sidecar; el agente con su origin (`migracion` para una gema
+// vieja, `mi-estilo` para una recién pegada) y el texto de la gema con sus
+// planos; y el guardado de sus secciones con ese texto de respaldo, que espera
+// la lista nueva. Al terminar bien, el aviso pasa a «migrada» (con los avisos
+// del agente) hasta que el autor lo descarta.
 const migrationSteps: GemMigrationSteps = {
   async findStored(styleId) {
     const { entries } = await videosApi.listCustomStyles()
     return entries.find((entry) => entry.id === styleId)
   },
-  rebuild(style) {
+  rebuild(style, origin) {
     return videosApi.rebuildGem(
       gemRebuildRequest(
         migrationRebuildText(style),
-        'migracion',
+        origin,
         Brand.version,
         i18next.resolvedLanguage,
       ),
@@ -46,12 +47,15 @@ const migrationSteps: GemMigrationSteps = {
   },
 }
 
-const gemMigrations = createGemMigrations((style) =>
-  migrateStoredGem(style.id, migrationSteps),
+const gemMigrations = createGemMigrations((style, origin) =>
+  migrateStoredGem(style.id, migrationSteps, origin),
 )
 
 // Automática: una vez por gema y por sesión (spec §4.4).
 export const migrateGemOnce = gemMigrations.migrateOnce
+// «Preparar con IA»: la gema pegada, ya guardada como texto, se adapta en
+// segundo plano aunque se cierre el modal.
+export const adaptPastedGem = gemMigrations.adapt
 // «Reintentar» del aviso.
 export const retryGemMigration = gemMigrations.retry
 // Descartar el aviso de una gema ya migrada.

@@ -1,4 +1,7 @@
-import type { GemRebuildResponse } from '@/modules/videos/types/gemRebuild'
+import type {
+  GemRebuildOrigin,
+  GemRebuildResponse,
+} from '@/modules/videos/types/gemRebuild'
 import type {
   ColorFilterId,
   CustomStyleSummary,
@@ -56,6 +59,16 @@ export interface TemplateStyleDraft {
   sourcePrompt: string | null
 }
 
+// La gema pegada en «Pegá tu gema» al tocar «Preparar con IA»: se guarda tal
+// cual, como texto, y se adapta a la plantilla en segundo plano.
+export interface PastedGemDraft {
+  id: string
+  name: string
+  text: string
+  character: StyleCharacter
+  colorFilter: ColorFilterId
+}
+
 // Algo con texto de gema: una tarjeta de la galería, el estilo elegido o el
 // borrador del modal.
 export type GemTextSource = Pick<
@@ -91,8 +104,12 @@ export type GemMigrationOutcome =
 export interface GemMigrationSteps {
   // La gema como está guardada AHORA; undefined si ya no existe.
   findStored: (styleId: string) => Promise<CustomStyleSummary | undefined>
-  // El agente reconstructor con el texto de migración de esa gema.
-  rebuild: (style: CustomStyleSummary) => Promise<GemRebuildResponse>
+  // El agente reconstructor con el texto de migración de esa gema y el origin
+  // que queda en gem_rebuild_logs (una gema pegada o una vieja que se migra).
+  rebuild: (
+    style: CustomStyleSummary,
+    origin: GemRebuildOrigin,
+  ) => Promise<GemRebuildResponse>
   // Guarda las secciones de esa gema y espera la lista nueva.
   save: (
     style: CustomStyleSummary,

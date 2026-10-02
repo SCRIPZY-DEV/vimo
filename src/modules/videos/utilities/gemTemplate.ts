@@ -15,6 +15,7 @@ import type {
 } from '@/modules/videos/types/gemRebuild'
 import type {
   GemTextSource,
+  PastedGemDraft,
   StyleContextGem,
   TemplateStyleDraft,
 } from '@/modules/videos/types/styles'
@@ -303,6 +304,27 @@ export function migrationStyleSavePayload(
     sections: cleanGemSections(response.sections),
     templateVersion: response.templateVersion,
     sourcePrompt: migrationRebuildText(style),
+  }
+}
+
+/**
+ * style-save de una gema pegada al tocar «Preparar con IA»: se guarda tal
+ * cual, como texto (así no se pierde si se cierra el modal o la app), y la
+ * adaptación a la plantilla la reemplaza por secciones en segundo plano. Sin
+ * planos (una gema de plantilla no los usa) y con el respaldo vacío: si
+ * reemplaza a una gema de plantilla, su texto original deja de ser el de esta
+ * gema. El personaje y el filtro de color viajan como están en el modal: un
+ * cambio sin guardar no se pierde al reemplazar la gema.
+ */
+export function pastedGemSavePayload(draft: PastedGemDraft): StyleSavePayload {
+  return {
+    id: draft.id,
+    name: draft.name,
+    systemPrompt: draft.text.trim(),
+    shots: [],
+    character: draft.character,
+    colorFilter: draft.colorFilter,
+    sourcePrompt: '',
   }
 }
 

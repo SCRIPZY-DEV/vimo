@@ -51,6 +51,10 @@ El 2026-10-01 el dueño le pidió a Claude los pasos de esta ola y respondió la
   y otros más baratos y elegir el mejor para esto: sigue nano, pedido con su id con fecha (spec §6.3).
 - **Gemas largas:** una gema admite hasta 100 000 caracteres (eran 30 000). La suma de las secciones
   sigue en 30 000 y el agente condensa.
+- **Adaptación en segundo plano (2026-10-02):** «Preparar con IA» guarda la gema pegada tal cual y la
+  adapta fuera del modal. Mientras tanto se muestra «Generando adaptación a ficha de Vimo manteniendo
+  tu gema…», se puede cerrar el modal y las secciones se guardan solas. «Pegar gema nueva» reemplaza
+  al tocar el botón. Detalle en la nota del 2026-10-02 de la ADR-0048.
 - **Texto sin estilo visual:** con código y mensaje propios.
 - **Registro de reconstrucciones:** `gem_rebuild_logs` guarda 60 días (es solo un registro) y la página
   de privacidad lo dice.

@@ -318,9 +318,9 @@ el final los agrega el código.
   comparación de modelos.
 - ⚠️ **El control del personaje depende de que el agente lo separe bien.** Una mención que quede
   en `visualStyle` viaja al `system` en todos los modos. Lo vigilan la comparación de modelos con
-  claves reales y el autor. Al pegar una gema, el autor ve las secciones y los avisos del agente
-  antes de guardar. Una gema vieja, en cambio, se migra y se guarda **antes** de que el autor la
-  revise: los avisos del agente y el texto original se le muestran después (el aviso de la
+  claves reales y el autor. Una gema vieja se migra y se guarda **antes** de que el autor la
+  revise, y desde el 2026-10-02 también una recién pegada: se guarda como texto al tocar «Preparar con
+  IA» y se adapta en segundo plano por el mismo camino (ver la nota posterior). En los dos casos, los avisos del agente y el texto original se le muestran después (el aviso de la
   galería, `GemAgentWarnings` en el modal y la caja «Texto original»), y hasta que los mira, su
   próximo video puede salir con las secciones sin revisar.
 - ⚠️ **Excepción de texto frente a la ADR-0038.** `diagnostic_logs` no sube contenido del usuario;
@@ -444,3 +444,31 @@ modos.
   `plan-e1-sidecar.md`, `plan-e1-server.md` y `plan-e1-app.md`).
 - Servidor: repo `vimo-landing`, rama `feat/reconstructor-gemas`. El SQL de `gem_rebuild_logs` y
   las variables de entorno están en `SETUP_RECONSTRUCTOR_GEMAS.md`.
+
+## Nota posterior 2026-10-02 — la gema pegada se adapta en segundo plano
+
+Pedido del dueño: que la adaptación de una gema muestre «Generando adaptación a ficha de Vimo manteniendo
+tu gema», siga aunque se cierre el modal y se guarde sola.
+
+- **Al tocar «Preparar con IA»,** el modal guarda la gema tal cual, como texto (`pastedGemSavePayload`:
+  sin planos y con el respaldo vacío). La galería la manda al store de migraciones
+  (`adaptPastedGem`, `origin: 'mi-estilo'`) y, con la lista nueva, pasa el modal a la gema guardada.
+- **Al terminar,** la adaptación guarda las secciones con el texto pegado de respaldo
+  (`migrationStyleSavePayload`). El modal se vuelve a sembrar con ellas, igual que tras la migración de
+  una gema vieja.
+- **«Reintentar»** repite el mismo origin. Con una adaptación en vuelo no sale otra.
+- **Se quitó** `useGemRebuild` (con su single-flight): el modal ya no llama al agente.
+- **El modal no se traba:**
+  - la galería pone la gema guardada en la lista cacheada (`showSavedStyle`) antes de pasar el modal a
+    ella, así el modal no se desmonta aunque el refetch tarde o falle;
+  - el almacén de estilos (`useCustomStyles`) usa `networkMode: 'always'`, porque el sidecar es local:
+    con el modo por defecto, sin red el guardado quedaba en pausa y el modal no se podía cerrar.
+- **No toca el sidecar:** `style-save` ya guarda una gema de texto sobre una de secciones (las
+  descarta) y conserva personaje, filtro y origen.
+- **«Pegar gema nueva»** reemplaza al tocar el botón, por decisión del dueño: así lo pegado no se
+  pierde si se cierra la app en el medio.
+- **Límites:**
+  - una gema pegada sin nombre se guarda como «Estilo sin nombre»;
+  - si la app se cierra en el medio, la adaptación se retoma con `origin: 'migracion'`;
+  - después de un `sin-estilo-visual`, corregir el texto en el editor viejo no reintenta solo en esa
+    sesión.

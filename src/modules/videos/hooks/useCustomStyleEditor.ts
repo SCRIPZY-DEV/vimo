@@ -37,6 +37,15 @@ export function openCustomStyleEditor(
   return true
 }
 
+// El estilo nuevo que está abierto ya se guardó (la gema pegada en «Preparar
+// con IA»): desde acá el modal edita esa gema guardada, que la galería lee de la
+// lista. Para otro estilo, o si ya no era nuevo, no hace nada.
+export function markCustomStyleEditorSaved(styleId: string) {
+  if (request?.styleId !== styleId || !request.isNew) return
+  request = { ...request, isNew: false }
+  notify()
+}
+
 // Idempotente: cerrar lo que ya está cerrado no notifica a nadie.
 export function closeCustomStyleEditor() {
   if (request === null) return

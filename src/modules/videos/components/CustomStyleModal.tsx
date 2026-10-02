@@ -31,11 +31,11 @@ import { InsufficientCreditsAlert } from '@/modules/common/components/Insufficie
 import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
-import { useGemRebuild } from '@/modules/videos/hooks/useGemRebuild'
 import { useGemTemplateDraft } from '@/modules/videos/hooks/useGemTemplateDraft'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
 import {
   hasGemText,
+  pastedGemSavePayload,
   styleContextGemOf,
   templateStyleSavePayload,
 } from '@/modules/videos/utilities/gemTemplate'
@@ -82,6 +82,9 @@ interface CustomStyleModalProps {
   script: string
   promptModel: string | null
   onSave: (payload: StyleSavePayload) => Promise<void>
+  // «Preparar con IA»: guarda la gema pegada como texto y la manda a adaptar
+  // en segundo plano; la galería pasa el modal a esa gema guardada.
+  onAdaptPastedGem: (payload: StyleSavePayload) => Promise<void>
   onClose: () => void
 }
 
@@ -152,6 +155,7 @@ export function CustomStyleModal({
   script,
   promptModel,
   onSave,
+  onAdaptPastedGem,
   onClose,
 }: CustomStyleModalProps) {
   const { t } = useTranslation()
@@ -170,7 +174,8 @@ export function CustomStyleModal({
     () => initial.sections !== undefined || (isNew && gemTemplateEnabled),
   )
   const gemDraft = useGemTemplateDraft(initial)
-  const gemRebuild = useGemRebuild()
+  // «Preparar con IA» guardando la gema pegada (hasta que el modal pasa a ella).
+  const [preparing, setPreparing] = useState(false)
 
   const [name, setName] = useState(initial.name)
   const [systemPrompt, setSystemPrompt] = useState(initial.systemPrompt)
@@ -250,7 +255,8 @@ export function CustomStyleModal({
         templateVersion: gemDraft.templateVersion,
         colorFilter: gemDraft.colorFilter,
         character: characterToSave,
-        sourcePrompt: gemDraft.sourcePrompt,
+        // El respaldo lo escribe la adaptación: editar secciones lo conserva.
+        sourcePrompt: null,
       })
 
     return {
@@ -286,10 +292,11 @@ export function CustomStyleModal({
     }
   }
 
-  // Con muestras generándose o la IA preparando la gema no se cierra: los dos
-  // trabajos cuestan y se verían a medias; los botones lo dicen con su spinner.
+  // Con muestras generándose no se cierra: cuestan y se verían a medias; el
+  // botón lo dice con su spinner. Tampoco en el instante en que se guarda la
+  // gema pegada. La adaptación, en cambio, sigue aunque se cierre.
   const close = async () => {
-    if (samplesJob.running || gemRebuild.pending) return
+    if (samplesJob.running || preparing) return
     // Sin cambios posibles durante la migración: se cierra sin guardar.
     if (migrating) {
       onClose()
@@ -341,15 +348,29 @@ export function CustomStyleModal({
     void generate(imageProvider)
   }
 
-  // «Preparar con IA»: la gema pegada va al agente y vuelve por secciones. Si
-  // falla, el texto sigue en la caja y el botón pasa a «Reintentar».
+  // «Preparar con IA»: la gema pegada se guarda tal cual (no se pierde aunque
+  // se cierre el modal o la app) y se adapta a la plantilla en segundo plano,
+  // como una gema vieja que se migra. El modal pasa a esa gema con el aviso
+  // «Generando adaptación…» y se puede cerrar; las secciones se guardan solas.
+  // Si el guardado falla, el texto sigue en la caja y el error se ve abajo.
   const prepare = async () => {
-    const sourceText = gemDraft.pasteText.trim()
-    const response = await gemRebuild.rebuild(styleId, sourceText, 'mi-estilo')
-    if (!response) return
-    gemDraft.applyRebuild(response, sourceText)
-    // Las secciones de la migración ya no están: su aviso tampoco aplica.
-    if (migrated) onDismissMigration()
+    setSaveErrorKey(null)
+    setPreparing(true)
+    try {
+      await onAdaptPastedGem(
+        pastedGemSavePayload({
+          id: styleId,
+          name: name.trim() || t('create.customStyles.unnamed'),
+          text: gemDraft.pasteText,
+          character,
+          colorFilter: gemDraft.colorFilter,
+        }),
+      )
+    } catch (error) {
+      setSaveErrorKey(videosApi.errorMessageKey(error))
+    } finally {
+      setPreparing(false)
+    }
   }
 
   // «Pegar gema nueva» reemplaza todas las secciones: con algo sin guardar,
@@ -361,7 +382,6 @@ export function CustomStyleModal({
       !window.confirm(t('create.gemTemplate.replaceConfirm'))
     )
       return
-    gemRebuild.reset()
     gemDraft.startPasting()
   }
 
@@ -407,8 +427,7 @@ export function CustomStyleModal({
             <div className="space-y-3">
               <GemPasteStep
                 text={gemDraft.pasteText}
-                pending={gemRebuild.pending}
-                error={gemRebuild.error}
+                pending={saving || preparing}
                 onTextChange={gemDraft.setPasteText}
                 onPrepare={() => void prepare()}
                 // Volver solo tiene sentido si ya hay secciones (reemplazo).
@@ -426,16 +445,13 @@ export function CustomStyleModal({
                   onRetry={() => void retryMigration()}
                 />
               )}
-              {templateMode &&
-                (migrated ? (
-                  <GemAgentWarnings
-                    warnings={migrated.warnings}
-                    migrated
-                    onDismiss={onDismissMigration}
-                  />
-                ) : (
-                  <GemAgentWarnings warnings={gemDraft.warnings} />
-                ))}
+              {templateMode && migrated && (
+                <GemAgentWarnings
+                  warnings={migrated.warnings}
+                  migrated
+                  onDismiss={onDismissMigration}
+                />
+              )}
 
               <StyleCharacterBlock
                 value={character}

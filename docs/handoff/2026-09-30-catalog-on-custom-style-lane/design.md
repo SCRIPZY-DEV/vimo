@@ -241,7 +241,8 @@ exige exactamente uno de `sections` o `systemPrompt`.
 ### 4.4 Gemas viejas (sin secciones)
 
 - La primera vez que una gema vieja se abre en el modal o se elige en Crear, la app la manda al agente
-  con `origin: 'migracion'` y muestra «Actualizando tu estilo a la plantilla de Vimo…».
+  con `origin: 'migracion'` y muestra «Generando adaptación a ficha de Vimo manteniendo tu gema…».
+- Una gema recién pegada sigue el mismo camino (sección 7), con `origin: 'mi-estilo'`.
 - Si sale bien, guarda las secciones y el respaldo.
 - Si falla, avisa con un botón para reintentar. Mientras tanto la gema sigue funcionando por el camino
   viejo, sin bloquear al usuario.
@@ -591,11 +592,23 @@ create index gem_rebuild_logs_user_created_idx
 
 **UI de Mi estilo** (solo con `features.gemTemplate`; sin él, todo queda como hoy)
 
-- «Crear estilo» abre el modal en «Pega tu gema»: una caja grande y el botón «Preparar con IA». Al
-  terminar, muestra las cajas por sección y los avisos del agente.
+- «Crear estilo» abre el modal en «Pega tu gema»: una caja grande y el botón «Preparar con IA».
+  Desde el 2026-10-02, por decisión del dueño, el botón guarda la gema tal cual, como texto, y la
+  adapta en segundo plano como una gema vieja (sección 4.4):
+  - El modal pasa a esa gema con «Generando adaptación a ficha de Vimo manteniendo tu gema…» y se
+    puede cerrar. La adaptación sigue, y la galería muestra el mismo aviso.
+  - Al terminar, las secciones se guardan solas. El modal o la galería muestran las cajas con los
+    avisos del agente para revisarlas.
+  - Si falla, la gema sigue funcionando como texto, con «Reintentar», salvo cuando el texto no es una
+    gema: entonces el aviso explica por qué.
+  - Si se cierra la app en el medio, la gema quedó guardada y se adapta la próxima vez que se abra o
+    se elija.
+  - Antes, el modal esperaba al agente sin poder cerrarse.
 - Una gema de plantilla abre con sus cajas.
   - `visualStyle` va abierta. Las secciones opcionales vacías aparecen como «Agregar sección».
-  - La acción secundaria «Pegar gema nueva» reemplaza todo, con confirmación.
+  - La acción secundaria «Pegar gema nueva» reemplaza todo, con confirmación. El reemplazo ocurre
+    al tocar «Preparar con IA»: si la adaptación falla, queda la gema nueva como texto, no las
+    secciones de antes (decisión del dueño del 2026-10-02).
 - Una gema vieja se actualiza como dice la sección 4.4.
 - El bloque «¿Tu estilo lleva personaje?» no cambia. La caja «Personaje del estilo» explica que se usa
   en el modo genérico.
