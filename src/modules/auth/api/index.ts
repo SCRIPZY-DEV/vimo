@@ -1,4 +1,5 @@
 import type { Session } from '@supabase/supabase-js'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { supabase } from '@/modules/common/supabase/client'
@@ -99,13 +100,23 @@ export const authApi = {
   async subscribeToAuthCallback(
     onCode: (code: string) => void,
   ): Promise<() => void> {
+    // Con el código en mano la app pasa al frente: la persona terminó en el
+    // navegador y no tiene que volver a mano. Con el deep link macOS ya la
+    // activa; en dev, con el retorno por Vite, nadie lo haría. Si el sistema
+    // no deja enfocar, el canje sigue igual.
+    const deliver = (code: string) => {
+      void getCurrentWindow()
+        .setFocus()
+        .catch(() => undefined)
+      onCode(code)
+    }
     // El code PKCE vuelve como vimo://auth/callback?code=...; el code_verifier
     // ya quedó en el storage del webview cuando se llamó signInWithOAuth.
     const unlisten = await onOpenUrl((urls) => {
       for (const url of urls) {
         const code = new URL(url).searchParams.get('code')
         if (code) {
-          onCode(code)
+          deliver(code)
           return
         }
       }
@@ -118,7 +129,7 @@ export const authApi = {
       void fetch(`${AUTH_DEV_CALLBACK_PATH}/code`)
         .then((response) => response.json() as Promise<DevAuthCallbackResponse>)
         .then(({ code }) => {
-          if (code) onCode(code)
+          if (code) deliver(code)
         })
         .catch(() => undefined)
     }, AUTH_DEV_CALLBACK_POLL_MS)

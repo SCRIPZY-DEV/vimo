@@ -210,4 +210,9 @@ del borde con el exterior, junto a `fetcher.ts` y `pipeline.ts`.
   (`waiting`). Con el navegador abierto el botón vuelve a estar disponible y la vista avisa que se
   puede reintentar. Antes, si el retorno no llegaba, quedaba en «Abriendo Google...» hasta reiniciar
   la app.
+- **La app pasa al frente sola** al recibir el código (`getCurrentWindow().setFocus()`, con el
+  permiso `core:window:allow-set-focus`), por los dos caminos: con el deep link macOS ya activaba la
+  app; con el retorno de dev nadie lo hacía y la persona volvía a mano desde el navegador. La página
+  de retorno de dev le dice que Vimo ya tiene su sesión y que puede cerrar la pestaña. En producción
+  esa página no existe: el navegador pregunta «¿Abrir Vimo?» y entrega el deep link.
 - Detalle en `fixes/2026-10-02_desktop-login-dev-and-stuck-button.md`.
