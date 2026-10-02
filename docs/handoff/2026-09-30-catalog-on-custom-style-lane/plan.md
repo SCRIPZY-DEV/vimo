@@ -448,7 +448,9 @@ C6b se omite y «Crear personaje con mi estilo» sigue con el experto de la casa
 
 ## Entrega 2: esquema
 
-Se detalla en `plan-e2.md` al cerrar la Entrega 1.
+Detallada el 2026-10-02 en [plan-e2.md](plan-e2.md), con las decisiones del dueño de ese día (las
+5 gemas actuales más las 34 de `estilos/`, muestras generadas reusando las que existen, «Ver» sin
+texto, misma rama). Esta tabla es el esquema original.
 
 | #    | Tarea                                                                                                                                                                                 | Archivos principales                                                                     | Verificación                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- |
