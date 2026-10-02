@@ -27,7 +27,10 @@ export function useGemTemplateDraft(initial: CustomStyleDraft) {
   // Viaja SIEMPRE con las secciones en style-save: la de las secciones
   // guardadas.
   const templateVersion = initial.templateVersion ?? GEM_TEMPLATE_VERSION
-  const [colorFilter, setColorFilter] = useState(initial.colorFilter ?? 'none')
+  // El preset de color (spec §5.5) se conserva como está guardado: el modal
+  // no lo ofrece (se quitó el 2026-10-02), pero una gema que lo trae no lo
+  // pierde al guardar.
+  const colorFilter = initial.colorFilter ?? 'none'
 
   return {
     pasting,
@@ -40,7 +43,6 @@ export function useGemTemplateDraft(initial: CustomStyleDraft) {
     originalText: initial.sourcePrompt ?? null,
     unsavedSections: !sameGemSections(sections, savedSections),
     setPasteText,
-    setColorFilter,
     editSection(key: GemSectionKey, value: string) {
       setSections((current) => ({ ...current, [key]: value }))
     },

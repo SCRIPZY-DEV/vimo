@@ -17,7 +17,6 @@ import { cn } from '@/modules/common/utilities/cn'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { videosApi } from '@/modules/videos/api'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
-import { ColorFilterPicker } from '@/modules/videos/components/ColorFilterPicker'
 import { GemAgentWarnings } from '@/modules/videos/components/GemAgentWarnings'
 import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
 import { GemPasteStep } from '@/modules/videos/components/GemPasteStep'
@@ -134,8 +133,9 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
 // probarlo. Orden a propósito: personaje → muestras → proveedor → generar →
 // nombre → estilo → Listo, porque el personaje cambia cómo salen las muestras
 // y elegirlo después sería generar dos veces. El «estilo» es el texto y los
-// planos de siempre en una gema vieja, o sus secciones y su filtro de color en
-// una de plantilla (ADR-0048), que antes de existir pasa por «Pegá tu gema».
+// planos de siempre en una gema vieja, o sus secciones en una de plantilla
+// (ADR-0048), que antes de existir pasa por «Pegá tu gema». El filtro de color
+// de la gema (spec §5.5) viaja como está guardado: no se elige acá.
 // Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta: no hay
 // «Cancelar». En «Pegá tu gema» de una gema nueva no hay nada que guardar,
 // así que con texto pegado se pregunta antes de tirarlo. Regla de modales del
@@ -670,11 +670,6 @@ export function CustomStyleModal({
                       </span>
                     </div>
                   )}
-                  <ColorFilterPicker
-                    value={gemDraft.colorFilter}
-                    disabled={saving}
-                    onChange={gemDraft.setColorFilter}
-                  />
                 </>
               ) : (
                 <>

@@ -15,7 +15,7 @@ import type {
   NarrationMode,
 } from '@pipeline/types/video-project.ts'
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
-import type { ColorFilterId, GemSectionKey } from '@pipeline/types/styles.ts'
+import type { GemSectionKey } from '@pipeline/types/styles.ts'
 import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
@@ -452,14 +452,6 @@ export const GEM_SECTION_TEXT_KEYS: Record<
 // en su tarjeta (spec §4.4). La curva y sus tiempos viven con
 // `gemAdaptationPercent` (utilities), que corre bajo un guard con Node pelado.
 export const GEM_ADAPTATION_TICK_MS = 500
-
-// Nombre de cada preset de color del estilo (spec §5.5). El filtro de FFmpeg
-// lo aplica el sidecar al render.
-export const COLOR_FILTER_LABEL_KEYS: Record<ColorFilterId, string> = {
-  none: 'create.gemTemplate.colorFilters.none',
-  fantasy: 'create.gemTemplate.colorFilters.fantasy',
-  'horror-bw': 'create.gemTemplate.colorFilters.horror-bw',
-}
 
 // Planos recomendados que llena el botón del modal (verbatim del origen).
 export const RECOMMENDED_SHOTS = [

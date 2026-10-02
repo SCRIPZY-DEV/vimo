@@ -748,8 +748,6 @@
       "warningsTitle": "What the AI adjusted in your gem",
       "sourceTitle": "Original text",
       "sourceHint": "Your gem as it was before the AI sorted it into sections. It's read-only: copy whatever you need.",
-      "colorFilterTitle": "Color filter",
-      "colorFilterHint": "Applied to the finished video.",
       "sections": {
         "visualStyle": {
           "title": "Visual style",
@@ -779,11 +777,6 @@
           "title": "Fixed end of every image",
           "hint": "English phrase Vimo adds at the end of every image prompt."
         }
-      },
-      "colorFilters": {
-        "none": "Natural",
-        "fantasy": "Fantasy (vivid colors)",
-        "horror-bw": "Horror (black and white)"
       },
       "errors": {
         "session": "Your session expired. Sign out and sign in again.",

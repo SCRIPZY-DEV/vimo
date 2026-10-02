@@ -748,8 +748,6 @@
       "warningsTitle": "O que a IA ajustou na sua gema",
       "sourceTitle": "Texto original",
       "sourceHint": "Sua gema como era antes de a IA organizá-la em seções. É somente leitura: copie o que precisar.",
-      "colorFilterTitle": "Filtro de cor",
-      "colorFilterHint": "Aplicado ao vídeo finalizado.",
       "sections": {
         "visualStyle": {
           "title": "Estilo visual",
@@ -779,11 +777,6 @@
           "title": "Final fixo de cada imagem",
           "hint": "Frase em inglês que o Vimo adiciona no final de cada prompt de imagem."
         }
-      },
-      "colorFilters": {
-        "none": "Natural",
-        "fantasy": "Fantasia (cores vivas)",
-        "horror-bw": "Terror (preto e branco)"
       },
       "errors": {
         "session": "Sua sessão expirou. Saia e entre de novo.",

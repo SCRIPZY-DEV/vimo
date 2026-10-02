@@ -481,3 +481,8 @@ tu gema», siga aunque se cierre el modal y se guarde sola.
   las secciones (`gemAdaptationPercent`, `GEM_ADAPTATION_*`). El store guarda `startedAt` y `phase`
   en la migración en vuelo; `migrateStoredGem` avisa `saving` al recibir la respuesta. El aviso de
   «en vuelo» debajo de la grilla se quitó (lo reemplaza la tarjeta); en el modal sigue.
+- **Se quitó el selector de filtro de color del modal** (pedido del dueño: no lo había pedido y no
+  se entendía qué hacía). El preset (spec §5.5, F5) sigue en los datos y en el sidecar: una gema que
+  lo trae lo conserva al guardar, y el catálogo de la Entrega 2 lo usará para Terror (blanco y negro)
+  y Fantasía (colores vivos). Si «Pasar a mi estilo» copia una gema con filtro, habrá que decidir
+  dónde se cambia.

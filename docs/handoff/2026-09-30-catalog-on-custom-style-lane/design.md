@@ -614,7 +614,9 @@ create index gem_rebuild_logs_user_created_idx
 - Una gema vieja se actualiza como dice la sección 4.4.
 - El bloque «¿Tu estilo lleva personaje?» no cambia. La caja «Personaje del estilo» explica que se usa
   en el modo genérico.
-- Selector de filtro de color. «Planos permitidos» desaparece en las gemas de plantilla.
+- ~~Selector de filtro de color.~~ Quitado el 2026-10-02 a pedido del dueño: el preset (sección 5.5)
+  sigue en los datos para el catálogo, pero Mi estilo no lo ofrece. «Planos permitidos» desaparece
+  en las gemas de plantilla.
 - Todos los textos nuevos en `es`, `en` y `pt`.
 
 ---
