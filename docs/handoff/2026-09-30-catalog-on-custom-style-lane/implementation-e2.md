@@ -48,6 +48,8 @@ Commits de la entrega, en orden (todos locales):
 | `a0c4135c` | Ajustes de la revisión de la app (borrador del personaje compartido)                    |
 | `acb8303f` | App: Crear con un estilo del catálogo y «Basado en …» (C3 y C4)                         |
 | `a89bcf9a` | Ajustes de la revisión de C3 y C4 y de la prueba visual                                 |
+| `92e97e1d` | Gemas: el rol al inicio de `character`, frases fijas de POV Stickman solo de estilo     |
+| `59833480` | App: el modal de personaje conoce los estilos del catálogo; textos del personaje fijo   |
 
 Cada frente pasó una revisión independiente por tarea (informes en el espacio de trabajo de la
 sesión, no versionado). Hallazgos y qué se hizo con ellos:
@@ -64,6 +66,17 @@ sesión, no versionado). Hallazgos y qué se hizo con ellos:
   imágenes sin roturas y sin desborde horizontal; «Ver» tampoco desborda. Dos hallazgos corregidos en
   `a89bcf9a`: los botones de «Ver» quedaban cortados bajo el carrusel (ahora son un pie fijo) y el
   aviso de selección quedaba debajo de las 38 tarjetas (ahora va arriba).
+- **Revisión final de toda la entrega** (un revisor aparte sobre los 11 commits): sin críticos. Lo
+  comprobó ejecutando el código real: 456 payloads de proyecto (38 gemas × 3 idiomas × 4 variantes
+  de personaje) armados por los módulos de la app y aceptados por `create-video-project`, y 38
+  copias con las 148 muestras reales aceptadas por `catalog-style-copy`. Encontró cuatro
+  importantes; tres se corrigieron y el cuarto es de integración (sección «Integración»):
+  - La sección `character` de 7 gemas no abría con el rol, y el tejedor armaba frases rotas («the
+    smooth walking…», «the main character…»). Corregido en `92e97e1d`, con una regla nueva en
+    `check-catalog-gems.mjs` (el rol esperado por gema, contra el tejedor real).
+  - Las frases fijas de POV Stickman describían al muñeco y se pegan en todas las escenas, también
+    en las que no llevan protagonista. Ahora son solo de estilo (`92e97e1d`).
+  - El modal de crear personaje no conocía los 33 ids nuevos (`59833480`).
 
 ## Decisiones tomadas durante la implementación
 
@@ -80,6 +93,7 @@ sesión, no versionado). Hallazgos y qué se hizo con ellos:
 | R9  | El tope de 80 caracteres del nombre del snapshot vale para todo `customStyle`, no solo para el catálogo: la galería ya lo capa al guardar, así que no rechaza datos existentes.                                                                                                                                                                                   |
 | R10 | El texto de ayuda de la pestaña Catálogo («Los estilos de Vimo.») es uno solo, también con el interruptor apagado.                                                                                                                                                                                                                                                |
 | R11 | El guard del payload de Crear (`check-app-catalog-payload.mjs`) empaqueta el `createProjectPayload` y el `formBlockers` reales con esbuild (como `check-app-vimo-server.mjs`) en vez de probar un fragmento puro: es la única forma de fijar el payload viejo entero, byte por byte.                                                                              |
+| R12 | Realista Documental (`realista`) permite solo el modo cinemático (`allowedModes: ['none']`): sus reglas piden describir a cada persona entera en cada prompt, lo contrario de lo que el marco hace con un protagonista. Para un protagonista está Realista Personaje. Salió de la revisión final, antes de la QA.                                                 |
 
 ## Las gemas: qué se cambió a mano
 
@@ -168,15 +182,15 @@ estilo de origen.
 
 ## Verificación
 
-Sobre el HEAD de la entrega (`a89bcf9a`), entre el 2026-10-02 y el 2026-10-03:
+Sobre el HEAD de la entrega (`59833480`), el 2026-10-03:
 
 | Qué                                                                                                                                                                                                                        | Resultado                                             |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `pnpm lint`                                                                                                                                                                                                                | verde                                                 |
 | `pnpm build` (`tsc -b` + Vite)                                                                                                                                                                                             | verde                                                 |
 | `pnpm format:check`                                                                                                                                                                                                        | verde                                                 |
-| `pnpm check:locales`                                                                                                                                                                                                       | 1493 claves alineadas en es, en y pt                  |
-| `node --test scripts/test/check-gem-*.mjs check-app-*.mjs check-catalog-*.mjs check-preview-regressions.mjs`                                                                                                               | 429 de 429                                            |
+| `pnpm check:locales`                                                                                                                                                                                                       | 1496 claves alineadas en es, en y pt                  |
+| `node --test scripts/test/check-gem-*.mjs check-app-*.mjs check-catalog-*.mjs check-preview-regressions.mjs`                                                                                                               | 431 de 431                                            |
 | Carril viejo y verbatim (`check-catalog-prompts`, `check-character-identity-lock`, `check-scene-wardrobe`, `check-verbatim-prompt-language`, `check-verbatim-prompt-persistence`, `check-prompt-identity-travels-as-text`) | 91 de 91                                              |
 | `pnpm check:demo`                                                                                                                                                                                                          | 99 de 99                                              |
 | `pnpm test:tauri`                                                                                                                                                                                                          | 51 de 51                                              |
@@ -196,6 +210,25 @@ módulos puros, el payload por carril con el formulario real empaquetado, los su
 sidecar real, y la galería y «Ver» reales dibujados en Chrome headless con el CSS del build (38
 tarjetas, alturas, imágenes, desbordes, el pie fijo de «Ver» y el aviso de selección). Queda por
 mirar en la app (WebKit): el pie fijo de «Ver» se midió en Chrome.
+
+## Integración con `dev` y con la rama hermana
+
+Verificado el 2026-10-03 con `git merge-tree` (solo lectura; no se mergeó ni se rebaseó nada):
+
+- **`origin/dev`** avanzó 3 commits desde la base de esta rama (`c007e008`): el PR #92 («Fix/promot
+  missing») y el cambio de versión a 0.9.0. Esta rama lleva 57 commits propios. Al integrar chocan
+  dos archivos, los dos por cambios de la Entrega 1: `pipeline/stages/scene-prompts/scene-prompts.ts`
+  y `src/modules/videos/constants.ts`.
+- **`fix/prompt-identity-travels-as-text`** (`d1532716`, local, decisión del dueño del 2026-10-02: un
+  personaje de identidad de prompt viaja siempre como texto) borra el aviso
+  `create.characters.noStylePreviewHint` y la copia del retrato del estilo, que es justo el bloque de
+  `CharacterSection.tsx` que esta entrega tocó: un conflicto ahí. Cuando ese fix entre, hay que quitar
+  entero el bloque `withoutStylePreview` (también la variante de esta entrega) y actualizar dos
+  comentarios que describen la regla vieja (`previewStyleKeyOf.ts` y `CharacterSection.tsx`).
+- Mientras tanto, la QA de «Mi personaje» con un personaje de texto en esta rama ejercita la regla
+  vieja (el retrato del estilo viaja como imagen de referencia).
+
+El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el dueño.
 
 ## Pendientes y pasos del dueño
 
@@ -248,6 +281,18 @@ mirar en la app (WebKit): el pie fijo de «Ver» se midió en Chrome.
   `styleId` y el payload trae `catalogStyleId`). Rust no se tocó.
 - **Preview de personaje de los 5 ids heredados:** sigue con la plantilla fija de siempre (P6) hasta
   el retiro del carril viejo.
+- **Frases fijas que nombran un personaje.** `3d-relatos` («stylized cinematic 3D character») y
+  `caricatura-editorial` («exaggerated proportions with an oversized head») traen esas palabras en
+  su `promptEnd`, que se pega también en las escenas sin protagonista. Se dejaron como en el origen
+  (Imperio Pro las pega igual en todas); la QA con imágenes dice si hay que hacerlas condicionales,
+  como se hizo con POV Stickman.
+- **Diagnóstico y exportación de prompts.** La fila de diagnóstico de un proyecto del catálogo lleva
+  `styleId: normal` sin el id de la gema, y el `.txt` de prompts dice «Style: normal». Para la QA
+  conviene mirar `project.json` (`options.customStyle.catalogStyleId`).
+- **Copia en curso al cambiar de pestaña.** El estado de la copia vive en la galería: si la persona
+  sale de la pestaña Catálogo y vuelve mientras se copia, puede lanzar otra copia del mismo estilo.
+- **Tarjeta de una copia en Mi estilo:** tiene una línea más («Basado en …») que las de los estilos
+  propios; en una fila que mezcla las dos, el pie queda desparejo.
 - **Sin buscador ni filtros** en la pestaña (38 tarjetas en tres columnas): fuera de alcance; se
   evalúa en la QA. Las etiquetas ya viajan en cada gema, así que un filtro por etiqueta no necesita
   cambios en el contrato.
