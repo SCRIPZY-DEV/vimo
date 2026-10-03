@@ -610,7 +610,7 @@
     },
     "styleSource": {
       "catalog": "Catálogo",
-      "catalogHint": "Los 5 estilos de Vimo.",
+      "catalogHint": "Los estilos de Vimo.",
       "catalogHintDemo": "Los 3 estilos con demo lista.",
       "custom": "Mi estilo",
       "customHint": "Tu propio estilo visual.",
@@ -660,6 +660,24 @@
       "shotsHint": "Si los escribís, nos aseguramos de que dos imágenes seguidas nunca salgan con el mismo encuadre.",
       "recommendedShots": "Planos recomendados",
       "save": "Listo"
+    },
+    "catalog": {
+      "galleryHint": "Elegí el estilo de las imágenes de tu video. Con los tres puntos de cada tarjeta lo podés ver con calma o pasarlo a Mi estilo para editarlo.",
+      "pickNotice": "Elegí con qué estilo sale tu video.",
+      "menuAria": "Opciones de {{name}}",
+      "useInVideo": "Usar en este video",
+      "alreadyInUse": "Ya está en uso",
+      "view": "Ver",
+      "copyToCustom": "Pasar a mi estilo",
+      "copying": "Copiando a Mi estilo…",
+      "copied": "«{{name}}» quedó copiado en Mi estilo.",
+      "copiedAction": "Ir a Mi estilo",
+      "copyFailed": "No se pudo pasar «{{name}}» a Mi estilo.",
+      "modalTitle": "Estilo de Vimo",
+      "noSamples": "Este estilo todavía no tiene muestras.",
+      "characterTitle": "Personaje de este estilo",
+      "characterHint": "Elegí quién protagoniza tus videos con este estilo.",
+      "useButton": "Usar en este video"
     },
     "promptModel": {
       "title": "Con qué modelo escribo",

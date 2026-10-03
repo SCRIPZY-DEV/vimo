@@ -51,6 +51,7 @@ export function libraryEditorPath(projectId: string): string {
 }
 
 export const videosQueryKeys = {
+  catalogStyles: ['videos', 'catalogStyles'],
   characters: ['videos', 'characters'],
   customStyles: ['videos', 'customStyles'],
   demoStatus: ['videos', 'demoStatus'],
@@ -394,6 +395,20 @@ export const SAMPLE_SWIPE_FRACTION = 0.18
 export const SAMPLE_SWIPE_EDGE_RESISTANCE = 0.3
 export const SAMPLE_SWIPE_SETTLE_TRANSITION =
   'transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+// ── Catálogo de Vimo (Entrega 2) ──
+
+// Qué modo de personaje eligió la persona en «Ver» para cada estilo del
+// catálogo (plan E2 §5.5). La lee y la escribe
+// utilities/catalogCharacterMemory.ts, que la espeja con `typeof` porque corre
+// bajo un guard con Node pelado (sin el alias `@/`).
+export const CATALOG_CHARACTER_STORAGE_KEY = 'vimo:catalog:character:v1'
+
+// Cuántas muestras de un estilo del catálogo acepta «Pasar a mi estilo»
+// (sample-1..4.jpg). Espejo de CATALOG_SAMPLE_COUNT en
+// pipeline/commands/catalog/catalog-store.ts; utilities/catalogSamples.ts lo
+// espeja con `typeof`, como la clave de arriba.
+export const CATALOG_SAMPLE_COUNT = 4
 
 // ── Estilos propios («Mi estilo») ──
 

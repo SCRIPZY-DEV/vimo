@@ -610,7 +610,7 @@
     },
     "styleSource": {
       "catalog": "Catalog",
-      "catalogHint": "Vimo's 5 styles.",
+      "catalogHint": "Vimo's styles.",
       "catalogHintDemo": "The 3 styles with a ready-made demo.",
       "custom": "My style",
       "customHint": "Your own visual style.",
@@ -660,6 +660,24 @@
       "shotsHint": "If you write them, we make sure two consecutive images never come out with the same framing.",
       "recommendedShots": "Recommended shots",
       "save": "Done"
+    },
+    "catalog": {
+      "galleryHint": "Pick the style of your video images. The three dots on each card let you look at it up close or copy it to My style to edit it.",
+      "pickNotice": "Pick which style your video comes out with.",
+      "menuAria": "Options for {{name}}",
+      "useInVideo": "Use in this video",
+      "alreadyInUse": "Already in use",
+      "view": "View",
+      "copyToCustom": "Copy to my style",
+      "copying": "Copying to My style…",
+      "copied": "\"{{name}}\" was copied to My style.",
+      "copiedAction": "Go to My style",
+      "copyFailed": "Could not copy \"{{name}}\" to My style.",
+      "modalTitle": "Vimo style",
+      "noSamples": "This style has no samples yet.",
+      "characterTitle": "This style's character",
+      "characterHint": "Choose who stars in your videos with this style.",
+      "useButton": "Use in this video"
     },
     "promptModel": {
       "title": "Which model writes the prompts",

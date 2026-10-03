@@ -27,6 +27,10 @@ import {
   UNKNOWN_DEMO_ERROR_KEY,
   UNKNOWN_GEM_REBUILD_ERROR_KEY,
 } from '@/modules/videos/constants'
+import {
+  catalogSampleImages,
+  catalogSampleUpload,
+} from '@/modules/videos/utilities/catalogSamples'
 import { readGemRebuildResponse } from '@/modules/videos/utilities/gemTemplate'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type {
@@ -38,6 +42,13 @@ import type {
   AnimateScenesPayload,
   UndoSceneAnimationResult,
 } from '@pipeline/types/animation.ts'
+import type {
+  CatalogCopyToCustomPayload,
+  CatalogCopyToCustomResult,
+  CatalogGem,
+  CatalogListResult,
+  CatalogSampleUpload,
+} from '@pipeline/types/catalog.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
 import type { DemoStatusResult } from '@pipeline/types/demo.ts'
 import type {
@@ -227,6 +238,36 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('generate-style-samples', payload, onEvent)
+  },
+  // Catálogo de Vimo (Entrega 2, plan E2 §5.3): las gemas en el orden de la
+  // pestaña, y la copia de una a Mi estilo.
+  async listCatalogStyles(): Promise<CatalogListResult> {
+    return runPipelineJob('catalog-styles-list')
+  },
+  async copyCatalogStyle(
+    payload: CatalogCopyToCustomPayload,
+  ): Promise<CatalogCopyToCustomResult> {
+    return runPipelineJob('catalog-style-copy', payload)
+  },
+  // Las muestras de una gema para «Pasar a mi estilo»: viven en la app (plan
+  // E2, P1), así que se leen de sus propios archivos con `fetch` (mismo
+  // origen; no es el sidecar ni un servicio externo, por eso no pasa por el
+  // fetcher) y viajan en base64. Una que no se puede bajar o leer, o que el
+  // sidecar rechazaría, se omite: la copia sale con menos muestras.
+  async catalogSampleUploads(gem: CatalogGem): Promise<CatalogSampleUpload[]> {
+    const uploads = await Promise.all(
+      catalogSampleImages(gem).map(async (url, index) => {
+        try {
+          const response = await fetch(url)
+          if (!response.ok) return null
+          const bytes = new Uint8Array(await response.arrayBuffer())
+          return catalogSampleUpload(bytes, index + 1)
+        } catch {
+          return null
+        }
+      }),
+    )
+    return uploads.filter((upload) => upload !== null)
   },
   // Agente reconstructor de vimo.click (ADR-0048): la gema entera vuelve por
   // secciones. Una respuesta 200 que no cumple el contrato no se usa.

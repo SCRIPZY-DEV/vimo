@@ -1,10 +1,13 @@
 // El estilo propio en el proyecto (options.customStyle): una gema vieja viaja
 // byte por byte como antes de ADR-0048 y una de plantilla viaja por secciones,
 // sin `systemPrompt` ni `shots` (spec §4.2). Decide el dato, no el interruptor.
-// Módulos puros de src/ corridos con Node (type stripping), sin bundler.
+// Una gema del catálogo nuevo (Entrega 2) viaja igual que una de plantilla más
+// su `catalogStyleId` (plan E2 §5.4). Módulos puros de src/ corridos con Node
+// (type stripping), sin bundler.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { projectCustomStyleFrom } from '../../src/modules/videos/utilities/projectCustomStyle.ts'
+import { selectedCatalogStyleFrom } from '../../src/modules/videos/utilities/selectedCatalogStyle.ts'
 import { selectedCustomStyleFrom } from '../../src/modules/videos/utilities/selectedCustomStyle.ts'
 
 const OLD_GEM = {
@@ -103,4 +106,86 @@ test('secciones o systemPrompt, nunca los dos: el systemPrompt vacío del snapsh
   })
   assert.equal('systemPrompt' in withText, false)
   assert.deepEqual(withText.sections, TEMPLATE_GEM.sections)
+})
+
+// Una gema del catálogo de Vimo con la forma completa de CatalogGem: siempre de
+// plantilla, con nombre y descripción en los tres idiomas.
+const CATALOG_GEM = {
+  id: 'cartoon',
+  name: { es: 'Cartoon 2D', en: '2D cartoon', pt: 'Cartoon 2D' },
+  description: {
+    es: 'Dibujo animado de trazo limpio.',
+    en: 'Clean-line cartoon.',
+    pt: 'Desenho animado de traço limpo.',
+  },
+  tags: [{ es: '2D', en: '2D', pt: '2D' }],
+  sections: {
+    visualStyle: 'Flat 2D cartoon, clean outlines, vivid colors.',
+    dynamism: 'Alternar escenas explicativas y alusivas.',
+  },
+  templateVersion: 1,
+  allowedModes: ['generic', 'own', 'none'],
+  sampleMode: 'generic',
+  colorFilter: 'none',
+  sampleCount: 4,
+}
+
+test('una gema del catálogo viaja con su catalogStyleId, como fija el plan E2 §5.4', () => {
+  const snapshot = projectCustomStyleFrom(
+    selectedCatalogStyleFrom(CATALOG_GEM, 'en', {
+      mode: 'own',
+      defaultCharacterId: 'ana',
+    }),
+  )
+  assert.deepEqual(snapshot, {
+    styleId: 'cartoon',
+    catalogStyleId: 'cartoon',
+    name: '2D cartoon',
+    sections: {
+      visualStyle: 'Flat 2D cartoon, clean outlines, vivid colors.',
+      dynamism: 'Alternar escenas explicativas y alusivas.',
+    },
+    templateVersion: 1,
+    colorFilter: 'none',
+    character: { mode: 'own', defaultCharacterId: 'ana' },
+  })
+  // Una gema del catálogo es de plantilla: el '' de su snapshot no viaja.
+  for (const field of ['systemPrompt', 'shots'])
+    assert.equal(field in snapshot, false, field)
+})
+
+test('catalogStyleId viaja solo si el estilo elegido lo trae', () => {
+  const fromCatalog = projectCustomStyleFrom({
+    styleId: 'cartoon',
+    catalogStyleId: 'cartoon',
+    name: 'Cartoon 2D',
+    systemPrompt: '',
+    shots: [],
+    sections: { visualStyle: 'Flat 2D cartoon.' },
+    templateVersion: 1,
+    colorFilter: 'none',
+    character: { mode: 'generic' },
+  })
+  assert.equal(fromCatalog.catalogStyleId, 'cartoon')
+
+  for (const style of [OLD_GEM, TEMPLATE_GEM])
+    assert.equal(
+      'catalogStyleId' in
+        projectCustomStyleFrom(selectedCustomStyleFrom(style)),
+      false,
+      style.id,
+    )
+})
+
+test('una copia de «Pasar a mi estilo» es un estilo propio: no viaja como del catálogo', () => {
+  // Con `catalogStyleId`, create-video-project exige que `styleId` sea ese id
+  // del catálogo; la copia tiene su propio `st-…` y su origen es solo un dato.
+  const copy = {
+    ...TEMPLATE_GEM,
+    id: 'st-copia',
+    origin: { kind: 'catalog', catalogStyleId: 'cartoon', name: 'Cartoon 2D' },
+  }
+  const snapshot = projectCustomStyleFrom(selectedCustomStyleFrom(copy))
+  assert.equal(snapshot.styleId, 'st-copia')
+  assert.equal('catalogStyleId' in snapshot, false)
 })

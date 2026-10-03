@@ -2,6 +2,7 @@ import type {
   GemRebuildOrigin,
   GemRebuildResponse,
 } from '@/modules/videos/types/gemRebuild'
+import type { CatalogGem } from '@pipeline/types/catalog.ts'
 import type {
   ColorFilterId,
   CustomStyleSummary,
@@ -16,8 +17,12 @@ export type StyleSource = 'catalog' | 'custom'
 
 // Estilo propio elegido en el formulario; viaja INLINE en el payload como
 // snapshot (ProjectCustomStyle del pipeline): el proyecto es autocontenido.
+// Una gema del catálogo nuevo (Entrega 2) viaja igual, con su id de catálogo.
 export interface SelectedCustomStyle {
   styleId: string
+  // El estilo del catálogo de Vimo del que sale (plan E2 §5.4); ausente = una
+  // gema de Mi estilo.
+  catalogStyleId?: string
   name: string
   // El texto de una gema vieja; vacío en una de plantilla, que no lo tiene.
   systemPrompt: string
@@ -142,3 +147,17 @@ export interface SampleGenerationOptions {
 // La gema en uso como contexto de «Crear personaje con mi estilo»: una vieja
 // como texto, una de plantilla por secciones (ADR-0048). Nunca las dos.
 export type StyleContextGem = { gem: string } | { sections: GemSections }
+
+// ── Catálogo de Vimo (Entrega 2) ──
+
+// Lo que la memoria del modo de cada estilo usa de `localStorage` (los guards
+// le pasan uno en memoria).
+export type CatalogCharacterStorage = Pick<Storage, 'getItem' | 'setItem'>
+
+// «Pasar a mi estilo»: la gema, el nombre que vio la persona (en su idioma) y
+// el modo de personaje que eligió en «Ver».
+export interface CatalogCopyRequest {
+  gem: CatalogGem
+  name: string
+  character: StyleCharacter
+}

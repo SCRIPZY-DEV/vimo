@@ -1,0 +1,226 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Check, Copy, Loader2 } from 'lucide-react'
+import { Button } from '@/modules/common/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/modules/common/ui/dialog'
+import { CatalogStyleTags } from '@/modules/videos/components/CatalogStyleTags'
+import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
+import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
+import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
+import { localizedText } from '@/modules/videos/utilities/catalogLocale'
+import { catalogSampleImages } from '@/modules/videos/utilities/catalogSamples'
+import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
+import type { SelectedCharacter } from '@/modules/videos/types/create'
+import type { CatalogGem } from '@pipeline/types/catalog.ts'
+import type { StyleCharacter } from '@pipeline/types/styles.ts'
+
+interface CatalogStyleModalProps {
+  gem: CatalogGem
+  // Con qué modo abre: el del formulario si el estilo está en uso; si no, el
+  // recordado (o el de sus muestras).
+  initialCharacter: StyleCharacter
+  // El estilo ya es el del formulario: cambiar el modo lo actualiza ahí.
+  inUse: boolean
+  // Hay una copia a Mi estilo en curso.
+  copying: boolean
+  // Guion y modelo del formulario: el selector de personaje los usa para
+  // diseñar un personaje nuevo coherente con esta gema (ADR-0020).
+  script: string
+  promptModel: string | null
+  // La persona cambió el modo (la galería lo recuerda y, si el estilo está en
+  // uso, actualiza el formulario).
+  onCharacterChange: (character: StyleCharacter) => void
+  onUse: (character: StyleCharacter) => void
+  onCopy: (character: StyleCharacter) => void
+  onClose: () => void
+}
+
+// El modo elegido más el personaje fijado la última vez: si la persona va a
+// «Genérico» y vuelve a «Mi personaje», no pierde el que ya había fijado. El
+// mismo borrador que CustomStyleModal.
+interface CharacterDraft {
+  character: StyleCharacter
+  lastDefaultCharacterId?: string
+}
+
+// Qué queda en el borrador al cambiar el bloque de personaje. Pura: el cambio
+// se recuerda en el mismo gesto, así que hay que conocer el borrador nuevo
+// antes de que React lo pinte.
+function nextCharacterDraft(
+  draft: CharacterDraft,
+  next: StyleCharacter,
+): CharacterDraft {
+  const current = draft.character
+  const returnsToOwn = next.mode === 'own' && current.mode !== 'own'
+  // Volver a «Mi personaje» desde otro modo recupera el fijado que tenía.
+  if (returnsToOwn && !next.defaultCharacterId && draft.lastDefaultCharacterId)
+    return {
+      ...draft,
+      character: {
+        mode: 'own',
+        defaultCharacterId: draft.lastDefaultCharacterId,
+      },
+    }
+  // Apagar el predeterminado estando en «Mi personaje» lo olvida.
+  if (next.mode === 'own' && !next.defaultCharacterId && !returnsToOwn)
+    return { character: next }
+  return {
+    character: next,
+    lastDefaultCharacterId:
+      next.defaultCharacterId ?? draft.lastDefaultCharacterId,
+  }
+}
+
+// «Ver» de un estilo del catálogo (Entrega 2): sus muestras, sus etiquetas y
+// el modo de personaje, solo con los modos que permite. No muestra el texto de
+// la gema (decisión E2-D3). Cada cambio de modo se recuerda al toque; «Usar
+// en este video» lo pone en el formulario y «Pasar a mi estilo» crea una copia
+// propia con el modo elegido. Regla de modales del origen: nunca dos Radix
+// abiertos — mientras se elige el personaje fijo, este se ESCONDE en vez de
+// apilarse, como el modal de Mi estilo.
+export function CatalogStyleModal({
+  gem,
+  initialCharacter,
+  inUse,
+  copying,
+  script,
+  promptModel,
+  onCharacterChange,
+  onUse,
+  onCopy,
+  onClose,
+}: CatalogStyleModalProps) {
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? 'es'
+  const [draft, setDraft] = useState<CharacterDraft>({
+    character: initialCharacter,
+    lastDefaultCharacterId: initialCharacter.defaultCharacterId,
+  })
+  // Selector de personaje abierto, con el ya elegido preseleccionado.
+  const [picking, setPicking] = useState<SelectedCharacter[] | null>(null)
+  const character = draft.character
+  const name = localizedText(gem.name, language)
+  const images = catalogSampleImages(gem)
+
+  const changeCharacter = (next: StyleCharacter) => {
+    const nextDraft = nextCharacterDraft(draft, next)
+    setDraft(nextDraft)
+    onCharacterChange(nextDraft.character)
+  }
+
+  return (
+    <>
+      <Dialog
+        open={picking === null}
+        onOpenChange={(open) => {
+          if (!open) onClose()
+        }}
+      >
+        {/* Sin autofoco al abrir: Radix enfocaría el signo de pregunta de la
+            opción activa del personaje y abriría su tooltip. */}
+        <DialogContent
+          className="max-h-[90vh] max-w-3xl overflow-y-auto"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <p className="font-display text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              {t('create.catalog.modalTitle')}
+            </p>
+            <DialogTitle className="font-display">{name}</DialogTitle>
+            <DialogDescription>
+              {localizedText(gem.description, language)}
+            </DialogDescription>
+            <CatalogStyleTags tags={gem.tags} singleRow={false} />
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {images.length > 0 ? (
+              <StyleSamplesCarousel images={images} name={name} />
+            ) : (
+              <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
+                <p className="px-6 font-body text-sm text-muted-foreground">
+                  {t('create.catalog.noSamples')}
+                </p>
+              </div>
+            )}
+
+            <StyleCharacterBlock
+              value={character}
+              disabled={copying}
+              styleId={gem.id}
+              allowedModes={gem.allowedModes}
+              variant="catalog"
+              onChange={changeCharacter}
+              onPickCharacter={(current) =>
+                setPicking(current ? [current] : [])
+              }
+            />
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={copying}
+                onClick={() => onCopy(character)}
+              >
+                {copying ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('create.catalog.copying')}
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {t('create.catalog.copyToCustom')}
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                disabled={inUse}
+                onClick={() => onUse(character)}
+              >
+                <Check className="mr-2 h-4 w-4" />
+                {inUse
+                  ? t('create.catalog.alreadyInUse')
+                  : t('create.catalog.useButton')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {picking !== null && (
+        <CharacterPickerModal
+          previewStyleKey={gem.id}
+          selected={picking}
+          max={1}
+          styleContext={{
+            styleId: gem.id,
+            // La gema viaja por secciones: el sidecar la pasa a texto sin su
+            // sección de personaje (ADR-0048).
+            ...styleContextGemOf({ sections: gem.sections }),
+            script,
+            ...(promptModel ? { promptModel } : {}),
+          }}
+          onConfirm={(characters) => {
+            const chosen = characters.at(0)
+            changeCharacter(
+              chosen
+                ? { mode: 'own', defaultCharacterId: chosen.characterId }
+                : { mode: 'own' },
+            )
+            setPicking(null)
+          }}
+          onClose={() => setPicking(null)}
+        />
+      )}
+    </>
+  )
+}

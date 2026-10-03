@@ -246,6 +246,11 @@ export interface SelectedVoice {
   name: string
 }
 
+// Por qué carril sale el video (utilities/formLane.ts): el catálogo viejo (5
+// estilos por `options.styleId`), una gema del catálogo nuevo (Entrega 2, por
+// el carril de Mi estilo con su `catalogStyleId`) o una gema de Mi estilo.
+export type FormLane = 'legacy-catalog' | 'catalog-gem' | 'custom'
+
 // Estado completo del formulario de creación.
 export interface CreateFormValue {
   name: string
