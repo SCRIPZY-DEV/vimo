@@ -18,12 +18,14 @@ import {
 import {
   applyFixedPhrases,
   composeGemText,
+  fixedPhrasesInLanguage,
   stripFixedPhrases,
 } from '../../prompts/template-frame.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
+import { detectScriptLanguage } from '../../utils/script-language.ts'
 import { extractImagePrompt } from '../../stages/scene-prompts/prompt-extraction.ts'
 import {
   protagonistFromSection,
@@ -483,8 +485,13 @@ function rescuedSamplePrompt(
   sections: GemSections,
   identity: { name: string; description: string },
 ): string {
-  const scene = stripFixedPhrases(imagePrompt, sections)
-  return applyFixedPhrases(rescueReferencePrompt(scene, [identity]), sections)
+  // Como las pegó el escritor: con el idioma del guion de las muestras.
+  const phrases = fixedPhrasesInLanguage(
+    sections,
+    detectScriptLanguage(SAMPLE_SCRIPT),
+  )
+  const scene = stripFixedPhrases(imagePrompt, phrases)
+  return applyFixedPhrases(rescueReferencePrompt(scene, [identity]), phrases)
 }
 
 function reportSample(

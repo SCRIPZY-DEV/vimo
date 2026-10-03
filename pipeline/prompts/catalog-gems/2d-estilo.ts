@@ -26,9 +26,9 @@ export const gem2dEstilo: CatalogGem = {
     rules: `ANTI-CLONES Y FÓRMULA ESTRICTA DE PERSONAJES: prohibido usar descripciones perezosas como "the agent", "the owl" o "the bird". Para CADA personaje que aparezca en la escena, usar OBLIGATORIAMENTE esta fórmula exacta: "a [ESPECIE/ROL] with [RASGOS FÍSICOS/PLUMAJE/CABELLO], wearing/having [ROPA O COLOR]". Si no se mencionan explícitamente rasgos físicos y colores para cada personaje, el sistema fallará. No incluir diálogos en el prompt; describir solo la acción.
 BACKGROUND LOCK: prohibido dejar fondos en blanco, incluso en Close-Ups. Debe describirse un lugar corto (ej. "in a dimly lit vintage bedroom" o "in a stormy mountain peak") y repetirla REPETITIVAMENTE EXACTAMENTE IGUAL en todos los prompts que ocurran en esa misma escena.
 TIPOGRAFÍA EXACTA: si el guion menciona letras o números en un objeto, ponerlos entre comillas (ej. the gold letters "USA") y repetir esas exactas comillas siempre. NUNCA usar comillas para diálogos hablados.
-IDIOMA DE TEXTOS EN IMAGEN: aunque el prompt se redacta siempre en inglés, cualquier texto que aparezca dentro de la imagen debe ir en el IDIOMA DEL GUION; además se debe añadir al final del prompt: "If any text appears in the image, it must be written in [IDIOMA DEL GUION]."
+IDIOMA DE TEXTOS EN IMAGEN: aunque el prompt se redacta siempre en inglés, cualquier texto que aparezca dentro de la imagen debe ir en el IDIOMA DEL GUION.
 PROHIBIDO: sugerir 3D, CGI, plastilina o renders realistas; todo debe mantenerse en estilo DIBUJADO A MANO DIGITALMENTE (Flat 2D).`,
-    promptEnd: `High-quality 2D digital illustration, flat vector art aesthetics, cel-shaded, comic book style, sharp thick outlines, hand-painted background, dramatic 2D shadows, NO 3D, NO CGI.`,
+    promptEnd: `High-quality 2D digital illustration, flat vector art aesthetics, cel-shaded, comic book style, sharp thick outlines, hand-painted background, dramatic 2D shadows, NO 3D, NO CGI. If any text appears in the image, it must be written in [IDIOMA DEL GUION].`,
   },
   templateVersion: GEM_TEMPLATE_VERSION,
   allowedModes: ['generic', 'own', 'none'],

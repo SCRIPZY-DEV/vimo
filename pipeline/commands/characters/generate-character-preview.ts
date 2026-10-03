@@ -9,6 +9,7 @@ import {
 import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
 import {
   applyFixedPhrases,
+  fixedPhrasesInLanguage,
   stripFixedPhrases,
 } from '../../prompts/template-frame.ts'
 import {
@@ -27,7 +28,7 @@ import type {
 } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
-import type { CustomStyleSummary } from '../../types/styles.ts'
+import type { CustomStyleSummary, GemSections } from '../../types/styles.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
@@ -154,7 +155,8 @@ async function readPreviewGem(
   styleId: string,
 ): Promise<PreviewGem> {
   const catalogGem = findCatalogGem(styleId)
-  if (catalogGem) return { sections: catalogGem.sections, shots: [] }
+  if (catalogGem)
+    return { sections: withoutLanguageMarker(catalogGem.sections), shots: [] }
 
   assertValidStyleId(styleId)
   const style = await readStyleEntry(context, styleId)
@@ -163,7 +165,15 @@ async function readPreviewGem(
       'style_not_found',
       `style "${styleId}" does not exist`,
     )
-  return style
+  if (!style.sections) return style
+  return { ...style, sections: withoutLanguageMarker(style.sections) }
+}
+
+// Un retrato no tiene guion: el marcador de idioma de las frases fijas queda
+// con el texto neutro. Se cambia en la gema entera, también en lo que lee el
+// modelo, así la copia que escriba coincide con la que después se quita.
+function withoutLanguageMarker(sections: GemSections): GemSections {
+  return { ...sections, ...fixedPhrasesInLanguage(sections, '') }
 }
 
 async function generateImage(

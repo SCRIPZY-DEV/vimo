@@ -199,6 +199,49 @@ export function composeGemText(
 /** Las frases que Vimo pega por código a cada prompt de imagen (spec §4.1). */
 export type FixedPhrases = Pick<GemSections, 'promptStart' | 'promptEnd'>
 
+/**
+ * El marcador de idioma de las gemas de Imperio Pro. Allá cada prompt cierra
+ * con «If any text appears in the image, it must be written in [IDIOMA DEL
+ * GUION]» y el marcador lo completa el modelo. Acá el inicio y el final fijos
+ * los pega el código y el modelo no los ve, así que el idioma lo pone el
+ * código. Sin esto la frase llegaba al generador con el marcador literal, o
+ * había que sacarla de la gema, y los carteles que el generador inventa salían
+ * en inglés con un guion en español.
+ */
+const SCRIPT_LANGUAGE_MARKER_REGEX = /\[\s*IDIOMA DEL GUI[OÓ]N\s*\]/gi
+
+/**
+ * Lo que ocupa el lugar del marcador cuando no hay idioma detectado: un guion
+ * ambiguo o muy corto, o el preview de un personaje, que no tiene guion. Es
+ * el mismo texto que usan los bloques del catálogo en ese caso.
+ */
+export const UNDETECTED_SCRIPT_LANGUAGE = "the narration's own language"
+
+/**
+ * Las frases fijas de un estilo con el idioma del guion en el lugar del
+ * marcador. `scriptLanguage` es el nombre en inglés que devuelve
+ * `detectScriptLanguage` («Spanish»); vacío = no se pudo detectar. Quien pega,
+ * quita o recorta frases fijas las pide SIEMPRE por acá, una vez por corrida:
+ * las tres operaciones las buscan tal cual dentro del prompt, y una frase con
+ * el marcador nunca coincidiría con la que ya se pegó con el idioma.
+ */
+export function fixedPhrasesInLanguage(
+  phrases: FixedPhrases,
+  scriptLanguage: string,
+): FixedPhrases {
+  const language = scriptLanguage.trim() || UNDETECTED_SCRIPT_LANGUAGE
+  return {
+    promptStart: phrases.promptStart?.replace(
+      SCRIPT_LANGUAGE_MARKER_REGEX,
+      language,
+    ),
+    promptEnd: phrases.promptEnd?.replace(
+      SCRIPT_LANGUAGE_MARKER_REGEX,
+      language,
+    ),
+  }
+}
+
 const TRAILING_PUNCTUATION_REGEX = /[\s.!?,;:]+$/
 const WORD_CHARACTER_REGEX = /[\p{L}\p{N}]/u
 

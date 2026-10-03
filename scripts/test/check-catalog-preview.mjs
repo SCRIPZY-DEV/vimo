@@ -2,7 +2,9 @@
 // P6). Un id nuevo del catálogo escribe el retrato con las secciones de su
 // gema por el mismo camino que una gema de plantilla de Mi estilo (el texto
 // de la gema más las reglas de la casa, y las frases fijas pegadas por
-// código), sin leer la galería. Los 5 ids heredados siguen con su plantilla
+// código), sin leer la galería. Un retrato no tiene guion: el marcador de
+// idioma de las frases fijas (`[IDIOMA DEL GUION]`) viaja con el texto neutro,
+// en lo que lee el modelo y en lo que se pega. Los 5 ids heredados siguen con su plantilla
 // fija de siempre, sin LLM, aunque también estén en el catálogo. Un id `st-…`
 // sigue leyendo `_styles/`. HTTP interceptado: sin red.
 
@@ -18,7 +20,11 @@ import {
   buildCustomPreviewRequest,
   buildPreviewScene,
 } from '../../pipeline/prompts/character-preview.ts'
-import { composeGemText } from '../../pipeline/prompts/template-frame.ts'
+import {
+  composeGemText,
+  fixedPhrasesInLanguage,
+  UNDETECTED_SCRIPT_LANGUAGE,
+} from '../../pipeline/prompts/template-frame.ts'
 import {
   GLOBAL_RULES,
   VISUAL_STYLES,
@@ -82,8 +88,14 @@ function mockProviders(t) {
   return requests
 }
 // Spec §5.4: inicio fijo, escena y final fijo, separados por un espacio.
+// Las secciones como las usa el retrato: sin guion, el marcador de idioma de
+// las frases fijas queda con el texto neutro.
+function portraitSections(sections) {
+  return { ...sections, ...fixedPhrasesInLanguage(sections, '') }
+}
 function withFixedPhrases(sections) {
-  return [sections.promptStart, scenePrompt, sections.promptEnd]
+  const pasted = portraitSections(sections)
+  return [pasted.promptStart, scenePrompt, pasted.promptEnd]
     .filter(Boolean)
     .join(' ')
 }
@@ -104,12 +116,22 @@ test('every new catalog id writes the portrait with its gem, without reading the
     const [system, user] = requests.text[0].messages
     assert.equal(
       system.content,
-      composeGemText(gem.sections) + '\n\n' + GLOBAL_RULES,
+      composeGemText(portraitSections(gem.sections)) + '\n\n' + GLOBAL_RULES,
       gem.id,
     )
     assert.equal(user.content, buildCustomPreviewRequest(identityPrompt))
     assert.equal(result.finalPrompt, withFixedPhrases(gem.sections), gem.id)
     assert.equal(requests.images[0].prompt, result.finalPrompt, gem.id)
+    // El marcador de idioma nunca llega al generador: con final fijo, el
+    // retrato cierra con el texto neutro.
+    assert.doesNotMatch(result.finalPrompt, /\[IDIOMA/i, gem.id)
+    if (gem.sections.promptEnd?.includes('[IDIOMA DEL GUION]'))
+      assert.ok(
+        result.finalPrompt.endsWith(
+          `it must be written in ${UNDETECTED_SCRIPT_LANGUAGE}.`,
+        ),
+        gem.id,
+      )
   }
 })
 

@@ -67,6 +67,7 @@ import {
 } from '../shared/prompt-safety.ts'
 import {
   applyFixedPhrases,
+  fixedPhrasesInLanguage,
   stripFixedPhrases,
   type FixedPhrases,
 } from '../../prompts/template-frame.ts'
@@ -462,8 +463,9 @@ async function generateImages(
 ): Promise<Scene[]> {
   const { context, style } = inputs
   // Las frases fijas de una gema de plantilla (spec §5.4): van también en el
-  // fallback y el recorte final las protege.
-  const fixedPhrases = context.options.customStyle?.sections
+  // fallback y el recorte final las protege. Con el idioma del guion, como
+  // las pegó el carril.
+  const fixedPhrases = fixedPhrasesOf(inputs)
   context.signal.throwIfAborted()
   if (!context.options.customStyle) {
     const invalidIds: number[] = []
@@ -737,7 +739,7 @@ async function rescueWithoutReference(
   if (!laneOptions.customStyle)
     return dispatchNormal(scenes, provider, inputs, laneOptions)
 
-  const fixedPhrases = inputs.context.options.customStyle?.sections
+  const fixedPhrases = fixedPhrasesOf(inputs)
   const requestScenes = scenes.map((scene) => {
     const identities = (scene.charactersPresent ?? [])
       .map((index) => inputs.characters[index])
@@ -798,6 +800,15 @@ async function rescueWithoutReference(
     ...result,
     scene: { ...result.scene, imagePrompt: storedPrompts.get(result.scene.id) },
   }))
+}
+
+// Las frases fijas del estilo del proyecto con el idioma de su guion en el
+// lugar del marcador: tal cual quedaron pegadas en los prompts guardados.
+// undefined = el estilo no es una gema de plantilla.
+function fixedPhrasesOf(inputs: GenerationInputs): FixedPhrases | undefined {
+  const sections = inputs.context.options.customStyle?.sections
+  if (!sections) return undefined
+  return fixedPhrasesInLanguage(sections, inputs.imageTextLanguage)
 }
 
 // El rescate de una gema de plantilla: la identidad de biblioteca va DENTRO

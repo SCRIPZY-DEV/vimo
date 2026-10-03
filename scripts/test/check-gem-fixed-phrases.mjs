@@ -3,7 +3,10 @@
 // la cola de estilo restaurada; el recorte final cede primero el núcleo de la
 // escena, después el final fijo y la identidad al último, y nunca corta el
 // inicio. Las frases viajan tal cual aunque estén en otro idioma. También el
-// fallback de imágenes las lleva.
+// fallback de imágenes las lleva. Lo único que la plataforma completa en una
+// frase fija es el marcador `[IDIOMA DEL GUION]` de las gemas de Imperio Pro,
+// con el idioma detectado del guion: en el carril, en el fallback y en el
+// rescate la frase llega al generador con el idioma y nunca con el marcador.
 //
 // Sobre dev (PR #91, ADR-0043) el carril sanea cada prompt y se lo pasa al
 // juez de correspondencia antes de guardarlo: los casos de punta a punta le
@@ -24,7 +27,9 @@ import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
 import {
   applyFixedPhrases,
+  fixedPhrasesInLanguage,
   stripFixedPhrases,
+  UNDETECTED_SCRIPT_LANGUAGE,
 } from '../../pipeline/prompts/template-frame.ts'
 import { DESCRIPTION_HEADER } from '../../pipeline/prompts/verbatim-identity.ts'
 import { MAX_PROMPT_CHARS } from '../../pipeline/prompts/prompt-limits.ts'
@@ -518,8 +523,13 @@ async function project(t, customStyle, scenes) {
   }
   return { paths, base }
 }
-async function writeThroughTheLane(t, customStyle, answer) {
-  const { paths, base } = await project(t, customStyle, laneScenes)
+async function writeThroughTheLane(
+  t,
+  customStyle,
+  answer,
+  scenes = laneScenes,
+) {
+  const { paths, base } = await project(t, customStyle, scenes)
   const asked = []
   const reviews = []
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
@@ -933,3 +943,171 @@ for (const [taken, sentences] of [
     },
   )
 }
+
+// ── El idioma del guion en las frases fijas ──
+
+const languageSentence =
+  'If any text appears in the image, it must be written in [IDIOMA DEL GUION].'
+const languageEnd =
+  'Clean black lines, colorful background. ' + languageSentence
+const spanishEnd =
+  'Clean black lines, colorful background. If any text appears in the image, it must be written in Spanish.'
+const languageSections = {
+  visualStyle: sections.visualStyle,
+  promptStart,
+  promptEnd: languageEnd,
+}
+const spanishScenes = [
+  'La muñeca vuela una cometa roja sobre el parque de la ciudad.',
+  'Después corre por el camino del río con su perro.',
+  'Al final saluda a la luna desde lo alto de la colina.',
+]
+const spanishScript = spanishScenes.join(' ')
+
+test('the fixed phrases carry the script language in place of the marker', () => {
+  const pasted = fixedPhrasesInLanguage(
+    { promptStart: 'Signs in [idioma del guión]:', promptEnd: languageEnd },
+    'Spanish',
+  )
+  assert.equal(pasted.promptStart, 'Signs in Spanish:')
+  assert.equal(pasted.promptEnd, spanishEnd)
+
+  // Sin idioma detectado va el texto neutro: el marcador nunca se pega.
+  assert.equal(
+    fixedPhrasesInLanguage({ promptEnd: languageEnd }, '  ').promptEnd,
+    languageEnd.replace('[IDIOMA DEL GUION]', UNDETECTED_SCRIPT_LANGUAGE),
+  )
+
+  // Sin marcador las frases vuelven tal cual, y la que falta sigue faltando.
+  const plain = fixedPhrasesInLanguage({ promptEnd }, 'Spanish')
+  assert.equal(plain.promptEnd, promptEnd)
+  assert.equal(plain.promptStart, undefined)
+  // Otro texto entre corchetes no es el marcador: no se toca.
+  assert.equal(
+    fixedPhrasesInLanguage({ promptEnd: 'Style: [ESTILO].' }, 'Spanish')
+      .promptEnd,
+    'Style: [ESTILO].',
+  )
+})
+
+test('the writer pastes the fixed end with the language of the script', async () => {
+  const answer = (id) => `A park with a red kite over the trees, moment ${id}.`
+  const spanish = await generateVerbatimPrompts(fragments, spanishScript, {
+    gem: 'unused',
+    sections: languageSections,
+    client: fakeClient(answer),
+    character: { mode: 'none' },
+  })
+  assert.equal(spanish.prompts.size, fragments.length)
+  for (const [id, prompt] of spanish.prompts) {
+    assert.ok(prompt.endsWith(' ' + spanishEnd), String(id))
+    assert.doesNotMatch(prompt, /\[IDIOMA/i, 'sin marcador')
+  }
+
+  // El guion de `write` no alcanza para detectar el idioma: el texto neutro.
+  const undetected = await write(answer, { sections: languageSections })
+  for (const prompt of undetected.prompts.values()) {
+    assert.ok(prompt.endsWith(`written in ${UNDETECTED_SCRIPT_LANGUAGE}.`))
+    assert.doesNotMatch(prompt, /\[IDIOMA/i)
+  }
+})
+
+test('a fixed end the model wrote with the language is not pasted twice', async () => {
+  const result = await generateVerbatimPrompts(fragments, spanishScript, {
+    gem: 'unused',
+    sections: languageSections,
+    client: fakeClient(
+      (id) =>
+        `A park with a red kite over the trees, moment ${id}. ${spanishEnd}`,
+    ),
+    character: { mode: 'none' },
+  })
+  for (const [id, prompt] of result.prompts) {
+    assert.ok(prompt.endsWith(' ' + spanishEnd), String(id))
+    assert.equal(prompt.split(spanishEnd).length, 2, 'un solo final')
+  }
+})
+
+test('through the lane, the stored prompt and the one the judge reviews carry the script language', async (t) => {
+  const { scenes, reviews } = await writeThroughTheLane(
+    t,
+    templateGem(languageSections, 'none'),
+    (id) => `A doll flies a red kite over the city park, moment ${id}.`,
+    spanishScenes,
+  )
+  assert.deepEqual(
+    judgedPrompts(reviews),
+    new Map(scenes.map((scene) => [scene.id, scene.imagePrompt])),
+  )
+  for (const scene of scenes) {
+    const body = bodyWithoutFinalClauses(scene.imagePrompt)
+    assert.ok(body.startsWith(promptStart + ' '), String(scene.id))
+    assert.ok(
+      body.endsWith(' ' + spanishEnd),
+      'el final fijo, entero y con el idioma',
+    )
+    assert.equal(scene.imagePrompt.split(spanishEnd).length, 2, 'un solo final')
+    assert.doesNotMatch(scene.imagePrompt, /\[IDIOMA/i)
+  }
+})
+
+test('through the lane, a long scene is cut before the judge with the language end protected', async (t) => {
+  const { scenes, reviews } = await writeThroughTheLane(
+    t,
+    templateGem(languageSections, 'none'),
+    () => longScene(40),
+    spanishScenes,
+  )
+  assert.deepEqual(
+    judgedPrompts(reviews),
+    new Map(scenes.map((scene) => [scene.id, scene.imagePrompt])),
+  )
+  for (const scene of scenes) {
+    const prompt = scene.imagePrompt
+    assert.ok(prompt.length <= MAX_PROMPT_CHARS)
+    assert.ok(
+      bodyWithoutFinalClauses(prompt).endsWith(' ' + spanishEnd),
+      'el final fijo sigue entero',
+    )
+    assert.ok(!prompt.includes('step number 39'), 'cedió el núcleo')
+  }
+})
+
+test('the image fallback carries the fixed end with the script language', async (t) => {
+  const posts = await fallbackPosts(t, languageSections, spanishScript)
+  assert.equal(posts.length, 1)
+  assert.equal(posts[0].split(spanishEnd).length, 2, 'un solo final')
+  assert.doesNotMatch(posts[0], /\[IDIOMA/i)
+})
+
+test('a scene that loses its reference photo keeps the fixed end with the script language', async (t) => {
+  // Lo guardado es lo que dejó el carril: las frases ya con el idioma.
+  const anchored =
+    'Wide shot of Elena (the person from the attached reference image) flying a red kite over the park.'
+  const stored = sanitizeFinalPrompt(
+    `${promptStart} ${anchored} ${spanishEnd}`,
+    undefined,
+    { promptStart, promptEnd: spanishEnd },
+  )
+  const { paths, requests } = await castProject(t, {
+    gemSections: languageSections,
+    character: {
+      name: 'Elena',
+      description: astronaut,
+      mode: 'photo',
+      referenceImageFile: 'reference.png',
+    },
+    photo: true,
+    scene: { text: spanishScript, imagePrompt: stored },
+  })
+
+  assert.equal(requests.edit.length, 1, 'primero con la foto')
+  assert.equal(requests.normal.length, 1, 'rescatada por el carril normal')
+  const sent = requests.normal[0]
+  const body = bodyWithoutFinalClauses(sent)
+  assert.ok(body.endsWith(' ' + spanishEnd), 'el final fijo, al final y entero')
+  assert.equal(sent.split(spanishEnd).length, 2, 'un solo final')
+  assert.ok(body.indexOf(DESCRIPTION_HEADER) < body.indexOf(spanishEnd))
+  assert.doesNotMatch(sent, /\[IDIOMA/i)
+  assert.equal((await readScenes(paths))[0].imagePrompt, stored)
+})

@@ -24,7 +24,7 @@ export const gem2dMono: CatalogGem = {
     character: `A crudely drawn cartoon gorilla, in a lazy MS Paint style with thin, crude black lines: a solid dark gray body with no muscle details, a solid light gray face with no nose, just two tiny dots for eyes and a flat thin line for a mouth, and a pink ear. Outfit: none, no clothes, no props and no accessories.`,
     camera: `Cambia el encuadre entre prompts consecutivos, alternando fuertemente entre: Wide Shot, Cowboy Shot, Medium Shot, Close-Up, Dutch Angle. Prohibido usar “Extreme Wide Shot”.`,
     rules: `El texto que aparezca dentro de la imagen (carteles, papeles, pantallas) debe ir en el IDIOMA DEL GUION. El protagonista NO debe tener elementos extra ni objetos en las manos. En cada prompt, describe expresiones exageradas modificando la anatomía base (p. ej., ojos en puntitos muy abiertos y boca como línea fina; prohibido incluir “teeth”, “open mouth”, “roaring”). El fondo debe ser claro y descriptivo y permanecer igual palabra por palabra en prompts consecutivos, salvo que el guion indique explícitamente un cambio geográfico o de época.`,
-    promptEnd: `Style: ms paint doodle, thin black outlines, completely flat colors, minimalist, NO shading, NO details.`,
+    promptEnd: `Style: ms paint doodle, thin black outlines, completely flat colors, minimalist, NO shading, NO details. If any text appears in the image, it must be written in [IDIOMA DEL GUION].`,
   },
   templateVersion: GEM_TEMPLATE_VERSION,
   allowedModes: ['generic', 'own', 'none'],

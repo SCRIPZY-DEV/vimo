@@ -26,6 +26,7 @@ import {
   isCatalogStyleId,
 } from '../../pipeline/commands/styles/style-store.ts'
 import { CATALOG_GEMS } from '../../pipeline/prompts/catalog-gems/catalog.ts'
+import { fixedPhrasesInLanguage } from '../../pipeline/prompts/template-frame.ts'
 import {
   CATALOG_TAGS,
   CATALOG_TAG_LABEL_LIMIT,
@@ -216,11 +217,15 @@ test('fantasia carries the fantasy filter, terror the horror-bw one and the rest
   })
 })
 
-test('the woven and fixed phrases have no placeholders nor "neutral pose", and the character ends with an Outfit: sentence', () => {
+test('the woven and fixed phrases reach the image model without placeholders nor "neutral pose", and the character ends with an Outfit: sentence', () => {
   assertEveryGem((gem) => {
     const problems = []
+    // El inicio y el final fijos se miran como se pegan: el único marcador
+    // que la plataforma completa es el del idioma del guion. `character` se
+    // teje tal cual, así que ahí no vale ninguno.
+    const pasted = fixedPhrasesInLanguage(gem.sections, 'Spanish')
     for (const key of WOVEN_SECTION_KEYS) {
-      const text = gem.sections[key]
+      const text = key === 'character' ? gem.sections.character : pasted[key]
       if (text === undefined) continue
       const placeholder = PLACEHOLDER_REGEX.exec(text)
       if (placeholder)

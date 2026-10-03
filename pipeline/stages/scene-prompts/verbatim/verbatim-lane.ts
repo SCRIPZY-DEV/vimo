@@ -15,8 +15,12 @@ import type {
   ProjectCustomStyle,
   StyleProtagonist,
 } from '../../../types/video-project.ts'
-import { composeGemText } from '../../../prompts/template-frame.ts'
+import {
+  composeGemText,
+  fixedPhrasesInLanguage,
+} from '../../../prompts/template-frame.ts'
 import type { VerbatimFragment } from '../../../prompts/verbatim-messages.ts'
+import { detectScriptLanguage } from '../../../utils/script-language.ts'
 import type { CreateVideoContext } from '../../context.ts'
 import {
   createNarrativeReviewLlm,
@@ -483,6 +487,13 @@ export async function runVerbatimLane(
         ...(note ? { note } : {}),
       }
     })
+    // Las frases fijas como las pega el escritor: con el idioma del guion.
+    const fixedPhrases =
+      customStyle.sections &&
+      fixedPhrasesInLanguage(
+        customStyle.sections,
+        detectScriptLanguage(fullScript),
+      )
     const result = await generateVerbatimPrompts(fragments, fullScript, {
       // La gema del usuario, VERBATIM: el snapshot del proyecto, sin los
       // ALLOWED SHOTS ni las GLOBAL_RULES del carril de la casa (paridad con el
@@ -528,7 +539,7 @@ export async function runVerbatimLane(
           prompt,
           'custom',
           undefined,
-          customStyle.sections,
+          fixedPhrases,
         ),
       reviewPrompts: (prompts) =>
         reviewNarrativePrompts(

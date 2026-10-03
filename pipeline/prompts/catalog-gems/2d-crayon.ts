@@ -25,7 +25,7 @@ CANDADO 5 - TEXTOS Y NÚMEROS: Añade 1 o 2 palabras del fragmento actual en 1 d
 CANDADO 6 - EXPRESIONES: Describe la atmósfera o emoción en cada escena.
 CANDADO 7 - DINAMISMO CONSECUTIVO: Varía los ángulos de cámara en fragmentos consecutivos. PROHIBIDO usar "Extreme Wide Shot".
 IDIOMA DE TEXTOS EN IMAGEN: cualquier texto que aparezca dentro de la imagen (carteles, papeles, pantallas) debe ir en el IDIOMA DEL GUION.`,
-    promptEnd: `Style: Hand-drawn sketch, minimalist doodle style, rough crayon-like coloring, thick outlines, off-white paper textured background.`,
+    promptEnd: `Style: Hand-drawn sketch, minimalist doodle style, rough crayon-like coloring, thick outlines, off-white paper textured background. If any text appears in the image, it must be written in [IDIOMA DEL GUION].`,
   },
   templateVersion: GEM_TEMPLATE_VERSION,
   allowedModes: ['generic', 'own', 'none'],

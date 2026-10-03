@@ -19,6 +19,7 @@ import type { SceneTreatment } from '../../../types/scenes.ts'
 import type { GemSections } from '../../../types/styles.ts'
 import type { StyleProtagonist } from '../../../types/video-project.ts'
 import { isInsufficientCreditsFailure } from '../../../utils/insufficient-credits.ts'
+import { detectScriptLanguage } from '../../../utils/script-language.ts'
 import { buildProtagonistDesignMessage } from '../../../prompts/protagonist-request.ts'
 import {
   parseProtagonistDescription,
@@ -27,6 +28,7 @@ import {
 import { FINAL_PROMPT_BODY_BUDGET } from '../../shared/prompt-safety.ts'
 import {
   applyFixedPhrases,
+  fixedPhrasesInLanguage,
   buildTemplateSystem,
   stripFixedPhrases,
   type FixedPhrases,
@@ -1283,6 +1285,10 @@ export async function generateVerbatimPrompts(
   const treatmentTags = Boolean(options.sections?.dynamism?.trim())
   // Con final fijo la cola de estilo ya es determinística (spec §5.4).
   const restoreTail = !options.sections?.promptEnd?.trim()
+  // Las frases fijas, con el idioma de ESTE guion en el lugar del marcador.
+  const fixedPhrases =
+    options.sections &&
+    fixedPhrasesInLanguage(options.sections, detectScriptLanguage(fullScript))
   const alignmentFeedback = new Map<number, string>()
   // Un stream parcial conserva texto, pero no borra el intento fallido. El
   // contador acompaña SOLO los IDs pendientes cuando la siguiente ronda los
@@ -1499,7 +1505,7 @@ export async function generateVerbatimPrompts(
         pendingPrompts,
         character,
         sceneWardrobe,
-        options.sections,
+        fixedPhrases,
         new Set(reading.good.map((entry) => entry.n)),
       )
       if (options.preparePrompt) {
@@ -1625,7 +1631,7 @@ export async function generateVerbatimPrompts(
             obtained,
             character,
             sceneWardrobe,
-            options.sections,
+            fixedPhrases,
             justObtained,
           )
           for (const id of justObtained) {
@@ -1830,7 +1836,7 @@ export async function generateVerbatimPrompts(
     obtained,
     character,
     sceneWardrobe,
-    options.sections,
+    fixedPhrases,
   )
   for (const [id, prompt] of reviewedPrompts) finalized.prompts.set(id, prompt)
   options.signal?.throwIfAborted()

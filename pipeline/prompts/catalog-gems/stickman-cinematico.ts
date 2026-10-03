@@ -28,7 +28,7 @@ export const stickmanCinematico: CatalogGem = {
     character: `A stick figure, with a perfectly round white head, two dot eyes, a thin line mouth and thin black stick limbs on a simple line body. Outfit: a plain shirt and trousers in flat colors.`,
     camera: `Varía los ángulos de cámara en fragmentos consecutivos (por ejemplo: Wide Shot y Close-Up). PROHIBIDO usar "Extreme Wide Shot".`,
     rules: `En cada prompt de escenas, si aparece cualquier texto dentro de la imagen (carteles, papeles, pantallas), debe estar en el IDIOMA DEL GUION. Añade 1 o 2 palabras del fragmento actual en 1 de cada 5 prompts; si el fragmento menciona un número/fecha, conviértelo a dígitos (p. ej., "10") y ponlo obligatoriamente; nunca uses comillas para diálogos hablados; todo texto debe ir sobre pizarras o papeles blancos. PROHIBIDO dejar fondos en blanco: define un lugar de fondo corto y mantenlo EXACTAMENTE IGUAL palabra por palabra durante la misma escena. Si el fragmento es SOLO de extras, NO incluyas a [subject]. PROHIBIDO crear clones del protagonista: si el fragmento menciona extras o personajes secundarios, usa SIEMPRE la fórmula exacta: "another stick figure [TIPO DE PERSONAJE] with [RASGO/CABELLO OPUESTO AL PROTA], wearing [ROPA DISTINTA AL PROTA]".`,
-    promptEnd: `Style: Cinematic 2D animation, volumetric lighting, dramatic shadows, depth of field, epic composition, moody atmosphere, highly detailed background, 8k.`,
+    promptEnd: `Style: Cinematic 2D animation, volumetric lighting, dramatic shadows, depth of field, epic composition, moody atmosphere, highly detailed background, 8k. If any text appears in the image, it must be written in [IDIOMA DEL GUION].`,
   },
   templateVersion: GEM_TEMPLATE_VERSION,
   allowedModes: ['generic', 'own', 'none'],

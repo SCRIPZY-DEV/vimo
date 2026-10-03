@@ -451,6 +451,47 @@ test('my character with a photo: a failed reference order is redone once as text
   }
 })
 
+// Las muestras pasan por el mismo escritor que el video: el marcador de idioma
+// de una frase fija sale con el idioma del guion de muestra, que es español.
+const languageEnd =
+  'Clean black lines. If any text appears in the image, it must be written in [IDIOMA DEL GUION].'
+const spanishEnd =
+  'Clean black lines. If any text appears in the image, it must be written in Spanish.'
+const languageTemplate = (mode, extra = {}) => ({
+  ...template(mode, extra),
+  sections: { ...sections, promptEnd: languageEnd },
+})
+
+test('the samples paste the fixed end with the language of the sample script', async (t) => {
+  const root = await gallery(t, languageTemplate('generic'))
+  const calls = providers(t)
+  await generateStyleSamples(context(root))
+  assert.equal(calls.images.length, 4)
+  for (const image of calls.images) {
+    assert.ok(image.prompt.endsWith(' ' + spanishEnd))
+    assert.doesNotMatch(image.prompt, /\[IDIOMA/i)
+  }
+})
+
+test('a sample redone as text keeps the fixed end with the language, once', async (t) => {
+  const root = await gallery(t, languageTemplate('own', ownLucia), [
+    { id: 'lucia', name: 'Lucía' },
+  ])
+  const calls = providers(t, { referenceFails: true })
+  await generateStyleSamples(context(root))
+  const asText = calls.images.filter((image) => !image.image_urls)
+  assert.equal(asText.length, 4)
+  for (const image of asText) {
+    assert.ok(image.prompt.endsWith(' ' + spanishEnd))
+    assert.equal(image.prompt.split(spanishEnd).length, 2, 'un solo final')
+    assert.ok(
+      image.prompt.indexOf(DESCRIPTION_HEADER) <
+        image.prompt.indexOf(spanishEnd),
+    )
+    assert.doesNotMatch(image.prompt, /\[IDIOMA/i)
+  }
+})
+
 test('my character with a photo: a moment without the protagonist goes without the photo, the lock or the library identity, as in the video', async (t) => {
   // El video reparte la foto por `scenesWithSubject`: una escena que no nombra
   // al protagonista va por el carril normal, sin referencia. Las muestras de
