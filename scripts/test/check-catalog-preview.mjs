@@ -160,8 +160,13 @@ test('a gallery id still reads _styles, and an unknown id is style_not_found', a
   )
   assert.equal(result.finalPrompt, withFixedPhrases(sections))
 
-  for (const styleId of ['st-borrado', 'noir-inexistente'])
+  // `constructor` es una propiedad heredada de VISUAL_STYLES, no un id: no
+  // va por la plantilla fija (con `in` lo era y el estilo resuelto era la
+  // función Object) y, como no está en el catálogo ni en la galería, es
+  // style_not_found.
+  for (const styleId of ['st-borrado', 'noir-inexistente', 'constructor'])
     await assert.rejects(generateCharacterPreview(context(styleId, root)), {
       code: 'style_not_found',
     })
+  assert.equal(requests.text.length, 1)
 })

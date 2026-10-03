@@ -351,8 +351,17 @@ for (const [name, customStyle, options, message] of [
       styleId: 'constructor',
       catalogStyleId: 'constructor',
     }),
-    { styleId: 'constructor' },
+    { styleId: 'pov_stickman' },
     newStyleIdMessage,
+  ],
+  // Y tampoco es un `options.styleId` válido: `isCharacterStyleId` busca la
+  // propiedad propia de VISUAL_STYLES (con `in` pasaba y el estilo resuelto
+  // era la función Object).
+  [
+    'an inherited object property as options.styleId',
+    template(),
+    { styleId: 'constructor' },
+    'unknown styleId "constructor"',
   ],
   // El tope del nombre es el de la galería: vale también para Mi estilo.
   [
