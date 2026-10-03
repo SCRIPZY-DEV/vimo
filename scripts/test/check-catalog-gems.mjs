@@ -77,7 +77,7 @@ test('the catalog has gems and every id is unique, a legacy or a gallery id, nev
   assert.deepEqual(
     ids.filter((id, index) => ids.indexOf(id) !== index),
     [],
-    'ids repetidos',
+    'duplicate ids',
   )
   assertEveryGem((gem) => {
     const problems = []

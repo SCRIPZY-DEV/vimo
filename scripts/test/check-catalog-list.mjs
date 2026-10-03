@@ -60,7 +60,7 @@ test('the list returns the catalog gems untransformed and in the order of the ta
   const { entries } = await catalogStylesList(context())
   assert.equal(entries.length, CATALOG_GEMS.length)
   for (const [index, entry] of entries.entries())
-    assert.equal(entry, CATALOG_GEMS[index], `entrada ${index}`)
+    assert.equal(entry, CATALOG_GEMS[index], `entry ${index}`)
   // Una copia de la lista: quien la reordene no toca el catálogo.
   assert.notEqual(entries, CATALOG_GEMS)
 })

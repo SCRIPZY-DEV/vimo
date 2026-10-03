@@ -289,6 +289,35 @@ const tooBig = Buffer.concat([
 ])
 const oneBase64 = jpeg('one').toString('base64')
 
+// El borde exacto: 4 MiB entran; 4 MiB + 3 (un bloque de base64 más) se
+// rechazan por el largo del texto, antes de decodificar nada.
+test('a sample of exactly 4 MiB is accepted and one of 4 MiB + 3 is rejected', () => {
+  const exact = Buffer.concat([
+    JPEG_MAGIC,
+    Buffer.alloc(MAX_CATALOG_SAMPLE_BYTES - JPEG_MAGIC.length),
+  ])
+  const accepted = assertSampleUpload(
+    upload('sample-1.jpg', exact),
+    'samples[0]',
+    CATALOG_SAMPLE_COUNT,
+  )
+  assert.equal(accepted.bytes.length, MAX_CATALOG_SAMPLE_BYTES)
+
+  const overByThree = Buffer.concat([
+    JPEG_MAGIC,
+    Buffer.alloc(MAX_CATALOG_SAMPLE_BYTES + 3 - JPEG_MAGIC.length),
+  ])
+  assert.throws(
+    () =>
+      assertSampleUpload(
+        upload('sample-1.jpg', overByThree),
+        'samples[0]',
+        CATALOG_SAMPLE_COUNT,
+      ),
+    { code: 'invalid_payload' },
+  )
+})
+
 for (const [name, value] of [
   ['no payload', undefined],
   ['a list as payload', []],

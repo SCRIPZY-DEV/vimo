@@ -26,7 +26,6 @@ import {
   assertStyleCharacter,
   assertTemplateVersion,
   isCatalogStyleId,
-  isLegacyCatalogStyleId,
 } from '../styles/style-store.ts'
 import {
   MAX_SECONDS_PER_SCENE,
@@ -339,7 +338,7 @@ function assertCatalogProjectStyle(
       'options.customStyle.styleId must equal options.customStyle.catalogStyleId',
     )
 
-  const legacy = isLegacyCatalogStyleId(catalogStyleId)
+  const legacy = isCharacterStyleId(catalogStyleId)
   if (legacy && styleId !== catalogStyleId)
     throw new PipelineFailure(
       'invalid_payload',

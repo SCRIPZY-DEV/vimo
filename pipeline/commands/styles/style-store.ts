@@ -1,11 +1,10 @@
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
+import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { MAX_WOVEN_IDENTITY_CHARS } from '../../stages/scene-prompts/verbatim/subject-weaver.ts'
-import type { CharacterStyleId } from '../../types/characters.ts'
 import {
   COLOR_FILTER_IDS,
   GEM_SECTION_KEYS,
@@ -216,21 +215,13 @@ export function assertColorFilter(
 }
 
 // Id de un estilo del catálogo dentro de una copia o de un snapshot: uno de
-// los 5 heredados o uno nuevo con el patrón de la galería (spec §8).
+// los 5 heredados (`isCharacterStyleId`, propiedad propia de VISUAL_STYLES:
+// `constructor` cumple el patrón de la galería pero no es un estilo) o uno
+// nuevo con el patrón de la galería (spec §8).
 export function isCatalogStyleId(value: unknown): value is string {
   if (typeof value !== 'string') return false
   if (STYLE_ID_PATTERN.test(value)) return true
-  return isLegacyCatalogStyleId(value)
-}
-
-// Uno de los 5 estilos heredados, buscado como propiedad PROPIA de
-// VISUAL_STYLES: con `in`, `toString` o `constructor` heredarían de
-// Object.prototype y pasarían por ids (y `constructor` además cumple el
-// patrón de la galería).
-export function isLegacyCatalogStyleId(
-  value: unknown,
-): value is CharacterStyleId {
-  return typeof value === 'string' && Object.hasOwn(VISUAL_STYLES, value)
+  return isCharacterStyleId(value)
 }
 
 export function readGemOrigin(value: unknown): GemOrigin | undefined {

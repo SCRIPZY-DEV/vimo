@@ -42,8 +42,10 @@ export interface ProjectCharacter {
 // Estilo propio del proyecto, INLINE como snapshot (filosofía E20 de los
 // personajes: el proyecto es autocontenido) — editar o borrar la gema en la
 // galería jamás rompe una regeneración desde Library. `styleId` acá es el id
-// de galería, solo diagnóstico; `options.styleId` sigue siendo un
-// CharacterStyleId válido ('normal' cuando hay customStyle).
+// de galería (o el de la gema del catálogo), solo diagnóstico;
+// `options.styleId` sigue siendo un CharacterStyleId válido: 'normal' con un
+// estilo propio o una gema nueva del catálogo, y el id heredado cuando la
+// gema del catálogo es una de las 5 de siempre (plan E2 §5.4).
 export interface ProjectCustomStyle {
   styleId: string
   name: string
@@ -52,7 +54,12 @@ export interface ProjectCustomStyle {
   sections?: GemSections
   templateVersion?: number
   colorFilter?: ColorFilterId
-  /** Entrega 2: estilo del catálogo del que sale esta copia. */
+  /**
+   * Entrega 2: el proyecto usa una gema del catálogo directamente. Es el
+   * mismo id que `styleId`; `create-video-project` lo exige. Una copia de
+   * «Pasar a mi estilo» no lo lleva: su procedencia vive en `style.json`
+   * (`origin`), y el proyecto es uno de Mi estilo.
+   */
   catalogStyleId?: string
   shots?: string[]
   // Qué declaró la gema sobre su protagonista (snapshot). Ausente = el

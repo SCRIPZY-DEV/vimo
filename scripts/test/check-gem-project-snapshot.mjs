@@ -176,10 +176,7 @@ test('an old gem snapshot is still accepted', async (t) => {
 
 test('a new catalog id with the gallery pattern is accepted', async (t) => {
   const root = await projectsRoot(t)
-  await create(
-    root,
-    template({ styleId: 'st-noir', catalogStyleId: 'st-noir' }),
-  )
+  await create(root, template({ styleId: 'noir', catalogStyleId: 'noir' }))
 })
 
 // Cada rechazo con su mensaje exacto: sin él, un caso podía pasar por otro
