@@ -20,6 +20,7 @@ import {
   customStyleForTab,
   displayLaneOf,
   laneOf,
+  tabSwitchSelection,
 } from '../../src/modules/videos/utilities/formLane.ts'
 import {
   catalogProjectStyleId,
@@ -497,6 +498,100 @@ test('un estilo del catálogo solo vale en la pestaña Catálogo nueva', () => {
         null,
       )
     }
+})
+
+// ─── Una selección por pestaña al cambiar de pestaña (catálogo nuevo) ───
+
+const CATALOG_PICK = { styleId: 'fantasia', catalogStyleId: 'fantasia' }
+const OTHER_CATALOG_PICK = {
+  styleId: 'anime-storytime',
+  catalogStyleId: 'anime-storytime',
+}
+const OWN_PICK = { styleId: 'st-mio' }
+const OTHER_OWN_PICK = { styleId: 'st-otro' }
+
+test('Catálogo → Mi estilo → Catálogo conserva la selección de cada pestaña', () => {
+  // En Catálogo con Fantasía; Mi estilo había quedado con su gema.
+  const toCustom = tabSwitchSelection(CATALOG_PICK, OWN_PICK, 'custom')
+  assert.equal(toCustom.customStyle, OWN_PICK)
+  assert.equal(toCustom.otherTabStyle, CATALOG_PICK)
+
+  const backToCatalog = tabSwitchSelection(
+    toCustom.customStyle,
+    toCustom.otherTabStyle,
+    'catalog',
+  )
+  assert.equal(backToCatalog.customStyle, CATALOG_PICK)
+  assert.equal(backToCatalog.otherTabStyle, OWN_PICK)
+})
+
+test('sin nada guardado, la pestaña de destino arranca vacía y lo de la otra queda guardado', () => {
+  assert.deepEqual(tabSwitchSelection(OWN_PICK, null, 'catalog'), {
+    customStyle: null,
+    otherTabStyle: OWN_PICK,
+  })
+  assert.deepEqual(tabSwitchSelection(CATALOG_PICK, null, 'custom'), {
+    customStyle: null,
+    otherTabStyle: CATALOG_PICK,
+  })
+  assert.deepEqual(tabSwitchSelection(null, null, 'catalog'), {
+    customStyle: null,
+    otherTabStyle: null,
+  })
+})
+
+test('una gema propia que quedó en Catálogo vuelve a Mi estilo y no se pierde', () => {
+  // Con el interruptor recién encendido, la gema de Mi estilo puede estar en
+  // la pestaña Catálogo (sin el catálogo nuevo se conservaba ahí).
+  const toCustom = tabSwitchSelection(OWN_PICK, null, 'custom')
+  assert.deepEqual(toCustom, { customStyle: OWN_PICK, otherTabStyle: null })
+
+  const toCatalog = tabSwitchSelection(OWN_PICK, null, 'catalog')
+  assert.deepEqual(toCatalog, { customStyle: null, otherTabStyle: OWN_PICK })
+})
+
+test('ninguna selección cae en la pestaña equivocada ni se inventa', () => {
+  const choices = [
+    null,
+    CATALOG_PICK,
+    OTHER_CATALOG_PICK,
+    OWN_PICK,
+    OTHER_OWN_PICK,
+  ]
+  const isCatalog = (style) => Boolean(style?.catalogStyleId)
+
+  for (const current of choices)
+    for (const stored of choices)
+      for (const styleSource of ['catalog', 'custom']) {
+        const label = JSON.stringify({ current, stored, styleSource })
+        const { customStyle, otherTabStyle } = tabSwitchSelection(
+          current,
+          stored,
+          styleSource,
+        )
+
+        // Una gema propia nunca queda elegida en Catálogo; un estilo del
+        // catálogo nunca en Mi estilo. Lo guardado es siempre de la otra.
+        if (customStyle)
+          assert.equal(isCatalog(customStyle), styleSource === 'catalog', label)
+        if (otherTabStyle)
+          assert.equal(
+            isCatalog(otherTabStyle),
+            styleSource !== 'catalog',
+            label,
+          )
+
+        // Solo se mueven las dos que había (o ninguna).
+        assert.ok([null, current, stored].includes(customStyle), label)
+        assert.ok([null, current, stored].includes(otherTabStyle), label)
+
+        // Lo guardado para el destino siempre vuelve, y lo que estaba en uso
+        // siempre queda guardado si es de la otra pestaña.
+        if (stored && isCatalog(stored) === (styleSource === 'catalog'))
+          assert.equal(customStyle, stored, label)
+        if (current && isCatalog(current) !== (styleSource === 'catalog'))
+          assert.equal(otherTabStyle, current, label)
+      }
 })
 
 // ─── El borrador del personaje en los modales de estilo (Mi estilo y «Ver») ───

@@ -43,6 +43,7 @@ import {
   selectedCustomStyleFrom,
 } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
 import type { DemoManifest } from '@pipeline/types/demo.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
@@ -170,6 +171,13 @@ function CreateView({
     }
     return demo ? demoFormValue(base, demo) : base
   })
+  // Con el catálogo nuevo, una selección por pestaña: la de la pestaña que no
+  // está a la vista. Vive acá y no en el formulario, que se desmonta con la
+  // pantalla de progreso (al generar, o si un pre-check frena el envío): al
+  // volver, cada pestaña sigue con su tarjeta. Sin el catálogo nuevo nadie la
+  // toca.
+  const [otherTabStyle, setOtherTabStyle] =
+    useState<SelectedCustomStyle | null>(null)
 
   // En demo la gema del pack arranca en uso apenas la galería la lista: se
   // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
@@ -333,6 +341,8 @@ function CreateView({
           value={formValue}
           demo={demo}
           newCatalog={newCatalog}
+          otherTabStyle={otherTabStyle}
+          onOtherTabStyleChange={setOtherTabStyle}
           disabled={!isNative || (missingKeys && !demo)}
           submitting={probing}
           onChange={patchForm}

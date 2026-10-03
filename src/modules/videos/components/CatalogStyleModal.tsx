@@ -109,30 +109,44 @@ export function CatalogStyleModal({
             <CatalogStyleTags tags={gem.tags} singleRow={false} />
           </DialogHeader>
 
-          <div className="space-y-4">
-            {images.length > 0 ? (
-              <StyleSamplesCarousel images={images} name={name} />
-            ) : (
-              <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
-                <p className="px-6 font-body text-sm text-muted-foreground">
-                  {t('create.catalog.noSamples')}
-                </p>
-              </div>
-            )}
+          {/* Un solo bloque con el contenido y el pie: el pie fijo se pega
+              dentro de su contenedor, y un hijo directo de la grilla del
+              diálogo solo podría moverse dentro de su propia fila. */}
+          <div>
+            <div className="space-y-4">
+              {images.length > 0 ? (
+                <StyleSamplesCarousel images={images} name={name} />
+              ) : (
+                <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
+                  <p className="px-6 font-body text-sm text-muted-foreground">
+                    {t('create.catalog.noSamples')}
+                  </p>
+                </div>
+              )}
 
-            <StyleCharacterBlock
-              value={character}
-              disabled={copying}
-              styleId={gem.id}
-              allowedModes={gem.allowedModes}
-              variant="catalog"
-              onChange={changeCharacter}
-              onPickCharacter={(current) =>
-                setPicking(current ? [current] : [])
-              }
-            />
+              <StyleCharacterBlock
+                value={character}
+                disabled={copying}
+                styleId={gem.id}
+                allowedModes={gem.allowedModes}
+                variant="catalog"
+                onChange={changeCharacter}
+                onPickCharacter={(current) =>
+                  setPicking(current ? [current] : [])
+                }
+              />
+            </div>
 
-            <div className="flex flex-wrap justify-end gap-2">
+            {/* Pie fijo: con el carrusel 16:9 el modal casi siempre scrollea
+                y los botones quedaban cortados bajo el borde. Pegado al fondo
+                y a los lados del diálogo, compensando el p-6 de DialogContent:
+                -mx-6 y -mb-6 lo estiran hasta los bordes, y -bottom-6 porque
+                Chrome y WebKit miden el `bottom` de un sticky desde el
+                contenido del contenedor que scrollea, sin su padding. px-6 y
+                pb-6 dejan los botones donde estaban. Con el fondo del diálogo
+                y un borde arriba, el contenido pasa por debajo. Va fuera del
+                `space-y-4`, que le pisaría el margen de abajo. */}
+            <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 mt-4 flex flex-wrap justify-end gap-2 border-t border-border bg-background px-6 pb-6 pt-4">
               <Button
                 type="button"
                 variant="outline"

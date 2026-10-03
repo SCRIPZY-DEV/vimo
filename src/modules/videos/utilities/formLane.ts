@@ -1,5 +1,12 @@
-import type { CreateFormValue, FormLane } from '@/modules/videos/types/create'
-import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
+import type {
+  CreateFormValue,
+  FormLane,
+  TabSwitchSelection,
+} from '@/modules/videos/types/create'
+import type {
+  SelectedCustomStyle,
+  StyleSource,
+} from '@/modules/videos/types/styles'
 
 type LaneChoice = Pick<CreateFormValue, 'styleSource' | 'customStyle'>
 
@@ -38,4 +45,39 @@ export function customStyleForTab(
   if (!form.customStyle?.catalogStyleId) return form.customStyle
   if (newCatalog && form.styleSource === 'catalog') return form.customStyle
   return null
+}
+
+// Una selección por pestaña con el catálogo nuevo: al pasar a `styleSource`,
+// qué estilo queda en uso y cuál se guarda para la otra pestaña. Lo decide el
+// dato, no de qué pestaña viene: a Catálogo solo entra un estilo del catálogo
+// (con `catalogStyleId`) y a Mi estilo solo una gema propia (sin él). Se
+// prefiere lo guardado para la pestaña de destino; si no hay, sirve lo que
+// estaba en uso si es de ella (una gema propia que quedó en Catálogo al
+// encenderse el interruptor vuelve a Mi estilo en vez de perderse). Lo que es
+// de la otra pestaña queda guardado; nada cae en la pestaña equivocada.
+export function tabSwitchSelection(
+  current: SelectedCustomStyle | null,
+  stored: SelectedCustomStyle | null,
+  styleSource: StyleSource,
+): TabSwitchSelection {
+  const otherSource = styleSource === 'catalog' ? 'custom' : 'catalog'
+
+  return {
+    customStyle:
+      [stored, current].find((style) => belongsToTab(style, styleSource)) ??
+      null,
+    otherTabStyle:
+      [current, stored].find((style) => belongsToTab(style, otherSource)) ??
+      null,
+  }
+}
+
+// ¿Es una selección de esa pestaña? Las de Catálogo traen `catalogStyleId`;
+// las de Mi estilo (también la copia de «Pasar a mi estilo»), no.
+function belongsToTab(
+  style: SelectedCustomStyle | null,
+  styleSource: StyleSource,
+): style is SelectedCustomStyle {
+  if (!style) return false
+  return Boolean(style.catalogStyleId) === (styleSource === 'catalog')
 }

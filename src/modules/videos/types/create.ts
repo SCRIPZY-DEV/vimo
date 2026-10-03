@@ -251,6 +251,14 @@ export interface SelectedVoice {
 // el carril de Mi estilo con su `catalogStyleId`) o una gema de Mi estilo.
 export type FormLane = 'legacy-catalog' | 'catalog-gem' | 'custom'
 
+// Las dos selecciones de estilo después de cambiar de pestaña con el catálogo
+// nuevo (utilities/formLane.ts): la que queda en uso en la pestaña de destino
+// y la que se guarda para la otra.
+export interface TabSwitchSelection {
+  customStyle: SelectedCustomStyle | null
+  otherTabStyle: SelectedCustomStyle | null
+}
+
 // Estado completo del formulario de creación.
 export interface CreateFormValue {
   name: string

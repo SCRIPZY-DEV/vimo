@@ -12,7 +12,9 @@ import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
+import { projectCustomStyleFrom } from '../../src/modules/videos/utilities/projectCustomStyle.ts'
 import { selectedCatalogStyleFrom } from '../../src/modules/videos/utilities/selectedCatalogStyle.ts'
+import { selectedCustomStyleFrom } from '../../src/modules/videos/utilities/selectedCustomStyle.ts'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -309,13 +311,36 @@ test('Mi estilo manda el proyecto de hoy, byte por byte', () => {
 })
 
 test('una copia de «Pasar a mi estilo» viaja como cualquier gema de Mi estilo', () => {
-  // La copia lleva su `st-…` y no trae `catalogStyleId`: su origen es solo un
-  // dato de la tarjeta.
-  const copy = { ...TEMPLATE_STYLE, styleId: 'st-copia', name: 'Fantasía' }
+  // El camino real de «Ir a Mi estilo»: la tarjeta que devolvió
+  // catalog-style-copy pasa por selectedCustomStyleFrom y de ahí al proyecto.
+  // La copia lleva su `st-…` y su origen es solo un dato de la tarjeta: ni el
+  // snapshot ni el proyecto traen `catalogStyleId`.
+  const copy = {
+    id: 'st-copia',
+    name: 'Fantasía mágica',
+    shots: [],
+    character: { mode: 'generic' },
+    createdAt: '2026-10-02T00:00:00.000Z',
+    updatedAt: '2026-10-02T00:00:00.000Z',
+    samples: [],
+    sections: FANTASIA.sections,
+    templateVersion: 1,
+    colorFilter: 'fantasy',
+    origin: {
+      kind: 'catalog',
+      catalogStyleId: 'fantasia',
+      name: 'Fantasía mágica',
+    },
+  }
+  const customStyle = selectedCustomStyleFrom(copy)
+  assert.equal('catalogStyleId' in customStyle, false)
+  assert.equal('origin' in customStyle, false)
+  assert.equal('catalogStyleId' in projectCustomStyleFrom(customStyle), false)
+
   const payload = payloadModule.createProjectPayload({
     ...BASE_FORM,
     styleSource: 'custom',
-    customStyle: copy,
+    customStyle,
   })
   assert.equal(payload.options.styleId, 'normal')
   assert.equal(payload.options.customStyle.styleId, 'st-copia')
@@ -498,5 +523,107 @@ test('elegir un estilo del catálogo que escribe el protagonista retira los pers
       customStyle,
     }),
     { characters: [], withdrawnCharacters: BASE_FORM.characters },
+  )
+})
+
+// ─── Un personaje como máximo con un estilo del catálogo (spec §8) ───
+
+const ANA = BASE_FORM.characters[0]
+const BETO = {
+  characterId: 'beto',
+  name: 'Beto',
+  description: 'Un hombre bajo con barba.',
+  mode: 'text',
+  portraitPath: null,
+}
+
+test('al entrar a un estilo del catálogo con dos personajes queda el primero y el otro se retira', () => {
+  // Venían de Mi estilo (o del catálogo viejo), que aceptan dos.
+  const form = {
+    ...BASE_FORM,
+    styleSource: 'custom',
+    customStyle: TEMPLATE_STYLE,
+    characters: [ANA, BETO],
+  }
+  const customStyle = selectedCatalogStyleFrom(ANIME, 'es', { mode: 'own' })
+  const patch = payloadModule.characterPatchForStyle(form, {
+    styleSource: 'catalog',
+    customStyle,
+  })
+  assert.deepEqual(patch, { characters: [ANA], withdrawnCharacters: [BETO] })
+
+  // Al proyecto viaja uno solo.
+  const payload = payloadModule.createProjectPayload({
+    ...form,
+    styleSource: 'catalog',
+    customStyle,
+    ...patch,
+  })
+  assert.deepEqual(
+    payload.characters.map((character) => character.characterId),
+    ['ana'],
+  )
+})
+
+test('con un personaje fijo elegido, el fijo es el que queda', () => {
+  const form = {
+    ...BASE_FORM,
+    styleSource: 'catalog',
+    customStyle: null,
+    characters: [BETO, ANA],
+  }
+  assert.deepEqual(
+    payloadModule.characterPatchForStyle(form, {
+      styleSource: 'catalog',
+      customStyle: selectedCatalogStyleFrom(ANIME, 'es', OWN_ANA),
+    }),
+    { characters: [ANA], withdrawnCharacters: [BETO] },
+  )
+})
+
+test('los retirados que vuelven a un estilo del catálogo vuelven de a uno', () => {
+  // Un estilo genérico los había retirado; «Mi personaje» los devuelve, pero
+  // solo entra uno.
+  const form = {
+    ...BASE_FORM,
+    styleSource: 'catalog',
+    customStyle: selectedCatalogStyleFrom(ANIME, 'es', { mode: 'generic' }),
+    characters: [],
+    withdrawnCharacters: [ANA, BETO],
+  }
+  assert.deepEqual(
+    payloadModule.characterPatchForStyle(form, {
+      styleSource: 'catalog',
+      customStyle: selectedCatalogStyleFrom(ANIME, 'es', { mode: 'own' }),
+    }),
+    { characters: [ANA], withdrawnCharacters: [BETO] },
+  )
+})
+
+test('el catálogo viejo y Mi estilo siguen aceptando dos personajes', () => {
+  const form = { ...BASE_FORM, characters: [ANA, BETO] }
+  // Al catálogo viejo (sin tarjeta del catálogo nuevo).
+  assert.deepEqual(
+    payloadModule.characterPatchForStyle(
+      { ...form, styleSource: 'custom', customStyle: TEMPLATE_STYLE },
+      { styleSource: 'catalog', customStyle: null },
+    ),
+    {},
+  )
+  // A una gema de Mi estilo con «Mi personaje», sin fijo.
+  assert.deepEqual(
+    payloadModule.characterPatchForStyle(form, {
+      styleSource: 'custom',
+      customStyle: TEMPLATE_STYLE,
+    }),
+    {},
+  )
+  // Y los retirados vuelven los dos a Mi estilo.
+  assert.deepEqual(
+    payloadModule.characterPatchForStyle(
+      { ...form, characters: [], withdrawnCharacters: [ANA, BETO] },
+      { styleSource: 'custom', customStyle: TEMPLATE_STYLE },
+    ),
+    { characters: [ANA, BETO], withdrawnCharacters: [] },
   )
 })

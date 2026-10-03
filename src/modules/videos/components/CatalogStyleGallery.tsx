@@ -147,6 +147,15 @@ export function CatalogStyleGallery({
         </div>
       </div>
 
+      {/* Sin tarjeta elegida el video no sale: se dice acá, entre el título y
+          la galería (con 38 tarjetas, debajo no se veía), además de en la
+          lista de bloqueos del envío. */}
+      {!selectedId && !isLoading && !errorKey && (
+        <p className="rounded-xl border-2 border-saffron/60 bg-saffron/10 px-4 py-3 font-body text-sm text-foreground">
+          {t('create.catalog.pickNotice')}
+        </p>
+      )}
+
       {isLoading && (
         <p className="py-6 text-center">
           <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
@@ -169,14 +178,6 @@ export function CatalogStyleGallery({
           />
         ))}
       </div>
-
-      {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la
-          galería, además de en la lista de bloqueos del envío. */}
-      {!selectedId && !isLoading && !errorKey && (
-        <p className="rounded-xl border-2 border-saffron/60 bg-saffron/10 px-4 py-3 font-body text-sm text-foreground">
-          {t('create.catalog.pickNotice')}
-        </p>
-      )}
 
       {copying && copyRequest && (
         <p

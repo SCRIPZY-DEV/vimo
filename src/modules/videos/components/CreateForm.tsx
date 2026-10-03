@@ -38,7 +38,10 @@ import {
   demoComingSoonFormats,
   demoStyleIds,
 } from '@/modules/videos/utilities/demoForm'
-import { displayLaneOf } from '@/modules/videos/utilities/formLane'
+import {
+  displayLaneOf,
+  tabSwitchSelection,
+} from '@/modules/videos/utilities/formLane'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
 import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
@@ -59,6 +62,11 @@ interface CreateFormProps {
   // de la demo (plan E2, P5). Lo resuelve Create, que también lo usa para
   // decidir qué estilo elegido vale.
   newCatalog: boolean
+  // Con el catálogo nuevo, una selección por pestaña: la de la pestaña que no
+  // está a la vista. La guarda Create, que sobrevive a la pantalla de progreso
+  // (este formulario se desmonta al generar).
+  otherTabStyle: SelectedCustomStyle | null
+  onOtherTabStyleChange: (style: SelectedCustomStyle | null) => void
   onChange: (patch: Partial<CreateFormValue>) => void
   onPickAudio: () => void
   onSubmit: () => void
@@ -70,6 +78,8 @@ export function CreateForm({
   submitting,
   demo,
   newCatalog,
+  otherTabStyle,
+  onOtherTabStyleChange,
   onChange,
   onPickAudio,
   onSubmit,
@@ -79,11 +89,6 @@ export function CreateForm({
 
   const [attempts, setAttempts] = useState(0)
   const blockersRef = useRef<HTMLDivElement>(null)
-  // Con el catálogo nuevo, una selección por pestaña: la de la pestaña que se
-  // deja queda acá y vuelve al volver. Así un estilo del catálogo nunca queda
-  // elegido en Mi estilo, ni una gema de Mi estilo en el catálogo.
-  const [otherTabStyle, setOtherTabStyle] =
-    useState<SelectedCustomStyle | null>(null)
   // Con qué carril se arma la pantalla: la pestaña Catálogo nueva se ve como
   // Mi estilo aun antes de elegir tarjeta (plan E2, P4).
   const lane = displayLaneOf(value, newCatalog)
@@ -129,7 +134,8 @@ export function CreateForm({
   // Cambiar de fuente también retira o devuelve los personajes según lo que
   // decida el estilo que queda activo (ADR-0020). Sin el catálogo nuevo la
   // selección de Mi estilo sigue guardada en el formulario como siempre (el
-  // catálogo viejo elige por `styleId`); con él, cada pestaña recupera la suya.
+  // catálogo viejo elige por `styleId`); con él, cada pestaña recupera la suya
+  // y nunca una de la otra (tabSwitchSelection).
   const changeStyleSource = (styleSource: StyleSource) => {
     if (!newCatalog || styleSource === value.styleSource) {
       onChange({
@@ -142,12 +148,19 @@ export function CreateForm({
       return
     }
 
-    const customStyle = otherTabStyle
-    setOtherTabStyle(value.customStyle)
+    const selection = tabSwitchSelection(
+      value.customStyle,
+      otherTabStyle,
+      styleSource,
+    )
+    onOtherTabStyleChange(selection.otherTabStyle)
     onChange({
       styleSource,
-      customStyle,
-      ...characterPatchForStyle(value, { styleSource, customStyle }),
+      customStyle: selection.customStyle,
+      ...characterPatchForStyle(value, {
+        styleSource,
+        customStyle: selection.customStyle,
+      }),
     })
   }
 
@@ -169,7 +182,10 @@ export function CreateForm({
   // guardado para cuando se vuelva.
   const goToCopiedStyle = (copy: CustomStyleSummary) => {
     const customStyle = selectedCustomStyleFrom(copy)
-    setOtherTabStyle(value.customStyle)
+    onOtherTabStyleChange(
+      tabSwitchSelection(value.customStyle, otherTabStyle, 'custom')
+        .otherTabStyle,
+    )
     onChange({
       styleSource: 'custom',
       customStyle,

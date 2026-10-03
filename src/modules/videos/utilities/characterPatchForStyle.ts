@@ -1,3 +1,4 @@
+import { laneOf } from '@/modules/videos/utilities/formLane'
 import { styleCharacterModeOf } from '@/modules/videos/utilities/formPayload'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
@@ -8,8 +9,18 @@ type StyleChoice = Pick<CreateFormValue, 'styleSource' | 'customStyle'>
 // protagonista, la elección se RETIRA en vez de perderse; si un estilo vuelve
 // a aceptarla y el lugar sigue vacío, vuelve sola. Una elección nueva del
 // usuario siempre gana. El fijo que la gema anterior sembró no es una
-// elección: se quita sin recibo.
+// elección: se quita sin recibo. Un estilo del catálogo nuevo lleva un
+// personaje como máximo (spec §8): lo que sobra se retira igual.
 export function characterPatchForStyle(
+  form: CreateFormValue,
+  next: StyleChoice,
+): Partial<CreateFormValue> {
+  const patch = styleChangePatch(form, next)
+  if (laneOf({ ...form, ...next }) !== 'catalog-gem') return patch
+  return singleCharacterPatch(form, next, patch)
+}
+
+function styleChangePatch(
   form: CreateFormValue,
   next: StyleChoice,
 ): Partial<CreateFormValue> {
@@ -39,4 +50,31 @@ export function characterPatchForStyle(
   if (form.characters.length > 0 || form.withdrawnCharacters.length === 0)
     return {}
   return { characters: form.withdrawnCharacters, withdrawnCharacters: [] }
+}
+
+// Un estilo del catálogo con más de un personaje (traídos de Mi estilo o del
+// catálogo viejo, que aceptan dos, o devueltos de un retiro): queda el
+// protagonista —el personaje fijo del estilo, si está elegido; si no, el
+// primero— y el resto se RETIRA, con el mismo recibo que el retiro de
+// siempre. Al proyecto viajaría uno solo de todos modos (el carril de las
+// gemas lleva un protagonista); así el formulario muestra lo que viaja.
+function singleCharacterPatch(
+  form: CreateFormValue,
+  next: StyleChoice,
+  patch: Partial<CreateFormValue>,
+): Partial<CreateFormValue> {
+  const characters = patch.characters ?? form.characters
+  const fixedId = next.customStyle?.character?.defaultCharacterId
+  const protagonist =
+    characters.find((character) => character.characterId === fixedId) ??
+    characters.at(0)
+  if (!protagonist || characters.length <= 1) return patch
+
+  return {
+    ...patch,
+    characters: [protagonist],
+    withdrawnCharacters: characters.filter(
+      (character) => character.characterId !== protagonist.characterId,
+    ),
+  }
 }
