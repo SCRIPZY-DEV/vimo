@@ -30,7 +30,7 @@ export const realista: CatalogGem = {
     rules: `Prohibido usar palabras en inglés como “8k”, “highly detailed”, “ultra-realistic” o “perfect”. Prohibido generar contenido 3D: siempre evitar/denegar “NO 3D, NO CGI, NO render” y sostener el estilo fotográfico crudo. No dejar fondos en blanco: cada escena debe tener una descripción fotográfica del lugar (concreto) y repetirse EXACTAMENTE igual en todos los prompts de esa escena (Background Lock). Tipografía exacta: si el guion menciona letras o números en un objeto, ponerlos entre comillas (ej: the gold letters “USA”) y repetirlas siempre. Identidad y personas: el estilo no tiene personaje fijo; cada persona que aparezca debe describirse COMPLETA dentro del propio prompt y, si la misma persona reaparece, repetir su descripción EXACTAMENTE igual en todos los fragmentos donde aparezca (identidad constante). Anti-clones: cada persona distinta debe tener rasgos y ropa CLARAMENTE diferentes a las demás. Acción: no incluir diálogos en el prompt; describir solo la acción. Límite de repetición: en todo el guion, la fórmula “persona parada junto a una pantalla/monitor” no puede usarse en más de 2 fragmentos SEGUIDOS; si se repite una tercera vez seguida, usar un plano general sin gente de este candado. Texto en imagen: si aparece texto en la imagen (carteles, papeles, pantallas), debe estar escrito en el idioma del guion detectado.`,
   },
   templateVersion: GEM_TEMPLATE_VERSION,
-  allowedModes: ['generic', 'own', 'none'],
+  allowedModes: ['none'],
   sampleMode: 'none',
   colorFilter: 'none',
   sampleCount: 0,

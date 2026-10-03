@@ -31,6 +31,11 @@ import {
   CATALOG_TAG_LABEL_LIMIT,
   CATALOG_TAG_LIMIT,
 } from '../../pipeline/prompts/catalog-gems/tags.ts'
+import {
+  protagonistFromSection,
+  roleFromDescription,
+  roleUsableForWeaving,
+} from '../../pipeline/stages/scene-prompts/verbatim/subject-weaver.ts'
 
 const LOCALES = ['es', 'en', 'pt']
 const REFERENCES_DIRECTORY = fileURLToPath(
@@ -49,6 +54,24 @@ const NEUTRAL_POSE_REGEX = /neutral pose/i
 // base se separa de la identidad fija por la oración «Outfit:» final.
 const SENTENCE_BREAK_REGEX = /(?<=[.!?])\s+/
 const OUTFIT_PREFIX = 'Outfit:'
+// El rol que el tejedor saca de cada sección `character` (la primera oración
+// hasta la primera coma): es lo que reemplaza a `[subject]` en cada escena
+// («Wide shot of the stickman doll walking…»). Una gema nueva con personaje
+// anota acá su rol esperado, a propósito: «smooth» o «main character» pasan
+// las otras reglas y tejen una frase rota.
+const EXPECTED_ROLES = {
+  pov_stickman: 'stickman doll',
+  '2d-stickman': 'classic stickman',
+  '2d-personaje-1': 'white-headed cartoon man',
+  'stickman-cinematico': 'stick figure',
+  '2d-basico-explicativo': 'light gray ovoid creature',
+  '2d-mono': 'crudely drawn cartoon gorilla',
+  '2d-bola': 'light gray ovoid creature',
+}
+// `character` no es una instrucción: se pega tal cual en cada escena con
+// protagonista. La ropa o los rasgos «que pida la historia» no pueden vivir
+// ahí (la ropa por escena la pone la regla de vestuario del marco).
+const STORY_DEPENDENT_REGEX = /\b(?:story|stories|scene|scenes|script)\b/i
 
 // Corre `problemsOf` sobre cada gema y falla con la lista completa.
 function assertEveryGem(problemsOf) {
@@ -187,6 +210,42 @@ test('the woven and fixed phrases have no placeholders nor "neutral pose", and t
       )
     return problems
   })
+})
+
+test('every character section opens with a role the weaver can use and carries no story-dependent wording', () => {
+  assertEveryGem((gem) => {
+    const character = gem.sections.character
+    if (character === undefined) return []
+
+    const problems = []
+    const protagonist = protagonistFromSection(character)
+    const role = roleFromDescription(protagonist.description)
+    if (!Object.hasOwn(EXPECTED_ROLES, gem.id))
+      problems.push(
+        `the expected role is not listed (the weaver gives "${role}")`,
+      )
+    else if (role !== EXPECTED_ROLES[gem.id])
+      problems.push(
+        `the weaver gives the role "${role}", expected "${EXPECTED_ROLES[gem.id]}"`,
+      )
+    if (!roleUsableForWeaving(role))
+      problems.push(`the role "${role}" is not usable for weaving`)
+    if (!protagonist.outfit)
+      problems.push('the base outfit cannot be split from the identity')
+    const storyWord = STORY_DEPENDENT_REGEX.exec(character)
+    if (storyWord)
+      problems.push(
+        `character depends on the story ("${storyWord[0]}"): it is pasted verbatim in every scene`,
+      )
+    return problems
+  })
+})
+
+test('the listed roles belong to gems that still have a character section', () => {
+  const withCharacter = CATALOG_GEMS.filter(
+    (gem) => gem.sections.character !== undefined,
+  ).map((gem) => gem.id)
+  assert.deepEqual(Object.keys(EXPECTED_ROLES).sort(), withCharacter.sort())
 })
 
 test('the tags fit the card, are not repeated and match the sections they describe', () => {
