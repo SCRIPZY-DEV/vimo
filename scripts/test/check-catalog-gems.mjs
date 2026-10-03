@@ -12,7 +12,7 @@
 // gemas y el disco.
 
 import assert from 'node:assert/strict'
-import { readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -72,6 +72,14 @@ const EXPECTED_ROLES = {
 // protagonista. La ropa o los rasgos «que pida la historia» no pueden vivir
 // ahí (la ropa por escena la pone la regla de vestuario del marco).
 const STORY_DEPENDENT_REGEX = /\b(?:story|stories|scene|scenes|script)\b/i
+// Las muestras del catálogo las genera Vimo con su propio carril
+// (`generate-style-samples`) y se guardan a 1280×720 o más: el carrusel de
+// «Ver» mide unos 720 px de ancho, el doble en pantallas de doble densidad.
+// Una muestra más chica es una miniatura o un fotograma traído de otro lado.
+const SAMPLE_MIN_WIDTH = 1280
+const SAMPLE_MIN_HEIGHT = 720
+// Marcadores C0–CF que NO son un SOF (tablas Huffman, JPG y aritméticas).
+const JPEG_NON_FRAME_MARKERS = new Set([0xc4, 0xc8, 0xcc])
 
 // Corre `problemsOf` sobre cada gema y falla con la lista completa.
 function assertEveryGem(problemsOf) {
@@ -92,6 +100,26 @@ function failureOf(check) {
 // Una etiqueta se identifica por su texto en español (como las repetidas).
 function findTag(gem, paletteTag) {
   return gem.tags.find((tag) => tag?.es === paletteTag.es)
+}
+// Ancho y alto de un JPEG: los trae el primer marcador SOF, sea de línea de
+// base o progresivo. null = los bytes no son un JPEG legible.
+function jpegSize(bytes) {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return null
+
+  let offset = 2
+  while (offset + 9 <= bytes.length) {
+    if (bytes[offset] !== 0xff) return null
+
+    const marker = bytes[offset + 1]
+    if (marker >= 0xc0 && marker <= 0xcf && !JPEG_NON_FRAME_MARKERS.has(marker))
+      return {
+        width: bytes.readUInt16BE(offset + 7),
+        height: bytes.readUInt16BE(offset + 5),
+      }
+
+    offset += 2 + bytes.readUInt16BE(offset + 2)
+  }
+  return null
 }
 
 test('the catalog has gems and every id is unique, a legacy or a gallery id, never a copy id', () => {
@@ -323,5 +351,32 @@ test('sampleCount matches the samples the app ships in public/style-references',
     return [
       `sampleCount is ${count} but public/style-references has [${shipped.join(', ')}]`,
     ]
+  })
+})
+
+test('every gem ships its four samples and each one is a JPEG of at least 1280×720', () => {
+  assertEveryGem((gem) => {
+    const problems = []
+    if (gem.sampleCount !== CATALOG_SAMPLE_COUNT)
+      problems.push(
+        `sampleCount is ${gem.sampleCount}: every gem ships ${CATALOG_SAMPLE_COUNT} samples`,
+      )
+
+    for (let number = 1; number <= gem.sampleCount; number += 1) {
+      const file = `${gem.id}_${number}.jpg`
+      let size
+      try {
+        size = jpegSize(readFileSync(`${REFERENCES_DIRECTORY}${file}`))
+      } catch {
+        // El archivo que falta ya lo dice la regla de `sampleCount`.
+        continue
+      }
+      if (!size) problems.push(`${file} is not a readable JPEG`)
+      else if (size.width < SAMPLE_MIN_WIDTH || size.height < SAMPLE_MIN_HEIGHT)
+        problems.push(
+          `${file} measures ${size.width}×${size.height}, below ${SAMPLE_MIN_WIDTH}×${SAMPLE_MIN_HEIGHT}`,
+        )
+    }
+    return problems
   })
 })

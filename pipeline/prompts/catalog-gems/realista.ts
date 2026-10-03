@@ -33,5 +33,5 @@ export const realista: CatalogGem = {
   allowedModes: ['none'],
   sampleMode: 'none',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }
