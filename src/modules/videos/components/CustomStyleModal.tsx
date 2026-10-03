@@ -32,6 +32,7 @@ import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { useGemTemplateDraft } from '@/modules/videos/hooks/useGemTemplateDraft'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
+import { nextCharacterDraft } from '@/modules/videos/utilities/characterDraft'
 import {
   hasGemText,
   pastedGemSavePayload,
@@ -50,6 +51,7 @@ import {
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
 import type {
+  CharacterDraft,
   CustomStyleDraft,
   GemMigrationState,
 } from '@/modules/videos/types/styles'
@@ -85,42 +87,6 @@ interface CustomStyleModalProps {
   // en segundo plano; la galería pasa el modal a esa gema guardada.
   onAdaptPastedGem: (payload: StyleSavePayload) => Promise<void>
   onClose: () => void
-}
-
-// El protagonista de la gema más lo que hay que recordar al pasar por otro
-// modo: si la persona va a «Genérico» y vuelve a «Mi personaje», no pierde
-// el personaje que ya había fijado (en disco solo se guarda con «own»).
-interface CharacterDraft {
-  character: StyleCharacter
-  lastDefaultCharacterId?: string
-}
-
-// Qué queda en el borrador al cambiar el bloque de personaje. Pura: la
-// elección del predeterminado se guarda en el mismo gesto que la aplica, así
-// que hay que conocer el borrador nuevo antes de que React lo pinte.
-function nextCharacterDraft(
-  draft: CharacterDraft,
-  next: StyleCharacter,
-): CharacterDraft {
-  const current = draft.character
-  const returnsToOwn = next.mode === 'own' && current.mode !== 'own'
-  // Volver a «Mi personaje» desde otro modo recupera el fijado que tenía.
-  if (returnsToOwn && !next.defaultCharacterId && draft.lastDefaultCharacterId)
-    return {
-      ...draft,
-      character: {
-        mode: 'own',
-        defaultCharacterId: draft.lastDefaultCharacterId,
-      },
-    }
-  // Apagar el predeterminado estando en «Mi personaje» lo olvida.
-  if (next.mode === 'own' && !next.defaultCharacterId && !returnsToOwn)
-    return { character: next }
-  return {
-    character: next,
-    lastDefaultCharacterId:
-      next.defaultCharacterId ?? draft.lastDefaultCharacterId,
-  }
 }
 
 // Ids de las muestras mientras el sidecar todavía no reportó ninguna.

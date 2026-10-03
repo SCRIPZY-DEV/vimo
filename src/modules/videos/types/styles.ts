@@ -51,6 +51,16 @@ export interface CustomStyleDraft {
   sourcePrompt?: string
 }
 
+// El protagonista de un estilo mientras se edita en su modal (Mi estilo o
+// «Ver» del catálogo), más lo que hay que recordar al pasar por otro modo: si
+// la persona va a «Genérico» y vuelve a «Mi personaje», no pierde el personaje
+// que ya había fijado (en disco solo se guarda con «own»). Lo mueve
+// utilities/characterDraft.ts.
+export interface CharacterDraft {
+  character: StyleCharacter
+  lastDefaultCharacterId?: string
+}
+
 // Lo que el modal guarda de una gema de plantilla con style-save.
 export interface TemplateStyleDraft {
   id: string

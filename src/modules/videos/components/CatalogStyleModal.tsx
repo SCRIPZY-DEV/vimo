@@ -15,8 +15,10 @@ import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterB
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
 import { localizedText } from '@/modules/videos/utilities/catalogLocale'
 import { catalogSampleImages } from '@/modules/videos/utilities/catalogSamples'
+import { nextCharacterDraft } from '@/modules/videos/utilities/characterDraft'
 import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
+import type { CharacterDraft } from '@/modules/videos/types/styles'
 import type { CatalogGem } from '@pipeline/types/catalog.ts'
 import type { StyleCharacter } from '@pipeline/types/styles.ts'
 
@@ -27,8 +29,11 @@ interface CatalogStyleModalProps {
   initialCharacter: StyleCharacter
   // El estilo ya es el del formulario: cambiar el modo lo actualiza ahí.
   inUse: boolean
-  // Hay una copia a Mi estilo en curso.
+  // ESTE estilo se está copiando a Mi estilo: el botón lo dice y el modo
+  // queda quieto mientras tanto.
   copying: boolean
+  // Hay una copia en curso, de este estilo o de otro: no se lanza otra.
+  copyDisabled: boolean
   // Guion y modelo del formulario: el selector de personaje los usa para
   // diseñar un personaje nuevo coherente con esta gema (ADR-0020).
   script: string
@@ -39,42 +44,6 @@ interface CatalogStyleModalProps {
   onUse: (character: StyleCharacter) => void
   onCopy: (character: StyleCharacter) => void
   onClose: () => void
-}
-
-// El modo elegido más el personaje fijado la última vez: si la persona va a
-// «Genérico» y vuelve a «Mi personaje», no pierde el que ya había fijado. El
-// mismo borrador que CustomStyleModal.
-interface CharacterDraft {
-  character: StyleCharacter
-  lastDefaultCharacterId?: string
-}
-
-// Qué queda en el borrador al cambiar el bloque de personaje. Pura: el cambio
-// se recuerda en el mismo gesto, así que hay que conocer el borrador nuevo
-// antes de que React lo pinte.
-function nextCharacterDraft(
-  draft: CharacterDraft,
-  next: StyleCharacter,
-): CharacterDraft {
-  const current = draft.character
-  const returnsToOwn = next.mode === 'own' && current.mode !== 'own'
-  // Volver a «Mi personaje» desde otro modo recupera el fijado que tenía.
-  if (returnsToOwn && !next.defaultCharacterId && draft.lastDefaultCharacterId)
-    return {
-      ...draft,
-      character: {
-        mode: 'own',
-        defaultCharacterId: draft.lastDefaultCharacterId,
-      },
-    }
-  // Apagar el predeterminado estando en «Mi personaje» lo olvida.
-  if (next.mode === 'own' && !next.defaultCharacterId && !returnsToOwn)
-    return { character: next }
-  return {
-    character: next,
-    lastDefaultCharacterId:
-      next.defaultCharacterId ?? draft.lastDefaultCharacterId,
-  }
 }
 
 // «Ver» de un estilo del catálogo (Entrega 2): sus muestras, sus etiquetas y
@@ -89,6 +58,7 @@ export function CatalogStyleModal({
   initialCharacter,
   inUse,
   copying,
+  copyDisabled,
   script,
   promptModel,
   onCharacterChange,
@@ -166,7 +136,7 @@ export function CatalogStyleModal({
               <Button
                 type="button"
                 variant="outline"
-                disabled={copying}
+                disabled={copyDisabled}
                 onClick={() => onCopy(character)}
               >
                 {copying ? (

@@ -410,6 +410,15 @@ export const CATALOG_CHARACTER_STORAGE_KEY = 'vimo:catalog:character:v1'
 // espeja con `typeof`, como la clave de arriba.
 export const CATALOG_SAMPLE_COUNT = 4
 
+// Fallos de «Pasar a mi estilo» cuyo texto general está escrito para el
+// formulario de Crear y engañaría en el aviso de la copia: `invalid_payload`
+// («Revisá los datos del formulario.») y `style_not_found` («Ese estilo ya no
+// existe en tu galería.», cuando acá falta en el catálogo). Con estos, el
+// aviso dice solo que la copia no salió.
+export const CATALOG_COPY_UNDETAILED_ERROR_CODES: ReadonlySet<string> = new Set(
+  ['invalid_payload', 'style_not_found'],
+)
+
 // ── Estilos propios («Mi estilo») ──
 
 // Cuántas muestras genera el sidecar por estilo (las 4 situaciones fijas).

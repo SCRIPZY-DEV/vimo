@@ -14,6 +14,7 @@ import {
 } from '@/modules/common/fetcher/vimoServerError'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
+  CATALOG_COPY_UNDETAILED_ERROR_CODES,
   DEMO_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_NO_VISUAL_STYLE_CODE,
@@ -332,6 +333,15 @@ export const videosApi = {
   errorMessageKey(error: unknown): string {
     const code = pipelineErrorCode(error)
     if (!code) return UNKNOWN_CREATE_ERROR_KEY
+    return LIBRARY_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY
+  },
+  // El porqué de una copia de «Pasar a mi estilo» que falló, o null cuando el
+  // texto de ese código está escrito para el formulario de Crear y no aplica a
+  // la copia: el titular del aviso ya dice que no salió.
+  catalogCopyErrorKey(error: unknown): string | null {
+    const code = pipelineErrorCode(error)
+    if (!code) return UNKNOWN_CREATE_ERROR_KEY
+    if (CATALOG_COPY_UNDETAILED_ERROR_CODES.has(code)) return null
     return LIBRARY_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY
   },
   // El código crudo, para las decisiones que no dependen del texto (saldo

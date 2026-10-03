@@ -51,12 +51,13 @@ export function useCatalogStyles() {
     copyStyle: (request: CatalogCopyRequest) =>
       copyMutation.mutateAsync(request),
     copying: copyMutation.isPending,
-    // La última copia: qué se pidió, la tarjeta que quedó en Mi estilo o por
-    // qué falló.
+    // La última copia: qué se pidió, la tarjeta que quedó en Mi estilo o si
+    // falló, con su porqué cuando el texto sirve para la copia (si no, null).
     copyRequest: copyMutation.variables ?? null,
     copiedStyle: copyMutation.data?.entry ?? null,
+    copyFailed: copyMutation.isError,
     copyErrorKey: copyMutation.isError
-      ? videosApi.errorMessageKey(copyMutation.error)
+      ? videosApi.catalogCopyErrorKey(copyMutation.error)
       : null,
   }
 }

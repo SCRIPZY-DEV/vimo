@@ -10,6 +10,7 @@ import {
   readCatalogCharacter,
   rememberCatalogCharacter,
 } from '../../src/modules/videos/utilities/catalogCharacterMemory.ts'
+import { nextCharacterDraft } from '../../src/modules/videos/utilities/characterDraft.ts'
 import { localizedText } from '../../src/modules/videos/utilities/catalogLocale.ts'
 import {
   catalogSampleImages,
@@ -404,4 +405,68 @@ test('el carril sale de la pestaña y de si el estilo elegido es del catálogo',
   ]
   for (const [form, lane] of cases)
     assert.equal(laneOf(form), lane, JSON.stringify(form))
+})
+
+// ─── El borrador del personaje en los modales de estilo (Mi estilo y «Ver») ───
+
+// Aplica una serie de cambios del bloque de personaje, como lo hace un modal.
+function applyChanges(draft, changes) {
+  return changes.reduce(
+    (current, next) => nextCharacterDraft(current, next),
+    draft,
+  )
+}
+
+const OWN_ANA = { mode: 'own', defaultCharacterId: 'ana' }
+
+test('volver a «Mi personaje» desde otro modo recupera el personaje fijo', () => {
+  // Pasar por «Genérico» no pierde a Ana: al volver, el bloque manda
+  // `{ mode: 'own' }` sin nadie.
+  const back = applyChanges(
+    { character: OWN_ANA, lastDefaultCharacterId: 'ana' },
+    [{ mode: 'generic' }, { mode: 'own' }],
+  )
+  assert.deepEqual(back.character, OWN_ANA)
+  assert.equal(back.lastDefaultCharacterId, 'ana')
+
+  // Si al volver se elige a alguien, manda la elección.
+  const chosen = applyChanges(
+    { character: { mode: 'none' }, lastDefaultCharacterId: 'ana' },
+    [{ mode: 'own', defaultCharacterId: 'beto' }],
+  )
+  assert.deepEqual(chosen.character, {
+    mode: 'own',
+    defaultCharacterId: 'beto',
+  })
+  assert.equal(chosen.lastDefaultCharacterId, 'beto')
+})
+
+test('apagar el personaje fijo estando en «Mi personaje» lo olvida', () => {
+  const off = applyChanges(
+    { character: OWN_ANA, lastDefaultCharacterId: 'ana' },
+    [{ mode: 'own' }],
+  )
+  assert.deepEqual(off.character, { mode: 'own' })
+  assert.equal(off.lastDefaultCharacterId, undefined)
+
+  // Olvidado: ir a «Genérico» y volver ya no lo trae.
+  const back = applyChanges(off, [{ mode: 'generic' }, { mode: 'own' }])
+  assert.deepEqual(back.character, { mode: 'own' })
+})
+
+test('cualquier otro cambio se aplica tal cual y recuerda el último fijo', () => {
+  // Elegir otro personaje fijo lo recuerda en lugar del anterior.
+  const switched = applyChanges(
+    { character: OWN_ANA, lastDefaultCharacterId: 'ana' },
+    [{ mode: 'own', defaultCharacterId: 'beto' }, { mode: 'none' }],
+  )
+  assert.deepEqual(switched.character, { mode: 'none' })
+  assert.equal(switched.lastDefaultCharacterId, 'beto')
+
+  // Sin un fijo previo, volver a «Mi personaje» no inventa ninguno.
+  const fresh = applyChanges({ character: { mode: 'generic' } }, [
+    { mode: 'own' },
+  ])
+  assert.deepEqual(fresh.character, { mode: 'own' })
+  assert.equal(fresh.lastDefaultCharacterId, undefined)
 })

@@ -74,6 +74,7 @@ export function CatalogStyleGallery({
     copying,
     copyRequest,
     copiedStyle,
+    copyFailed,
     copyErrorKey,
   } = useCatalogStyles()
   const { showSavedStyle } = useCustomStyles()
@@ -209,14 +210,16 @@ export function CatalogStyleGallery({
         />
       )}
 
-      {!copying && copyErrorKey && copyRequest && (
+      {/* El titular basta cuando el texto del código es del formulario de
+          Crear (videosApi.catalogCopyErrorKey devuelve null). */}
+      {!copying && copyFailed && copyRequest && (
         <Alert
           key={`failed:${copyRequest.gem.id}`}
           ref={revealNotice}
           tone="danger"
           title={t('create.catalog.copyFailed', { name: copyRequest.name })}
         >
-          <p>{t(copyErrorKey)}</p>
+          {copyErrorKey && <p>{t(copyErrorKey)}</p>}
         </Alert>
       )}
 
@@ -228,7 +231,10 @@ export function CatalogStyleGallery({
           gem={viewingGem}
           initialCharacter={characterOf(viewingGem)}
           inUse={selectedId === viewingGem.id}
-          copying={copying}
+          // Lo que dice el botón y el modo quieto, solo si se copia ESTE
+          // estilo; el botón no lanza otra copia mientras corre cualquiera.
+          copying={copying && copyRequest?.gem.id === viewingGem.id}
+          copyDisabled={copying}
           script={script}
           promptModel={promptModel}
           onCharacterChange={(character) =>
