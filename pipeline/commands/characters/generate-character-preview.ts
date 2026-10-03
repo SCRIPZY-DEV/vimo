@@ -1,6 +1,7 @@
 import { toDataUri } from '../../providers/image/download.ts'
 import { generateEvolinkImage } from '../../providers/image/evolink.ts'
 import { generateFalImage } from '../../providers/image/fal.ts'
+import { findCatalogGem } from '../../prompts/catalog-gems/catalog.ts'
 import {
   buildCustomPreviewRequest,
   buildPreviewScene,
@@ -26,6 +27,7 @@ import type {
 } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
+import type { CustomStyleSummary } from '../../types/styles.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
@@ -38,15 +40,22 @@ const MIN_IDENTITY_LENGTH = 10
 // quieta.
 const PROMPT_EXPECTED_MS = 15_000
 
+/** Lo que la gema aporta al retrato: su texto, o sus secciones y planos. */
+type PreviewGem = Pick<
+  CustomStyleSummary,
+  'systemPrompt' | 'sections' | 'shots'
+>
+
 /**
  * Genera UNA imagen de cómo se vería el personaje en el estilo elegido. El
  * estilo se aplica ACÁ (solo para el preview); la identidad guardada queda
  * neutra y sirve para cualquier estilo.
  *
- * Con un estilo del catálogo el prompt sale de la plantilla fija. Con un
- * estilo propio la gema no es un sufijo de imagen sino un system prompt, así
- * que primero el LLM escribe el prompt del retrato (mismo mecanismo que las
- * muestras del estilo) y recién después se genera la imagen.
+ * Con uno de los 5 estilos heredados el prompt sale de la plantilla fija. Con
+ * un estilo propio o una gema nueva del catálogo la gema no es un sufijo de
+ * imagen sino un system prompt, así que primero el LLM escribe el prompt del
+ * retrato (mismo mecanismo que las muestras del estilo) y recién después se
+ * genera la imagen.
  */
 export async function generateCharacterPreview(
   context: PipelineContext,
@@ -92,20 +101,15 @@ export async function generateCharacterPreview(
   return { dataUri: toDataUri(image), finalPrompt }
 }
 
-// Estilo propio: la gema escribe el prompt del retrato. Ambas claves (LLM e
-// imágenes) se exigen ANTES de gastar — la de imágenes ya se validó arriba.
+// Estilo propio o gema nueva del catálogo: la gema escribe el prompt del
+// retrato. Ambas claves (LLM e imágenes) se exigen ANTES de gastar — la de
+// imágenes ya se validó arriba.
 async function writeCustomStylePrompt(
   context: PipelineContext,
   styleId: string,
   identityPrompt: string,
 ): Promise<string> {
-  assertValidStyleId(styleId)
-  const style = await readStyleEntry(context, styleId)
-  if (!style)
-    throw new PipelineFailure(
-      'style_not_found',
-      `style "${styleId}" does not exist`,
-    )
+  const style = await readPreviewGem(context, styleId)
   const llm = createSceneLlm(context)
 
   emitPhase(context, 'prompt')
@@ -139,6 +143,27 @@ async function writeCustomStylePrompt(
       style.sections,
     )
   return imagePrompt
+}
+
+// La gema del retrato. Una gema nueva del catálogo es una gema de plantilla y
+// entra por sus secciones sin leer el disco (decisión P6 del plan E2: los 5
+// ids heredados no llegan acá, van por la plantilla fija). Si no está en el
+// catálogo, es un estilo propio de la galería.
+async function readPreviewGem(
+  context: PipelineContext,
+  styleId: string,
+): Promise<PreviewGem> {
+  const catalogGem = findCatalogGem(styleId)
+  if (catalogGem) return { sections: catalogGem.sections, shots: [] }
+
+  assertValidStyleId(styleId)
+  const style = await readStyleEntry(context, styleId)
+  if (!style)
+    throw new PipelineFailure(
+      'style_not_found',
+      `style "${styleId}" does not exist`,
+    )
+  return style
 }
 
 async function generateImage(

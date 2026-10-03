@@ -19,17 +19,20 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
 import {
   MAX_SHOTS,
+  STYLE_NAME_LIMIT,
   SYSTEM_PROMPT_CHAR_LIMIT,
   assertColorFilter,
   assertGemSections,
   assertStyleCharacter,
   assertTemplateVersion,
   isCatalogStyleId,
+  isLegacyCatalogStyleId,
 } from '../styles/style-store.ts'
 import {
   MAX_SECONDS_PER_SCENE,
   MIN_SECONDS_PER_SCENE,
 } from '../../stages/scene-cuts/by-seconds.ts'
+import type { CharacterStyleId } from '../../types/characters.ts'
 import type {
   CreateVideoProjectPayload,
   CreateVideoProjectResult,
@@ -54,6 +57,10 @@ export const PROMPT_MODEL_ID_LIMIT = 200
 
 const MAX_REFERENCE_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_SLUG_ATTEMPTS = 50
+// `options.styleId` de un proyecto con estilo propio o con una gema nueva del
+// catálogo: el contrato exige un CharacterStyleId y el resolver prefiere el
+// snapshot (pipeline/stages/shared/project-style.ts).
+const CUSTOM_STYLE_PROJECT_STYLE_ID: CharacterStyleId = 'normal'
 
 // Crea la carpeta del proyecto (ADR-0009) con project.json en estado draft,
 // el guion y las referencias de personajes resueltas. El pipeline en sí se
@@ -175,9 +182,11 @@ function validatePayload(
     )
 
   // Estilo propio inline (snapshot): mismos límites que la galería. styleId
-  // se valida igual arriba — con customStyle la UI manda 'normal'.
+  // se valida igual arriba — con customStyle la UI manda 'normal', o el id
+  // heredado de una gema del catálogo.
   const customStyle = options.customStyle
-  if (customStyle !== undefined) assertProjectCustomStyle(customStyle)
+  if (customStyle !== undefined)
+    assertProjectCustomStyle(customStyle, options.styleId)
 
   const sceneCount = options.sceneCount
   if (
@@ -251,11 +260,19 @@ function validatePayload(
 // El snapshot de la gema (ADR-0018, ADR-0048): vieja (`systemPrompt`) o de
 // plantilla (`sections`), nunca las dos, con los mismos límites que la
 // galería. Lo demás del snapshot se valida igual para los dos tipos.
-function assertProjectCustomStyle(customStyle: ProjectCustomStyle): void {
+function assertProjectCustomStyle(
+  customStyle: ProjectCustomStyle,
+  styleId: CharacterStyleId,
+): void {
   if (!customStyle.name?.trim())
     throw new PipelineFailure(
       'invalid_payload',
       'options.customStyle needs a name',
+    )
+  if (customStyle.name.trim().length > STYLE_NAME_LIMIT)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `options.customStyle.name exceeds ${STYLE_NAME_LIMIT} characters`,
     )
   if (customStyle.sections !== undefined) {
     if (customStyle.systemPrompt !== undefined)
@@ -298,13 +315,40 @@ function assertProjectCustomStyle(customStyle: ProjectCustomStyle): void {
       customStyle.colorFilter,
       'options.customStyle.colorFilter',
     )
-  if (
-    customStyle.catalogStyleId !== undefined &&
-    !isCatalogStyleId(customStyle.catalogStyleId)
-  )
+  if (customStyle.catalogStyleId === undefined) return
+  if (!isCatalogStyleId(customStyle.catalogStyleId))
     throw new PipelineFailure(
       'invalid_payload',
       'options.customStyle.catalogStyleId is not a valid style id',
+    )
+  assertCatalogProjectStyle(customStyle, customStyle.catalogStyleId, styleId)
+}
+
+// Un proyecto de una gema del catálogo (spec §8, plan E2 §5.4): el snapshot
+// lleva el id de la gema como `styleId` y como `catalogStyleId`, y
+// `options.styleId` es ese mismo id si la gema es una de las 5 heredadas, o
+// 'normal' si es nueva — el valor con el que viaja un estilo propio.
+function assertCatalogProjectStyle(
+  customStyle: ProjectCustomStyle,
+  catalogStyleId: string,
+  styleId: CharacterStyleId,
+): void {
+  if (customStyle.styleId !== catalogStyleId)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.customStyle.styleId must equal options.customStyle.catalogStyleId',
+    )
+
+  const legacy = isLegacyCatalogStyleId(catalogStyleId)
+  if (legacy && styleId !== catalogStyleId)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.styleId must equal options.customStyle.catalogStyleId for a legacy catalog style',
+    )
+  if (!legacy && styleId !== CUSTOM_STYLE_PROJECT_STYLE_ID)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `options.styleId must be ${CUSTOM_STYLE_PROJECT_STYLE_ID} for a new catalog style`,
     )
 }
 

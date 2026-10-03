@@ -3,7 +3,10 @@
 // límites de la galería, el filtro de color, la versión y el id del catálogo.
 // Los usos que reciben «la gema como texto» (el estilo del fallback de
 // imágenes y el preview de un personaje) usan `composeGemText`. Una gema
-// vieja sigue igual.
+// vieja sigue igual. Un proyecto de una gema del catálogo (plan E2 §5.4) es
+// coherente: el snapshot lleva el id de la gema como `styleId` y
+// `catalogStyleId`, y `options.styleId` es ese id si la gema es heredada o
+// 'normal' si es nueva.
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -13,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 import { createVideoProject } from '../../pipeline/commands/videos/create-video-project.ts'
 import { generateCharacterPreview } from '../../pipeline/commands/characters/generate-character-preview.ts'
+import { findCatalogGem } from '../../pipeline/prompts/catalog-gems/catalog.ts'
 import { buildCustomStyleSystemPrompt } from '../../pipeline/prompts/custom-style.ts'
 import { composeGemText } from '../../pipeline/prompts/template-frame.ts'
 import { GLOBAL_RULES } from '../../pipeline/prompts/visual-styles.ts'
@@ -52,7 +56,7 @@ function context(root, payload, apiKeys = {}) {
     emitter: { emit() {} },
   }
 }
-function create(root, customStyle) {
+function create(root, customStyle, options = {}) {
   return createVideoProject(
     context(root, {
       name: 'Gema de plantilla',
@@ -66,6 +70,7 @@ function create(root, customStyle) {
         useOverlay: false,
         confirmScenes: false,
         customStyle,
+        ...options,
       },
     }),
   )
@@ -138,11 +143,15 @@ function occurrences(text, phrase) {
 
 // ── create-video-project ──
 
+// Con `catalogStyleId` el snapshot es el de una gema del catálogo (plan E2
+// §5.4): su `styleId` es el de la gema y, si es heredada, también
+// `options.styleId`.
 test('a template snapshot is accepted and stored as sent', async (t) => {
   const root = await projectsRoot(t)
   const { projectDir } = await create(
     root,
-    template({ catalogStyleId: 'pov_stickman' }),
+    template({ styleId: 'pov_stickman', catalogStyleId: 'pov_stickman' }),
+    { styleId: 'pov_stickman' },
   )
   const metadata = JSON.parse(
     await readFile(join(projectDir, 'project.json'), 'utf8'),
@@ -167,7 +176,10 @@ test('an old gem snapshot is still accepted', async (t) => {
 
 test('a new catalog id with the gallery pattern is accepted', async (t) => {
   const root = await projectsRoot(t)
-  await create(root, template({ catalogStyleId: 'st-noir' }))
+  await create(
+    root,
+    template({ styleId: 'st-noir', catalogStyleId: 'st-noir' }),
+  )
 })
 
 // Cada rechazo con su mensaje exacto: sin él, un caso podía pasar por otro
@@ -241,6 +253,121 @@ for (const [name, customStyle, message] of [
       code: 'invalid_payload',
       message,
     })
+  })
+}
+
+// ── El proyecto de una gema del catálogo (plan E2 §5.4) ──
+
+const povStickman = findCatalogGem('pov_stickman')
+const infographic = findCatalogGem('infografico-amarillo')
+// El snapshot que arma la app para una gema del catálogo (en el modo con el
+// que salieron sus muestras) y las opciones del carril de Mi estilo.
+function catalogSnapshot(gem, extra = {}) {
+  return {
+    styleId: gem.id,
+    catalogStyleId: gem.id,
+    name: gem.name.es,
+    sections: gem.sections,
+    templateVersion: gem.templateVersion,
+    colorFilter: gem.colorFilter,
+    character: { mode: gem.sampleMode },
+    ...extra,
+  }
+}
+const catalogLane = { secondsPerScene: 3, promptModel: 'fixture/prompt-model' }
+async function storedOptions(projectDir) {
+  const metadata = JSON.parse(
+    await readFile(join(projectDir, 'project.json'), 'utf8'),
+  )
+  return metadata.options
+}
+
+test('a project of a legacy catalog gem keeps the gem id as options.styleId', async (t) => {
+  const root = await projectsRoot(t)
+  const { projectDir } = await create(root, catalogSnapshot(povStickman), {
+    ...catalogLane,
+    styleId: 'pov_stickman',
+  })
+  const options = await storedOptions(projectDir)
+  assert.equal(options.styleId, 'pov_stickman')
+  assert.deepEqual(options.customStyle, catalogSnapshot(povStickman))
+})
+
+test('a project of a new catalog gem travels as normal', async (t) => {
+  const root = await projectsRoot(t)
+  const { projectDir } = await create(
+    root,
+    catalogSnapshot(infographic),
+    catalogLane,
+  )
+  const options = await storedOptions(projectDir)
+  assert.equal(options.styleId, 'normal')
+  assert.equal(options.customStyle.catalogStyleId, 'infografico-amarillo')
+  assert.deepEqual(options.customStyle, catalogSnapshot(infographic))
+})
+
+const legacyStyleIdMessage =
+  'options.styleId must equal options.customStyle.catalogStyleId for a legacy catalog style'
+const newStyleIdMessage =
+  'options.styleId must be normal for a new catalog style'
+const nameMessage = 'options.customStyle.name exceeds 80 characters'
+
+for (const [name, customStyle, options, message] of [
+  [
+    'a legacy catalog gem sent as normal',
+    catalogSnapshot(povStickman),
+    { styleId: 'normal' },
+    legacyStyleIdMessage,
+  ],
+  [
+    'a legacy catalog gem sent as another legacy style',
+    catalogSnapshot(povStickman),
+    { styleId: 'cartoon' },
+    legacyStyleIdMessage,
+  ],
+  [
+    'a new catalog gem sent as a legacy style',
+    catalogSnapshot(infographic),
+    { styleId: 'cartoon' },
+    newStyleIdMessage,
+  ],
+  [
+    'a snapshot whose styleId is not its catalogStyleId',
+    catalogSnapshot(infographic, { styleId: 'st-copia' }),
+    {},
+    'options.customStyle.styleId must equal options.customStyle.catalogStyleId',
+  ],
+  [
+    'a catalog gem name over 80',
+    catalogSnapshot(infographic, { name: 'x'.repeat(81) }),
+    {},
+    nameMessage,
+  ],
+  // `constructor` cumple el patrón de la galería y es una propiedad heredada
+  // de cualquier objeto: no es uno de los 5 heredados.
+  [
+    'an inherited object property sent as a legacy catalog style',
+    catalogSnapshot(infographic, {
+      styleId: 'constructor',
+      catalogStyleId: 'constructor',
+    }),
+    { styleId: 'constructor' },
+    newStyleIdMessage,
+  ],
+  // El tope del nombre es el de la galería: vale también para Mi estilo.
+  [
+    'a gallery style name over 80',
+    template({ name: 'x'.repeat(81) }),
+    {},
+    nameMessage,
+  ],
+]) {
+  test('create-video-project rejects ' + name, async (t) => {
+    const root = await projectsRoot(t)
+    await assert.rejects(
+      create(root, customStyle, { ...catalogLane, ...options }),
+      { code: 'invalid_payload', message },
+    )
   })
 }
 

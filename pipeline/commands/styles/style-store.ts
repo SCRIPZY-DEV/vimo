@@ -5,6 +5,7 @@ import { VISUAL_STYLES } from '../../prompts/visual-styles.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { MAX_WOVEN_IDENTITY_CHARS } from '../../stages/scene-prompts/verbatim/subject-weaver.ts'
+import type { CharacterStyleId } from '../../types/characters.ts'
 import {
   COLOR_FILTER_IDS,
   GEM_SECTION_KEYS,
@@ -215,13 +216,21 @@ export function assertColorFilter(
 }
 
 // Id de un estilo del catálogo dentro de una copia o de un snapshot: uno de
-// los 5 heredados o uno nuevo con el patrón de la galería (spec §8). Los
-// heredados se buscan como propiedad PROPIA de VISUAL_STYLES: con `in`,
-// `toString` o `valueOf` heredarían de Object.prototype y pasarían por ids.
+// los 5 heredados o uno nuevo con el patrón de la galería (spec §8).
 export function isCatalogStyleId(value: unknown): value is string {
   if (typeof value !== 'string') return false
   if (STYLE_ID_PATTERN.test(value)) return true
-  return Object.hasOwn(VISUAL_STYLES, value)
+  return isLegacyCatalogStyleId(value)
+}
+
+// Uno de los 5 estilos heredados, buscado como propiedad PROPIA de
+// VISUAL_STYLES: con `in`, `toString` o `constructor` heredarían de
+// Object.prototype y pasarían por ids (y `constructor` además cumple el
+// patrón de la galería).
+export function isLegacyCatalogStyleId(
+  value: unknown,
+): value is CharacterStyleId {
+  return typeof value === 'string' && Object.hasOwn(VISUAL_STYLES, value)
 }
 
 export function readGemOrigin(value: unknown): GemOrigin | undefined {
@@ -277,6 +286,15 @@ export function assertGemOrigin(
 export function assertValidStyleId(id: string): void {
   if (!STYLE_ID_PATTERN.test(id))
     throw new PipelineFailure('invalid_payload', `invalid style id "${id}"`)
+}
+
+// Id de un estilo propio nuevo con el formato de la app (`newCustomStyleId`
+// de src/modules/videos/constants.ts): `st-<timestamp36>-<rand>`, cronológico
+// y dentro de STYLE_ID_PATTERN. Lo usa la copia de «Pasar a mi estilo», que
+// crea el estilo del lado del sidecar.
+export function newCustomStyleId(): string {
+  const random = Math.random().toString(36).slice(2, 8)
+  return `st-${Date.now().toString(36)}-${random}`
 }
 
 export function stylesRoot(context: PipelineContext): string {
@@ -348,6 +366,70 @@ export async function readStyleSamples(
 function sampleNumber(file: string): number {
   const match = file.match(SAMPLE_FILE_PATTERN)
   return match ? parseInt(match[1], 10) : 0
+}
+
+// Los tres primeros bytes de todo JPEG (SOI y el primer marcador).
+const JPEG_MAGIC = [0xff, 0xd8, 0xff]
+// El base64 más largo que puede traer una muestra de MAX_SAMPLE_BYTES: se
+// rechaza antes de decodificar un texto enorme.
+const MAX_SAMPLE_BASE64_LENGTH = Math.ceil(MAX_SAMPLE_BYTES / 3) * 4
+
+/** Una muestra que llegó en base64, ya validada y lista para escribir. */
+export interface SampleUploadBytes {
+  file: string
+  bytes: Buffer
+}
+
+// Una muestra que llega del webview como `{ file, base64 }` (la copia de
+// «Pasar a mi estilo»). El nombre es el de una muestra de la galería
+// (`sample-<n>.jpg`, n = 1..sampleLimit y sin ceros a la izquierda: el nombre
+// es la ruta del archivo), el base64 es el canónico (sin prefijo `data:` ni
+// saltos de línea) y los bytes son un JPEG de hasta MAX_SAMPLE_BYTES.
+export function assertSampleUpload(
+  value: unknown,
+  field: string,
+  sampleLimit: number,
+): SampleUploadBytes {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new PipelineFailure('invalid_payload', `${field} must be an object`)
+  const record = value as { file?: unknown; base64?: unknown }
+
+  if (!isSampleFile(record.file, sampleLimit))
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.file must be one of sample-1.jpg to sample-${sampleLimit}.jpg`,
+    )
+  if (
+    typeof record.base64 !== 'string' ||
+    record.base64.length > MAX_SAMPLE_BASE64_LENGTH
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.base64 must be the base64 of at most ${MAX_SAMPLE_BYTES} bytes`,
+    )
+
+  // Node decodifica sin quejarse de lo que no entiende: el texto vale solo si
+  // la vuelta a base64 lo reproduce igual.
+  const bytes = Buffer.from(record.base64, 'base64')
+  if (bytes.toString('base64') !== record.base64)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.base64 is not valid base64`,
+    )
+  if (bytes.length > MAX_SAMPLE_BYTES)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field} exceeds ${MAX_SAMPLE_BYTES} bytes`,
+    )
+  if (!JPEG_MAGIC.every((byte, index) => bytes[index] === byte))
+    throw new PipelineFailure('invalid_payload', `${field} is not a JPEG image`)
+  return { file: record.file, bytes }
+}
+
+function isSampleFile(file: unknown, sampleLimit: number): file is string {
+  if (typeof file !== 'string') return false
+  const number = sampleNumber(file)
+  return number >= 1 && number <= sampleLimit && file === `sample-${number}.jpg`
 }
 
 // null = carpeta ajena o style.json corrupto: se ignora sin romper el listado
