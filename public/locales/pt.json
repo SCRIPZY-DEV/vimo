@@ -262,6 +262,7 @@
       "withdrawnTitleNoName": "Removemos seu personagem deste vídeo",
       "withdrawnBecauseGeneric": "Este estilo escreve o personagem sozinho, então sua escolha não seria usada.",
       "withdrawnBecauseNone": "Este estilo vai sem personagem, então sua escolha não seria usada.",
+      "withdrawnBecauseSingle": "Este estilo leva um só personagem. Se preferir outro, troque-o acima.",
       "withdrawnRestoreHint": "Fica guardada: toque aqui e coloque o estilo em «meu personagem» para que volte.",
       "withdrawnRestoreAuto": "Fica guardada: volta sozinha se você escolher um estilo que use seu personagem.",
       "createNew": "Criar personagem novo",
@@ -679,6 +680,8 @@
       "noSamples": "Este estilo ainda não tem amostras.",
       "characterTitle": "Personagem deste estilo",
       "characterHint": "Escolha quem protagoniza seus vídeos com este estilo.",
+      "fixedCharacterTitle": "Personagem do estilo",
+      "fixedCharacterHint": "O personagem que este estilo traz.",
       "useButton": "Usar neste vídeo"
     },
     "promptModel": {

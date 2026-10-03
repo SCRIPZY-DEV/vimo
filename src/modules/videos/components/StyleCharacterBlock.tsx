@@ -37,6 +37,9 @@ interface StyleCharacterBlockProps {
   // Ausente = Mi estilo («¿Tu estilo lleva personaje?»); el catálogo tiene su
   // título y una línea de ayuda. Las filas de cada modo son las mismas.
   variant?: StyleCharacterBlockVariant
+  // La gema trae su propio personaje (su sección `character`): «genérico» es
+  // ESE personaje y la fila lo dice con sus textos. Ausente = los de siempre.
+  fixedCharacter?: boolean
   onChange: (value: StyleCharacter) => void
   // Abre el selector de personajes para fijar uno, con el ya elegido
   // preseleccionado (null = ninguno). Lo maneja el modal, que es quien
@@ -76,6 +79,19 @@ const MODE_OPTIONS: readonly ModeOption[] = [
   },
 ]
 
+// «Genérico» con una gema que trae su personaje: no lo inventa Vimo a partir
+// del guion, sale el de la gema. La ayuda repite la línea de la fila.
+function withFixedCharacterTexts(option: ModeOption): ModeOption {
+  if (option.mode !== 'generic') return option
+
+  return {
+    ...option,
+    titleKey: 'create.catalog.fixedCharacterTitle',
+    subtitleKey: 'create.catalog.fixedCharacterHint',
+    helpKey: 'create.catalog.fixedCharacterHint',
+  }
+}
+
 // Tres zonas de la fila tienen acción propia y NO son «toggle de la fila»: el
 // switch (dejarlo pasar duplicaría el toggle), la sub-fila del predeterminado
 // y el signo de pregunta (en una pantalla táctil la ayuda se lee tocándolo).
@@ -103,14 +119,18 @@ export function StyleCharacterBlock({
   styleId,
   allowedModes,
   variant = 'custom',
+  fixedCharacter = false,
   onChange,
   onPickCharacter,
 }: StyleCharacterBlockProps) {
   const { t } = useTranslation()
   const { characters, isLoading } = useCharacterCatalog(true)
-  const options = allowedModes
+  const allowedOptions = allowedModes
     ? MODE_OPTIONS.filter((option) => allowedModes.includes(option.mode))
     : MODE_OPTIONS
+  const options = fixedCharacter
+    ? allowedOptions.map(withFixedCharacterTexts)
+    : allowedOptions
   const hasFloor = options.some((option) => option.mode === 'none')
 
   const fixed = value.defaultCharacterId

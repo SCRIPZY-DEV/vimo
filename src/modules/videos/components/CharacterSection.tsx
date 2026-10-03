@@ -20,6 +20,7 @@ import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { CreateFormValue, FormLane } from '@/modules/videos/types/create'
+import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
 
 interface CharacterSectionProps {
   value: CreateFormValue
@@ -61,13 +62,14 @@ export function CharacterSection({
     (character) => character.characterId === fixedCharacterId,
   )
 
-  // Con «Mi estilo» (y un estilo del catálogo nuevo, que sale por su carril),
-  // un personaje SIN foto viaja con referencia solo si tiene preview de ESTE
-  // estilo (regla E20; ADR-0021 prohíbe usar el de otro). Un estilo recién
-  // creado casi nunca lo tiene: la identidad va como texto y el personaje
-  // puede no parecerse. Se avisa, sin bloquear.
+  // Con «Mi estilo», un personaje SIN foto viaja con referencia solo si tiene
+  // preview de ESTE estilo (regla E20; ADR-0021 prohíbe usar el de otro). Un
+  // estilo recién creado casi nunca lo tiene: la identidad va como texto y el
+  // personaje puede no parecerse. Se avisa, sin bloquear. Con un estilo del
+  // catálogo nuevo no: el aviso manda a Personajes, que no conoce esos
+  // estilos (el retrato se genera desde el modal del selector).
   const textCharactersChosen =
-    lane !== 'legacy-catalog' &&
+    lane === 'custom' &&
     value.characters.some((character) => character.mode === 'text')
   const { characters: catalog } = useCharacterCatalog(textCharactersChosen)
   const withoutStylePreview = textCharactersChosen
@@ -113,11 +115,61 @@ export function CharacterSection({
     </Label>
   )
 
+  // Recibo de los personajes retirados al cambiar de estilo
+  // (characterPatchForStyle): el estilo escribe (o no lleva) el protagonista,
+  // o es un estilo del catálogo con «mi personaje», que lleva uno solo y
+  // retira los que sobraban. Ahí no se nombra al que la persona volvió a
+  // elegir: cambiarlo en el selector no vacía la lista de retirados.
+  const withdrawn =
+    mode === 'own'
+      ? value.withdrawnCharacters.filter(
+          (character) =>
+            !value.characters.some(
+              (item) => item.characterId === character.characterId,
+            ),
+        )
+      : value.withdrawnCharacters
+  const withdrawnNames = withdrawn
+    .map((character) => character.name)
+    .filter(Boolean)
+    .join(' + ')
+  const withdrawnReceipt = withdrawn.length > 0 && (
+    <StyleCharacterChip
+      kind="withdrawn"
+      tone="saffron"
+      editable={canEditStyle}
+      onEdit={editStyleInUse}
+    >
+      <p className="font-display text-sm font-bold text-foreground">
+        {withdrawnNames
+          ? t('create.characters.withdrawnTitle', { names: withdrawnNames })
+          : t('create.characters.withdrawnTitleNoName')}
+      </p>
+      <p className="mt-0.5 font-body text-xs text-muted-foreground">
+        {withdrawnHintKeys(mode, canEditStyle)
+          .map((key) => t(key))
+          .join(' ')}
+      </p>
+    </StyleCharacterChip>
+  )
+
+  // Con «mi personaje» el recibo solo sale en un estilo del catálogo nuevo:
+  // Mi estilo y el catálogo viejo aceptan dos y no retiran a nadie al entrar.
+  const singleCharacterReceipt =
+    lane === 'catalog-gem' && mode === 'own' && withdrawnReceipt
+
   if (styleWritesCharacter) {
-    const withdrawnNames = value.withdrawnCharacters
-      .map((character) => character.name)
-      .filter(Boolean)
-      .join(' + ')
+    // Un estilo del catálogo que trae su personaje (sección `character`): en
+    // «genérico» sale ESE personaje, no uno que Vimo invente; el chip lo dice
+    // como «Ver». Mi estilo conserva sus textos.
+    const styleBringsCharacter =
+      lane === 'catalog-gem' && Boolean(value.customStyle?.sections?.character)
+    const genericTitleKey = styleBringsCharacter
+      ? 'create.catalog.fixedCharacterTitle'
+      : 'create.characters.styleUsesGeneric'
+    const genericHintKey = styleBringsCharacter
+      ? 'create.catalog.fixedCharacterHint'
+      : 'create.characters.styleUsesGenericHint'
 
     return (
       <div className="space-y-2">
@@ -143,14 +195,14 @@ export function CharacterSection({
                   {t(
                     mode === 'none'
                       ? 'create.characters.styleUsesNone'
-                      : 'create.characters.styleUsesGeneric',
+                      : genericTitleKey,
                   )}
                 </p>
                 <p className="mt-0.5 font-body text-xs text-muted-foreground">
                   {t(
                     mode === 'none'
                       ? 'create.characters.styleUsesNoneHint'
-                      : 'create.characters.styleUsesGenericHint',
+                      : genericHintKey,
                   )}
                 </p>
               </div>
@@ -169,34 +221,7 @@ export function CharacterSection({
           </StyleCharacterChip>
         )}
 
-        {value.withdrawnCharacters.length > 0 && (
-          <StyleCharacterChip
-            kind="withdrawn"
-            tone="saffron"
-            editable={canEditStyle}
-            onEdit={editStyleInUse}
-          >
-            <p className="font-display text-sm font-bold text-foreground">
-              {withdrawnNames
-                ? t('create.characters.withdrawnTitle', {
-                    names: withdrawnNames,
-                  })
-                : t('create.characters.withdrawnTitleNoName')}
-            </p>
-            <p className="mt-0.5 font-body text-xs text-muted-foreground">
-              {t(
-                mode === 'none'
-                  ? 'create.characters.withdrawnBecauseNone'
-                  : 'create.characters.withdrawnBecauseGeneric',
-              )}{' '}
-              {t(
-                canEditStyle
-                  ? 'create.characters.withdrawnRestoreHint'
-                  : 'create.characters.withdrawnRestoreAuto',
-              )}
-            </p>
-          </StyleCharacterChip>
-        )}
+        {withdrawnReceipt}
       </div>
     )
   }
@@ -262,6 +287,8 @@ export function CharacterSection({
             </div>
           </StyleCharacterChip>
         )}
+
+        {singleCharacterReceipt}
       </div>
     )
   }
@@ -388,6 +415,8 @@ export function CharacterSection({
         </ul>
       )}
 
+      {singleCharacterReceipt}
+
       {/* Solo con el catálogo viejo: el carril verbatim de «Mi estilo» (y del
           catálogo nuevo) saltea el clasificador de presencia (ADR-0019), así
           que ahí la pregunta prometería un control que ese flujo no tiene. */}
@@ -411,6 +440,12 @@ export function CharacterSection({
             mode !== null && value.customStyle
               ? {
                   styleId: value.customStyle.styleId,
+                  // Un estilo del catálogo nuevo no está en las listas del
+                  // modal de personaje: va con el nombre del snapshot para
+                  // que su chip y su retrato lo lleven.
+                  ...(lane === 'catalog-gem'
+                    ? { styleName: value.customStyle.name }
+                    : {}),
                   // Una gema de plantilla (y un estilo del catálogo, que
                   // siempre lo es) viaja por secciones: el sidecar la pasa a
                   // texto sin su sección de personaje (ADR-0048).
@@ -431,4 +466,23 @@ export function CharacterSection({
       )}
     </div>
   )
+}
+
+// Las claves del recibo de retirados: por qué se fueron y cómo vuelven. Con
+// «mi personaje» (un estilo del catálogo, que lleva uno solo) no vuelven
+// solos: se cambia el elegido.
+function withdrawnHintKeys(
+  mode: StyleCharacterMode | null,
+  canEditStyle: boolean,
+): string[] {
+  if (mode === 'own') return ['create.characters.withdrawnBecauseSingle']
+
+  const reasonKey =
+    mode === 'none'
+      ? 'create.characters.withdrawnBecauseNone'
+      : 'create.characters.withdrawnBecauseGeneric'
+  const restoreKey = canEditStyle
+    ? 'create.characters.withdrawnRestoreHint'
+    : 'create.characters.withdrawnRestoreAuto'
+  return [reasonKey, restoreKey]
 }

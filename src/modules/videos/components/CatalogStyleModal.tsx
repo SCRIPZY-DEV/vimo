@@ -130,6 +130,7 @@ export function CatalogStyleModal({
                 styleId={gem.id}
                 allowedModes={gem.allowedModes}
                 variant="catalog"
+                fixedCharacter={Boolean(gem.sections.character)}
                 onChange={changeCharacter}
                 onPickCharacter={(current) =>
                   setPicking(current ? [current] : [])
@@ -187,6 +188,9 @@ export function CatalogStyleModal({
           max={1}
           styleContext={{
             styleId: gem.id,
+            // El modal de personaje no conoce los estilos del catálogo nuevo:
+            // sin el nombre, su chip y su retrato quedarían sin texto.
+            styleName: name,
             // La gema viaja por secciones: el sidecar la pasa a texto sin su
             // sección de personaje (ADR-0048).
             ...styleContextGemOf({ sections: gem.sections }),

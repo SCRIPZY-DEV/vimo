@@ -124,7 +124,7 @@ export function CharacterModal({
       : null
 
   // Catálogo + galería propia, con el texto ya resuelto para el panel.
-  const previewStyles: PreviewStyleOption[] = [
+  const libraryStyles: PreviewStyleOption[] = [
     ...PREVIEW_STYLES.map((style) => ({
       id: style.id,
       label: t(style.labelKey),
@@ -136,6 +136,24 @@ export function CharacterModal({
       custom: true,
     })),
   ]
+  // Un estilo del catálogo nuevo llega de Create con su nombre (`styleName`)
+  // y no está en ninguna de las dos listas: se suma como uno propio (su
+  // retrato también lo escribe la gema), para que su chip quede elegido, el
+  // botón diga su nombre y el retrato generado lo lleve. Sin nombre no se
+  // agrega nada: los 5 de siempre y la galería quedan como estaban, también
+  // mientras la galería carga.
+  const contextStyle =
+    styleContext?.styleName &&
+    !libraryStyles.some((style) => style.id === styleContext.styleId)
+      ? {
+          id: styleContext.styleId,
+          label: styleContext.styleName,
+          custom: true,
+        }
+      : null
+  const previewStyles = contextStyle
+    ? [...libraryStyles, contextStyle]
+    : libraryStyles
   const isCustomStyle = !PREVIEW_STYLES.some((style) => style.id === styleId)
 
   const llmKeys = useRequiredApiKeys({ requirements: [['deepinfra']] })

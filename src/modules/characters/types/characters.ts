@@ -46,11 +46,16 @@ export type CharacterIdentitySource = 'photo' | 'text'
 
 // Contexto de «Mi estilo» cuando el modal se abre desde Create: con gema y
 // guion, la ficha la diseña el estilo del usuario (design-style-character) y
-// el preview arranca con ese estilo elegido (`styleId` es el id de galería).
+// el preview arranca con ese estilo elegido (`styleId` es el id de galería, o
+// el de un estilo del catálogo nuevo, que sale por el mismo carril).
 // La gema viaja como texto (`gem`, una vieja) o por secciones (`sections`,
 // una de plantilla, ADR-0048), nunca las dos.
 export interface CharacterStyleContext {
   styleId: string
+  // Nombre visible del estilo del contexto cuando el modal no puede saberlo:
+  // un estilo del catálogo nuevo, que no está entre los 5 de siempre ni en la
+  // galería de Mi estilo. Ausente = el nombre sale de esas listas.
+  styleName?: string
   gem?: string
   sections?: GemSections
   script: string

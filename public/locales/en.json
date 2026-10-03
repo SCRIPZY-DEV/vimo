@@ -262,6 +262,7 @@
       "withdrawnTitleNoName": "We removed your character from this video",
       "withdrawnBecauseGeneric": "This style writes the character itself, so your choice would not have been used.",
       "withdrawnBecauseNone": "This style has no character, so your choice would not have been used.",
+      "withdrawnBecauseSingle": "This style takes a single character. If you prefer another one, change it above.",
       "withdrawnRestoreHint": "It is kept: tap here and set the style to \"my character\" to bring it back.",
       "withdrawnRestoreAuto": "It is kept: it comes back on its own if you pick a style that uses your character.",
       "createNew": "Create new character",
@@ -679,6 +680,8 @@
       "noSamples": "This style has no samples yet.",
       "characterTitle": "This style's character",
       "characterHint": "Choose who stars in your videos with this style.",
+      "fixedCharacterTitle": "Style's character",
+      "fixedCharacterHint": "The character this style brings.",
       "useButton": "Use in this video"
     },
     "promptModel": {
