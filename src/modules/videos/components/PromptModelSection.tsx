@@ -20,8 +20,9 @@ interface PromptModelSectionProps {
   onChange: (patch: Partial<CreateFormValue>) => void
 }
 
-// Contenedor del selector de modelo (solo bajo «Mi estilo»): trae el catálogo
-// y resuelve el elegido. El cambio vale SOLO para este video; el modelo
+// Contenedor del selector de modelo (bajo «Mi estilo» y el catálogo nuevo, las
+// pestañas cuyas gemas escriben los prompts): trae el catálogo y resuelve el
+// elegido. El cambio vale SOLO para este video; el modelo
 // predeterminado se fija en Ajustes.
 export function PromptModelSection({
   value,

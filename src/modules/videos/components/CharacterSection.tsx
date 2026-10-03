@@ -8,6 +8,7 @@ import { videosApi } from '@/modules/videos/api'
 import { CharacterFrequencyPicker } from '@/modules/videos/components/CharacterFrequencyPicker'
 import { CharacterPickerModal } from '@/modules/videos/components/CharacterPickerModal'
 import { StyleCharacterChip } from '@/modules/videos/components/StyleCharacterChip'
+import { openCatalogStyleViewer } from '@/modules/videos/hooks/useCatalogStyleViewer'
 import { openCustomStyleEditor } from '@/modules/videos/hooks/useCustomStyleEditor'
 import { useCharacterCatalog } from '@/modules/videos/hooks/useCharacterCatalog'
 import { useStyleCharacter } from '@/modules/videos/hooks/useStyleCharacter'
@@ -18,22 +19,27 @@ import {
 import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
-import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { CreateFormValue, FormLane } from '@/modules/videos/types/create'
 
 interface CharacterSectionProps {
   value: CreateFormValue
+  // Con qué carril se arma la pantalla (displayLaneOf): la pestaña Catálogo
+  // nueva se ve como su carril aun antes de elegir tarjeta.
+  lane: FormLane
   disabled: boolean
   onChange: (patch: Partial<CreateFormValue>) => void
 }
 
-// Sección de personaje del formulario. Con un estilo de catálogo es el
-// selector de siempre; con «Mi estilo» cuenta qué decidió la gema en uso
-// sobre su protagonista (ADR-0020) con un chip que, al tocarlo, abre el
-// editor de ESA gema (port de los chips de EditorGuion del origen,
-// v1.19.4–v1.31.2): el fijo, el fijo que se borró de la biblioteca, el
-// genérico/sin personaje y el recibo de los personajes retirados.
+// Sección de personaje del formulario. Con el catálogo viejo es el selector
+// de siempre; con «Mi estilo» o un estilo del catálogo nuevo cuenta qué
+// decidió la gema en uso sobre su protagonista (ADR-0020) con un chip que, al
+// tocarlo, abre ESA gema: el editor de Mi estilo o «Ver» del catálogo (port de
+// los chips de EditorGuion del origen, v1.19.4–v1.31.2): el fijo, el fijo que
+// se borró de la biblioteca, el genérico/sin personaje y el recibo de los
+// personajes retirados.
 export function CharacterSection({
   value,
+  lane,
   disabled,
   onChange,
 }: CharacterSectionProps) {
@@ -55,12 +61,13 @@ export function CharacterSection({
     (character) => character.characterId === fixedCharacterId,
   )
 
-  // Con «Mi estilo», un personaje SIN foto viaja con referencia solo si tiene
-  // preview de ESTE estilo (regla E20; ADR-0021 prohíbe usar el de otro).
-  // Un estilo recién creado casi nunca lo tiene: la identidad va como texto
-  // y el personaje puede no parecerse. Se avisa, sin bloquear.
+  // Con «Mi estilo» (y un estilo del catálogo nuevo, que sale por su carril),
+  // un personaje SIN foto viaja con referencia solo si tiene preview de ESTE
+  // estilo (regla E20; ADR-0021 prohíbe usar el de otro). Un estilo recién
+  // creado casi nunca lo tiene: la identidad va como texto y el personaje
+  // puede no parecerse. Se avisa, sin bloquear.
   const textCharactersChosen =
-    value.styleSource === 'custom' &&
+    lane !== 'legacy-catalog' &&
     value.characters.some((character) => character.mode === 'text')
   const { characters: catalog } = useCharacterCatalog(textCharactersChosen)
   const withoutStylePreview = textCharactersChosen
@@ -81,10 +88,19 @@ export function CharacterSection({
     })
   }, [fixedCharacter, fixedSeeded, disabled, previewStyleKey, onChange])
 
-  // Todos los chips del estilo abren el editor de la gema EN USO (v1.19.5
-  // del origen): ahí vive el bloque «¿Tu estilo lleva personaje?».
+  // Todos los chips del estilo abren la gema EN USO (v1.19.5 del origen): el
+  // editor de Mi estilo, o «Ver» si es un estilo del catálogo (lo dibuja la
+  // galería del catálogo, montada en su pestaña). En los dos vive el bloque
+  // «¿Tu estilo lleva personaje?».
   const editStyleInUse = () => {
     if (!value.customStyle) return
+
+    const { catalogStyleId } = value.customStyle
+    if (lane === 'catalog-gem' && catalogStyleId) {
+      openCatalogStyleViewer({ catalogStyleId })
+      return
+    }
+
     openCustomStyleEditor({ styleId: value.customStyle.styleId })
   }
 
@@ -251,13 +267,13 @@ export function CharacterSection({
   }
 
   const firstCharacter = value.characters[0] ?? null
-  // Con «Mi estilo» nadie elige cada cuánto sale: dónde aparece el
-  // protagonista lo decide el prompt que escribe la gema (ADR-0019), así que
-  // la promesa de la pista también cambia.
+  // Con «Mi estilo» y el catálogo nuevo nadie elige cada cuánto sale: dónde
+  // aparece el protagonista lo decide el prompt que escribe la gema
+  // (ADR-0019), así que la promesa de la pista también cambia.
   const hint =
-    value.styleSource === 'custom'
-      ? t('create.characters.hintOfStyle')
-      : t('create.characters.hint')
+    lane === 'legacy-catalog'
+      ? t('create.characters.hint')
+      : t('create.characters.hintOfStyle')
   const subtitle =
     value.characters.length > 1
       ? t('create.characters.selectedCount', { count: value.characters.length })
@@ -372,10 +388,10 @@ export function CharacterSection({
         </ul>
       )}
 
-      {/* Solo con el catálogo: el carril verbatim de «Mi estilo» saltea el
-          clasificador de presencia (ADR-0019), así que ahí la pregunta
-          prometería un control que ese flujo no tiene. */}
-      {value.characters.length > 0 && value.styleSource === 'catalog' && (
+      {/* Solo con el catálogo viejo: el carril verbatim de «Mi estilo» (y del
+          catálogo nuevo) saltea el clasificador de presencia (ADR-0019), así
+          que ahí la pregunta prometería un control que ese flujo no tiene. */}
+      {value.characters.length > 0 && lane === 'legacy-catalog' && (
         <CharacterFrequencyPicker
           value={value.characterFrequency}
           disabled={disabled}
@@ -387,13 +403,17 @@ export function CharacterSection({
         <CharacterPickerModal
           previewStyleKey={previewStyleKey}
           selected={value.characters}
+          // Un estilo del catálogo lleva un personaje como máximo (spec §8),
+          // como «Mi personaje» en «Ver».
+          max={lane === 'catalog-gem' ? 1 : undefined}
           script={value.script}
           styleContext={
             mode !== null && value.customStyle
               ? {
                   styleId: value.customStyle.styleId,
-                  // Una gema de plantilla viaja por secciones: el sidecar la
-                  // pasa a texto sin su sección de personaje (ADR-0048).
+                  // Una gema de plantilla (y un estilo del catálogo, que
+                  // siempre lo es) viaja por secciones: el sidecar la pasa a
+                  // texto sin su sección de personaje (ADR-0048).
                   ...styleContextGemOf(value.customStyle),
                   script: value.script,
                   ...(value.promptModel

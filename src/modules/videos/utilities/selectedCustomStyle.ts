@@ -25,8 +25,9 @@ export function selectedCustomStyleFrom(
   }
 }
 
-// Una tarjeta como borrador del modal: lo editable, sin id ni muestras, y el
-// respaldo de una gema de plantilla, que el modal muestra solo de lectura.
+// Una tarjeta como borrador del modal: lo editable, sin id ni muestras, y lo
+// que el modal muestra solo de lectura: el respaldo de una gema de plantilla y
+// el estilo del catálogo del que es copia.
 export function customStyleDraftFrom(
   style: CustomStyleSummary,
 ): CustomStyleDraft {
@@ -41,6 +42,7 @@ export function customStyleDraftFrom(
       : { templateVersion: style.templateVersion }),
     ...(style.colorFilter ? { colorFilter: style.colorFilter } : {}),
     ...(style.sourcePrompt ? { sourcePrompt: style.sourcePrompt } : {}),
+    ...(style.origin ? { origin: style.origin } : {}),
   }
 }
 

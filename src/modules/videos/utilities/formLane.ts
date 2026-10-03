@@ -1,4 +1,5 @@
 import type { CreateFormValue, FormLane } from '@/modules/videos/types/create'
+import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
 
 type LaneChoice = Pick<CreateFormValue, 'styleSource' | 'customStyle'>
 
@@ -11,4 +12,30 @@ export function laneOf(form: LaneChoice): FormLane {
   if (form.styleSource === 'custom') return 'custom'
   if (form.customStyle?.catalogStyleId) return 'catalog-gem'
   return 'legacy-catalog'
+}
+
+// Con qué carril se arma la pantalla de Crear. Con el catálogo nuevo activo
+// (interruptor encendido y fuera de la demo, plan E2 P5), la pestaña Catálogo
+// se ve como el carril de sus estilos aun antes de elegir tarjeta (P4): sin
+// cantidad de escenas, frecuencia ni «Confirmar escenas», y con el modelo de
+// prompts, como Mi estilo. El envío sigue a `laneOf`; sin tarjeta lo frena
+// formBlockers.
+export function displayLaneOf(form: LaneChoice, newCatalog: boolean): FormLane {
+  if (newCatalog && form.styleSource === 'catalog') return 'catalog-gem'
+  return laneOf(form)
+}
+
+// El estilo elegido que vale en la pestaña. Un estilo del catálogo solo vale
+// en la pestaña Catálogo con el catálogo nuevo activo: en Mi estilo no es un
+// estilo propio (create-video-project rechazaría su `styleId`), y sin el
+// catálogo nuevo la pestaña Catálogo elige por `styleId`. Una gema de Mi
+// estilo queda como está, el mismo objeto: sin el interruptor sigue guardada
+// en la pestaña Catálogo para cuando se vuelva, como siempre.
+export function customStyleForTab(
+  form: LaneChoice,
+  newCatalog: boolean,
+): SelectedCustomStyle | null {
+  if (!form.customStyle?.catalogStyleId) return form.customStyle
+  if (newCatalog && form.styleSource === 'catalog') return form.customStyle
+  return null
 }

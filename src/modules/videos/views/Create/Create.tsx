@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Brand } from '@/modules/common/brand/brand'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
@@ -33,6 +34,7 @@ import {
   demoFormValue,
 } from '@/modules/videos/utilities/demoForm'
 import { readDemoState } from '@/modules/videos/utilities/demoState'
+import { customStyleForTab } from '@/modules/videos/utilities/formLane'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
@@ -142,6 +144,9 @@ function CreateView({
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
   const { styles: customStyles } = useCustomStyles()
+  // El catálogo nuevo (Entrega 2): con el interruptor encendido y fuera de la
+  // demo, que sigue con el catálogo viejo (plan E2, P5).
+  const newCatalog = useAccessFeature('newCatalog') && demo === null
   // El modelo que viaja al proyecto ya resuelto (default aplicado y sin
   // bloqueados, ADR-0028): es el que la tarea vigila.
   const { models, defaultId } = usePromptModels()
@@ -177,8 +182,16 @@ function CreateView({
     : form.customStyle
   // Si la gema elegida se migró a la plantilla mientras tanto (spec §4.4), el
   // envío ya sale con sus secciones: el snapshot se refresca desde la lista,
-  // también en el render.
-  const customStyle = refreshedCustomStyle(chosenStyle, customStyles)
+  // también en el render. Un estilo del catálogo nuevo solo vale en su
+  // pestaña y con el catálogo nuevo activo: si el interruptor se apaga a
+  // mitad de camino, Crear vuelve al catálogo viejo sin arrastrarlo.
+  const customStyle = customStyleForTab(
+    {
+      styleSource: form.styleSource,
+      customStyle: refreshedCustomStyle(chosenStyle, customStyles),
+    },
+    newCatalog,
+  )
   const formValue =
     customStyle === form.customStyle ? form : { ...form, customStyle }
 
@@ -319,6 +332,7 @@ function CreateView({
         <CreateForm
           value={formValue}
           demo={demo}
+          newCatalog={newCatalog}
           disabled={!isNative || (missingKeys && !demo)}
           submitting={probing}
           onChange={patchForm}

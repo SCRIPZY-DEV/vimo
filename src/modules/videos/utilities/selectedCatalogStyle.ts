@@ -57,3 +57,15 @@ export function catalogProjectStyleId(
   if (isLegacyStyleId(catalogStyleId)) return catalogStyleId
   return 'normal'
 }
+
+// `options.styleId` de un proyecto por el carril de las gemas. Lo decide el
+// snapshot, no la pestaña: un estilo del catálogo lleva el id que exige
+// create-video-project esté donde esté; una gema de Mi estilo (también la
+// copia de «Pasar a mi estilo», que no trae `catalogStyleId`) viaja con
+// 'normal', un id de catálogo válido para el contrato.
+export function gemProjectStyleId(
+  style: Pick<SelectedCustomStyle, 'catalogStyleId'>,
+): CharacterStyleId {
+  if (style.catalogStyleId) return catalogProjectStyleId(style.catalogStyleId)
+  return 'normal'
+}

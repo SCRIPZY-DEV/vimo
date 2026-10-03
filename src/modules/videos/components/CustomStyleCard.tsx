@@ -100,6 +100,13 @@ export function CustomStyleCard({
           <p className="truncate font-display text-base font-bold text-foreground">
             {style.name}
           </p>
+          {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo
+              salió (Entrega 2). */}
+          {style.origin && (
+            <p className="truncate font-body text-xs text-muted-foreground">
+              {t('create.customStyles.basedOn', { name: style.origin.name })}
+            </p>
+          )}
           <p className="truncate font-body text-xs text-muted-foreground">
             {t('create.customStyles.charsCount', {
               chars: gemCharCount(style).toLocaleString(),

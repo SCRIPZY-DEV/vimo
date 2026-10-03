@@ -6,6 +6,7 @@ import type { CatalogGem } from '@pipeline/types/catalog.ts'
 import type {
   ColorFilterId,
   CustomStyleSummary,
+  GemOrigin,
   GemSections,
   StyleCharacter,
 } from '@pipeline/types/styles.ts'
@@ -49,6 +50,9 @@ export interface CustomStyleDraft {
   // El texto del que salieron las secciones, guardado de respaldo: el modal
   // lo muestra solo de lectura y no vuelve a guardarlo.
   sourcePrompt?: string
+  // De qué estilo del catálogo es copia («Pasar a mi estilo»): el modal lo
+  // dice bajo su descripción y no lo vuelve a guardar (style-save lo conserva).
+  origin?: GemOrigin
 }
 
 // El protagonista de un estilo mientras se edita en su modal (Mi estilo o

@@ -16,9 +16,14 @@ import {
   catalogSampleImages,
   catalogSampleUpload,
 } from '../../src/modules/videos/utilities/catalogSamples.ts'
-import { laneOf } from '../../src/modules/videos/utilities/formLane.ts'
+import {
+  customStyleForTab,
+  displayLaneOf,
+  laneOf,
+} from '../../src/modules/videos/utilities/formLane.ts'
 import {
   catalogProjectStyleId,
+  gemProjectStyleId,
   selectedCatalogStyleFrom,
 } from '../../src/modules/videos/utilities/selectedCatalogStyle.ts'
 
@@ -311,6 +316,26 @@ test('el proyecto usa el id heredado del estilo o, si no lo es, normal', () => {
     assert.equal(catalogProjectStyleId(other), 'normal', other)
 })
 
+test('el styleId de un proyecto por el carril de las gemas lo decide el snapshot', () => {
+  // Un estilo del catálogo lleva el id que exige create-video-project, esté
+  // donde esté el snapshot; una gema de Mi estilo (y una copia de «Pasar a mi
+  // estilo», sin `catalogStyleId`) viaja con 'normal'.
+  assert.equal(
+    gemProjectStyleId(
+      selectedCatalogStyleFrom(FANTASIA, 'es', { mode: 'generic' }),
+    ),
+    'fantasia',
+  )
+  assert.equal(
+    gemProjectStyleId(
+      selectedCatalogStyleFrom(ANIME, 'es', { mode: 'generic' }),
+    ),
+    'normal',
+  )
+  assert.equal(gemProjectStyleId({ styleId: 'st-mio' }), 'normal')
+  assert.equal(gemProjectStyleId({ styleId: 'fantasia' }), 'normal')
+})
+
 // ─── Las muestras que trae la app (plan E2, P1) ───
 
 test('las muestras son las de public/style-references, de la 1 a sampleCount', () => {
@@ -405,6 +430,73 @@ test('el carril sale de la pestaña y de si el estilo elegido es del catálogo',
   ]
   for (const [form, lane] of cases)
     assert.equal(laneOf(form), lane, JSON.stringify(form))
+})
+
+test('con el catálogo nuevo, la pestaña Catálogo se arma como su carril aun sin tarjeta', () => {
+  const catalogGem = { styleId: 'fantasia', catalogStyleId: 'fantasia' }
+  const ownGem = { styleId: 'st-mio' }
+  // Con el catálogo nuevo activo (interruptor encendido, fuera de la demo).
+  const cases = [
+    [{ styleSource: 'catalog', customStyle: null }, 'catalog-gem'],
+    [{ styleSource: 'catalog', customStyle: catalogGem }, 'catalog-gem'],
+    [{ styleSource: 'catalog', customStyle: ownGem }, 'catalog-gem'],
+    [{ styleSource: 'custom', customStyle: null }, 'custom'],
+    [{ styleSource: 'custom', customStyle: ownGem }, 'custom'],
+  ]
+  for (const [form, lane] of cases)
+    assert.equal(displayLaneOf(form, true), lane, JSON.stringify(form))
+
+  // Sin el catálogo nuevo, la pantalla sigue al carril de siempre.
+  assert.equal(
+    displayLaneOf({ styleSource: 'catalog', customStyle: null }, false),
+    'legacy-catalog',
+  )
+  assert.equal(
+    displayLaneOf({ styleSource: 'catalog', customStyle: ownGem }, false),
+    'legacy-catalog',
+  )
+  assert.equal(
+    displayLaneOf({ styleSource: 'custom', customStyle: ownGem }, false),
+    'custom',
+  )
+})
+
+test('un estilo del catálogo solo vale en la pestaña Catálogo nueva', () => {
+  const catalogGem = { styleId: 'fantasia', catalogStyleId: 'fantasia' }
+  const ownGem = { styleId: 'st-mio' }
+
+  assert.equal(
+    customStyleForTab(
+      { styleSource: 'catalog', customStyle: catalogGem },
+      true,
+    ),
+    catalogGem,
+  )
+  // En Mi estilo no es un estilo propio; sin el catálogo nuevo (interruptor
+  // apagado o demo), la pestaña Catálogo elige por `styleId`.
+  for (const [form, newCatalog] of [
+    [{ styleSource: 'custom', customStyle: catalogGem }, true],
+    [{ styleSource: 'custom', customStyle: catalogGem }, false],
+    [{ styleSource: 'catalog', customStyle: catalogGem }, false],
+  ])
+    assert.equal(
+      customStyleForTab(form, newCatalog),
+      null,
+      JSON.stringify({ ...form, newCatalog }),
+    )
+
+  // Una gema de Mi estilo (o ninguna) queda como está, el mismo objeto.
+  for (const styleSource of ['custom', 'catalog'])
+    for (const newCatalog of [true, false]) {
+      assert.equal(
+        customStyleForTab({ styleSource, customStyle: ownGem }, newCatalog),
+        ownGem,
+      )
+      assert.equal(
+        customStyleForTab({ styleSource, customStyle: null }, newCatalog),
+        null,
+      )
+    }
 })
 
 // ─── El borrador del personaje en los modales de estilo (Mi estilo y «Ver») ───

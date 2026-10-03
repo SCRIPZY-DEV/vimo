@@ -385,6 +385,15 @@ export function CustomStyleModal({
                 ? t('create.gemTemplate.pasteHint')
                 : t('create.customStyles.modalDescription')}
             </DialogDescription>
+            {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo
+                salió (Entrega 2). */}
+            {initial.origin && (
+              <p className="font-body text-xs text-muted-foreground">
+                {t('create.customStyles.basedOn', {
+                  name: initial.origin.name,
+                })}
+              </p>
+            )}
           </DialogHeader>
 
           {pasting ? (

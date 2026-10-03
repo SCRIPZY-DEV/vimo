@@ -318,9 +318,12 @@ export interface ProbeCacheEntry {
 
 // Lo que formBlockers no puede derivar del formulario solo.
 export interface FormBlockersContext {
-  // Todos los modelos de prompts bloqueados (ADR-0028): con estilo propio no
-  // hay quién escriba los prompts.
+  // Todos los modelos de prompts bloqueados (ADR-0028): con estilo propio (o
+  // uno del catálogo nuevo) no hay quién escriba los prompts.
   promptModelsBlocked?: boolean
+  // El catálogo nuevo está activo (interruptor `newCatalog` encendido y fuera
+  // de la demo, plan E2 P5): la pestaña Catálogo pide elegir una tarjeta.
+  newCatalog?: boolean
   // El fijo de la gema ya no está en la biblioteca (lo resuelve
   // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).
   fixedCharacterMissing?: boolean

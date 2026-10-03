@@ -51,7 +51,10 @@ export function demoComingSoonFormats(manifest: DemoManifest): VideoFormat[] {
 }
 
 // La historia de lo elegido: la gema en «Mi estilo»; si no, la del estilo
-// del catálogo (o la primera del pack), en el formato elegido.
+// del catálogo (o la primera del pack), en el formato elegido. La pestaña
+// Catálogo de la demo es siempre la vieja (plan E2, P5): el catálogo nuevo no
+// aplica en demo, así que acá Catálogo elige por `styleId` (carril
+// `legacy-catalog`) y nunca hay un estilo del catálogo nuevo en el formulario.
 export function demoEntryFor(
   manifest: DemoManifest,
   format: VideoFormat,
