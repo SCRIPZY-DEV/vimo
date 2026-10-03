@@ -323,6 +323,12 @@ En el catálogo, la UI solo ofrece los modos que el estilo permite (`allowedMode
 > **Nota de implementación (2026-10-01).** El rescate de una escena que pierde su foto de referencia
 > también sigue este orden (el plan del sidecar decía otro en su P5). Ver la ADR-0048.
 
+> **Nota de implementación (2026-10-03).** Las frases fijas viajan tal cual salvo el marcador
+> `[IDIOMA DEL GUION]`, que el código cambia por el idioma detectado del guion al pegarlas
+> (`fixedPhrasesInLanguage`); sin idioma detectado va «the narration's own language». Así una gema
+> puede cerrar cada prompt con «If any text appears in the image, it must be written in [IDIOMA DEL
+> GUION]», como en su origen.
+
 ### 5.5 Filtro de color
 
 `pipeline/prompts/color-filters.ts` define los presets con los filtros que hoy viven en

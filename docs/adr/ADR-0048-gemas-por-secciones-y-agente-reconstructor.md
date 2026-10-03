@@ -502,8 +502,15 @@ hace que las gemas de la casa corran por este mismo carril, y con eso la
   `tags.ts`.
 - **Dónde viven las muestras:** en la app, `public/style-references/<id>_1..sampleCount.jpg` (P1 del
   plan): el sidecar no puede empaquetar imágenes. «Pasar a mi estilo» le manda los bytes al sidecar
-  en el payload (`CatalogSampleUpload`, base64). Las de las gemas de Imperio Pro las genera Vimo con su
-  carril (`generate-style-samples`) y se guardan a 1280×720.
+  en el payload (`CatalogSampleUpload`, base64). Las de las 33 gemas de Imperio Pro las generó Vimo
+  con su carril (`generate-style-samples`) y se guardan a 1280×720: las muestras del catálogo no se
+  toman de terceros (regla del dueño).
+- **El idioma del guion en las frases fijas (2026-10-03):** las frases fijas viajan tal cual, con
+  una sola excepción. El marcador `[IDIOMA DEL GUION]` de las gemas de Imperio Pro («If any text
+  appears in the image, it must be written in [IDIOMA DEL GUION]») lo completa el código con el
+  idioma detectado del guion al pegar la frase (`fixedPhrasesInLanguage`): el modelo no ve las
+  frases fijas, así que no puede completarlo él, y sin la frase el generador inventaba los carteles
+  en inglés. Vale igual para una gema de Mi estilo que traiga el marcador.
 - **Subcomandos:** `catalog-styles-list` (puro) y `catalog-style-copy` (crea `_styles/<st-id>/` con las
   muestras primero y `style.json` al final, con `origin`). `create-video-project` exige, con
   `catalogStyleId`, que `customStyle.styleId` sea el mismo id y que `options.styleId` sea el id heredado

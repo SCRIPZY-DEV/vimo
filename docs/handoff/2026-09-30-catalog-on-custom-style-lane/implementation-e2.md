@@ -11,9 +11,8 @@ con su revisión. Rama `feat/catalogo-estilos`, local, sobre los 43 commits de l
   en tres idiomas, secciones, modos permitidos, modo de las muestras, preset de color y cantidad de
   muestras) y `pipeline/prompts/catalog-gems/` con las 38 gemas (5 de la casa y 33 de Imperio Pro), la
   paleta de etiquetas (`tags.ts`) y `catalog.ts` (`CATALOG_GEMS`, `findCatalogGem`).
-- **Muestras:** 148 imágenes en `public/style-references/`: las 20 de siempre y 128 generadas con el
-  carril de Vimo (`generate-style-samples`) para 32 de las gemas nuevas; `realista`, todavía sin
-  muestras.
+- **Muestras:** 152 imágenes en `public/style-references/`: las 20 de siempre y 132 generadas con el
+  carril de Vimo (`generate-style-samples`) para las 33 gemas nuevas, a 1280×720. Ver «Muestras».
 - **Sidecar:** dominio `pipeline/commands/catalog/` con `catalog-styles-list` (puro) y
   `catalog-style-copy` («Pasar a mi estilo»: valida todo antes de tocar el disco, muestras primero y
   `style.json` al final, con `origin`); `create-video-project` exige la coherencia de §5.4;
@@ -51,6 +50,13 @@ Commits de la entrega, en orden (todos locales):
 | `92e97e1d` | Gemas: el rol al inicio de `character`, frases fijas de POV Stickman solo de estilo     |
 | `59833480` | App: el modal de personaje conoce los estilos del catálogo; textos del personaje fijo   |
 
+El 2026-10-03 se sumaron dos cambios, con la primera generación real de imágenes:
+
+- `feat(pipeline): fill the script language into the styles' fixed phrases`: la plataforma completa
+  el marcador `[IDIOMA DEL GUION]` de las frases fijas con el idioma del guion (decisión R6).
+- `feat: add the Documentary Realistic samples and require four sharp samples per style`: las 4
+  muestras que faltaban y la regla del guard.
+
 Cada frente pasó una revisión independiente por tarea (informes en el espacio de trabajo de la
 sesión, no versionado). Hallazgos y qué se hizo con ellos:
 
@@ -80,20 +86,20 @@ sesión, no versionado). Hallazgos y qué se hizo con ellos:
 
 ## Decisiones tomadas durante la implementación
 
-| ID  | Decisión                                                                                                                                                                                                                                                                                                                                                          |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | Las muestras del catálogo las genera Vimo con su propio carril (`generate-style-samples`) y las claves del llavero de la app. No se toman de terceros ni de la previsualización del estilo de origen. Ver «Muestras».                                                                                                                                             |
-| R2  | Pedido del dueño al aprobar el plan: etiquetas del admin (P12). `CatalogGem.tags: LocalizedText[]` con la paleta `CATALOG_TAGS`; «Dinamismo» si y solo si hay `dynamism` y «Personaje fijo» si y solo si hay `character`.                                                                                                                                         |
-| R3  | Frente C en dos despachos (C1+C2 y C3+C4) para que cada diff tenga una revisión propia.                                                                                                                                                                                                                                                                           |
-| R4  | `CATALOG_SAMPLE_COUNT` en la app es una constante con comentario, no un `typeof` sobre `catalog-store.ts` (ese archivo lo creaba el frente A al mismo tiempo).                                                                                                                                                                                                    |
-| R5  | La gema `realista` de Imperio Pro se llama «Realista Documental» en el catálogo: con el nombre de origen chocaba con la gema de la casa «Realista».                                                                                                                                                                                                               |
-| R6  | La frase «If any text appears in the image, it must be written in [IDIOMA DEL GUION]» no puede ser una frase fija (lleva un marcador que nadie reemplaza): sale de `promptEnd` de las 19 gemas que la traían; la regla de idioma de los textos en pantalla ya vive en `rules` de cada una.                                                                        |
-| R7  | Las gemas de Imperio Pro cuyo agente no fijó `promptEnd` reciben la frase `Style: …` de su ficha de origen (infografico-amarillo, 2d-personaje-1, 2d-mono, 2d-asiatico, documental-oscuro, cosmos); `realista` y `realista-personaje` no, porque su sufijo lo deduce el modelo del tono del guion.                                                                |
-| R8  | `catalogStyleId` en el snapshot del proyecto marca una gema usada directamente del catálogo (`customStyle.styleId` igual a ese id). Un proyecto creado desde una copia de «Pasar a mi estilo» no lo lleva: su procedencia vive en `style.json` (`origin`). Dos fixtures de la Entrega 1 que mezclaban las dos cosas no tenían productor en la app y se adaptaron. |
-| R9  | El tope de 80 caracteres del nombre del snapshot vale para todo `customStyle`, no solo para el catálogo: la galería ya lo capa al guardar, así que no rechaza datos existentes.                                                                                                                                                                                   |
-| R10 | El texto de ayuda de la pestaña Catálogo («Los estilos de Vimo.») es uno solo, también con el interruptor apagado.                                                                                                                                                                                                                                                |
-| R11 | El guard del payload de Crear (`check-app-catalog-payload.mjs`) empaqueta el `createProjectPayload` y el `formBlockers` reales con esbuild (como `check-app-vimo-server.mjs`) en vez de probar un fragmento puro: es la única forma de fijar el payload viejo entero, byte por byte.                                                                              |
-| R12 | Realista Documental (`realista`) permite solo el modo cinemático (`allowedModes: ['none']`): sus reglas piden describir a cada persona entera en cada prompt, lo contrario de lo que el marco hace con un protagonista. Para un protagonista está Realista Personaje. Salió de la revisión final, antes de la QA.                                                 |
+| ID  | Decisión                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Las muestras del catálogo las genera Vimo con su propio carril (`generate-style-samples`) y las claves del llavero de la app. No se toman de terceros ni de la previsualización del estilo de origen (regla del dueño). Ver «Muestras».                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| R2  | Pedido del dueño al aprobar el plan: etiquetas del admin (P12). `CatalogGem.tags: LocalizedText[]` con la paleta `CATALOG_TAGS`; «Dinamismo» si y solo si hay `dynamism` y «Personaje fijo» si y solo si hay `character`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| R3  | Frente C en dos despachos (C1+C2 y C3+C4) para que cada diff tenga una revisión propia.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| R4  | `CATALOG_SAMPLE_COUNT` en la app es una constante con comentario, no un `typeof` sobre `catalog-store.ts` (ese archivo lo creaba el frente A al mismo tiempo).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| R5  | La gema `realista` de Imperio Pro se llama «Realista Documental» en el catálogo: con el nombre de origen chocaba con la gema de la casa «Realista».                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| R6  | En el origen cada prompt cierra con «If any text appears in the image, it must be written in [IDIOMA DEL GUION]» y el marcador lo completa el modelo. Acá el final fijo lo pega el código, así que el idioma lo pone el código: `fixedPhrasesInLanguage` (`pipeline/prompts/template-frame.ts`) cambia el marcador por el idioma detectado del guion (`detectScriptLanguage`, «Spanish») al pegar, quitar o recortar las frases fijas, en el carril, las muestras, el respaldo y el rescate de imágenes. Sin idioma detectado, o en el retrato de un personaje (no tiene guion), va «the narration's own language». Las 31 gemas de Imperio Pro con final fijo cierran con esa frase; Realista Documental y Realista Personaje no tienen final fijo y la llevan como instrucción en `rules`. Vale también para las gemas de Mi estilo que traigan el marcador. Medido: sin la frase, el generador inventaba los carteles en inglés con un guion en español; con ella salen en español. |
+| R7  | Las gemas de Imperio Pro cuyo agente no fijó `promptEnd` reciben la frase `Style: …` de su ficha de origen (infografico-amarillo, 2d-personaje-1, 2d-mono, 2d-asiatico, documental-oscuro, cosmos); `realista` y `realista-personaje` no, porque su sufijo lo deduce el modelo del tono del guion.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| R8  | `catalogStyleId` en el snapshot del proyecto marca una gema usada directamente del catálogo (`customStyle.styleId` igual a ese id). Un proyecto creado desde una copia de «Pasar a mi estilo» no lo lleva: su procedencia vive en `style.json` (`origin`). Dos fixtures de la Entrega 1 que mezclaban las dos cosas no tenían productor en la app y se adaptaron.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| R9  | El tope de 80 caracteres del nombre del snapshot vale para todo `customStyle`, no solo para el catálogo: la galería ya lo capa al guardar, así que no rechaza datos existentes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| R10 | El texto de ayuda de la pestaña Catálogo («Los estilos de Vimo.») es uno solo, también con el interruptor apagado.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| R11 | El guard del payload de Crear (`check-app-catalog-payload.mjs`) empaqueta el `createProjectPayload` y el `formBlockers` reales con esbuild (como `check-app-vimo-server.mjs`) en vez de probar un fragmento puro: es la única forma de fijar el payload viejo entero, byte por byte.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| R12 | Realista Documental (`realista`) permite solo el modo cinemático (`allowedModes: ['none']`): sus reglas piden describir a cada persona entera en cada prompt, lo contrario de lo que el marco hace con un protagonista. Para un protagonista está Realista Personaje. Salió de la revisión final, antes de la QA.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Las gemas: qué se cambió a mano
 
@@ -136,7 +142,7 @@ el idioma del autor (español en su mayoría; el modelo las lee). Ajustes por ge
 | 2d-cavernicola         | `promptEnd` sin las dos frases de idioma.                                                                                                                                                    |
 | 2d-crayon              | `rules` sin la «regla maestra» y la relación 1:1 (protocolo de chat).                                                                                                                        |
 | 2d-bola                | `character`: `Outfit:` concreto.                                                                                                                                                             |
-| realista               | `rules` sin «prohibido actuar como asistente conversacional»; nombre «Realista Documental»; sin muestras todavía.                                                                            |
+| realista               | `rules` sin «prohibido actuar como asistente conversacional»; nombre «Realista Documental».                                                                                                  |
 | 2d-asiatico            | `promptEnd` = frase de la ficha (el agente no la fijó).                                                                                                                                      |
 | pixel-retro            | `visualStyle` sin la hoja de sprite «isolated on a plain white background».                                                                                                                  |
 | noir-detective         | `rules` sin la relación 1:1; «ropa de color distinto» → «de tono distinto» (el estilo es blanco y negro).                                                                                    |
@@ -156,29 +162,50 @@ mapa-historico (más allá de R6).
 ## Muestras
 
 - **Las 5 de la casa:** las 20 de siempre (`public/style-references/`, 1920×1072).
-- **32 de las 33 de Imperio Pro:** 4 muestras por estilo generadas con el carril de Vimo, el mismo
-  subcomando `generate-style-samples` que usa la app en Mi estilo: los cuatro momentos fijos de
-  `pipeline/prompts/style-samples.ts`, el marco de la plantilla, el modo de personaje de cada gema
-  (`sampleMode`), los prompts del modelo de la casa y las imágenes de Evolink (`gpt-image-2`, 16:9
-  1K, calidad `low`). Se guardan a 1280×720, JPEG progresivo de calidad 85.
-- **`realista`** (Realista Documental): todavía sin muestras (`sampleCount: 0`).
+- **Las 33 de Imperio Pro**, incluida Realista Documental: 4 muestras por estilo generadas el
+  2026-10-03 con el carril de Vimo, el mismo subcomando `generate-style-samples` que usa la app en Mi
+  estilo. Cada gema pasó por los cuatro momentos fijos de `pipeline/prompts/style-samples.ts`, con el
+  marco de la plantilla, su modo de personaje (`sampleMode`), los prompts escritos por el modelo de
+  la casa (DeepInfra) y las imágenes de Evolink (`gpt-image-2`, 16:9 1K, calidad `low`, la de las
+  previsualizaciones de la app; el dueño pidió calidad baja). Las 132 salieron a la primera: 6 gemas
+  a la vez, 5 minutos.
+- **Formato:** el proveedor entrega 1360×768 y cerca de 1 MB por imagen. Se guardan a 1280×720, JPEG
+  progresivo de calidad 85: 20,6 MB en total, 160 KB de promedio (la más pesada, 339 KB).
+- **Orden:** la portada de la tarjeta es la muestra 1. En las gemas nuevas, `_1` es el momento de la
+  calle (el segundo del guion de muestra) y `_2` el primer plano del amanecer (el primero): con el
+  primer plano de portada, 33 tarjetas abrían con una cara casi igual y distinta de las 5 de la casa,
+  que abren con una calle. `_3` y `_4` van como salen. Realista Documental conserva el orden (su
+  momento de la calle es un plano detalle). La app no rotula las muestras por momento: solo las
+  numera.
+- **Revisión:** miradas las 132 en hojas de contacto. Cada estilo sale en su técnica y, en las gemas
+  con personaje, con el mismo protagonista en las cuatro. Los carteles salen en español, el idioma
+  del guion de muestra (R6). Abstracto Rojo, Documental Oscuro y Terror Analógico salen oscuros, como
+  los describe su gema. Se repitieron dos gemas: Pixel Retro (una muestra traía al personaje
+  pegado aparte, fuera de la escena) y Abstracto Rojo.
 
-Las muestras del catálogo las genera Vimo: no se toman de terceros ni de la previsualización del
-estilo de origen.
+**Regla del dueño: las muestras del catálogo las genera Vimo.** No se toman de terceros ni de la
+previsualización del estilo de origen. `check-catalog-gems.mjs` fija que toda gema trae sus 4
+muestras y que cada una mide 1280×720 o más.
 
 **Cómo repetirlas** (una gema nueva, o cambiar las de una gema):
 
-1. Claves `deepinfra` y `evolink` (o `fal`): del llavero de la app (servicio
-   `click.vimo.portable`, cuenta `api-keys`) o de un `.harness-keys.json` en la raíz (ignorado por
-   git), como dice el README. No se imprimen ni se versionan.
+1. Claves `deepinfra` y `evolink` (o `fal`). El 2026-10-03 se leyeron del llavero de la app
+   (servicio `click.vimo.portable`, cuenta `api-keys`) con un script local sin versionar que las deja
+   solo en memoria. También sirve un `.harness-keys.json` en la raíz (ignorado por git), como dice
+   el README.
 2. Por cada gema, en una raíz de prueba (nunca `~/Documents/Vimo`): sembrar
    `<raíz>/_styles/<id>/style.json` con `name`, `sections`, `templateVersion`, `colorFilter`,
    `character: { mode: <sampleMode> }`, `shots: []` y `createdAt`, y correr
    `pnpm pipeline:harness generate-style-samples --payload '{"styleId":"<id>","imageProvider":"evolink"}' --root <raíz>`.
 3. Mirar las cuatro y repetir la gema si alguna salió rota o fuera de estilo.
-4. Llevar cada `sample-<n>.jpg` a 1280×720 (JPEG, calidad 85) y guardarla como
-   `public/style-references/<id>_<n>.jpg`.
+4. Llevar cada `sample-<n>.jpg` a 1280×720 con el ffmpeg de `src-tauri/binaries`
+   (`scale=1280:720:force_original_aspect_ratio=increase:flags=lanczos,crop=1280:720`), codificarla
+   con `cjpeg -quality 85 -optimize -progressive` y guardarla como
+   `public/style-references/<id>_<n>.jpg`, con la calle en el `_1`.
 5. `node --test scripts/test/check-catalog-gems.mjs`.
+
+Costo: 0,0036 USD por imagen en Evolink (calidad `low`), es decir 0,48 USD las 132 y 0,014 USD
+repetir una gema; más centavos de DeepInfra por los prompts. Clave propia del dueño.
 
 ## Verificación
 
@@ -204,12 +231,25 @@ causa: sus simulaciones del LLM no responden a la revisión de alineación narra
 (`scene_prompt_alignment_failed`); `pipeline/stages/scene-prompts/narrative-alignment.ts` y esos
 guards no cambian en esta rama.
 
-No se pudo recorrer la pestaña nueva en `tauri dev`: el interruptor `VIMO_FLAG_NEW_CATALOG` está en
-`off` en producción y encenderlo es un paso del dueño (abajo). Lo que sí se verificó sin la app: los
-módulos puros, el payload por carril con el formulario real empaquetado, los subcomandos contra el
-sidecar real, y la galería y «Ver» reales dibujados en Chrome headless con el CSS del build (38
-tarjetas, alturas, imágenes, desbordes, el pie fijo de «Ver» y el aviso de selección). Queda por
-mirar en la app (WebKit): el pie fijo de «Ver» se midió en Chrome.
+Hasta el 2026-10-03 no se pudo recorrer la pestaña nueva en `tauri dev`: el interruptor
+`VIMO_FLAG_NEW_CATALOG` estaba en `off` en producción. Lo que sí se verificó sin la app: los módulos
+puros, el payload por carril con el formulario real empaquetado, los subcomandos contra el sidecar
+real, y la galería y «Ver» reales dibujados en Chrome headless con el CSS del build (38 tarjetas,
+alturas, imágenes, desbordes, el pie fijo de «Ver» y el aviso de selección). Queda por mirar en la
+app (WebKit): el pie fijo de «Ver» se midió en Chrome.
+
+**El interruptor está en `admins` desde el 2026-10-03 a las 14:15**, con la aprobación del dueño:
+`wrangler pages secret put VIMO_FLAG_NEW_CATALOG` y un redeploy del mismo commit de producción de
+vimo-landing (`main@c708864`, deployment `1f44ad93`), porque en Pages un secreto vale desde el
+próximo deployment. El comportamiento público de `vimo.click` quedó igual que antes del redeploy
+(mismos 401 y CORS en `verificar-acceso` y `estilos/reconstruir`, y la política de enforcement con el
+mismo `kid`, estado y firma válida). Falta lo que solo ve una sesión de admin: que `verificar-acceso`
+devuelva `features.newCatalog: true` y que la pestaña aparezca al reiniciar la app.
+
+Con las muestras y la frase de idioma (2026-10-03): `pnpm lint`, `pnpm build`,
+`pnpm format:check` y `pnpm check:locales` en verde, y los guards de gemas, app, catálogo y carril de
+prompts, 497 de 497. Cada punto donde el sidecar pega o recorta las frases fijas
+tiene un test que se pone en rojo si se le quita el idioma.
 
 ## Integración con `dev` y con la rama hermana
 
@@ -234,13 +274,14 @@ El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el
 
 **Pasos del dueño (Ola 3 del plan), en orden:**
 
-1. Reiniciar `pnpm tauri dev` (el sidecar ya está reconstruido con los subcomandos del catálogo).
-2. Encender el interruptor para administradores: `VIMO_FLAG_NEW_CATALOG` de `off` a `admins` en
-   Cloudflare Pages (vimo-landing) y redesplegar. Es un cambio en producción: se hace con la
-   aprobación del dueño, como en la Entrega 1. Hasta entonces la pestaña nueva no se ve.
+1. Reiniciar `pnpm tauri dev` (reconstruye el sidecar con los subcomandos del catálogo y relee el
+   acceso).
+2. ~~Encender el interruptor para administradores.~~ Hecho el 2026-10-03 con la aprobación del dueño
+   (ver «Verificación»).
 3. Recorrido con el interruptor encendido (lista completa en «Qué mirar», abajo) y con el interruptor
-   apagado (Crear tiene que estar como siempre).
-4. Generar las muestras de `realista` (sección «Muestras»).
+   apagado (Crear tiene que estar como siempre; se ve con una cuenta que no sea admin o en la demo).
+4. ~~`.harness-keys.json` para regenerar las muestras.~~ Hecho el 2026-10-03 con las claves del
+   llavero de la app (sección «Muestras»).
 5. QA con claves reales (E2-7): guiones × estilos × modos contra el catálogo viejo, con el costo y el
    tiempo de la fase de prompts (criterios de la ADR-0039). Prioridad: las 5 de la casa y las gemas
    con personaje fijo. De esa QA sale qué modos permite cada gema (`allowedModes`).
@@ -272,8 +313,17 @@ El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el
   de costo y la clave del preview de personaje se calculan como en el catálogo viejo (con el
   `styleId` del formulario). El envío ya está bloqueado en ese estado, así que es cosmético: puede
   aparecer una línea de saldo calculada para el otro carril.
-- **`realista` sin muestras.** Su tarjeta muestra el marcador «sin muestras» hasta generarlas
-  (paso 4).
+- **Texto en las muestras y en el video.** La frase de idioma (R6) hace que los carteles que inventa
+  el generador salgan en el idioma del guion. Quedan dos diferencias conocidas. Una palabra que el
+  modelo de prompts cita traducida sale como la citó (en las 132 muestras, «PAPERS» en dos gemas y
+  «CITY ST» en una). Y el video suma al final de cada prompt la cláusula de texto de la plataforma
+  (`IMAGE_TEXT_LANGUAGE_CLAUSE`: solo se dibujan las palabras citadas), que las muestras y el retrato
+  no llevan: una muestra puede mostrar más carteles que el video.
+- **Peso de las muestras.** Las 132 nuevas suman 20,6 MB en el repo y en el paquete de la app. Si
+  pesa demasiado, la misma tanda a calidad 75 son unos 15 MB.
+- **«wearing none».** En las gemas cuyo personaje no lleva ropa (2D Básico Explicativo, 2D Bola), la
+  regla de vestuario por escena deja frases como «wearing none» y el párrafo del vestuario en cada
+  prompt. No rompe la imagen; se ve al leer los prompts. Queda para la QA paga.
 - **Una copia que falla a mitad** (fallo de disco) deja una carpeta `_styles/st-…` sin `style.json`:
   `styles-list` no la muestra y nada la borra. No se limpia a propósito: el único fallo que un guard
   puede inyectar es una ruta que ya existe, y ahí borrar sería peligroso.
