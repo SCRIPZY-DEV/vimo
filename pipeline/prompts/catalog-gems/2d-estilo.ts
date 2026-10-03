@@ -34,5 +34,5 @@ PROHIBIDO: sugerir 3D, CGI, plastilina o renders realistas; todo debe mantenerse
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'none',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

@@ -36,5 +36,5 @@ export const gem2dBasicoExplicativo: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'generic',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

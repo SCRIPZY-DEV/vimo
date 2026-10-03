@@ -32,5 +32,5 @@ export const gem2dBola: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'generic',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

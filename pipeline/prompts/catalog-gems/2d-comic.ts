@@ -33,5 +33,5 @@ export const gem2dComic: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'none',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

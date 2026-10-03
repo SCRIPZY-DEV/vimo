@@ -30,5 +30,5 @@ export const noirDetective: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'generic',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

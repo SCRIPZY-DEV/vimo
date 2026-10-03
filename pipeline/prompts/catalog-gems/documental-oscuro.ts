@@ -28,5 +28,5 @@ export const documentalOscuro: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'none',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

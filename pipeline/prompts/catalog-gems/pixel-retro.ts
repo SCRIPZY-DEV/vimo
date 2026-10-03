@@ -24,5 +24,5 @@ export const pixelRetro: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'generic',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

@@ -31,5 +31,5 @@ IDIOMA DE TEXTOS EN IMAGEN: cualquier texto que aparezca dentro de la imagen (ca
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'none',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

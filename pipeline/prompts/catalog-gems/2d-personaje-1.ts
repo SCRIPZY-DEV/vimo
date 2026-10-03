@@ -31,5 +31,5 @@ export const gem2dPersonaje1: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'generic',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }

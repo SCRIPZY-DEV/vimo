@@ -30,5 +30,5 @@ export const gem2dAsiatico: CatalogGem = {
   allowedModes: ['generic', 'own', 'none'],
   sampleMode: 'none',
   colorFilter: 'none',
-  sampleCount: 0,
+  sampleCount: 4,
 }
