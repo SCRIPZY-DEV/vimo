@@ -485,4 +485,39 @@ tu gema», siga aunque se cierre el modal y se guarde sola.
   se entendía qué hacía). El preset (spec §5.5, F5) sigue en los datos y en el sidecar: una gema que
   lo trae lo conserva al guardar, y el catálogo de la Entrega 2 lo usará para Terror (blanco y negro)
   y Fantasía (colores vivos). Si «Pasar a mi estilo» copia una gema con filtro, habrá que decidir
-  dónde se cambia.
+  dónde se cambia (nota siguiente: la copia lo conserva y hoy no se cambia desde la UI).
+
+## Nota posterior 2026-10-02 — el catálogo sobre el carril (Entrega 2)
+
+La Entrega 2 del diseño (spec §8, [plan-e2.md](../handoff/2026-09-30-catalog-on-custom-style-lane/plan-e2.md))
+hace que las gemas de la casa corran por este mismo carril, y con eso la
+[ADR-0039](ADR-0039-catalogo-sobre-el-carril-de-mi-estilo.md) pasa a Aceptada. Lo que suma a esta ADR:
+
+- **Contrato:** `pipeline/types/catalog.ts`. Una gema del catálogo (`CatalogGem`) es una gema de
+  plantilla con `id` (uno de los 5 heredados o un id que cumple `STYLE_ID_PATTERN`), `name`,
+  `description` y `tags` en tres idiomas dentro de la gema (`LocalizedText`), `sections`,
+  `templateVersion`, `allowedModes`, `sampleMode` (el modo con el que salieron sus muestras y el
+  modo por defecto en «Ver»), `colorFilter` y `sampleCount`. Vive en `pipeline/prompts/catalog-gems/`
+  (un archivo por gema, `catalog.ts` con `CATALOG_GEMS` y `findCatalogGem`); la paleta de etiquetas en
+  `tags.ts`.
+- **Dónde viven las muestras:** en la app, `public/style-references/<id>_1..sampleCount.jpg` (P1 del
+  plan): el sidecar no puede empaquetar imágenes. «Pasar a mi estilo» le manda los bytes al sidecar
+  en el payload (`CatalogSampleUpload`, base64). Las de las gemas de Imperio Pro las genera Vimo con su
+  carril (`generate-style-samples`) y se guardan a 1280×720.
+- **Subcomandos:** `catalog-styles-list` (puro) y `catalog-style-copy` (crea `_styles/<st-id>/` con las
+  muestras primero y `style.json` al final, con `origin`). `create-video-project` exige, con
+  `catalogStyleId`, que `customStyle.styleId` sea el mismo id y que `options.styleId` sea el id heredado
+  o `'normal'`. `generate-character-preview` acepta un id nuevo del catálogo con el marco; los 5
+  heredados siguen con su plantilla fija hasta el retiro del carril viejo (P6).
+- **App:** detrás de `features.newCatalog` y fuera del modo demo (P5), la pestaña Catálogo de Crear
+  muestra tarjetas como las de Mi estilo con «Usar en este video», «Ver» y «Pasar a mi estilo»; «Ver»
+  muestra muestras, etiquetas y el modo de personaje (sin el texto de la gema), recordado por estilo
+  en `localStorage` (`vimo:catalog:character:v1`, con lectura tolerante). Sin tarjeta elegida no hay
+  video (P4). Un proyecto del catálogo nuevo viaja como uno de Mi estilo (`options.customStyle` con
+  `catalogStyleId`, sin `characterFrequency` ni cantidad de escenas).
+- **Decisiones del plan que afectan a esta ADR:** P3 (modo por defecto = `sampleMode`: cinemático en
+  los estilos sin personaje), P8 (textos dentro de la gema, no en i18n: en la Entrega 3 salen de la
+  fila de Supabase), P9 (sin `sourcePrompt` en las gemas del catálogo ni en sus copias), P11 (las 5 de
+  la casa pasaron por el agente y se ajustaron a mano; el dinamismo traduce el contrato del director),
+  P12 (etiquetas del admin: «Dinamismo» si y solo si hay `dynamism`, «Personaje fijo» si y solo si hay
+  `character`; lo fija `check-catalog-gems.mjs`).
