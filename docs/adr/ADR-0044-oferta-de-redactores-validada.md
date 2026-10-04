@@ -2,7 +2,7 @@
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-27
-- **Actualizada:** 2026-09-28 — oferta y ejecución rápida descritas abajo. 2026-10-04 — la revisión de ADR-0043 se retiró (ver su sección «Retirada de la revisión LLM»); lo que esta ADR dice del revisor temporal queda como historia, y vuelven tres redactores (ver «Actualización del 2026-10-04»).
+- **Actualizada:** 2026-09-28 — oferta y ejecución rápida descritas abajo. 2026-10-04 — la revisión de ADR-0043 se retiró (ver su sección «Retirada de la revisión LLM»); lo que esta ADR dice del revisor temporal queda como historia, y vuelven tres redactores (ver «Actualización del 2026-10-04»). Esa noche la revisión volvió como asesora, con sus propios jueces y sin frenar videos (ADR-0043, «Revisión asesora con respaldo»); la oferta no cambia.
 - **Área:** pipeline / app
 - **Complementa:** ADR-0020, ADR-0022 y ADR-0028.
 - **Origen:** pedido explícito de limitar todos los selectores a los modelos con menos errores, preservando arquitectura y previews.

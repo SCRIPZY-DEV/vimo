@@ -120,6 +120,14 @@ const RETRY_BATCH_SIZES = [VERBATIM_BATCH_SIZE, 5, 1] as const
 const CHARACTER_ATTEMPTS = 3
 
 /**
+ * Motivo de la escena que el revisor narrativo objetó. La objeción es del
+ * juez, no una falla del redactor: no cuenta para «el modelo está devolviendo
+ * errores». El 2026-10-04 contarla así bloqueó en la app a un redactor que
+ * respondía bien.
+ */
+const NARRATIVE_REJECTION = 'narrative alignment rejected'
+
+/**
  * Códigos del proveedor que delatan al MODELO (no a la red del usuario ni a
  * un corte determinista que la escalera cura con lotes más chicos). Con uno
  * de estos, el lote ya agotó `withVerbatimRetry`: es un fallo real del
@@ -1413,7 +1421,7 @@ export async function generateVerbatimPrompts(
         alignmentFeedback.set(entry.n, feedback)
         reading.defective.push({
           n: entry.n,
-          reason: 'narrative alignment rejected',
+          reason: NARRATIVE_REJECTION,
         })
         return false
       })
@@ -1465,12 +1473,15 @@ export async function generateVerbatimPrompts(
         tally.read += 1
         // Un defecto identificado sigue siendo un fallo del modelo aunque
         // ahora salvemos los demás prompts. Una caída de red con texto
-        // parcial, en cambio, conserva su clasificación ajena al modelo.
+        // parcial, en cambio, conserva su clasificación ajena al modelo, y la
+        // objeción del revisor es del juez.
         if (
           executor.profile.id === profile.id &&
           !reading.interrupted &&
           reading.defective.some(
-            (entry) => entry.reason !== LANGUAGE_CONTAMINATION,
+            (entry) =>
+              entry.reason !== LANGUAGE_CONTAMINATION &&
+              entry.reason !== NARRATIVE_REJECTION,
           )
         )
           chosenModelBlamed = true

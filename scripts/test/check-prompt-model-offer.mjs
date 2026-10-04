@@ -1,8 +1,8 @@
 // Los redactores que se ofrecen en Mi estilo (ADR-0044, actualizada el
-// 2026-10-04). Sin la revisión narrativa, el dueño pidió volver a ofrecer
-// redactores más baratos de los que había antes del recorte, además de los
-// dos validados; después pidió ocultar Llama 4 Scout (el más flojo de la
-// prueba). El modelo del revisor retirado (DeepSeek V4 Pro) queda fuera del
+// 2026-10-04). Con la revisión narrativa retirada, el dueño pidió volver a
+// ofrecer redactores más baratos de los que había antes del recorte, además de
+// los dos validados; después pidió ocultar Llama 4 Scout (el más flojo de la
+// prueba). El juez anterior del revisor (DeepSeek V4 Pro) queda fuera del
 // selector. Sin red.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'

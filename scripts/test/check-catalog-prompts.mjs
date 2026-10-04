@@ -19,7 +19,6 @@ import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-pro
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { directScenes } from '../../pipeline/stages/scene-prompts/scene-director.ts'
 import { guaranteePrompts } from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
-import { reviewNarrativePrompts } from '../../pipeline/stages/scene-prompts/narrative-alignment.ts'
 import { bodyWithoutFinalClauses } from '../../pipeline/stages/shared/prompt-safety.ts'
 import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
 import {
@@ -844,7 +843,68 @@ function failingPromptResponse(request, failingIndexes) {
     return stream(JSON.stringify({ prompt_imagen: '' }))
   return promptResponse(request)
 }
-test('the catalog never asks the retired narrative reviewer: every scene keeps its prompt and gets its image', async (t) => {
+test('a scene the reviewer always rejects is rewritten once with its objection and keeps that prompt', async (t) => {
+  const context = await fixture(t)
+  const imagePrompts = []
+  const writerRequestsForThird = []
+  let reviewsOfThird = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, imagePrompts)
+    const request = JSON.parse(init.body)
+    if (isReviewRequest(request.messages[0].content)) {
+      const { candidates } = JSON.parse(request.messages.at(-1).content)
+      if (candidates.some(({ sceneId }) => sceneId === 3)) reviewsOfThird++
+      return narrativeReviewResponse(request, new Set([3]))
+    }
+    if (requestScene(request) === 2) writerRequestsForThird.push(request)
+    return promptResponse(request)
+  })
+  await runStages([scenePromptsStage, imagesStage], context)
+
+  const stored = await readScenes(context.paths)
+  assert.ok(stored.every(hasValidPrompt))
+  assert.ok(stored.every((scene) => scene.promptFailure === undefined))
+  assert.equal(imagePrompts.length, stored.length)
+  assert.equal(reviewsOfThird, 1, 'the rewritten prompt is not judged again')
+  assert.equal(writerRequestsForThird.length, 2)
+  assert.ok(
+    writerRequestsForThird[1].messages
+      .at(-1)
+      .content.includes(REVIEWER_OBJECTION),
+    'the rewrite carries the objection',
+  )
+})
+test('a first objection on the last attempt keeps the prompt instead of leaving the scene empty', async (t) => {
+  const context = await fixture(t)
+  const imagePrompts = []
+  let writerCallsForThird = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, imagePrompts)
+    const request = JSON.parse(init.body)
+    if (isReviewRequest(request.messages[0].content))
+      return narrativeReviewResponse(request, new Set([3]))
+    // Sin la protagonista: el candado de identidad pide otro intento, así la
+    // primera revisión de la escena 3 llega recién en el último.
+    if (requestScene(request) === 2 && ++writerCallsForThird < 3)
+      return stream(
+        JSON.stringify({
+          prompt_imagen:
+            'The blue ocean of Earth seen through a round window inside the observation module, from behind.',
+        }),
+      )
+    return promptResponse(request)
+  })
+  await runStages([scenePromptsStage, imagesStage], context)
+
+  const stored = await readScenes(context.paths)
+  assert.equal(writerCallsForThird, 3)
+  assert.ok(stored.every(hasValidPrompt))
+  assert.equal(stored[2].promptFailure, undefined)
+  assert.equal(imagePrompts.length, stored.length)
+})
+test('when every narrative judge echoes its input, every scene keeps its prompt and gets its image', async (t) => {
   const context = await fixture(t)
   const imagePrompts = []
   let reviewRequests = 0
@@ -852,39 +912,22 @@ test('the catalog never asks the retired narrative reviewer: every scene keeps i
     if (!String(url).includes('chat/completions'))
       return falResponse(url, init, imagePrompts)
     const request = JSON.parse(init.body)
-    if (isReviewRequest(request.messages[0].content)) reviewRequests++
+    if (isReviewRequest(request.messages[0].content)) {
+      reviewRequests++
+      // Lo que devolvía el juez caído el 2026-10-04: su propia entrada.
+      return Response.json({
+        choices: [{ message: { content: request.messages.at(-1).content } }],
+      })
+    }
     return promptResponse(request)
   })
   await runStages([scenePromptsStage, imagesStage], context)
 
-  assert.equal(reviewRequests, 0)
+  assert.ok(reviewRequests > 0)
   const stored = await readScenes(context.paths)
   assert.ok(stored.every(hasValidPrompt))
   assert.ok(stored.every((scene) => scene.promptFailure === undefined))
   assert.equal(imagePrompts.length, stored.length)
-})
-test('the retired narrative review calls no model and objects to nothing', async () => {
-  const llm = {
-    async generate() {
-      throw new Error('the retired narrative review must not call a model')
-    },
-  }
-  const rejected = await reviewNarrativePrompts(
-    [
-      {
-        sceneId: 1,
-        startSeconds: 0,
-        endSeconds: 4,
-        source: fragments[0],
-        sourceKind: 'narration',
-        previous: '',
-        next: fragments[1],
-        prompt: descriptions[0],
-      },
-    ],
-    { llm, signal: new AbortController().signal },
-  )
-  assert.equal(rejected.size, 0)
 })
 test('a scene no model can write waits for the editor; the rest get images', async (t) => {
   const context = await fixture(t)

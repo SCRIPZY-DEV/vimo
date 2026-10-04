@@ -39,11 +39,12 @@ import type { LlmModelProfile } from '../../types/llm-models.ts'
 // ofrece mejor equilibrio de tiempo/costo y conserva Haiku como alternativa.
 // MiMo Flash usa `none`: el razonamiento por defecto agotó la salida en las
 // pruebas. V4 Pro quedó técnico para el revisor temporal, fuera del selector.
-// 2026-10-04: retirado el revisor (ADR-0043), el dueño pidió volver a ofrecer
-// redactores más baratos de los que había antes del recorte: DeepSeek V4
-// Flash y GPT o4-mini TURBO, probados con videos reales sin la revisión
+// 2026-10-04: con el revisor retirado (ADR-0043), el dueño pidió volver a
+// ofrecer redactores más baratos de los que había antes del recorte: DeepSeek
+// V4 Flash y GPT o4-mini TURBO, probados con videos reales sin la revisión
 // (Llama 4 Scout se probó y quedó oculto). V4 Pro sigue fuera: es caro y su
-// modelo empezó a fallar.
+// modelo empezó a fallar. Esa noche la revisión volvió como asesora, con sus
+// jueces propios (V4.1 Flash y V3.2): no cambia esta oferta.
 // No se alteran los perfiles de previews/Catálogo ni la configuración de guion.
 // ADR-0044: la redacción elegible y sus rescates usan solo perfiles ofrecidos.
 // El ORDEN del array es el que ve el usuario en el selector.

@@ -3,6 +3,10 @@
 - **Fecha:** 2026-10-04
 - **Rama:** fix/remove-narrative-reviewer (desde `origin/dev` @ `7cf81422`, la versión 0.9.1)
 
+> ⚠️ **Superado en lo de la revisión:** esa misma noche la revisión volvió como asesora, con juez
+> de respaldo y sin frenar videos. Ver `fixes/2026-10-04_narrative-reviewer-advisory.md` y la
+> ADR-0043. Lo de los redactores baratos sigue vigente.
+
 ## Causa
 
 Desde la tarde del 2026-10-04, en Vimo 0.9.1 ningún video llegaba a imágenes: la corrida se
@@ -142,8 +146,9 @@ estilo del dueño:
 | CLAYMATION (15), GPT o4-mini TURBO   | 15 de 15; prompts en 8 s                                                                      |
 | CLAYMATION (15), Llama 4 Scout       | 15 prompts en 55 s; sin imágenes (el saldo de Evolink se agotó)                               |
 
-En ESTILO COMIC los tres —y la imagen de septiembre— leyeron «esos nombres dominaran la historia»
-como dominar una pelota de fútbol.
+En ESTILO COMIC los tres —y la imagen de septiembre— dibujaron fútbol en la escena 3 («esos nombres
+dominaran la historia»). **Corrección del 2026-10-04:** no es un error de lectura: esa escena tiene
+una descripción manual del dueño, «el muñeco jugando fútbol», y todos la siguieron.
 
 Costo de toda la reproducción y las pruebas, de las claves del dueño: unos 40 centavos de DeepInfra y
 unas 175 imágenes de Evolink en calidad baja, que dejaron su saldo de Evolink en 2,3 créditos. Los
