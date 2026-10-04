@@ -207,6 +207,31 @@ function llm(t, handler) {
   return requests
 }
 
+test('Mi estilo never asks the retired narrative reviewer', async (t) => {
+  const { paths, base } = await fixture(t)
+  let reviewRequests = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      throw new Error('unexpected call to ' + url)
+    const request = JSON.parse(init.body)
+    if (
+      request.messages[0].content.startsWith(
+        'You audit the FULL narrative meaning',
+      )
+    )
+      reviewRequests++
+    const review = narrativeReviewResponse(request)
+    if (review) return review
+    if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
+    return scenesResponse(request)
+  })
+
+  await scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture'))
+
+  assert.equal(reviewRequests, 0)
+  assert.equal(promptsOnDisk(await readScenes(paths)).length, SCENE_COUNT)
+})
+
 test('a batch that dies does not burn the ones already harvested', async (t) => {
   const { paths, base } = await fixture(t)
   llm(t, (request, ids) =>

@@ -19,6 +19,7 @@ import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-pro
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { directScenes } from '../../pipeline/stages/scene-prompts/scene-director.ts'
 import { guaranteePrompts } from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
+import { reviewNarrativePrompts } from '../../pipeline/stages/scene-prompts/narrative-alignment.ts'
 import { bodyWithoutFinalClauses } from '../../pipeline/stages/shared/prompt-safety.ts'
 import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
 import {
@@ -836,16 +837,62 @@ function falResponse(url, init, imagePrompts) {
   assert.equal(String(url), 'https://fixture.invalid/image.png')
   return new Response(PIXEL, { headers: { 'content-type': 'image/png' } })
 }
-test('a scene the reviewer always rejects waits for the editor; the rest get images', async (t) => {
+// El redactor no logra escribir estas escenas con ningún modelo (respuesta
+// sin prompt): quedan apartadas para el editor, con el motivo «models».
+function failingPromptResponse(request, failingIndexes) {
+  if (failingIndexes.has(requestScene(request)))
+    return stream(JSON.stringify({ prompt_imagen: '' }))
+  return promptResponse(request)
+}
+test('the catalog never asks the retired narrative reviewer: every scene keeps its prompt and gets its image', async (t) => {
+  const context = await fixture(t)
+  const imagePrompts = []
+  let reviewRequests = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, imagePrompts)
+    const request = JSON.parse(init.body)
+    if (isReviewRequest(request.messages[0].content)) reviewRequests++
+    return promptResponse(request)
+  })
+  await runStages([scenePromptsStage, imagesStage], context)
+
+  assert.equal(reviewRequests, 0)
+  const stored = await readScenes(context.paths)
+  assert.ok(stored.every(hasValidPrompt))
+  assert.ok(stored.every((scene) => scene.promptFailure === undefined))
+  assert.equal(imagePrompts.length, stored.length)
+})
+test('the retired narrative review calls no model and objects to nothing', async () => {
+  const llm = {
+    async generate() {
+      throw new Error('the retired narrative review must not call a model')
+    },
+  }
+  const rejected = await reviewNarrativePrompts(
+    [
+      {
+        sceneId: 1,
+        startSeconds: 0,
+        endSeconds: 4,
+        source: fragments[0],
+        sourceKind: 'narration',
+        previous: '',
+        next: fragments[1],
+        prompt: descriptions[0],
+      },
+    ],
+    { llm, signal: new AbortController().signal },
+  )
+  assert.equal(rejected.size, 0)
+})
+test('a scene no model can write waits for the editor; the rest get images', async (t) => {
   const context = await fixture(t)
   const imagePrompts = []
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (!String(url).includes('chat/completions'))
       return falResponse(url, init, imagePrompts)
-    const request = JSON.parse(init.body)
-    return (
-      narrativeReviewResponse(request, new Set([3])) ?? promptResponse(request)
-    )
+    return failingPromptResponse(JSON.parse(init.body), new Set([2]))
   })
   await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
     code: 'images_incomplete',
@@ -853,10 +900,7 @@ test('a scene the reviewer always rejects waits for the editor; the rest get ima
 
   const stored = await readScenes(context.paths)
   assert.equal(stored[2].imagePrompt, '')
-  assert.deepEqual(stored[2].promptFailure, {
-    source: 'reviewer',
-    detail: REVIEWER_OBJECTION,
-  })
+  assert.deepEqual(stored[2].promptFailure, { source: 'models' })
   assert.ok(stored.filter((scene) => scene.id !== 3).every(hasValidPrompt))
   assert.equal(imagePrompts.length, 3)
   assert.ok(!imagePrompts.some((prompt) => prompt.includes(descriptions[2])))
@@ -870,8 +914,7 @@ test('a scene the reviewer always rejects waits for the editor; the rest get ima
     ),
   )
 
-  // Desde el editor: solo la escena 3, con todo el contexto del video y la
-  // objeción del revisor sembrada en el primer intento.
+  // Desde el editor: solo la escena 3, con todo el contexto del video.
   context.regenerateSceneIds = new Set([3])
   const writerRequests = []
   imagePrompts.length = 0
@@ -897,7 +940,6 @@ test('a scene the reviewer always rejects waits for the editor; the rest get ima
   assert.ok(user.content.includes('observation module'), 'the scene plan')
   assert.match(user.content, /Elena/)
   assert.ok(user.content.includes('adult astronaut'), 'the character')
-  assert.ok(user.content.includes(REVIEWER_OBJECTION), 'the reviewer note')
 
   const repaired = await readScenes(context.paths)
   assert.equal(repaired[2].promptFailure, undefined)
@@ -913,11 +955,7 @@ test('regenerating one parked scene from the editor ignores the other parked one
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (!String(url).includes('chat/completions'))
       return falResponse(url, init, [])
-    const request = JSON.parse(init.body)
-    return (
-      narrativeReviewResponse(request, new Set([2, 3])) ??
-      promptResponse(request)
-    )
+    return failingPromptResponse(JSON.parse(init.body), new Set([1, 2]))
   })
   await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
     code: 'images_incomplete',
@@ -935,7 +973,7 @@ test('regenerating one parked scene from the editor ignores the other parked one
 
   const stored = await readScenes(context.paths)
   assert.equal(stored[1].promptFailure, undefined)
-  assert.equal(stored[2].promptFailure?.source, 'reviewer')
+  assert.equal(stored[2].promptFailure?.source, 'models')
   assert.deepEqual(await readFile(sceneImageFile(context.paths, 2)), PIXEL)
   await assert.rejects(readFile(sceneImageFile(context.paths, 3)))
 })
@@ -947,11 +985,7 @@ test('when every scene fails there is nothing to rescue: no image is requested',
       imageCalls++
       return falResponse(url, init, [])
     }
-    const request = JSON.parse(init.body)
-    return (
-      narrativeReviewResponse(request, new Set([1, 2, 3, 4])) ??
-      promptResponse(request)
-    )
+    return failingPromptResponse(JSON.parse(init.body), new Set([0, 1, 2, 3]))
   })
   await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
     code: 'catalog_prompts_incomplete',
@@ -959,7 +993,7 @@ test('when every scene fails there is nothing to rescue: no image is requested',
   assert.equal(imageCalls, 0)
   // Igual quedan los motivos en disco para el diagnóstico.
   const stored = await readScenes(context.paths)
-  assert.ok(stored.every((scene) => scene.promptFailure?.source === 'reviewer'))
+  assert.ok(stored.every((scene) => scene.promptFailure?.source === 'models'))
 })
 test('more failed scenes than the rescue limit stop the run, keeping their reasons', async () => {
   const context = baseContext()

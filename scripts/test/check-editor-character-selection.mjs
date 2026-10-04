@@ -390,11 +390,12 @@ for (const include of [false, true]) {
       const requests = providers(t, (request) =>
         responseFor(request, include ? withoutSubject : withSubject),
       )
+      // Desde el PR #91 una escena sin prompt corta con este código.
       await assert.rejects(
         regenerateSceneImages(
           command(base, { scenes: [{ id: 1, rewritePrompt: true }] }),
         ),
-        { code: 'llm_empty_response' },
+        { code: 'scene_prompt_alignment_failed' },
       )
       assert.equal(requests.image.length, 0)
       assert.ok(

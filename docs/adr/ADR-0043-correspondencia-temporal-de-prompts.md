@@ -1,8 +1,8 @@
 # ADR-0043 — Correspondencia temporal de imágenes y narración
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada; la revisión LLM se retiró el 2026-10-04 (ver «Retirada de la revisión LLM»)
 - **Fecha:** 2026-09-26
-- **Actualizada:** 2026-09-29 — se aclaran carácter temporal y concurrencia vigente, sin cambiar código.
+- **Actualizada:** 2026-09-29 — se aclaran carácter temporal y concurrencia vigente, sin cambiar código. 2026-10-04 — se retira la revisión LLM.
 - **Área:** scene-prompts / revisión previa a imágenes
 - **Relacionadas:** ADR-0019 (Mi estilo), ADR-0036 (Catálogo), ADR-0042 (animación).
 
@@ -41,6 +41,14 @@ flowchart LR
 **Fallo:** auth/saldo/cancelación se propagan. Un lote no verificable o escenas pendientes detienen la fase antes de nuevas imágenes con relleno; los prompts aceptados se conservan para reanudar. En concurrencia se esperan las tareas en vuelo antes de devolver el fallo.
 
 **Por qué:** desplazar audio o alargar clips ocultaría el error de contenido y desalinearía el resto del proyecto.
+
+## Retirada de la revisión LLM (2026-10-04)
+
+**Qué pasó.** El 2026-10-04, por la tarde, el modelo fijo del revisor (`deepseek-ai/DeepSeek-V4-Pro` en DeepInfra) empezó a devolver una copia de su entrada (`{"candidates": [...]}`) en vez de su veredicto (`{"scenes": [...]}`), con cualquier pedido: lotes de 6, de 2 y de 1 escena, con y sin modo JSON, y un pedido mínimo de 100 caracteres. Llegaba al tope de 3 000 tokens con el JSON cortado, el intento de reparación hacía lo mismo y cada lote terminaba en `scene_prompt_alignment_failed`. Como el contrato de **Fallo** de arriba detiene la fase cuando un lote no se puede verificar, ningún video pasaba de «Validando prompts», ni en el Catálogo ni en Mi estilo. Reintentar no servía (temperatura 0: la misma respuesta) y cambiar de modelo tampoco (el revisor no usa el modelo que elige el usuario). Además, cada escena rechazada contaba como un defecto del redactor, y tras cuatro rondas la app culpaba y bloqueaba una hora al modelo que escribe aunque DeepInfra hubiera respondido bien. DeepSeek V3.2, DeepSeek V4.1 Flash y Qwen3 235B respondían bien con el mismo pedido, pero cada uno juzgaba distinto las mismas dos escenas.
+
+**Decisión del dueño.** Retirar la revisión con un segundo modelo, después de probar videos reales sin ella: se rehicieron sin revisión tres proyectos hechos con ella, con los dos redactores vigentes (DeepSeek V4.1 Flash y Claude Haiku 4.5; 50 escenas). Ninguna imagen mostró un momento de otro intervalo; la revisión, en cambio, había aprobado un adelanto (la primera escena de un video ya mostraba lo que narraba la segunda). La diferencia que sí apareció: con Claude Haiku 4.5 y un estilo con protagonista que fija el fondo, sin revisión el protagonista quedó en el mismo lugar en 9 y 12 de 15 escenas (con revisión, 3), mostrando el lugar narrado como maqueta o mapa. Ya se había medido el costo: con revisión, 19 prompts tardaban 89 s contra 30 s sin ella, y algunos rechazos eran discutibles (`fixes/2026-09-28_fast-scene-prompt-models.md`).
+
+**Qué queda.** Cada escena sigue llegando al redactor con su fragmento, su intervalo y sus vecinos (`narrativeCandidateFor`), y siguen las comprobaciones locales de IDs. `reviewNarrativePrompts` no llama a ningún modelo y no objeta nada; ella y `createNarrativeReviewLlm` conservan su firma para que los carriles no cambien, y el contrato de **Fallo** ya no tiene a qué esperar. Lo que sigue cortando la fase son las escenas que el redactor no logra escribir tras sus rondas y el rescate con otro modelo, como antes. Si se quisiera volver a revisar, tendría que ser sin frenar el video (si el revisor no responde, el prompt pasa) y con un modelo de respaldo. Informe: `fixes/2026-10-04_retire-narrative-reviewer.md`.
 
 ## Límites
 
