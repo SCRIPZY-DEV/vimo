@@ -13,20 +13,18 @@ interface GemPasteStepProps {
   pending: boolean
   onTextChange: (text: string) => void
   onPrepare: () => void
-  // Solo al reemplazar una gema que ya tiene secciones: volver sin cambiarlas.
-  onBack?: () => void
 }
 
-// «Pegá tu gema» (spec §7): una caja grande y «Preparar con IA». El botón
-// guarda la gema tal cual y la manda a adaptar en segundo plano: mientras se
-// guarda todo queda quieto (el botón deshabilitado evita un segundo pedido).
-// Cómo va la adaptación, y su «Reintentar», lo muestra el aviso de la gema.
+// «Pegá tu gema» de un estilo nuevo (spec §7): una caja grande y «Preparar
+// con IA». El botón guarda la gema tal cual y la manda a adaptar en segundo
+// plano: mientras se guarda todo queda quieto (el botón deshabilitado evita un
+// segundo pedido). Cómo va la adaptación, y su «Reintentar», lo muestra el
+// aviso de la gema.
 export function GemPasteStep({
   text,
   pending,
   onTextChange,
   onPrepare,
-  onBack,
 }: GemPasteStepProps) {
   const { t } = useTranslation()
   // Sin `maxLength` en la caja: el navegador recortaría en silencio el final de
@@ -84,18 +82,7 @@ export function GemPasteStep({
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {onBack && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={onBack}
-          >
-            {t('create.gemTemplate.backToSections')}
-          </Button>
-        )}
+      <div className="flex justify-end">
         <Button type="button" disabled={!canPrepare} onClick={onPrepare}>
           {pending ? (
             <>

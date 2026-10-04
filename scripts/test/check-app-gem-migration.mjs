@@ -238,7 +238,7 @@ test('una gema pegada se adapta enseguida con origin «mi-estilo», aunque esa g
   migrations.migrateOnce(OLD_GEM)
   agent.calls[0].resolve(MIGRATED)
   await settle()
-  // «Pegar gema nueva» la volvió a guardar como texto: se adapta otra vez.
+  // Si vuelve a estar guardada como texto, se adapta otra vez.
   migrations.adapt(OLD_GEM)
   assert.equal(agent.calls.length, 2)
   assert.equal(agent.calls[1].origin, 'mi-estilo')
@@ -275,7 +275,7 @@ test('adaptar una gema de plantilla o sin texto no hace nada', () => {
   assert.equal(agent.calls.length, 0)
 })
 
-test('la gema pegada se guarda tal cual, como texto: sin secciones, sin planos y sin el respaldo de la que reemplaza; personaje y filtro como están en el modal', () => {
+test('la gema pegada se guarda tal cual, como texto: sin secciones y sin planos; personaje y filtro como están en el modal', () => {
   assert.deepEqual(
     pastedGemSavePayload({
       id: 'st-nueva',
@@ -291,7 +291,6 @@ test('la gema pegada se guarda tal cual, como texto: sin secciones, sin planos y
       shots: [],
       character: { mode: 'generic' },
       colorFilter: 'horror-bw',
-      sourcePrompt: '',
     },
   )
 })

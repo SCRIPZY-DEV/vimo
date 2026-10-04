@@ -53,7 +53,7 @@ Decisiones del spec (§2) que esta ADR fija, con su texto:
 | ID  | Decisión                                                                                                                                                                                                                                             | Origen                 |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | B1  | La gema se guarda por secciones fijas (spec §4). El marco de Vimo las envuelve al generar (spec §5).                                                                                                                                                 | Dueño                  |
-| B2  | El modal muestra una caja por sección. Editar una sección guarda directo, sin agente: la estructura sigue igual y no tiene sentido reescribirla. «Pegar gema nueva» manda el texto completo al agente.                                               | Dueño                  |
+| B2  | El modal muestra una caja por sección. Editar una sección guarda directo, sin agente: la estructura sigue igual y no tiene sentido reescribirla. «Pegar gema nueva» manda el texto completo al agente (botón quitado el 2026-10-03: nota posterior). | Dueño                  |
 | B3  | El agente corre en el servidor de Vimo (`vimo-landing`), con la clave de Vimo.                                                                                                                                                                       | Dueño                  |
 | B4  | El marco vive en el código de la app y llega a todos con la actualización.                                                                                                                                                                           | Recomendación aceptada |
 | B5  | Una gema guardada sin secciones se reconstruye sola la primera vez que se abre o se usa. Su texto original queda de respaldo.                                                                                                                        | Recomendación aceptada |
@@ -544,3 +544,7 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   estilo con el modal de la copia abierto, sin el aviso «quedó copiado» ni su botón «Ir a Mi
   estilo». Si la persona ya salió de la pestaña Catálogo mientras se copiaba, no se la lleva: la
   copia le aparece en Mi estilo.
+- **Se quitó «Pegar gema nueva» (cambia la decisión B2).** Una gema con secciones se edita sección
+  por sección; otra gema es otro estilo, con «Crear estilo». El paso «Pegá tu gema» queda solo para
+  un estilo nuevo, y con el botón se fueron «Volver a las secciones» y la confirmación de reemplazo.
+  `style-save` sigue aceptando una gema de texto sobre una de secciones, pero la app ya no lo pide.

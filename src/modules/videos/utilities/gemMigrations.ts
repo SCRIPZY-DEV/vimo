@@ -107,8 +107,8 @@ export function createGemMigrations(
       void run(style, 'migracion')
     },
     // Una gema recién pegada, ya guardada como texto: se adapta enseguida,
-    // aunque esa gema ya se hubiera migrado en la sesión (se pegó otra encima).
-    // Con una en vuelo no sale otra.
+    // aunque esa gema ya se hubiera migrado en la sesión. Con una en vuelo no
+    // sale otra.
     adapt(style: CustomStyleSummary): void {
       if (!isTextGem(style) || inFlight(style.id)) return
       migrated.delete(style.id)
@@ -120,8 +120,8 @@ export function createGemMigrations(
       if (!migratable(style) || inFlight(style.id)) return
       void run(style, origins.get(style.id) ?? 'migracion')
     },
-    // Descartar el aviso de una gema ya migrada (o reemplazada a mano). Una
-    // en vuelo o fallida sigue con su aviso: no se descarta.
+    // Descartar el aviso de una gema ya migrada. Una en vuelo o fallida sigue
+    // con su aviso: no se descarta.
     dismiss(styleId: string): void {
       if (states.get(styleId)?.status !== 'migrated') return
       remove(styleId)

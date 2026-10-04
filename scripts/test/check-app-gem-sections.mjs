@@ -1,8 +1,8 @@
 // La gema por secciones en el modal (spec §4 y §7): topes por sección y total,
-// qué cuenta como cambio, cuánto texto tiene la gema, cuándo trae su personaje,
-// el guardado con su `templateVersion` y sin `systemPrompt` ni `shots`, la
-// heurística de inglés y el snapshot del formulario. Módulos puros de src/
-// corridos con Node (type stripping), sin bundler.
+// cuánto texto tiene la gema, cuándo trae su personaje, el guardado con su
+// `templateVersion` y sin `systemPrompt` ni `shots`, la heurística de inglés y
+// el snapshot del formulario. Módulos puros de src/ corridos con Node (type
+// stripping), sin bundler.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
@@ -10,7 +10,6 @@ import {
   gemBringsCharacter,
   gemCharCount,
   hasGemText,
-  sameGemSections,
   sectionMaxLength,
   templateStyleSavePayload,
 } from '../../src/modules/videos/utilities/gemTemplate.ts'
@@ -81,24 +80,6 @@ test('tope de una sección: su límite o lo que queda del total', () => {
     camera: 'c'.repeat(12_000),
   }
   assert.equal(sectionMaxLength(overTotal, 'rules'), 0)
-})
-
-test('mismas secciones: espacios de más u opcionales vacías no son un cambio', () => {
-  assert.equal(
-    sameGemSections(
-      { visualStyle: 'a', character: '' },
-      { visualStyle: ' a ', rules: '   ' },
-    ),
-    true,
-  )
-  assert.equal(
-    sameGemSections({ visualStyle: 'a' }, { visualStyle: 'b' }),
-    false,
-  )
-  assert.equal(
-    sameGemSections({ visualStyle: 'a' }, { visualStyle: 'a', camera: 'x' }),
-    false,
-  )
 })
 
 test('texto de la gema: estilo visual en una de plantilla, texto en una vieja', () => {

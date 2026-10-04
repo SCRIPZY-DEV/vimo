@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Clapperboard, ClipboardPaste, Loader2, Sparkles } from 'lucide-react'
+import { Clapperboard, Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
@@ -171,12 +171,13 @@ export function CustomStyleModal({
   const hasStyleText = templateMode
     ? hasGemText({ sections: gemDraft.sections })
     : systemPrompt.trim().length > 0
-  // «Pegá tu gema»: un estilo nuevo por plantilla, o «Pegar gema nueva».
+  // «Pegá tu gema»: un estilo nuevo por plantilla. Una gema que ya tiene
+  // secciones se edita sección por sección; otra gema es otro estilo («Crear
+  // estilo»).
   const pasting = templateMode && gemDraft.pasting
-  // Cerrar el paso de pegado sin secciones que guardar (una gema nueva) tira
-  // lo pegado: con texto en la caja, primero se pregunta.
-  const dropsPastedText =
-    pasting && !hasStyleText && gemDraft.pasteText.trim().length > 0
+  // Cerrar el paso de pegado tira lo pegado (todavía no hay nada guardado):
+  // con texto en la caja, primero se pregunta.
+  const dropsPastedText = pasting && gemDraft.pasteText.trim().length > 0
   // Mientras la gema vieja se migra, su editor queda quieto: lo que se
   // escribiera acá chocaría con las secciones que está por guardar la migración.
   const migrating = migration?.status === 'pending'
@@ -250,8 +251,6 @@ export function CustomStyleModal({
     const toSave = payload(characterToSave)
     try {
       await onSave(toSave)
-      // Lo guardado es la referencia de «Pegar gema nueva».
-      if (toSave.sections) gemDraft.markSaved(toSave.sections)
       return true
     } catch (error) {
       setSaveErrorKey(videosApi.errorMessageKey(error))
@@ -270,7 +269,7 @@ export function CustomStyleModal({
       return
     }
 
-    // Nativo, como «Pegar gema nueva»: nunca otro modal encima de este.
+    // Nativo, como al borrar una tarjeta: nunca otro modal encima de este.
     // Cancelar deja el modal abierto con lo pegado.
     if (
       dropsPastedText &&
@@ -340,18 +339,6 @@ export function CustomStyleModal({
     }
   }
 
-  // «Pegar gema nueva» reemplaza todas las secciones: con algo sin guardar,
-  // primero se confirma (nativo, como al borrar una tarjeta: nunca otro modal
-  // encima de este).
-  const replaceGem = () => {
-    if (
-      gemDraft.unsavedSections &&
-      !window.confirm(t('create.gemTemplate.replaceConfirm'))
-    )
-      return
-    gemDraft.startPasting()
-  }
-
   const writing = samplesJob.phase !== 'images'
   const progressIds = PLACEHOLDER_SAMPLE_IDS
   const sampleImages = storedSamples.map((sample) =>
@@ -398,16 +385,14 @@ export function CustomStyleModal({
           </DialogHeader>
 
           {pasting ? (
-            // Cerrar desde «Pegar gema nueva» guarda las secciones de antes: si
-            // ese guardado falla, el modal sigue abierto y dice por qué acá.
+            // Si «Preparar con IA» no logra guardar la gema pegada, el texto
+            // sigue en la caja y el porqué se dice acá.
             <div className="space-y-3">
               <GemPasteStep
                 text={gemDraft.pasteText}
                 pending={saving || preparing}
                 onTextChange={gemDraft.setPasteText}
                 onPrepare={() => void prepare()}
-                // Volver solo tiene sentido si ya hay secciones (reemplazo).
-                onBack={hasStyleText ? gemDraft.stopPasting : undefined}
               />
               {saveErrorKey && <ErrorMessage>{t(saveErrorKey)}</ErrorMessage>}
             </div>
@@ -631,25 +616,6 @@ export function CustomStyleModal({
                     el interruptor apagado el modal queda como hoy (spec §7). */}
                   {gemTemplateEnabled && gemDraft.originalText && (
                     <GemSourceText text={gemDraft.originalText} />
-                  )}
-                  {/* Al agente solo con el interruptor encendido: apagado, una
-                    gema de plantilla se edita pero no se reemplaza. */}
-                  {gemTemplateEnabled && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={saving || samplesJob.running}
-                        onClick={replaceGem}
-                      >
-                        <ClipboardPaste className="mr-2 h-4 w-4" />
-                        {t('create.gemTemplate.replaceGem')}
-                      </Button>
-                      <span className="font-body text-xs text-muted-foreground">
-                        {t('create.gemTemplate.replaceHint')}
-                      </span>
-                    </div>
                   )}
                 </>
               ) : (

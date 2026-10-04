@@ -617,6 +617,9 @@ create index gem_rebuild_logs_user_created_idx
   - La acción secundaria «Pegar gema nueva» reemplaza todo, con confirmación. El reemplazo ocurre
     al tocar «Preparar con IA»: si la adaptación falla, queda la gema nueva como texto, no las
     secciones de antes (decisión del dueño del 2026-10-02).
+  - **Nota 2026-10-03:** el dueño pidió quitar «Pegar gema nueva». Una gema con secciones se edita
+    sección por sección, y otra gema es otro estilo («Crear estilo»). Ver la nota de esa fecha en
+    la ADR-0048.
 - Una gema vieja se actualiza como dice la sección 4.4.
 - El bloque «¿Tu estilo lleva personaje?» no cambia. La caja «Personaje del estilo» explica que se usa
   en el modo genérico.

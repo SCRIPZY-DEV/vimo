@@ -214,18 +214,6 @@ export function sectionMaxLength(
   )
 }
 
-/** ¿Las mismas secciones una vez limpias? Espacios de más o una opcional vacía no son un cambio. */
-export function sameGemSections(
-  first: GemSections,
-  second: GemSections,
-): boolean {
-  const firstClean = cleanGemSections(first)
-  const secondClean = cleanGemSections(second)
-  return GEM_SECTION_KEYS.every(
-    (key) => (firstClean[key] ?? '') === (secondClean[key] ?? ''),
-  )
-}
-
 /** ¿Hay estilo escrito? En una gema de plantilla, su estilo visual; en una vieja, su texto. */
 export function hasGemText(gem: GemTextSource): boolean {
   if (gem.sections) return gem.sections.visualStyle.trim().length > 0
@@ -318,13 +306,11 @@ export function migrationStyleSavePayload(
 }
 
 /**
- * style-save de una gema pegada al tocar «Preparar con IA»: se guarda tal
- * cual, como texto (así no se pierde si se cierra el modal o la app), y la
- * adaptación a la plantilla la reemplaza por secciones en segundo plano. Sin
- * planos (una gema de plantilla no los usa) y con el respaldo vacío: si
- * reemplaza a una gema de plantilla, su texto original deja de ser el de esta
- * gema. El personaje y el filtro de color viajan como están en el modal: un
- * cambio sin guardar no se pierde al reemplazar la gema.
+ * style-save de la gema pegada en un estilo nuevo al tocar «Preparar con IA»:
+ * se guarda tal cual, como texto (así no se pierde si se cierra el modal o la
+ * app), y la adaptación a la plantilla la reemplaza por secciones en segundo
+ * plano. Sin planos (una gema de plantilla no los usa). El personaje y el
+ * filtro de color viajan como están en el modal.
  */
 export function pastedGemSavePayload(draft: PastedGemDraft): StyleSavePayload {
   return {
@@ -334,7 +320,6 @@ export function pastedGemSavePayload(draft: PastedGemDraft): StyleSavePayload {
     shots: [],
     character: draft.character,
     colorFilter: draft.colorFilter,
-    sourcePrompt: '',
   }
 }
 

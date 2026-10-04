@@ -54,7 +54,8 @@ El 2026-10-01 el dueño le pidió a Claude los pasos de esta ola y respondió la
 - **Adaptación en segundo plano (2026-10-02):** «Preparar con IA» guarda la gema pegada tal cual y la
   adapta fuera del modal. Mientras tanto se muestra «Generando adaptación a ficha de Vimo manteniendo
   tu gema…», se puede cerrar el modal y las secciones se guardan solas. «Pegar gema nueva» reemplaza
-  al tocar el botón. Detalle en la nota del 2026-10-02 de la ADR-0048.
+  al tocar el botón. Detalle en la nota del 2026-10-02 de la ADR-0048. (El botón «Pegar gema nueva»
+  se quitó el 2026-10-03 a pedido del dueño: nota de esa fecha en la misma ADR.)
 - **Texto sin estilo visual:** con código y mensaje propios.
 - **Registro de reconstrucciones:** `gem_rebuild_logs` guarda 60 días (es solo un registro) y la página
   de privacidad lo dice.
