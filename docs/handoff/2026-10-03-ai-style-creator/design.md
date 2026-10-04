@@ -335,6 +335,7 @@ Pedido del dueño después de ver las primeras pruebas: la clonación es fiel a 
   oración del texto con líneas en blanco, el servidor lo sigue leyendo como un solo prompt.
 - En el estilo final, `rules` divide el cuadro solo para el tipo de contenido en que el canal lo
   hace.
+- En `vimo-landing`: `084223b` y `94a88ce` (PR #15), publicado en `main` @ `50e3d33`.
 
 ## 7. Las pruebas de imágenes
 
@@ -503,7 +504,9 @@ Orden propuesto:
 
 1. **Servidor** (hecho, sin desplegar): rama `feat/creador-estilo-ia` de `vimo-landing`.
 2. **Desplegar el servidor** (hecho el 2026-10-03, con la aprobación del dueño): SQL, variables,
-   push, PR #13 y merge a `main`. Falta medir el CPU de la Function con un análisis real.
+   push, PR #13 y merge a `main`. El CPU de la Function se midió el 2026-10-04 con la primera
+   clonación real (§17). Ese día se publicaron además las mejoras del analizador (PR #14) y la
+   fidelidad de las pruebas (PR #15); `main` quedó en `50e3d33`.
 3. **Sidecar** (hecho): los cuatro subcomandos. No dependen de la app; sí del guardado con secciones.
 4. **App** (hecho): la card, el modal, el administrador de sesiones y la comparación. Quedan para
    después arrastrar imágenes al modal y un aviso fuera de la pestaña Mi estilo.

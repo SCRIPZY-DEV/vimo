@@ -1,8 +1,8 @@
 # Fix: las escenas de prueba de una clonación no eran fieles a su original
 
 - **Fecha:** 2026-10-04
-- **Rama:** feat/creador-estilo-ia-sobre-catalogo (la corrección vive en `vimo-landing`, rama
-  `fix/creador-estilo-fidelidad-escena`)
+- **Rama:** feat/creador-estilo-ia-sobre-catalogo (la corrección vive en `vimo-landing`: commits
+  `084223b` y `94a88ce`, PR #15, publicada en `main` @ `50e3d33` el 2026-10-04)
 
 ## Causa
 
@@ -124,4 +124,6 @@ desde la app, o correr el servidor en local contra el material del video como ex
 ## Pruebas manuales
 
 - Las clonaciones reales de arriba, mirando cada escena al lado de su original.
-- Pendiente del dueño: repetir la clonación desde la app una vez publicado el servidor.
+- Servidor publicado el 2026-10-04 a las 11:54 (despliegue `002db2ea`): el endpoint sin sesión
+  responde 401, como antes.
+- Pendiente del dueño: repetir la clonación desde la app.
