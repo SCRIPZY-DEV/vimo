@@ -50,6 +50,24 @@ Se corren con `node --test scripts/test/<script>`.
 > `narrativeReviewResponse` en `check-verbatim-prompt-persistence.mjs`. Los guards de gemas
 > por secciones que recorren el carril (abajo) sí lo simulan.
 
+## Sidecar y app: creador de estilo con IA (ADR-0050)
+
+Los guards de la clonación de un estilo desde un video o desde imágenes. Importan los
+subcomandos reales de `pipeline/`, con yt-dlp, YouTube y los proveedores de imágenes
+simulados, la carpeta de la sesión en un directorio temporal y **FFmpeg real** (como
+`check-voice-resume.mjs`: necesitan `src-tauri/binaries/ffmpeg-<triple>`, que baja
+`pnpm fetch:binaries`). El yt-dlp simulado responde el bloqueo de bot con el texto
+medido, apóstrofo tipográfico incluido.
+
+| Script                           | Qué verifica                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `check-style-clone-material.mjs` | `style-clone-prepare`: 10 mosaicos repartidos por todo el video con su cuadrícula real y su tiempo, 3 fotogramas, miniatura y título; el reintento con `mweb` solo ante el bloqueo de bot; sin storyboard sigue con los fotogramas públicos; menos de 2 imágenes falla con el motivo de yt-dlp; un mosaico fuera de `ytimg.com` no se baja; imágenes del usuario a JPEG de 1 536 px y las inválidas en `rejectedImages` |
+| `check-style-clone-draw.mjs`     | `style-clone-draw`: diseños tal cual; escenas sin la etiqueta `[subject]` pelada; el personaje como texto tejido o con el diseño adjunto (una subida en Evolink, `/edit` en Fal) y su reintento como texto; el «Original» de cada escena (fotograma, imagen o celda recortada del mosaico); una prueba que falla no tumba la ronda, el rechazo por contenido se reintenta suavizado y el saldo agotado corta el job     |
+| `check-style-clone-save.mjs`     | `style-clone-save` y `style-clone-discard`: el estilo nuevo con sus secciones, sus muestras y el origen `ai-clone`; el personaje con foto o de identidad de prompt como predeterminado del estilo; toda la validación antes de tocar el disco; un guardado que falla a mitad no deja estilo ni personaje; descartar borra solo esa sesión                                                                               |
+| `check-app-style-clone.mjs`      | Lógica pura de la app: qué dice la tarjeta de un estilo sobre su origen (`styleOriginLabelOf`)                                                                                                                                                                                                                                                                                                                          |
+
+Se corren con `node --test scripts/test/check-style-clone-*.mjs scripts/test/check-app-style-clone.mjs`.
+
 ## Sidecar: gemas por secciones (ADR-0048)
 
 Los guards de la Entrega 1 del catálogo sobre el carril de Mi estilo. Importan comandos,

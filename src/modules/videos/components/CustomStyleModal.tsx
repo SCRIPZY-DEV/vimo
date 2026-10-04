@@ -41,6 +41,7 @@ import {
   templateStyleSavePayload,
 } from '@/modules/videos/utilities/gemTemplate'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
+import { styleOriginLabelOf } from '@/modules/videos/utilities/styleOrigin'
 import {
   CUSTOM_STYLE_FIELD_CLASS,
   CUSTOM_STYLE_NAME_LIMIT,
@@ -126,6 +127,7 @@ export function CustomStyleModal({
   onClose,
 }: CustomStyleModalProps) {
   const { t } = useTranslation()
+  const origin = styleOriginLabelOf(initial.origin)
   const samplesJob = useStyleSampleGeneration()
   // Saldo por proveedor (misma query que Crear y el editor): generar muestras
   // cobra, y el job difiere el refetch al terminar para que el gasto se vea acá.
@@ -374,12 +376,11 @@ export function CustomStyleModal({
                 : t('create.customStyles.modalDescription')}
             </DialogDescription>
             {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo
-                salió (Entrega 2). */}
-            {initial.origin && (
+                salió (Entrega 2); un estilo clonado con IA, de dónde vino
+                (ADR-0050). */}
+            {origin && (
               <p className="font-body text-xs text-muted-foreground">
-                {t('create.customStyles.basedOn', {
-                  name: initial.origin.name,
-                })}
+                {t(origin.key, origin.values)}
               </p>
             )}
           </DialogHeader>

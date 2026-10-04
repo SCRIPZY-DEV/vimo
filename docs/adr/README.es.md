@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                          | Estado                      | Área                          |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------- | ----------------------------- |
+| [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | Creador de estilo con IA: clonar un estilo desde un video o desde imágenes      | Aceptada                    | pipeline / app / servidor     |
 | [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)                       | Gemas por secciones y agente reconstructor                                      | Aceptada                    | pipeline / app / servidor     |
 | [ADR-0046](ADR-0046-recuperacion-y-deshacer-animaciones.md)                              | Recuperación visible y deshacer animaciones                                     | Aceptada                    | app / pipeline                |
 | [ADR-0045](ADR-0045-prefijo-animado-por-parejas-y-fase-propia.md)                        | Prefijo animado por parejas y fase propia                                       | Aceptada                    | pipeline / app                |

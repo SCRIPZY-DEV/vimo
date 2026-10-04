@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
+import { validateYouTubeUrl } from '../../providers/ytdlp/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { MAX_WOVEN_IDENTITY_CHARS } from '../../stages/scene-prompts/verbatim/subject-weaver.ts'
@@ -9,6 +10,7 @@ import {
   COLOR_FILTER_IDS,
   GEM_SECTION_KEYS,
   GEM_TEMPLATE_VERSION,
+  type AiCloneGemOrigin,
   type ColorFilterId,
   type CustomStyleSummary,
   type GemOrigin,
@@ -46,7 +48,15 @@ export const DEFAULT_CHARACTER_ID_LIMIT = 120
 export const GEM_SECTION_CHAR_LIMIT = 12_000
 export const GEM_SECTIONS_TOTAL_CHAR_LIMIT = 30_000
 export const CHARACTER_SECTION_CHAR_LIMIT = MAX_WOVEN_IDENTITY_CHARS
+// Tope del inicio fijo (`promptStart`).
 export const FIXED_PHRASE_CHAR_LIMIT = 600
+// Tope del final fijo (`promptEnd`). Es mayor que el del inicio porque el
+// cierre de un estilo clonado con IA lleva su ficha de estilo, igual en cada
+// imagen: es lo que hace que salgan parecidas (ADR-0050). No puede ser más
+// largo: el cuerpo de un prompt final tiene 2 106 caracteres
+// (FINAL_PROMPT_BODY_BUDGET) para la escena, la identidad del personaje (hasta
+// 700) y este cierre; con 1 000 a la escena le quedan al menos 400.
+export const PROMPT_END_CHAR_LIMIT = 1_000
 // El texto original que se mandó al agente (solo respaldo): el mismo tope
 // que acepta el agente.
 export const SOURCE_PROMPT_CHAR_LIMIT = SYSTEM_PROMPT_CHAR_LIMIT
@@ -111,8 +121,8 @@ export function assertStyleCharacter(
 
 function sectionCharLimit(key: GemSectionKey): number {
   if (key === 'character') return CHARACTER_SECTION_CHAR_LIMIT
-  if (key === 'promptStart' || key === 'promptEnd')
-    return FIXED_PHRASE_CHAR_LIMIT
+  if (key === 'promptStart') return FIXED_PHRASE_CHAR_LIMIT
+  if (key === 'promptEnd') return PROMPT_END_CHAR_LIMIT
   return GEM_SECTION_CHAR_LIMIT
 }
 
@@ -224,13 +234,37 @@ export function isCatalogStyleId(value: unknown): value is string {
   return isCharacterStyleId(value)
 }
 
+// El link de un video de YouTube, o undefined si no lo es: el origen de un
+// estilo clonado solo guarda links que la app puede volver a abrir.
+function youtubeUrlOf(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    return validateYouTubeUrl(value)
+  } catch {
+    return undefined
+  }
+}
+
+function readAiCloneOrigin(record: {
+  source?: unknown
+  videoUrl?: unknown
+}): AiCloneGemOrigin | undefined {
+  if (record.source === 'images') return { kind: 'ai-clone', source: 'images' }
+  if (record.source !== 'youtube') return undefined
+  const videoUrl = youtubeUrlOf(record.videoUrl)
+  return { kind: 'ai-clone', source: 'youtube', ...(videoUrl && { videoUrl }) }
+}
+
 export function readGemOrigin(value: unknown): GemOrigin | undefined {
   if (!value || typeof value !== 'object') return undefined
   const record = value as {
     kind?: unknown
     catalogStyleId?: unknown
     name?: unknown
+    source?: unknown
+    videoUrl?: unknown
   }
+  if (record.kind === 'ai-clone') return readAiCloneOrigin(record)
   if (record.kind !== 'catalog') return undefined
   if (!isCatalogStyleId(record.catalogStyleId)) return undefined
   if (typeof record.name !== 'string' || !record.name.trim()) return undefined
@@ -239,6 +273,28 @@ export function readGemOrigin(value: unknown): GemOrigin | undefined {
     catalogStyleId: record.catalogStyleId,
     name: record.name.trim(),
   }
+}
+
+function assertAiCloneOrigin(
+  record: { source?: unknown; videoUrl?: unknown },
+  field: string,
+): void {
+  if (record.source !== 'youtube' && record.source !== 'images')
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.source must be youtube or images`,
+    )
+  if (record.videoUrl === undefined) return
+  if (record.source !== 'youtube')
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.videoUrl only applies to source youtube`,
+    )
+  if (youtubeUrlOf(record.videoUrl) !== record.videoUrl)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.videoUrl must be a normalized https YouTube link`,
+    )
 }
 
 export function assertGemOrigin(
@@ -251,11 +307,17 @@ export function assertGemOrigin(
     kind?: unknown
     catalogStyleId?: unknown
     name?: unknown
+    source?: unknown
+    videoUrl?: unknown
+  }
+  if (record.kind === 'ai-clone') {
+    assertAiCloneOrigin(record, field)
+    return
   }
   if (record.kind !== 'catalog')
     throw new PipelineFailure(
       'invalid_payload',
-      `${field}.kind must be catalog`,
+      `${field}.kind must be catalog or ai-clone`,
     )
   if (!isCatalogStyleId(record.catalogStyleId))
     throw new PipelineFailure(

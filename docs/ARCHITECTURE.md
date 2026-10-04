@@ -175,7 +175,7 @@ pipeline/
 ├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (music/, voices/, characters/, videos/)
 ├── stages/                las 7 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, animation/, render/ (ADR-0013), y shared/ con lo que usan varias fases
 ├── project/               la carpeta de un proyecto en disco: rutas tipadas, metadata, scenes.json y referencias de personajes (ADR-0009)
-├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM y overlay)
+├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM, overlay y la ficha de un video para clonar su estilo)
 ├── prompts/               prompts de sistema como datos versionados (biblia visual, director de escenas, bloques del redactor, estilos)
 ├── config/                PipelineConfig + ApiKeys + BinaryPaths, con defaults inyectables
 ├── types/                 tipos del dominio (json, llm, music, voices, characters, images, scenes, video-project)
@@ -612,6 +612,30 @@ Entrega 1 y las que aún no se migraron— sigue por `buildVerbatimSystem` **byt
 byte** (lo fija `check-gem-verbatim-lane.mjs` con huellas SHA-256); con el interruptor
 encendido la app la migra con el agente la primera vez que se abre o se elige en Crear
 y, si la migración falla, la gema sigue por el camino viejo.
+
+**Creador de estilo con IA
+([ADR-0050](adr/ADR-0050-creador-de-estilo-con-ia.md)).** Clona un estilo desde un
+video de YouTube o desde hasta 10 imágenes y lo guarda como una gema por secciones. El
+análisis lo hace vimo.click (`POST /api/estilos/crear-con-ia`, Gemini 3.1 Pro con la
+clave de Vimo, un turno por pedido y sin estado); la app conduce los turnos y el
+sidecar hace lo que necesita la computadora y las claves del usuario, con cuatro
+subcomandos de `pipeline/commands/styles/`:
+
+| Subcomando            | Qué hace                                                                                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `style-clone-prepare` | Junta el material: hasta 10 mosaicos del storyboard, 3 fotogramas públicos, la miniatura y el título de un video, o las imágenes del usuario validadas y achicadas a JPEG. |
+| `style-clone-draw`    | Dibuja una ronda de pruebas (3 diseños del personaje o 4 escenas) con Fal o Evolink y deja el «Original» de cada escena. Una prueba que falla no tumba la ronda.           |
+| `style-clone-save`    | Guarda el estilo (`origin: { kind: 'ai-clone' }`), las clonaciones aprobadas como muestras y, si se replicó, el personaje en la biblioteca como predeterminado del estilo. |
+| `style-clone-discard` | Borra la carpeta de la sesión.                                                                                                                                             |
+
+Todo lo de una clonación vive en `<carpeta raíz>/_style-clones/<sesión>/` (reservada
+en `RESERVED_ROOT_DIRECTORIES`) hasta que se guarda o se descarta: el material con su
+índice `material.json` y las pruebas dibujadas. YouTube bloquea algunas redes como
+bot: la ficha del video se pide con el cliente de siempre de yt-dlp y, si sale ese
+bloqueo, con `mweb`; sin storyboard la clonación sigue con los fotogramas públicos. El
+final fijo de un estilo clonado lleva su ficha de estilo, por eso `promptEnd` admite
+hasta 1 000 caracteres. La card, el modal y las sesiones en segundo plano viven en
+`src/modules/videos` (en curso).
 
 ### La pausa de confirmación de escenas
 

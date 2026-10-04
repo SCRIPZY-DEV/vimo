@@ -634,6 +634,8 @@
       "noSamples": "Sem amostras ainda. Gere a partir dos três pontos.",
       "charsCount": "{{chars}} caracteres",
       "basedOn": "Baseado em {{name}}",
+      "clonedFromVideo": "Clonado com IA de um vídeo",
+      "clonedFromImages": "Clonado com IA das suas imagens",
       "adaptedTag": "Gema adaptada",
       "modalTitle": "Seu estilo",
       "modalDescription": "O estilo visual é o texto que dá as regras ao modelo. Estas são suas amostras.",

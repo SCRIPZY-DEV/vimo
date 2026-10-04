@@ -209,9 +209,9 @@ for (const [name, customStyle, message] of [
     'options.customStyle.sections.character exceeds 700 characters',
   ],
   [
-    'a fixed end over 600',
-    template({ sections: { ...sections, promptEnd: 'x'.repeat(601) } }),
-    'options.customStyle.sections.promptEnd exceeds 600 characters',
+    'a fixed end over 1 000',
+    template({ sections: { ...sections, promptEnd: 'x'.repeat(1_001) } }),
+    'options.customStyle.sections.promptEnd exceeds 1000 characters',
   ],
   [
     'a newer template version',

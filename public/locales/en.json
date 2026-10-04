@@ -634,6 +634,8 @@
       "noSamples": "No samples yet. Generate them from the three dots.",
       "charsCount": "{{chars}} characters",
       "basedOn": "Based on {{name}}",
+      "clonedFromVideo": "Cloned with AI from a video",
+      "clonedFromImages": "Cloned with AI from your images",
       "adaptedTag": "Adapted gem",
       "modalTitle": "Your style",
       "modalDescription": "The visual style is the text that gives the model its rules. These are its samples.",

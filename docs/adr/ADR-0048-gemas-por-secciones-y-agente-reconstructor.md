@@ -554,3 +554,21 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   lo que ajustó la IA. Ese aviso del modal se descarta solo a los 60 s si no se toca la X. La
   tarjeta de una gema adaptada (secciones más `sourcePrompt`) lleva la etiqueta «Gema adaptada»; una
   copia del catálogo no la lleva. Los avisos siguen sin guardarse en disco.
+
+## Nota posterior 2026-10-03 — el final fijo llega a 1 000 y el origen suma los estilos clonados
+
+Cambios al contrato de la gema que trae el creador de estilo con IA
+([ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)):
+
+- **`promptEnd` admite hasta 1 000 caracteres** (`PROMPT_END_CHAR_LIMIT` en `style-store.ts`,
+  `GEM_SECTION_LIMITS` en `gemTemplate.ts`). `promptStart` sigue en 600
+  (`FIXED_PHRASE_CHAR_LIMIT`). El cierre de un estilo clonado lleva su ficha de estilo, que es lo que
+  hace que las imágenes salgan parecidas. No es más largo porque el cuerpo de un prompt final tiene
+  2 106 caracteres para la escena, la identidad y el cierre (`FINAL_PROMPT_BODY_BUDGET`). El agente
+  reconstructor sigue escribiendo cierres de hasta 600.
+- **`origin` es una unión.** Además de `{ kind: 'catalog', catalogStyleId, name }` existe
+  `{ kind: 'ai-clone', source: 'youtube' | 'images', videoUrl? }`. `readGemOrigin` y
+  `assertGemOrigin` validan las dos formas (el link, solo de YouTube y ya normalizado), y la tarjeta
+  y el modal de Mi estilo eligen su texto con `styleOriginLabelOf`
+  (`src/modules/videos/utilities/styleOrigin.ts`): «Basado en …» o «Clonado con IA de un video / de
+  tus imágenes».

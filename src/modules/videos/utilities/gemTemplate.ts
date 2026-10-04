@@ -49,9 +49,11 @@ export const COLOR_FILTER_IDS: typeof PIPELINE_COLOR_FILTER_IDS = [
 ]
 
 // Límites de la spec §4.1: cada sección hasta 12 000 caracteres, `character`
-// hasta 700 (la identidad tejida), las frases fijas hasta 600 y la suma hasta
-// 30 000, porque las secciones van en cada pedido de prompts. La gema que se
-// pega puede ser más larga (GEM_REBUILD_TEXT_LIMIT): el agente la condensa.
+// hasta 700 (la identidad tejida), el inicio fijo hasta 600 y la suma hasta
+// 30 000, porque las secciones van en cada pedido de prompts. El final fijo
+// llega a 1 000: el de un estilo clonado con IA lleva su ficha de estilo
+// (ADR-0050). La gema que se pega puede ser más larga
+// (GEM_REBUILD_TEXT_LIMIT): el agente la condensa.
 export const GEM_SECTION_LIMITS: Record<GemSectionKey, number> = {
   visualStyle: 12_000,
   character: 700,
@@ -59,7 +61,7 @@ export const GEM_SECTION_LIMITS: Record<GemSectionKey, number> = {
   camera: 12_000,
   rules: 12_000,
   promptStart: 600,
-  promptEnd: 600,
+  promptEnd: 1_000,
 }
 export const GEM_TOTAL_CHAR_LIMIT = 30_000
 
