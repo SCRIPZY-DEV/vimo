@@ -102,10 +102,13 @@ export function createCatalogSceneLlm(context: PipelineContext): SceneLlm {
               }
               if (!deadline.aborted && !(error instanceof PipelineFailure))
                 throw error
+              // Un plazo vencido cuenta como strike, igual que la red: descartar
+              // el modelo para todo el job por una sola respuesta lenta dejaba
+              // escenas sin prompt en videos largos y tumbaba la corrida.
               const transient =
-                !deadline.aborted &&
-                error instanceof PipelineFailure &&
-                CATALOG_TRANSIENT_CODES.includes(error.code)
+                deadline.aborted ||
+                (error instanceof PipelineFailure &&
+                  CATALOG_TRANSIENT_CODES.includes(error.code))
               if (transient) {
                 transientFailure = true
                 const strikes = (transientStrikes.get(modelId) ?? 0) + 1
@@ -113,14 +116,13 @@ export function createCatalogSceneLlm(context: PipelineContext): SceneLlm {
                 if (strikes >= CATALOG_TRANSIENT_STRIKES)
                   unavailable.add(modelId)
               }
-              // Truncamiento/vacío es local al pedido; saturación y timeout se
-              // comparten entre biblia, director y redactor del mismo job.
+              // Truncamiento/vacío es local al pedido; la saturación se
+              // comparte entre biblia, director y redactor del mismo job.
               else if (
-                deadline.aborted ||
-                (error instanceof PipelineFailure &&
-                  !['llm_empty_response', 'llm_output_truncated'].includes(
-                    error.code,
-                  ))
+                error instanceof PipelineFailure &&
+                !['llm_empty_response', 'llm_output_truncated'].includes(
+                  error.code,
+                )
               )
                 unavailable.add(modelId)
               context.emitter.emit({
