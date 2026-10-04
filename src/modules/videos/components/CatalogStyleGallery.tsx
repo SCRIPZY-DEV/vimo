@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { Check, Loader2 } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
@@ -12,6 +12,7 @@ import {
 } from '@/modules/videos/hooks/useCatalogStyleViewer'
 import { useCatalogStyles } from '@/modules/videos/hooks/useCatalogStyles'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
+import { CATALOG_ORIGIN_BADGE_CLASS } from '@/modules/videos/constants'
 import {
   readCatalogCharacter,
   rememberCatalogCharacter,
@@ -204,7 +205,15 @@ export function CatalogStyleGallery({
           className="flex items-center gap-2 rounded-xl border-2 border-saffron/30 bg-saffron/5 px-4 py-3 font-body text-sm text-foreground"
         >
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
-          {t('create.catalog.copying')}
+          <span>
+            <Trans
+              i18nKey="create.catalog.copyingNamed"
+              values={{ name: copyRequest.name }}
+              components={{
+                badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
+              }}
+            />
+          </span>
         </p>
       )}
 

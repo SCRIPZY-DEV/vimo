@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { Clapperboard, Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
@@ -42,6 +42,7 @@ import {
 } from '@/modules/videos/utilities/gemTemplate'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import {
+  CATALOG_ORIGIN_BADGE_CLASS,
   CUSTOM_STYLE_FIELD_CLASS,
   CUSTOM_STYLE_NAME_LIMIT,
   CUSTOM_STYLE_PROMPT_LIMIT,
@@ -373,13 +374,17 @@ export function CustomStyleModal({
                 ? t('create.gemTemplate.pasteHint')
                 : t('create.customStyles.modalDescription')}
             </DialogDescription>
-            {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo
-                salió (Entrega 2). */}
+            {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo se
+                clonó, con el nombre en una píldora (Entrega 2). */}
             {initial.origin && (
-              <p className="font-body text-xs text-muted-foreground">
-                {t('create.customStyles.basedOn', {
-                  name: initial.origin.name,
-                })}
+              <p className="font-body text-sm text-foreground">
+                <Trans
+                  i18nKey="create.customStyles.clonedFrom"
+                  values={{ name: initial.origin.name }}
+                  components={{
+                    badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
+                  }}
+                />
               </p>
             )}
           </DialogHeader>

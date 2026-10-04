@@ -436,6 +436,11 @@ export const CUSTOM_STYLE_MAX_SHOTS = 20
 export const CUSTOM_STYLE_FIELD_CLASS =
   'w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-primary disabled:opacity-60'
 
+// Píldora con el nombre del estilo del catálogo del que se clona una gema: en
+// el aviso de la copia en curso y en el modal de la copia.
+export const CATALOG_ORIGIN_BADGE_CLASS =
+  'inline-flex items-center rounded-full bg-saffron px-2.5 py-0.5 align-middle font-display text-xs font-bold text-charcoal'
+
 // Título y ayuda de cada sección de la gema en el modal (spec §4.1). El orden
 // en que se muestran es GEM_SECTION_KEYS (utilities/gemTemplate.ts).
 export const GEM_SECTION_TEXT_KEYS: Record<
