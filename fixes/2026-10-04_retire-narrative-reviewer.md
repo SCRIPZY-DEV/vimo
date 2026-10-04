@@ -57,6 +57,23 @@ ella (abajo).
 - **Docs:** la ADR-0043 suma «Retirada de la revisión LLM» y cambia su estado; la ADR-0044 y los
   índices de ADR lo anotan.
 
+## Tres redactores más baratos
+
+Pedido del dueño después del retiro, para no dejar solo los dos redactores validados, que considera
+caros: volver a ofrecer en Mi estilo tres de los que había antes del recorte de la ADR-0044.
+
+- **`pipeline/providers/llm/model-catalog.ts`:** Llama 4 Scout, DeepSeek V4 Flash y GPT o4-mini
+  TURBO vuelven al selector (`inUi: true`). El predeterminado sigue siendo DeepSeek V4.1 Flash.
+  DeepSeek V4 Pro sigue fuera.
+- **Guard nuevo `scripts/test/check-prompt-model-offer.mjs`:**
+  - la oferta de cinco;
+  - un proyecto que eligió uno de los baratos se escribe con ese;
+  - V4 Pro queda fuera;
+  - cada redactor tiene rescate de otra familia.
+- **ADR-0044:** sección «Actualización del 2026-10-04».
+
+En el Catálogo no cambia nada: ese carril ya escribe con Llama 4 Scout y GPT o4-mini por su cuenta.
+
 ## Límites deliberados
 
 - **No se cambia qué pasa con una escena sin prompt.** En Mi estilo sigue cortando la corrida (desde
@@ -112,8 +129,24 @@ Tres proyectos hechos con la revisión, rehechos sin ella con el mismo estilo, m
 | Mi estilo, Claude Haiku 4.5, 14 escenas                                       | 14 de 14, calidad pareja. La versión con revisión había aprobado en la escena 1 lo que narra la escena 2. |
 | Mi estilo, Claude Haiku 4.5, 15 escenas, protagonista genérico (dos corridas) | Ninguna imagen de otro momento del relato. El protagonista repite el estudio (ver Límites).               |
 
-Costo de toda la reproducción y las pruebas: unos 25 centavos de DeepInfra y unos 25 de Evolink, de
-las claves del dueño. Los scripts y las hojas de comparación quedaron fuera del repo.
+Los tres redactores baratos, sin la revisión y con el código de esta rama, sobre dos videos de Mi
+estilo del dueño:
+
+| Video y modelo                       | Resultado                                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| ESTILO COMIC (14), DeepSeek V4 Flash | 14 de 14; prompts en 49 s                                                                     |
+| ESTILO COMIC (14), Llama 4 Scout     | 14 de 14 con un reintento; prompts en 85 s; «otras civilizaciones» salió como extraterrestres |
+| ESTILO COMIC (14), GPT o4-mini TURBO | 14 de 14; prompts en 11 s; adelantó a la escena 11 lo que narra la 12                         |
+| CLAYMATION (15), DeepSeek V4 Flash   | 15 de 15; prompts en 36 s                                                                     |
+| CLAYMATION (15), GPT o4-mini TURBO   | 15 de 15; prompts en 8 s                                                                      |
+| CLAYMATION (15), Llama 4 Scout       | 15 prompts en 55 s; sin imágenes (el saldo de Evolink se agotó)                               |
+
+En ESTILO COMIC los tres —y la imagen de septiembre— leyeron «esos nombres dominaran la historia»
+como dominar una pelota de fútbol.
+
+Costo de toda la reproducción y las pruebas, de las claves del dueño: unos 40 centavos de DeepInfra y
+unas 175 imágenes de Evolink en calidad baja, que dejaron su saldo de Evolink en 2,3 créditos. Los
+scripts y las hojas de comparación quedaron fuera del repo.
 
 Pendiente del dueño: crear un video desde la app con esta versión, en el Catálogo y en Mi estilo, y
 ver que pasa de «Validando prompts» a imágenes.

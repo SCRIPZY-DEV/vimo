@@ -2,7 +2,7 @@
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-27
-- **Actualizada:** 2026-09-28 — oferta y ejecución rápida descritas abajo. 2026-10-04 — la revisión de ADR-0043 se retiró (ver su sección «Retirada de la revisión LLM»); lo que esta ADR dice del revisor temporal queda como historia.
+- **Actualizada:** 2026-09-28 — oferta y ejecución rápida descritas abajo. 2026-10-04 — la revisión de ADR-0043 se retiró (ver su sección «Retirada de la revisión LLM»); lo que esta ADR dice del revisor temporal queda como historia, y vuelven tres redactores (ver «Actualización del 2026-10-04»).
 - **Área:** pipeline / app
 - **Complementa:** ADR-0020, ADR-0022 y ADR-0028.
 - **Origen:** pedido explícito de limitar todos los selectores a los modelos con menos errores, preservando arquitectura y previews.
@@ -77,3 +77,25 @@ Pedido explícito: conservar 20 fragmentos por petición, distinguirlos del lím
 - La revisión de ADR-0043 sigue **temporal**. Los nuevos borradores contienen errores semánticos; no se retira solo para reducir latencia. Estos ensayos tampoco certifican la precisión del revisor actual. Permanecen las comprobaciones locales de IDs, que no consumen otra llamada de IA.
 
 Fuente: [Rate Limits de DeepInfra](https://docs.deepinfra.com/account/rate-limits). Evidencia: `Reportes/2026-09-28-batch-policy/Lotes de 20 y validacion de redactores.md` en el vault. Detalles y límites del fix: `fixes/2026-09-28_restore-prompt-batches-and-model-recovery.md`.
+
+## Actualización del 2026-10-04 — tres redactores más baratos, sin la revisión
+
+Pedido del dueño, una vez retirada la revisión de ADR-0043: no dejar solo los dos redactores
+validados, que considera caros, y volver a ofrecer tres de los que había antes del recorte.
+
+- **Oferta:** DeepSeek V4.1 Flash (predeterminado), Llama 4 Scout, DeepSeek V4 Flash, Claude Haiku
+  4.5 y GPT o4-mini TURBO. Son los tres más baratos de la oferta anterior (0,09/0,18, 0,10/0,30 y
+  0,15/0,60 USD por millón de tokens de entrada/salida). DeepSeek V4 Pro sigue fuera: es caro y su
+  modelo fue el que empezó a fallar como revisor. Los rescates no cambian (V4.1 Flash y Haiku, de
+  otra familia).
+- **Probado con videos reales** (dos videos de Mi estilo, 29 escenas, sin la revisión): V4 Flash y
+  TURBO completaron todas las escenas, con prompts e imágenes; Llama 4 Scout completó un video con un
+  reintento (el segundo quedó sin imágenes por falta de saldo del proveedor). TURBO fue el más rápido
+  (8 a 11 s los prompts de un video), V4 Flash tardó 36 a 49 s y Llama 55 a 85 s.
+- **Errores vistos**, del tipo que esta ADR ya había encontrado: Llama 4 Scout convirtió «otras
+  civilizaciones» en extraterrestres; GPT o4-mini TURBO adelantó a una escena lo que narraba la
+  siguiente; y los tres (y el redactor de septiembre) leyeron «esos nombres dominaran la historia»
+  como dominar una pelota. V4 Flash no tuvo errores propios en la muestra. Sin la revisión, una
+  escena así se corrige desde el editor.
+- **Límite:** la muestra es chica (dos guiones, el mismo tema). La banda de precio del selector la
+  calcula la app; con las tarifas del catálogo, GPT o4-mini TURBO puede caer en «Precio medio».

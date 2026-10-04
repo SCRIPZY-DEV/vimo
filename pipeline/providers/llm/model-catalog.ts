@@ -38,7 +38,11 @@ import type { LlmModelProfile } from '../../types/llm-models.ts'
 // Las cifras anteriores son históricas. Validación 2026-09-28: V4.1 Flash
 // ofrece mejor equilibrio de tiempo/costo y conserva Haiku como alternativa.
 // MiMo Flash usa `none`: el razonamiento por defecto agotó la salida en las
-// pruebas. V4 Pro queda técnico para el revisor temporal, fuera del selector.
+// pruebas. V4 Pro quedó técnico para el revisor temporal, fuera del selector.
+// 2026-10-04: retirado el revisor (ADR-0043), el dueño pidió volver a ofrecer
+// tres redactores más baratos de los que había antes del recorte: Llama 4
+// Scout, DeepSeek V4 Flash y GPT o4-mini TURBO, probados con videos reales
+// sin la revisión. V4 Pro sigue fuera: es caro y su modelo empezó a fallar.
 // No se alteran los perfiles de previews/Catálogo ni la configuración de guion.
 // ADR-0044: la redacción elegible y sus rescates usan solo perfiles ofrecidos.
 // El ORDEN del array es el que ve el usuario en el selector.
@@ -131,7 +135,7 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     // medidas. Escribe escenas más cortas, pero completas.
     outputFactor: 0.6,
     inCatalog: true,
-    inUi: false,
+    inUi: true,
   },
   {
     id: 'deepseek-ai/DeepSeek-V4-Flash',
@@ -145,7 +149,7 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     pricing: { input: 0.09, output: 0.18 },
     outputFactor: 0.85,
     inCatalog: true,
-    inUi: false,
+    inUi: true,
   },
   {
     id: 'anthropic/claude-haiku-4-5',
@@ -200,8 +204,8 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     inCatalog: true,
     // Históricamente entró a la UI: devuelve 14/15 escenas en 4 de 6
     // corridas — la escalera de reintentos del motor lo absorbe (lotes de 5 y
-    // de 1). Decisión explícita del origen (v1.6.0).
-    inUi: false,
+    // de 1). Decisión explícita del origen (v1.6.0). Vuelve el 2026-10-04.
+    inUi: true,
   },
 ]
 
