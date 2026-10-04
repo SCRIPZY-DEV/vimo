@@ -83,9 +83,10 @@ Fuente: [Rate Limits de DeepInfra](https://docs.deepinfra.com/account/rate-limit
 Pedido del dueño, una vez retirada la revisión de ADR-0043: no dejar solo los dos redactores
 validados, que considera caros, y volver a ofrecer tres de los que había antes del recorte.
 
-- **Oferta:** DeepSeek V4.1 Flash (predeterminado), Llama 4 Scout, DeepSeek V4 Flash, Claude Haiku
-  4.5 y GPT o4-mini TURBO. Son los tres más baratos de la oferta anterior (0,09/0,18, 0,10/0,30 y
-  0,15/0,60 USD por millón de tokens de entrada/salida). DeepSeek V4 Pro sigue fuera: es caro y su
+- **Oferta:** DeepSeek V4.1 Flash (predeterminado), DeepSeek V4 Flash, Claude Haiku 4.5 y GPT o4-mini
+  TURBO. V4 Flash y TURBO son dos de los tres más baratos de la oferta anterior (0,09/0,18 y
+  0,15/0,60 USD por millón de tokens de entrada/salida); el tercero, Llama 4 Scout (0,10/0,30), se
+  probó y el dueño pidió ocultarlo por sus errores (abajo). DeepSeek V4 Pro sigue fuera: es caro y su
   modelo fue el que empezó a fallar como revisor. Los rescates no cambian (V4.1 Flash y Haiku, de
   otra familia).
 - **Probado con videos reales** (dos videos de Mi estilo, 29 escenas, sin la revisión): V4 Flash y

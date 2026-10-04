@@ -60,15 +60,16 @@ ella (abajo).
 ## Tres redactores más baratos
 
 Pedido del dueño después del retiro, para no dejar solo los dos redactores validados, que considera
-caros: volver a ofrecer en Mi estilo tres de los que había antes del recorte de la ADR-0044.
+caros: volver a ofrecer en Mi estilo redactores de los que había antes del recorte de la ADR-0044. Se
+probaron tres; después de ver la prueba pidió ocultar Llama 4 Scout.
 
-- **`pipeline/providers/llm/model-catalog.ts`:** Llama 4 Scout, DeepSeek V4 Flash y GPT o4-mini
-  TURBO vuelven al selector (`inUi: true`). El predeterminado sigue siendo DeepSeek V4.1 Flash.
-  DeepSeek V4 Pro sigue fuera.
+- **`pipeline/providers/llm/model-catalog.ts`:** DeepSeek V4 Flash y GPT o4-mini TURBO vuelven al
+  selector (`inUi: true`); Llama 4 Scout sigue oculto. El predeterminado sigue siendo DeepSeek V4.1
+  Flash. DeepSeek V4 Pro sigue fuera.
 - **Guard nuevo `scripts/test/check-prompt-model-offer.mjs`:**
-  - la oferta de cinco;
+  - la oferta de cuatro;
   - un proyecto que eligió uno de los baratos se escribe con ese;
-  - V4 Pro queda fuera;
+  - V4 Pro y Llama 4 Scout quedan fuera;
   - cada redactor tiene rescate de otra familia.
 - **ADR-0044:** sección «Actualización del 2026-10-04».
 

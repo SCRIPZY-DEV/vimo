@@ -40,9 +40,10 @@ import type { LlmModelProfile } from '../../types/llm-models.ts'
 // MiMo Flash usa `none`: el razonamiento por defecto agotó la salida en las
 // pruebas. V4 Pro quedó técnico para el revisor temporal, fuera del selector.
 // 2026-10-04: retirado el revisor (ADR-0043), el dueño pidió volver a ofrecer
-// tres redactores más baratos de los que había antes del recorte: Llama 4
-// Scout, DeepSeek V4 Flash y GPT o4-mini TURBO, probados con videos reales
-// sin la revisión. V4 Pro sigue fuera: es caro y su modelo empezó a fallar.
+// redactores más baratos de los que había antes del recorte: DeepSeek V4
+// Flash y GPT o4-mini TURBO, probados con videos reales sin la revisión
+// (Llama 4 Scout se probó y quedó oculto). V4 Pro sigue fuera: es caro y su
+// modelo empezó a fallar.
 // No se alteran los perfiles de previews/Catálogo ni la configuración de guion.
 // ADR-0044: la redacción elegible y sus rescates usan solo perfiles ofrecidos.
 // El ORDEN del array es el que ve el usuario en el selector.
@@ -135,7 +136,10 @@ export const MODEL_CATALOG: readonly LlmModelProfile[] = [
     // medidas. Escribe escenas más cortas, pero completas.
     outputFactor: 0.6,
     inCatalog: true,
-    inUi: true,
+    // Oculto otra vez el 2026-10-04 por pedido del dueño: en la prueba sin la
+    // revisión fue el más flojo (lento, un reintento y «otras civilizaciones»
+    // dibujadas como extraterrestres).
+    inUi: false,
   },
   {
     id: 'deepseek-ai/DeepSeek-V4-Flash',

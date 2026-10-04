@@ -1,8 +1,9 @@
 // Los redactores que se ofrecen en Mi estilo (ADR-0044, actualizada el
 // 2026-10-04). Sin la revisión narrativa, el dueño pidió volver a ofrecer
-// tres redactores más baratos de los que había antes del recorte, además de
-// los dos validados. El modelo del revisor retirado (DeepSeek V4 Pro) queda
-// fuera del selector. Sin red.
+// redactores más baratos de los que había antes del recorte, además de los
+// dos validados; después pidió ocultar Llama 4 Scout (el más flojo de la
+// prueba). El modelo del revisor retirado (DeepSeek V4 Pro) queda fuera del
+// selector. Sin red.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
@@ -13,18 +14,16 @@ import {
 } from '../../pipeline/providers/llm/model-catalog.ts'
 
 const CHEAPER_WRITERS = [
-  'meta-llama/Llama-4-Scout-17B-16E-Instruct',
   'deepseek-ai/DeepSeek-V4-Flash',
   'openai/gpt-oss-120b-Turbo',
 ]
 const family = (id) => id.split('/')[0].toLowerCase()
 
-test('the selector offers the two validated writers and three cheaper ones again', () => {
+test('the selector offers the two validated writers and two cheaper ones again', () => {
   assert.deepEqual(
     offeredModels().map((model) => model.id),
     [
       'deepseek-ai/DeepSeek-V4.1-Flash',
-      'meta-llama/Llama-4-Scout-17B-16E-Instruct',
       'deepseek-ai/DeepSeek-V4-Flash',
       'anthropic/claude-haiku-4-5',
       'openai/gpt-oss-120b-Turbo',
@@ -41,10 +40,14 @@ test('a project that chose one of the cheaper writers is written with it', () =>
   }
 })
 
-test('the model of the retired reviewer stays out of the selector', () => {
-  const reviewer = 'deepseek-ai/DeepSeek-V4-Pro'
-  assert.ok(!offeredModels().some((model) => model.id === reviewer))
-  assert.equal(resolveVerbatimModel(reviewer).profile.id, DEFAULT_LLM_MODEL_ID)
+test('the model of the retired reviewer and Llama 4 Scout stay out of the selector', () => {
+  for (const hidden of [
+    'deepseek-ai/DeepSeek-V4-Pro',
+    'meta-llama/Llama-4-Scout-17B-16E-Instruct',
+  ]) {
+    assert.ok(!offeredModels().some((model) => model.id === hidden))
+    assert.equal(resolveVerbatimModel(hidden).profile.id, DEFAULT_LLM_MODEL_ID)
+  }
 })
 
 test('every offered writer is rescued by another family', () => {
