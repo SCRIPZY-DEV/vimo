@@ -362,8 +362,7 @@ en «Personaje genérico», y así Vimo le suma un protagonista que el estilo no
 - Es el valor inicial del interruptor: el usuario lo cambia como en cualquier estilo.
 - Medido con análisis reales de los tres videos que el dueño clonó ese día: el canal de diagramas
   dijo NO en 3 corridas de 3; el de figuras de palitos y el de cómic dijeron SÍ.
-- En `vimo-landing`: `cb15627` (rama `feat/creador-estilo-sin-personajes`), **sin publicar**: hasta
-  que se publique, la app nueva deja estos estilos en genérico.
+- En `vimo-landing`: `cb15627` (PR #16), publicado en `main` @ `dce4204`.
 
 ## 7. Las pruebas de imágenes
 
@@ -537,8 +536,8 @@ Orden propuesto:
 2. **Desplegar el servidor** (hecho el 2026-10-03, con la aprobación del dueño): SQL, variables,
    push, PR #13 y merge a `main`. El CPU de la Function se midió el 2026-10-04 con la primera
    clonación real (§17). Ese día se publicaron además las mejoras del analizador (PR #14) y la
-   fidelidad de las pruebas (PR #15); `main` quedó en `50e3d33`. Queda sin publicar la sugerencia
-   «sin personaje» (`cb15627`, rama `feat/creador-estilo-sin-personajes`).
+   fidelidad de las pruebas (PR #15) y la sugerencia «sin personaje» (PR #16); `main` quedó en
+   `dce4204`.
 3. **Sidecar** (hecho): los cuatro subcomandos. No dependen de la app; sí del guardado con secciones.
 4. **App** (hecho): la card, el modal, el administrador de sesiones y la comparación. Quedan para
    después arrastrar imágenes al modal y un aviso fuera de la pestaña Mi estilo.

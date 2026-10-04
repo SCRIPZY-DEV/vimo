@@ -1,8 +1,8 @@
 # Fix: un estilo clonado que no muestra personajes quedaba en «Personaje genérico»
 
 - **Fecha:** 2026-10-04
-- **Rama:** feat/creador-estilo-ia-sobre-catalogo (la mitad del servidor vive en `vimo-landing`,
-  rama `feat/creador-estilo-sin-personajes`, commit `cb15627`, sin publicar)
+- **Rama:** feat/creador-estilo-ia-sobre-catalogo (la mitad del servidor vive en `vimo-landing`:
+  commit `cb15627`, PR #16, publicada en `main` @ `dce4204` el 2026-10-04)
 
 ## Causa
 
@@ -94,13 +94,15 @@ Análisis reales (por `ejecutarTurno`, el código del endpoint, con el material 
   sidecar en una carpeta temporal, dejó el estilo con `character: { mode: "none" }`.
 - Costo: 7 corridas, 0,70 USD de Gemini a precio de lista. Sin imágenes.
 
-Para repetirlo: clonar un video de diagramas desde la app una vez publicado el servidor, o correr
-el servidor en local como explica `SETUP_CREADOR_ESTILO_IA.md` de `vimo-landing`.
+Para repetirlo: clonar un video de diagramas desde la app, o correr el servidor en local como
+explica `SETUP_CREADOR_ESTILO_IA.md` de `vimo-landing`.
 
 `pnpm format`, `pnpm lint` y `pnpm build` pasan.
 
 ## Pruebas manuales
 
 - El recorrido de punta a punta de arriba, sin red.
-- Pendiente del dueño: clonar un video sin personajes desde la app, con el servidor ya publicado, y
-  ver el interruptor del estilo en «Sin personaje».
+- Servidor publicado el 2026-10-04 a las 15:26 (despliegue `815b0981`): el endpoint sin sesión
+  responde 401, como antes.
+- Pendiente del dueño: clonar un video sin personajes desde la app y ver el interruptor del estilo
+  en «Sin personaje».
