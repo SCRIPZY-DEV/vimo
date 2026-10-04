@@ -16,7 +16,10 @@ import {
   characterPortraitPath,
   findStylePreview,
 } from '@/modules/videos/utilities/findStylePreview'
-import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
+import {
+  gemBringsCharacter,
+  styleContextGemOf,
+} from '@/modules/videos/utilities/gemTemplate'
 import { previewStyleKeyOf } from '@/modules/videos/utilities/previewStyleKeyOf'
 import { toSelectedCharacter } from '@/modules/videos/utilities/toSelectedCharacter'
 import type { CreateFormValue, FormLane } from '@/modules/videos/types/create'
@@ -159,16 +162,15 @@ export function CharacterSection({
     lane === 'catalog-gem' && mode === 'own' && withdrawnReceipt
 
   if (styleWritesCharacter) {
-    // Un estilo del catálogo que trae su personaje (sección `character`): en
-    // «genérico» sale ESE personaje, no uno que Vimo invente; el chip lo dice
-    // como «Ver». Mi estilo conserva sus textos.
-    const styleBringsCharacter =
-      lane === 'catalog-gem' && Boolean(value.customStyle?.sections?.character)
+    // Una gema que trae su personaje (sección `character`), sea del catálogo
+    // o de Mi estilo: en «genérico» sale ESE personaje, no uno que Vimo
+    // invente; el chip lo dice como el modal de la gema.
+    const styleBringsCharacter = gemBringsCharacter(value.customStyle?.sections)
     const genericTitleKey = styleBringsCharacter
-      ? 'create.catalog.fixedCharacterTitle'
+      ? 'create.styleCharacter.fromStyle.title'
       : 'create.characters.styleUsesGeneric'
     const genericHintKey = styleBringsCharacter
-      ? 'create.catalog.fixedCharacterHint'
+      ? 'create.styleCharacter.fromStyle.subtitle'
       : 'create.characters.styleUsesGenericHint'
 
     return (

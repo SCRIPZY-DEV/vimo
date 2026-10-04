@@ -37,8 +37,9 @@ interface StyleCharacterBlockProps {
   // Ausente = Mi estilo («¿Tu estilo lleva personaje?»); el catálogo tiene su
   // título y una línea de ayuda. Las filas de cada modo son las mismas.
   variant?: StyleCharacterBlockVariant
-  // La gema trae su propio personaje (su sección `character`): «genérico» es
-  // ESE personaje y la fila lo dice con sus textos. Ausente = los de siempre.
+  // La gema trae su propio personaje (su sección `character`), sea del
+  // catálogo o de Mi estilo: «genérico» es ESE personaje y la fila lo dice con
+  // sus textos. Ausente = los de siempre.
   fixedCharacter?: boolean
   onChange: (value: StyleCharacter) => void
   // Abre el selector de personajes para fijar uno, con el ya elegido
@@ -86,9 +87,9 @@ function withFixedCharacterTexts(option: ModeOption): ModeOption {
 
   return {
     ...option,
-    titleKey: 'create.catalog.fixedCharacterTitle',
-    subtitleKey: 'create.catalog.fixedCharacterHint',
-    helpKey: 'create.catalog.fixedCharacterHint',
+    titleKey: 'create.styleCharacter.fromStyle.title',
+    subtitleKey: 'create.styleCharacter.fromStyle.subtitle',
+    helpKey: 'create.styleCharacter.fromStyle.subtitle',
   }
 }
 

@@ -1,12 +1,13 @@
 // La gema por secciones en el modal (spec §4 y §7): topes por sección y total,
-// qué cuenta como cambio, cuánto texto tiene la gema, el guardado con su
-// `templateVersion` y sin `systemPrompt` ni `shots`, la heurística de inglés y
-// el snapshot del formulario. Módulos puros de src/ corridos con Node (type
-// stripping), sin bundler.
+// qué cuenta como cambio, cuánto texto tiene la gema, cuándo trae su personaje,
+// el guardado con su `templateVersion` y sin `systemPrompt` ni `shots`, la
+// heurística de inglés y el snapshot del formulario. Módulos puros de src/
+// corridos con Node (type stripping), sin bundler.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   COLOR_FILTER_IDS,
+  gemBringsCharacter,
   gemCharCount,
   hasGemText,
   sameGemSections,
@@ -120,6 +121,29 @@ test('texto de la gema: estilo visual en una de plantilla, texto en una vieja', 
     }),
     3,
   )
+})
+
+test('la gema trae su personaje solo si su sección `character` tiene texto', () => {
+  assert.equal(
+    gemBringsCharacter({
+      visualStyle: 'Ink.',
+      character: 'A round-headed stickman. Outfit: a red sweater.',
+    }),
+    true,
+  )
+  // Sin sección, vacía o con solo espacios (el borrador del modal mientras se
+  // escribe): «genérico» lo sigue inventando Vimo.
+  assert.equal(gemBringsCharacter({ visualStyle: 'Ink.' }), false)
+  assert.equal(
+    gemBringsCharacter({ visualStyle: 'Ink.', character: '' }),
+    false,
+  )
+  assert.equal(
+    gemBringsCharacter({ visualStyle: 'Ink.', character: '  \n ' }),
+    false,
+  )
+  // Una gema vieja no tiene secciones: no se sabe si su texto define uno.
+  assert.equal(gemBringsCharacter(undefined), false)
 })
 
 test('guardar una gema de plantilla: siempre con templateVersion, sin systemPrompt ni shots; sourcePrompt solo si se reconstruyó', () => {

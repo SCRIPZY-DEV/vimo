@@ -680,8 +680,6 @@
       "noSamples": "This style has no samples yet.",
       "characterTitle": "This style's character",
       "characterHint": "Choose who stars in your videos with this style.",
-      "fixedCharacterTitle": "Style's character",
-      "fixedCharacterHint": "The character this style brings.",
       "useButton": "Use in this video"
     },
     "promptModel": {
@@ -719,6 +717,10 @@
         "title": "Generic character (narrative)",
         "subtitle": "Vimo invents one coherent with your script.",
         "help": "Vimo creates a character coherent with your script and uses it as the narrator of the story. Nothing to pick."
+      },
+      "fromStyle": {
+        "title": "Style's character",
+        "subtitle": "The character this style brings."
       },
       "none": {
         "title": "No character",
@@ -778,7 +780,7 @@
         },
         "character": {
           "title": "Style character",
-          "hint": "Only used when you pick “Generic character” above: it's the protagonist of your videos with this style. With “My character” or “No character” it isn't used. Write it in English: physical identity first and, at the end, an “Outfit: …” sentence with the base outfit."
+          "hint": "Your style's own protagonist. With this section written, “Generic character” above becomes “Style's character” and your videos come out with it; with “My character” or “No character” it isn't used. Write it in English: physical identity first and, at the end, an “Outfit: …” sentence with the base outfit."
         },
         "dynamism": {
           "title": "Dynamism",

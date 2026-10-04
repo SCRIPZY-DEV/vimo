@@ -34,6 +34,7 @@ import { useGemTemplateDraft } from '@/modules/videos/hooks/useGemTemplateDraft'
 import { useStyleSampleGeneration } from '@/modules/videos/hooks/useStyleSampleGeneration'
 import { nextCharacterDraft } from '@/modules/videos/utilities/characterDraft'
 import {
+  gemBringsCharacter,
   hasGemText,
   pastedGemSavePayload,
   styleContextGemOf,
@@ -432,6 +433,11 @@ export function CustomStyleModal({
                 value={character}
                 disabled={locked}
                 styleId={styleId}
+                // Con la sección `character` escrita (también mientras se
+                // escribe), «genérico» es el personaje de la gema.
+                fixedCharacter={
+                  templateMode && gemBringsCharacter(gemDraft.sections)
+                }
                 onChange={changeCharacter}
                 onPickCharacter={(current) =>
                   setPicking(current ? [current] : [])

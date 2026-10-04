@@ -528,3 +528,15 @@ hace que las gemas de la casa corran por este mismo carril, y con eso la
   la casa pasaron por el agente y se ajustaron a mano; el dinamismo traduce el contrato del director),
   P12 (etiquetas del admin: «Dinamismo» si y solo si hay `dynamism`, «Personaje fijo» si y solo si hay
   `character`; lo fija `check-catalog-gems.mjs`).
+
+## Nota posterior 2026-10-03 — ajustes de la QA del dueño sobre Mi estilo y el catálogo
+
+Cambios de pantalla que pidió el dueño al probar la Entrega 2. No tocan el sidecar ni el contrato;
+cada uno tiene su informe en `fixes/2026-10-03_*.md`.
+
+- **«Personaje del estilo» también en Mi estilo.** Con la sección `character` escrita, el modo
+  «genérico» teje ese personaje y no diseña otro (spec §5.2). La pantalla ya lo decía en «Ver» del
+  catálogo y ahora lo dice igual en Mi estilo: la opción se llama «Personaje del estilo» en el modal
+  de la gema (sobre el borrador de secciones, así cambia mientras se escribe) y en el chip de
+  personaje de Crear (`gemBringsCharacter`). La spec decía que el bloque «¿Tu estilo lleva
+  personaje?» no cambiaba. Una gema vieja, sin secciones, sigue diciendo «Personaje genérico».

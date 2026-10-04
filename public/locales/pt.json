@@ -680,8 +680,6 @@
       "noSamples": "Este estilo ainda não tem amostras.",
       "characterTitle": "Personagem deste estilo",
       "characterHint": "Escolha quem protagoniza seus vídeos com este estilo.",
-      "fixedCharacterTitle": "Personagem do estilo",
-      "fixedCharacterHint": "O personagem que este estilo traz.",
       "useButton": "Usar neste vídeo"
     },
     "promptModel": {
@@ -719,6 +717,10 @@
         "title": "Personagem genérico (narrativo)",
         "subtitle": "O Vimo inventa um coerente com seu roteiro.",
         "help": "O Vimo cria um personagem coerente com seu roteiro e o usa como narrador da história. Não precisa escolher nada."
+      },
+      "fromStyle": {
+        "title": "Personagem do estilo",
+        "subtitle": "O personagem que este estilo traz."
       },
       "none": {
         "title": "Sem personagem",
@@ -778,7 +780,7 @@
         },
         "character": {
           "title": "Personagem do estilo",
-          "hint": "Só é usado quando você escolhe «Personagem genérico» acima: é o protagonista dos seus vídeos com este estilo. Com «Meu personagem» ou «Sem personagem» não é usado. Vai em inglês: primeiro como ele é fisicamente e, no final, uma frase «Outfit: …» com a roupa base."
+          "hint": "O protagonista próprio do seu estilo. Com esta seção escrita, acima «Personagem genérico» passa a ser «Personagem do estilo» e seus vídeos saem com ele; com «Meu personagem» ou «Sem personagem» não é usado. Vai em inglês: primeiro como ele é fisicamente e, no final, uma frase «Outfit: …» com a roupa base."
         },
         "dynamism": {
           "title": "Dinamismo",

@@ -16,7 +16,10 @@ import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCa
 import { localizedText } from '@/modules/videos/utilities/catalogLocale'
 import { catalogSampleImages } from '@/modules/videos/utilities/catalogSamples'
 import { nextCharacterDraft } from '@/modules/videos/utilities/characterDraft'
-import { styleContextGemOf } from '@/modules/videos/utilities/gemTemplate'
+import {
+  gemBringsCharacter,
+  styleContextGemOf,
+} from '@/modules/videos/utilities/gemTemplate'
 import type { SelectedCharacter } from '@/modules/videos/types/create'
 import type { CharacterDraft } from '@/modules/videos/types/styles'
 import type { CatalogGem } from '@pipeline/types/catalog.ts'
@@ -121,7 +124,7 @@ export function CatalogStyleModal({
                 styleId={gem.id}
                 allowedModes={gem.allowedModes}
                 variant="catalog"
-                fixedCharacter={Boolean(gem.sections.character)}
+                fixedCharacter={gemBringsCharacter(gem.sections)}
                 onChange={changeCharacter}
                 onPickCharacter={(current) =>
                   setPicking(current ? [current] : [])

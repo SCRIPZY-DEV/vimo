@@ -232,6 +232,16 @@ export function hasGemText(gem: GemTextSource): boolean {
   return (gem.systemPrompt ?? '').trim().length > 0
 }
 
+/**
+ * ¿La gema trae su propio personaje? Sí cuando su sección `character` tiene
+ * texto: ahí «genérico» es ESE personaje (el sidecar lo teje sin diseñar otro,
+ * spec §5.2) y la pantalla lo llama «Personaje del estilo». Una gema vieja no
+ * tiene secciones: no se sabe, y «genérico» lo sigue inventando Vimo.
+ */
+export function gemBringsCharacter(sections: GemSections | undefined): boolean {
+  return Boolean(sections?.character?.trim())
+}
+
 /** Caracteres de la gema: las secciones limpias sumadas, o el texto de una vieja. */
 export function gemCharCount(gem: GemTextSource): number {
   if (gem.sections) return gemSectionsLength(cleanGemSections(gem.sections))
