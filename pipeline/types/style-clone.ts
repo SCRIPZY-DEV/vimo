@@ -1,6 +1,10 @@
 import type { CharacterSummary } from './characters.ts'
 import type { ImageProviderId } from './image-provider.ts'
-import type { CustomStyleSummary, GemSections } from './styles.ts'
+import type {
+  CustomStyleSummary,
+  GemSections,
+  StyleCharacterMode,
+} from './styles.ts'
 
 // Dominio del creador de estilo con IA (ADR-0050): clonar un estilo visual
 // desde un video de YouTube o desde imágenes del usuario. Browser-safe: la UI
@@ -116,6 +120,12 @@ export interface StyleCloneDrawProgressDetail {
   errorCode?: string
 }
 
+// Cómo queda un estilo clonado que no replicó a un personaje: en «Personaje
+// genérico», o en «Sin personaje» si el original no muestra ninguno (un canal
+// de diagramas). «Mi personaje» no es una opción acá: es lo que pasa cuando la
+// clonación sí replicó uno.
+export type StyleCloneCharacterMode = Exclude<StyleCharacterMode, 'own'>
+
 export interface StyleCloneSavePayload {
   sessionId: string
   name: string
@@ -123,8 +133,11 @@ export interface StyleCloneSavePayload {
   templateVersion: number
   // Las clonaciones aprobadas, en orden: pasan a ser las muestras del estilo.
   samples: string[]
-  // Ausente = el estilo queda en «Personaje genérico».
+  // El personaje clonado: el estilo lo trae por defecto en «Mi personaje».
   character?: StyleCloneCharacter
+  // Solo cuenta sin `character`: el modo que sugirió el servidor para este
+  // estilo. Ausente = «Personaje genérico».
+  characterMode?: StyleCloneCharacterMode
 }
 
 export interface StyleCloneSaveResult {

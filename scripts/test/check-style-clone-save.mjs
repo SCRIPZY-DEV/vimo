@@ -4,8 +4,10 @@
 // origen `ai-clone`. Si la clonación replicó al personaje, se crea en la
 // biblioteca —con el diseño como foto, o sin foto y con el diseño como su
 // retrato del estilo nuevo— y el estilo lo trae por defecto en «Mi
-// personaje». Todo se valida antes de tocar el disco y un guardado que falla
-// no deja ni un estilo ni un personaje a medias. Sin red: disco temporal.
+// personaje»; sin personaje replicado queda en «Personaje genérico», o en
+// «Sin personaje» si el original no muestra ninguno. Todo se valida antes de
+// tocar el disco y un guardado que falla no deja ni un estilo ni un personaje
+// a medias. Sin red: disco temporal.
 
 import assert from 'node:assert/strict'
 import {
@@ -189,6 +191,29 @@ test('the character section never travels in a cloned style', async (t) => {
   assert.equal(entry.sections.visualStyle, sections.visualStyle)
 })
 
+test('a clone of an original that shows no characters is saved as a style without a character', async (t) => {
+  const { root } = await session(t)
+
+  const { entry, character: created } = await save(root, {
+    characterMode: 'none',
+  })
+
+  assert.deepEqual(entry.character, { mode: 'none' })
+  assert.equal(created, undefined)
+  assert.deepEqual((await storedStyle(root, entry.id)).character, {
+    mode: 'none',
+  })
+  assert.equal(await exists(join(root, 'characters')), false)
+})
+
+test('a clone can say out loud that it keeps the generic character', async (t) => {
+  const { root } = await session(t)
+
+  const { entry } = await save(root, { characterMode: 'generic' })
+
+  assert.deepEqual(entry.character, { mode: 'generic' })
+})
+
 // ── El personaje ──
 
 test('a photo character is created with the design as its photo and set as the default', async (t) => {
@@ -243,6 +268,20 @@ test('a prompt-identity character has no photo and keeps the design as its portr
   ])
 })
 
+test('a cloned character is the default of its style whatever mode was suggested', async (t) => {
+  const { root } = await session(t)
+
+  const { entry, character: created } = await save(root, {
+    character: character('text'),
+    characterMode: 'none',
+  })
+
+  assert.deepEqual(entry.character, {
+    mode: 'own',
+    defaultCharacterId: created.id,
+  })
+})
+
 // ── Rechazos ──
 
 for (const [name, extra] of [
@@ -260,6 +299,8 @@ for (const [name, extra] of [
   ['more than four samples', { samples: [...SCENES, DESIGN] }],
   ['a repeated sample', { samples: [SCENES[0], SCENES[0]] }],
   ['a sample outside the session', { samples: ['../../secret.jpg'] }],
+  ['a character mode that is not one of a clone', { characterMode: 'own' }],
+  ['a character mode that does not exist', { characterMode: 'nobody' }],
   ['a travel mode that does not exist', { character: character('video') }],
   [
     'a character without a name',

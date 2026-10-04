@@ -58,7 +58,7 @@ referencia `/Users/sebas/Documents/crear-estilo-ia/` (fuera del repo, no se comm
 | B3  | Todas las secciones del estilo clonado se escriben en inglés. El usuario puede editarlas en cualquier idioma.                                                                                                                                                  | Recomendación aceptada |
 | B4  | Sin tope diario de clonaciones, como Imperio Pro. Queda una variable en vimo.click para encender uno sin sacar versión.                                                                                                                                        | Dueño                  |
 | C1  | Ritual completo de Imperio Pro: diseños del personaje, elegir, escenas de prueba, comentarios en cada paso y aprobar.                                                                                                                                          | Dueño                  |
-| C2  | Una pregunta de sí o no: «¿Replicamos el personaje del video?». Sí: 3 diseños (el 1 fiel al original). No: el estilo queda en «Personaje genérico».                                                                                                            | Dueño                  |
+| C2  | Una pregunta de sí o no: «¿Replicamos el personaje del video?». Sí: 3 diseños (el 1 fiel al original). No: el estilo queda en «Personaje genérico», o en «Sin personaje» si el original no muestra ninguno (2026-10-04).                                       | Dueño                  |
 | C3  | Tras elegir el diseño, el usuario decide cómo viaja: «Identidad de prompt» (texto, gasta menos) o «Con foto» (la imagen del diseño como referencia). En los dos casos se crea el personaje en su biblioteca y el estilo lo trae por defecto en «Mi personaje». | Dueño                  |
 | C4  | Las escenas de prueba se dibujan de la forma elegida en C3, para que el usuario vea lo que va a obtener.                                                                                                                                                       | Dueño                  |
 | C5  | 4 escenas de prueba (las 4 muestras del estilo) y 3 diseños de personaje.                                                                                                                                                                                      | Dueño                  |
@@ -159,13 +159,13 @@ que falla se repite sin perder los anteriores.
 códigos, tiempos y variables) está en `SETUP_CREADOR_ESTILO_IA.md` de `vimo-landing`, rama
 `feat/creador-estilo-ia`. Lo esencial:
 
-| `accion`            | Devuelve                                                                           |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `analizar`          | `nombre`, `descripcion`, `fase` y `disenos` (3) con `personajeEn`, o `escenas` (4) |
-| `ajustar-personaje` | `disenos` (3)                                                                      |
-| `elegir-personaje`  | `identidad: { nombre, descripcion }` y `escenas` (4) con la etiqueta `[subject]`   |
-| `ajustar-escenas`   | `escenas` (4)                                                                      |
-| `aprobar`           | `templateVersion` y `sections`                                                     |
+| `accion`            | Devuelve                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `analizar`          | `nombre`, `descripcion`, `fase` y `disenos` (3) con `personajeEn`, o `escenas` (4)                                                |
+| `ajustar-personaje` | `disenos` (3)                                                                                                                     |
+| `elegir-personaje`  | `identidad: { nombre, descripcion }` y `escenas` (4) con la etiqueta `[subject]`                                                  |
+| `ajustar-escenas`   | `escenas` (4)                                                                                                                     |
+| `aprobar`           | `templateVersion` y `sections`; `suggestions: { characterMode: "none" }` si el original no muestra personajes y no se replicó uno |
 
 - Cada escena es `{ prompt, origen }`. `origen` dice qué imagen del material recrea: una celda de un
   mosaico, un fotograma, una imagen del usuario o `nueva` (ninguna en concreto).
@@ -341,6 +341,30 @@ Pedido del dueño después de ver las primeras pruebas: la clonación es fiel a 
   hace.
 - En `vimo-landing`: `084223b` y `94a88ce` (PR #15), publicado en `main` @ `50e3d33`.
 
+### Un estilo sin personajes queda en «Sin personaje» (2026-10-04)
+
+Pedido del dueño después de clonar un canal de diagramas: el interruptor del estilo guardado quedó
+en «Personaje genérico», y así Vimo le suma un protagonista que el estilo no tiene. Informe:
+`fixes/2026-10-04_style-clone-no-character-default.md`.
+
+- **El análisis dice si las escenas muestran personajes**, en una línea propia debajo de la variedad
+  del canal: «PERSONAS EN ESCENA: SÍ» o «NO». Cuentan las personas, los animales y las criaturas
+  que hacen algo en la escena, aunque sean de palitos o distintos en cada escena. Un pictograma (el
+  ícono de usuario de un diagrama, un emoji) no cuenta. La línea solo mide: no cambia la ficha ni
+  los prompts.
+- **Al aprobar,** si la línea dijo NO y no se replicó un personaje, la respuesta trae
+  `suggestions: { characterMode: "none" }`. La app lo guarda con el estilo final
+  (`characterMode` de la sesión) y `style-clone-save` deja el estilo en `{ mode: 'none' }`.
+- **Si hay personajes, o no se sabe, queda en genérico**, como antes: un servidor anterior, una
+  sesión analizada antes de este cambio o una línea que no dice ni SÍ ni NO. Nunca se adivina.
+- **Con personaje replicado** el estilo sigue en «Mi personaje» con el suyo, diga lo que diga la
+  línea.
+- Es el valor inicial del interruptor: el usuario lo cambia como en cualquier estilo.
+- Medido con análisis reales de los tres videos que el dueño clonó ese día: el canal de diagramas
+  dijo NO en 3 corridas de 3; el de figuras de palitos y el de cómic dijeron SÍ.
+- En `vimo-landing`: `cb15627` (rama `feat/creador-estilo-sin-personajes`), **sin publicar**: hasta
+  que se publique, la app nueva deja estos estilos en genérico.
+
 ## 7. Las pruebas de imágenes
 
 - Las dibuja `style-clone-draw` con el proveedor de imágenes del usuario (Evolink o Fal), en calidad
@@ -407,7 +431,8 @@ stateDiagram-v2
   las 4 clonaciones como muestras, el bloque de personaje y un `origin` nuevo
   `{ kind: 'ai-clone', source: 'youtube' | 'images', videoUrl? }`, que el sidecar lee del material de
   la sesión (no del webview).
-  - Sin replicar personaje: `character: { mode: 'generic' }`.
+  - Sin replicar personaje: `character: { mode: 'generic' }`, o `{ mode: 'none' }` si el original
+    no muestra personajes (§6, «Un estilo sin personajes queda en «Sin personaje»»).
   - Replicando: `character: { mode: 'own', defaultCharacterId }`.
 - **El personaje**, en `characters/<id>/`, con el nombre que propone la IA (editable) y la identidad en
   inglés.
@@ -512,7 +537,8 @@ Orden propuesto:
 2. **Desplegar el servidor** (hecho el 2026-10-03, con la aprobación del dueño): SQL, variables,
    push, PR #13 y merge a `main`. El CPU de la Function se midió el 2026-10-04 con la primera
    clonación real (§17). Ese día se publicaron además las mejoras del analizador (PR #14) y la
-   fidelidad de las pruebas (PR #15); `main` quedó en `50e3d33`.
+   fidelidad de las pruebas (PR #15); `main` quedó en `50e3d33`. Queda sin publicar la sugerencia
+   «sin personaje» (`cb15627`, rama `feat/creador-estilo-sin-personajes`).
 3. **Sidecar** (hecho): los cuatro subcomandos. No dependen de la app; sí del guardado con secciones.
 4. **App** (hecho): la card, el modal, el administrador de sesiones y la comparación. Quedan para
    después arrastrar imágenes al modal y un aviso fuera de la pestaña Mi estilo.

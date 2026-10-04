@@ -11,6 +11,7 @@ import type { CharacterSummary } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type {
   StyleCloneCharacter,
+  StyleCloneCharacterMode,
   StyleCloneSavePayload,
   StyleCloneSaveResult,
 } from '../../types/style-clone.ts'
@@ -49,6 +50,11 @@ import {
 
 // Las muestras de un estilo de Mi estilo: las 4 escenas de prueba aprobadas.
 const CLONE_SAMPLE_LIMIT = 4
+// Cómo puede quedar un estilo clonado sin personaje replicado.
+const CLONE_CHARACTER_MODES: readonly StyleCloneCharacterMode[] = [
+  'generic',
+  'none',
+]
 
 interface CloneSave {
   sessionId: string
@@ -57,6 +63,7 @@ interface CloneSave {
   templateVersion: number
   samples: string[]
   character?: StyleCloneCharacter
+  characterMode: StyleCloneCharacterMode
 }
 
 interface CreatedCharacter {
@@ -75,9 +82,11 @@ interface CreatedCharacter {
 // como su foto (viaja como referencia en todos los estilos, ADR-0033);
 // «identidad de prompt», sin foto y con el diseño como su retrato del estilo
 // nuevo (se ve en su tarjeta y no viaja: ADR-0021, enmienda del 2026-10-02).
-// Sin personaje, el estilo queda en «Personaje genérico». La sección
-// `character` no se guarda nunca: «genérico» siempre significa diseñarlo desde
-// el guion.
+// Sin personaje replicado, el estilo queda en el modo que sugirió el servidor:
+// «Sin personaje» si el original no muestra ninguno (un canal de diagramas: en
+// genérico Vimo le sumaría un protagonista que el estilo no tiene) y, si no
+// sugirió nada, «Personaje genérico». La sección `character` no se guarda
+// nunca: «genérico» siempre significa diseñarlo desde el guion.
 //
 // Todo se valida y se lee antes de tocar el disco. Las muestras y el personaje
 // se escriben primero y style.json al final (como catalog-style-copy): hasta
@@ -126,7 +135,7 @@ export async function styleCloneSave(
       shots: [],
       character: created
         ? { mode: 'own', defaultCharacterId: created.id }
-        : { mode: 'generic' },
+        : { mode: save.characterMode },
       createdAt: now,
       updatedAt: now,
     }
@@ -196,6 +205,12 @@ function readPayload(value: unknown): CloneSave {
       )
   }
 
+  const characterMode = payload.characterMode ?? 'generic'
+  if (!CLONE_CHARACTER_MODES.includes(characterMode))
+    invalid(
+      `payload.characterMode must be one of ${CLONE_CHARACTER_MODES.join(', ')}`,
+    )
+
   return {
     sessionId: payload.sessionId,
     name,
@@ -203,6 +218,7 @@ function readPayload(value: unknown): CloneSave {
     templateVersion: payload.templateVersion,
     samples,
     ...(character ? { character } : {}),
+    characterMode,
   }
 }
 

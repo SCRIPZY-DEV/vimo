@@ -270,6 +270,36 @@ test('the final style arrives as sections with their version', () => {
   })
 })
 
+test('the final style says when its original shows no characters', () => {
+  const approved = (suggestions) =>
+    readStyleCloneTurnResult({
+      tipo: 'resultado',
+      accion: 'aprobar',
+      templateVersion: 1,
+      sections: { visualStyle: 'Flat diagrams.', promptEnd: 'Style: flat.' },
+      ...(suggestions === undefined ? {} : { suggestions }),
+      turnos,
+    })
+
+  assert.equal(approved({ characterMode: 'none' }).characterMode, 'none')
+  assert.equal(approved({ characterMode: 'generic' }).characterMode, 'generic')
+  // Sin sugerencia (un servidor anterior) o con una que no es de una
+  // clonación, el estilo final se usa igual y no trae modo.
+  for (const suggestions of [
+    undefined,
+    null,
+    {},
+    'none',
+    { characterMode: 'own' },
+    { characterMode: 'nobody' },
+    { characterMode: ['none'] },
+  ]) {
+    const result = approved(suggestions)
+    assert.equal(result.templateVersion, 1, JSON.stringify(suggestions))
+    assert.equal('characterMode' in result, false, JSON.stringify(suggestions))
+  }
+})
+
 test('an answer that does not keep the contract is not used', () => {
   const ok = {
     tipo: 'resultado',

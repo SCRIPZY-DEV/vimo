@@ -695,7 +695,7 @@
       "characterYes": "Sim",
       "characterNo": "Não",
       "characterYesHint": "A IA propõe 3 designs, você escolhe um e ele fica salvo nos seus personagens como o personagem deste estilo.",
-      "characterNoHint": "O estilo fica com personagem genérico. Você pode colocar um depois, como em qualquer estilo.",
+      "characterNoHint": "O estilo fica com personagem genérico, ou sem personagem se o original não mostra nenhum. Você pode colocar um depois, como em qualquer estilo.",
       "providerQuestion": "Com qual provedor os testes são desenhados?",
       "costNote": "A análise é coberta pelo Vimo. As imagens de teste são pagas com o seu saldo de {{provider}}.",
       "providerRequired": "Configure uma chave do Evolink ou do Fal para desenhar os testes.",

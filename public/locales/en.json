@@ -695,7 +695,7 @@
       "characterYes": "Yes",
       "characterNo": "No",
       "characterYesHint": "The AI proposes 3 designs, you pick one and it is saved in your characters as the character of this style.",
-      "characterNoHint": "The style keeps a generic character. You can give it one later, like any style.",
+      "characterNoHint": "The style keeps a generic character, or none if the original shows no characters. You can give it one later, like any style.",
       "providerQuestion": "Which provider draws the tests?",
       "costNote": "Vimo covers the analysis. The test images are paid with your {{provider}} balance.",
       "providerRequired": "Set up an Evolink or Fal key to draw the tests.",

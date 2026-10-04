@@ -101,8 +101,10 @@ el servidor no guarda estado ni va a YouTube.**
   `{ mode: 'own', defaultCharacterId }`. «Con foto»: el diseño es su `photoFile` (viaja como
   referencia en todos los estilos, ADR-0033). «Identidad de prompt»: sin foto, con el diseño como su
   preview del estilo nuevo, que se ve en su tarjeta y no viaja (ADR-0021, enmienda del 2026-10-02).
-- **Sin personaje:** `{ mode: 'generic' }`. La sección `character` no se guarda nunca, así
-  «Personaje genérico» siempre significa diseñarlo desde el guion.
+- **Sin personaje replicado:** `{ mode: 'generic' }`, o `{ mode: 'none' }` si el servidor sugirió
+  «sin personaje» porque el original no muestra ninguno (`characterMode` del payload; ver «Un estilo
+  que no muestra personajes» más abajo). La sección `character` no se guarda nunca, así «Personaje
+  genérico» siempre significa diseñarlo desde el guion.
 - Todo se valida y se lee antes de tocar el disco; `style.json` se escribe al final. Un guardado que
   falla a mitad borra lo que alcanzó a escribir y deja la sesión para reintentar; uno que sale bien
   la borra.
@@ -150,6 +152,20 @@ misma cantidad de personas. Un fotograma de una sola escena sale como una sola i
 es una pantalla dividida o un collage en el video se recrea con esa misma división, escrita dentro
 de la escena y nunca en la ficha. En el estilo final, `rules` divide el cuadro solo donde el canal
 lo hace.
+
+**Un estilo que no muestra personajes queda en «Sin personaje» (2026-10-04).** Sin personaje
+replicado, un estilo clonado quedaba siempre en «Personaje genérico», y ahí Vimo diseña un
+protagonista para cada video: en un canal de diagramas le sumaba uno que el estilo no tiene. Nada de
+lo que devolvía el análisis decía si el video muestra personajes (en ese canal la ficha describió el
+ícono de usuario de los diagramas como la anatomía de las personas), así que el análisis lo dice en
+una línea propia, «PERSONAS EN ESCENA: SÍ/NO», donde un pictograma no cuenta como personaje. Al
+aprobar, si la línea dijo NO y no se replicó un personaje, el servidor suma
+`suggestions: { characterMode: 'none' }` a su respuesta (la forma que ya usa el reconstructor de
+gemas); la app lo guarda con el estilo final y `style-clone-save` deja el estilo en
+`{ mode: 'none' }`. Es el valor inicial del interruptor: el usuario lo cambia como en cualquier
+estilo. Sin la sugerencia (un servidor anterior, una sesión analizada antes, o una línea que no dice
+ni SÍ ni NO) el estilo queda en genérico, como antes
+(`fixes/2026-10-04_style-clone-no-character-default.md`).
 
 ### La app: sesiones que siguen sin el modal
 

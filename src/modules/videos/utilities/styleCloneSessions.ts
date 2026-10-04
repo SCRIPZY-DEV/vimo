@@ -16,6 +16,7 @@ import type {
   StyleCloneDrawKind,
   StyleCloneDrawProgressDetail,
   StyleCloneDrawnItem,
+  StyleCloneSavePayload,
 } from '@pipeline/types/style-clone.ts'
 import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
@@ -302,6 +303,7 @@ export function createStyleCloneSessions(
     if (result.sections && result.templateVersion) {
       changes.sections = result.sections
       changes.templateVersion = result.templateVersion
+      changes.characterMode = result.characterMode ?? null
     }
     return changes
   }
@@ -338,6 +340,18 @@ export function createStyleCloneSessions(
       description: identity.description,
       designFile,
     }
+  }
+
+  // Con qué personaje se guarda el estilo: el clonado o, sin uno, el modo que
+  // sugirió el servidor. Sin ninguno de los dos queda en «Personaje genérico».
+  const savedCharacterOf = (
+    session: StyleCloneSession,
+  ): Pick<StyleCloneSavePayload, 'character' | 'characterMode'> => {
+    const character = characterOf(session)
+    if (character) return { character }
+    if (session.characterMode) return { characterMode: session.characterMode }
+
+    return {}
   }
 
   // Qué se dibuja en esta fase: la ronda que acaba de llegar, o las pruebas
@@ -414,7 +428,6 @@ export function createStyleCloneSessions(
       setPhase(session, 'turn')
       return
     }
-    const character = characterOf(session)
     const result = await steps.save({
       sessionId: session.id,
       name: session.name,
@@ -423,7 +436,7 @@ export function createStyleCloneSessions(
       samples: session.scenes.flatMap((scene) =>
         scene.file ? [scene.file] : [],
       ),
-      ...(character ? { character } : {}),
+      ...savedCharacterOf(session),
     })
     if (!alive()) return
     remove(session.id, { sessionId: session.id, entry: result.entry })
@@ -530,6 +543,7 @@ export function createStyleCloneSessions(
         scenesRound: 0,
         sections: null,
         templateVersion: null,
+        characterMode: null,
         errorCode: null,
         rejectedImages: [],
       }
@@ -554,7 +568,7 @@ export function createStyleCloneSessions(
         // Un turno nuevo descarta el estilo final que hubiera: se aprueba otra
         // conversación.
         ...(next.phase === 'turn'
-          ? { sections: null, templateVersion: null }
+          ? { sections: null, templateVersion: null, characterMode: null }
           : {}),
       })
       void run(sessionId)

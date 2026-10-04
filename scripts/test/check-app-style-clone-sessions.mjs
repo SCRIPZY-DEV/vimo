@@ -71,6 +71,8 @@ function world({ storage = null } = {}) {
     drawErrors: {},
     rejected: [],
     rounds: { designs: 0, scenes: 0 },
+    // El modo de personaje que sugiere el servidor con el estilo final.
+    characterMode: null,
   }
   const stored = { value: storage }
   const waitIfHeld = async (step) => {
@@ -144,7 +146,12 @@ function world({ storage = null } = {}) {
           scenes: scenePrompts(state.rounds.scenes),
         }
       }
-      return { turns, sections: SECTIONS, templateVersion: 1 }
+      return {
+        turns,
+        sections: SECTIONS,
+        templateVersion: 1,
+        ...(state.characterMode ? { characterMode: state.characterMode } : {}),
+      }
     },
     async draw(payload, onProgress) {
       calls.draws.push(payload)
@@ -396,7 +403,52 @@ test('a style without a character is saved without one', async () => {
   await settle(store, id)
 
   assert.equal(calls.saves[0].character, undefined)
+  // Sin sugerencia del servidor no viaja ningún modo: queda en genérico.
+  assert.equal('characterMode' in calls.saves[0], false)
   assert.equal(calls.saves[0].name, 'Cómic Palo')
+})
+
+test('a style whose original shows no characters is saved without one', async () => {
+  const { store, calls, state, id } = await started({
+    replicateCharacter: false,
+  })
+  state.characterMode = 'none'
+
+  store.respond(id, { kind: 'approve' })
+  await settle(store, id)
+
+  assert.equal(calls.saves[0].characterMode, 'none')
+  assert.equal(calls.saves[0].character, undefined)
+})
+
+test('a cloned character is saved without the mode the server suggested', async () => {
+  const { store, calls, state, id } = await started()
+  store.respond(id, { kind: 'choose-character', option: 1, travel: 'text' })
+  await settle(store, id)
+  state.characterMode = 'none'
+
+  store.respond(id, { kind: 'approve' })
+  await settle(store, id)
+
+  assert.equal(calls.saves[0].character.travel, 'text')
+  assert.equal('characterMode' in calls.saves[0], false)
+})
+
+test('a save that fails is retried with the mode the server suggested', async () => {
+  const context = await started({ replicateCharacter: false })
+  const { id } = context
+  context.state.characterMode = 'none'
+  context.state.fail.save = 'style_save_failed'
+
+  context.store.respond(id, { kind: 'approve' })
+  const failed = await settle(context.store, id)
+  assert.equal(failed.characterMode, 'none')
+
+  context.store.retry(id)
+  await settle(context.store, id)
+
+  assert.equal(context.calls.saves.length, 2)
+  assert.equal(context.calls.saves[1].characterMode, 'none')
 })
 
 test('a character the AI left unnamed takes the name of the style', async () => {

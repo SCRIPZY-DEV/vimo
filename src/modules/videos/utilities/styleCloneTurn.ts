@@ -8,6 +8,7 @@ import type {
   StyleCloneTurnResult,
 } from '@/modules/videos/types/styleClone'
 import type {
+  StyleCloneCharacterMode,
   StyleCloneMaterialItem,
   StyleCloneOrigin,
 } from '@pipeline/types/style-clone.ts'
@@ -191,6 +192,19 @@ function readSections(value: unknown): GemSections | null {
   return sections
 }
 
+// Cómo sugiere el servidor que quede el personaje de un estilo que no replicó
+// uno: «Sin personaje» si el original no muestra ninguno. Lo que no se entiende
+// no es una sugerencia: el estilo queda en «Personaje genérico», como siempre.
+function readSuggestedCharacterMode(
+  value: unknown,
+): StyleCloneCharacterMode | null {
+  if (!isRecord(value)) return null
+  const mode = value.characterMode
+  if (mode === 'none' || mode === 'generic') return mode
+
+  return null
+}
+
 const readText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : ''
 
@@ -248,7 +262,13 @@ export function readStyleCloneTurnResult(
   if (line.accion === 'aprobar') {
     const sections = readSections(line.sections)
     if (!sections || !isPosition(line.templateVersion)) return null
-    return { turns, sections, templateVersion: line.templateVersion }
+    const characterMode = readSuggestedCharacterMode(line.suggestions)
+    return {
+      turns,
+      sections,
+      templateVersion: line.templateVersion,
+      ...(characterMode ? { characterMode } : {}),
+    }
   }
 
   return null

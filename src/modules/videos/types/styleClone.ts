@@ -1,5 +1,6 @@
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
+  StyleCloneCharacterMode,
   StyleCloneCharacterTravel,
   StyleCloneDrawKind,
   StyleCloneDrawPayload,
@@ -110,6 +111,10 @@ export interface StyleCloneSession {
   // falla se reintenta sin pagar otro turno.
   sections: GemSections | null
   templateVersion: number | null
+  // El modo de personaje que sugirió el servidor con el estilo final: «Sin
+  // personaje» si el original no muestra ninguno. null = no sugirió nada (el
+  // estilo queda en «Personaje genérico»). Solo cuenta si no se replicó uno.
+  characterMode: StyleCloneCharacterMode | null
   errorCode: string | null
   // Con `style_clone_invalid_images`: posiciones (desde 1) de las inválidas.
   rejectedImages: number[]
@@ -186,6 +191,8 @@ export interface StyleCloneTurnResult {
   identity?: StyleCloneIdentity
   sections?: GemSections
   templateVersion?: number
+  // Con el estilo final, si el servidor sugiere cómo queda su personaje.
+  characterMode?: StyleCloneCharacterMode
 }
 
 // ─── Lo que el store necesita de afuera ───
