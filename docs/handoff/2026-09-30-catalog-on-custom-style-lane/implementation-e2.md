@@ -275,8 +275,9 @@ local y no se versiona. Falta el recorrido del dueño en la app.
 **Lo que el dueño pidió y no está en estos commits:** editar las gemas del catálogo y sus etiquetas
 desde la app con su cuenta de admin. No es un fallo de la cuenta: las 38 gemas viven en el código
 (`pipeline/prompts/catalog-gems/`) y la edición desde la app es la Entrega 3 del diseño (catálogo en
-Supabase, endpoints de admin en `vimo-landing` y su pantalla), que no está construida. Queda a la
-espera de que el dueño decida el alcance.
+Supabase, endpoints de admin en `vimo-landing` y su pantalla), que no está construida. El
+2026-10-04 el dueño dio el sí para planearla y pidió sumar que el admin pueda añadir gemas: el plan
+está en [plan-e3.md](plan-e3.md) y espera su aprobación.
 
 ### Segunda tanda, el mismo día
 
