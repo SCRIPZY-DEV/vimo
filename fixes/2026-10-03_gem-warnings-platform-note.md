@@ -33,7 +33,8 @@ su cuenta y suma sus reglas de formato de salida y de idioma a cada pedido.
 - La línea no nombra el rol del modelo. El marco de Vimo trae reglas de formato, idioma, seguridad
   y orden del prompt, pero no una línea de rol («Eres un director de arte…»). Sumarla cambia el
   `system` de todos los videos con gemas de plantilla: es una decisión aparte del dueño, anotada en
-  el traspaso de la Entrega 2.
+  el traspaso de la Entrega 2. (El dueño la tomó el 2026-10-04 y el marco ya abre con el rol:
+  `2026-10-04_template-frame-role-line.md`. El texto del aviso no cambió.)
 - El aviso de la galería (`GemMigrationNotice`) no cambia: ya manda a abrir el estilo para ver lo
   que ajustó la IA.
 

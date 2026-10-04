@@ -583,8 +583,9 @@ copia la gema en `options.customStyle` (`sections`, `templateVersion` y `colorFi
 una gema vieja lleva `systemPrompt`, nunca los dos). Al generar, el sidecar la
 envuelve con el **marco de Vimo** (`pipeline/prompts/template-frame.ts`):
 `buildTemplateSystem` arma el `system` con que el carril escribe los lotes de prompts
-(su Fase 2; la Fase 1 diseña al protagonista desde el guion) con las secciones, la
-seguridad de contenido, el formato de salida y las reglas de plataforma de siempre, y
+(su Fase 2; la Fase 1 diseña al protagonista desde el guion): el rol del modelo, las
+secciones, la seguridad de contenido, el formato de salida y las reglas de plataforma de
+siempre; y
 `composeGemText` arma la gema como texto para lo que no escribe escenas (la Fase 1, el
 diseño y el preview de personajes y el respaldo de imágenes). La sección `character`
 nunca entra al `system`: el modo de personaje decide si viaja y cómo.

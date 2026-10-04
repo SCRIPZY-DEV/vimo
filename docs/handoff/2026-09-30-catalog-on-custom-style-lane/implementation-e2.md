@@ -295,16 +295,18 @@ con el mismo arnés de Chrome, ahora con el formulario dentro del contenedor que
 (`<main>`): 35 comprobaciones en verde. Falta el recorrido del dueño en la app, que corre sobre
 WebKit.
 
-**Pregunta abierta del dueño: el rol al inicio del `system`.** El dueño preguntó si el prompt de
-sistema debería abrir con el rol de su gema («Eres un Director de Arte y Prompt Engineer experto en
-IA visual» y su «REGLA MAESTRA» de solo texto) o si funciona bien sin eso. Hoy el marco
-(`buildTemplateSystem`) no manda ninguna línea de rol: abre con `# VISUAL STYLE`, y el agente
-descarta el rol junto con las reglas de flujo. No se cambió, por tres razones: las muestras de las
-33 gemas nuevas salieron de este mismo marco; la regla de solo texto es de un Gem de chat (acá el
-modelo se llama por API, solo devuelve texto, y los prompts los manda Vimo al generador); y sumar
-una regla al marco cambia todos los videos nuevos, así que se mide antes de entrar, como las demás
-(ADR-0019). Si el dueño la quiere igual, es una línea al inicio del marco, con su nota en la
-ADR-0048 y su comparación con claves reales.
+**Pregunta del dueño, resuelta el 2026-10-04: el rol al inicio del `system`.** El 2026-10-03 el
+dueño preguntó si el prompt de sistema debería abrir con el rol de su gema («Eres un Director de
+Arte y Prompt Engineer experto en IA visual» y su «REGLA MAESTRA» de solo texto) o si funciona bien
+sin eso. Ese día no se cambió: el marco (`buildTemplateSystem`) abría con `# VISUAL STYLE`, las
+muestras de las 33 gemas nuevas habían salido así, la regla de solo texto es de un Gem de chat (acá
+el modelo se llama por API, solo devuelve texto, y los prompts los manda Vimo al generador) y una
+regla nueva en el marco cambia todos los videos. Al día siguiente el dueño decidió sumarlo «para
+estar seguros». El marco abre ahora con `FRAME_ROLE_LINE` (commit `feat(pipeline): open the gem
+frame with the role of the model`, informe `fixes/2026-10-04_template-frame-role-line.md`, nota del
+2026-10-04 de la ADR-0048). **Es el único cambio de esta tanda que toca el sidecar:** para verlo hay
+que reiniciar `pnpm tauri dev`. No se midió con claves reales antes de entrar: la medición es la QA
+de generación del dueño.
 
 ## Integración con `dev` y con la rama hermana
 
@@ -324,6 +326,14 @@ Verificado el 2026-10-03 con `git merge-tree` (solo lectura; no se mergeó ni se
   vieja (el retrato del estilo viaja como imagen de referencia).
 
 El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el dueño.
+
+**Guards que ya fallan en `dev`.** Verificado el 2026-10-04 contra `origin/dev` (`7cf81422`): seis
+guards provisorios fallan igual ahí que en esta rama, así que no son de esta entrega.
+`check-editor-character-selection.mjs` y `check-style-character-video.mjs` no contestan la revisión
+de correspondencia narrativa (ADR-0043) y caen con `scene_prompt_alignment_failed`;
+`check-silent-scene-images.mjs`, `check-api-key-ui.mjs`, `check-editor-character-ui.mjs` y
+`check-export-header-ui.mjs` fallan por sus propias aserciones. Los guards de la app, el catálogo,
+las gemas y el carril verbatim (433) están en verde.
 
 ## Pendientes y pasos del dueño
 
