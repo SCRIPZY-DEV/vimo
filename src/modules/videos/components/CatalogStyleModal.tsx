@@ -46,13 +46,14 @@ interface CatalogStyleModalProps {
   onClose: () => void
 }
 
-// «Ver» de un estilo del catálogo (Entrega 2): sus muestras, sus etiquetas y
-// el modo de personaje, solo con los modos que permite. No muestra el texto de
-// la gema (decisión E2-D3). Cada cambio de modo se recuerda al toque; «Usar
-// en este video» lo pone en el formulario y «Pasar a mi estilo» crea una copia
-// propia con el modo elegido. Regla de modales del origen: nunca dos Radix
-// abiertos — mientras se elige el personaje fijo, este se ESCONDE en vez de
-// apilarse, como el modal de Mi estilo.
+// «Ver» de un estilo del catálogo (Entrega 2): sus etiquetas, el modo de
+// personaje (solo con los modos que permite) y sus muestras, en el mismo orden
+// que el modal de Mi estilo: el personaje se elige arriba, antes de las
+// muestras. No muestra el texto de la gema (decisión E2-D3). Cada cambio de modo se
+// recuerda al toque; «Usar en este video» lo pone en el formulario y «Pasar a
+// mi estilo» crea una copia propia con el modo elegido. Regla de modales del
+// origen: nunca dos Radix abiertos — mientras se elige el personaje fijo, este
+// se ESCONDE en vez de apilarse, como el modal de Mi estilo.
 export function CatalogStyleModal({
   gem,
   initialCharacter,
@@ -114,16 +115,6 @@ export function CatalogStyleModal({
               diálogo solo podría moverse dentro de su propia fila. */}
           <div>
             <div className="space-y-4">
-              {images.length > 0 ? (
-                <StyleSamplesCarousel images={images} name={name} />
-              ) : (
-                <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
-                  <p className="px-6 font-body text-sm text-muted-foreground">
-                    {t('create.catalog.noSamples')}
-                  </p>
-                </div>
-              )}
-
               <StyleCharacterBlock
                 value={character}
                 disabled={copying}
@@ -136,6 +127,16 @@ export function CatalogStyleModal({
                   setPicking(current ? [current] : [])
                 }
               />
+
+              {images.length > 0 ? (
+                <StyleSamplesCarousel images={images} name={name} />
+              ) : (
+                <div className="flex aspect-video items-center justify-center rounded-xl border-2 border-dashed border-border text-center">
+                  <p className="px-6 font-body text-sm text-muted-foreground">
+                    {t('create.catalog.noSamples')}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Pie fijo: con el carrusel 16:9 el modal casi siempre scrollea
