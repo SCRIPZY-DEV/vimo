@@ -51,3 +51,8 @@ tardías. Build nativo y smoke del SEA; calidad visual real y Windows requieren 
 - 2026-09-18 — candado de tono de piel del personaje: corre DESPUÉS de validar la
   narrativa y nunca sobre una tarea ya pagada, así que no cambia esta decisión. Ver
   [realistic-character-identity](../fixes/2026-09-18-fix-realistic-character-identity/realistic-character-identity.md).
+- 2026-10-04 — el umbral de escenas apartadas para el editor pasa a ser proporcional
+  (`max(5, 5 %)`), también en Mi estilo, y un timeout cuenta como strike en vez de
+  descartar el modelo para todo el job. Sigue sin haber relleno: las apartadas no llegan
+  al proveedor. Ver
+  [prompts-stop-before-images](../fixes/2026-10-04-fix-prompts-stop-before-images/prompts-stop-before-images.md).

@@ -47,3 +47,12 @@ flowchart LR
 La comparación real V4 Pro acertó 11/12 casos: detectó los adelantamientos de tormentas/auroras/regreso y el lugar equivocado tras regresar a Tierra, pero aprobó una relación causal incorrecta en otro prompt (congestión atribuida a especias). Esta limitación queda abierta; no se oculta como prueba aprobada. Una revisión LLM sigue siendo probabilística. Citas válidas prueban procedencia, no verdad semántica; exige evaluación real de negativos/positivos y revisión audiovisual. Una imagen estática puede representar varios conceptos de un intervalo, pero no mostrar una secuencia interna exacta de acciones como un video. La cuantización del render conserva el tiempo acumulado dentro de su resolución de fotogramas.
 
 No se reescriben automáticamente assets pagados de proyectos históricos. No se migra Catálogo a Mi estilo, no se cambia la generación de guiones ni las previews, ni se introducen modelos de visión.
+
+## Notas posteriores
+
+- 2026-10-04 — el revisor deja de ser bloqueante en el último intento: si se agotan los
+  intentos y solo hubo objeciones, se acepta el último candidato del redactor con la
+  objeción en el log; si el revisor no responde, el prompt se acepta sin revisión.
+  Cuenta, saldo y cancelación siguen cortando. Motivo: en videos largos sus rechazos
+  dejaban escenas sin prompt y la corrida moría antes de imágenes. Ver
+  [prompts-stop-before-images](../fixes/2026-10-04-fix-prompts-stop-before-images/prompts-stop-before-images.md).
