@@ -73,9 +73,9 @@ function editorLayoutOf(
 // de personaje abre desde sus chips el editor de la gema EN USO. Con la
 // plantilla encendida (ADR-0048), una gema vieja se actualiza sola la primera
 // vez que se abre o se elige (spec §4.4), sin bloquear su uso; como se guarda
-// sin que la persona vea las secciones, queda un aviso para revisarlas hasta
-// que lo descarta o sale de la pestaña (una gema ya adaptada lo dice después
-// en su tarjeta).
+// sin que la persona vea las secciones, queda un aviso para revisarlas, arriba
+// de las tarjetas, hasta que lo descarta o sale de la pestaña (una gema ya
+// adaptada lo dice después en su tarjeta).
 export function CustomStyleGallery({
   selected,
   disabled,
@@ -216,6 +216,20 @@ export function CustomStyleGallery({
         </div>
       </div>
 
+      {/* Entre el título y la galería: debajo de una lista larga de estilos el
+          aviso quedaba fuera de la vista. */}
+      {migrationNotices.map(({ style, migration }) => (
+        <GemMigrationNotice
+          key={style.id}
+          migration={migration}
+          named
+          onRetry={() => retryGemMigration(style)}
+          reviewDisabled={disabled}
+          onReview={() => openEdit(style, false)}
+          onDismiss={() => dismissGemMigration(style.id)}
+        />
+      ))}
+
       {isLoading && (
         <p className="py-6 text-center">
           <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
@@ -267,18 +281,6 @@ export function CustomStyleGallery({
           </div>
         </div>
       </div>
-
-      {migrationNotices.map(({ style, migration }) => (
-        <GemMigrationNotice
-          key={style.id}
-          migration={migration}
-          named
-          onRetry={() => retryGemMigration(style)}
-          reviewDisabled={disabled}
-          onReview={() => openEdit(style, false)}
-          onDismiss={() => dismissGemMigration(style.id)}
-        />
-      ))}
 
       {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la
           galería (origen), además de en la lista de bloqueos del envío. */}
