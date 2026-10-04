@@ -23,6 +23,7 @@ import {
   PROTAGONIST_TOKENS_BUDGET,
 } from '../../shared/protagonist-description.ts'
 import { FINAL_PROMPT_BODY_BUDGET } from '../../shared/prompt-safety.ts'
+import { reviewerCorrection } from '../narrative-alignment.ts'
 import {
   buildAssistantCharacterTurn,
   buildCharacterDesignMessage,
@@ -1199,6 +1200,34 @@ export async function generateVerbatimPrompts(
   // Congela el texto efectivamente revisado: un lote paralelo no puede
   // cambiar su vestuario heredado después de aprobarlo.
   const reviewedPrompts = new Map<number, string>()
+  // Último candidato que el revisor objetó por escena: si ninguna ronda logra
+  // uno aprobado, se acepta este con la objeción en el log (no es relleno:
+  // lo escribió la gema sobre esta narración).
+  const objectedPrompts = new Map<
+    number,
+    { prompt: string; reviewed: string; feedback: string }
+  >()
+  // Un revisor que no responde no tumba la corrida: el lote se acepta sin
+  // revisión y queda en el log. Cuenta, saldo y cancelación siguen cortando.
+  const reviewOrAccept = async (
+    review: NonNullable<VerbatimWriterOptions['reviewPrompts']>,
+    prompts: ReadonlyMap<number, string>,
+  ): Promise<ReadonlyMap<number, string>> => {
+    try {
+      return await review(prompts)
+    } catch (error) {
+      options.signal?.throwIfAborted()
+      if (
+        !(error instanceof PipelineFailure) ||
+        error.code !== 'scene_prompt_alignment_failed'
+      )
+        throw error
+      options.onWarn?.(
+        `scene(s) ${[...prompts.keys()].join(', ')} accepted without narrative review (reviewer unavailable)`,
+      )
+      return new Map()
+    }
+  }
   let lastError = ''
 
   // Progreso REAL: cada lote informa cuántos prompts lleva escritos y acá se
@@ -1401,16 +1430,25 @@ export async function generateVerbatimPrompts(
         for (const [id, prompt] of finalized.prompts)
           finalized.prompts.set(id, options.preparePrompt(prompt, id))
       }
-      const rejected = await options.reviewPrompts(finalized.prompts)
+      const rejected = await reviewOrAccept(
+        options.reviewPrompts,
+        finalized.prompts,
+      )
       options.signal?.throwIfAborted()
       reading.good = reading.good.filter((entry) => {
         const feedback = rejected.get(entry.n)
         if (!feedback) {
           alignmentFeedback.delete(entry.n)
+          objectedPrompts.delete(entry.n)
           reviewedPrompts.set(entry.n, finalized.prompts.get(entry.n)!)
           return true
         }
         alignmentFeedback.set(entry.n, feedback)
+        objectedPrompts.set(entry.n, {
+          prompt: entry.prompt,
+          reviewed: finalized.prompts.get(entry.n)!,
+          feedback,
+        })
         reading.defective.push({
           n: entry.n,
           reason: 'narrative alignment rejected',
@@ -1702,6 +1740,44 @@ export async function generateVerbatimPrompts(
         `retrying ${still.length} scene(s) with ${rescueProfile.label}, now one by one`,
       )
       await runRoundInParallel([...still], 1, rescueExecutor)
+    }
+  }
+
+  // Revisor permisivo: la escena que agotó las rondas solo por objeciones se
+  // queda con su último candidato y la objeción va al log.
+  const acceptedWithObjection = new Set<number>()
+  for (const fragment of fragments) {
+    const objected = objectedPrompts.get(fragment.n)
+    if (obtained.has(fragment.n) || !objected) continue
+    obtained.set(fragment.n, objected.prompt)
+    reviewedPrompts.set(fragment.n, objected.reviewed)
+    acceptedWithObjection.add(fragment.n)
+    options.onWarn?.(
+      `scene ${fragment.n} accepted with reviewer objection: ${reviewerCorrection(objected.feedback)}`,
+    )
+  }
+  if (acceptedWithObjection.size > 0) reportProgress()
+  if (acceptedWithObjection.size > 0 && options.onBatchReady) {
+    const ready = finalizeVerbatimPrompts(
+      obtained,
+      character,
+      sceneWardrobe,
+      acceptedWithObjection,
+    )
+    for (const id of acceptedWithObjection)
+      ready.prompts.set(id, reviewedPrompts.get(id)!)
+    options.signal?.throwIfAborted()
+    try {
+      await options.onBatchReady({
+        prompts: ready.prompts,
+        scenesWithSubject: ready.scenesWithSubject,
+      })
+    } catch (error) {
+      options.onWarn?.(
+        `the prompts accepted with objection could not be saved (they stay in memory and the run continues): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
     }
   }
 

@@ -47,6 +47,8 @@ export function createVerbatimPromptPersistence(
         ? {}
         : { charactersPresent: prompt.charactersPresent }),
     }
+    // Con prompt nuevo la escena deja de estar apartada para el editor.
+    delete buffer[index].promptFailure
   }
 
   return {

@@ -21,6 +21,7 @@ import {
   narrativeCandidateFor,
   reviewNarrativePrompts,
 } from '../narrative-alignment.ts'
+import { rescuablePromptFailures } from '../prompt-writer.ts'
 import {
   generateVerbatimPrompts,
   type VerbatimCharacterInput,
@@ -48,8 +49,8 @@ import {
 
 export interface VerbatimLaneResult {
   scenes: Scene[]
-  /** Compatibilidad del resultado: el carril temporal ahora detiene la fase
-   *  si no pudo validar todos los prompts, sin comprar imágenes de relleno. */
+  /** Escenas que quedaron sin prompt dentro del umbral de rescate: vuelven
+   *  con `promptFailure` y la etapa de imágenes las aparta para el editor. */
   missing: number[]
   /** Ids de escena que este pase ESCRIBIÓ (para persistir/emitir solo esas). */
   written: Set<number>
@@ -553,11 +554,6 @@ export async function runVerbatimLane(
       },
     })
     context.signal.throwIfAborted()
-    if (result.missing.length > 0)
-      throw new PipelineFailure(
-        'scene_prompt_alignment_failed',
-        `scene prompts could not satisfy the narrative contract for IDs ${result.missing.join(', ')}; no filler images requested`,
-      )
     return { group, result }
   }
 
@@ -581,6 +577,19 @@ export async function runVerbatimLane(
   )
   const failure = settled.find((entry) => entry.status === 'rejected')
   if (failure?.status === 'rejected') throw failure.reason
+  // Pocas escenas sin prompt no tiran el video (como en el motor web de
+  // origen, que seguía a imágenes): quedan apartadas con su motivo para
+  // terminarlas desde el editor. Con más, se reintenta todo. Jamás relleno.
+  const missing = results.flatMap(({ result }) => result.missing)
+  if (
+    missing.length > rescuablePromptFailures(pending.length) ||
+    missing.length >= pending.length
+  )
+    throw new PipelineFailure(
+      'scene_prompt_alignment_failed',
+      `scene prompts could not satisfy the narrative contract for IDs ${missing.join(', ')}; no filler images requested`,
+    )
+  const missingIds = new Set(missing)
   const prompts = new Map(results.flatMap(({ result }) => [...result.prompts]))
   const presence = new Map(
     results.flatMap(({ group, result }) => {
@@ -593,20 +602,28 @@ export async function runVerbatimLane(
   )
 
   const written = new Set(prompts.keys())
-  const withPrompts = scenes.map((scene) => {
+  const withPrompts = scenes.map((scene): Scene => {
+    if (missingIds.has(scene.id))
+      return {
+        ...scene,
+        imagePrompt: '',
+        promptIsFallback: false,
+        promptFailure: { source: 'models' },
+      }
     const prompt = prompts.get(scene.id)
+    if (!prompt) return scene
     // Un prompt del motor nunca es fallback: si la escena traía uno, deja de
-    // serlo.
-    return prompt
-      ? {
-          ...scene,
-          imagePrompt: prompt,
-          promptIsFallback: false,
-          ...(presence.has(scene.id)
-            ? { charactersPresent: presence.get(scene.id)! }
-            : {}),
-        }
-      : scene
+    // serlo. Tampoco sigue apartada si una corrida anterior la dejó sin prompt.
+    const updated: Scene = {
+      ...scene,
+      imagePrompt: prompt,
+      promptIsFallback: false,
+      ...(presence.has(scene.id)
+        ? { charactersPresent: presence.get(scene.id)! }
+        : {}),
+    }
+    delete updated.promptFailure
+    return updated
   })
 
   return {
@@ -618,7 +635,7 @@ export async function runVerbatimLane(
           results.flatMap(({ result }) => result.scenesWithSubject),
           character.index,
         ),
-    missing: results.flatMap(({ result }) => result.missing),
+    missing,
     written,
     profile: results[0]!.result.profile,
     inputTokens: results.reduce(

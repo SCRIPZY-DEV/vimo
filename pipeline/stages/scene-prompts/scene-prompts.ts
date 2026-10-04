@@ -118,13 +118,14 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
           scene: await toSceneSummary(context.paths, scene),
         })
       }
-      // El carril temporal exige completar y revisar todas las escenas antes
-      // de comprar imágenes; no recurre a prompts de relleno.
+      // Las pocas que quedaron sin prompt (dentro del umbral) van apartadas
+      // con su motivo: la fase de imágenes las saltea y se terminan desde el
+      // editor. Nunca se rellenan.
       if (lane.missing.length > 0)
         context.emitter.emit({
           type: 'log',
           level: 'warn',
-          message: `${lane.missing.length} scene(s) ended without a verbatim prompt: ${lane.missing.join(', ')}`,
+          message: `continuing without verbatim prompts for scene(s) ${lane.missing.join(', ')}; regenerate them from the editor`,
         })
       return undefined
     }

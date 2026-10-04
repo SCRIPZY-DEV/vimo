@@ -83,18 +83,17 @@ function needsPromptRewrite(scene: Scene, ready: boolean): boolean {
   return scene.contentRejected === true || !isValidPrompt(scene.imagePrompt)
 }
 
-// Catálogo: escena que el redactor dejó sin prompt para rescatarla desde el
-// editor. No se manda al proveedor (no hay prompt real) ni frena al resto.
+// Escena que el redactor dejó sin prompt para rescatarla desde el editor. No
+// se manda al proveedor (no hay prompt real) ni frena al resto. En Mi estilo
+// apartarla es lo que evita que la Capa 4 le ponga un relleno de otro estilo.
 function parkedForEditor(
   scene: Scene,
   context: CreateVideoContext,
   style: (typeof VISUAL_STYLES)[keyof typeof VISUAL_STYLES],
 ): boolean {
-  return (
-    !context.options.customStyle &&
-    scene.promptFailure !== undefined &&
-    !hasCatalogPrompt(scene, style)
-  )
+  if (scene.promptFailure === undefined) return false
+  if (context.options.customStyle) return !isValidPrompt(scene.imagePrompt)
+  return !hasCatalogPrompt(scene, style)
 }
 
 async function idsWithValidImage(
@@ -512,6 +511,8 @@ async function generateImages(
     // Catálogo jamás llega al fallback de compatibilidad de Mi estilo.
     if (!context.options.customStyle) return scene
     if (isValidPrompt(scene.imagePrompt)) return scene
+    // Apartada para el editor: sin relleno, se filtra antes de despachar.
+    if (parkedForEditor(scene, context, style)) return scene
     return {
       ...scene,
       imagePrompt: anchorNormalRealism(
