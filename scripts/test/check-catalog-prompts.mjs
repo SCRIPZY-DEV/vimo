@@ -18,7 +18,10 @@ import { PipelineFailure } from '../../pipeline/runner/failure.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { directScenes } from '../../pipeline/stages/scene-prompts/scene-director.ts'
-import { guaranteePrompts } from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
+import {
+  guaranteePrompts,
+  rescuablePromptFailures,
+} from '../../pipeline/stages/scene-prompts/prompt-writer.ts'
 import { bodyWithoutFinalClauses } from '../../pipeline/stages/shared/prompt-safety.ts'
 import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
 import {
@@ -800,7 +803,7 @@ test('classifier failure cannot persist invented character presence', async (t) 
     undefined,
   )
 })
-test('exhausted timeouts are bounded to one attempt per model', async (t) => {
+test('a timeout is a strike, not a job-wide discard: models are retried before giving up', async (t) => {
   const context = baseContext(20)
   const calls = []
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
@@ -808,16 +811,24 @@ test('exhausted timeouts are bounded to one attempt per model', async (t) => {
     await delay(5000, null, { signal: init.signal })
     assert.fail('deadline must abort')
   })
-  const start = Date.now()
+  const llm = createCatalogSceneLlm(context)
   await assert.rejects(
-    createCatalogSceneLlm(context).generate({
-      systemPrompt: '',
-      userPrompt: 'story',
-    }),
+    llm.generate({ systemPrompt: '', userPrompt: 'story' }),
     { code: 'catalog_prompts_incomplete' },
   )
-  assert.deepEqual(calls, CATALOG_MODEL_IDS)
-  assert.ok(Date.now() - start < 500)
+  // Una pasada por modelo + las dos pasadas de reintento (2 s y 5 s).
+  assert.deepEqual(calls, [
+    ...CATALOG_MODEL_IDS,
+    ...CATALOG_MODEL_IDS,
+    ...CATALOG_MODEL_IDS,
+  ])
+  // Tras CATALOG_TRANSIENT_STRIKES plazos vencidos el modelo sí se descarta.
+  calls.length = 0
+  await assert.rejects(
+    llm.generate({ systemPrompt: '', userPrompt: 'story' }),
+    { code: 'catalog_prompts_incomplete' },
+  )
+  assert.deepEqual(calls, [])
 })
 
 const hasValidPrompt = (scene) => hasCatalogPrompt(scene, VISUAL_STYLES.cartoon)
@@ -836,7 +847,7 @@ function falResponse(url, init, imagePrompts) {
   assert.equal(String(url), 'https://fixture.invalid/image.png')
   return new Response(PIXEL, { headers: { 'content-type': 'image/png' } })
 }
-test('a scene the reviewer always rejects waits for the editor; the rest get images', async (t) => {
+test('a scene the reviewer always rejects is accepted with its objection in the log; every scene gets an image', async (t) => {
   const context = await fixture(t)
   const imagePrompts = []
   t.mock.method(globalThis, 'fetch', async (url, init) => {
@@ -847,67 +858,65 @@ test('a scene the reviewer always rejects waits for the editor; the rest get ima
       narrativeReviewResponse(request, new Set([3])) ?? promptResponse(request)
     )
   })
-  await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
-    code: 'images_incomplete',
-  })
+  await runStages([scenePromptsStage, imagesStage], context)
 
   const stored = await readScenes(context.paths)
-  assert.equal(stored[2].imagePrompt, '')
-  assert.deepEqual(stored[2].promptFailure, {
-    source: 'reviewer',
-    detail: REVIEWER_OBJECTION,
-  })
-  assert.ok(stored.filter((scene) => scene.id !== 3).every(hasValidPrompt))
-  assert.equal(imagePrompts.length, 3)
-  assert.ok(!imagePrompts.some((prompt) => prompt.includes(descriptions[2])))
-  await assert.rejects(readFile(sceneImageFile(context.paths, 3)))
+  assert.ok(stored.every(hasValidPrompt))
+  assert.equal(stored[2].promptFailure, undefined)
+  assert.equal(bodyWithoutFinalClauses(stored[2].imagePrompt), descriptions[2])
+  assert.equal(imagePrompts.length, 4)
+  assert.deepEqual(await readFile(sceneImageFile(context.paths, 3)), PIXEL)
   assert.ok(
     context.events.some(
       (event) =>
-        event.type === 'scene-image-failed' &&
-        event.sceneId === 3 &&
-        event.code === 'catalog_prompts_incomplete',
+        event.type === 'log' &&
+        event.level === 'warn' &&
+        event.message ===
+          `scene 3 accepted with reviewer objection: ${REVIEWER_OBJECTION}`,
     ),
   )
-
-  // Desde el editor: solo la escena 3, con todo el contexto del video y la
-  // objeción del revisor sembrada en el primer intento.
-  context.regenerateSceneIds = new Set([3])
-  const writerRequests = []
-  imagePrompts.length = 0
-  t.mock.restoreAll()
-  t.mock.method(globalThis, 'fetch', async (url, init) => {
-    if (!String(url).includes('chat/completions'))
-      return falResponse(url, init, imagePrompts)
-    const request = JSON.parse(init.body)
-    const review = narrativeReviewResponse(request)
-    if (review) return review
-    writerRequests.push(request)
-    return promptResponse(request)
-  })
-  await runStages([scenePromptsStage, imagesStage], context)
-
-  assert.equal(writerRequests.length, 1)
-  const [system, user] = writerRequests[0].messages
-  assert.equal(system.content, VISUAL_STYLES.cartoon.systemPrompt)
-  assert.ok(user.content.includes(fragments[2]), 'its own fragment')
-  assert.ok(user.content.includes(fragments[1]), 'the previous scene')
-  assert.ok(user.content.includes(fragments[3]), 'the next scene')
-  assert.ok(user.content.includes('observation modules'), 'the visual bible')
-  assert.ok(user.content.includes('observation module'), 'the scene plan')
-  assert.match(user.content, /Elena/)
-  assert.ok(user.content.includes('adult astronaut'), 'the character')
-  assert.ok(user.content.includes(REVIEWER_OBJECTION), 'the reviewer note')
-
-  const repaired = await readScenes(context.paths)
-  assert.equal(repaired[2].promptFailure, undefined)
-  assert.equal(
-    bodyWithoutFinalClauses(repaired[2].imagePrompt),
-    descriptions[2],
-  )
-  assert.equal(imagePrompts.length, 1)
-  assert.deepEqual(await readFile(sceneImageFile(context.paths, 3)), PIXEL)
 })
+test('a reviewer that cannot answer does not leave the scene without prompt', async () => {
+  const context = baseContext()
+  const warnings = []
+  const llm = {
+    async generate(request) {
+      if (isReviewRequest(request.systemPrompt))
+        throw new PipelineFailure('llm_network', 'reviewer unreachable')
+      const index = fragmentIndex(request.userPrompt)
+      return JSON.stringify({ prompt_imagen: descriptions[index] })
+    },
+  }
+  const result = await guaranteePrompts(
+    scenes,
+    writerOptions(context, {
+      llm,
+      onWarn(message) {
+        warnings.push(message)
+      },
+    }),
+  )
+  assert.ok(result.every(hasValidPrompt))
+  assert.deepEqual(
+    warnings.sort(),
+    [1, 2, 3, 4].map(
+      (id) =>
+        `scene ${id} accepted without narrative review (reviewer unavailable)`,
+    ),
+  )
+})
+test('the rescue limit grows with the video', () => {
+  assert.equal(rescuablePromptFailures(4), 5)
+  assert.equal(rescuablePromptFailures(100), 5)
+  assert.equal(rescuablePromptFailures(549), 28)
+})
+// Catálogo sin modelo que responda para unas escenas: contenido inválido en
+// los tres modelos (no los descarta para el job, solo deja ESA escena).
+function modelsFailFor(request, failingIndexes) {
+  const index = requestScene(request)
+  if (failingIndexes.has(index)) return stream('{}')
+  return promptResponse(request)
+}
 test('regenerating one parked scene from the editor ignores the other parked one', async (t) => {
   const context = await fixture(t)
   t.mock.method(globalThis, 'fetch', async (url, init) => {
@@ -915,8 +924,8 @@ test('regenerating one parked scene from the editor ignores the other parked one
       return falResponse(url, init, [])
     const request = JSON.parse(init.body)
     return (
-      narrativeReviewResponse(request, new Set([2, 3])) ??
-      promptResponse(request)
+      narrativeReviewResponse(request) ??
+      modelsFailFor(request, new Set([1, 2]))
     )
   })
   await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
@@ -935,7 +944,7 @@ test('regenerating one parked scene from the editor ignores the other parked one
 
   const stored = await readScenes(context.paths)
   assert.equal(stored[1].promptFailure, undefined)
-  assert.equal(stored[2].promptFailure?.source, 'reviewer')
+  assert.equal(stored[2].promptFailure?.source, 'models')
   assert.deepEqual(await readFile(sceneImageFile(context.paths, 2)), PIXEL)
   await assert.rejects(readFile(sceneImageFile(context.paths, 3)))
 })
@@ -949,8 +958,8 @@ test('when every scene fails there is nothing to rescue: no image is requested',
     }
     const request = JSON.parse(init.body)
     return (
-      narrativeReviewResponse(request, new Set([1, 2, 3, 4])) ??
-      promptResponse(request)
+      narrativeReviewResponse(request) ??
+      modelsFailFor(request, new Set([0, 1, 2, 3]))
     )
   })
   await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
@@ -959,7 +968,7 @@ test('when every scene fails there is nothing to rescue: no image is requested',
   assert.equal(imageCalls, 0)
   // Igual quedan los motivos en disco para el diagnóstico.
   const stored = await readScenes(context.paths)
-  assert.ok(stored.every((scene) => scene.promptFailure?.source === 'reviewer'))
+  assert.ok(stored.every((scene) => scene.promptFailure?.source === 'models'))
 })
 test('more failed scenes than the rescue limit stop the run, keeping their reasons', async () => {
   const context = baseContext()

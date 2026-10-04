@@ -17,6 +17,8 @@ import {
 import { readScenes, writeScenes } from '../../pipeline/project/scenes-file.ts'
 import { buildCreateVideoContext } from '../../pipeline/stages/context.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
+import { imagesStage } from '../../pipeline/stages/images/images.ts'
+import { runStages } from '../../pipeline/runner/run-stages.ts'
 import { CHARACTER_DESIGN_INSTRUCTION } from '../../pipeline/prompts/verbatim-messages.ts'
 import { runVerbatimLane } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts'
 import { VERBATIM_BATCH_SIZE } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-writer.ts'
@@ -79,7 +81,10 @@ function scenesResponse(request) {
 }
 // Este guard mide persistencia, no calidad semántica. La revisión usa JSON
 // no-streaming: no se le devuelve el SSE reservado al redactor de escenas.
-function narrativeReviewResponse(request) {
+// `rejectedIds`: escenas que el revisor rechaza siempre, con REVIEWER_OBJECTION.
+const REVIEWER_OBJECTION =
+  'The prompt shows a greenhouse instead of the antenna.'
+function narrativeReviewResponse(request, rejectedIds = new Set()) {
   if (
     !request.messages[0].content.startsWith(
       'You audit the FULL narrative meaning',
@@ -93,20 +98,24 @@ function narrativeReviewResponse(request) {
       {
         message: {
           content: JSON.stringify({
-            scenes: candidates.map((candidate) => ({
-              sceneId: candidate.sceneId,
-              checks: {
-                focus: true,
-                events: true,
-                setting: true,
-                causality: true,
-              },
-              aligned: true,
-              sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
-              promptEvidenceId: candidate.promptEvidence[0].id,
-              reason:
-                'Explicit approval fixture for prompt persistence regression only.',
-            })),
+            scenes: candidates.map((candidate) => {
+              const aligned = !rejectedIds.has(candidate.sceneId)
+              return {
+                sceneId: candidate.sceneId,
+                checks: {
+                  focus: aligned,
+                  events: aligned,
+                  setting: aligned,
+                  causality: aligned,
+                },
+                aligned,
+                sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
+                promptEvidenceId: candidate.promptEvidence[0].id,
+                reason: aligned
+                  ? 'Explicit approval fixture for prompt persistence regression only.'
+                  : REVIEWER_OBJECTION,
+              }
+            }),
           }),
         },
       },
@@ -192,13 +201,13 @@ async function fixture(
   return { paths, base, events, controller }
 }
 
-function llm(t, handler) {
+function llm(t, handler, rejectedIds) {
   const requests = []
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (!String(url).includes('chat/completions'))
       throw new Error('unexpected call to ' + url)
     const request = JSON.parse(init.body)
-    const review = narrativeReviewResponse(request)
+    const review = narrativeReviewResponse(request, rejectedIds)
     if (review) return review
     requests.push(request)
     if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
@@ -354,4 +363,99 @@ test('a cut recovery pass never leaves an emptied prompt on disk', async (t) => 
   // Las que no se alcanzaron a reescribir conservan EL VIEJO, no uno nuevo.
   for (const scene of onDisk.filter((item) => SECOND_BATCH.includes(item.id)))
     assert.equal(scene.imagePrompt, old(scene.id))
+})
+
+// Revisor permisivo: una escena que el revisor objeta en todas las rondas se
+// queda con su último prompt y la objeción va al log, en vez de tumbar la
+// corrida antes de imágenes.
+test('a scene the reviewer always rejects is accepted with its objection in the log', async (t) => {
+  const { paths, base, events } = await fixture(t)
+  llm(t, (request) => scenesResponse(request), new Set([3]))
+  const context = await buildCreateVideoContext(base, 'fixture')
+
+  await scenePromptsStage.run(context)
+
+  const scenes = await readScenes(paths)
+  assert.deepEqual(promptsOnDisk(scenes), [...FIRST_BATCH, ...SECOND_BATCH])
+  assert.ok(scenes[2].imagePrompt.includes('number 3'))
+  assert.equal(scenes[2].promptFailure, undefined)
+  assert.ok(
+    events.some(
+      (event) =>
+        event.type === 'log' &&
+        event.level === 'warn' &&
+        event.message ===
+          `scene 3 accepted with reviewer objection: ${REVIEWER_OBJECTION}`,
+    ),
+  )
+})
+
+// Pocas escenas que ningún modelo escribe quedan apartadas para el editor
+// (sin relleno) y la corrida sigue a imágenes con el resto.
+test('a scene no model can write is parked with its reason instead of stopping the run', async (t) => {
+  const { paths, base, events } = await fixture(t)
+  llm(t, (request, ids) =>
+    stream(
+      ids
+        .filter((id) => id !== 3)
+        .map((id) => '((' + id + ')) ' + body + ' number ' + id + '. ' + tail)
+        .join('\n\n'),
+    ),
+  )
+  const context = await buildCreateVideoContext(base, 'fixture')
+
+  await scenePromptsStage.run(context)
+
+  const scenes = await readScenes(paths)
+  assert.deepEqual(
+    promptsOnDisk(scenes),
+    [...FIRST_BATCH, ...SECOND_BATCH].filter((id) => id !== 3),
+  )
+  assert.equal(scenes[2].imagePrompt, '')
+  assert.deepEqual(scenes[2].promptFailure, { source: 'models' })
+  assert.ok(
+    events.some(
+      (event) =>
+        event.type === 'log' &&
+        event.message ===
+          'continuing without verbatim prompts for scene(s) 3; regenerate them from the editor',
+    ),
+  )
+})
+
+// En Mi estilo la Capa 4 le pondría un relleno a una escena sin prompt: la
+// apartada no puede llegar al proveedor. El resto sí recibe su imagen.
+test('a parked Mi estilo scene never reaches the image provider as filler', async (t) => {
+  const { paths, base } = await fixture(t)
+  const imagePrompts = []
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (String(url).startsWith('https://fal.run/')) {
+      imagePrompts.push(JSON.parse(init.body).prompt)
+      return Response.json({
+        images: [{ url: 'https://fixture.invalid/image.png' }],
+      })
+    }
+    if (String(url) === 'https://fixture.invalid/image.png')
+      return new Response(bytes, { headers: { 'content-type': 'image/png' } })
+    const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request)
+    if (review) return review
+    if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
+    return stream(
+      fragmentsOf(request)
+        .filter((id) => id !== 3)
+        .map((id) => '((' + id + ')) ' + body + ' number ' + id + '. ' + tail)
+        .join('\n\n'),
+    )
+  })
+  const context = await buildCreateVideoContext(base, 'fixture')
+
+  await assert.rejects(runStages([scenePromptsStage, imagesStage], context), {
+    code: 'images_incomplete',
+  })
+
+  assert.equal(imagePrompts.length, SCENE_COUNT - 1)
+  assert.ok(imagePrompts.every((prompt) => !prompt.includes('number 3.')))
+  const scenes = await readScenes(paths)
+  assert.deepEqual(scenes[2].promptFailure, { source: 'models' })
 })
