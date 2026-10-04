@@ -42,6 +42,10 @@ y la tarjeta de una gema adaptada lo dice con una etiqueta.
   (`isAdaptedGem`, `utilities/gemTemplate.ts`). Texto `create.customStyles.adaptedTag` en los tres
   idiomas.
 
+Más tarde, el mismo día, el aviso de la galería pasó arriba de las tarjetas
+(`2026-10-03_gem-migration-notice-on-top.md`) y el del modal sumó la explicación de qué reglas pone
+Vimo (`2026-10-03_gem-warnings-platform-note.md`).
+
 ## Límites deliberados
 
 - Una visita es un montaje de la galería: también cuenta volver a Crear desde otra vista o después

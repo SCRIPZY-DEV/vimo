@@ -37,7 +37,10 @@ abierto», sin el botón.
 
 - Si la persona sale de la pestaña Catálogo mientras se copia, no se la lleva a Mi estilo. La copia
   aparece igual en esa pestaña, porque `useCatalogStyles` invalida la lista.
-- Los avisos «Copiando a Mi estilo…» y «No se pudo pasar…» siguen como estaban.
+- Los avisos «Copiando a Mi estilo…» y «No se pudo pasar…» siguen como estaban. (Más tarde, el
+  mismo día, cambiaron de texto y de lugar, y «Basado en …» del modal pasó a «Gema clonada del
+  catálogo»: ver `2026-10-03_catalog-clone-label.md` y
+  `2026-10-03_catalog-copy-notices-in-view.md`.)
 - El estado de la copia sigue en la galería: quien vuelve a la pestaña mientras se copia puede
   lanzar otra copia del mismo estilo (límite ya anotado en el traspaso de la Entrega 2).
 

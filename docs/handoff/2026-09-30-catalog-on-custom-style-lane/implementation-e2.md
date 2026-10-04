@@ -278,6 +278,34 @@ desde la app con su cuenta de admin. No es un fallo de la cuenta: las 38 gemas v
 Supabase, endpoints de admin en `vimo-landing` y su pantalla), que no está construida. Queda a la
 espera de que el dueño decida el alcance.
 
+### Segunda tanda, el mismo día
+
+Con esos cambios probados, el dueño pidió tres ajustes más y preguntó por el prompt de sistema. De
+probar el tercero salió un cuarto arreglo. Tampoco tocan el sidecar ni el contrato.
+
+| Commit     | Qué cambia                                                                                                                                                            | Informe                                            |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `80971b7b` | El aviso «Adaptamos …» sale arriba de las tarjetas de Mi estilo                                                                                                       | `fixes/2026-10-03_gem-migration-notice-on-top.md`  |
+| `50aa056e` | El aviso «Lo que la IA ajustó de tu gema» explica que las reglas de flujo, de formato y de idioma las pone Vimo                                                       | `fixes/2026-10-03_gem-warnings-platform-note.md`   |
+| `ee8f54ea` | La copia dice «Gema clonada del catálogo» con el nombre en una píldora amarilla; el aviso de la copia en curso, «Clonando gema del catálogo»                          | `fixes/2026-10-03_catalog-clone-label.md`          |
+| `ac21db7a` | Los avisos de «Pasar a mi estilo» quedan pegados abajo de lo que se ve (el scroll que los traía a la vista lo cortaba el foco del menú) y el de fallo se puede cerrar | `fixes/2026-10-03_catalog-copy-notices-in-view.md` |
+
+**Cómo se probó.** Cada commit con formato, lint, build y catálogos (1495 claves en el último), y
+con el mismo arnés de Chrome, ahora con el formulario dentro del contenedor que scrollea en la app
+(`<main>`): 35 comprobaciones en verde. Falta el recorrido del dueño en la app, que corre sobre
+WebKit.
+
+**Pregunta abierta del dueño: el rol al inicio del `system`.** El dueño preguntó si el prompt de
+sistema debería abrir con el rol de su gema («Eres un Director de Arte y Prompt Engineer experto en
+IA visual» y su «REGLA MAESTRA» de solo texto) o si funciona bien sin eso. Hoy el marco
+(`buildTemplateSystem`) no manda ninguna línea de rol: abre con `# VISUAL STYLE`, y el agente
+descarta el rol junto con las reglas de flujo. No se cambió, por tres razones: las muestras de las
+33 gemas nuevas salieron de este mismo marco; la regla de solo texto es de un Gem de chat (acá el
+modelo se llama por API, solo devuelve texto, y los prompts los manda Vimo al generador); y sumar
+una regla al marco cambia todos los videos nuevos, así que se mide antes de entrar, como las demás
+(ADR-0019). Si el dueño la quiere igual, es una línea al inicio del marco, con su nota en la
+ADR-0048 y su comparación con claves reales.
+
 ## Integración con `dev` y con la rama hermana
 
 Verificado el 2026-10-03 con `git merge-tree` (solo lectura; no se mergeó ni se rebaseó nada):
@@ -325,14 +353,16 @@ El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el
   etiquetas (las de la casa primero); el menú de tres puntos con «Usar en este video», «Ver» y «Pasar
   a mi estilo»; «Ver» con las etiquetas, el modo de personaje arriba y las muestras debajo (el modo
   se recuerda al volver a abrir); el chip del personaje en Crear abre «Ver» de esa gema; «Pasar a
-  mi estilo» lleva a Mi estilo con el modal de la copia abierto y la deja en uso, con «Basado en
-  …»; al volver a Catálogo sigue elegida la gema de antes; generar con una gema de la casa (por
-  ejemplo Fantasía) y con una de Imperio Pro.
+  mi estilo» lleva a Mi estilo con el modal de la copia abierto y la deja en uso, con «Gema
+  clonada del catálogo» y el nombre en una píldora amarilla (mientras se copia, el aviso «Clonando
+  gema del catálogo» se ve abajo de la ventana, sin que la página se mueva); al volver a Catálogo
+  sigue elegida la gema de antes; generar con una gema de la casa (por ejemplo Fantasía) y con una
+  de Imperio Pro.
 - Mi estilo, después de la QA del 2026-10-03 (sección «Ajustes de la QA del dueño»): una gema que
   trae su personaje dice «Personaje del estilo» en su modal y en el chip de Crear; el modal ya no
-  ofrece «Pegar gema nueva»; al adaptarse una gema sale el aviso «Adaptamos …», que se va al
-  cambiar de pestaña, el aviso del modal se cierra solo al minuto y la tarjeta queda con la
-  etiqueta «Gema adaptada».
+  ofrece «Pegar gema nueva»; al adaptarse una gema sale el aviso «Adaptamos …» arriba de las
+  tarjetas, que se va al cambiar de pestaña; el aviso del modal explica qué reglas pone Vimo y se
+  cierra solo al minuto, y la tarjeta queda con la etiqueta «Gema adaptada».
 
 **Límites conocidos y decisiones que quedan para el dueño:**
 

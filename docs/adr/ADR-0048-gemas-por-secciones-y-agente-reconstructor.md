@@ -554,3 +554,16 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   lo que ajustó la IA. Ese aviso del modal se descarta solo a los 60 s si no se toca la X. La
   tarjeta de una gema adaptada (secciones más `sourcePrompt`) lleva la etiqueta «Gema adaptada»; una
   copia del catálogo no la lleva. Los avisos siguen sin guardarse en disco.
+- **Los avisos van donde se ven.** El aviso «Adaptamos …» se dibuja arriba de las tarjetas de Mi
+  estilo, entre el título y la grilla. Los avisos de «Pasar a mi estilo» (copia en curso y fallida)
+  quedan pegados al borde de abajo de lo visible mientras la galería del catálogo está en pantalla,
+  y el de fallo se puede cerrar. Traerlos a la vista con scroll no servía: el menú de la tarjeta
+  devuelve el foco a su botón y corta ese scroll.
+- **El aviso del modal explica qué pone Vimo.** Debajo de lo que lista el agente, una línea fija
+  dice que las reglas de flujo, de formato de salida y de idioma no hacen falta en la gema porque
+  el marco trae las suyas (Capa 2). No nombra el rol del modelo: el marco no manda ninguna línea de
+  rol. El dueño preguntó si debería; queda sin cambiar hasta que lo decida, y una regla nueva en el
+  marco se mide antes de entrar, como las demás (ADR-0019).
+- **La copia dice de qué gema se clonó.** El modal de una copia muestra «Gema clonada del catálogo»
+  con el nombre del estilo de origen en una píldora amarilla, y el aviso de la copia en curso,
+  «Clonando gema del catálogo». La tarjeta conserva «Basado en …».
