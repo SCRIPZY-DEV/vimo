@@ -55,6 +55,9 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
   if (gone) return null
 
   const step = session ? styleCloneModalStepOf(session) : 'source'
+  // En las escenas de prueba la cabecera a la vista es el campo del nombre y
+  // la fila de acciones trae su «Descartar»: las dos cosas las pone el paso.
+  const stepOwnsFrame = step === 'scenes'
 
   const start = (input: StyleCloneStartInput) => {
     // Volver del aviso de imágenes inválidas reemplaza a esa sesión.
@@ -85,15 +88,14 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
         )}
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DialogHeader>
+        {/* El título y la descripción siguen para los lectores de pantalla
+            aunque no estén a la vista. */}
+        <DialogHeader className={cn(stepOwnsFrame && 'sr-only')}>
           <DialogTitle className="font-display">
             {session && step !== 'source'
               ? session.name
               : t('create.styleClone.modalTitle')}
           </DialogTitle>
-          {/* Sin texto a la vista: la cabecera es solo el nombre, para que las
-              pruebas y la caja «¿Qué ajustamos?» queden arriba. La descripción
-              sigue para los lectores de pantalla. */}
           <DialogDescription className="sr-only">
             {t('create.styleClone.modalDescription')}
           </DialogDescription>
@@ -124,6 +126,7 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
             session={session}
             onRename={(name) => renameStyleClone(session.id, name)}
             onRespond={(response) => respondStyleClone(session.id, response)}
+            onDiscard={discard}
           />
         )}
         {session && step === 'failed' && (
@@ -137,16 +140,20 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
           />
         )}
 
-        {/* Mientras trabaja o espera, la clonación se puede abandonar desde
-            acá (detenida, su aviso ya trae «Descartar»). */}
-        {session && step !== 'source' && step !== 'failed' && (
-          <div className="flex justify-start border-t border-border pt-3">
-            <Button type="button" size="sm" variant="ghost" onClick={discard}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              {t('create.styleClone.discard')}
-            </Button>
-          </div>
-        )}
+        {/* Mientras trabaja o elige el personaje, la clonación se puede
+            abandonar desde acá (detenida, su aviso ya trae «Descartar»; en las
+            escenas va en la fila de «Aprobar y guardar»). */}
+        {session &&
+          step !== 'source' &&
+          step !== 'failed' &&
+          !stepOwnsFrame && (
+            <div className="flex justify-start border-t border-border pt-3">
+              <Button type="button" size="sm" variant="ghost" onClick={discard}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('create.styleClone.discard')}
+              </Button>
+            </div>
+          )}
       </DialogContent>
     </Dialog>
   )

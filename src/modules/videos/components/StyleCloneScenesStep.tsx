@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { StyleCloneCommentBox } from '@/modules/videos/components/StyleCloneCommentBox'
@@ -19,18 +19,21 @@ interface StyleCloneScenesStepProps {
   session: StyleCloneSession
   onRename: (name: string) => void
   onRespond: (response: StyleCloneResponse) => void
+  onDiscard: () => void
 }
 
-// El paso de las escenas de prueba (ADR-0050, decisiones C1, C5 y C6): el
-// nombre que propuso la IA (editable), cada clonación al lado de la imagen que
-// recrea, un comentario para rehacerlas y «Aprobar y guardar». Lo de arriba va
-// compacto y la caja «¿Qué ajustamos?» con el botón de aprobar quedan pegados
-// al borde de abajo del modal: se ven sin desplazarse, con cualquier alto de
-// ventana.
+// El paso de las escenas de prueba (ADR-0050, decisiones C1, C5 y C6), de
+// arriba abajo: el nombre que propuso la IA (editable, es la cabecera del
+// modal), las 4 clonaciones cada una al lado de la imagen que recrea, la caja
+// «¿Qué ajustamos?» para rehacerlas y una fila con «Descartar» y «Aprobar y
+// guardar». Todo entra en el modal sin desplazarse: nada tapa las escenas, y
+// en una ventana baja las que se achican son las imágenes
+// (STYLE_CLONE_SCENE_FRAME_CLASS).
 export function StyleCloneScenesStep({
   session,
   onRename,
   onRespond,
+  onDiscard,
 }: StyleCloneScenesStepProps) {
   const { t } = useTranslation()
   // El nombre se edita acá y viaja a la sesión al salir de la caja: así un
@@ -49,43 +52,38 @@ export function StyleCloneScenesStep({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h3 className="font-display text-base font-bold text-foreground">
+      {/* La primera fila del modal, en el lugar del título. `pr-8` le deja su
+          lugar a la X de cerrar. */}
+      <div className="flex items-center gap-3 pr-8">
+        <label
+          htmlFor="style-clone-name"
+          className="shrink-0 font-display text-base font-bold text-foreground"
+        >
+          {t('create.styleClone.nameLabel')}
+        </label>
+        <input
+          id="style-clone-name"
+          type="text"
+          value={name}
+          maxLength={CUSTOM_STYLE_NAME_LIMIT}
+          onChange={(event) => setName(event.target.value)}
+          onBlur={commitName}
+          className={cn(
+            CUSTOM_STYLE_FIELD_CLASS,
+            'min-w-0 flex-1 font-body text-sm',
+          )}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        <h3 className="rounded-full bg-mint px-3 py-1 font-display text-xs font-bold text-white">
           {t('create.styleClone.scenesTitle')}
         </h3>
         <p className="font-body text-sm text-muted-foreground">
           {t('create.styleClone.scenesHint')}
         </p>
-      </div>
-
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor="style-clone-name"
-            className="shrink-0 font-display text-sm font-bold text-foreground"
-          >
-            {t('create.styleClone.nameLabel')}
-          </label>
-          <input
-            id="style-clone-name"
-            type="text"
-            value={name}
-            maxLength={CUSTOM_STYLE_NAME_LIMIT}
-            onChange={(event) => setName(event.target.value)}
-            onBlur={commitName}
-            className={cn(
-              CUSTOM_STYLE_FIELD_CLASS,
-              'min-w-0 flex-1 font-body text-sm',
-            )}
-          />
-        </div>
-        {session.description && (
-          <p className="font-body text-xs text-muted-foreground">
-            {session.description}
-          </p>
-        )}
         {session.identity && session.choice && (
-          <p className="font-body text-xs text-muted-foreground">
+          <p className="font-body text-xs text-muted-foreground lg:ml-auto">
             {t('create.styleClone.characterNote', {
               name: session.identity.name || name,
               travel: t(
@@ -98,7 +96,7 @@ export function StyleCloneScenesStep({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {session.scenes.map((scene) => (
           <StyleCloneComparePair
             key={scene.index}
@@ -116,19 +114,23 @@ export function StyleCloneScenesStep({
         ))}
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-6 space-y-2 border-t border-border bg-background px-6 pb-3 pt-3">
-        <StyleCloneCommentBox
-          id="style-clone-scenes-comment"
-          placeholder={t('create.styleClone.adjustScenesPlaceholder')}
-          hint={
-            session.identity
-              ? t('create.styleClone.adjustScenesHintCharacter')
-              : t('create.styleClone.adjustScenesHint')
-          }
-          disabled={false}
-          onSend={(comment) => onRespond({ kind: 'adjust-scenes', comment })}
-        />
+      <StyleCloneCommentBox
+        id="style-clone-scenes-comment"
+        placeholder={t('create.styleClone.adjustScenesPlaceholder')}
+        hint={
+          session.identity
+            ? t('create.styleClone.adjustScenesHintCharacter')
+            : t('create.styleClone.adjustScenesHint')
+        }
+        disabled={false}
+        onSend={(comment) => onRespond({ kind: 'adjust-scenes', comment })}
+      />
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button type="button" size="sm" variant="ghost" onClick={onDiscard}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          {t('create.styleClone.discard')}
+        </Button>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <p className="font-body text-xs text-muted-foreground">
             {t('create.styleClone.approveHint')}

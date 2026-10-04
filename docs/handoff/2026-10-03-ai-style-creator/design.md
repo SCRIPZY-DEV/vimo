@@ -88,11 +88,15 @@ referencia `/Users/sebas/Documents/crear-estilo-ia/` (fuera del repo, no se comm
    personaje. Debajo, los 3 diseños: «1 · Réplica fiel», «2 · Variante», «3 · Variante». Una caja
    «¿Qué ajustamos?» rehace los 3. Al elegir uno aparece la elección de C3 y el botón «Probar
    escenas».
-5. **Escenas de prueba.** El nombre del estilo, editable (en un video sale de su título, ver §6), y
-   la descripción que propuso la IA. Las 4 parejas «Original / Clonación». Una caja de comentario
-   rehace las pruebas y conserva el personaje. «Aprobar y guardar». La cabecera del modal es solo el
-   nombre del estilo, y la caja «¿Qué ajustamos?» con el botón de aprobar quedan pegados al borde de
-   abajo: se ven sin desplazarse (pedido del dueño, 2026-10-04).
+5. **Escenas de prueba.** De arriba abajo: «Nombre del estilo» con su campo editable, que es la
+   primera fila del modal, en el lugar del título (en un video el nombre sale de su título, ver §6);
+   la etiqueta verde «Escenas de prueba» con su ayuda; las 4 parejas «Original / Clonación»; la caja
+   «¿Qué ajustamos?», que rehace las pruebas y conserva el personaje; y una fila con «Descartar» a
+   la izquierda y «Aprobar y guardar» a la derecha. Todo entra sin desplazarse y nada tapa las
+   escenas: en una ventana baja las que pierden alto son las imágenes, que se siguen viendo
+   enteras. La descripción que propone la IA no se muestra en este paso (pedido del dueño,
+   2026-10-04; reemplaza a la caja pegada al borde de abajo de esa misma mañana, que tapaba la
+   segunda fila de escenas: `fixes/2026-10-04_style-clone-scenes-covered-by-adjust-box.md`).
 6. **Guardar.** El estilo aparece en la grilla con las 4 clonaciones como muestras. Si el modal está
    abierto queda «En uso»; si no, un aviso ofrece «Usar en este video».
 

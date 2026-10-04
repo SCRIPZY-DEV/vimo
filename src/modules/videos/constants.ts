@@ -546,6 +546,17 @@ export const STYLE_CLONE_IMAGE_LIMIT = 10
 export const STYLE_CLONE_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
 // Espejo de LIMITE_COMENTARIO del servidor.
 export const STYLE_CLONE_COMMENT_LIMIT = 2_000
+// Alto máximo de cada imagen de una escena de prueba en el modal. El modal
+// mide hasta el 90 % del alto de la ventana (StyleCloneModal) y el paso de las
+// escenas muestra las 4 pruebas, la caja «¿Qué ajustamos?» y los botones sin
+// desplazarse: todo lo que no son las imágenes mide unos 23 rem (el nombre, la
+// etiqueta, las cabeceras de las tarjetas, la caja, los botones y los
+// espacios) y lo que sobra se reparte entre las 2 filas de imágenes. En una
+// ventana cómoda no achica nada (la imagen mide lo que su 16:9); en la ventana
+// mínima de la app (640 px de alto) quedan de unos 85 px. Por debajo de 5 rem
+// ya no se achican: el modal se desplaza.
+export const STYLE_CLONE_SCENE_FRAME_CLASS =
+  'max-h-[max(5rem,calc((90vh_-_24rem)/2))]'
 // Código → clave i18n de lo que es propio de la clonación: los del servidor,
 // los del cliente de vimo.click (`network`, `timeout`) y los del sidecar que
 // no tienen ya su texto en CREATE_ERROR_MESSAGE_KEYS (yt-dlp, imágenes y
