@@ -316,6 +316,26 @@ Las corridas, sus imágenes y cómo repetirlas: `/Users/sebas/Documents/crear-es
   sigue siendo un nombre que describe el estilo.
 - En `vimo-landing`: `0ece251`, `44d625c` y `98e3f47` (rama `fix/creador-estilo-analizador`).
 
+### Fidelidad a la escena original (2026-10-04)
+
+Pedido del dueño después de ver las primeras pruebas: la clonación es fiel a su original. Informe:
+`fixes/2026-10-04_style-clone-scene-fidelity.md`.
+
+- **Sin personas en el original, sin personas en la clonación.** La ficha describía el cuerpo de las
+  personas como un hecho de la imagen y el generador sumaba monigotes a un diagrama o a un objeto.
+  El bloque de anatomía de la ficha va ahora en condicional («People, only when the scene names
+  them, have this anatomy: …»); si llega sin esa condición, el servidor la reclama una vez.
+- **La misma composición.** Un fotograma de una sola escena sale como una sola imagen. Un fotograma
+  que ya es una pantalla dividida o un collage en el video se recrea con esa misma división,
+  escrita dentro de la escena. El modelo ya no esquiva esos fotogramas al elegir.
+- **La misma cantidad de personas**, cada una con lo que se le ve (pelo, ropa, accesorios).
+- **Si el usuario pide otro tipo de escena** en «¿Qué ajustamos?», el modelo busca otro fotograma
+  que ya sea así: no le quita ni le pone nada al que tenía.
+- **Un prompt en varios párrafos ya no se parte.** Si el modelo separa la escena, el estilo y la
+  oración del texto con líneas en blanco, el servidor lo sigue leyendo como un solo prompt.
+- En el estilo final, `rules` divide el cuadro solo para el tipo de contenido en que el canal lo
+  hace.
+
 ## 7. Las pruebas de imágenes
 
 - Las dibuja `style-clone-draw` con el proveedor de imágenes del usuario (Evolink o Fal), en calidad

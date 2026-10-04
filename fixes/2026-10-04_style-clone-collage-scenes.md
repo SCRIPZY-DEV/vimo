@@ -39,7 +39,7 @@ En el servidor (`vimo-landing`), no en este repo:
   escena se siguen midiendo, pero van en una línea aparte del análisis («VARIEDAD DEL CANAL:») y, en
   el estilo final, en `visualStyle` y `rules`, que son las secciones que lee el redactor de prompts.
   Cada escena de prueba recrea el fotograma de su origen y nada más; si ese fotograma no tiene
-  personas, lo dice.
+  personas, lo dice (esa frase sola no alcanzó: ver `2026-10-04_style-clone-scene-fidelity.md`).
 - **Una red** (`variedadEnElEstilo` en `respuesta.ts`): si la ficha igual llega con esas frases, el
   turno se las reclama al modelo una vez y entrega lo que vuelva. Nunca hace fallar un turno.
 
@@ -53,8 +53,10 @@ includes`, `scene types`, `split screen`, `collage`, varios paneles, `mosaic`, `
   ficha que cuente la variedad con otras palabras solo la frena el instructivo.
 - Si el modelo insiste después del reclamo, se entregan esas pruebas igual: el usuario las ve y puede
   pedir un ajuste. Un reclamo cuesta una llamada más al modelo (unos 10 centavos de dólar).
-- Un estilo cuyo original es de verdad una página de viñetas no se resuelve acá: la escena puede
-  decir «split screen» en su descripción, la ficha no.
+- Un estilo cuyo original es de verdad una página de viñetas no se resolvía acá: la escena podía
+  decir «split screen» en su descripción, la ficha no. Lo resuelve el fix siguiente
+  (`2026-10-04_style-clone-scene-fidelity.md`): un fotograma dividido se recrea con su misma
+  división.
 - No se cambió la calidad de la ficha en lo demás (por ejemplo, cuánto detalla las proporciones del
   cuerpo): eso varía de una corrida a otra y es otro trabajo.
 

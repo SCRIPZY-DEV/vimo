@@ -129,12 +129,27 @@ usar esa misma en las escenas de prueba, para que lo aprobado sea lo que despué
 
 **La ficha describe una sola imagen (2026-10-04).** Como `promptEnd` se pega en cada prompt, el
 generador lee la ficha como la descripción de esa imagen. Solo puede decir lo que es verdad en todos
-los fotogramas (técnica, trazo, anatomía, tratamiento del color, detalle, sombreado, textura y
-negaciones). La variedad del canal —los mundos de color entre los que rota, el reparto de fondos,
+los fotogramas (técnica, trazo, anatomía en condicional, tratamiento del color, detalle, sombreado,
+textura y negaciones). La variedad del canal —los mundos de color entre los que rota, el reparto de fondos,
 los tipos de escena— va en `visualStyle` y `rules`, que lee el redactor de prompts. En la primera
 clonación hecha desde la app la ficha traía esa variedad y las 4 escenas salieron como collages de
 paneles; el servidor ahora la pide aparte y la reclama si se cuela
 (`fixes/2026-10-04_style-clone-collage-scenes.md`).
+
+**La anatomía de la ficha va en condicional (2026-10-04).** Por la misma razón, la ficha no puede
+describir el cuerpo de las personas como un hecho de la imagen: el generador las dibuja también en
+las escenas que no nombran a nadie (un diagrama salió con un monigote). El bloque de anatomía
+empieza con «People, only when the scene names them, have this anatomy:». Medido con el mismo
+generador sobre dos escenas sin personas: una persona de más en 13 de 18 dibujos sin ese encabezado
+y en 0 de 24 con él. El servidor lo pide y lo reclama si falta
+(`fixes/2026-10-04_style-clone-scene-fidelity.md`).
+
+**Cada prueba es fiel a su fotograma (2026-10-04).** La comparación «Original / Clonación» pone
+cada prueba al lado de la imagen que recrea, así que la recrea tal cual: la misma composición y la
+misma cantidad de personas. Un fotograma de una sola escena sale como una sola imagen; uno que ya
+es una pantalla dividida o un collage en el video se recrea con esa misma división, escrita dentro
+de la escena y nunca en la ficha. En el estilo final, `rules` divide el cuadro solo donde el canal
+lo hace.
 
 ### La app: sesiones que siguen sin el modal
 
