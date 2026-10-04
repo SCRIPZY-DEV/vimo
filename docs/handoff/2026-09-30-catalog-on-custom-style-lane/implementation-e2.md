@@ -21,9 +21,9 @@ con su revisión. Rama `feat/catalogo-estilos`, local, sobre los 43 commits de l
   `fixes/2026-10-02_legacy-style-id-prototype-names.md`).
 - **App**, detrás de `features.newCatalog` y fuera de la demo: la pestaña Catálogo de Crear con
   tarjetas como las de Mi estilo (`StyleCardFrame`, compartido con `CustomStyleCard`), etiquetas como
-  chips, «Usar en este video», «Ver» (`CatalogStyleModal`: muestras, etiquetas y modo de personaje,
-  recordado por estilo en `localStorage`) y «Pasar a mi estilo» (la copia aparece en Mi estilo con
-  «Basado en …»). Crear con una gema del catálogo: sin selección por defecto, chip del personaje que
+  chips, «Usar en este video», «Ver» (`CatalogStyleModal`: etiquetas, modo de personaje y muestras,
+  con el modo recordado por estilo en `localStorage`) y «Pasar a mi estilo» (lleva a Mi estilo con
+  el modal de la copia abierto, que dice «Basado en …»). Crear con una gema del catálogo: sin selección por defecto, chip del personaje que
   abre «Ver», un personaje como máximo, segundos por escena y modelo de prompts; desaparecen la
   frecuencia, la cantidad de escenas y «Confirmar escenas». El payload es el de §5.4.
 - **Con el interruptor apagado** (hoy `VIMO_FLAG_NEW_CATALOG=off`) y en la demo, Crear y el payload del
@@ -251,6 +251,33 @@ Con las muestras y la frase de idioma (2026-10-03): `pnpm lint`, `pnpm build`,
 prompts, 497 de 497. Cada punto donde el sidecar pega o recorta las frases fijas
 tiene un test que se pone en rojo si se le quita el idioma.
 
+## Ajustes de la QA del dueño (2026-10-03)
+
+El dueño probó la pestaña con su cuenta de admin y pidió siete cambios de pantalla, que quedaron en
+cinco commits. Ninguno toca el sidecar ni el contrato; cada commit tiene su informe en `fixes/` y la
+nota del 2026-10-03 de la
+[ADR-0048](../../adr/ADR-0048-gemas-por-secciones-y-agente-reconstructor.md) los resume.
+
+| Commit     | Qué cambia                                                                                                                                                      | Informe                                                |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `39f7db44` | «Ver» del catálogo: los interruptores de personaje van arriba de las muestras                                                                                   | `fixes/2026-10-03_catalog-view-character-first.md`     |
+| `7dbf121d` | Mi estilo dice «Personaje del estilo» cuando la gema trae su personaje (modal y chip de Crear)                                                                  | `fixes/2026-10-03_style-own-character-label.md`        |
+| `c0fab6ff` | «Pasar a mi estilo» lleva a Mi estilo con el modal de la copia abierto; sin el aviso con «Ir a Mi estilo»                                                       | `fixes/2026-10-03_catalog-copy-opens-in-custom-tab.md` |
+| `7eeeb26a` | El modal de Mi estilo ya no ofrece «Pegar gema nueva»                                                                                                           | `fixes/2026-10-03_remove-paste-new-gem.md`             |
+| `de495bd5` | El aviso «Adaptamos …» dura una visita a la pestaña, el del modal se cierra solo a los 60 s y la tarjeta de una gema adaptada lleva la etiqueta «Gema adaptada» | `fixes/2026-10-03_gem-adaptation-notices.md`           |
+
+**Cómo se probó.** Cada commit se verificó por separado (formato, lint, build, catálogos y los
+guards de la app, el catálogo y las gemas: 415 en el último). Además, los cambios se recorrieron
+con el formulario real de Crear montado en Chrome sin interfaz, dentro de `StrictMode` como en
+`pnpm tauri dev`, con la API y el agente simulados: 26 comprobaciones, todas en verde. Ese arnés es
+local y no se versiona. Falta el recorrido del dueño en la app.
+
+**Lo que el dueño pidió y no está en estos commits:** editar las gemas del catálogo y sus etiquetas
+desde la app con su cuenta de admin. No es un fallo de la cuenta: las 38 gemas viven en el código
+(`pipeline/prompts/catalog-gems/`) y la edición desde la app es la Entrega 3 del diseño (catálogo en
+Supabase, endpoints de admin en `vimo-landing` y su pantalla), que no está construida. Queda a la
+espera de que el dueño decida el alcance.
+
 ## Integración con `dev` y con la rama hermana
 
 Verificado el 2026-10-03 con `git merge-tree` (solo lectura; no se mergeó ni se rebaseó nada):
@@ -296,10 +323,16 @@ El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el
   la demo con sus tres estilos.
 - Interruptor encendido: Catálogo arranca sin tarjeta y con el aviso para elegir; 38 tarjetas con sus
   etiquetas (las de la casa primero); el menú de tres puntos con «Usar en este video», «Ver» y «Pasar
-  a mi estilo»; «Ver» con muestras, etiquetas y modo de personaje (el modo se recuerda al volver a
-  abrir); el chip del personaje en Crear abre «Ver» de esa gema; «Pasar a mi estilo» → «Ir a Mi
-  estilo» deja la copia en uso con «Basado en …»; al volver a Catálogo sigue elegida la gema de
-  antes; generar con una gema de la casa (por ejemplo Fantasía) y con una de Imperio Pro.
+  a mi estilo»; «Ver» con las etiquetas, el modo de personaje arriba y las muestras debajo (el modo
+  se recuerda al volver a abrir); el chip del personaje en Crear abre «Ver» de esa gema; «Pasar a
+  mi estilo» lleva a Mi estilo con el modal de la copia abierto y la deja en uso, con «Basado en
+  …»; al volver a Catálogo sigue elegida la gema de antes; generar con una gema de la casa (por
+  ejemplo Fantasía) y con una de Imperio Pro.
+- Mi estilo, después de la QA del 2026-10-03 (sección «Ajustes de la QA del dueño»): una gema que
+  trae su personaje dice «Personaje del estilo» en su modal y en el chip de Crear; el modal ya no
+  ofrece «Pegar gema nueva»; al adaptarse una gema sale el aviso «Adaptamos …», que se va al
+  cambiar de pestaña, el aviso del modal se cierra solo al minuto y la tarjeta queda con la
+  etiqueta «Gema adaptada».
 
 **Límites conocidos y decisiones que quedan para el dueño:**
 
