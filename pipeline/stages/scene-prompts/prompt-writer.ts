@@ -2,6 +2,8 @@ import { finalizeSceneImagePrompt } from '../shared/scene-prompt-finalization.ts
 import {
   narrativeCandidateFor,
   reviewNarrativePrompts,
+  reviewerCorrection,
+  type NarrativePromptCandidate,
 } from './narrative-alignment.ts'
 import { hasCatalogNarrative } from '../shared/catalog-prompt.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -53,15 +55,23 @@ import { buildScenePlanBlock } from './scene-director.ts'
 const MAX_ATTEMPTS_PER_SCENE = 3
 const LLM_CONCURRENCY = 6
 // Hasta cuántas escenas sin prompt puede dejar una corrida para rescatarlas
-// desde el editor. Con más, el problema no es la escena: se reintenta todo.
-export const MAX_RESCUABLE_PROMPT_FAILURES = 5
+// desde el editor. Un número fijo tumbaba los videos largos (7 de 549 = 1,3 %
+// paraban todo antes de imágenes): crece con el video. Con más, el problema no
+// es la escena: se reintenta todo.
+const MIN_RESCUABLE_PROMPT_FAILURES = 5
+const RESCUABLE_PROMPT_FAILURE_RATIO = 0.05
+export function rescuablePromptFailures(pendingScenes: number): number {
+  return Math.max(
+    MIN_RESCUABLE_PROMPT_FAILURES,
+    Math.ceil(pendingScenes * RESCUABLE_PROMPT_FAILURE_RATIO),
+  )
+}
 // Fallos de un pedido en los que ningún modelo de texto respondió (el
 // redactor o el revisor): la escena queda sin prompt, el resto sigue.
 const MODELS_UNAVAILABLE_CODES = [
   'catalog_prompts_incomplete',
   'scene_prompt_alignment_failed',
 ]
-const MAX_FAILURE_DETAIL_CHARS = 500
 
 export interface PromptWriterOptions {
   llm: SceneLlm
@@ -89,6 +99,35 @@ export interface PromptWriterOptions {
   rescueLimit?: number
   // Se llama con cada escena que quedó sin prompt, ya con su motivo.
   onSceneFailed?(scene: Scene): Promise<void> | void
+  // Avisos para el log del job (p. ej. un prompt aceptado con objeción).
+  onWarn?(message: string): void
+}
+
+// Objeción del revisor sobre el candidato, o undefined si se acepta. Un
+// revisor que no responde no deja la escena sin prompt: se acepta sin
+// revisión y queda en el log. Cuenta, saldo y cancelación siguen cortando.
+async function narrativeObjection(
+  candidate: NarrativePromptCandidate,
+  options: PromptWriterOptions,
+): Promise<string | undefined> {
+  try {
+    const rejected = await reviewNarrativePrompts([candidate], {
+      llm: options.reviewLlm ?? options.llm,
+      signal: options.signal,
+    })
+    return rejected.get(candidate.sceneId)
+  } catch (error) {
+    options.signal.throwIfAborted()
+    if (
+      !(error instanceof PipelineFailure) ||
+      error.code !== 'scene_prompt_alignment_failed'
+    )
+      throw error
+    options.onWarn?.(
+      `scene ${candidate.sceneId} accepted without narrative review (reviewer unavailable)`,
+    )
+    return undefined
+  }
 }
 
 // Toda escena lleva prompt: la muda (texto vacío del corte clásico) se
@@ -309,6 +348,8 @@ export async function generateScenePrompts(
 
         let imagePrompt = ''
         let lastFailure: ScenePromptFailure = { source: 'writer' }
+        // Último candidato completo que el revisor objetó.
+        let objectedPrompt: { prompt: string; feedback: string } | undefined
         // Si un intento soltó rasgos de cabeza canónicos, el siguiente lleva
         // la corrección explícita adjunta.
         let identityCorrection = ''
@@ -445,31 +486,25 @@ export async function generateScenePrompts(
                   writerOptions.style.id,
                   writerOptions.visualBible,
                 )
-                const rejected = await reviewNarrativePrompts(
-                  [
-                    narrativeCandidateFor(
-                      currentScene,
-                      orderedScenes,
-                      finalPrompt,
-                    ),
-                  ],
-                  {
-                    llm: writerOptions.reviewLlm ?? writerOptions.llm,
-                    signal: writerOptions.signal,
-                  },
+                const feedback = await narrativeObjection(
+                  narrativeCandidateFor(
+                    currentScene,
+                    orderedScenes,
+                    finalPrompt,
+                  ),
+                  writerOptions,
                 )
-                const feedback = rejected.get(scene.id)
-                if (feedback) {
-                  lastFailure = {
-                    source: 'reviewer',
-                    detail: reviewerCorrection(feedback),
-                  }
-                  narrativeCorrection = narrativeCorrectionBlock(feedback)
-                  continue
-                } else {
+                if (!feedback) {
                   imagePrompt = finalPrompt
                   break
                 }
+                lastFailure = {
+                  source: 'reviewer',
+                  detail: reviewerCorrection(feedback),
+                }
+                objectedPrompt = { prompt: finalPrompt, feedback }
+                narrativeCorrection = narrativeCorrectionBlock(feedback)
+                continue
               }
               lastFailure = { source: 'writer' }
               // Sin el personaje no tiene sentido corregirle el pelo o la tez:
@@ -492,13 +527,23 @@ export async function generateScenePrompts(
               !MODELS_UNAVAILABLE_CODES.includes(error.code)
             )
               throw error
-            failures.push({ scene, failure: { source: 'models' } })
-            return
+            lastFailure = { source: 'models' }
+            break
           }
           if (attempt < MAX_ATTEMPTS_PER_SCENE)
             await delay(300 * attempt, undefined, {
               signal: writerOptions.signal,
             })
+        }
+
+        // Revisor permisivo: si los intentos se agotaron y el revisor solo
+        // objetó (el prompt es del redactor, sobre esta narración), se acepta
+        // el último objetado y la objeción queda en el log. No es relleno.
+        if (!isValidPrompt(imagePrompt) && objectedPrompt) {
+          writerOptions.onWarn?.(
+            `scene ${scene.id} accepted with reviewer objection: ${reviewerCorrection(objectedPrompt.feedback)}`,
+          )
+          imagePrompt = objectedPrompt.prompt
         }
 
         if (!isValidPrompt(imagePrompt)) {
@@ -549,24 +594,6 @@ export async function generateScenePrompts(
     )
 
   return scenes.map((scene) => results.get(scene.id) ?? scene)
-}
-
-// La objeción del revisor viaja como JSON con evidencia; a disco (y a la UI)
-// va solo su corrección, que también siembra el próximo intento.
-function reviewerCorrection(feedback: string): string {
-  try {
-    const parsed: unknown = JSON.parse(feedback)
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'correction' in parsed &&
-      typeof parsed.correction === 'string'
-    )
-      return parsed.correction.slice(0, MAX_FAILURE_DETAIL_CHARS)
-  } catch {
-    // Texto plano: se guarda tal cual.
-  }
-  return feedback.slice(0, MAX_FAILURE_DETAIL_CHARS)
 }
 
 function narrativeCorrectionBlock(feedback: string): string {
@@ -641,6 +668,7 @@ export async function regeneratePromptsForRejected(
 
         let imagePrompt = ''
         let narrativeCorrection = ''
+        let objectedPrompt: { prompt: string; feedback: string } | undefined
         for (let retry = 1; retry <= MAX_ATTEMPTS_PER_SCENE; retry++) {
           try {
             const content = await writerOptions.llm.generate({
@@ -676,26 +704,20 @@ export async function regeneratePromptsForRejected(
                 writerOptions.style.id,
                 writerOptions.visualBible,
               )
-              const rejected = await reviewNarrativePrompts(
-                [
-                  narrativeCandidateFor(
-                    { ...scene, userPrompt: undefined },
-                    orderedScenes,
-                    finalPrompt,
-                  ),
-                ],
-                {
-                  llm: writerOptions.reviewLlm ?? writerOptions.llm,
-                  signal: writerOptions.signal,
-                },
+              const feedback = await narrativeObjection(
+                narrativeCandidateFor(
+                  { ...scene, userPrompt: undefined },
+                  orderedScenes,
+                  finalPrompt,
+                ),
+                writerOptions,
               )
-              const feedback = rejected.get(scene.id)
-              if (feedback) {
-                narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
-              } else {
+              if (!feedback) {
                 imagePrompt = finalPrompt
                 break
               }
+              objectedPrompt = { prompt: finalPrompt, feedback }
+              narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
             }
           } catch (error) {
             writerOptions.signal.throwIfAborted()
@@ -708,6 +730,13 @@ export async function regeneratePromptsForRejected(
         }
 
         writerOptions.signal.throwIfAborted()
+        // Mismo criterio que el redactor principal: el último objetado vale.
+        if (!isValidPrompt(imagePrompt) && objectedPrompt) {
+          writerOptions.onWarn?.(
+            `scene ${scene.id} accepted with reviewer objection: ${reviewerCorrection(objectedPrompt.feedback)}`,
+          )
+          imagePrompt = objectedPrompt.prompt
+        }
         if (!isValidPrompt(imagePrompt))
           throw new PipelineFailure(
             'catalog_prompts_incomplete',

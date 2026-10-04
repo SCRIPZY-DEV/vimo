@@ -309,6 +309,9 @@ export const imagesStage: Stage<CreateVideoContext> = {
                 scene: await toSceneSummary(context.paths, scene),
               })
             },
+            onWarn(message) {
+              context.emitter.emit({ type: 'log', level: 'warn', message })
+            },
           },
         )
       }

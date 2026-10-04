@@ -28,10 +28,7 @@ import {
   runVerbatimLane,
 } from './verbatim/verbatim-lane.ts'
 import { createVerbatimPromptPersistence } from './verbatim/verbatim-persistence.ts'
-import {
-  guaranteePrompts,
-  MAX_RESCUABLE_PROMPT_FAILURES,
-} from './prompt-writer.ts'
+import { guaranteePrompts, rescuablePromptFailures } from './prompt-writer.ts'
 import { directScenes, scenesNeedPlan } from './scene-director.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
 
@@ -258,7 +255,10 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       },
       // Unas pocas escenas sin prompt no tiran el video: quedan sin imagen
       // y con su motivo, para regenerarlas desde el editor.
-      rescueLimit: MAX_RESCUABLE_PROMPT_FAILURES,
+      rescueLimit: rescuablePromptFailures(pendingIds.size),
+      onWarn(message) {
+        context.emitter.emit({ type: 'log', level: 'warn', message })
+      },
       async onSceneFailed(scene) {
         persistence = persistence.then(async () => {
           context.signal.throwIfAborted()

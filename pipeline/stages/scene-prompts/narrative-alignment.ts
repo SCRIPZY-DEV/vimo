@@ -22,6 +22,7 @@ const REVIEW_OUTPUT_TOKENS = 3000
 const EVIDENCE_WORDS = 20
 const EVIDENCE_STRIDE = 14
 const NARRATIVE_CHECKS = ['focus', 'events', 'setting', 'causality'] as const
+const MAX_CORRECTION_CHARS = 500
 
 export interface NarrativePromptCandidate {
   sceneId: number
@@ -423,6 +424,24 @@ async function reviewBatch(
     'scene_prompt_alignment_failed',
     `Narrative alignment review returned an invalid contract after ${REVIEW_ATTEMPTS} attempts.`,
   )
+}
+
+// La objeción del revisor viaja como JSON con evidencia; a disco (y a la UI)
+// va solo su corrección, que también siembra el próximo intento.
+export function reviewerCorrection(feedback: string): string {
+  try {
+    const parsed: unknown = JSON.parse(feedback)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'correction' in parsed &&
+      typeof parsed.correction === 'string'
+    )
+      return parsed.correction.slice(0, MAX_CORRECTION_CHARS)
+  } catch {
+    // Texto plano: se guarda tal cual.
+  }
+  return feedback.slice(0, MAX_CORRECTION_CHARS)
 }
 
 export async function reviewNarrativePrompts(
