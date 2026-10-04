@@ -766,6 +766,7 @@
       "notEnglish": "Não parece estar em inglês. O Vimo cola este texto como está em cada imagem, então é melhor escrevê-lo em inglês.",
       "notEnglishDismiss": "Descartar aviso",
       "warningsTitle": "O que a IA ajustou na sua gema",
+      "warningsPlatformNote": "As regras de fluxo, de formato de saída e de idioma não são necessárias na sua gema: o Vimo já tem as suas e as coloca automaticamente em cada vídeo. Por isso a IA as remove.",
       "sourceTitle": "Texto original",
       "sourceHint": "Sua gema como era antes de a IA organizá-la em seções. É somente leitura: copie o que precisar.",
       "sections": {

@@ -766,6 +766,7 @@
       "notEnglish": "This doesn't look like English. Vimo pastes this text as is into every image, so it's best written in English.",
       "notEnglishDismiss": "Dismiss notice",
       "warningsTitle": "What the AI adjusted in your gem",
+      "warningsPlatformNote": "Flow, output format and language rules are not needed in your gem: Vimo already has its own and adds them automatically to every video. That is why the AI removes them.",
       "sourceTitle": "Original text",
       "sourceHint": "Your gem as it was before the AI sorted it into sections. It's read-only: copy whatever you need.",
       "sections": {
