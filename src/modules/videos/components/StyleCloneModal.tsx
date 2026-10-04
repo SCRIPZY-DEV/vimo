@@ -15,7 +15,6 @@ import { StyleCloneCharacterStep } from '@/modules/videos/components/StyleCloneC
 import { StyleCloneFailure } from '@/modules/videos/components/StyleCloneFailure'
 import { StyleCloneScenesStep } from '@/modules/videos/components/StyleCloneScenesStep'
 import { StyleCloneSourceStep } from '@/modules/videos/components/StyleCloneSourceStep'
-import { StyleCloneStatusTag } from '@/modules/videos/components/StyleCloneStatusTag'
 import { StyleCloneWorkingStep } from '@/modules/videos/components/StyleCloneWorkingStep'
 import {
   closeStyleCloneModal,
@@ -29,10 +28,7 @@ import {
   startStyleClone,
   useStyleClones,
 } from '@/modules/videos/hooks/useStyleClones'
-import {
-  styleCloneCardStateOf,
-  styleCloneModalStepOf,
-} from '@/modules/videos/utilities/styleCloneView'
+import { styleCloneModalStepOf } from '@/modules/videos/utilities/styleCloneView'
 import type { StyleCloneModalTarget } from '@/modules/videos/hooks/useStyleCloneModal'
 import type { StyleCloneStartInput } from '@/modules/videos/types/styleClone'
 
@@ -95,14 +91,12 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
               ? session.name
               : t('create.styleClone.modalTitle')}
           </DialogTitle>
-          <DialogDescription>
+          {/* Sin texto a la vista: la cabecera es solo el nombre, para que las
+              pruebas y la caja «¿Qué ajustamos?» queden arriba. La descripción
+              sigue para los lectores de pantalla. */}
+          <DialogDescription className="sr-only">
             {t('create.styleClone.modalDescription')}
           </DialogDescription>
-          {session && step !== 'source' && (
-            <div>
-              <StyleCloneStatusTag state={styleCloneCardStateOf(session)} />
-            </div>
-          )}
         </DialogHeader>
 
         {step === 'source' && (

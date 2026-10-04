@@ -8,36 +8,54 @@ interface StyleCloneStatusTagProps {
   className?: string
 }
 
-// Cada tono con su color e ícono: trabajando (neutro, girando), esperando una
-// respuesta (saffron, lo que más tiene que verse) o detenida (coral).
+const COMPACT_SIZE = 'gap-1 px-2.5 py-1 text-xs shadow'
+const COMPACT_ICON = 'h-3.5 w-3.5'
+
+// Cada tono con su color, su tamaño y su ícono: trabajando (neutro, girando),
+// detenida (coral) o esperando una respuesta (saffron). Esta última es la que
+// más tiene que verse: quien cerró el modal sin aprobar la encuentra por su
+// etiqueta, así que va más grande y con borde.
 const TONES = {
-  working: { container: 'bg-background/90 text-foreground', Icon: Loader2 },
+  working: {
+    container: 'bg-background/90 text-foreground',
+    size: COMPACT_SIZE,
+    icon: COMPACT_ICON,
+    Icon: Loader2,
+  },
   attention: {
-    container: 'bg-saffron text-charcoal',
+    container: 'bg-saffron text-charcoal ring-2 ring-white/80',
+    size: 'gap-1.5 px-3 py-1.5 text-[13px] shadow-md',
+    icon: 'h-4 w-4',
     Icon: MessageCircleQuestion,
   },
-  error: { container: 'bg-coral text-white', Icon: CircleAlert },
+  error: {
+    container: 'bg-coral text-white',
+    size: COMPACT_SIZE,
+    icon: COMPACT_ICON,
+    Icon: CircleAlert,
+  },
 } as const
 
-// La etiqueta de estado de una clonación de estilo: va en su tarjeta de Mi
-// estilo y en la cabecera de su modal. Presentacional.
+// La etiqueta de estado de una clonación de estilo, sobre su tarjeta de Mi
+// estilo. Presentacional.
 export function StyleCloneStatusTag({
   state,
   className,
 }: StyleCloneStatusTagProps) {
   const { t } = useTranslation()
-  const { container, Icon } = TONES[state.tone]
+  const { container, size, icon, Icon } = TONES[state.tone]
 
   return (
     <span
       role="status"
       className={cn(
-        'inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 font-display text-[10px] font-bold shadow',
+        'inline-flex max-w-full items-center rounded-full font-display font-bold',
         container,
+        size,
         className,
       )}
     >
-      <Icon className={cn('h-3 w-3 shrink-0', state.busy && 'animate-spin')} />
+      <Icon className={cn('shrink-0', icon, state.busy && 'animate-spin')} />
       <span className="truncate">{t(state.labelKey)}</span>
     </span>
   )

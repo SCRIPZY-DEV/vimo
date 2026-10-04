@@ -80,7 +80,7 @@ export function StyleCloneSessionCard({
 
         <StyleCloneStatusTag
           state={state}
-          className="absolute left-2 top-2 z-[6] max-w-[calc(100%-3.5rem)]"
+          className="absolute left-2 top-2 z-[6] max-w-[calc(100%-3rem)]"
         />
 
         <div

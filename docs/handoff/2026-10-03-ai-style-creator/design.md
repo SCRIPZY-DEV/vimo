@@ -88,9 +88,11 @@ referencia `/Users/sebas/Documents/crear-estilo-ia/` (fuera del repo, no se comm
    personaje. Debajo, los 3 diseños: «1 · Réplica fiel», «2 · Variante», «3 · Variante». Una caja
    «¿Qué ajustamos?» rehace los 3. Al elegir uno aparece la elección de C3 y el botón «Probar
    escenas».
-5. **Escenas de prueba.** El nombre y la descripción que propuso la IA, editables. Las 4 parejas
-   «Original / Clonación». Una caja de comentario rehace las pruebas y conserva el personaje.
-   «Aprobar y guardar».
+5. **Escenas de prueba.** El nombre del estilo, editable (en un video sale de su título, ver §6), y
+   la descripción que propuso la IA. Las 4 parejas «Original / Clonación». Una caja de comentario
+   rehace las pruebas y conserva el personaje. «Aprobar y guardar». La cabecera del modal es solo el
+   nombre del estilo, y la caja «¿Qué ajustamos?» con el botón de aprobar quedan pegados al borde de
+   abajo: se ven sin desplazarse (pedido del dueño, 2026-10-04).
 6. **Guardar.** El estilo aparece en la grilla con las 4 clonaciones como muestras. Si el modal está
    abierto queda «En uso»; si no, un aviso ofrece «Usar en este video».
 
@@ -345,7 +347,8 @@ stateDiagram-v2
 - **Cada sesión tiene su card** al principio de la grilla, con la primera imagen del origen y una
   etiqueta: «Preparando», «Analizando», «Dibujando pruebas», «Respondé para continuar», «Guardando»,
   «Error · Reintentar» o «Se interrumpió · Reanudar». Tocarla abre el modal en su paso. Su menú ofrece
-  «Descartar».
+  «Descartar». «Respondé para continuar» va más grande que las demás y con borde: es la que tiene que
+  encontrar quien cerró el modal sin aprobar (pedido del dueño, 2026-10-04).
 - **Cuando necesita una respuesta** (elegir el diseño, cómo viaja el personaje, aprobar o comentar) se
   detiene, cambia la etiqueta y muestra un aviso con «Responder».
 - **Si se cierra la app**, al volver las sesiones que estaban trabajando quedan en «Se interrumpió ·
