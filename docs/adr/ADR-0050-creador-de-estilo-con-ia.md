@@ -127,6 +127,15 @@ entre 818 y 1 590 caracteres: el instructivo del servidor tiene que pedir una fi
 usar esa misma en las escenas de prueba, para que lo aprobado sea lo que después sale en el video
 (pendiente en `vimo-landing`, ver Consecuencias).
 
+**La ficha describe una sola imagen (2026-10-04).** Como `promptEnd` se pega en cada prompt, el
+generador lee la ficha como la descripción de esa imagen. Solo puede decir lo que es verdad en todos
+los fotogramas (técnica, trazo, anatomía, tratamiento del color, detalle, sombreado, textura y
+negaciones). La variedad del canal —los mundos de color entre los que rota, el reparto de fondos,
+los tipos de escena— va en `visualStyle` y `rules`, que lee el redactor de prompts. En la primera
+clonación hecha desde la app la ficha traía esa variedad y las 4 escenas salieron como collages de
+paneles; el servidor ahora la pide aparte y la reclama si se cuela
+(`fixes/2026-10-04_style-clone-collage-scenes.md`).
+
 ### La app: sesiones que siguen sin el modal
 
 - **Una sesión es una clonación abierta.** Vive en un store fuera de React

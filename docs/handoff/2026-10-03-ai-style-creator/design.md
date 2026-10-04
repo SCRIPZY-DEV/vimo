@@ -255,13 +255,13 @@ maestro de Imperio Pro con estos cambios, y ninguno más:
 
 Todas en inglés.
 
-| Sección       | Qué lleva                                                                                                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `visualStyle` | La ficha de estilo completa y cómo monta las escenas el canal: composición, tipos de escena y proporción de fondos.                                                                                    |
-| `promptEnd`   | `Style: <la ficha completa>` más la oración de idioma con el marcador `[IDIOMA DEL GUION]`, que Vimo reemplaza por el idioma de cada guion. Vimo la pega por código al final de cada prompt de imagen. |
-| `rules`       | Los candados de Imperio Pro adaptados a lo que midió: contexto, extras, fondo y mundos de color, frecuencia de texto, expresiones y fidelidad de estilo.                                               |
-| `dynamism`    | Solo si el canal alterna tipos de escena: qué tipo le toca a cada contenido y cuándo aparece el protagonista.                                                                                          |
-| `camera`      | La variedad de planos.                                                                                                                                                                                 |
+| Sección       | Qué lleva                                                                                                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `visualStyle` | La ficha de estilo completa y, después, la variedad del canal: los mundos de color entre los que rota, el reparto de fondos lisos y escenarios, los tipos de escena y cómo las monta.               |
+| `promptEnd`   | `Style: <la ficha completa>` y nada más, hasta 900 caracteres. Vimo la pega por código al final de cada prompt de imagen, así que describe una sola imagen: sin la variedad del canal (2026-10-04). |
+| `rules`       | Los candados de Imperio Pro adaptados a lo que midió: contexto, extras, fondo y mundos de color, frecuencia de texto, expresiones y fidelidad de estilo.                                            |
+| `dynamism`    | Solo si el canal alterna tipos de escena: qué tipo le toca a cada contenido y cuándo aparece el protagonista.                                                                                       |
+| `camera`      | La variedad de planos.                                                                                                                                                                              |
 
 - `character` queda vacía: el personaje clonado entra como personaje de la biblioteca, así
   «Personaje genérico» siempre significa diseñarlo desde el guion.
@@ -300,6 +300,21 @@ Las corridas, sus imágenes y cómo repetirlas: `/Users/sebas/Documents/crear-es
 (`LEEME.md`). Son locales: usan claves reales y no se commitean.
 
 ---
+
+### Lo que cambió tras la primera clonación hecha desde la app (2026-10-04)
+
+- **La ficha describe una sola imagen.** Las 4 escenas de esa clonación salieron como collages de
+  paneles: la ficha, que se pega al final de cada prompt, contaba la variedad del video entero
+  («Rotates between: … laboratories, … offices… Composition includes floating diagrams, visual
+  metaphors, split screens.») y el generador dibujó todo junto. Ahora la ficha solo dice lo que es
+  verdad en todos los fotogramas; la variedad va en una línea aparte del análisis («VARIEDAD DEL
+  CANAL:») y, en el estilo final, en `visualStyle` y `rules`. Si igual se cuela, el servidor la
+  reclama una vez. Informe: `fixes/2026-10-04_style-clone-collage-scenes.md`.
+- **El nombre del estilo sale del título del video.** Con «POV: Eres el COCINERO del Cartel» el
+  estilo se llama «Cocinero del Cartel», no «Pizarra Criminal». Lo pide el instructivo y, si el
+  modelo no lo hace, el servidor arma el nombre con las palabras del título. Con imágenes sueltas
+  sigue siendo un nombre que describe el estilo.
+- En `vimo-landing`: `0ece251`, `44d625c` y `98e3f47` (rama `fix/creador-estilo-analizador`).
 
 ## 7. Las pruebas de imágenes
 
@@ -511,5 +526,7 @@ Los pasos 3 y 4 van sobre la rama del catálogo, en `feat/creador-estilo-ia-sobr
    (2026-10-03).
 4. **Presupuesto de la aceptación** contra Imperio Pro y qué videos e imágenes se usan.
 5. **Plan de Workers:** si el CPU del plan gratis no alcanza, pagar 5 USD al mes o empalmar las
-   imágenes sin parsearlas.
+   imágenes sin parsearlas. Medido el 2026-10-04 en la primera clonación real: 26 ms de CPU con 14
+   imágenes (1,94 millones de caracteres en base64) y el plan gratis lo dejó pasar. Falta medir con
+   diez imágenes propias.
 6. ~~Sumar el fix de personajes a la rama~~: hecho el 2026-10-03.
