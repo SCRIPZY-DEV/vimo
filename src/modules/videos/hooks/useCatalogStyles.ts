@@ -60,5 +60,7 @@ export function useCatalogStyles() {
     copyErrorKey: copyMutation.isError
       ? videosApi.catalogCopyErrorKey(copyMutation.error)
       : null,
+    // Olvida la última copia: el aviso de una fallida se puede cerrar.
+    dismissCopyFailure: () => copyMutation.reset(),
   }
 }

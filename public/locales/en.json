@@ -677,6 +677,7 @@
       "copying": "Cloning…",
       "copyingNamed": "Cloning gem from the catalog <badge>{{name}}</badge>",
       "copyFailed": "Could not copy \"{{name}}\" to My style.",
+      "copyFailedDismiss": "Dismiss notice",
       "modalTitle": "Vimo style",
       "noSamples": "This style has no samples yet.",
       "characterTitle": "This style's character",

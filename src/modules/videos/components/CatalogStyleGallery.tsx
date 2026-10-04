@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Loader2, X } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { Button } from '@/modules/common/ui/button'
 import { CatalogStyleCard } from '@/modules/videos/components/CatalogStyleCard'
 import { CatalogStyleModal } from '@/modules/videos/components/CatalogStyleModal'
 import {
@@ -42,15 +43,6 @@ interface CatalogStyleGalleryProps {
   onCopied: (style: CustomStyleSummary) => void
 }
 
-// Los avisos de la copia (en curso o fallida) aparecen debajo de una grilla
-// larga (38 estilos): al montarse se traen a la vista, o el clic en «Pasar a
-// mi estilo» no mostraría nada. Función estable (fuera del componente): React
-// la llama solo cuando el aviso se monta, no en cada render; cada aviso lleva
-// su `key`.
-function revealNotice(element: HTMLElement | null) {
-  element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-}
-
 // Galería del catálogo de Vimo (Entrega 2): una tarjeta por estilo, iguales a
 // las de Mi estilo, en el orden del catálogo. Arranca sin selección, como Mi
 // estilo (plan E2, P4): sin tarjeta elegida el video no sale. Qué estilo está
@@ -78,6 +70,7 @@ export function CatalogStyleGallery({
     copiedStyle,
     copyFailed,
     copyErrorKey,
+    dismissCopyFailure,
   } = useCatalogStyles()
   const { showSavedStyle } = useCustomStyles()
   const selectedId = selected?.catalogStyleId ?? null
@@ -197,37 +190,54 @@ export function CatalogStyleGallery({
         ))}
       </div>
 
-      {copying && copyRequest && (
-        <p
-          key={`copying:${copyRequest.gem.id}`}
-          ref={revealNotice}
-          role="status"
-          className="flex items-center gap-2 rounded-xl border-2 border-saffron/30 bg-saffron/5 px-4 py-3 font-body text-sm text-foreground"
-        >
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
-          <span>
-            <Trans
-              i18nKey="create.catalog.copyingNamed"
-              values={{ name: copyRequest.name }}
-              components={{
-                badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
-              }}
-            />
-          </span>
-        </p>
-      )}
-
-      {/* El titular basta cuando el texto del código es del formulario de
-          Crear (videosApi.catalogCopyErrorKey devuelve null). */}
-      {!copying && copyFailed && copyRequest && (
-        <Alert
-          key={`failed:${copyRequest.gem.id}`}
-          ref={revealNotice}
-          tone="danger"
-          title={t('create.catalog.copyFailed', { name: copyRequest.name })}
-        >
-          {copyErrorKey && <p>{t(copyErrorKey)}</p>}
-        </Alert>
+      {/* Los avisos de la copia (en curso o fallida) van después de una
+          grilla larga (38 estilos) y se quedan pegados al borde de abajo de
+          lo que se ve mientras la galería está en pantalla: así el clic en
+          «Pasar a mi estilo» siempre muestra algo. Traerlos a la vista con
+          scroll no servía: al cerrarse, el menú de la tarjeta le devuelve el
+          foco a su botón y eso corta el scroll. El fondo opaco tapa las
+          tarjetas que pasan por debajo. */}
+      {copyRequest && (copying || copyFailed) && (
+        <div className="sticky bottom-4 z-10 rounded-xl bg-background shadow-card-hover">
+          {copying ? (
+            <p
+              role="status"
+              className="flex items-center gap-2 rounded-xl border-2 border-saffron/30 bg-saffron/5 px-4 py-3 font-body text-sm text-foreground"
+            >
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
+              <span>
+                <Trans
+                  i18nKey="create.catalog.copyingNamed"
+                  values={{ name: copyRequest.name }}
+                  components={{
+                    badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
+                  }}
+                />
+              </span>
+            </p>
+          ) : (
+            // El titular basta cuando el texto del código es del formulario
+            // de Crear (videosApi.catalogCopyErrorKey devuelve null).
+            <Alert
+              tone="danger"
+              title={t('create.catalog.copyFailed', { name: copyRequest.name })}
+              actions={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('create.catalog.copyFailedDismiss')}
+                  onClick={dismissCopyFailure}
+                  className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              }
+            >
+              {copyErrorKey && <p>{t(copyErrorKey)}</p>}
+            </Alert>
+          )}
+        </div>
       )}
 
       {viewingGem && (

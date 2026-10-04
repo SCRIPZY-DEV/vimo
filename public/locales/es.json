@@ -677,6 +677,7 @@
       "copying": "Clonando…",
       "copyingNamed": "Clonando gema del catálogo <badge>{{name}}</badge>",
       "copyFailed": "No se pudo pasar «{{name}}» a Mi estilo.",
+      "copyFailedDismiss": "Descartar aviso",
       "modalTitle": "Estilo de Vimo",
       "noSamples": "Este estilo todavía no tiene muestras.",
       "characterTitle": "Personaje de este estilo",
