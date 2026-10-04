@@ -51,8 +51,9 @@ export function useCatalogStyles() {
     copyStyle: (request: CatalogCopyRequest) =>
       copyMutation.mutateAsync(request),
     copying: copyMutation.isPending,
-    // La última copia: qué se pidió, la tarjeta que quedó en Mi estilo o si
-    // falló, con su porqué cuando el texto sirve para la copia (si no, null).
+    // La última copia: qué se pidió, la tarjeta que quedó en Mi estilo (la
+    // galería lleva el formulario a ella) o si falló, con su porqué cuando el
+    // texto sirve para la copia (si no, null).
     copyRequest: copyMutation.variables ?? null,
     copiedStyle: copyMutation.data?.entry ?? null,
     copyFailed: copyMutation.isError,

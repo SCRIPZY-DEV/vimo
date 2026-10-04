@@ -673,8 +673,6 @@
       "view": "Ver",
       "copyToCustom": "Passar para meu estilo",
       "copying": "Copiando para Meu estilo…",
-      "copied": "«{{name}}» foi copiado para Meu estilo.",
-      "copiedAction": "Ir para Meu estilo",
       "copyFailed": "Não foi possível passar «{{name}}» para Meu estilo.",
       "modalTitle": "Estilo do Vimo",
       "noSamples": "Este estilo ainda não tem amostras.",

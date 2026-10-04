@@ -89,6 +89,9 @@ export function CreateForm({
 
   const [attempts, setAttempts] = useState(0)
   const blockersRef = useRef<HTMLDivElement>(null)
+  // La copia de «Pasar a mi estilo» que Mi estilo abre en su modal apenas se
+  // muestra; null = ninguna.
+  const [arrivingStyleId, setArrivingStyleId] = useState<string | null>(null)
   // Con qué carril se arma la pantalla: la pestaña Catálogo nueva se ve como
   // Mi estilo aun antes de elegir tarjeta (plan E2, P4).
   const lane = displayLaneOf(value, newCatalog)
@@ -177,11 +180,13 @@ export function CreateForm({
     })
   }
 
-  // «Ir a Mi estilo» en el aviso de una copia: la copia queda EN USO en Mi
-  // estilo, como una gema recién creada, y lo elegido en el catálogo queda
-  // guardado para cuando se vuelva.
+  // «Pasar a mi estilo» terminó: el formulario pasa a Mi estilo con el modal
+  // de la copia abierto, sin un paso de por medio. La copia queda EN USO, como
+  // una gema recién creada, y lo elegido en el catálogo queda guardado para
+  // cuando se vuelva.
   const goToCopiedStyle = (copy: CustomStyleSummary) => {
     const customStyle = selectedCustomStyleFrom(copy)
+    setArrivingStyleId(copy.id)
     onOtherTabStyleChange(
       tabSwitchSelection(value.customStyle, otherTabStyle, 'custom')
         .otherTabStyle,
@@ -259,7 +264,9 @@ export function CreateForm({
             disabled={disabled}
             script={value.script}
             promptModel={value.promptModel}
+            arrivingStyleId={arrivingStyleId}
             onSelect={selectStyle}
+            onArrivalOpened={() => setArrivingStyleId(null)}
           />
         )}
         {lane !== 'legacy-catalog' && (

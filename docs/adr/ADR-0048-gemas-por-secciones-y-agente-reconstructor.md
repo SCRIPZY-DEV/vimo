@@ -540,3 +540,7 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   de la gema (sobre el borrador de secciones, así cambia mientras se escribe) y en el chip de
   personaje de Crear (`gemBringsCharacter`). La spec decía que el bloque «¿Tu estilo lleva
   personaje?» no cambiaba. Una gema vieja, sin secciones, sigue diciendo «Personaje genérico».
+- **«Pasar a mi estilo» abre la copia.** Al terminar la copia, el formulario pasa a la pestaña Mi
+  estilo con el modal de la copia abierto, sin el aviso «quedó copiado» ni su botón «Ir a Mi
+  estilo». Si la persona ya salió de la pestaña Catálogo mientras se copiaba, no se la lleva: la
+  copia le aparece en Mi estilo.

@@ -1,9 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Loader2 } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
-import { Button } from '@/modules/common/ui/button'
 import { CatalogStyleCard } from '@/modules/videos/components/CatalogStyleCard'
 import { CatalogStyleModal } from '@/modules/videos/components/CatalogStyleModal'
 import {
@@ -36,15 +35,17 @@ interface CatalogStyleGalleryProps {
   script: string
   promptModel: string | null
   onSelect: (style: SelectedCustomStyle) => void
-  // La persona tocó «Ir a Mi estilo» en el aviso de una copia: el formulario
-  // cambia de pestaña. Recibe la copia guardada.
+  // «Pasar a mi estilo» terminó bien con esta galería a la vista: el
+  // formulario pasa a Mi estilo con el modal de la copia abierto. Recibe la
+  // copia guardada.
   onCopied: (style: CustomStyleSummary) => void
 }
 
-// Los avisos de la copia aparecen debajo de una grilla larga (38 estilos): al
-// montarse se traen a la vista, o el clic en «Pasar a mi estilo» no mostraría
-// nada. Función estable (fuera del componente): React la llama solo cuando el
-// aviso se monta, no en cada render; cada aviso lleva su `key`.
+// Los avisos de la copia (en curso o fallida) aparecen debajo de una grilla
+// larga (38 estilos): al montarse se traen a la vista, o el clic en «Pasar a
+// mi estilo» no mostraría nada. Función estable (fuera del componente): React
+// la llama solo cuando el aviso se monta, no en cada render; cada aviso lleva
+// su `key`.
 function revealNotice(element: HTMLElement | null) {
   element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
@@ -89,6 +90,23 @@ export function CatalogStyleGallery({
   // pedido no queda colgado para la próxima vez.
   useEffect(() => closeCatalogStyleViewer, [])
 
+  // La última copia que ya se llevó a Mi estilo: cada copia navega una vez.
+  const announcedCopy = useRef<CustomStyleSummary | null>(null)
+
+  // La copia terminó con la galería a la vista: entra a la lista de Mi estilo
+  // al toque (sin esperar el refetch) y el formulario pasa a esa pestaña.
+  // Efecto y no la continuación del `await` de `copy`: así corre con el
+  // formulario de ahora y no con el del clic (la copia tarda y la persona
+  // pudo tocar otra cosa), y solo con la galería montada: a quien ya salió de
+  // la pestaña no se lo arrastra, y la copia le aparece igual en Mi estilo
+  // (useCatalogStyles invalida la lista).
+  useEffect(() => {
+    if (!copiedStyle || announcedCopy.current === copiedStyle) return
+    announcedCopy.current = copiedStyle
+    showSavedStyle(copiedStyle)
+    onCopied(copiedStyle)
+  }, [copiedStyle, showSavedStyle, onCopied])
+
   // El modo de un estilo: el del formulario si está en uso; si no, el
   // recordado (o el de sus muestras).
   const characterOf = (gem: CatalogGem): StyleCharacter => {
@@ -113,17 +131,16 @@ export function CatalogStyleGallery({
     closeCatalogStyleViewer(gem.id)
   }
 
-  // «Pasar a mi estilo»: la copia entra a la lista de Mi estilo al toque (sin
-  // esperar el refetch) y el aviso la anuncia. Pedida desde «Ver», el modal se
-  // cierra al terminar, bien o mal, para que se vea el aviso.
+  // «Pasar a mi estilo». Pedida desde «Ver», el modal se cierra al terminar:
+  // si falló, para que se vea el aviso; si salió bien, porque el formulario
+  // pasa a Mi estilo (el efecto de arriba).
   const copy = async (gem: CatalogGem, character: StyleCharacter) => {
     try {
-      const { entry } = await copyStyle({
+      await copyStyle({
         gem,
         name: localizedText(gem.name, language),
         character,
       })
-      showSavedStyle(entry)
     } catch {
       // El porqué lo muestra el aviso, desde el estado de la copia.
     } finally {
@@ -189,26 +206,6 @@ export function CatalogStyleGallery({
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
           {t('create.catalog.copying')}
         </p>
-      )}
-
-      {!copying && copiedStyle && (
-        <Alert
-          key={`copied:${copiedStyle.id}`}
-          ref={revealNotice}
-          tone="info"
-          icon={Check}
-          title={t('create.catalog.copied', { name: copiedStyle.name })}
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onCopied(copiedStyle)}
-            >
-              {t('create.catalog.copiedAction')}
-            </Button>
-          }
-        />
       )}
 
       {/* El titular basta cuando el texto del código es del formulario de

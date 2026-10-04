@@ -41,7 +41,11 @@ interface CustomStyleGalleryProps {
   // para diseñar un personaje nuevo coherente con esta gema (ADR-0020).
   script: string
   promptModel: string | null
+  // La copia de «Pasar a mi estilo» que acaba de llegar del catálogo: la
+  // galería abre su modal apenas se monta y avisa; null = ninguna.
+  arrivingStyleId: string | null
   onSelect: (style: SelectedCustomStyle | null) => void
+  onArrivalOpened: () => void
 }
 
 const EMPTY_DRAFT: CustomStyleDraft = { name: '', systemPrompt: '', shots: [] }
@@ -73,7 +77,9 @@ export function CustomStyleGallery({
   disabled,
   script,
   promptModel,
+  arrivingStyleId,
   onSelect,
+  onArrivalOpened,
 }: CustomStyleGalleryProps) {
   const { t } = useTranslation()
   const { styles, isLoading, saveStyle, showSavedStyle, deleteStyle, saving } =
@@ -91,6 +97,16 @@ export function CustomStyleGallery({
   // Si la galería se desmonta con el editor abierto (cambio a Catálogo), el
   // pedido no queda colgado para la próxima vez.
   useEffect(() => closeCustomStyleEditor, [])
+
+  // La copia que llega del catálogo abre su modal. Lo pide la galería ya
+  // montada y no el formulario al cambiar de pestaña: un pedido hecho antes
+  // lo cerraría el efecto de arriba cuando React, en desarrollo, desmonta y
+  // vuelve a montar los efectos de un componente nuevo (StrictMode).
+  useEffect(() => {
+    if (!arrivingStyleId) return
+    openCustomStyleEditor({ styleId: arrivingStyleId })
+    onArrivalOpened()
+  }, [arrivingStyleId, onArrivalOpened])
 
   // Abrir una gema vieja en el editor la manda a migrar, una vez por sesión.
   // Efecto y no manejador: el editor también se abre desde el chip de

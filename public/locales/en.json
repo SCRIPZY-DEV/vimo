@@ -673,8 +673,6 @@
       "view": "View",
       "copyToCustom": "Copy to my style",
       "copying": "Copying to My style…",
-      "copied": "\"{{name}}\" was copied to My style.",
-      "copiedAction": "Go to My style",
       "copyFailed": "Could not copy \"{{name}}\" to My style.",
       "modalTitle": "Vimo style",
       "noSamples": "This style has no samples yet.",
