@@ -1,6 +1,6 @@
 # ADR-0050 — Creador de estilo con IA: clonar un estilo desde un video o desde imágenes
 
-- **Estado:** Aceptada (sidecar y app implementados; el servidor está escrito y sin desplegar)
+- **Estado:** Aceptada (sidecar y app implementados; servidor desplegado en vimo.click el 2026-10-03, encendido solo para admins)
 - **Fecha:** 2026-10-03
 - **Área:** pipeline / app / servidor
 - **Extiende a:** [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md) (su nota del
@@ -9,8 +9,8 @@
   por secciones) y [ADR-0006](ADR-0006-sdk-de-supabase-directo-sin-backend.md) (otra llamada de la
   app a vimo.click).
 - **Depende de:** [ADR-0021](ADR-0021-previews-de-personaje-con-estilos-propios.md) con su enmienda
-  del 2026-10-02 (un personaje de identidad de prompt viaja siempre como texto), que vive en la rama
-  `fix/prompt-identity-travels-as-text` y todavía no está en esta.
+  del 2026-10-02 (un personaje de identidad de prompt viaja siempre como texto), sumada a esta rama
+  el 2026-10-03 desde `fix/prompt-identity-travels-as-text`.
 - **Spec:** [design.md](../handoff/2026-10-03-ai-style-creator/design.md).
 
 ## Problema
@@ -190,9 +190,13 @@ usar esa misma en las escenas de prueba, para que lo aprobado sea lo que despué
 - **Un prompt de imagen más largo.** Con un cierre de 900, una identidad de 600 y la escena, el
   cuerpo llena su presupuesto de 2 106 caracteres, y Evolink cobra el texto del prompt: una imagen
   de un estilo clonado cuesta algo más que el precio de lista.
-- **El servidor pide un cierre de hasta 900** (`LIMITE_FRASE_CIERRE` de `vimo-landing`, commit
-  `b44b623`, sin desplegar): solo «Style: » más una ficha de hasta 850, la misma que usan las
-  escenas de prueba. Validado con una corrida real: cierre de 839 caracteres y estilo intacto.
+- **El servidor pide un cierre de hasta 900** (`LIMITE_FRASE_CIERRE` de `vimo-landing`): solo
+  «Style: » más una ficha de hasta 850, la misma que usan las escenas de prueba. Validado con una
+  corrida real: cierre de 839 caracteres y estilo intacto.
+- **Servidor desplegado el 2026-10-03** (`vimo-landing` `main` @ `0e5af82`, PR #13), con el SQL de
+  `ai_style_creator_logs` aplicado y `VIMO_FLAG_AI_STYLE_CREATOR=admins`. En producción el endpoint
+  responde 401 `sin-token` sin sesión y el preflight desde `tauri://localhost` pasa. Falta medir el
+  primer turno real desde la app (el tiempo de CPU de la Function con un pedido de 1 a 3 MB).
 - **Costo para Vimo:** unos 10 centavos de dólar por turno de Gemini (medido); una clonación son 2 o
   3 turnos más uno por comentario. No hay tope diario (decisión del dueño); la válvula es
   `CREADOR_ESTILO_CUPO_DIARIO` o el interruptor en vimo.click.
@@ -206,8 +210,8 @@ usar esa misma en las escenas de prueba, para que lo aprobado sea lo que despué
 - **Arreglo de paso:** `classifyYtDlpError` no reconocía el bloqueo de bot porque yt-dlp lo escribe
   con apóstrofo tipográfico. También mejora el mensaje de la música y el overlay desde YouTube
   ([informe](../../fixes/2026-10-03_ytdlp-bot-block-apostrophe.md)).
-- **Pendiente antes de abrirlo a todos:** desplegar el servidor (SQL, variables, merge), sumar a
-  esta rama la enmienda de la ADR-0021 y actualizar la política de privacidad de vimo.click.
+- **Pendiente antes de abrirlo a todos:** la prueba del dueño en la app, la aceptación contra
+  Imperio Pro y el texto de la política de privacidad de vimo.click.
 
 ## Guards
 

@@ -6,9 +6,9 @@
   documento quedó en `feat/creador-estilo-visual-ia` (`a60e7f31`), que sale de `dev` y no tiene el
   catálogo.
 - **Estado:** diseño acordado con el dueño en conversación (del 2026-09-30 al 2026-10-03), parte por
-  parte. Servidor implementado y probado, sin desplegar. Sidecar y app implementados y probados; el
-  recorrido del modal está verificado en un navegador con el sidecar y el servidor simulados. Falta
-  la prueba del dueño en la app con el servidor real.
+  parte. Servidor desplegado en vimo.click el 2026-10-03, encendido solo para admins. Sidecar y app
+  implementados y probados; el recorrido del modal está verificado en un navegador con el sidecar y
+  el servidor simulados. Falta la prueba del dueño en la app con el servidor real.
 - **ADR:** [ADR-0050](../../adr/ADR-0050-creador-de-estilo-con-ia.md).
 - **Relacionadas:** ADR-0006, ADR-0018, ADR-0019, ADR-0020, ADR-0021 (con su enmienda del 2026-10-02),
   ADR-0033, ADR-0038 y ADR-0048 (gemas por secciones, de la rama `feat/catalogo-estilos`).
@@ -456,17 +456,16 @@ Lo que este trabajo necesita y hoy vive en otras ramas locales, sin integrar a `
 `origin/dev` avanzó con el PR #92, que choca con la rama del catálogo en dos archivos; la rama del fix
 choca con la del catálogo en `CharacterSection.tsx`. El orden de integración lo decide el dueño.
 
-**Estado al 2026-10-03:** la app y el sidecar se construyen en `feat/creador-estilo-ia-sobre-catalogo`,
-creada sobre la punta de `feat/catalogo-estilos` (`afd204b5`). El fix de personajes todavía no está
-en esa rama: hasta que se sume, un personaje de identidad de prompt creado por una clonación viaja
-con su retrato del estilo como imagen (el comportamiento que el fix corrige). Sumarlo es un
-cherry-pick con un choque en `CharacterSection.tsx` y espera la aprobación del dueño.
+**Estado al 2026-10-03:** la app y el sidecar están en `feat/creador-estilo-ia-sobre-catalogo`,
+creada sobre la punta de `feat/catalogo-estilos` (`afd204b5`). El fix de personajes se sumó a esa
+rama con un cherry-pick aprobado por el dueño (el único choque, en `CharacterSection.tsx`, quedó
+resuelto).
 
 Orden propuesto:
 
 1. **Servidor** (hecho, sin desplegar): rama `feat/creador-estilo-ia` de `vimo-landing`.
-2. **Desplegar el servidor**, con la aprobación del dueño: SQL, variables, push, merge a `main` y
-   verificación. Medir el CPU de la Function con un análisis real.
+2. **Desplegar el servidor** (hecho el 2026-10-03, con la aprobación del dueño): SQL, variables,
+   push, PR #13 y merge a `main`. Falta medir el CPU de la Function con un análisis real.
 3. **Sidecar** (hecho): los cuatro subcomandos. No dependen de la app; sí del guardado con secciones.
 4. **App** (hecho): la card, el modal, el administrador de sesiones y la comparación. Quedan para
    después arrastrar imágenes al modal y un aviso fuera de la pestaña Mi estilo.
@@ -503,13 +502,11 @@ Los pasos 3 y 4 van sobre la rama del catálogo, en `feat/creador-estilo-ia-sobr
 
 ## 17. Preguntas abiertas
 
-1. **Orden de integración** de `feat/catalogo-estilos`, el fix de personajes y `dev`, y sobre qué base
-   arranca la parte de la app y el sidecar.
-2. **Despliegue del servidor:** cuándo aplicar el SQL, cargar las variables y publicar.
-3. **El registro guarda el texto que respondió la IA y el comentario del usuario**, además de los
-   datos técnicos. Si el dueño prefiere que no, se quitan esas dos columnas.
+1. **Orden de integración** de `feat/catalogo-estilos`, esta rama y `dev`.
+2. ~~Despliegue del servidor~~: hecho el 2026-10-03.
+3. ~~El registro guarda el texto de la IA y el comentario del usuario~~: el dueño dijo que sí, 60 días
+   (2026-10-03).
 4. **Presupuesto de la aceptación** contra Imperio Pro y qué videos e imágenes se usan.
 5. **Plan de Workers:** si el CPU del plan gratis no alcanza, pagar 5 USD al mes o empalmar las
    imágenes sin parsearlas.
-6. **Sumar el fix de personajes a la rama** (sección 14): un cherry-pick que espera la aprobación del
-   dueño.
+6. ~~Sumar el fix de personajes a la rama~~: hecho el 2026-10-03.
