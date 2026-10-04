@@ -634,6 +634,7 @@
       "noSamples": "Sin muestras todavía. Generalas desde los tres puntos.",
       "charsCount": "{{chars}} caracteres",
       "basedOn": "Basado en {{name}}",
+      "adaptedTag": "Gema adaptada",
       "modalTitle": "Tu estilo",
       "modalDescription": "El estilo visual es el texto que le da las reglas al modelo. Estas son sus muestras.",
       "samplesEmpty": "Todavía no hay muestras de este estilo.",

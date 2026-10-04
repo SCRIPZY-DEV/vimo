@@ -477,6 +477,11 @@ export const GEM_SECTION_TEXT_KEYS: Record<
 // `gemAdaptationPercent` (utilities), que corre bajo un guard con Node pelado.
 export const GEM_ADAPTATION_TICK_MS = 500
 
+// Cuánto queda a la vista, en el modal de una gema recién adaptada, el aviso
+// con lo que ajustó la IA si la persona no lo cierra: alcanza para leer una
+// lista de avisos y no queda ahí para siempre.
+export const GEM_WARNINGS_AUTO_DISMISS_MS = 60_000
+
 // Planos recomendados que llena el botón del modal (verbatim del origen).
 export const RECOMMENDED_SHOTS = [
   'Wide shot',

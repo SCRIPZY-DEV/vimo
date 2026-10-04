@@ -13,6 +13,7 @@ import { test } from 'node:test'
 import {
   createGemMigrations,
   migrateStoredGem,
+  showsGalleryNotice,
 } from '../../src/modules/videos/utilities/gemMigrations.ts'
 import {
   GEM_REBUILD_TEXT_LIMIT,
@@ -191,6 +192,117 @@ test('descartar no toca una migración en vuelo ni una fallida', async () => {
   await settle()
   migrations.dismiss('st-vieja')
   assert.equal(migrations.getSnapshot().get('st-vieja')?.status, 'failed')
+})
+
+// El aviso «Adaptamos …» de la galería dura lo que dura la visita a la pestaña
+// Mi estilo: una visita es cada vez que la galería se monta.
+test('el aviso de una gema adaptada se ve en la visita en que aparece y ya no en la siguiente; sus avisos siguen para el modal', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  const firstVisit = migrations.beginVisit()
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  assert.equal(
+    showsGalleryNotice(migrations.getSnapshot().get('st-vieja'), firstVisit),
+    true,
+  )
+  // La galería lo tiene a la vista: queda anotado en qué visita se vio.
+  migrations.markSeen(['st-vieja'], firstVisit)
+  const seen = migrations.getSnapshot().get('st-vieja')
+  assert.equal(showsGalleryNotice(seen, firstVisit), true)
+  // La persona pasó a otra pestaña y volvió: es otra visita.
+  const secondVisit = migrations.beginVisit()
+  assert.notEqual(secondVisit, firstVisit)
+  assert.equal(showsGalleryNotice(seen, secondVisit), false)
+  // El aviso se fue de la galería, no los avisos del agente: el modal de la
+  // gema los sigue mostrando hasta que se descartan.
+  assert.equal(seen.status, 'migrated')
+  assert.deepEqual(seen.warnings, WARNINGS)
+})
+
+test('un aviso que apareció con la galería cerrada espera a la próxima visita, y dura esa visita', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  migrations.beginVisit()
+  migrations.migrateOnce(OLD_GEM)
+  // La persona se va de Mi estilo antes de que termine la adaptación: nadie
+  // marca el aviso como visto.
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  const secondVisit = migrations.beginVisit()
+  assert.equal(
+    showsGalleryNotice(migrations.getSnapshot().get('st-vieja'), secondVisit),
+    true,
+  )
+  migrations.markSeen(['st-vieja'], secondVisit)
+  const thirdVisit = migrations.beginVisit()
+  assert.equal(
+    showsGalleryNotice(migrations.getSnapshot().get('st-vieja'), thirdVisit),
+    false,
+  )
+})
+
+test('la visita en que se vio no se pisa, y marcar lo ya marcado no avisa a nadie', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  const firstVisit = migrations.beginVisit()
+  migrations.migrateOnce(OLD_GEM)
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  let notified = 0
+  migrations.subscribe(() => {
+    notified += 1
+  })
+  migrations.markSeen(['st-vieja'], firstVisit)
+  assert.equal(notified, 1)
+  // La galería lo repite en cada render: sin cambios, nadie se entera.
+  migrations.markSeen(['st-vieja'], firstVisit)
+  migrations.markSeen([], firstVisit)
+  migrations.markSeen(['st-otra'], firstVisit)
+  const secondVisit = migrations.beginVisit()
+  migrations.markSeen(['st-vieja'], secondVisit)
+  assert.equal(notified, 1)
+  assert.equal(migrations.getSnapshot().get('st-vieja').seenInVisit, firstVisit)
+})
+
+test('en vuelo no hay aviso en la galería (va en la tarjeta) y una fallida se avisa en todas las visitas', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  const firstVisit = migrations.beginVisit()
+  migrations.migrateOnce(OLD_GEM)
+  assert.equal(
+    showsGalleryNotice(migrations.getSnapshot().get('st-vieja'), firstVisit),
+    false,
+  )
+  // Marcar una en vuelo no anota nada.
+  migrations.markSeen(['st-vieja'], firstVisit)
+  assert.equal(migrations.getSnapshot().get('st-vieja').status, 'pending')
+  agent.calls[0].reject(new Error('sin red'))
+  await settle()
+  migrations.markSeen(['st-vieja'], firstVisit)
+  const failed = migrations.getSnapshot().get('st-vieja')
+  assert.equal(failed.status, 'failed')
+  assert.equal(showsGalleryNotice(failed, firstVisit), true)
+  assert.equal(showsGalleryNotice(failed, migrations.beginVisit()), true)
+})
+
+test('una gema que se vuelve a adaptar estrena aviso', async () => {
+  const agent = fakeMigrate()
+  const migrations = createGemMigrations(agent.migrate)
+  const firstVisit = migrations.beginVisit()
+  migrations.adapt(OLD_GEM)
+  agent.calls[0].resolve(MIGRATED)
+  await settle()
+  migrations.markSeen(['st-vieja'], firstVisit)
+  const secondVisit = migrations.beginVisit()
+  migrations.adapt(OLD_GEM)
+  agent.calls[1].resolve(MIGRATED)
+  await settle()
+  assert.equal(
+    showsGalleryNotice(migrations.getSnapshot().get('st-vieja'), secondVisit),
+    true,
+  )
 })
 
 test('si falla queda el aviso con el error; no se repite solo, sí con Reintentar', async () => {

@@ -61,6 +61,10 @@ export const adaptPastedGem = gemMigrations.adapt
 export const retryGemMigration = gemMigrations.retry
 // Descartar el aviso de una gema ya migrada.
 export const dismissGemMigration = gemMigrations.dismiss
+// Una visita nueva a la galería de Mi estilo (cada vez que se monta).
+export const beginGemMigrationVisit = gemMigrations.beginVisit
+// La galería tiene a la vista el aviso de esas gemas ya migradas.
+export const markGemMigrationsSeen = gemMigrations.markSeen
 
 // Las migraciones en vuelo, fallidas o hechas y sin descartar, por id de gema.
 export function useGemMigrations(): ReadonlyMap<string, GemMigrationState> {

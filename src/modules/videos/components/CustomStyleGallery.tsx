@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Plus } from 'lucide-react'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
@@ -14,12 +14,15 @@ import {
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import {
   adaptPastedGem,
+  beginGemMigrationVisit,
   dismissGemMigration,
+  markGemMigrationsSeen,
   migrateGemOnce,
   retryGemMigration,
   useGemMigrations,
 } from '@/modules/videos/hooks/useGemMigrations'
 import { newCustomStyleId } from '@/modules/videos/constants'
+import { showsGalleryNotice } from '@/modules/videos/utilities/gemMigrations'
 import {
   customStyleDraftFrom,
   selectedCustomStyleFrom,
@@ -71,7 +74,8 @@ function editorLayoutOf(
 // plantilla encendida (ADR-0048), una gema vieja se actualiza sola la primera
 // vez que se abre o se elige (spec §4.4), sin bloquear su uso; como se guarda
 // sin que la persona vea las secciones, queda un aviso para revisarlas hasta
-// que lo descarta.
+// que lo descarta o sale de la pestaña (una gema ya adaptada lo dice después
+// en su tarjeta).
 export function CustomStyleGallery({
   selected,
   disabled,
@@ -86,6 +90,9 @@ export function CustomStyleGallery({
     useCustomStyles()
   const gemTemplateEnabled = useAccessFeature('gemTemplate')
   const migrations = useGemMigrations()
+  // Esta visita a la pestaña (la galería se monta al entrar): el aviso de una
+  // gema ya adaptada dura lo que dura la visita en que se vio.
+  const [visit] = useState(beginGemMigrationVisit)
 
   // Estilo abierto en el modal; null = cerrado. El borrador inicial sale de
   // la LISTA VIVA: el editor abre siempre con lo que hay en disco.
@@ -171,13 +178,22 @@ export function CustomStyleGallery({
   // La adaptación de cada gema, para su tarjeta (en vuelo: el avance encima).
   const migrationOf = (style: CustomStyleSummary) =>
     gemTemplateEnabled ? (migrations.get(style.id) ?? null) : null
-  // Avisos de migración de las gemas de la lista, en su orden: fallidas o
-  // hechas y sin descartar. Una en vuelo se ve en su tarjeta, no acá.
+  // Avisos de migración de las gemas de la lista, en su orden: las fallidas y
+  // las hechas que todavía se avisan en esta visita. Una en vuelo se ve en su
+  // tarjeta, no acá.
   const migrationNotices = styles.flatMap((style) => {
     const migration = migrationOf(style)
-    return migration && migration.status !== 'pending'
+    return migration && showsGalleryNotice(migration, visit)
       ? [{ style, migration }]
       : []
+  })
+  const noticedStyleIds = migrationNotices.map(({ style }) => style.id)
+
+  // La galería le cuenta al store qué avisos tiene a la vista: así los de las
+  // gemas ya adaptadas no vuelven a salir en la próxima visita. Sin
+  // dependencias a propósito: lo que ya está anotado no cambia nada.
+  useEffect(() => {
+    markGemMigrationsSeen(noticedStyleIds, visit)
   })
   const editingMigration =
     gemTemplateEnabled && editingStyle

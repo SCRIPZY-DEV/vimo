@@ -8,7 +8,10 @@ import { videosApi } from '@/modules/videos/api'
 import { GemAdaptationProgress } from '@/modules/videos/components/GemAdaptationProgress'
 import { StyleCardFrame } from '@/modules/videos/components/StyleCardFrame'
 import { useGemAdaptationProgress } from '@/modules/videos/hooks/useGemAdaptationProgress'
-import { gemCharCount } from '@/modules/videos/utilities/gemTemplate'
+import {
+  gemCharCount,
+  isAdaptedGem,
+} from '@/modules/videos/utilities/gemTemplate'
 import type { GemMigrationState } from '@/modules/videos/types/styles'
 import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
@@ -26,8 +29,9 @@ interface CustomStyleCardProps {
 }
 
 // Tarjeta de un estilo propio: el cascarón de StyleCardFrame con las muestras
-// guardadas, el avance de la adaptación encima mientras corre y el menú de Mi
-// estilo (usar, ver y editar, generar muestras, eliminar).
+// guardadas, el avance de la adaptación encima mientras corre, la etiqueta de
+// una gema ya adaptada a la ficha de Vimo y el menú de Mi estilo (usar, ver y
+// editar, generar muestras, eliminar).
 export function CustomStyleCard({
   style,
   selected,
@@ -107,11 +111,20 @@ export function CustomStyleCard({
               {t('create.customStyles.basedOn', { name: style.origin.name })}
             </p>
           )}
-          <p className="truncate font-body text-xs text-muted-foreground">
-            {t('create.customStyles.charsCount', {
-              chars: gemCharCount(style).toLocaleString(),
-            })}
-          </p>
+          {/* La etiqueta va en la línea de los caracteres: una gema adaptada
+              mide lo mismo que las demás y la grilla no se desempareja. */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate font-body text-xs text-muted-foreground">
+              {t('create.customStyles.charsCount', {
+                chars: gemCharCount(style).toLocaleString(),
+              })}
+            </p>
+            {isAdaptedGem(style) && (
+              <span className="inline-flex h-4 shrink-0 items-center whitespace-nowrap rounded-full bg-ocean/15 px-1.5 font-body text-[10px] font-semibold leading-none text-ocean">
+                {t('create.customStyles.adaptedTag')}
+              </span>
+            )}
+          </div>
         </>
       }
       onSelect={onSelect}

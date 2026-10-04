@@ -1,7 +1,9 @@
+import { useEffect, useEffectEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { Button } from '@/modules/common/ui/button'
+import { GEM_WARNINGS_AUTO_DISMISS_MS } from '@/modules/videos/constants'
 
 interface GemAgentWarningsProps {
   warnings: string[]
@@ -9,21 +11,35 @@ interface GemAgentWarningsProps {
   // la persona la viera: el aviso sale aunque el agente no haya avisado nada y
   // pide revisar las secciones.
   migrated?: boolean
-  // Descartar el aviso de la migración; sin él, no hay botón.
+  // Descartar el aviso de la migración; sin él, no hay botón ni se cierra
+  // solo.
   onDismiss?: () => void
 }
 
 // Lo que el agente descartó o encontró ambiguo al ordenar la gema (spec §6.2),
-// escrito en el idioma de la app. Se muestra después de «Preparar con IA» o de
-// la migración automática; no se guarda con el estilo.
+// escrito en el idioma de la app. Se muestra después de la adaptación de una
+// gema pegada o de la migración automática; no se guarda con el estilo. Si la
+// persona no lo cierra, se descarta solo al rato.
 export function GemAgentWarnings({
   warnings,
   migrated = false,
   onDismiss,
 }: GemAgentWarningsProps) {
   const { t } = useTranslation()
+  const visible = warnings.length > 0 || migrated
+  const dismissible = onDismiss !== undefined
 
-  if (warnings.length === 0 && !migrated) return null
+  // El reloj corre desde que el aviso aparece; `onDismiss` se lee al vencer,
+  // así un render del modal no lo reinicia.
+  const dismiss = useEffectEvent(() => onDismiss?.())
+  useEffect(() => {
+    if (!visible || !dismissible) return
+
+    const timer = setTimeout(() => dismiss(), GEM_WARNINGS_AUTO_DISMISS_MS)
+    return () => clearTimeout(timer)
+  }, [visible, dismissible])
+
+  if (!visible) return null
 
   return (
     <Alert

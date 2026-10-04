@@ -14,7 +14,9 @@ import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 // guarda como texto y la adaptación sigue aunque se cierre el modal.
 // Una migración se guarda ANTES de que la persona vea las secciones, así que la
 // que sale bien queda como «migrada», con los avisos del agente, hasta que la
-// persona descarta el aviso (memoria de la sesión, no se guarda).
+// persona descarta el aviso (memoria de la sesión, no se guarda). En la galería
+// ese aviso dura una visita a la pestaña Mi estilo (`showsGalleryNotice`); el
+// modal de la gema sigue teniendo los avisos del agente.
 // Puro: `migrate` llega inyectado (migrateStoredGem con el agente y el
 // sidecar) y avisa por `report` cuándo pasa al guardado; `now` también, así el
 // guard scripts/test/check-app-gem-migration.mjs lo prueba sin red, sin sidecar
@@ -34,6 +36,8 @@ export function createGemMigrations(
   const migrated = new Set<string>()
   // Con qué origin salió la última de cada gema: «Reintentar» repite el mismo.
   const origins = new Map<string, GemRebuildOrigin>()
+  // Visitas a la galería de Mi estilo en esta sesión.
+  let visits = 0
 
   const publish = (next: Map<string, GemMigrationState>) => {
     states = next
@@ -126,6 +130,26 @@ export function createGemMigrations(
       if (states.get(styleId)?.status !== 'migrated') return
       remove(styleId)
     },
+    // Una visita nueva a la galería de Mi estilo: la galería pide una cada vez
+    // que se monta (al entrar a la pestaña o al volver a Crear).
+    beginVisit(): number {
+      visits += 1
+      return visits
+    },
+    // La galería tiene a la vista el aviso de esas gemas ya migradas: se anota
+    // en qué visita se vio cada uno por primera vez. Lo ya anotado no cambia,
+    // y sin nada nuevo no se avisa a nadie (la galería lo repite al dibujar).
+    markSeen(styleIds: readonly string[], visit: number): void {
+      const next = new Map(states)
+      for (const styleId of styleIds) {
+        const state = next.get(styleId)
+        if (state?.status !== 'migrated' || state.seenInVisit !== undefined)
+          continue
+        next.set(styleId, { ...state, seenInVisit: visit })
+      }
+      if (styleIds.some((styleId) => next.get(styleId) !== states.get(styleId)))
+        publish(next)
+    },
     subscribe(listener: () => void): () => void {
       subscribers.add(listener)
       return () => {
@@ -136,6 +160,23 @@ export function createGemMigrations(
       return states
     },
   }
+}
+
+/**
+ * ¿La galería de Mi estilo muestra el aviso de esta migración en esta visita?
+ * Una en vuelo se ve en su tarjeta, no acá. Una fallida se avisa siempre: la
+ * gema sigue como estaba y hay que reintentar. Una ya migrada se avisa hasta
+ * que la persona sale de la pestaña: durante la visita en que el aviso se vio
+ * por primera vez y, si todavía nadie lo vio (terminó con la galería cerrada),
+ * en la que sigue.
+ */
+export function showsGalleryNotice(
+  migration: GemMigrationState,
+  visit: number,
+): boolean {
+  if (migration.status === 'pending') return false
+  if (migration.status === 'failed') return true
+  return migration.seenInVisit === undefined || migration.seenInVisit === visit
 }
 
 /**

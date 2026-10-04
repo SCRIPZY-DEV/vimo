@@ -1,8 +1,8 @@
 // La gema por secciones en el modal (spec §4 y §7): topes por sección y total,
-// cuánto texto tiene la gema, cuándo trae su personaje, el guardado con su
-// `templateVersion` y sin `systemPrompt` ni `shots`, la heurística de inglés y
-// el snapshot del formulario. Módulos puros de src/ corridos con Node (type
-// stripping), sin bundler.
+// cuánto texto tiene la gema, cuándo trae su personaje y cuándo cuenta como
+// adaptada, el guardado con su `templateVersion` y sin `systemPrompt` ni
+// `shots`, la heurística de inglés y el snapshot del formulario. Módulos puros
+// de src/ corridos con Node (type stripping), sin bundler.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
@@ -10,6 +10,7 @@ import {
   gemBringsCharacter,
   gemCharCount,
   hasGemText,
+  isAdaptedGem,
   sectionMaxLength,
   templateStyleSavePayload,
 } from '../../src/modules/videos/utilities/gemTemplate.ts'
@@ -125,6 +126,25 @@ test('la gema trae su personaje solo si su sección `character` tiene texto', ()
   )
   // Una gema vieja no tiene secciones: no se sabe si su texto define uno.
   assert.equal(gemBringsCharacter(undefined), false)
+})
+
+test('gema adaptada: tiene secciones y el respaldo del texto del que salieron', () => {
+  // Pegada o vieja, la adaptación guarda las secciones con el texto original.
+  assert.equal(
+    isAdaptedGem({
+      sections: { visualStyle: 'Ink.' },
+      sourcePrompt: 'Sos un director de arte. Estilo: tinta.',
+    }),
+    true,
+  )
+  // Una gema vieja todavía es texto: se adapta al abrirla o elegirla.
+  assert.equal(isAdaptedGem(OLD_GEM), false)
+  // Una copia del catálogo tiene secciones pero no salió de ningún texto.
+  assert.equal(isAdaptedGem({ sections: { visualStyle: 'Ink.' } }), false)
+  assert.equal(
+    isAdaptedGem({ sections: { visualStyle: 'Ink.' }, sourcePrompt: '  ' }),
+    false,
+  )
 })
 
 test('guardar una gema de plantilla: siempre con templateVersion, sin systemPrompt ni shots; sourcePrompt solo si se reconstruyó', () => {

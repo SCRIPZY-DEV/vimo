@@ -230,6 +230,19 @@ export function gemBringsCharacter(sections: GemSections | undefined): boolean {
   return Boolean(sections?.character?.trim())
 }
 
+/**
+ * ¿La gema ya se adaptó a la ficha de Vimo? Sí cuando tiene secciones y el
+ * respaldo del texto del que salieron: lo guarda la adaptación, sea de una
+ * gema pegada o de una vieja. Una copia del catálogo tiene secciones pero no
+ * salió de ningún texto (dice «Basado en …»); una gema vieja se adapta la
+ * primera vez que se abre o se elige.
+ */
+export function isAdaptedGem(
+  gem: Pick<CustomStyleSummary, 'sections' | 'sourcePrompt'>,
+): boolean {
+  return gem.sections !== undefined && Boolean(gem.sourcePrompt?.trim())
+}
+
 /** Caracteres de la gema: las secciones limpias sumadas, o el texto de una vieja. */
 export function gemCharCount(gem: GemTextSource): number {
   if (gem.sections) return gemSectionsLength(cleanGemSections(gem.sections))

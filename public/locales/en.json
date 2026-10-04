@@ -634,6 +634,7 @@
       "noSamples": "No samples yet. Generate them from the three dots.",
       "charsCount": "{{chars}} characters",
       "basedOn": "Based on {{name}}",
+      "adaptedTag": "Adapted gem",
       "modalTitle": "Your style",
       "modalDescription": "The visual style is the text that gives the model its rules. These are its samples.",
       "samplesEmpty": "No samples of this style yet.",

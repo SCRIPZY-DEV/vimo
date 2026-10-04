@@ -548,3 +548,9 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   por sección; otra gema es otro estilo, con «Crear estilo». El paso «Pegá tu gema» queda solo para
   un estilo nuevo, y con el botón se fueron «Volver a las secciones» y la confirmación de reemplazo.
   `style-save` sigue aceptando una gema de texto sobre una de secciones, pero la app ya no lo pide.
+- **Los avisos de la adaptación se van solos y la tarjeta lo dice.** El aviso «Adaptamos …» de la
+  galería dura una visita a la pestaña Mi estilo (`showsGalleryNotice`: el store numera las visitas
+  y anota en cuál se vio cada aviso); al volver ya no está, pero el modal de la gema sigue mostrando
+  lo que ajustó la IA. Ese aviso del modal se descarta solo a los 60 s si no se toca la X. La
+  tarjeta de una gema adaptada (secciones más `sourcePrompt`) lleva la etiqueta «Gema adaptada»; una
+  copia del catálogo no la lleva. Los avisos siguen sin guardarse en disco.

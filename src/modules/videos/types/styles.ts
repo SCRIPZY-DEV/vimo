@@ -124,6 +124,10 @@ export type GemMigrationState =
       status: 'migrated'
       name: string
       warnings: string[]
+      // En qué visita a la galería de Mi estilo se vio el aviso por primera
+      // vez; ausente = nadie lo vio todavía. La galería lo muestra solo
+      // durante esa visita: al volver a la pestaña ya no está.
+      seenInVisit?: number
     }
 
 // Cómo termina una migración que no falla: guardada, con los avisos del
