@@ -6,8 +6,9 @@
   documento quedó en `feat/creador-estilo-visual-ia` (`a60e7f31`), que sale de `dev` y no tiene el
   catálogo.
 - **Estado:** diseño acordado con el dueño en conversación (del 2026-09-30 al 2026-10-03), parte por
-  parte. Servidor implementado y probado, sin desplegar. Sidecar implementado y probado (los cuatro
-  subcomandos). App en curso.
+  parte. Servidor implementado y probado, sin desplegar. Sidecar y app implementados y probados; el
+  recorrido del modal está verificado en un navegador con el sidecar y el servidor simulados. Falta
+  la prueba del dueño en la app con el servidor real.
 - **ADR:** [ADR-0050](../../adr/ADR-0050-creador-de-estilo-con-ia.md).
 - **Relacionadas:** ADR-0006, ADR-0018, ADR-0019, ADR-0020, ADR-0021 (con su enmienda del 2026-10-02),
   ADR-0033, ADR-0038 y ADR-0048 (gemas por secciones, de la rama `feat/catalogo-estilos`).
@@ -273,10 +274,10 @@ Todas en inglés.
   recorta primero la escena, hasta un piso de 300, y después el cierre. Las fichas de las corridas
   reales midieron entre 818 y 1 590: con 1 590 la escena quedaba en 300 caracteres y la ficha igual
   se cortaba.
-- **Lo que falta en el servidor:** pedir una ficha de hasta 900 caracteres para `promptEnd` y usar
-  esa misma ficha en las escenas de prueba, así lo que el usuario aprueba es lo que después sale en
-  sus videos. Hoy `vimo-landing` acepta hasta 1 800 (`LIMITE_FRASE_CIERRE`); `style-clone-save`
-  rechaza un cierre de más de 1 000.
+- **Hecho en el servidor** (`vimo-landing` `b44b623`): el instructivo pide una ficha de hasta 850
+  caracteres, el cierre fijo es solo «Style: » más esa ficha (hasta 900) y las escenas de prueba usan
+  la misma ficha y el espacio de una escena en producción, así lo que el usuario aprueba es lo que
+  después sale en sus videos. Corrida real: cierre de 839 caracteres y el estilo intacto.
 - Evolink cobra el texto del prompt aparte: una imagen con un prompt largo cuesta más que el precio
   de lista.
 
@@ -467,7 +468,8 @@ Orden propuesto:
 2. **Desplegar el servidor**, con la aprobación del dueño: SQL, variables, push, merge a `main` y
    verificación. Medir el CPU de la Function con un análisis real.
 3. **Sidecar** (hecho): los cuatro subcomandos. No dependen de la app; sí del guardado con secciones.
-4. **App:** la card, el modal, el administrador de sesiones y la comparación.
+4. **App** (hecho): la card, el modal, el administrador de sesiones y la comparación. Quedan para
+   después arrastrar imágenes al modal y un aviso fuera de la pestaña Mi estilo.
 5. **Aceptación contra Imperio Pro** y, con el visto bueno, el interruptor en `all`.
 
 Los pasos 3 y 4 van sobre la rama del catálogo, en `feat/creador-estilo-ia-sobre-catalogo`.
@@ -509,7 +511,5 @@ Los pasos 3 y 4 van sobre la rama del catálogo, en `feat/creador-estilo-ia-sobr
 4. **Presupuesto de la aceptación** contra Imperio Pro y qué videos e imágenes se usan.
 5. **Plan de Workers:** si el CPU del plan gratis no alcanza, pagar 5 USD al mes o empalmar las
    imágenes sin parsearlas.
-6. **La ficha de cierre de hasta 900 caracteres** (sección 6.1): ajustar el instructivo del servidor
-   y validarlo con una corrida real, que gasta unos 30 centavos de dólar de la clave de CometAPI.
-7. **Sumar el fix de personajes a la rama** (sección 14): un cherry-pick que espera la aprobación del
+6. **Sumar el fix de personajes a la rama** (sección 14): un cherry-pick que espera la aprobación del
    dueño.

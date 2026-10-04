@@ -9,8 +9,12 @@ import {
   vimoServerErrorFromResponse,
   vimoServerHeaders,
 } from '@/modules/common/fetcher/vimoServerError'
+import { readNdjson } from '@/modules/common/fetcher/ndjson'
 import { supabase } from '@/modules/common/supabase/client'
-import type { VimoServerRequestOptions } from '@/modules/common/types/vimoServer'
+import type {
+  VimoServerRequestOptions,
+  VimoServerStreamOptions,
+} from '@/modules/common/types/vimoServer'
 
 // El token de la sesión, con el mismo tope que el pedido: getSession puede
 // colgarse (navigator.locks, ver SESSION_TIMEOUT_MS de auth). Sin sesión el
@@ -70,5 +74,71 @@ export async function vimoServerFetch<TResponse>(
     if (signal.aborted && !(error instanceof VimoServerError))
       throw new VimoServerError('timeout')
     throw toVimoServerError(error)
+  }
+}
+
+/**
+ * Como `vimoServerFetch`, para un endpoint que responde por partes (NDJSON, un
+ * objeto por línea) mientras trabaja: el creador de estilo con IA tarda de
+ * medio minuto a más de dos y manda un latido cada 10 s para que la conexión
+ * no se corte (ADR-0050). Entrega cada línea por `onLine` apenas llega y
+ * resuelve con todas.
+ *
+ * Dos topes: el del pedido entero y el del SILENCIO, que corre desde que la
+ * respuesta empezó (antes de eso la app todavía está subiendo las imágenes).
+ * Un error anterior a la primera línea llega como JSON con su status, igual
+ * que en `vimoServerFetch`. Una respuesta cortada sin su última línea no es un
+ * error acá: quien conoce el contrato lo decide con las líneas que llegaron.
+ */
+export async function vimoServerStream(
+  path: string,
+  options: VimoServerStreamOptions,
+  onLine: (line: unknown) => void = () => {},
+): Promise<unknown[]> {
+  const controller = new AbortController()
+  const total = setTimeout(() => controller.abort(), options.timeoutMs)
+  let idle: ReturnType<typeof setTimeout> | undefined
+  const restartIdle = () => {
+    clearTimeout(idle)
+    idle = setTimeout(() => controller.abort(), options.idleTimeoutMs)
+  }
+
+  try {
+    const accessToken = await sessionAccessToken(controller.signal)
+    const response = await fetch(`${VIMO_SERVER_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: vimoServerHeaders(accessToken),
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const body = await readJsonBody(response)
+      if (controller.signal.aborted) throw new VimoServerError('timeout')
+      throw vimoServerErrorFromResponse(response.status, body, Date.now())
+    }
+
+    const lines: unknown[] = []
+    restartIdle()
+    await readNdjson(
+      response,
+      (line) => {
+        lines.push(line)
+        onLine(line)
+      },
+      restartIdle,
+    )
+    // Como en `vimoServerFetch`: en WebKit un cuerpo cortado por el tope puede
+    // terminar sin error, así que manda la señal.
+    if (controller.signal.aborted) throw new VimoServerError('timeout')
+
+    return lines
+  } catch (error) {
+    if (controller.signal.aborted && !(error instanceof VimoServerError))
+      throw new VimoServerError('timeout')
+    throw toVimoServerError(error)
+  } finally {
+    clearTimeout(total)
+    clearTimeout(idle)
   }
 }

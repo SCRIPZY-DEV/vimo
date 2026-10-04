@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
+import { readNdjson } from '../../src/modules/common/fetcher/ndjson.ts'
 import {
   VimoServerError,
   readJsonBody,
@@ -165,6 +166,33 @@ function handle(request, response, raw) {
     setTimeout(() => response.end('1}'), 2000)
     return
   }
+  if (request.url === '/stream-ok') {
+    response.writeHead(200, { 'Content-Type': 'application/x-ndjson' })
+    response.write('{"tipo":"inicio"}\n')
+    setTimeout(() => response.write('{"tipo":"latido"}\n'), 80)
+    setTimeout(
+      () =>
+        response.end(
+          JSON.stringify({ tipo: 'resultado', echo: JSON.parse(raw) }) + '\n',
+        ),
+      160,
+    )
+    return
+  }
+  if (request.url === '/stream-silent') {
+    response.writeHead(200, { 'Content-Type': 'application/x-ndjson' })
+    response.write('{"tipo":"inicio"}\n')
+    setTimeout(() => response.end('{"tipo":"resultado"}\n'), 2000)
+    return
+  }
+  if (request.url === '/stream-cut') {
+    response.writeHead(200, { 'Content-Type': 'application/x-ndjson' })
+    response.write('{"tipo":"inicio"}\n')
+    setTimeout(() => response.end('{"tipo":"latido"}\n'), 50)
+    return
+  }
+  if (request.url === '/stream-off')
+    return reply(response, 403, JSON.stringify({ code: 'funcion-desactivada' }))
   reply(response, 404, '{}')
 }
 
@@ -393,6 +421,74 @@ test('cliente: un AbortError con la señal sin abortar no es timeout', async () 
 })
 
 // Último: apaga el servidor local.
+// ── El cliente de respuestas por partes ──
+
+const STREAM = { timeoutMs: 1500, idleTimeoutMs: 400 }
+
+test('flujo: las líneas llegan a medida que el servidor las escribe', async () => {
+  useSession('token-1')
+  const seen = []
+  const lines = await client.vimoServerStream(
+    '/stream-ok',
+    { ...STREAM, body: { accion: 'analizar' } },
+    (line) => seen.push({ line, at: Date.now() }),
+  )
+  assert.deepEqual(lines, [
+    { tipo: 'inicio' },
+    { tipo: 'latido' },
+    { tipo: 'resultado', echo: { accion: 'analizar' } },
+  ])
+  assert.deepEqual(
+    seen.map((entry) => entry.line),
+    lines,
+  )
+  // No llegaron todas juntas al final: entre la primera y la última pasó tiempo.
+  assert.ok(seen[2].at - seen[0].at >= 100)
+  assert.equal(requests.at(-1).headers.authorization, 'Bearer token-1')
+})
+
+test('flujo: un error anterior a la primera línea es http con su code', async () => {
+  useSession('token-1')
+  await assert.rejects(
+    client.vimoServerStream('/stream-off', { ...STREAM, body: {} }),
+    isFailure('http', (error) => {
+      assert.equal(error.status, 403)
+      assert.equal(error.code, 'funcion-desactivada')
+    }),
+  )
+})
+
+test('flujo: el silencio después de empezar es timeout, sin esperar el tope entero', async () => {
+  useSession('token-1')
+  const startedAt = Date.now()
+  await assert.rejects(
+    client.vimoServerStream('/stream-silent', { ...STREAM, body: {} }),
+    isFailure('timeout'),
+  )
+  assert.ok(Date.now() - startedAt < 1200)
+})
+
+test('flujo: sin respuesta a tiempo es timeout', async () => {
+  useSession('token-1')
+  await assert.rejects(
+    client.vimoServerStream('/slow', {
+      timeoutMs: 300,
+      idleTimeoutMs: 5000,
+      body: {},
+    }),
+    isFailure('timeout'),
+  )
+})
+
+test('flujo: una respuesta cortada entrega las líneas que llegaron', async () => {
+  useSession('token-1')
+  const lines = await client.vimoServerStream('/stream-cut', {
+    ...STREAM,
+    body: {},
+  })
+  assert.deepEqual(lines, [{ tipo: 'inicio' }, { tipo: 'latido' }])
+})
+
 test('cliente: con el servidor caído es network', async () => {
   useSession('token-1')
   await new Promise((done) => {
@@ -403,4 +499,86 @@ test('cliente: con el servidor caído es network', async () => {
     client.vimoServerFetch('/ok', { body: {} }),
     isFailure('network'),
   )
+})
+
+// ── Respuestas por partes (NDJSON) ──
+// El creador de estilo con IA responde un objeto JSON por línea mientras el
+// modelo trabaja (ADR-0050): la app las lee a medida que llegan.
+
+function chunked(pieces) {
+  const encoder = new TextEncoder()
+  const bytes = pieces.map((piece) =>
+    typeof piece === 'string' ? encoder.encode(piece) : piece,
+  )
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const chunk of bytes) controller.enqueue(chunk)
+        controller.close()
+      },
+    }),
+  )
+}
+async function linesOf(response) {
+  const lines = []
+  await readNdjson(response, (line) => lines.push(line))
+  return lines
+}
+
+test('ndjson: una línea por objeto, aunque llegue partida entre dos trozos', async () => {
+  const lines = await linesOf(
+    chunked([
+      '{"tipo":"ini',
+      'cio"}\n{"tipo":"latido"}\n',
+      '{"tipo":"resultado","n":1}\n',
+    ]),
+  )
+  assert.deepEqual(lines, [
+    { tipo: 'inicio' },
+    { tipo: 'latido' },
+    { tipo: 'resultado', n: 1 },
+  ])
+})
+
+test('ndjson: la última línea vale aunque no cierre con salto', async () => {
+  assert.deepEqual(await linesOf(chunked(['{"a":1}\n{"b":2}'])), [
+    { a: 1 },
+    { b: 2 },
+  ])
+})
+
+test('ndjson: las líneas vacías y las que no son JSON se saltan', async () => {
+  assert.deepEqual(
+    await linesOf(
+      chunked(['\n\n{"a":1}\r\n', 'no es json\n', '   \n{"b":2}\n']),
+    ),
+    [{ a: 1 }, { b: 2 }],
+  )
+})
+
+test('ndjson: una letra con tilde partida entre dos trozos se lee entera', async () => {
+  const bytes = new TextEncoder().encode('{"texto":"PERSONAJE: SÍ"}\n')
+  const cut = bytes.indexOf(0xc3) + 1
+  const lines = await linesOf(chunked([bytes.slice(0, cut), bytes.slice(cut)]))
+  assert.deepEqual(lines, [{ texto: 'PERSONAJE: SÍ' }])
+})
+
+test('ndjson: avisa cada vez que llega un trozo, para medir el silencio', async () => {
+  let activity = 0
+  await readNdjson(
+    chunked([
+      '{"tipo":"inicio"}\n',
+      '{"tipo":"latido"}\n',
+      '{"tipo":"latido"}\n',
+    ]),
+    () => {},
+    () => {
+      activity += 1
+    },
+  )
+  assert.equal(activity, 3)
+})
+
+test('ndjson: una respuesta sin cuerpo no trae líneas', async () => {
+  assert.deepEqual(await linesOf(new Response(null)), [])
 })

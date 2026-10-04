@@ -634,8 +634,18 @@ en `RESERVED_ROOT_DIRECTORIES`) hasta que se guarda o se descarta: el material c
 bot: la ficha del video se pide con el cliente de siempre de yt-dlp y, si sale ese
 bloqueo, con `mweb`; sin storyboard la clonación sigue con los fotogramas públicos. El
 final fijo de un estilo clonado lleva su ficha de estilo, por eso `promptEnd` admite
-hasta 1 000 caracteres. La card, el modal y las sesiones en segundo plano viven en
-`src/modules/videos` (en curso).
+hasta 1 000 caracteres.
+
+En la app, cada clonación es una **sesión** de un store fuera de React
+(`src/modules/videos/utilities/styleCloneSessions.ts`, conectado en
+`hooks/useStyleClones.ts`): se guarda en `localStorage` (`vimo:styleClone:sessions:v1`),
+sigue trabajando aunque se cierre su modal, admite hasta 3 a la vez y, cuando necesita
+una respuesta, se detiene y lo dice en su tarjeta de Mi estilo. Cada acción avanza por
+fases (material → turno → pruebas → guardado) y retomar tras un fallo o tras cerrar la
+app repite solo la fase que estaba corriendo. El turno viaja con `vimoServerStream`
+(`src/modules/common/fetcher/vimoServer.ts`), el cliente de respuestas por partes
+(NDJSON) de vimo.click: tope de 300 s y 45 s de silencio. La card aparece con el
+interruptor `features.aiStyleCreator`.
 
 ### La pausa de confirmación de escenas
 

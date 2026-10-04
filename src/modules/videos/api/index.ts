@@ -2,19 +2,25 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
+  PipelineJobError,
   pipelineErrorCode,
   runPipelineJob,
   startPipelineJob,
 } from '@/modules/common/fetcher/pipeline'
-import { vimoServerFetch } from '@/modules/common/fetcher/vimoServer'
+import {
+  vimoServerFetch,
+  vimoServerStream,
+} from '@/modules/common/fetcher/vimoServer'
 import {
   VimoServerError,
   vimoServerErrorCode,
   vimoServerRetryAt,
 } from '@/modules/common/fetcher/vimoServerError'
+import { bytesToBase64 } from '@/modules/common/utilities/bytesToBase64'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   CATALOG_COPY_UNDETAILED_ERROR_CODES,
+  CREATE_ERROR_MESSAGE_KEYS,
   DEMO_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_NO_VISUAL_STYLE_CODE,
@@ -24,20 +30,35 @@ import {
   GEM_REBUILD_TIMEOUT_MS,
   LIBRARY_ERROR_MESSAGE_KEYS,
   NARRATION_AUDIO_EXTENSIONS,
+  STYLE_CLONE_ERROR_MESSAGE_KEYS,
+  STYLE_CLONE_IDLE_TIMEOUT_MS,
+  STYLE_CLONE_IMAGE_EXTENSIONS,
+  STYLE_CLONE_PATH,
+  STYLE_CLONE_TIMEOUT_MS,
   UNKNOWN_CREATE_ERROR_KEY,
   UNKNOWN_DEMO_ERROR_KEY,
   UNKNOWN_GEM_REBUILD_ERROR_KEY,
+  UNKNOWN_STYLE_CLONE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import {
   catalogSampleImages,
   catalogSampleUpload,
 } from '@/modules/videos/utilities/catalogSamples'
 import { readGemRebuildResponse } from '@/modules/videos/utilities/gemTemplate'
+import {
+  styleCloneServerImageOf,
+  styleCloneTurnOutcome,
+} from '@/modules/videos/utilities/styleCloneTurn'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type {
   GemRebuildRequest,
   GemRebuildResponse,
 } from '@/modules/videos/types/gemRebuild'
+import type {
+  StyleCloneTurnDraft,
+  StyleCloneTurnRequest,
+  StyleCloneTurnResult,
+} from '@/modules/videos/types/styleClone'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
   AnimateScenesPayload,
@@ -52,6 +73,17 @@ import type {
 } from '@pipeline/types/catalog.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
 import type { DemoStatusResult } from '@pipeline/types/demo.ts'
+import type {
+  StyleCloneDiscardPayload,
+  StyleCloneDrawPayload,
+  StyleCloneDrawProgressDetail,
+  StyleCloneDrawResult,
+  StyleCloneMaterialItem,
+  StyleClonePreparePayload,
+  StyleClonePrepareResult,
+  StyleCloneSavePayload,
+  StyleCloneSaveResult,
+} from '@pipeline/types/style-clone.ts'
 import type {
   GenerateStyleSamplesPayload,
   StyleDeletePayload,
@@ -294,6 +326,98 @@ export const videosApi = {
   },
   gemRebuildErrorRetryable(error: unknown): boolean {
     return vimoServerErrorCode(error) !== GEM_REBUILD_NO_VISUAL_STYLE_CODE
+  },
+  // ── Creador de estilo con IA (ADR-0050) ──
+  // Las imágenes de referencia que elige la persona: viajan al sidecar como
+  // rutas, igual que la foto de un personaje.
+  async pickStyleCloneImages(): Promise<string[]> {
+    const selected = await open({
+      multiple: true,
+      directory: false,
+      filters: [{ name: 'images', extensions: STYLE_CLONE_IMAGE_EXTENSIONS }],
+    })
+    if (selected === null) return []
+    return Array.isArray(selected) ? selected : [selected]
+  },
+  async prepareStyleClone(
+    payload: StyleClonePreparePayload,
+  ): Promise<StyleClonePrepareResult> {
+    return runPipelineJob('style-clone-prepare', payload)
+  },
+  // Dibuja una ronda de pruebas; `onProgress` avisa de cada una apenas sale.
+  async drawStyleClone(
+    payload: StyleCloneDrawPayload,
+    onProgress: (detail: StyleCloneDrawProgressDetail) => void,
+  ): Promise<StyleCloneDrawResult> {
+    return runPipelineJob('style-clone-draw', payload, (event) => {
+      if (event.type !== 'progress' || !event.detail) return
+      onProgress(event.detail as unknown as StyleCloneDrawProgressDetail)
+    })
+  },
+  async saveStyleClone(
+    payload: StyleCloneSavePayload,
+  ): Promise<StyleCloneSaveResult> {
+    return runPipelineJob('style-clone-save', payload)
+  },
+  async discardStyleClone(payload: StyleCloneDiscardPayload): Promise<void> {
+    await runPipelineJob('style-clone-discard', payload)
+  },
+  // Un turno del creador de estilo de vimo.click. Las imágenes del material
+  // se leen del disco (mismo origen que cualquier imagen que muestra la app:
+  // el protocolo de assets, no un servicio externo) y viajan en base64. La
+  // respuesta llega por partes; una que se corta o que no cumple el contrato
+  // falla como error del servidor sin código.
+  async styleCloneTurn(
+    draft: StyleCloneTurnDraft,
+    material: StyleCloneMaterialItem[],
+    appVersion: string,
+    locale: string,
+  ): Promise<StyleCloneTurnResult> {
+    const images = await Promise.all(
+      material.map(async (item) => {
+        const response = await fetch(convertFileSrc(item.path))
+        if (!response.ok)
+          throw new PipelineJobError(
+            'style_clone_file_missing',
+            `the material image "${item.file}" could not be read`,
+          )
+        const bytes = new Uint8Array(await response.arrayBuffer())
+        return styleCloneServerImageOf(item, bytesToBase64(bytes))
+      }),
+    )
+    const request: StyleCloneTurnRequest = {
+      ...draft,
+      material: images,
+      appVersion,
+      locale,
+    }
+    const lines = await vimoServerStream(STYLE_CLONE_PATH, {
+      body: request,
+      timeoutMs: STYLE_CLONE_TIMEOUT_MS,
+      idleTimeoutMs: STYLE_CLONE_IDLE_TIMEOUT_MS,
+    })
+    const outcome = styleCloneTurnOutcome(lines)
+    if (!outcome.ok)
+      throw new VimoServerError('http', {
+        status: 200,
+        ...(outcome.code ? { code: outcome.code } : {}),
+      })
+    return outcome.result
+  },
+  // El código estable de un fallo de la clonación, venga del sidecar o de
+  // vimo.click; '' = sin código.
+  styleCloneErrorCode(error: unknown): string {
+    return vimoServerErrorCode(error) ?? pipelineErrorCode(error) ?? ''
+  },
+  styleCloneErrorKey(code: string | null): string {
+    if (!code) return UNKNOWN_STYLE_CLONE_ERROR_KEY
+    // El código puede venir del cuerpo de una respuesta: `constructor` o
+    // `__proto__` no son códigos aunque el objeto del mapa los herede.
+    if (Object.hasOwn(STYLE_CLONE_ERROR_MESSAGE_KEYS, code))
+      return STYLE_CLONE_ERROR_MESSAGE_KEYS[code]
+    if (Object.hasOwn(CREATE_ERROR_MESSAGE_KEYS, code))
+      return CREATE_ERROR_MESSAGE_KEYS[code]
+    return UNKNOWN_STYLE_CLONE_ERROR_KEY
   },
   async demoStatus(): Promise<DemoStatusResult> {
     return runPipelineJob<DemoStatusResult>('demo-status')

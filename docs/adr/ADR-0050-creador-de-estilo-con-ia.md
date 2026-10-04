@@ -1,6 +1,6 @@
 # ADR-0050 — Creador de estilo con IA: clonar un estilo desde un video o desde imágenes
 
-- **Estado:** Aceptada (sidecar implementado; la app llega en el commit siguiente de la misma rama)
+- **Estado:** Aceptada (sidecar y app implementados; el servidor está escrito y sin desplegar)
 - **Fecha:** 2026-10-03
 - **Área:** pipeline / app / servidor
 - **Extiende a:** [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md) (su nota del
@@ -39,20 +39,23 @@ Restricciones que achicaron las opciones:
 **La app conduce la clonación, el sidecar junta el material y dibuja y guarda, y vimo.click analiza;
 el servidor no guarda estado ni va a YouTube.**
 
-| Pieza                  | Estado | Ubicación                                                                             | Para qué                                                                                      |
-| ---------------------- | ------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `style-clone-prepare`  | nuevo  | `pipeline/commands/styles/style-clone-prepare.ts`                                     | Junta el material en la carpeta de la sesión                                                  |
-| `style-clone-draw`     | nuevo  | `pipeline/commands/styles/style-clone-draw.ts`                                        | Dibuja una ronda de pruebas y deja el «Original» de cada escena                               |
-| `style-clone-save`     | nuevo  | `pipeline/commands/styles/style-clone-save.ts`                                        | Guarda el estilo, sus muestras y el personaje                                                 |
-| `style-clone-discard`  | nuevo  | `pipeline/commands/styles/style-clone-discard.ts`                                     | Borra la carpeta de la sesión                                                                 |
-| Contrato               | nuevo  | `pipeline/types/style-clone.ts`                                                       | Payloads y resultados de los cuatro                                                           |
-| Carpeta de la sesión   | nuevo  | `style-clone-store.ts`, `<carpeta raíz>/_style-clones/<sesión>/`                      | Material (`material.json` y sus imágenes) y pruebas; reservada en `RESERVED_ROOT_DIRECTORIES` |
-| Ficha del video        | nuevo  | `readYouTubeInfo` en `pipeline/providers/ytdlp/download.ts`                           | `yt-dlp -J` con captura de stdout; sigue siendo el único punto de spawn de yt-dlp (ADR-0013)  |
-| Agente                 | nuevo  | `vimo-landing`: `POST /api/estilos/crear-con-ia` y `functions/_lib/creador-estilo/`   | Un turno por pedido con Gemini 3.1 Pro; contrato en su `SETUP_CREADOR_ESTILO_IA.md`           |
-| Origen del estilo      | cambia | `GemOrigin` en `pipeline/types/styles.ts`, `style-store.ts`                           | Suma `{ kind: 'ai-clone', source, videoUrl? }`                                                |
-| Tope del final fijo    | cambia | `PROMPT_END_CHAR_LIMIT` en `style-store.ts`, `GEM_SECTION_LIMITS` en `gemTemplate.ts` | `promptEnd` pasa de 600 a 1 000 caracteres                                                    |
-| Interruptor            | nuevo  | `VIMO_FLAG_AI_STYLE_CREATOR` → `features.aiStyleCreator`                              | Arranca en `admins`                                                                           |
-| Card, modal y sesiones | —      | `src/modules/videos` (commit siguiente)                                               | La parte visible y el segundo plano                                                           |
+| Pieza                     | Estado | Ubicación                                                                             | Para qué                                                                                      |
+| ------------------------- | ------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `style-clone-prepare`     | nuevo  | `pipeline/commands/styles/style-clone-prepare.ts`                                     | Junta el material en la carpeta de la sesión                                                  |
+| `style-clone-draw`        | nuevo  | `pipeline/commands/styles/style-clone-draw.ts`                                        | Dibuja una ronda de pruebas y deja el «Original» de cada escena                               |
+| `style-clone-save`        | nuevo  | `pipeline/commands/styles/style-clone-save.ts`                                        | Guarda el estilo, sus muestras y el personaje                                                 |
+| `style-clone-discard`     | nuevo  | `pipeline/commands/styles/style-clone-discard.ts`                                     | Borra la carpeta de la sesión                                                                 |
+| Contrato                  | nuevo  | `pipeline/types/style-clone.ts`                                                       | Payloads y resultados de los cuatro                                                           |
+| Carpeta de la sesión      | nuevo  | `style-clone-store.ts`, `<carpeta raíz>/_style-clones/<sesión>/`                      | Material (`material.json` y sus imágenes) y pruebas; reservada en `RESERVED_ROOT_DIRECTORIES` |
+| Ficha del video           | nuevo  | `readYouTubeInfo` en `pipeline/providers/ytdlp/download.ts`                           | `yt-dlp -J` con captura de stdout; sigue siendo el único punto de spawn de yt-dlp (ADR-0013)  |
+| Agente                    | nuevo  | `vimo-landing`: `POST /api/estilos/crear-con-ia` y `functions/_lib/creador-estilo/`   | Un turno por pedido con Gemini 3.1 Pro; contrato en su `SETUP_CREADOR_ESTILO_IA.md`           |
+| Origen del estilo         | cambia | `GemOrigin` en `pipeline/types/styles.ts`, `style-store.ts`                           | Suma `{ kind: 'ai-clone', source, videoUrl? }`                                                |
+| Tope del final fijo       | cambia | `PROMPT_END_CHAR_LIMIT` en `style-store.ts`, `GEM_SECTION_LIMITS` en `gemTemplate.ts` | `promptEnd` pasa de 600 a 1 000 caracteres                                                    |
+| Interruptor               | nuevo  | `VIMO_FLAG_AI_STYLE_CREATOR` → `features.aiStyleCreator`                              | Arranca en `admins`                                                                           |
+| Sesiones en segundo plano | nuevo  | `src/modules/videos/utilities/styleCloneSessions.ts`, `hooks/useStyleClones.ts`       | El store que conduce cada clonación fuera del modal                                           |
+| Contrato con el servidor  | nuevo  | `src/modules/videos/utilities/styleCloneTurn.ts`, `types/styleClone.ts`               | Qué lleva cada turno y cómo se valida su respuesta                                            |
+| Respuesta por partes      | nuevo  | `vimoServerStream` y `readNdjson` en `src/modules/common/fetcher/`                    | Cliente NDJSON de vimo.click con tope total y tope de silencio                                |
+| Card, tarjetas y modal    | nuevo  | `src/modules/videos/components/StyleClone*.tsx`, `hooks/useStyleCloneModal.ts`        | La parte visible, dentro de la galería de Mi estilo                                           |
 
 ### El material (`style-clone-prepare`)
 
@@ -124,6 +127,32 @@ entre 818 y 1 590 caracteres: el instructivo del servidor tiene que pedir una fi
 usar esa misma en las escenas de prueba, para que lo aprobado sea lo que después sale en el video
 (pendiente en `vimo-landing`, ver Consecuencias).
 
+### La app: sesiones que siguen sin el modal
+
+- **Una sesión es una clonación abierta.** Vive en un store fuera de React
+  (`createStyleCloneSessions`, patrón de `gemMigrations`), se guarda en `localStorage`
+  (`vimo:styleClone:sessions:v1`) en cada cambio y sigue trabajando aunque se cierre el modal o se
+  salga de la pestaña. Hasta 3 a la vez; una que espera una respuesta sigue contando.
+- **Cada acción avanza por fases** (`prepare` → `turn` → `draw` → `save`) y cada fase deja su
+  resultado en la sesión antes de pasar a la siguiente. Por eso «Reintentar» (tras un fallo) y
+  «Reanudar» (la app se cerró mientras trabajaba: la sesión vuelve `interrupted`) repiten solo la
+  fase que estaba corriendo: no se vuelve a pagar un turno ya respondido ni una imagen ya dibujada,
+  y un guardado que falla se reintenta con el estilo final que ya había llegado.
+- **Cuando necesita una respuesta se detiene** (`awaiting`) y su tarjeta, al principio de la grilla
+  de Mi estilo, lo dice: «Respondé para continuar». Tocarla abre el modal en su paso. Las respuestas
+  solo se toman mientras espera y si corresponden a su paso.
+- **Una prueba que falló se reintenta sola** (`redraw`), sin otro turno del servidor. Sin saldo, la
+  sesión queda «Sin saldo · Recargá y continuá» y al reintentar dibuja solo las que faltaban.
+- **Al guardar,** con el modal abierto el estilo queda en uso; con el modal cerrado no se cambia el
+  estilo del video que la persona arma: un aviso ofrece «Usar en este video».
+- **La respuesta del servidor es dato de afuera:** `readStyleCloneTurnResult` valida la línea
+  `resultado` de cada acción y lo que no cumple el contrato no se usa. Un origen que no se entiende
+  es una escena nueva.
+- **El interruptor** `features.aiStyleCreator` decide si aparece la card «Crear estilo con IA»; las
+  sesiones ya abiertas se siguen viendo aunque se apague.
+- La respuesta por partes se lee con `vimoServerStream`: tope del pedido de 300 s y, una vez que
+  empezó a llegar, 45 s de silencio (el servidor manda un latido cada 10 s).
+
 ### Flujo de un turno
 
 1. La app pide el material al sidecar (una vez por sesión) y lo lee del disco.
@@ -161,10 +190,9 @@ usar esa misma en las escenas de prueba, para que lo aprobado sea lo que despué
 - **Un prompt de imagen más largo.** Con un cierre de 900, una identidad de 600 y la escena, el
   cuerpo llena su presupuesto de 2 106 caracteres, y Evolink cobra el texto del prompt: una imagen
   de un estilo clonado cuesta algo más que el precio de lista.
-- **El servidor todavía pide un cierre de hasta 1 800** (`LIMITE_FRASE_CIERRE` de `vimo-landing`,
-  commit `d0bc72f`, sin desplegar). Hasta que se ajuste a 900, `style-clone-save` rechaza con
-  `invalid_payload` un estilo cuyo cierre pase de 1 000: es un cambio pendiente del instructivo, con
-  su corrida real de validación.
+- **El servidor pide un cierre de hasta 900** (`LIMITE_FRASE_CIERRE` de `vimo-landing`, commit
+  `b44b623`, sin desplegar): solo «Style: » más una ficha de hasta 850, la misma que usan las
+  escenas de prueba. Validado con una corrida real: cierre de 839 caracteres y estilo intacto.
 - **Costo para Vimo:** unos 10 centavos de dólar por turno de Gemini (medido); una clonación son 2 o
   3 turnos más uno por comentario. No hay tope diario (decisión del dueño); la válvula es
   `CREADOR_ESTILO_CUPO_DIARIO` o el interruptor en vimo.click.
@@ -172,6 +200,9 @@ usar esa misma en las escenas de prueba, para que lo aprobado sea lo que despué
   muestras de Mi estilo; con Evolink, en 16:9.
 - **El «Original» de una celda de mosaico mide 320×180.** Bajar ese instante del video para mostrar
   un cuadro nítido queda pendiente (spec §5.3).
+- **Pendiente en la app:** arrastrar imágenes al modal (hoy se eligen con el diálogo del sistema) y
+  un aviso fuera de la pestaña Mi estilo cuando una clonación necesita una respuesta (hoy lo dice
+  su tarjeta).
 - **Arreglo de paso:** `classifyYtDlpError` no reconocía el bloqueo de bot porque yt-dlp lo escribe
   con apóstrofo tipográfico. También mejora el mensaje de la música y el overlay desde YouTube
   ([informe](../../fixes/2026-10-03_ytdlp-bot-block-apostrophe.md)).
@@ -181,5 +212,6 @@ usar esa misma en las escenas de prueba, para que lo aprobado sea lo que despué
 ## Guards
 
 `scripts/test/check-style-clone-material.mjs`, `check-style-clone-draw.mjs`,
-`check-style-clone-save.mjs` y `check-app-style-clone.mjs`
-([README](../../scripts/test/README.md)).
+`check-style-clone-save.mjs` (sidecar), `check-app-style-clone.mjs`,
+`check-app-style-clone-sessions.mjs` (app) y los casos de respuesta por partes de
+`check-app-vimo-server.mjs` ([README](../../scripts/test/README.md)).

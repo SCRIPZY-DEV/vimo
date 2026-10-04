@@ -27,6 +27,8 @@ export type AccessPlan = 'trial' | 'activo'
 export interface AccessFeatures {
   gemTemplate: boolean
   newCatalog: boolean
+  // Creador de estilo con IA (ADR-0050): la card «Crear estilo con IA».
+  aiStyleCreator: boolean
 }
 
 /** Cuerpo crudo que responde POST /api/verificar-acceso. */

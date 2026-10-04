@@ -16,7 +16,7 @@ import { readAccessFeature } from '../../src/modules/common/utilities/readAccess
 const ALL_OFF = {
   demo: false,
   admin: false,
-  features: { gemTemplate: false, newCatalog: false },
+  features: { gemTemplate: false, newCatalog: false, aiStyleCreator: false },
 }
 
 test('un servidor viejo sin admin ni features deja todo apagado', () => {
@@ -28,21 +28,34 @@ test('features incompleto: lo que falta cuenta como apagado', () => {
   assert.deepEqual(normalizeAccessFeatures({ gemTemplate: true }), {
     gemTemplate: true,
     newCatalog: false,
+    aiStyleCreator: false,
   })
   assert.deepEqual(normalizeAccessFeatures({ newCatalog: true }), {
     gemTemplate: false,
     newCatalog: true,
+    aiStyleCreator: false,
+  })
+  // El creador de estilo con IA (ADR-0050) tiene su propio interruptor.
+  assert.deepEqual(normalizeAccessFeatures({ aiStyleCreator: true }), {
+    gemTemplate: false,
+    newCatalog: false,
+    aiStyleCreator: true,
   })
   assert.deepEqual(normalizeAccessFeatures(undefined), {
     gemTemplate: false,
     newCatalog: false,
+    aiStyleCreator: false,
   })
 })
 
 test('solo un true explícito enciende: strings, números o null no', () => {
-  const off = { gemTemplate: false, newCatalog: false }
+  const off = { gemTemplate: false, newCatalog: false, aiStyleCreator: false }
   assert.deepEqual(
-    normalizeAccessFeatures({ gemTemplate: 'true', newCatalog: 1 }),
+    normalizeAccessFeatures({
+      gemTemplate: 'true',
+      newCatalog: 1,
+      aiStyleCreator: 'all',
+    }),
     off,
   )
   assert.deepEqual(normalizeAccessFeatures(null), off)
@@ -55,7 +68,7 @@ test('memoria: el mismo correo recupera sus flags; otro no hereda nada', () => {
   const flags = {
     demo: true,
     admin: true,
-    features: { gemTemplate: true, newCatalog: false },
+    features: { gemTemplate: true, newCatalog: false, aiStyleCreator: true },
   }
   const raw = serializeRememberedAccess('ana@example.com', flags)
   assert.deepEqual(parseRememberedAccess(raw, 'ana@example.com'), flags)
@@ -92,5 +105,9 @@ test('readAccessFeature: solo un true explícito del veredicto enciende', () => 
   assert.equal(
     readAccessFeature({ features: { gemTemplate: true } }, 'newCatalog'),
     false,
+  )
+  assert.equal(
+    readAccessFeature({ features: { aiStyleCreator: true } }, 'aiStyleCreator'),
+    true,
   )
 })
