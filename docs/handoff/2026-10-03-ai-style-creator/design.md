@@ -384,11 +384,13 @@ stateDiagram-v2
   paso, pruebas y elecciones. Las imágenes viven en disco, en la carpeta de la sesión.
 - **Hasta 3 sesiones a la vez** (E1). Con 3 en curso, la card «Crear estilo con IA» avisa que hay que
   esperar.
-- **Cada sesión tiene su card** al principio de la grilla, con la primera imagen del origen y una
-  etiqueta: «Preparando», «Analizando», «Dibujando pruebas», «Respondé para continuar», «Guardando»,
-  «Error · Reintentar» o «Se interrumpió · Reanudar». Tocarla abre el modal en su paso. Su menú ofrece
-  «Descartar». «Respondé para continuar» va más grande que las demás y con borde: es la que tiene que
-  encontrar quien cerró el modal sin aprobar (pedido del dueño, 2026-10-04).
+- **Cada sesión tiene su card** al principio de la grilla, con la mejor imagen que tiene hasta ahora
+  apagada por un velo y, en el centro, una etiqueta: «Preparando», «Analizando», «Dibujando pruebas»,
+  «Respondé para continuar», «Guardando», «Error · Reintentar» o «Se interrumpió · Reanudar». Tocarla
+  abre el modal en su paso. Su menú ofrece «Descartar». La etiqueta es blanca mientras la sesión
+  trabaja, coral si se detuvo y saffron con borde en «Respondé para continuar», que es la que tiene
+  que encontrar quien cerró el modal sin aprobar. Va en el centro y sobre el velo para que la fase se
+  distinga de un vistazo (pedido del dueño, 2026-10-04; antes iba chica, arriba a la izquierda).
 - **Cuando necesita una respuesta** (elegir el diseño, cómo viaja el personaje, aprobar o comentar) se
   detiene, cambia la etiqueta y muestra un aviso con «Responder».
 - **Si se cierra la app**, al volver las sesiones que estaban trabajando quedan en «Se interrumpió ·

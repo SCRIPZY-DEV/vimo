@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { FolderOpen, MoreVertical, Sparkles, Trash2 } from 'lucide-react'
+import { FolderOpen, MoreVertical, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +24,11 @@ interface StyleCloneSessionCardProps {
 }
 
 // La tarjeta de una clonación en curso, al principio de la grilla de Mi estilo
-// (ADR-0050, spec §8): la mejor imagen que tiene hasta ahora, la etiqueta de
-// lo que está haciendo —o de que necesita una respuesta— y el menú para
-// descartarla. Tocarla abre el modal en su paso. Misma silueta que una tarjeta
-// de estilo, pero no se elige: todavía no es un estilo. Presentacional.
+// (ADR-0050, spec §8): la mejor imagen que tiene hasta ahora, apagada por un
+// velo; en el centro, la etiqueta de lo que está haciendo —o de que necesita
+// una respuesta—; y el menú para descartarla. Tocarla abre el modal en su
+// paso. Misma silueta que una tarjeta de estilo, pero no se elige: todavía no
+// es un estilo. Presentacional.
 export function StyleCloneSessionCard({
   session,
   onOpen,
@@ -63,25 +64,20 @@ export function StyleCloneSessionCard({
       )}
     >
       <div className="relative aspect-[4/3] bg-muted">
-        {cover ? (
+        {cover && (
           <StyleCloneImage
             image={cover}
             alt={session.name}
-            className={cn(
-              'pointer-events-none absolute inset-0 h-full w-full',
-              state.busy && 'opacity-60',
-            )}
+            className="pointer-events-none absolute inset-0 h-full w-full"
           />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-            <Sparkles className="h-6 w-6" />
-          </div>
         )}
 
-        <StyleCloneStatusTag
-          state={state}
-          className="absolute left-2 top-2 z-[6] max-w-[calc(100%-3rem)]"
-        />
+        {/* El estado es lo que hay que leer de esta tarjeta: va en el centro,
+            sobre un velo que apaga la imagen en todos los estados, para que
+            la fase se distinga de un vistazo. */}
+        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black/45 p-2">
+          <StyleCloneStatusTag state={state} />
+        </div>
 
         <div
           className="absolute right-2 top-2 z-10"

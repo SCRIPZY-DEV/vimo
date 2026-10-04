@@ -8,55 +8,44 @@ interface StyleCloneStatusTagProps {
   className?: string
 }
 
-const COMPACT_SIZE = 'gap-1 px-2.5 py-1 text-xs shadow'
-const COMPACT_ICON = 'h-3.5 w-3.5'
-
-// Cada tono con su color, su tamaño y su ícono: trabajando (neutro, girando),
-// detenida (coral) o esperando una respuesta (saffron). Esta última es la que
-// más tiene que verse: quien cerró el modal sin aprobar la encuentra por su
-// etiqueta, así que va más grande y con borde.
+// Cada tono con su color y su ícono: trabajando (blanca, girando), detenida
+// (coral) o esperando una respuesta (saffron, con borde: es la que la persona
+// tiene que encontrar si cerró el modal sin aprobar). Colores fijos y no los
+// del tema: la etiqueta va siempre sobre el velo oscuro de la tarjeta.
 const TONES = {
-  working: {
-    container: 'bg-background/90 text-foreground',
-    size: COMPACT_SIZE,
-    icon: COMPACT_ICON,
-    Icon: Loader2,
-  },
+  working: { container: 'bg-white text-charcoal', Icon: Loader2 },
   attention: {
     container: 'bg-saffron text-charcoal ring-2 ring-white/80',
-    size: 'gap-1.5 px-3 py-1.5 text-[13px] shadow-md',
-    icon: 'h-4 w-4',
     Icon: MessageCircleQuestion,
   },
-  error: {
-    container: 'bg-coral text-white',
-    size: COMPACT_SIZE,
-    icon: COMPACT_ICON,
-    Icon: CircleAlert,
-  },
+  error: { container: 'bg-coral text-white', Icon: CircleAlert },
 } as const
 
-// La etiqueta de estado de una clonación de estilo, sobre su tarjeta de Mi
-// estilo. Presentacional.
+// La etiqueta de estado de una clonación de estilo, en el centro de su tarjeta
+// de Mi estilo. En una tarjeta angosta un texto largo («Sin saldo · Recargá y
+// continuá») baja a dos líneas en vez de cortarse, y el separador se queda
+// con la primera parte: la segunda línea no empieza con el punto.
+// Presentacional.
 export function StyleCloneStatusTag({
   state,
   className,
 }: StyleCloneStatusTagProps) {
   const { t } = useTranslation()
-  const { container, size, icon, Icon } = TONES[state.tone]
+  const { container, Icon } = TONES[state.tone]
 
   return (
     <span
       role="status"
       className={cn(
-        'inline-flex max-w-full items-center rounded-full font-display font-bold',
+        'inline-flex max-w-full items-center gap-1.5 rounded-2xl px-3 py-2 font-display text-sm font-bold leading-tight shadow-lg',
         container,
-        size,
         className,
       )}
     >
-      <Icon className={cn('shrink-0', icon, state.busy && 'animate-spin')} />
-      <span className="truncate">{t(state.labelKey)}</span>
+      <Icon className={cn('h-4 w-4 shrink-0', state.busy && 'animate-spin')} />
+      <span className="text-center">
+        {t(state.labelKey).replace(' · ', '\u00A0· ')}
+      </span>
     </span>
   )
 }
