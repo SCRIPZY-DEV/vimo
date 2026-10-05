@@ -1,19 +1,45 @@
-import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
 import type { PipelineContext } from '../../runner/context.ts'
-import { failureDetails, PipelineFailure } from '../../runner/failure.ts'
+import { PipelineFailure } from '../../runner/failure.ts'
 import type { Scene } from '../../types/scenes.ts'
-import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import {
   limitConcurrency,
   type ConcurrencyLimiter,
 } from '../../utils/concurrency.ts'
 import { createSceneLlm, type SceneLlm } from '../shared/llm.ts'
 
-const NARRATIVE_REVIEW_MODEL = 'deepseek-ai/DeepSeek-V4-Pro'
+// Revisor asesor desde el 2026-10-04 (ADR-0043): el juez fijo anterior
+// (DeepSeek V4 Pro) empezó a devolver una copia de su entrada y, como la
+// revisión frenaba la fase cuando no podía verificar, ningún video pasó de
+// «Validando prompts». Ahora hay un juez con respaldo, cada escena recibe a lo
+// sumo una objeción por video y, si ningún juez responde, los prompts siguen
+// sin revisión. Jueces medidos el 2026-10-04 con 14 escenas etiquetadas.
+const NARRATIVE_REVIEW_MODELS = [
+  'deepseek-ai/DeepSeek-V4.1-Flash',
+  'deepseek-ai/DeepSeek-V3.2',
+] as const
+// V4.1 Flash revisa un lote de seis en 6 a 12 s y V3.2 en hasta 35 s. Minuto
+// y medio deja margen cuando un video largo manda muchos lotes a la vez (pedido
+// del dueño, 2026-10-04); un juez que tarda más está caído y pasa el siguiente.
+const NARRATIVE_REVIEW_TIMEOUT_MS = 90_000
+// Un juez que falla dos veces SEGUIDAS en un video no se vuelve a llamar en
+// ese video: durante una caída cada lote pagaba la espera de un modelo roto.
+// Una respuesta buena borra sus fallas: en un video de 126 escenas V4.1 Flash
+// falló suelto 2 de 25 lotes, y apagarlo pasaba el resto al respaldo lento.
+const JUDGE_FAILURES_BEFORE_SKIP = 2
+interface NarrativeJudgeState {
+  failures: Map<string, number>
+  unavailableNoticed: boolean
+}
+const judgeStates = new WeakMap<AbortSignal, NarrativeJudgeState>()
+// Escenas que ya recibieron su objeción en este video: la reescritura pasa
+// sin volver a preguntar, así un juez exigente no deja una escena sin prompt.
+const objectedScenes = new WeakMap<AbortSignal, Set<number>>()
 const REVIEW_BATCH_SIZE = 6
-const REVIEW_CONCURRENCY = 4
+const REVIEW_CONCURRENCY = 12
 const MAX_REVIEW_CONCURRENCY = 200
-// Cuatro lotes cubren los 20 candidatos de una petición del redactor. El cupo
+// Mi estilo pide la revisión de cada lote de su redactor: 20 candidatos son 4
+// lotes, todos a la vez. El Catálogo pide la de todo el video junto: 126
+// escenas son 21 lotes, y de a 4 la revisión tardaba unos 44 s. El cupo
 // compartido evita multiplicar ese paralelismo sin serializar otros callbacks:
 // hasta 200 revisiones por job/señal, igual al presupuesto por modelo vigente.
 const reviewLimiters = new WeakMap<AbortSignal, ConcurrencyLimiter>()
@@ -39,23 +65,97 @@ interface NarrativeReviewOptions {
   signal: AbortSignal
 }
 
-// Juez interno exclusivo de correspondencia. No cambia el modelo redactor
-// del usuario ni degrada a un juez que ya mostró más falsos positivos.
-export function createNarrativeReviewLlm(context: PipelineContext): SceneLlm {
+function judgeStateFor(signal: AbortSignal): NarrativeJudgeState {
+  const existing = judgeStates.get(signal)
+  if (existing) return existing
+
+  const created = {
+    failures: new Map<string, number>(),
+    unavailableNoticed: false,
+  }
+  judgeStates.set(signal, created)
+  return created
+}
+
+function judgeLlm(context: PipelineContext, model: string): SceneLlm {
   return createSceneLlm({
     ...context,
     config: {
       ...context.config,
       llm: {
         ...context.config.llm,
-        models: {
-          economy: NARRATIVE_REVIEW_MODEL,
-          balanced: NARRATIVE_REVIEW_MODEL,
-          premium: NARRATIVE_REVIEW_MODEL,
-        },
+        timeoutMs: Math.min(
+          context.config.llm.timeoutMs,
+          NARRATIVE_REVIEW_TIMEOUT_MS,
+        ),
+        models: { economy: model, balanced: model, premium: model },
       },
     },
   })
+}
+
+// Juez interno de correspondencia, independiente del redactor del usuario.
+// Pregunta a los jueces en orden: el primero que responde con el contrato
+// decide. Una respuesta sin contrato (como la copia de la entrada) o un fallo
+// del proveedor pasa al siguiente. El estado vive por video (la señal del
+// job): la fase de imágenes arma otro cliente y hereda los jueces caídos.
+export function createNarrativeReviewLlm(context: PipelineContext): SceneLlm {
+  const judges = NARRATIVE_REVIEW_MODELS.map((model) => ({
+    model,
+    llm: judgeLlm(context, model),
+  }))
+  const state = judgeStateFor(context.signal)
+  const isAvailable = (model: string) =>
+    (state.failures.get(model) ?? 0) < JUDGE_FAILURES_BEFORE_SKIP
+  const warn = (message: string) =>
+    context.emitter.emit({ type: 'log', level: 'warn', message })
+
+  return {
+    async generate(request) {
+      for (const [index, judge] of judges.entries()) {
+        if (!isAvailable(judge.model)) continue
+
+        let problem: string
+        try {
+          const content = await judge.llm.generate(request)
+          if (!request.validate || request.validate(content)) {
+            state.failures.delete(judge.model)
+            return content
+          }
+          problem = 'answered without the review contract'
+        } catch (error) {
+          context.signal.throwIfAborted()
+          problem = error instanceof Error ? error.message : String(error)
+        }
+        state.failures.set(
+          judge.model,
+          (state.failures.get(judge.model) ?? 0) + 1,
+        )
+        const next = judges
+          .slice(index + 1)
+          .find((candidate) => isAvailable(candidate.model))
+        warn(
+          next
+            ? `narrative judge ${judge.model} failed (${problem}); asking ${next.model}`
+            : `narrative judge ${judge.model} failed (${problem})`,
+        )
+      }
+
+      if (
+        !judges.some((judge) => isAvailable(judge.model)) &&
+        !state.unavailableNoticed
+      ) {
+        state.unavailableNoticed = true
+        warn(
+          'every narrative judge failed in this video: the remaining prompts go on without narrative review',
+        )
+      }
+      throw new PipelineFailure(
+        'narrative_review_unavailable',
+        'no narrative judge returned a review with the contract',
+      )
+    },
+  }
 }
 
 function normalized(value: string): string {
@@ -335,14 +435,6 @@ Evidence is pre-numbered: sourceEvidence and promptEvidence list EXACT contiguou
 
 Return exactly {"scenes":[{"sceneId":number,"sourceMeaning":string,"promptMeaning":string,"checks":{"focus":boolean,"events":boolean,"setting":boolean,"causality":boolean},"aligned":boolean,"sourceEvidenceId":string|null,"promptEvidenceId":string,"reason":string}]} with every requested scene ID once. Emit sourceMeaning then promptMeaning before checks, each at most 180 characters. aligned MUST equal the logical AND of all four checks. Each true check means that dimension has no contradiction, including when no specific causal assertion exists. reason must be concise (up to 360 characters): when false, explain the actual contradiction and how to repair the local image; when true, explain correspondence. Do not print sourceQuote or promptQuote.`
 
-function stopsReview(error: unknown): boolean {
-  return (
-    isLlmAuthFailure(error) ||
-    isInsufficientCreditsFailure(error) ||
-    (error instanceof Error && error.name === 'AbortError')
-  )
-}
-
 async function reviewBatch(
   candidates: readonly NarrativePromptCandidate[],
   options: NarrativeReviewOptions,
@@ -374,7 +466,7 @@ async function reviewBatch(
             ...candidate,
             ...narrativeEvidenceFor(candidate),
           })),
-          ...(attempt > 0
+          ...(attempt > 0 && invalidFields.length > 0
             ? {
                 repair: {
                   invalidFields,
@@ -390,27 +482,12 @@ async function reviewBatch(
           return inspected.rejected !== null
         },
       })
-    } catch (error) {
+    } catch {
+      // Ningún juez respondió con el contrato (los jueces ya avisaron por
+      // qué): el segundo intento pide reparar el formato. Solo la cancelación
+      // del job corta la revisión.
       options.signal.throwIfAborted()
-      if (stopsReview(error)) throw error
-
-      // Truncamiento/JSON roto permiten reparar el formato, no cambiar un
-      // juicio negativo válido. Los reintentos de transporte viven en el provider.
-      if (
-        attempt + 1 < REVIEW_ATTEMPTS &&
-        (error instanceof SyntaxError ||
-          (error instanceof PipelineFailure &&
-            ['llm_empty_response', 'llm_output_truncated'].includes(
-              error.code,
-            )))
-      )
-        continue
-
-      throw new PipelineFailure(
-        'scene_prompt_alignment_failed',
-        'Narrative alignment review could not obtain a complete response.',
-        error instanceof PipelineFailure ? failureDetails(error) : {},
-      )
+      continue
     }
     options.signal.throwIfAborted()
     const inspected = inspectAndRetain(raw)
@@ -419,10 +496,10 @@ async function reviewBatch(
       return new Map([...inspected.rejected, ...retainedRejections])
   }
 
-  throw new PipelineFailure(
-    'scene_prompt_alignment_failed',
-    `Narrative alignment review returned an invalid contract after ${REVIEW_ATTEMPTS} attempts.`,
-  )
+  // Sin veredicto completo, el lote sigue sin revisión: un revisor que no
+  // puede opinar no frena el video. Las objeciones completas que sí llegaron
+  // en una respuesta a medias se conservan.
+  return retainedRejections
 }
 
 export async function reviewNarrativePrompts(
@@ -439,9 +516,25 @@ export async function reviewNarrativePrompts(
       'Narrative alignment review received duplicate scene IDs.',
     )
 
+  let objected = objectedScenes.get(options.signal)
+  if (!objected) {
+    objected = new Set()
+    objectedScenes.set(options.signal, objected)
+  }
+  const alreadyObjected = objected
+  const pending = candidates.filter(
+    ({ sceneId }) => !alreadyObjected.has(sceneId),
+  )
+  if (pending.length === 0) return new Map()
+
+  // Lotes parejos de hasta seis: 20 candidatos van como 5+5+5+5, no 6+6+6+2.
+  // V4.1 Flash devolvió sin contrato 4 de 12 lotes de dos escenas y ninguno de
+  // 38 de seis (videos de 126 escenas, 2026-10-04).
+  const batchCount = Math.ceil(pending.length / REVIEW_BATCH_SIZE)
+  const batchSize = Math.ceil(pending.length / batchCount)
   const batches: NarrativePromptCandidate[][] = []
-  for (let offset = 0; offset < candidates.length; offset += REVIEW_BATCH_SIZE)
-    batches.push(candidates.slice(offset, offset + REVIEW_BATCH_SIZE))
+  for (let offset = 0; offset < pending.length; offset += batchSize)
+    batches.push(pending.slice(offset, offset + batchSize))
 
   let limited = reviewLimiters.get(options.signal)
   if (!limited) {
@@ -463,9 +556,9 @@ export async function reviewNarrativePrompts(
           return reviewBatch(batches[index], options)
         })
       } catch (error) {
-        // No arrancar lotes pendientes tras un fallo de cuenta o revisión.
-        // SceneLlm conserva la señal/cancelación del job que creó el cliente.
-        if (!failed || stopsReview(error)) failure = error
+        // Un lote solo lanza por cancelación (o por un error de programación):
+        // no arrancar los pendientes. SceneLlm conserva la señal del job.
+        if (!failed) failure = error
         failed = true
       }
     }
@@ -480,5 +573,7 @@ export async function reviewNarrativePrompts(
   options.signal.throwIfAborted()
   if (failed) throw failure
 
-  return new Map(results.flatMap((result) => [...result]))
+  const rejected = new Map(results.flatMap((result) => [...result]))
+  for (const sceneId of rejected.keys()) alreadyObjected.add(sceneId)
+  return rejected
 }

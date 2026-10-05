@@ -29,7 +29,10 @@ import {
 } from './verbatim/verbatim-lane.ts'
 import { createVerbatimPromptPersistence } from './verbatim/verbatim-persistence.ts'
 import { describeTreatmentMix } from './verbatim/treatments.ts'
-import { guaranteePrompts } from './prompt-writer.ts'
+import {
+  guaranteePrompts,
+  MAX_RESCUABLE_PROMPT_FAILURES,
+} from './prompt-writer.ts'
 import { directScenes, scenesNeedPlan } from './scene-director.ts'
 import { loadOrGenerateVisualBible } from '../shared/visual-bible.ts'
 
@@ -235,6 +238,8 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     let persistence = Promise.resolve()
     const total = currentScenes.length
     let ready = total - pendingIds.size
+    // Una escena que el revisor hace reescribir se guarda dos veces: cuenta una.
+    const counted = new Set<number>()
     context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
     currentScenes = await guaranteePrompts(currentScenes, {
       llm,
@@ -262,8 +267,33 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
             type: 'scene-prompt-ready',
             scene: await toSceneSummary(context.paths, scene),
           })
-          ready++
+          if (!counted.has(scene.id)) {
+            counted.add(scene.id)
+            ready++
+          }
           context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
+        })
+        await persistence
+      },
+      // Unas pocas escenas sin prompt no tiran el video: quedan sin imagen
+      // y con su motivo, para regenerarlas desde el editor.
+      rescueLimit: MAX_RESCUABLE_PROMPT_FAILURES,
+      async onSceneFailed(scene) {
+        persistence = persistence.then(async () => {
+          context.signal.throwIfAborted()
+          const index = buffer.findIndex((item) => item.id === scene.id)
+          if (index >= 0) buffer[index] = scene
+          await writeScenesOwned(
+            context.paths,
+            buffer,
+            context.regenerateSceneIds,
+          )
+          const failure = scene.promptFailure
+          context.emitter.emit({
+            type: 'log',
+            level: 'warn',
+            message: `scene ${scene.id} left without prompt (${failure?.source ?? 'writer'}${failure?.detail ? `: ${failure.detail}` : ''})`,
+          })
         })
         await persistence
       },
@@ -274,6 +304,15 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
       currentScenes,
       context.regenerateSceneIds,
     )
+    const parked = currentScenes
+      .filter((scene) => pendingIds.has(scene.id) && scene.promptFailure)
+      .map((scene) => scene.id)
+    if (parked.length > 0)
+      context.emitter.emit({
+        type: 'log',
+        level: 'warn',
+        message: `continuing without prompts for scene(s) ${parked.join(', ')}; regenerate them from the editor`,
+      })
 
     return undefined
   },

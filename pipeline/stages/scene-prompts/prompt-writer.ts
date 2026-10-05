@@ -18,7 +18,7 @@ import {
   characterIndicesInRequest,
 } from '../../prompts/scene-prompt-blocks.ts'
 import type { VisualStyle } from '../../prompts/visual-styles.ts'
-import type { Scene } from '../../types/scenes.ts'
+import type { Scene, ScenePromptFailure } from '../../types/scenes.ts'
 import { limitConcurrency } from '../../utils/concurrency.ts'
 import { neutralizeFamousNames } from '../../utils/content-safety.ts'
 import { neutralizeEraInBible } from '../../utils/story-era.ts'
@@ -52,6 +52,15 @@ import { buildScenePlanBlock } from './scene-director.ts'
 // válido ya guardado para reanudar (ADR-0036).
 const MAX_ATTEMPTS_PER_SCENE = 3
 const LLM_CONCURRENCY = 6
+// Hasta cuántas escenas sin prompt puede dejar una corrida para rescatarlas
+// desde el editor. Con más, el problema no es la escena: se reintenta todo.
+export const MAX_RESCUABLE_PROMPT_FAILURES = 5
+// Fallos de un pedido en los que ningún modelo de texto respondió (el
+// redactor o el revisor): la escena queda sin prompt, el resto sigue.
+const MODELS_UNAVAILABLE_CODES = [
+  'catalog_prompts_incomplete',
+  'scene_prompt_alignment_failed',
+]
 
 export interface PromptWriterOptions {
   llm: SceneLlm
@@ -74,6 +83,11 @@ export interface PromptWriterOptions {
   // también en la reescritura por content policy desde la fase de imágenes,
   // que lo usa para reemitir scene-prompt-ready.
   onSceneProcessed?(scene: Scene): Promise<void> | void
+  // Cuántas escenas pueden quedar sin prompt (con `promptFailure`) sin tumbar
+  // la corrida. 0 o ausente: cualquier hueco lanza, como siempre.
+  rescueLimit?: number
+  // Se llama con cada escena que quedó sin prompt, ya con su motivo.
+  onSceneFailed?(scene: Scene): Promise<void> | void
 }
 
 // Toda escena lleva prompt: la muda (texto vacío del corte clásico) se
@@ -265,7 +279,7 @@ export async function generateScenePrompts(
 
   const limit = limitConcurrency(LLM_CONCURRENCY)
   const results = new Map<number, Scene>()
-  const failures: { id: number; message: string }[] = []
+  const failures: { scene: Scene; failure: ScenePromptFailure }[] = []
   const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
   const normalize = (text: string) =>
     text.toLowerCase().replace(/\s+/g, ' ').trim()
@@ -275,233 +289,295 @@ export async function generateScenePrompts(
       accepted.set(normalize(scene.imagePrompt), normalize(fragmentKey(scene)))
   }
 
-  const settled = await Promise.allSettled(
-    toProcess.map((scene) =>
-      limit(async () => {
-        writerOptions.signal.throwIfAborted()
+  // Escribe las escenas pedidas, de a LLM_CONCURRENCY. `corrections` siembra
+  // la objeción del revisor en la reescritura de la segunda pasada.
+  const writeScenes = (
+    pending: Scene[],
+    corrections: ReadonlyMap<number, string> = new Map(),
+  ) =>
+    Promise.allSettled(
+      pending.map((scene) =>
+        limit(async () => {
+          writerOptions.signal.throwIfAborted()
 
-        // `let`: una escena sin personaje puede promoverse al protagonista.
-        let currentScene = scene
-        let composed = composeSceneRequest(
-          currentScene,
-          orderedScenes,
-          scenes.length,
-          writerOptions,
-        )
-        const characterNames = writerOptions.characters.map(
-          (character) => character.name,
-        )
+          // `let`: una escena sin personaje puede promoverse al protagonista.
+          let currentScene = scene
+          let composed = composeSceneRequest(
+            currentScene,
+            orderedScenes,
+            scenes.length,
+            writerOptions,
+          )
+          const characterNames = writerOptions.characters.map(
+            (character) => character.name,
+          )
 
-        let imagePrompt = ''
-        let lastError = ''
-        // Si un intento soltó rasgos de cabeza canónicos, el siguiente lleva
-        // la corrección explícita adjunta.
-        let identityCorrection = ''
-        let narrativeCorrection = ''
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_SCENE; attempt++) {
-          try {
-            const content = await writerOptions.llm.generate({
-              systemPrompt: writerOptions.style.systemPrompt,
-              userPrompt:
-                composed.userPrompt + identityCorrection + narrativeCorrection,
-              jsonOnly: true,
-              validate(content) {
-                const prompt = extractImagePrompt(content)
-                if (!hasCatalogNarrative(prompt, writerOptions.style))
-                  return false
-                // Con candado: la clave coincide con lo que queda en disco.
-                const final = normalize(
-                  lockedLlmPrompt(
-                    finishLlmPrompt(prompt, composed, writerOptions.style),
-                    composed,
-                    writerOptions,
-                  ),
-                )
-                const fragment = normalize(fragmentKey(scene))
-                const previousFragment = accepted.get(final)
-                if (
-                  previousFragment !== undefined &&
-                  previousFragment !== fragment
-                )
-                  return false
-                // Reserva sin await: respuestas simultáneas no pueden aceptar
-                // el mismo texto exacto para fragmentos narrativos diferentes.
-                accepted.set(final, fragment)
-                return true
-              },
-              // Escalada de tiers: el ÚLTIMO intento (y todo el barrido) va
-              // al premium con el mismo prompt completo.
-              tier:
-                writerOptions.escalateTier || attempt === MAX_ATTEMPTS_PER_SCENE
-                  ? 'premium'
-                  : 'balanced',
-            })
+          let imagePrompt = ''
+          let lastFailure: ScenePromptFailure = { source: 'writer' }
+          // Si un intento soltó rasgos de cabeza canónicos, el siguiente lleva
+          // la corrección explícita adjunta.
+          let identityCorrection = ''
+          // La reescritura que pidió el revisor lleva su objeción; una escena
+          // que el revisor rechazó en otra corrida arranca con la de entonces.
+          const narrativeCorrection =
+            corrections.get(scene.id) ??
+            (scene.promptFailure?.source === 'reviewer' &&
+            scene.promptFailure.detail
+              ? narrativeCorrectionBlock(scene.promptFailure.detail)
+              : '')
+          for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_SCENE; attempt++) {
+            try {
+              const content = await writerOptions.llm.generate({
+                systemPrompt: writerOptions.style.systemPrompt,
+                userPrompt:
+                  composed.userPrompt +
+                  identityCorrection +
+                  narrativeCorrection,
+                jsonOnly: true,
+                validate(content) {
+                  const prompt = extractImagePrompt(content)
+                  if (!hasCatalogNarrative(prompt, writerOptions.style))
+                    return false
+                  // Con candado: la clave coincide con lo que queda en disco.
+                  const final = normalize(
+                    lockedLlmPrompt(
+                      finishLlmPrompt(prompt, composed, writerOptions.style),
+                      composed,
+                      writerOptions,
+                    ),
+                  )
+                  const fragment = normalize(fragmentKey(scene))
+                  const previousFragment = accepted.get(final)
+                  if (
+                    previousFragment !== undefined &&
+                    previousFragment !== fragment
+                  )
+                    return false
+                  // Reserva sin await: respuestas simultáneas no pueden aceptar
+                  // el mismo texto exacto para fragmentos narrativos diferentes.
+                  accepted.set(final, fragment)
+                  return true
+                },
+                // Escalada de tiers: el ÚLTIMO intento (y todo el barrido) va
+                // al premium con el mismo prompt completo.
+                tier:
+                  writerOptions.escalateTier ||
+                  attempt === MAX_ATTEMPTS_PER_SCENE
+                    ? 'premium'
+                    : 'balanced',
+              })
 
-            writerOptions.signal.throwIfAborted()
-            const extracted = extractImagePrompt(content)
-            const candidate = hasCatalogNarrative(
-              extracted,
-              writerOptions.style,
-            )
-              ? finishLlmPrompt(extracted, composed, writerOptions.style)
-              : ''
-            // Escena SIN personaje que dibuja a alguien sin rotular: no lleva
-            // identidad ni referencia, así que sale como un desconocido que
-            // hace de protagonista. La gente que la narración describe
-            // («anonymous …») sí es legítima.
-            const drewUnmarkedPerson =
-              isValidPrompt(candidate) &&
-              composed.isPlaceOnlyScene &&
-              !composed.isUserRequest &&
-              promptDepictsStandIn(
-                candidate,
+              writerOptions.signal.throwIfAborted()
+              const extracted = extractImagePrompt(content)
+              const candidate = hasCatalogNarrative(
+                extracted,
                 writerOptions.style,
-                writerOptions.characters,
               )
-            if (!isValidPrompt(candidate)) {
-              lastError = 'the LLM returned an empty or invalid prompt'
-            } else if (drewUnmarkedPerson && attempt < MAX_ATTEMPTS_PER_SCENE) {
-              lastError = 'a scene without the character drew a person'
-              identityCorrection = buildNoPersonCorrectionBlock(characterNames)
-            } else if (
-              drewUnmarkedPerson &&
-              writerOptions.promoteUnmarkedProtagonist
-            ) {
-              // El redactor insiste: la narración ES sobre el protagonista. Se
-              // le da la escena con su identidad completa y se redacta de cero.
-              currentScene = { ...scene, charactersPresent: [0] }
-              composed = composeSceneRequest(
-                currentScene,
-                orderedScenes,
-                scenes.length,
-                writerOptions,
-              )
-              identityCorrection = ''
-              attempt = 0
-              continue
-            } else {
-              // Backstop de identidad: un prompt que soltó rasgos canónicos de
-              // un personaje presente se reintenta con corrección; en el
-              // último intento se acepta igual (nunca cae al fallback por esto).
-              const missing = composed.isPlaceOnlyScene
-                ? []
-                : missingHeadTraits(
-                    candidate,
-                    writerOptions.characters,
-                    composed.effectivePresent,
-                  )
-              // Mismo backstop para el tono de piel: el generador rellena con
-              // piel clara cuando el prompt no lo nombra.
-              const missingSkin = composed.isPlaceOnlyScene
-                ? []
-                : missingComplexion(
-                    candidate,
-                    writerOptions.characters,
-                    composed.effectivePresent,
-                    writerOptions.style,
-                  )
-              // Y para la PRESENCIA: una escena marcada con personaje (todas,
-              // con frecuencia «always») tiene que traerlo en el prompt.
-              const missingCharacters = composed.isPlaceOnlyScene
-                ? []
-                : missingCharacterMention(
-                    candidate,
-                    writerOptions.characters,
-                    composed.effectivePresent,
-                    writerOptions.style,
-                  ).map((index) => writerOptions.characters[index].name)
-              const isComplete =
-                missing.length === 0 &&
-                missingSkin.length === 0 &&
-                missingCharacters.length === 0
-              if (isComplete || attempt === MAX_ATTEMPTS_PER_SCENE) {
-                // Si el último intento igual dejó afuera al personaje o soltó
-                // la tez, se repara por código.
-                const finalPrompt = finalizeSceneImagePrompt(
+                ? finishLlmPrompt(extracted, composed, writerOptions.style)
+                : ''
+              // Escena SIN personaje que dibuja a alguien sin rotular: no lleva
+              // identidad ni referencia, así que sale como un desconocido que
+              // hace de protagonista. La gente que la narración describe
+              // («anonymous …») sí es legítima.
+              const drewUnmarkedPerson =
+                isValidPrompt(candidate) &&
+                composed.isPlaceOnlyScene &&
+                !composed.isUserRequest &&
+                promptDepictsStandIn(
+                  candidate,
+                  writerOptions.style,
+                  writerOptions.characters,
+                )
+              if (!isValidPrompt(candidate)) {
+                lastFailure = { source: 'writer' }
+              } else if (
+                drewUnmarkedPerson &&
+                attempt < MAX_ATTEMPTS_PER_SCENE
+              ) {
+                lastFailure = { source: 'writer' }
+                identityCorrection =
+                  buildNoPersonCorrectionBlock(characterNames)
+              } else if (
+                drewUnmarkedPerson &&
+                writerOptions.promoteUnmarkedProtagonist
+              ) {
+                // El redactor insiste: la narración ES sobre el protagonista. Se
+                // le da la escena con su identidad completa y se redacta de cero.
+                currentScene = { ...scene, charactersPresent: [0] }
+                composed = composeSceneRequest(
                   currentScene,
                   orderedScenes,
-                  lockedLlmPrompt(candidate, composed, writerOptions),
-                  writerOptions.style.id,
-                  writerOptions.visualBible,
+                  scenes.length,
+                  writerOptions,
                 )
-                const rejected = await reviewNarrativePrompts(
-                  [
-                    narrativeCandidateFor(
-                      currentScene,
-                      orderedScenes,
-                      finalPrompt,
-                    ),
-                  ],
-                  {
-                    llm: writerOptions.reviewLlm ?? writerOptions.llm,
-                    signal: writerOptions.signal,
-                  },
-                )
-                const feedback = rejected.get(scene.id)
-                if (feedback) {
-                  lastError = 'narrative alignment rejected'
-                  narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}\nRewrite the prompt to depict its own fragment.`
-                  continue
-                } else {
-                  imagePrompt = finalPrompt
+                identityCorrection = ''
+                attempt = 0
+                continue
+              } else {
+                // Backstop de identidad: un prompt que soltó rasgos canónicos de
+                // un personaje presente se reintenta con corrección; en el
+                // último intento se acepta igual (nunca cae al fallback por esto).
+                const missing = composed.isPlaceOnlyScene
+                  ? []
+                  : missingHeadTraits(
+                      candidate,
+                      writerOptions.characters,
+                      composed.effectivePresent,
+                    )
+                // Mismo backstop para el tono de piel: el generador rellena con
+                // piel clara cuando el prompt no lo nombra.
+                const missingSkin = composed.isPlaceOnlyScene
+                  ? []
+                  : missingComplexion(
+                      candidate,
+                      writerOptions.characters,
+                      composed.effectivePresent,
+                      writerOptions.style,
+                    )
+                // Y para la PRESENCIA: una escena marcada con personaje (todas,
+                // con frecuencia «always») tiene que traerlo en el prompt.
+                const missingCharacters = composed.isPlaceOnlyScene
+                  ? []
+                  : missingCharacterMention(
+                      candidate,
+                      writerOptions.characters,
+                      composed.effectivePresent,
+                      writerOptions.style,
+                    ).map((index) => writerOptions.characters[index].name)
+                const isComplete =
+                  missing.length === 0 &&
+                  missingSkin.length === 0 &&
+                  missingCharacters.length === 0
+                if (isComplete || attempt === MAX_ATTEMPTS_PER_SCENE) {
+                  // Si el último intento igual dejó afuera al personaje o soltó
+                  // la tez, se repara por código.
+                  imagePrompt = finalizeSceneImagePrompt(
+                    currentScene,
+                    orderedScenes,
+                    lockedLlmPrompt(candidate, composed, writerOptions),
+                    writerOptions.style.id,
+                    writerOptions.visualBible,
+                  )
                   break
                 }
+                lastFailure = { source: 'writer' }
+                // Sin el personaje no tiene sentido corregirle el pelo o la tez:
+                // primero que aparezca.
+                identityCorrection =
+                  missingCharacters.length > 0
+                    ? buildMissingCharacterCorrectionBlock(missingCharacters)
+                    : (missing.length > 0
+                        ? buildIdentityCorrectionBlock(missing)
+                        : '') + buildComplexionCorrectionBlock(missingSkin)
               }
-              lastError = `the prompt dropped canonical traits (${[
-                ...missingCharacters.map((name) => `character ${name}`),
-                ...missing,
-                ...missingSkin.map(() => 'skin tone'),
-              ].join(', ')})`
-              // Sin el personaje no tiene sentido corregirle el pelo o la tez:
-              // primero que aparezca.
-              identityCorrection =
-                missingCharacters.length > 0
-                  ? buildMissingCharacterCorrectionBlock(missingCharacters)
-                  : (missing.length > 0
-                      ? buildIdentityCorrectionBlock(missing)
-                      : '') + buildComplexionCorrectionBlock(missingSkin)
+            } catch (error) {
+              writerOptions.signal.throwIfAborted()
+              // La rotación acotada ya ocurrió dentro del cliente. Repetir esta
+              // excepción en barridos multiplicaba minutos sobre el mismo fallo.
+              // Sin modelos para ESTA escena, queda sin prompt y el resto sigue;
+              // la cuenta (clave, saldo) o un fallo desconocido tumban todo.
+              if (
+                !(error instanceof PipelineFailure) ||
+                !MODELS_UNAVAILABLE_CODES.includes(error.code)
+              )
+                throw error
+              failures.push({ scene, failure: { source: 'models' } })
+              return
             }
-          } catch (error) {
-            writerOptions.signal.throwIfAborted()
-            // La rotación acotada ya ocurrió dentro del cliente. Repetir esta
-            // excepción en barridos multiplicaba minutos sobre el mismo fallo.
-            throw error
+            if (attempt < MAX_ATTEMPTS_PER_SCENE)
+              await delay(300 * attempt, undefined, {
+                signal: writerOptions.signal,
+              })
           }
-          if (attempt < MAX_ATTEMPTS_PER_SCENE)
-            await delay(300 * attempt, undefined, {
-              signal: writerOptions.signal,
-            })
-        }
 
-        if (!isValidPrompt(imagePrompt)) {
-          failures.push({ id: scene.id, message: lastError })
-          return
-        }
+          if (!isValidPrompt(imagePrompt)) {
+            failures.push({ scene, failure: lastFailure })
+            return
+          }
 
-        // Si tenía un fallback previo y ahora hay prompt LLM, deja de serlo.
-        const updated: Scene = {
-          ...currentScene,
-          imagePrompt,
-          promptIsFallback: false,
-        }
-        results.set(scene.id, updated)
-        await writerOptions.onSceneProcessed?.(updated)
-      }),
-    ),
-  )
+          // Si tenía un fallback previo y ahora hay prompt LLM, deja de serlo.
+          const updated: Scene = {
+            ...currentScene,
+            imagePrompt,
+            promptIsFallback: false,
+          }
+          delete updated.promptFailure
+          results.set(scene.id, updated)
+          await writerOptions.onSceneProcessed?.(updated)
+        }),
+      ),
+    )
 
+  const settled = await writeScenes(toProcess)
   options.signal.throwIfAborted()
   // Esperar todos evita callbacks tardíos escribiendo sobre el siguiente job.
   const rejected = settled.find((result) => result.status === 'rejected')
   if (rejected?.status === 'rejected') throw rejected.reason
-  if (failures.length > 0)
+
+  // Revisión narrativa con todo escrito, en lotes paralelos: el juez ya no
+  // ocupa el turno del redactor escena por escena (ADR-0043). Una objeción
+  // vale una reescritura, también en paralelo, y la reescritura pasa sin volver
+  // al juez. Si no sale, queda el prompt original: el revisor nunca deja una
+  // escena sin prompt.
+  const objections = await reviewNarrativePrompts(
+    [...results.values()].map((scene) =>
+      narrativeCandidateFor(scene, orderedScenes, scene.imagePrompt ?? ''),
+    ),
+    {
+      llm: writerOptions.reviewLlm ?? writerOptions.llm,
+      signal: writerOptions.signal,
+    },
+  )
+  if (objections.size > 0) {
+    const firstPassFailures = failures.length
+    const rewrites = await writeScenes(
+      [...objections.keys()].map((id) => results.get(id)!),
+      new Map(
+        [...objections].map(([id, feedback]) => [
+          id,
+          narrativeCorrectionBlock(feedback),
+        ]),
+      ),
+    )
+    options.signal.throwIfAborted()
+    const rewriteRejected = rewrites.find(
+      (result) => result.status === 'rejected',
+    )
+    if (rewriteRejected?.status === 'rejected') throw rewriteRejected.reason
+    // La que no salió conserva en `results` (y en disco) su prompt original.
+    failures.splice(firstPassFailures)
+  }
+
+  failures.sort((a, b) => a.scene.id - b.scene.id)
+  for (const { scene, failure } of failures) {
+    const failed: Scene = {
+      ...scene,
+      imagePrompt: '',
+      promptIsFallback: false,
+      promptFailure: failure,
+    }
+    results.set(scene.id, failed)
+    await writerOptions.onSceneFailed?.(failed)
+  }
+  // Pocos huecos en un proyecto que sí tiene el resto: la corrida sigue y
+  // esas escenas se rescatan desde el editor. Jamás se rellenan.
+  const rescuable =
+    failures.length <= (options.rescueLimit ?? 0) &&
+    failures.length < scenes.length
+  if (failures.length > 0 && !rescuable)
     throw new PipelineFailure(
       'catalog_prompts_incomplete',
       'scenes without valid narrative prompts: ' +
-        failures.map((failure) => failure.id).join(', '),
+        failures
+          .map(({ scene, failure }) => `${scene.id} (${failure.source})`)
+          .join(', '),
     )
 
   return scenes.map((scene) => results.get(scene.id) ?? scene)
+}
+
+function narrativeCorrectionBlock(feedback: string): string {
+  return `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}\nRewrite the prompt to depict its own fragment.`
 }
 
 // Punto de entrada: completar con modelos, nunca con una plantilla genérica.
@@ -514,7 +590,9 @@ export async function guaranteePrompts(
   options.signal.throwIfAborted()
   if (
     scenesMissingPrompt(result).some(
-      (scene) => !options.sceneIds || options.sceneIds.has(scene.id),
+      (scene) =>
+        (!options.sceneIds || options.sceneIds.has(scene.id)) &&
+        !scene.promptFailure,
     )
   )
     throw new PipelineFailure(
@@ -570,6 +648,7 @@ export async function regeneratePromptsForRejected(
 
         let imagePrompt = ''
         let narrativeCorrection = ''
+        let objectedPrompt = ''
         for (let retry = 1; retry <= MAX_ATTEMPTS_PER_SCENE; retry++) {
           try {
             const content = await writerOptions.llm.generate({
@@ -619,12 +698,15 @@ export async function regeneratePromptsForRejected(
                 },
               )
               const feedback = rejected.get(scene.id)
-              if (feedback) {
-                narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
-              } else {
+              // Igual que al escribir: una objeción vale una reescritura y el
+              // último intento se conserva.
+              if (!feedback || retry === MAX_ATTEMPTS_PER_SCENE) {
                 imagePrompt = finalPrompt
                 break
               }
+
+              objectedPrompt = finalPrompt
+              narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
             }
           } catch (error) {
             writerOptions.signal.throwIfAborted()
@@ -637,6 +719,9 @@ export async function regeneratePromptsForRejected(
         }
 
         writerOptions.signal.throwIfAborted()
+        // Igual que al escribir: si la reescritura que pidió el revisor no
+        // sale, queda el prompt que objetó.
+        if (!isValidPrompt(imagePrompt)) imagePrompt = objectedPrompt
         if (!isValidPrompt(imagePrompt))
           throw new PipelineFailure(
             'catalog_prompts_incomplete',

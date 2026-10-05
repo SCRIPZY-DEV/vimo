@@ -38,6 +38,10 @@ test('same selection keeps multiple scene prompts in one batch', async (t) => {
 })
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import {
+  isNarrativeReviewRequest,
+  narrativeReviewAnswer,
+} from './narrative-review-fixture.mjs'
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -192,6 +196,9 @@ function providers(t, llm) {
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (String(url).includes('chat/completions')) {
       const request = JSON.parse(init.body)
+      // El revisor narrativo aprueba: este guard mide la selección del editor.
+      if (isNarrativeReviewRequest(request))
+        return narrativeReviewAnswer(request)
       requests.text.push(request)
       assert.ok(request.messages[0].content.startsWith(gem), 'gema intacta')
       return llm(request, requests.text.length)
@@ -390,11 +397,12 @@ for (const include of [false, true]) {
       const requests = providers(t, (request) =>
         responseFor(request, include ? withoutSubject : withSubject),
       )
+      // Desde el PR #91 una escena sin prompt corta con este código.
       await assert.rejects(
         regenerateSceneImages(
           command(base, { scenes: [{ id: 1, rewritePrompt: true }] }),
         ),
-        { code: 'llm_empty_response' },
+        { code: 'scene_prompt_alignment_failed' },
       )
       assert.equal(requests.image.length, 0)
       assert.ok(

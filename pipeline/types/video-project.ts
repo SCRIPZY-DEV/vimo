@@ -2,7 +2,11 @@ import type { CharacterStyleId } from './characters.ts'
 import type { ColorFilterId, GemSections, StyleCharacter } from './styles.ts'
 import type { ImageProviderId } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
-import type { SceneSummary, TranscriptWord } from './scenes.ts'
+import type {
+  ScenePromptFailure,
+  SceneSummary,
+  TranscriptWord,
+} from './scenes.ts'
 import type { StageId } from '../runner/stage-id.ts'
 import type { VideoFormat } from './video-format.ts'
 import type { VideoProviderId } from './video-provider.ts'
@@ -375,6 +379,8 @@ export interface SceneDetail extends SceneSummary {
   imageQuality?: string
   charactersPresent?: number[]
   imageMtimeMs?: number
+  // Por qué la escena quedó sin prompt (rescate por el editor).
+  promptFailure?: ScenePromptFailure
 }
 
 export interface VideoProjectDetailPayload {

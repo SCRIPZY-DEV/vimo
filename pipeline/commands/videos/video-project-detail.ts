@@ -91,6 +91,7 @@ async function toSceneDetails(
     if (scene.imageQuality) detail.imageQuality = scene.imageQuality
     if (scene.charactersPresent)
       detail.charactersPresent = scene.charactersPresent
+    if (scene.promptFailure) detail.promptFailure = scene.promptFailure
 
     const image = detail.imagePath ? await statMedia(detail.imagePath) : null
     if (image) {
