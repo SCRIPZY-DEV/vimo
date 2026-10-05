@@ -104,15 +104,20 @@ Cómo quedó:
 - El retiro del carril viejo (redactor por escena, `identity-lock.ts`, frecuencia, cantidad de escenas,
   pack de la demo) arranca 7 días después de encender el interruptor para todos (E2-8 del plan).
 
-### Enmienda 2026-10-05 — sin descripción
+### Enmienda 2026-10-05 — sin descripción y «Personaje fijo» en amarillo
 
-Pedido del dueño en la QA del 2026-10-05:
+Pedidos del dueño en la QA del 2026-10-05:
 
 - **Sin descripción.** Las gemas del catálogo ya no traen `description` («Personaje 3D estilizado con
   acabado CGI…»): el dueño no la ve necesaria, ni en la tarjeta ni en «Ver». Se borró del tipo
   `CatalogGem`, de las 38 gemas y de las gemas de ejemplo de los guards, y `check-catalog-gems.mjs`
   fija que ninguna la traiga. «Ver» queda con el nombre, las etiquetas, el modo de personaje y las
   muestras. La Entrega 3 tiene un campo menos que escribir y traducir.
+- **«Personaje fijo» en amarillo.** En la tarjeta y en «Ver», esa etiqueta va en el amarillo de la
+  app (`bg-saffron`) para que se note que conviene usar el personaje del estilo o uno propio en ese
+  estilo; las demás siguen grises. Como `src/` solo importa tipos de `pipeline/` (ADR-0010), la app
+  la reconoce con un espejo de la paleta (`src/modules/videos/utilities/catalogTags.ts`), y
+  `check-app-catalog-style.mjs` fija que coincidan.
 
 ## Alternativas consideradas
 
