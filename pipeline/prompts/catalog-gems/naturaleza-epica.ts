@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const naturalezaEpica: CatalogGem = {
   id: 'naturaleza-epica',
   name: { es: 'Naturaleza Épica', en: 'Epic Nature', pt: 'Natureza Épica' },
-  description: {
-    es: 'Documental de naturaleza: teleobjetivo nítido, luz de hora dorada y bokeh cremoso.',
-    en: 'Nature documentary: sharp telephoto, golden hour light and creamy bokeh.',
-    pt: 'Documentário de natureza: teleobjetiva nítida, luz da hora dourada e bokeh cremoso.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.nature,

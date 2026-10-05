@@ -12,11 +12,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const normal: CatalogGem = {
   id: 'normal',
   name: { es: 'Realista', en: 'Realistic', pt: 'Realista' },
-  description: {
-    es: 'Fotografía cinematográfica y realista de lo que cuenta el guion, con luz natural y grano de 35 mm.',
-    en: 'Cinematic, realistic photography of what the script tells, with natural light and 35 mm grain.',
-    pt: 'Fotografia cinematográfica e realista do que o roteiro conta, com luz natural e grão de 35 mm.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.realistic,

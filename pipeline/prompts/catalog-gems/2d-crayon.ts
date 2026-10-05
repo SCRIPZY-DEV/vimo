@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dCrayon: CatalogGem = {
   id: '2d-crayon',
   name: { es: '2D Crayón', en: '2D Crayon', pt: '2D Giz de Cera' },
-  description: {
-    es: 'Boceto a mano tipo doodle, coloreado tosco de cera y fondo de papel crudo.',
-    en: 'A hand-drawn doodle sketch with rough crayon coloring on raw paper.',
-    pt: 'Esboço à mão tipo doodle, colorido tosco de giz de cera e fundo de papel cru.',
-  },
   tags: [CATALOG_TAGS.twoD, CATALOG_TAGS.doodle, CATALOG_TAGS.paper],
   sections: {
     visualStyle: `Hand-drawn sketch, minimalist doodle style, rough crayon-like coloring, thick outlines, off-white paper textured background.`,

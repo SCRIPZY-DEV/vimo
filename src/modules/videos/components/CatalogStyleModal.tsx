@@ -5,7 +5,6 @@ import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/modules/common/ui/dialog'
@@ -52,7 +51,8 @@ interface CatalogStyleModalProps {
 // «Ver» de un estilo del catálogo (Entrega 2): sus etiquetas, el modo de
 // personaje (solo con los modos que permite) y sus muestras, en el mismo orden
 // que el modal de Mi estilo: el personaje se elige arriba, antes de las
-// muestras. No muestra el texto de la gema (decisión E2-D3). Cada cambio de modo se
+// muestras. No muestra el texto de la gema (decisión E2-D3) ni una descripción
+// (pedido del dueño, 2026-10-05). Cada cambio de modo se
 // recuerda al toque; «Usar en este video» lo pone en el formulario y «Pasar a
 // mi estilo» crea una copia propia con el modo elegido. Regla de modales del
 // origen: nunca dos Radix abiertos — mientras se elige el personaje fijo, este
@@ -97,9 +97,11 @@ export function CatalogStyleModal({
         }}
       >
         {/* Sin autofoco al abrir: Radix enfocaría el signo de pregunta de la
-            opción activa del personaje y abriría su tooltip. */}
+            opción activa del personaje y abriría su tooltip. Sin descripción,
+            así que se le avisa a Radix que no la espere. */}
         <DialogContent
           className="max-h-[90vh] max-w-3xl overflow-y-auto"
+          aria-describedby={undefined}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <DialogHeader>
@@ -107,9 +109,6 @@ export function CatalogStyleModal({
               {t('create.catalog.modalTitle')}
             </p>
             <DialogTitle className="font-display">{name}</DialogTitle>
-            <DialogDescription>
-              {localizedText(gem.description, language)}
-            </DialogDescription>
             <CatalogStyleTags tags={gem.tags} singleRow={false} />
           </DialogHeader>
 

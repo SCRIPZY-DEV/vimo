@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const noirDetective: CatalogGem = {
   id: 'noir-detective',
   name: { es: 'Noir Detective', en: 'Noir Detective', pt: 'Noir Detetive' },
-  description: {
-    es: 'Cine negro en blanco y negro puro: claroscuro duro, sombras de persiana y grano marcado.',
-    en: 'Pure black-and-white film noir: hard chiaroscuro, venetian blind shadows and heavy grain.',
-    pt: 'Cinema noir em preto e branco puro: claro-escuro duro, sombras de persiana e grão marcado.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.noir,

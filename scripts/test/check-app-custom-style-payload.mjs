@@ -109,15 +109,10 @@ test('secciones o systemPrompt, nunca los dos: el systemPrompt vacío del snapsh
 })
 
 // Una gema del catálogo de Vimo con la forma completa de CatalogGem: siempre de
-// plantilla, con nombre y descripción en los tres idiomas.
+// plantilla, con nombre en los tres idiomas.
 const CATALOG_GEM = {
   id: 'cartoon',
   name: { es: 'Cartoon 2D', en: '2D cartoon', pt: 'Cartoon 2D' },
-  description: {
-    es: 'Dibujo animado de trazo limpio.',
-    en: 'Clean-line cartoon.',
-    pt: 'Desenho animado de traço limpo.',
-  },
   tags: [{ es: '2D', en: '2D', pt: '2D' }],
   sections: {
     visualStyle: 'Flat 2D cartoon, clean outlines, vivid colors.',

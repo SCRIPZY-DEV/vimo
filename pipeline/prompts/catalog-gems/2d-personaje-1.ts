@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dPersonaje1: CatalogGem = {
   id: '2d-personaje-1',
   name: { es: '2D Personaje', en: '2D Character', pt: '2D Personagem' },
-  description: {
-    es: 'Explainer educativo: personaje de cabeza redonda blanca vestido según la historia, contornos negros gruesos y paleta apagada.',
-    en: 'Educational explainer: a white round-headed character dressed by the story, thick black outlines and a muted palette.',
-    pt: 'Explainer educativo: personagem de cabeça redonda branca vestido conforme a história, contornos pretos grossos e paleta suave.',
-  },
   tags: [
     CATALOG_TAGS.fixedCharacter,
     CATALOG_TAGS.twoD,

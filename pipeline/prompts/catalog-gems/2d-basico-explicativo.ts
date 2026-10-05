@@ -12,11 +12,6 @@ export const gem2dBasicoExplicativo: CatalogGem = {
     en: '2D Basic Explainer',
     pt: '2D Básico Explicativo',
   },
-  description: {
-    es: 'Criatura ovoide gris de ojos negros sobre lienzo beige: línea fina uniforme y paleta apagada, con mucho B-roll.',
-    en: 'A gray egg-shaped creature with black eyes on a beige canvas: thin uniform line, muted palette and plenty of B-roll.',
-    pt: 'Criatura ovoide cinza de olhos pretos sobre tela bege: linha fina uniforme e paleta suave, com muito B-roll.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.fixedCharacter,

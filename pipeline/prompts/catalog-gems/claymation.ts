@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const claymation: CatalogGem = {
   id: 'claymation',
   name: { es: 'Claymation', en: 'Claymation', pt: 'Claymation' },
-  description: {
-    es: 'Stop motion de plastilina: huellas dactilares visibles, maqueta física y luz cálida de estudio.',
-    en: 'Clay stop motion: visible fingerprints, a physical set and warm studio light.',
-    pt: 'Stop motion de massinha: impressões digitais visíveis, maquete física e luz quente de estúdio.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.stopMotion,

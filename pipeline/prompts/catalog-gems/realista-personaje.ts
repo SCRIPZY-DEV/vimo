@@ -12,11 +12,6 @@ export const realistaPersonaje: CatalogGem = {
     en: 'Realistic Character',
     pt: 'Realista Personagem',
   },
-  description: {
-    es: 'Fotografía cruda de cuerpo completo: luz natural, grano y aspecto documental sin retoque.',
-    en: 'Raw full-body photography: natural light, grain and an unretouched documentary look.',
-    pt: 'Fotografia crua de corpo inteiro: luz natural, grão e aspecto documental sem retoque.',
-  },
   tags: [
     CATALOG_TAGS.photographic,
     CATALOG_TAGS.realistic,

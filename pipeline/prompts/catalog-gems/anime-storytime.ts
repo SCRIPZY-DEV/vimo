@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const animeStorytime: CatalogGem = {
   id: 'anime-storytime',
   name: { es: 'Anime Storytime', en: 'Anime Storytime', pt: 'Anime Storytime' },
-  description: {
-    es: 'Anime digital moderno: cel shading limpio, ojos expresivos, color saturado y luz dramática.',
-    en: 'Modern digital anime: clean cel shading, expressive eyes, saturated color and dramatic light.',
-    pt: 'Anime digital moderno: cel shading limpo, olhos expressivos, cor saturada e luz dramática.',
-  },
   tags: [CATALOG_TAGS.anime, CATALOG_TAGS.storytime, CATALOG_TAGS.vividColor],
   sections: {
     visualStyle: `high-quality 2D anime illustration, modern digital cel shading, crisp clean linework, expressive large eyes, vibrant saturated colors, dramatic anime lighting with lens flare, detailed painted background, key visual quality. Fondos pintados al estilo anime: cielos con nubes trabajadas, interiores con luz cálida y perspectiva marcada.`,

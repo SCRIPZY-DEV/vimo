@@ -90,9 +90,10 @@ La Entrega 2 del catálogo (spec §8 de `design.md`, `plan-e2.md`) cierra la tab
 Cómo quedó:
 
 - Las 5 gemas de la casa viven en `pipeline/prompts/catalog-gems/` como gemas de plantilla
-  (`CatalogGem`: nombre, descripción y etiquetas en tres idiomas, secciones, modos permitidos, modo de
-  las muestras, preset de color y cantidad de muestras), junto con las 33 de Imperio Pro. `VISUAL_STYLES`
-  no cambia: el carril viejo sigue byte por byte hasta el retiro.
+  (`CatalogGem`: nombre y etiquetas en tres idiomas —la descripción se retiró el 2026-10-05, ver la
+  enmienda—, secciones, modos permitidos, modo de las muestras, preset de color y cantidad de
+  muestras), junto con las 33 de Imperio Pro. `VISUAL_STYLES` no cambia: el carril viejo sigue byte
+  por byte hasta el retiro.
 - El sidecar expone `catalog-styles-list` y `catalog-style-copy` («Pasar a mi estilo» crea una copia
   independiente en `_styles/st-…` con `origin`). `create-video-project` exige coherencia entre
   `options.styleId`, `customStyle.styleId` y `catalogStyleId`; `generate-character-preview` acepta los
@@ -102,6 +103,16 @@ Cómo quedó:
   `localStorage`) y «Pasar a mi estilo». Con el interruptor apagado, Crear es el de hoy.
 - El retiro del carril viejo (redactor por escena, `identity-lock.ts`, frecuencia, cantidad de escenas,
   pack de la demo) arranca 7 días después de encender el interruptor para todos (E2-8 del plan).
+
+### Enmienda 2026-10-05 — sin descripción
+
+Pedido del dueño en la QA del 2026-10-05:
+
+- **Sin descripción.** Las gemas del catálogo ya no traen `description` («Personaje 3D estilizado con
+  acabado CGI…»): el dueño no la ve necesaria, ni en la tarjeta ni en «Ver». Se borró del tipo
+  `CatalogGem`, de las 38 gemas y de las gemas de ejemplo de los guards, y `check-catalog-gems.mjs`
+  fija que ninguna la traiga. «Ver» queda con el nombre, las etiquetas, el modo de personaje y las
+  muestras. La Entrega 3 tiene un campo menos que escribir y traducir.
 
 ## Alternativas consideradas
 
@@ -135,7 +146,7 @@ Desde la aceptación (2026-10-02), con `node --test`:
 
 - `scripts/test/check-catalog-gems.mjs`: las 38 gemas del catálogo cumplen el contrato (ids, límites
   de las secciones, `Outfit:` en `character`, modos, etiquetas coherentes con las secciones, muestras
-  presentes).
+  presentes, sin descripción).
 - `scripts/test/check-catalog-list.mjs` y `scripts/test/check-catalog-copy.mjs`: el listado y la copia
   de «Pasar a mi estilo» (muestras antes que `style.json`, escritura atómica, validaciones).
 - `scripts/test/check-gem-project-snapshot.mjs`: la coherencia del proyecto de una gema del catálogo.

@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const mistico: CatalogGem = {
   id: 'mistico',
   name: { es: 'Místico', en: 'Mystic', pt: 'Místico' },
-  description: {
-    es: 'Grabado antiguo de manuscrito alquímico: xilografía intrincada y estética de litografía vintage.',
-    en: 'Antique alchemical manuscript engraving: intricate woodcut and a vintage lithograph look.',
-    pt: 'Gravura antiga de manuscrito alquímico: xilogravura intrincada e estética de litografia vintage.',
-  },
   tags: [CATALOG_TAGS.engraving, CATALOG_TAGS.alchemy, CATALOG_TAGS.vintage],
   sections: {
     visualStyle: `Emulación obligatoria de ilustraciones antiguas: grabados en madera (woodcut) y grabado/linework tipo engraving, litografías vintage y arte alquímico. Estética de manuscrito alquímico intrincado (alchemical manuscript art) con simbolismo esotérico y filosófico altamente detallado. Composición inmersiva tipo full-bleed/edge-to-edge (sin márgenes perceptibles) con iluminación dramática y sombras profundas. Paleta base monocroma en tonos negro, gris oscuro y sepia, con destellos e indicios dorados radiantes (golden highlights) de alto contraste.`,

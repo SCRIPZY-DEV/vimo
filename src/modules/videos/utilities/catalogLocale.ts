@@ -1,6 +1,6 @@
 import type { CatalogLocale, LocalizedText } from '@pipeline/types/catalog.ts'
 
-// Los textos de una gema del catálogo (nombre, descripción y etiquetas) viajan
+// Los textos de una gema del catálogo (nombre y etiquetas) viajan
 // dentro de la gema en los tres idiomas de la app (plan E2, P8 y P12): no hay
 // claves de i18n para ellos. Módulo puro, sin imports de runtime: lo corre
 // scripts/test/check-app-catalog-style.mjs con Node, sin bundler.

@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const cyberpunkNeon: CatalogGem = {
   id: 'cyberpunk-neon',
   name: { es: 'Cyberpunk Neón', en: 'Neon Cyberpunk', pt: 'Cyberpunk Neon' },
-  description: {
-    es: 'Futurista de neón magenta y cian: superficies mojadas, niebla volumétrica e interfaces holográficas.',
-    en: 'Magenta and cyan neon futurism: wet surfaces, volumetric fog and holographic interfaces.',
-    pt: 'Futurista de neon magenta e ciano: superfícies molhadas, névoa volumétrica e interfaces holográficas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.cyberpunk,

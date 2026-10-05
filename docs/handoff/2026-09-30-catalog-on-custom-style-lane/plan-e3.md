@@ -6,6 +6,9 @@
 
 - **Fecha:** 2026-10-04
 - **Estado:** propuesto. **No se escribe código hasta que el dueño apruebe este plan.**
+- **Actualizado el 2026-10-05:** las gemas del catálogo ya no llevan descripción (pedido del
+  dueño; enmienda del 2026-10-05 en la ADR-0039). Se sacó de los campos, de lo que exige
+  «Publicar» y de «Traducir con IA».
 - **Spec:** [design.md](design.md) §9 (aprobado el 2026-09-30), con las decisiones del dueño del
   2026-10-04 (sección 1).
 - **Plan maestro:** [plan.md](plan.md), «Entrega 3: esquema» (E3-1 a E3-6).
@@ -44,7 +47,7 @@ Postgres por PostgREST y, por primera vez en ese repo, Supabase Storage).
 | D1    | (diseño) Admin = correo en la tabla `admins` de vimo.click.                                                                                                      |
 | D2    | (diseño) Editar guarda un borrador; «Publicar» lo hace visible. Un estilo nuevo arranca oculto.                                                                  |
 | D3    | (diseño) El admin genera las muestras con sus propias claves y elige con qué modo de personaje salen.                                                            |
-| D4    | (diseño) Nombre y descripción en español, inglés y portugués.                                                                                                    |
+| D4    | (diseño) Nombre en español, inglés y portugués (sin descripción desde el 2026-10-05).                                                                            |
 | G1    | (diseño) El SQL de Supabase lo prepara Claude y lo aplica el dueño desde el panel. `vimo-landing` se trabaja en ramas nuevas, sin push ni deploy sin aprobación. |
 | F4    | (diseño) Cada entrega se activa primero solo para admins y se abre a todos tras el visto bueno del dueño.                                                        |
 | R1    | (2026-10-03) Las muestras del catálogo las genera Vimo, en calidad baja; nunca se toman de terceros. A GitHub va solo lo necesario.                              |
@@ -58,10 +61,10 @@ marcadas **«a decidir»** necesitan su respuesta antes de empezar:
 | P2  | **Interruptor propio:** `VIMO_FLAG_REMOTE_CATALOG` (`off`, `admins`, `all`) → `features.remoteCatalog`. Apagado, la app no llama al servidor y usa las 38 gemas empaquetadas. Sirve para abrir primero a los admins (F4) y para volver atrás sin release si algo sale mal. Vale solo junto con `features.newCatalog`.                                     | Se cuelga de `newCatalog` y sobra una variable.                   |
 | P3  | **El borrador vive en el servidor** (§9) y se edita en un modal propio del catálogo, armado con las piezas del modal de Mi estilo (secciones, «Pegá tu gema», avisos del agente, carrusel). Descartada la alternativa de editar una copia local en Mi estilo y «publicarla»: el borrador quedaría en una sola máquina (y el diseño dejó eso afuera, D6).  | Se reescribe el modal sobre una copia local.                      |
 | P4  | **Muestras del borrador:** las genera el sidecar con el mismo carril del video (`generate-style-samples` acepta un borrador del catálogo), con las claves del admin y en calidad baja, en `_catalog/_drafts/<id>/`. El sidecar las sube al bucket por URLs firmadas que pide la app. Costo para el admin: 4 imágenes, alrededor de 2 centavos por estilo. | La subida pasa a la ventana (`fetch` con `PUT`).                  |
-| P5  | **Publicar exige** nombre y descripción en los tres idiomas, estilo visual y las 4 muestras. Un estilo sin muestras no llega a los usuarios.                                                                                                                                                                                                              | Se relaja la validación del servidor.                             |
+| P5  | **Publicar exige** el nombre en los tres idiomas, estilo visual y las 4 muestras. Un estilo sin muestras no llega a los usuarios.                                                                                                                                                                                                                         | Se relaja la validación del servidor.                             |
 | P6  | **El admin puede usar un borrador o un estilo oculto en un video propio** («Usar en este video») para probarlo antes de publicar. El proyecto guarda su copia, como siempre.                                                                                                                                                                              | Se quita la opción del menú.                                      |
 | P7  | **Etiquetas:** se eligen de la paleta que ya existe (`CATALOG_TAGS`, traducida a los tres idiomas) o se escriben a mano en los tres. «Dinamismo» y «Personaje fijo» las pone y las saca la app según las secciones; el servidor rechaza un borrador que no coincida.                                                                                      | Se dejan libres y la regla desaparece.                            |
-| P8  | **A decidir por el dueño: «Traducir con IA».** Un botón del modal que completa inglés y portugués del nombre y la descripción a partir del español (endpoint de admin chico, con el mismo cliente del agente; fracciones de centavo por uso). El diseño §14 lo dejaba afuera. Sin él, los tres idiomas se escriben a mano en cada estilo.                 | Se sacan las tareas B5 y C6.                                      |
+| P8  | **A decidir por el dueño: «Traducir con IA».** Un botón del modal que completa inglés y portugués del nombre a partir del español (endpoint de admin chico, con el mismo cliente del agente; fracciones de centavo por uso). El diseño §14 lo dejaba afuera. Sin él, los tres idiomas se escriben a mano en cada estilo.                                  | Se sacan las tareas B5 y C6.                                      |
 | P9  | **Versión del catálogo** = hash de (id, versión publicada, posición) de los estilos publicados. La app manda la que conoce y el servidor responde «sin cambios» sin repetir las gemas.                                                                                                                                                                    | Se cambia por un contador en una fila aparte.                     |
 | P10 | **Cada tanda de muestras tiene su carpeta propia e inmutable** (`<id>/s<n>/`), aparte de la versión del texto: corregir una sección o una etiqueta no vuelve a bajar imágenes, y publicar es una sola escritura en la tabla (no hay nada que copiar en el bucket).                                                                                        | Se agrega una carpeta de borrador y una copia al publicar.        |
 | P11 | **Dos admins no se pisan:** cada fila lleva un número de revisión. Guardar, pedir subida y publicar mandan la revisión que se abrió; si cambió en el medio, el servidor responde `borrador-cambio` y el modal ofrece recargar. Es un número y no la fecha porque PostgREST no puede poner `now()` y las fechas las escribe el código.                     | Gana el último que guarda.                                        |
@@ -203,7 +206,6 @@ el admin regenera las muestras, van a la tanda siguiente.
 ```ts
 interface CatalogStyleContent {
   name: LocalizedText // { es, en, pt }
-  description: LocalizedText
   tags: LocalizedText[] // 0 a 5
   sections: GemSections
   templateVersion: number
@@ -243,7 +245,7 @@ Todos con `Authorization: Bearer <access_token>` y JSON. Los errores son `{ code
 | `POST /api/admin/catalogo/:id/publicar`  | Admin              | `{ revision }`                    | `{ style }`                                                             |
 | `POST /api/admin/catalogo/:id/ocultar`   | Admin              | `{ revision }`                    | `{ style }`                                                             |
 | `DELETE /api/admin/catalogo/:id`         | Admin              | —                                 | `{ ok: true }`                                                          |
-| `POST /api/admin/catalogo/traducir` (P8) | Admin              | `{ name, description }` (es)      | `{ name: { en, pt }, description: { en, pt } }`                         |
+| `POST /api/admin/catalogo/traducir` (P8) | Admin              | `{ name }` (es)                   | `{ name: { en, pt } }`                                                  |
 
 Formas:
 
@@ -679,7 +681,7 @@ puro), guard `check-app-catalog-sync.mjs` (nuevo) y casos en `check-app-access-f
 - [ ] Estilo nuevo: arranca en «Pegá tu gema» (el mismo paso de Mi estilo, con
       `origin: 'catalogo'`), y con la respuesta del agente pasa a las secciones y los campos del
       catálogo ya sugeridos.
-- [ ] Campos: id (solo al crear, sugerido desde el nombre), nombre y descripción en los tres
+- [ ] Campos: id (solo al crear, sugerido desde el nombre), nombre en los tres
       idiomas, etiquetas (paleta más texto libre), modos permitidos, modo de las muestras, filtro
       de color y posición.
 - [ ] «Guardar borrador» y «Publicar» (deshabilitado con la lista de lo que falta, P5). Un
@@ -700,7 +702,7 @@ puro), guard `check-app-catalog-sync.mjs` (nuevo) y casos en `check-app-access-f
 
 ### Tarea C6 (solo si el dueño aprueba P8): «Traducir con IA»
 
-- [ ] Botón junto al nombre y la descripción en español: completa inglés y portugués y deja
+- [ ] Botón junto al nombre en español: completa inglés y portugués y deja
       editar el resultado.
 
 ---

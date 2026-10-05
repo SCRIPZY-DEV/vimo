@@ -15,17 +15,17 @@ export type CatalogLocale = 'es' | 'en' | 'pt'
 export type LocalizedText = Record<CatalogLocale, string>
 
 /**
- * Una gema del catálogo de Vimo. Es una gema de plantilla con nombre y
- * descripción en tres idiomas, las etiquetas que el admin le pone, los modos
- * de personaje que permite y el modo con el que salieron sus muestras. Las
- * muestras viven en la app (`/style-references/<id>_<n>.jpg`,
- * n = 1..sampleCount) hasta la Entrega 3.
+ * Una gema del catálogo de Vimo. Es una gema de plantilla con nombre en tres
+ * idiomas, las etiquetas que el admin le pone, los modos de personaje que
+ * permite y el modo con el que salieron sus muestras. Sin descripción: la
+ * tarjeta y «Ver» no la muestran (pedido del dueño, 2026-10-05). Las muestras
+ * viven en la app (`/style-references/<id>_<n>.jpg`, n = 1..sampleCount) hasta
+ * la Entrega 3.
  */
 export interface CatalogGem {
   /** Uno de los 5 ids heredados o un id que cumple STYLE_ID_PATTERN. */
   id: string
   name: LocalizedText
-  description: LocalizedText
   /**
    * Etiquetas que ve la persona en la tarjeta (0 a CATALOG_TAG_LIMIT): qué es
    * el estilo y qué hace. «Dinamismo» va si y solo si la gema tiene sección

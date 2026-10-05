@@ -12,11 +12,6 @@ export const gem2dComic: CatalogGem = {
     en: '2D Vintage Comic',
     pt: '2D Quadrinhos Vintage',
   },
-  description: {
-    es: 'Cómic clásico entintado a mano: tramas cruzadas para las sombras, contorno negro grueso y color apagado.',
-    en: 'Classic hand-inked comic: cross-hatched shadows, thick black outlines and muted color.',
-    pt: 'Quadrinhos clássicos entintados à mão: hachuras cruzadas nas sombras, contorno preto grosso e cor suave.',
-  },
   tags: [
     CATALOG_TAGS.twoD,
     CATALOG_TAGS.comic,

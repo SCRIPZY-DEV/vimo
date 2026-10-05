@@ -66,11 +66,6 @@ const BLOCKED_STORAGE = {
 const FANTASIA = {
   id: 'fantasia',
   name: { es: 'Fantasía mágica', en: 'Magic fantasy', pt: 'Fantasia mágica' },
-  description: {
-    es: 'Ilustración épica con luz dorada.',
-    en: 'Epic illustration with golden light.',
-    pt: 'Ilustração épica com luz dourada.',
-  },
   tags: [
     { es: 'Dinamismo', en: 'Dynamism', pt: 'Dinamismo' },
     { es: 'Fantasía', en: 'Fantasy', pt: 'Fantasia' },
@@ -93,11 +88,6 @@ const ANIME = {
     es: 'Anime Storytime',
     en: 'Anime Storytime',
     pt: 'Anime Storytime',
-  },
-  description: {
-    es: 'Anime digital moderno.',
-    en: 'Modern digital anime.',
-    pt: 'Anime digital moderno.',
   },
   tags: [{ es: 'Anime', en: 'Anime', pt: 'Anime' }],
   sections: {

@@ -12,11 +12,6 @@ export const caricaturaEditorial: CatalogGem = {
     en: 'Editorial Caricature',
     pt: 'Caricatura Editorial',
   },
-  description: {
-    es: 'Caricatura de prensa: tinta suelta de grosor variable, proporciones exageradas y acuarela sobre papel.',
-    en: 'Press caricature: loose ink of varying weight, exaggerated proportions and watercolor on paper.',
-    pt: 'Caricatura de imprensa: tinta solta de espessura variável, proporções exageradas e aquarela sobre papel.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.caricature,

@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem3dRelatos: CatalogGem = {
   id: '3d-relatos',
   name: { es: '3D Relatos', en: '3D Stories', pt: '3D Relatos' },
-  description: {
-    es: 'Personaje 3D estilizado con acabado CGI: luz cálida volumétrica, mucho detalle y textura.',
-    en: 'A stylized 3D character with a CGI finish: warm volumetric light, rich detail and texture.',
-    pt: 'Personagem 3D estilizado com acabamento CGI: luz quente volumétrica, muito detalhe e textura.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.threeD,

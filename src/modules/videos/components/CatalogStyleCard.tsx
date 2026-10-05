@@ -22,9 +22,10 @@ interface CatalogStyleCardProps {
 }
 
 // Tarjeta de un estilo del catálogo de Vimo (Entrega 2): el mismo cascarón que
-// las de Mi estilo, con las muestras que trae la app, el nombre, las etiquetas
-// y la descripción en el idioma de la app, y su menú (usar, ver, pasar a Mi
-// estilo). Sin muestras, el mismo marcador que una de Mi estilo.
+// las de Mi estilo, con las muestras que trae la app, el nombre y las
+// etiquetas en el idioma de la app, y su menú (usar, ver, pasar a Mi estilo).
+// Sin descripción (pedido del dueño, 2026-10-05). Sin muestras, el mismo
+// marcador que una de Mi estilo.
 export function CatalogStyleCard({
   gem,
   selected,
@@ -73,9 +74,6 @@ export function CatalogStyleCard({
           <div className="mt-1">
             <CatalogStyleTags tags={gem.tags} singleRow />
           </div>
-          <p className="mt-1 truncate font-body text-xs text-muted-foreground">
-            {localizedText(gem.description, language)}
-          </p>
         </>
       }
       onSelect={onSelect}

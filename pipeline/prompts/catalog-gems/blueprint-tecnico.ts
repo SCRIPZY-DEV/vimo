@@ -12,11 +12,6 @@ export const blueprintTecnico: CatalogGem = {
     en: 'Technical Blueprint',
     pt: 'Blueprint Técnico',
   },
-  description: {
-    es: 'Plano técnico cian sobre azul prusia: proyección ortográfica, cotas con flechas y rejilla.',
-    en: 'Cyan technical blueprint on Prussian blue: orthographic projection, arrowed dimensions and a grid.',
-    pt: 'Planta técnica ciano sobre azul da Prússia: projeção ortográfica, cotas com setas e grade.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.blueprint,

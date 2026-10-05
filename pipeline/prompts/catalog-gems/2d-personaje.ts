@@ -12,11 +12,6 @@ export const gem2dPersonaje: CatalogGem = {
     en: '2D Character Pro',
     pt: '2D Personagem Pro',
   },
-  description: {
-    es: 'Personaje 2D de cuerpo completo con anclaje de identidad estricto entre escenas.',
-    en: 'A full-body 2D character with strict identity anchoring across scenes.',
-    pt: 'Personagem 2D de corpo inteiro com ancoragem estrita de identidade entre cenas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.twoD,

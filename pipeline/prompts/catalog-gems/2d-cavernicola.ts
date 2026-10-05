@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dCavernicola: CatalogGem = {
   id: '2d-cavernicola',
   name: { es: '2D Cavernícola', en: '2D Caveman', pt: '2D Caverna' },
-  description: {
-    es: 'Animación plana educativa de trazo negro limpio y color simple, con textos en pantalla.',
-    en: 'Flat educational animation with a clean black line and simple color, with on-screen text.',
-    pt: 'Animação plana educativa de traço preto limpo e cor simples, com textos na tela.',
-  },
   tags: [CATALOG_TAGS.twoD, CATALOG_TAGS.educational, CATALOG_TAGS.cleanLine],
   sections: {
     visualStyle: `Style: 2D flat animation style. Clean black outlines, flat simple colors, minimalist educational cartoon style.`,
