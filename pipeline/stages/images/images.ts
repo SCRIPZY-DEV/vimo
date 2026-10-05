@@ -1,8 +1,4 @@
-import {
-  createNarrativeReviewLlm,
-  narrativeCandidateFor,
-  reviewNarrativePrompts,
-} from '../scene-prompts/narrative-alignment.ts'
+import { createNarrativeReviewLlm } from '../scene-prompts/narrative-alignment.ts'
 import { finalizeSceneImagePrompt } from '../shared/scene-prompt-finalization.ts'
 import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import { buildCharactersBibleBlock } from '../../prompts/reference-characters.ts'
@@ -726,7 +722,6 @@ async function dispatchLanes(
     characterFailures.length > 0
       ? await rescueWithoutReference(
           characterFailures,
-          [...finalScenes].sort((a, b) => a.id - b.id),
           provider,
           inputs,
           laneOptions,
@@ -749,7 +744,6 @@ async function dispatchLanes(
 // estilo de catálogo el prompt ya trae la identidad en texto: va tal cual.
 async function rescueWithoutReference(
   scenes: Scene[],
-  orderedScenes: Scene[],
   provider: ImageProviderId,
   inputs: GenerationInputs,
   laneOptions: ImageLaneOptions,
@@ -771,30 +765,9 @@ async function rescueWithoutReference(
       ),
     }
   })
-  // Perder la foto añade identidad en texto y puede recortar la narración.
-  // Revisa exactamente esa variante antes de comprar la imagen de rescate.
-  const originals = new Map(
-    scenes.map((scene) => [scene.id, scene.imagePrompt]),
-  )
-  const changed = requestScenes.filter(
-    (scene) => scene.imagePrompt !== originals.get(scene.id),
-  )
-  if (changed.length > 0) {
-    const rejected = await reviewNarrativePrompts(
-      changed.map((scene) =>
-        narrativeCandidateFor(scene, orderedScenes, scene.imagePrompt!),
-      ),
-      {
-        llm: createNarrativeReviewLlm(inputs.context),
-        signal: inputs.context.signal,
-      },
-    )
-    if (rejected.size > 0)
-      throw new PipelineFailure(
-        'scene_prompt_alignment_failed',
-        `Reference-free rescue changed narration for scenes: ${[...rejected.keys()].join(', ')}`,
-      )
-  }
+  // Sin revisión narrativa de esta variante (ADR-0043, 2026-10-04): acá no
+  // hay redactor que pueda corregirla, así que el juez solo podía frenar la
+  // compra, y el revisor ya no frena videos.
   const results = await dispatchNormal(
     requestScenes,
     provider,

@@ -79,13 +79,15 @@ function scenesResponse(request) {
 }
 // Este guard mide persistencia, no calidad semántica. La revisión usa JSON
 // no-streaming: no se le devuelve el SSE reservado al redactor de escenas.
-function narrativeReviewResponse(request) {
-  if (
-    !request.messages[0].content.startsWith(
-      'You audit the FULL narrative meaning',
-    )
-  )
-    return
+// `rejectedIds`: escenas que el revisor objeta siempre.
+const REVIEW_SYSTEM_START = 'You audit the FULL narrative meaning'
+const REVIEWER_OBJECTION =
+  'The prompt shows the greenhouse instead of the antenna being repaired.'
+function isReviewRequest(request) {
+  return request.messages[0].content.startsWith(REVIEW_SYSTEM_START)
+}
+function narrativeReviewResponse(request, rejectedIds = new Set()) {
+  if (!isReviewRequest(request)) return
   const { candidates } = JSON.parse(lastUserMessage(request))
   assert.ok(Array.isArray(candidates) && candidates.length > 0)
   return Response.json({
@@ -93,20 +95,24 @@ function narrativeReviewResponse(request) {
       {
         message: {
           content: JSON.stringify({
-            scenes: candidates.map((candidate) => ({
-              sceneId: candidate.sceneId,
-              checks: {
-                focus: true,
-                events: true,
-                setting: true,
-                causality: true,
-              },
-              aligned: true,
-              sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
-              promptEvidenceId: candidate.promptEvidence[0].id,
-              reason:
-                'Explicit approval fixture for prompt persistence regression only.',
-            })),
+            scenes: candidates.map((candidate) => {
+              const aligned = !rejectedIds.has(candidate.sceneId)
+              return {
+                sceneId: candidate.sceneId,
+                checks: {
+                  focus: aligned,
+                  events: aligned,
+                  setting: aligned,
+                  causality: aligned,
+                },
+                aligned,
+                sourceEvidenceId: candidate.sourceEvidence[0]?.id ?? null,
+                promptEvidenceId: candidate.promptEvidence[0].id,
+                reason: aligned
+                  ? 'Explicit approval fixture for prompt persistence regression only.'
+                  : REVIEWER_OBJECTION,
+              }
+            }),
           }),
         },
       },
@@ -206,6 +212,82 @@ function llm(t, handler) {
   })
   return requests
 }
+
+test('Mi estilo rewrites a scene the reviewer rejects once and keeps it', async (t) => {
+  const { paths, base } = await fixture(t)
+  const writerRequests = []
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      throw new Error('unexpected call to ' + url)
+    const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request, new Set([2]))
+    if (review) return review
+    if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
+    writerRequests.push(request)
+    return scenesResponse(request)
+  })
+
+  await scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture'))
+
+  assert.equal(promptsOnDisk(await readScenes(paths)).length, SCENE_COUNT)
+  const rewrites = writerRequests.filter((request) =>
+    lastUserMessage(request).includes(REVIEWER_OBJECTION),
+  )
+  assert.equal(rewrites.length, 1, 'one rewrite, with the objection')
+  assert.deepEqual(fragmentsOf(rewrites[0]), [2])
+})
+
+test('a reviewer objection is not blamed on the chosen writer, even when another scene falls with the network', async (t) => {
+  const { base, events } = await fixture(t)
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      throw new Error('unexpected call to ' + url)
+    const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request, new Set([2]))
+    if (review) return review
+    if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
+    // La escena 5 nunca llega: la conexión de la persona se cae en cada pedido.
+    if (fragmentsOf(request).includes(5)) throw new TypeError('fetch failed')
+    return scenesResponse(request)
+  })
+
+  await assert.rejects(
+    scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture')),
+  )
+
+  assert.ok(
+    !events.some(
+      (event) =>
+        event.type === 'prompt-model-trouble' &&
+        event.code === 'llm_rescue_needed',
+    ),
+    'neither the network nor the reviewer is the writer failing',
+  )
+})
+
+test('when every narrative judge echoes its input, Mi estilo still writes every prompt', async (t) => {
+  const { paths, base } = await fixture(t)
+  let reviewRequests = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      throw new Error('unexpected call to ' + url)
+    const request = JSON.parse(init.body)
+    if (isReviewRequest(request)) {
+      reviewRequests++
+      // Lo que devolvía el juez caído el 2026-10-04: su propia entrada.
+      return Response.json({
+        choices: [{ message: { content: lastUserMessage(request) } }],
+      })
+    }
+    if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
+    return scenesResponse(request)
+  })
+
+  await scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture'))
+
+  assert.ok(reviewRequests > 0)
+  assert.equal(promptsOnDisk(await readScenes(paths)).length, SCENE_COUNT)
+})
 
 test('a batch that dies does not burn the ones already harvested', async (t) => {
   const { paths, base } = await fixture(t)

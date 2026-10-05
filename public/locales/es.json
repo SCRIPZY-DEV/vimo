@@ -502,7 +502,7 @@
       "llmRateLimited": "El servicio de IA está saturado. Esperá unos segundos.",
       "llmProviderError": "El servicio de IA devolvió un error.",
       "catalogPromptsIncomplete": "No pudimos escribir los prompts de algunas escenas: los modelos de IA no respondieron a tiempo o la conexión se cortó. No se generó ninguna imagen ni se cobraron imágenes. Reintentá: lo ya escrito se conserva y solo se completan las escenas que faltan.",
-      "scenePromptAlignmentFailed": "Algunos prompts no lograron coincidir con lo que narra su escena tras varios intentos. No se generaron imágenes de relleno. Reintentá: lo ya escrito se conserva.",
+      "scenePromptAlignmentFailed": "Algunas escenas se quedaron sin prompt tras varios intentos. No se generaron imágenes de relleno. Reintentá: lo ya escrito se conserva.",
       "catalogPromptPendingImage": "Una escena tiene un prompt antiguo con una imagen ya pagada en proceso. Abrí el editor y revisá esa escena antes de reescribirla.",
       "imageNetwork": "No pudimos llegar al proveedor de imágenes.",
       "imageInvalidApiKey": "Tu clave del proveedor de imágenes no es válida.",

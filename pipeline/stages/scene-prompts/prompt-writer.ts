@@ -459,17 +459,19 @@ export async function generateScenePrompts(
                   },
                 )
                 const feedback = rejected.get(scene.id)
-                if (feedback) {
+                // Una objeción vale una reescritura. En el último intento el
+                // prompt queda: el revisor nunca deja una escena sin prompt.
+                if (feedback && attempt < MAX_ATTEMPTS_PER_SCENE) {
                   lastFailure = {
                     source: 'reviewer',
                     detail: reviewerCorrection(feedback),
                   }
                   narrativeCorrection = narrativeCorrectionBlock(feedback)
                   continue
-                } else {
-                  imagePrompt = finalPrompt
-                  break
                 }
+
+                imagePrompt = finalPrompt
+                break
               }
               lastFailure = { source: 'writer' }
               // Sin el personaje no tiene sentido corregirle el pelo o la tez:
@@ -690,12 +692,14 @@ export async function regeneratePromptsForRejected(
                 },
               )
               const feedback = rejected.get(scene.id)
-              if (feedback) {
-                narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
-              } else {
+              // Igual que al escribir: una objeción vale una reescritura y el
+              // último intento se conserva.
+              if (!feedback || retry === MAX_ATTEMPTS_PER_SCENE) {
                 imagePrompt = finalPrompt
                 break
               }
+
+              narrativeCorrection = `\nNARRATIVE CORRECTION FOR THIS SCENE: ${feedback}`
             }
           } catch (error) {
             writerOptions.signal.throwIfAborted()

@@ -1,8 +1,8 @@
 # ADR-0043 — Correspondencia temporal de imágenes y narración
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada; desde el 2026-10-04 la revisión LLM es asesora, con juez de respaldo, y nunca frena un video (ver «Revisión asesora con respaldo»)
 - **Fecha:** 2026-09-26
-- **Actualizada:** 2026-09-29 — se aclaran carácter temporal y concurrencia vigente, sin cambiar código.
+- **Actualizada:** 2026-09-29 — se aclaran carácter temporal y concurrencia vigente, sin cambiar código. 2026-10-04 — se retira la revisión LLM y, esa misma noche, vuelve como asesora con respaldo.
 - **Área:** scene-prompts / revisión previa a imágenes
 - **Relacionadas:** ADR-0019 (Mi estilo), ADR-0036 (Catálogo), ADR-0042 (animación).
 
@@ -41,6 +41,60 @@ flowchart LR
 **Fallo:** auth/saldo/cancelación se propagan. Un lote no verificable o escenas pendientes detienen la fase antes de nuevas imágenes con relleno; los prompts aceptados se conservan para reanudar. En concurrencia se esperan las tareas en vuelo antes de devolver el fallo.
 
 **Por qué:** desplazar audio o alargar clips ocultaría el error de contenido y desalinearía el resto del proyecto.
+
+## Retirada de la revisión LLM (2026-10-04) — superada por «Revisión asesora con respaldo»
+
+**Qué pasó.** El 2026-10-04, por la tarde, el modelo fijo del revisor (`deepseek-ai/DeepSeek-V4-Pro` en DeepInfra) empezó a devolver una copia de su entrada (`{"candidates": [...]}`) en vez de su veredicto (`{"scenes": [...]}`), con cualquier pedido: lotes de 6, de 2 y de 1 escena, con y sin modo JSON, y un pedido mínimo de 100 caracteres. Llegaba al tope de 3 000 tokens con el JSON cortado, el intento de reparación hacía lo mismo y cada lote terminaba en `scene_prompt_alignment_failed`. Como el contrato de **Fallo** de arriba detiene la fase cuando un lote no se puede verificar, ningún video pasaba de «Validando prompts», ni en el Catálogo ni en Mi estilo. Reintentar no servía (temperatura 0: la misma respuesta) y cambiar de modelo tampoco (el revisor no usa el modelo que elige el usuario). Además, cada escena rechazada contaba como un defecto del redactor, y tras cuatro rondas la app culpaba y bloqueaba una hora al modelo que escribe aunque DeepInfra hubiera respondido bien. DeepSeek V3.2, DeepSeek V4.1 Flash y Qwen3 235B respondían bien con el mismo pedido, pero cada uno juzgaba distinto las mismas dos escenas.
+
+**Decisión del dueño.** Retirar la revisión con un segundo modelo, después de probar videos reales sin ella: se rehicieron sin revisión tres proyectos hechos con ella, con los dos redactores vigentes (DeepSeek V4.1 Flash y Claude Haiku 4.5; 50 escenas). Ninguna imagen mostró un momento de otro intervalo; la revisión, en cambio, había aprobado un adelanto (la primera escena de un video ya mostraba lo que narraba la segunda). La diferencia que sí apareció: con Claude Haiku 4.5 y un estilo con protagonista que fija el fondo, sin revisión el protagonista quedó en el mismo lugar en 9 y 12 de 15 escenas (con revisión, 3), mostrando el lugar narrado como maqueta o mapa. Ya se había medido el costo: con revisión, 19 prompts tardaban 89 s contra 30 s sin ella, y algunos rechazos eran discutibles (`fixes/2026-09-28_fast-scene-prompt-models.md`).
+
+**Qué queda.** Cada escena sigue llegando al redactor con su fragmento, su intervalo y sus vecinos (`narrativeCandidateFor`), y siguen las comprobaciones locales de IDs. `reviewNarrativePrompts` no llama a ningún modelo y no objeta nada; ella y `createNarrativeReviewLlm` conservan su firma para que los carriles no cambien, y el contrato de **Fallo** ya no tiene a qué esperar. Lo que sigue cortando la fase son las escenas que el redactor no logra escribir tras sus rondas y el rescate con otro modelo, como antes. Si se quisiera volver a revisar, tendría que ser sin frenar el video (si el revisor no responde, el prompt pasa) y con un modelo de respaldo. Informe: `fixes/2026-10-04_narrative-reviewer-advisory.md`.
+
+## Revisión asesora con respaldo (2026-10-04, segunda decisión)
+
+**Pedido del dueño.** Ver si la revisión ayudaba en algo, cambiarle el modelo y, si ese modelo falla, usar otro que funcione. Reemplaza la retirada de arriba: la revisión vuelve, pero ya no puede frenar un video.
+
+**Elección de los jueces.** Se pasaron a seis modelos de DeepInfra las mismas 14 escenas reales etiquetadas (3 errores conocidos de otro momento del relato y 8 escenas correctas, más 3 casos que resultaron inválidos), con la instrucción, los candidatos y el contrato de producción, en lotes de seis:
+
+| Juez                | Errores atrapados | Escenas buenas rechazadas | Contrato            |
+| ------------------- | ----------------- | ------------------------- | ------------------- |
+| DeepSeek V4.1 Flash | 2 de 3            | 0 de 8                    | 3 de 3, 6 a 10 s    |
+| DeepSeek V3.2       | 2 de 3            | 0 de 8                    | 3 de 3, 17 a 35 s   |
+| DeepSeek V4 Pro     | 1 de 3            | 2 de 8                    | 3 de 3              |
+| gpt-oss-120b        | 3 de 3            | 3 de 8                    | 3 de 3              |
+| Qwen3 235B          | 0 de 3            | 1 de 8                    | 3 de 3, hasta 116 s |
+| Claude Haiku 4.5    | —                 | —                         | 0 de 3              |
+
+Los 3 casos inválidos eran una escena con descripción manual del usuario («el muñeco jugando fútbol») que el script de prueba armó sin esa descripción: con ella, el juez aprueba el fútbol, como corresponde a `user-request`.
+
+**Decisión.**
+
+- **Jueces en orden:** DeepSeek V4.1 Flash y, de respaldo, DeepSeek V3.2. El primero que responde con el contrato decide. Una respuesta sin contrato (como la copia de la entrada del 2026-10-04) o un fallo del proveedor, incluidos saldo y clave, pasa al siguiente. Cada juez tiene un minuto por lote.
+- **Corte por video:** un juez que falla dos veces en un video no se vuelve a llamar en ese video (el estado vive por la señal del job, así la fase de imágenes hereda los jueces caídos).
+- **Nunca frena:** si ningún juez responde, el lote sigue sin revisión y el log lo dice. Solo la cancelación del job corta la revisión. Las objeciones completas que llegaron en una respuesta a medias se conservan.
+- **Una objeción por escena y por video:** la escena objetada se reescribe una vez con la corrección y esa reescritura pasa sin volver a preguntar. En el Catálogo, una objeción en el último intento deja el prompt igual: el revisor nunca deja una escena sin prompt.
+- **La objeción no es culpa del redactor:** en Mi estilo ya no cuenta para «el modelo está devolviendo errores».
+- **Sin revisión en el rescate sin foto:** ahí no hay redactor que pueda corregir, así que el juez solo podía frenar la compra.
+
+```mermaid
+flowchart LR
+    writer["Redactor de escenas"]
+    judge1["Juez DeepSeek V4.1 Flash"]
+    judge2["Juez de respaldo DeepSeek V3.2"]
+    store[("Prompts aceptados")]
+    writer -->|"pide veredicto del lote · API LLM"| judge1
+    judge1 -->|"sin contrato o caído · API LLM"| judge2
+    judge1 -->|"objeta una escena una vez · memoria"| writer
+    judge2 -->|"objeta una escena una vez · memoria"| writer
+    judge1 -->|"aprueba · archivo local"| store
+    judge2 -->|"aprueba, o nadie respondió · archivo local"| store
+```
+
+**Contrato:** la misma instrucción, evidencias numeradas y cuatro comprobaciones de arriba. Las llamadas son de la cuenta de DeepInfra del usuario: unos 0,08 USD por video de 200 escenas con V4.1 Flash, contra unos 0,50 con V4 Pro.
+
+**Fallo:** reemplaza el contrato de **Fallo** de la decisión original. Un lote que ningún juez puede verificar sigue sin revisión; ninguna objeción deja una escena sin prompt ni compra. Lo que sigue cortando la fase son las escenas que el redactor no logra escribir.
+
+**Medido con un video real** (ESTILO COMIC, 10 escenas, Mi estilo, V4.1 Flash, imágenes reales): dos corridas completas, el juez respondió siempre con el contrato. En la primera objetó una escena que ponía al personaje en un archivo y a la vez en una plaza, y la reescritura quedó en la plaza; en la segunda no objetó nada. Prompts en 24 a 35 s, contra 14 s sin revisión. Guard: `scripts/test/check-narrative-review.mjs`. Informe: `fixes/2026-10-04_narrative-reviewer-advisory.md`.
 
 ## Límites
 
