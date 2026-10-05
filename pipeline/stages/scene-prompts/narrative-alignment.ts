@@ -17,11 +17,14 @@ const NARRATIVE_REVIEW_MODELS = [
   'deepseek-ai/DeepSeek-V4.1-Flash',
   'deepseek-ai/DeepSeek-V3.2',
 ] as const
-// V4.1 Flash revisa un lote en 6 a 10 s y V3.2 en hasta 35 s: un juez que no
-// contesta en un minuto está caído y no puede trabar la fase dos minutos.
-const NARRATIVE_REVIEW_TIMEOUT_MS = 60_000
-// Un juez que falla dos veces en un video no se vuelve a llamar en ese video:
-// durante una caída cada lote pagaba la espera de un modelo roto.
+// V4.1 Flash revisa un lote de seis en 6 a 12 s y V3.2 en hasta 35 s. Minuto
+// y medio deja margen cuando un video largo manda muchos lotes a la vez (pedido
+// del dueño, 2026-10-04); un juez que tarda más está caído y pasa el siguiente.
+const NARRATIVE_REVIEW_TIMEOUT_MS = 90_000
+// Un juez que falla dos veces SEGUIDAS en un video no se vuelve a llamar en
+// ese video: durante una caída cada lote pagaba la espera de un modelo roto.
+// Una respuesta buena borra sus fallas: en un video de 126 escenas V4.1 Flash
+// falló suelto 2 de 25 lotes, y apagarlo pasaba el resto al respaldo lento.
 const JUDGE_FAILURES_BEFORE_SKIP = 2
 interface NarrativeJudgeState {
   failures: Map<string, number>
@@ -32,9 +35,11 @@ const judgeStates = new WeakMap<AbortSignal, NarrativeJudgeState>()
 // sin volver a preguntar, así un juez exigente no deja una escena sin prompt.
 const objectedScenes = new WeakMap<AbortSignal, Set<number>>()
 const REVIEW_BATCH_SIZE = 6
-const REVIEW_CONCURRENCY = 4
+const REVIEW_CONCURRENCY = 12
 const MAX_REVIEW_CONCURRENCY = 200
-// Cuatro lotes cubren los 20 candidatos de una petición del redactor. El cupo
+// Mi estilo pide la revisión de cada lote de su redactor: 20 candidatos son 4
+// lotes, todos a la vez. El Catálogo pide la de todo el video junto: 126
+// escenas son 21 lotes, y de a 4 la revisión tardaba unos 44 s. El cupo
 // compartido evita multiplicar ese paralelismo sin serializar otros callbacks:
 // hasta 200 revisiones por job/señal, igual al presupuesto por modelo vigente.
 const reviewLimiters = new WeakMap<AbortSignal, ConcurrencyLimiter>()
@@ -113,7 +118,10 @@ export function createNarrativeReviewLlm(context: PipelineContext): SceneLlm {
         let problem: string
         try {
           const content = await judge.llm.generate(request)
-          if (!request.validate || request.validate(content)) return content
+          if (!request.validate || request.validate(content)) {
+            state.failures.delete(judge.model)
+            return content
+          }
           problem = 'answered without the review contract'
         } catch (error) {
           context.signal.throwIfAborted()
@@ -519,9 +527,14 @@ export async function reviewNarrativePrompts(
   )
   if (pending.length === 0) return new Map()
 
+  // Lotes parejos de hasta seis: 20 candidatos van como 5+5+5+5, no 6+6+6+2.
+  // V4.1 Flash devolvió sin contrato 4 de 12 lotes de dos escenas y ninguno de
+  // 38 de seis (videos de 126 escenas, 2026-10-04).
+  const batchCount = Math.ceil(pending.length / REVIEW_BATCH_SIZE)
+  const batchSize = Math.ceil(pending.length / batchCount)
   const batches: NarrativePromptCandidate[][] = []
-  for (let offset = 0; offset < pending.length; offset += REVIEW_BATCH_SIZE)
-    batches.push(pending.slice(offset, offset + REVIEW_BATCH_SIZE))
+  for (let offset = 0; offset < pending.length; offset += batchSize)
+    batches.push(pending.slice(offset, offset + batchSize))
 
   let limited = reviewLimiters.get(options.signal)
   if (!limited) {

@@ -69,10 +69,11 @@ Los 3 casos inválidos eran una escena con descripción manual del usuario («el
 
 **Decisión.**
 
-- **Jueces en orden:** DeepSeek V4.1 Flash y, de respaldo, DeepSeek V3.2. El primero que responde con el contrato decide. Una respuesta sin contrato (como la copia de la entrada del 2026-10-04) o un fallo del proveedor, incluidos saldo y clave, pasa al siguiente. Cada juez tiene un minuto por lote.
-- **Corte por video:** un juez que falla dos veces en un video no se vuelve a llamar en ese video (el estado vive por la señal del job, así la fase de imágenes hereda los jueces caídos).
+- **Jueces en orden:** DeepSeek V4.1 Flash y, de respaldo, DeepSeek V3.2. El primero que responde con el contrato decide. Una respuesta sin contrato (como la copia de la entrada del 2026-10-04) o un fallo del proveedor, incluidos saldo y clave, pasa al siguiente. Cada juez tiene un minuto y medio por lote.
+- **Corte por video:** un juez que falla dos veces seguidas en un video no se vuelve a llamar en ese video; una respuesta buena borra sus fallas (en un video de 126 escenas V4.1 Flash falló suelto 2 de 25 lotes) (el estado vive por la señal del job, así la fase de imágenes hereda los jueces caídos).
 - **Nunca frena:** si ningún juez responde, el lote sigue sin revisión y el log lo dice. Solo la cancelación del job corta la revisión. Las objeciones completas que llegaron en una respuesta a medias se conservan.
-- **Una objeción por escena y por video:** la escena objetada se reescribe una vez con la corrección y esa reescritura pasa sin volver a preguntar. En el Catálogo, una objeción en el último intento deja el prompt igual: el revisor nunca deja una escena sin prompt.
+- **Una objeción por escena y por video:** la escena objetada se reescribe una vez con la corrección y esa reescritura pasa sin volver a preguntar. Si la reescritura no sale (el redactor falla o no hay modelos), la escena se queda con el prompt objetado y recibe su imagen. En el Catálogo, una objeción en el último intento deja el prompt igual: el revisor nunca deja una escena sin prompt.
+- **En lotes parejos y paralelos, después de escribir:** cada revisión parte sus escenas en lotes parejos de hasta seis (20 son 5+5+5+5: V4.1 Flash fallaba en lotes de dos) y manda hasta 12 a la vez. Mi estilo revisa así cada lote de su redactor. El Catálogo, que antes revisaba escena por escena ocupando el turno del redactor, ahora escribe todas las escenas, las revisa juntas en lotes paralelos y reescribe una vez, también en paralelo, las objetadas. La barra de avance cuenta una vez cada escena.
 - **La objeción no es culpa del redactor:** en Mi estilo ya no cuenta para «el modelo está devolviendo errores».
 - **Sin revisión en el rescate sin foto:** ahí no hay redactor que pueda corregir, así que el juez solo podía frenar la compra.
 
@@ -94,7 +95,7 @@ flowchart LR
 
 **Fallo:** reemplaza el contrato de **Fallo** de la decisión original. Un lote que ningún juez puede verificar sigue sin revisión; ninguna objeción deja una escena sin prompt ni compra. Lo que sigue cortando la fase son las escenas que el redactor no logra escribir.
 
-**Medido con un video real** (ESTILO COMIC, 10 escenas, Mi estilo, V4.1 Flash, imágenes reales): dos corridas completas, el juez respondió siempre con el contrato. En la primera objetó una escena que ponía al personaje en un archivo y a la vez en una plaza, y la reescritura quedó en la plaza; en la segunda no objetó nada. Prompts en 24 a 35 s, contra 14 s sin revisión. Guard: `scripts/test/check-narrative-review.mjs`. Informe: `fixes/2026-10-04_narrative-reviewer-advisory.md`.
+**Medido con un video real** (ESTILO COMIC, 10 escenas, Mi estilo, V4.1 Flash, imágenes reales): dos corridas completas, el juez respondió siempre con el contrato. En la primera objetó una escena que ponía al personaje en un archivo y a la vez en una plaza, y la reescritura quedó en la plaza; en la segunda no objetó nada. Prompts en 24 a 35 s, contra 14 s sin revisión. **Con 126 escenas** (las 14 de ese video repetidas 9 veces, solo prompts): Mi estilo 36 s sin revisión y 53 s con ella; el Catálogo 267 s sin revisión, 487 s con la revisión escena por escena y 298 s con la revisión en lotes (la pasada del juez, 21 s). Guard: `scripts/test/check-narrative-review.mjs`. Informe: `fixes/2026-10-04_narrative-reviewer-advisory.md`.
 
 ## Límites
 

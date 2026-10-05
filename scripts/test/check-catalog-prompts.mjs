@@ -843,6 +843,38 @@ function failingPromptResponse(request, failingIndexes) {
     return stream(JSON.stringify({ prompt_imagen: '' }))
   return promptResponse(request)
 }
+test('the catalog reviews its prompts after writing them, in batches, not one scene per call', async (t) => {
+  // Revisar escena por escena ocupaba el turno del redactor: con 126 escenas
+  // el juez casi duplicaba el tiempo de los prompts. Ahora va en lotes.
+  const context = await fixture(t)
+  const order = []
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, [])
+    const request = JSON.parse(init.body)
+    if (isReviewRequest(request.messages[0].content)) {
+      const { candidates } = JSON.parse(request.messages.at(-1).content)
+      order.push({ kind: 'review', size: candidates.length })
+      return narrativeReviewResponse(request)
+    }
+    order.push({ kind: 'writer' })
+    return promptResponse(request)
+  })
+  await runStages([scenePromptsStage], context)
+
+  const reviews = order.filter(({ kind }) => kind === 'review')
+  assert.deepEqual(
+    reviews.map(({ size }) => size),
+    [scenes.length],
+    'one review call with every scene',
+  )
+  const firstReview = order.findIndex(({ kind }) => kind === 'review')
+  const lastWriter = order.findLastIndex(({ kind }) => kind === 'writer')
+  assert.ok(
+    lastWriter < firstReview,
+    'the review runs after every prompt is written',
+  )
+})
 test('a scene the reviewer always rejects is rewritten once with its objection and keeps that prompt', async (t) => {
   const context = await fixture(t)
   const imagePrompts = []
@@ -874,8 +906,14 @@ test('a scene the reviewer always rejects is rewritten once with its objection a
       .content.includes(REVIEWER_OBJECTION),
     'the rewrite carries the objection',
   )
+  // La escena reescrita se guarda dos veces, pero la barra cuenta una.
+  const progress = context.events
+    .filter((event) => event.type === 'scene-prompts-progress')
+    .map(({ ready }) => ready)
+  assert.ok(Math.max(...progress) <= stored.length, 'never above the total')
+  assert.equal(progress.at(-1), stored.length)
 })
-test('a first objection on the last attempt keeps the prompt instead of leaving the scene empty', async (t) => {
+test('a scene that used every attempt still gets its one rewrite and keeps a prompt', async (t) => {
   const context = await fixture(t)
   const imagePrompts = []
   let writerCallsForThird = 0
@@ -885,8 +923,8 @@ test('a first objection on the last attempt keeps the prompt instead of leaving 
     const request = JSON.parse(init.body)
     if (isReviewRequest(request.messages[0].content))
       return narrativeReviewResponse(request, new Set([3]))
-    // Sin la protagonista: el candado de identidad pide otro intento, así la
-    // primera revisión de la escena 3 llega recién en el último.
+    // Sin la protagonista: el candado de identidad gasta los tres intentos.
+    // Después la revisión objeta la escena 3 y pide su única reescritura.
     if (requestScene(request) === 2 && ++writerCallsForThird < 3)
       return stream(
         JSON.stringify({
@@ -899,9 +937,37 @@ test('a first objection on the last attempt keeps the prompt instead of leaving 
   await runStages([scenePromptsStage, imagesStage], context)
 
   const stored = await readScenes(context.paths)
-  assert.equal(writerCallsForThird, 3)
+  assert.equal(writerCallsForThird, 4)
   assert.ok(stored.every(hasValidPrompt))
   assert.equal(stored[2].promptFailure, undefined)
+  assert.equal(imagePrompts.length, stored.length)
+})
+test('an objected scene whose rewrite fails keeps its original prompt and gets its image', async (t) => {
+  const context = await fixture(t)
+  const imagePrompts = []
+  let writerCallsForThird = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      return falResponse(url, init, imagePrompts)
+    const request = JSON.parse(init.body)
+    if (isReviewRequest(request.messages[0].content))
+      return narrativeReviewResponse(request, new Set([3]))
+    // La primera escritura de la escena 3 sale bien; la reescritura con la
+    // objeción no sale con ningún modelo.
+    if (requestScene(request) === 2 && ++writerCallsForThird > 1)
+      return stream(JSON.stringify({ prompt_imagen: '' }))
+    return promptResponse(request)
+  })
+  await runStages([scenePromptsStage, imagesStage], context)
+
+  const stored = await readScenes(context.paths)
+  assert.ok(writerCallsForThird > 1, 'the objection asked for a rewrite')
+  assert.ok(stored.every(hasValidPrompt))
+  assert.equal(stored[2].promptFailure, undefined)
+  assert.ok(
+    stored[2].imagePrompt.includes(descriptions[2]),
+    'the original prompt stays',
+  )
   assert.equal(imagePrompts.length, stored.length)
 })
 test('when every narrative judge echoes its input, every scene keeps its prompt and gets its image', async (t) => {
