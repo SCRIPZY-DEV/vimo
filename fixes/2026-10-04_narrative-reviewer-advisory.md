@@ -100,7 +100,7 @@ node --test scripts/test/check-narrative-review.mjs scripts/test/check-catalog-p
 - **Simuladores:** `check-editor-character-selection.mjs` y `check-silent-scene-images.mjs` le
   contestan al juez con `narrative-review-fixture.mjs`. Con el revisor de `dev` fallan 21 casos de
   esos dos guards.
-- **Toda la suite** (`node --test scripts/test/check-*.mjs`): 260 de 265. Los 5 que fallan fallan
+- **Toda la suite** (`node --test scripts/test/check-*.mjs`): 264 de 269. Los 5 que fallan fallan
   igual en `origin/dev`: `check-api-key-ui`, `check-editor-character-ui`, `check-export-header-ui`,
   `check-packaged-editor` y el caso de la escena muda que hace 9 llamadas al redactor.
 - `pnpm format`, `pnpm lint` y `pnpm build` pasan.
