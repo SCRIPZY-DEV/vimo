@@ -43,13 +43,16 @@ import {
 } from './normalize-file.ts'
 import type { AnimationUnit } from './planner.ts'
 
-// Cada intento conserva su recibo incluso tras éxito. Dos fallos de generación
-// confirmados en Grok habilitan Seedance. Red, cola, CDN y FFmpeg nunca cuentan.
+// Cada intento conserva su recibo incluso tras éxito. Un fallo de generación
+// confirmado en Grok pasa directo a Seedance (enmienda del 2026-10-05 de la
+// ADR-0042): el segundo Grok tardaba más y era más caro que Seedance. Red,
+// cola, CDN y FFmpeg nunca cuentan.
 const ORDER_DEADLINE_MS = 15 * 60_000
 const RETRY_BACKOFF_MS = 3000
 const UPLOAD_ATTEMPTS = 3
 const MAX_RATE_LIMIT_RETRIES = 8
-const MAX_GENERATION_ATTEMPTS = 3
+// Grok y Seedance: el avance muestra «intento N de 2».
+export const MAX_GENERATION_ATTEMPTS = 2
 
 export interface AnimationLaneEvents {
   onStarted(sceneId: number, sceneIds: number[], attempt: number): void
@@ -109,7 +112,7 @@ function retryAfterSeconds(error: PipelineFailure): number {
   return 5
 }
 
-function nextModel(
+export function nextModel(
   attempts: AnimationAttempt[],
   inputs: AnimationLaneInputs,
 ): string | null {
@@ -125,10 +128,9 @@ function nextModel(
     return null
   if (failures.some((attempt) => attempt.model === KIE_SEEDANCE_MODEL))
     return null
-  const grokFailures = failures.filter(
-    (attempt) => attempt.model === KIE_GROK_MODEL,
-  ).length
-  return grokFailures >= 2 ? KIE_SEEDANCE_MODEL : KIE_GROK_MODEL
+  if (failures.some((attempt) => attempt.model === KIE_GROK_MODEL))
+    return KIE_SEEDANCE_MODEL
+  return KIE_GROK_MODEL
 }
 
 export async function animateUnit(
