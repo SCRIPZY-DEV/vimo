@@ -159,7 +159,7 @@ test('neither a missing balance nor a rejected key at the judge stops the video'
   }
 })
 
-test('a judge that failed twice in the video is not asked again, not even by another client of the same video', async (t) => {
+test('a judge that failed twice in a row in the video is not asked again, not even by another client of the same video', async (t) => {
   const calls = judges(t, (request) =>
     request.model === PRIMARY_JUDGE ? echo(request) : verdict(request),
   )
@@ -177,6 +177,30 @@ test('a judge that failed twice in the video is not asked again, not even by ano
     PRIMARY_JUDGE,
     BACKUP_JUDGE,
     BACKUP_JUDGE,
+  ])
+})
+
+test('a judge that fails once and then answers stays the first judge', async (t) => {
+  // Fallas sueltas, como las dos de V4.1 Flash en un video de 126 escenas
+  // (2026-10-04): no son una caída y no lo apagan.
+  let primaryCalls = 0
+  const calls = judges(t, (request) => {
+    if (request.model !== PRIMARY_JUDGE) return verdict(request)
+    primaryCalls++
+    return primaryCalls % 2 === 1 ? echo(request) : verdict(request)
+  })
+  const context = reviewContext()
+  const llm = createNarrativeReviewLlm(context)
+
+  for (const id of [1, 2, 3, 4]) await review(context, [candidate(id)], llm)
+
+  assert.deepEqual(models(calls), [
+    PRIMARY_JUDGE,
+    BACKUP_JUDGE,
+    PRIMARY_JUDGE,
+    PRIMARY_JUDGE,
+    BACKUP_JUDGE,
+    PRIMARY_JUDGE,
   ])
 })
 
@@ -229,6 +253,46 @@ test('each scene gets at most one objection per video: its rewritten prompt pass
     [[1, 2, 3], [3]],
     'the objected scenes are not sent to the judge again',
   )
+})
+
+test('the review splits its candidates into even batches of at most six', async (t) => {
+  // Un lote de 20 del redactor iba como 6+6+6+2, y V4.1 Flash devolvió sin
+  // contrato 4 de 12 lotes de dos escenas (ninguno de 38 de seis).
+  const calls = judges(t, (request) => verdict(request))
+  const context = reviewContext()
+  const candidates = Array.from({ length: 20 }, (_, index) =>
+    candidate(index + 1),
+  )
+
+  await review(context, candidates)
+
+  assert.deepEqual(
+    calls.map(({ sceneIds }) => sceneIds.length).sort(),
+    [5, 5, 5, 5],
+  )
+})
+
+test('a long review sends up to twelve batches at the same time', async (t) => {
+  // El catálogo revisa todo junto: 126 escenas son 21 lotes, y de a 4 la
+  // revisión tardaba unos 44 s.
+  let inFlight = 0
+  let peak = 0
+  judges(t, async (request) => {
+    inFlight++
+    peak = Math.max(peak, inFlight)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    inFlight--
+    return verdict(request)
+  })
+  const context = reviewContext()
+  const candidates = Array.from({ length: 6 * 14 }, (_, index) =>
+    candidate(index + 1),
+  )
+
+  const rejected = await review(context, candidates)
+
+  assert.equal(rejected.size, 0)
+  assert.equal(peak, 12)
 })
 
 test('cancelling the video during the review stops it instead of letting the prompts pass', async (t) => {

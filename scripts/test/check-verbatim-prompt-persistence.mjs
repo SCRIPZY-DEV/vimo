@@ -265,6 +265,35 @@ test('a reviewer objection is not blamed on the chosen writer, even when another
   )
 })
 
+test('an objected scene whose rewrite never comes back keeps its original prompt and the run goes on', async (t) => {
+  const { paths, base } = await fixture(t)
+  let writerRequests = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).includes('chat/completions'))
+      throw new Error('unexpected call to ' + url)
+    const request = JSON.parse(init.body)
+    const review = narrativeReviewResponse(request, new Set([2]))
+    if (review) return review
+    if (isPhaseOne(request)) return stream('```text\n' + sheet + '\n```')
+    writerRequests++
+    // Después del primer lote, la escena 2 no vuelve: la conexión se cae en
+    // cada reescritura que la incluye.
+    if (writerRequests > 1 && fragmentsOf(request).includes(2))
+      throw new TypeError('fetch failed')
+    return scenesResponse(request)
+  })
+
+  await scenePromptsStage.run(await buildCreateVideoContext(base, 'fixture'))
+
+  const stored = await readScenes(paths)
+  assert.equal(promptsOnDisk(stored).length, SCENE_COUNT)
+  assert.match(
+    stored.find((scene) => scene.id === 2).imagePrompt,
+    /number 2\./,
+    'the original prompt of scene 2 stays',
+  )
+})
+
 test('when every narrative judge echoes its input, Mi estilo still writes every prompt', async (t) => {
   const { paths, base } = await fixture(t)
   let reviewRequests = 0

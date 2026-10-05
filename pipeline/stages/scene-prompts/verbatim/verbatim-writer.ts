@@ -1207,6 +1207,9 @@ export async function generateVerbatimPrompts(
   // Congela el texto efectivamente revisado: un lote paralelo no puede
   // cambiar su vestuario heredado después de aprobarlo.
   const reviewedPrompts = new Map<number, string>()
+  // El prompt que el revisor objetó (crudo y finalizado): si su reescritura
+  // no vuelve, la escena se queda con ese en vez de quedar sin prompt.
+  const objectedPrompts = new Map<number, { raw: string; final: string }>()
   let lastError = ''
 
   // Progreso REAL: cada lote informa cuántos prompts lleva escritos y acá se
@@ -1419,6 +1422,10 @@ export async function generateVerbatimPrompts(
           return true
         }
         alignmentFeedback.set(entry.n, feedback)
+        objectedPrompts.set(entry.n, {
+          raw: entry.prompt,
+          final: finalized.prompts.get(entry.n)!,
+        })
         reading.defective.push({
           n: entry.n,
           reason: NARRATIVE_REJECTION,
@@ -1714,6 +1721,17 @@ export async function generateVerbatimPrompts(
       )
       await runRoundInParallel([...still], 1, rescueExecutor)
     }
+  }
+
+  // La reescritura que pidió el revisor no volvió: la escena se queda con el
+  // prompt que objetó. El revisor nunca deja una escena sin prompt.
+  for (const [id, objected] of objectedPrompts) {
+    if (obtained.has(id)) continue
+    obtained.set(id, objected.raw)
+    reviewedPrompts.set(id, objected.final)
+    options.onLog?.(
+      `scene ${id} keeps its original prompt: the rewrite asked by the narrative review did not come back`,
+    )
   }
 
   const missing = fragments
