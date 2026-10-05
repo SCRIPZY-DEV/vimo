@@ -3,7 +3,7 @@ import { generateEvolinkImage } from '../../providers/image/evolink.ts'
 import { generateFalImage } from '../../providers/image/fal.ts'
 import { findCatalogGem } from '../../prompts/catalog-gems/catalog.ts'
 import {
-  buildCustomPreviewRequest,
+  CUSTOM_PORTRAIT_REQUEST,
   buildPreviewScene,
 } from '../../prompts/character-preview.ts'
 import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
@@ -17,10 +17,16 @@ import {
   assembleUserScenePrompt,
   isCharacterStyleId,
 } from '../../prompts/visual-styles.ts'
+import { isLlmAuthFailure } from '../../providers/llm/auth-failure.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { extractImagePrompt } from '../../stages/scene-prompts/prompt-extraction.ts'
-import { createSceneLlm } from '../../stages/shared/llm.ts'
+import { weavePortraitSubject } from '../../stages/scene-prompts/verbatim/subject-weaver.ts'
+import {
+  createSceneLlm,
+  type SceneLlm,
+  type SceneLlmRequest,
+} from '../../stages/shared/llm.ts'
 import type {
   CharacterPreviewPhase,
   GenerateCharacterPreviewPayload,
@@ -29,17 +35,32 @@ import type {
 import type { DecodedImage } from '../../types/images.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
 import type { CustomStyleSummary, GemSections } from '../../types/styles.ts'
+import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
 const MIN_IDENTITY_LENGTH = 10
-// Cuánto tarda la gema en escribir el prompt del retrato en el caso típico:
+// Quién escribe la escena del retrato con estilo propio, en orden: el
+// primero que devuelve una escena usable gana. No es el modelo del usuario
+// ni el tier balanced: el 2026-10-04, con el mismo pedido y los estilos del
+// dueño, Qwen3 235B (balanced) tardó de 40 a 57 s y 2 de 6 pedidos dieron
+// `llm_rate_limited`, GPT o4-mini TURBO devolvió vacío o perdió la
+// descripción y DeepSeek V4.1 Flash tardó de 1,6 a 4 s. Con el pedido
+// nuevo, V4.1 Flash escribió las 10 escenas de prueba en 1 a 10 s.
+const PORTRAIT_SCENE_MODELS = [
+  'deepseek-ai/DeepSeek-V4.1-Flash',
+  'deepseek-ai/DeepSeek-V3.2',
+] as const
+// Tope por modelo: la escena de un retrato es corta y un modelo trabado no
+// puede dejar la casilla quieta dos minutos (el tope general es de 120 s).
+const PORTRAIT_SCENE_TIMEOUT_MS = 30_000
+// Cuánto tarda la gema en escribir la escena del retrato en el caso típico:
 // el LLM no informa avance, así que la fase «prompt» muestra un ramp simulado
 // (mismo mecanismo que Fal con la imagen) para que la casilla no se quede
 // quieta.
-const PROMPT_EXPECTED_MS = 15_000
+const PROMPT_EXPECTED_MS = 4_000
 
 /** Lo que la gema aporta al retrato: su texto, o sus secciones y planos. */
 type PreviewGem = Pick<
@@ -54,9 +75,9 @@ type PreviewGem = Pick<
  *
  * Con uno de los 5 estilos heredados el prompt sale de la plantilla fija. Con
  * un estilo propio o una gema nueva del catálogo la gema no es un sufijo de
- * imagen sino un system prompt, así que primero el LLM escribe el prompt del
- * retrato (mismo mecanismo que las muestras del estilo) y recién después se
- * genera la imagen.
+ * imagen sino un system prompt, así que primero el LLM escribe la escena del
+ * retrato, la descripción se teje como en una escena del video y recién
+ * después se genera la imagen.
  */
 export async function generateCharacterPreview(
   context: PipelineContext,
@@ -102,16 +123,21 @@ export async function generateCharacterPreview(
   return { dataUri: toDataUri(image), finalPrompt }
 }
 
-// Estilo propio o gema nueva del catálogo: la gema escribe el prompt del
-// retrato. Ambas claves (LLM e imágenes) se exigen ANTES de gastar — la de
-// imágenes ya se validó arriba.
+// Estilo propio o gema nueva del catálogo: la gema escribe la escena del
+// retrato y la descripción guardada se teje palabra por palabra, como en cada
+// escena del video (enmienda del 2026-10-04 a la ADR-0021): el retrato
+// muestra al mismo personaje que el video. Ambas claves (LLM e imágenes) se
+// exigen ANTES de gastar — la de imágenes ya se validó arriba.
 async function writeCustomStylePrompt(
   context: PipelineContext,
   styleId: string,
   identityPrompt: string,
 ): Promise<string> {
   const style = await readPreviewGem(context, styleId)
-  const llm = createSceneLlm(context)
+  const writers = PORTRAIT_SCENE_MODELS.map((model) => ({
+    model,
+    llm: portraitSceneLlm(context, model),
+  }))
 
   emitPhase(context, 'prompt')
   const stopProgress = startSimulatedProgress(
@@ -119,31 +145,87 @@ async function writeCustomStylePrompt(
     PROMPT_EXPECTED_MS,
     (percent) => emitProgress(context, 'prompt', percent),
   )
-  const response = await llm
-    .generate({
-      systemPrompt: buildCustomStyleSystemPrompt(style),
-      userPrompt: buildCustomPreviewRequest(identityPrompt),
-      jsonOnly: true,
-      tier: 'balanced',
-    })
-    .finally(stopProgress)
-  const imagePrompt = extractImagePrompt(response)
-  if (!imagePrompt)
-    throw new PipelineFailure(
-      'llm_empty_response',
-      'the style did not write a usable preview prompt',
-    )
+  const scene = await writePortraitScene(context, writers, {
+    systemPrompt: buildCustomStyleSystemPrompt(style),
+    userPrompt: CUSTOM_PORTRAIT_REQUEST,
+    jsonOnly: true,
+    tier: 'balanced',
+  }).finally(stopProgress)
+
+  if (!style.sections) return weavePortraitSubject(scene, identityPrompt)
 
   // Una gema de plantilla pega sus frases fijas también al retrato: van en
   // cada prompt de imagen (spec §4.1). El texto de la gema se las muestra al
   // modelo, así que si las copió se quita esa copia antes de pegarlas: cada
-  // frase va una sola vez.
-  if (style.sections)
-    return applyFixedPhrases(
-      stripFixedPhrases(imagePrompt, style.sections),
-      style.sections,
-    )
-  return imagePrompt
+  // frase va una sola vez, y la descripción queda antes del final fijo, como
+  // en el video.
+  return applyFixedPhrases(
+    weavePortraitSubject(
+      stripFixedPhrases(scene, style.sections),
+      identityPrompt,
+    ),
+    style.sections,
+  )
+}
+
+// Un escritor de la escena del retrato: el mismo cliente de las escenas,
+// fijado a un modelo y con el tope corto del retrato.
+function portraitSceneLlm(context: PipelineContext, model: string): SceneLlm {
+  return createSceneLlm({
+    ...context,
+    config: {
+      ...context.config,
+      llm: {
+        ...context.config.llm,
+        timeoutMs: Math.min(
+          context.config.llm.timeoutMs,
+          PORTRAIT_SCENE_TIMEOUT_MS,
+        ),
+        models: { economy: model, balanced: model, premium: model },
+      },
+    },
+  })
+}
+
+// Pide la escena a cada escritor en orden. Un fallo del proveedor o una
+// respuesta sin escena pasa al siguiente; la clave rechazada, el saldo
+// agotado y la cancelación cortan en el acto (con la misma clave, el
+// respaldo fallaría igual). Sin escena de nadie, sale el último error.
+async function writePortraitScene(
+  context: PipelineContext,
+  writers: { model: string; llm: SceneLlm }[],
+  request: SceneLlmRequest,
+): Promise<string> {
+  let lastFailure: unknown
+  for (const [index, writer] of writers.entries()) {
+    try {
+      const scene = extractImagePrompt(await writer.llm.generate(request))
+      if (scene) return scene
+      lastFailure = new PipelineFailure(
+        'llm_empty_response',
+        `${writer.model} did not write a usable portrait scene`,
+      )
+    } catch (error) {
+      context.signal.throwIfAborted()
+      if (isLlmAuthFailure(error) || isInsufficientCreditsFailure(error))
+        throw error
+      lastFailure = error
+    }
+
+    const next = writers[index + 1]
+    if (next)
+      context.emitter.emit({
+        type: 'log',
+        level: 'warn',
+        message: `portrait scene writer ${writer.model} failed (${failureMessage(lastFailure)}); asking ${next.model}`,
+      })
+  }
+  throw lastFailure
+}
+
+function failureMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 // La gema del retrato. Una gema nueva del catálogo es una gema de plantilla y

@@ -1568,7 +1568,7 @@
       "generando": "Generando…",
       "writingPrompt": "Escribiendo el prompt…",
       "customStyleBadge": "Estilo propio",
-      "customStyleNote": "Con un estilo propio, tu gema escribe el prompt del retrato (una llamada a la IA, necesita DeepInfra) y después se genera la imagen.",
+      "customStyleNote": "Con un estilo propio, tu gema escribe la escena del retrato (una llamada corta a la IA, necesita DeepInfra) y Vimo le suma la descripción de tu personaje tal cual, como en el video.",
       "deletedStyle": "Estilo eliminado",
       "sourceCatalog": "Catálogo",
       "sourceCustom": "Mi estilo",

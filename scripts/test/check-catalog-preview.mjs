@@ -1,8 +1,9 @@
 // El preview de un personaje con un estilo del catálogo (plan E2, decisión
 // P6). Un id nuevo del catálogo escribe el retrato con las secciones de su
 // gema por el mismo camino que una gema de plantilla de Mi estilo (el texto
-// de la gema más las reglas de la casa, y las frases fijas pegadas por
-// código), sin leer la galería. Un retrato no tiene guion: el marcador de
+// de la gema más las reglas de la casa, la descripción tejida y las frases
+// fijas pegadas por código; el modelo y el tejido los fija
+// check-custom-style-portrait.mjs), sin leer la galería. Un retrato no tiene guion: el marcador de
 // idioma de las frases fijas (`[IDIOMA DEL GUION]`) viaja con el texto neutro,
 // en lo que lee el modelo y en lo que se pega. Los 5 ids heredados siguen con su plantilla
 // fija de siempre, sin LLM, aunque también estén en el catálogo. Un id `st-…`
@@ -16,15 +17,13 @@ import { test } from 'node:test'
 import { generateCharacterPreview } from '../../pipeline/commands/characters/generate-character-preview.ts'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 import { CATALOG_GEMS } from '../../pipeline/prompts/catalog-gems/catalog.ts'
-import {
-  buildCustomPreviewRequest,
-  buildPreviewScene,
-} from '../../pipeline/prompts/character-preview.ts'
+import { buildPreviewScene } from '../../pipeline/prompts/character-preview.ts'
 import {
   composeGemText,
   fixedPhrasesInLanguage,
   UNDETECTED_SCRIPT_LANGUAGE,
 } from '../../pipeline/prompts/template-frame.ts'
+import { DESCRIPTION_HEADER } from '../../pipeline/prompts/verbatim-identity.ts'
 import {
   GLOBAL_RULES,
   VISUAL_STYLES,
@@ -37,7 +36,7 @@ const bytes = Buffer.from(
 )
 const identityPrompt = 'Elena, a young woman with curly red hair.'
 const scenePrompt =
-  'Full-body view of Elena standing on a plain neutral background.'
+  'Full-body view of [subject] standing on a plain neutral background.'
 const legacyGems = CATALOG_GEMS.filter((gem) =>
   Object.hasOwn(VISUAL_STYLES, gem.id),
 )
@@ -87,17 +86,16 @@ function mockProviders(t) {
   })
   return requests
 }
-// Spec §5.4: inicio fijo, escena y final fijo, separados por un espacio.
-// Las secciones como las usa el retrato: sin guion, el marcador de idioma de
-// las frases fijas queda con el texto neutro.
+// Spec §5.4: inicio fijo, escena con la descripción tejida y final fijo,
+// separados por un espacio. Las secciones como las usa el retrato: sin guion,
+// el marcador de idioma de las frases fijas queda con el texto neutro.
 function portraitSections(sections) {
   return { ...sections, ...fixedPhrasesInLanguage(sections, '') }
 }
 function withFixedPhrases(sections) {
   const pasted = portraitSections(sections)
-  return [pasted.promptStart, scenePrompt, pasted.promptEnd]
-    .filter(Boolean)
-    .join(' ')
+  const woven = `${scenePrompt.replace('[subject]', 'the character')} ${DESCRIPTION_HEADER} ${identityPrompt}`
+  return [pasted.promptStart, woven, pasted.promptEnd].filter(Boolean).join(' ')
 }
 
 test('the catalog has legacy and new ids to preview', () => {
@@ -119,7 +117,10 @@ test('every new catalog id writes the portrait with its gem, without reading the
       composeGemText(portraitSections(gem.sections)) + '\n\n' + GLOBAL_RULES,
       gem.id,
     )
-    assert.equal(user.content, buildCustomPreviewRequest(identityPrompt))
+    // El modelo escribe la escena del retrato con `[subject]` y nunca ve la
+    // descripción: se teje después, palabra por palabra.
+    assert.ok(!user.content.includes('curly red hair'), gem.id)
+    assert.match(user.content, /\[subject\]/, gem.id)
     assert.equal(result.finalPrompt, withFixedPhrases(gem.sections), gem.id)
     assert.equal(requests.images[0].prompt, result.finalPrompt, gem.id)
     // El marcador de idioma nunca llega al generador: con final fijo, el

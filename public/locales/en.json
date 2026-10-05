@@ -1568,7 +1568,7 @@
       "generando": "Generating…",
       "writingPrompt": "Writing the prompt…",
       "customStyleBadge": "Custom style",
-      "customStyleNote": "With a custom style, your gem writes the portrait prompt (one AI call, needs DeepInfra) and then the image is generated.",
+      "customStyleNote": "With a custom style, your gem writes the portrait scene (one short AI call, needs DeepInfra) and Vimo adds your character's description word for word, just like in the video.",
       "deletedStyle": "Deleted style",
       "sourceCatalog": "Catalog",
       "sourceCustom": "My style",

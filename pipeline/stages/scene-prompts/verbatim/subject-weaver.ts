@@ -543,18 +543,9 @@ export function weaveSubject(
   if (!namesSubject(scene)) {
     // Narrador desnudo: mención genérica sin etiqueta y sin descripción → se
     // le pega la descripción igual, para que nunca viaje una mención sin
-    // identidad. Si YA está adentro (el modelo la repitió), no se duplica.
-    if (
-      identity &&
-      (mentionsProtagonist(scene) || namesByName(scene, name)) &&
-      !scene
-        .toLowerCase()
-        .includes(identity.replace(/[.!?]+$/, '').toLowerCase())
-    ) {
-      const separator = /[.!?]$/.test(scene) ? ' ' : '. '
-      const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
-      return `${scene}${separator}${DESCRIPTION_HEADER} ${finalIdentity}`
-    }
+    // identidad.
+    if (identity && (mentionsProtagonist(scene) || namesByName(scene, name)))
+      return appendDescription(scene, identity)
     return scene
   }
   if (!identity) return scene.replace(SUBJECT_TAG_REGEX, FALLBACK_SUBJECT)
@@ -590,6 +581,47 @@ export function weaveSubject(
     : DESCRIPTION_HEADER
   const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
   return `${base}${separator}${header} ${finalIdentity}`
+}
+
+/** Cómo se nombra al personaje en su retrato: una sola figura, sin rol. */
+const PORTRAIT_SUBJECT = 'the character'
+
+// Un artículo que el modelo escribió antes de la etiqueta («of a [subject]»):
+// se va con ella, para no dejar «of a the character».
+const ARTICLE_BEFORE_SUBJECT_TAG_REGEX = /\b(?:an?|the)\s+(?=\[subject\])/gi
+
+/**
+ * El retrato de la preview de un personaje con estilo propio (enmienda del
+ * 2026-10-04 a la ADR-0021) se teje como una escena del video: la
+ * descripción va palabra por palabra al final, con el encabezado de siempre,
+ * aunque el modelo no haya escrito `[subject]` (es lo único que el retrato
+ * muestra). El sujeto se nombra «the character» y no con el rol de
+ * `roleFromDescription`: el retrato tiene una sola figura, y una descripción
+ * que abre con un rasgo («Long, dark brown hair…») daba el rol «Long».
+ */
+export function weavePortraitSubject(
+  scenePrompt: string,
+  description: string,
+): string {
+  const scene = replaceSubjectTag(
+    scenePrompt.trim().replace(ARTICLE_BEFORE_SUBJECT_TAG_REGEX, ''),
+    PORTRAIT_SUBJECT,
+    undefined,
+  )
+  return appendDescription(scene, description.trim())
+}
+
+// La descripción pegada al final con el encabezado de siempre. Si YA está
+// adentro (el modelo la repitió), no se duplica.
+function appendDescription(scene: string, identity: string): string {
+  if (
+    scene.toLowerCase().includes(identity.replace(/[.!?]+$/, '').toLowerCase())
+  )
+    return scene
+
+  const separator = /[.!?]$/.test(scene) ? ' ' : '. '
+  const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
+  return `${scene}${separator}${DESCRIPTION_HEADER} ${finalIdentity}`
 }
 
 /**

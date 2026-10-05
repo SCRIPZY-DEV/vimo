@@ -554,8 +554,10 @@ posterior no puede tirarlos y el reintento solo pide lo que falta. La gema decla
 qué hace con su protagonista (`customStyle.character`: propio, genérico o
 ninguno) y puede diseñarlo con el guion como contexto (`design-style-character`).
 Un personaje se ilustra también con la gema (`generate-character-preview` con el
-id de galería: la gema escribe el prompt del retrato por el LLM), pero ese retrato
-es solo para verlo: un personaje de identidad de prompt viaja siempre como texto,
+id de galería: la gema escribe la escena del retrato con DeepSeek V4.1 Flash, con
+V3.2 de respaldo, y la descripción se pega palabra por palabra como en una escena
+del video; enmienda del 2026-10-04 a la ADR-0021), pero ese retrato es solo para
+verlo: un personaje de identidad de prompt viaja siempre como texto,
 en cualquier estilo, y `create-video-project` no le copia ninguna referencia
 (enmienda del 2026-10-02 a la ADR-0021). Solo un personaje **con foto** (ADR-0033)
 lleva referencia: su foto es la referencia en cualquier estilo, y con gema entra al
