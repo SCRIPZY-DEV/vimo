@@ -224,6 +224,8 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     let persistence = Promise.resolve()
     const total = currentScenes.length
     let ready = total - pendingIds.size
+    // Una escena que el revisor hace reescribir se guarda dos veces: cuenta una.
+    const counted = new Set<number>()
     context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
     currentScenes = await guaranteePrompts(currentScenes, {
       llm,
@@ -251,7 +253,10 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
             type: 'scene-prompt-ready',
             scene: await toSceneSummary(context.paths, scene),
           })
-          ready++
+          if (!counted.has(scene.id)) {
+            counted.add(scene.id)
+            ready++
+          }
           context.emitter.emit({ type: 'scene-prompts-progress', ready, total })
         })
         await persistence

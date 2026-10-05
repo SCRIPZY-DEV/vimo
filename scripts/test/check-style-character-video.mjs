@@ -576,6 +576,54 @@ test('a scene that loses its reference image is rescued with the library descrip
   )
 })
 
+test('the rescue without the photo buys its images without waiting for the narrative reviewer', async (t) => {
+  // Acá no hay redactor que pueda corregir: la revisión solo podía frenar la
+  // compra, y el revisor ya no frena videos (ADR-0043, 2026-10-04).
+  const anchored =
+    'Wide shot of Elena (the person from the attached reference image) fixing the red antenna. ' +
+    tail
+  const { base } = await fixture(t, {
+    mode: 'own',
+    photo: true,
+    images: false,
+    characters: [
+      {
+        ...libraryCharacter,
+        mode: 'photo',
+        referenceImageFile: 'reference.png',
+      },
+    ],
+    prompts: [anchored, anchored, anchored],
+  })
+  const requests = { text: 0, normal: 0 }
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    const target = String(url)
+    if (target.includes('chat/completions')) {
+      requests.text++
+      return Response.json(
+        { error: 'the rescue must not ask a model' },
+        { status: 500 },
+      )
+    }
+    if (target.endsWith('/edit'))
+      return Response.json(
+        { type: 'content_policy_violation', detail: 'flagged' },
+        { status: 400 },
+      )
+    if (target.startsWith('https://fal.run/')) {
+      requests.normal++
+      return Response.json({
+        images: [{ url: 'https://fixture.invalid/image.png' }],
+      })
+    }
+    return new Response(bytes, { headers: { 'content-type': 'image/png' } })
+  })
+
+  await imagesStage.run(await buildCreateVideoContext(base, 'fixture'))
+
+  assert.equal(requests.text, 0, 'no judge before buying the rescue')
+  assert.equal(requests.normal, 3)
+})
 test('a library description that the trims empty still weaves an identity', async (t) => {
   const description =
     'Portrait of Elena, full-body, a tall woman with silver hair and a red scarf. Style: watercolor.'
