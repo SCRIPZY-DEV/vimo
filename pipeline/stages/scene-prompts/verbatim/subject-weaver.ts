@@ -497,8 +497,36 @@ const NON_ROLE_JARGON_REGEX =
  * con rol inusable y nombre disponible, el nombre pasa a ser el rol.
  */
 export function roleUsableForWeaving(role: string): boolean {
-  return role !== 'main character' && role.split(/\s+/).length <= 6
+  return (
+    role !== 'main character' &&
+    role.split(/\s+/).length <= 6 &&
+    !namesOnlyAFeature(role)
+  )
 }
+
+/**
+ * 2026-10-05 — E47 con el nombre del personaje de la biblioteca. Además de
+ * `roleUsableForWeaving`, un rol de UNA palabra solo sirve si es su nombre (o
+ * parte de él): «Long, dark brown hair…» daba el rol «Long» y cada escena
+ * decía «Long repairs…», y con «Isabel, …» el rol «Isabel» sí es ella.
+ */
+export function roleUsableForCharacter(role: string, name: string): boolean {
+  if (!roleUsableForWeaving(role)) return false
+  if (/\s/.test(role)) return true
+
+  const nameWords = name.toLowerCase().split(/\s+/)
+  return nameWords.includes(role.toLowerCase())
+}
+
+// «Short messy black hair»: la frase nombra un rasgo (termina en pelo, ojos,
+// piel…), no a alguien. «young astronaut with brown hair» sí es alguien: el
+// rasgo viene después de «with».
+function namesOnlyAFeature(role: string): boolean {
+  return FEATURE_HEAD_REGEX.test(role) && !/\bwith\b/i.test(role)
+}
+
+const FEATURE_HEAD_REGEX =
+  /\b(?:hair|hairstyle|haircut|braids?|ponytail|curls|bangs|beard|mustache|moustache|stubble|eyes|eyebrows|brows|eyelashes|skin|complexion|freckles|face|jawline|cheekbones|glasses|spectacles)$/i
 
 /**
  * ¿Cuánta IDENTIDAD trae la ficha, descontando la jerga de estilo? Medido:

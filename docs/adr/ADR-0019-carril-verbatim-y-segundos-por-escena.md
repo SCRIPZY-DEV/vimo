@@ -138,6 +138,21 @@ escalera y del rescate (dos pedidos, con lo ya cosechado persistido), el código
 en `PROVIDER_TROUBLE_CODES` y la UI pide editar la gema en vez de bloquear o cambiar el
 modelo. Ver [causa, corrección y QA](../fixes/2026-09-22-fix-verbatim-prompt-language/verbatim-prompt-language.md).
 
+### Adenda 2026-10-05 — un rasgo no es el rol del personaje de la biblioteca (E47)
+
+El tejido `[subject]` → rol usa la primera frase de la descripción. Con un personaje de la
+biblioteca cuya descripción abre con un rasgo, el rol salía del rasgo y cada escena lo
+nombraba así: «Long, dark brown hair…» daba «Long, wearing a white space suit, repairs…», y
+«Short messy black hair, …» daba «the Short messy black hair…». Les pasaba a tres
+personajes del dueño (Isabel Martínez, Ariadne y Luna Martínez). E47 ya ponía el nombre
+delante cuando el rol tenía más de seis palabras, pero estos tenían una o cuatro. Ahora
+`roleUsableForCharacter` (modo `text`, con el nombre a mano) también rechaza un rol de una
+sola palabra que no es parte del nombre, y `roleUsableForWeaving` rechaza un rol que termina
+en un rasgo (pelo, ojos, piel, barba…) sin «with» antes («young astronaut with brown hair»
+sigue siendo un rol). Con el rol rechazado, la escena nombra al personaje por su nombre y la
+descripción completa sigue al final. No cambian las huellas de las gemas viejas ni los roles
+del catálogo. Ver [causa, corrección y QA](../../fixes/2026-10-05_library-character-feature-role.md).
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por

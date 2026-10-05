@@ -37,7 +37,10 @@ import {
   USER_PROTAGONIST_RULE,
 } from '../../pipeline/prompts/verbatim-messages.ts'
 import { PROTAGONIST_DESIGN_REQUEST } from '../../pipeline/prompts/protagonist-request.ts'
-import { DESCRIPTION_HEADER } from '../../pipeline/prompts/verbatim-identity.ts'
+import {
+  DESCRIPTION_HEADER,
+  DESCRIPTION_HEADER_PREFIX,
+} from '../../pipeline/prompts/verbatim-identity.ts'
 
 const legacyGem =
   'Render every scene as a hand-drawn watercolor illustration with indigo washes and rough paper. Keep the story action and setting.'
@@ -661,4 +664,80 @@ test('the editor rewrite goes through the same frame and reuses the section prot
     requests[0].messages[2].content,
     buildAssistantCharacterTurn(sectionCharacter),
   )
+})
+
+// ── Personaje de la biblioteca cuya descripción abre con un rasgo ──
+// (2026-10-05) El sujeto de cada escena es el rol que sale de la primera
+// frase de la descripción. «Long, dark brown hair…» daba el rol «Long» y la
+// escena decía «Long repairs a red antenna»; «Short messy black hair, …» daba
+// «the Short messy black hair». Con nombre, la escena lo nombra por su
+// nombre (la regla E47) y la descripción completa sigue al final.
+
+function libraryRun(t, character) {
+  return runLane(
+    t,
+    {
+      styleId: 'st-legacy',
+      name: 'Watercolor',
+      systemPrompt: legacyGem,
+      character: { mode: 'own' },
+    },
+    { characters: [{ ...character, mode: 'text' }] },
+  )
+}
+// La acción de la escena: lo que va antes de la descripción pegada.
+function sceneActions(lane) {
+  return lane.scenes
+    .filter((scene) => scene.imagePrompt.includes(DESCRIPTION_HEADER_PREFIX))
+    .map((scene) => scene.imagePrompt.split(DESCRIPTION_HEADER_PREFIX)[0])
+}
+
+for (const character of [
+  {
+    name: 'Isabel Martínez',
+    description:
+      'Long, dark brown hair pulled back into a braid, round glasses and a khaki field vest',
+  },
+  {
+    name: 'Elías',
+    description:
+      'Short messy black hair, a small mole under the left eye, an olive shirt and a brown satchel',
+  },
+]) {
+  test(`a library character whose description opens with a feature is woven by name (${character.name})`, async (t) => {
+    const { lane } = await libraryRun(t, character)
+    const actions = sceneActions(lane)
+
+    assert.equal(actions.length, 2, 'las dos escenas con protagonista')
+    for (const action of actions) {
+      assert.ok(action.includes(`${character.name}, wearing`), action)
+      assert.doesNotMatch(action, /\b(?:Long|Short|hair)\b/, action)
+    }
+    for (const scene of lane.scenes)
+      assert.ok(!scene.imagePrompt.includes('[subject]'), scene.imagePrompt)
+  })
+}
+
+test('a library character whose description opens with who they are keeps that role', async (t) => {
+  const { lane } = await libraryRun(t, {
+    name: 'Hombre Musculoso',
+    description:
+      'A muscular adult man. He has long, wavy dark brown hair parted in the middle and wears black athletic shorts.',
+  })
+  const actions = sceneActions(lane)
+
+  assert.equal(actions.length, 2)
+  for (const action of actions)
+    assert.ok(action.includes('the muscular adult man, wearing'), action)
+})
+
+test('a one-word role that is the character name stays the name', async (t) => {
+  const { lane } = await libraryRun(t, {
+    name: 'Elena García',
+    description:
+      'Elena, a young astronaut with brown hair, green eyes, a blue jacket and silver boots',
+  })
+
+  for (const action of sceneActions(lane))
+    assert.ok(action.includes('Elena, wearing'), action)
 })
