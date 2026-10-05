@@ -21,6 +21,10 @@ import { cutScenesByTime } from '../../pipeline/stages/scene-cuts/scene-cuts.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
+import {
+  isNarrativeReviewRequest,
+  narrativeReviewAnswer,
+} from './narrative-review-fixture.mjs'
 
 // El proyecto real que disparó el fix: 327 y 329 completas, 328 muda entre
 // ambas (una pausa de la narración más larga que la ventana de escena).
@@ -179,6 +183,9 @@ function mockProviders(t, { llm, image }) {
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (String(url).includes('chat/completions')) {
       const request = JSON.parse(init.body)
+      // El revisor narrativo aprueba: este guard mide las escenas mudas.
+      if (isNarrativeReviewRequest(request))
+        return narrativeReviewAnswer(request)
       requests.text.push(request)
       return llm(request)
     }

@@ -886,8 +886,9 @@ for (const [kind, end, sentences, overBudget] of [
       )
       assert.doesNotMatch(sent, /attached reference image/)
       assert.ok(sent.includes('the narration is spoken, not written'))
-      // El juez revisó exactamente lo que se compró; lo guardado no cambia.
-      assert.deepEqual([...judgedPrompts(requests.reviews).values()], [sent])
+      // Sin juez en el rescate sin foto (ADR-0043, 2026-10-04): ahí no hay
+      // redactor que pueda corregir. Lo guardado no cambia.
+      assert.equal(requests.reviews.length, 0)
       assert.equal((await readScenes(paths))[0].imagePrompt, stored)
     },
   )
