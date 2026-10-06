@@ -1,6 +1,10 @@
 # ADR-0049 — El catálogo vive en el servidor y lo administra el admin desde la app
 
-- **Estado:** Propuesta (2026-10-06). Implementa la Entrega 3 del catálogo sobre el carril de Mi
+- **Estado:** Propuesta (2026-10-06), implementada ese mismo día en `feat/catalogo-remoto` (app y
+  sidecar) y en `feat/catalogo-remoto` de `vimo-landing` (servidor), con la tabla, el bucket y la
+  semilla ya aplicados en Supabase; pasa a Aceptada con la QA del dueño sobre el servidor desplegado
+  ([implementation-e3.md](../handoff/2026-09-30-catalog-on-custom-style-lane/implementation-e3.md)).
+  Implementa la Entrega 3 del catálogo sobre el carril de Mi
   estilo ([plan-e3.md](../handoff/2026-09-30-catalog-on-custom-style-lane/plan-e3.md), diseño
   [design.md](../handoff/2026-09-30-catalog-on-custom-style-lane/design.md) §9), detrás del
   interruptor `features.remoteCatalog`.
