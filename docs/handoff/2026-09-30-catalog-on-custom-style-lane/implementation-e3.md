@@ -110,21 +110,25 @@ tests. Rama `feat/catalogo-remoto` (VIMO-TAURI, local, sobre `feat/catalogo-esti
   formulario real en Chrome sin interfaz, el servidor y el sidecar simulados: 31 de 31 (crear,
   preparar con IA, traducir, etiquetas, guardar, generar y subir muestras, publicar, ocultar,
   volver a publicar, editar con conflicto, usar en el video, eliminar, no admin, sin lista).
-- `vimo-landing` (commit `48f137d`): `pnpm test` 1263 de 1263 (12 archivos y 429 casos nuevos con
-  simuladores de la tabla y del bucket, incluido el recorrido de punta a punta y los Review Focus 3
-  y 4), `pnpm build` y `wrangler pages functions build` en verde; `pnpm lint` sigue con 3 errores
-  previos de `src/components/ui/` y `tailwind.config.ts` que vienen de `main`.
+- `vimo-landing` (commits `48f137d` y `ad00764`): `pnpm test` 1335 de 1335 (13 archivos y 501 casos
+  nuevos con simuladores de la tabla y del bucket, incluido el recorrido de punta a punta hasta
+  archivar y restaurar, la purga y los Review Focus 3 y 4), `pnpm build` y `wrangler pages functions
+build` en verde; `pnpm lint` sigue con 3 errores previos de `src/components/ui/` y
+  `tailwind.config.ts` que vienen de `main`.
+- El recorrido del admin en Chrome sin interfaz, con el archivado: 36 de 36.
 - La API de Storage, contra el bucket real: firmar, subir, listar, leer en público y borrar.
 - Falta la prueba del dueño con el servidor desplegado (Ola 4).
 
 ## Pendientes y pasos del dueño
 
-1. **Publicar el servidor:** aprobar el push de `feat/catalogo-remoto` de `vimo-landing`, el PR y el
-   merge a `main` (eso despliega vimo.click), y cargar `VIMO_FLAG_REMOTE_CATALOG=admins` en
-   Cloudflare Pages antes del merge (o redesplegar después).
-2. **QA con la cuenta de admin** en la app de prueba: crear una gema nueva pegando su texto, generar
-   sus muestras, publicarla; editar una existente y sus etiquetas; ocultar; eliminar; y verla desde
-   una cuenta que no sea admin (necesita `all`, paso 3).
+1. ~~Publicar el servidor~~ **Hecho el 2026-10-06 a las 13:20** con la aprobación del dueño:
+   `vimo-landing` `main` @ `9f01df7` (PR #18: `48f137d` + `ad00764`), `VIMO_FLAG_REMOTE_CATALOG=admins`
+   cargada en Cloudflare Pages a las 12:59; rutas verificadas sin sesión (401 `sin-token`, preflight
+   204 con CORS).
+2. **QA con la cuenta de admin** en la app de prueba (`0.9.3-catalogo.3`, abierta a las 13:21): crear
+   una gema nueva pegando su texto, generar sus muestras, publicarla; editar una existente y sus
+   etiquetas; ocultar; eliminar (pasa a Archivados con «Se elimina en 30 días»), restaurar; y verla
+   desde una cuenta que no sea admin (necesita `all`, paso 3).
 3. Visto bueno: `VIMO_FLAG_REMOTE_CATALOG=all` (junto con `newCatalog`), para que lo que se publique
    lo vean todos los usuarios.
 4. Push y PR de la app cuando lo diga; la rama sale de `feat/catalogo-estilos`, que puede ir a PR
