@@ -24,6 +24,7 @@ import {
   normalizedCatalogDraft,
   readAdminCatalogListResponse,
   readAdminCatalogStyleResponse,
+  sameCatalogDraft,
   splitCatalogAdminStyles,
   suggestedCatalogStyleId,
   withBehaviorTags,
@@ -214,6 +215,40 @@ test('qué impide guardar: id, estilo visual, etiquetas y modos', () => {
       name: { ...FULL.name, es: 'x'.repeat(81) },
     }),
     ['name'],
+  )
+})
+
+test('«Guardar borrador» solo tiene algo que guardar cuando el contenido o la posición cambian de verdad', () => {
+  const saved = { content: FULL, position: 3 }
+  assert.equal(sameCatalogDraft({ content: FULL, position: 3 }, saved), true)
+  // Un espacio de más se normaliza antes de mandar: no es un cambio.
+  assert.equal(
+    sameCatalogDraft(
+      {
+        content: { ...FULL, name: { ...FULL.name, es: ' Tiza ' } },
+        position: 3,
+      },
+      saved,
+    ),
+    true,
+  )
+  assert.equal(
+    sameCatalogDraft(
+      {
+        content: { ...FULL, name: { ...FULL.name, es: 'Tiza 2' } },
+        position: 3,
+      },
+      saved,
+    ),
+    false,
+  )
+  assert.equal(sameCatalogDraft({ content: FULL, position: 4 }, saved), false)
+  assert.equal(
+    sameCatalogDraft(
+      { content: { ...FULL, colorFilter: 'fantasy' }, position: 3 },
+      saved,
+    ),
+    false,
   )
 })
 

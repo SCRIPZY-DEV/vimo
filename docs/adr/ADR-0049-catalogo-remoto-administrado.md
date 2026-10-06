@@ -177,12 +177,16 @@ orígenes permitidos de descarga y de subida le llegan en el payload (ADR-0010).
 - Al montarse la pestaña Catálogo con el interruptor encendido: lista → manifiesto con la versión
   conocida → `catalog-styles-sync` si cambió → lista. Sin spinner que bloquee y sin mostrar un
   fallo como error: sigue lo que había.
-- El admin ve todos los estilos con su estado («Borrador» y «Oculto», con la tarjeta apagada;
-  «Cambios sin publicar»), un menú con Editar, Generar muestras, Publicar, Ocultar y Archivar gema,
-  la tarjeta «Crear estilo» y
+- El admin ve todos los estilos con su estado: «Borrador», «Oculto» o «Cambios sin publicar» como
+  distintivo grande en el centro de la tarjeta, en gris oscuro con blanco, sobre las muestras
+  apagadas (lo que los usuarios no ven tal cual se nota de lejos); un menú con Editar, Generar
+  muestras, Publicar, Ocultar y Archivar gema, la tarjeta «Crear estilo» y
   un modal propio armado con las piezas del modal de Mi estilo («Pegá tu gema» con el agente,
   secciones, avisos, carrusel). Puede usar un borrador en un video propio para probarlo antes de
-  publicar. «Las muestras salen con» ofrece Genérico, Personaje del estilo y Sin personaje: las
+  publicar. «Guardar borrador» se enciende solo cuando algo cambió respecto de lo guardado (se
+  compara el contenido normalizado y la posición, no una marca de «tocado»), y al guardar o
+  publicar el modal se cierra y vuelve al catálogo, donde la tarjeta ya muestra el estado.
+  «Las muestras salen con» ofrece Genérico, Personaje del estilo y Sin personaje: las
   dos primeras son el mismo modo del carril (con la sección de personaje de la gema, el genérico
   usa ese personaje fijo, en los videos y en las muestras), y solo se pueden elegir las permitidas;
   apagar un modo permitido mueve las muestras al otro, y el último de Genérico/Sin personaje no se

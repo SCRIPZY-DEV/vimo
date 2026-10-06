@@ -363,6 +363,22 @@ export function catalogPurgeDaysLeft(
   return Math.max(0, Math.ceil((purgeMs - now) / DAY_MS))
 }
 
+/**
+ * Si lo que el admin tiene en el modal es lo mismo que lo guardado: el
+ * contenido normalizado (lo que se mandaría) y la posición. Es lo que decide
+ * si «Guardar borrador» tiene algo que guardar.
+ */
+export function sameCatalogDraft(
+  edited: { content: CatalogStyleContent; position: number },
+  saved: { content: CatalogStyleContent; position: number },
+): boolean {
+  if (edited.position !== saved.position) return false
+  return (
+    JSON.stringify(normalizedCatalogDraft(edited.content)) ===
+    JSON.stringify(normalizedCatalogDraft(saved.content))
+  )
+}
+
 /** El contenido con sus etiquetas de comportamiento al día, como lo exige el servidor. */
 export function normalizedCatalogDraft(
   content: CatalogStyleContent,

@@ -65,7 +65,10 @@ tests. Rama `feat/catalogo-remoto` (VIMO-TAURI, local, sobre `feat/catalogo-esti
   modal, «Las muestras salen con» ofrece Genérico, Personaje del estilo y Sin personaje solo entre
   los modos permitidos (con la sección de personaje, el genérico es ese personaje fijo: así lo
   hacen el carril del video y el sidecar), sin encender un modo por la espalda y sin dejar a las
-  muestras sin modo.
+  muestras sin modo. Segunda ronda: el distintivo va grande, centrado, en gris oscuro con blanco
+  sobre las muestras apagadas (también «Cambios sin publicar»); «Guardar borrador» solo con cambios
+  reales (`sameCatalogDraft`) y, al guardar o publicar, el modal se cierra y vuelve al catálogo;
+  generar muestras sobre un estilo sin cambios ya no manda un guardado vacío.
 
 ## Decisiones tomadas durante la implementación
 

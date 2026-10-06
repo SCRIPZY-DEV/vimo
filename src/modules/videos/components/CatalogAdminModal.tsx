@@ -38,6 +38,7 @@ import {
   catalogPublishBlockers,
   emptyCatalogDraft,
   normalizedCatalogDraft,
+  sameCatalogDraft,
   suggestedCatalogStyleId,
   withBehaviorTags,
 } from '@/modules/videos/utilities/catalogAdminDraft'
@@ -124,7 +125,13 @@ export function CatalogAdminModal({
   const [revision, setRevision] = useState<number | null>(
     style?.revision ?? null,
   )
-  const [dirty, setDirty] = useState(false)
+  // Lo último guardado en el servidor (null = nunca): contra esto se decide si
+  // hay algo que guardar, comparando de verdad y no con una marca de «tocado»,
+  // así deshacer un cambio a mano vuelve a apagar «Guardar borrador».
+  const [saved, setSaved] = useState<{
+    content: CatalogStyleContent
+    position: number
+  } | null>(style ? { content: style.draft, position: style.position } : null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [errorDetail, setErrorDetail] = useState('')
   const [conflict, setConflict] = useState(false)
@@ -146,6 +153,10 @@ export function CatalogAdminModal({
     t('create.catalogAdmin.modalTitle')
   const problems = catalogDraftProblems(id, content)
   const blockers = catalogPublishBlockers(normalizedCatalogDraft(content))
+  // Un estilo nuevo ya preparado siempre tiene algo que guardar; uno existente,
+  // solo si cambió respecto de lo guardado.
+  const dirty =
+    saved === null ? !pasting : !sameCatalogDraft({ content, position }, saved)
   const locked = admin.busy || preparing || uploading || samplesJob.running
   const samplesEstimate = provider
     ? imageCostEstimate(
@@ -180,7 +191,6 @@ export function CatalogAdminModal({
 
   const update = (next: CatalogStyleContent) => {
     setContent({ ...next, tags: withBehaviorTags(next) })
-    setDirty(true)
     if (!idTouched && revision === null)
       setId(suggestedCatalogStyleId(next.name.es))
   }
@@ -202,7 +212,6 @@ export function CatalogAdminModal({
       setContent(draft)
       setWarnings(response.warnings)
       setPasting(false)
-      setDirty(true)
     } catch (error) {
       setPrepareErrorKey(videosApi.gemRebuildErrorKey(error))
     } finally {
@@ -211,14 +220,16 @@ export function CatalogAdminModal({
   }
 
   // Guarda el borrador (crea el estilo si todavía no existe). null = no se
-  // guardó: el porqué queda a la vista y el modal sigue abierto.
+  // guardó: el porqué queda a la vista y el modal sigue abierto. Sin cambios
+  // sobre un estilo que ya existe no manda nada: devuelve el de la lista.
   const persist = async (): Promise<AdminCatalogStyle | null> => {
     if (problems.length > 0) return null
+    if (!dirty && style && style.revision === revision) return style
     setErrorKey(null)
     setErrorDetail('')
     const draft = normalizedCatalogDraft(content)
     try {
-      const saved =
+      const stored =
         revision === null
           ? await admin.createStyle({ id, position, draft }, displayName)
           : await admin.saveStyle(
@@ -226,16 +237,23 @@ export function CatalogAdminModal({
               { revision, draft, position },
               displayName,
             )
-      setRevision(saved.revision)
-      setContent(saved.draft)
-      setPosition(saved.position)
-      setDirty(false)
+      setRevision(stored.revision)
+      setContent(stored.draft)
+      setPosition(stored.position)
+      setSaved({ content: stored.draft, position: stored.position })
       setConflict(false)
-      return saved
+      return stored
     } catch (error) {
       failWith(error)
       return null
     }
+  }
+
+  // «Guardar borrador»: guarda y vuelve al catálogo (pedido del dueño,
+  // 2026-10-06): lo guardado ya está en su tarjeta, como «Borrador».
+  const saveAndClose = async () => {
+    const stored = await persist()
+    if (stored) onClose()
   }
 
   // Tras un `borrador-cambio`: la revisión de ahora y lo escrito, de nuevo.
@@ -296,7 +314,7 @@ export function CatalogAdminModal({
       )
       setContent(savedAgain.draft)
       setRevision(savedAgain.revision)
-      setDirty(false)
+      setSaved({ content: savedAgain.draft, position: savedAgain.position })
     } catch (error) {
       failWith(error)
     } finally {
@@ -396,12 +414,8 @@ export function CatalogAdminModal({
               onIdChange={(next) => {
                 setIdTouched(true)
                 setId(next)
-                setDirty(true)
               }}
-              onPositionChange={(next) => {
-                setPosition(next)
-                setDirty(true)
-              }}
+              onPositionChange={setPosition}
               onContentChange={update}
               onTranslate={() => void translate()}
             />
@@ -546,8 +560,8 @@ export function CatalogAdminModal({
               <Button
                 type="button"
                 variant="outline"
-                disabled={locked || problems.length > 0}
-                onClick={() => void persist()}
+                disabled={locked || problems.length > 0 || !dirty}
+                onClick={() => void saveAndClose()}
               >
                 <Save className="mr-2 h-4 w-4" />
                 {t('create.catalogAdmin.saveDraft')}

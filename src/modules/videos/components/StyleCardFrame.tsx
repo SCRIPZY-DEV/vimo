@@ -28,8 +28,9 @@ interface StyleCardFrameProps {
   disabled: boolean
   // Atenúa las muestras y el pie (una gema que se está adaptando).
   dimmed?: boolean
-  // Las apaga un poco (un estilo del catálogo que los usuarios no ven todavía:
-  // un borrador o uno oculto).
+  // Apaga las muestras (no el pie) de un estilo del catálogo que los usuarios
+  // no ven tal cual: un borrador, uno oculto o cambios sin publicar; el
+  // distintivo va encima.
   faded?: boolean
   // Lo que va encima de las muestras (el avance de la adaptación).
   overlay?: ReactNode
@@ -123,7 +124,7 @@ export function StyleCardFrame({
           className={cn(
             'absolute inset-0',
             dimmed && 'opacity-40',
-            faded && !dimmed && 'opacity-60',
+            faded && !dimmed && 'opacity-45',
           )}
         >
           {images.length === 0 ? (
@@ -223,13 +224,7 @@ export function StyleCardFrame({
         </div>
       </div>
 
-      <div
-        className={cn(
-          'px-3.5 py-2.5',
-          dimmed && 'opacity-40',
-          faded && !dimmed && 'opacity-60',
-        )}
-      >
+      <div className={cn('px-3.5 py-2.5', dimmed && 'opacity-40')}>
         {footer}
       </div>
     </div>

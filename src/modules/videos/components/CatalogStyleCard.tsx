@@ -54,15 +54,16 @@ interface CatalogStyleCardProps {
   onCopy: () => void
 }
 
-// El distintivo del admin: «Borrador» (nunca se publicó) u «Oculto» en gris y
-// con la tarjeta apagada; con cambios sin publicar, en amarillo (hay algo que
-// los usuarios todavía no ven); archivado, en rojo (cuenta regresiva hasta que
-// el servidor lo purgue).
+// El distintivo del admin, en el centro de las muestras y sobre la tarjeta
+// apagada, para que se vea de lejos (pedido del dueño, 2026-10-06): «Borrador»
+// (nunca se publicó), «Oculto» y «Cambios sin publicar» en gris oscuro con
+// blanco (hay algo que los usuarios no ven); archivado, en rojo (cuenta
+// regresiva hasta que el servidor lo purgue).
 const BADGE_CLASS: Record<CatalogAdminBadge, string> = {
-  unpublished: 'bg-charcoal/80 text-white',
-  hidden: 'bg-charcoal/80 text-white',
-  changes: 'bg-saffron text-charcoal',
-  archived: 'bg-destructive text-white',
+  unpublished: 'border-white/70 bg-charcoal/85 text-white',
+  hidden: 'border-white/70 bg-charcoal/85 text-white',
+  changes: 'border-white/70 bg-charcoal/85 text-white',
+  archived: 'border-white/70 bg-destructive text-white',
 }
 
 // Tarjeta de un estilo del catálogo de Vimo (Entrega 2): el mismo cascarón que
@@ -88,6 +89,9 @@ export function CatalogStyleCard({
   const name = localizedText(gem.name, language)
   const hidden = admin?.badge === 'hidden' || admin?.badge === 'unpublished'
   const archived = admin?.badge === 'archived'
+  // Lo que los usuarios no ven tal cual (un borrador, uno oculto, cambios sin
+  // publicar) va apagado debajo del distintivo.
+  const faded = hidden || admin?.badge === 'changes'
   const badgeText = (
     badge: CatalogAdminBadge,
     purgeDaysLeft: number | null,
@@ -105,16 +109,12 @@ export function CatalogStyleCard({
       menuLabel={t('create.catalog.menuAria', { name })}
       selected={selected}
       disabled={disabled}
-      // Lo que los usuarios no ven (un borrador, uno oculto) va apagado.
-      faded={hidden}
+      faded={faded}
       overlay={
         admin?.badge ? (
-          // Debajo de «En uso» si las dos están: la esquina izquierda es de
-          // los estados.
           <span
             className={cn(
-              'absolute left-2 z-[5] inline-flex items-center rounded-full px-2 py-0.5 font-display text-[10px] font-bold shadow',
-              selected ? 'top-8' : 'top-2',
+              'absolute left-1/2 top-1/2 z-[5] inline-flex -translate-x-1/2 -translate-y-1/2 items-center whitespace-nowrap rounded-full border px-3.5 py-1.5 font-display text-sm font-bold shadow-lg',
               BADGE_CLASS[admin.badge],
             )}
           >
