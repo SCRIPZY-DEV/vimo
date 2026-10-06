@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adapting the user's character to the style's language                               | Proposed                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | AI style creator: cloning a style from a video or from images                       | Accepted                  | pipeline / app / server       |
 | [ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)                       | Section-based gems and the rebuild agent                                            | Accepted                  | pipeline / app / server       |
 | [ADR-0046](ADR-0046-recuperacion-y-deshacer-animaciones.md)                              | Visible recovery and undoing animations                                             | Aceptada                  | app / pipeline                |
