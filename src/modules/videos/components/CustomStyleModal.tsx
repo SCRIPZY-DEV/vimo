@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Clapperboard, Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
-import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
@@ -22,6 +21,8 @@ import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNoti
 import { GemPasteStep } from '@/modules/videos/components/GemPasteStep'
 import { GemSectionsEditor } from '@/modules/videos/components/GemSectionsEditor'
 import { GemSourceText } from '@/modules/videos/components/GemSourceText'
+import { ImageProviderPicker } from '@/modules/videos/components/ImageProviderPicker'
+import { SampleGenerationProgress } from '@/modules/videos/components/SampleGenerationProgress'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
 import { apiKeysApi } from '@/modules/api-keys/api'
@@ -47,7 +48,6 @@ import {
   CUSTOM_STYLE_NAME_LIMIT,
   CUSTOM_STYLE_PROMPT_LIMIT,
   CUSTOM_STYLE_SAMPLE_COUNT,
-  IMAGE_PROVIDERS,
   RECOMMENDED_SHOTS,
 } from '@/modules/videos/constants'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
@@ -340,8 +340,6 @@ export function CustomStyleModal({
     }
   }
 
-  const writing = samplesJob.phase !== 'images'
-  const progressIds = PLACEHOLDER_SAMPLE_IDS
   const sampleImages = storedSamples.map((sample) =>
     videosApi.imageSource(sample.path, sample.mtimeMs),
   )
@@ -435,54 +433,11 @@ export function CustomStyleModal({
               />
 
               {samplesJob.running ? (
-                // Mientras se generan, las 4 muestras se ven como tarjetas
-                // cargando con su barra y su %: Evolink el real del poll, Fal
-                // la estimación del sidecar.
-                <div className="grid grid-cols-2 gap-3">
-                  {progressIds.map((id) => {
-                    const percent =
-                      (writing
-                        ? samplesJob.promptPercents[id]
-                        : samplesJob.samplePercents[id]) ?? 0
-                    const image = samplesJob.sampleImages[id]
-                    return (
-                      <div
-                        key={id}
-                        className="relative flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-muted/60 px-5"
-                      >
-                        {image && (
-                          <img
-                            src={image}
-                            alt={t('create.customStyles.sampleAlt', {
-                              number: id,
-                              name,
-                            })}
-                            className="absolute inset-0 h-full w-full object-contain"
-                          />
-                        )}
-                        <span className="absolute left-2.5 top-2 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                          {t('create.customStyles.sampleLabel', { id })}
-                        </span>
-                        {!image && (
-                          <p className="font-body text-xs text-muted-foreground">
-                            <SampleProgressText
-                              writing={writing}
-                              percent={percent}
-                            />
-                          </p>
-                        )}
-                        {!image && (
-                          <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-border">
-                            <div
-                              className="h-full rounded-full bg-saffron transition-all duration-500"
-                              style={{ width: `${Math.max(4, percent)}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <SampleGenerationProgress
+                  job={samplesJob}
+                  sampleIds={PLACEHOLDER_SAMPLE_IDS}
+                  name={name}
+                />
               ) : sampleImages.length > 0 ? (
                 <StyleSamplesCarousel
                   key={carouselKey}
@@ -499,47 +454,12 @@ export function CustomStyleModal({
                 </div>
               )}
 
-              <div>
-                <p className="mb-1.5 text-xs font-medium">
-                  {t('create.customStyles.providerQuestion')}
-                </p>
-                {/* El mismo control segmentado que el formulario de Crear (el
-                  elegido en saffron pleno), con el saldo de cada proveedor y
-                  el botón de refrescar al lado. */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
-                    {IMAGE_PROVIDERS.map((imageProvider) => {
-                      const chosen = provider === imageProvider.id
-                      return (
-                        <button
-                          key={imageProvider.id}
-                          type="button"
-                          disabled={samplesJob.running}
-                          onClick={() => chooseProvider(imageProvider.id)}
-                          className={cn(
-                            'cursor-pointer rounded-full px-4 py-1.5 font-display text-sm font-bold transition-colors disabled:cursor-default disabled:opacity-60',
-                            chosen
-                              ? 'bg-saffron text-charcoal shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground',
-                          )}
-                        >
-                          {imageProvider.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <ImageCreditsBadges
-                    credits={credits.credits}
-                    loading={credits.isLoading}
-                    refreshing={credits.isRefreshing}
-                    active={provider}
-                    onRefresh={credits.refresh}
-                  />
-                </div>
-                <p className="mt-1.5 font-body text-xs text-muted-foreground">
-                  {t('create.customStyles.providerHint')}
-                </p>
-              </div>
+              <ImageProviderPicker
+                provider={provider}
+                disabled={samplesJob.running}
+                credits={credits}
+                onChoose={chooseProvider}
+              />
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -746,18 +666,4 @@ export function CustomStyleModal({
       )}
     </>
   )
-}
-
-interface SampleProgressTextProps {
-  writing: boolean
-  percent: number
-}
-
-// Qué dice cada tarjeta de muestra mientras se genera.
-function SampleProgressText({ writing, percent }: SampleProgressTextProps) {
-  const { t } = useTranslation()
-
-  if (writing) return t('create.customStyles.writingPrompts')
-  if (percent >= 100) return t('create.customStyles.sampleReady')
-  return t('create.customStyles.sampleGenerating', { percent })
 }

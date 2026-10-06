@@ -13,7 +13,6 @@ import { CharacterPickerModal } from '@/modules/videos/components/CharacterPicke
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
 import { localizedText } from '@/modules/videos/utilities/catalogLocale'
-import { catalogSampleImages } from '@/modules/videos/utilities/catalogSamples'
 import { nextCharacterDraft } from '@/modules/videos/utilities/characterDraft'
 import {
   gemBringsCharacter,
@@ -26,6 +25,9 @@ import type { StyleCharacter } from '@pipeline/types/styles.ts'
 
 interface CatalogStyleModalProps {
   gem: CatalogGem
+  // URLs de las muestras, ya resueltas por la galería (empaquetadas,
+  // sincronizadas o del bucket).
+  images: string[]
   // Con qué modo abre: el del formulario si el estilo está en uso; si no, el
   // recordado (o el de sus muestras).
   initialCharacter: StyleCharacter
@@ -59,6 +61,7 @@ interface CatalogStyleModalProps {
 // se ESCONDE en vez de apilarse, como el modal de Mi estilo.
 export function CatalogStyleModal({
   gem,
+  images,
   initialCharacter,
   inUse,
   copying,
@@ -80,7 +83,6 @@ export function CatalogStyleModal({
   const [picking, setPicking] = useState<SelectedCharacter[] | null>(null)
   const character = draft.character
   const name = localizedText(gem.name, language)
-  const images = catalogSampleImages(gem)
 
   const changeCharacter = (next: StyleCharacter) => {
     const nextDraft = nextCharacterDraft(draft, next)

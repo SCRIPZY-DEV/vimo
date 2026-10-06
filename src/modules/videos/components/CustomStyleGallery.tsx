@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Loader2, Plus } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
+import { NewStyleCard } from '@/modules/videos/components/NewStyleCard'
 import {
   closeCustomStyleEditor,
   markCustomStyleEditorSaved,
@@ -251,35 +252,12 @@ export function CustomStyleGallery({
           />
         ))}
 
-        {/* La tarjeta de CREAR es fija: solo crea, nunca se transforma en un
-            estilo. MISMA silueta que una tarjeta de estilo (zona 4:3 arriba +
-            pie de dos líneas): mide lo mismo esté donde esté, y la grilla
-            crece hacia abajo. */}
-        <div
-          role="button"
-          tabIndex={disabled ? undefined : 0}
-          onClick={openCreate}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return
-            event.preventDefault()
-            openCreate()
-          }}
-          className="group flex cursor-pointer select-none flex-col overflow-hidden rounded-2xl border-2 border-dashed border-border bg-card text-muted-foreground outline-none transition-all hover:border-saffron/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-saffron/50"
-        >
-          <div className="flex aspect-[4/3] items-center justify-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110">
-              <Plus className="h-6 w-6" />
-            </span>
-          </div>
-          <div className="px-3.5 py-2.5 text-left">
-            <p className="truncate font-display text-base font-bold text-foreground">
-              {t('create.customStyles.createCard')}
-            </p>
-            <p className="truncate font-body text-xs text-muted-foreground">
-              {t('create.customStyles.createCardHint')}
-            </p>
-          </div>
-        </div>
+        <NewStyleCard
+          title={t('create.customStyles.createCard')}
+          hint={t('create.customStyles.createCardHint')}
+          disabled={disabled}
+          onCreate={openCreate}
+        />
       </div>
 
       {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la

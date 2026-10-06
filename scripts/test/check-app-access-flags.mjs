@@ -11,12 +11,13 @@ import {
   parseRememberedAccess,
   serializeRememberedAccess,
 } from '../../src/modules/auth/utilities/accessFlags.ts'
+import { readAccessAdmin } from '../../src/modules/common/utilities/readAccessAdmin.ts'
 import { readAccessFeature } from '../../src/modules/common/utilities/readAccessFeature.ts'
 
 const ALL_OFF = {
   demo: false,
   admin: false,
-  features: { gemTemplate: false, newCatalog: false },
+  features: { gemTemplate: false, newCatalog: false, remoteCatalog: false },
 }
 
 test('un servidor viejo sin admin ni features deja todo apagado', () => {
@@ -28,19 +29,27 @@ test('features incompleto: lo que falta cuenta como apagado', () => {
   assert.deepEqual(normalizeAccessFeatures({ gemTemplate: true }), {
     gemTemplate: true,
     newCatalog: false,
+    remoteCatalog: false,
   })
   assert.deepEqual(normalizeAccessFeatures({ newCatalog: true }), {
     gemTemplate: false,
     newCatalog: true,
+    remoteCatalog: false,
+  })
+  assert.deepEqual(normalizeAccessFeatures({ remoteCatalog: true }), {
+    gemTemplate: false,
+    newCatalog: false,
+    remoteCatalog: true,
   })
   assert.deepEqual(normalizeAccessFeatures(undefined), {
     gemTemplate: false,
     newCatalog: false,
+    remoteCatalog: false,
   })
 })
 
 test('solo un true explícito enciende: strings, números o null no', () => {
-  const off = { gemTemplate: false, newCatalog: false }
+  const off = { gemTemplate: false, newCatalog: false, remoteCatalog: false }
   assert.deepEqual(
     normalizeAccessFeatures({ gemTemplate: 'true', newCatalog: 1 }),
     off,
@@ -55,7 +64,7 @@ test('memoria: el mismo correo recupera sus flags; otro no hereda nada', () => {
   const flags = {
     demo: true,
     admin: true,
-    features: { gemTemplate: true, newCatalog: false },
+    features: { gemTemplate: true, newCatalog: false, remoteCatalog: true },
   }
   const raw = serializeRememberedAccess('ana@example.com', flags)
   assert.deepEqual(parseRememberedAccess(raw, 'ana@example.com'), flags)
@@ -93,4 +102,13 @@ test('readAccessFeature: solo un true explícito del veredicto enciende', () => 
     readAccessFeature({ features: { gemTemplate: true } }, 'newCatalog'),
     false,
   )
+})
+
+test('readAccessAdmin: solo un `admin: true` explícito del veredicto cuenta', () => {
+  assert.equal(readAccessAdmin(undefined), false)
+  assert.equal(readAccessAdmin(null), false)
+  assert.equal(readAccessAdmin({ authorized: true }), false)
+  assert.equal(readAccessAdmin({ admin: 'true' }), false)
+  assert.equal(readAccessAdmin({ admin: 1 }), false)
+  assert.equal(readAccessAdmin({ admin: true }), true)
 })
