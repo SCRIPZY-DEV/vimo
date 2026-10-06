@@ -151,6 +151,12 @@ export interface CatalogSampleUpload {
 
 export interface CatalogCopyToCustomPayload {
   catalogStyleId: string
+  /**
+   * Con `true`, la gema se busca primero en el catálogo sincronizado
+   * (`_catalog/`, ADR-0049); ausente o `false`, solo en las empaquetadas: con
+   * el interruptor `remoteCatalog` apagado nada cambia.
+   */
+  remote?: boolean
   /** El nombre que vio la persona (en su idioma): nombre de la copia y de `origin`. */
   name: string
   /** El modo elegido en «Ver» (con `defaultCharacterId` si es «Mi personaje»). */

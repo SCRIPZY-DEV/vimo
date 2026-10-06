@@ -132,7 +132,11 @@ Subcomandos nuevos y cambiados (`pipeline/types/catalog.ts`):
 | `catalog-styles-sync`          | Valida todo el manifiesto antes de tocar el disco; baja las muestras que faltan (JPEG, hasta 4 MiB, solo desde `samplesOrigin`); escribe `catalog.json` al final y de forma atómica; borra tandas viejas. |
 | `generate-style-samples`       | Con `catalogDraft`, genera las 4 muestras del borrador en `_catalog/_drafts/<id>/` con el marco y el modo `sampleMode`.                                                                                   |
 | `catalog-style-samples-upload` | Sube cada `_catalog/_drafts/<id>/<file>` con `PUT` a su URL firmada, solo si es de `uploadOrigin`.                                                                                                        |
-| `catalog-style-copy`           | Busca la gema en el catálogo sincronizado y, si no está, en el empaquetado; con muestras sincronizadas las copia del disco.                                                                               |
+| `catalog-style-copy`           | Con `remote: true` en el payload busca la gema en el catálogo sincronizado y, si no está, en el empaquetado; con muestras sincronizadas las copia del disco. Sin `remote`, solo el empaquetado.           |
+| `generate-character-preview`   | Con `remote: true`, el retrato de una gema del catálogo usa sus secciones sincronizadas; sin `remote`, las empaquetadas.                                                                                  |
+
+La app manda `remote` (los dos interruptores encendidos) en la lista, la copia y el retrato: con el
+interruptor apagado el sidecar no mira la caché aunque haya sincronizado antes, así nada cambia.
 
 Carpeta `_catalog/` (reservada, como `_styles/`): `catalog.json` (`{ version, syncedAt, entries }`
 sin rutas absolutas), `<id>/s<revision>/sample-<n>.jpg` y `_drafts/<id>/`. Códigos de fallo

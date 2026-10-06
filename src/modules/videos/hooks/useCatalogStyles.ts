@@ -72,7 +72,9 @@ export function useCatalogStyles() {
 
   // La copia trae las muestras que tiene la app y crea la tarjeta en Mi
   // estilo. La lista de Mi estilo se invalida aunque la galería del catálogo
-  // ya no esté: así la copia aparece en esa pestaña pase lo que pase.
+  // ya no esté: así la copia aparece en esa pestaña pase lo que pase. Con el
+  // catálogo remoto, `remote` le dice al sidecar que busque la gema primero
+  // en el catálogo sincronizado (la misma que muestra la pestaña).
   const copyMutation = useMutation({
     mutationFn: async ({ gem, name, character }: CatalogCopyRequest) => {
       const samples = await videosApi.catalogSampleUploads(gem)
@@ -81,6 +83,7 @@ export function useCatalogStyles() {
         name,
         character,
         samples,
+        ...(remote ? { remote } : {}),
       })
     },
     onSuccess: () => {

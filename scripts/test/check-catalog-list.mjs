@@ -1,9 +1,11 @@
 // `catalog-styles-list` (plan E2 §5.3): devuelve las gemas del catálogo tal
 // cual, en el orden de la pestaña (las 5 de la casa primero), sin tocar el
-// disco ni la red — las muestras viven en la app y `sampleCount` alcanza. El
-// último caso corre el sidecar de verdad (`node pipeline/main.ts`) para fijar
-// que main.ts despacha el subcomando: sin eso la app recibiría
-// `unknown_subcommand`.
+// disco ni la red — las muestras viven en la app y `sampleCount` alcanza — y
+// `version: null`, que dice que es el catálogo empaquetado (ADR-0049). Sin
+// `remote` nada de esto cambia con el catálogo remoto; el catálogo
+// sincronizado lo fija `check-catalog-cache.mjs`. Los dos últimos casos corren
+// el sidecar de verdad (`node pipeline/main.ts`) para fijar que main.ts
+// despacha el subcomando: sin eso la app recibiría `unknown_subcommand`.
 
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -32,7 +34,7 @@ function context() {
 }
 
 // Lanza el sidecar con el job por stdin y devuelve sus eventos NDJSON.
-function runSidecar(subcommand) {
+function runSidecar(subcommand, payload) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [MAIN_FILE, subcommand], {
       stdio: ['pipe', 'pipe', 'inherit'],
@@ -50,14 +52,19 @@ function runSidecar(subcommand) {
           .map((line) => JSON.parse(line)),
       ),
     )
-    child.stdin.write(
-      `${JSON.stringify({ jobId: 'guard', apiKeys: {}, binaryPaths: {} })}\n`,
-    )
+    const job = {
+      jobId: 'guard',
+      apiKeys: {},
+      binaryPaths: {},
+      ...(payload === undefined ? {} : { payload }),
+    }
+    child.stdin.write(`${JSON.stringify(job)}\n`)
   })
 }
 
 test('the list returns the catalog gems untransformed and in the order of the tab', async () => {
-  const { entries } = await catalogStylesList(context())
+  const { entries, version } = await catalogStylesList(context())
+  assert.equal(version, null)
   assert.equal(entries.length, CATALOG_GEMS.length)
   for (const [index, entry] of entries.entries())
     assert.equal(entry, CATALOG_GEMS[index], `entry ${index}`)
@@ -102,5 +109,19 @@ test('the sidecar answers catalog-styles-list through main.ts', async () => {
   assert.deepEqual(
     last.result.entries,
     JSON.parse(JSON.stringify(CATALOG_GEMS)),
+  )
+  assert.equal(last.result.version, null)
+})
+
+// La app pide el remoto, pero el job no trae carpeta raíz: no hay caché que
+// leer y la lista sigue siendo la empaquetada, sin fallar.
+test('the sidecar answers the packaged list through main.ts when the remote one has no projects root', async () => {
+  const events = await runSidecar('catalog-styles-list', { remote: true })
+  const last = events.at(-1)
+  assert.equal(last?.type, 'job-completed', JSON.stringify(last))
+  assert.equal(last.result.version, null)
+  assert.deepEqual(
+    last.result.entries.map((entry) => entry.id),
+    CATALOG_GEMS.map((gem) => gem.id),
   )
 })

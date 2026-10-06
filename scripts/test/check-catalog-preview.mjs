@@ -6,7 +6,11 @@
 // idioma de las frases fijas (`[IDIOMA DEL GUION]`) viaja con el texto neutro,
 // en lo que lee el modelo y en lo que se pega. Los 5 ids heredados siguen con su plantilla
 // fija de siempre, sin LLM, aunque también estén en el catálogo. Un id `st-…`
-// sigue leyendo `_styles/`. HTTP interceptado: sin red.
+// sigue leyendo `_styles/`. Con el catálogo remoto (ADR-0049, plan E3 tarea
+// A4) la gema sale primero del catálogo sincronizado en `_catalog/`: un
+// estilo que solo existe ahí, o una gema de la semilla publicada de nuevo,
+// escriben el retrato con sus secciones sincronizadas. HTTP interceptado: sin
+// red.
 
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -15,7 +19,10 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { generateCharacterPreview } from '../../pipeline/commands/characters/generate-character-preview.ts'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
-import { CATALOG_GEMS } from '../../pipeline/prompts/catalog-gems/catalog.ts'
+import {
+  CATALOG_GEMS,
+  findCatalogGem,
+} from '../../pipeline/prompts/catalog-gems/catalog.ts'
 import {
   buildCustomPreviewRequest,
   buildPreviewScene,
@@ -47,14 +54,19 @@ const newGems = CATALOG_GEMS.filter(
 
 // Sin projectsRoot salvo que el caso lo pida: leer la galería fallaría con
 // missing_projects_root.
-function context(styleId, projectsRoot) {
+function context(styleId, projectsRoot, remote = false) {
   return {
     job: {
       jobId: 'fixture',
       projectsRoot,
       apiKeys: { deepinfra: 'fixture', fal: 'fixture' },
       binaryPaths: {},
-      payload: { styleId, identityPrompt, provider: 'fal' },
+      payload: {
+        styleId,
+        identityPrompt,
+        provider: 'fal',
+        ...(remote ? { remote } : {}),
+      },
     },
     config: resolvePipelineConfig(),
     signal: new AbortController().signal,
@@ -191,4 +203,116 @@ test('a gallery id still reads _styles, and an unknown id is style_not_found', a
       code: 'style_not_found',
     })
   assert.equal(requests.text.length, 1)
+})
+
+// ── El catálogo sincronizado (ADR-0049) ──
+
+const bola = findCatalogGem('2d-bola')
+const crayon = findCatalogGem('2d-crayon')
+const fantasia = findCatalogGem('fantasia')
+const watercolorSections = {
+  ...bola.sections,
+  visualStyle: 'Soft watercolor washes on rough paper, with a round gray hero.',
+  promptEnd: 'Watercolor on rough paper, soft edges.',
+}
+const editedCrayonSections = {
+  ...crayon.sections,
+  visualStyle: 'Thick wax crayon strokes on recycled brown paper.',
+}
+// El catálogo que dejó la última sincronización (el formato de
+// catalog-cache.ts): una gema que solo existe ahí y dos de la semilla
+// publicadas de nuevo con otras secciones, todas con las muestras de la app.
+async function syncedCatalog(t) {
+  const root = await mkdtemp(join(tmpdir(), 'vimo-catalog-preview-sync-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const entry = (gem, overrides) => ({
+    ...gem,
+    samplesRevision: 0,
+    ...overrides,
+  })
+  await mkdir(join(root, '_catalog'), { recursive: true })
+  await writeFile(
+    join(root, '_catalog', 'catalog.json'),
+    JSON.stringify({
+      version: 'version-synced',
+      syncedAt: '2026-10-06T12:00:00.000Z',
+      entries: [
+        entry(bola, {
+          id: 'acuarela-nueva',
+          name: { es: 'Acuarela', en: 'Watercolor', pt: 'Aquarela' },
+          sections: watercolorSections,
+          sampleCount: 0,
+        }),
+        entry(crayon, { sections: editedCrayonSections }),
+        entry(fantasia, {
+          sections: { ...fantasia.sections, rules: 'Edited rules.' },
+        }),
+      ],
+    }),
+  )
+  return root
+}
+
+test('a style that only exists in the synced catalog writes the portrait with its sections', async (t) => {
+  const root = await syncedCatalog(t)
+  const requests = mockProviders(t)
+  const result = await generateCharacterPreview(
+    context('acuarela-nueva', root, true),
+  )
+  assert.equal(
+    requests.text[0].messages[0].content,
+    composeGemText(portraitSections(watercolorSections)) +
+      '\n\n' +
+      GLOBAL_RULES,
+  )
+  assert.equal(result.finalPrompt, withFixedPhrases(watercolorSections))
+})
+
+test('a gem of the seed published again writes the portrait with its synced sections', async (t) => {
+  const root = await syncedCatalog(t)
+  const requests = mockProviders(t)
+  const result = await generateCharacterPreview(
+    context('2d-crayon', root, true),
+  )
+  assert.equal(
+    requests.text[0].messages[0].content,
+    composeGemText(portraitSections(editedCrayonSections)) +
+      '\n\n' +
+      GLOBAL_RULES,
+  )
+  assert.equal(result.finalPrompt, withFixedPhrases(editedCrayonSections))
+})
+
+test('a legacy id keeps its fixed template even when it is in the synced catalog', async (t) => {
+  const root = await syncedCatalog(t)
+  const requests = mockProviders(t)
+  const result = await generateCharacterPreview(context('fantasia', root, true))
+  assert.equal(
+    result.finalPrompt,
+    assembleUserScenePrompt(
+      VISUAL_STYLES.fantasia,
+      buildPreviewScene(identityPrompt, 'fantasia'),
+    ),
+  )
+  assert.equal(requests.text.length, 0)
+})
+
+test('without `remote` the portrait ignores the synced catalog: the packaged sections, and a style that only exists in the cache is style_not_found', async (t) => {
+  const root = await syncedCatalog(t)
+  const requests = mockProviders(t)
+  const result = await generateCharacterPreview(context('2d-crayon', root))
+  assert.equal(
+    requests.text[0].messages[0].content,
+    composeGemText(portraitSections(findCatalogGem('2d-crayon').sections)) +
+      '\n\n' +
+      GLOBAL_RULES,
+  )
+  assert.equal(
+    result.finalPrompt,
+    withFixedPhrases(findCatalogGem('2d-crayon').sections),
+  )
+  await assert.rejects(
+    generateCharacterPreview(context('acuarela-nueva', root)),
+    { code: 'style_not_found' },
+  )
 })

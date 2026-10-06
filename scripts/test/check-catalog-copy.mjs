@@ -6,8 +6,11 @@
 // el disco (un rechazo no deja ni la carpeta) y las muestras se escriben
 // antes que style.json: una copia interrumpida no deja una tarjeta a medias.
 // Las muestras que la app trae para cada estilo tienen que pasar esa misma
-// validación, o la copia de ese estilo fallaría siempre. Sin red: disco
-// temporal.
+// validación, o la copia de ese estilo fallaría siempre. Con el catálogo
+// remoto (ADR-0049, plan E3 tarea A4) la gema sale primero del catálogo
+// sincronizado en `_catalog/` y después de las empaquetadas; si trae su tanda
+// de muestras sincronizada, la copia las toma del disco e ignora las del
+// payload. Sin red: disco temporal.
 
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -451,6 +454,175 @@ test('the catalog domain registers the copy and main.ts dispatches it', async ()
   assert.equal(last.code, 'invalid_payload')
 })
 
+// ── El catálogo sincronizado (ADR-0049) ──
+
+const bola = findCatalogGem('2d-bola')
+const terror = findCatalogGem('terror')
+const editedFantasiaSections = {
+  ...fantasia.sections,
+  rules: 'Edited rules of the remote catalog: glowing runes in every scene.',
+}
+// Una entrada de catalog.json (el formato de catalog-cache.ts): la gema sin
+// rutas, con la tanda de sus muestras (0 = las de la app).
+function storedEntry(gem, overrides = {}) {
+  return { ...gem, samplesRevision: 0, ...overrides }
+}
+// El catálogo que dejó la última sincronización: una gema que solo existe
+// ahí, con su tanda 2 (3 muestras); Fantasía publicada de nuevo con otras
+// reglas y las muestras de la app; y Terror con sus muestras regeneradas
+// (tanda 1, 2 muestras).
+async function syncedCatalog(root) {
+  const catalog = join(root, '_catalog')
+  const batches = [
+    ['acuarela-nueva', 2, 3],
+    ['terror', 1, 2],
+  ]
+  for (const [id, revision, count] of batches) {
+    const batch = join(catalog, id, `s${revision}`)
+    await mkdir(batch, { recursive: true })
+    for (let number = 1; number <= count; number++)
+      await writeFile(
+        join(batch, `sample-${number}.jpg`),
+        jpeg(`${id}-synced-${number}`),
+      )
+  }
+  const entries = [
+    storedEntry(bola, {
+      id: 'acuarela-nueva',
+      name: { es: 'Acuarela nueva', en: 'New watercolor', pt: 'Aquarela nova' },
+      sampleCount: 3,
+      samplesRevision: 2,
+    }),
+    storedEntry(fantasia, { sections: editedFantasiaSections }),
+    storedEntry(terror, { sampleCount: 2, samplesRevision: 1 }),
+  ]
+  await writeFile(
+    join(catalog, 'catalog.json'),
+    JSON.stringify({
+      version: 'version-synced',
+      syncedAt: '2026-10-06T12:00:00.000Z',
+      entries,
+    }),
+  )
+}
+async function copiedSamples(root, id) {
+  const directory = join(root, '_styles', id)
+  const files = (await readdir(directory))
+    .filter((file) => file.endsWith('.jpg'))
+    .sort()
+  return Promise.all(
+    files.map(async (file) => [file, await readFile(join(directory, file))]),
+  )
+}
+
+test('a style that only exists in the synced catalog is copied with its gem and the samples of its batch, from the disk', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  const { entry } = await copy(
+    root,
+    payload({
+      remote: true,
+      catalogStyleId: 'acuarela-nueva',
+      name: 'Acuarela nueva',
+      character: { mode: 'generic' },
+      samples: [],
+    }),
+  )
+
+  const stored = await storedJson(root, entry.id)
+  assert.deepEqual(stored.sections, bola.sections)
+  assert.equal(stored.templateVersion, bola.templateVersion)
+  assert.equal(stored.colorFilter, bola.colorFilter)
+  assert.deepEqual(stored.character, { mode: 'generic' })
+  assert.deepEqual(stored.origin, {
+    kind: 'catalog',
+    catalogStyleId: 'acuarela-nueva',
+    name: 'Acuarela nueva',
+  })
+  assert.deepEqual(await copiedSamples(root, entry.id), [
+    ['sample-1.jpg', jpeg('acuarela-nueva-synced-1')],
+    ['sample-2.jpg', jpeg('acuarela-nueva-synced-2')],
+    ['sample-3.jpg', jpeg('acuarela-nueva-synced-3')],
+  ])
+  assert.deepEqual(
+    entry.samples.map((sample) => sample.file),
+    ['sample-1.jpg', 'sample-2.jpg', 'sample-3.jpg'],
+  )
+})
+
+test('with a synced batch the samples of the payload are ignored, even malformed ones', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  for (const samples of [
+    [upload('sample-1.jpg', jpeg('from the app'))],
+    'not a list',
+    undefined,
+  ]) {
+    const { entry } = await copy(
+      root,
+      payload({ remote: true, catalogStyleId: 'acuarela-nueva', samples }),
+    )
+    assert.deepEqual(
+      (await copiedSamples(root, entry.id)).map(([file]) => file),
+      ['sample-1.jpg', 'sample-2.jpg', 'sample-3.jpg'],
+    )
+    assert.deepEqual(
+      (await copiedSamples(root, entry.id))[0][1],
+      jpeg('acuarela-nueva-synced-1'),
+    )
+  }
+})
+
+test('a gem of the seed synced with revision 0 copies its synced sections and the samples the app sends', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  const { entry } = await copy(root, payload({ remote: true }))
+  const stored = await storedJson(root, entry.id)
+  assert.deepEqual(stored.sections, editedFantasiaSections)
+  assert.deepEqual(await copiedSamples(root, entry.id), [
+    ['sample-1.jpg', jpeg('one')],
+    ['sample-2.jpg', jpeg('two')],
+  ])
+})
+
+test('a gem of the seed with regenerated samples copies its synced batch', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  const { entry } = await copy(
+    root,
+    payload({ remote: true, catalogStyleId: 'terror', name: 'Terror' }),
+  )
+  assert.deepEqual(await copiedSamples(root, entry.id), [
+    ['sample-1.jpg', jpeg('terror-synced-1')],
+    ['sample-2.jpg', jpeg('terror-synced-2')],
+  ])
+})
+
+test('a synced sample that is gone or is not a JPEG is skipped and the others keep their number', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  const batch = join(root, '_catalog', 'acuarela-nueva', 's2')
+  await writeFile(join(batch, 'sample-2.jpg'), PNG_BYTES)
+  const { entry } = await copy(
+    root,
+    payload({ remote: true, catalogStyleId: 'acuarela-nueva', samples: [] }),
+  )
+  assert.deepEqual(
+    (await copiedSamples(root, entry.id)).map(([file]) => file),
+    ['sample-1.jpg', 'sample-3.jpg'],
+  )
+})
+
+test('an id that is neither synced nor packaged is still style_not_found and writes nothing', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  await assert.rejects(
+    copy(root, payload({ remote: true, catalogStyleId: 'noir-inexistente' })),
+    { code: 'style_not_found' },
+  )
+  await assertNothingWritten(root)
+})
+
 // ── Las muestras que trae la app ──
 
 test('every sample the app ships for the catalog passes the copy validation', () => {
@@ -469,4 +641,30 @@ test('every sample the app ships for the catalog passes the copy validation', ()
       }
     }
   assert.deepEqual(problems, [])
+})
+
+test('without `remote` the copy ignores the synced catalog: the packaged gem and the samples of the app, and a style that only exists in the cache is style_not_found', async (t) => {
+  const root = await galleryRoot(t)
+  await syncedCatalog(root)
+  // La gema editada en la caché no cuenta con el interruptor apagado.
+  const { entry } = await copy(root, payload({ catalogStyleId: 'fantasia' }))
+  const stored = await storedJson(root, entry.id)
+  assert.deepEqual(stored.sections, findCatalogGem('fantasia').sections)
+  assert.deepEqual(await copiedSamples(root, entry.id), [
+    ['sample-1.jpg', jpeg('one')],
+    ['sample-2.jpg', jpeg('two')],
+  ])
+  await assert.rejects(
+    copy(root, payload({ catalogStyleId: 'acuarela-nueva', samples: [] })),
+    { code: 'style_not_found' },
+  )
+  // `remote: false` y valores raros valen lo mismo que ausente.
+  for (const remote of [false, 'true', 1])
+    await assert.rejects(
+      copy(
+        root,
+        payload({ remote, catalogStyleId: 'acuarela-nueva', samples: [] }),
+      ),
+      { code: 'style_not_found' },
+    )
 })
