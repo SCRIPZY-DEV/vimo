@@ -14,7 +14,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
@@ -620,6 +620,43 @@ test('a malformed model in the payload is rejected before any request', async (t
       code: 'invalid_payload',
     })
   assert.equal(calls.text.length + calls.images.length, 0)
+})
+
+// Las muestras de un borrador del catálogo (ADR-0049) entran por el mismo
+// subcomando con `catalogDraft` (las fija check-catalog-draft-samples): el
+// camino de `styleId` sigue igual, escribe en su carpeta de la galería y nunca
+// crea `_catalog/`.
+test('the styleId path writes in its gallery folder and never creates _catalog', async (t) => {
+  const root = await gallery(t, template('generic'))
+  providers(t)
+  const result = await generateStyleSamples(context(root))
+  assert.deepEqual(
+    result.samples.map((sample) => sample.path),
+    [1, 2, 3, 4].map((number) =>
+      join(root, '_styles', 'st-fixture', `sample-${number}.jpg`),
+    ),
+  )
+  assert.deepEqual((await readdir(root)).sort(), ['_styles'])
+})
+
+test('styleId and catalogDraft together, or neither, are invalid_payload before any request', async (t) => {
+  const root = await gallery(t, template('generic'))
+  const calls = providers(t)
+  const catalogDraft = {
+    id: 'acuarela-nueva',
+    name: 'Acuarela nueva',
+    sections,
+    sampleMode: 'generic',
+  }
+  for (const payload of [{ catalogDraft }, { styleId: undefined }])
+    await assert.rejects(generateStyleSamples(context(root, payload)), {
+      code: 'invalid_payload',
+    })
+  assert.equal(calls.text.length + calls.images.length, 0)
+  assert.deepEqual((await readdir(root)).sort(), ['_styles'])
+  assert.deepEqual(await readdir(join(root, '_styles', 'st-fixture')), [
+    'style.json',
+  ])
 })
 
 function oldGemProviders(t) {

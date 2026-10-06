@@ -27,6 +27,9 @@ export type AccessPlan = 'trial' | 'activo'
 export interface AccessFeatures {
   gemTemplate: boolean
   newCatalog: boolean
+  // Entrega 3 (ADR-0049): el catálogo vive en el servidor y lo administra el
+  // admin desde la app. Vale solo junto con `newCatalog`.
+  remoteCatalog: boolean
   // Creador de estilo con IA (ADR-0050): la card «Crear estilo con IA».
   aiStyleCreator: boolean
 }

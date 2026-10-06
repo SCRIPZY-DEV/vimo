@@ -1,7 +1,6 @@
 import { toDataUri } from '../../providers/image/download.ts'
 import { generateEvolinkImage } from '../../providers/image/evolink.ts'
 import { generateFalImage } from '../../providers/image/fal.ts'
-import { findCatalogGem } from '../../prompts/catalog-gems/catalog.ts'
 import {
   CUSTOM_PORTRAIT_REQUEST,
   buildPreviewScene,
@@ -38,6 +37,8 @@ import type { CustomStyleSummary, GemSections } from '../../types/styles.ts'
 import { isInsufficientCreditsFailure } from '../../utils/insufficient-credits.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
+import { resolveCatalogGem } from '../catalog/catalog-cache.ts'
+import { wantsRemoteCatalog } from '../catalog/catalog-store.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
@@ -133,7 +134,11 @@ async function writeCustomStylePrompt(
   styleId: string,
   identityPrompt: string,
 ): Promise<string> {
-  const style = await readPreviewGem(context, styleId)
+  const style = await readPreviewGem(
+    context,
+    styleId,
+    wantsRemoteCatalog(context.job.payload),
+  )
   const writers = PORTRAIT_SCENE_MODELS.map((model) => ({
     model,
     llm: portraitSceneLlm(context, model),
@@ -229,14 +234,16 @@ function failureMessage(error: unknown): string {
 }
 
 // La gema del retrato. Una gema nueva del catálogo es una gema de plantilla y
-// entra por sus secciones sin leer el disco (decisión P6 del plan E2: los 5
-// ids heredados no llegan acá, van por la plantilla fija). Si no está en el
-// catálogo, es un estilo propio de la galería.
+// entra por sus secciones, sin leer la galería (decisión P6 del plan E2: los
+// 5 ids heredados no llegan acá, van por la plantilla fija): la del catálogo
+// sincronizado si está ahí y, si no, la empaquetada (ADR-0049). Si no está en
+// el catálogo, es un estilo propio de la galería.
 async function readPreviewGem(
   context: PipelineContext,
   styleId: string,
+  remote: boolean,
 ): Promise<PreviewGem> {
-  const catalogGem = findCatalogGem(styleId)
+  const catalogGem = await resolveCatalogGem(context, styleId, remote)
   if (catalogGem)
     return { sections: withoutLanguageMarker(catalogGem.sections), shots: [] }
 

@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dAsiatico: CatalogGem = {
   id: '2d-asiatico',
   name: { es: '2D Asiático', en: '2D Asian Ink', pt: '2D Asiático' },
-  description: {
-    es: 'Tinta y acuarela antigua de trazo delicado, con viñeta periférica y proporciones naturales.',
-    en: 'Old ink and watercolor with a delicate line, a peripheral vignette and natural proportions.',
-    pt: 'Tinta e aquarela antiga de traço delicado, com vinheta periférica e proporções naturais.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.twoD,

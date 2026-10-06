@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const pixelRetro: CatalogGem = {
   id: 'pixel-retro',
   name: { es: 'Pixel Retro', en: 'Retro Pixel', pt: 'Pixel Retrô' },
-  description: {
-    es: 'Pixel art de 16 bits estilo SNES: paleta limitada, píxel visible y composición de videojuego.',
-    en: '16-bit SNES-style pixel art: limited palette, visible pixels and video game composition.',
-    pt: 'Pixel art de 16 bits estilo SNES: paleta limitada, pixel visível e composição de videogame.',
-  },
   tags: [CATALOG_TAGS.pixelArt, CATALOG_TAGS.retro, CATALOG_TAGS.videoGame],
   sections: {
     visualStyle: `16-bit pixel art character sprites and side-scrolling videogame visuals with a retro SNES videogame aesthetic; limited color palette; crisp visible square pixels; dithering for gradients; no anti-aliasing; simple readable shapes suitable for low resolution; flat-colored clothing (2–3 flat colors per character); side-scrolling game scene composition.`,

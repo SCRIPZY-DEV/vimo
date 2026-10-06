@@ -11,11 +11,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const terror: CatalogGem = {
   id: 'terror',
   name: { es: 'Terror', en: 'Horror', pt: 'Terror' },
-  description: {
-    es: 'Fotograma de terror psicológico en blanco y negro: una sola luz, niebla densa y sombras profundas.',
-    en: 'A psychological horror film still in black and white: one light source, dense fog and deep shadows.',
-    pt: 'Fotograma de terror psicológico em preto e branco: uma única luz, névoa densa e sombras profundas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.horror,

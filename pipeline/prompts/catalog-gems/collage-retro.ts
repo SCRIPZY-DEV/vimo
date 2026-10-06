@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const collageRetro: CatalogGem = {
   id: 'collage-retro',
   name: { es: 'Collage Retro', en: 'Retro Collage', pt: 'Colagem Retrô' },
-  description: {
-    es: 'Collage de revista de los 50: recortes con bordes rasgados, trama de semitono y papel envejecido.',
-    en: '1950s magazine collage: torn-edge cutouts, halftone screen and aged paper.',
-    pt: 'Colagem de revista dos anos 50: recortes com bordas rasgadas, retícula de meio-tom e papel envelhecido.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.collage,

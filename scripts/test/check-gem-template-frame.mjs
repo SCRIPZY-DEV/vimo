@@ -1,8 +1,9 @@
 // El marco de Vimo (spec §5.1): el system de una gema de plantilla, byte a
-// byte, en los cuatro modos del carril y con o sin cada sección opcional. La
-// sección `character` nunca entra al system, las reglas nuevas son reglas de
-// plataforma declaradas (español sin acentos) y la gema vieja sigue saliendo
-// exactamente igual que antes. Funciones puras: sin HTTP ni disco.
+// byte, en los cuatro modos del carril y con o sin cada sección opcional.
+// Abre con el rol del modelo, la sección `character` nunca entra al system,
+// las reglas nuevas son reglas de plataforma declaradas (español sin acentos)
+// y la gema vieja sigue saliendo exactamente igual que antes. Funciones puras:
+// sin HTTP ni disco.
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -19,6 +20,7 @@ import {
   FIXED_START_HEADING,
   FIXED_START_NOTE,
   fixedPhrasesRuleFor,
+  FRAME_ROLE_LINE,
   OUTPUT_FORMAT_RULE,
   STYLE_RULES_HEADING,
   TREATMENT_TAG_RULE,
@@ -81,7 +83,10 @@ function platformTail(
 
 // El layout del spec §5.1, escrito a mano.
 function expectedSystem(gem, mode, platform = {}) {
-  const blocks = [VISUAL_STYLE_HEADING + '\n' + gem.visualStyle]
+  const blocks = [
+    FRAME_ROLE_LINE,
+    VISUAL_STYLE_HEADING + '\n' + gem.visualStyle,
+  ]
   if (gem.camera) blocks.push(CAMERA_HEADING + '\n' + gem.camera)
   if (gem.dynamism)
     blocks.push(
@@ -118,6 +123,7 @@ test('the new rules are declared platform rules, in Spanish without accents', ()
       /^[A-Z ]+ \(regla tecnica de la plataforma, se suma a todo lo anterior y no cambia tu estilo\): /,
     )
   for (const text of [
+    FRAME_ROLE_LINE,
     CONTENT_SAFETY_RULE,
     OUTPUT_FORMAT_RULE,
     FIXED_PHRASES_RULE,
@@ -176,12 +182,53 @@ test('a treatment without the protagonist frees part (1) of the architecture fro
   }
 })
 
+// ── El rol del modelo ──
+
+// El agente saca de la gema su rol, sus fases y su formato: el rol lo pone el
+// marco, igual para todas las gemas. Texto del dueño (2026-10-04).
+const ROLE_LINE =
+  'Eres un Director de Arte y Prompt Engineer experto en IA visual. Eres un asistente de solo texto: tu unica tarea es redactar los prompts de imagen del video, uno por fragmento del guion, con el estilo que sigue.'
+
+test('the frame opens with the role of the model, once, right above the visual style', () => {
+  assert.equal(FRAME_ROLE_LINE, ROLE_LINE)
+  for (const mode of MODES)
+    for (const gem of [sections, { visualStyle: sections.visualStyle }]) {
+      const system = buildTemplateSystem(gem, mode)
+      assert.ok(
+        system.startsWith(
+          ROLE_LINE + '\n\n' + VISUAL_STYLE_HEADING + '\n' + gem.visualStyle,
+        ),
+        mode,
+      )
+      assert.equal(system.split(ROLE_LINE).length - 1, 1, mode)
+    }
+})
+
+test('only the frame carries the role: the gem as text and the old gem do not', () => {
+  // La gema como texto va a la Fase 1 y al diseño y el retrato de personajes:
+  // ahí no se escriben prompts de escena, y el rol diría lo contrario.
+  assert.ok(!composeGemText(sections).includes(ROLE_LINE))
+  assert.ok(
+    !composeGemText(sections, { fixedPhrases: false }).includes(ROLE_LINE),
+  )
+  // La gema vieja trae el rol que le escribió su autor.
+  for (const mode of MODES)
+    assert.ok(
+      !buildVerbatimSystem(
+        'Render every scene as a watercolor.',
+        mode,
+      ).includes(ROLE_LINE),
+      mode,
+    )
+})
+
 // ── El system, byte a byte ──
 
 test('with every section, each mode composes exactly the spec layout', () => {
   assert.equal(
     buildTemplateSystem(sections, 'generic'),
-    '# VISUAL STYLE\n' +
+    ROLE_LINE +
+      '\n\n# VISUAL STYLE\n' +
       sections.visualStyle +
       '\n\n# CAMERA AND FRAMING\n' +
       sections.camera +

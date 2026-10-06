@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
@@ -38,15 +38,18 @@ import {
 } from '../../stages/scene-prompts/verbatim/verbatim-writer.ts'
 import { createVerbatimClient } from '../../providers/llm/verbatim-client.ts'
 import type { DecodedImage } from '../../types/images.ts'
-import type {
-  CustomStyleSummary,
-  GemSections,
-  GenerateStyleSamplesPayload,
-  GenerateStyleSamplesResult,
+import {
+  GEM_TEMPLATE_VERSION,
+  type CustomStyleSummary,
+  type GemSections,
+  type GenerateStyleSamplesPayload,
+  type GenerateStyleSamplesResult,
 } from '../../types/styles.ts'
-import { writeFileAtomic } from '../../utils/atomic-fs.ts'
+import { ensureDirectory, writeFileAtomic } from '../../utils/atomic-fs.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
+import { catalogDraftDirectory } from '../catalog/catalog-cache.ts'
+import { assertCatalogDraftSource } from '../catalog/catalog-store.ts'
 import { PROMPT_MODEL_ID_LIMIT } from '../videos/create-video-project.ts'
 import {
   neutralizeSampleSubject,
@@ -88,10 +91,14 @@ type SampleImageRequest = (
 //
 // Una gema de PLANTILLA (ADR-0048, spec §5.6) no usa este camino: sus cuatro
 // momentos salen del mismo carril que el video (`generateTemplateSamples`).
+// Un borrador del catálogo (`catalogDraft`, ADR-0049) es siempre una gema de
+// plantilla: `generateCatalogDraftSamples`.
 export async function generateStyleSamples(
   context: PipelineContext,
 ): Promise<GenerateStyleSamplesResult> {
   const payload = context.job.payload as GenerateStyleSamplesPayload | undefined
+  if (payload?.catalogDraft !== undefined)
+    return generateCatalogDraftSamples(context, payload)
   if (!payload?.styleId)
     throw new PipelineFailure('invalid_payload', 'payload.styleId is required')
   assertValidStyleId(payload.styleId)
@@ -103,24 +110,111 @@ export async function generateStyleSamples(
       `style "${payload.styleId}" does not exist`,
     )
 
-  const provider = payload.imageProvider === 'fal' ? 'fal' : 'evolink'
+  const { provider, apiKey } = sampleImageProvider(
+    context,
+    payload.imageProvider,
+  )
+  if (style.sections)
+    return generateTemplateSamples(context, {
+      style,
+      sections: style.sections,
+      promptModel: payload.promptModel,
+      provider,
+      apiKey,
+      writerKey: templateWriterKey(context, payload.promptModel),
+      directory: styleDirectory(context, style.id),
+    })
+  return generateLegacySamples(context, style, provider, apiKey)
+}
+
+// Las muestras del borrador de un estilo del catálogo que edita el admin
+// (ADR-0049, P4 del plan E3): el mismo carril, eventos y resultado que una
+// gema de plantilla de Mi estilo, con el marco y el modo `sampleMode` del
+// borrador, pero en `_catalog/_drafts/<id>/` y nunca en `_styles/`. La carpeta
+// se vacía antes de generar, después de validar el payload y las claves: lo
+// que queda ahí es siempre de una sola generación, y es lo que sube
+// `catalog-style-samples-upload`.
+async function generateCatalogDraftSamples(
+  context: PipelineContext,
+  payload: GenerateStyleSamplesPayload,
+): Promise<GenerateStyleSamplesResult> {
+  if (payload.styleId !== undefined)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'payload.styleId and payload.catalogDraft are exclusive',
+    )
+  const draft = assertCatalogDraftSource(
+    payload.catalogDraft,
+    'payload.catalogDraft',
+  )
+  const { provider, apiKey } = sampleImageProvider(
+    context,
+    payload.imageProvider,
+  )
+  const writerKey = templateWriterKey(context, payload.promptModel)
+
+  const directory = catalogDraftDirectory(context, draft.id)
+  await rm(directory, { recursive: true, force: true })
+  await ensureDirectory(directory)
+
+  // El borrador como un estilo de plantilla de Mi estilo con el modo de sus
+  // muestras: genérico (su sección `character` o la Fase 1) o cinemático.
+  const style: CustomStyleSummary = {
+    id: draft.id,
+    name: draft.name,
+    sections: draft.sections,
+    templateVersion: GEM_TEMPLATE_VERSION,
+    shots: [],
+    character: { mode: draft.sampleMode },
+    createdAt: '',
+    samples: [],
+  }
+  return generateTemplateSamples(context, {
+    style,
+    sections: draft.sections,
+    promptModel: payload.promptModel,
+    provider,
+    apiKey,
+    writerKey,
+    directory,
+  })
+}
+
+// Fail-safe del origen: solo un 'fal' explícito usa Fal; cualquier otro valor
+// cae a Evolink. La clave se exige antes de gastar.
+function sampleImageProvider(
+  context: PipelineContext,
+  imageProvider: string | undefined,
+): { provider: ImageProvider; apiKey: string } {
+  const provider = imageProvider === 'fal' ? 'fal' : 'evolink'
   const apiKey = context.job.apiKeys[provider]
   if (!apiKey)
     throw new PipelineFailure(
       'missing_api_key',
       `${provider} API key is missing`,
     )
+  return { provider, apiKey }
+}
 
-  if (style.sections)
-    return generateTemplateSamples(
-      context,
-      style,
-      style.sections,
-      payload.promptModel,
-      provider,
-      apiKey,
+// Lo que el carril verbatim exige antes de gastar: el modelo de Ajustes bien
+// formado (si viene) y la clave de DeepInfra, que devuelve.
+function templateWriterKey(
+  context: PipelineContext,
+  promptModel: string | undefined,
+): string {
+  if (
+    promptModel !== undefined &&
+    (typeof promptModel !== 'string' ||
+      promptModel.length > PROMPT_MODEL_ID_LIMIT)
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      `payload.promptModel must be a string of at most ${PROMPT_MODEL_ID_LIMIT} characters`,
     )
-  return generateLegacySamples(context, style, provider, apiKey)
+  const deepinfraKey = context.job.apiKeys.deepinfra
+  if (!deepinfraKey)
+    throw new PipelineFailure('missing_api_key', 'deepinfra API key is missing')
+  return deepinfraKey
 }
 
 // El camino de siempre para una gema vieja: el lote JSON de previews con la
@@ -288,27 +382,25 @@ async function generateLegacySamples(
 // (`resolveVerbatimModel`, ADR-0044): ausente o vacío = el de la casa; uno
 // oculto, retirado o desconocido escribe con el de la casa y lo avisa. La
 // Fase 1 y la ronda de rescate también salen de esa oferta validada.
+//
+// Las muestras se escriben en `directory`: la carpeta del estilo en la
+// galería o la del borrador del catálogo (ADR-0049).
+interface TemplateSamplesRequest {
+  style: CustomStyleSummary
+  sections: GemSections
+  promptModel: string | undefined
+  provider: ImageProvider
+  apiKey: string
+  /** La clave de DeepInfra, ya exigida por `templateWriterKey`. */
+  writerKey: string
+  directory: string
+}
+
 async function generateTemplateSamples(
   context: PipelineContext,
-  style: CustomStyleSummary,
-  sections: GemSections,
-  promptModel: string | undefined,
-  provider: ImageProvider,
-  apiKey: string,
+  request: TemplateSamplesRequest,
 ): Promise<GenerateStyleSamplesResult> {
-  if (
-    promptModel !== undefined &&
-    (typeof promptModel !== 'string' ||
-      promptModel.length > PROMPT_MODEL_ID_LIMIT)
-  )
-    throw new PipelineFailure(
-      'invalid_payload',
-      `payload.promptModel must be a string of at most ${PROMPT_MODEL_ID_LIMIT} characters`,
-    )
-  const deepinfraKey = context.job.apiKeys.deepinfra
-  if (!deepinfraKey)
-    throw new PipelineFailure('missing_api_key', 'deepinfra API key is missing')
-
+  const { style, sections, promptModel, provider, apiKey, directory } = request
   const resolved = await resolveSampleCharacter(context, style)
   const input = templateCharacterInput(resolved, style, sections)
   const log = (level: 'info' | 'warn') => (message: string) => {
@@ -345,7 +437,7 @@ async function generateTemplateSamples(
       modelId: promptModel,
       character: input,
       client: createVerbatimClient({
-        apiKey: deepinfraKey,
+        apiKey: request.writerKey,
         baseUrl: context.config.llm.baseUrl,
       }),
       signal: context.signal,
@@ -388,7 +480,7 @@ async function generateTemplateSamples(
   )
   return generateSampleImages(
     context,
-    styleDirectory(context, style.id),
+    directory,
     prompts,
     provider,
     apiKey,

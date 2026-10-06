@@ -7,12 +7,26 @@ import {
 
 // EL MARCO DE VIMO (ADR-0048, spec §5): cómo se arma el `system` de la Fase 2
 // cuando la gema viene por SECCIONES. La gema vieja (texto libre) sigue por
-// `buildVerbatimSystem`, byte por byte; acá las secciones del autor van bajo
-// títulos fijos y la plataforma suma sus reglas DECLARADAS, con el mismo
-// mecanismo de siempre (ADR-0019): reglas técnicas en español sin acentos,
-// que se suman y no cambian el estilo. La sección `character` NUNCA entra al
-// system: en el modo genérico viaja como turno del retrato y se teje por
-// código; en «Mi personaje» y en cinemático no viaja (spec §5.2).
+// `buildVerbatimSystem`, byte por byte; acá el system abre con el rol del
+// modelo, las secciones del autor van bajo títulos fijos y la plataforma suma
+// sus reglas DECLARADAS, con el mismo mecanismo de siempre (ADR-0019): reglas
+// técnicas en español sin acentos, que se suman y no cambian el estilo. La
+// sección `character` NUNCA entra al system: en el modo genérico viaja como
+// turno del retrato y se teje por código; en «Mi personaje» y en cinemático
+// no viaja (spec §5.2).
+
+/**
+ * El rol del modelo, primera línea del system. El agente reconstructor saca
+ * de la gema su rol, sus fases y su formato de salida (ADR-0048), así que sin
+ * esta línea el system abría directo en el estilo y el modelo deducía su
+ * tarea de las reglas de más abajo. Es de la plataforma, igual para todas las
+ * gemas, y dice solo quién escribe y qué entrega: el formato, el idioma y el
+ * orden de cada prompt siguen en sus reglas. Texto del dueño (2026-10-04),
+ * sin acentos como el resto del marco.
+ */
+export const FRAME_ROLE_LINE =
+  'Eres un Director de Arte y Prompt Engineer experto en IA visual. ' +
+  'Eres un asistente de solo texto: tu unica tarea es redactar los prompts de imagen del video, uno por fragmento del guion, con el estilo que sigue.'
 
 export const VISUAL_STYLE_HEADING = '# VISUAL STYLE'
 export const CAMERA_HEADING = '# CAMERA AND FRAMING'
@@ -127,17 +141,20 @@ function dynamismBlock(dynamism: string, mode: VerbatimCharacterMode): string {
 
 /**
  * El `system` de la Fase 2 para una gema de plantilla (spec §5.1), en este
- * orden: estilo visual, cámara, dinamismo con su etiqueta, reglas del
- * estilo, seguridad de contenido, formato de salida, frases fijas y las
- * reglas de plataforma de siempre (`platformSystemRules`). Una sección
- * opcional vacía no deja título.
+ * orden: el rol del modelo, estilo visual, cámara, dinamismo con su
+ * etiqueta, reglas del estilo, seguridad de contenido, formato de salida,
+ * frases fijas y las reglas de plataforma de siempre
+ * (`platformSystemRules`). Una sección opcional vacía no deja título.
  */
 export function buildTemplateSystem(
   sections: GemSections,
   mode: VerbatimCharacterMode = 'generic',
   options?: VerbatimSystemOptions,
 ): string {
-  const blocks = [sectionBlock(VISUAL_STYLE_HEADING, sections.visualStyle)]
+  const blocks = [
+    FRAME_ROLE_LINE,
+    sectionBlock(VISUAL_STYLE_HEADING, sections.visualStyle),
+  ]
   const camera = sections.camera?.trim()
   if (camera) blocks.push(sectionBlock(CAMERA_HEADING, camera))
   const dynamism = sections.dynamism?.trim()
@@ -167,9 +184,10 @@ export interface GemTextOptions {
  * La gema de plantilla como TEXTO, para los usos que hoy reciben «la gema»
  * entera: la Fase 1 del carril, el diseño del personaje con el estilo, el
  * preview de un personaje y el estilo del fallback de imágenes. Las secciones
- * con sus títulos y sin reglas de plataforma. La sección `character` no va:
- * esos usos diseñan o dibujan OTRO personaje (o uno desde el guion), y el del
- * estilo solo viaja en el modo genérico (spec §5.2).
+ * con sus títulos, sin el rol del marco y sin reglas de plataforma (esos usos
+ * no escriben prompts de escena). La sección `character` no va: esos usos
+ * diseñan o dibujan OTRO personaje (o uno desde el guion), y el del estilo
+ * solo viaja en el modo genérico (spec §5.2).
  */
 export function composeGemText(
   sections: GemSections,

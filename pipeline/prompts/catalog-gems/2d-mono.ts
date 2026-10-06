@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dMono: CatalogGem = {
   id: '2d-mono',
   name: { es: '2D Mono', en: '2D Monkey', pt: '2D Macaco' },
-  description: {
-    es: 'Gorila deliberadamente mal dibujado estilo MS Paint: línea torpe, colores planos y cero sombreado.',
-    en: 'A deliberately badly drawn MS Paint gorilla: clumsy line, flat colors and zero shading.',
-    pt: 'Gorila deliberadamente mal desenhado estilo MS Paint: linha desajeitada, cores chapadas e zero sombreado.',
-  },
   tags: [
     CATALOG_TAGS.fixedCharacter,
     CATALOG_TAGS.twoD,

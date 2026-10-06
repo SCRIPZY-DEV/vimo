@@ -13,6 +13,8 @@ export class VimoServerError extends Error {
   readonly status: number | null
   readonly code: string | null
   readonly retryAfterSeconds: number | null
+  // `detalle` del cuerpo, acotado: qué campo rechazó el servidor.
+  readonly detail: string | null
   // Cuándo llegó la respuesta: `retryAfterSeconds` cuenta desde acá.
   readonly receivedAt: number | null
 
@@ -23,6 +25,7 @@ export class VimoServerError extends Error {
     this.status = details.status ?? null
     this.code = details.code ?? null
     this.retryAfterSeconds = details.retryAfterSeconds ?? null
+    this.detail = details.detail ?? null
     this.receivedAt = details.receivedAt ?? null
   }
 }
@@ -36,7 +39,10 @@ function isTimeoutError(error: unknown): boolean {
   return Reflect.get(error, 'name') === 'TimeoutError'
 }
 
-/** Una respuesta que no es 2xx, con el cuerpo `{ code, retryAfterSeconds? }` del contrato. */
+// El `detalle` de un rechazo se muestra tal cual: acotado por si el servidor manda de más.
+const DETAIL_LIMIT = 300
+
+/** Una respuesta que no es 2xx, con el cuerpo `{ code, retryAfterSeconds?, detalle? }` del contrato. */
 export function vimoServerErrorFromResponse(
   status: number,
   body: unknown,
@@ -47,6 +53,7 @@ export function vimoServerErrorFromResponse(
 
   const code: unknown = Reflect.get(body, 'code')
   const retryAfterSeconds: unknown = Reflect.get(body, 'retryAfterSeconds')
+  const detail: unknown = Reflect.get(body, 'detalle')
   const validRetry =
     typeof retryAfterSeconds === 'number' &&
     Number.isFinite(retryAfterSeconds) &&
@@ -57,6 +64,9 @@ export function vimoServerErrorFromResponse(
     receivedAt,
     ...(typeof code === 'string' && code.length > 0 ? { code } : {}),
     ...(validRetry ? { retryAfterSeconds } : {}),
+    ...(typeof detail === 'string' && detail.trim()
+      ? { detail: detail.trim().slice(0, DETAIL_LIMIT) }
+      : {}),
   })
 }
 
@@ -120,4 +130,10 @@ export function vimoServerRetryAt(error: unknown): string | null {
   if (Number.isNaN(retryAt.getTime())) return null
 
   return retryAt.toISOString()
+}
+
+/** El `detalle` de un rechazo del servidor (qué campo), si lo mandó. */
+export function vimoServerErrorDetail(error: unknown): string | null {
+  if (!(error instanceof VimoServerError)) return null
+  return error.detail
 }

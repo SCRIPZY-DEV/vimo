@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const abstractoRojo: CatalogGem = {
   id: 'abstracto-rojo',
   name: { es: 'Abstracto Rojo', en: 'Abstract Red', pt: 'Abstrato Vermelho' },
-  description: {
-    es: 'Novela gráfica psicológica: negro absoluto, rojo sangre y violeta profundo, con tintas planas.',
-    en: 'Psychological graphic novel: absolute black, blood red and deep violet in flat inks.',
-    pt: 'Novela gráfica psicológica: preto absoluto, vermelho sangue e violeta profundo, com tintas chapadas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.abstract,

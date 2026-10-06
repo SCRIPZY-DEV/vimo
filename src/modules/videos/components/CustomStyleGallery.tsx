@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Loader2, Plus } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { Button } from '@/modules/common/ui/button'
 import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
+import { NewStyleCard } from '@/modules/videos/components/NewStyleCard'
 import { StyleCloneCreateCard } from '@/modules/videos/components/StyleCloneCreateCard'
 import { StyleCloneModal } from '@/modules/videos/components/StyleCloneModal'
 import { StyleCloneSessionCard } from '@/modules/videos/components/StyleCloneSessionCard'
@@ -89,9 +90,9 @@ function editorLayoutOf(
 // de personaje abre desde sus chips el editor de la gema EN USO. Con la
 // plantilla encendida (ADR-0048), una gema vieja se actualiza sola la primera
 // vez que se abre o se elige (spec §4.4), sin bloquear su uso; como se guarda
-// sin que la persona vea las secciones, queda un aviso para revisarlas hasta
-// que lo descarta o sale de la pestaña (una gema ya adaptada lo dice después
-// en su tarjeta).
+// sin que la persona vea las secciones, queda un aviso para revisarlas, arriba
+// de las tarjetas, hasta que lo descarta o sale de la pestaña (una gema ya
+// adaptada lo dice después en su tarjeta).
 // Con el creador de estilo con IA (ADR-0050) la grilla suma, al principio, una
 // tarjeta por clonación en curso (siguen trabajando aunque se cierre su modal
 // o se salga de esta pestaña) y, al lado de «Crear estilo», «Crear estilo con
@@ -262,79 +263,10 @@ export function CustomStyleGallery({
         </div>
       </div>
 
-      {isLoading && (
-        <p className="py-6 text-center">
-          <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
-        </p>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {cloneSessions.map((session) => (
-          <StyleCloneSessionCard
-            key={session.id}
-            session={session}
-            onOpen={() =>
-              openStyleCloneModal({ kind: 'session', sessionId: session.id })
-            }
-            onDiscard={() => discardClone(session.id)}
-          />
-        ))}
-
-        {styles.map((style) => (
-          <CustomStyleCard
-            key={style.id}
-            style={style}
-            selected={selected?.styleId === style.id}
-            disabled={disabled}
-            migration={migrationOf(style)}
-            onSelect={() => selectStyle(style)}
-            onEdit={() => openEdit(style, false)}
-            onGenerateSamples={() => openEdit(style, true)}
-            onDelete={() => void removeStyle(style)}
-          />
-        ))}
-
-        {/* La tarjeta de CREAR es fija: solo crea, nunca se transforma en un
-            estilo. MISMA silueta que una tarjeta de estilo (zona 4:3 arriba +
-            pie de dos líneas): mide lo mismo esté donde esté, y la grilla
-            crece hacia abajo. */}
-        <div
-          role="button"
-          tabIndex={disabled ? undefined : 0}
-          onClick={openCreate}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return
-            event.preventDefault()
-            openCreate()
-          }}
-          className="group flex cursor-pointer select-none flex-col overflow-hidden rounded-2xl border-2 border-dashed border-border bg-card text-muted-foreground outline-none transition-all hover:border-saffron/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-saffron/50"
-        >
-          <div className="flex aspect-[4/3] items-center justify-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110">
-              <Plus className="h-6 w-6" />
-            </span>
-          </div>
-          <div className="px-3.5 py-2.5 text-left">
-            <p className="truncate font-display text-base font-bold text-foreground">
-              {t('create.customStyles.createCard')}
-            </p>
-            <p className="truncate font-body text-xs text-muted-foreground">
-              {t('create.customStyles.createCardHint')}
-            </p>
-          </div>
-        </div>
-
-        {aiStyleCreatorEnabled && (
-          <StyleCloneCreateCard
-            disabled={disabled}
-            full={cloneSessions.length >= STYLE_CLONE_SESSION_LIMIT}
-            onOpen={() => openStyleCloneModal({ kind: 'new' })}
-          />
-        )}
-      </div>
-
-      {/* Clonaciones recién guardadas con su modal cerrado: el estilo ya
-          está en la grilla y la persona decide si lo usa en este video. */}
+      {/* Entre el título y la galería: debajo de una lista larga de estilos
+          los avisos quedaban fuera de la vista. Primero las clonaciones recién
+          guardadas con su modal cerrado: el estilo ya está en la grilla y la
+          persona decide si lo usa en este video. */}
       {clones.finished.map((finished) => (
         <Alert
           key={finished.sessionId}
@@ -379,6 +311,54 @@ export function CustomStyleGallery({
           onDismiss={() => dismissGemMigration(style.id)}
         />
       ))}
+
+      {isLoading && (
+        <p className="py-6 text-center">
+          <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {cloneSessions.map((session) => (
+          <StyleCloneSessionCard
+            key={session.id}
+            session={session}
+            onOpen={() =>
+              openStyleCloneModal({ kind: 'session', sessionId: session.id })
+            }
+            onDiscard={() => discardClone(session.id)}
+          />
+        ))}
+
+        {styles.map((style) => (
+          <CustomStyleCard
+            key={style.id}
+            style={style}
+            selected={selected?.styleId === style.id}
+            disabled={disabled}
+            migration={migrationOf(style)}
+            onSelect={() => selectStyle(style)}
+            onEdit={() => openEdit(style, false)}
+            onGenerateSamples={() => openEdit(style, true)}
+            onDelete={() => void removeStyle(style)}
+          />
+        ))}
+
+        <NewStyleCard
+          title={t('create.customStyles.createCard')}
+          hint={t('create.customStyles.createCardHint')}
+          disabled={disabled}
+          onCreate={openCreate}
+        />
+
+        {aiStyleCreatorEnabled && (
+          <StyleCloneCreateCard
+            disabled={disabled}
+            full={cloneSessions.length >= STYLE_CLONE_SESSION_LIMIT}
+            onOpen={() => openStyleCloneModal({ kind: 'new' })}
+          />
+        )}
+      </div>
 
       {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la
           galería (origen), además de en la lista de bloqueos del envío. */}

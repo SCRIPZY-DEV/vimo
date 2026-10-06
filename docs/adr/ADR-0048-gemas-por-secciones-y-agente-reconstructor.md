@@ -128,6 +128,7 @@ render ────────► filterFinal del preset de color
 orden:
 
 ```
+FRAME_ROLE_LINE         el rol del modelo                 (desde el 2026-10-04)
 # VISUAL STYLE          visualStyle
 # CAMERA AND FRAMING    camera                            (si hay)
 # DYNAMISM              dynamism + TREATMENT_TAG_RULE     (si hay)
@@ -557,6 +558,20 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   Desde ese día, a pedido del dueño, la lleva **toda gema con secciones**: así una clonada con IA no
   parece incompleta al lado de una adaptada. Solo una gema vieja sin adaptar queda sin etiqueta
   (`isAdaptedGem`). Los avisos siguen sin guardarse en disco.
+- **Los avisos van donde se ven.** El aviso «Adaptamos …» se dibuja arriba de las tarjetas de Mi
+  estilo, entre el título y la grilla. Los avisos de «Pasar a mi estilo» (copia en curso y fallida)
+  quedan pegados al borde de abajo de lo visible mientras la galería del catálogo está en pantalla,
+  y el de fallo se puede cerrar. Traerlos a la vista con scroll no servía: el menú de la tarjeta
+  devuelve el foco a su botón y corta ese scroll.
+- **El aviso del modal explica qué pone Vimo.** Debajo de lo que lista el agente, una línea fija
+  dice que las reglas de flujo, de formato de salida y de idioma no hacen falta en la gema porque
+  el marco trae las suyas (Capa 2). No nombra el rol del modelo: el marco no manda ninguna línea de
+  rol. El dueño preguntó si debería; queda sin cambiar hasta que lo decida, y una regla nueva en el
+  marco se mide antes de entrar, como las demás (ADR-0019). (Decidido el 2026-10-04: ver la nota
+  siguiente.)
+- **La copia dice de qué gema se clonó.** El modal de una copia muestra «Gema clonada del catálogo»
+  con el nombre del estilo de origen en una píldora amarilla, y el aviso de la copia en curso,
+  «Clonando gema del catálogo». La tarjeta conserva «Basado en …».
 
 ## Nota posterior 2026-10-03 — el final fijo llega a 1 000 y el origen suma los estilos clonados
 
@@ -572,6 +587,30 @@ Cambios al contrato de la gema que trae el creador de estilo con IA
 - **`origin` es una unión.** Además de `{ kind: 'catalog', catalogStyleId, name }` existe
   `{ kind: 'ai-clone', source: 'youtube' | 'images', videoUrl? }`. `readGemOrigin` y
   `assertGemOrigin` validan las dos formas (el link, solo de YouTube y ya normalizado), y la tarjeta
-  y el modal de Mi estilo eligen su texto con `styleOriginLabelOf`
+  de Mi estilo elige su texto con `styleOriginLabelOf`
   (`src/modules/videos/utilities/styleOrigin.ts`): «Basado en …» o «Clonado con IA de un video / de
-  tus imágenes».
+  tus imágenes». El modal usa ese texto para un estilo clonado con IA; una copia del catálogo
+  muestra «Gema clonada del catálogo» con la píldora (nota anterior).
+
+## Nota posterior 2026-10-04 — el marco abre con el rol del modelo
+
+Decisión del dueño. El agente saca de la gema su rol («Eres un Director de Arte…») junto con las
+fases y el formato de salida, y el marco reponía todo menos el rol: el `system` abría directo en
+`# VISUAL STYLE`. Desde hoy `buildTemplateSystem` pone primero `FRAME_ROLE_LINE`, igual para
+todas las gemas de plantilla y en los cuatro modos:
+
+> Eres un Director de Arte y Prompt Engineer experto en IA visual. Eres un asistente de solo texto:
+> tu unica tarea es redactar los prompts de imagen del video, uno por fragmento del guion, con el
+> estilo que sigue.
+
+- Dice solo quién escribe y qué entrega. El formato, el idioma y el orden de cada prompt siguen en
+  sus reglas. No lleva la «REGLA MAESTRA» de las gemas de chat (prohibido generar imágenes, «para
+  que el usuario los copie»): el modelo se llama por API y los prompts los manda Vimo al generador.
+- Va sin acentos, como el resto del marco.
+- `composeGemText` no la lleva (la Fase 1 y el diseño de personajes no escriben prompts de escena)
+  y la gema vieja sigue byte por byte.
+- **No se midió con claves reales antes de entrar**, a diferencia de las otras reglas del marco
+  (ADR-0019): el dueño la pidió «para estar seguros» y la prueba es su QA de generación. Para volver
+  atrás alcanza con quitarla de `buildTemplateSystem`. Las muestras del catálogo se generaron sin
+  ella y no se regeneran.
+- Lo fija `check-gem-template-frame.mjs`; informe en `fixes/2026-10-04_template-frame-role-line.md`.

@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dEstilo: CatalogGem = {
   id: '2d-estilo',
   name: { es: '2D Storytime', en: '2D Storytime', pt: '2D Storytime' },
-  description: {
-    es: 'Ilustración 2D cel-shaded tipo cómic, con fondos pintados a mano y sombras marcadas. Sin personaje fijo.',
-    en: 'Comic-like cel-shaded 2D illustration with hand-painted backgrounds and strong shadows. No fixed character.',
-    pt: 'Ilustração 2D cel-shaded tipo quadrinhos, com fundos pintados à mão e sombras marcadas. Sem personagem fixo.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.twoD,

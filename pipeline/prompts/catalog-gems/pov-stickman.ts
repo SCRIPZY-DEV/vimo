@@ -19,11 +19,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const povStickman: CatalogGem = {
   id: 'pov_stickman',
   name: { es: 'POV Stickman', en: 'POV Stickman', pt: 'POV Stickman' },
-  description: {
-    es: 'Muñeco de palitos de cabeza blanca y guantes, vestido según cada escena, en mundos simples y coloridos.',
-    en: 'A white-headed stick figure with gloves, dressed for each scene, in simple colorful worlds.',
-    pt: 'Boneco de palitos de cabeça branca e luvas, vestido para cada cena, em mundos simples e coloridos.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.fixedCharacter,

@@ -12,11 +12,6 @@ export const infografiaAzul: CatalogGem = {
     en: 'Blue Infographic',
     pt: 'Infográfico Azul',
   },
-  description: {
-    es: 'Infografía moderna sobre azul marino: vector plano, un solo acento naranja y mucho aire.',
-    en: 'Modern infographic on navy blue: flat vector, a single orange accent and plenty of white space.',
-    pt: 'Infográfico moderno sobre azul-marinho: vetor plano, um único acento laranja e muito respiro.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.infographic,

@@ -17,9 +17,10 @@ interface GemAgentWarningsProps {
 }
 
 // Lo que el agente descartó o encontró ambiguo al ordenar la gema (spec §6.2),
-// escrito en el idioma de la app. Se muestra después de la adaptación de una
-// gema pegada o de la migración automática; no se guarda con el estilo. Si la
-// persona no lo cierra, se descarta solo al rato.
+// escrito en el idioma de la app, y debajo la aclaración de que las reglas de
+// flujo, formato e idioma que el agente saca las pone Vimo. Se muestra después
+// de la adaptación de una gema pegada o de la migración automática; no se
+// guarda con el estilo. Si la persona no lo cierra, se descarta solo al rato.
 export function GemAgentWarnings({
   warnings,
   migrated = false,
@@ -62,11 +63,18 @@ export function GemAgentWarnings({
     >
       {migrated && <p>{t('create.gemTemplate.migrationReview')}</p>}
       {warnings.length > 0 && (
-        <ul className="mt-1 list-disc space-y-0.5 pl-4">
-          {warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
+        <>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+          {/* Lo que el agente saca a propósito no se pierde: el marco de Vimo
+              trae sus propias reglas de flujo, formato e idioma (ADR-0048). */}
+          <p className="mt-1.5 text-muted-foreground">
+            {t('create.gemTemplate.warningsPlatformNote')}
+          </p>
+        </>
       )}
     </Alert>
   )

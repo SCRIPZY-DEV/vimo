@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/modules/common/utilities/cn'
 import { localizedText } from '@/modules/videos/utilities/catalogLocale'
+import { isFixedCharacterTag } from '@/modules/videos/utilities/catalogTags'
 import type { LocalizedText } from '@pipeline/types/catalog.ts'
 
 interface CatalogStyleTagsProps {
@@ -13,7 +14,8 @@ interface CatalogStyleTagsProps {
 
 // Las etiquetas que el admin le pone a un estilo del catálogo (plan E2, P12)
 // como chips chicos: qué es el estilo y qué hace. Viajan dentro de la gema en
-// los tres idiomas; no tienen claves de i18n.
+// los tres idiomas; no tienen claves de i18n. «Personaje fijo» va en amarillo,
+// en la tarjeta y en «Ver»: conviene usar el personaje del estilo o uno propio.
 export function CatalogStyleTags({ tags, singleRow }: CatalogStyleTagsProps) {
   const { i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'es'
@@ -27,7 +29,12 @@ export function CatalogStyleTags({ tags, singleRow }: CatalogStyleTagsProps) {
       {tags.map((tag) => (
         <li
           key={tag.es}
-          className="inline-flex h-4 items-center whitespace-nowrap rounded-full bg-muted px-1.5 font-body text-[10px] font-semibold leading-none text-muted-foreground"
+          className={cn(
+            'inline-flex h-4 items-center whitespace-nowrap rounded-full px-1.5 font-body text-[10px] font-semibold leading-none',
+            isFixedCharacterTag(tag)
+              ? 'bg-saffron text-charcoal'
+              : 'bg-muted text-muted-foreground',
+          )}
         >
           {localizedText(tag, language)}
         </li>

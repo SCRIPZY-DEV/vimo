@@ -12,8 +12,13 @@ import {
   videosQueryKeys,
 } from '@/modules/videos/constants'
 import type { SampleGenerationOptions } from '@/modules/videos/types/styles'
+import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
-import type { GenerateStyleSamplesPayload } from '@pipeline/types/styles.ts'
+import type {
+  CatalogDraftSamplesSource,
+  GenerateStyleSamplesPayload,
+  StyleSample,
+} from '@pipeline/types/styles.ts'
 
 export interface SampleGenerationState {
   running: boolean
@@ -37,10 +42,39 @@ const INITIAL_STATE: SampleGenerationState = {
   errorKey: null,
 }
 
+// Lo que reporta `generate-style-samples` en cada evento de avance.
+interface SampleProgressDetail {
+  phase?: 'prompts' | 'images'
+  sampleId?: number
+  status?: string
+  path?: string
+  mtimeMs?: number
+}
+
+function isStyleSample(value: unknown): value is StyleSample {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    typeof Reflect.get(value, 'file') === 'string' &&
+    typeof Reflect.get(value, 'path') === 'string' &&
+    typeof Reflect.get(value, 'mtimeMs') === 'number'
+  )
+}
+
+// Las muestras del resultado del job, si el sidecar las devolvió con su forma.
+function samplesOfResult(result: unknown): StyleSample[] {
+  if (typeof result !== 'object' || result === null) return []
+  const samples: unknown = Reflect.get(result, 'samples')
+  if (!Array.isArray(samples)) return []
+  return samples.filter(isStyleSample)
+}
+
 // Job de muestras de un estilo: progreso por muestra vía eventos del Channel
 // (reemplazo del polling de 500 ms del origen). Al completar invalida la
 // galería — las muestras nuevas ya están en disco — y difiere el refetch del
-// saldo del proveedor (también si falló: pudo cobrar alguna muestra).
+// saldo del proveedor (también si falló: pudo cobrar alguna muestra). Un
+// borrador del catálogo (Entrega 3, ADR-0049) genera con el mismo job y el
+// mismo avance; sus muestras no están en ninguna galería local, así que
+// `generateForCatalogDraft` las devuelve para que el modal las suba.
 export function useStyleSampleGeneration() {
   const [state, setState] = useState(INITIAL_STATE)
   // Una gema de plantilla escribe sus muestras con el modelo de Ajustes, como
@@ -56,30 +90,25 @@ export function useStyleSampleGeneration() {
     blockedIds,
   )
 
-  const generate = async (
-    styleId: string,
-    imageProvider: ImageProviderId,
-    { templateGem }: SampleGenerationOptions,
-  ) => {
+  // Corre el job y resuelve con las muestras del resultado al completar, o
+  // con null si falló (el porqué queda en `errorKey`). `invalidate` dice si
+  // hay una galería local que refrescar (Mi estilo sí; un borrador del
+  // catálogo no).
+  const run = async (
+    payload: GenerateStyleSamplesPayload,
+    invalidate: boolean,
+  ): Promise<StyleSample[] | null> => {
     setState({ ...INITIAL_STATE, running: true })
-    // Una gema vieja manda exactamente lo de siempre.
-    const payload: GenerateStyleSamplesPayload = {
-      styleId,
-      imageProvider,
-      ...(templateGem && settingsPromptModel
-        ? { promptModel: settingsPromptModel }
-        : {}),
+    const refreshGallery = () => {
+      if (!invalidate) return
+      void queryClient.invalidateQueries({
+        queryKey: videosQueryKeys.customStyles,
+      })
     }
-    try {
-      await videosApi.generateStyleSamples(payload, (event) => {
+    return new Promise<StyleSample[] | null>((resolve) => {
+      const onEvent = (event: PipelineEventPayload) => {
         if (event.type === 'progress') {
-          const detail = (event.detail ?? {}) as {
-            phase?: 'prompts' | 'images'
-            sampleId?: number
-            status?: string
-            path?: string
-            mtimeMs?: number
-          }
+          const detail = (event.detail ?? {}) as SampleProgressDetail
           setState((previous) => ({
             ...previous,
             phase: detail.phase ?? previous.phase,
@@ -119,16 +148,13 @@ export function useStyleSampleGeneration() {
             phase: null,
             completed: true,
           }))
-          void queryClient.invalidateQueries({
-            queryKey: videosQueryKeys.customStyles,
-          })
+          refreshGallery()
           scheduleCreditsRefresh()
+          resolve(samplesOfResult(event.result))
           return
         }
         if (event.type === 'job-failed') {
-          void queryClient.invalidateQueries({
-            queryKey: videosQueryKeys.customStyles,
-          })
+          refreshGallery()
           setState((previous) => ({
             ...previous,
             running: false,
@@ -137,18 +163,54 @@ export function useStyleSampleGeneration() {
               CREATE_ERROR_MESSAGE_KEYS[event.code] ?? UNKNOWN_CREATE_ERROR_KEY,
           }))
           scheduleCreditsRefresh()
+          resolve(null)
         }
+      }
+      videosApi.generateStyleSamples(payload, onEvent).catch((error) => {
+        setState((previous) => ({
+          ...previous,
+          running: false,
+          phase: null,
+          errorKey: videosApi.errorMessageKey(error),
+        }))
+        scheduleCreditsRefresh()
+        resolve(null)
       })
-    } catch (error) {
-      setState((previous) => ({
-        ...previous,
-        running: false,
-        phase: null,
-        errorKey: videosApi.errorMessageKey(error),
-      }))
-      scheduleCreditsRefresh()
-    }
+    })
   }
 
-  return { ...state, generate }
+  const generate = async (
+    styleId: string,
+    imageProvider: ImageProviderId,
+    { templateGem }: SampleGenerationOptions,
+  ) => {
+    // Una gema vieja manda exactamente lo de siempre.
+    await run(
+      {
+        styleId,
+        imageProvider,
+        ...(templateGem && settingsPromptModel
+          ? { promptModel: settingsPromptModel }
+          : {}),
+      },
+      true,
+    )
+  }
+
+  // Un borrador del catálogo es siempre una gema de plantilla: escribe con el
+  // modelo de Ajustes, como las de Mi estilo.
+  const generateForCatalogDraft = (
+    catalogDraft: CatalogDraftSamplesSource,
+    imageProvider: ImageProviderId,
+  ) =>
+    run(
+      {
+        catalogDraft,
+        imageProvider,
+        ...(settingsPromptModel ? { promptModel: settingsPromptModel } : {}),
+      },
+      false,
+    )
+
+  return { ...state, generate, generateForCatalogDraft }
 }

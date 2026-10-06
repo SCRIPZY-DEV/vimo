@@ -11,12 +11,20 @@ import {
   parseRememberedAccess,
   serializeRememberedAccess,
 } from '../../src/modules/auth/utilities/accessFlags.ts'
+import { readAccessAdmin } from '../../src/modules/common/utilities/readAccessAdmin.ts'
 import { readAccessFeature } from '../../src/modules/common/utilities/readAccessFeature.ts'
+
+const FEATURES_OFF = {
+  gemTemplate: false,
+  newCatalog: false,
+  remoteCatalog: false,
+  aiStyleCreator: false,
+}
 
 const ALL_OFF = {
   demo: false,
   admin: false,
-  features: { gemTemplate: false, newCatalog: false, aiStyleCreator: false },
+  features: FEATURES_OFF,
 }
 
 test('un servidor viejo sin admin ni features deja todo apagado', () => {
@@ -26,40 +34,32 @@ test('un servidor viejo sin admin ni features deja todo apagado', () => {
 
 test('features incompleto: lo que falta cuenta como apagado', () => {
   assert.deepEqual(normalizeAccessFeatures({ gemTemplate: true }), {
+    ...FEATURES_OFF,
     gemTemplate: true,
-    newCatalog: false,
-    aiStyleCreator: false,
   })
   assert.deepEqual(normalizeAccessFeatures({ newCatalog: true }), {
-    gemTemplate: false,
+    ...FEATURES_OFF,
     newCatalog: true,
-    aiStyleCreator: false,
+  })
+  assert.deepEqual(normalizeAccessFeatures({ remoteCatalog: true }), {
+    ...FEATURES_OFF,
+    remoteCatalog: true,
   })
   // El creador de estilo con IA (ADR-0050) tiene su propio interruptor.
   assert.deepEqual(normalizeAccessFeatures({ aiStyleCreator: true }), {
-    gemTemplate: false,
-    newCatalog: false,
+    ...FEATURES_OFF,
     aiStyleCreator: true,
   })
-  assert.deepEqual(normalizeAccessFeatures(undefined), {
-    gemTemplate: false,
-    newCatalog: false,
-    aiStyleCreator: false,
-  })
+  assert.deepEqual(normalizeAccessFeatures(undefined), FEATURES_OFF)
 })
 
 test('solo un true explícito enciende: strings, números o null no', () => {
-  const off = { gemTemplate: false, newCatalog: false, aiStyleCreator: false }
   assert.deepEqual(
-    normalizeAccessFeatures({
-      gemTemplate: 'true',
-      newCatalog: 1,
-      aiStyleCreator: 'all',
-    }),
-    off,
+    normalizeAccessFeatures({ gemTemplate: 'true', newCatalog: 1 }),
+    FEATURES_OFF,
   )
-  assert.deepEqual(normalizeAccessFeatures(null), off)
-  assert.deepEqual(normalizeAccessFeatures('all'), off)
+  assert.deepEqual(normalizeAccessFeatures(null), FEATURES_OFF)
+  assert.deepEqual(normalizeAccessFeatures('all'), FEATURES_OFF)
   assert.equal(accessFlagsFrom({ admin: 'true' }).admin, false)
   assert.equal(accessFlagsFrom({ admin: true }).admin, true)
 })
@@ -68,7 +68,12 @@ test('memoria: el mismo correo recupera sus flags; otro no hereda nada', () => {
   const flags = {
     demo: true,
     admin: true,
-    features: { gemTemplate: true, newCatalog: false, aiStyleCreator: true },
+    features: {
+      gemTemplate: true,
+      newCatalog: false,
+      remoteCatalog: true,
+      aiStyleCreator: true,
+    },
   }
   const raw = serializeRememberedAccess('ana@example.com', flags)
   assert.deepEqual(parseRememberedAccess(raw, 'ana@example.com'), flags)
@@ -106,8 +111,13 @@ test('readAccessFeature: solo un true explícito del veredicto enciende', () => 
     readAccessFeature({ features: { gemTemplate: true } }, 'newCatalog'),
     false,
   )
-  assert.equal(
-    readAccessFeature({ features: { aiStyleCreator: true } }, 'aiStyleCreator'),
-    true,
-  )
+})
+
+test('readAccessAdmin: solo un `admin: true` explícito del veredicto cuenta', () => {
+  assert.equal(readAccessAdmin(undefined), false)
+  assert.equal(readAccessAdmin(null), false)
+  assert.equal(readAccessAdmin({ authorized: true }), false)
+  assert.equal(readAccessAdmin({ admin: 'true' }), false)
+  assert.equal(readAccessAdmin({ admin: 1 }), false)
+  assert.equal(readAccessAdmin({ admin: true }), true)
 })

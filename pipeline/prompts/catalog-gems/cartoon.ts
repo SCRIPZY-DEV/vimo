@@ -10,11 +10,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const cartoon: CatalogGem = {
   id: 'cartoon',
   name: { es: 'Cartoon 2D', en: '2D Cartoon', pt: 'Cartoon 2D' },
-  description: {
-    es: 'Dibujo animado 2D plano como una serie moderna: contornos gruesos, colores saturados y proporciones exageradas.',
-    en: 'Flat 2D cartoon like a modern animated series: thick outlines, saturated colors and exaggerated proportions.',
-    pt: 'Desenho animado 2D plano como uma série moderna: contornos grossos, cores saturadas e proporções exageradas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.twoD,

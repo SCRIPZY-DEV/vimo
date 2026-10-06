@@ -12,6 +12,8 @@ import {
 } from '../../src/modules/videos/utilities/catalogCharacterMemory.ts'
 import { nextCharacterDraft } from '../../src/modules/videos/utilities/characterDraft.ts'
 import { localizedText } from '../../src/modules/videos/utilities/catalogLocale.ts'
+import { isFixedCharacterTag } from '../../src/modules/videos/utilities/catalogTags.ts'
+import { CATALOG_TAGS } from '../../pipeline/prompts/catalog-gems/tags.ts'
 import {
   catalogSampleImages,
   catalogSampleUpload,
@@ -66,11 +68,6 @@ const BLOCKED_STORAGE = {
 const FANTASIA = {
   id: 'fantasia',
   name: { es: 'Fantasía mágica', en: 'Magic fantasy', pt: 'Fantasia mágica' },
-  description: {
-    es: 'Ilustración épica con luz dorada.',
-    en: 'Epic illustration with golden light.',
-    pt: 'Ilustração épica com luz dourada.',
-  },
   tags: [
     { es: 'Dinamismo', en: 'Dynamism', pt: 'Dinamismo' },
     { es: 'Fantasía', en: 'Fantasy', pt: 'Fantasia' },
@@ -93,11 +90,6 @@ const ANIME = {
     es: 'Anime Storytime',
     en: 'Anime Storytime',
     pt: 'Anime Storytime',
-  },
-  description: {
-    es: 'Anime digital moderno.',
-    en: 'Modern digital anime.',
-    pt: 'Anime digital moderno.',
   },
   tags: [{ es: 'Anime', en: 'Anime', pt: 'Anime' }],
   sections: {
@@ -414,6 +406,16 @@ test('fuera de los tres idiomas, o sin traducción, sale en español', () => {
   for (const language of ['fr', '', 'EN', 'toString', 'constructor'])
     assert.equal(localizedText(GREETING, language), 'Hola', language)
   assert.equal(localizedText({ ...GREETING, en: '  ' }, 'en'), 'Hola')
+})
+
+// La app reconoce «Personaje fijo» con un espejo de la paleta (src/ solo
+// importa tipos de pipeline/): esto fija que el espejo y la paleta coincidan.
+test('«Personaje fijo» es la única etiqueta de la paleta que va en amarillo', () => {
+  assert.equal(isFixedCharacterTag(CATALOG_TAGS.fixedCharacter), true)
+  for (const [key, tag] of Object.entries(CATALOG_TAGS)) {
+    if (key === 'fixedCharacter') continue
+    assert.equal(isFixedCharacterTag(tag), false, key)
+  }
 })
 
 // ─── El carril del formulario ───

@@ -69,17 +69,32 @@ puede viajar dentro de la app: el sidecar solo tiene las del usuario. La SPA lo 
 (`src/modules/common/fetcher/`), que adjunta la sesión de Supabase; el sidecar no lo
 conoce.
 
-| Responsabilidad                               | Dónde vive                      |
-| --------------------------------------------- | ------------------------------- |
-| Pantallas, navegación, estado de la UI        | `src/`                          |
-| Rutas, diálogos nativos y acceso a archivos   | `src/` + plugins de Tauri       |
-| Lanzar, escuchar y cancelar jobs del pipeline | `src-tauri/`                    |
-| Las 7 fases que generan el video              | `pipeline/` (stages)            |
-| Llamadas a los proveedores externos           | `pipeline/` (providers)         |
-| Ensamblado del video                          | FFmpeg, invocado por el sidecar |
-| Registro, login y sesión                      | Supabase                        |
-| Acceso y reconstrucción de gemas (agente)     | Servidor de vimo.click          |
-| Claves de los servicios pagos (BYO-keys)      | keychain del SO (ADR-0011)      |
+Desde la Entrega 3 del catálogo
+([ADR-0049](adr/ADR-0049-catalogo-remoto-administrado.md), tras
+`features.remoteCatalog`) el mismo servidor **aloja el catálogo de estilos**: la tabla
+`catalog_styles` de Supabase (borrador y copia publicada de cada gema) y el bucket
+público `previews-gemas` con las muestras de los estilos nuevos, que solo escribe
+`vimo-landing` con el service role. La SPA le pide el catálogo publicado
+(`GET /api/catalogo`) al abrir Crear y el sidecar lo deja en `<carpeta raíz>/_catalog/`
+con sus muestras (`catalog-styles-sync`); sin red sirve el último sincronizado y, si
+nunca sincronizó, las 38 gemas empaquetadas. Un admin crea, edita, genera muestras
+(con sus claves, por el sidecar, subidas al bucket por URLs firmadas que emite el
+servidor), publica, oculta y elimina estilos desde la pestaña Catálogo
+(`/api/admin/catalogo/**`). El sidecar sigue sin conocer vimo.click: los orígenes
+permitidos de descarga y de subida le llegan en el payload.
+
+| Responsabilidad                               | Dónde vive                        |
+| --------------------------------------------- | --------------------------------- |
+| Pantallas, navegación, estado de la UI        | `src/`                            |
+| Rutas, diálogos nativos y acceso a archivos   | `src/` + plugins de Tauri         |
+| Lanzar, escuchar y cancelar jobs del pipeline | `src-tauri/`                      |
+| Las 7 fases que generan el video              | `pipeline/` (stages)              |
+| Llamadas a los proveedores externos           | `pipeline/` (providers)           |
+| Ensamblado del video                          | FFmpeg, invocado por el sidecar   |
+| Registro, login y sesión                      | Supabase                          |
+| Acceso y reconstrucción de gemas (agente)     | Servidor de vimo.click            |
+| Catálogo de estilos publicado y su edición    | Servidor de vimo.click + Supabase |
+| Claves de los servicios pagos (BYO-keys)      | keychain del SO (ADR-0011)        |
 
 Lo que **no** existe en `src/` y no debe aparecer: FFmpeg, modelos de IA, llamadas
 directas a proveedores, orquestación de fases ni claves de esos servicios. FFmpeg viaja
@@ -477,7 +492,11 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    «Pasar a mi estilo»): un estilo del catálogo nuevo viaja como
    `options.customStyle` con `catalogStyleId`, con segundos por escena y
    modelo de prompts, sin cantidad de escenas ni frecuencia. Con el
-   interruptor apagado sigue el catálogo viejo, byte por byte.
+   interruptor apagado sigue el catálogo viejo, byte por byte. Con
+   `features.remoteCatalog` además ([ADR-0049](adr/ADR-0049-catalogo-remoto-administrado.md),
+   Entrega 3), la pestaña sincroniza el catálogo publicado en vimo.click
+   (`_catalog/`), y un admin con conexión ve todos los estilos con su estado y
+   los administra desde ahí.
 3. **Pre-flight del proveedor de voz** (`probe-tts`): valida contra los
    endpoints de LISTADO —no gasta créditos— y avisa antes de arrancar un
    pipeline largo. El resultado se cachea 2 minutos en la UI.
@@ -585,8 +604,9 @@ copia la gema en `options.customStyle` (`sections`, `templateVersion` y `colorFi
 una gema vieja lleva `systemPrompt`, nunca los dos). Al generar, el sidecar la
 envuelve con el **marco de Vimo** (`pipeline/prompts/template-frame.ts`):
 `buildTemplateSystem` arma el `system` con que el carril escribe los lotes de prompts
-(su Fase 2; la Fase 1 diseña al protagonista desde el guion) con las secciones, la
-seguridad de contenido, el formato de salida y las reglas de plataforma de siempre, y
+(su Fase 2; la Fase 1 diseña al protagonista desde el guion): el rol del modelo, las
+secciones, la seguridad de contenido, el formato de salida y las reglas de plataforma de
+siempre; y
 `composeGemText` arma la gema como texto para lo que no escribe escenas (la Fase 1, el
 diseño y el preview de personajes y el respaldo de imágenes). La sección `character`
 nunca entra al `system`: el modo de personaje decide si viaja y cómo.

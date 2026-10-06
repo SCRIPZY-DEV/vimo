@@ -12,11 +12,6 @@ export const infograficoAmarillo: CatalogGem = {
     en: 'Yellow Infographic',
     pt: 'Infográfico Amarelo',
   },
-  description: {
-    es: 'Ilustración 2D tipo infografía, contornos negros limpios y fondo amarillo sólido.',
-    en: '2D infographic illustration with clean black outlines on a solid yellow background.',
-    pt: 'Ilustração 2D tipo infográfico, contornos pretos limpos e fundo amarelo sólido.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.twoD,

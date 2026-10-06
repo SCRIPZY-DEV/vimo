@@ -198,11 +198,6 @@ const CUSTOM_PAYLOAD = {
 const FANTASIA = {
   id: 'fantasia',
   name: { es: 'Fantasía mágica', en: 'Magic fantasy', pt: 'Fantasia mágica' },
-  description: {
-    es: 'Ilustración épica con luz dorada.',
-    en: 'Epic illustration with golden light.',
-    pt: 'Ilustração épica com luz dourada.',
-  },
   tags: [{ es: 'Fantasía', en: 'Fantasy', pt: 'Fantasia' }],
   sections: {
     visualStyle: 'Epic fantasy illustration, painterly, golden rim light.',

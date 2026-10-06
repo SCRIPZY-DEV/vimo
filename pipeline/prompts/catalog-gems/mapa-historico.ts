@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const mapaHistorico: CatalogGem = {
   id: 'mapa-historico',
   name: { es: 'Mapa Histórico', en: 'Historical Map', pt: 'Mapa Histórico' },
-  description: {
-    es: 'Cartografía antigua en pergamino: costas grabadas, rosa de los vientos y rutas de puntos.',
-    en: 'Antique parchment cartography: engraved coastlines, a compass rose and dotted routes.',
-    pt: 'Cartografia antiga em pergaminho: costas gravadas, rosa dos ventos e rotas pontilhadas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.map,

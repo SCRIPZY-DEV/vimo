@@ -132,8 +132,22 @@ export interface StyleDeletePayload {
   id: string
 }
 
+/**
+ * Un borrador del catálogo remoto del que el admin genera muestras (ADR-0049):
+ * salen en `_catalog/_drafts/<id>/`, con el marco y el modo `sampleMode`.
+ */
+export interface CatalogDraftSamplesSource {
+  id: string
+  name: string
+  sections: GemSections
+  sampleMode: Extract<StyleCharacterMode, 'generic' | 'none'>
+}
+
 export interface GenerateStyleSamplesPayload {
-  styleId: string
+  /** Un estilo propio de Mi estilo. Excluyente con `catalogDraft`. */
+  styleId?: string
+  /** Un borrador del catálogo (ADR-0049). Excluyente con `styleId`. */
+  catalogDraft?: CatalogDraftSamplesSource
   imageProvider: ImageProviderId
   /** Modelo de Ajustes para las gemas de plantilla. Ausente = el de la casa. */
   promptModel?: string

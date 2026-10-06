@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const terrorAnalogico: CatalogGem = {
   id: 'terror-analogico',
   name: { es: 'Terror Analógico', en: 'Analog Horror', pt: 'Terror Analógico' },
-  description: {
-    es: 'Estética VHS degradada: líneas de escaneo, aberración cromática y tinte verdoso de cámara de seguridad.',
-    en: 'Degraded VHS aesthetic: scan lines, chromatic aberration and a greenish security camera tint.',
-    pt: 'Estética VHS degradada: linhas de varredura, aberração cromática e tom esverdeado de câmera de segurança.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.horror,

@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const papercraft: CatalogGem = {
   id: 'papercraft',
   name: { es: 'Papercraft', en: 'Papercraft', pt: 'Papercraft' },
-  description: {
-    es: 'Diorama de papel recortado por capas, con sombras suaves entre planos y textura de cartulina.',
-    en: 'A layered cut-paper diorama with soft shadows between planes and cardstock texture.',
-    pt: 'Diorama de papel recortado em camadas, com sombras suaves entre planos e textura de cartolina.',
-  },
   tags: [CATALOG_TAGS.paper, CATALOG_TAGS.diorama, CATALOG_TAGS.tale],
   sections: {
     visualStyle: `Ilustración de recortes de papel en capas (layered paper cut-out) y diorama artesanal de papercraft. Múltiples capas de profundidad que proyectan sombras suaves tipo “soft drop shadows” entre capas. Cartulina mate texturizada (textured matte cardstock). Formas geométricas limpias (clean geometric shapes). Iluminación de estudio suave y uniforme (soft even studio lighting). Sensación de cuento infantil (storybook feel). Los fondos son dioramas de papel por capas con descripciones cortas del lugar, p. ej., montañas escalonadas, ciudades recortadas e interiores en tres o cuatro planos, manteniendo el mismo aspecto en todos los prompts de esa misma escena.`,

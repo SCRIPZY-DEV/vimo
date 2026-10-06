@@ -12,11 +12,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const fantasia: CatalogGem = {
   id: 'fantasia',
   name: { es: 'Fantasía mágica', en: 'Magic fantasy', pt: 'Fantasia mágica' },
-  description: {
-    es: 'Concept art épico de alta fantasía: magia visible, luz volumétrica y colores dorados y púrpura.',
-    en: 'Epic high-fantasy concept art: visible magic, volumetric light and gold and purple colors.',
-    pt: 'Concept art épica de alta fantasia: magia visível, luz volumétrica e cores douradas e roxas.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.fantasy,

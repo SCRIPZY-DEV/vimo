@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -76,6 +77,10 @@ export function CharacterModal({
   onClose,
 }: CharacterModalProps) {
   const { t } = useTranslation()
+  // Interruptores del catálogo (configuración global, se leen acá): con los
+  // dos encendidos el retrato de una gema del catálogo usa la sincronizada.
+  const newCatalog = useAccessFeature('newCatalog')
+  const remoteCatalog = useAccessFeature('remoteCatalog')
   const { createCharacter, updateCharacter, saving } = useCharacterMutations()
   const {
     suggestProfile,
@@ -214,6 +219,9 @@ export function CharacterModal({
       identityPrompt: identity,
       styleId,
       provider,
+      // Una gema del catálogo nuevo se lee del catálogo sincronizado solo con
+      // el catálogo remoto encendido (ADR-0049): con él apagado nada cambia.
+      ...(newCatalog && remoteCatalog ? { remote: true } : {}),
     })
     if (!dataUri) return
 

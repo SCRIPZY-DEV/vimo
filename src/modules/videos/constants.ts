@@ -53,6 +53,10 @@ export function libraryEditorPath(projectId: string): string {
 
 export const videosQueryKeys = {
   catalogStyles: ['videos', 'catalogStyles'],
+  // Catálogo remoto (ADR-0049): la sincronización de la pestaña y la lista
+  // del admin.
+  catalogSync: ['videos', 'catalogSync'],
+  catalogAdmin: ['videos', 'catalogAdmin'],
   characters: ['videos', 'characters'],
   customStyles: ['videos', 'customStyles'],
   demoStatus: ['videos', 'demoStatus'],
@@ -430,6 +434,64 @@ export const CATALOG_COPY_UNDETAILED_ERROR_CODES: ReadonlySet<string> = new Set(
   ['invalid_payload', 'style_not_found'],
 )
 
+// ── Catálogo remoto administrado (Entrega 3, ADR-0049) ──
+
+// Rutas de vimo.click; la URL base es de common (VIMO_SERVER_BASE_URL).
+export const CATALOG_PATH = '/api/catalogo'
+export const CATALOG_ADMIN_PATH = '/api/admin/catalogo'
+// El catálogo entero pesa unos 200 KB y la publicación lista el bucket: más
+// margen que los 15 s del cliente común.
+export const CATALOG_SERVER_TIMEOUT_MS = 30_000
+// «Traducir con IA» llama a un modelo.
+export const CATALOG_TRANSLATE_TIMEOUT_MS = 60_000
+// Cada vez que se monta la pestaña se vuelve a preguntar por el catálogo, salvo
+// que se haya preguntado hace menos de esto (volver a la pestaña enseguida no
+// repite el pedido).
+export const CATALOG_SYNC_STALE_TIME_MS = 60_000
+// La lista del admin se vuelve a pedir si pasó más de esto desde la última.
+export const CATALOG_ADMIN_STALE_TIME_MS = 30_000
+// Cuánto queda a la vista el aviso de una acción del admin que salió bien;
+// uno en curso o fallido se queda hasta que la persona lo descarte.
+export const CATALOG_ADMIN_TOAST_DURATION_MS = 6000
+// Muestras de un borrador del catálogo: las 4 situaciones fijas, como en Mi
+// estilo, subidas al bucket `previews-gemas` de Supabase.
+export const CATALOG_DRAFT_SAMPLE_COUNT = 4
+// Espejo del `check` de la tabla y de STYLE_ID_PATTERN del sidecar.
+export const CATALOG_STYLE_ID_LIMIT = 40
+export const CATALOG_STYLE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/
+// Espejo de CATALOG_TAG_LIMIT y CATALOG_TAG_LABEL_LIMIT
+// (pipeline/prompts/catalog-gems/tags.ts).
+export const CATALOG_TAG_LIMIT = 5
+export const CATALOG_TAG_LABEL_LIMIT = 24
+// Dos admins no se pisan (plan E3, P11): con este código el modal ofrece
+// volver a intentar con la revisión nueva sin perder lo escrito.
+export const CATALOG_DRAFT_CONFLICT_CODE = 'borrador-cambio'
+// Código → clave i18n de los endpoints del catálogo (plan E3 §5.3) y del
+// cliente común de vimo.click (`network` y `timeout`).
+export const CATALOG_SERVER_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  'sin-token': 'create.catalogAdmin.errors.session',
+  'token-invalido': 'create.catalogAdmin.errors.session',
+  'sin-acceso': 'create.catalogAdmin.errors.noAccess',
+  'funcion-desactivada': 'create.catalogAdmin.errors.featureOff',
+  'no-admin': 'create.catalogAdmin.errors.notAdmin',
+  'pedido-invalido': 'create.catalogAdmin.errors.invalidRequest',
+  'estilo-invalido': 'create.catalogAdmin.errors.invalidStyle',
+  'no-existe': 'create.catalogAdmin.errors.notFound',
+  'id-en-uso': 'create.catalogAdmin.errors.idTaken',
+  'borrador-cambio': 'create.catalogAdmin.errors.draftChanged',
+  'faltan-muestras': 'create.catalogAdmin.errors.missingSamples',
+  archivado: 'create.catalogAdmin.errors.archived',
+  'almacenamiento-fallo': 'create.catalogAdmin.errors.storageFailed',
+  'catalogo-vacio': 'create.catalogAdmin.errors.emptyCatalog',
+  'modelo-fallo': 'create.catalogAdmin.errors.modelFailed',
+  'modelo-timeout': 'create.catalogAdmin.errors.modelTimeout',
+  'error-interno': 'create.catalogAdmin.errors.serverError',
+  network: 'create.catalogAdmin.errors.network',
+  timeout: 'create.catalogAdmin.errors.timeout',
+}
+export const UNKNOWN_CATALOG_SERVER_ERROR_KEY =
+  'create.catalogAdmin.errors.unknown'
+
 // ── Estilos propios («Mi estilo») ──
 
 // Cuántas muestras genera el sidecar por estilo (las 4 situaciones fijas).
@@ -446,6 +508,11 @@ export const CUSTOM_STYLE_MAX_SHOTS = 20
 // Campo de texto del modal de estilo: nombre, gema, secciones y planos.
 export const CUSTOM_STYLE_FIELD_CLASS =
   'w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-primary disabled:opacity-60'
+
+// Píldora con el nombre del estilo del catálogo del que se clona una gema: en
+// el aviso de la copia en curso y en el modal de la copia.
+export const CATALOG_ORIGIN_BADGE_CLASS =
+  'inline-flex items-center rounded-full bg-saffron px-2.5 py-0.5 align-middle font-display text-xs font-bold text-charcoal'
 
 // Título y ayuda de cada sección de la gema en el modal (spec §4.1). El orden
 // en que se muestran es GEM_SECTION_KEYS (utilities/gemTemplate.ts).
@@ -968,6 +1035,9 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   style_not_found: 'create.errors.styleNotFound',
   style_save_failed: 'create.errors.styleSaveFailed',
   style_samples_failed: 'create.errors.styleSamplesFailed',
+  // Catálogo remoto (ADR-0049)
+  catalog_sync_failed: 'create.errors.catalogSyncFailed',
+  catalog_upload_failed: 'create.errors.catalogUploadFailed',
   // Modo demo (ADR-0029)
   demo_not_ready: 'create.errors.demoNotReady',
   demo_pack_incomplete: 'create.errors.demoNotReady',

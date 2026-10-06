@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dBola: CatalogGem = {
   id: '2d-bola',
   name: { es: '2D Bola', en: '2D Blob', pt: '2D Bola' },
-  description: {
-    es: 'Criatura ovoide gris de ojos negros con B-roll constante: línea fina, paleta apagada y lienzo beige.',
-    en: 'A gray egg-shaped creature with black eyes and constant B-roll: thin line, muted palette and beige canvas.',
-    pt: 'Criatura ovoide cinza de olhos pretos com B-roll constante: linha fina, paleta suave e tela bege.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.fixedCharacter,

@@ -5,19 +5,32 @@
 
 ## Causa
 
-Esa tarde el juez fijo del revisor narrativo (DeepSeek V4 Pro en DeepInfra) empezó a devolver una
-copia de su entrada en vez de su veredicto. Como la revisión de la ADR-0043 frenaba la fase cuando no
-podía verificar, ningún video de 0.9.1 pasaba de «Validando prompts» (informe
-`fixes/2026-10-04_retire-narrative-reviewer.md`). Primero se retiró la revisión. Después el dueño
-pidió ver si la revisión ayudaba en algo, cambiarle el modelo y que, si ese modelo falla, use otro
-que funcione.
+Desde la tarde del 2026-10-04, en Vimo 0.9.1 ningún video llegaba a imágenes: la corrida se
+detenía en «Validando prompts», en el Catálogo y en Mi estilo. Reintentar, cambiar de modelo,
+cancelar o cerrar la app no lo destrababa.
+
+La revisión narrativa de la ADR-0043 le pasaba cada prompt a un segundo modelo, fijo y que el
+usuario no elige: `deepseek-ai/DeepSeek-V4-Pro` en DeepInfra. Ese modelo empezó a devolver una copia
+de su entrada (`{"candidates": [...]}`) en vez de su veredicto (`{"scenes": [...]}`): llegaba al tope
+de 3 000 tokens con el JSON cortado, el intento de reparación hacía lo mismo y el lote terminaba en
+`scene_prompt_alignment_failed`. Reproducido con un proyecto real del dueño, por la etapa real de
+prompts y con su clave: el modelo copió la entrada en 11 llamadas de 11 (lotes de 6, de 2 y de 1
+escena, con modo JSON y sin él, y un pedido mínimo de 100 caracteres).
 
 Tres defectos de diseño hacían que una falla del juez tumbara todo:
 
-- un solo modelo, fijo, que el usuario no elige;
-- fallo cerrado: sin veredicto, la fase se detenía;
+- un solo modelo, fijo, que el usuario no elige, a temperatura 0: el reintento devolvía lo mismo;
+- fallo cerrado: sin veredicto, la fase se detenía (en el Catálogo, con más de cinco escenas así la
+  corrida terminaba en `catalog_prompts_incomplete`);
 - un juez exigente podía dejar una escena sin prompt (tres rechazos en el Catálogo), y cada rechazo
-  se contaba como falla del redactor: la app bloqueaba una hora a un modelo que respondía bien.
+  se contaba como falla del redactor (`narrative alignment rejected` en `verbatim-writer.ts`): la app
+  mostraba «DeepSeek V4.1 Flash está devolviendo errores» y lo bloqueaba una hora aunque respondía
+  bien.
+
+Ese mismo día se probó retirar la revisión: tres proyectos del dueño rehechos sin ella (50 escenas,
+con DeepSeek V4.1 Flash y Claude Haiku 4.5) no mostraron imágenes de otro momento del relato. El
+dueño pidió entonces ver si la revisión ayudaba, cambiarle el modelo y que, si ese modelo falla, use
+otro que funcione. Esta corrección es esa versión.
 
 ## Corrección
 
@@ -48,8 +61,8 @@ Tres defectos de diseño hacían que una falla del juez tumbara todo:
   (`narrative alignment rejected`) ya no cuenta para «el modelo está devolviendo errores».
 - **`pipeline/stages/images/images.ts`:** el rescate sin foto ya no pide revisión. Ahí no hay
   redactor que pueda corregir: el juez solo podía frenar la compra.
-- **Docs:** ADR-0043 («Revisión asesora con respaldo», que reemplaza la retirada y el contrato de
-  Fallo), nota en la ADR-0044, índices de ADR, índice de guards y aviso en el informe del retiro.
+- **Docs:** ADR-0043 («Revisión asesora con respaldo», que reemplaza el contrato de Fallo de la
+  decisión original), índices de ADR e índice de guards.
 
 ## Límites deliberados
 
@@ -87,7 +100,7 @@ node --test scripts/test/check-narrative-review.mjs scripts/test/check-catalog-p
 - **Simuladores:** `check-editor-character-selection.mjs` y `check-silent-scene-images.mjs` le
   contestan al juez con `narrative-review-fixture.mjs`. Con el revisor de `dev` fallan 21 casos de
   esos dos guards.
-- **Toda la suite** (`node --test scripts/test/check-*.mjs`): 258 de 263. Los 5 que fallan fallan
+- **Toda la suite** (`node --test scripts/test/check-*.mjs`): 264 de 269. Los 5 que fallan fallan
   igual en `origin/dev`: `check-api-key-ui`, `check-editor-character-ui`, `check-export-header-ui`,
   `check-packaged-editor` y el caso de la escena muda que hace 9 llamadas al redactor.
 - `pnpm format`, `pnpm lint` y `pnpm build` pasan.

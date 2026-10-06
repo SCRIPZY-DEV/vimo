@@ -12,11 +12,6 @@ export const stickmanCinematico: CatalogGem = {
     en: 'Cinematic Stickman',
     pt: 'Stickman Cinematográfico',
   },
-  description: {
-    es: 'Monigote de línea simple sobre escenas cinematográficas: luz volumétrica, sombras dramáticas y profundidad de campo.',
-    en: 'A simple line stick figure in cinematic scenes: volumetric light, dramatic shadows and depth of field.',
-    pt: 'Boneco de linha simples em cenas cinematográficas: luz volumétrica, sombras dramáticas e profundidade de campo.',
-  },
   tags: [
     CATALOG_TAGS.fixedCharacter,
     CATALOG_TAGS.twoD,

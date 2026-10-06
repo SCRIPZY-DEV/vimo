@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const gem2dStickman: CatalogGem = {
   id: '2d-stickman',
   name: { es: '2D Stickman', en: '2D Stickman', pt: '2D Stickman' },
-  description: {
-    es: 'Animación 2D estilo storytime: monigote de cabeza redonda blanca, contornos gruesos y fondos pintados a mano.',
-    en: 'Storytime 2D animation: a white round-headed stick figure, thick outlines and hand-painted backgrounds.',
-    pt: 'Animação 2D estilo storytime: boneco de cabeça redonda branca, contornos grossos e fundos pintados à mão.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.fixedCharacter,

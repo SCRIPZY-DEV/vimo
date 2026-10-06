@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { Clapperboard, Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
-import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
@@ -22,6 +21,8 @@ import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNoti
 import { GemPasteStep } from '@/modules/videos/components/GemPasteStep'
 import { GemSectionsEditor } from '@/modules/videos/components/GemSectionsEditor'
 import { GemSourceText } from '@/modules/videos/components/GemSourceText'
+import { ImageProviderPicker } from '@/modules/videos/components/ImageProviderPicker'
+import { SampleGenerationProgress } from '@/modules/videos/components/SampleGenerationProgress'
 import { StyleCharacterBlock } from '@/modules/videos/components/StyleCharacterBlock'
 import { StyleSamplesCarousel } from '@/modules/videos/components/StyleSamplesCarousel'
 import { apiKeysApi } from '@/modules/api-keys/api'
@@ -43,11 +44,11 @@ import {
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import { styleOriginLabelOf } from '@/modules/videos/utilities/styleOrigin'
 import {
+  CATALOG_ORIGIN_BADGE_CLASS,
   CUSTOM_STYLE_FIELD_CLASS,
   CUSTOM_STYLE_NAME_LIMIT,
   CUSTOM_STYLE_PROMPT_LIMIT,
   CUSTOM_STYLE_SAMPLE_COUNT,
-  IMAGE_PROVIDERS,
   RECOMMENDED_SHOTS,
 } from '@/modules/videos/constants'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
@@ -58,6 +59,7 @@ import type {
   GemMigrationState,
 } from '@/modules/videos/types/styles'
 import type {
+  GemSections,
   StyleCharacter,
   StyleSample,
   StyleSavePayload,
@@ -92,6 +94,19 @@ interface CustomStyleModalProps {
 }
 
 // Ids de las muestras mientras el sidecar todavía no reportó ninguna.
+// Lo que decide si cerrar tiene algo que guardar: el nombre, el estilo (el
+// texto y los planos de una gema vieja, o las secciones de una de plantilla) y
+// el personaje, como texto, comparados contra lo que se abrió.
+interface EditedStyle {
+  name: string
+  systemPrompt: string
+  shots: string
+  sections: GemSections | undefined
+  character: StyleCharacter
+}
+
+const editSignature = (edited: EditedStyle): string => JSON.stringify(edited)
+
 const PLACEHOLDER_SAMPLE_IDS = Array.from(
   { length: CUSTOM_STYLE_SAMPLE_COUNT },
   (_, index) => index + 1,
@@ -104,9 +119,13 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
 // planos de siempre en una gema vieja, o sus secciones en una de plantilla
 // (ADR-0048), que antes de existir pasa por «Pegá tu gema». El filtro de color
 // de la gema (spec §5.5) viaja como está guardado: no se elige acá.
-// Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta: no hay
-// «Cancelar». En «Pegá tu gema» de una gema nueva no hay nada que guardar,
-// así que con texto pegado se pregunta antes de tirarlo. Regla de modales del
+// Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta si algo
+// cambió: no hay «Cancelar». Sin cambios no guarda nada: una gema guardada por
+// otro camino con una sección fuera de su límite (un estilo clonado con IA
+// antes de que el final fijo llegara a 1 000) se puede abrir y cerrar sin
+// quedar atrapado; y si el sidecar rechaza el guardado, se puede salir sin
+// guardar. En «Pegá tu gema» de una gema nueva no hay nada que guardar, así
+// que con texto pegado se pregunta antes de tirarlo. Regla de modales del
 // origen: nunca dos Radix abiertos — mientras se elige el personaje
 // predeterminado, este se ESCONDE en vez de apilarse (Radix apaga los clicks
 // del body con el de arriba abierto).
@@ -208,6 +227,23 @@ export function CustomStyleModal({
     !locked &&
     !creditsCheck.blocking
   const character = characterDraft.character
+  const changed =
+    editSignature({
+      name,
+      systemPrompt,
+      shots,
+      sections: templateMode ? gemDraft.sections : undefined,
+      character,
+    }) !==
+    editSignature({
+      name: initial.name,
+      systemPrompt: initial.systemPrompt,
+      shots: initial.shots.join(', '),
+      sections: templateMode
+        ? (initial.sections ?? { visualStyle: '' })
+        : undefined,
+      character: initial.character ?? { mode: 'generic' },
+    })
 
   const changeCharacter = (next: StyleCharacter) => {
     setCharacterDraft((draft) => nextCharacterDraft(draft, next))
@@ -279,9 +315,15 @@ export function CustomStyleModal({
     )
       return
 
-    if (hasStyleText) {
+    if (hasStyleText && changed) {
       const saved = await persist()
-      if (!saved) return
+      // El sidecar no lo aceptó (una sección fuera de su límite, un fallo): el
+      // porqué queda a la vista, y se puede salir sin guardar igual.
+      if (
+        !saved &&
+        !window.confirm(t('create.customStyles.discardChangesConfirm'))
+      )
+        return
     }
     onClose()
   }
@@ -341,8 +383,6 @@ export function CustomStyleModal({
     }
   }
 
-  const writing = samplesJob.phase !== 'images'
-  const progressIds = PLACEHOLDER_SAMPLE_IDS
   const sampleImages = storedSamples.map((sample) =>
     videosApi.imageSource(sample.path, sample.mtimeMs),
   )
@@ -375,10 +415,21 @@ export function CustomStyleModal({
                 ? t('create.gemTemplate.pasteHint')
                 : t('create.customStyles.modalDescription')}
             </DialogDescription>
-            {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo
-                salió (Entrega 2); un estilo clonado con IA, de dónde vino
-                (ADR-0050). */}
-            {origin && (
+            {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo se
+                clonó, con el nombre en una píldora (Entrega 2); un estilo
+                clonado con IA, de dónde vino (ADR-0050). */}
+            {initial.origin?.kind === 'catalog' && (
+              <p className="font-body text-sm text-foreground">
+                <Trans
+                  i18nKey="create.customStyles.clonedFrom"
+                  values={{ name: initial.origin.name }}
+                  components={{
+                    badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
+                  }}
+                />
+              </p>
+            )}
+            {initial.origin?.kind === 'ai-clone' && origin && (
               <p className="font-body text-xs text-muted-foreground">
                 {t(origin.key, origin.values)}
               </p>
@@ -431,54 +482,11 @@ export function CustomStyleModal({
               />
 
               {samplesJob.running ? (
-                // Mientras se generan, las 4 muestras se ven como tarjetas
-                // cargando con su barra y su %: Evolink el real del poll, Fal
-                // la estimación del sidecar.
-                <div className="grid grid-cols-2 gap-3">
-                  {progressIds.map((id) => {
-                    const percent =
-                      (writing
-                        ? samplesJob.promptPercents[id]
-                        : samplesJob.samplePercents[id]) ?? 0
-                    const image = samplesJob.sampleImages[id]
-                    return (
-                      <div
-                        key={id}
-                        className="relative flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-muted/60 px-5"
-                      >
-                        {image && (
-                          <img
-                            src={image}
-                            alt={t('create.customStyles.sampleAlt', {
-                              number: id,
-                              name,
-                            })}
-                            className="absolute inset-0 h-full w-full object-contain"
-                          />
-                        )}
-                        <span className="absolute left-2.5 top-2 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                          {t('create.customStyles.sampleLabel', { id })}
-                        </span>
-                        {!image && (
-                          <p className="font-body text-xs text-muted-foreground">
-                            <SampleProgressText
-                              writing={writing}
-                              percent={percent}
-                            />
-                          </p>
-                        )}
-                        {!image && (
-                          <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-border">
-                            <div
-                              className="h-full rounded-full bg-saffron transition-all duration-500"
-                              style={{ width: `${Math.max(4, percent)}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <SampleGenerationProgress
+                  job={samplesJob}
+                  sampleIds={PLACEHOLDER_SAMPLE_IDS}
+                  name={name}
+                />
               ) : sampleImages.length > 0 ? (
                 <StyleSamplesCarousel
                   key={carouselKey}
@@ -495,47 +503,12 @@ export function CustomStyleModal({
                 </div>
               )}
 
-              <div>
-                <p className="mb-1.5 text-xs font-medium">
-                  {t('create.customStyles.providerQuestion')}
-                </p>
-                {/* El mismo control segmentado que el formulario de Crear (el
-                  elegido en saffron pleno), con el saldo de cada proveedor y
-                  el botón de refrescar al lado. */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
-                    {IMAGE_PROVIDERS.map((imageProvider) => {
-                      const chosen = provider === imageProvider.id
-                      return (
-                        <button
-                          key={imageProvider.id}
-                          type="button"
-                          disabled={samplesJob.running}
-                          onClick={() => chooseProvider(imageProvider.id)}
-                          className={cn(
-                            'cursor-pointer rounded-full px-4 py-1.5 font-display text-sm font-bold transition-colors disabled:cursor-default disabled:opacity-60',
-                            chosen
-                              ? 'bg-saffron text-charcoal shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground',
-                          )}
-                        >
-                          {imageProvider.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <ImageCreditsBadges
-                    credits={credits.credits}
-                    loading={credits.isLoading}
-                    refreshing={credits.isRefreshing}
-                    active={provider}
-                    onRefresh={credits.refresh}
-                  />
-                </div>
-                <p className="mt-1.5 font-body text-xs text-muted-foreground">
-                  {t('create.customStyles.providerHint')}
-                </p>
-              </div>
+              <ImageProviderPicker
+                provider={provider}
+                disabled={samplesJob.running}
+                credits={credits}
+                onChoose={chooseProvider}
+              />
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -742,18 +715,4 @@ export function CustomStyleModal({
       )}
     </>
   )
-}
-
-interface SampleProgressTextProps {
-  writing: boolean
-  percent: number
-}
-
-// Qué dice cada tarjeta de muestra mientras se genera.
-function SampleProgressText({ writing, percent }: SampleProgressTextProps) {
-  const { t } = useTranslation()
-
-  if (writing) return t('create.customStyles.writingPrompts')
-  if (percent >= 100) return t('create.customStyles.sampleReady')
-  return t('create.customStyles.sampleGenerating', { percent })
 }

@@ -28,6 +28,10 @@ interface StyleCardFrameProps {
   disabled: boolean
   // Atenúa las muestras y el pie (una gema que se está adaptando).
   dimmed?: boolean
+  // Apaga las muestras (no el pie) de un estilo del catálogo que los usuarios
+  // no ven tal cual: un borrador, uno oculto o cambios sin publicar; el
+  // distintivo va encima.
+  faded?: boolean
   // Lo que va encima de las muestras (el avance de la adaptación).
   overlay?: ReactNode
   footer: ReactNode
@@ -56,6 +60,7 @@ export function StyleCardFrame({
   selected,
   disabled,
   dimmed = false,
+  faded = false,
   overlay,
   footer,
   onSelect,
@@ -115,7 +120,13 @@ export function StyleCardFrame({
         {/* Atenuadas (una gema que se adapta), las muestras se apagan en
             bloque (la opacidad del carrusel vive en cada imagen) y lo que va
             encima queda nítido. */}
-        <div className={cn('absolute inset-0', dimmed && 'opacity-40')}>
+        <div
+          className={cn(
+            'absolute inset-0',
+            dimmed && 'opacity-40',
+            faded && !dimmed && 'opacity-45',
+          )}
+        >
           {images.length === 0 ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center text-muted-foreground">
               <Sparkles className="h-6 w-6" />

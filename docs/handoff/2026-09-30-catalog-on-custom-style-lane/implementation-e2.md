@@ -275,8 +275,39 @@ local y no se versiona. Falta el recorrido del dueño en la app.
 **Lo que el dueño pidió y no está en estos commits:** editar las gemas del catálogo y sus etiquetas
 desde la app con su cuenta de admin. No es un fallo de la cuenta: las 38 gemas viven en el código
 (`pipeline/prompts/catalog-gems/`) y la edición desde la app es la Entrega 3 del diseño (catálogo en
-Supabase, endpoints de admin en `vimo-landing` y su pantalla), que no está construida. Queda a la
-espera de que el dueño decida el alcance.
+Supabase, endpoints de admin en `vimo-landing` y su pantalla), que no está construida. El
+2026-10-04 el dueño dio el sí para planearla y pidió sumar que el admin pueda añadir gemas: el plan
+está en [plan-e3.md](plan-e3.md) y espera su aprobación.
+
+### Segunda tanda, el mismo día
+
+Con esos cambios probados, el dueño pidió tres ajustes más y preguntó por el prompt de sistema. De
+probar el tercero salió un cuarto arreglo. Tampoco tocan el sidecar ni el contrato.
+
+| Commit     | Qué cambia                                                                                                                                                            | Informe                                            |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `80971b7b` | El aviso «Adaptamos …» sale arriba de las tarjetas de Mi estilo                                                                                                       | `fixes/2026-10-03_gem-migration-notice-on-top.md`  |
+| `50aa056e` | El aviso «Lo que la IA ajustó de tu gema» explica que las reglas de flujo, de formato y de idioma las pone Vimo                                                       | `fixes/2026-10-03_gem-warnings-platform-note.md`   |
+| `ee8f54ea` | La copia dice «Gema clonada del catálogo» con el nombre en una píldora amarilla; el aviso de la copia en curso, «Clonando gema del catálogo»                          | `fixes/2026-10-03_catalog-clone-label.md`          |
+| `ac21db7a` | Los avisos de «Pasar a mi estilo» quedan pegados abajo de lo que se ve (el scroll que los traía a la vista lo cortaba el foco del menú) y el de fallo se puede cerrar | `fixes/2026-10-03_catalog-copy-notices-in-view.md` |
+
+**Cómo se probó.** Cada commit con formato, lint, build y catálogos (1495 claves en el último), y
+con el mismo arnés de Chrome, ahora con el formulario dentro del contenedor que scrollea en la app
+(`<main>`): 35 comprobaciones en verde. Falta el recorrido del dueño en la app, que corre sobre
+WebKit.
+
+**Pregunta del dueño, resuelta el 2026-10-04: el rol al inicio del `system`.** El 2026-10-03 el
+dueño preguntó si el prompt de sistema debería abrir con el rol de su gema («Eres un Director de
+Arte y Prompt Engineer experto en IA visual» y su «REGLA MAESTRA» de solo texto) o si funciona bien
+sin eso. Ese día no se cambió: el marco (`buildTemplateSystem`) abría con `# VISUAL STYLE`, las
+muestras de las 33 gemas nuevas habían salido así, la regla de solo texto es de un Gem de chat (acá
+el modelo se llama por API, solo devuelve texto, y los prompts los manda Vimo al generador) y una
+regla nueva en el marco cambia todos los videos. Al día siguiente el dueño decidió sumarlo «para
+estar seguros». El marco abre ahora con `FRAME_ROLE_LINE` (commit `feat(pipeline): open the gem
+frame with the role of the model`, informe `fixes/2026-10-04_template-frame-role-line.md`, nota del
+2026-10-04 de la ADR-0048). **Es el único cambio de esta tanda que toca el sidecar:** para verlo hay
+que reiniciar `pnpm tauri dev`. No se midió con claves reales antes de entrar: la medición es la QA
+de generación del dueño.
 
 ## Integración con `dev` y con la rama hermana
 
@@ -296,6 +327,14 @@ Verificado el 2026-10-03 con `git merge-tree` (solo lectura; no se mergeó ni se
   vieja (el retrato del estilo viaja como imagen de referencia).
 
 El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el dueño.
+
+**Guards que ya fallan en `dev`.** Verificado el 2026-10-04 contra `origin/dev` (`7cf81422`): seis
+guards provisorios fallan igual ahí que en esta rama, así que no son de esta entrega.
+`check-editor-character-selection.mjs` y `check-style-character-video.mjs` no contestan la revisión
+de correspondencia narrativa (ADR-0043) y caen con `scene_prompt_alignment_failed`;
+`check-silent-scene-images.mjs`, `check-api-key-ui.mjs`, `check-editor-character-ui.mjs` y
+`check-export-header-ui.mjs` fallan por sus propias aserciones. Los guards de la app, el catálogo,
+las gemas y el carril verbatim (433) están en verde.
 
 ## Pendientes y pasos del dueño
 
@@ -325,14 +364,16 @@ El orden (rebase sobre `dev`, cuál de las dos ramas entra primero) lo decide el
   etiquetas (las de la casa primero); el menú de tres puntos con «Usar en este video», «Ver» y «Pasar
   a mi estilo»; «Ver» con las etiquetas, el modo de personaje arriba y las muestras debajo (el modo
   se recuerda al volver a abrir); el chip del personaje en Crear abre «Ver» de esa gema; «Pasar a
-  mi estilo» lleva a Mi estilo con el modal de la copia abierto y la deja en uso, con «Basado en
-  …»; al volver a Catálogo sigue elegida la gema de antes; generar con una gema de la casa (por
-  ejemplo Fantasía) y con una de Imperio Pro.
+  mi estilo» lleva a Mi estilo con el modal de la copia abierto y la deja en uso, con «Gema
+  clonada del catálogo» y el nombre en una píldora amarilla (mientras se copia, el aviso «Clonando
+  gema del catálogo» se ve abajo de la ventana, sin que la página se mueva); al volver a Catálogo
+  sigue elegida la gema de antes; generar con una gema de la casa (por ejemplo Fantasía) y con una
+  de Imperio Pro.
 - Mi estilo, después de la QA del 2026-10-03 (sección «Ajustes de la QA del dueño»): una gema que
   trae su personaje dice «Personaje del estilo» en su modal y en el chip de Crear; el modal ya no
-  ofrece «Pegar gema nueva»; al adaptarse una gema sale el aviso «Adaptamos …», que se va al
-  cambiar de pestaña, el aviso del modal se cierra solo al minuto y la tarjeta queda con la
-  etiqueta «Gema adaptada».
+  ofrece «Pegar gema nueva»; al adaptarse una gema sale el aviso «Adaptamos …» arriba de las
+  tarjetas, que se va al cambiar de pestaña; el aviso del modal explica qué reglas pone Vimo y se
+  cierra solo al minuto, y la tarjeta queda con la etiqueta «Gema adaptada».
 
 **Límites conocidos y decisiones que quedan para el dueño:**
 

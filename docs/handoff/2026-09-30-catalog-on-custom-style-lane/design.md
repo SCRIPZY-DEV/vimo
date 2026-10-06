@@ -257,6 +257,8 @@ exige exactamente uno de `sections` o `systemPrompt`.
 este orden:
 
 ```
+<FRAME_ROLE_LINE>               (el rol del modelo; desde el 2026-10-04)
+
 # VISUAL STYLE
 <visualStyle>
 
@@ -280,6 +282,8 @@ este orden:
   SCENE_WARDROBE_RULE (mode ≠ none)
 ```
 
+- `FRAME_ROLE_LINE` (sumada el 2026-10-04 por decisión del dueño; nota de esa fecha en la
+  ADR-0048) repone el rol que el agente saca de la gema: quién escribe y qué entrega.
 - La sección `character` nunca entra al `system` (sección 5.2).
 - `OUTPUT_FORMAT_RULE` fija lo que hoy fija cada gema: un único bloque de código con un prompt por
   fragmento, separados por una línea en blanco, cada uno con su id `((n))`. El parser actual ya lo lee.

@@ -12,11 +12,6 @@ export const realista: CatalogGem = {
     en: 'Documentary Realistic',
     pt: 'Realista Documental',
   },
-  description: {
-    es: 'Fotografía cruda documental sin personaje fijo: cada escena describe a su gente completa.',
-    en: 'Raw documentary photography without a fixed character: each scene describes its own people in full.',
-    pt: 'Fotografia crua documental sem personagem fixo: cada cena descreve suas pessoas por inteiro.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.photographic,

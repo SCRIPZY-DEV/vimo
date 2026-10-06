@@ -8,11 +8,6 @@ import { CATALOG_TAGS } from './tags.ts'
 export const cosmos: CatalogGem = {
   id: 'cosmos',
   name: { es: 'Cosmos', en: 'Cosmos', pt: 'Cosmos' },
-  description: {
-    es: 'Render espacial fotorrealista: campo de estrellas denso, nebulosas volumétricas y escala inmensa.',
-    en: 'Photorealistic space render: dense star fields, volumetric nebulae and immense scale.',
-    pt: 'Render espacial fotorrealista: campo de estrelas denso, nebulosas volumétricas e escala imensa.',
-  },
   tags: [
     CATALOG_TAGS.dynamism,
     CATALOG_TAGS.space,

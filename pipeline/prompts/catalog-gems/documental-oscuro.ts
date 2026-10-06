@@ -12,11 +12,6 @@ export const documentalOscuro: CatalogGem = {
     en: 'Dark Documentary',
     pt: 'Documentário Escuro',
   },
-  description: {
-    es: 'Fotografía documental oscura: paleta desaturada, grano denso y una sola fuente de luz motivada.',
-    en: 'Dark documentary photography: desaturated palette, dense grain and a single motivated light source.',
-    pt: 'Fotografia documental escura: paleta dessaturada, grão denso e uma única fonte de luz motivada.',
-  },
   tags: [CATALOG_TAGS.documentary, CATALOG_TAGS.dark, CATALOG_TAGS.mystery],
   sections: {
     visualStyle: `dark cinematic documentary photography, desaturated muted palette, heavy film grain, deep shadows with a single motivated light source, shallow depth of field, anamorphic widescreen framing, unsettling quiet atmosphere.`,

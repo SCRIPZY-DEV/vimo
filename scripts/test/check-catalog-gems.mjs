@@ -165,21 +165,26 @@ test('the sections pass the template gem validation unchanged, with a known temp
   ])
 })
 
-test('the name and the description come in the three languages and the name fits a gallery name', () => {
+test('the name comes in the three languages and fits a gallery name', () => {
   assertEveryGem((gem) => {
     const problems = []
     for (const locale of LOCALES) {
       const name = gem.name?.[locale]
-      const description = gem.description?.[locale]
       if (typeof name !== 'string' || !name.trim())
         problems.push(`name.${locale} is empty`)
       else if (name.trim().length > STYLE_NAME_LIMIT)
         problems.push(`name.${locale} exceeds ${STYLE_NAME_LIMIT} characters`)
-      if (typeof description !== 'string' || !description.trim())
-        problems.push(`description.${locale} is empty`)
     }
     return problems
   })
+})
+
+// La tarjeta y «Ver» ya no muestran una descripción (pedido del dueño,
+// 2026-10-05): una gema que la trajera cargaría un texto que nadie ve.
+test('no gem carries a description', () => {
+  assertEveryGem((gem) =>
+    Object.hasOwn(gem, 'description') ? ['carries a description'] : [],
+  )
 })
 
 test('allowedModes is not empty, has no repeated mode and includes sampleMode', () => {
