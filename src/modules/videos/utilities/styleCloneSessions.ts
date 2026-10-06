@@ -66,12 +66,14 @@ const WORKING: readonly StyleCloneStatus[] = [
 
 // El estilo final de una clonación con destino catálogo: lo que el admin
 // termina de completar como borrador (nombre en tres idiomas, etiquetas,
-// muestras) en el modal del catálogo.
+// muestras) en el modal del catálogo. Con el personaje replicado (siempre
+// como identidad de prompt), su ficha pasa a ser el personaje fijo de la gema.
 export interface StyleCloneFinalStyle {
   name: string
   sections: GemSections
   templateVersion: number
   characterMode: StyleCloneCharacterMode | null
+  character: { name: string; description: string } | null
 }
 
 // Una clonación terminada: guardada en Mi estilo (con su entrada en disco) o
@@ -447,9 +449,11 @@ export function createStyleCloneSessions(
     }
     // Con destino catálogo no se escribe nada en disco: la gema pasa al
     // borrador que el admin completa en el modal del catálogo (las muestras
-    // las genera ahí, con el carril real, como cualquier borrador). La
-    // carpeta de la sesión ya no hace falta.
+    // las genera ahí, con el carril real, como cualquier borrador), con el
+    // personaje clonado como su personaje fijo. La carpeta de la sesión ya no
+    // hace falta.
     if (session.target === 'catalog') {
+      const character = characterOf(session)
       remove(session.id, {
         sessionId: session.id,
         target: 'catalog',
@@ -458,6 +462,9 @@ export function createStyleCloneSessions(
           sections: session.sections,
           templateVersion: session.templateVersion,
           characterMode: session.characterMode,
+          character: character
+            ? { name: character.name, description: character.description }
+            : null,
         },
       })
       try {

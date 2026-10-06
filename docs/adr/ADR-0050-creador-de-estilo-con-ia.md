@@ -268,18 +268,24 @@ da la galería que abre el modal. Con destino catálogo:
   al lado de «Crear estilo» del admin y solo con `adminList` y `features.aiStyleCreator`. Las
   clonaciones en curso de ese destino se ven al principio de la grilla del catálogo, como en Mi
   estilo; las de Mi estilo siguen solo en su galería. El tope de tres cuenta los dos destinos.
-- **No se pregunta por el personaje** (`replicateCharacter` queda en `false` y el paso de origen lo
-  dice): la gema de una ficha no lleva un personaje clonado (la foto no cabe en una gema, y la
-  identidad de prompt no tiene la forma de la sección `character`, que termina con «Outfit:»). El
-  personaje queda en genérico o, si el servidor lo sugiere, en «sin personaje»; un personaje fijo se
-  escribe a mano en la sección «Personaje» del borrador.
+- **El personaje replicado es el personaje fijo de la gema** (pedido del dueño): la pregunta
+  «¿Replicamos el personaje?» y los 3 diseños son los mismos que en Mi estilo, pero el personaje
+  viaja **solo como identidad de prompt** (la opción «Con foto» no se ofrece: una foto no cabe en
+  una gema) y su ficha, que el servidor escribe en el formato de Vimo (rasgos y la oración final
+  «Outfit:», PASO 2.8 de `maestro.ts`, hasta 700 caracteres), pasa a ser la sección `character` del
+  borrador. Así la gema lleva «Personaje fijo» (`withBehaviorTags`), las muestras salen en genérico
+  con ese personaje (en genérico la sección `character` es el personaje, ADR-0048), el usuario en
+  genérico ve el mismo personaje que en las muestras, y si crea el suyo con «Crear personaje con mi
+  estilo» sale en el estilo de la gema (`design-style-character` con sus secciones). Sin replicar,
+  el personaje queda en genérico o, si el servidor lo sugiere, en «sin personaje».
 - **Aprobar no guarda nada en disco.** Tras el turno `aprobar`, la sesión termina con el estilo
   final (`StyleCloneFinished` con `target: 'catalog'` y `style`: nombre, secciones, versión del
-  marco y modo sugerido), se borra su carpeta (`style-clone-discard`) y la galería del catálogo
-  abre el modal del admin con la gema ya armada (`CatalogAdminModal` con `initialDraft`, que se
-  saltea «Pegá tu gema»): `catalogDraftFromStyleClone` arma el borrador con el nombre solo en
-  español, las etiquetas de comportamiento, los tres modos y las muestras en el modo sugerido. El
-  admin completa ahí los otros dos idiomas («Traducir con IA»), las etiquetas y las muestras, y
+  marco, modo sugerido y el personaje, si se replicó), se borra su carpeta (`style-clone-discard`)
+  y la galería del catálogo abre el modal del admin con la gema ya armada (`CatalogAdminModal` con
+  `initialDraft`, que se saltea «Pegá tu gema»): `catalogDraftFromStyleClone` arma el borrador con
+  el nombre solo en español, la sección `character` si hay personaje, las etiquetas de
+  comportamiento, los tres modos y las muestras en genérico (o en el modo sugerido, sin personaje).
+  El admin completa ahí los otros dos idiomas («Traducir con IA»), las etiquetas y las muestras, y
   publica. Ese modal se deriva del store (sin estado propio): si el admin cambia de pestaña con el
   modal abierto, la clonación lo espera y lo vuelve a encontrar al volver.
 - **Las muestras no son las escenas clonadas.** Se generan en el modal, con el carril real y en el
@@ -289,8 +295,9 @@ da la galería que abre el modal. Con destino catálogo:
 - **Una sesión guardada antes de este cambio** vuelve con destino Mi estilo.
 
 **Guards:** `check-app-style-clone-sessions.mjs` (aprobar con destino catálogo: sin guardado, carpeta
-borrada, el estilo final en `finished`; la carpeta que no se borra no frena; lo guardado sin destino
-vuelve como Mi estilo) y `check-app-catalog-admin.mjs` (`catalogDraftFromStyleClone`).
+borrada, el estilo final en `finished`, con el personaje elegido como identidad; la carpeta que no
+se borra no frena; lo guardado sin destino vuelve como Mi estilo) y `check-app-catalog-admin.mjs`
+(`catalogDraftFromStyleClone`, con y sin personaje).
 
 ## Guards
 

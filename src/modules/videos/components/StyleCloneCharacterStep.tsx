@@ -47,8 +47,17 @@ export function StyleCloneCharacterStep({
   onRespond,
 }: StyleCloneCharacterStepProps) {
   const { t } = useTranslation()
+  // Con destino catálogo el personaje viaja solo como identidad de prompt: su
+  // ficha queda como el personaje fijo de la gema (una foto no cabe en una
+  // gema), así que no se pregunta.
+  const forCatalog = session.target === 'catalog'
+  const travelOptions = forCatalog
+    ? TRAVEL_OPTIONS.filter((travelOption) => travelOption.id === 'text')
+    : TRAVEL_OPTIONS
   const [option, setOption] = useState<number | null>(null)
-  const [travel, setTravel] = useState<StyleCloneCharacterTravel | null>(null)
+  const [travel, setTravel] = useState<StyleCloneCharacterTravel | null>(
+    forCatalog ? 'text' : null,
+  )
   const original = styleCloneOriginImageOf(
     session.material,
     session.characterIn,
@@ -156,12 +165,17 @@ export function StyleCloneCharacterStep({
           <p className="font-display text-sm font-bold text-foreground">
             {t('create.styleClone.travelQuestion')}
           </p>
+          {forCatalog && (
+            <p className="font-body text-xs text-muted-foreground">
+              {t('create.styleClone.travelCatalogHint')}
+            </p>
+          )}
           <div
             role="radiogroup"
             aria-label={t('create.styleClone.travelAria')}
             className="grid grid-cols-1 gap-2 sm:grid-cols-2"
           >
-            {TRAVEL_OPTIONS.map((travelOption) => {
+            {travelOptions.map((travelOption) => {
               const chosen = travel === travelOption.id
               return (
                 <button

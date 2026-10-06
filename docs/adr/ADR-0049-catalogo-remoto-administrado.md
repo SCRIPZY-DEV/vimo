@@ -267,6 +267,7 @@ y sacar de la app las gemas empaquetadas.
 Además de «Crear estilo» (pegar una gema), el admin tiene en la pestaña Catálogo la tarjeta «Crear
 estilo con IA» del creador de estilo ([ADR-0050](ADR-0050-creador-de-estilo-con-ia.md), nota del
 2026-10-06): la clonación aprobada no se guarda en Mi estilo, abre el modal del admin con la gema ya
-armada (`CatalogAdminModal` con `initialDraft`, que se saltea «Pegá tu gema») y de ahí sigue como
-cualquier borrador: nombre en tres idiomas, etiquetas, muestras generadas con el carril real y
-Publicar.
+armada (`CatalogAdminModal` con `initialDraft`, que se saltea «Pegá tu gema»; si la clonación
+replicó al personaje, su ficha viene como sección `character` y la gema lleva «Personaje fijo») y
+de ahí sigue como cualquier borrador: nombre en tres idiomas, etiquetas, muestras generadas con el
+carril real (en genérico, con ese personaje) y Publicar.

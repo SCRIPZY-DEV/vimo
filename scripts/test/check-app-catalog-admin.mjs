@@ -93,6 +93,7 @@ test('el borrador nace de una clonación con IA: su nombre en español, sus secc
     sections,
     templateVersion: 1,
     characterMode: 'none',
+    character: null,
   })
   assert.deepEqual(draft, {
     name: { es: 'Garabatos Mono', en: '', pt: '' },
@@ -111,6 +112,7 @@ test('el borrador nace de una clonación con IA: su nombre en español, sus secc
       sections,
       templateVersion: 1,
       characterMode: null,
+      character: null,
     }).sampleMode,
     'generic',
   )
@@ -122,6 +124,28 @@ test('el borrador nace de una clonación con IA: su nombre en español, sus secc
     'samples',
   ])
   assert.equal(suggestedCatalogStyleId(draft.name.es), 'garabatos-mono')
+
+  // Con el personaje replicado, su ficha es el personaje fijo de la gema: la
+  // sección `character`, la etiqueta «Personaje fijo» y las muestras en
+  // genérico (salen con él), aunque el servidor sugiriera «sin personaje».
+  const withCharacter = catalogDraftFromStyleClone({
+    name: 'Garabatos Mono',
+    sections,
+    templateVersion: 1,
+    characterMode: 'none',
+    character: { name: 'Mono', description: CHARACTER },
+  })
+  assert.deepEqual(withCharacter.sections, {
+    ...sections,
+    character: CHARACTER,
+  })
+  assert.deepEqual(withCharacter.tags, [DYNAMISM_TAG, FIXED_CHARACTER_TAG])
+  assert.equal(withCharacter.sampleMode, 'generic')
+  assert.deepEqual(catalogPublishBlockers(withCharacter), [
+    'nameEn',
+    'namePt',
+    'samples',
+  ])
 })
 
 test('los modos: sin sugerencia van los tres; solo «Mi personaje» suma el genérico para las muestras', () => {

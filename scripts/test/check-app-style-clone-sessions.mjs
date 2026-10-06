@@ -422,11 +422,31 @@ test('a clone for the catalog ends as a draft for the admin: nothing is saved to
         sections: SECTIONS,
         templateVersion: 1,
         characterMode: 'none',
+        character: null,
       },
     },
   ])
   store.dismissFinished(id)
   assert.equal(store.getSnapshot().finished.length, 0)
+})
+
+test('a catalog clone with a character hands its identity over as the fixed character of the gem', async () => {
+  const { store, id, calls } = await started({ target: 'catalog' })
+  store.respond(id, { kind: 'choose-character', option: 3, travel: 'text' })
+  await settle(store, id)
+
+  store.respond(id, { kind: 'approve' })
+  assert.equal(await settle(store, id), undefined)
+
+  assert.deepEqual(calls.saves, [])
+  assert.deepEqual(calls.discards, [id])
+  const [finished] = store.getSnapshot().finished
+  assert.equal(finished.target, 'catalog')
+  assert.deepEqual(finished.style.character, {
+    name: 'Rubio de Traje',
+    description: IDENTITY.description,
+  })
+  assert.equal(finished.style.characterMode, null)
 })
 
 test('a catalog clone whose folder cannot be removed still ends as a draft', async () => {

@@ -89,8 +89,9 @@ export interface StyleCloneSession {
   createdAt: number
   target: StyleCloneTarget
   source: StyleCloneSource
-  // La respuesta a «¿Replicamos el personaje del video?» (siempre no con
-  // destino catálogo: la gema de una ficha no lleva un personaje clonado).
+  // La respuesta a «¿Replicamos el personaje del video?» (con destino
+  // catálogo, el personaje viaja solo como identidad de prompt y queda como el
+  // personaje fijo de la gema).
   replicateCharacter: boolean
   imageProvider: ImageProviderId
   status: StyleCloneStatus
