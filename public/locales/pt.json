@@ -713,7 +713,7 @@
         "archived": "Esse estilo está arquivado. Restaure-o antes de alterá-lo."
       },
       "badge": {
-        "unpublished": "Não publicado",
+        "unpublished": "Rascunho",
         "hidden": "Oculto",
         "changes": "Mudanças sem publicar",
         "archived_one": "Some em {{count}} dia",
@@ -725,10 +725,10 @@
         "generateSamples": "Gerar amostras",
         "publish": "Publicar",
         "hide": "Ocultar",
-        "delete": "Excluir",
+        "delete": "Arquivar gema",
         "restore": "Restaurar"
       },
-      "deleteConfirm": "Excluir «{{name}}» do catálogo? Os usuários deixam de vê-lo e ele vai para Arquivados: você pode restaurá-lo por 30 dias; depois é excluído de vez, com suas amostras.",
+      "deleteConfirm": "Arquivar «{{name}}»? Os usuários deixam de vê-la e ela vai para Arquivados: você pode restaurá-la por 30 dias; depois é excluída de vez, com suas amostras.",
       "createCard": "Criar estilo",
       "createCardHint": "Cole uma gema e publique no catálogo.",
       "listFailed": "Não foi possível carregar o catálogo do admin. Você vê o catálogo como qualquer usuário.",
@@ -753,7 +753,7 @@
         "save": "Não foi possível salvar «{{name}}».",
         "publish": "Não foi possível publicar «{{name}}».",
         "hide": "Não foi possível ocultar «{{name}}».",
-        "delete": "Não foi possível excluir «{{name}}».",
+        "delete": "Não foi possível arquivar «{{name}}».",
         "restore": "Não foi possível restaurar «{{name}}»."
       },
       "dismiss": "Dispensar aviso",
@@ -817,7 +817,11 @@
       "viewLabel": "O que mostrar",
       "viewCatalog": "Catálogo · {{count}}",
       "viewArchived": "Arquivados · {{count}}",
-      "archivedHint": "Estilos excluídos. Cada um é removido de vez (o texto e suas amostras) quando a etiqueta vence; restaurá-lo o devolve ao catálogo e cancela a exclusão."
+      "archivedHint": "Estilos excluídos. Cada um é removido de vez (o texto e suas amostras) quando a etiqueta vence; restaurá-lo o devolve ao catálogo e cancela a exclusão.",
+      "sampleStyleCharacter": "Personagem do estilo",
+      "sampleHintStyleCharacter": "Esta gema tem personagem fixo: no modo genérico, os vídeos e as amostras saem com esse personagem.",
+      "sampleHintNoCharacter": "Para as amostras saírem com o personagem do estilo, a gema precisa da seção de personagem.",
+      "modesHintSamples": "As amostras saem em genérico ou sem personagem: um dos dois fica sempre permitido."
     },
     "promptModel": {
       "title": "Com qual modelo escrevo",

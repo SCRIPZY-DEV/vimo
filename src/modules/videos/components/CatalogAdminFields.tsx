@@ -46,6 +46,42 @@ const MODE_KEYS: Record<StyleCharacterMode, string> = {
   none: 'create.catalogAdmin.modeNone',
 }
 
+// Con qué salen las muestras. Las dos primeras son el mismo modo del carril
+// (`generic`): con la sección de personaje de la gema, el modo genérico usa ese
+// personaje fijo (en los videos y en las muestras); sin ella, la Fase 1 diseña
+// uno. Se ofrecen las dos para que se vea cuál aplica a esta gema.
+interface SampleChoice {
+  key: 'generic' | 'styleCharacter' | 'none'
+  mode: CatalogSampleMode
+  labelKey: string
+  // Solo tiene sentido con (o sin) la sección de personaje.
+  needsStyleCharacter: boolean | null
+}
+
+const SAMPLE_CHOICES: readonly SampleChoice[] = [
+  {
+    key: 'generic',
+    mode: 'generic',
+    labelKey: MODE_KEYS.generic,
+    needsStyleCharacter: false,
+  },
+  {
+    key: 'styleCharacter',
+    mode: 'generic',
+    labelKey: 'create.catalogAdmin.sampleStyleCharacter',
+    needsStyleCharacter: true,
+  },
+  {
+    key: 'none',
+    mode: 'none',
+    labelKey: MODE_KEYS.none,
+    needsStyleCharacter: null,
+  },
+]
+
+const isSampleMode = (mode: StyleCharacterMode): mode is CatalogSampleMode =>
+  SAMPLE_MODES.includes(mode as CatalogSampleMode)
+
 const COLOR_FILTER_KEYS: Record<ColorFilterId, string> = {
   none: 'create.catalogAdmin.colorFilterNone',
   fantasy: 'create.catalogAdmin.colorFilterFantasy',
@@ -80,33 +116,42 @@ export function CatalogAdminFields({
     onContentChange({ ...content, name: { ...content.name, [locale]: value } })
   }
 
+  const hasStyleCharacter = Boolean(content.sections.character?.trim())
+  const isAllowed = (mode: StyleCharacterMode) =>
+    content.allowedModes.includes(mode)
+  // Las muestras salen en genérico o sin personaje: uno de los dos queda
+  // siempre permitido (plan E3, P17), así que el último no se puede apagar.
+  const canDisableMode = (mode: StyleCharacterMode) =>
+    !isSampleMode(mode) ||
+    SAMPLE_MODES.some((other) => other !== mode && isAllowed(other))
+  const sampleModeLocked = SAMPLE_MODES.some(
+    (mode) => isAllowed(mode) && !canDisableMode(mode),
+  )
+
+  // Apagar un modo nunca deja a las muestras sin modo: pasan al otro
+  // permitido. Encenderlo no cambia las muestras.
   const toggleMode = (mode: StyleCharacterMode) => {
-    const allowed = content.allowedModes.includes(mode)
+    if (isAllowed(mode) && !canDisableMode(mode)) return
+    const allowedModes = isAllowed(mode)
       ? content.allowedModes.filter((existing) => existing !== mode)
-      : MODES.filter(
-          (existing) =>
-            existing === mode || content.allowedModes.includes(existing),
-        )
-    // Nunca vacío, y el modo de las muestras siempre permitido (plan E3, P17).
-    if (allowed.length === 0) return
-    const sampleMode = allowed.includes(content.sampleMode)
+      : MODES.filter((existing) => existing === mode || isAllowed(existing))
+    const sampleMode = allowedModes.includes(content.sampleMode)
       ? content.sampleMode
-      : (allowed.find((existing): existing is CatalogSampleMode =>
-          SAMPLE_MODES.includes(existing as CatalogSampleMode),
-        ) ?? null)
-    if (sampleMode === null) return
-    onContentChange({ ...content, allowedModes: allowed, sampleMode })
+      : (allowedModes.find(isSampleMode) ?? content.sampleMode)
+    onContentChange({ ...content, allowedModes, sampleMode })
   }
 
+  // Solo entre los modos permitidos: elegir las muestras no enciende un modo
+  // por la espalda (pedido del dueño, 2026-10-06).
   const chooseSampleMode = (sampleMode: CatalogSampleMode) => {
-    const allowedModes = content.allowedModes.includes(sampleMode)
-      ? content.allowedModes
-      : MODES.filter(
-          (existing) =>
-            existing === sampleMode || content.allowedModes.includes(existing),
-        )
-    onContentChange({ ...content, sampleMode, allowedModes })
+    if (!isAllowed(sampleMode)) return
+    onContentChange({ ...content, sampleMode })
   }
+
+  const sampleChoiceEnabled = (choice: SampleChoice) =>
+    isAllowed(choice.mode) &&
+    (choice.needsStyleCharacter === null ||
+      choice.needsStyleCharacter === hasStyleCharacter)
 
   const changeTags = (tags: LocalizedText[]) => {
     onContentChange({ ...content, tags })
@@ -222,45 +267,69 @@ export function CatalogAdminFields({
             {t('create.catalogAdmin.modesLabel')}
           </legend>
           <div className="space-y-1">
-            {MODES.map((mode) => (
-              <label
-                key={mode}
-                className="flex items-center gap-2 font-body text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={content.allowedModes.includes(mode)}
-                  disabled={disabled}
-                  onChange={() => toggleMode(mode)}
-                  className="accent-saffron"
-                />
-                {t(MODE_KEYS[mode])}
-              </label>
-            ))}
+            {MODES.map((mode) => {
+              const locked = isAllowed(mode) && !canDisableMode(mode)
+              return (
+                <label
+                  key={mode}
+                  className={cn(
+                    'flex items-center gap-2 font-body text-sm',
+                    locked && 'text-muted-foreground',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isAllowed(mode)}
+                    disabled={disabled || locked}
+                    onChange={() => toggleMode(mode)}
+                    className="accent-saffron"
+                  />
+                  {t(MODE_KEYS[mode])}
+                </label>
+              )
+            })}
           </div>
+          {sampleModeLocked && (
+            <p className="mt-1 font-body text-xs text-muted-foreground">
+              {t('create.catalogAdmin.modesHintSamples')}
+            </p>
+          )}
         </fieldset>
         <fieldset>
           <legend className="mb-1 text-xs font-medium">
             {t('create.catalogAdmin.sampleModeLabel')}
           </legend>
           <div className="space-y-1">
-            {SAMPLE_MODES.map((mode) => (
-              <label
-                key={mode}
-                className="flex items-center gap-2 font-body text-sm"
-              >
-                <input
-                  type="radio"
-                  name="catalog-sample-mode"
-                  checked={content.sampleMode === mode}
-                  disabled={disabled}
-                  onChange={() => chooseSampleMode(mode)}
-                  className="accent-saffron"
-                />
-                {t(MODE_KEYS[mode])}
-              </label>
-            ))}
+            {SAMPLE_CHOICES.map((choice) => {
+              const enabled = sampleChoiceEnabled(choice)
+              return (
+                <label
+                  key={choice.key}
+                  className={cn(
+                    'flex items-center gap-2 font-body text-sm',
+                    !enabled && 'text-muted-foreground',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="catalog-sample-mode"
+                    checked={enabled && content.sampleMode === choice.mode}
+                    disabled={disabled || !enabled}
+                    onChange={() => chooseSampleMode(choice.mode)}
+                    className="accent-saffron"
+                  />
+                  {t(choice.labelKey)}
+                </label>
+              )
+            })}
           </div>
+          <p className="mt-1 font-body text-xs text-muted-foreground">
+            {t(
+              hasStyleCharacter
+                ? 'create.catalogAdmin.sampleHintStyleCharacter'
+                : 'create.catalogAdmin.sampleHintNoCharacter',
+            )}
+          </p>
         </fieldset>
         <div>
           <label

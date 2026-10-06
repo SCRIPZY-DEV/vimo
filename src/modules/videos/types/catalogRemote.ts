@@ -106,6 +106,17 @@ export type CatalogPublishBlocker =
   | 'characterOutfit'
   | 'placeholder'
 
-/** Las acciones del admin sobre un estilo, para los avisos de la galería. */
+/** Las acciones del admin sobre un estilo, para sus avisos. */
 export type CatalogAdminAction =
   'create' | 'save' | 'publish' | 'hide' | 'delete' | 'restore'
+
+/** El aviso de una acción del admin: en curso, hecha o fallida con el porqué. */
+export interface CatalogAdminNotice {
+  action: CatalogAdminAction
+  /** El nombre del estilo como lo ve el admin. */
+  name: string
+  status: 'working' | 'done' | 'failed'
+  errorKey: string | null
+  /** El `detalle` del servidor (qué campo), para `estilo-invalido`. */
+  errorDetail: string
+}

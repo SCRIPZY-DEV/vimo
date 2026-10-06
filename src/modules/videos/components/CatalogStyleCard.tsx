@@ -54,9 +54,10 @@ interface CatalogStyleCardProps {
   onCopy: () => void
 }
 
-// El distintivo del admin: oculto o sin publicar en gris; con cambios sin
-// publicar, en amarillo (hay algo que los usuarios todavía no ven); archivado,
-// en rojo (cuenta regresiva hasta que el servidor lo purgue).
+// El distintivo del admin: «Borrador» (nunca se publicó) u «Oculto» en gris y
+// con la tarjeta apagada; con cambios sin publicar, en amarillo (hay algo que
+// los usuarios todavía no ven); archivado, en rojo (cuenta regresiva hasta que
+// el servidor lo purgue).
 const BADGE_CLASS: Record<CatalogAdminBadge, string> = {
   unpublished: 'bg-charcoal/80 text-white',
   hidden: 'bg-charcoal/80 text-white',
@@ -104,6 +105,8 @@ export function CatalogStyleCard({
       menuLabel={t('create.catalog.menuAria', { name })}
       selected={selected}
       disabled={disabled}
+      // Lo que los usuarios no ven (un borrador, uno oculto) va apagado.
+      faded={hidden}
       overlay={
         admin?.badge ? (
           // Debajo de «En uso» si las dos están: la esquina izquierda es de

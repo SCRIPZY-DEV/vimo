@@ -90,10 +90,11 @@ interface AdminEditing {
 // Con el catálogo remoto encendido (Entrega 3, ADR-0049) la lista es la
 // sincronizada y, para un admin con conexión, la del servidor: todos los
 // estilos con su borrador y su estado, la tarjeta «Crear estilo» y el menú de
-// administrar. Eliminar archiva por 30 días: lo archivado se ve aparte, con el
-// filtro «Archivados», solo para restaurarlo antes de que el servidor lo
-// purgue. Sin conexión, o si esa lista falla, el admin ve el catálogo como
-// cualquier usuario.
+// administrar. Archivar guarda el estilo 30 días: lo archivado se ve aparte,
+// con el filtro «Archivados», solo para restaurarlo antes de que el servidor
+// lo purgue. Cada acción del admin avisa con un toast de la app. Sin
+// conexión, o si esa lista falla, el admin ve el catálogo como cualquier
+// usuario.
 export function CatalogStyleGallery({
   selected,
   disabled,
@@ -232,8 +233,9 @@ export function CatalogStyleGallery({
   const hide = (style: AdminCatalogStyle) => {
     admin.hideStyle(style, adminName(style)).catch(() => {})
   }
-  // Nativo, como al borrar un estilo propio: nunca otro modal encima. Eliminar
-  // archiva: el estilo pasa a Archivados 30 días, donde se puede restaurar.
+  // Nativo, como al borrar un estilo propio: nunca otro modal encima. Archivar
+  // (el «eliminar» del catálogo): el estilo pasa a Archivados 30 días, donde
+  // se puede restaurar.
   const remove = (style: AdminCatalogStyle) => {
     const name = adminName(style)
     if (!window.confirm(t('create.catalogAdmin.deleteConfirm', { name })))
@@ -243,8 +245,6 @@ export function CatalogStyleGallery({
   const restore = (style: AdminCatalogStyle) => {
     admin.restoreStyle(style, adminName(style)).catch(() => {})
   }
-
-  const notice = admin.notice
 
   return (
     <div className="space-y-3">
@@ -383,100 +383,50 @@ export function CatalogStyleGallery({
         )}
       </div>
 
-      {/* Los avisos (la copia a Mi estilo y las acciones del admin) van
-          después de una grilla larga (38 estilos) y se quedan pegados al borde
-          de abajo de lo que se ve mientras la galería está en pantalla: así el
-          clic siempre muestra algo. Traerlos a la vista con scroll no servía:
-          al cerrarse, el menú de la tarjeta le devuelve el foco a su botón y
-          eso corta el scroll. El fondo opaco tapa las tarjetas que pasan por
-          debajo. */}
-      {notice ? (
+      {/* El aviso de la copia a Mi estilo va después de una grilla larga (38
+          estilos) y se queda pegado al borde de abajo de lo que se ve mientras
+          la galería está en pantalla: así el clic siempre muestra algo. Traerlo
+          a la vista con scroll no servía: al cerrarse, el menú de la tarjeta le
+          devuelve el foco a su botón y eso corta el scroll. El fondo opaco tapa
+          las tarjetas que pasan por debajo. Las acciones del admin avisan con
+          un toast de la app (useCatalogAdmin), no acá. */}
+      {copyRequest && (copying || copyFailed) && (
         <div className="sticky bottom-4 z-10 rounded-xl bg-background shadow-card-hover">
-          {notice.status === 'failed' ? (
-            <Alert
-              tone="danger"
-              title={t(`create.catalogAdmin.failed.${notice.action}`, {
-                name: notice.name,
-              })}
-              actions={
-                <DismissButton
-                  label={t('create.catalogAdmin.dismiss')}
-                  onClick={admin.dismissNotice}
-                />
-              }
-            >
-              {notice.errorKey && (
-                <p>{t(notice.errorKey, { detail: notice.errorDetail })}</p>
-              )}
-            </Alert>
-          ) : (
+          {copying ? (
             <p
               role="status"
               className="flex items-center gap-2 rounded-xl border-2 border-saffron/30 bg-saffron/5 px-4 py-3 font-body text-sm text-foreground"
             >
-              {notice.status === 'working' ? (
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
-              ) : (
-                <Check className="h-4 w-4 shrink-0 text-emerald-500" />
-              )}
-              <span className="min-w-0 flex-1">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
+              <span>
                 <Trans
-                  i18nKey={`create.catalogAdmin.${notice.status}.${notice.action}`}
-                  values={{ name: notice.name }}
+                  i18nKey="create.catalog.copyingNamed"
+                  values={{ name: copyRequest.name }}
                   components={{
                     badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
                   }}
                 />
               </span>
-              {notice.status === 'done' && (
-                <DismissButton
-                  label={t('create.catalogAdmin.dismiss')}
-                  onClick={admin.dismissNotice}
-                />
-              )}
             </p>
+          ) : (
+            // El titular basta cuando el texto del código es del formulario
+            // de Crear (videosApi.catalogCopyErrorKey devuelve null).
+            <Alert
+              tone="danger"
+              title={t('create.catalog.copyFailed', {
+                name: copyRequest.name,
+              })}
+              actions={
+                <DismissButton
+                  label={t('create.catalog.copyFailedDismiss')}
+                  onClick={dismissCopyFailure}
+                />
+              }
+            >
+              {copyErrorKey && <p>{t(copyErrorKey)}</p>}
+            </Alert>
           )}
         </div>
-      ) : (
-        copyRequest &&
-        (copying || copyFailed) && (
-          <div className="sticky bottom-4 z-10 rounded-xl bg-background shadow-card-hover">
-            {copying ? (
-              <p
-                role="status"
-                className="flex items-center gap-2 rounded-xl border-2 border-saffron/30 bg-saffron/5 px-4 py-3 font-body text-sm text-foreground"
-              >
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-saffron" />
-                <span>
-                  <Trans
-                    i18nKey="create.catalog.copyingNamed"
-                    values={{ name: copyRequest.name }}
-                    components={{
-                      badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
-                    }}
-                  />
-                </span>
-              </p>
-            ) : (
-              // El titular basta cuando el texto del código es del formulario
-              // de Crear (videosApi.catalogCopyErrorKey devuelve null).
-              <Alert
-                tone="danger"
-                title={t('create.catalog.copyFailed', {
-                  name: copyRequest.name,
-                })}
-                actions={
-                  <DismissButton
-                    label={t('create.catalog.copyFailedDismiss')}
-                    onClick={dismissCopyFailure}
-                  />
-                }
-              >
-                {copyErrorKey && <p>{t(copyErrorKey)}</p>}
-              </Alert>
-            )}
-          </div>
-        )
       )}
 
       {viewingEntry && (

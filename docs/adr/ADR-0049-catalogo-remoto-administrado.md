@@ -177,12 +177,19 @@ orígenes permitidos de descarga y de subida le llegan en el payload (ADR-0010).
 - Al montarse la pestaña Catálogo con el interruptor encendido: lista → manifiesto con la versión
   conocida → `catalog-styles-sync` si cambió → lista. Sin spinner que bloquee y sin mostrar un
   fallo como error: sigue lo que había.
-- El admin ve todos los estilos con su estado («Oculto», «Sin publicar», «Cambios sin publicar»),
-  un menú con Editar, Generar muestras, Publicar, Ocultar y Eliminar, la tarjeta «Crear estilo» y
+- El admin ve todos los estilos con su estado («Borrador» y «Oculto», con la tarjeta apagada;
+  «Cambios sin publicar»), un menú con Editar, Generar muestras, Publicar, Ocultar y Archivar gema,
+  la tarjeta «Crear estilo» y
   un modal propio armado con las piezas del modal de Mi estilo («Pegá tu gema» con el agente,
   secciones, avisos, carrusel). Puede usar un borrador en un video propio para probarlo antes de
-  publicar.
-- Eliminar archiva: el estilo pasa al filtro «Archivados» de la pestaña (pastillas «Catálogo · N»
+  publicar. «Las muestras salen con» ofrece Genérico, Personaje del estilo y Sin personaje: las
+  dos primeras son el mismo modo del carril (con la sección de personaje de la gema, el genérico
+  usa ese personaje fijo, en los videos y en las muestras), y solo se pueden elegir las permitidas;
+  apagar un modo permitido mueve las muestras al otro, y el último de Genérico/Sin personaje no se
+  apaga (las muestras lo necesitan).
+- Cada acción del admin avisa con un toast de la app (flota abajo, se desliza para descartar), no
+  con un cartel al pie de la galería: con 38 tarjetas no se veía.
+- «Archivar gema» (el eliminar del catálogo): el estilo pasa al filtro «Archivados» de la pestaña (pastillas «Catálogo · N»
   y «Archivados · N», solo para el admin), con el distintivo «Se elimina en N días» y un menú con
   solo Ver y Restaurar. Restaurar lo devuelve al catálogo tal como estaba y cancela la purga. En
   Archivados no se crea, no se elige para un video ni se copia a Mi estilo.

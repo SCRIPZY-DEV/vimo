@@ -58,6 +58,14 @@ tests. Rama `feat/catalogo-remoto` (VIMO-TAURI, local, sobre `feat/catalogo-esti
   `GET /api/admin/catalogo` y el `DELETE`. En la app, el admin tiene las pastillas «Catálogo · N» y
   «Archivados · N»; una archivada lleva «Se elimina en N días» y solo Ver y Restaurar. Migración
   aplicada en producción el 2026-10-06 a las 12:45 (`SETUP_CATALOGO_REMOTO.md`).
+- **Ajustes de la primera prueba del dueño (2026-10-06, tarde):** los avisos del admin son toasts de
+  la app (`CatalogAdminToast`, el store de `useToast`: flotan abajo, se deslizan para descartar) en
+  vez del cartel pegado al pie de la galería; la tarjeta de un estilo nunca publicado dice
+  «Borrador» (y la de uno oculto, «Oculto») y va apagada; el menú dice «Archivar gema»; y en el
+  modal, «Las muestras salen con» ofrece Genérico, Personaje del estilo y Sin personaje solo entre
+  los modos permitidos (con la sección de personaje, el genérico es ese personaje fijo: así lo
+  hacen el carril del video y el sidecar), sin encender un modo por la espalda y sin dejar a las
+  muestras sin modo.
 
 ## Decisiones tomadas durante la implementación
 

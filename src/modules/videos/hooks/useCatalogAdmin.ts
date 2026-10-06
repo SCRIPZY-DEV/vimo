@@ -1,32 +1,25 @@
-import { useState } from 'react'
+import { createElement } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { toast } from '@/modules/common/hooks/useToast'
 import { queryClient } from '@/modules/common/queryClient'
 import { videosApi } from '@/modules/videos/api'
+import { CatalogAdminToast } from '@/modules/videos/components/CatalogAdminToast'
 import {
   CATALOG_ADMIN_STALE_TIME_MS,
+  CATALOG_ADMIN_TOAST_DURATION_MS,
   videosQueryKeys,
 } from '@/modules/videos/constants'
 import type {
   AdminCatalogListResponse,
   AdminCatalogStyle,
   CatalogAdminAction,
+  CatalogAdminNotice,
   CatalogSamplesReserveRequest,
   CatalogSamplesReserveResponse,
   CatalogStyleCreateRequest,
   CatalogStyleUpdateRequest,
   CatalogTranslateResponse,
 } from '@/modules/videos/types/catalogRemote'
-
-/** El último pedido del admin, para el aviso de la galería. */
-export interface CatalogAdminNotice {
-  action: CatalogAdminAction
-  // El nombre del estilo como lo ve el admin.
-  name: string
-  status: 'working' | 'done' | 'failed'
-  errorKey: string | null
-  // El `detalle` del servidor (qué campo), para `estilo-invalido`.
-  errorDetail: string
-}
 
 // Lo que hace el admin con el catálogo remoto (Entrega 3, ADR-0049, plan E3
 // tarea C2): la lista de todos los estilos (borrador, publicado y estado,
@@ -36,9 +29,12 @@ export interface CatalogAdminNotice {
 // un corte de conexión se muestra como error y no queda una mutación en pausa
 // (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online). Cada
 // respuesta se pone en la lista cacheada al toque, y lo que cambia lo que ven
-// los usuarios (publicar, ocultar, eliminar, restaurar) vuelve a correr la
+// los usuarios (publicar, ocultar, archivar, restaurar) vuelve a correr la
 // sincronización de la pestaña. Un estilo sale de la lista solo cuando el
 // servidor lo purga (la lista se vuelve a pedir al montarse o al refrescar).
+// Cada acción avisa con un toast de la app (el mismo store que el resto de
+// los avisos: flota abajo, se desliza para descartar): en curso mientras
+// dura, hecho unos segundos, fallido hasta que la persona lo cierre.
 export function useCatalogAdmin(enabled: boolean) {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: videosQueryKeys.catalogAdmin,
@@ -48,7 +44,6 @@ export function useCatalogAdmin(enabled: boolean) {
     staleTime: CATALOG_ADMIN_STALE_TIME_MS,
     retry: false,
   })
-  const [notice, setNotice] = useState<CatalogAdminNotice | null>(null)
 
   const showStyle = (style: AdminCatalogStyle) => {
     queryClient.setQueryData<AdminCatalogListResponse>(
@@ -73,36 +68,46 @@ export function useCatalogAdmin(enabled: boolean) {
     })
   }
 
-  // Cada acción deja su aviso: en curso, hecha o fallida con el porqué.
+  // Cada acción deja su aviso: un solo toast que pasa de en curso a hecho o
+  // fallido (con el porqué). `createElement` y no JSX: el hook es un .ts. Va
+  // como `description` (acepta nodos); `title` del toast es solo texto.
   const noticed = async <T>(
     action: CatalogAdminAction,
     name: string,
     work: () => Promise<T>,
   ): Promise<T> => {
-    setNotice({
-      action,
-      name,
-      status: 'working',
-      errorKey: null,
-      errorDetail: '',
+    const content = (notice: Omit<CatalogAdminNotice, 'action' | 'name'>) =>
+      createElement(CatalogAdminToast, { action, name, ...notice })
+    const handle = toast({
+      description: content({
+        status: 'working',
+        errorKey: null,
+        errorDetail: '',
+      }),
+      duration: Infinity,
     })
     try {
       const result = await work()
-      setNotice({
-        action,
-        name,
-        status: 'done',
-        errorKey: null,
-        errorDetail: '',
+      handle.update({
+        id: handle.id,
+        description: content({
+          status: 'done',
+          errorKey: null,
+          errorDetail: '',
+        }),
+        duration: CATALOG_ADMIN_TOAST_DURATION_MS,
       })
       return result
     } catch (failure) {
-      setNotice({
-        action,
-        name,
-        status: 'failed',
-        errorKey: videosApi.catalogServerErrorKey(failure),
-        errorDetail: videosApi.catalogServerErrorDetail(failure),
+      handle.update({
+        id: handle.id,
+        description: content({
+          status: 'failed',
+          errorKey: videosApi.catalogServerErrorKey(failure),
+          errorDetail: videosApi.catalogServerErrorDetail(failure),
+        }),
+        variant: 'destructive',
+        duration: Infinity,
       })
       throw failure
     }
@@ -200,8 +205,6 @@ export function useCatalogAdmin(enabled: boolean) {
     // La lista no se pudo cargar: el admin ve el catálogo como cualquier usuario.
     isError,
     errorKey: isError ? videosApi.catalogServerErrorKey(error) : null,
-    notice,
-    dismissNotice: () => setNotice(null),
     busy,
     // Trae la lista de nuevo y devuelve ESE estilo con su revisión de ahora
     // (para volver a intentar tras un `borrador-cambio` sin perder lo escrito).

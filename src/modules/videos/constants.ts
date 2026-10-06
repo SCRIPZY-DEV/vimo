@@ -450,6 +450,9 @@ export const CATALOG_TRANSLATE_TIMEOUT_MS = 60_000
 export const CATALOG_SYNC_STALE_TIME_MS = 60_000
 // La lista del admin se vuelve a pedir si pasó más de esto desde la última.
 export const CATALOG_ADMIN_STALE_TIME_MS = 30_000
+// Cuánto queda a la vista el aviso de una acción del admin que salió bien;
+// uno en curso o fallido se queda hasta que la persona lo descarte.
+export const CATALOG_ADMIN_TOAST_DURATION_MS = 6000
 // Muestras de un borrador del catálogo: las 4 situaciones fijas, como en Mi
 // estilo, subidas al bucket `previews-gemas` de Supabase.
 export const CATALOG_DRAFT_SAMPLE_COUNT = 4

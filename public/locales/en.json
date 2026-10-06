@@ -713,7 +713,7 @@
         "archived": "That style is archived. Restore it before changing it."
       },
       "badge": {
-        "unpublished": "Unpublished",
+        "unpublished": "Draft",
         "hidden": "Hidden",
         "changes": "Unpublished changes",
         "archived_one": "Deleted in {{count}} day",
@@ -725,10 +725,10 @@
         "generateSamples": "Generate samples",
         "publish": "Publish",
         "hide": "Hide",
-        "delete": "Delete",
+        "delete": "Archive gem",
         "restore": "Restore"
       },
-      "deleteConfirm": "Delete \"{{name}}\" from the catalog? Users stop seeing it and it moves to Archived: you can restore it for 30 days; after that it is deleted for good, samples included.",
+      "deleteConfirm": "Archive \"{{name}}\"? Users stop seeing it and it moves to Archived: you can restore it for 30 days; after that it is deleted for good, samples included.",
       "createCard": "Create style",
       "createCardHint": "Paste a gem and publish it in the catalog.",
       "listFailed": "The admin catalog couldn't be loaded. You see the catalog like any user.",
@@ -753,7 +753,7 @@
         "save": "\"{{name}}\" couldn't be saved.",
         "publish": "\"{{name}}\" couldn't be published.",
         "hide": "\"{{name}}\" couldn't be hidden.",
-        "delete": "\"{{name}}\" couldn't be deleted.",
+        "delete": "\"{{name}}\" couldn't be archived.",
         "restore": "\"{{name}}\" couldn't be restored."
       },
       "dismiss": "Dismiss notice",
@@ -817,7 +817,11 @@
       "viewLabel": "What to show",
       "viewCatalog": "Catalog · {{count}}",
       "viewArchived": "Archived · {{count}}",
-      "archivedHint": "Deleted styles. Each one is removed for good (text and samples) when its label runs out; restoring it puts it back in the catalog and cancels the deletion."
+      "archivedHint": "Deleted styles. Each one is removed for good (text and samples) when its label runs out; restoring it puts it back in the catalog and cancels the deletion.",
+      "sampleStyleCharacter": "Style character",
+      "sampleHintStyleCharacter": "This gem has a fixed character: in generic mode, videos and samples use that character.",
+      "sampleHintNoCharacter": "For samples with the style character, the gem needs its character section.",
+      "modesHintSamples": "Samples come out generic or without a character: one of the two always stays allowed."
     },
     "promptModel": {
       "title": "Which model writes the prompts",
