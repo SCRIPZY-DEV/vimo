@@ -130,7 +130,11 @@ test('la gema trae su personaje solo si su sección `character` tiene texto', ()
   assert.equal(gemBringsCharacter(undefined), false)
 })
 
-test('gema adaptada: tiene secciones y el respaldo del texto del que salieron', () => {
+// Pedido del dueño (2026-10-05): la etiqueta dice que la gema ya está en la
+// ficha de Vimo, venga de donde venga, para que una clonada con IA no parezca
+// incompleta al lado de una adaptada. Solo una gema vieja sin adaptar no la
+// lleva.
+test('gema adaptada: toda gema con secciones; solo una vieja sin adaptar no', () => {
   // Pegada o vieja, la adaptación guarda las secciones con el texto original.
   assert.equal(
     isAdaptedGem({
@@ -139,14 +143,24 @@ test('gema adaptada: tiene secciones y el respaldo del texto del que salieron', 
     }),
     true,
   )
+  // Clonada con IA (ADR-0050): secciones sin texto de origen.
+  assert.equal(
+    isAdaptedGem({
+      sections: { visualStyle: 'Ink.' },
+      origin: { kind: 'ai-clone', source: 'images' },
+    }),
+    true,
+  )
+  // Copia del catálogo: también está en la ficha de Vimo.
+  assert.equal(
+    isAdaptedGem({
+      sections: { visualStyle: 'Ink.' },
+      origin: { kind: 'catalog', catalogStyleId: 'cartoon', name: 'Cartoon' },
+    }),
+    true,
+  )
   // Una gema vieja todavía es texto: se adapta al abrirla o elegirla.
   assert.equal(isAdaptedGem(OLD_GEM), false)
-  // Una copia del catálogo tiene secciones pero no salió de ningún texto.
-  assert.equal(isAdaptedGem({ sections: { visualStyle: 'Ink.' } }), false)
-  assert.equal(
-    isAdaptedGem({ sections: { visualStyle: 'Ink.' }, sourcePrompt: '  ' }),
-    false,
-  )
 })
 
 test('guardar una gema de plantilla: siempre con templateVersion, sin systemPrompt ni shots; sourcePrompt solo si se reconstruyó', () => {

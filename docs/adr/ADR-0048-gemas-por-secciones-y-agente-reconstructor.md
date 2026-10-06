@@ -552,8 +552,11 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   galería dura una visita a la pestaña Mi estilo (`showsGalleryNotice`: el store numera las visitas
   y anota en cuál se vio cada aviso); al volver ya no está, pero el modal de la gema sigue mostrando
   lo que ajustó la IA. Ese aviso del modal se descarta solo a los 60 s si no se toca la X. La
-  tarjeta de una gema adaptada (secciones más `sourcePrompt`) lleva la etiqueta «Gema adaptada»; una
-  copia del catálogo no la lleva. Los avisos siguen sin guardarse en disco.
+  tarjeta de una gema adaptada lleva la etiqueta «Gema adaptada». Hasta el 2026-10-05 eso pedía
+  secciones más `sourcePrompt`, y una copia del catálogo o un estilo clonado con IA no la llevaban.
+  Desde ese día, a pedido del dueño, la lleva **toda gema con secciones**: así una clonada con IA no
+  parece incompleta al lado de una adaptada. Solo una gema vieja sin adaptar queda sin etiqueta
+  (`isAdaptedGem`). Los avisos siguen sin guardarse en disco.
 
 ## Nota posterior 2026-10-03 — el final fijo llega a 1 000 y el origen suma los estilos clonados
 
