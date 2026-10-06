@@ -242,6 +242,7 @@ function hold() {
   return { promise, release }
 }
 const input = (extra = {}) => ({
+  target: 'custom',
   source: VIDEO,
   replicateCharacter: true,
   imageProvider: 'evolink',
@@ -394,6 +395,62 @@ test('approving saves the style with its samples and its character, and the sess
   assert.equal(finished[0].entry.id, 'st-nuevo')
   store.dismissFinished(id)
   assert.equal(store.getSnapshot().finished.length, 0)
+})
+
+test('a clone for the catalog ends as a draft for the admin: nothing is saved to disk and the session folder goes', async () => {
+  const { store, id, calls, state } = await started({
+    target: 'catalog',
+    replicateCharacter: false,
+  })
+  state.characterMode = 'none'
+  store.rename(id, 'Garabatos Mono')
+
+  store.respond(id, { kind: 'approve' })
+  assert.equal(sessionOf(store, id).status, 'saving')
+  assert.equal(await settle(store, id), undefined)
+
+  assert.equal(calls.turns.at(-1).draft.accion, 'aprobar')
+  assert.deepEqual(calls.saves, [])
+  assert.deepEqual(calls.saved, [])
+  assert.deepEqual(calls.discards, [id])
+  assert.deepEqual(store.getSnapshot().finished, [
+    {
+      sessionId: id,
+      target: 'catalog',
+      style: {
+        name: 'Garabatos Mono',
+        sections: SECTIONS,
+        templateVersion: 1,
+        characterMode: 'none',
+      },
+    },
+  ])
+  store.dismissFinished(id)
+  assert.equal(store.getSnapshot().finished.length, 0)
+})
+
+test('a catalog clone whose folder cannot be removed still ends as a draft', async () => {
+  const { store, id, state } = await started({
+    target: 'catalog',
+    replicateCharacter: false,
+  })
+  state.fail.discard = 'style_clone_session_missing'
+  store.respond(id, { kind: 'approve' })
+  assert.equal(await settle(store, id), undefined)
+  const { finished } = store.getSnapshot()
+  assert.equal(finished.length, 1)
+  assert.equal(finished[0].target, 'catalog')
+})
+
+test('a session stored before clones had a destination comes back bound for Mi estilo', async () => {
+  const first = await started()
+  const stored = JSON.parse(first.stored.value)
+  for (const session of stored.sessions) delete session.target
+
+  const second = world({ storage: JSON.stringify(stored) })
+  assert.equal(sessionOf(second.store, first.id).target, 'custom')
+  const third = await started({ target: 'catalog' })
+  assert.equal(sessionOf(third.store, third.id).target, 'catalog')
 })
 
 test('a style without a character is saved without one', async () => {

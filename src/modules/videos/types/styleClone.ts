@@ -34,6 +34,11 @@ export type StyleCloneStatus =
 // Qué se está probando: los diseños del personaje o las escenas.
 export type StyleCloneStep = 'character' | 'scenes'
 
+// Adónde va el estilo al aprobarlo: a Mi estilo (se guarda en disco con sus
+// muestras) o, para un admin desde la pestaña Catálogo, a un borrador del
+// catálogo remoto (ADR-0049) que termina de completar en el modal del admin.
+export type StyleCloneTarget = 'custom' | 'catalog'
+
 // Las partes de una acción, en orden. Cada una deja su resultado en la sesión
 // antes de pasar a la siguiente: retomar repite solo la que estaba corriendo.
 export type StyleClonePhase = 'prepare' | 'turn' | 'draw' | 'save'
@@ -82,8 +87,10 @@ export interface StyleCloneChoice {
 export interface StyleCloneSession {
   id: string
   createdAt: number
+  target: StyleCloneTarget
   source: StyleCloneSource
-  // La respuesta a «¿Replicamos el personaje del video?».
+  // La respuesta a «¿Replicamos el personaje del video?» (siempre no con
+  // destino catálogo: la gema de una ficha no lleva un personaje clonado).
   replicateCharacter: boolean
   imageProvider: ImageProviderId
   status: StyleCloneStatus
@@ -122,6 +129,7 @@ export interface StyleCloneSession {
 
 // Lo que pide la persona al empezar una clonación.
 export interface StyleCloneStartInput {
+  target: StyleCloneTarget
   source: StyleCloneSource
   replicateCharacter: boolean
   imageProvider: ImageProviderId

@@ -1,12 +1,14 @@
 import { useSyncExternalStore } from 'react'
+import type { StyleCloneTarget } from '@/modules/videos/types/styleClone'
 
 // Qué muestra el modal del creador de estilo con IA (ADR-0050); null =
-// cerrado. `new` es el paso de origen de una clonación que todavía no empezó;
-// `session`, una clonación abierta. Vive fuera de React (patrón de
-// useCustomStyleEditor): cerrar el modal no toca la sesión, que sigue
-// trabajando en su store.
+// cerrado. `new` es el paso de origen de una clonación que todavía no empezó
+// (con el destino que le da la galería que lo abre); `session`, una clonación
+// abierta. Vive fuera de React (patrón de useCustomStyleEditor): cerrar el
+// modal no toca la sesión, que sigue trabajando en su store.
 export type StyleCloneModalTarget =
-  { kind: 'new' } | { kind: 'session'; sessionId: string }
+  | { kind: 'new'; target: StyleCloneTarget }
+  | { kind: 'session'; sessionId: string }
 
 let target: StyleCloneModalTarget | null = null
 const subscribers = new Set<() => void>()

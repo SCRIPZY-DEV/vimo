@@ -253,6 +253,45 @@ ni SÍ ni NO) el estilo queda en genérico, como antes
 - **Pendiente antes de abrirlo a todos:** la prueba del dueño en la app, la aceptación contra
   Imperio Pro y el texto de la política de privacidad de vimo.click.
 
+## Nota posterior 2026-10-06 — «Crear estilo con IA» en el Catálogo, para el admin
+
+**Pedido del dueño:** que el admin tenga en la pestaña Catálogo la misma tarjeta «Crear estilo con
+IA» que en Mi estilo, con el mismo recorrido, pero para **publicar una gema del catálogo** desde ahí
+y que los usuarios la vean. Se apoya en el catálogo remoto administrado
+([ADR-0049](ADR-0049-catalogo-remoto-administrado.md)): un admin ya crea gemas desde «Crear estilo»
+(pegar una gema → «Preparar con IA» → campos → muestras → Publicar).
+
+**Decisión:** cada clonación lleva un **destino** (`StyleCloneTarget`: `custom` o `catalog`), que le
+da la galería que abre el modal. Con destino catálogo:
+
+- **La tarjeta y el modal son los mismos** (`StyleCloneCreateCard`, `StyleCloneModal`, los pasos),
+  al lado de «Crear estilo» del admin y solo con `adminList` y `features.aiStyleCreator`. Las
+  clonaciones en curso de ese destino se ven al principio de la grilla del catálogo, como en Mi
+  estilo; las de Mi estilo siguen solo en su galería. El tope de tres cuenta los dos destinos.
+- **No se pregunta por el personaje** (`replicateCharacter` queda en `false` y el paso de origen lo
+  dice): la gema de una ficha no lleva un personaje clonado (la foto no cabe en una gema, y la
+  identidad de prompt no tiene la forma de la sección `character`, que termina con «Outfit:»). El
+  personaje queda en genérico o, si el servidor lo sugiere, en «sin personaje»; un personaje fijo se
+  escribe a mano en la sección «Personaje» del borrador.
+- **Aprobar no guarda nada en disco.** Tras el turno `aprobar`, la sesión termina con el estilo
+  final (`StyleCloneFinished` con `target: 'catalog'` y `style`: nombre, secciones, versión del
+  marco y modo sugerido), se borra su carpeta (`style-clone-discard`) y la galería del catálogo
+  abre el modal del admin con la gema ya armada (`CatalogAdminModal` con `initialDraft`, que se
+  saltea «Pegá tu gema»): `catalogDraftFromStyleClone` arma el borrador con el nombre solo en
+  español, las etiquetas de comportamiento, los tres modos y las muestras en el modo sugerido. El
+  admin completa ahí los otros dos idiomas («Traducir con IA»), las etiquetas y las muestras, y
+  publica. Ese modal se deriva del store (sin estado propio): si el admin cambia de pestaña con el
+  modal abierto, la clonación lo espera y lo vuelve a encontrar al volver.
+- **Las muestras no son las escenas clonadas.** Se generan en el modal, con el carril real y en el
+  modo de las muestras (plan E3, P17): las escenas de prueba recrean fotogramas de un video ajeno y
+  llegan en el formato que entregó el proveedor (con Evolink pueden no ser JPEG), y el bucket exige
+  JPEG. Cuesta 4 imágenes más (unos 2 centavos) y un clic.
+- **Una sesión guardada antes de este cambio** vuelve con destino Mi estilo.
+
+**Guards:** `check-app-style-clone-sessions.mjs` (aprobar con destino catálogo: sin guardado, carpeta
+borrada, el estilo final en `finished`; la carpeta que no se borra no frena; lo guardado sin destino
+vuelve como Mi estilo) y `check-app-catalog-admin.mjs` (`catalogDraftFromStyleClone`).
+
 ## Guards
 
 `scripts/test/check-style-clone-material.mjs`, `check-style-clone-draw.mjs`,

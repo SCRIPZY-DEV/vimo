@@ -115,7 +115,13 @@ export function CustomStyleGallery({
   // Las clonaciones de estilo abiertas, las recién guardadas y el modal.
   const clones = useStyleClones()
   const cloneModal = useStyleCloneModal()
-  const cloneSessions = [...clones.sessions.values()]
+  // Solo las que van a Mi estilo: las del catálogo viven en su galería.
+  const cloneSessions = [...clones.sessions.values()].filter(
+    (session) => session.target === 'custom',
+  )
+  const savedClones = clones.finished.flatMap((finished) =>
+    finished.target === 'custom' ? [finished] : [],
+  )
   // Esta visita a la pestaña (la galería se monta al entrar): el aviso de una
   // gema ya adaptada dura lo que dura la visita en que se vio.
   const [visit] = useState(beginGemMigrationVisit)
@@ -139,13 +145,11 @@ export function CustomStyleGallery({
   const openCloneId =
     cloneModal?.kind === 'session' ? cloneModal.sessionId : null
   useEffect(() => {
-    const finished = clones.finished.find(
-      (item) => item.sessionId === openCloneId,
-    )
+    const finished = savedClones.find((item) => item.sessionId === openCloneId)
     if (!finished) return
     onSelect(selectedCustomStyleFrom(finished.entry))
     dismissFinishedStyleClone(finished.sessionId)
-  }, [clones.finished, openCloneId, onSelect])
+  }, [savedClones, openCloneId, onSelect])
 
   // La copia que llega del catálogo abre su modal. Lo pide la galería ya
   // montada y no el formulario al cambiar de pestaña: un pedido hecho antes
@@ -267,7 +271,7 @@ export function CustomStyleGallery({
           los avisos quedaban fuera de la vista. Primero las clonaciones recién
           guardadas con su modal cerrado: el estilo ya está en la grilla y la
           persona decide si lo usa en este video. */}
-      {clones.finished.map((finished) => (
+      {savedClones.map((finished) => (
         <Alert
           key={finished.sessionId}
           tone="info"
@@ -355,7 +359,9 @@ export function CustomStyleGallery({
           <StyleCloneCreateCard
             disabled={disabled}
             full={cloneSessions.length >= STYLE_CLONE_SESSION_LIMIT}
-            onOpen={() => openStyleCloneModal({ kind: 'new' })}
+            onOpen={() =>
+              openStyleCloneModal({ kind: 'new', target: 'custom' })
+            }
           />
         )}
       </div>

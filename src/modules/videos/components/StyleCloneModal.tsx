@@ -30,7 +30,10 @@ import {
 } from '@/modules/videos/hooks/useStyleClones'
 import { styleCloneModalStepOf } from '@/modules/videos/utilities/styleCloneView'
 import type { StyleCloneModalTarget } from '@/modules/videos/hooks/useStyleCloneModal'
-import type { StyleCloneStartInput } from '@/modules/videos/types/styleClone'
+import type {
+  StyleCloneStartInput,
+  StyleCloneTarget,
+} from '@/modules/videos/types/styleClone'
 
 interface StyleCloneModalProps {
   target: StyleCloneModalTarget
@@ -58,11 +61,18 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
   // En las escenas de prueba la cabecera a la vista es el campo del nombre y
   // la fila de acciones trae su «Descartar»: las dos cosas las pone el paso.
   const stepOwnsFrame = step === 'scenes'
+  // Adónde va el estilo: lo dice la galería que abrió el modal o, con una
+  // sesión abierta, la sesión.
+  const cloneTarget: StyleCloneTarget = session
+    ? session.target
+    : target.kind === 'new'
+      ? target.target
+      : 'custom'
 
-  const start = (input: StyleCloneStartInput) => {
+  const start = (input: Omit<StyleCloneStartInput, 'target'>) => {
     // Volver del aviso de imágenes inválidas reemplaza a esa sesión.
     if (session) void discardStyleClone(session.id)
-    const sessionId = startStyleClone(input)
+    const sessionId = startStyleClone({ ...input, target: cloneTarget })
     if (sessionId) openStyleCloneModal({ kind: 'session', sessionId })
   }
 
@@ -105,6 +115,7 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
           <StyleCloneSourceStep
             // Una sesión rechazada siembra el paso con lo que traía.
             key={session?.id ?? 'new'}
+            target={cloneTarget}
             rejected={session ?? null}
             onStart={start}
           />

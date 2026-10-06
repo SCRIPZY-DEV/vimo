@@ -6,15 +6,20 @@ interface StyleCloneCreateCardProps {
   disabled: boolean
   // Ya hay tres clonaciones abiertas: la tarjeta lo dice y no abre otra.
   full: boolean
+  // La pista bajo el título; sin ella, la de Mi estilo (el catálogo del
+  // admin dice que después se generan las muestras y se publica).
+  hint?: string
   onOpen: () => void
 }
 
-// La tarjeta «Crear estilo con IA» de Mi estilo (ADR-0050): la MISMA silueta
-// que «Crear estilo» (zona 4:3 arriba + pie de dos líneas), al lado de ella.
-// Solo abre el modal: nunca se transforma en un estilo. Presentacional.
+// La tarjeta «Crear estilo con IA» de Mi estilo y, para el admin, del
+// catálogo (ADR-0050): la MISMA silueta que «Crear estilo» (zona 4:3 arriba +
+// pie de dos líneas), al lado de ella. Solo abre el modal: nunca se
+// transforma en un estilo. Presentacional.
 export function StyleCloneCreateCard({
   disabled,
   full,
+  hint,
   onOpen,
 }: StyleCloneCreateCardProps) {
   const { t } = useTranslation()
@@ -64,7 +69,7 @@ export function StyleCloneCreateCard({
         >
           {full
             ? t('create.styleClone.limitReached')
-            : t('create.styleClone.createCardHint')}
+            : (hint ?? t('create.styleClone.createCardHint'))}
         </p>
       </div>
     </div>

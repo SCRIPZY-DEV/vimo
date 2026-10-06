@@ -8,17 +8,19 @@ import type {
   StyleCloneStatus,
   StyleCloneSteps,
   StyleCloneStorage,
+  StyleCloneTarget,
   StyleCloneTest,
   StyleCloneTurnResult,
 } from '@/modules/videos/types/styleClone'
 import type {
   StyleCloneCharacter,
+  StyleCloneCharacterMode,
   StyleCloneDrawKind,
   StyleCloneDrawProgressDetail,
   StyleCloneDrawnItem,
   StyleCloneSavePayload,
 } from '@pipeline/types/style-clone.ts'
-import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
+import type { CustomStyleSummary, GemSections } from '@pipeline/types/styles.ts'
 
 // Las sesiones del creador de estilo con IA (ADR-0050, spec §8), como store
 // fuera de React (patrón de gemMigrations): una clonación sigue trabajando
@@ -62,14 +64,25 @@ const WORKING: readonly StyleCloneStatus[] = [
   'saving',
 ]
 
-export interface StyleCloneFinished {
-  sessionId: string
-  entry: CustomStyleSummary
+// El estilo final de una clonación con destino catálogo: lo que el admin
+// termina de completar como borrador (nombre en tres idiomas, etiquetas,
+// muestras) en el modal del catálogo.
+export interface StyleCloneFinalStyle {
+  name: string
+  sections: GemSections
+  templateVersion: number
+  characterMode: StyleCloneCharacterMode | null
 }
+
+// Una clonación terminada: guardada en Mi estilo (con su entrada en disco) o
+// aprobada para el catálogo (con la gema que pasa al borrador).
+export type StyleCloneFinished =
+  | { sessionId: string; target: 'custom'; entry: CustomStyleSummary }
+  | { sessionId: string; target: 'catalog'; style: StyleCloneFinalStyle }
 
 export interface StyleCloneSnapshot {
   sessions: ReadonlyMap<string, StyleCloneSession>
-  // Clonaciones recién guardadas, hasta que la galería las descarta.
+  // Clonaciones recién terminadas, hasta que su galería las descarta.
   finished: readonly StyleCloneFinished[]
 }
 
@@ -121,11 +134,15 @@ function restoreSessions(raw: string | null): Map<string, StyleCloneSession> {
 
   for (const candidate of list) {
     if (!isStoredSession(candidate)) continue
+    // Una sesión guardada antes del destino (ADR-0050, nota del 2026-10-06)
+    // iba a Mi estilo.
+    const target: StyleCloneTarget =
+      candidate.target === 'catalog' ? 'catalog' : 'custom'
     sessions.set(
       candidate.id,
       WORKING.includes(candidate.status)
-        ? { ...candidate, status: 'interrupted' }
-        : candidate,
+        ? { ...candidate, target, status: 'interrupted' }
+        : { ...candidate, target },
     )
   }
   return sessions
@@ -428,6 +445,28 @@ export function createStyleCloneSessions(
       setPhase(session, 'turn')
       return
     }
+    // Con destino catálogo no se escribe nada en disco: la gema pasa al
+    // borrador que el admin completa en el modal del catálogo (las muestras
+    // las genera ahí, con el carril real, como cualquier borrador). La
+    // carpeta de la sesión ya no hace falta.
+    if (session.target === 'catalog') {
+      remove(session.id, {
+        sessionId: session.id,
+        target: 'catalog',
+        style: {
+          name: session.name,
+          sections: session.sections,
+          templateVersion: session.templateVersion,
+          characterMode: session.characterMode,
+        },
+      })
+      try {
+        await steps.discard(session.id)
+      } catch {
+        // La carpeta queda huérfana; la gema ya está en el borrador.
+      }
+      return
+    }
     const result = await steps.save({
       sessionId: session.id,
       name: session.name,
@@ -439,7 +478,11 @@ export function createStyleCloneSessions(
       ...savedCharacterOf(session),
     })
     if (!alive()) return
-    remove(session.id, { sessionId: session.id, entry: result.entry })
+    remove(session.id, {
+      sessionId: session.id,
+      target: 'custom',
+      entry: result.entry,
+    })
     steps.saved(result, session)
   }
 
@@ -522,6 +565,7 @@ export function createStyleCloneSessions(
       const session: StyleCloneSession = {
         id: newId(),
         createdAt: now(),
+        target: input.target,
         source: input.source,
         replicateCharacter: input.replicateCharacter,
         imageProvider: input.imageProvider,

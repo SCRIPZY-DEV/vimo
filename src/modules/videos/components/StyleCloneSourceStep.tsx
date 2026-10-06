@@ -27,14 +27,18 @@ import {
 import type {
   StyleCloneSession,
   StyleCloneStartInput,
+  StyleCloneTarget,
 } from '@/modules/videos/types/styleClone'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 interface StyleCloneSourceStepProps {
+  // Adónde va el estilo. Con destino catálogo no se pregunta por el
+  // personaje: la gema de una ficha no lleva un personaje clonado.
+  target: StyleCloneTarget
   // Una sesión que volvió con imágenes inválidas: el paso arranca con lo que
   // la persona ya había elegido y marca las que hay que quitar.
   rejected: StyleCloneSession | null
-  onStart: (input: StyleCloneStartInput) => void
+  onStart: (input: Omit<StyleCloneStartInput, 'target'>) => void
 }
 
 type SourceKind = 'youtube' | 'images'
@@ -49,6 +53,7 @@ const DESIGN_TESTS = 3
 // qué proveedor se dibujan las pruebas. El análisis lo paga Vimo; las pruebas,
 // el saldo de la persona, así que se chequea antes de empezar.
 export function StyleCloneSourceStep({
+  target,
   rejected,
   onStart,
 }: StyleCloneSourceStepProps) {
@@ -74,10 +79,12 @@ export function StyleCloneSourceStep({
     )
   })
   const [dropped, setDropped] = useState(0)
-  // La pregunta del personaje se responde: no hay opción elegida de entrada.
-  const [replicate, setReplicate] = useState<boolean | null>(
-    rejected ? rejected.replicateCharacter : null,
-  )
+  // La pregunta del personaje se responde: no hay opción elegida de entrada
+  // (salvo con destino catálogo, donde no se pregunta).
+  const [replicate, setReplicate] = useState<boolean | null>(() => {
+    if (rejected) return rejected.replicateCharacter
+    return target === 'catalog' ? false : null
+  })
   const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
     rejected?.imageProvider ?? null,
   )
@@ -269,43 +276,49 @@ export function StyleCloneSourceStep({
         </div>
       )}
 
-      <div className="space-y-2">
-        <p className="font-display text-sm font-bold text-foreground">
-          {kind === 'youtube'
-            ? t('create.styleClone.characterQuestionVideo')
-            : t('create.styleClone.characterQuestionImages')}
+      {target === 'catalog' ? (
+        <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 font-body text-sm text-muted-foreground">
+          {t('create.styleClone.characterCatalogHint')}
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          {[true, false].map((answer) => {
-            const chosen = replicate === answer
-            return (
-              <button
-                key={String(answer)}
-                type="button"
-                aria-pressed={chosen}
-                onClick={() => setReplicate(answer)}
-                className={cn(
-                  'cursor-pointer rounded-xl border-2 px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-saffron/50',
-                  chosen
-                    ? 'border-saffron bg-saffron/10'
-                    : 'border-border hover:border-saffron/60',
-                )}
-              >
-                <span className="block font-display text-sm font-bold text-foreground">
-                  {answer
-                    ? t('create.styleClone.characterYes')
-                    : t('create.styleClone.characterNo')}
-                </span>
-                <span className="mt-0.5 block font-body text-xs leading-snug text-muted-foreground">
-                  {answer
-                    ? t('create.styleClone.characterYesHint')
-                    : t('create.styleClone.characterNoHint')}
-                </span>
-              </button>
-            )
-          })}
+      ) : (
+        <div className="space-y-2">
+          <p className="font-display text-sm font-bold text-foreground">
+            {kind === 'youtube'
+              ? t('create.styleClone.characterQuestionVideo')
+              : t('create.styleClone.characterQuestionImages')}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[true, false].map((answer) => {
+              const chosen = replicate === answer
+              return (
+                <button
+                  key={String(answer)}
+                  type="button"
+                  aria-pressed={chosen}
+                  onClick={() => setReplicate(answer)}
+                  className={cn(
+                    'cursor-pointer rounded-xl border-2 px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-saffron/50',
+                    chosen
+                      ? 'border-saffron bg-saffron/10'
+                      : 'border-border hover:border-saffron/60',
+                  )}
+                >
+                  <span className="block font-display text-sm font-bold text-foreground">
+                    {answer
+                      ? t('create.styleClone.characterYes')
+                      : t('create.styleClone.characterNo')}
+                  </span>
+                  <span className="mt-0.5 block font-body text-xs leading-snug text-muted-foreground">
+                    {answer
+                      ? t('create.styleClone.characterYesHint')
+                      : t('create.styleClone.characterNoHint')}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-2">
         <p className="font-display text-sm font-bold text-foreground">

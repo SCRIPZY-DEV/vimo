@@ -12,6 +12,7 @@ import type {
   CatalogPublishBlocker,
 } from '@/modules/videos/types/catalogRemote'
 import type { GemRebuildResponse } from '@/modules/videos/types/gemRebuild'
+import type { StyleCloneFinalStyle } from '@/modules/videos/utilities/styleCloneSessions'
 import type {
   CatalogGem,
   CatalogSampleMode,
@@ -135,6 +136,34 @@ export function catalogDraftFromRebuild(
     tags: withBehaviorTags({ tags: [], sections }),
     sections,
     templateVersion: response.templateVersion,
+    allowedModes,
+    sampleMode,
+    colorFilter: 'none',
+    samples: { revision: 0, count: 0 },
+  }
+}
+
+/**
+ * El borrador que nace de una clonación con IA aprobada para el catálogo
+ * (ADR-0050, nota del 2026-10-06): sus secciones tal cual (una clonación no
+ * trae `character`), el nombre que propuso la IA solo en español (los otros
+ * dos los completa el admin, con «Traducir con IA»), los tres modos y las
+ * muestras en el modo que sugirió el servidor; sin filtro y sin muestras: las
+ * genera el admin en el modal, con el carril real, como cualquier borrador.
+ */
+export function catalogDraftFromStyleClone(
+  style: StyleCloneFinalStyle,
+): CatalogStyleContent {
+  const { allowedModes, sampleMode } = catalogModesFrom(
+    undefined,
+    style.characterMode ?? undefined,
+  )
+  const sections = style.sections
+  return {
+    name: { ...EMPTY_LOCALIZED_TEXT, es: style.name.trim() },
+    tags: withBehaviorTags({ tags: [], sections }),
+    sections,
+    templateVersion: style.templateVersion,
     allowedModes,
     sampleMode,
     colorFilter: 'none',

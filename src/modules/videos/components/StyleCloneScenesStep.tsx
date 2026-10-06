@@ -133,7 +133,11 @@ export function StyleCloneScenesStep({
         </Button>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <p className="font-body text-xs text-muted-foreground">
-            {t('create.styleClone.approveHint')}
+            {t(
+              session.target === 'catalog'
+                ? 'create.styleClone.approveHintCatalog'
+                : 'create.styleClone.approveHint',
+            )}
           </p>
           <Button
             type="button"
@@ -144,7 +148,11 @@ export function StyleCloneScenesStep({
             }}
           >
             <Check className="mr-2 h-4 w-4" />
-            {t('create.styleClone.approve')}
+            {t(
+              session.target === 'catalog'
+                ? 'create.styleClone.approveCatalog'
+                : 'create.styleClone.approve',
+            )}
           </Button>
         </div>
       </div>
