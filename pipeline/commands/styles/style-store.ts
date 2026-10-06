@@ -46,7 +46,15 @@ export const DEFAULT_CHARACTER_ID_LIMIT = 120
 export const GEM_SECTION_CHAR_LIMIT = 12_000
 export const GEM_SECTIONS_TOTAL_CHAR_LIMIT = 30_000
 export const CHARACTER_SECTION_CHAR_LIMIT = MAX_WOVEN_IDENTITY_CHARS
+// Tope del inicio fijo (`promptStart`).
 export const FIXED_PHRASE_CHAR_LIMIT = 600
+// Tope del final fijo (`promptEnd`). Es mayor que el del inicio porque el
+// cierre de un estilo clonado con IA lleva su ficha de estilo, igual en cada
+// imagen: es lo que hace que salgan parecidas (ADR-0050). No puede ser más
+// largo: el cuerpo de un prompt final tiene 2 106 caracteres
+// (FINAL_PROMPT_BODY_BUDGET) para la escena, la identidad del personaje (hasta
+// 700) y este cierre; con 1 000 a la escena le quedan al menos 400.
+export const PROMPT_END_CHAR_LIMIT = 1_000
 // El texto original que se mandó al agente (solo respaldo): el mismo tope
 // que acepta el agente.
 export const SOURCE_PROMPT_CHAR_LIMIT = SYSTEM_PROMPT_CHAR_LIMIT
@@ -111,8 +119,8 @@ export function assertStyleCharacter(
 
 function sectionCharLimit(key: GemSectionKey): number {
   if (key === 'character') return CHARACTER_SECTION_CHAR_LIMIT
-  if (key === 'promptStart' || key === 'promptEnd')
-    return FIXED_PHRASE_CHAR_LIMIT
+  if (key === 'promptStart') return FIXED_PHRASE_CHAR_LIMIT
+  if (key === 'promptEnd') return PROMPT_END_CHAR_LIMIT
   return GEM_SECTION_CHAR_LIMIT
 }
 

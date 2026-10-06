@@ -58,6 +58,7 @@ import type {
   GemMigrationState,
 } from '@/modules/videos/types/styles'
 import type {
+  GemSections,
   StyleCharacter,
   StyleSample,
   StyleSavePayload,
@@ -92,6 +93,19 @@ interface CustomStyleModalProps {
 }
 
 // Ids de las muestras mientras el sidecar todavía no reportó ninguna.
+// Lo que decide si cerrar tiene algo que guardar: el nombre, el estilo (el
+// texto y los planos de una gema vieja, o las secciones de una de plantilla) y
+// el personaje, como texto, comparados contra lo que se abrió.
+interface EditedStyle {
+  name: string
+  systemPrompt: string
+  shots: string
+  sections: GemSections | undefined
+  character: StyleCharacter
+}
+
+const editSignature = (edited: EditedStyle): string => JSON.stringify(edited)
+
 const PLACEHOLDER_SAMPLE_IDS = Array.from(
   { length: CUSTOM_STYLE_SAMPLE_COUNT },
   (_, index) => index + 1,
@@ -104,9 +118,13 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
 // planos de siempre en una gema vieja, o sus secciones en una de plantilla
 // (ADR-0048), que antes de existir pasa por «Pegá tu gema». El filtro de color
 // de la gema (spec §5.5) viaja como está guardado: no se elige acá.
-// Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta: no hay
-// «Cancelar». En «Pegá tu gema» de una gema nueva no hay nada que guardar,
-// así que con texto pegado se pregunta antes de tirarlo. Regla de modales del
+// Cerrar (Listo, la X o clic afuera) GUARDA el borrador como tarjeta si algo
+// cambió: no hay «Cancelar». Sin cambios no guarda nada: una gema guardada por
+// otro camino con una sección fuera de su límite (un estilo clonado con IA
+// antes de que el final fijo llegara a 1 000) se puede abrir y cerrar sin
+// quedar atrapado; y si el sidecar rechaza el guardado, se puede salir sin
+// guardar. En «Pegá tu gema» de una gema nueva no hay nada que guardar, así
+// que con texto pegado se pregunta antes de tirarlo. Regla de modales del
 // origen: nunca dos Radix abiertos — mientras se elige el personaje
 // predeterminado, este se ESCONDE en vez de apilarse (Radix apaga los clicks
 // del body con el de arriba abierto).
@@ -207,6 +225,23 @@ export function CustomStyleModal({
     !locked &&
     !creditsCheck.blocking
   const character = characterDraft.character
+  const changed =
+    editSignature({
+      name,
+      systemPrompt,
+      shots,
+      sections: templateMode ? gemDraft.sections : undefined,
+      character,
+    }) !==
+    editSignature({
+      name: initial.name,
+      systemPrompt: initial.systemPrompt,
+      shots: initial.shots.join(', '),
+      sections: templateMode
+        ? (initial.sections ?? { visualStyle: '' })
+        : undefined,
+      character: initial.character ?? { mode: 'generic' },
+    })
 
   const changeCharacter = (next: StyleCharacter) => {
     setCharacterDraft((draft) => nextCharacterDraft(draft, next))
@@ -278,9 +313,15 @@ export function CustomStyleModal({
     )
       return
 
-    if (hasStyleText) {
+    if (hasStyleText && changed) {
       const saved = await persist()
-      if (!saved) return
+      // El sidecar no lo aceptó (una sección fuera de su límite, un fallo): el
+      // porqué queda a la vista, y se puede salir sin guardar igual.
+      if (
+        !saved &&
+        !window.confirm(t('create.customStyles.discardChangesConfirm'))
+      )
+        return
     }
     onClose()
   }

@@ -49,7 +49,8 @@ test('orden, versión y límites de la spec §4.1', () => {
     camera: 12_000,
     rules: 12_000,
     promptStart: 600,
-    promptEnd: 600,
+    // El cierre de un estilo clonado con IA lleva su ficha (ADR-0050).
+    promptEnd: 1_000,
   })
   assert.equal(GEM_TOTAL_CHAR_LIMIT, 30_000)
 })

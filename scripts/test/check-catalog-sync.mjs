@@ -480,9 +480,9 @@ const invalidContents = [
     }),
   ],
   [
-    'a fixed end over 600',
+    'a fixed end over 1 000',
     content(crayon, {
-      sections: { ...crayon.sections, promptEnd: longText(601) },
+      sections: { ...crayon.sections, promptEnd: longText(1_001) },
     }),
   ],
   [

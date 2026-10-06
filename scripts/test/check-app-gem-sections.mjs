@@ -54,7 +54,9 @@ test('los tres presets de color, en el orden en que se ofrecen', () => {
 
 test('tope de una sección: su límite o lo que queda del total', () => {
   assert.equal(sectionMaxLength({ visualStyle: '' }, 'character'), 700)
-  assert.equal(sectionMaxLength({ visualStyle: '' }, 'promptEnd'), 600)
+  assert.equal(sectionMaxLength({ visualStyle: '' }, 'promptStart'), 600)
+  // El cierre fijo de un estilo clonado lleva su ficha de estilo (ADR-0050).
+  assert.equal(sectionMaxLength({ visualStyle: '' }, 'promptEnd'), 1_000)
   assert.equal(
     sectionMaxLength({ visualStyle: 'x'.repeat(100) }, 'visualStyle'),
     12_000,

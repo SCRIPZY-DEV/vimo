@@ -25,6 +25,7 @@ import {
   FIXED_PHRASE_CHAR_LIMIT,
   GEM_SECTION_CHAR_LIMIT,
   GEM_SECTIONS_TOTAL_CHAR_LIMIT,
+  PROMPT_END_CHAR_LIMIT,
   SYSTEM_PROMPT_CHAR_LIMIT,
   isCatalogStyleId,
   readStyleEntry,
@@ -86,6 +87,9 @@ test('the limits are the ones of the spec', () => {
   assert.equal(SYSTEM_PROMPT_CHAR_LIMIT, 100_000)
   assert.equal(CHARACTER_SECTION_CHAR_LIMIT, 700)
   assert.equal(FIXED_PHRASE_CHAR_LIMIT, 600)
+  // El cierre fijo de un estilo clonado lleva su ficha de estilo (ADR-0050):
+  // por eso su tope es mayor que el del inicio.
+  assert.equal(PROMPT_END_CHAR_LIMIT, 1_000)
 })
 
 // ── Guardar una gema de plantilla ──
@@ -204,8 +208,8 @@ for (const [name, payload] of [
     { sections: { ...sections, promptStart: 'x'.repeat(601) } },
   ],
   [
-    'a fixed end over 600',
-    { sections: { ...sections, promptEnd: 'x'.repeat(601) } },
+    'a fixed end over 1 000',
+    { sections: { ...sections, promptEnd: 'x'.repeat(1_001) } },
   ],
   [
     'sections over 30 000 in total',
@@ -258,6 +262,13 @@ for (const [name, payload] of [
     await assert.rejects(readdir(join(root, '_styles')), { code: 'ENOENT' })
   })
 }
+
+test('a fixed end as long as a style sheet is saved', async (t) => {
+  const root = await galleryRoot(t)
+  const promptEnd = 'Style: ' + 'x'.repeat(PROMPT_END_CHAR_LIMIT - 7)
+  const { entry } = await save(root, { sections: { ...sections, promptEnd } })
+  assert.equal(entry.sections.promptEnd.length, 1_000)
+})
 
 test('a rejected edit leaves the stored gem untouched', async (t) => {
   const root = await galleryRoot(t)

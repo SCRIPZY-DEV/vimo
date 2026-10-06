@@ -669,7 +669,8 @@
       "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
       "shotsHint": "If you write them, we make sure two consecutive images never come out with the same framing.",
       "recommendedShots": "Recommended shots",
-      "save": "Done"
+      "save": "Done",
+      "discardChangesConfirm": "The style couldn't be saved. Leave anyway and lose the changes?"
     },
     "catalog": {
       "galleryHint": "Pick the style of your video images. The three dots on each card let you look at it up close or copy it to My style to edit it.",

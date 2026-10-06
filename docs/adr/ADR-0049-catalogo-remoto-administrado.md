@@ -102,7 +102,8 @@ flowchart TD
 tres idiomas, etiquetas, secciones, versión de plantilla, modos permitidos, `sampleMode`
 (`generic` | `none`: las muestras no dependen del personaje de un admin), filtro de color y la
 tanda de muestras. Los mismos límites en los tres lados: cada sección hasta 12 000 caracteres y
-30 000 en total, `character` hasta el tope de la identidad tejida, inicio y final fijos hasta 600,
+30 000 en total, `character` hasta el tope de la identidad tejida, inicio fijo hasta 600 y final
+fijo hasta 1 000 (el de un estilo clonado con IA lleva su ficha de estilo, ADR-0050),
 nombre hasta 80, hasta 5 etiquetas de 24 caracteres, 4 muestras JPEG de hasta 4 MiB. «Dinamismo»
 y «Personaje fijo» están si y solo si existen las secciones `dynamism` y `character`.
 

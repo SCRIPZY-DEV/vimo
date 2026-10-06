@@ -669,7 +669,8 @@
       "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
       "shotsHint": "Se você os escrever, garantimos que duas imagens seguidas nunca saiam com o mesmo enquadramento.",
       "recommendedShots": "Planos recomendados",
-      "save": "Pronto"
+      "save": "Pronto",
+      "discardChangesConfirm": "Não foi possível salvar o estilo. Sair mesmo assim e perder as alterações?"
     },
     "catalog": {
       "galleryHint": "Escolha o estilo das imagens do seu vídeo. Com os três pontos de cada cartão você pode vê-lo com calma ou passá-lo para Meu estilo para editá-lo.",
