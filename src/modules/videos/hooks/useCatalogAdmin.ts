@@ -29,15 +29,16 @@ export interface CatalogAdminNotice {
 }
 
 // Lo que hace el admin con el catálogo remoto (Entrega 3, ADR-0049, plan E3
-// tarea C2): la lista de todos los estilos (borrador, publicado y estado) y
-// las acciones: crear, guardar, reservar una tanda de muestras, publicar,
-// ocultar, eliminar y traducir. Van a vimo.click de verdad, así que con
-// `networkMode: 'always'`: un corte de conexión se muestra como error y no
-// queda una mutación en pausa (ERRORES-CONOCIDOS:
-// tanstack-mutacion-pausada-por-networkmode-online). Cada respuesta se pone
-// en la lista cacheada al toque, y lo que cambia lo que ven los usuarios
-// (publicar, ocultar, eliminar) vuelve a correr la sincronización de la
-// pestaña.
+// tarea C2): la lista de todos los estilos (borrador, publicado y estado,
+// archivados incluidos) y las acciones: crear, guardar, reservar una tanda de
+// muestras, publicar, ocultar, eliminar (= archivar 30 días), restaurar y
+// traducir. Van a vimo.click de verdad, así que con `networkMode: 'always'`:
+// un corte de conexión se muestra como error y no queda una mutación en pausa
+// (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online). Cada
+// respuesta se pone en la lista cacheada al toque, y lo que cambia lo que ven
+// los usuarios (publicar, ocultar, eliminar, restaurar) vuelve a correr la
+// sincronización de la pestaña. Un estilo sale de la lista solo cuando el
+// servidor lo purga (la lista se vuelve a pedir al montarse o al refrescar).
 export function useCatalogAdmin(enabled: boolean) {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: videosQueryKeys.catalogAdmin,
@@ -62,19 +63,6 @@ export function useCatalogAdmin(enabled: boolean) {
           : [...current.styles, style]
         return { ...current, styles: sortedByPosition(styles) }
       },
-    )
-  }
-
-  const dropStyle = (id: string) => {
-    queryClient.setQueryData<AdminCatalogListResponse>(
-      videosQueryKeys.catalogAdmin,
-      (current) =>
-        current
-          ? {
-              ...current,
-              styles: current.styles.filter((entry) => entry.id !== id),
-            }
-          : current,
     )
   }
 
@@ -171,11 +159,22 @@ export function useCatalogAdmin(enabled: boolean) {
     },
     networkMode: 'always',
   })
+  // Eliminar archiva: el estilo sigue en la lista, en Archivados, hasta que el
+  // servidor lo purgue o el admin lo restaure.
   const deleteMutation = useMutation({
     mutationFn: ({ style }: { style: AdminCatalogStyle; name: string }) =>
       videosApi.deleteCatalogStyle(style.id),
-    onSuccess: (_, { style }) => {
-      dropStyle(style.id)
+    onSuccess: (style) => {
+      showStyle(style)
+      resyncUsers()
+    },
+    networkMode: 'always',
+  })
+  const restoreMutation = useMutation({
+    mutationFn: ({ style }: { style: AdminCatalogStyle; name: string }) =>
+      videosApi.restoreCatalogStyle(style.id, { revision: style.revision }),
+    onSuccess: (style) => {
+      showStyle(style)
       resyncUsers()
     },
     networkMode: 'always',
@@ -191,7 +190,8 @@ export function useCatalogAdmin(enabled: boolean) {
     reserveMutation.isPending ||
     publishMutation.isPending ||
     hideMutation.isPending ||
-    deleteMutation.isPending
+    deleteMutation.isPending ||
+    restoreMutation.isPending
 
   return {
     samplesBaseUrl: data?.samplesBaseUrl ?? null,
@@ -231,6 +231,10 @@ export function useCatalogAdmin(enabled: boolean) {
     deleteStyle: (style: AdminCatalogStyle, name: string) =>
       noticed('delete', name, () =>
         deleteMutation.mutateAsync({ style, name }),
+      ),
+    restoreStyle: (style: AdminCatalogStyle, name: string) =>
+      noticed('restore', name, () =>
+        restoreMutation.mutateAsync({ style, name }),
       ),
     translateName: (name: string): Promise<CatalogTranslateResponse> =>
       translateMutation.mutateAsync(name),

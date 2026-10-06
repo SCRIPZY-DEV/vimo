@@ -477,6 +477,7 @@ export const CATALOG_SERVER_ERROR_MESSAGE_KEYS: Record<string, string> = {
   'id-en-uso': 'create.catalogAdmin.errors.idTaken',
   'borrador-cambio': 'create.catalogAdmin.errors.draftChanged',
   'faltan-muestras': 'create.catalogAdmin.errors.missingSamples',
+  archivado: 'create.catalogAdmin.errors.archived',
   'almacenamiento-fallo': 'create.catalogAdmin.errors.storageFailed',
   'catalogo-vacio': 'create.catalogAdmin.errors.emptyCatalog',
   'modelo-fallo': 'create.catalogAdmin.errors.modelFailed',

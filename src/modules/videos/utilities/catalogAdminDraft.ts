@@ -35,6 +35,7 @@ const NAME_LIMIT = 80
 const SAMPLE_COUNT = 4
 const SAMPLES_BASE_PATH = '/style-references'
 const TEMPLATE_VERSION = 1
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const ALL_MODES: readonly StyleCharacterMode[] = ['generic', 'own', 'none']
 const SAMPLE_MODES: readonly CatalogSampleMode[] = ['generic', 'none']
@@ -318,15 +319,48 @@ export function catalogAdminSampleImages(
 
 /**
  * El distintivo de la tarjeta del admin: «Sin publicar» (nunca se publicó),
- * «Oculto» (se publicó y se ocultó) o «Cambios sin publicar»; null = publicado
- * y al día.
+ * «Oculto» (se publicó y se ocultó), «Cambios sin publicar» o «Se elimina en
+ * N días» (archivado); null = publicado y al día.
  */
 export function catalogAdminBadge(
   style: Pick<AdminCatalogStyle, 'status' | 'published' | 'unpublishedChanges'>,
 ): CatalogAdminBadge | null {
+  if (style.status === 'archived') return 'archived'
   if (style.status === 'hidden')
     return style.published === null ? 'unpublished' : 'hidden'
   return style.unpublishedChanges ? 'changes' : null
+}
+
+/**
+ * Los estilos del admin repartidos entre lo que se ve en el catálogo y lo
+ * archivado (eliminado, a la espera de la purga), cada lista en el orden en
+ * que llegó.
+ */
+export function splitCatalogAdminStyles(styles: AdminCatalogStyle[]): {
+  active: AdminCatalogStyle[]
+  archived: AdminCatalogStyle[]
+} {
+  return {
+    active: styles.filter((style) => style.status !== 'archived'),
+    archived: styles.filter((style) => style.status === 'archived'),
+  }
+}
+
+/**
+ * Cuántos días enteros faltan para que el servidor purgue un archivado (0 =
+ * hoy o ya vencido: lo borra en la próxima pasada); null si no está archivado
+ * o la fecha no se entiende. `now` se fija en los guards; la galería lo deja
+ * en el reloj (acá y no en el render: el lint de pureza de React no deja
+ * llamar a Date.now en un componente).
+ */
+export function catalogPurgeDaysLeft(
+  purgeAt: string | null,
+  now = Date.now(),
+): number | null {
+  if (purgeAt === null) return null
+  const purgeMs = Date.parse(purgeAt)
+  if (Number.isNaN(purgeMs)) return null
+  return Math.max(0, Math.ceil((purgeMs - now) / DAY_MS))
 }
 
 /** El contenido con sus etiquetas de comportamiento al día, como lo exige el servidor. */
@@ -362,10 +396,13 @@ function readAdminStyle(value: unknown): AdminCatalogStyle | null {
     updatedAt,
     updatedBy,
     unpublishedChanges,
+    archivedAt,
+    purgeAt,
   } = value
   if (typeof id !== 'string' || !id) return null
   if (typeof position !== 'number') return null
-  if (status !== 'hidden' && status !== 'published') return null
+  if (status !== 'hidden' && status !== 'published' && status !== 'archived')
+    return null
   if (!isRecord(draft)) return null
   if (published !== null && !isRecord(published)) return null
   if (typeof publishedVersion !== 'number') return null
@@ -374,6 +411,14 @@ function readAdminStyle(value: unknown): AdminCatalogStyle | null {
   if (typeof updatedAt !== 'string') return null
   if (updatedBy !== null && typeof updatedBy !== 'string') return null
   if (typeof unpublishedChanges !== 'boolean') return null
+  if (archivedAt !== null && typeof archivedAt !== 'string') return null
+  if (purgeAt !== null && typeof purgeAt !== 'string') return null
+  // Archivado = con sus dos fechas; en otro estado, sin ninguna.
+  const dated =
+    status === 'archived'
+      ? archivedAt !== null && purgeAt !== null
+      : archivedAt === null && purgeAt === null
+  if (!dated) return null
   return {
     id,
     position,
@@ -386,6 +431,8 @@ function readAdminStyle(value: unknown): AdminCatalogStyle | null {
     updatedAt,
     updatedBy,
     unpublishedChanges,
+    archivedAt,
+    purgeAt,
   }
 }
 

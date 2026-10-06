@@ -123,7 +123,8 @@ function catalogAdminStylePath(id: string): string {
   return `${CATALOG_ADMIN_PATH}/${encodeURIComponent(id)}`
 }
 
-// La respuesta `{ style }` de crear, guardar, publicar y ocultar, revisada.
+// La respuesta `{ style }` de crear, guardar, publicar, ocultar, eliminar y
+// restaurar, revisada.
 function adminStyleOf(body: unknown): AdminCatalogStyle {
   const style = readAdminCatalogStyleResponse(body)
   if (!style) throw new VimoServerError('http', { status: 200 })
@@ -424,11 +425,24 @@ export const videosApi = {
     )
     return adminStyleOf(body)
   },
-  async deleteCatalogStyle(id: string): Promise<void> {
-    await vimoServerFetch<unknown>(catalogAdminStylePath(id), {
+  // Eliminar archiva: el servidor devuelve el estilo archivado, con la fecha
+  // en que lo purga (30 días después); hasta entonces se puede restaurar.
+  async deleteCatalogStyle(id: string): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(catalogAdminStylePath(id), {
       method: 'DELETE',
       timeoutMs: CATALOG_SERVER_TIMEOUT_MS,
     })
+    return adminStyleOf(body)
+  },
+  async restoreCatalogStyle(
+    id: string,
+    request: CatalogStyleRevisionRequest,
+  ): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(
+      `${catalogAdminStylePath(id)}/restaurar`,
+      { body: request, timeoutMs: CATALOG_SERVER_TIMEOUT_MS },
+    )
+    return adminStyleOf(body)
   },
   async translateCatalogName(
     request: CatalogTranslateRequest,

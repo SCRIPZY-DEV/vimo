@@ -1,9 +1,10 @@
 // El borrador de un estilo del catálogo en manos del admin (Entrega 3,
 // ADR-0049, plan E3 tareas C2 a C4): cómo nace de la respuesta del agente, las
 // etiquetas que la app pone sola, el id sugerido, qué falta para publicar, el
-// distintivo de la tarjeta, de dónde salen las muestras, la paleta espejada y
-// los textos de cada error del servidor. Módulos puros de src/ corridos con
-// Node (type stripping), sin bundler.
+// distintivo de la tarjeta, de dónde salen las muestras, la paleta espejada,
+// lo archivado (eliminar = 30 días para restaurar) y los textos de cada error
+// del servidor. Módulos puros de src/ corridos con Node (type stripping), sin
+// bundler.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
@@ -16,12 +17,14 @@ import {
   catalogGemFromContent,
   catalogModesFrom,
   catalogPublishBlockers,
+  catalogPurgeDaysLeft,
   catalogTagSlots,
   emptyCatalogDraft,
   isCatalogStyleId,
   normalizedCatalogDraft,
   readAdminCatalogListResponse,
   readAdminCatalogStyleResponse,
+  splitCatalogAdminStyles,
   suggestedCatalogStyleId,
   withBehaviorTags,
 } from '../../src/modules/videos/utilities/catalogAdminDraft.ts'
@@ -294,6 +297,15 @@ test('el distintivo de la tarjeta del admin', () => {
     }),
     null,
   )
+  // Archivado manda sobre todo lo demás: es la cuenta regresiva de la purga.
+  assert.equal(
+    catalogAdminBadge({
+      status: 'archived',
+      published: FULL,
+      unpublishedChanges: true,
+    }),
+    'archived',
+  )
 })
 
 const ADMIN_STYLE = {
@@ -308,6 +320,18 @@ const ADMIN_STYLE = {
   updatedAt: '2026-10-06T12:00:00.000Z',
   updatedBy: 'admin@vimo.click',
   unpublishedChanges: false,
+  archivedAt: null,
+  purgeAt: null,
+}
+
+const ARCHIVED_STYLE = {
+  ...ADMIN_STYLE,
+  id: 'carbon',
+  position: 1,
+  status: 'archived',
+  revision: 8,
+  archivedAt: '2026-10-06T12:00:00.000Z',
+  purgeAt: '2026-11-05T12:00:00.000Z',
 }
 
 test('la lista del admin y un estilo se revisan antes de usarse', () => {
@@ -319,6 +343,13 @@ test('la lista del admin y un estilo se revisan antes de usarse', () => {
     }),
     { samplesBaseUrl: base, styles: [ADMIN_STYLE] },
   )
+  assert.deepEqual(
+    readAdminCatalogListResponse({
+      samplesBaseUrl: base,
+      styles: [ADMIN_STYLE, ARCHIVED_STYLE],
+    }),
+    { samplesBaseUrl: base, styles: [ADMIN_STYLE, ARCHIVED_STYLE] },
+  )
   for (const body of [
     null,
     { styles: [] },
@@ -326,14 +357,94 @@ test('la lista del admin y un estilo se revisan antes de usarse', () => {
     { samplesBaseUrl: base, styles: [{ ...ADMIN_STYLE, status: 'draft' }] },
     { samplesBaseUrl: base, styles: [{ ...ADMIN_STYLE, revision: '7' }] },
     { samplesBaseUrl: base, styles: [{ ...ADMIN_STYLE, draft: null }] },
+    // Las fechas del archivado van con el estado, y solo con él.
+    { samplesBaseUrl: base, styles: [{ ...ARCHIVED_STYLE, purgeAt: null }] },
+    { samplesBaseUrl: base, styles: [{ ...ARCHIVED_STYLE, archivedAt: 5 }] },
+    {
+      samplesBaseUrl: base,
+      styles: [{ ...ADMIN_STYLE, archivedAt: ARCHIVED_STYLE.archivedAt }],
+    },
+    { samplesBaseUrl: base, styles: [{ ...ADMIN_STYLE, purgeAt: undefined }] },
   ])
     assert.equal(readAdminCatalogListResponse(body), null, JSON.stringify(body))
   assert.deepEqual(
     readAdminCatalogStyleResponse({ style: ADMIN_STYLE }),
     ADMIN_STYLE,
   )
+  assert.deepEqual(
+    readAdminCatalogStyleResponse({ style: ARCHIVED_STYLE }),
+    ARCHIVED_STYLE,
+  )
   assert.equal(readAdminCatalogStyleResponse({ style: { id: 'x' } }), null)
   assert.equal(readAdminCatalogStyleResponse(ADMIN_STYLE), null)
+})
+
+test('lo archivado se reparte aparte y la etiqueta cuenta los días hasta la purga', () => {
+  const hidden = { ...ADMIN_STYLE, id: 'nuevo', status: 'hidden' }
+  assert.deepEqual(
+    splitCatalogAdminStyles([ARCHIVED_STYLE, ADMIN_STYLE, hidden]),
+    { active: [ADMIN_STYLE, hidden], archived: [ARCHIVED_STYLE] },
+  )
+  assert.deepEqual(splitCatalogAdminStyles([]), { active: [], archived: [] })
+
+  const purgeAt = Date.parse(ARCHIVED_STYLE.purgeAt)
+  const day = 24 * 60 * 60 * 1000
+  // Recién archivado: 30 días; a mitad de un día se redondea para arriba.
+  assert.equal(
+    catalogPurgeDaysLeft(ARCHIVED_STYLE.purgeAt, purgeAt - 30 * day),
+    30,
+  )
+  assert.equal(
+    catalogPurgeDaysLeft(ARCHIVED_STYLE.purgeAt, purgeAt - 1.5 * day),
+    2,
+  )
+  assert.equal(catalogPurgeDaysLeft(ARCHIVED_STYLE.purgeAt, purgeAt - 1), 1)
+  // Vencido y todavía no purgado: «hoy», nunca un número negativo.
+  assert.equal(catalogPurgeDaysLeft(ARCHIVED_STYLE.purgeAt, purgeAt), 0)
+  assert.equal(
+    catalogPurgeDaysLeft(ARCHIVED_STYLE.purgeAt, purgeAt + 3 * day),
+    0,
+  )
+  assert.equal(catalogPurgeDaysLeft(null, purgeAt), null)
+  assert.equal(catalogPurgeDaysLeft('ayer', purgeAt), null)
+})
+
+test('los textos de las acciones y los distintivos del admin están en los tres idiomas', () => {
+  const keys = [
+    'badge.unpublished',
+    'badge.hidden',
+    'badge.changes',
+    'badge.archived_one',
+    'badge.archived_other',
+    'badge.archivedToday',
+    'menu.restore',
+    'viewLabel',
+    'viewCatalog',
+    'viewArchived',
+    'archivedHint',
+    ...['create', 'save', 'publish', 'hide', 'delete', 'restore'].flatMap(
+      (action) => [`working.${action}`, `done.${action}`, `failed.${action}`],
+    ),
+  ]
+  for (const locale of ['es', 'en', 'pt']) {
+    const catalog = JSON.parse(
+      readFileSync(
+        new URL(`../../public/locales/${locale}.json`, import.meta.url),
+        'utf8',
+      ),
+    )
+    for (const key of keys) {
+      const text = `create.catalogAdmin.${key}`
+        .split('.')
+        .reduce((node, part) => node?.[part], catalog)
+      assert.equal(typeof text, 'string', `${locale}: ${key}`)
+      assert.ok(text.trim(), `${locale}: ${key} vacío`)
+    }
+    assert.match(
+      catalog.create.catalogAdmin.badge.archived_other,
+      /\{\{count\}\}/,
+    )
+  }
 })
 
 test('cada código del servidor del catálogo tiene su texto en los tres idiomas', () => {

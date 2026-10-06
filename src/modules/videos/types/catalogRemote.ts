@@ -12,11 +12,17 @@ import type {
 export type CatalogManifestResponse =
   { version: string; sinCambios: true } | CatalogManifest
 
+/**
+ * El estado de un estilo en el servidor. `archived` = el admin lo eliminó:
+ * queda 30 días en Archivados, restaurable, y después el servidor lo purga.
+ */
+export type AdminCatalogStatus = 'hidden' | 'published' | 'archived'
+
 /** Un estilo como lo ve el admin: borrador, publicado y estado. */
 export interface AdminCatalogStyle {
   id: string
   position: number
-  status: 'hidden' | 'published'
+  status: AdminCatalogStatus
   draft: CatalogStyleContent
   published: CatalogStyleContent | null
   publishedVersion: number
@@ -26,6 +32,10 @@ export interface AdminCatalogStyle {
   updatedBy: string | null
   /** El borrador difiere de lo publicado (o nunca se publicó). */
   unpublishedChanges: boolean
+  /** Cuándo se archivó; null si no está archivado. */
+  archivedAt: string | null
+  /** Cuándo lo purga el servidor (archivado + 30 días); null si no está archivado. */
+  purgeAt: string | null
 }
 
 /** `GET /api/admin/catalogo`. */
@@ -34,7 +44,7 @@ export interface AdminCatalogListResponse {
   styles: AdminCatalogStyle[]
 }
 
-/** Lo que devuelven crear, guardar, publicar y ocultar. */
+/** Lo que devuelven crear, guardar, publicar, ocultar, eliminar (archivar) y restaurar. */
 export interface AdminCatalogStyleResponse {
   style: AdminCatalogStyle
 }
@@ -53,7 +63,7 @@ export interface CatalogStyleUpdateRequest {
   position?: number
 }
 
-/** Publicar y ocultar mandan la revisión que se abrió (plan E3, P11). */
+/** Publicar, ocultar y restaurar mandan la revisión que se abrió (plan E3, P11). */
 export interface CatalogStyleRevisionRequest {
   revision: number
 }
@@ -80,7 +90,11 @@ export interface CatalogTranslateResponse {
 }
 
 /** El distintivo de una tarjeta del admin; null = publicada y al día. */
-export type CatalogAdminBadge = 'unpublished' | 'hidden' | 'changes'
+export type CatalogAdminBadge =
+  'unpublished' | 'hidden' | 'changes' | 'archived'
+
+/** Qué muestra la galería del admin: el catálogo o lo archivado. */
+export type CatalogAdminView = 'catalog' | 'archived'
 
 /** Qué le falta a un borrador para publicarse (plan E3, P5 y §5.2). */
 export type CatalogPublishBlocker =
@@ -94,4 +108,4 @@ export type CatalogPublishBlocker =
 
 /** Las acciones del admin sobre un estilo, para los avisos de la galería. */
 export type CatalogAdminAction =
-  'create' | 'save' | 'publish' | 'hide' | 'delete'
+  'create' | 'save' | 'publish' | 'hide' | 'delete' | 'restore'

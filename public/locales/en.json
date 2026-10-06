@@ -709,21 +709,26 @@
         "serverError": "The Vimo server failed. Retry in a moment.",
         "network": "We couldn't reach Vimo. Check your connection and retry.",
         "timeout": "Vimo didn't answer in time. Retry.",
-        "unknown": "The action couldn't be completed. Retry."
+        "unknown": "The action couldn't be completed. Retry.",
+        "archived": "That style is archived. Restore it before changing it."
       },
       "badge": {
         "unpublished": "Unpublished",
         "hidden": "Hidden",
-        "changes": "Unpublished changes"
+        "changes": "Unpublished changes",
+        "archived_one": "Deleted in {{count}} day",
+        "archived_other": "Deleted in {{count}} days",
+        "archivedToday": "Deleted today"
       },
       "menu": {
         "edit": "Edit",
         "generateSamples": "Generate samples",
         "publish": "Publish",
         "hide": "Hide",
-        "delete": "Delete"
+        "delete": "Delete",
+        "restore": "Restore"
       },
-      "deleteConfirm": "Delete \"{{name}}\" from the catalog? It disappears for every user and cannot be undone.",
+      "deleteConfirm": "Delete \"{{name}}\" from the catalog? Users stop seeing it and it moves to Archived: you can restore it for 30 days; after that it is deleted for good, samples included.",
       "createCard": "Create style",
       "createCardHint": "Paste a gem and publish it in the catalog.",
       "listFailed": "The admin catalog couldn't be loaded. You see the catalog like any user.",
@@ -732,21 +737,24 @@
         "save": "Saving <badge>{{name}}</badge>…",
         "publish": "Publishing <badge>{{name}}</badge>…",
         "hide": "Hiding <badge>{{name}}</badge>…",
-        "delete": "Deleting <badge>{{name}}</badge>…"
+        "delete": "Archiving <badge>{{name}}</badge>…",
+        "restore": "Restoring <badge>{{name}}</badge>…"
       },
       "done": {
         "create": "<badge>{{name}}</badge> was created as a draft, hidden from users.",
         "save": "<badge>{{name}}</badge> was saved as a draft.",
         "publish": "<badge>{{name}}</badge> is published: every user can see it now.",
         "hide": "<badge>{{name}}</badge> is hidden: users no longer see it.",
-        "delete": "<badge>{{name}}</badge> was deleted from the catalog."
+        "delete": "<badge>{{name}}</badge> moved to Archived: users no longer see it. It is deleted for good in 30 days unless you restore it.",
+        "restore": "<badge>{{name}}</badge> is back in the catalog and will not be deleted."
       },
       "failed": {
         "create": "\"{{name}}\" couldn't be created.",
         "save": "\"{{name}}\" couldn't be saved.",
         "publish": "\"{{name}}\" couldn't be published.",
         "hide": "\"{{name}}\" couldn't be hidden.",
-        "delete": "\"{{name}}\" couldn't be deleted."
+        "delete": "\"{{name}}\" couldn't be deleted.",
+        "restore": "\"{{name}}\" couldn't be restored."
       },
       "dismiss": "Dismiss notice",
       "modalTitle": "Catalog style",
@@ -805,7 +813,11 @@
       "cannotSave": "To save you still need:",
       "conflictRetry": "Retry with the current version",
       "unsavedConfirm": "There are unsaved changes. Close and lose them?",
-      "offlineHint": "No connection with Vimo: you see the catalog like any user and can't edit it."
+      "offlineHint": "No connection with Vimo: you see the catalog like any user and can't edit it.",
+      "viewLabel": "What to show",
+      "viewCatalog": "Catalog · {{count}}",
+      "viewArchived": "Archived · {{count}}",
+      "archivedHint": "Deleted styles. Each one is removed for good (text and samples) when its label runs out; restoring it puts it back in the catalog and cancels the deletion."
     },
     "promptModel": {
       "title": "Which model writes the prompts",

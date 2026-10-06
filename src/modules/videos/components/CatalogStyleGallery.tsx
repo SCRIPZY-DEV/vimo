@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Check, Loader2, X } from 'lucide-react'
+import { Archive, Check, Loader2, X } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { useAccessAdmin } from '@/modules/common/hooks/useAccessAdmin'
@@ -19,11 +19,14 @@ import {
 import { useCatalogStyles } from '@/modules/videos/hooks/useCatalogStyles'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { CATALOG_ORIGIN_BADGE_CLASS } from '@/modules/videos/constants'
+import { cn } from '@/modules/common/utilities/cn'
 import {
   catalogAdminBadge,
   catalogAdminSampleImages,
   catalogGemFromContent,
   catalogPublishBlockers,
+  catalogPurgeDaysLeft,
+  splitCatalogAdminStyles,
 } from '@/modules/videos/utilities/catalogAdminDraft'
 import {
   readCatalogCharacter,
@@ -35,7 +38,10 @@ import {
   selectedCatalogStyleListed,
 } from '@/modules/videos/utilities/catalogSync'
 import { selectedCatalogStyleFrom } from '@/modules/videos/utilities/selectedCatalogStyle'
-import type { AdminCatalogStyle } from '@/modules/videos/types/catalogRemote'
+import type {
+  AdminCatalogStyle,
+  CatalogAdminView,
+} from '@/modules/videos/types/catalogRemote'
 import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
 import type { CatalogGem } from '@pipeline/types/catalog.ts'
 import type {
@@ -84,8 +90,10 @@ interface AdminEditing {
 // Con el catálogo remoto encendido (Entrega 3, ADR-0049) la lista es la
 // sincronizada y, para un admin con conexión, la del servidor: todos los
 // estilos con su borrador y su estado, la tarjeta «Crear estilo» y el menú de
-// administrar. Sin conexión, o si esa lista falla, el admin ve el catálogo
-// como cualquier usuario.
+// administrar. Eliminar archiva por 30 días: lo archivado se ve aparte, con el
+// filtro «Archivados», solo para restaurarlo antes de que el servidor lo
+// purgue. Sin conexión, o si esa lista falla, el admin ve el catálogo como
+// cualquier usuario.
 export function CatalogStyleGallery({
   selected,
   disabled,
@@ -114,29 +122,43 @@ export function CatalogStyleGallery({
   const adminMode = isAdmin && remote && videosApi.isNative()
   const admin = useCatalogAdmin(adminMode)
   const [editing, setEditing] = useState<AdminEditing | null>(null)
+  const [view, setView] = useState<CatalogAdminView>('catalog')
   const selectedId = selected?.catalogStyleId ?? null
 
   // Lo que se ve: la lista del admin cuando cargó; si no, el catálogo del
   // sidecar (sincronizado o empaquetado) con sus muestras.
   const adminList = adminMode && admin.samplesBaseUrl !== null && !admin.isError
   const samplesBaseUrl = admin.samplesBaseUrl ?? ''
-  const entries: CatalogEntry[] = adminList
-    ? admin.styles.map((style) => ({
-        gem: catalogGemFromContent(style.id, style.draft),
-        images: catalogAdminSampleImages(style.id, style.draft, samplesBaseUrl),
-        style,
-      }))
+  const adminStyles = splitCatalogAdminStyles(admin.styles)
+  // Archivados se muestra solo mientras haya alguno: restaurar el último
+  // vuelve solo al catálogo, con el estilo de nuevo en su lugar.
+  const showingArchived =
+    adminList && view === 'archived' && adminStyles.archived.length > 0
+  const entryOf = (style: AdminCatalogStyle): CatalogEntry => ({
+    gem: catalogGemFromContent(style.id, style.draft),
+    images: catalogAdminSampleImages(style.id, style.draft, samplesBaseUrl),
+    style,
+  })
+  const catalogEntries: CatalogEntry[] = adminList
+    ? adminStyles.active.map(entryOf)
     : gems.map((gem) => ({ gem, images: sampleUrls(gem), style: null }))
-  const listedGems = entries.map((entry) => entry.gem)
+  const entries = showingArchived
+    ? adminStyles.archived.map(entryOf)
+    : catalogEntries
+  // El estilo en uso se busca en el catálogo, se esté viendo lo que se vea.
+  const listedGems = catalogEntries.map((entry) => entry.gem)
 
   const viewing = useCatalogStyleViewer()
   const viewingEntry = viewing
     ? entries.find((entry) => entry.gem.id === viewing.catalogStyleId)
     : undefined
+  // Un estilo archivado no se edita (el servidor lo rechaza): si otro admin lo
+  // archivó con el modal abierto, el modal se cierra como si lo hubiera eliminado.
   const editingStyle =
     editing?.styleId === null
       ? null
-      : (admin.styles.find((style) => style.id === editing?.styleId) ?? null)
+      : (adminStyles.active.find((style) => style.id === editing?.styleId) ??
+        null)
 
   // Si la galería se desmonta con «Ver» abierto (cambio a Mi estilo), el
   // pedido no queda colgado para la próxima vez.
@@ -210,13 +232,16 @@ export function CatalogStyleGallery({
   const hide = (style: AdminCatalogStyle) => {
     admin.hideStyle(style, adminName(style)).catch(() => {})
   }
-  // Nativo, como al borrar un estilo propio: nunca otro modal encima; y sin
-  // deshacer (plan E3, P16).
+  // Nativo, como al borrar un estilo propio: nunca otro modal encima. Eliminar
+  // archiva: el estilo pasa a Archivados 30 días, donde se puede restaurar.
   const remove = (style: AdminCatalogStyle) => {
     const name = adminName(style)
     if (!window.confirm(t('create.catalogAdmin.deleteConfirm', { name })))
       return
     admin.deleteStyle(style, name).catch(() => {})
+  }
+  const restore = (style: AdminCatalogStyle) => {
+    admin.restoreStyle(style, adminName(style)).catch(() => {})
   }
 
   const notice = admin.notice
@@ -237,10 +262,45 @@ export function CatalogStyleGallery({
         </div>
       </div>
 
+      {/* El admin elige entre el catálogo y lo archivado (eliminado, a la
+          espera de la purga). Sin archivados, el filtro no se puede elegir. */}
+      {adminList && (
+        <div
+          role="group"
+          aria-label={t('create.catalogAdmin.viewLabel')}
+          className="flex flex-wrap items-center gap-2"
+        >
+          <ViewButton
+            active={!showingArchived}
+            onClick={() => setView('catalog')}
+          >
+            {t('create.catalogAdmin.viewCatalog', {
+              count: adminStyles.active.length,
+            })}
+          </ViewButton>
+          <ViewButton
+            active={showingArchived}
+            disabled={adminStyles.archived.length === 0}
+            onClick={() => setView('archived')}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            {t('create.catalogAdmin.viewArchived', {
+              count: adminStyles.archived.length,
+            })}
+          </ViewButton>
+        </div>
+      )}
+
+      {showingArchived && (
+        <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 font-body text-sm text-muted-foreground">
+          {t('create.catalogAdmin.archivedHint')}
+        </p>
+      )}
+
       {/* Sin tarjeta elegida el video no sale: se dice acá, entre el título y
           la galería (con 38 tarjetas, debajo no se veía), además de en la
           lista de bloqueos del envío. */}
-      {!selectedId && !isLoading && !errorKey && (
+      {!selectedId && !isLoading && !errorKey && !showingArchived && (
         <p className="rounded-xl border-2 border-saffron/60 bg-saffron/10 px-4 py-3 font-body text-sm text-foreground">
           {t('create.catalog.pickNotice')}
         </p>
@@ -248,11 +308,13 @@ export function CatalogStyleGallery({
 
       {/* El estilo elegido se ocultó o se eliminó del catálogo mientras estaba
           en uso: el formulario sigue con su copia (el proyecto viaja con ella). */}
-      {!isLoading && !selectedCatalogStyleListed(selected, listedGems) && (
-        <p className="rounded-xl border-2 border-saffron/60 bg-saffron/10 px-4 py-3 font-body text-sm text-foreground">
-          {t('create.catalog.selectedMissing')}
-        </p>
-      )}
+      {!isLoading &&
+        !showingArchived &&
+        !selectedCatalogStyleListed(selected, listedGems) && (
+          <p className="rounded-xl border-2 border-saffron/60 bg-saffron/10 px-4 py-3 font-body text-sm text-foreground">
+            {t('create.catalog.selectedMissing')}
+          </p>
+        )}
 
       {/* El admin sin su lista (sin conexión o el servidor falló) ve el
           catálogo como cualquier usuario, y se le dice. */}
@@ -277,7 +339,7 @@ export function CatalogStyleGallery({
             key={gem.id}
             gem={gem}
             images={images}
-            selected={selectedId === gem.id}
+            selected={!showingArchived && selectedId === gem.id}
             disabled={disabled}
             copying={copying}
             admin={
@@ -287,6 +349,7 @@ export function CatalogStyleGallery({
                     busy: admin.busy,
                     canPublish:
                       catalogPublishBlockers(style.draft).length === 0,
+                    purgeDaysLeft: catalogPurgeDaysLeft(style.purgeAt),
                     onEdit: () =>
                       setEditing({ styleId: style.id, generateOnOpen: false }),
                     onGenerateSamples: () =>
@@ -294,15 +357,21 @@ export function CatalogStyleGallery({
                     onPublish: () => publish(style),
                     onHide: () => hide(style),
                     onDelete: () => remove(style),
+                    onRestore: () => restore(style),
                   }
                 : undefined
             }
-            onSelect={() => select(gem, characterOf(gem))}
+            // Una archivada no se elige para el video: el clic la muestra.
+            onSelect={() =>
+              showingArchived
+                ? openCatalogStyleViewer({ catalogStyleId: gem.id })
+                : select(gem, characterOf(gem))
+            }
             onView={() => openCatalogStyleViewer({ catalogStyleId: gem.id })}
             onCopy={() => void copy(gem, characterOf(gem))}
           />
         ))}
-        {adminList && (
+        {adminList && !showingArchived && (
           <NewStyleCard
             title={t('create.catalogAdmin.createCard')}
             hint={t('create.catalogAdmin.createCardHint')}
@@ -457,6 +526,34 @@ function sampleUrls(gem: CatalogGem): string[] {
     source.kind === 'packaged'
       ? source.url
       : videosApi.imageSource(source.path, source.mtimeMs),
+  )
+}
+
+interface ViewButtonProps {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: ReactNode
+}
+
+// Una pastilla del filtro del admin: la activa en amarillo, como las etiquetas
+// de comportamiento.
+function ViewButton({ active, disabled, onClick, children }: ViewButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border-2 px-3 py-1 font-display text-xs font-bold transition-colors disabled:cursor-default disabled:opacity-50',
+        active
+          ? 'border-saffron bg-saffron/15 text-foreground'
+          : 'border-border bg-background text-muted-foreground hover:border-saffron/60 hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
   )
 }
 

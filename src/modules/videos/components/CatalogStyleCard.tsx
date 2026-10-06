@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import {
+  ArchiveRestore,
   Check,
   Copy,
   Eye,
@@ -27,11 +28,14 @@ export interface CatalogStyleAdminActions {
   busy: boolean
   // Publicar no se ofrece mientras al borrador le falte algo (plan E3, P5).
   canPublish: boolean
+  // Archivado: cuántos días faltan para que el servidor lo purgue (0 = hoy).
+  purgeDaysLeft: number | null
   onEdit: () => void
   onGenerateSamples: () => void
   onPublish: () => void
   onHide: () => void
   onDelete: () => void
+  onRestore: () => void
 }
 
 interface CatalogStyleCardProps {
@@ -51,11 +55,13 @@ interface CatalogStyleCardProps {
 }
 
 // El distintivo del admin: oculto o sin publicar en gris; con cambios sin
-// publicar, en amarillo (hay algo que los usuarios todavía no ven).
+// publicar, en amarillo (hay algo que los usuarios todavía no ven); archivado,
+// en rojo (cuenta regresiva hasta que el servidor lo purgue).
 const BADGE_CLASS: Record<CatalogAdminBadge, string> = {
   unpublished: 'bg-charcoal/80 text-white',
   hidden: 'bg-charcoal/80 text-white',
   changes: 'bg-saffron text-charcoal',
+  archived: 'bg-destructive text-white',
 }
 
 // Tarjeta de un estilo del catálogo de Vimo (Entrega 2): el mismo cascarón que
@@ -63,7 +69,8 @@ const BADGE_CLASS: Record<CatalogAdminBadge, string> = {
 // la app, y su menú (usar, ver, pasar a Mi estilo). Sin descripción (pedido
 // del dueño, 2026-10-05). Sin muestras, el mismo marcador que una de Mi
 // estilo. Para el admin del catálogo remoto (ADR-0049) suma el distintivo del
-// estado y las acciones de administrar.
+// estado y las acciones de administrar; una archivada (eliminada, a la espera
+// de la purga) solo se mira y se restaura.
 export function CatalogStyleCard({
   gem,
   images,
@@ -79,6 +86,15 @@ export function CatalogStyleCard({
   const language = i18n.resolvedLanguage ?? 'es'
   const name = localizedText(gem.name, language)
   const hidden = admin?.badge === 'hidden' || admin?.badge === 'unpublished'
+  const archived = admin?.badge === 'archived'
+  const badgeText = (
+    badge: CatalogAdminBadge,
+    purgeDaysLeft: number | null,
+  ) => {
+    if (badge !== 'archived') return t(`create.catalogAdmin.badge.${badge}`)
+    if (!purgeDaysLeft) return t('create.catalogAdmin.badge.archivedToday')
+    return t('create.catalogAdmin.badge.archived', { count: purgeDaysLeft })
+  }
 
   return (
     <StyleCardFrame
@@ -99,28 +115,47 @@ export function CatalogStyleCard({
               BADGE_CLASS[admin.badge],
             )}
           >
-            {t(`create.catalogAdmin.badge.${admin.badge}`)}
+            {badgeText(admin.badge, admin.purgeDaysLeft)}
           </span>
         ) : undefined
       }
       menu={
         <>
-          <DropdownMenuItem disabled={selected} onSelect={onSelect}>
-            <Check className="mr-2 h-4 w-4" />
-            {selected
-              ? t('create.catalog.alreadyInUse')
-              : t('create.catalog.useInVideo')}
-          </DropdownMenuItem>
+          {/* Una archivada no se usa ni se copia: se mira y se restaura. */}
+          {!archived && (
+            <DropdownMenuItem disabled={selected} onSelect={onSelect}>
+              <Check className="mr-2 h-4 w-4" />
+              {selected
+                ? t('create.catalog.alreadyInUse')
+                : t('create.catalog.useInVideo')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={onView}>
             <Eye className="mr-2 h-4 w-4" />
             {t('create.catalog.view')}
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={copying} onSelect={onCopy}>
-            <Copy className="mr-2 h-4 w-4" />
-            {t('create.catalog.copyToCustom')}
-          </DropdownMenuItem>
-          {admin && (
+          {!archived && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={copying} onSelect={onCopy}>
+                <Copy className="mr-2 h-4 w-4" />
+                {t('create.catalog.copyToCustom')}
+              </DropdownMenuItem>
+            </>
+          )}
+          {admin && archived && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={admin.busy}
+                onSelect={admin.onRestore}
+              >
+                <ArchiveRestore className="mr-2 h-4 w-4" />
+                {t('create.catalogAdmin.menu.restore')}
+              </DropdownMenuItem>
+            </>
+          )}
+          {admin && !archived && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={admin.busy} onSelect={admin.onEdit}>

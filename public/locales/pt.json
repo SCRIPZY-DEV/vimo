@@ -709,21 +709,26 @@
         "serverError": "O servidor do Vimo falhou. Tente em instantes.",
         "network": "Não conseguimos conectar com o Vimo. Verifique sua conexão e tente de novo.",
         "timeout": "O Vimo não respondeu a tempo. Tente de novo.",
-        "unknown": "Não foi possível concluir a ação. Tente de novo."
+        "unknown": "Não foi possível concluir a ação. Tente de novo.",
+        "archived": "Esse estilo está arquivado. Restaure-o antes de alterá-lo."
       },
       "badge": {
         "unpublished": "Não publicado",
         "hidden": "Oculto",
-        "changes": "Mudanças sem publicar"
+        "changes": "Mudanças sem publicar",
+        "archived_one": "Some em {{count}} dia",
+        "archived_other": "Some em {{count}} dias",
+        "archivedToday": "Some hoje"
       },
       "menu": {
         "edit": "Editar",
         "generateSamples": "Gerar amostras",
         "publish": "Publicar",
         "hide": "Ocultar",
-        "delete": "Excluir"
+        "delete": "Excluir",
+        "restore": "Restaurar"
       },
-      "deleteConfirm": "Excluir «{{name}}» do catálogo? Ele some para todos os usuários e não dá para desfazer.",
+      "deleteConfirm": "Excluir «{{name}}» do catálogo? Os usuários deixam de vê-lo e ele vai para Arquivados: você pode restaurá-lo por 30 dias; depois é excluído de vez, com suas amostras.",
       "createCard": "Criar estilo",
       "createCardHint": "Cole uma gema e publique no catálogo.",
       "listFailed": "Não foi possível carregar o catálogo do admin. Você vê o catálogo como qualquer usuário.",
@@ -732,21 +737,24 @@
         "save": "Salvando <badge>{{name}}</badge>…",
         "publish": "Publicando <badge>{{name}}</badge>…",
         "hide": "Ocultando <badge>{{name}}</badge>…",
-        "delete": "Excluindo <badge>{{name}}</badge>…"
+        "delete": "Arquivando <badge>{{name}}</badge>…",
+        "restore": "Restaurando <badge>{{name}}</badge>…"
       },
       "done": {
         "create": "<badge>{{name}}</badge> foi criado como rascunho, oculto para os usuários.",
         "save": "<badge>{{name}}</badge> foi salvo como rascunho.",
         "publish": "<badge>{{name}}</badge> foi publicado: todos os usuários já o veem.",
         "hide": "<badge>{{name}}</badge> ficou oculto: os usuários não o veem mais.",
-        "delete": "<badge>{{name}}</badge> foi excluído do catálogo."
+        "delete": "<badge>{{name}}</badge> foi para Arquivados: os usuários já não o veem. Em 30 dias é excluído de vez, a menos que você o restaure.",
+        "restore": "<badge>{{name}}</badge> voltou ao catálogo e não será excluído."
       },
       "failed": {
         "create": "Não foi possível criar «{{name}}».",
         "save": "Não foi possível salvar «{{name}}».",
         "publish": "Não foi possível publicar «{{name}}».",
         "hide": "Não foi possível ocultar «{{name}}».",
-        "delete": "Não foi possível excluir «{{name}}»."
+        "delete": "Não foi possível excluir «{{name}}».",
+        "restore": "Não foi possível restaurar «{{name}}»."
       },
       "dismiss": "Dispensar aviso",
       "modalTitle": "Estilo do catálogo",
@@ -805,7 +813,11 @@
       "cannotSave": "Para salvar ainda falta:",
       "conflictRetry": "Tentar de novo com a versão atual",
       "unsavedConfirm": "Há mudanças sem salvar. Fechar e perdê-las?",
-      "offlineHint": "Sem conexão com o Vimo: você vê o catálogo como qualquer usuário e não pode editá-lo."
+      "offlineHint": "Sem conexão com o Vimo: você vê o catálogo como qualquer usuário e não pode editá-lo.",
+      "viewLabel": "O que mostrar",
+      "viewCatalog": "Catálogo · {{count}}",
+      "viewArchived": "Arquivados · {{count}}",
+      "archivedHint": "Estilos excluídos. Cada um é removido de vez (o texto e suas amostras) quando a etiqueta vence; restaurá-lo o devolve ao catálogo e cancela a exclusão."
     },
     "promptModel": {
       "title": "Com qual modelo escrevo",

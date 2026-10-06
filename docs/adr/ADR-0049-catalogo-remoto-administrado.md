@@ -83,11 +83,12 @@ flowchart TD
 ### Supabase
 
 - Tabla `public.catalog_styles`: `id` (texto, el id del estilo: `^[a-z0-9][a-z0-9-]{0,39}$` sin
-  el prefijo `st-`, o uno de los 5 heredados), `position`, `status` (`hidden` | `published`),
-  `draft` y `published` (jsonb con un `CatalogStyleContent`), `published_version`,
+  el prefijo `st-`, o uno de los 5 heredados), `position`, `status` (`hidden` | `published` |
+  `archived`), `draft` y `published` (jsonb con un `CatalogStyleContent`), `published_version`,
   `published_at`, `samples_revision` (la última tanda reservada en el bucket), `revision` (sube
-  en cada escritura: con ella dos admins no se pisan), `updated_at` y `updated_by`. RLS activo y
-  sin políticas: solo el service role, desde `vimo-landing`.
+  en cada escritura: con ella dos admins no se pisan), `updated_at`, `updated_by` y, de un
+  archivado, `archived_at` y `archived_from` (el estado al que vuelve si se restaura). RLS activo
+  y sin políticas: solo el service role, desde `vimo-landing`.
 - Bucket `previews-gemas` (nombre elegido por el dueño el 2026-10-06), público de lectura, JPEG
   de hasta 4 MiB. Rutas `<id>/s<revision>/sample-<n>.jpg` (n = 1..4). **Una tanda nunca se
   reescribe:** regenerar las muestras abre la tanda siguiente. Así la caché local es segura y
@@ -111,20 +112,42 @@ Con `Authorization: Bearer <access_token>`, JSON, errores `{ code }` (como el ag
 reconstructor), guardados por `exigirAcceso` más el interruptor `remoteCatalog` y, los de admin,
 `esAdmin`:
 
-| Método y ruta                           | Quién   | Hace                                                                               |
-| --------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
-| `GET /api/catalogo?conocida=<version>`  | usuario | Lo publicado, por posición e id; `sinCambios` si la versión coincide               |
-| `GET /api/admin/catalogo`               | admin   | Todos los estilos con borrador, publicado y estado                                 |
-| `POST /api/admin/catalogo`              | admin   | Crea un estilo oculto con su borrador                                              |
-| `PATCH /api/admin/catalogo/:id`         | admin   | Guarda el borrador o la posición si `revision` coincide                            |
-| `POST /api/admin/catalogo/:id/muestras` | admin   | Reserva la tanda siguiente y firma una subida por archivo                          |
-| `POST /api/admin/catalogo/:id/publicar` | admin   | Exige nombre en tres idiomas, estilo visual y 4 muestras; publica en una escritura |
-| `POST /api/admin/catalogo/:id/ocultar`  | admin   | `status = 'hidden'`; lo publicado queda guardado                                   |
-| `DELETE /api/admin/catalogo/:id`        | admin   | Borra la fila y todo `<id>/` del bucket                                            |
-| `POST /api/admin/catalogo/traducir`     | admin   | Completa inglés y portugués del nombre a partir del español (P8)                   |
+| Método y ruta                            | Quién   | Hace                                                                                 |
+| ---------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `GET /api/catalogo?conocida=<version>`   | usuario | Lo publicado, por posición e id; `sinCambios` si la versión coincide                 |
+| `GET /api/admin/catalogo`                | admin   | Todos los estilos con borrador, publicado y estado                                   |
+| `POST /api/admin/catalogo`               | admin   | Crea un estilo oculto con su borrador                                                |
+| `PATCH /api/admin/catalogo/:id`          | admin   | Guarda el borrador o la posición si `revision` coincide                              |
+| `POST /api/admin/catalogo/:id/muestras`  | admin   | Reserva la tanda siguiente y firma una subida por archivo                            |
+| `POST /api/admin/catalogo/:id/publicar`  | admin   | Exige nombre en tres idiomas, estilo visual y 4 muestras; publica en una escritura   |
+| `POST /api/admin/catalogo/:id/ocultar`   | admin   | `status = 'hidden'`; lo publicado queda guardado                                     |
+| `DELETE /api/admin/catalogo/:id`         | admin   | Archiva: `status = 'archived'` 30 días, con lo publicado y las muestras intactos     |
+| `POST /api/admin/catalogo/:id/restaurar` | admin   | Vuelve un archivado al estado en que estaba (`archived_from`) si `revision` coincide |
+| `POST /api/admin/catalogo/traducir`      | admin   | Completa inglés y portugués del nombre a partir del español (P8)                     |
 
 La versión del catálogo es un hash de (id, versión publicada, posición) de los publicados: la
 app manda la que conoce y el servidor responde «sin cambios» sin repetir las gemas.
+
+**Eliminar es archivar (pedido del dueño, 2026-10-06).** Un archivado deja de estar publicado
+(sale del manifiesto y las apps lo borran de su caché al sincronizar) y no se edita: guardar,
+reservar muestras, publicar u ocultar responden `409 archivado`. Pasados **30 días**
+(`DIAS_DE_ARCHIVO`), el servidor lo purga: borra la fila y todo `<id>/` del bucket. La purga es
+perezosa, de a 5 estilos, después de responder `GET /api/catalogo`, `GET /api/admin/catalogo` y
+el `DELETE` (Pages no tiene cron, y `pg_cron` no puede borrar los objetos del bucket por la API
+de Storage); un día de más no cambia nada que vea un usuario.
+
+```mermaid
+stateDiagram-v2
+    [*] --> hidden: POST (crear)
+    hidden --> published: publicar
+    published --> hidden: ocultar
+    published --> published: publicar (cambios)
+    hidden --> archived: DELETE (archived_from = hidden)
+    published --> archived: DELETE (archived_from = published)
+    archived --> hidden: restaurar (si venía de hidden)
+    archived --> published: restaurar (si venía de published)
+    archived --> [*]: purga a los 30 días (fila + bucket)
+```
 
 ### Sidecar
 
@@ -159,6 +182,10 @@ orígenes permitidos de descarga y de subida le llegan en el payload (ADR-0010).
   un modal propio armado con las piezas del modal de Mi estilo («Pegá tu gema» con el agente,
   secciones, avisos, carrusel). Puede usar un borrador en un video propio para probarlo antes de
   publicar.
+- Eliminar archiva: el estilo pasa al filtro «Archivados» de la pestaña (pastillas «Catálogo · N»
+  y «Archivados · N», solo para el admin), con el distintivo «Se elimina en N días» y un menú con
+  solo Ver y Restaurar. Restaurar lo devuelve al catálogo tal como estaba y cancela la purga. En
+  Archivados no se crea, no se elige para un video ni se copia a Mi estilo.
 
 ## Alternativas descartadas
 
@@ -186,6 +213,10 @@ orígenes permitidos de descarga y de subida le llegan en el payload (ADR-0010).
 - **Alguien que no es admin, o un admin con el interruptor apagado:** 403 sin efectos.
 - **Un estilo que se oculta o se elimina mientras alguien lo tiene elegido en Crear:** el envío
   no manda una gema fantasma; los proyectos ya creados no cambian.
+- **Un admin elimina por error:** el estilo está en Archivados 30 días con lo publicado y sus
+  muestras; restaurarlo lo devuelve igual. Vencido el plazo, la purga es definitiva.
+- **La purga falla en un estilo (bucket caído):** queda en el log y sigue con el siguiente; la fila
+  ya borrada no vuelve y las muestras sueltas se borran en la pasada siguiente (nadie las usa).
 - **Algo sale mal en producción:** `VIMO_FLAG_REMOTE_CATALOG=off` y todos vuelven al catálogo
   empaquetado, sin release.
 
@@ -216,5 +247,5 @@ orígenes permitidos de descarga y de subida le llegan en el payload (ADR-0010).
 ## Fuera de alcance
 
 «Publicar en el catálogo» desde Mi estilo, un panel web para editar el catálogo, historial de
-versiones y papelera, buscador o categorías en la pestaña, y sacar de la app las gemas
-empaquetadas.
+versiones (la papelera de 30 días sí está: es el archivado), buscador o categorías en la pestaña,
+y sacar de la app las gemas empaquetadas.

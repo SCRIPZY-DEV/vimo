@@ -50,6 +50,14 @@ tests. Rama `feat/catalogo-remoto` (VIMO-TAURI, local, sobre `feat/catalogo-esti
   que falta). Un `borrador-cambio` ofrece reintentar con la revisión nueva sin perder lo escrito.
   Los avisos de cada acción van pegados abajo, con la píldora amarilla del nombre, y «Usar en este
   video» vale para un borrador. Sin conexión, el admin ve el catálogo como cualquier usuario.
+- **Eliminar = archivar 30 días (pedido del dueño del 2026-10-06, después del traspaso de las
+  12:15):** `DELETE` archiva en vez de borrar (`status = 'archived'`, `archived_at`,
+  `archived_from`; lo publicado y las muestras quedan), `POST …/:id/restaurar` vuelve al estado
+  anterior, y guardar, reservar, publicar u ocultar un archivado responde `409 archivado`. El
+  servidor purga los vencidos (fila y bucket) de a 5, después de responder `GET /api/catalogo`,
+  `GET /api/admin/catalogo` y el `DELETE`. En la app, el admin tiene las pastillas «Catálogo · N» y
+  «Archivados · N»; una archivada lleva «Se elimina en N días» y solo Ver y Restaurar. Migración
+  aplicada en producción el 2026-10-06 a las 12:45 (`SETUP_CATALOGO_REMOTO.md`).
 
 ## Decisiones tomadas durante la implementación
 
@@ -87,7 +95,11 @@ tests. Rama `feat/catalogo-remoto` (VIMO-TAURI, local, sobre `feat/catalogo-esti
   del bucket. Una generación con un proveedor que no devuelva JPEG no se puede subir (Evolink y Fal
   piden JPEG explícitamente; nunca se vio otra cosa).
 - Las redirecciones del bucket cuentan como fallo (la URL pública responde 200 directo).
-- Sin papelera ni historial (P16): eliminar es definitivo; ocultar es la salida reversible.
+- Sin historial de versiones (P16). La papelera es el archivado de 30 días: en ese plazo eliminar
+  se deshace con Restaurar; vencido, la purga es definitiva. La purga es perezosa (corre con los
+  pedidos al catálogo): si nadie pide el catálogo, un vencido espera a la próxima visita.
+- La etiqueta «Se elimina en N días» se calcula al renderizar; una pestaña abierta días seguidos
+  no la actualiza sola (se actualiza con cualquier acción o al volver a la pestaña).
 
 ## Verificación
 
