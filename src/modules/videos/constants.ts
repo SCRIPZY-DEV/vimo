@@ -608,6 +608,67 @@ export const GEM_REBUILD_QUOTA_CODE = 'cupo-agotado'
 export const GEM_REBUILD_QUOTA_LATER_KEY =
   'create.gemTemplate.errors.quotaExhaustedLater'
 
+// ── Creador de estilo con IA (vimo.click, ADR-0050) ──
+
+// Ruta del endpoint; la URL base es de common (VIMO_SERVER_BASE_URL).
+export const STYLE_CLONE_PATH = '/api/estilos/crear-con-ia'
+// El servidor corta el turno a los 285 s: el cliente espera un poco más para
+// recibir su `modelo-timeout` en vez de adelantarse con un timeout propio.
+export const STYLE_CLONE_TIMEOUT_MS = 300_000
+// El servidor manda un latido cada 10 s mientras el modelo trabaja: con este
+// silencio la conexión se da por cortada.
+export const STYLE_CLONE_IDLE_TIMEOUT_MS = 45_000
+// Hasta cuántas imágenes propias (espejo de MAX_CLONE_IMAGES del sidecar y de
+// MAX_IMAGENES del servidor). Con más imágenes la IA mide mejor el estilo.
+export const STYLE_CLONE_IMAGE_LIMIT = 10
+export const STYLE_CLONE_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
+// Espejo de LIMITE_COMENTARIO del servidor.
+export const STYLE_CLONE_COMMENT_LIMIT = 2_000
+// Alto máximo de cada imagen de una escena de prueba en el modal. El modal
+// mide hasta el 90 % del alto de la ventana (StyleCloneModal) y el paso de las
+// escenas muestra las 4 pruebas, la caja «¿Qué ajustamos?» y los botones sin
+// desplazarse: todo lo que no son las imágenes mide unos 23 rem (el nombre, la
+// etiqueta, las cabeceras de las tarjetas, la caja, los botones y los
+// espacios) y lo que sobra se reparte entre las 2 filas de imágenes. En una
+// ventana cómoda no achica nada (la imagen mide lo que su 16:9); en la ventana
+// mínima de la app (640 px de alto) quedan de unos 85 px. Por debajo de 5 rem
+// ya no se achican: el modal se desplaza.
+export const STYLE_CLONE_SCENE_FRAME_CLASS =
+  'max-h-[max(5rem,calc((90vh_-_24rem)/2))]'
+// Código → clave i18n de lo que es propio de la clonación: los del servidor,
+// los del cliente de vimo.click (`network`, `timeout`) y los del sidecar que
+// no tienen ya su texto en CREATE_ERROR_MESSAGE_KEYS (yt-dlp, imágenes y
+// claves se leen de ahí).
+export const STYLE_CLONE_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  'sin-token': 'create.styleClone.errors.session',
+  'token-invalido': 'create.styleClone.errors.session',
+  'sin-acceso': 'create.styleClone.errors.noAccess',
+  'funcion-desactivada': 'create.styleClone.errors.featureOff',
+  'pedido-invalido': 'create.styleClone.errors.invalidRequest',
+  'material-invalido': 'create.styleClone.errors.invalidMaterial',
+  'cupo-agotado': 'create.styleClone.errors.quotaExhausted',
+  'modelo-fallo': 'create.styleClone.errors.modelFailed',
+  'modelo-timeout': 'create.styleClone.errors.modelTimeout',
+  'contenido-bloqueado': 'create.styleClone.errors.contentBlocked',
+  'error-interno': 'create.styleClone.errors.serverError',
+  network: 'create.styleClone.errors.network',
+  timeout: 'create.styleClone.errors.timeout',
+  style_clone_no_material: 'create.styleClone.errors.noMaterial',
+  style_clone_invalid_images: 'create.styleClone.errors.invalidImages',
+  style_clone_file_missing: 'create.styleClone.errors.sessionLost',
+  style_clone_session_missing: 'create.styleClone.errors.sessionLost',
+}
+export const UNKNOWN_STYLE_CLONE_ERROR_KEY = 'create.styleClone.errors.unknown'
+// Códigos con los que reintentar no cambia nada: la persona tiene que hacer
+// otra cosa (otro video, otras imágenes) o la función no es para su cuenta.
+export const STYLE_CLONE_FINAL_ERROR_CODES: ReadonlySet<string> = new Set([
+  'sin-acceso',
+  'funcion-desactivada',
+  'contenido-bloqueado',
+  'style_clone_file_missing',
+  'style_clone_session_missing',
+])
+
 // Ids `st-<timestamp36>-<rand>`: cronológicos y dentro del STYLE_ID_PATTERN
 // del sidecar (≤ 40 chars, minúsculas).
 export function newCustomStyleId(): string {

@@ -17,6 +17,7 @@ export function normalizeAccessFeatures(
     gemTemplate: features?.gemTemplate === true,
     newCatalog: features?.newCatalog === true,
     remoteCatalog: features?.remoteCatalog === true,
+    aiStyleCreator: features?.aiStyleCreator === true,
   }
 }
 

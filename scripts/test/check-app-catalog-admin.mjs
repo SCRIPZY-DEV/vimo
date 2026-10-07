@@ -13,6 +13,7 @@ import {
   catalogAdminBadge,
   catalogAdminSampleImages,
   catalogDraftFromRebuild,
+  catalogDraftFromStyleClone,
   catalogDraftProblems,
   catalogGemFromContent,
   catalogModesFrom,
@@ -79,6 +80,72 @@ test('el borrador nace del agente: secciones, modos sugeridos y etiquetas de com
   assert.equal(draft.colorFilter, 'none')
   assert.deepEqual(draft.samples, { revision: 0, count: 0 })
   assert.equal(draft.templateVersion, 1)
+})
+
+test('el borrador nace de una clonación con IA: su nombre en español, sus secciones y el modo que sugirió el servidor', () => {
+  const sections = {
+    visualStyle: 'Lazy MS Paint doodles with thin crude black lines.',
+    dynamism: 'Cuts every two seconds.',
+    promptEnd: 'Crude MS Paint drawing, flat colors.',
+  }
+  const draft = catalogDraftFromStyleClone({
+    name: '  Garabatos Mono  ',
+    sections,
+    templateVersion: 1,
+    characterMode: 'none',
+    character: null,
+  })
+  assert.deepEqual(draft, {
+    name: { es: 'Garabatos Mono', en: '', pt: '' },
+    tags: [DYNAMISM_TAG],
+    sections,
+    templateVersion: 1,
+    allowedModes: ['generic', 'own', 'none'],
+    sampleMode: 'none',
+    colorFilter: 'none',
+    samples: { revision: 0, count: 0 },
+  })
+  // Sin sugerencia del servidor, las muestras salen en genérico.
+  assert.equal(
+    catalogDraftFromStyleClone({
+      name: 'Garabatos',
+      sections,
+      templateVersion: 1,
+      characterMode: null,
+      character: null,
+    }).sampleMode,
+    'generic',
+  )
+  // Lo que llega de la clonación ya es publicable salvo lo que el admin
+  // completa en el modal: los otros dos idiomas y las muestras.
+  assert.deepEqual(catalogPublishBlockers(draft), [
+    'nameEn',
+    'namePt',
+    'samples',
+  ])
+  assert.equal(suggestedCatalogStyleId(draft.name.es), 'garabatos-mono')
+
+  // Con el personaje replicado, su ficha es el personaje fijo de la gema: la
+  // sección `character`, la etiqueta «Personaje fijo» y las muestras en
+  // genérico (salen con él), aunque el servidor sugiriera «sin personaje».
+  const withCharacter = catalogDraftFromStyleClone({
+    name: 'Garabatos Mono',
+    sections,
+    templateVersion: 1,
+    characterMode: 'none',
+    character: { name: 'Mono', description: CHARACTER },
+  })
+  assert.deepEqual(withCharacter.sections, {
+    ...sections,
+    character: CHARACTER,
+  })
+  assert.deepEqual(withCharacter.tags, [DYNAMISM_TAG, FIXED_CHARACTER_TAG])
+  assert.equal(withCharacter.sampleMode, 'generic')
+  assert.deepEqual(catalogPublishBlockers(withCharacter), [
+    'nameEn',
+    'namePt',
+    'samples',
+  ])
 })
 
 test('los modos: sin sugerencia van los tres; solo «Mi personaje» suma el genérico para las muestras', () => {

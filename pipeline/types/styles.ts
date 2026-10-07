@@ -63,12 +63,23 @@ export const GEM_TEMPLATE_VERSION = 1
 export const COLOR_FILTER_IDS = ['none', 'fantasy', 'horror-bw'] as const
 export type ColorFilterId = (typeof COLOR_FILTER_IDS)[number]
 
-/** Solo en las copias de «Pasar a mi estilo» (Entrega 2). */
-export interface GemOrigin {
+/** Copia de «Pasar a mi estilo» (Entrega 2 del catálogo). */
+export interface CatalogGemOrigin {
   kind: 'catalog'
   catalogStyleId: string
   name: string
 }
+
+/** Estilo clonado con IA desde un video o desde imágenes (ADR-0050). */
+export interface AiCloneGemOrigin {
+  kind: 'ai-clone'
+  source: 'youtube' | 'images'
+  // Solo con un video: el link del que se clonó.
+  videoUrl?: string
+}
+
+/** De dónde salió un estilo que no escribió el usuario. */
+export type GemOrigin = CatalogGemOrigin | AiCloneGemOrigin
 
 export interface CustomStyleSummary {
   id: string

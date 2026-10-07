@@ -12,13 +12,14 @@ import type {
   CatalogPublishBlocker,
 } from '@/modules/videos/types/catalogRemote'
 import type { GemRebuildResponse } from '@/modules/videos/types/gemRebuild'
+import type { StyleCloneFinalStyle } from '@/modules/videos/utilities/styleCloneSessions'
 import type {
   CatalogGem,
   CatalogSampleMode,
   CatalogStyleContent,
   LocalizedText,
 } from '@pipeline/types/catalog.ts'
-import type { StyleCharacterMode } from '@pipeline/types/styles.ts'
+import type { GemSections, StyleCharacterMode } from '@pipeline/types/styles.ts'
 
 // El borrador de un estilo del catálogo mientras el admin lo arma (Entrega 3,
 // ADR-0049, plan E3 §5.2 y tareas C2 a C4): cómo nace de la respuesta del
@@ -135,6 +136,39 @@ export function catalogDraftFromRebuild(
     tags: withBehaviorTags({ tags: [], sections }),
     sections,
     templateVersion: response.templateVersion,
+    allowedModes,
+    sampleMode,
+    colorFilter: 'none',
+    samples: { revision: 0, count: 0 },
+  }
+}
+
+/**
+ * El borrador que nace de una clonación con IA aprobada para el catálogo
+ * (ADR-0050, nota del 2026-10-06): sus secciones, el nombre que propuso la IA
+ * solo en español (los otros dos los completa el admin, con «Traducir con
+ * IA»), los tres modos y las muestras en el modo que sugirió el servidor; sin
+ * filtro y sin muestras: las genera el admin en el modal, con el carril real,
+ * como cualquier borrador. Con el personaje replicado, su ficha (identidad de
+ * prompt, en el formato de Vimo: rasgos y la oración «Outfit:») pasa a ser la
+ * sección `character`: la gema lleva «Personaje fijo», las muestras salen en
+ * genérico con ese personaje, y el usuario lo usa o crea el suyo en el estilo.
+ */
+export function catalogDraftFromStyleClone(
+  style: StyleCloneFinalStyle,
+): CatalogStyleContent {
+  const sections: GemSections = style.character
+    ? { ...style.sections, character: style.character.description }
+    : style.sections
+  const { allowedModes, sampleMode } = catalogModesFrom(
+    undefined,
+    style.character ? 'generic' : (style.characterMode ?? undefined),
+  )
+  return {
+    name: { ...EMPTY_LOCALIZED_TEXT, es: style.name.trim() },
+    tags: withBehaviorTags({ tags: [], sections }),
+    sections,
+    templateVersion: style.templateVersion,
     allowedModes,
     sampleMode,
     colorFilter: 'none',

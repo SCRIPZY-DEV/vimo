@@ -79,7 +79,7 @@ import {
   portraitStateMark,
   removeSubject,
   roleFromDescription,
-  roleUsableForWeaving,
+  roleUsableForCharacter,
   splitOutfit,
   trimPortrait,
   wardrobesLookAlike,
@@ -529,15 +529,16 @@ async function resolveCharacter(
       const fromFallback = !description
       if (fromFallback) description = fallbackUserDescription(portrait)
       // E47 — La ficha del usuario puede abrir con RASGOS y no con un rol: el
-      // rol scrapeado de ahí tejía basura. Con nombre disponible y rol
-      // inusable, se antepone el nombre (el nombre propio se teje sin
-      // artículo). Solo en este modo: el retrato de la Fase 1 abre con el rol
-      // por consigna y E42 lo vigila.
+      // rol scrapeado de ahí tejía basura («Long», de «Long, dark brown
+      // hair…»). Con nombre disponible y rol inusable para ESTE personaje, se
+      // antepone el nombre (el nombre propio se teje sin artículo). Solo en
+      // este modo: el retrato de la Fase 1 abre con el rol por consigna y E42
+      // lo vigila.
       const name = input.name?.trim()
       if (
         description &&
         name &&
-        !roleUsableForWeaving(roleFromDescription(description))
+        !roleUsableForCharacter(roleFromDescription(description), name)
       ) {
         description = `${name}, ${description}`
       }

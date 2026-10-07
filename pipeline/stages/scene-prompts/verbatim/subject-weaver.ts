@@ -497,8 +497,36 @@ const NON_ROLE_JARGON_REGEX =
  * con rol inusable y nombre disponible, el nombre pasa a ser el rol.
  */
 export function roleUsableForWeaving(role: string): boolean {
-  return role !== 'main character' && role.split(/\s+/).length <= 6
+  return (
+    role !== 'main character' &&
+    role.split(/\s+/).length <= 6 &&
+    !namesOnlyAFeature(role)
+  )
 }
+
+/**
+ * 2026-10-05 — E47 con el nombre del personaje de la biblioteca. Además de
+ * `roleUsableForWeaving`, un rol de UNA palabra solo sirve si es su nombre (o
+ * parte de él): «Long, dark brown hair…» daba el rol «Long» y cada escena
+ * decía «Long repairs…», y con «Isabel, …» el rol «Isabel» sí es ella.
+ */
+export function roleUsableForCharacter(role: string, name: string): boolean {
+  if (!roleUsableForWeaving(role)) return false
+  if (/\s/.test(role)) return true
+
+  const nameWords = name.toLowerCase().split(/\s+/)
+  return nameWords.includes(role.toLowerCase())
+}
+
+// «Short messy black hair»: la frase nombra un rasgo (termina en pelo, ojos,
+// piel…), no a alguien. «young astronaut with brown hair» sí es alguien: el
+// rasgo viene después de «with».
+function namesOnlyAFeature(role: string): boolean {
+  return FEATURE_HEAD_REGEX.test(role) && !/\bwith\b/i.test(role)
+}
+
+const FEATURE_HEAD_REGEX =
+  /\b(?:hair|hairstyle|haircut|braids?|ponytail|curls|bangs|beard|mustache|moustache|stubble|eyes|eyebrows|brows|eyelashes|skin|complexion|freckles|face|jawline|cheekbones|glasses|spectacles)$/i
 
 /**
  * ¿Cuánta IDENTIDAD trae la ficha, descontando la jerga de estilo? Medido:
@@ -543,18 +571,9 @@ export function weaveSubject(
   if (!namesSubject(scene)) {
     // Narrador desnudo: mención genérica sin etiqueta y sin descripción → se
     // le pega la descripción igual, para que nunca viaje una mención sin
-    // identidad. Si YA está adentro (el modelo la repitió), no se duplica.
-    if (
-      identity &&
-      (mentionsProtagonist(scene) || namesByName(scene, name)) &&
-      !scene
-        .toLowerCase()
-        .includes(identity.replace(/[.!?]+$/, '').toLowerCase())
-    ) {
-      const separator = /[.!?]$/.test(scene) ? ' ' : '. '
-      const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
-      return `${scene}${separator}${DESCRIPTION_HEADER} ${finalIdentity}`
-    }
+    // identidad.
+    if (identity && (mentionsProtagonist(scene) || namesByName(scene, name)))
+      return appendDescription(scene, identity)
     return scene
   }
   if (!identity) return scene.replace(SUBJECT_TAG_REGEX, FALLBACK_SUBJECT)
@@ -590,6 +609,47 @@ export function weaveSubject(
     : DESCRIPTION_HEADER
   const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
   return `${base}${separator}${header} ${finalIdentity}`
+}
+
+/** Cómo se nombra al personaje en su retrato: una sola figura, sin rol. */
+const PORTRAIT_SUBJECT = 'the character'
+
+// Un artículo que el modelo escribió antes de la etiqueta («of a [subject]»):
+// se va con ella, para no dejar «of a the character».
+const ARTICLE_BEFORE_SUBJECT_TAG_REGEX = /\b(?:an?|the)\s+(?=\[subject\])/gi
+
+/**
+ * El retrato de la preview de un personaje con estilo propio (enmienda del
+ * 2026-10-04 a la ADR-0021) se teje como una escena del video: la
+ * descripción va palabra por palabra al final, con el encabezado de siempre,
+ * aunque el modelo no haya escrito `[subject]` (es lo único que el retrato
+ * muestra). El sujeto se nombra «the character» y no con el rol de
+ * `roleFromDescription`: el retrato tiene una sola figura, y una descripción
+ * que abre con un rasgo («Long, dark brown hair…») daba el rol «Long».
+ */
+export function weavePortraitSubject(
+  scenePrompt: string,
+  description: string,
+): string {
+  const scene = replaceSubjectTag(
+    scenePrompt.trim().replace(ARTICLE_BEFORE_SUBJECT_TAG_REGEX, ''),
+    PORTRAIT_SUBJECT,
+    undefined,
+  )
+  return appendDescription(scene, description.trim())
+}
+
+// La descripción pegada al final con el encabezado de siempre. Si YA está
+// adentro (el modelo la repitió), no se duplica.
+function appendDescription(scene: string, identity: string): string {
+  if (
+    scene.toLowerCase().includes(identity.replace(/[.!?]+$/, '').toLowerCase())
+  )
+    return scene
+
+  const separator = /[.!?]$/.test(scene) ? ' ' : '. '
+  const finalIdentity = /[.!?]$/.test(identity) ? identity : `${identity}.`
+  return `${scene}${separator}${DESCRIPTION_HEADER} ${finalIdentity}`
 }
 
 /**

@@ -4,12 +4,16 @@ import { Archive, Check, Loader2, X } from 'lucide-react'
 import { Alert } from '@/modules/common/components/Alert'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { useAccessAdmin } from '@/modules/common/hooks/useAccessAdmin'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { Button } from '@/modules/common/ui/button'
 import { videosApi } from '@/modules/videos/api'
 import { CatalogAdminModal } from '@/modules/videos/components/CatalogAdminModal'
 import { CatalogStyleCard } from '@/modules/videos/components/CatalogStyleCard'
 import { CatalogStyleModal } from '@/modules/videos/components/CatalogStyleModal'
 import { NewStyleCard } from '@/modules/videos/components/NewStyleCard'
+import { StyleCloneCreateCard } from '@/modules/videos/components/StyleCloneCreateCard'
+import { StyleCloneModal } from '@/modules/videos/components/StyleCloneModal'
+import { StyleCloneSessionCard } from '@/modules/videos/components/StyleCloneSessionCard'
 import { useCatalogAdmin } from '@/modules/videos/hooks/useCatalogAdmin'
 import {
   closeCatalogStyleViewer,
@@ -18,16 +22,28 @@ import {
 } from '@/modules/videos/hooks/useCatalogStyleViewer'
 import { useCatalogStyles } from '@/modules/videos/hooks/useCatalogStyles'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
+import {
+  closeStyleCloneModal,
+  openStyleCloneModal,
+  useStyleCloneModal,
+} from '@/modules/videos/hooks/useStyleCloneModal'
+import {
+  discardStyleClone,
+  dismissFinishedStyleClone,
+  useStyleClones,
+} from '@/modules/videos/hooks/useStyleClones'
 import { CATALOG_ORIGIN_BADGE_CLASS } from '@/modules/videos/constants'
 import { cn } from '@/modules/common/utilities/cn'
 import {
   catalogAdminBadge,
   catalogAdminSampleImages,
+  catalogDraftFromStyleClone,
   catalogGemFromContent,
   catalogPublishBlockers,
   catalogPurgeDaysLeft,
   splitCatalogAdminStyles,
 } from '@/modules/videos/utilities/catalogAdminDraft'
+import { STYLE_CLONE_SESSION_LIMIT } from '@/modules/videos/utilities/styleCloneSessions'
 import {
   readCatalogCharacter,
   rememberCatalogCharacter,
@@ -43,7 +59,10 @@ import type {
   CatalogAdminView,
 } from '@/modules/videos/types/catalogRemote'
 import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
-import type { CatalogGem } from '@pipeline/types/catalog.ts'
+import type {
+  CatalogGem,
+  CatalogStyleContent,
+} from '@pipeline/types/catalog.ts'
 import type {
   CustomStyleSummary,
   StyleCharacter,
@@ -73,10 +92,12 @@ interface CatalogEntry {
   style: AdminCatalogStyle | null
 }
 
-// El modal del admin abierto: un estilo (por id) o uno nuevo (null).
+// El modal del admin abierto: un estilo (por id) o uno nuevo (null), que
+// puede venir ya armado por «Crear estilo con IA» (ADR-0050).
 interface AdminEditing {
   styleId: string | null
   generateOnOpen: boolean
+  initialDraft?: CatalogStyleContent
 }
 
 // Galería del catálogo de Vimo (Entrega 2): una tarjeta por estilo, iguales a
@@ -95,6 +116,14 @@ interface AdminEditing {
 // lo purgue. Cada acción del admin avisa con un toast de la app. Sin
 // conexión, o si esa lista falla, el admin ve el catálogo como cualquier
 // usuario.
+//
+// Con el creador de estilo con IA (ADR-0050, nota del 2026-10-06) el admin
+// tiene además «Crear estilo con IA», la misma tarjeta y el mismo recorrido
+// que en Mi estilo, con destino catálogo: la clonación aprobada no se guarda
+// en disco, pasa al modal del admin como un borrador ya armado (nombre,
+// secciones, modos) y él la termina ahí (los otros idiomas, las etiquetas,
+// las muestras) y la publica. Las clonaciones en curso de este destino se ven
+// al principio de la grilla, como en Mi estilo.
 export function CatalogStyleGallery({
   selected,
   disabled,
@@ -125,6 +154,14 @@ export function CatalogStyleGallery({
   const [editing, setEditing] = useState<AdminEditing | null>(null)
   const [view, setView] = useState<CatalogAdminView>('catalog')
   const selectedId = selected?.catalogStyleId ?? null
+  const aiStyleCreatorEnabled = useAccessFeature('aiStyleCreator')
+  // Las clonaciones de estilo con destino catálogo (las de Mi estilo viven en
+  // su galería) y el modal.
+  const clones = useStyleClones()
+  const cloneModal = useStyleCloneModal()
+  const cloneSessions = [...clones.sessions.values()].filter(
+    (session) => session.target === 'catalog',
+  )
 
   // Lo que se ve: la lista del admin cuando cargó; si no, el catálogo del
   // sidecar (sincronizado o empaquetado) con sus muestras.
@@ -164,6 +201,41 @@ export function CatalogStyleGallery({
   // Si la galería se desmonta con «Ver» abierto (cambio a Mi estilo), el
   // pedido no queda colgado para la próxima vez.
   useEffect(() => closeCatalogStyleViewer, [])
+  // Lo mismo con el modal de una clonación: la sesión sigue en su store.
+  useEffect(() => closeStyleCloneModal, [])
+
+  // Una clonación aprobada para el catálogo es el modal del admin con la gema
+  // ya armada, derivado del store y sin estado propio: la clonación sigue ahí
+  // hasta que el admin cierra el modal (si cambia de pestaña con el modal
+  // abierto, lo encuentra de nuevo al volver). Lo abierto a mano manda; la
+  // clonación espera a que se cierre. Si el modal de la clonación seguía
+  // abierto, se cierra solo al desaparecer su sesión.
+  const approvedClone = clones.finished.find(
+    (item) => item.target === 'catalog',
+  )
+  const cloneEditing: AdminEditing | null =
+    approvedClone?.target === 'catalog'
+      ? {
+          styleId: null,
+          generateOnOpen: false,
+          initialDraft: catalogDraftFromStyleClone(approvedClone.style),
+        }
+      : null
+  const activeEditing = editing ?? cloneEditing
+  const closeAdminModal = () => {
+    if (editing) {
+      setEditing(null)
+      return
+    }
+    if (approvedClone) dismissFinishedStyleClone(approvedClone.sessionId)
+  }
+
+  // Descartar una clonación en curso desde su tarjeta, con la misma
+  // confirmación que desde el modal.
+  const discardClone = (sessionId: string) => {
+    if (!window.confirm(t('create.styleClone.discardConfirm'))) return
+    void discardStyleClone(sessionId)
+  }
 
   // La última copia que ya se llevó a Mi estilo: cada copia navega una vez.
   const announcedCopy = useRef<CustomStyleSummary | null>(null)
@@ -334,6 +406,19 @@ export function CatalogStyleGallery({
       {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {adminList &&
+          !showingArchived &&
+          cloneSessions.map((session) => (
+            <StyleCloneSessionCard
+              key={session.id}
+              session={session}
+              onOpen={() =>
+                openStyleCloneModal({ kind: 'session', sessionId: session.id })
+              }
+              onDiscard={() => discardClone(session.id)}
+            />
+          ))}
+
         {entries.map(({ gem, images, style }) => (
           <CatalogStyleCard
             key={gem.id}
@@ -378,6 +463,17 @@ export function CatalogStyleGallery({
             disabled={disabled || admin.busy}
             onCreate={() =>
               setEditing({ styleId: null, generateOnOpen: false })
+            }
+          />
+        )}
+        {adminList && !showingArchived && aiStyleCreatorEnabled && (
+          <StyleCloneCreateCard
+            disabled={disabled || admin.busy}
+            // El tope de tres cuenta las clonaciones de los dos destinos.
+            full={clones.sessions.size >= STYLE_CLONE_SESSION_LIMIT}
+            hint={t('create.styleClone.createCardHintCatalog')}
+            onOpen={() =>
+              openStyleCloneModal({ kind: 'new', target: 'catalog' })
             }
           />
         )}
@@ -453,18 +549,31 @@ export function CatalogStyleGallery({
         />
       )}
 
-      {/* El modal del admin: un estilo nuevo, o uno de la lista mientras siga
-          en ella (si otro admin lo eliminó, se cierra solo). */}
-      {editing && adminList && (editing.styleId === null || editingStyle) && (
-        <CatalogAdminModal
-          key={editing.styleId ?? 'new'}
-          style={editingStyle}
-          samplesBaseUrl={samplesBaseUrl}
-          generateOnOpen={editing.generateOnOpen}
-          admin={admin}
-          onClose={() => setEditing(null)}
-        />
-      )}
+      {cloneModal && <StyleCloneModal target={cloneModal} />}
+
+      {/* El modal del admin: un estilo nuevo (en blanco o con la gema de una
+          clonación; el modal necesita la lista del admin, así que sin ella la
+          clonación espera en el store), o uno de la lista mientras siga en
+          ella (si otro admin lo eliminó, se cierra solo). La clave de una
+          clonación es su sesión: un modal nuevo abierto a mano y cerrado no
+          le presta su estado. */}
+      {activeEditing &&
+        adminList &&
+        (activeEditing.styleId === null || editingStyle) && (
+          <CatalogAdminModal
+            key={
+              editing
+                ? (editing.styleId ?? 'new')
+                : `clone:${approvedClone?.sessionId}`
+            }
+            style={editingStyle}
+            initialDraft={activeEditing.initialDraft}
+            samplesBaseUrl={samplesBaseUrl}
+            generateOnOpen={activeEditing.generateOnOpen}
+            admin={admin}
+            onClose={closeAdminModal}
+          />
+        )}
     </div>
   )
 }

@@ -553,8 +553,11 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
   galería dura una visita a la pestaña Mi estilo (`showsGalleryNotice`: el store numera las visitas
   y anota en cuál se vio cada aviso); al volver ya no está, pero el modal de la gema sigue mostrando
   lo que ajustó la IA. Ese aviso del modal se descarta solo a los 60 s si no se toca la X. La
-  tarjeta de una gema adaptada (secciones más `sourcePrompt`) lleva la etiqueta «Gema adaptada»; una
-  copia del catálogo no la lleva. Los avisos siguen sin guardarse en disco.
+  tarjeta de una gema adaptada lleva la etiqueta «Gema adaptada». Hasta el 2026-10-05 eso pedía
+  secciones más `sourcePrompt`, y una copia del catálogo o un estilo clonado con IA no la llevaban.
+  Desde ese día, a pedido del dueño, la lleva **toda gema con secciones**: así una clonada con IA no
+  parece incompleta al lado de una adaptada. Solo una gema vieja sin adaptar queda sin etiqueta
+  (`isAdaptedGem`). Los avisos siguen sin guardarse en disco.
 - **Los avisos van donde se ven.** El aviso «Adaptamos …» se dibuja arriba de las tarjetas de Mi
   estilo, entre el título y la grilla. Los avisos de «Pasar a mi estilo» (copia en curso y fallida)
   quedan pegados al borde de abajo de lo visible mientras la galería del catálogo está en pantalla,
@@ -569,6 +572,25 @@ cada uno tiene su informe en `fixes/2026-10-03_*.md`.
 - **La copia dice de qué gema se clonó.** El modal de una copia muestra «Gema clonada del catálogo»
   con el nombre del estilo de origen en una píldora amarilla, y el aviso de la copia en curso,
   «Clonando gema del catálogo». La tarjeta conserva «Basado en …».
+
+## Nota posterior 2026-10-03 — el final fijo llega a 1 000 y el origen suma los estilos clonados
+
+Cambios al contrato de la gema que trae el creador de estilo con IA
+([ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)):
+
+- **`promptEnd` admite hasta 1 000 caracteres** (`PROMPT_END_CHAR_LIMIT` en `style-store.ts`,
+  `GEM_SECTION_LIMITS` en `gemTemplate.ts`). `promptStart` sigue en 600
+  (`FIXED_PHRASE_CHAR_LIMIT`). El cierre de un estilo clonado lleva su ficha de estilo, que es lo que
+  hace que las imágenes salgan parecidas. No es más largo porque el cuerpo de un prompt final tiene
+  2 106 caracteres para la escena, la identidad y el cierre (`FINAL_PROMPT_BODY_BUDGET`). El agente
+  reconstructor sigue escribiendo cierres de hasta 600.
+- **`origin` es una unión.** Además de `{ kind: 'catalog', catalogStyleId, name }` existe
+  `{ kind: 'ai-clone', source: 'youtube' | 'images', videoUrl? }`. `readGemOrigin` y
+  `assertGemOrigin` validan las dos formas (el link, solo de YouTube y ya normalizado), y la tarjeta
+  de Mi estilo elige su texto con `styleOriginLabelOf`
+  (`src/modules/videos/utilities/styleOrigin.ts`): «Basado en …» o «Clonado con IA de un video / de
+  tus imágenes». El modal usa ese texto para un estilo clonado con IA; una copia del catálogo
+  muestra «Gema clonada del catálogo» con la píldora (nota anterior).
 
 ## Nota posterior 2026-10-04 — el marco abre con el rol del modelo
 

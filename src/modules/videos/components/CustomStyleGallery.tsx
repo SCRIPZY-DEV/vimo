@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Loader2 } from 'lucide-react'
+import { Alert } from '@/modules/common/components/Alert'
 import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
+import { Button } from '@/modules/common/ui/button'
 import { CustomStyleCard } from '@/modules/videos/components/CustomStyleCard'
 import { CustomStyleModal } from '@/modules/videos/components/CustomStyleModal'
 import { GemMigrationNotice } from '@/modules/videos/components/GemMigrationNotice'
 import { NewStyleCard } from '@/modules/videos/components/NewStyleCard'
+import { StyleCloneCreateCard } from '@/modules/videos/components/StyleCloneCreateCard'
+import { StyleCloneModal } from '@/modules/videos/components/StyleCloneModal'
+import { StyleCloneSessionCard } from '@/modules/videos/components/StyleCloneSessionCard'
 import {
   closeCustomStyleEditor,
   markCustomStyleEditorSaved,
@@ -22,12 +27,23 @@ import {
   retryGemMigration,
   useGemMigrations,
 } from '@/modules/videos/hooks/useGemMigrations'
+import {
+  closeStyleCloneModal,
+  openStyleCloneModal,
+  useStyleCloneModal,
+} from '@/modules/videos/hooks/useStyleCloneModal'
+import {
+  discardStyleClone,
+  dismissFinishedStyleClone,
+  useStyleClones,
+} from '@/modules/videos/hooks/useStyleClones'
 import { newCustomStyleId } from '@/modules/videos/constants'
 import { showsGalleryNotice } from '@/modules/videos/utilities/gemMigrations'
 import {
   customStyleDraftFrom,
   selectedCustomStyleFrom,
 } from '@/modules/videos/utilities/selectedCustomStyle'
+import { STYLE_CLONE_SESSION_LIMIT } from '@/modules/videos/utilities/styleCloneSessions'
 import type { CustomStyleEditorRequest } from '@/modules/videos/hooks/useCustomStyleEditor'
 import type {
   CustomStyleDraft,
@@ -77,6 +93,10 @@ function editorLayoutOf(
 // sin que la persona vea las secciones, queda un aviso para revisarlas, arriba
 // de las tarjetas, hasta que lo descarta o sale de la pestaña (una gema ya
 // adaptada lo dice después en su tarjeta).
+// Con el creador de estilo con IA (ADR-0050) la grilla suma, al principio, una
+// tarjeta por clonación en curso (siguen trabajando aunque se cierre su modal
+// o se salga de esta pestaña) y, al lado de «Crear estilo», «Crear estilo con
+// IA».
 export function CustomStyleGallery({
   selected,
   disabled,
@@ -90,7 +110,18 @@ export function CustomStyleGallery({
   const { styles, isLoading, saveStyle, showSavedStyle, deleteStyle, saving } =
     useCustomStyles()
   const gemTemplateEnabled = useAccessFeature('gemTemplate')
+  const aiStyleCreatorEnabled = useAccessFeature('aiStyleCreator')
   const migrations = useGemMigrations()
+  // Las clonaciones de estilo abiertas, las recién guardadas y el modal.
+  const clones = useStyleClones()
+  const cloneModal = useStyleCloneModal()
+  // Solo las que van a Mi estilo: las del catálogo viven en su galería.
+  const cloneSessions = [...clones.sessions.values()].filter(
+    (session) => session.target === 'custom',
+  )
+  const savedClones = clones.finished.flatMap((finished) =>
+    finished.target === 'custom' ? [finished] : [],
+  )
   // Esta visita a la pestaña (la galería se monta al entrar): el aviso de una
   // gema ya adaptada dura lo que dura la visita en que se vio.
   const [visit] = useState(beginGemMigrationVisit)
@@ -105,6 +136,20 @@ export function CustomStyleGallery({
   // Si la galería se desmonta con el editor abierto (cambio a Catálogo), el
   // pedido no queda colgado para la próxima vez.
   useEffect(() => closeCustomStyleEditor, [])
+  // Lo mismo con el modal de una clonación: la sesión sigue en su store.
+  useEffect(() => closeStyleCloneModal, [])
+
+  // Una clonación que se guarda con su modal abierto queda EN USO, como un
+  // estilo recién creado: la persona la estaba mirando. Con el modal cerrado
+  // no se le cambia el estilo del video que arma: queda el aviso de abajo.
+  const openCloneId =
+    cloneModal?.kind === 'session' ? cloneModal.sessionId : null
+  useEffect(() => {
+    const finished = savedClones.find((item) => item.sessionId === openCloneId)
+    if (!finished) return
+    onSelect(selectedCustomStyleFrom(finished.entry))
+    dismissFinishedStyleClone(finished.sessionId)
+  }, [savedClones, openCloneId, onSelect])
 
   // La copia que llega del catálogo abre su modal. Lo pide la galería ya
   // montada y no el formulario al cambiar de pestaña: un pedido hecho antes
@@ -138,6 +183,11 @@ export function CustomStyleGallery({
   const selectStyle = (style: CustomStyleSummary) => {
     onSelect(selectedCustomStyleFrom(style))
     if (gemTemplateEnabled) migrateGemOnce(style)
+  }
+
+  const discardClone = (sessionId: string) => {
+    if (!window.confirm(t('create.styleClone.discardConfirm'))) return
+    void discardStyleClone(sessionId)
   }
 
   const removeStyle = async (style: CustomStyleSummary) => {
@@ -217,8 +267,43 @@ export function CustomStyleGallery({
         </div>
       </div>
 
-      {/* Entre el título y la galería: debajo de una lista larga de estilos el
-          aviso quedaba fuera de la vista. */}
+      {/* Entre el título y la galería: debajo de una lista larga de estilos
+          los avisos quedaban fuera de la vista. Primero las clonaciones recién
+          guardadas con su modal cerrado: el estilo ya está en la grilla y la
+          persona decide si lo usa en este video. */}
+      {savedClones.map((finished) => (
+        <Alert
+          key={finished.sessionId}
+          tone="info"
+          title={t('create.styleClone.savedNotice', {
+            name: finished.entry.name,
+          })}
+          actions={
+            <>
+              <Button
+                type="button"
+                size="sm"
+                disabled={disabled}
+                onClick={() => {
+                  onSelect(selectedCustomStyleFrom(finished.entry))
+                  dismissFinishedStyleClone(finished.sessionId)
+                }}
+              >
+                {t('create.styleClone.useInVideo')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => dismissFinishedStyleClone(finished.sessionId)}
+              >
+                {t('create.styleClone.dismiss')}
+              </Button>
+            </>
+          }
+        />
+      ))}
+
       {migrationNotices.map(({ style, migration }) => (
         <GemMigrationNotice
           key={style.id}
@@ -238,6 +323,17 @@ export function CustomStyleGallery({
       )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {cloneSessions.map((session) => (
+          <StyleCloneSessionCard
+            key={session.id}
+            session={session}
+            onOpen={() =>
+              openStyleCloneModal({ kind: 'session', sessionId: session.id })
+            }
+            onDiscard={() => discardClone(session.id)}
+          />
+        ))}
+
         {styles.map((style) => (
           <CustomStyleCard
             key={style.id}
@@ -258,6 +354,16 @@ export function CustomStyleGallery({
           disabled={disabled}
           onCreate={openCreate}
         />
+
+        {aiStyleCreatorEnabled && (
+          <StyleCloneCreateCard
+            disabled={disabled}
+            full={cloneSessions.length >= STYLE_CLONE_SESSION_LIMIT}
+            onOpen={() =>
+              openStyleCloneModal({ kind: 'new', target: 'custom' })
+            }
+          />
+        )}
       </div>
 
       {/* Sin tarjeta elegida el video no sale: se dice acá, junto a la
@@ -300,6 +406,8 @@ export function CustomStyleGallery({
           onClose={closeCustomStyleEditor}
         />
       )}
+
+      {cloneModal && <StyleCloneModal target={cloneModal} />}
     </div>
   )
 }

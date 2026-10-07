@@ -12,6 +12,7 @@ import {
   gemCharCount,
   isAdaptedGem,
 } from '@/modules/videos/utilities/gemTemplate'
+import { styleOriginLabelOf } from '@/modules/videos/utilities/styleOrigin'
 import type { GemMigrationState } from '@/modules/videos/types/styles'
 import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
@@ -43,6 +44,7 @@ export function CustomStyleCard({
   onDelete,
 }: CustomStyleCardProps) {
   const { t } = useTranslation()
+  const origin = styleOriginLabelOf(style.origin)
   // La adaptación en vuelo, con su porcentaje estimado por tiempo.
   const adapting = migration?.status === 'pending' ? migration : null
   const adaptationPercent = useGemAdaptationProgress(adapting)
@@ -105,10 +107,11 @@ export function CustomStyleCard({
             {style.name}
           </p>
           {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo
-              salió (Entrega 2). */}
-          {style.origin && (
+              salió (Entrega 2); un estilo clonado con IA, de dónde vino
+              (ADR-0050). */}
+          {origin && (
             <p className="truncate font-body text-xs text-muted-foreground">
-              {t('create.customStyles.basedOn', { name: style.origin.name })}
+              {t(origin.key, origin.values)}
             </p>
           )}
           {/* La etiqueta va en la línea de los caracteres: una gema adaptada

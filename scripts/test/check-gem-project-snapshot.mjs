@@ -19,6 +19,7 @@ import { generateCharacterPreview } from '../../pipeline/commands/characters/gen
 import { findCatalogGem } from '../../pipeline/prompts/catalog-gems/catalog.ts'
 import { buildCustomStyleSystemPrompt } from '../../pipeline/prompts/custom-style.ts'
 import { composeGemText } from '../../pipeline/prompts/template-frame.ts'
+import { DESCRIPTION_HEADER } from '../../pipeline/prompts/verbatim-identity.ts'
 import { GLOBAL_RULES } from '../../pipeline/prompts/visual-styles.ts'
 import { resolveProjectStyle } from '../../pipeline/stages/shared/project-style.ts'
 
@@ -36,6 +37,11 @@ const bytes = Buffer.from(
 )
 const scenePrompt =
   'Full-body view of Elena standing on a plain neutral background.'
+const identityPrompt = 'Elena, a young woman with curly red hair.'
+// El retrato siempre lleva la descripción guardada, palabra por palabra
+// (enmienda del 2026-10-04 a la ADR-0021): la escena de arriba no trae
+// `[subject]`, así que se pega al final con el encabezado de las escenas.
+const portraitWithIdentity = `${scenePrompt} ${DESCRIPTION_HEADER} ${identityPrompt}`
 
 async function projectsRoot(t) {
   const root = await mkdtemp(join(tmpdir(), 'vimo-gem-snapshot-'))
@@ -128,11 +134,7 @@ function preview(root, styleId) {
   return generateCharacterPreview(
     context(
       root,
-      {
-        styleId,
-        identityPrompt: 'Elena, a young woman with curly red hair.',
-        provider: 'fal',
-      },
+      { styleId, identityPrompt, provider: 'fal' },
       { deepinfra: 'fixture', fal: 'fixture' },
     ),
   )
@@ -426,7 +428,11 @@ test('the character preview of a template gem writes with the gem text and carri
   )
   assert.equal(
     result.finalPrompt,
-    sections.promptStart + ' ' + scenePrompt + ' ' + sections.promptEnd,
+    sections.promptStart +
+      ' ' +
+      portraitWithIdentity +
+      ' ' +
+      sections.promptEnd,
   )
   assert.equal(requests.images[0].prompt, result.finalPrompt)
 })
@@ -447,14 +453,18 @@ test('the character preview strips a copy of the fixed phrases the model wrote b
   const result = await preview(root, 'st-stickman')
   assert.equal(
     result.finalPrompt,
-    sections.promptStart + ' ' + scenePrompt + ' ' + sections.promptEnd,
+    sections.promptStart +
+      ' ' +
+      portraitWithIdentity +
+      ' ' +
+      sections.promptEnd,
   )
   assert.equal(occurrences(result.finalPrompt, sections.promptStart), 1)
   assert.equal(occurrences(result.finalPrompt, sections.promptEnd), 1)
   assert.equal(requests.images[0].prompt, result.finalPrompt)
 })
 
-test('the character preview of an old gem is unchanged: its text, its shots and the prompt as the model wrote it', async (t) => {
+test('the character preview of an old gem keeps its text and shots, and the prompt the model wrote gets the description', async (t) => {
   const root = await projectsRoot(t)
   await writeStyle(root, 'st-legacy', {
     name: 'Watercolor',
@@ -469,6 +479,9 @@ test('the character preview of an old gem is unchanged: its text, its shots and 
     'Render every scene as a watercolor.\n\n# ALLOWED SHOTS (use ONLY these framings)\n- Wide shot\n\n' +
       GLOBAL_RULES,
   )
-  assert.equal(result.finalPrompt, modelPrompt)
-  assert.equal(requests.images[0].prompt, modelPrompt)
+  assert.equal(
+    result.finalPrompt,
+    `${sections.promptStart} ${portraitWithIdentity}`,
+  )
+  assert.equal(requests.images[0].prompt, result.finalPrompt)
 })

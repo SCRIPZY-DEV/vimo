@@ -4,7 +4,8 @@ import { stat } from 'node:fs/promises'
 import { PipelineFailure } from '../../runner/failure.ts'
 
 // Descarga de BGM y overlay desde YouTube con yt-dlp (port de
-// assets_downloader/downloader.ts). Único punto de spawn de yt-dlp en todo
+// assets_downloader/downloader.ts) y lectura de la ficha de un video para
+// clonar su estilo (ADR-0050). Único punto de spawn de yt-dlp en todo
 // pipeline/ (guard por grep de ADR-0013). El soporte de cookies del origen
 // (env YT_DLP_COOKIES_*) quedó diferido: si un video las exige, el error
 // clasificado lo dice (ytdlp_needs_login).
@@ -82,7 +83,10 @@ export function validateYouTubeUrl(rawUrl: string): string {
 // Traduce el stderr crudo de yt-dlp a un code accionable (port de
 // diagnosticarYtDlp, ~10 familias). El texto user-facing vive en i18n.
 export function classifyYtDlpError(stderr: string): string {
-  const text = stderr.toLowerCase()
+  // yt-dlp escribe «you’re» con el apóstrofo tipográfico (medido con la
+  // versión 2026.08.19): se lleva al recto para que las frases de abajo valgan
+  // con los dos.
+  const text = stderr.toLowerCase().replace(/[\u2018\u2019]/g, "'")
 
   if (
     text.includes("sign in to confirm you're not a bot") ||
@@ -138,12 +142,21 @@ export function classifyYtDlpError(stderr: string): string {
   return 'ytdlp_failed'
 }
 
-async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+// Lo que necesita cualquier corrida de yt-dlp: el binario y la cancelación.
+type YtDlpRunOptions = Pick<YtDlpOptions, 'ytDlpPath' | 'signal'>
+
+// Corre yt-dlp y resuelve con su stdout (vacío salvo que se pida capturarlo:
+// una descarga no escribe nada útil ahí, el JSON de `-J` sí).
+async function runYtDlp(
+  args: string[],
+  options: YtDlpRunOptions,
+  captureStdout = false,
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     options.signal?.throwIfAborted()
 
     const child = spawn(options.ytDlpPath, args, {
-      stdio: ['ignore', 'ignore', 'pipe'],
+      stdio: ['ignore', captureStdout ? 'pipe' : 'ignore', 'pipe'],
     })
 
     // Cancelación cooperativa: si otra tarea paralela falla (la voz es
@@ -156,6 +169,11 @@ async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
       }
     }
     options.signal?.addEventListener('abort', onAbort, { once: true })
+
+    const stdout: Buffer[] = []
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout.push(chunk)
+    })
 
     let stderr = ''
     child.stderr?.on('data', (chunk: Buffer) => {
@@ -184,7 +202,7 @@ async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
         return
       }
       if (code === 0) {
-        resolve()
+        resolve(Buffer.concat(stdout).toString('utf8'))
         return
       }
       reject(
@@ -196,6 +214,62 @@ async function runYtDlp(args: string[], options: YtDlpOptions): Promise<void> {
       )
     })
   })
+}
+
+// Leer la ficha de un video no baja nada: si tarda más que esto, yt-dlp está
+// colgado contra la red.
+const INFO_TIMEOUT_MS = 60_000
+
+// La ficha de un video (`yt-dlp -J`): formatos, storyboards y título, sin
+// bajar nada. `playerClient` fuerza un cliente de YouTube: cuando YouTube
+// bloquea la red como bot («Sign in to confirm you’re not a bot», que acá sale
+// como `ytdlp_needs_login`), el cliente `mweb` suele responder igual.
+export async function readYouTubeInfo(
+  rawUrl: string,
+  options: YtDlpRunOptions,
+  playerClient?: string,
+): Promise<unknown> {
+  const url = validateYouTubeUrl(rawUrl)
+  const timeout = AbortSignal.timeout(INFO_TIMEOUT_MS)
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeout])
+    : timeout
+
+  let output: string
+  try {
+    output = await runYtDlp(
+      [
+        url,
+        '-J',
+        '--no-warnings',
+        '--no-playlist',
+        ...(playerClient
+          ? ['--extractor-args', `youtube:player_client=${playerClient}`]
+          : []),
+      ],
+      { ytDlpPath: options.ytDlpPath, signal },
+      true,
+    )
+  } catch (error) {
+    // El corte por tiempo no es una cancelación del usuario.
+    if (timeout.aborted && !options.signal?.aborted)
+      throw new PipelineFailure(
+        'ytdlp_timeout',
+        `yt-dlp did not answer in ${INFO_TIMEOUT_MS / 1000}s`,
+        { provider: FAILURE_PROVIDER },
+      )
+    throw error
+  }
+
+  try {
+    return JSON.parse(output) as unknown
+  } catch {
+    throw new PipelineFailure(
+      'ytdlp_failed',
+      'yt-dlp did not return the video information as JSON',
+      { provider: FAILURE_PROVIDER },
+    )
+  }
 }
 
 // Audio de un video de YouTube como mp3 (la vía BGM del formulario).

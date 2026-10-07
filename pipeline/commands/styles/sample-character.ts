@@ -14,7 +14,6 @@ import type { CustomStyleSummary } from '../../types/styles.ts'
 import {
   assertValidCharacterId,
   charactersRoot,
-  findLibraryPreviewFile,
   readCharacterMetadata,
 } from '../characters/character-library.ts'
 
@@ -25,10 +24,11 @@ import {
 //                predeterminado, o el predeterminado ya no está): lo define
 //                la gema — el que ella describe, o uno diseñado — y se usa el
 //                MISMO en las cuatro muestras.
-//  - reference — personaje de la biblioteca con imagen: la identidad viaja
+//  - reference — personaje de la biblioteca con foto: la identidad viaja
 //                adjunta, como en el carril de personaje del video. Lleva igual
 //                la descripción, que es a donde se cae si la referencia falla.
-//  - text      — la identidad viaja como texto, idéntica en las cuatro.
+//  - text      — personaje de identidad de prompt (con o sin retrato): la
+//                identidad viaja como texto, idéntica en las cuatro.
 export type SampleCharacter =
   | { mode: 'none' }
   | { mode: 'text'; name: string; description: string }
@@ -78,12 +78,12 @@ export async function resolveSampleCharacter(
   const name = metadata.name.trim()
   const description = metadata.description?.trim() ?? ''
 
-  // Misma elección que al crear un video: la foto es la identidad en todos
-  // los estilos (ADR-0033); sin foto, el preview de ESTA gema (regla E20).
-  const referenceFile =
-    metadata.photoFile ?? findLibraryPreviewFile(metadata, style.id)
-  const imageDataUri = referenceFile
-    ? await readImageAsDataUri(join(libraryDirectory, referenceFile))
+  // Misma elección que al crear un video: solo la foto viaja como imagen, en
+  // todos los estilos (ADR-0033). Un personaje de identidad de prompt sale
+  // dibujado desde su texto aunque tenga retrato en esta gema (enmienda del
+  // 2026-10-02 a la ADR-0021).
+  const imageDataUri = metadata.photoFile
+    ? await readImageAsDataUri(join(libraryDirectory, metadata.photoFile))
     : undefined
 
   if (imageDataUri)

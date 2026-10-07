@@ -42,6 +42,7 @@ import {
   templateStyleSavePayload,
 } from '@/modules/videos/utilities/gemTemplate'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
+import { styleOriginLabelOf } from '@/modules/videos/utilities/styleOrigin'
 import {
   CATALOG_ORIGIN_BADGE_CLASS,
   CUSTOM_STYLE_FIELD_CLASS,
@@ -145,6 +146,7 @@ export function CustomStyleModal({
   onClose,
 }: CustomStyleModalProps) {
   const { t } = useTranslation()
+  const origin = styleOriginLabelOf(initial.origin)
   const samplesJob = useStyleSampleGeneration()
   // Saldo por proveedor (misma query que Crear y el editor): generar muestras
   // cobra, y el job difiere el refetch al terminar para que el gasto se vea acá.
@@ -414,8 +416,9 @@ export function CustomStyleModal({
                 : t('create.customStyles.modalDescription')}
             </DialogDescription>
             {/* Una copia de «Pasar a mi estilo» dice de qué estilo de Vimo se
-                clonó, con el nombre en una píldora (Entrega 2). */}
-            {initial.origin && (
+                clonó, con el nombre en una píldora (Entrega 2); un estilo
+                clonado con IA, de dónde vino (ADR-0050). */}
+            {initial.origin?.kind === 'catalog' && (
               <p className="font-body text-sm text-foreground">
                 <Trans
                   i18nKey="create.customStyles.clonedFrom"
@@ -424,6 +427,11 @@ export function CustomStyleModal({
                     badge: <span className={CATALOG_ORIGIN_BADGE_CLASS} />,
                   }}
                 />
+              </p>
+            )}
+            {initial.origin?.kind === 'ai-clone' && origin && (
+              <p className="font-body text-xs text-muted-foreground">
+                {t(origin.key, origin.values)}
               </p>
             )}
           </DialogHeader>

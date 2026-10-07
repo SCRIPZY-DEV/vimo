@@ -23,3 +23,12 @@ export interface VimoServerRequestOptions {
   // Tope del pedido entero, sesión incluida. Ausente = VIMO_SERVER_TIMEOUT_MS.
   timeoutMs?: number
 }
+
+export interface VimoServerStreamOptions {
+  // Viaja como JSON.
+  body?: unknown
+  // Tope del pedido entero, sesión incluida.
+  timeoutMs: number
+  // Cuánto silencio se tolera una vez que la respuesta empezó a llegar.
+  idleTimeoutMs: number
+}

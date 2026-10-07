@@ -75,10 +75,15 @@ export async function startPipelineJob(
   }
 }
 
-/** Job con semántica request/response: resuelve con el result del job-completed. */
+/**
+ * Job con semántica request/response: resuelve con el result del job-completed.
+ * `onEvent` recibe lo que el job emite mientras corre (su avance), para quien
+ * quiere el resultado como promesa y además mostrar el progreso.
+ */
 export function runPipelineJob<TResult>(
   subcommand: string,
   payload?: unknown,
+  onEvent?: (event: PipelineEventPayload) => void,
 ): Promise<TResult> {
   return new Promise<TResult>((resolve, reject) => {
     let stop: (() => void) | null = null
@@ -98,7 +103,9 @@ export function runPipelineJob<TResult>(
       }
       if (event.type === 'job-failed') {
         finish(() => reject(new PipelineJobError(event.code, event.message)))
+        return
       }
+      onEvent?.(event)
     }).then((job) => {
       // Un job muy rápido pudo completarse antes de que el invoke resuelva.
       if (finished) {

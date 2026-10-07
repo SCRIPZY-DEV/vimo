@@ -24,11 +24,10 @@ export type CharacterFrequency =
   'rarely' | 'balanced' | 'often' | 'almost-always' | 'always'
 
 // Un personaje asignado al proyecto, en su forma PERSISTIDA (project.json).
-// La referencia visual vive en `characters/` dentro del proyecto: una foto
-// subida (modo photo) o el preview del estilo actual copiado de la
-// biblioteca (modo text) — regla E20 del origen: jamás el preview de OTRO
-// estilo, rompería la identidad con las escenas vecinas. Sin preview del
-// estilo actual no hay referencia: la identidad viaja solo como texto.
+// Solo un personaje «con foto» (modo photo) tiene referencia visual, copiada
+// en `characters/` dentro del proyecto. Uno de identidad de prompt (modo
+// text) viaja siempre como texto, tenga o no retrato del estilo (enmienda del
+// 2026-10-02 a la ADR-0021).
 export interface ProjectCharacter {
   // Id en la biblioteca `<projectsRoot>/characters/`, si vino de ahí.
   characterId?: string
@@ -37,8 +36,9 @@ export interface ProjectCharacter {
   description: string
   mode: 'photo' | 'text'
   // Archivo dentro de `characters/` del proyecto (reference_1.jpg, …): la
-  // foto del personaje o el preview del estilo actual. El pipeline no
-  // distingue de dónde salió — lo que decide el carril es que exista.
+  // foto del personaje. Un proyecto creado antes del 2026-10-02 puede traer
+  // acá el retrato del estilo de un personaje de texto: no viaja (lo descarta
+  // loadPipelineCharacters).
   referenceImageFile?: string
   isProtagonist?: boolean
 }

@@ -120,18 +120,6 @@ export async function readCharacterMetadata(
   }
 }
 
-// Regla E20: la referencia de un personaje de texto es su preview del estilo
-// ACTUAL (para una gema, su id de galería) — jamás el de otro estilo. La
-// comparten el alta del proyecto y las muestras de «Mi estilo».
-export function findLibraryPreviewFile(
-  metadata: StoredCharacterMetadata | null,
-  previewStyleKey: string,
-): string | undefined {
-  return metadata?.previews?.find(
-    (preview) => preview.styleId === previewStyleKey,
-  )?.file
-}
-
 export async function toCharacterSummary(
   entryDirectory: string,
   id: string,

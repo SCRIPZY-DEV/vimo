@@ -28,16 +28,12 @@ export function buildPreviewScene(
   return `${identity} Full-body view of this exact character standing, facing the camera, on a plain neutral studio background.`
 }
 
-// Pedido al LLM cuando el estilo es PROPIO: la gema (system) no conoce al
-// personaje, así que el encuadre del preview viaja como la escena a ilustrar,
-// con el mismo formato de pedido que las muestras del estilo. Sin guion de
-// contexto: el retrato es de una sola figura sobre fondo neutro.
-export function buildCustomPreviewRequest(identityPrompt: string): string {
-  const identity = identityPrompt.trim().replace(/\s+/g, ' ')
-
-  return (
-    `SCENE TO ILLUSTRATE: a character portrait. Full-body view of this exact character standing, facing the camera, on a plain neutral studio background. ` +
-    `The character: ${identity}\n\n` +
-    `Write the image prompt for this scene, keeping the character's physical identity exactly as described.`
-  )
-}
+// Pedido al LLM cuando el estilo es PROPIO (enmienda del 2026-10-04 a la
+// ADR-0021): la gema escribe solo la escena del retrato, con `[subject]` en
+// el lugar del personaje, como una escena del video. La descripción no viaja
+// en el pedido: el código la teje después, palabra por palabra
+// (`weavePortraitSubject`), para que el retrato muestre al mismo personaje
+// que el video. Sin guion de contexto: una sola figura sobre fondo neutro.
+export const CUSTOM_PORTRAIT_REQUEST =
+  `SCENE TO ILLUSTRATE: a character portrait. Full-body view of [subject] standing, facing the camera, on a plain neutral studio background, with nothing else in the frame: no other people, objects, text or labels.\n\n` +
+  `Write the image prompt for this scene. Refer to the character only as [subject] and do not describe their appearance, body or clothing: the character's description is added afterwards, word for word.`

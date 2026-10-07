@@ -6,10 +6,11 @@ import type { ImageProviderId } from './image-provider.ts'
 // imagen, así la misma identidad sirve para los 5 estilos.
 //
 // Dos maneras de fijar quién es (v0.41.0 del origen, ADR-0033): SIN foto la
-// identidad es la descripción, y la referencia visual de un video es el
-// preview del estilo actual si existe; CON foto la identidad es la imagen que
-// subió el usuario, que viaja como referencia en todos los estilos. El modo lo
-// decide el ARCHIVO (hay foto o no), nunca un flag aparte.
+// identidad es la descripción y viaja siempre como texto (sus previews por
+// estilo son para verlo, no referencias: enmienda del 2026-10-02 a la
+// ADR-0021); CON foto la identidad es la imagen que subió el usuario, que
+// viaja como referencia en todos los estilos. El modo lo decide el ARCHIVO
+// (hay foto o no), nunca un flag aparte.
 
 export type CharacterStyleId =
   'normal' | 'pov_stickman' | 'cartoon' | 'fantasia' | 'terror'

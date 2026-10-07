@@ -1,6 +1,7 @@
 # ADR-0021 — Previews de personaje con estilos propios y referencia opcional
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada; enmendada el 2026-10-02 (los personajes sin foto viajan
+  siempre como texto, ver la enmienda al final de la decisión)
 - **Fecha:** 2026-09-04
 - **Área:** pipeline / app
 - **Extiende:** [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md) (estilos
@@ -96,6 +97,60 @@ propio; sin preview del estilo actual, el personaje viaja sin referencia.**
 > Y si la descripción de biblioteca queda vacía tras los recortes, viaja apenas
 > limpia en vez de no viajar.
 > Ver [causa, implementación y QA](../fixes/2026-09-19-fix-custom-style-library-identity/custom-style-library-identity.md).
+
+> **Enmienda 2026-10-02 — un personaje sin foto viaja siempre como texto.** Por
+> decisión del dueño, el preview de un personaje sin foto (de identidad de prompt)
+> deja de ser su referencia visual: viaja **siempre como texto**, en todos los estilos
+> (catálogo y Mi estilo), tenga o no preview del estilo del video. Su preview queda
+> para verlo en la app. **Solo un personaje con foto (ADR-0033) viaja como imagen de
+> referencia.** Reemplaza:
+>
+> - El punto 3: `create-video-project` ya no copia el preview del estilo para un
+>   personaje de texto ni avisa en el log cuando falta (falte o no, no viaja).
+> - La regla E20 como regla de **referencia**: queda solo como regla de qué preview se
+>   **muestra** (el del estilo actual, si existe).
+> - El aviso de la adenda del 2026-09-19 (`create.characters.noStylePreviewHint`), que
+>   se quita de la UI y de los tres catálogos.
+> - La primera consecuencia («el carril de personaje recibe una referencia en ese
+>   estilo»): con texto no hay referencia.
+>
+> Los proyectos ya creados también cambian: `loadPipelineCharacters` carga la
+> referencia solo si el personaje es `photo`, así que el preview que un proyecto viejo
+> tenga copiado para un personaje de texto no viaja en las regeneraciones. Las muestras
+> de Mi estilo siguen la misma regla (`resolveSampleCharacter`): el personaje de texto
+> sale dibujado desde su descripción. Efectos aceptados: en los estilos donde el
+> personaje tenía preview puede variar más entre escenas, y sus escenas pasan del
+> carril con referencia (siempre en calidad baja) a la calidad elegida para el video.
+> Ver [causa, corrección y QA](../../fixes/2026-10-02_prompt-identity-travels-as-text.md).
+
+> **Enmienda 2026-10-04 — el retrato con estilo propio se arma como una escena del
+> video.** Por decisión del dueño. Reemplaza, del punto 2, el pedido y el modelo:
+>
+> - **Quién escribe.** La escena del retrato la escribe DeepSeek V4.1 Flash y, si
+>   falla o no devuelve escena, DeepSeek V3.2 (`PORTRAIT_SCENE_MODELS`, 30 s por
+>   modelo). Antes era el tier `balanced` (Qwen3 235B). En producción, del
+>   2026-09-21 al 2026-10-04, la fase de prompt tardó 16,7 s de mediana y hasta
+>   124,7 s. El 2026-10-04, con los estilos del dueño, Qwen3 235B tardó de 40 a
+>   57 s y 2 de 6 pedidos dieron `llm_rate_limited`; V4.1 Flash tardó de 1,6 a
+>   4 s. Tampoco se usa el modelo de Ajustes: GPT o4-mini TURBO devolvió vacío o
+>   perdió la descripción. La clave rechazada, el saldo agotado y la
+>   cancelación cortan sin pedir el respaldo.
+> - **Qué escribe.** `CUSTOM_PORTRAIT_REQUEST` reemplaza a
+>   `buildCustomPreviewRequest`: pide solo la escena (cuerpo entero, de frente,
+>   fondo neutro, sin otras personas, objetos ni carteles) con `[subject]` en el
+>   lugar del personaje, y no lleva la descripción.
+> - **Cómo viaja la descripción.** `weavePortraitSubject` la pega palabra por
+>   palabra al final, con el mismo encabezado que `weaveSubject` usa en cada
+>   escena del video. Si el modelo no escribió `[subject]`, se pega igual. En una
+>   gema de plantilla queda antes del final fijo. El sujeto se nombra «the
+>   character» y no con el rol que `roleFromDescription` saca de la primera
+>   frase: el retrato tiene una sola figura, y una descripción que abre con un
+>   rasgo daba un rol falso («Long», de «Long, dark brown hair…»). Antes el modelo
+>   reescribía la descripción: podía perderla, dejar un `[subject]` pelado o
+>   sumar carteles, y el retrato no mostraba al personaje como sale en el video.
+>
+> Los 5 estilos heredados siguen con su plantilla fija y sin LLM.
+> Ver [causa, corrección y QA](../../fixes/2026-10-04_custom-style-portrait-fast-and-verbatim.md).
 
 ## Alternativas consideradas
 

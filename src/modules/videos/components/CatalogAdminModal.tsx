@@ -67,8 +67,13 @@ export type CatalogAdminController = Pick<
 >
 
 interface CatalogAdminModalProps {
-  // null = estilo nuevo: arranca en «Pegá tu gema».
+  // null = estilo nuevo: arranca en «Pegá tu gema», salvo que llegue
+  // `initialDraft`.
   style: AdminCatalogStyle | null
+  // Un estilo nuevo que ya viene armado (la gema que clonó «Crear estilo con
+  // IA», ADR-0050): se saltea «Pegá tu gema» y arranca en los campos, con el
+  // id sugerido desde su nombre. Solo cuenta con `style === null`.
+  initialDraft?: CatalogStyleContent
   samplesBaseUrl: string
   // Abierto desde «Generar muestras» del menú: la intención ya se declaró
   // ahí, así que arranca apenas se elige el proveedor.
@@ -98,6 +103,7 @@ const PLACEHOLDER_SAMPLE_IDS = Array.from(
 // borrador si se puede; si no, pregunta antes de tirar lo escrito.
 export function CatalogAdminModal({
   style,
+  initialDraft,
   samplesBaseUrl,
   generateOnOpen,
   admin,
@@ -108,18 +114,24 @@ export function CatalogAdminModal({
   const credits = useImageCredits()
   const { configuredProviders } = useRequiredApiKeys()
 
-  const [pasting, setPasting] = useState(style === null)
+  // Un borrador que ya viene armado solo vale para un estilo nuevo.
+  const prepared = style === null ? initialDraft : undefined
+  const [pasting, setPasting] = useState(style === null && !prepared)
   const [pasteText, setPasteText] = useState('')
   const [preparing, setPreparing] = useState(false)
   const [prepareErrorKey, setPrepareErrorKey] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
 
-  const [id, setId] = useState(style?.id ?? '')
+  // El id de un borrador armado se sugiere desde su nombre al abrir: `update`
+  // solo lo sugiere cuando el admin cambia el nombre.
+  const [id, setId] = useState(
+    style?.id ?? suggestedCatalogStyleId(prepared?.name.es ?? ''),
+  )
   // Hasta que el admin toque el id, se sugiere solo desde el nombre en español.
   const [idTouched, setIdTouched] = useState(style !== null)
   const [position, setPosition] = useState(style?.position ?? 0)
   const [content, setContent] = useState<CatalogStyleContent>(
-    style?.draft ?? emptyCatalogDraft(),
+    style?.draft ?? prepared ?? emptyCatalogDraft(),
   )
   // null = el estilo todavía no existe en el servidor.
   const [revision, setRevision] = useState<number | null>(

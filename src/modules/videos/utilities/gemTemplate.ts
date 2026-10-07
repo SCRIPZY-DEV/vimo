@@ -233,16 +233,17 @@ export function gemBringsCharacter(sections: GemSections | undefined): boolean {
 }
 
 /**
- * ¿La gema ya se adaptó a la ficha de Vimo? Sí cuando tiene secciones y el
- * respaldo del texto del que salieron: lo guarda la adaptación, sea de una
- * gema pegada o de una vieja. Una copia del catálogo tiene secciones pero no
- * salió de ningún texto (dice «Basado en …»); una gema vieja se adapta la
- * primera vez que se abre o se elige.
+ * ¿La gema ya está en la ficha de Vimo? Sí cuando tiene secciones, venga de
+ * donde venga: adaptada de una gema pegada o vieja, clonada con IA (ADR-0050)
+ * o copiada del catálogo. Pedido del dueño (2026-10-05): sin la etiqueta, una
+ * clonada con IA parecía incompleta al lado de una adaptada. Solo una gema
+ * vieja (texto sin secciones) no la lleva, y se adapta la primera vez que se
+ * abre o se elige.
  */
 export function isAdaptedGem(
-  gem: Pick<CustomStyleSummary, 'sections' | 'sourcePrompt'>,
+  gem: Pick<CustomStyleSummary, 'sections'>,
 ): boolean {
-  return gem.sections !== undefined && Boolean(gem.sourcePrompt?.trim())
+  return gem.sections !== undefined
 }
 
 /** Caracteres de la gema: las secciones limpias sumadas, o el texto de una vieja. */

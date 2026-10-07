@@ -250,6 +250,32 @@ for (const [name, payload] of [
     },
   ],
   [
+    'a clone origin with an unknown source',
+    { sections, origin: { kind: 'ai-clone', source: 'tiktok' } },
+  ],
+  [
+    'a clone origin whose video is not from YouTube',
+    {
+      sections,
+      origin: {
+        kind: 'ai-clone',
+        source: 'youtube',
+        videoUrl: 'https://evil.example/watch?v=tBBhUn0D0I0',
+      },
+    },
+  ],
+  [
+    'a clone origin from images that brings a video',
+    {
+      sections,
+      origin: {
+        kind: 'ai-clone',
+        source: 'images',
+        videoUrl: 'https://www.youtube.com/watch?v=tBBhUn0D0I0',
+      },
+    },
+  ],
+  [
     'a backup over 100 000',
     { sections, sourcePrompt: 'x'.repeat(SYSTEM_PROMPT_CHAR_LIMIT + 1) },
   ],
@@ -268,6 +294,22 @@ test('a fixed end as long as a style sheet is saved', async (t) => {
   const promptEnd = 'Style: ' + 'x'.repeat(PROMPT_END_CHAR_LIMIT - 7)
   const { entry } = await save(root, { sections: { ...sections, promptEnd } })
   assert.equal(entry.sections.promptEnd.length, 1_000)
+})
+
+test('the origin of a style cloned with AI is saved and read back', async (t) => {
+  const root = await galleryRoot(t)
+  const fromVideo = {
+    kind: 'ai-clone',
+    source: 'youtube',
+    videoUrl: 'https://www.youtube.com/watch?v=tBBhUn0D0I0',
+  }
+  const { entry } = await save(root, { sections, origin: fromVideo })
+  assert.deepEqual(entry.origin, fromVideo)
+  assert.deepEqual((await storedJson(root)).origin, fromVideo)
+
+  const fromImages = { kind: 'ai-clone', source: 'images' }
+  const edited = await save(root, { sections, origin: fromImages })
+  assert.deepEqual(edited.entry.origin, fromImages)
 })
 
 test('a rejected edit leaves the stored gem untouched', async (t) => {

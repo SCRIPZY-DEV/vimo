@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { isCharacterStyleId } from '../../prompts/visual-styles.ts'
+import { validateYouTubeUrl } from '../../providers/ytdlp/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { MAX_WOVEN_IDENTITY_CHARS } from '../../stages/scene-prompts/verbatim/subject-weaver.ts'
@@ -9,6 +10,7 @@ import {
   COLOR_FILTER_IDS,
   GEM_SECTION_KEYS,
   GEM_TEMPLATE_VERSION,
+  type AiCloneGemOrigin,
   type ColorFilterId,
   type CustomStyleSummary,
   type GemOrigin,
@@ -232,13 +234,37 @@ export function isCatalogStyleId(value: unknown): value is string {
   return isCharacterStyleId(value)
 }
 
+// El link de un video de YouTube, o undefined si no lo es: el origen de un
+// estilo clonado solo guarda links que la app puede volver a abrir.
+function youtubeUrlOf(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    return validateYouTubeUrl(value)
+  } catch {
+    return undefined
+  }
+}
+
+function readAiCloneOrigin(record: {
+  source?: unknown
+  videoUrl?: unknown
+}): AiCloneGemOrigin | undefined {
+  if (record.source === 'images') return { kind: 'ai-clone', source: 'images' }
+  if (record.source !== 'youtube') return undefined
+  const videoUrl = youtubeUrlOf(record.videoUrl)
+  return { kind: 'ai-clone', source: 'youtube', ...(videoUrl && { videoUrl }) }
+}
+
 export function readGemOrigin(value: unknown): GemOrigin | undefined {
   if (!value || typeof value !== 'object') return undefined
   const record = value as {
     kind?: unknown
     catalogStyleId?: unknown
     name?: unknown
+    source?: unknown
+    videoUrl?: unknown
   }
+  if (record.kind === 'ai-clone') return readAiCloneOrigin(record)
   if (record.kind !== 'catalog') return undefined
   if (!isCatalogStyleId(record.catalogStyleId)) return undefined
   if (typeof record.name !== 'string' || !record.name.trim()) return undefined
@@ -247,6 +273,28 @@ export function readGemOrigin(value: unknown): GemOrigin | undefined {
     catalogStyleId: record.catalogStyleId,
     name: record.name.trim(),
   }
+}
+
+function assertAiCloneOrigin(
+  record: { source?: unknown; videoUrl?: unknown },
+  field: string,
+): void {
+  if (record.source !== 'youtube' && record.source !== 'images')
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.source must be youtube or images`,
+    )
+  if (record.videoUrl === undefined) return
+  if (record.source !== 'youtube')
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.videoUrl only applies to source youtube`,
+    )
+  if (youtubeUrlOf(record.videoUrl) !== record.videoUrl)
+    throw new PipelineFailure(
+      'invalid_payload',
+      `${field}.videoUrl must be a normalized https YouTube link`,
+    )
 }
 
 export function assertGemOrigin(
@@ -259,11 +307,17 @@ export function assertGemOrigin(
     kind?: unknown
     catalogStyleId?: unknown
     name?: unknown
+    source?: unknown
+    videoUrl?: unknown
+  }
+  if (record.kind === 'ai-clone') {
+    assertAiCloneOrigin(record, field)
+    return
   }
   if (record.kind !== 'catalog')
     throw new PipelineFailure(
       'invalid_payload',
-      `${field}.kind must be catalog`,
+      `${field}.kind must be catalog or ai-clone`,
     )
   if (!isCatalogStyleId(record.catalogStyleId))
     throw new PipelineFailure(

@@ -190,7 +190,7 @@ pipeline/
 ├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (music/, voices/, characters/, videos/)
 ├── stages/                las 7 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, animation/, render/ (ADR-0013), y shared/ con lo que usan varias fases
 ├── project/               la carpeta de un proyecto en disco: rutas tipadas, metadata, scenes.json y referencias de personajes (ADR-0009)
-├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM y overlay)
+├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM, overlay y la ficha de un video para clonar su estilo)
 ├── prompts/               prompts de sistema como datos versionados (biblia visual, director de escenas, bloques del redactor, estilos)
 ├── config/                PipelineConfig + ApiKeys + BinaryPaths, con defaults inyectables
 ├── types/                 tipos del dominio (json, llm, music, voices, characters, images, scenes, video-project)
@@ -573,11 +573,13 @@ posterior no puede tirarlos y el reintento solo pide lo que falta. La gema decla
 qué hace con su protagonista (`customStyle.character`: propio, genérico o
 ninguno) y puede diseñarlo con el guion como contexto (`design-style-character`).
 Un personaje se ilustra también con la gema (`generate-character-preview` con el
-id de galería: la gema escribe el prompt del retrato por el LLM) y esa es la
-referencia que `create-video-project` copia al proyecto; si el personaje no tiene
-preview del estilo actual, va sin referencia con un aviso en el log, nunca con el
-preview de otro estilo (ADR-0021). Un personaje **con foto** (ADR-0033) no depende
-de previews: su foto es la referencia en cualquier estilo, y con gema entra al
+id de galería: la gema escribe la escena del retrato con DeepSeek V4.1 Flash, con
+V3.2 de respaldo, y la descripción se pega palabra por palabra como en una escena
+del video; enmienda del 2026-10-04 a la ADR-0021), pero ese retrato es solo para
+verlo: un personaje de identidad de prompt viaja siempre como texto,
+en cualquier estilo, y `create-video-project` no le copia ninguna referencia
+(enmienda del 2026-10-02 a la ADR-0021). Solo un personaje **con foto** (ADR-0033)
+lleva referencia: su foto es la referencia en cualquier estilo, y con gema entra al
 modo `reference` del carril (la identidad viaja en la imagen, no en texto). Los
 prompts salen **siempre en inglés**: la plataforma suma a la gema una regla de idioma
 (`OUTPUT_LANGUAGE_RULE`, ADR-0019) y, si el modelo igual escribe en otro idioma, la fase
@@ -632,6 +634,40 @@ Entrega 1 y las que aún no se migraron— sigue por `buildVerbatimSystem` **byt
 byte** (lo fija `check-gem-verbatim-lane.mjs` con huellas SHA-256); con el interruptor
 encendido la app la migra con el agente la primera vez que se abre o se elige en Crear
 y, si la migración falla, la gema sigue por el camino viejo.
+
+**Creador de estilo con IA
+([ADR-0050](adr/ADR-0050-creador-de-estilo-con-ia.md)).** Clona un estilo desde un
+video de YouTube o desde hasta 10 imágenes y lo guarda como una gema por secciones. El
+análisis lo hace vimo.click (`POST /api/estilos/crear-con-ia`, Gemini 3.1 Pro con la
+clave de Vimo, un turno por pedido y sin estado); la app conduce los turnos y el
+sidecar hace lo que necesita la computadora y las claves del usuario, con cuatro
+subcomandos de `pipeline/commands/styles/`:
+
+| Subcomando            | Qué hace                                                                                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `style-clone-prepare` | Junta el material: hasta 10 mosaicos del storyboard, 3 fotogramas públicos, la miniatura y el título de un video, o las imágenes del usuario validadas y achicadas a JPEG. |
+| `style-clone-draw`    | Dibuja una ronda de pruebas (3 diseños del personaje o 4 escenas) con Fal o Evolink y deja el «Original» de cada escena. Una prueba que falla no tumba la ronda.           |
+| `style-clone-save`    | Guarda el estilo (`origin: { kind: 'ai-clone' }`), las clonaciones aprobadas como muestras y, si se replicó, el personaje en la biblioteca como predeterminado del estilo. |
+| `style-clone-discard` | Borra la carpeta de la sesión.                                                                                                                                             |
+
+Todo lo de una clonación vive en `<carpeta raíz>/_style-clones/<sesión>/` (reservada
+en `RESERVED_ROOT_DIRECTORIES`) hasta que se guarda o se descarta: el material con su
+índice `material.json` y las pruebas dibujadas. YouTube bloquea algunas redes como
+bot: la ficha del video se pide con el cliente de siempre de yt-dlp y, si sale ese
+bloqueo, con `mweb`; sin storyboard la clonación sigue con los fotogramas públicos. El
+final fijo de un estilo clonado lleva su ficha de estilo, por eso `promptEnd` admite
+hasta 1 000 caracteres.
+
+En la app, cada clonación es una **sesión** de un store fuera de React
+(`src/modules/videos/utilities/styleCloneSessions.ts`, conectado en
+`hooks/useStyleClones.ts`): se guarda en `localStorage` (`vimo:styleClone:sessions:v1`),
+sigue trabajando aunque se cierre su modal, admite hasta 3 a la vez y, cuando necesita
+una respuesta, se detiene y lo dice en su tarjeta de Mi estilo. Cada acción avanza por
+fases (material → turno → pruebas → guardado) y retomar tras un fallo o tras cerrar la
+app repite solo la fase que estaba corriendo. El turno viaja con `vimoServerStream`
+(`src/modules/common/fetcher/vimoServer.ts`), el cliente de respuestas por partes
+(NDJSON) de vimo.click: tope de 300 s y 45 s de silencio. La card aparece con el
+interruptor `features.aiStyleCreator`.
 
 ### La pausa de confirmación de escenas
 

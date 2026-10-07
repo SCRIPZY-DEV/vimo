@@ -39,7 +39,7 @@ Ampliar del primer minuto a todo conserva cada clip listo y su recibo, en ambos 
 
 Los prefijos por minutos pueden acabar dentro de una escena. Scene.animations contiene bloques activos con identidad y límites; animationPending contiene candidatos y recibos, sin retirar el anterior hasta validar el nuevo. animation histórico sigue siendo legible. Esto permite ampliar un prefijo sin pagar otra vez su parte existente. Cada versión tiene un MP4 propio, físicamente mudo y ajustado antes de ready; export-clips y preview leen los mismos intervalos.
 
-La política interna es Kie, Grok Imagine Video 1.5 Preview, 480p y formato 16:9 o 9:16 del proyecto. Tras dos fallos remotos confirmados y reintentables del generador se usa Seedance 1.5 Pro. Autenticación, saldo, moderación, 429, fallos de consulta/descarga/procesamiento y envíos ambiguos no son fallos de modelo. No se ofrecen modelos ni PoYo en UI; los datos históricos no se borran.
+La política interna es Kie, Grok Imagine Video 1.5 Preview, 480p y formato 16:9 o 9:16 del proyecto. Tras **un** fallo remoto confirmado y reintentable del generador se usa Seedance 1.5 Pro (hasta el 2026-10-05 eran dos; ver «Seedance después de un solo fallo de Grok (2026-10-05)»). Autenticación, saldo, moderación, 429, fallos de consulta/descarga/procesamiento y envíos ambiguos no son fallos de modelo. No se ofrecen modelos ni PoYo en UI; los datos históricos no se borran.
 
 El redactor recibe texto: guion, prompts estáticos, fragmentos temporales e identidad de personajes. La respuesta exige sujeto principal, acción observable, cámara, movimiento secundario opcional y continuidad por escena; desde el 2026-09-16 se usa DeepSeek V3.2 por defecto en el primer intento. La política inicial de repetir premium una sola vez quedó superada el 2026-09-22 por el rescate acotado de tres redactores descrito debajo; ningún candidato inválido autoriza el POST pagado. La selección es exclusiva del redactor de animación: la configuración global y los prompts estáticos conservan sus modelos. Se mantiene el dispatcher compartido: 429 con esperas limitadas y degradación a equilibrado ante timeout; la preferencia inicial por DeepSeek no es un pin que suprima esa recuperación existente. Se prioriza la acción del sujeto desde los primeros fotogramas y se subordina el ambiente a esa acción. La ventana utilizada debe contener el gesto esencial; se elimina la instrucción de micromovimiento seguido de reposo en clips cortos. El reparto se toma de `charactersPresent` y del prompt estático: la ficha de un personaje no obliga a introducirlo donde no aparece. Las personas presentes mantienen identidad y encuadre, permitiendo movimiento natural. Los clips y recibos previos no se reescriben al reanudar. No usa visión ni inventa un prompt de respaldo que autorice gasto. Las referencias se preparan en el formato del proyecto, especialmente porque Grok ignora aspect_ratio con una imagen. Los tiempos de transición pedidos al modelo son instrucciones, no garantías verificadas.
 
@@ -122,6 +122,17 @@ flowchart LR
 
 **Evidencia:** seis redacciones reales y cuatro revisiones adicionales sobre controles explícitos, total USD 0,0248572608. V4.1 Flash redactó en 7,53 y 13,28 s y revisó en 5,17 y 10,30 s; MiMo redactó en 14,84 y 30,88 s; Haiku redactó en 5,78 y 8,59 s. Ambos revisores aprobaron el control apoyado en la fuente y rechazaron el caso con actor añadido, conexión alterada, sonido y reloj inválido. Son medidas textuales con muestras pequeñas: no certifican fidelidad del MP4 ni equivalen a una ejecución completa escritor → revisor → Kie. [Causa, límites y validación](../../fixes/2026-09-28_animation-text-models-and-review-retries.md).
 
+### Seedance después de un solo fallo de Grok (2026-10-05)
+
+Decisión del dueño: un intento con Grok y, si Kie confirma que la generación falló, el segundo va con Seedance. **Reemplaza la secuencia Grok, Grok y Seedance** de esta ADR y de la ADR-0046. Experimentó esperas largas por la poca disponibilidad de Grok en Kie, y la telemetría de 14 días (`diagnostic_logs`, `animate-scenes`, todos los usuarios, al 2026-10-05) la respalda:
+
+- 649 escenas salieron al primer Grok: mediana 54 s, p90 82 s.
+- Cuando Grok falla, tarda en fallar una mediana de 50 s (p90 98 s, máx. 223 s).
+- El segundo Grok salió bien 56 de 66 veces, pero tardó una mediana de 46 s (p90 92 s, máx. 235 s); cuando también falló, tardó otros 26 s de mediana.
+- Seedance resolvió las 8 escenas que le llegaron en una mediana de 33 s (p90 42 s, máx. 46 s), y cuesta 1,75 créditos por segundo contra 2,4 de Grok.
+
+`MAX_GENERATION_ATTEMPTS` baja a 2 (el avance dice «intento N de 2»). No cambia qué cuenta como fallo del modelo: saldo, clave, moderación, 429, envíos ambiguos y la espera de 15 minutos con la tarea todavía en cola (`animation_timeout`) siguen sin abrir el respaldo. Pasar a Seedance con la tarea de Grok viva podría cobrar dos videos. Un fallo de Seedance cierra el presupuesto, y el botón del editor abre uno nuevo que repite Grok y Seedance. Un proyecto guardado con dos fallos de Grok sigue con Seedance. Costo: la escena que antes salía en el segundo Grok ahora sale en Seedance, con su movimiento y a menor precio. [Causa, límites y validación](../../fixes/2026-10-05_animation-seedance-after-one-grok-failure.md).
+
 ## Contrato de ejecución
 
 Antes del POST se persiste un intento creating; después se conserva taskId y resultado remoto. Un cierre entre esos dos puntos queda ambiguo y no repite la compra automáticamente. Las consultas y la normalización reanudan el recibo. La cancelación conserva trabajo y se espera a todas las tareas antes de cerrar el job.
@@ -149,6 +160,10 @@ Revisión autorizada del 2026-09-15: los límites contiguos con un clip animado 
 La inspección pausada muestra el bloque actual opaco; si el render vigente contiene un fundido en ese instante, se superpone el recurso editable sin desmontar el video. Fuera del fundido se conserva la pausa del render final. El campo `renderTransitionVersion` se publica al completar el render y el editor considera desactualizados los renders de una política anterior; no elimina sus archivos. La versión de caché de chunks también cambia. Causa reproducida, superficies protegidas y alcance en [la auditoría de selección y transiciones](../fixes/editor-selection-transitions.md).
 
 ## Verificación ejecutable
+
+- `scripts/test/check-animation-fallback.mjs` (desde el 2026-10-05): la regla real del carril elige Grok, pasa a Seedance tras un fallo confirmado del generador, cierra el presupuesto en dos intentos y no abre el respaldo con fallos que no son del modelo.
+
+Los scripts que siguen se usaron en la rama del PR #91 y **no están en el repo**: no entraron a `dev` con el merge del 2026-09-30.
 
 - `scripts/check-animation-provider.mjs`: contrato HTTP simulado, recibos, respaldo, ambigüedad y fallos de saldo/autenticación/cuota.
 - `scripts/check-animation-service.mjs`: prefijos, recuperación y publicación de reemplazos atómicos.
