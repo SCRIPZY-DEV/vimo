@@ -384,7 +384,7 @@ export const SCENE_WITHOUT_PROTAGONIST_RULE =
   'Las demas personas que la escena pida (gente alrededor, una multitud, personajes secundarios) SI pueden aparecer al fondo.'
 
 /** Cuál de las tres arquitecturas le toca a este video. */
-function architectureRuleFor(mode: VerbatimCharacterMode): string {
+export function architectureRuleFor(mode: VerbatimCharacterMode): string {
   switch (mode) {
     case 'reference':
       return PROMPT_ARCHITECTURE_RULE_REFERENCE
@@ -397,41 +397,51 @@ function architectureRuleFor(mode: VerbatimCharacterMode): string {
   }
 }
 
+/** Opciones del system de la Fase 2 (la gema vieja y el marco las comparten). */
+export type VerbatimSystemOptions = VerbatimMessageOptions & {
+  withoutScriptProtagonist?: boolean
+}
+
 /**
- * El system de la Fase 2: la gema del usuario + las reglas técnicas de la
- * plataforma (ids de escena, arquitectura y — solo cuando corresponde — el
- * protagonista del usuario / la escena desmarcada). La gema viaja intacta,
- * palabra por palabra; todo lo nuestro va DECLARADO y sumado al final.
+ * Las reglas técnicas de la plataforma que cierran el system de la Fase 2, en
+ * su orden de siempre: ids de escena, arquitectura, idioma y — solo cuando
+ * corresponde — el protagonista del usuario, la escena desmarcada y el
+ * vestuario. Las comparten la gema vieja (`buildVerbatimSystem`) y el marco
+ * de las gemas de plantilla (`buildTemplateSystem`, ADR-0048).
+ */
+export function platformSystemRules(
+  mode: VerbatimCharacterMode = 'generic',
+  options?: VerbatimSystemOptions,
+): string {
+  const rules = [SCENE_ID_RULE, architectureRuleFor(mode)]
+  // Idioma de salida: regla de FORMA del entregable, junto a los ids y la
+  // arquitectura, en los cuatro modos.
+  if (options?.outputLanguageRule ?? VERBATIM_OUTPUT_LANGUAGE_RULE)
+    rules.push(OUTPUT_LANGUAGE_RULE)
+  // v1.31.3 (E47) — Con el personaje del USUARIO, la identidad de la gema no
+  // aplica y hay que DECIRLO.
+  if (modeCarriesUserProtagonist(mode)) rules.push(USER_PROTAGONIST_RULE)
+  // v1.32.1 (E49) — Reescritura de escena DESMARCADA: el protagonista del
+  // guion tampoco aparece.
+  if (mode === 'none' && options?.withoutScriptProtagonist)
+    rules.push(SCENE_WITHOUT_PROTAGONIST_RULE)
+  // Vestuario por escena: la ULTIMA regla, solo con protagonista.
+  if ((options?.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE) && mode !== 'none')
+    rules.push(SCENE_WARDROBE_RULE)
+  return rules.join('\n\n')
+}
+
+/**
+ * El system de la Fase 2 de una gema VIEJA: la gema del usuario + las reglas
+ * técnicas de la plataforma. La gema viaja intacta, palabra por palabra; todo
+ * lo nuestro va DECLARADO y sumado al final.
  */
 export function buildVerbatimSystem(
   gem: string,
   mode: VerbatimCharacterMode = 'generic',
-  options?: VerbatimMessageOptions & { withoutScriptProtagonist?: boolean },
+  options?: VerbatimSystemOptions,
 ): string {
-  const base = `${gem.trim()}\n\n${SCENE_ID_RULE}\n\n${architectureRuleFor(mode)}`
-  // Idioma de salida: regla de FORMA del entregable, junto a los ids y la
-  // arquitectura, en los cuatro modos.
-  const outputLanguageRule =
-    options?.outputLanguageRule ?? VERBATIM_OUTPUT_LANGUAGE_RULE
-  const withLanguage = outputLanguageRule
-    ? `${base}\n\n${OUTPUT_LANGUAGE_RULE}`
-    : base
-  // v1.31.3 (E47) — Con el personaje del USUARIO, la identidad de la gema no
-  // aplica y hay que DECIRLO.
-  const withProtagonist = modeCarriesUserProtagonist(mode)
-    ? `${withLanguage}\n\n${USER_PROTAGONIST_RULE}`
-    : withLanguage
-  // v1.32.1 (E49) — Reescritura de escena DESMARCADA: el protagonista del
-  // guion tampoco aparece.
-  const withoutScript =
-    mode === 'none' && options?.withoutScriptProtagonist
-      ? `${withProtagonist}\n\n${SCENE_WITHOUT_PROTAGONIST_RULE}`
-      : withProtagonist
-  // Vestuario por escena: la ULTIMA regla, solo con protagonista.
-  const sceneWardrobe = options?.sceneWardrobe ?? VERBATIM_SCENE_WARDROBE
-  return sceneWardrobe && mode !== 'none'
-    ? `${withoutScript}\n\n${SCENE_WARDROBE_RULE}`
-    : withoutScript
+  return `${gem.trim()}\n\n${platformSystemRules(mode, options)}`
 }
 
 export interface VerbatimFragment {

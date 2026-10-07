@@ -4,6 +4,13 @@ export const CommonRoutesPaths = {
   notFound: '*',
 } as const
 
+// vimo.click: el servidor de Vimo (acceso y agente reconstructor). La ruta de
+// cada endpoint vive en el constants.ts de su módulo (ADR-0006, enmienda
+// 2026-09-30).
+export const VIMO_SERVER_BASE_URL = 'https://vimo.click'
+// Tope por defecto de un pedido a vimo.click; un endpoint lento pide el suyo.
+export const VIMO_SERVER_TIMEOUT_MS = 15_000
+
 export const TOAST_LIMIT = 1
 export const TOAST_REMOVE_DELAY = 1000000
 
@@ -11,6 +18,10 @@ export const TOAST_REMOVE_DELAY = 1000000
 export const TOOLTIP_DELAY_MS = 300
 
 export const commonQueryKeys = {
+  // Veredicto de acceso de vimo.click (ADR-0006): lo verifica y lo cachea
+  // auth (`authQueryKeys.access` es esta misma clave); los demás módulos solo
+  // leen sus interruptores con useAccessFeature, sin verificar.
+  access: ['auth', 'access'],
   promptModels: ['common', 'promptModels'],
   imageCredits: ['common', 'imageCredits'],
   videoCredits: ['common', 'videoCredits'],

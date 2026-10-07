@@ -9,6 +9,7 @@ import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCoun
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import { estimateAnimationSeconds } from '@/modules/videos/utilities/estimateAnimationSeconds'
+import { laneOf } from '@/modules/videos/utilities/formLane'
 import { planPrefixSceneWindows } from '@pipeline/animation/prefix-scenes.ts'
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
@@ -79,14 +80,16 @@ function estimateImagesLine(
 // Usa el mismo corte puro del sidecar: imágenes cada3s en el primer minuto
 // y el resto con la duración configurada.
 // El audio propio conserva su cantidad manual hasta medir la duración.
+// Un estilo del catálogo nuevo corta como Mi estilo: por segundos por escena,
+// sin cantidad fija (plan E2 §5.4).
 function estimatedSceneCount(form: CreateFormValue, script: string): number {
-  const usesCustomStyle = form.styleSource === 'custom'
-  const hasFixedCount = !usesCustomStyle && form.sceneCount > 0
+  const usesGemLane = laneOf(form) !== 'legacy-catalog'
+  const hasFixedCount = !usesGemLane && form.sceneCount > 0
   if (form.narrationMode !== 'tts' || !script)
     return hasFixedCount ? form.sceneCount : 0
 
   const durationSeconds = script.length / SPEECH_CHARS_PER_SECOND
-  const secondsPerScene = usesCustomStyle
+  const secondsPerScene = usesGemLane
     ? form.secondsPerScene
     : AUTO_SECONDS_PER_SCENE
   const count = hasFixedCount
@@ -96,7 +99,7 @@ function estimatedSceneCount(form: CreateFormValue, script: string): number {
   return planPrefixSceneWindows({
     totalSeconds: durationSeconds,
     minutes: ANIMATION_MINUTES_DEFAULT,
-    secondsPerScene: usesCustomStyle ? form.secondsPerScene : undefined,
+    secondsPerScene: usesGemLane ? form.secondsPerScene : undefined,
     sceneCount: hasFixedCount ? form.sceneCount : undefined,
   }).length
 }

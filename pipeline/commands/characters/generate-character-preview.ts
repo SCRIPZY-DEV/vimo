@@ -7,6 +7,11 @@ import {
 } from '../../prompts/character-preview.ts'
 import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
 import {
+  applyFixedPhrases,
+  fixedPhrasesInLanguage,
+  stripFixedPhrases,
+} from '../../prompts/template-frame.ts'
+import {
   VISUAL_STYLES,
   assembleUserScenePrompt,
   isCharacterStyleId,
@@ -22,8 +27,11 @@ import type {
 } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
 import type { ImageProviderId } from '../../types/image-provider.ts'
+import type { CustomStyleSummary, GemSections } from '../../types/styles.ts'
 import { createProviderFailureReporter } from '../../utils/provider-failure.ts'
 import { startSimulatedProgress } from '../../utils/simulated-progress.ts'
+import { resolveCatalogGem } from '../catalog/catalog-cache.ts'
+import { wantsRemoteCatalog } from '../catalog/catalog-store.ts'
 import { assertValidStyleId, readStyleEntry } from '../styles/style-store.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
@@ -34,15 +42,22 @@ const MIN_IDENTITY_LENGTH = 10
 // quieta.
 const PROMPT_EXPECTED_MS = 15_000
 
+/** Lo que la gema aporta al retrato: su texto, o sus secciones y planos. */
+type PreviewGem = Pick<
+  CustomStyleSummary,
+  'systemPrompt' | 'sections' | 'shots'
+>
+
 /**
  * Genera UNA imagen de cómo se vería el personaje en el estilo elegido. El
  * estilo se aplica ACÁ (solo para el preview); la identidad guardada queda
  * neutra y sirve para cualquier estilo.
  *
- * Con un estilo del catálogo el prompt sale de la plantilla fija. Con un
- * estilo propio la gema no es un sufijo de imagen sino un system prompt, así
- * que primero el LLM escribe el prompt del retrato (mismo mecanismo que las
- * muestras del estilo) y recién después se genera la imagen.
+ * Con uno de los 5 estilos heredados el prompt sale de la plantilla fija. Con
+ * un estilo propio o una gema nueva del catálogo la gema no es un sufijo de
+ * imagen sino un system prompt, así que primero el LLM escribe el prompt del
+ * retrato (mismo mecanismo que las muestras del estilo) y recién después se
+ * genera la imagen.
  */
 export async function generateCharacterPreview(
   context: PipelineContext,
@@ -88,20 +103,19 @@ export async function generateCharacterPreview(
   return { dataUri: toDataUri(image), finalPrompt }
 }
 
-// Estilo propio: la gema escribe el prompt del retrato. Ambas claves (LLM e
-// imágenes) se exigen ANTES de gastar — la de imágenes ya se validó arriba.
+// Estilo propio o gema nueva del catálogo: la gema escribe el prompt del
+// retrato. Ambas claves (LLM e imágenes) se exigen ANTES de gastar — la de
+// imágenes ya se validó arriba.
 async function writeCustomStylePrompt(
   context: PipelineContext,
   styleId: string,
   identityPrompt: string,
 ): Promise<string> {
-  assertValidStyleId(styleId)
-  const style = await readStyleEntry(context, styleId)
-  if (!style)
-    throw new PipelineFailure(
-      'style_not_found',
-      `style "${styleId}" does not exist`,
-    )
+  const style = await readPreviewGem(
+    context,
+    styleId,
+    wantsRemoteCatalog(context.job.payload),
+  )
   const llm = createSceneLlm(context)
 
   emitPhase(context, 'prompt')
@@ -125,7 +139,48 @@ async function writeCustomStylePrompt(
       'the style did not write a usable preview prompt',
     )
 
+  // Una gema de plantilla pega sus frases fijas también al retrato: van en
+  // cada prompt de imagen (spec §4.1). El texto de la gema se las muestra al
+  // modelo, así que si las copió se quita esa copia antes de pegarlas: cada
+  // frase va una sola vez.
+  if (style.sections)
+    return applyFixedPhrases(
+      stripFixedPhrases(imagePrompt, style.sections),
+      style.sections,
+    )
   return imagePrompt
+}
+
+// La gema del retrato. Una gema nueva del catálogo es una gema de plantilla y
+// entra por sus secciones, sin leer la galería (decisión P6 del plan E2: los
+// 5 ids heredados no llegan acá, van por la plantilla fija): la del catálogo
+// sincronizado si está ahí y, si no, la empaquetada (ADR-0049). Si no está en
+// el catálogo, es un estilo propio de la galería.
+async function readPreviewGem(
+  context: PipelineContext,
+  styleId: string,
+  remote: boolean,
+): Promise<PreviewGem> {
+  const catalogGem = await resolveCatalogGem(context, styleId, remote)
+  if (catalogGem)
+    return { sections: withoutLanguageMarker(catalogGem.sections), shots: [] }
+
+  assertValidStyleId(styleId)
+  const style = await readStyleEntry(context, styleId)
+  if (!style)
+    throw new PipelineFailure(
+      'style_not_found',
+      `style "${styleId}" does not exist`,
+    )
+  if (!style.sections) return style
+  return { ...style, sections: withoutLanguageMarker(style.sections) }
+}
+
+// Un retrato no tiene guion: el marcador de idioma de las frases fijas queda
+// con el texto neutro. Se cambia en la gema entera, también en lo que lee el
+// modelo, así la copia que escriba coincide con la que después se quita.
+function withoutLanguageMarker(sections: GemSections): GemSections {
+  return { ...sections, ...fixedPhrasesInLanguage(sections, '') }
 }
 
 async function generateImage(

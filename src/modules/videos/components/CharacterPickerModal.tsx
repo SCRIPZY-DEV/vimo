@@ -56,7 +56,11 @@ function identityFilterOf(character: CharacterSummary): IdentityFilter {
 // Selector de personajes de Crear: pestañas «con foto» / «sin foto» y una
 // grilla de tarjetas iguales (retrato cuadrado + dos renglones de alto fijo)
 // que crece por filas parejas y scrollea adentro del modal — la tarjeta de
-// crear mide lo mismo que las demás para que la grilla no se descuadre.
+// crear mide lo mismo que las demás para que la grilla no se descuadre. El
+// scroll va en un envoltorio y no en la grilla: acotada al alto del modal, la
+// grilla repartía ese alto entre sus filas (`auto-rows-fr` es
+// `minmax(0, 1fr)`) y, con muchos personajes, aplastaba las tarjetas y la de
+// crear se salía de su fila.
 export function CharacterPickerModal({
   previewStyleKey,
   selected,
@@ -175,50 +179,52 @@ export function CharacterPickerModal({
           </p>
         )}
 
-        <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-saffron/60 hover:text-foreground"
-          >
-            <Plus className="h-6 w-6" />
-            <span className="px-2 text-center font-display text-sm font-bold">
-              {styleContext
-                ? t('create.characters.createWithStyle')
-                : t('create.characters.createNew')}
-            </span>
-          </button>
-          {visible.map((character) => {
-            const isSelected = isPicked(character.id)
-            const portrait = characterPortraitPath(character, previewStyleKey)
-            return (
-              <button
-                key={character.id}
-                type="button"
-                onClick={() => toggle(character)}
-                className={cn(
-                  'flex h-full flex-col overflow-hidden rounded-xl border-2 bg-card text-left transition-colors',
-                  isSelected
-                    ? 'border-saffron'
-                    : 'border-border hover:border-saffron/40',
-                )}
-              >
-                <CharacterPortrait
-                  src={portrait ? videosApi.imageSource(portrait) : null}
-                  doodleSize={56}
-                  className="aspect-square w-full shrink-0"
-                />
-                <div className="space-y-0.5 p-2">
-                  <p className="truncate font-display text-sm font-bold text-foreground">
-                    {character.name}
-                  </p>
-                  <p className="line-clamp-2 h-8 font-body text-[11px] leading-4 text-muted-foreground">
-                    {subtitleOf(character)}
-                  </p>
-                </div>
-              </button>
-            )
-          })}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-saffron/60 hover:text-foreground"
+            >
+              <Plus className="h-6 w-6" />
+              <span className="px-2 text-center font-display text-sm font-bold">
+                {styleContext
+                  ? t('create.characters.createWithStyle')
+                  : t('create.characters.createNew')}
+              </span>
+            </button>
+            {visible.map((character) => {
+              const isSelected = isPicked(character.id)
+              const portrait = characterPortraitPath(character, previewStyleKey)
+              return (
+                <button
+                  key={character.id}
+                  type="button"
+                  onClick={() => toggle(character)}
+                  className={cn(
+                    'flex h-full flex-col overflow-hidden rounded-xl border-2 bg-card text-left transition-colors',
+                    isSelected
+                      ? 'border-saffron'
+                      : 'border-border hover:border-saffron/40',
+                  )}
+                >
+                  <CharacterPortrait
+                    src={portrait ? videosApi.imageSource(portrait) : null}
+                    doodleSize={56}
+                    className="aspect-square w-full shrink-0"
+                  />
+                  <div className="space-y-0.5 p-2">
+                    <p className="truncate font-display text-sm font-bold text-foreground">
+                      {character.name}
+                    </p>
+                    <p className="line-clamp-2 h-8 font-body text-[11px] leading-4 text-muted-foreground">
+                      {subtitleOf(character)}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {!isLoading && visible.length === 0 && (

@@ -75,6 +75,7 @@
     "info": "Sign in with your Google account to activate your free 10-day trial. We only store your email — your video work never leaves your PC.",
     "boton": "Sign in with Google",
     "abriendo": "Opening Google...",
+    "esperando": "Finish signing in in your browser: Vimo opens on its own. If it didn't come back, click the button again.",
     "problemas": "Trouble signing in? Write to us at",
     "errorInicio": "Couldn't open Google. Please try again."
   },
@@ -261,6 +262,7 @@
       "withdrawnTitleNoName": "We removed your character from this video",
       "withdrawnBecauseGeneric": "This style writes the character itself, so your choice would not have been used.",
       "withdrawnBecauseNone": "This style has no character, so your choice would not have been used.",
+      "withdrawnBecauseSingle": "This style takes a single character. If you prefer another one, change it above.",
       "withdrawnRestoreHint": "It is kept: tap here and set the style to \"my character\" to bring it back.",
       "withdrawnRestoreAuto": "It is kept: it comes back on its own if you pick a style that uses your character.",
       "createNew": "Create new character",
@@ -443,6 +445,7 @@
       "bgmPromptRequired": "Describe how you want the music to sound.",
       "overlayUrlRequired": "Paste the YouTube link for the texture.",
       "styleRequired": "Pick (or create) a custom style to generate.",
+      "catalogStyleRequired": "Pick a catalog style to generate.",
       "characterRequired": "This style asks for your character: pick one.",
       "fixedCharacterMissing": "The character this style had fixed is no longer in your list. Edit the style and pick another.",
       "promptModelsBlocked": "Every prompt-writing model is blocked: pick a Vimo style or wait for them to come back.",
@@ -559,7 +562,9 @@
       "animationProjectBusy": "Another operation is running for this project. Wait for it to finish.",
       "animationRequestChanged": "This scene has a pending animation. Recover it before ordering a different version.",
       "animationIncomplete": "The animation range still has pending clips. Retry to complete or recover the saved tasks.",
-      "animationTimingLocked": "These scene timings are linked to saved animation clips or tasks and cannot be moved."
+      "animationTimingLocked": "These scene timings are linked to saved animation clips or tasks and cannot be moved.",
+      "catalogSyncFailed": "The catalog couldn't be updated. You still see the last one downloaded.",
+      "catalogUploadFailed": "The samples couldn't be uploaded to the catalog. Try again."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -612,7 +617,7 @@
     },
     "styleSource": {
       "catalog": "Catalog",
-      "catalogHint": "Vimo's 5 styles.",
+      "catalogHint": "Vimo's styles.",
       "catalogHintDemo": "The 3 styles with a ready-made demo.",
       "custom": "My style",
       "customHint": "Your own visual style.",
@@ -633,6 +638,9 @@
       "deleteConfirm": "Delete the style \"{{name}}\"? Videos that used it are not affected.",
       "noSamples": "No samples yet. Generate them from the three dots.",
       "charsCount": "{{chars}} characters",
+      "basedOn": "Based on {{name}}",
+      "clonedFrom": "Gem cloned from the catalog <badge>{{name}}</badge>",
+      "adaptedTag": "Adapted gem",
       "modalTitle": "Your style",
       "modalDescription": "The visual style is the text that gives the model its rules. These are its samples.",
       "samplesEmpty": "No samples of this style yet.",
@@ -661,7 +669,160 @@
       "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
       "shotsHint": "If you write them, we make sure two consecutive images never come out with the same framing.",
       "recommendedShots": "Recommended shots",
-      "save": "Done"
+      "save": "Done",
+      "discardChangesConfirm": "The style couldn't be saved. Leave anyway and lose the changes?"
+    },
+    "catalog": {
+      "galleryHint": "Pick the style of your video images. The three dots on each card let you look at it up close or copy it to My style to edit it.",
+      "pickNotice": "Pick which style your video comes out with.",
+      "menuAria": "Options for {{name}}",
+      "useInVideo": "Use in this video",
+      "alreadyInUse": "Already in use",
+      "view": "View",
+      "copyToCustom": "Copy to my style",
+      "copying": "Cloning…",
+      "copyingNamed": "Cloning gem from the catalog <badge>{{name}}</badge>",
+      "copyFailed": "Could not copy \"{{name}}\" to My style.",
+      "copyFailedDismiss": "Dismiss notice",
+      "modalTitle": "Vimo style",
+      "noSamples": "This style has no samples yet.",
+      "characterTitle": "This style's character",
+      "characterHint": "Choose who stars in your videos with this style.",
+      "useButton": "Use in this video",
+      "selectedMissing": "The style you had chosen is no longer in the catalog. You can keep it or choose another one."
+    },
+    "catalogAdmin": {
+      "errors": {
+        "session": "Your session expired. Sign in again and retry.",
+        "noAccess": "Your account doesn't have access to Vimo.",
+        "featureOff": "The remote catalog is not enabled for your account.",
+        "notAdmin": "Only an admin can change the catalog.",
+        "invalidRequest": "The request doesn't have the expected shape. Update the app.",
+        "invalidStyle": "The server rejected the style: {{detail}}",
+        "notFound": "That style no longer exists in the catalog.",
+        "idTaken": "There is already a style with that identifier.",
+        "draftChanged": "Another admin saved this style while you were editing it.",
+        "missingSamples": "Samples are missing in the catalog. Generate them again and retry.",
+        "storageFailed": "The sample storage failed. Retry in a moment.",
+        "emptyCatalog": "The catalog doesn't have published styles yet.",
+        "modelFailed": "The AI couldn't translate. Try again or type it yourself.",
+        "modelTimeout": "The AI took too long. Try again or type it yourself.",
+        "serverError": "The Vimo server failed. Retry in a moment.",
+        "network": "We couldn't reach Vimo. Check your connection and retry.",
+        "timeout": "Vimo didn't answer in time. Retry.",
+        "unknown": "The action couldn't be completed. Retry.",
+        "archived": "That style is archived. Restore it before changing it."
+      },
+      "badge": {
+        "unpublished": "Draft",
+        "hidden": "Hidden",
+        "changes": "Unpublished changes",
+        "archived_one": "Deleted in {{count}} day",
+        "archived_other": "Deleted in {{count}} days",
+        "archivedToday": "Deleted today"
+      },
+      "menu": {
+        "edit": "Edit",
+        "generateSamples": "Generate samples",
+        "publish": "Publish",
+        "hide": "Hide",
+        "delete": "Archive gem",
+        "restore": "Restore"
+      },
+      "deleteConfirm": "Archive \"{{name}}\"? Users stop seeing it and it moves to Archived: you can restore it for 30 days; after that it is deleted for good, samples included.",
+      "createCard": "Create style",
+      "createCardHint": "Paste a gem and publish it in the catalog.",
+      "listFailed": "The admin catalog couldn't be loaded. You see the catalog like any user.",
+      "working": {
+        "create": "Creating <badge>{{name}}</badge>…",
+        "save": "Saving <badge>{{name}}</badge>…",
+        "publish": "Publishing <badge>{{name}}</badge>…",
+        "hide": "Hiding <badge>{{name}}</badge>…",
+        "delete": "Archiving <badge>{{name}}</badge>…",
+        "restore": "Restoring <badge>{{name}}</badge>…"
+      },
+      "done": {
+        "create": "<badge>{{name}}</badge> was created as a draft, hidden from users.",
+        "save": "<badge>{{name}}</badge> was saved as a draft.",
+        "publish": "<badge>{{name}}</badge> is published: every user can see it now.",
+        "hide": "<badge>{{name}}</badge> is hidden: users no longer see it.",
+        "delete": "<badge>{{name}}</badge> moved to Archived: users no longer see it. It is deleted for good in 30 days unless you restore it.",
+        "restore": "<badge>{{name}}</badge> is back in the catalog and will not be deleted."
+      },
+      "failed": {
+        "create": "\"{{name}}\" couldn't be created.",
+        "save": "\"{{name}}\" couldn't be saved.",
+        "publish": "\"{{name}}\" couldn't be published.",
+        "hide": "\"{{name}}\" couldn't be hidden.",
+        "delete": "\"{{name}}\" couldn't be archived.",
+        "restore": "\"{{name}}\" couldn't be restored."
+      },
+      "dismiss": "Dismiss notice",
+      "modalTitle": "Catalog style",
+      "newTitle": "New catalog style",
+      "modalDescription": "What you save stays a draft: users see the style once you publish it.",
+      "pasteHint": "Paste the gem: the AI sorts it into sections, then you fill in the name, the tags and the samples.",
+      "idLabel": "Identifier",
+      "idHint": "Lowercase letters, digits and hyphens. It can't be changed later.",
+      "nameLabel": "Name",
+      "nameEs": "Spanish",
+      "nameEn": "English",
+      "namePt": "Portuguese",
+      "translate": "Translate with AI",
+      "translating": "Translating…",
+      "tagsLabel": "Tags",
+      "tagsHint": "Up to {{count}} besides the ones Vimo adds: \"Dynamism\" and \"Fixed character\" come from the sections.",
+      "tagsFull": "No more tags fit.",
+      "tagCustomLabel": "Another tag (in the three languages)",
+      "tagAdd": "Add",
+      "tagRemove": "Remove the tag {{name}}",
+      "modesLabel": "Allowed character modes",
+      "modeOwn": "My character",
+      "modeGeneric": "Generic",
+      "modeNone": "No character",
+      "sampleModeLabel": "Samples are generated with",
+      "colorFilterLabel": "Color filter",
+      "colorFilterNone": "None",
+      "colorFilterFantasy": "Fantasy",
+      "colorFilterHorrorBw": "Black-and-white horror",
+      "positionLabel": "Position in the tab",
+      "positionHint": "Lower is higher up. Ties go by identifier.",
+      "samplesLabel": "Samples",
+      "samplesHint": "Generated with your keys (4 low-quality images) and uploaded to the catalog when done.",
+      "samplesUploading": "Uploading the samples to the catalog…",
+      "samplesPending": "The new samples are uploaded when you save the draft.",
+      "saveDraft": "Save draft",
+      "publishButton": "Publish",
+      "publishBlocked": "To publish you still need:",
+      "blocker": {
+        "nameEs": "the name in Spanish",
+        "nameEn": "the name in English",
+        "namePt": "the name in Portuguese",
+        "visualStyle": "the visual style",
+        "samples": "the 4 samples",
+        "characterOutfit": "the character to end with a sentence that starts with \"Outfit:\"",
+        "placeholder": "to remove the bracketed placeholders (only [IDIOMA DEL GUION] is allowed in the fixed start and end)"
+      },
+      "problem": {
+        "id": "the identifier is not valid",
+        "visualStyle": "the visual style is missing",
+        "tags": "there are more than 5 tags",
+        "tagLabel": "a tag is empty or longer than 24 characters",
+        "modes": "the sample mode must be one of the allowed modes",
+        "name": "a name is longer than 80 characters"
+      },
+      "cannotSave": "To save you still need:",
+      "conflictRetry": "Retry with the current version",
+      "unsavedConfirm": "There are unsaved changes. Close and lose them?",
+      "offlineHint": "No connection with Vimo: you see the catalog like any user and can't edit it.",
+      "viewLabel": "What to show",
+      "viewCatalog": "Catalog · {{count}}",
+      "viewArchived": "Archived · {{count}}",
+      "archivedHint": "Deleted styles. Each one is removed for good (text and samples) when its label runs out; restoring it puts it back in the catalog and cancels the deletion.",
+      "sampleStyleCharacter": "Style character",
+      "sampleHintStyleCharacter": "This gem has a fixed character: in generic mode, videos and samples use that character.",
+      "sampleHintNoCharacter": "For samples with the style character, the gem needs its character section.",
+      "modesHintSamples": "Samples come out generic or without a character: one of the two always stays allowed."
     },
     "promptModel": {
       "title": "Which model writes the prompts",
@@ -699,6 +860,10 @@
         "subtitle": "Vimo invents one coherent with your script.",
         "help": "Vimo creates a character coherent with your script and uses it as the narrator of the story. Nothing to pick."
       },
+      "fromStyle": {
+        "title": "Style's character",
+        "subtitle": "The character this style brings."
+      },
       "none": {
         "title": "No character",
         "subtitle": "Only scenes of what is narrated.",
@@ -710,6 +875,89 @@
       "defaultSwitchLabel": "Pick the default character for this style",
       "defaultChange": "Tap to change it",
       "defaultMissing": "The default character you had chosen is no longer in your list. Pick another one to use this style."
+    },
+    "gemTemplate": {
+      "migrationPending": "Adapting to Vimo's template while keeping your gem…",
+      "adaptingTitle": "Adapting to Vimo's template",
+      "adaptStepSaved": "Your gem is saved as is",
+      "adaptStepAgent": "The AI sorts the sections",
+      "adaptStepSaving": "Saving the sections",
+      "adaptPercent": "{{percent}}%",
+      "migrationPendingNamed": "Adapting “{{name}}” to Vimo's template while keeping your gem…",
+      "migrationFailed": "We couldn't adapt your gem to Vimo's template. Meanwhile it keeps working as it is.",
+      "migrationFailedNamed": "We couldn't adapt “{{name}}” to Vimo's template. Meanwhile it keeps working as it is.",
+      "migrationDoneNamed": "We adapted “{{name}}” to Vimo's template",
+      "migrationReview": "The AI sorted the gem into sections and saved it without your review. Check the sections before your next video: your original text was kept as a backup.",
+      "migrationWarningsHint": "The AI also left notes on what it adjusted: you'll see them when you open the style.",
+      "migrationReviewAction": "Review sections",
+      "migrationDismiss": "Dismiss notice",
+      "pasteHint": "Paste the full text of your gem. Vimo's AI sorts it into sections (visual style, character, dynamism, camera and rules) without inventing anything: what isn't in your gem won't show up. Your gem is saved as is and adapted on its own: you can close this meanwhile.",
+      "discardPasteConfirm": "If you close now, the gem you pasted is lost: it hasn't been prepared yet. Close anyway?",
+      "pasteTitle": "Paste your gem",
+      "pastePlaceholder": "Paste your full gem here…",
+      "pasteCount": "{{used}} / {{limit}} characters",
+      "prepare": "Prepare with AI",
+      "preparing": "Preparing…",
+      "preparingHint": "Saving your gem…",
+      "retry": "Try again",
+      "sectionsTitle": "Style sections",
+      "sectionsHint": "Edit each section right here: it's saved when you close, without going through the AI again.",
+      "addSection": "Add section: {{title}}",
+      "sectionCount": "{{used}} / {{limit}}",
+      "totalCount": "Style total: {{used}} / {{limit}} characters",
+      "totalFull": "You've reached the style's maximum. Shorten a section to keep writing.",
+      "notEnglish": "This doesn't look like English. Vimo pastes this text as is into every image, so it's best written in English.",
+      "notEnglishDismiss": "Dismiss notice",
+      "warningsTitle": "What the AI adjusted in your gem",
+      "warningsPlatformNote": "Flow, output format and language rules are not needed in your gem: Vimo already has its own and adds them automatically to every video. That is why the AI removes them.",
+      "sourceTitle": "Original text",
+      "sourceHint": "Your gem as it was before the AI sorted it into sections. It's read-only: copy whatever you need.",
+      "sections": {
+        "visualStyle": {
+          "title": "Visual style",
+          "hint": "Technique, palette, lighting, texture and composition. It's the only required section: without it the style isn't saved."
+        },
+        "character": {
+          "title": "Style character",
+          "hint": "Your style's own protagonist. With this section written, “Generic character” above becomes “Style's character” and your videos come out with it; with “My character” or “No character” it isn't used. Write it in English: physical identity first and, at the end, an “Outfit: …” sentence with the base outfit."
+        },
+        "dynamism": {
+          "title": "Dynamism",
+          "hint": "When the protagonist appears and when a metaphor, an object or a place does, and in what proportion."
+        },
+        "camera": {
+          "title": "Framing and camera",
+          "hint": "Shots, angles and variety rules."
+        },
+        "rules": {
+          "title": "Rules and prohibitions",
+          "hint": "What the style never does."
+        },
+        "promptStart": {
+          "title": "Fixed start of every image",
+          "hint": "English phrase Vimo puts at the start of every image prompt."
+        },
+        "promptEnd": {
+          "title": "Fixed end of every image",
+          "hint": "English phrase Vimo adds at the end of every image prompt."
+        }
+      },
+      "errors": {
+        "session": "Your session expired. Sign out and sign in again.",
+        "noAccess": "Your account doesn't have access to Vimo right now.",
+        "featureOff": "Preparing styles with AI isn't available for your account right now.",
+        "invalidRequest": "Vimo couldn't understand the app's request. Update Vimo and try again.",
+        "invalidText": "The gem is empty or longer than {{limit}} characters.",
+        "noVisualStyle": "The text doesn't describe a visual style: it doesn't say how the images look (technique, colors, lighting, strokes). A style gem has to describe that; a script or the video's topic won't work.",
+        "quotaExhausted": "You've reached today's limit of prepared styles. You can try again on {{when}}.",
+        "quotaExhaustedLater": "You've reached today's limit of prepared styles. Try again later.",
+        "modelFailed": "The AI couldn't sort your gem. Try again in a moment.",
+        "modelTimeout": "The AI took too long to answer. Try again.",
+        "network": "We couldn't reach Vimo. Check your connection and try again.",
+        "timeout": "Vimo took too long to answer. Try again.",
+        "serverError": "Vimo had a problem on its side. Try again in a few minutes.",
+        "unknown": "We couldn't prepare your style. Try again."
+      }
     },
     "promptModelIssue": {
       "stalled": {

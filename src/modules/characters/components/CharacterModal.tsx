@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { Button } from '@/modules/common/ui/button'
 import {
@@ -35,6 +36,7 @@ import {
 } from '@/modules/characters/utilities/characterDraft'
 import { identitySourceOf } from '@/modules/characters/utilities/identitySourceOf'
 import { previewShortfallLine } from '@/modules/characters/utilities/previewShortfallLine'
+import { styleDesignGemOf } from '@/modules/characters/utilities/styleDesignGem'
 import type { CharacterSummary } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
@@ -75,6 +77,10 @@ export function CharacterModal({
   onClose,
 }: CharacterModalProps) {
   const { t } = useTranslation()
+  // Interruptores del catálogo (configuración global, se leen acá): con los
+  // dos encendidos el retrato de una gema del catálogo usa la sincronizada.
+  const newCatalog = useAccessFeature('newCatalog')
+  const remoteCatalog = useAccessFeature('remoteCatalog')
   const { createCharacter, updateCharacter, saving } = useCharacterMutations()
   const {
     suggestProfile,
@@ -123,7 +129,7 @@ export function CharacterModal({
       : null
 
   // Catálogo + galería propia, con el texto ya resuelto para el panel.
-  const previewStyles: PreviewStyleOption[] = [
+  const libraryStyles: PreviewStyleOption[] = [
     ...PREVIEW_STYLES.map((style) => ({
       id: style.id,
       label: t(style.labelKey),
@@ -135,6 +141,24 @@ export function CharacterModal({
       custom: true,
     })),
   ]
+  // Un estilo del catálogo nuevo llega de Create con su nombre (`styleName`)
+  // y no está en ninguna de las dos listas: se suma como uno propio (su
+  // retrato también lo escribe la gema), para que su chip quede elegido, el
+  // botón diga su nombre y el retrato generado lo lleve. Sin nombre no se
+  // agrega nada: los 5 de siempre y la galería quedan como estaban, también
+  // mientras la galería carga.
+  const contextStyle =
+    styleContext?.styleName &&
+    !libraryStyles.some((style) => style.id === styleContext.styleId)
+      ? {
+          id: styleContext.styleId,
+          label: styleContext.styleName,
+          custom: true,
+        }
+      : null
+  const previewStyles = contextStyle
+    ? [...libraryStyles, contextStyle]
+    : libraryStyles
   const isCustomStyle = !PREVIEW_STYLES.some((style) => style.id === styleId)
 
   const llmKeys = useRequiredApiKeys({ requirements: [['deepinfra']] })
@@ -147,7 +171,10 @@ export function CharacterModal({
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
   const contextScript = (styleContext?.script ?? script ?? '').trim()
   const withScript = contextScript.length >= MIN_SCRIPT_LENGTH
-  const withStyle = Boolean(styleContext?.gem.trim()) && withScript
+  // La gema que diseña al protagonista: una vieja como texto o una de
+  // plantilla por secciones (ADR-0048). null = el experto de la casa.
+  const styleGem = styleDesignGemOf(styleContext)
+  const withStyle = styleGem !== null && withScript
   const busy = saving || suggesting || designing || preview.generating
 
   // Con texto ya escrito el botón lo dice claro: MEJORA ese texto; vacío,
@@ -168,7 +195,7 @@ export function CharacterModal({
     }
     const result = withStyle
       ? await designWithStyle({
-          gem: styleContext!.gem.trim(),
+          ...styleGem,
           script: styleContext!.script.trim(),
           ...(styleContext!.promptModel
             ? { promptModel: styleContext!.promptModel }
@@ -192,6 +219,9 @@ export function CharacterModal({
       identityPrompt: identity,
       styleId,
       provider,
+      // Una gema del catálogo nuevo se lee del catálogo sincronizado solo con
+      // el catálogo remoto encendido (ADR-0049): con él apagado nada cambia.
+      ...(newCatalog && remoteCatalog ? { remote: true } : {}),
     })
     if (!dataUri) return
 

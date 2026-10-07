@@ -1,21 +1,29 @@
 import type { Session } from '@supabase/supabase-js'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { supabase } from '@/modules/common/supabase/client'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   AUTH_DEEP_LINK_URL,
+  AUTH_DEV_CALLBACK_PATH,
+  AUTH_DEV_CALLBACK_POLL_MS,
   AuthRoutesPaths,
   SESSION_TIMEOUT_MS,
   SIGN_OUT_TIMEOUT_MS,
   VERIFY_ACCESS_URL,
   VERIFY_TIMEOUT_MS,
 } from '../constants'
-import type { AccessStatus, VerifyAccessResponse } from '../types/access'
+import { accessFlagsFrom } from '@/modules/auth/utilities/accessFlags'
 import {
-  recallDemoAccess,
-  rememberDemoAccess,
-} from '../utilities/demoAccessMemory'
+  recallAccessFlags,
+  rememberAccessFlags,
+} from '@/modules/auth/utilities/accessFlagsMemory'
+import type {
+  AccessStatus,
+  VerifyAccessResponse,
+} from '@/modules/auth/types/access'
+import type { DevAuthCallbackResponse } from '@/modules/auth/types/login'
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -68,11 +76,15 @@ export const authApi = {
   },
   async signInWithGoogleDesktop(): Promise<void> {
     // En Tauri el webview no puede recibir el redirect: se abre el consent en
-    // el navegador del sistema y el retorno llega por deep link (vimo://).
+    // el navegador del sistema y el retorno llega por deep link (vimo://). En
+    // dev vuelve al servidor de Vite: el deep link de macOS solo llega a la
+    // app empaquetada (AUTH_DEV_CALLBACK_PATH).
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: AUTH_DEEP_LINK_URL,
+        redirectTo: import.meta.env.DEV
+          ? `${window.location.origin}${AUTH_DEV_CALLBACK_PATH}`
+          : AUTH_DEEP_LINK_URL,
         skipBrowserRedirect: true,
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
@@ -88,17 +100,43 @@ export const authApi = {
   async subscribeToAuthCallback(
     onCode: (code: string) => void,
   ): Promise<() => void> {
+    // Con el código en mano la app pasa al frente: la persona terminó en el
+    // navegador y no tiene que volver a mano. Con el deep link macOS ya la
+    // activa; en dev, con el retorno por Vite, nadie lo haría. Si el sistema
+    // no deja enfocar, el canje sigue igual.
+    const deliver = (code: string) => {
+      void getCurrentWindow()
+        .setFocus()
+        .catch(() => undefined)
+      onCode(code)
+    }
     // El code PKCE vuelve como vimo://auth/callback?code=...; el code_verifier
     // ya quedó en el storage del webview cuando se llamó signInWithOAuth.
-    return onOpenUrl((urls) => {
+    const unlisten = await onOpenUrl((urls) => {
       for (const url of urls) {
         const code = new URL(url).searchParams.get('code')
         if (code) {
-          onCode(code)
+          deliver(code)
           return
         }
       }
     })
+    if (!import.meta.env.DEV) return unlisten
+
+    // En dev el code vuelve al servidor de Vite (signInWithGoogleDesktop):
+    // la app, que corre en ese mismo origen, se lo pide cada segundo.
+    const poll = window.setInterval(() => {
+      void fetch(`${AUTH_DEV_CALLBACK_PATH}/code`)
+        .then((response) => response.json() as Promise<DevAuthCallbackResponse>)
+        .then(({ code }) => {
+          if (code) deliver(code)
+        })
+        .catch(() => undefined)
+    }, AUTH_DEV_CALLBACK_POLL_MS)
+    return () => {
+      window.clearInterval(poll)
+      unlisten()
+    }
   },
   async exchangeCodeForSession(code: string): Promise<void> {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -122,12 +160,13 @@ export const authApi = {
         email,
         name,
         avatar,
-        demo: false,
+        ...accessFlagsFrom({}),
       }
     }
     try {
       const response = await fetch(VERIFY_ACCESS_URL, {
-        // fetch directo a propósito: el fetcher común es sidecar-only (ADR-0006).
+        // fetch directo a propósito: el veredicto es fail-open y recuerda sus
+        // flags, dos cosas que vimoServerFetch no hace (ADR-0006).
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,9 +175,11 @@ export const authApi = {
         signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
       })
       const body = (await response.json()) as VerifyAccessResponse
-      // El flag de la demo se recuerda por correo para el modo sin red.
-      const demo = body.demo === true
-      rememberDemoAccess(email, demo)
+      // Demo, admin e interruptores: solo un true explícito enciende (un
+      // servidor viejo sin `features` deja todo apagado) y se recuerdan por
+      // correo para el modo sin red (ADR-0029, ADR-0048).
+      const flags = accessFlagsFrom(body)
+      rememberAccessFlags(email, flags)
       return {
         authorized: body.autorizado,
         reason: body.motivo,
@@ -146,11 +187,12 @@ export const authApi = {
         email,
         name,
         avatar,
-        demo,
+        ...flags,
       }
     } catch {
       // Fail-open deliberado (regla del origen): sin red o con el server caído
       // se asume acceso vigente para no bloquear el trabajo local del usuario.
+      // Los flags no se inventan: valen los últimos recibidos para este correo.
       return {
         authorized: true,
         reason: 'offline',
@@ -158,7 +200,7 @@ export const authApi = {
         email,
         name,
         avatar,
-        demo: recallDemoAccess(email),
+        ...recallAccessFlags(email),
       }
     }
   },

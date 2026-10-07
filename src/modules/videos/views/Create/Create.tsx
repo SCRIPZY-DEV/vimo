@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Brand } from '@/modules/common/brand/brand'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import DoodleWand from '@/modules/common/doodles/DoodleWand'
+import { useAccessFeature } from '@/modules/common/hooks/useAccessFeature'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
@@ -33,11 +34,16 @@ import {
   demoFormValue,
 } from '@/modules/videos/utilities/demoForm'
 import { readDemoState } from '@/modules/videos/utilities/demoState'
+import { customStyleForTab } from '@/modules/videos/utilities/formLane'
 import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
-import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
+import {
+  refreshedCustomStyle,
+  selectedCustomStyleFrom,
+} from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
 import type { DemoManifest } from '@pipeline/types/demo.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
@@ -139,6 +145,9 @@ function CreateView({
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
   const { styles: customStyles } = useCustomStyles()
+  // El catálogo nuevo (Entrega 2): con el interruptor encendido y fuera de la
+  // demo, que sigue con el catálogo viejo (plan E2, P5).
+  const newCatalog = useAccessFeature('newCatalog') && demo === null
   // El modelo que viaja al proyecto ya resuelto (default aplicado y sin
   // bloqueados, ADR-0028): es el que la tarea vigila.
   const { models, defaultId } = usePromptModels()
@@ -162,6 +171,13 @@ function CreateView({
     }
     return demo ? demoFormValue(base, demo) : base
   })
+  // Con el catálogo nuevo, una selección por pestaña: la de la pestaña que no
+  // está a la vista. Vive acá y no en el formulario, que se desmonta con la
+  // pantalla de progreso (al generar, o si un pre-check frena el envío): al
+  // volver, cada pestaña sigue con su tarjeta. Sin el catálogo nuevo nadie la
+  // toca.
+  const [otherTabStyle, setOtherTabStyle] =
+    useState<SelectedCustomStyle | null>(null)
 
   // En demo la gema del pack arranca en uso apenas la galería la lista: se
   // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
@@ -169,9 +185,23 @@ function CreateView({
     demo && form.customStyle === null
       ? customStyles.find((style) => style.id === demo.customStyleId)
       : undefined
-  const formValue = demoGem
-    ? { ...form, customStyle: selectedCustomStyleFrom(demoGem) }
-    : form
+  const chosenStyle = demoGem
+    ? selectedCustomStyleFrom(demoGem)
+    : form.customStyle
+  // Si la gema elegida se migró a la plantilla mientras tanto (spec §4.4), el
+  // envío ya sale con sus secciones: el snapshot se refresca desde la lista,
+  // también en el render. Un estilo del catálogo nuevo solo vale en su
+  // pestaña y con el catálogo nuevo activo: si el interruptor se apaga a
+  // mitad de camino, Crear vuelve al catálogo viejo sin arrastrarlo.
+  const customStyle = customStyleForTab(
+    {
+      styleSource: form.styleSource,
+      customStyle: refreshedCustomStyle(chosenStyle, customStyles),
+    },
+    newCatalog,
+  )
+  const formValue =
+    customStyle === form.customStyle ? form : { ...form, customStyle }
 
   // El formulario ya avisa con el saldo cacheado; acá se re-lee justo antes
   // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse.
@@ -310,6 +340,9 @@ function CreateView({
         <CreateForm
           value={formValue}
           demo={demo}
+          newCatalog={newCatalog}
+          otherTabStyle={otherTabStyle}
+          onOtherTabStyleChange={setOtherTabStyle}
           disabled={!isNative || (missingKeys && !demo)}
           submitting={probing}
           onChange={patchForm}

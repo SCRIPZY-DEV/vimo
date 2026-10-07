@@ -6,20 +6,79 @@ import {
   runPipelineJob,
   startPipelineJob,
 } from '@/modules/common/fetcher/pipeline'
+import { vimoServerFetch } from '@/modules/common/fetcher/vimoServer'
+import {
+  VimoServerError,
+  vimoServerErrorCode,
+  vimoServerErrorDetail,
+  vimoServerRetryAt,
+} from '@/modules/common/fetcher/vimoServerError'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
+  CATALOG_ADMIN_PATH,
+  CATALOG_COPY_UNDETAILED_ERROR_CODES,
+  CATALOG_PATH,
+  CATALOG_SERVER_ERROR_MESSAGE_KEYS,
+  CATALOG_SERVER_TIMEOUT_MS,
+  CATALOG_TRANSLATE_TIMEOUT_MS,
   DEMO_ERROR_MESSAGE_KEYS,
+  GEM_REBUILD_ERROR_MESSAGE_KEYS,
+  GEM_REBUILD_NO_VISUAL_STYLE_CODE,
+  GEM_REBUILD_PATH,
+  GEM_REBUILD_QUOTA_CODE,
+  GEM_REBUILD_QUOTA_LATER_KEY,
+  GEM_REBUILD_TIMEOUT_MS,
   LIBRARY_ERROR_MESSAGE_KEYS,
   NARRATION_AUDIO_EXTENSIONS,
+  UNKNOWN_CATALOG_SERVER_ERROR_KEY,
   UNKNOWN_CREATE_ERROR_KEY,
   UNKNOWN_DEMO_ERROR_KEY,
+  UNKNOWN_GEM_REBUILD_ERROR_KEY,
 } from '@/modules/videos/constants'
+import {
+  readAdminCatalogListResponse,
+  readAdminCatalogStyleResponse,
+} from '@/modules/videos/utilities/catalogAdminDraft'
+import {
+  catalogSampleImages,
+  catalogSampleUpload,
+} from '@/modules/videos/utilities/catalogSamples'
+import { readCatalogManifestResponse } from '@/modules/videos/utilities/catalogSync'
+import { readGemRebuildResponse } from '@/modules/videos/utilities/gemTemplate'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
+import type {
+  AdminCatalogListResponse,
+  AdminCatalogStyle,
+  CatalogManifestResponse,
+  CatalogSamplesReserveRequest,
+  CatalogSamplesReserveResponse,
+  CatalogStyleCreateRequest,
+  CatalogStyleRevisionRequest,
+  CatalogStyleUpdateRequest,
+  CatalogTranslateRequest,
+  CatalogTranslateResponse,
+} from '@/modules/videos/types/catalogRemote'
+import type {
+  GemRebuildRequest,
+  GemRebuildResponse,
+} from '@/modules/videos/types/gemRebuild'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
   AnimateScenesPayload,
   UndoSceneAnimationResult,
 } from '@pipeline/types/animation.ts'
+import type {
+  CatalogCopyToCustomPayload,
+  CatalogCopyToCustomResult,
+  CatalogDraftSamplesUploadPayload,
+  CatalogDraftSamplesUploadResult,
+  CatalogGem,
+  CatalogListPayload,
+  CatalogListResult,
+  CatalogSampleUpload,
+  CatalogSyncPayload,
+  CatalogSyncResult,
+} from '@pipeline/types/catalog.ts'
 import type { CharactersListResult } from '@pipeline/types/characters.ts'
 import type { DemoStatusResult } from '@pipeline/types/demo.ts'
 import type {
@@ -58,6 +117,19 @@ import type {
   VideoProjectListItem,
   VideoProjectStatusResult,
 } from '@pipeline/types/video-project.ts'
+
+// `/api/admin/catalogo/<id>`: el id cumple STYLE_ID_PATTERN, pero se escapa igual.
+function catalogAdminStylePath(id: string): string {
+  return `${CATALOG_ADMIN_PATH}/${encodeURIComponent(id)}`
+}
+
+// La respuesta `{ style }` de crear, guardar, publicar, ocultar, eliminar y
+// restaurar, revisada.
+function adminStyleOf(body: unknown): AdminCatalogStyle {
+  const style = readAdminCatalogStyleResponse(body)
+  if (!style) throw new VimoServerError('http', { status: 200 })
+  return style
+}
 
 export const videosApi = {
   isNative() {
@@ -210,6 +282,231 @@ export const videosApi = {
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('generate-style-samples', payload, onEvent)
   },
+  // Catálogo de Vimo (Entrega 2, plan E2 §5.3): las gemas en el orden de la
+  // pestaña, y la copia de una a Mi estilo. Con `remote`, el catálogo
+  // sincronizado en `_catalog/` si lo hay (Entrega 3, ADR-0049).
+  async listCatalogStyles(
+    payload?: CatalogListPayload,
+  ): Promise<CatalogListResult> {
+    return runPipelineJob('catalog-styles-list', payload)
+  },
+  async copyCatalogStyle(
+    payload: CatalogCopyToCustomPayload,
+  ): Promise<CatalogCopyToCustomResult> {
+    return runPipelineJob('catalog-style-copy', payload)
+  },
+  // Las muestras de una gema para «Pasar a mi estilo»: viven en la app (plan
+  // E2, P1), así que se leen de sus propios archivos con `fetch` (mismo
+  // origen; no es el sidecar ni un servicio externo, por eso no pasa por el
+  // fetcher) y viajan en base64. Una que no se puede bajar o leer, o que el
+  // sidecar rechazaría, se omite: la copia sale con menos muestras. Una gema
+  // sincronizada del catálogo remoto trae sus muestras en disco y el sidecar
+  // las copia de ahí (ADR-0049): no viaja ninguna.
+  async catalogSampleUploads(gem: CatalogGem): Promise<CatalogSampleUpload[]> {
+    if (gem.samples !== undefined) return []
+    const uploads = await Promise.all(
+      catalogSampleImages(gem).map(async (url, index) => {
+        try {
+          const response = await fetch(url)
+          if (!response.ok) return null
+          const bytes = new Uint8Array(await response.arrayBuffer())
+          return catalogSampleUpload(bytes, index + 1)
+        } catch {
+          return null
+        }
+      }),
+    )
+    return uploads.filter((upload) => upload !== null)
+  },
+  // ── Catálogo remoto administrado (Entrega 3, ADR-0049, plan E3 §5.3) ──
+  // Cada respuesta 200 se revisa antes de usarse: una que no cumple el
+  // contrato cuenta como error del servidor.
+  async fetchCatalogManifest(
+    knownVersion: string | null,
+  ): Promise<CatalogManifestResponse> {
+    const query = knownVersion
+      ? `?conocida=${encodeURIComponent(knownVersion)}`
+      : ''
+    const body = await vimoServerFetch<unknown>(`${CATALOG_PATH}${query}`, {
+      method: 'GET',
+      timeoutMs: CATALOG_SERVER_TIMEOUT_MS,
+    })
+    const response = readCatalogManifestResponse(body)
+    if (!response) throw new VimoServerError('http', { status: 200 })
+    return response
+  },
+  async syncCatalogStyles(
+    payload: CatalogSyncPayload,
+  ): Promise<CatalogSyncResult> {
+    return runPipelineJob('catalog-styles-sync', payload)
+  },
+  async uploadCatalogDraftSamples(
+    payload: CatalogDraftSamplesUploadPayload,
+  ): Promise<CatalogDraftSamplesUploadResult> {
+    return runPipelineJob('catalog-style-samples-upload', payload)
+  },
+  async listCatalogAdmin(): Promise<AdminCatalogListResponse> {
+    const body = await vimoServerFetch<unknown>(CATALOG_ADMIN_PATH, {
+      method: 'GET',
+      timeoutMs: CATALOG_SERVER_TIMEOUT_MS,
+    })
+    const response = readAdminCatalogListResponse(body)
+    if (!response) throw new VimoServerError('http', { status: 200 })
+    return response
+  },
+  async createCatalogStyle(
+    request: CatalogStyleCreateRequest,
+  ): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(CATALOG_ADMIN_PATH, {
+      body: request,
+      timeoutMs: CATALOG_SERVER_TIMEOUT_MS,
+    })
+    return adminStyleOf(body)
+  },
+  async updateCatalogStyle(
+    id: string,
+    request: CatalogStyleUpdateRequest,
+  ): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(catalogAdminStylePath(id), {
+      method: 'PATCH',
+      body: request,
+      timeoutMs: CATALOG_SERVER_TIMEOUT_MS,
+    })
+    return adminStyleOf(body)
+  },
+  async reserveCatalogSamples(
+    id: string,
+    request: CatalogSamplesReserveRequest,
+  ): Promise<CatalogSamplesReserveResponse> {
+    const body = await vimoServerFetch<unknown>(
+      `${catalogAdminStylePath(id)}/muestras`,
+      { body: request, timeoutMs: CATALOG_SERVER_TIMEOUT_MS },
+    )
+    const style = readAdminCatalogStyleResponse(body)
+    const samplesRevision: unknown = Reflect.get(
+      body as object,
+      'samplesRevision',
+    )
+    const uploads: unknown = Reflect.get(body as object, 'uploads')
+    const validUploads =
+      Array.isArray(uploads) &&
+      uploads.every(
+        (upload) =>
+          typeof upload === 'object' &&
+          upload !== null &&
+          typeof Reflect.get(upload, 'file') === 'string' &&
+          typeof Reflect.get(upload, 'url') === 'string',
+      )
+    if (!style || typeof samplesRevision !== 'number' || !validUploads)
+      throw new VimoServerError('http', { status: 200 })
+    return {
+      style,
+      samplesRevision,
+      uploads: uploads as CatalogSamplesReserveResponse['uploads'],
+    }
+  },
+  async publishCatalogStyle(
+    id: string,
+    request: CatalogStyleRevisionRequest,
+  ): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(
+      `${catalogAdminStylePath(id)}/publicar`,
+      { body: request, timeoutMs: CATALOG_SERVER_TIMEOUT_MS },
+    )
+    return adminStyleOf(body)
+  },
+  async hideCatalogStyle(
+    id: string,
+    request: CatalogStyleRevisionRequest,
+  ): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(
+      `${catalogAdminStylePath(id)}/ocultar`,
+      { body: request, timeoutMs: CATALOG_SERVER_TIMEOUT_MS },
+    )
+    return adminStyleOf(body)
+  },
+  // Eliminar archiva: el servidor devuelve el estilo archivado, con la fecha
+  // en que lo purga (30 días después); hasta entonces se puede restaurar.
+  async deleteCatalogStyle(id: string): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(catalogAdminStylePath(id), {
+      method: 'DELETE',
+      timeoutMs: CATALOG_SERVER_TIMEOUT_MS,
+    })
+    return adminStyleOf(body)
+  },
+  async restoreCatalogStyle(
+    id: string,
+    request: CatalogStyleRevisionRequest,
+  ): Promise<AdminCatalogStyle> {
+    const body = await vimoServerFetch<unknown>(
+      `${catalogAdminStylePath(id)}/restaurar`,
+      { body: request, timeoutMs: CATALOG_SERVER_TIMEOUT_MS },
+    )
+    return adminStyleOf(body)
+  },
+  async translateCatalogName(
+    request: CatalogTranslateRequest,
+  ): Promise<CatalogTranslateResponse> {
+    const body = await vimoServerFetch<unknown>(
+      `${CATALOG_ADMIN_PATH}/traducir`,
+      { body: request, timeoutMs: CATALOG_TRANSLATE_TIMEOUT_MS },
+    )
+    const name: unknown =
+      typeof body === 'object' && body !== null
+        ? Reflect.get(body, 'name')
+        : undefined
+    const en: unknown =
+      typeof name === 'object' && name !== null
+        ? Reflect.get(name, 'en')
+        : undefined
+    const pt: unknown =
+      typeof name === 'object' && name !== null
+        ? Reflect.get(name, 'pt')
+        : undefined
+    if (typeof en !== 'string' || typeof pt !== 'string')
+      throw new VimoServerError('http', { status: 200 })
+    return { name: { en, pt } }
+  },
+  // El texto de un fallo de los endpoints del catálogo; `estilo-invalido`
+  // interpola el `detalle` del servidor (qué campo).
+  catalogServerErrorKey(error: unknown): string {
+    const code = vimoServerErrorCode(error)
+    if (!code) return UNKNOWN_CATALOG_SERVER_ERROR_KEY
+    if (!Object.hasOwn(CATALOG_SERVER_ERROR_MESSAGE_KEYS, code))
+      return UNKNOWN_CATALOG_SERVER_ERROR_KEY
+    return CATALOG_SERVER_ERROR_MESSAGE_KEYS[code]
+  },
+  catalogServerErrorDetail(error: unknown): string {
+    return vimoServerErrorDetail(error) ?? ''
+  },
+  catalogServerErrorCode(error: unknown): string | null {
+    return vimoServerErrorCode(error)
+  },
+  // Agente reconstructor de vimo.click (ADR-0048): la gema entera vuelve por
+  // secciones. Una respuesta 200 que no cumple el contrato no se usa.
+  async rebuildGem(request: GemRebuildRequest): Promise<GemRebuildResponse> {
+    const body = await vimoServerFetch<unknown>(GEM_REBUILD_PATH, {
+      body: request,
+      timeoutMs: GEM_REBUILD_TIMEOUT_MS,
+    })
+    const response = readGemRebuildResponse(body)
+    if (!response) throw new VimoServerError('http', { status: 200 })
+    return response
+  },
+  gemRebuildErrorKey(error: unknown): string {
+    const code = vimoServerErrorCode(error)
+    if (!code) return UNKNOWN_GEM_REBUILD_ERROR_KEY
+    if (code === GEM_REBUILD_QUOTA_CODE && vimoServerRetryAt(error) === null)
+      return GEM_REBUILD_QUOTA_LATER_KEY
+    // El código viene del cuerpo de la respuesta: `constructor` o `__proto__`
+    // no son códigos del servidor aunque el objeto del mapa los herede.
+    if (!Object.hasOwn(GEM_REBUILD_ERROR_MESSAGE_KEYS, code))
+      return UNKNOWN_GEM_REBUILD_ERROR_KEY
+    return GEM_REBUILD_ERROR_MESSAGE_KEYS[code]
+  },
+  gemRebuildErrorRetryable(error: unknown): boolean {
+    return vimoServerErrorCode(error) !== GEM_REBUILD_NO_VISUAL_STYLE_CODE
+  },
   async demoStatus(): Promise<DemoStatusResult> {
     return runPipelineJob<DemoStatusResult>('demo-status')
   },
@@ -248,6 +545,15 @@ export const videosApi = {
   errorMessageKey(error: unknown): string {
     const code = pipelineErrorCode(error)
     if (!code) return UNKNOWN_CREATE_ERROR_KEY
+    return LIBRARY_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY
+  },
+  // El porqué de una copia de «Pasar a mi estilo» que falló, o null cuando el
+  // texto de ese código está escrito para el formulario de Crear y no aplica a
+  // la copia: el titular del aviso ya dice que no salió.
+  catalogCopyErrorKey(error: unknown): string | null {
+    const code = pipelineErrorCode(error)
+    if (!code) return UNKNOWN_CREATE_ERROR_KEY
+    if (CATALOG_COPY_UNDETAILED_ERROR_CODES.has(code)) return null
     return LIBRARY_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_CREATE_ERROR_KEY
   },
   // El código crudo, para las decisiones que no dependen del texto (saldo

@@ -1,3 +1,4 @@
+import { colorFilterFor } from '../../prompts/color-filters.ts'
 import { buildCustomStyleSystemPrompt } from '../../prompts/custom-style.ts'
 import { VISUAL_STYLES, type VisualStyle } from '../../prompts/visual-styles.ts'
 import type { VideoProjectOptions } from '../../types/video-project.ts'
@@ -14,7 +15,8 @@ export function resolveProjectStyle(options: VideoProjectOptions): VisualStyle {
     id: 'custom',
     name: custom.name,
     systemPrompt: buildCustomStyleSystemPrompt(custom),
-    // Un estilo propio no trae ajuste de color del render.
-    filterFinal: '',
+    // El ajuste de color del render es el preset del estilo (spec §5.5); sin
+    // preset, ninguno — como siempre.
+    filterFinal: colorFilterFor(custom.colorFilter),
   }
 }

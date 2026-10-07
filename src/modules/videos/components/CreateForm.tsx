@@ -10,6 +10,7 @@ import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { cn } from '@/modules/common/utilities/cn'
+import { CatalogStyleGallery } from '@/modules/videos/components/CatalogStyleGallery'
 import { CharacterSection } from '@/modules/videos/components/CharacterSection'
 import { CreateAnimationSection } from '@/modules/videos/components/CreateAnimationSection'
 import { CreateBlockersAlert } from '@/modules/videos/components/CreateBlockersAlert'
@@ -37,9 +38,19 @@ import {
   demoComingSoonFormats,
   demoStyleIds,
 } from '@/modules/videos/utilities/demoForm'
+import {
+  displayLaneOf,
+  tabSwitchSelection,
+} from '@/modules/videos/utilities/formLane'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
+import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type {
+  SelectedCustomStyle,
+  StyleSource,
+} from '@/modules/videos/types/styles'
 import type { DemoManifest } from '@pipeline/types/demo.ts'
+import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
 interface CreateFormProps {
   value: CreateFormValue
@@ -47,6 +58,15 @@ interface CreateFormProps {
   submitting: boolean
   // Manifest del pack cuando se entra por la puerta de la demo (ADR-0027).
   demo: DemoManifest | null
+  // El catálogo nuevo está activo: interruptor `newCatalog` encendido y fuera
+  // de la demo (plan E2, P5). Lo resuelve Create, que también lo usa para
+  // decidir qué estilo elegido vale.
+  newCatalog: boolean
+  // Con el catálogo nuevo, una selección por pestaña: la de la pestaña que no
+  // está a la vista. La guarda Create, que sobrevive a la pantalla de progreso
+  // (este formulario se desmonta al generar).
+  otherTabStyle: SelectedCustomStyle | null
+  onOtherTabStyleChange: (style: SelectedCustomStyle | null) => void
   onChange: (patch: Partial<CreateFormValue>) => void
   onPickAudio: () => void
   onSubmit: () => void
@@ -57,6 +77,9 @@ export function CreateForm({
   disabled,
   submitting,
   demo,
+  newCatalog,
+  otherTabStyle,
+  onOtherTabStyleChange,
   onChange,
   onPickAudio,
   onSubmit,
@@ -66,8 +89,16 @@ export function CreateForm({
 
   const [attempts, setAttempts] = useState(0)
   const blockersRef = useRef<HTMLDivElement>(null)
+  // La copia de «Pasar a mi estilo» que Mi estilo abre en su modal apenas se
+  // muestra; null = ninguna.
+  const [arrivingStyleId, setArrivingStyleId] = useState<string | null>(null)
+  // Con qué carril se arma la pantalla: la pestaña Catálogo nueva se ve como
+  // Mi estilo aun antes de elegir tarjeta (plan E2, P4).
+  const lane = displayLaneOf(value, newCatalog)
   // Con todos los modelos de prompts bloqueados (ADR-0028) solo quedan los
-  // estilos de Vimo: la pestaña «Mi estilo» se apaga y el envío se frena.
+  // estilos de Vimo: la pestaña «Mi estilo» se apaga y el envío se frena. Los
+  // del catálogo nuevo también escriben con un modelo: ahí el envío se frena
+  // igual (formBlockers).
   const { models } = usePromptModels()
   const { blockedIds } = usePromptModelBlocks()
   const promptModelsBlocked = allPromptModelsBlocked(models, blockedIds)
@@ -82,6 +113,7 @@ export function CreateForm({
     promptModelsBlocked,
     fixedCharacterMissing: fixedMissing,
     animationKeyMissing: !configuredProviders.has('kie'),
+    newCatalog,
   })
   const blockers = costCheck.result.blocking
     ? [...missingSteps, 'create.validation.insufficientCredits']
@@ -100,6 +132,70 @@ export function CreateForm({
     }
 
     onSubmit()
+  }
+
+  // Cambiar de fuente también retira o devuelve los personajes según lo que
+  // decida el estilo que queda activo (ADR-0020). Sin el catálogo nuevo la
+  // selección de Mi estilo sigue guardada en el formulario como siempre (el
+  // catálogo viejo elige por `styleId`); con él, cada pestaña recupera la suya
+  // y nunca una de la otra (tabSwitchSelection).
+  const changeStyleSource = (styleSource: StyleSource) => {
+    if (!newCatalog || styleSource === value.styleSource) {
+      onChange({
+        styleSource,
+        ...characterPatchForStyle(value, {
+          styleSource,
+          customStyle: value.customStyle,
+        }),
+      })
+      return
+    }
+
+    const selection = tabSwitchSelection(
+      value.customStyle,
+      otherTabStyle,
+      styleSource,
+    )
+    onOtherTabStyleChange(selection.otherTabStyle)
+    onChange({
+      styleSource,
+      customStyle: selection.customStyle,
+      ...characterPatchForStyle(value, {
+        styleSource,
+        customStyle: selection.customStyle,
+      }),
+    })
+  }
+
+  // Elegir un estilo (de cualquier galería): si escribe (o no lleva) el
+  // protagonista, los personajes elegidos se RETIRAN (no se pierden) y vuelven
+  // solos con un estilo que los acepte (ADR-0020, v1.31.2).
+  const selectStyle = (customStyle: SelectedCustomStyle | null) => {
+    onChange({
+      customStyle,
+      ...characterPatchForStyle(value, {
+        styleSource: value.styleSource,
+        customStyle,
+      }),
+    })
+  }
+
+  // «Pasar a mi estilo» terminó: el formulario pasa a Mi estilo con el modal
+  // de la copia abierto, sin un paso de por medio. La copia queda EN USO, como
+  // una gema recién creada, y lo elegido en el catálogo queda guardado para
+  // cuando se vuelva.
+  const goToCopiedStyle = (copy: CustomStyleSummary) => {
+    const customStyle = selectedCustomStyleFrom(copy)
+    setArrivingStyleId(copy.id)
+    onOtherTabStyleChange(
+      tabSwitchSelection(value.customStyle, otherTabStyle, 'custom')
+        .otherTabStyle,
+    )
+    onChange({
+      styleSource: 'custom',
+      customStyle,
+      ...characterPatchForStyle(value, { styleSource: 'custom', customStyle }),
+    })
   }
 
   return (
@@ -140,57 +236,52 @@ export function CreateForm({
             demo ? 'create.styleSource.catalogHintDemo' : undefined
           }
           customDisabled={promptModelsBlocked}
-          // Cambiar de fuente también retira o devuelve los personajes según
-          // lo que decida el estilo que queda activo (ADR-0020).
-          onChange={(styleSource) =>
-            onChange({
-              styleSource,
-              ...characterPatchForStyle(value, {
-                styleSource,
-                customStyle: value.customStyle,
-              }),
-            })
-          }
+          onChange={changeStyleSource}
         />
-        {value.styleSource === 'catalog' ? (
+        {lane === 'legacy-catalog' && (
           <StyleGallery
             value={value.styleId}
             disabled={disabled}
             visibleIds={demo ? demoStyleIds(demo) : undefined}
             onChange={(styleId) => onChange({ styleId })}
           />
-        ) : (
-          <>
-            <CustomStyleGallery
-              selected={value.customStyle}
-              disabled={disabled}
-              script={value.script}
-              promptModel={value.promptModel}
-              onSelect={(customStyle) => {
-                // Si la gema escribe (o no lleva) el protagonista, los
-                // personajes elegidos se RETIRAN (no se pierden) y vuelven
-                // solos con un estilo que los acepte (ADR-0020, v1.31.2).
-                onChange({
-                  customStyle,
-                  ...characterPatchForStyle(value, {
-                    styleSource: value.styleSource,
-                    customStyle,
-                  }),
-                })
-              }}
-            />
-            <PromptModelSection
-              value={value}
-              disabled={disabled}
-              onChange={onChange}
-            />
-          </>
+        )}
+        {/* El catálogo nuevo (Entrega 2): sus estilos salen por el carril de
+            Mi estilo, con el modelo de prompts debajo como allá. */}
+        {lane === 'catalog-gem' && (
+          <CatalogStyleGallery
+            selected={value.customStyle}
+            disabled={disabled}
+            script={value.script}
+            promptModel={value.promptModel}
+            onSelect={selectStyle}
+            onCopied={goToCopiedStyle}
+          />
+        )}
+        {lane === 'custom' && (
+          <CustomStyleGallery
+            selected={value.customStyle}
+            disabled={disabled}
+            script={value.script}
+            promptModel={value.promptModel}
+            arrivingStyleId={arrivingStyleId}
+            onSelect={selectStyle}
+            onArrivalOpened={() => setArrivingStyleId(null)}
+          />
+        )}
+        {lane !== 'legacy-catalog' && (
+          <PromptModelSection
+            value={value}
+            disabled={disabled}
+            onChange={onChange}
+          />
         )}
       </div>
 
-      {/* Solo con estilo de catálogo: los videos de Mi estilo cortan por
-          duración de escena y el pipeline ignora esta cantidad. */}
-      {value.styleSource === 'catalog' && (
+      {/* Solo con el catálogo viejo: los videos de Mi estilo y del catálogo
+          nuevo cortan por duración de escena y el pipeline ignora esta
+          cantidad. */}
+      {lane === 'legacy-catalog' && (
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="create-scene-count" className="font-display">
@@ -237,7 +328,12 @@ export function CreateForm({
         <VoiceSection value={value} disabled={disabled} onChange={onChange} />
       )}
 
-      <CharacterSection value={value} disabled={disabled} onChange={onChange} />
+      <CharacterSection
+        value={value}
+        lane={lane}
+        disabled={disabled}
+        onChange={onChange}
+      />
 
       <SoundtrackSection
         value={value}
@@ -298,10 +394,10 @@ export function CreateForm({
         </span>
       </label>
 
-      {/* Solo con estilo de catálogo: con Mi estilo la pausa (elegir cuánto
-          dura cada escena) la gobierna la preferencia «No preguntarme al
-          generar» de Ajustes, y acá no hay nada que marcar. */}
-      {value.styleSource === 'catalog' && (
+      {/* Solo con el catálogo viejo: con Mi estilo y el catálogo nuevo la
+          pausa (elegir cuánto dura cada escena) la gobierna la preferencia «No
+          preguntarme al generar» de Ajustes, y acá no hay nada que marcar. */}
+      {lane === 'legacy-catalog' && (
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
           <input
             type="checkbox"

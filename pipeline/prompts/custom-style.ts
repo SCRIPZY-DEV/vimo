@@ -1,3 +1,5 @@
+import type { GemSections } from '../types/styles.ts'
+import { composeGemText } from './template-frame.ts'
 import { GLOBAL_RULES } from './visual-styles.ts'
 
 // El systemPrompt del usuario define el ESTILO, pero no conoce el contrato de
@@ -5,11 +7,16 @@ import { GLOBAL_RULES } from './visual-styles.ts'
 // prompt-extraction). Se le anexan los planos permitidos y las GLOBAL_RULES
 // (CONTENT SAFETY + OUTPUT FORMAT) — mismo criterio que el carril Storytime
 // del origen. El envío VERBATIM sin envoltorio es del carril verbatim (rama
-// posterior del roadmap, ADR-0016).
+// posterior del roadmap, ADR-0016). Una gema de PLANTILLA (ADR-0048) entra
+// como el texto de sus secciones: su sección de cámara reemplaza a los planos.
 export function buildCustomStyleSystemPrompt(style: {
-  systemPrompt: string
+  systemPrompt?: string
+  sections?: GemSections
   shots?: string[]
 }): string {
+  if (style.sections)
+    return `${composeGemText(style.sections)}\n\n${GLOBAL_RULES}`
+
   const shots = (style.shots ?? []).filter(Boolean)
   const shotsBlock =
     shots.length > 0
@@ -18,5 +25,5 @@ export function buildCustomStyleSystemPrompt(style: {
           .join('\n')}`
       : ''
 
-  return `${style.systemPrompt}${shotsBlock}\n\n${GLOBAL_RULES}`
+  return `${style.systemPrompt ?? ''}${shotsBlock}\n\n${GLOBAL_RULES}`
 }

@@ -28,6 +28,7 @@ import {
   runVerbatimLane,
 } from './verbatim/verbatim-lane.ts'
 import { createVerbatimPromptPersistence } from './verbatim/verbatim-persistence.ts'
+import { describeTreatmentMix } from './verbatim/treatments.ts'
 import {
   guaranteePrompts,
   MAX_RESCUABLE_PROMPT_FAILURES,
@@ -99,7 +100,8 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     // (paridad con el origen — el estilo trae el ritmo, el guion completo es
     // el contexto, y la presencia del sujeto la informa el propio motor). El
     // carril de la casa queda byte-idéntico más abajo.
-    if (context.options.customStyle) {
+    const customStyle = context.options.customStyle
+    if (customStyle) {
       // Los prompts se van a disco LOTE A LOTE: si el job muere a mitad —o la
       // UI lo cancela porque el modelo da errores (ADR-0028)— lo ya pagado
       // queda escrito y el reintento solo pide lo que falta. Antes se perdía
@@ -128,6 +130,18 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
           type: 'log',
           level: 'warn',
           message: `${lane.missing.length} scene(s) ended without a verbatim prompt: ${lane.missing.join(', ')}`,
+        })
+      // El reparto de una gema con dinamismo (spec §5.3): solo diagnóstico,
+      // con las claves que el log de soporte ya sube (type, level, message).
+      if (customStyle.sections?.dynamism?.trim() && lane.written.size > 0)
+        context.emitter.emit({
+          type: 'log',
+          level: 'info',
+          message: describeTreatmentMix(
+            lane.scenes,
+            lane.written,
+            lane.scenesWithSubject,
+          ),
         })
       return undefined
     }

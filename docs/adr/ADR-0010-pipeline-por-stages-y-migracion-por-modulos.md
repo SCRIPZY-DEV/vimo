@@ -188,3 +188,22 @@ flujo nuevo de Create.
   `02-vimo/cursor-video/app/servidor-local/rutas/` (referencia de endpoints por
   pantalla: `voces.ts` 1.487, `musica.ts` 590, `personajes.ts` 348, `proyectos.ts`
   3.373 líneas).
+
+## Nota posterior 2026-10-02 — `src/` importa valores de `pipeline/` desde la animación
+
+Desde el PR #91 (animación de escenas), unos 20 archivos de `src/` importan **valores** de
+`pipeline/`: los bloques de escena, el planificador y constantes de video. Por ejemplo,
+`src/modules/videos/utilities/animationClips.ts`. Es la regresión que describe esta ADR («`import`
+de `pipeline/` en `src/` sin `type`»).
+
+El build de producción los resuelve por los `paths` del tsconfig y empaqueta ese código en la app.
+El servidor de dev no los resolvía, y `pnpm tauri dev` no cargaba la app. `vite.config.ts` suma el
+alias `@pipeline` para que dev resuelva igual que el build
+(`fixes/2026-10-02_dev-server-pipeline-imports.md`). El alias no agrega imports nuevos.
+
+Pendiente de decisión del dueño:
+
+- aceptar la excepción para el código **puro** compartido, sin E/S ni proveedores;
+- o moverlo a un módulo compartido y volver a `import type`.
+
+Mientras tanto, el guard de cumplimiento de arriba no se cumple.

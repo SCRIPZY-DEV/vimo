@@ -1,0 +1,75 @@
+import { useSyncExternalStore } from 'react'
+import i18next from 'i18next'
+import { Brand } from '@/modules/common/brand/brand'
+import { queryClient } from '@/modules/common/queryClient'
+import { videosApi } from '@/modules/videos/api'
+import { videosQueryKeys } from '@/modules/videos/constants'
+import {
+  createGemMigrations,
+  migrateStoredGem,
+} from '@/modules/videos/utilities/gemMigrations'
+import {
+  gemRebuildRequest,
+  migrationRebuildText,
+  migrationStyleSavePayload,
+} from '@/modules/videos/utilities/gemTemplate'
+import type {
+  GemMigrationState,
+  GemMigrationSteps,
+} from '@/modules/videos/types/styles'
+
+// Los pasos reales de una migración (migrateStoredGem decide el orden): lo
+// guardado en el sidecar; el agente con su origin (`migracion` para una gema
+// vieja, `mi-estilo` para una recién pegada) y el texto de la gema con sus
+// planos; y el guardado de sus secciones con ese texto de respaldo, que espera
+// la lista nueva. Al terminar bien, el aviso pasa a «migrada» (con los avisos
+// del agente) hasta que el autor lo descarta.
+const migrationSteps: GemMigrationSteps = {
+  async findStored(styleId) {
+    const { entries } = await videosApi.listCustomStyles()
+    return entries.find((entry) => entry.id === styleId)
+  },
+  rebuild(style, origin) {
+    return videosApi.rebuildGem(
+      gemRebuildRequest(
+        migrationRebuildText(style),
+        origin,
+        Brand.version,
+        i18next.resolvedLanguage,
+      ),
+    )
+  },
+  async save(style, response) {
+    await videosApi.saveCustomStyle(migrationStyleSavePayload(style, response))
+    await queryClient.invalidateQueries({
+      queryKey: videosQueryKeys.customStyles,
+    })
+  },
+}
+
+// Cada corrida lleva su propio `report`: el store lo ata a la gema en vuelo.
+const gemMigrations = createGemMigrations((style, origin, report) =>
+  migrateStoredGem(style.id, { ...migrationSteps, report }, origin),
+)
+
+// Automática: una vez por gema y por sesión (spec §4.4).
+export const migrateGemOnce = gemMigrations.migrateOnce
+// «Preparar con IA»: la gema pegada, ya guardada como texto, se adapta en
+// segundo plano aunque se cierre el modal.
+export const adaptPastedGem = gemMigrations.adapt
+// «Reintentar» del aviso.
+export const retryGemMigration = gemMigrations.retry
+// Descartar el aviso de una gema ya migrada.
+export const dismissGemMigration = gemMigrations.dismiss
+// Una visita nueva a la galería de Mi estilo (cada vez que se monta).
+export const beginGemMigrationVisit = gemMigrations.beginVisit
+// La galería tiene a la vista el aviso de esas gemas ya migradas.
+export const markGemMigrationsSeen = gemMigrations.markSeen
+
+// Las migraciones en vuelo, fallidas o hechas y sin descartar, por id de gema.
+export function useGemMigrations(): ReadonlyMap<string, GemMigrationState> {
+  return useSyncExternalStore(
+    gemMigrations.subscribe,
+    gemMigrations.getSnapshot,
+  )
+}

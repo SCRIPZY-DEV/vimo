@@ -112,6 +112,9 @@ export interface Scene {
   // Id de la escena que encabeza el clip que cubre a esta. Una escena
   // absorbida no se renderiza sola ni se edita por su cuenta.
   absorbedBy?: number
+  // El tratamiento que declaró la etiqueta `[T:…]` del prompt de una gema de
+  // plantilla con dinamismo (ADR-0048). Solo diagnóstico: mide el reparto.
+  treatment?: SceneTreatment
 }
 
 export type SceneImageStatus = 'pending' | 'generating' | 'ok' | 'error'

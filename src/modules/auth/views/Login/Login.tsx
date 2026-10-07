@@ -9,7 +9,7 @@ import { Button } from '@/modules/common/ui/button'
 
 export function Login() {
   const { t } = useTranslation()
-  const { login, opening, hasError } = useLogin()
+  const { login, opening, waiting, hasError } = useLogin()
 
   usePageTitle(t('login.pageTitle'))
 
@@ -57,6 +57,12 @@ export function Login() {
         >
           {opening ? t('login.abriendo') : t('login.boton')}
         </Button>
+
+        {waiting && !hasError && (
+          <p role="status" className="font-body text-sm text-white/70">
+            {t('login.esperando')}
+          </p>
+        )}
 
         {hasError && (
           <p className="font-body text-sm text-coral">

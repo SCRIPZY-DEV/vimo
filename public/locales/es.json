@@ -75,6 +75,7 @@
     "info": "Iniciá sesión con tu cuenta de Google para activar tu prueba de 10 días gratis. Solo guardamos tu email — tu trabajo de video nunca sale de tu PC.",
     "boton": "Iniciar sesión con Google",
     "abriendo": "Abriendo Google...",
+    "esperando": "Terminá de iniciar sesión en el navegador: Vimo se abre solo. Si no volvió, tocá el botón de nuevo.",
     "problemas": "¿Problemas para entrar? Escribinos a",
     "errorInicio": "No se pudo abrir Google. Probá de nuevo."
   },
@@ -261,6 +262,7 @@
       "withdrawnTitleNoName": "Quitamos tu personaje de este video",
       "withdrawnBecauseGeneric": "Este estilo escribe el personaje solo, así que tu elección no se iba a usar.",
       "withdrawnBecauseNone": "Este estilo va sin personaje, así que tu elección no se iba a usar.",
+      "withdrawnBecauseSingle": "Este estilo lleva un solo personaje. Si preferís a otro, cambialo arriba.",
       "withdrawnRestoreHint": "Queda guardada: toca aquí y pon el estilo en «mi personaje» para que vuelva.",
       "withdrawnRestoreAuto": "Queda guardada: vuelve sola si eliges un estilo que use tu personaje.",
       "createNew": "Crear personaje nuevo",
@@ -443,6 +445,7 @@
       "bgmPromptRequired": "Describí cómo querés que suene la música.",
       "overlayUrlRequired": "Pegá el link de YouTube de la textura.",
       "styleRequired": "Elegí (o creá) un estilo propio para generar.",
+      "catalogStyleRequired": "Elegí un estilo del catálogo para generar.",
       "characterRequired": "Este estilo pide tu personaje: elegí uno.",
       "fixedCharacterMissing": "El personaje que este estilo tenía fijado ya no está en tu lista. Edita el estilo y elige otro.",
       "promptModelsBlocked": "Todos los modelos para escribir prompts están bloqueados: elegí un estilo de Vimo o esperá a que se rehabiliten.",
@@ -559,7 +562,9 @@
       "animationProjectBusy": "Este proyecto tiene otra operación en curso. Esperá a que termine.",
       "animationRequestChanged": "Hay una animación pendiente para esta escena. Recuperala antes de encargar una versión diferente.",
       "animationIncomplete": "El tramo de animación todavía tiene clips pendientes. Reintentá para completar o recuperar las tareas guardadas.",
-      "animationTimingLocked": "Los tiempos de estas escenas están vinculados a clips o tareas de animación guardadas y no se pueden mover."
+      "animationTimingLocked": "Los tiempos de estas escenas están vinculados a clips o tareas de animación guardadas y no se pueden mover.",
+      "catalogSyncFailed": "No se pudo actualizar el catálogo. Seguís viendo el último que se descargó.",
+      "catalogUploadFailed": "No se pudieron subir las muestras al catálogo. Probá de nuevo."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -612,7 +617,7 @@
     },
     "styleSource": {
       "catalog": "Catálogo",
-      "catalogHint": "Los 5 estilos de Vimo.",
+      "catalogHint": "Los estilos de Vimo.",
       "catalogHintDemo": "Los 3 estilos con demo lista.",
       "custom": "Mi estilo",
       "customHint": "Tu propio estilo visual.",
@@ -633,6 +638,9 @@
       "deleteConfirm": "¿Eliminar el estilo «{{name}}»? Los videos que lo usaron no se ven afectados.",
       "noSamples": "Sin muestras todavía. Generalas desde los tres puntos.",
       "charsCount": "{{chars}} caracteres",
+      "basedOn": "Basado en {{name}}",
+      "clonedFrom": "Gema clonada del catálogo <badge>{{name}}</badge>",
+      "adaptedTag": "Gema adaptada",
       "modalTitle": "Tu estilo",
       "modalDescription": "El estilo visual es el texto que le da las reglas al modelo. Estas son sus muestras.",
       "samplesEmpty": "Todavía no hay muestras de este estilo.",
@@ -661,7 +669,160 @@
       "shotsPlaceholder": "Wide shot, Medium shot, Close-up, Low angle shot",
       "shotsHint": "Si los escribís, nos aseguramos de que dos imágenes seguidas nunca salgan con el mismo encuadre.",
       "recommendedShots": "Planos recomendados",
-      "save": "Listo"
+      "save": "Listo",
+      "discardChangesConfirm": "No se pudo guardar el estilo. ¿Salir igual y perder los cambios?"
+    },
+    "catalog": {
+      "galleryHint": "Elegí el estilo de las imágenes de tu video. Con los tres puntos de cada tarjeta lo podés ver con calma o pasarlo a Mi estilo para editarlo.",
+      "pickNotice": "Elegí con qué estilo sale tu video.",
+      "menuAria": "Opciones de {{name}}",
+      "useInVideo": "Usar en este video",
+      "alreadyInUse": "Ya está en uso",
+      "view": "Ver",
+      "copyToCustom": "Pasar a mi estilo",
+      "copying": "Clonando…",
+      "copyingNamed": "Clonando gema del catálogo <badge>{{name}}</badge>",
+      "copyFailed": "No se pudo pasar «{{name}}» a Mi estilo.",
+      "copyFailedDismiss": "Descartar aviso",
+      "modalTitle": "Estilo de Vimo",
+      "noSamples": "Este estilo todavía no tiene muestras.",
+      "characterTitle": "Personaje de este estilo",
+      "characterHint": "Elegí quién protagoniza tus videos con este estilo.",
+      "useButton": "Usar en este video",
+      "selectedMissing": "El estilo que tenías elegido ya no está en el catálogo. Podés seguir con él o elegir otro."
+    },
+    "catalogAdmin": {
+      "errors": {
+        "session": "Tu sesión venció. Volvé a entrar y reintentá.",
+        "noAccess": "Tu cuenta no tiene acceso a Vimo.",
+        "featureOff": "El catálogo remoto no está habilitado para tu cuenta.",
+        "notAdmin": "Solo un admin puede cambiar el catálogo.",
+        "invalidRequest": "El pedido no tiene la forma esperada. Actualizá la app.",
+        "invalidStyle": "El servidor rechazó el estilo: {{detail}}",
+        "notFound": "Ese estilo ya no existe en el catálogo.",
+        "idTaken": "Ya hay un estilo con ese identificador.",
+        "draftChanged": "Otro admin guardó este estilo mientras lo editabas.",
+        "missingSamples": "Faltan muestras en el catálogo. Generalas de nuevo y reintentá.",
+        "storageFailed": "Falló el almacenamiento de las muestras. Reintentá en un momento.",
+        "emptyCatalog": "El catálogo todavía no tiene estilos publicados.",
+        "modelFailed": "La IA no pudo traducir. Probá de nuevo o escribilo a mano.",
+        "modelTimeout": "La IA tardó demasiado. Probá de nuevo o escribilo a mano.",
+        "serverError": "Falló el servidor de Vimo. Reintentá en un momento.",
+        "network": "No pudimos conectarnos con Vimo. Revisá tu conexión y reintentá.",
+        "timeout": "Vimo no respondió a tiempo. Reintentá.",
+        "unknown": "No se pudo completar la acción. Reintentá.",
+        "archived": "Ese estilo está archivado. Restauralo antes de cambiarlo."
+      },
+      "badge": {
+        "unpublished": "Borrador",
+        "hidden": "Oculto",
+        "changes": "Cambios sin publicar",
+        "archived_one": "Se elimina en {{count}} día",
+        "archived_other": "Se elimina en {{count}} días",
+        "archivedToday": "Se elimina hoy"
+      },
+      "menu": {
+        "edit": "Editar",
+        "generateSamples": "Generar muestras",
+        "publish": "Publicar",
+        "hide": "Ocultar",
+        "delete": "Archivar gema",
+        "restore": "Restaurar"
+      },
+      "deleteConfirm": "¿Archivar «{{name}}»? Los usuarios dejan de verla y pasa a Archivados: podés restaurarla durante 30 días; después se elimina del todo, con sus muestras.",
+      "createCard": "Crear estilo",
+      "createCardHint": "Pegá una gema y publicala en el catálogo.",
+      "listFailed": "No se pudo cargar el catálogo del admin. Ves el catálogo como cualquier usuario.",
+      "working": {
+        "create": "Creando <badge>{{name}}</badge>…",
+        "save": "Guardando <badge>{{name}}</badge>…",
+        "publish": "Publicando <badge>{{name}}</badge>…",
+        "hide": "Ocultando <badge>{{name}}</badge>…",
+        "delete": "Archivando <badge>{{name}}</badge>…",
+        "restore": "Restaurando <badge>{{name}}</badge>…"
+      },
+      "done": {
+        "create": "<badge>{{name}}</badge> quedó creado como borrador, oculto para los usuarios.",
+        "save": "<badge>{{name}}</badge> quedó guardado como borrador.",
+        "publish": "<badge>{{name}}</badge> quedó publicado: ya lo ven todos los usuarios.",
+        "hide": "<badge>{{name}}</badge> quedó oculto: los usuarios ya no lo ven.",
+        "delete": "<badge>{{name}}</badge> pasó a Archivados: los usuarios ya no lo ven. En 30 días se elimina del todo, salvo que lo restaures.",
+        "restore": "<badge>{{name}}</badge> volvió al catálogo y ya no se elimina."
+      },
+      "failed": {
+        "create": "No se pudo crear «{{name}}».",
+        "save": "No se pudo guardar «{{name}}».",
+        "publish": "No se pudo publicar «{{name}}».",
+        "hide": "No se pudo ocultar «{{name}}».",
+        "delete": "No se pudo archivar «{{name}}».",
+        "restore": "No se pudo restaurar «{{name}}»."
+      },
+      "dismiss": "Descartar aviso",
+      "modalTitle": "Estilo del catálogo",
+      "newTitle": "Nuevo estilo del catálogo",
+      "modalDescription": "Lo que guardes queda como borrador: los usuarios ven el estilo cuando lo publicás.",
+      "pasteHint": "Pegá la gema: la IA la ordena en secciones y después completás el nombre, las etiquetas y las muestras.",
+      "idLabel": "Identificador",
+      "idHint": "Minúsculas, números y guiones. No se puede cambiar después.",
+      "nameLabel": "Nombre",
+      "nameEs": "Español",
+      "nameEn": "Inglés",
+      "namePt": "Portugués",
+      "translate": "Traducir con IA",
+      "translating": "Traduciendo…",
+      "tagsLabel": "Etiquetas",
+      "tagsHint": "Hasta {{count}} además de las que pone Vimo: «Dinamismo» y «Personaje fijo» salen de las secciones.",
+      "tagsFull": "Ya no entran más etiquetas.",
+      "tagCustomLabel": "Otra etiqueta (en los tres idiomas)",
+      "tagAdd": "Agregar",
+      "tagRemove": "Quitar la etiqueta {{name}}",
+      "modesLabel": "Modos de personaje permitidos",
+      "modeOwn": "Mi personaje",
+      "modeGeneric": "Genérico",
+      "modeNone": "Sin personaje",
+      "sampleModeLabel": "Las muestras salen con",
+      "colorFilterLabel": "Filtro de color",
+      "colorFilterNone": "Ninguno",
+      "colorFilterFantasy": "Fantasía",
+      "colorFilterHorrorBw": "Terror en blanco y negro",
+      "positionLabel": "Posición en la pestaña",
+      "positionHint": "Menor es más arriba. Los empates van por identificador.",
+      "samplesLabel": "Muestras",
+      "samplesHint": "Se generan con tus claves (4 imágenes en calidad baja) y se suben al catálogo al terminar.",
+      "samplesUploading": "Subiendo las muestras al catálogo…",
+      "samplesPending": "Las muestras nuevas se suben cuando guardes el borrador.",
+      "saveDraft": "Guardar borrador",
+      "publishButton": "Publicar",
+      "publishBlocked": "Para publicar falta:",
+      "blocker": {
+        "nameEs": "el nombre en español",
+        "nameEn": "el nombre en inglés",
+        "namePt": "el nombre en portugués",
+        "visualStyle": "el estilo visual",
+        "samples": "las 4 muestras",
+        "characterOutfit": "que el personaje termine con una oración que empiece con «Outfit:»",
+        "placeholder": "sacar los marcadores entre corchetes (solo vale [IDIOMA DEL GUION] en el inicio y el final fijos)"
+      },
+      "problem": {
+        "id": "el identificador no es válido",
+        "visualStyle": "falta el estilo visual",
+        "tags": "hay más de 5 etiquetas",
+        "tagLabel": "una etiqueta está vacía o pasa los 24 caracteres",
+        "modes": "el modo de las muestras tiene que estar entre los permitidos",
+        "name": "un nombre pasa los 80 caracteres"
+      },
+      "cannotSave": "Para guardar falta:",
+      "conflictRetry": "Volver a intentar con la versión actual",
+      "unsavedConfirm": "Hay cambios sin guardar. ¿Cerrar y perderlos?",
+      "offlineHint": "Sin conexión con Vimo: ves el catálogo como cualquier usuario y no podés editarlo.",
+      "viewLabel": "Qué mostrar",
+      "viewCatalog": "Catálogo · {{count}}",
+      "viewArchived": "Archivados · {{count}}",
+      "archivedHint": "Estilos eliminados. Cada uno se borra del todo (el texto y sus muestras) cuando vence su etiqueta; restaurarlo lo devuelve al catálogo y cancela la eliminación.",
+      "sampleStyleCharacter": "Personaje del estilo",
+      "sampleHintStyleCharacter": "Esta gema tiene personaje fijo: en modo genérico, los videos y las muestras salen con ese personaje.",
+      "sampleHintNoCharacter": "Para que las muestras salgan con el personaje del estilo, la gema necesita su sección de personaje.",
+      "modesHintSamples": "Las muestras salen en genérico o sin personaje: uno de los dos queda siempre permitido."
     },
     "promptModel": {
       "title": "Con qué modelo escribo",
@@ -699,6 +860,10 @@
         "subtitle": "Vimo lo inventa coherente con tu guion.",
         "help": "Vimo crea un personaje coherente con tu guion y lo usa como el narrador de la historia. No tenés que elegir nada."
       },
+      "fromStyle": {
+        "title": "Personaje del estilo",
+        "subtitle": "El personaje que trae este estilo."
+      },
       "none": {
         "title": "Sin personaje",
         "subtitle": "Solo escenas de lo que se narra.",
@@ -710,6 +875,89 @@
       "defaultSwitchLabel": "Elegir el personaje predeterminado de este estilo",
       "defaultChange": "Tocá para cambiarlo",
       "defaultMissing": "El personaje predeterminado que tenías elegido ya no está en tu lista. Elegí otro para poder usar este estilo."
+    },
+    "gemTemplate": {
+      "migrationPending": "Generando adaptación a ficha de Vimo manteniendo tu gema…",
+      "adaptingTitle": "Adaptando a la ficha de Vimo",
+      "adaptStepSaved": "Tu gema quedó guardada tal cual",
+      "adaptStepAgent": "La IA ordena las secciones",
+      "adaptStepSaving": "Guardando las secciones",
+      "adaptPercent": "{{percent}}%",
+      "migrationPendingNamed": "Generando adaptación de «{{name}}» a ficha de Vimo manteniendo tu gema…",
+      "migrationFailed": "No pudimos adaptar tu gema a la ficha de Vimo. Mientras tanto sigue funcionando tal como está.",
+      "migrationFailedNamed": "No pudimos adaptar «{{name}}» a la ficha de Vimo. Mientras tanto sigue funcionando tal como está.",
+      "migrationDoneNamed": "Adaptamos «{{name}}» a la ficha de Vimo",
+      "migrationReview": "La IA ordenó la gema en secciones y la guardó sin que la revisaras. Revisá las secciones antes de tu próximo video: tu texto original quedó de respaldo.",
+      "migrationWarningsHint": "La IA también dejó avisos de lo que ajustó: los ves al abrir el estilo.",
+      "migrationReviewAction": "Revisar secciones",
+      "migrationDismiss": "Descartar aviso",
+      "pasteHint": "Pegá el texto completo de tu gema. La IA de Vimo lo ordena en secciones (estilo visual, personaje, dinamismo, cámara y reglas) sin inventar nada: lo que no está en tu gema no aparece. Tu gema se guarda tal cual y se adapta sola: podés cerrar mientras tanto.",
+      "discardPasteConfirm": "Si cerrás ahora, se pierde la gema que pegaste: todavía no se preparó. ¿Cerramos igual?",
+      "pasteTitle": "Pegá tu gema",
+      "pastePlaceholder": "Pegá acá tu gema completa…",
+      "pasteCount": "{{used}} / {{limit}} caracteres",
+      "prepare": "Preparar con IA",
+      "preparing": "Preparando…",
+      "preparingHint": "Guardando tu gema…",
+      "retry": "Reintentar",
+      "sectionsTitle": "Secciones del estilo",
+      "sectionsHint": "Editá cada sección acá mismo: se guarda al cerrar, sin volver a pasar por la IA.",
+      "addSection": "Agregar sección: {{title}}",
+      "sectionCount": "{{used}} / {{limit}}",
+      "totalCount": "Total del estilo: {{used}} / {{limit}} caracteres",
+      "totalFull": "Llegaste al máximo del estilo. Acortá alguna sección para seguir escribiendo.",
+      "notEnglish": "No parece estar en inglés. Vimo pega este texto tal cual en cada imagen, así que conviene escribirlo en inglés.",
+      "notEnglishDismiss": "Descartar aviso",
+      "warningsTitle": "Lo que la IA ajustó de tu gema",
+      "warningsPlatformNote": "Las reglas de flujo, de formato de salida y de idioma no hacen falta en tu gema: Vimo ya trae las suyas y las pone automáticamente en cada video. Por eso la IA las saca.",
+      "sourceTitle": "Texto original",
+      "sourceHint": "Tu gema tal como era antes de que la IA la ordenara en secciones. Es solo de lectura: copiá lo que necesites.",
+      "sections": {
+        "visualStyle": {
+          "title": "Estilo visual",
+          "hint": "Técnica, paleta, luz, textura y composición. Es la única sección obligatoria: sin ella el estilo no se guarda."
+        },
+        "character": {
+          "title": "Personaje del estilo",
+          "hint": "El protagonista propio de tu estilo. Con esta sección escrita, arriba «Personaje genérico» pasa a ser «Personaje del estilo» y tus videos salen con él; con «Mi personaje» o «Sin personaje» no se usa. Va en inglés: primero cómo es físicamente y, al final, una oración «Outfit: …» con su ropa base."
+        },
+        "dynamism": {
+          "title": "Dinamismo",
+          "hint": "Cuándo sale el protagonista y cuándo una metáfora, un objeto o un lugar, y en qué proporción."
+        },
+        "camera": {
+          "title": "Encuadres y cámara",
+          "hint": "Planos, ángulos y reglas de variedad."
+        },
+        "rules": {
+          "title": "Reglas y prohibiciones",
+          "hint": "Lo que el estilo nunca hace."
+        },
+        "promptStart": {
+          "title": "Inicio fijo de cada imagen",
+          "hint": "Frase en inglés que Vimo pone al principio de cada prompt de imagen."
+        },
+        "promptEnd": {
+          "title": "Final fijo de cada imagen",
+          "hint": "Frase en inglés que Vimo agrega al final de cada prompt de imagen."
+        }
+      },
+      "errors": {
+        "session": "Tu sesión venció. Cerrá sesión y volvé a entrar.",
+        "noAccess": "Tu cuenta no tiene acceso a Vimo en este momento.",
+        "featureOff": "Preparar estilos con IA no está disponible para tu cuenta por ahora.",
+        "invalidRequest": "Vimo no entendió el pedido de la app. Actualizá Vimo y reintentá.",
+        "invalidText": "La gema está vacía o pasa de {{limit}} caracteres.",
+        "noVisualStyle": "El texto no describe un estilo visual: no dice cómo se ven las imágenes (técnica, colores, luz, trazos). Una gema de estilo tiene que describirlo; un guion o el tema del video no sirven.",
+        "quotaExhausted": "Llegaste al máximo de estilos preparados por hoy. Vas a poder volver a intentarlo el {{when}}.",
+        "quotaExhaustedLater": "Llegaste al máximo de estilos preparados por hoy. Volvé a intentarlo más tarde.",
+        "modelFailed": "La IA no pudo ordenar tu gema. Reintentá en un momento.",
+        "modelTimeout": "La IA tardó demasiado en responder. Reintentá.",
+        "network": "No pudimos conectarnos con Vimo. Revisá tu conexión y reintentá.",
+        "timeout": "Vimo tardó demasiado en responder. Reintentá.",
+        "serverError": "Vimo tuvo un problema de su lado. Reintentá en unos minutos.",
+        "unknown": "No pudimos preparar tu estilo. Reintentá."
+      }
     },
     "promptModelIssue": {
       "stalled": {

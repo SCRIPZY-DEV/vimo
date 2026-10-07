@@ -272,8 +272,11 @@ STYLE: Pure dark horror photography style, cinematic gothic horror film aestheti
 // rechaza valores mayores (mismo valor en commands/videos/update-scenes.ts).
 export const MAX_USER_PROMPT_CHARS = 2500
 
+// Propiedad PROPIA, no `in`: con `in`, `constructor`, `toString` o `valueOf`
+// (heredados de Object.prototype) pasaban por ids del catálogo y
+// `VISUAL_STYLES[id]` devolvía una función en vez de un estilo.
 export function isCharacterStyleId(value: unknown): value is CharacterStyleId {
-  return typeof value === 'string' && value in VISUAL_STYLES
+  return typeof value === 'string' && Object.hasOwn(VISUAL_STYLES, value)
 }
 
 // Ensambla el prompt final a partir de un SCENE y la plantilla del estilo

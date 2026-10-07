@@ -5,6 +5,7 @@ import {
 import type { Scene } from '../../../types/scenes.ts'
 import type { CreateVideoContext } from '../../context.ts'
 import type { VerbatimScenePrompt } from './verbatim-lane.ts'
+import { withTreatment } from './treatments.ts'
 
 /**
  * Persistencia incremental del carril verbatim: escribe `scenes.json` cada vez
@@ -38,15 +39,18 @@ export function createVerbatimPromptPersistence(
   const apply = (prompt: VerbatimScenePrompt) => {
     const index = buffer.findIndex((scene) => scene.id === prompt.id)
     if (index < 0) return
-    buffer[index] = {
-      ...buffer[index]!,
-      imagePrompt: prompt.imagePrompt,
-      // Un prompt del motor nunca es relleno: si la escena traía uno, deja de serlo.
-      promptIsFallback: false,
-      ...(prompt.charactersPresent === undefined
-        ? {}
-        : { charactersPresent: prompt.charactersPresent }),
-    }
+    buffer[index] = withTreatment(
+      {
+        ...buffer[index]!,
+        imagePrompt: prompt.imagePrompt,
+        // Un prompt del motor nunca es relleno: si la escena traía uno, deja de serlo.
+        promptIsFallback: false,
+        ...(prompt.charactersPresent === undefined
+          ? {}
+          : { charactersPresent: prompt.charactersPresent }),
+      },
+      prompt.treatment,
+    )
   }
 
   return {

@@ -23,11 +23,24 @@ import type {
   StyleCharacterMode,
 } from '@pipeline/types/styles.ts'
 
+// De quién es la gema: la propia (Mi estilo) o un estilo del catálogo.
+type StyleCharacterBlockVariant = 'custom' | 'catalog'
+
 interface StyleCharacterBlockProps {
   value: StyleCharacter
   disabled: boolean
   // Id de ESTA gema: la carita del fijado prefiere su preview.
   styleId: string
+  // Los modos que ofrece la gema; ausente = los tres. Un estilo del catálogo
+  // trae los suyos (plan E2 §5.1) y solo esos se muestran.
+  allowedModes?: StyleCharacterMode[]
+  // Ausente = Mi estilo («¿Tu estilo lleva personaje?»); el catálogo tiene su
+  // título y una línea de ayuda. Las filas de cada modo son las mismas.
+  variant?: StyleCharacterBlockVariant
+  // La gema trae su propio personaje (su sección `character`), sea del
+  // catálogo o de Mi estilo: «genérico» es ESE personaje y la fila lo dice con
+  // sus textos. Ausente = los de siempre.
+  fixedCharacter?: boolean
   onChange: (value: StyleCharacter) => void
   // Abre el selector de personajes para fijar uno, con el ya elegido
   // preseleccionado (null = ninguno). Lo maneja el modal, que es quien
@@ -67,6 +80,19 @@ const MODE_OPTIONS: readonly ModeOption[] = [
   },
 ]
 
+// «Genérico» con una gema que trae su personaje: no lo inventa Vimo a partir
+// del guion, sale el de la gema. La ayuda repite la línea de la fila.
+function withFixedCharacterTexts(option: ModeOption): ModeOption {
+  if (option.mode !== 'generic') return option
+
+  return {
+    ...option,
+    titleKey: 'create.styleCharacter.fromStyle.title',
+    subtitleKey: 'create.styleCharacter.fromStyle.subtitle',
+    helpKey: 'create.styleCharacter.fromStyle.subtitle',
+  }
+}
+
 // Tres zonas de la fila tienen acción propia y NO son «toggle de la fila»: el
 // switch (dejarlo pasar duplicaría el toggle), la sub-fila del predeterminado
 // y el signo de pregunta (en una pantalla táctil la ayuda se lee tocándolo).
@@ -84,17 +110,29 @@ function hitsOwnControl(target: EventTarget | null): boolean {
 // exactamente una encendida — es un modo del estilo, no tres ajustes
 // sueltos. Encender otra mueve la elección; apagar la activa cae a «Sin
 // personaje», que es el piso. La FILA ENTERA es el switch, en las dos
-// direcciones. Es presentacional: qué recordar al volver a «Mi personaje» lo
-// decide el modal, dueño del borrador.
+// direcciones. Un estilo del catálogo muestra solo los modos que permite; si
+// no permite «Sin personaje», no hay piso y se cambia encendiendo otra. Es
+// presentacional: qué recordar al volver a «Mi personaje» lo decide el modal,
+// dueño del borrador.
 export function StyleCharacterBlock({
   value,
   disabled,
   styleId,
+  allowedModes,
+  variant = 'custom',
+  fixedCharacter = false,
   onChange,
   onPickCharacter,
 }: StyleCharacterBlockProps) {
   const { t } = useTranslation()
   const { characters, isLoading } = useCharacterCatalog(true)
+  const allowedOptions = allowedModes
+    ? MODE_OPTIONS.filter((option) => allowedModes.includes(option.mode))
+    : MODE_OPTIONS
+  const options = fixedCharacter
+    ? allowedOptions.map(withFixedCharacterTexts)
+    : allowedOptions
+  const hasFloor = options.some((option) => option.mode === 'none')
 
   const fixed = value.defaultCharacterId
     ? characters.find((character) => character.id === value.defaultCharacterId)
@@ -118,8 +156,11 @@ export function StyleCharacterBlock({
       onChange({ mode })
       return
     }
-    // «Sin personaje» ya ES el piso: apagarla no tiene a dónde ir.
-    if (value.mode === mode && mode !== 'none') onChange({ mode: 'none' })
+    // Solo se apaga la activa. «Sin personaje» ya ES el piso: apagarla no
+    // tiene a dónde ir; y sin esa opción en el estilo, la activa queda
+    // encendida hasta que se encienda otra.
+    if (value.mode !== mode || mode === 'none' || !hasFloor) return
+    onChange({ mode: 'none' })
   }
 
   const rowClick = (mode: StyleCharacterMode) => {
@@ -147,11 +188,20 @@ export function StyleCharacterBlock({
 
   return (
     <div className="space-y-2 rounded-2xl border-2 border-border bg-card p-4">
-      <h3 className="font-display text-sm font-extrabold text-foreground">
-        {t('create.styleCharacter.title')}
-      </h3>
+      <div>
+        <h3 className="font-display text-sm font-extrabold text-foreground">
+          {variant === 'catalog'
+            ? t('create.catalog.characterTitle')
+            : t('create.styleCharacter.title')}
+        </h3>
+        {variant === 'catalog' && (
+          <p className="mt-0.5 font-body text-xs text-muted-foreground">
+            {t('create.catalog.characterHint')}
+          </p>
+        )}
+      </div>
 
-      {MODE_OPTIONS.map(({ mode, titleKey, subtitleKey, helpKey, Icon }) => {
+      {options.map(({ mode, titleKey, subtitleKey, helpKey, Icon }) => {
         const active = value.mode === mode
         return (
           <div

@@ -117,3 +117,12 @@ cerrado (`CharacterStyleId`, ADR-0013/0015). Restricciones:
   ADR-0013 (stages), ADR-0009 (carpeta raíz), ADR-0015 (un solo modelo).
 - Origen: `estiloVisual.ts`, `util/estilosPropios.ts`, `rutas/estilos.ts`,
   `fragmentos-muestra.ts` de vimo_dev.
+
+## Nota posterior 2026-10-01 — el tope de una gema sube a 100 000 caracteres
+
+El tope de 30 000 caracteres que se portó del origen (`SYSTEM_PROMPT_CHAR_LIMIT` en el sidecar y
+`CUSTOM_STYLE_PROMPT_LIMIT` en la app) pasa a 100 000, por decisión del dueño: hay gemas más largas.
+Vale para lo que se pega en Mi estilo, para las gemas viejas guardadas y para el respaldo de la
+original. Una gema de plantilla sigue con la suma de sus secciones hasta 30 000: el agente condensa
+la gema larga ([ADR-0048](ADR-0048-gemas-por-secciones-y-agente-reconstructor.md)). Una gema vieja
+larga entra entera al pedido de prompts de cada escena, así que cuesta más tokens en cada llamada.

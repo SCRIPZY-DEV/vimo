@@ -5,6 +5,7 @@ import {
   STYLE_CHARACTER_INSTRUCTION,
   buildStyleCharacterRequest,
 } from '../../prompts/style-character-designer.ts'
+import { composeGemText } from '../../prompts/template-frame.ts'
 import { resolveVerbatimModel } from '../../providers/llm/model-catalog.ts'
 import { createVerbatimClient } from '../../providers/llm/verbatim-client.ts'
 import type { PipelineContext } from '../../runner/context.ts'
@@ -13,7 +14,7 @@ import type {
   DesignStyleCharacterPayload,
   DesignStyleCharacterResult,
 } from '../../types/styles.ts'
-import { SYSTEM_PROMPT_CHAR_LIMIT } from './style-store.ts'
+import { SYSTEM_PROMPT_CHAR_LIMIT, assertGemSections } from './style-store.ts'
 
 // Límites del origen (rutas/estilos.ts): campos cortos a 80, borrador a
 // 2.000, descripción devuelta a 1.500 y un mínimo de 60 tras la poda.
@@ -32,6 +33,41 @@ function textField(value: unknown, limit: number): string {
 }
 
 /**
+ * La gema como texto: la de una gema vieja, o las secciones de una de
+ * plantilla. Exactamente una de las dos; un `gem` en blanco no cuenta como
+ * gema.
+ *
+ * Con secciones el texto sale SIN la sección `character` (acá se diseña OTRO
+ * personaje) y SIN el inicio ni el final fijos (`fixedPhrases: false`): la
+ * ficha diseñada se teje después en cada escena, donde el código ya pega esas
+ * frases, y una copia dentro de la ficha saldría duplicada en cada prompt.
+ */
+function gemTextOf(payload: Partial<DesignStyleCharacterPayload>): string {
+  const text = typeof payload.gem === 'string' ? payload.gem.trim() : ''
+  const hasSections = payload.sections !== undefined
+
+  if (hasSections && text)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'payload.gem and payload.sections are mutually exclusive',
+    )
+
+  if (hasSections)
+    return composeGemText(
+      assertGemSections(payload.sections, 'payload.sections'),
+      { fixedPhrases: false },
+    )
+
+  if (!text)
+    throw new PipelineFailure('invalid_payload', 'payload.gem is required')
+
+  if (text.length > SYSTEM_PROMPT_CHAR_LIMIT)
+    throw new PipelineFailure('invalid_payload', 'payload.gem is too long')
+
+  return text
+}
+
+/**
  * Diseña al protagonista con el ESTILO del usuario como contexto (port de
  * POST /estilos/personaje del origen, v1.21.0): una sola llamada por el
  * cliente verbatim, con el modelo del proyecto. Respeta los campos que el
@@ -44,12 +80,8 @@ export async function designStyleCharacter(
 ): Promise<DesignStyleCharacterResult> {
   const payload = (context.job.payload ??
     {}) as Partial<DesignStyleCharacterPayload>
-  const gem = typeof payload.gem === 'string' ? payload.gem.trim() : ''
+  const gem = gemTextOf(payload)
   const script = typeof payload.script === 'string' ? payload.script.trim() : ''
-  if (!gem)
-    throw new PipelineFailure('invalid_payload', 'payload.gem is required')
-  if (gem.length > SYSTEM_PROMPT_CHAR_LIMIT)
-    throw new PipelineFailure('invalid_payload', 'payload.gem is too long')
   if (script.length < MIN_SCRIPT_LENGTH)
     throw new PipelineFailure(
       'invalid_payload',

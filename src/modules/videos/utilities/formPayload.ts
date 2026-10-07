@@ -1,5 +1,8 @@
 import { ANIMATION_MINUTES_DEFAULT } from '@/modules/videos/constants'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
+import { displayLaneOf, laneOf } from '@/modules/videos/utilities/formLane'
+import { projectCustomStyleFrom } from '@/modules/videos/utilities/projectCustomStyle'
+import { gemProjectStyleId } from '@/modules/videos/utilities/selectedCatalogStyle'
 import type {
   CreateFormValue,
   CreateProjectPayloadOptions,
@@ -18,25 +21,26 @@ export function createProjectPayload(
   form: CreateFormValue,
   { demo = false }: CreateProjectPayloadOptions = {},
 ): CreateVideoProjectPayload {
-  // Con estilo propio, styleId viaja como 'normal' (sigue siendo un id de
-  // catálogo válido para el contrato) y el snapshot va en customStyle.
-  const usesCustomStyle = form.styleSource === 'custom' && form.customStyle
+  // Mi estilo y un estilo del catálogo nuevo salen por el carril de las gemas
+  // (plan E2 §5.4): el snapshot va en customStyle y styleId viaja como
+  // 'normal' (sigue siendo un id de catálogo válido para el contrato), salvo
+  // un estilo heredado del catálogo, que lleva su id. El catálogo viejo manda
+  // lo de siempre.
+  const gemStyle = laneOf(form) === 'legacy-catalog' ? null : form.customStyle
   const options: VideoProjectOptions = {
-    styleId: usesCustomStyle ? 'normal' : form.styleId,
-    // Con estilo propio el corte va por duración: la cantidad que quedó en el
+    styleId: gemStyle ? gemProjectStyleId(gemStyle) : form.styleId,
+    // Con una gema el corte va por duración: la cantidad que quedó en el
     // formulario no aplica y viaja como automática para no mentir el metadata.
-    sceneCount: usesCustomStyle ? 0 : form.sceneCount,
+    sceneCount: gemStyle ? 0 : form.sceneCount,
     narrationMode: form.narrationMode,
     imageProvider: form.imageProvider,
     imageQuality: form.imageQuality,
     useBgm: form.useBgm,
     useOverlay: form.useOverlay,
-    // La pausa de escenas: con catálogo es la casilla del formulario; con
-    // estilo propio no hay casilla y manda la preferencia «No preguntarme al
+    // La pausa de escenas: con el catálogo viejo es la casilla del formulario;
+    // con una gema no hay casilla y manda la preferencia «No preguntarme al
     // generar» de Ajustes, que decide si se pregunta la duración de escena.
-    confirmScenes: usesCustomStyle
-      ? form.confirmSceneDuration
-      : form.confirmScenes,
+    confirmScenes: gemStyle ? form.confirmSceneDuration : form.confirmScenes,
     subtitles: form.subtitles,
     autoRender: form.autoRender,
     videoFormat: form.videoFormat,
@@ -57,16 +61,10 @@ export function createProjectPayload(
     options.animateWholeVideo = false
   }
 
-  if (usesCustomStyle && form.customStyle) {
-    options.customStyle = {
-      styleId: form.customStyle.styleId,
-      name: form.customStyle.name,
-      systemPrompt: form.customStyle.systemPrompt,
-      shots: form.customStyle.shots,
-      ...(form.customStyle.character
-        ? { character: form.customStyle.character }
-        : {}),
-    }
+  if (gemStyle) {
+    // Por secciones si la gema es de plantilla (siempre, si es del catálogo,
+    // con su `catalogStyleId`); si no, como siempre (ADR-0048).
+    options.customStyle = projectCustomStyleFrom(gemStyle)
     // Carril de segundos-por-escena: el proyecto nace con la preferencia de
     // Ajustes. El diálogo de confirmación lo ajusta con el slider; sin
     // confirmación, este valor corta directo.
@@ -98,10 +96,10 @@ export function createProjectPayload(
 
   if (form.useOverlay) options.overlayUrl = form.overlayUrl.trim()
 
-  // La frecuencia viaja solo con un estilo del catálogo: el carril verbatim
-  // saltea el clasificador de presencia (ADR-0019) y la ignoraría, así que
-  // mandarla dejaría en el proyecto una opción que nadie aplica.
-  if (form.characters.length > 0 && !usesCustomStyle) {
+  // La frecuencia viaja solo con el catálogo viejo: el carril verbatim de las
+  // gemas saltea el clasificador de presencia (ADR-0019) y la ignoraría, así
+  // que mandarla dejaría en el proyecto una opción que nadie aplica.
+  if (form.characters.length > 0 && !gemStyle) {
     options.characterFrequency = form.characterFrequency
   }
 
@@ -135,9 +133,12 @@ export function formBlockers(
     promptModelsBlocked = false,
     fixedCharacterMissing = false,
     animationKeyMissing = false,
+    newCatalog = false,
   }: FormBlockersContext = {},
 ): string[] {
   const blockers: string[] = []
+  // La pestaña Catálogo nueva cuenta como su carril aun sin tarjeta elegida.
+  const lane = displayLaneOf(form, newCatalog)
 
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
 
@@ -147,11 +148,17 @@ export function formBlockers(
   }
 
   // v1.35.0 del origen: la galería propia arranca vacía y sin tarjeta
-  // elegida no hay estilo con qué generar.
-  if (form.styleSource === 'custom' && !form.customStyle)
+  // elegida no hay estilo con qué generar. La del catálogo nuevo, también
+  // (plan E2, P4): solo vale una tarjeta del catálogo.
+  if (lane === 'custom' && !form.customStyle)
     blockers.push('create.validation.styleRequired')
 
-  if (form.styleSource === 'custom' && promptModelsBlocked)
+  if (lane === 'catalog-gem' && laneOf(form) !== 'catalog-gem')
+    blockers.push('create.validation.catalogStyleRequired')
+
+  // Las gemas (de Mi estilo o del catálogo nuevo) escriben sus prompts con un
+  // modelo: sin ninguno libre no hay video.
+  if (lane !== 'legacy-catalog' && promptModelsBlocked)
     blockers.push('create.validation.promptModelsBlocked')
 
   // La gema pide TU personaje (ADR-0020): con el fijo del estilo ya borrado
@@ -182,11 +189,12 @@ export function formBlockers(
   return blockers
 }
 
-// Qué declaró la gema en uso sobre su protagonista; null sin estilo propio.
-// Ausente en la gema = genérico (compat con las guardadas antes de ADR-0020).
+// Qué declaró la gema en uso (de Mi estilo o del catálogo nuevo) sobre su
+// protagonista; null con el catálogo viejo o sin gema elegida. Ausente en la
+// gema = genérico (compat con las guardadas antes de ADR-0020).
 export function styleCharacterModeOf(
   form: CreateFormValue,
 ): StyleCharacterMode | null {
-  if (form.styleSource !== 'custom' || !form.customStyle) return null
+  if (laneOf(form) === 'legacy-catalog' || !form.customStyle) return null
   return form.customStyle.character?.mode ?? 'generic'
 }

@@ -114,6 +114,10 @@ export interface GenerateCharacterPreviewPayload {
   // (una llamada al LLM, como las muestras del estilo).
   styleId: string
   provider: ImageProviderId
+  // Con `true`, una gema del catálogo nuevo se busca primero en el catálogo
+  // sincronizado (`_catalog/`, ADR-0049); ausente o `false`, solo en las
+  // empaquetadas: con el interruptor `remoteCatalog` apagado nada cambia.
+  remote?: boolean
 }
 
 export interface GenerateCharacterPreviewResult {

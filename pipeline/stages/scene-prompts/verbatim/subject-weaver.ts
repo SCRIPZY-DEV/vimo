@@ -27,6 +27,7 @@ import {
   signatureLookNote,
 } from '../../../prompts/verbatim-identity.ts'
 import type { Scene } from '../../../types/scenes.ts'
+import type { StyleProtagonist } from '../../../types/video-project.ts'
 import { bodyWithoutFinalClauses } from '../../shared/prompt-safety.ts'
 
 /** Reemplazo de `[subject]` cuando el diseño del personaje falló del todo. */
@@ -418,6 +419,27 @@ function assembleSplit(
   if (!outfit || countWords(core) < MIN_DESCRIPTION_WORDS)
     return { core: description.trim() }
   return { core: /[.!?]$/.test(core) ? core : `${core}.`, outfit }
+}
+
+/**
+ * El protagonista que define la sección `character` de una gema de plantilla
+ * (modo genérico, ADR-0048): sin Fase 1. La sección llega con el formato de la
+ * ficha de la Fase 1 —la identidad y, al final, la oración «Outfit: …» con la
+ * ropa base (`CHARACTER_OUTFIT_SENTENCE_RULE`)—, así que es a la vez el retrato
+ * del turno de assistant y la descripción que se teje, y `splitOutfit` separa
+ * su ropa como siempre. El tope de la identidad tejida no la cambia: la
+ * sección ya llega validada con 700 caracteres como máximo.
+ */
+export function protagonistFromSection(section: string): StyleProtagonist {
+  const portrait = section.trim()
+  const description = capWovenIdentity(portrait)
+  const outfit = splitOutfit(description).outfit
+  return {
+    portrait,
+    description,
+    ...(outfit ? { outfit } : {}),
+    source: 'style-section',
+  }
 }
 
 /** Solo el primer `[subject]` lleva la ropa; los demás quedan como el rol. */
