@@ -45,6 +45,7 @@ export const MODULE_API_KEY_REQUIREMENTS = {
   music: [['evolink']],
   voices: [['dubvoice', 'elevenlabs']],
   characters: [['fal', 'evolink'], ['deepinfra']],
+  avatars: [['heygen']],
 } satisfies Record<string, ApiKeyRequirement[]>
 
 // Con el proveedor de voces ya elegido (ADR-0024), el aviso apunta a la

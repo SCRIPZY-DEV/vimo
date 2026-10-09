@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Escenas de avatar con HeyGen sobre la narración                                   | Propuesta                  | pipeline / app / providers    |
 | [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | Layout propio del editor a pantalla completa                                      | Aceptada                   | app                           |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adaptar el personaje del usuario al lenguaje del estilo                           | Propuesta                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | Creador de estilo con IA: clonar un estilo desde un video o desde imágenes        | Aceptada                   | pipeline / app / servidor     |

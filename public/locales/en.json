@@ -48,6 +48,7 @@
       "crear": "Create Video",
       "biblioteca": "Library",
       "personajes": "Characters",
+      "avatares": "Avatars",
       "voces": "Voices",
       "musica": "AI Music",
       "demo": "Demo",
@@ -1776,6 +1777,106 @@
       "llmInsufficientCredits": "Your DeepInfra account has no balance to write the profile."
     }
   },
+  "avatars": {
+    "pageTitle": "Avatars",
+    "titulo": "Avatars",
+    "tagline": "the person who presents your videos",
+    "intro": "A presenter avatar speaks your video's narration, full screen, at the moments you choose. Add one from HeyGen's stock or create your own from a photo; then pick it when creating a video.",
+    "soloEscritorio": "Avatars are stored in your projects folder: this screen works in the desktop app.",
+    "agregarStock": "Add from stock",
+    "crearFoto": "Create from photo",
+    "vacio": {
+      "titulo": "No avatars yet",
+      "texto": "Add one from HeyGen's stock or create your own from a photo. You need your HeyGen key in API Keys."
+    },
+    "tarjeta": {
+      "eliminar": "Remove avatar",
+      "confirmar": "Sure",
+      "noCompatible": "Not compatible with Vimo"
+    },
+    "types": {
+      "studio_avatar": "Studio",
+      "digital_twin": "Digital twin",
+      "photo_avatar": "From photo"
+    },
+    "engines": {
+      "avatar_iv": "Avatar IV",
+      "avatar_iii": "Avatar III",
+      "avatar_v": "Avatar V"
+    },
+    "status": {
+      "processing": "Training your avatar's engine…",
+      "processingHint": "It'll be ready in a few minutes. You can keep using Vimo.",
+      "failed": "The avatar couldn't be trained with that photo. Try another one, facing the camera and well lit."
+    },
+    "stock": {
+      "titulo": "HeyGen avatars",
+      "descripcion": "Pick one and add it to your library. Stock avatars are free; every video you make with them is billed per minute.",
+      "origenAria": "Avatar source",
+      "publicos": "Stock",
+      "propios": "My HeyGen avatars",
+      "tipoAria": "Avatar type",
+      "todosLosTipos": "All types",
+      "buscar": "Search by name…",
+      "vacio": "No avatars match that filter.",
+      "agregar": "Add",
+      "agregado": "Added",
+      "cargarMas": "Load more"
+    },
+    "foto": {
+      "titulo": "Create an avatar from a photo",
+      "descripcion": "Vimo trains an avatar with the face in the photo. It takes a few minutes and stays in your library, ready to present your videos.",
+      "nombre": "Name",
+      "nombrePlaceholder": "How you'll recognize it",
+      "subir": "Choose photo",
+      "cambiar": "Change photo",
+      "consejo": "Best with a front-facing, well-lit photo from the shoulders up, no sunglasses. JPG or PNG up to 12 MB.",
+      "ampliar": "View the full photo",
+      "fotoElegida": "The photo chosen for your avatar",
+      "cerrarFoto": "Close the photo",
+      "permisos": {
+        "titulo": "Before you create your avatar",
+        "propia": "Use your own photo or a photo of someone who gave you permission.",
+        "famosos": "Celebrities and recognizable people can't be cloned without their consent.",
+        "contenido": "No political, violent or misleading content: the provider rejects it."
+      },
+      "consentimiento": {
+        "titulo": "I have the right to use this photo",
+        "detalle": "It's my photo, or the person in it gave me permission to create an avatar with their image."
+      },
+      "precio": {
+        "detalle": "per avatar · deducted from your HeyGen balance"
+      },
+      "cancelar": "Cancel",
+      "crear": "Create avatar"
+    },
+    "toasts": {
+      "agregado": "Avatar added to your library.",
+      "creado": "Your avatar is training. It'll be ready in a few minutes.",
+      "eliminado": "Avatar removed from your library."
+    },
+    "errors": {
+      "invalidKey": "HeyGen rejected your key. Check it in API Keys.",
+      "insufficientCredits": "Your HeyGen account has no balance for this.",
+      "rateLimited": "HeyGen is getting too many requests. Wait a moment and try again.",
+      "moderationRejected": "HeyGen rejected the request under its moderation policy: real people without permission and prohibited content aren't allowed.",
+      "lookUnsupported": "That avatar or engine isn't available on your HeyGen account.",
+      "providerError": "HeyGen replied with something unexpected. Try again in a while.",
+      "network": "Couldn't reach HeyGen. Check your connection.",
+      "photoInvalid": "That photo won't work: it must be a JPG or PNG up to 12 MB.",
+      "notFound": "That avatar is no longer in your library.",
+      "trainingFailed": "The avatar couldn't be trained with that photo.",
+      "nameRequired": "Give the avatar a name.",
+      "photoRequired": "Choose a photo.",
+      "consentRequired": "Confirm you have the right to use the photo to continue.",
+      "invalid": "The request isn't valid.",
+      "missingApiKey": "Your HeyGen key is missing in API Keys.",
+      "missingProjectsRoot": "Choose a projects folder in Settings.",
+      "cancelled": "Cancelled.",
+      "sidecar": "Vimo's engine couldn't start. Restart the app.",
+      "unknown": "Something went wrong. Try again."
+    }
+  },
   "voices": {
     "pageTitle": "Voices",
     "titulo": "Voices",
@@ -1988,7 +2089,8 @@
       "image": "images (Fal.ai or Evolink)",
       "voice": "voice (DubVoice or ElevenLabs)",
       "transcription": "transcription (Deepgram)",
-      "animation": "scene animation (Kie.ai)"
+      "animation": "scene animation (Kie.ai)",
+      "avatar": "presenter avatar (HeyGen)"
     },
     "descripcion": {
       "deepinfra": "Main AI: generates the visual prompts for each scene.",
@@ -1998,7 +2100,8 @@
       "elevenlabs": "Premium voice straight from ElevenLabs.",
       "deepgram": "Word-by-word audio transcription.",
       "kie": "Automatic scene animation from images, paid with account credits.",
-      "poyo": "Animates a scene with Veo. Optional, only if you want animated scenes."
+      "poyo": "Animates a scene with Veo. Optional, only if you want animated scenes.",
+      "heygen": "Presenter avatar: an AI-generated person who speaks your video's narration. Billed per minute, in dollars."
     },
     "badge": {
       "falAdmin": "⚠ Admin type"

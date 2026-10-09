@@ -95,7 +95,7 @@ create table public.diagnostic_logs (
                      references auth.users (id) on delete cascade,
   user_email       text not null,                    -- en minúsculas, validado contra el JWT
   source           text not null check (source in ('pipeline', 'update')),
-  module           text,                             -- videos | voices | characters | music | styles | demo | settings
+  module           text,                             -- videos | voices | characters | avatars | music | styles | demo | settings
   subcommand       text,                             -- run-video-pipeline, generate-voice, ...
   project_id       text,                             -- slug de la carpeta
   project_name     text,                             -- metadata.name de project.json
@@ -169,12 +169,13 @@ subcomando y el payload (nunca contenido: ni `text`, ni `prompt`, ni `script`), 
 | `create-video-project` que falla, se cancela o crashea                   | `NULL` (todavía no existe) | `payload.name`                                                           |
 | `style-*`, `generate-style-samples`                                      | `NULL`                     | `Estilo: <nombre>` (del payload o de `_styles/<id>/style.json`)          |
 | `character-*`, `design-style-character`, `generate-character-preview`, … | `NULL`                     | `Personaje: <nombre>` (del payload o de `characters/<id>/metadata.json`) |
+| `avatar-*`, `avatars-list`                                               | `NULL`                     | `Avatar: <nombre>` (del payload o de `avatars/<id>/metadata.json`)       |
 | `generate-voice`, `probe-tts`, `add-library-voice`                       | `NULL`                     | `Voz: <voiceName \| name \| provider>`                                   |
 | `generate-music`, `suggest-music-prompt`, `choose-music` sin proyecto    | `NULL`                     | `Música` (el prompt es contenido)                                        |
 | `demo-*`                                                                 | `NULL`                     | `Demo`                                                                   |
 
-Los prefijos son fijos y en español (`Estilo`, `Personaje`, `Voz`, `Música`, `Demo`):
-son un valor de datos para soporte, no texto de la UI, y permiten filtrar
+Los prefijos son fijos y en español (`Estilo`, `Personaje`, `Avatar`, `Voz`, `Música`,
+`Demo`): son un valor de datos para soporte, no texto de la UI, y permiten filtrar
 (`project_name like 'Estilo:%'`) sin mezclarse con los proyectos reales. Sin nombre
 resuelto queda solo el prefijo. La música que se genera desde un proyecto manda
 `projectId` en el payload (el handler lo ignora) y cae en la primera fila de la tabla.

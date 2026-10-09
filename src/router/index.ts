@@ -15,6 +15,7 @@ import {
 } from '@/modules/videos/routes'
 import { musicRoutes } from '@/modules/music/routes'
 import { charactersRoutes } from '@/modules/characters/routes'
+import { avatarsRoutes } from '@/modules/avatars/routes'
 import { voicesRoutes } from '@/modules/voices/routes'
 import { apiKeysRoutes } from '@/modules/api-keys/routes'
 import { settingsRoutes } from '@/modules/settings/routes'
@@ -32,6 +33,7 @@ export const router = createHashRouter([
       // sin el flag `demo` del veredicto.
       { ...createDemoRoute, loader: requireDemoAccessLoader },
       ...charactersRoutes,
+      ...avatarsRoutes,
       ...voicesRoutes,
       ...musicRoutes,
       // `costsRoutes` va acá cuando la sección vuelva: hoy está retirada de la

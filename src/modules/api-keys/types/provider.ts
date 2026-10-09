@@ -7,9 +7,10 @@ export type ApiKeyProviderId =
   | 'deepgram'
   | 'kie'
   | 'poyo'
+  | 'heygen'
 
 export type ApiKeyCategory =
-  'llm' | 'image' | 'voice' | 'transcription' | 'animation'
+  'llm' | 'image' | 'voice' | 'transcription' | 'animation' | 'avatar'
 
 // Un requisito: lista de proveedores alternativos, basta uno configurado.
 export type ApiKeyRequirement = ApiKeyProviderId[]

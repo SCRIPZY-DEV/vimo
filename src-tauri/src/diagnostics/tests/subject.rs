@@ -183,3 +183,63 @@ fn ids_cannot_escape_the_root() {
         None
     );
 }
+
+#[test]
+fn avatar_subcommands_are_their_own_family() {
+    let create = subject_from_payload(
+        "avatar-create-photo",
+        Some(&json!({ "name": "Ana", "photoPath": "/x/ana.png" })),
+    )
+    .expect("avatar subject");
+    assert_eq!(create.kind, SubjectKind::Avatar);
+    assert_eq!(create.id, None);
+    assert_eq!(create.name.as_deref(), Some("Ana"));
+
+    // Agregar un look de HeyGen: el nombre viaja dentro de `look`.
+    let added = subject_from_payload(
+        "avatar-add",
+        Some(&json!({ "look": { "lookId": "look-1", "name": "Bob" }, "ownership": "stock" })),
+    )
+    .expect("avatar subject");
+    assert_eq!(added.kind, SubjectKind::Avatar);
+    assert_eq!(added.name.as_deref(), Some("Bob"));
+
+    let refreshed = subject_from_payload("avatar-refresh", Some(&json!({ "id": "ana-abc123" })))
+        .expect("avatar subject");
+    assert_eq!(refreshed.id.as_deref(), Some("ana-abc123"));
+    assert_eq!(
+        subject_from_payload("avatars-list", None).map(|subject| subject.kind),
+        Some(SubjectKind::Avatar)
+    );
+
+    assert_eq!(
+        subject_label(&subject(SubjectKind::Avatar, "ana-abc123"), Some("Ana")).as_deref(),
+        Some("Avatar: Ana")
+    );
+    assert_eq!(
+        subject_label(&subject(SubjectKind::Avatar, "ana-abc123"), None).as_deref(),
+        Some("Avatar")
+    );
+}
+
+#[test]
+fn avatar_names_are_read_from_the_library_on_disk() {
+    let root = TempDir::new().unwrap();
+    let avatar_directory = root.path().join(AVATARS_SUBDIRECTORY).join("ana-abc123");
+    fs::create_dir_all(&avatar_directory).unwrap();
+    fs::write(
+        avatar_directory.join(AVATAR_METADATA_FILE),
+        r#"{ "name": "Ana", "lookId": "look-1" }"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        resolve_subject_name(Some(root.path()), &subject(SubjectKind::Avatar, "ana-abc123")).as_deref(),
+        Some("Ana")
+    );
+    // Un id con `..` nunca sale de la carpeta raíz, también para avatares.
+    assert_eq!(
+        read_subject_metadata(root.path(), &subject(SubjectKind::Avatar, "../x")),
+        None
+    );
+}

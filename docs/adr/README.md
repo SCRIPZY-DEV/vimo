@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Avatar scenes with HeyGen over the narration                                        | Proposed                  | pipeline / app / providers    |
 | [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | A dedicated full-screen layout for the project editor                               | Accepted                  | app                           |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adapting the user's character to the style's language                               | Proposed                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | AI style creator: cloning a style from a video or from images                       | Accepted                  | pipeline / app / server       |

@@ -13,11 +13,13 @@ en carpetas temporales.
 
 ## Guards del repo
 
-| Script                      | Qué verifica                                                                                                                                            | Cómo se corre                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `check-locales.mjs`         | Los tres catálogos `public/locales/{es,en,pt}.json` declaran las mismas claves                                                                          | `pnpm check:locales`                          |
-| `check-demo.mjs`            | Modo demo sobre un pack mínimo servido por HTTP local (ADR-0029, ADR-0030)                                                                              | `pnpm check:demo`                             |
-| `check-timeline-layout.mjs` | El estado de interfaz del timeline por proyecto (ADR-0056): lectura tolerante del orden, el silencio y el candado; mover una pista conserva a las demás | `node scripts/test/check-timeline-layout.mjs` |
+| Script                      | Qué verifica                                                                                                                                                                                                                      | Cómo se corre                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `check-locales.mjs`         | Los tres catálogos `public/locales/{es,en,pt}.json` declaran las mismas claves                                                                                                                                                    | `pnpm check:locales`                                |
+| `check-demo.mjs`            | Modo demo sobre un pack mínimo servido por HTTP local (ADR-0029, ADR-0030)                                                                                                                                                        | `pnpm check:demo`                                   |
+| `check-timeline-layout.mjs` | El estado de interfaz del timeline por proyecto (ADR-0056): lectura tolerante del orden, el silencio y el candado; mover una pista conserva a las demás                                                                           | `node scripts/test/check-timeline-layout.mjs`       |
+| `check-heygen-client.mjs`   | Cliente de HeyGen (ADR-0057): errores `avatar_*`, reintento ante 429, subida multipart, idempotencia al crear desde foto; biblioteca `avatars/` con metadata atómica y listado tolerante                                          | `node --test scripts/test/check-heygen-client.mjs`  |
+| `check-avatar-library.mjs`  | Los seis subcomandos de la biblioteca de avatares (ADR-0057): la foto se valida antes de hablar con HeyGen, clave de idempotencia determinista, refresco del entrenamiento, alta de stock sin duplicados, borrado e ids inválidos | `node --test scripts/test/check-avatar-library.mjs` |
 
 ## Sidecar con HTTP simulado
 

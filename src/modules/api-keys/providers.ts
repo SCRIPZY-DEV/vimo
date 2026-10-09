@@ -88,4 +88,14 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     descriptionKey: 'apiKeys.descripcion.poyo',
     recommended: false,
   },
+  {
+    id: 'heygen',
+    category: 'avatar',
+    label: 'HeyGen',
+    getKeyUrl: 'https://app.heygen.com/developers/api',
+    billingUrl: 'https://app.heygen.com/developers/api',
+    keyFormatHint: 'X-Api-Key',
+    descriptionKey: 'apiKeys.descripcion.heygen',
+    recommended: false,
+  },
 ]

@@ -153,6 +153,7 @@ export const INSUFFICIENT_CREDITS_CODES: ReadonlySet<string> = new Set([
   'transcription_insufficient_credits',
   'music_insufficient_credits',
   'animation_insufficient_credits',
+  'avatar_insufficient_credits',
 ])
 // Margen sobre la estimación de costo antes de arrancar: estimar de menos y
 // quedarse sin saldo a mitad es peor que pedir un poco más.

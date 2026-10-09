@@ -60,16 +60,17 @@ async fn probe(
     Ok(response.status())
 }
 
-/// Como `probe`, pero conserva el cuerpo JSON: los proveedores de animación
-/// validan contra su endpoint de saldo y el saldo viaja en el cuerpo. Un
-/// cuerpo que no es JSON se trata como vacío, nunca como fallo de red.
+/// Como `probe`, pero conserva el cuerpo JSON: los proveedores de animación y
+/// el de avatar validan contra un endpoint cuyo cuerpo importa. Un cuerpo que
+/// no es JSON se trata como vacío, nunca como fallo de red.
 async fn probe_json(
     url: &str,
+    header_name: &str,
     header_value: String,
 ) -> Result<(reqwest::StatusCode, serde_json::Value), ApiKeyError> {
     let response = client()?
         .get(url)
-        .header("Authorization", header_value)
+        .header(header_name, header_value)
         .send()
         .await
         .map_err(|_| ApiKeyError::Network)?;
@@ -102,6 +103,33 @@ fn validate_kie_response(
         .filter(|credits| credits.is_finite() && *credits >= 0.0)
         .ok_or(ApiKeyError::ProviderError)?;
     Ok(Some(credits))
+}
+
+/// HeyGen (ADR-0057) responde 200 con el perfil (`data.username`) cuando la
+/// clave sirve y 401/403 cuando no. Un 200 sin perfil no demuestra nada. El
+/// saldo no se lee todavía: la unidad de `wallet` / `usage_based` se confirma
+/// con la sonda de la entrega 1 (diseño §17) y entra con la entrega 2.
+fn validate_heygen_response(
+    status: reqwest::StatusCode,
+    body: &serde_json::Value,
+) -> Result<Option<f64>, ApiKeyError> {
+    if status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::FORBIDDEN
+    {
+        return Err(ApiKeyError::InvalidKey);
+    }
+    if status != reqwest::StatusCode::OK {
+        return Err(status_to_error(status));
+    }
+    let has_profile = body
+        .get("data")
+        .and_then(|data| data.get("username"))
+        .and_then(|username| username.as_str())
+        .is_some_and(|username| !username.is_empty());
+    if !has_profile {
+        return Err(ApiKeyError::ProviderError);
+    }
+    Ok(None)
 }
 
 /// Check especial de Fal: la clave DEBE ser tipo Admin (sin eso la generación
@@ -201,6 +229,7 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
         Provider::Kie => {
             let (status, body) = probe_json(
                 "https://api.kie.ai/api/v1/chat/credit",
+                "Authorization",
                 format!("Bearer {key}"),
             )
             .await?;
@@ -209,6 +238,7 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
         Provider::Poyo => {
             let (status, body) = probe_json(
                 "https://api.poyo.ai/api/user/balance",
+                "Authorization",
                 format!("Bearer {key}"),
             )
             .await?;
@@ -219,6 +249,17 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
                 .get("data")
                 .and_then(|data| data.get("credits_amount"))
                 .and_then(|credits| credits.as_f64()))
+        }
+        // HeyGen (ADR-0057): el perfil del usuario es la lectura más barata que
+        // tiene y no se cobra. El encabezado es `X-Api-Key`, no `Authorization`.
+        Provider::HeyGen => {
+            let (status, body) = probe_json(
+                "https://api.heygen.com/v3/users/me",
+                "X-Api-Key",
+                key.to_string(),
+            )
+            .await?;
+            validate_heygen_response(status, &body)
         }
     }
 }

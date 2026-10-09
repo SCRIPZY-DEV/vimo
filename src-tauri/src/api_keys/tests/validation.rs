@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::api_keys::provider::ALL_PROVIDERS;
 use reqwest::StatusCode;
 use serde_json::json;
 
@@ -101,4 +102,63 @@ fn kie_malformed_response_cannot_produce_success_feedback() {
     assert!(!result.ok);
     assert_eq!(result.code, Some("provider_error"));
     assert_eq!(result.credits, None);
+}
+
+#[test]
+fn heygen_accepts_a_profile_with_username() {
+    let body = json!({ "data": { "username": "sebas", "email": "s@x.io", "wallet": {} } });
+    assert_eq!(validate_heygen_response(StatusCode::OK, &body).unwrap(), None);
+}
+
+#[test]
+fn heygen_unauthorized_and_forbidden_reject_the_key() {
+    let body = json!({ "error": { "code": "unauthorized", "message": "Invalid API key" } });
+    for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+        assert!(matches!(
+            validate_heygen_response(status, &body),
+            Err(ApiKeyError::InvalidKey)
+        ));
+    }
+}
+
+#[test]
+fn heygen_rejects_a_success_without_profile() {
+    for body in [
+        serde_json::Value::Null,
+        json!({}),
+        json!({ "data": null }),
+        json!({ "data": {} }),
+        json!({ "data": { "username": "" } }),
+        json!({ "data": { "username": 42 } }),
+    ] {
+        assert!(
+            matches!(
+                validate_heygen_response(StatusCode::OK, &body),
+                Err(ApiKeyError::ProviderError)
+            ),
+            "a response without a profile must not validate the key: {body}"
+        );
+    }
+}
+
+#[test]
+fn heygen_other_http_errors_are_provider_failures() {
+    let body = json!({ "data": { "username": "sebas" } });
+    for status in [
+        StatusCode::TOO_MANY_REQUESTS,
+        StatusCode::BAD_GATEWAY,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    ] {
+        assert!(matches!(
+            validate_heygen_response(status, &body),
+            Err(ApiKeyError::ProviderError)
+        ));
+    }
+}
+
+#[test]
+fn heygen_round_trips_through_provider_ids() {
+    assert_eq!(Provider::HeyGen.id(), "heygen");
+    assert_eq!(Provider::from_id("heygen").unwrap(), Provider::HeyGen);
+    assert!(ALL_PROVIDERS.contains(&Provider::HeyGen));
 }
