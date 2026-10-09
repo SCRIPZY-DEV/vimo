@@ -37,6 +37,18 @@ export type ProjectBadge =
 // se listan por separado; el formato del proyecto decide en cuál cae.
 export type LibraryTab = 'long' | 'shorts'
 
+// Pistas del timeline (ADR-0056). El orden, el silencio en el visor y el
+// candado son estado de interfaz por proyecto: no viajan al archivo del
+// proyecto ni al render.
+export type TimelineTrackId = 'scenes' | 'narration' | 'music'
+export type TimelineTrackKind = 'visual' | 'audio'
+export interface TimelineLayout {
+  order: TimelineTrackId[]
+  // Solo tiene efecto en las pistas de audio.
+  muted: Record<TimelineTrackId, boolean>
+  locked: Record<TimelineTrackId, boolean>
+}
+
 // Estado del mp4 final del proyecto: decide la etiqueta del botón de render
 // y si el preview reproduce el video o lo simula.
 export type RenderedVideoState = 'none' | 'current' | 'outdated'

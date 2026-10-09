@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | A dedicated full-screen layout for the project editor                               | Accepted                  | app                           |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adapting the user's character to the style's language                               | Proposed                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | AI style creator: cloning a style from a video or from images                       | Accepted                  | pipeline / app / server       |
 | [ADR-0049](ADR-0049-catalogo-remoto-administrado.md)                                     | The catalog lives on the server and admins manage it from the app (delivery 3)      | Proposed                  | pipeline / app / server       |
@@ -96,7 +97,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 ## A note on distribution
 
-This folder — and all of `docs/` — **never ships inside the app**: Tauri bundles only
+This folder — and all of `docs/` (interno) — **never ships inside the app**: Tauri bundles only
 `dist/` (`frontendDist` in [src-tauri/tauri.conf.json](/src-tauri/tauri.conf.json)) plus
 the icons. The only way documentation ends up in the binary is by putting it in `public/`,
 which Vite copies into `dist/`. Don't.

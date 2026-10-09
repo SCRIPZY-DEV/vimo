@@ -61,9 +61,13 @@
       "temaOscuro": "Dark mode",
       "idioma": "Language"
     },
+    "editorBar": {
+      "volverBiblioteca": "Back to the library",
+      "rutaProyecto": "Project location"
+    },
     "error": {
       "titulo": "This section couldn't be opened",
-      "descripcion": "The rest of the app keeps working: pick another section from the menu on the left, or try again here.",
+      "descripcion": "The rest of the app keeps working: try again here or go back to another section.",
       "reintentar": "Try again",
       "detalleTecnico": "Technical details (dev only)"
     }
@@ -1228,6 +1232,17 @@
         "noMusic": "No music — click to add",
         "openAudio": "Open project audio",
         "openMusic": "Open project music",
+        "dragTrack": "Drag to reorder the {{track}} track",
+        "mute": "Mute {{track}} in the preview",
+        "lock": "Lock the {{track}} track",
+        "sortableRole": "sortable track",
+        "dragInstructions": "To reorder, press Space on the handle, move it with the arrow keys and drop it with Space. Escape cancels.",
+        "dragStart": "Picked up the {{track}} track.",
+        "dragOver": "The {{track}} track is over the position of {{over}}.",
+        "dragOverNone": "The {{track}} track is outside the positions.",
+        "dragEnd": "Dropped the {{track}} track at the position of {{over}}.",
+        "dragEndNone": "Dropped the {{track}} track where it was.",
+        "dragCancel": "Cancelled reordering the {{track}} track.",
         "animatingPercent": "{{percent}}%",
         "clipDuration": "{{seconds}} s",
         "retryingPercent": "Retrying · {{percent}}%"
@@ -1320,6 +1335,7 @@
         "progress": "Exporting… {{percent}}%"
       },
       "previewBadge": "Preview",
+      "previewBadgeMuted": "Simulation: a track is muted",
       "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept.",
       "missingImagesTitle_one": "1 scene is missing its image (scene {{ids}})",
       "missingImagesTitle_other": "{{count}} scenes are missing their image (scenes {{ids}})",

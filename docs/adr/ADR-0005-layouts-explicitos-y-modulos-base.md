@@ -3,6 +3,9 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-08-12
 - **Área:** app
+- **Enmendada:** 2026-10-08, por la
+  [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md) (todavía Propuesta): un tercer
+  layout, `EditorLayout`, para el editor a pantalla completa. El resto sigue vigente.
 
 ## Problema
 

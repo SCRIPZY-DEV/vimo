@@ -13,10 +13,11 @@ en carpetas temporales.
 
 ## Guards del repo
 
-| Script              | Qué verifica                                                                   | Cómo se corre        |
-| ------------------- | ------------------------------------------------------------------------------ | -------------------- |
-| `check-locales.mjs` | Los tres catálogos `public/locales/{es,en,pt}.json` declaran las mismas claves | `pnpm check:locales` |
-| `check-demo.mjs`    | Modo demo sobre un pack mínimo servido por HTTP local (ADR-0029, ADR-0030)     | `pnpm check:demo`    |
+| Script                      | Qué verifica                                                                                                                                            | Cómo se corre                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `check-locales.mjs`         | Los tres catálogos `public/locales/{es,en,pt}.json` declaran las mismas claves                                                                          | `pnpm check:locales`                          |
+| `check-demo.mjs`            | Modo demo sobre un pack mínimo servido por HTTP local (ADR-0029, ADR-0030)                                                                              | `pnpm check:demo`                             |
+| `check-timeline-layout.mjs` | El estado de interfaz del timeline por proyecto (ADR-0056): lectura tolerante del orden, el silencio y el candado; mover una pista conserva a las demás | `node scripts/test/check-timeline-layout.mjs` |
 
 ## Sidecar con HTTP simulado
 

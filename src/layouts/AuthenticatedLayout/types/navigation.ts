@@ -25,10 +25,3 @@ export type SidebarNavItem = {
    */
   requiresDemo?: boolean
 }
-
-/** Opción del selector de idioma del navbar. */
-export type LocaleOption = {
-  id: string
-  flag: string
-  name: string
-}

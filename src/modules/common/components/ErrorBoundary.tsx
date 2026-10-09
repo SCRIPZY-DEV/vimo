@@ -5,7 +5,7 @@ import type {
   ErrorBoundaryProps,
   ErrorBoundaryState,
   ErrorFallbackProps,
-} from '@/layouts/AuthenticatedLayout/types/errorBoundary'
+} from '@/modules/common/types/errorBoundary'
 import { Button } from '@/modules/common/ui/button'
 
 /**
@@ -14,7 +14,8 @@ import { Button } from '@/modules/common/ui/button'
  * Sin error boundary, cualquier excepción durante el render desmonta el árbol
  * ENTERO de React y deja la página en blanco — sin mensaje, sin salida. Va
  * envolviendo SOLO el contenido, no el layout: si una pantalla explota, el
- * sidebar sigue vivo y el usuario navega a otra sección sin recargar nada.
+ * resto del layout sigue vivo y la persona navega a otra sección (o usa la
+ * acción extra del fallback, `action`) sin recargar nada.
  */
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
@@ -53,13 +54,14 @@ export class ErrorBoundary extends Component<
     return (
       <ErrorFallback
         error={this.state.error}
+        action={this.props.action}
         onRetry={() => this.setState({ error: null })}
       />
     )
   }
 }
 
-function ErrorFallback({ error, onRetry }: ErrorFallbackProps) {
+function ErrorFallback({ error, action, onRetry }: ErrorFallbackProps) {
   const { t } = useTranslation()
 
   return (
@@ -77,14 +79,17 @@ function ErrorFallback({ error, onRetry }: ErrorFallbackProps) {
           </p>
         </div>
 
-        <Button
-          size="lg"
-          onClick={onRetry}
-          className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
-        >
-          <RotateCcw className="mr-2 h-4 w-4" />
-          {t('layout.error.reintentar')}
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button
+            size="lg"
+            onClick={onRetry}
+            className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            {t('layout.error.reintentar')}
+          </Button>
+          {action}
+        </div>
 
         {import.meta.env.DEV && (
           <details className="text-left">

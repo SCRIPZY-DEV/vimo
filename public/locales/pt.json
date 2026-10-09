@@ -61,9 +61,13 @@
       "temaOscuro": "Modo escuro",
       "idioma": "Idioma"
     },
+    "editorBar": {
+      "volverBiblioteca": "Voltar à biblioteca",
+      "rutaProyecto": "Localização do projeto"
+    },
     "error": {
       "titulo": "Esta seção não pôde ser aberta",
-      "descripcion": "O resto do app continua funcionando: escolha outra seção no menu à esquerda, ou tente de novo aqui.",
+      "descripcion": "O resto do app continua funcionando: tente de novo aqui ou volte a outra seção.",
       "reintentar": "Tentar de novo",
       "detalleTecnico": "Detalhes técnicos (somente dev)"
     }
@@ -1228,6 +1232,17 @@
         "noMusic": "Sem música — clique para adicionar",
         "openAudio": "Abrir o áudio do projeto",
         "openMusic": "Abrir a música do projeto",
+        "dragTrack": "Arraste para reordenar a faixa {{track}}",
+        "mute": "Silenciar {{track}} na pré-visualização",
+        "lock": "Bloquear a faixa {{track}}",
+        "sortableRole": "faixa ordenável",
+        "dragInstructions": "Para reordenar, pressione espaço sobre a alça, mova com as setas e solte com espaço. Escape cancela.",
+        "dragStart": "Você pegou a faixa {{track}}.",
+        "dragOver": "A faixa {{track}} está sobre a posição de {{over}}.",
+        "dragOverNone": "A faixa {{track}} está fora das posições.",
+        "dragEnd": "Você soltou a faixa {{track}} na posição de {{over}}.",
+        "dragEndNone": "Você soltou a faixa {{track}} onde estava.",
+        "dragCancel": "Você cancelou a reordenação da faixa {{track}}.",
         "animatingPercent": "{{percent}}%",
         "clipDuration": "{{seconds}} s",
         "retryingPercent": "Tentando novamente · {{percent}}%"
@@ -1320,6 +1335,7 @@
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Prévia",
+      "previewBadgeMuted": "Simulação: há uma faixa silenciada",
       "regenFailed": "Não foi possível regenerar alguma cena: o motivo está em cada cena e a imagem anterior é mantida.",
       "missingImagesTitle_one": "Falta a imagem de 1 cena (cena {{ids}})",
       "missingImagesTitle_other": "Faltam as imagens de {{count}} cenas (cenas {{ids}})",

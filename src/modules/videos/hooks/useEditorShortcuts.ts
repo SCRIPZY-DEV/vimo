@@ -18,8 +18,9 @@ interface EditorShortcuts {
 
 // Atajos del editor (paridad con el origen): Space/K play-pausa, M mute,
 // J/L ∓5s, flechas ±1 frame (Shift = ±1s), Home/End, Esc deseleccionar,
-// +/−/0 zoom. Se ignoran con el foco en un campo de texto o con
-// meta/ctrl/alt apretados (esas combinaciones son del sistema).
+// +/−/0 zoom. Se ignoran con el foco en un campo de texto, con
+// meta/ctrl/alt apretados (esas combinaciones son del sistema) o si otro
+// control ya consumió la tecla.
 export function useEditorShortcuts({
   onTogglePlay,
   onToggleMute,
@@ -33,6 +34,11 @@ export function useEditorShortcuts({
 }: EditorShortcuts) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Una tecla que otro control ya consumió no es atajo: el asa de las
+      // pistas (dnd-kit) hace preventDefault con espacio, flechas y Esc, y sin
+      // esto levantar o soltar una pista también ponía play o pausa.
+      if (event.defaultPrevented) return
+
       const target = event.target as HTMLElement | null
       if (
         target &&

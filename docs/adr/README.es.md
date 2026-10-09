@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | Layout propio del editor a pantalla completa                                      | Aceptada                   | app                           |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adaptar el personaje del usuario al lenguaje del estilo                           | Propuesta                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | Creador de estilo con IA: clonar un estilo desde un video o desde imágenes        | Aceptada                   | pipeline / app / servidor     |
 | [ADR-0049](ADR-0049-catalogo-remoto-administrado.md)                                     | El catálogo vive en el servidor y lo administra el admin desde la app (Entrega 3) | Propuesta                  | pipeline / app / servidor     |
@@ -97,7 +98,7 @@ agrega ruido.
 
 ## Nota sobre distribución
 
-Esta carpeta —y todo `docs/`— **nunca viaja dentro de la app**: Tauri empaqueta
+Esta carpeta —y todo `docs/` (interno)— **nunca viaja dentro de la app**: Tauri empaqueta
 únicamente `dist/` (`frontendDist` en [src-tauri/tauri.conf.json](/src-tauri/tauri.conf.json))
 más los iconos. La única forma de que documentación termine en el binario es ponerla en
 `public/`, que Vite copia a `dist/`. No lo hagas.

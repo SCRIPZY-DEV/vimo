@@ -1,3 +1,4 @@
+import type { LocaleOption } from '@/modules/common/types/locale'
 import type { VoiceVendorId } from '@pipeline/types/voices.ts'
 
 export const CommonRoutesPaths = {
@@ -16,6 +17,22 @@ export const TOAST_REMOVE_DELAY = 1000000
 
 // Espera antes de mostrar un tooltip: los 700 ms de Radix se sentían lentos.
 export const TOOLTIP_DELAY_MS = 300
+
+// Idiomas de la interfaz (ADR-0004). Los nombres van en su propio idioma: no
+// se traducen.
+export const LOCALES: LocaleOption[] = [
+  { id: 'es', flag: '🇪🇸', name: 'Español' },
+  { id: 'en', flag: '🇬🇧', name: 'English' },
+  { id: 'pt', flag: '🇧🇷', name: 'Português' },
+]
+
+// Huecos de la barra del editor a pantalla completa (ADR-0056): el layout los
+// deja vacíos y la vista los llena por portal (SlotPortal), así el layout no
+// importa componentes del módulo.
+export const EDITOR_BAR_SLOT_IDS = {
+  title: 'editor-bar-title',
+  actions: 'editor-bar-actions',
+} as const
 
 export const commonQueryKeys = {
   // Veredicto de acceso de vimo.click (ADR-0006): lo verifica y lo cachea

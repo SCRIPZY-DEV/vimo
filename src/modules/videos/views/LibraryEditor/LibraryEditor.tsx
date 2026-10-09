@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Navigate, useNavigate, useParams } from 'react-router'
-import { ArrowLeft, Music2, SlidersHorizontal, X } from 'lucide-react'
+import { Navigate, useNavigate, useParams } from 'react-router'
+import { Music2, SlidersHorizontal, X } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
+import { SlotPortal } from '@/modules/common/components/SlotPortal'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
+import { EDITOR_BAR_SLOT_IDS } from '@/modules/common/constants'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { useVideoCredits } from '@/modules/common/hooks/useVideoCredits'
@@ -17,6 +19,7 @@ import { clamp } from '@/modules/common/utilities/clamp'
 import { videosApi } from '@/modules/videos/api'
 import { AnimationFailureDialog } from '@/modules/videos/components/AnimationFailureDialog'
 import { AudioMixDialog } from '@/modules/videos/components/AudioMixDialog'
+import { EditorBarTitle } from '@/modules/videos/components/EditorBarTitle'
 import { EditorCreditsIssue } from '@/modules/videos/components/EditorCreditsIssue'
 import { EditorAnimationRange } from '@/modules/videos/components/EditorAnimationRange'
 import { EditorTransitionToggle } from '@/modules/videos/components/EditorTransitionToggle'
@@ -27,7 +30,6 @@ import { EditorImageGallery } from '@/modules/videos/components/EditorImageGalle
 import { EditorScenePanel } from '@/modules/videos/components/EditorScenePanel'
 import { EditorTimeline } from '@/modules/videos/components/EditorTimeline'
 import { ExportClipsButton } from '@/modules/videos/components/ExportClipsButton'
-import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
 import { MusicDialog } from '@/modules/videos/components/MusicDialog'
 import { RenderVideoButton } from '@/modules/videos/components/RenderVideoButton'
 import {
@@ -36,13 +38,13 @@ import {
   INSUFFICIENT_CREDITS_CODES,
   TIMELINE_ZOOM_LEVELS,
   UNKNOWN_CREATE_ERROR_KEY,
-  VideosRoutes,
   libraryProgressPath,
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useEditorShortcuts } from '@/modules/videos/hooks/useEditorShortcuts'
 import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
 import { useProjectAudio } from '@/modules/videos/hooks/useProjectAudio'
+import { useTimelineLayout } from '@/modules/videos/hooks/useTimelineLayout'
 import { animationPlanPreview } from '@/modules/videos/utilities/animationPlanPreview'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { renderedVideoState } from '@/modules/videos/utilities/renderedVideoState'
@@ -60,6 +62,7 @@ export function LibraryEditor() {
   const editor = useLibraryEditor(projectId)
   const { detail, isLoading, errorKey, workingScenes, selectedScene } = editor
   const audio = useProjectAudio(projectId)
+  const timelineLayout = useTimelineLayout(projectId)
   const {
     credits,
     isLoading: creditsLoading,
@@ -158,19 +161,31 @@ export function LibraryEditor() {
     })
   }
 
-  if (isLoading || (!detail && !errorKey)) return <ViewSpinner />
+  // Un solo portal de las migas, primer hijo en todos los estados: al pasar de
+  // «cargando» al editor no se remonta y la miga no parpadea.
+  const titlePortal = (
+    <SlotPortal id={EDITOR_BAR_SLOT_IDS.title}>
+      <EditorBarTitle name={detail?.metadata.name} />
+    </SlotPortal>
+  )
+
+  if (isLoading || (!detail && !errorKey)) {
+    return (
+      <>
+        {titlePortal}
+        <ViewSpinner />
+      </>
+    )
+  }
 
   if (!detail) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 px-8 py-10">
-        <ErrorMessage>{t(errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}</ErrorMessage>
-        <Button asChild variant="ghost" className="rounded-lg font-display">
-          <Link to={VideosRoutes.library}>
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            {t('library.player.backToLibrary')}
-          </Link>
-        </Button>
-      </div>
+      <>
+        {titlePortal}
+        <div className="mx-auto max-w-5xl px-8 py-10">
+          <ErrorMessage>{t(errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}</ErrorMessage>
+        </div>
+      </>
     )
   }
 
@@ -226,6 +241,25 @@ export function LibraryEditor() {
       ? videosApi.videoSource(detail.videoPath, detail.videoMtimeMs)
       : null
 
+  // Silencio por pista (ADR-0056): solo el visor. La mezcla guardada y el
+  // diálogo de Audio siguen con sus volúmenes, y el render no cambia.
+  const previewMix = {
+    ...mix,
+    voiceVolume: timelineLayout.layout.muted.narration ? 0 : mix.voiceVolume,
+    musicVolume: timelineLayout.layout.muted.music ? 0 : mix.musicVolume,
+  }
+
+  // Silenciar una pista solo tiene efecto sobre los elementos de audio de la
+  // simulación: con una pista silenciada el visor deja el mp4 y simula. Una
+  // pista sin fuente (un proyecto sin música) no suena en ningún modo, así
+  // que su silencio no cambia el modo.
+  const anyTrackMuted =
+    (timelineLayout.layout.muted.narration && narrationSrc !== null) ||
+    (timelineLayout.layout.muted.music && musicSrc !== null)
+  // El silencio fuerza la simulación solo si había un mp4 que mostrar: la
+  // insignia del visor lo dice.
+  const mutedPreview = anyTrackMuted && videoSrc !== null
+
   const generateDraft = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
@@ -236,27 +270,30 @@ export function LibraryEditor() {
   // Proyecto sin escenas (borrador): no hay nada que editar todavía.
   if (workingScenes.length === 0) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 px-8 py-10">
-        <LibraryViewHeader title={metadata.name} />
-        <div className="space-y-3 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6 text-center">
-          <p className="font-body text-sm text-muted-foreground">
-            {t('library.editor.draftHint')}
-          </p>
-          <Button
-            disabled={busy}
-            onClick={() => void generateDraft()}
-            className="rounded-xl font-display font-bold"
-          >
-            {t('library.editor.generateDraft')}
-          </Button>
+      <>
+        {titlePortal}
+        <div className="mx-auto max-w-3xl px-8 py-16">
+          <div className="space-y-3 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6 text-center">
+            <p className="font-body text-sm text-muted-foreground">
+              {t('library.editor.draftHint')}
+            </p>
+            <Button
+              disabled={busy}
+              onClick={() => void generateDraft()}
+              className="rounded-xl font-display font-bold"
+            >
+              {t('library.editor.generateDraft')}
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
   return (
-    <div className="flex flex-col gap-5 px-6 py-6 lg:h-full">
-      <LibraryViewHeader title={metadata.name}>
+    <>
+      {titlePortal}
+      <SlotPortal id={EDITOR_BAR_SLOT_IDS.actions}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -303,242 +340,249 @@ export function LibraryEditor() {
           onRender={() => void editor.editorTask.startRender(projectId)}
           onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
         />
-      </LibraryViewHeader>
+      </SlotPortal>
 
-      <MissingImagesBanner
-        sceneIds={workingScenes
-          .filter((scene) => !scene.imagePath)
-          .map((scene) => scene.id)}
-      />
+      <div className="flex flex-col gap-5 px-6 py-6 lg:h-full">
+        <MissingImagesBanner
+          sceneIds={workingScenes
+            .filter((scene) => !scene.imagePath)
+            .map((scene) => scene.id)}
+        />
 
-      {task?.errorKey && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3">
-          <p className="font-body text-sm text-destructive">
-            {t(task.errorKey)}
-          </p>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => editor.editorTask.clearError(projectId)}
-            aria-label={t('library.editor.dismissError')}
-            className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+        {task?.errorKey && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3">
+            <p className="font-body text-sm text-destructive">
+              {t(task.errorKey)}
+            </p>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => editor.editorTask.clearError(projectId)}
+              aria-label={t('library.editor.dismissError')}
+              className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
 
-      {/* El job cayó por saldo agotado (ADR-0031): qué cuenta rechazó, cuánto
+        {/* El job cayó por saldo agotado (ADR-0031): qué cuenta rechazó, cuánto
           hay y a dónde recargar. Vale para regenerar imágenes y para animar. */}
-      {task?.errorCode && INSUFFICIENT_CREDITS_CODES.has(task.errorCode) && (
-        <EditorCreditsIssue
-          code={task.errorCode}
-          imageProvider={editor.imageChoice.provider}
-          videoProvider={editor.videoProvider}
-        />
-      )}
+        {task?.errorCode && INSUFFICIENT_CREDITS_CODES.has(task.errorCode) && (
+          <EditorCreditsIssue
+            code={task.errorCode}
+            imageProvider={editor.imageChoice.provider}
+            videoProvider={editor.videoProvider}
+          />
+        )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <EditorAnimationRange
-          projectId={projectId}
-          scenes={workingScenes}
-          durationSeconds={durationSeconds}
-          videoFormat={videoFormat}
-          busy={busy}
-          locked={demoProject}
-        />
-        <EditorTransitionToggle
-          projectId={projectId}
-          scenes={workingScenes}
-          busy={busy}
-        />
-        <EditorImageGallery
-          key={projectId}
-          projectId={projectId}
-          scenes={workingScenes}
-          videoFormat={videoFormat}
-          durationSeconds={durationSeconds}
-          imageProvider={editor.imageChoice.provider}
-          locked={demoProject}
-          onRegenerateImages={editor.regenerateGalleryImages}
-          onUndoAnimation={editor.undoAnimation}
-          undoingSceneId={editor.undoingSceneId}
-        />
-      </div>
-
-      {/* Fila superior: desde lg toma toda la altura libre (≈70/30 entre visor
-          y panel); el panel scrollea por dentro si se pasa. */}
-      <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
-        <div className="min-w-0 flex-1 lg:min-h-0">
-          <EditorPreviewPlayer
+        <div className="flex flex-wrap items-center gap-3">
+          <EditorAnimationRange
+            projectId={projectId}
             scenes={workingScenes}
-            sceneVersions={task?.sceneVersions ?? {}}
-            narrationSrc={narrationSrc}
-            musicSrc={musicSrc}
-            videoSrc={videoSrc}
             durationSeconds={durationSeconds}
             videoFormat={videoFormat}
-            mix={mix}
-            cursorSeconds={cursorSeconds}
-            scrubbing={scrubbing}
-            onTimeChange={handleTimeChange}
-            playerRef={playerRef}
+            busy={busy}
+            locked={demoProject}
           />
-        </div>
-
-        <div className="lg:min-h-0 lg:w-[30%] lg:max-w-[420px] lg:shrink-0">
-          <EditorScenePanel
-            scene={selectedScene}
-            characters={options?.characters ?? []}
-            imageChoice={editor.imageChoice}
+          <EditorTransitionToggle
+            projectId={projectId}
+            scenes={workingScenes}
+            busy={busy}
+          />
+          <EditorImageGallery
+            key={projectId}
+            projectId={projectId}
+            scenes={workingScenes}
             videoFormat={videoFormat}
-            credits={credits}
-            creditsLoading={creditsLoading}
-            creditsRefreshing={creditsRefreshing}
-            onRefreshCredits={refreshCredits}
-            busy={busy || editor.savingChanges}
-            savingScenes={task?.savingScenes === true}
-            regenerateLocked={demoProject}
-            userPromptPending={editor.userPromptPending}
-            errorKey={
-              selectedScene ? task?.sceneErrors[selectedScene.id] : undefined
-            }
-            onUserPromptChange={editor.patchSelectedUserPrompt}
-            onUserPromptBlur={editor.commitSelectedUserPrompt}
-            canEditClipIn={editor.canEditClipIn}
-            canEditClipOut={editor.canEditClipOut}
-            onClipTimeChange={editor.moveSelectedClipEdge}
-            onImageChoiceChange={editor.changeImageChoice}
-            onCharactersChange={editor.changeCharacters}
-            onRegenerate={() => void editor.regenerateSelected()}
-            animation={{
-              busy:
-                editor.savingChanges ||
-                creatingHere ||
-                audio.audioBusy ||
-                missingAnimationImage ||
-                !editor.editorTask.canStartAnimation(
-                  projectId,
-                  plannedSceneIds,
-                ),
-              provider: editor.videoProvider,
-              configuredProviders: editor.configuredProviders,
-              credits: videoCredits.credits,
-              creditsLoading: videoCredits.isLoading,
-              creditsRefreshing: videoCredits.isRefreshing,
-              onRefreshCredits: videoCredits.refresh,
-              activity: selectedScene
-                ? task?.sceneAnimationStatus[selectedScene.id]
-                : undefined,
-              progress: selectedScene
-                ? task?.sceneAnimationProgress[selectedScene.id]
-                : undefined,
-              error: selectedScene
-                ? task?.sceneAnimationErrors[selectedScene.id]
-                : undefined,
-              plan: animationPlan,
-              undo:
-                editor.selectedAnimationSceneCount > 0
-                  ? {
-                      sceneCount: editor.selectedAnimationSceneCount,
-                      pending: editor.undoingSceneId !== null,
-                      disabled:
-                        busy ||
-                        editor.savingChanges ||
-                        creatingHere ||
-                        audio.audioBusy ||
-                        editor.selectedAnimationUndoPending,
-                      reason: editor.selectedAnimationUndoPending
-                        ? 'library.errors.animationUndoPending'
-                        : undefined,
-                      onUndo: () => {
-                        if (selectedScene)
-                          void editor.undoAnimation(selectedScene.id)
-                      },
-                    }
-                  : undefined,
-              onAnimate: () => {
-                void editor.editorTask.startAnimation(
-                  projectId,
-                  plannedSceneIds,
-                  'kie',
-                  true,
-                )
-              },
-            }}
+            durationSeconds={durationSeconds}
+            imageProvider={editor.imageChoice.provider}
+            locked={demoProject}
+            onRegenerateImages={editor.regenerateGalleryImages}
+            onUndoAnimation={editor.undoAnimation}
+            undoingSceneId={editor.undoingSceneId}
           />
         </div>
-      </div>
 
-      <div className="shrink-0">
-        <EditorTimeline
-          timingBusy={busy}
-          scenes={workingScenes}
-          durationSeconds={durationSeconds}
-          playheadSeconds={cursorSeconds}
-          selectedSceneId={editor.selectedSceneId}
-          sceneStatus={task?.sceneStatus ?? {}}
-          sceneErrors={task?.sceneErrors ?? {}}
-          sceneVersions={task?.sceneVersions ?? {}}
-          sceneAnimationStatus={task?.sceneAnimationStatus ?? {}}
-          sceneAnimationProgress={task?.sceneAnimationProgress ?? {}}
-          sceneAnimationErrors={task?.sceneAnimationErrors ?? {}}
-          plannedSceneIds={plannedSceneIds}
+        {/* Fila superior: desde lg toma toda la altura libre (≈70/30 entre visor
+          y panel); el panel scrollea por dentro si se pasa. */}
+        <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
+          <div className="min-w-0 flex-1 lg:min-h-0">
+            <EditorPreviewPlayer
+              scenes={workingScenes}
+              sceneVersions={task?.sceneVersions ?? {}}
+              narrationSrc={narrationSrc}
+              musicSrc={musicSrc}
+              videoSrc={mutedPreview ? null : videoSrc}
+              mutedPreview={mutedPreview}
+              durationSeconds={durationSeconds}
+              videoFormat={videoFormat}
+              mix={previewMix}
+              cursorSeconds={cursorSeconds}
+              scrubbing={scrubbing}
+              onTimeChange={handleTimeChange}
+              playerRef={playerRef}
+            />
+          </div>
+
+          <div className="lg:min-h-0 lg:w-[30%] lg:max-w-[420px] lg:shrink-0">
+            <EditorScenePanel
+              scene={selectedScene}
+              characters={options?.characters ?? []}
+              imageChoice={editor.imageChoice}
+              videoFormat={videoFormat}
+              credits={credits}
+              creditsLoading={creditsLoading}
+              creditsRefreshing={creditsRefreshing}
+              onRefreshCredits={refreshCredits}
+              busy={busy || editor.savingChanges}
+              savingScenes={task?.savingScenes === true}
+              regenerateLocked={demoProject}
+              userPromptPending={editor.userPromptPending}
+              errorKey={
+                selectedScene ? task?.sceneErrors[selectedScene.id] : undefined
+              }
+              onUserPromptChange={editor.patchSelectedUserPrompt}
+              onUserPromptBlur={editor.commitSelectedUserPrompt}
+              canEditClipIn={editor.canEditClipIn}
+              canEditClipOut={editor.canEditClipOut}
+              onClipTimeChange={editor.moveSelectedClipEdge}
+              onImageChoiceChange={editor.changeImageChoice}
+              onCharactersChange={editor.changeCharacters}
+              onRegenerate={() => void editor.regenerateSelected()}
+              animation={{
+                busy:
+                  editor.savingChanges ||
+                  creatingHere ||
+                  audio.audioBusy ||
+                  missingAnimationImage ||
+                  !editor.editorTask.canStartAnimation(
+                    projectId,
+                    plannedSceneIds,
+                  ),
+                provider: editor.videoProvider,
+                configuredProviders: editor.configuredProviders,
+                credits: videoCredits.credits,
+                creditsLoading: videoCredits.isLoading,
+                creditsRefreshing: videoCredits.isRefreshing,
+                onRefreshCredits: videoCredits.refresh,
+                activity: selectedScene
+                  ? task?.sceneAnimationStatus[selectedScene.id]
+                  : undefined,
+                progress: selectedScene
+                  ? task?.sceneAnimationProgress[selectedScene.id]
+                  : undefined,
+                error: selectedScene
+                  ? task?.sceneAnimationErrors[selectedScene.id]
+                  : undefined,
+                plan: animationPlan,
+                undo:
+                  editor.selectedAnimationSceneCount > 0
+                    ? {
+                        sceneCount: editor.selectedAnimationSceneCount,
+                        pending: editor.undoingSceneId !== null,
+                        disabled:
+                          busy ||
+                          editor.savingChanges ||
+                          creatingHere ||
+                          audio.audioBusy ||
+                          editor.selectedAnimationUndoPending,
+                        reason: editor.selectedAnimationUndoPending
+                          ? 'library.errors.animationUndoPending'
+                          : undefined,
+                        onUndo: () => {
+                          if (selectedScene)
+                            void editor.undoAnimation(selectedScene.id)
+                        },
+                      }
+                    : undefined,
+                onAnimate: () => {
+                  void editor.editorTask.startAnimation(
+                    projectId,
+                    plannedSceneIds,
+                    'kie',
+                    true,
+                  )
+                },
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <EditorTimeline
+            timingBusy={busy}
+            scenes={workingScenes}
+            durationSeconds={durationSeconds}
+            playheadSeconds={cursorSeconds}
+            selectedSceneId={editor.selectedSceneId}
+            sceneStatus={task?.sceneStatus ?? {}}
+            sceneErrors={task?.sceneErrors ?? {}}
+            sceneVersions={task?.sceneVersions ?? {}}
+            sceneAnimationStatus={task?.sceneAnimationStatus ?? {}}
+            sceneAnimationProgress={task?.sceneAnimationProgress ?? {}}
+            sceneAnimationErrors={task?.sceneAnimationErrors ?? {}}
+            plannedSceneIds={plannedSceneIds}
+            narrationSrc={narrationSrc}
+            musicSrc={musicSrc}
+            layout={timelineLayout.layout}
+            onReorderTracks={timelineLayout.reorderTracks}
+            onToggleMuted={timelineLayout.toggleMuted}
+            onToggleLocked={timelineLayout.toggleLocked}
+            zoomIndex={zoomIndex}
+            onZoomChange={setZoomIndex}
+            onSelectScene={selectSceneFromTimeline}
+            onSeek={(seconds) => playerRef.current?.seekWithPlay(seconds)}
+            onScrub={(seconds) => playerRef.current?.seekTo(seconds)}
+            onScrubStart={() => setScrubbing(true)}
+            onScrubEnd={() => setScrubbing(false)}
+            onBoundaryDrag={editor.dragBoundary}
+            onBoundaryCommit={editor.commitBoundary}
+            onOpenAudio={() => setMixOpen(true)}
+            onOpenMusic={() => setMusicOpen(true)}
+          />
+        </div>
+
+        <MusicDialog
+          open={musicOpen}
+          script={detail.script}
+          hasMusic={hasMusic}
+          busy={audio.audioBusy}
+          musicPercent={audio.musicPercent}
+          musicSrc={musicSrc}
+          musicVolume={mix.musicVolume}
+          onClose={() => setMusicOpen(false)}
+          onSetMusic={audio.setMusic}
+          onGenerate={(prompt, instrumental) =>
+            audio.generateMusic({ prompt, instrumental })
+          }
+          onSuggestPrompt={() => audio.suggestMusicPrompt(detail.script)}
+          onPickFile={audio.pickAudioFile}
+        />
+
+        <AnimationFailureDialog
+          notice={task?.animationFailure ?? null}
+          busy={busy}
+          onClose={() => editor.editorTask.dismissAnimationFailure(projectId)}
+          onRetry={editor.retryAnimation}
+        />
+
+        <AudioMixDialog
+          open={mixOpen}
+          value={mix}
+          hasMusic={hasMusic}
+          busy={audio.audioBusy}
+          narrationLocked={demoProject}
+          narrationPercent={audio.narrationPercent}
           narrationSrc={narrationSrc}
           musicSrc={musicSrc}
-          zoomIndex={zoomIndex}
-          onZoomChange={setZoomIndex}
-          onSelectScene={selectSceneFromTimeline}
-          onSeek={(seconds) => playerRef.current?.seekWithPlay(seconds)}
-          onScrub={(seconds) => playerRef.current?.seekTo(seconds)}
-          onScrubStart={() => setScrubbing(true)}
-          onScrubEnd={() => setScrubbing(false)}
-          onBoundaryDrag={editor.dragBoundary}
-          onBoundaryCommit={editor.commitBoundary}
-          onOpenAudio={() => setMixOpen(true)}
-          onOpenMusic={() => setMusicOpen(true)}
+          onClose={() => setMixOpen(false)}
+          onChange={setMix}
+          onSaveMix={audio.updateMix}
+          onReplaceNarration={audio.replaceNarration}
+          onPickFile={audio.pickAudioFile}
         />
       </div>
-
-      <MusicDialog
-        open={musicOpen}
-        script={detail.script}
-        hasMusic={hasMusic}
-        busy={audio.audioBusy}
-        musicPercent={audio.musicPercent}
-        musicSrc={musicSrc}
-        musicVolume={mix.musicVolume}
-        onClose={() => setMusicOpen(false)}
-        onSetMusic={audio.setMusic}
-        onGenerate={(prompt, instrumental) =>
-          audio.generateMusic({ prompt, instrumental })
-        }
-        onSuggestPrompt={() => audio.suggestMusicPrompt(detail.script)}
-        onPickFile={audio.pickAudioFile}
-      />
-
-      <AnimationFailureDialog
-        notice={task?.animationFailure ?? null}
-        busy={busy}
-        onClose={() => editor.editorTask.dismissAnimationFailure(projectId)}
-        onRetry={editor.retryAnimation}
-      />
-
-      <AudioMixDialog
-        open={mixOpen}
-        value={mix}
-        hasMusic={hasMusic}
-        busy={audio.audioBusy}
-        narrationLocked={demoProject}
-        narrationPercent={audio.narrationPercent}
-        narrationSrc={narrationSrc}
-        musicSrc={musicSrc}
-        onClose={() => setMixOpen(false)}
-        onChange={setMix}
-        onSaveMix={audio.updateMix}
-        onReplaceNarration={audio.replaceNarration}
-        onPickFile={audio.pickAudioFile}
-      />
-    </div>
+    </>
   )
 }

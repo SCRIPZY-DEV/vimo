@@ -7,3 +7,6 @@ src-tauri/gen
 src-tauri/Cargo.lock
 src-tauri/binaries
 src-tauri/sidecar-build
+
+# Espacio de trabajo de los planes ejecutados con subagentes (ignorado por git)
+.superpowers

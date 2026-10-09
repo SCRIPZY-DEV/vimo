@@ -1,5 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Film,
+  Mic,
+  Music2,
   RectangleHorizontal,
   RectangleVertical,
   Upload,
@@ -27,6 +30,9 @@ import type {
   LibraryTab,
   ProjectBadge,
   SceneImageChoice,
+  TimelineLayout,
+  TimelineTrackId,
+  TimelineTrackKind,
 } from './types/library'
 
 export const VideosRoutes = {
@@ -280,7 +286,40 @@ export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
 
 export const TIMELINE_RULER_HEIGHT = 32
 export const TIMELINE_TRACK_HEIGHT = 48
-export const TIMELINE_SIDEBAR_WIDTH = 112
+export const TIMELINE_SIDEBAR_WIDTH = 160
+
+// Pistas del timeline y su estado de interfaz por proyecto (ADR-0056).
+export const TIMELINE_TRACK_IDS: readonly TimelineTrackId[] = [
+  'scenes',
+  'narration',
+  'music',
+]
+export const TIMELINE_TRACK_KINDS: Record<TimelineTrackId, TimelineTrackKind> =
+  {
+    scenes: 'visual',
+    narration: 'audio',
+    music: 'audio',
+  }
+export const TIMELINE_TRACK_ICONS: Record<TimelineTrackId, LucideIcon> = {
+  scenes: Film,
+  narration: Mic,
+  music: Music2,
+}
+export const TIMELINE_TRACK_LABEL_KEYS: Record<TimelineTrackId, string> = {
+  scenes: 'library.editor.timeline.scenes',
+  narration: 'library.editor.timeline.narration',
+  music: 'library.editor.timeline.music',
+}
+export const DEFAULT_TIMELINE_LAYOUT: TimelineLayout = {
+  order: ['scenes', 'narration', 'music'],
+  muted: { scenes: false, narration: false, music: false },
+  locked: { scenes: false, narration: false, music: false },
+}
+// Una entrada por proyecto: `vimo:editor:timeline:v1:<projectId>`.
+export const TIMELINE_LAYOUT_STORAGE_KEY_PREFIX = 'vimo:editor:timeline:v1:'
+// Reordenar pistas con el puntero: px que hay que mover el asa antes de que
+// arranque el arrastre, así un clic sin movimiento no se toma como arrastre.
+export const TIMELINE_TRACK_DRAG_ACTIVATION_PX = 4
 
 // Candidatos de step mayor de la regla: el primero cuyo ancho en px sea >= 50.
 export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
@@ -289,6 +328,10 @@ export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
 // manual del usuario (scroll/drag) para no pelearle el control.
 export const AUTOSCROLL_EDGE_PX = 80
 export const AUTOSCROLL_MANUAL_PAUSE_MS = 2500
+
+// Rueda en modo «líneas» (DOM_DELTA_LINE): píxeles por línea para pasarla a
+// desplazamiento horizontal del timeline.
+export const WHEEL_LINE_PX = 16
 
 // Autoscroll por arrastre del playhead contra el borde del viewport:
 // franja sensible y velocidad lineal (px por frame de rAF).

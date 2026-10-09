@@ -1,5 +1,6 @@
 import { createHashRouter } from 'react-router'
 import { AuthenticatedLayout } from '@/layouts/AuthenticatedLayout/AuthenticatedLayout'
+import { EditorLayout } from '@/layouts/EditorLayout/EditorLayout'
 import { GuestLayout } from '@/layouts/GuestLayout/GuestLayout'
 
 import {
@@ -7,7 +8,11 @@ import {
   requireDemoAccessLoader,
 } from '@/modules/auth/guards'
 import { authRoutes, authShellRoutes } from '@/modules/auth/routes'
-import { createDemoRoute, videosRoutes } from '@/modules/videos/routes'
+import {
+  createDemoRoute,
+  libraryEditorRoute,
+  videosRoutes,
+} from '@/modules/videos/routes'
 import { musicRoutes } from '@/modules/music/routes'
 import { charactersRoutes } from '@/modules/characters/routes'
 import { voicesRoutes } from '@/modules/voices/routes'
@@ -35,6 +40,12 @@ export const router = createHashRouter([
       ...settingsRoutes,
       ...authShellRoutes,
     ],
+  },
+  {
+    // Editor a pantalla completa (ADR-0056): mismo guard, otro cascarón.
+    Component: EditorLayout,
+    loader: requireAuthLoader,
+    children: [libraryEditorRoute],
   },
   {
     Component: GuestLayout,

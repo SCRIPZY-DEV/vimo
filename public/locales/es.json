@@ -61,9 +61,13 @@
       "temaOscuro": "Modo oscuro",
       "idioma": "Idioma"
     },
+    "editorBar": {
+      "volverBiblioteca": "Volver a la biblioteca",
+      "rutaProyecto": "Ubicación del proyecto"
+    },
     "error": {
       "titulo": "Esta sección no se pudo abrir",
-      "descripcion": "El resto de la app sigue funcionando: elegí otra sección en el menú de la izquierda, o probá de nuevo acá.",
+      "descripcion": "El resto de la app sigue funcionando: probá de nuevo acá o volvé a otra sección.",
       "reintentar": "Probar de nuevo",
       "detalleTecnico": "Detalle técnico (solo en desarrollo)"
     }
@@ -1228,6 +1232,17 @@
         "noMusic": "Sin música — clic para agregar",
         "openAudio": "Abrir el audio del proyecto",
         "openMusic": "Abrir la música del proyecto",
+        "dragTrack": "Arrastrá para reordenar la pista {{track}}",
+        "mute": "Silenciar {{track}} en el visor",
+        "lock": "Bloquear la pista {{track}}",
+        "sortableRole": "pista ordenable",
+        "dragInstructions": "Para reordenar, presioná espacio sobre el asa, movela con las flechas y soltala con espacio. Escape cancela.",
+        "dragStart": "Tomaste la pista {{track}}.",
+        "dragOver": "La pista {{track}} está sobre la posición de {{over}}.",
+        "dragOverNone": "La pista {{track}} está fuera de las posiciones.",
+        "dragEnd": "Soltaste la pista {{track}} en la posición de {{over}}.",
+        "dragEndNone": "Soltaste la pista {{track}} donde estaba.",
+        "dragCancel": "Cancelaste el reordenamiento de la pista {{track}}.",
         "animatingPercent": "{{percent}}%",
         "clipDuration": "{{seconds}} s",
         "retryingPercent": "Reintentando · {{percent}}%"
@@ -1320,6 +1335,7 @@
         "progress": "Exportando… {{percent}}%"
       },
       "previewBadge": "Vista previa",
+      "previewBadgeMuted": "Simulación: hay una pista silenciada",
       "regenFailed": "No se pudo regenerar alguna escena: el motivo está en cada escena y su imagen anterior se conserva.",
       "missingImagesTitle_one": "Falta la imagen de 1 escena (escena {{ids}})",
       "missingImagesTitle_other": "Faltan las imágenes de {{count}} escenas (escenas {{ids}})",

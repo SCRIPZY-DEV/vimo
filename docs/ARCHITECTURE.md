@@ -238,6 +238,7 @@ src/
 ├── i18n/index.ts            configuración de i18next (los textos viven en public/locales/)
 ├── layouts/                 cascarones de la app
 │   ├── AuthenticatedLayout/ shell con sidebar + navbar (app con sesión)
+│   ├── EditorLayout/        pantalla completa para el editor de proyecto (ADR-0056)
 │   └── GuestLayout/         full-screen para login / acceso denegado
 ├── assets/                  imágenes, fuentes y CSS global (css/main.css)
 └── modules/
@@ -293,7 +294,7 @@ Los binarios de `binaries/` **deben llevar el sufijo del target triple** en el n
 instalador incluye únicamente los binarios de su plataforma.
 
 Del lado del bundle, Tauri empaqueta `dist/` (la clave `frontendDist`), los iconos y los
-`externalBin`. Nada de `docs/` viaja dentro de la aplicación.
+`externalBin`. Nada de `docs/` (interno) viaja dentro de la aplicación.
 
 #### Tests de Rust
 
