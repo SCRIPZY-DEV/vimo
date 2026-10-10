@@ -179,6 +179,10 @@ Los prefijos son fijos y en español (`Estilo`, `Personaje`, `Avatar`, `Voz`, `M
 (`project_name like 'Estilo:%'`) sin mezclarse con los proyectos reales. Sin nombre
 resuelto queda solo el prefijo. La música que se genera desde un proyecto manda
 `projectId` en el payload (el handler lo ignora) y cae en la primera fila de la tabla.
+Un avatar que ya está en la biblioteca (payload con `id`) se nombra siempre desde su
+`metadata.json`: en `avatar-generate-look` el `name` del payload es el del look nuevo.
+Sin `id`, el `name` del payload es el del avatar: `avatar-create-photo` lo necesita y
+`avatar-add` lo manda solo para esta fila (el handler lo ignora).
 
 ### Errores de proveedor
 

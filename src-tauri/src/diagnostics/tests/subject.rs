@@ -195,13 +195,15 @@ fn avatar_subcommands_are_their_own_family() {
     assert_eq!(create.id, None);
     assert_eq!(create.name.as_deref(), Some("Ana"));
 
-    // Agregar un look de HeyGen: el nombre viaja dentro de `look`.
+    // Agregar un avatar del stock: el nombre del listado viaja en el payload
+    // solo para esta fila (el sidecar no lo usa).
     let added = subject_from_payload(
         "avatar-add",
-        Some(&json!({ "look": { "lookId": "look-1", "name": "Bob" }, "ownership": "stock" })),
+        Some(&json!({ "groupId": "group-1", "ownership": "stock", "name": "Bob" })),
     )
     .expect("avatar subject");
     assert_eq!(added.kind, SubjectKind::Avatar);
+    assert_eq!(added.id, None);
     assert_eq!(added.name.as_deref(), Some("Bob"));
 
     let refreshed = subject_from_payload("avatar-refresh", Some(&json!({ "id": "ana-abc123" })))
@@ -241,5 +243,37 @@ fn avatar_names_are_read_from_the_library_on_disk() {
     assert_eq!(
         read_subject_metadata(root.path(), &subject(SubjectKind::Avatar, "../x")),
         None
+    );
+}
+
+#[test]
+fn a_generated_look_is_logged_under_its_avatar_name() {
+    let root = TempDir::new().unwrap();
+    let avatar_directory = root.path().join(AVATARS_SUBDIRECTORY).join("ana-abc123");
+    fs::create_dir_all(&avatar_directory).unwrap();
+    fs::write(
+        avatar_directory.join(AVATAR_METADATA_FILE),
+        r#"{ "name": "Ana", "groupId": "group-1", "looks": [] }"#,
+    )
+    .unwrap();
+
+    // «Crear escenario»: `name` es el del look nuevo, no el del avatar.
+    let generated = subject_from_payload(
+        "avatar-generate-look",
+        Some(&json!({
+            "id": "ana-abc123",
+            "prompt": "privado",
+            "aspectRatio": "auto",
+            "name": "Cocina luminosa"
+        })),
+    )
+    .expect("avatar subject");
+    assert_eq!(generated.id.as_deref(), Some("ana-abc123"));
+    assert_eq!(generated.name, None);
+
+    let name = resolve_subject_name(Some(root.path()), &generated);
+    assert_eq!(
+        subject_label(&generated, name.as_deref()).as_deref(),
+        Some("Avatar: Ana")
     );
 }

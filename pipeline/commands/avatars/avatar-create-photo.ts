@@ -1,21 +1,22 @@
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 
+import { HEYGEN_PROVIDER } from '../../providers/avatar/heygen-errors.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { AVATAR_NAME_LIMIT } from '../../types/avatar.ts'
 import type {
   AvatarCreatePhotoPayload,
   AvatarCreatePhotoResult,
-  AvatarSummary,
-  HeyGenLook,
 } from '../../types/avatar.ts'
 import { ensureDirectory } from '../../utils/atomic-fs.ts'
 import {
+  avatarStatusOf,
   avatarsRoot,
-  listAvatarEntries,
+  findAvatarByGroup,
   newAvatarId,
   readAvatarPhoto,
+  storedLookOf,
   toAvatarSummary,
   writeAvatarMetadata,
   writePreviewFile,
@@ -35,25 +36,13 @@ export function photoIdempotencyKey(name: string, bytes: Buffer): string {
   return `vimo-avatar-photo-${digest}`
 }
 
-// ¿Es esta entrada el avatar que HeyGen acaba de devolver? Con look se compara
-// por `lookId`; si HeyGen solo devolvió el grupo, por `groupId`.
-function isSameAvatar(
-  entry: AvatarSummary,
-  look: HeyGenLook | null,
-  groupId: string | undefined,
-): boolean {
-  if (look) return entry.lookId === look.lookId
-  if (!groupId) return false
-
-  return entry.groupId === groupId
-}
-
 // Crea un avatar en HeyGen desde la foto elegida (1,32 USD, diseño §12.2). Lo
 // que no cuesta y puede fallar (el payload, la foto, la clave y la carpeta
 // raíz) se comprueba ANTES de hablar con HeyGen, para no descubrirlo después
 // de pagar; la carpeta del avatar se crea DESPUÉS, así un fallo de HeyGen no
 // deja nada a medias. La foto queda como vista previa del avatar, que nace
-// «processing» hasta que `avatar-refresh` lo ve entrenado.
+// «processing» con el look que devolvió HeyGen (o sin looks, si solo devolvió
+// el grupo) hasta que `avatar-refresh` lo ve entrenado.
 export async function avatarCreatePhoto(
   context: PipelineContext,
 ): Promise<AvatarCreatePhotoResult> {
@@ -85,33 +74,50 @@ export async function avatarCreatePhoto(
 
   const look = created.look
   const groupId = created.groupId ?? look?.groupId
+  // Un avatar de la biblioteca es un grupo de HeyGen: sin su id no hay cómo
+  // seguir el entrenamiento.
+  if (!groupId)
+    throw new PipelineFailure(
+      'avatar_provider_error',
+      'HeyGen created the avatar without a group id',
+      { provider: HEYGEN_PROVIDER },
+    )
 
   // Repetir el alta manda la misma clave de idempotencia y HeyGen devuelve el
-  // mismo avatar sin cobrar otra vez: la biblioteca lo reconoce y no lo
-  // duplica, como hace `avatar-add`.
-  const existing = (await listAvatarEntries(directory)).find((entry) =>
-    isSameAvatar(entry, look, groupId),
-  )
-  if (existing) return { entry: existing }
+  // mismo avatar sin cobrar otra vez: la biblioteca lo reconoce por su grupo y
+  // no lo duplica, como hace `avatar-add`.
+  const existing = await findAvatarByGroup(directory, groupId)
+  if (existing)
+    return {
+      entry: await toAvatarSummary(
+        existing.entryDirectory,
+        existing.id,
+        existing.metadata,
+      ),
+    }
 
   const id = newAvatarId(name)
   const entryDirectory = join(directory, id)
   await ensureDirectory(entryDirectory)
   const previewFile = await writePreviewFile(entryDirectory, photo)
 
+  const now = new Date().toISOString()
+  const looks = look ? [storedLookOf(look, 'heygen', now, 'processing')] : []
+  const mainLookId = look?.lookId ?? null
+  // El grupo recién creado entrena: el avatar queda «processing» hasta que su
+  // look esté listo (o «failed» si HeyGen ya lo dio por fallido).
+  const { status, errorCode } = avatarStatusOf(looks, mainLookId, 'processing')
   const metadata: StoredAvatarMetadata = {
     name,
-    lookId: look?.lookId ?? null,
-    lookType: 'photo_avatar',
+    groupId,
     ownership: 'own',
-    supportedEngines: look?.supportedEngines ?? [],
-    status: look?.status ?? 'processing',
+    status,
+    mainLookId,
+    looks,
     previewFile,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   }
-  if (groupId) metadata.groupId = groupId
-  if (look?.preferredOrientation)
-    metadata.preferredOrientation = look.preferredOrientation
+  if (errorCode) metadata.errorCode = errorCode
   if (look?.gender) metadata.gender = look.gender
 
   await writeAvatarMetadata(entryDirectory, metadata)

@@ -6,6 +6,9 @@ import { avatarsQueryKeys } from '@/modules/avatars/constants'
 // lectura local no se arregla insistiendo. Mientras un avatar entrena, la
 // lista no se sondea acá: `useProcessingAvatarsRefresh` le pregunta a HeyGen
 // cada tanto y, al cerrar cada ronda, invalida esta consulta para releerla.
+// Es una lectura del disco por el sidecar local: no depende de la red, y con
+// el modo `online` por defecto quedaría en pausa sin conexión
+// (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online).
 export function useAvatars() {
   const native = avatarsApi.isNative()
 
@@ -18,6 +21,7 @@ export function useAvatars() {
     queryKey: avatarsQueryKeys.list,
     queryFn: () => avatarsApi.list(),
     enabled: native,
+    networkMode: 'always',
     retry: false,
   })
 

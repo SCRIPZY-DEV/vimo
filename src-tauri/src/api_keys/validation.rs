@@ -17,8 +17,10 @@ pub struct ValidationResult {
     /// Código de error para i18n (`apiKeys.errores.*`); ausente si ok.
     pub code: Option<&'static str>,
     /// Saldo leído en la misma comprobación, cuando el endpoint con el que se
-    /// valida es el de saldo (Kie.ai y PoYo). La UI lo muestra junto al
-    /// «Conectado»: ver el saldo es la prueba de que la clave sirve de verdad.
+    /// valida lo trae (Kie.ai, PoYo y HeyGen). La unidad depende del
+    /// proveedor: créditos en Kie.ai y PoYo, dólares en HeyGen (la UI lo
+    /// formatea según el `balanceUnit` del proveedor). La UI lo muestra junto
+    /// al «Conectado»: ver el saldo es la prueba de que la clave sirve de verdad.
     pub credits: Option<f64>,
 }
 
@@ -107,8 +109,15 @@ fn validate_kie_response(
 
 /// HeyGen (ADR-0057) responde 200 con el perfil (`data.username`) cuando la
 /// clave sirve y 401/403 cuando no. Un 200 sin perfil no demuestra nada. El
-/// saldo no se lee todavía: la unidad de `wallet` / `usage_based` se confirma
-/// con la sonda de la entrega 1 (diseño §17) y entra con la entrega 2.
+/// saldo sale del mismo perfil: `data.wallet.remaining_balance`, prepago en
+/// dólares (hecho verificado el 2026-10-09 con una clave real:
+/// `billing_type: "wallet"`, `wallet.currency: "usd"`, sin `subscription` ni
+/// `usage_based`). La UI rotula ese saldo en dólares, así que se asume USD por
+/// esa sonda: si `wallet.currency` viene y no es «usd» (sin distinguir
+/// mayúsculas) el saldo se descarta. Una cuenta sin billetera, con otra moneda
+/// o con un número que no sirve (texto, negativo, no finito), tiene igual una
+/// clave válida: devuelve `Ok(None)` y la UI muestra solo el «Conectado». Un
+/// cero con signo (`-0.0`) se normaliza a `0.0`.
 fn validate_heygen_response(
     status: reqwest::StatusCode,
     body: &serde_json::Value,
@@ -129,7 +138,27 @@ fn validate_heygen_response(
     if !has_profile {
         return Err(ApiKeyError::ProviderError);
     }
-    Ok(None)
+    let wallet = body.get("data").and_then(|data| data.get("wallet"));
+    // Sin `currency` se asume USD; con `currency` que no es texto o no es «usd»
+    // no se sabe en qué unidad está el número y no se muestra.
+    let is_usd = wallet
+        .and_then(|wallet| wallet.get("currency"))
+        .map_or(true, |currency| {
+            currency
+                .as_str()
+                .is_some_and(|code| code.eq_ignore_ascii_case("usd"))
+        });
+    if !is_usd {
+        return Ok(None);
+    }
+    let balance = wallet
+        .and_then(|wallet| wallet.get("remaining_balance"))
+        .and_then(|balance| balance.as_f64())
+        .filter(|balance| balance.is_finite() && *balance >= 0.0)
+        // `-0.0 >= 0.0` es verdadero: sin esto un cero con signo llegaría a la
+        // UI como «-0,00 US$».
+        .map(f64::abs);
+    Ok(balance)
 }
 
 /// Check especial de Fal: la clave DEBE ser tipo Admin (sin eso la generación
@@ -251,7 +280,8 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
                 .and_then(|credits| credits.as_f64()))
         }
         // HeyGen (ADR-0057): el perfil del usuario es la lectura más barata que
-        // tiene y no se cobra. El encabezado es `X-Api-Key`, no `Authorization`.
+        // tiene, no se cobra y trae el saldo de la billetera (en dólares). El
+        // encabezado es `X-Api-Key`, no `Authorization`.
         Provider::HeyGen => {
             let (status, body) = probe_json(
                 "https://api.heygen.com/v3/users/me",

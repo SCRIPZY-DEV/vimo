@@ -14,8 +14,11 @@ const root = await mkdtemp(join(tmpdir(), 'vimo-editor-ui-'))
 const mocks = {
   '@/modules/api-keys/hooks/useRequiredApiKeys':
     'export function useRequiredApiKeys() { return { configuredProviders: new Set(["deepinfra", "fal"]) } }',
+  // Lo que el editor usa de la cola de tareas en este flujo: el proyecto no
+  // tiene otra tarea en curso (`isProjectBusy` lo pregunta el editor en cada
+  // render, para las fronteras del timeline), y la regeneración se anota.
   '@/modules/videos/hooks/useLibraryEditorTask':
-    'export function useLibraryEditorTask() { return { task: null, enqueueRegen(projectId, entries) { window.regens.push({ projectId, entries, stored: structuredClone(window.detail.scenes) }) }, setPendingImageProvider() {} } }',
+    'export function useLibraryEditorTask() { return { task: null, isProjectBusy() { return false }, enqueueRegen(projectId, entries) { window.regens.push({ projectId, entries, stored: structuredClone(window.detail.scenes) }) }, setPendingImageProvider() {} } }',
   '@/modules/videos/api':
     'export const videosApi = { isNative: () => true, projectDetail: async () => structuredClone(window.detail), updateScenes: (projectId, changes) => new Promise((resolve, reject) => window.commits.push({ changes, reject, resolve: () => { for (const change of changes) Object.assign(window.detail.scenes.find(scene => scene.id === change.id), change); resolve({ applied: changes.length }) } })), errorMessageKey: () => "library.editor.regenFailed" }',
 }
@@ -25,6 +28,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from 'i18next'
 import { I18nextProvider } from 'react-i18next'
+import { MemoryRouter } from 'react-router'
 import es from './public/locales/es.json'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
 import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
@@ -40,13 +44,19 @@ async function waitFor(get, message) {
   throw new Error(message)
 }
 await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolation: { escapeValue: false } })
+// La animación de la escena (ADR-0047) no es lo que se prueba: sin clave de
+// Kie el panel muestra el aviso con su enlace a Claves API (de ahí el router).
+const animation = { busy: false, provider: 'kie', configuredProviders: new Set(), credits: null, creditsLoading: false, creditsRefreshing: false, onRefreshCredits() {}, activity: undefined, progress: undefined, error: undefined, plan: undefined, onAnimate() {} }
 function Editor() {
   const editor = useLibraryEditor('fixture')
   window.editor = editor
-  return <EditorScenePanel scene={editor.selectedScene} characters={editor.detail?.metadata.options.characters ?? []} imageChoice={editor.imageChoice} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={() => {}} busy={editor.savingChanges} regenerateLocked={false} userPromptPending={editor.userPromptPending} onUserPromptChange={editor.patchSelectedUserPrompt} onUserPromptBlur={editor.commitSelectedUserPrompt} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={() => {}} onImageChoiceChange={editor.changeImageChoice} onCharactersChange={editor.changeCharacters} onRegenerate={editor.regenerateSelected} />
+  return <EditorScenePanel scene={editor.selectedScene} characters={editor.detail?.metadata.options.characters ?? []} imageChoice={editor.imageChoice} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={() => {}} busy={editor.savingChanges} regenerateLocked={false} userPromptPending={editor.userPromptPending} errorKey={undefined} onUserPromptChange={editor.patchSelectedUserPrompt} onUserPromptBlur={editor.commitSelectedUserPrompt} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={() => {}} onImageChoiceChange={editor.changeImageChoice} onCharactersChange={editor.changeCharacters} onRegenerate={editor.regenerateSelected} animation={animation} />
 }
-const root = createRoot(document.getElementById('root'))
-root.render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}><I18nextProvider i18n={i18n}><TooltipProvider><Editor /></TooltipProvider></I18nextProvider></QueryClientProvider>)
+// Un error de render se reporta con su mensaje en vez de disfrazarse de
+// «panel cargado» (el árbol desmontado no tiene checkbox).
+window.renderErrors = []
+const root = createRoot(document.getElementById('root'), { onUncaughtError: (error) => window.renderErrors.push(String(error?.message ?? error)) })
+root.render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><Editor /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
 const checkbox = () => document.querySelector('input[type=checkbox]')
 const regenerate = () => [...document.querySelectorAll('button')].find(button => button.textContent.includes(i18n.t('library.editor.panel.regenerate')))
 try {
@@ -81,7 +91,8 @@ try {
   check(window.regens.length === 2, 'fallo no dispara generación')
   document.getElementById('result').textContent = 'PASS: editor selection UI (4 cases)'
 } catch (error) {
-  document.getElementById('result').textContent = 'FAIL: ' + error.message
+  const renderError = window.renderErrors.length ? ' (render error: ' + window.renderErrors.join('; ') + ')' : ''
+  document.getElementById('result').textContent = 'FAIL: ' + error.message + renderError
 }
 `
 

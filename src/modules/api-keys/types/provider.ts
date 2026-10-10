@@ -35,6 +35,11 @@ export interface ApiKeyProvider {
   descriptionKey: string
   /** Clave i18n con un requisito especial (ej. clave Admin de Fal). */
   badgeKey?: string
+  /**
+   * Unidad del saldo que devuelve la validación de la clave: 'usd' (dólares,
+   * HeyGen) o 'credits' (Kie.ai, PoYo). Ausente = créditos.
+   */
+  balanceUnit?: 'credits' | 'usd'
   /** Proveedor por defecto de su categoría: se lista en Obligatorias. */
   recommended: boolean
   /** Conservado para proyectos históricos, sin tarjeta ni enlace de compra. */

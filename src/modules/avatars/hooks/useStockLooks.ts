@@ -4,49 +4,55 @@ import {
   avatarsQueryKeys,
   STOCK_LOOKS_STALE_TIME_MS,
 } from '@/modules/avatars/constants'
-import type { StockLookTypeFilter } from '@/modules/avatars/constants'
 
 interface UseStockLooksOptions {
   ownership: 'public' | 'private'
-  lookType: StockLookTypeFilter
+  // El avatar (grupo de HeyGen) cuyos looks se listan.
+  groupId: string
   enabled: boolean
 }
 
-// Páginas de looks de HeyGen por cursor (`next_token`). Cada página es un
-// proceso del sidecar, por eso no reintenta y recuerda un rato lo leído.
+// Los looks de un avatar de HeyGen, por páginas con cursor (`next_token`).
+// Sirve al segundo nivel del diálogo de stock y a las vistas previas remotas
+// del detalle de un avatar (comparten la caché por grupo). Cada página es un
+// proceso del sidecar, por eso no reintenta y recuerda un rato lo leído. El
+// sidecar es local y responde `avatar_network` por su cuenta: con el modo
+// `online` por defecto la consulta quedaría en pausa sin conexión
+// (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online).
 export function useStockLooks({
   ownership,
-  lookType,
+  groupId,
   enabled,
 }: UseStockLooksOptions) {
-  const filter = lookType === 'all' ? undefined : lookType
   const query = useInfiniteQuery({
-    queryKey: [...avatarsQueryKeys.stockLooks, ownership, lookType],
+    queryKey: [...avatarsQueryKeys.stockLooks, ownership, groupId],
     queryFn: ({ pageParam }) =>
       avatarsApi.listStockLooks({
         ownership,
-        ...(filter ? { lookType: filter } : {}),
+        groupId,
         ...(pageParam ? { token: pageParam } : {}),
       }),
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.nextToken ?? undefined,
     enabled,
+    networkMode: 'always',
     retry: false,
     staleTime: STOCK_LOOKS_STALE_TIME_MS,
-    // Al volver a la ventana no se releen todas las páginas cargadas: cada una
-    // es un proceso del sidecar más una llamada a HeyGen.
+    // Al volver a la ventana no se releen todas las páginas cargadas: cada
+    // una es un proceso del sidecar más una llamada a HeyGen.
     refetchOnWindowFocus: false,
-    // Un filtro de tipo nuevo conserva la grilla anterior mientras llega la
-    // suya; un origen nuevo (índice 2 de la clave) no: sus tarjetas son de la
-    // otra lista y se agregarían con el origen equivocado.
-    placeholderData: (previousData, previousQuery) => {
-      if (previousQuery?.queryKey[2] !== ownership) return undefined
-
-      return previousData
-    },
   })
 
-  const looks = query.data?.pages.flatMap((page) => page.looks) ?? []
+  // Un look repetido entre páginas queda una sola vez (su id es la clave).
+  const seen = new Set<string>()
+  const looks = (query.data?.pages ?? [])
+    .flatMap((page) => page.looks)
+    .filter((look) => {
+      if (seen.has(look.lookId)) return false
+
+      seen.add(look.lookId)
+      return true
+    })
 
   return {
     looks,

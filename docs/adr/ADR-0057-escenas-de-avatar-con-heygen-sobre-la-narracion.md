@@ -124,8 +124,8 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
 ## Verificación de cumplimiento
 
 - **Guards** (`scripts/test/`): en la entrega 1, `check-heygen-client.mjs` (el cliente de HeyGen y
-  el mapeo de errores `avatar_*`) y `check-avatar-library.mjs` (los seis subcomandos de la
-  biblioteca); de la entrega 2 en adelante, `check-narration-sentences.mjs`,
+  el mapeo de errores `avatar_*`) y `check-avatar-library.mjs` (los subcomandos de la biblioteca,
+  con el modelo por grupo de la enmienda del 2026-10-09); de la entrega 2 en adelante, `check-narration-sentences.mjs`,
   `check-avatar-planner.mjs`, `check-scene-pins.mjs` y `check-avatar-blocks.mjs` (§15 del diseño).
 - **Rust:** `src-tauri/src/api_keys/tests/validation.rs` (rama `heygen`).
 - **Greps ejecutables:**
@@ -159,3 +159,39 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
 - [Diseño](../handoff/2026-10-09-avatar-heygen/design.md) ·
   [Investigación §7 HeyGen](../handoff/2026-10-07-ai-editor/library-research.md) ·
   especificación OpenAPI de HeyGen (`https://developers.heygen.com/openapi/external-api.json`).
+
+## Enmienda 2026-10-09 — la biblioteca guarda un avatar con sus looks
+
+En la QA de la entrega 1 el dueño pidió ver y guardar los avatares como en HeyGen: un avatar es un
+**grupo** con varios looks (el mismo avatar con otra ropa, otro fondo u otro encuadre). La
+biblioteca deja de guardar una entrada por look y pasa a guardar **un avatar = un grupo de HeyGen
+con sus looks**, con un **look principal**, que es el que usan los videos:
+
+- `metadata.json` guarda `groupId`, `mainLookId` y `looks[]`, cada uno con su `origin` (`heygen` si
+  venía del grupo, `vimo` si se generó desde Vimo); la vista previa de cada look vive en
+  `looks/<lookId>.<ext>` y se deriva al listar.
+- Al agregar un avatar y al elegir su principal, el look tiene que estar listo y soportar
+  `avatar_iii` (`AVATAR_DEFAULT_ENGINE`): por decisión del dueño del 2026-10-09, Vimo usa solo ese
+  motor por ahora. Un refresco conserva el principal mientras HeyGen no confirme que desapareció y, si
+  desaparece sin otro compatible, puede dejar uno listo que no lo soporta: la entrega 2 mira los
+  motores del principal, no deduce la compatibilidad de `status: 'ready'`.
+- La metadata la reescriben procesos distintos (el sondeo de 15 s, una generación, el principal): se
+  escribe con un temporal único por escritura y se relee justo antes con un cambio puro, sin E/S
+  entre la relectura y la escritura, para que ninguno pise lo que otro guardó. Las vistas previas
+  de `looks/` se escriben antes; lo que depende del cambio va después: la cara del avatar
+  (`preview.<ext>`) recién cuando el principal se confirma, y la vista previa de un look generado que
+  llega listo, después de registrarlo (lo pagado se guarda primero).
+- `avatar-add` recibe `{ groupId, ownership, mainLookId?, gender?, name? }` y guarda el grupo
+  entero (`name`, el del listado, es solo para el log de soporte de ADR-0038: el nombre guardado es
+  el que da HeyGen); `avatar-refresh` relee el grupo: suma looks, sigue los que procesan y recalcula
+  el principal.
+- La metadata de la entrega 1 (un look por entrada) se descarta al listar con un aviso en el log: no
+  hay videos que dependan de ella y el dueño vuelve a agregar sus avatares, sin costo.
+- Tres subcomandos nuevos sobre ese modelo: `avatar-set-main-look` (elegir el principal),
+  `avatar-generate-look` («Crear escenario»: un look nuevo desde un prompt con `POST /v3/avatars`
+  `type: 'prompt'`, a partir del look principal, con `Idempotency-Key`; HeyGen no publica el precio
+  por look, así que la interfaz no promete cifra y muestra el saldo) y `avatar-balance` (el saldo
+  de la billetera de la API, que nunca tumba la vista).
+
+Costo si estuviera mal: rehacer la biblioteca local. La entrega 2 (el avatar en el video) toma el
+look principal de esta forma. Detalle en el diseño, §12.2.

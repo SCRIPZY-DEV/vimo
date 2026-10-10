@@ -4,6 +4,7 @@
     "openVideo": "Reproduzir",
     "revealVideo": "Mostrar na pasta",
     "proximamente": "Em breve",
+    "cerrar": "Fechar",
     "longTextNotice": {
       "title": "Este texto é longo",
       "body": "São {{characters}} caracteres: a voz é gerada em várias partes e pode levar alguns minutos. Você pode continuar usando o app enquanto isso."
@@ -1785,6 +1786,11 @@
     "soloEscritorio": "Os avatares ficam na sua pasta de projetos: esta tela funciona no aplicativo de desktop.",
     "agregarStock": "Adicionar do estoque",
     "crearFoto": "Criar a partir de foto",
+    "saldo": {
+      "refrescar": "Atualizar saldo",
+      "noDisponible": "saldo indisponível",
+      "creditos": "{{amount}} cr."
+    },
     "vacio": {
       "titulo": "Você ainda não tem avatares",
       "texto": "Adicione um do estoque da HeyGen ou crie o seu a partir de uma foto. Você precisa da sua chave da HeyGen em Chaves API."
@@ -1805,23 +1811,94 @@
       "avatar_v": "Avatar V"
     },
     "status": {
-      "processing": "Treinando o motor do seu avatar…",
-      "processingHint": "Em alguns minutos fica pronto. Você pode continuar usando o Vimo.",
+      "processing": "O Vimo está treinando o motor do seu avatar…",
+      "processingHint": "Em alguns minutos fica pronto. Enquanto isso, você pode continuar trabalhando.",
       "failed": "Não foi possível treinar o avatar com essa foto. Tente outra, de frente e bem iluminada."
     },
     "stock": {
       "titulo": "Avatares da HeyGen",
-      "descripcion": "Escolha um e adicione à sua biblioteca. Os do estoque não custam nada; cada vídeo feito com eles é cobrado por minuto.",
+      "descripcion": "Escolha um avatar, veja os looks dele e adicione-o com o look de que mais gostar. Adicionar não custa nada; cada vídeo que você fizer com ele é cobrado por minuto.",
       "origenAria": "Origem dos avatares",
       "publicos": "Do estoque",
       "propios": "Meus avatares na HeyGen",
-      "tipoAria": "Tipo de avatar",
-      "todosLosTipos": "Todos os tipos",
+      "generoAria": "Gênero",
+      "genero": {
+        "todos": "Todos",
+        "hombres": "Homens",
+        "mujeres": "Mulheres"
+      },
       "buscar": "Buscar por nome…",
       "vacio": "Não há avatares com esse filtro.",
+      "looksCount_one": "{{count}} look",
+      "looksCount_other": "{{count}} looks",
+      "verLooks": "Ver looks",
+      "verLooksAria": "Ver looks de {{name}}",
       "agregar": "Adicionar",
-      "agregado": "Adicionado",
-      "cargarMas": "Carregar mais"
+      "agregarAria": "Adicionar {{name}}",
+      "agregado": "Na sua biblioteca",
+      "cargarMas": "Carregar mais",
+      "cargando": "Carregando avatares…",
+      "cargandoLooks": "Carregando looks…",
+      "volver": "Voltar aos avatares",
+      "elegirLook": "Escolha o look principal deste avatar.",
+      "agregarConLook": "Adicionar com “{{name}}”",
+      "yaEnBiblioteca": "Este avatar já está na sua biblioteca: escolha o look principal dele pela biblioteca.",
+      "abrirEnBiblioteca": "Abrir na sua biblioteca",
+      "vacioLooks": "Este avatar ainda não tem looks prontos.",
+      "orientacion": {
+        "portrait": "Vertical",
+        "landscape": "Horizontal",
+        "square": "Quadrado"
+      },
+      "previewAria": "Prévia de {{name}}"
+    },
+    "detalle": {
+      "origen": {
+        "stock": "Do estoque da HeyGen",
+        "own": "Criado por você"
+      },
+      "looks": "Looks deste avatar",
+      "looksHint": "Um look é o mesmo avatar com outra roupa, outro fundo ou outro enquadramento. O principal é o que o Vimo usa nos seus vídeos.",
+      "entrenando": "Os looks aparecem quando o treinamento terminar.",
+      "principal": "Look principal",
+      "usarPrincipal": "Usar como principal",
+      "usarPrincipalAria": "Usar como principal: {{name}}",
+      "lookGenerando": "Gerando…",
+      "lookFallido": "Não foi possível gerar",
+      "cerrar": "Fechar"
+    },
+    "generar": {
+      "tarjeta": "Criar cenário",
+      "tarjetaHint": "Outra pose, outro fundo ou outro formato, descrito com suas palavras.",
+      "necesitaPrincipal": "Espere o avatar ficar pronto.",
+      "soloPropios": "Os cenários são gerados sobre os seus próprios avatares.",
+      "titulo": "Criar um cenário para {{name}}",
+      "descripcion": "Descreva o cenário: a roupa, o lugar, a luz. O Vimo o gera a partir do look principal e o adiciona aos looks deste avatar.",
+      "prompt": "Descrição",
+      "promptPlaceholder": "Coloque-o numa cozinha iluminada, de avental, com luz da manhã…",
+      "contador": "{{count}}/{{max}}",
+      "variarHint": "Para outra variação, mude a descrição: repeti-la devolve o mesmo look.",
+      "formato": "Formato",
+      "ratios": {
+        "auto": "Automático",
+        "r16x9": "Horizontal 16:9",
+        "r9x16": "Vertical 9:16",
+        "r1x1": "Quadrado 1:1",
+        "r4x5": "Vertical 4:5",
+        "r5x4": "Horizontal 5:4"
+      },
+      "referencias": "Imagens de referência (opcional, até {{max}})",
+      "referencia": "Imagem de referência {{n}}",
+      "agregarReferencias": "Adicionar imagens",
+      "quitarReferencia": "Remover a imagem {{n}}",
+      "referenciasHint": "Servem para copiar uma peça de roupa, um fundo ou um estilo. JPG ou PNG de até 12 MB cada uma.",
+      "nombre": "Nome do look (opcional)",
+      "nombrePlaceholder": "Cozinha iluminada",
+      "normas": "As regras de conteúdo da HeyGen continuam valendo: nada de pessoas reconhecíveis sem permissão nem conteúdo proibido.",
+      "costoDetalle": "por look · descontado do seu saldo da HeyGen",
+      "costoDesconocido": "É descontado do seu saldo da HeyGen ao gerar; o saldo é atualizado ao terminar.",
+      "cancelar": "Cancelar",
+      "generar": "Gerar look"
     },
     "foto": {
       "titulo": "Criar um avatar a partir de uma foto",
@@ -1853,7 +1930,9 @@
     "toasts": {
       "agregado": "Avatar adicionado à sua biblioteca.",
       "creado": "Seu avatar está em treinamento. Em alguns minutos fica pronto.",
-      "eliminado": "Avatar removido da sua biblioteca."
+      "eliminado": "Avatar removido da sua biblioteca.",
+      "lookPrincipal": "Look principal atualizado.",
+      "lookGenerando": "Gerando o look. Em alguns minutos ele aparece no seu avatar."
     },
     "errors": {
       "invalidKey": "A HeyGen rejeitou sua chave. Confira em Chaves API.",
@@ -1861,14 +1940,20 @@
       "rateLimited": "A HeyGen está recebendo pedidos demais. Espere um momento e tente de novo.",
       "moderationRejected": "A HeyGen rejeitou o pedido pela política de moderação: não é permitido usar pessoas reais sem permissão nem conteúdo proibido.",
       "lookUnsupported": "Esse avatar ou motor não está disponível na sua conta da HeyGen.",
+      "noCompatibleLook": "Este avatar não tem nenhum look pronto compatível com o Vimo (Avatar III).",
+      "groupMissing": "A HeyGen não tem mais este avatar. Remova-o da sua biblioteca.",
+      "lookNotListed": "A HeyGen recebeu o pedido, mas o look novo ainda não aparece. O Vimo vai procurá-lo de novo em alguns segundos; se não aparecer, confira seu saldo antes de tentar outra descrição.",
+      "mainLookNotReady": "O avatar ainda não tem um look principal pronto. Escolha um e tente de novo.",
       "providerError": "A HeyGen respondeu algo inesperado. Tente de novo mais tarde.",
       "network": "Não foi possível falar com a HeyGen. Verifique sua conexão.",
       "photoInvalid": "Essa foto não serve: precisa ser JPG ou PNG de até 12 MB.",
+      "referenceInvalid": "Uma das imagens de referência não serve: precisa ser JPG ou PNG de até 12 MB.",
       "notFound": "Esse avatar já não está na sua biblioteca.",
       "trainingFailed": "Não foi possível treinar o avatar com essa foto.",
       "nameRequired": "Dê um nome ao avatar.",
       "photoRequired": "Escolha uma foto.",
       "consentRequired": "Confirme que você tem o direito de usar a foto para continuar.",
+      "promptRequired": "Escreva uma descrição.",
       "invalid": "O pedido não é válido.",
       "missingApiKey": "Falta sua chave da HeyGen em Chaves API.",
       "missingProjectsRoot": "Escolha uma pasta de projetos em Configurações.",
@@ -2084,6 +2169,7 @@
     "eliminada": "Chave excluída.",
     "validacionOk": "Conectado com sucesso.",
     "validacionOkSaldo": "Conectado com sucesso · saldo {{amount}} cr.",
+    "validacionOkSaldoUsd": "Conectado com sucesso · saldo {{amount}}",
     "categoria": {
       "llm": "IA de roteiros (DeepInfra)",
       "image": "imagens (Fal.ai ou Evolink)",

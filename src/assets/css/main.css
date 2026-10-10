@@ -39,6 +39,10 @@ html.theme-changing *::after {
 
     --destructive: 0 100% 70%;
     --destructive-foreground: 0 0% 100%;
+    /* Texto de error sobre el fondo (`text-destructive-text`: ErrorMessage y
+       los fallos de los avatares). En claro es el mismo `destructive`; el
+       token existe por el oscuro (ver `.dark`). */
+    --destructive-text: 0 100% 70%;
 
     --border: 0 0% 91%;
     --input: 0 0% 91%;
@@ -114,6 +118,11 @@ html.theme-changing *::after {
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
+    /* El rojo oscuro de `destructive` es para fondos (botones con texto claro
+       encima, 9,6:1) y como texto sobre el negro da 1,87:1. El texto de error
+       usa el coral de la marca: 6,6:1 sobre `background`, 6,1:1 sobre `card`
+       y 6,4:1 sobre la caja de ErrorMessage (AA pide 4,5:1). */
+    --destructive-text: 0 100% 70%;
     --border: 0 0% 17%;
     --input: 0 0% 17%;
     --ring: 43 100% 52%;

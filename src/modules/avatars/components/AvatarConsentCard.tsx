@@ -8,7 +8,8 @@ import { PHOTO_CONSENT_POINTS } from '@/modules/avatars/constants'
 interface AvatarConsentCardProps {
   checked: boolean
   disabled: boolean
-  // Se intentó crear sin marcar la casilla: el borde de la tarjeta va en rojo.
+  // Se intentó crear sin marcar la casilla: el borde de la tarjeta y el de la
+  // casilla van en el color del texto de error (legible también en oscuro).
   invalid: boolean
   onChange: (checked: boolean) => void
 }
@@ -34,7 +35,7 @@ export function AvatarConsentCard({
     <section
       className={cn(
         'overflow-hidden rounded-2xl border bg-muted/30 transition-colors',
-        invalid ? 'border-destructive' : 'border-border',
+        invalid ? 'border-destructive-text' : 'border-border',
       )}
     >
       <div className="space-y-3 p-4">
@@ -71,6 +72,7 @@ export function AvatarConsentCard({
           type="button"
           role="checkbox"
           aria-checked={checked}
+          aria-required
           aria-invalid={invalid}
           aria-labelledby={titleId}
           aria-describedby={detailId}
@@ -107,6 +109,6 @@ export function AvatarConsentCard({
 // Marcada: saffron pleno con el tilde oscuro (legible en los dos temas).
 function boxClassName(checked: boolean, invalid: boolean) {
   if (checked) return 'border-saffron bg-saffron text-charcoal'
-  if (invalid) return 'border-destructive bg-background'
+  if (invalid) return 'border-destructive-text bg-background'
   return 'border-muted-foreground/50 bg-background'
 }

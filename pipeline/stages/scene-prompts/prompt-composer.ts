@@ -60,9 +60,10 @@ export interface NarrationFragment {
 }
 
 // La narración que un redactor ilustra para una escena: la propia si la hay;
-// si la escena es muda, la ventana de vecinas, y como último recurso el inicio
-// del guion. Toda escena con tiempos lleva prompt e imagen (el render lo
-// exige), así que ninguna queda sin fragmento.
+// si la escena es muda, la narración anterior (la siguiente, solo si no hay
+// anterior: ADR-0043, los silencios sostienen el contexto previo), y como
+// último recurso el inicio del guion. Toda escena con tiempos lleva prompt e
+// imagen (el render lo exige), así que ninguna queda sin fragmento.
 export function narrationFragmentFor(
   scene: Scene,
   orderedScenes: Scene[],
@@ -102,8 +103,8 @@ export interface ScenePromptInputs {
   // propósito (regeneración manual): se dibuja LO QUE PIDE, no la narración.
   isUserRequest: boolean
   // true cuando la escena es muda y `fragment` es la narración vecina: la rama
-  // automática avisa que hay que ilustrar la pausa entre esas líneas. Sin
-  // efecto en la rama de pedido manual.
+  // automática avisa que hay que sostener el momento anterior a la pausa, sin
+  // hechos nuevos. Sin efecto en la rama de pedido manual.
   isSilentPause: boolean
   // Bloque DURO de personajes + SCENE PLAN del director, ya ensamblados
   // (vacíos cuando no aplican). Se inyectan arriba del task en ambas ramas.

@@ -68,6 +68,16 @@ export function heygenFailure(
       `HeyGen rate limit (HTTP 429): ${error.message}`,
       details,
     )
+  // Un reintento con la misma Idempotency-Key mientras el pedido original sigue
+  // en vuelo (por ejemplo, después de un timeout): HeyGen todavía lo procesa.
+  // Es «esperá y reintentá sin cambiar nada», no un pedido rechazado: cambiar
+  // el prompt pagaría otro look.
+  if (status === 409 && error.code === 'request_in_progress')
+    return new PipelineFailure(
+      'avatar_rate_limited',
+      `HeyGen is still processing the original request (HTTP 409): ${error.message}`,
+      details,
+    )
   // El `param` de look o motor se mira ANTES que la moderación: «not allowed»
   // en el mensaje de un `avatar_id` rechazado quiere decir «este tipo de avatar
   // no sirve para esto», no que HeyGen haya moderado el contenido.

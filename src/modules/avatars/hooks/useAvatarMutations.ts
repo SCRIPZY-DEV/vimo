@@ -1,38 +1,89 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { avatarsApi } from '@/modules/avatars/api'
-import { avatarsQueryKeys } from '@/modules/avatars/constants'
+import {
+  AVATAR_LOOK_NOT_LISTED_CODE,
+  avatarsQueryKeys,
+  BALANCE_RECHECK_MS,
+  GENERATE_LOOK_ERROR_MESSAGE_KEYS,
+  LOOK_NOT_LISTED_RECHECK_MS,
+} from '@/modules/avatars/constants'
 import { useToast } from '@/modules/common/hooks/useToast'
 import type {
   AvatarAddPayload,
   AvatarCreatePhotoPayload,
+  AvatarGenerateLookPayload,
+  AvatarSetMainLookPayload,
   AvatarSummary,
 } from '@pipeline/types/avatar.ts'
 
+// Todas van al sidecar local, que sin red responde `avatar_network` por su
+// cuenta: con el `networkMode` por defecto (`online`), TanStack pausaría la
+// mutación apenas el webview avisa `offline` (el diálogo queda trabado
+// esperando y, al volver la red, el pedido que cobra sale solo). Por eso
+// `networkMode: 'always'` en cada una (ERRORES-CONOCIDOS:
+// tanstack-mutacion-pausada-por-networkmode-online).
 export function useAvatarMutations() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const showError = (error: unknown) => {
+  // `overrideKeys`: textos propios de un flujo para algunos códigos (por
+  // ejemplo, las imágenes de referencia de «Crear escenario»).
+  const showError = (
+    error: unknown,
+    overrideKeys: Record<string, string> = {},
+  ) => {
+    const code = avatarsApi.errorCode(error)
+    const overrideKey = code ? overrideKeys[code] : undefined
     toast({
-      description: t(avatarsApi.errorMessageKey(error)),
+      description: t(overrideKey ?? avatarsApi.errorMessageKey(error)),
       variant: 'destructive',
     })
   }
 
-  // Devuelve la promesa para que alta y creación esperen la relectura de la
-  // lista: así `mutateAsync` resuelve con la tarjeta nueva ya en pantalla.
+  // Devuelve la promesa para que cada mutación espere la relectura de la
+  // lista: así `mutateAsync` resuelve con la tarjeta ya actualizada en
+  // pantalla.
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: avatarsQueryKeys.list })
 
+  // Tras algo que cobra, el saldo de la cabecera se relee al instante y otra
+  // vez a los BALANCE_RECHECK_MS: HeyGen puede descontar con retraso. También
+  // tras un fallo, que pudo cobrar igual (es una lectura gratis).
+  const recheckBalance = () => {
+    const refetchBalance = () =>
+      void queryClient.invalidateQueries({ queryKey: avatarsQueryKeys.balance })
+    refetchBalance()
+    // No se limpia a propósito: el diálogo que cobró ya se desmontó y esto
+    // solo marca vieja una consulta del `queryClient` global.
+    setTimeout(refetchBalance, BALANCE_RECHECK_MS)
+  }
+
+  // HeyGen aceptó (y cobró) un look pero su grupo todavía no lo mostraba
+  // (`avatar_look_not_listed`): el avatar sigue listo y sin nada en proceso,
+  // así que el sondeo no lo vuelve a mirar. A los LOOK_NOT_LISTED_RECHECK_MS
+  // se refresca ese avatar una sola vez (el refresco suma los looks nuevos
+  // del grupo) y al terminar se relee la lista. Si el refresco falla no se
+  // avisa: el aviso del pedido ya se mostró. No se limpia a propósito, como la
+  // relectura del saldo: el diálogo puede haberse cerrado.
+  const recheckUnlistedLook = (id: string) => {
+    setTimeout(() => {
+      void avatarsApi
+        .refresh(id)
+        .catch(() => null)
+        .then(() => invalidate())
+    }, LOOK_NOT_LISTED_RECHECK_MS)
+  }
+
   const addMutation = useMutation({
-    mutationFn: (payload: AvatarAddPayload) => avatarsApi.addLook(payload),
+    mutationFn: (payload: AvatarAddPayload) => avatarsApi.addAvatar(payload),
     onSuccess: async () => {
       toast({ description: t('avatars.toasts.agregado') })
       await invalidate()
     },
-    onError: showError,
+    onError: (error) => showError(error),
+    networkMode: 'always',
   })
 
   const createMutation = useMutation({
@@ -42,11 +93,41 @@ export function useAvatarMutations() {
       toast({ description: t('avatars.toasts.creado') })
       await invalidate()
     },
-    onError: showError,
+    onError: (error) => showError(error),
+    onSettled: recheckBalance,
+    networkMode: 'always',
+  })
+
+  const setMainMutation = useMutation({
+    mutationFn: (payload: AvatarSetMainLookPayload) =>
+      avatarsApi.setMainLook(payload),
+    onSuccess: async () => {
+      toast({ description: t('avatars.toasts.lookPrincipal') })
+      await invalidate()
+    },
+    onError: (error) => showError(error),
+    networkMode: 'always',
+  })
+
+  const generateMutation = useMutation({
+    mutationFn: (payload: AvatarGenerateLookPayload) =>
+      avatarsApi.generateLook(payload),
+    onSuccess: async () => {
+      toast({ description: t('avatars.toasts.lookGenerando') })
+      await invalidate()
+    },
+    onError: (error, payload) => {
+      showError(error, GENERATE_LOOK_ERROR_MESSAGE_KEYS)
+      if (avatarsApi.errorCode(error) === AVATAR_LOOK_NOT_LISTED_CODE)
+        recheckUnlistedLook(payload.id)
+    },
+    onSettled: recheckBalance,
+    networkMode: 'always',
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => avatarsApi.remove(id),
+    networkMode: 'always',
     async onMutate(id: string) {
       await queryClient.cancelQueries({ queryKey: avatarsQueryKeys.list })
       const previous = queryClient.getQueryData<AvatarSummary[]>(
@@ -71,9 +152,15 @@ export function useAvatarMutations() {
   })
 
   return {
-    addLook: addMutation.mutateAsync,
+    addAvatar: addMutation.mutateAsync,
     createFromPhoto: createMutation.mutateAsync,
+    setMainLook: setMainMutation.mutateAsync,
+    generateLook: generateMutation.mutateAsync,
     deleteAvatar: deleteMutation.mutate,
-    saving: addMutation.isPending || createMutation.isPending,
+    saving:
+      addMutation.isPending ||
+      createMutation.isPending ||
+      setMainMutation.isPending ||
+      generateMutation.isPending,
   }
 }

@@ -130,12 +130,14 @@ pub fn subject_from_payload(subcommand: &str, payload: Option<&Value>) -> Option
             string_field(payload, NAME_FIELD),
         ),
         SubjectKind::Character => (string_field(payload, "id"), string_field(payload, NAME_FIELD)),
-        // Agregar un look de HeyGen lleva el nombre dentro de `look`.
-        SubjectKind::Avatar => (
-            string_field(payload, "id"),
-            string_field(payload, NAME_FIELD)
-                .or_else(|| payload.get("look").and_then(|look| string_field(look, NAME_FIELD))),
-        ),
+        // Un avatar que ya está en la biblioteca (payload con `id`) se nombra
+        // desde su metadata: en `avatar-generate-look`, `name` es el del look
+        // nuevo, no el del avatar. Sin `id` (crear desde foto, agregar del
+        // stock) el `name` del payload es el del avatar.
+        SubjectKind::Avatar => match string_field(payload, "id") {
+            Some(id) => (Some(id), None),
+            None => (None, string_field(payload, NAME_FIELD)),
+        },
         SubjectKind::Voice => (
             string_field(payload, "voiceId"),
             string_field(payload, "voiceName")

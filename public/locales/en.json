@@ -4,6 +4,7 @@
     "openVideo": "Play",
     "revealVideo": "Show in folder",
     "proximamente": "Coming soon",
+    "cerrar": "Close",
     "longTextNotice": {
       "title": "This text is long",
       "body": "That is {{characters}} characters: the voice is generated in several parts and may take a few minutes. You can keep using the app meanwhile."
@@ -1785,6 +1786,11 @@
     "soloEscritorio": "Avatars are stored in your projects folder: this screen works in the desktop app.",
     "agregarStock": "Add from stock",
     "crearFoto": "Create from photo",
+    "saldo": {
+      "refrescar": "Refresh balance",
+      "noDisponible": "balance unavailable",
+      "creditos": "{{amount}} cr."
+    },
     "vacio": {
       "titulo": "No avatars yet",
       "texto": "Add one from HeyGen's stock or create your own from a photo. You need your HeyGen key in API Keys."
@@ -1805,23 +1811,94 @@
       "avatar_v": "Avatar V"
     },
     "status": {
-      "processing": "Training your avatar's engine…",
-      "processingHint": "It'll be ready in a few minutes. You can keep using Vimo.",
+      "processing": "Vimo is training your avatar's engine…",
+      "processingHint": "It'll be ready in a few minutes. Meanwhile, you can keep working.",
       "failed": "The avatar couldn't be trained with that photo. Try another one, facing the camera and well lit."
     },
     "stock": {
       "titulo": "HeyGen avatars",
-      "descripcion": "Pick one and add it to your library. Stock avatars are free; every video you make with them is billed per minute.",
+      "descripcion": "Pick an avatar, browse its looks and add it with the one you like best. Adding is free; every video you make with it is billed per minute.",
       "origenAria": "Avatar source",
       "publicos": "Stock",
       "propios": "My HeyGen avatars",
-      "tipoAria": "Avatar type",
-      "todosLosTipos": "All types",
+      "generoAria": "Gender",
+      "genero": {
+        "todos": "All",
+        "hombres": "Men",
+        "mujeres": "Women"
+      },
       "buscar": "Search by name…",
       "vacio": "No avatars match that filter.",
+      "looksCount_one": "{{count}} look",
+      "looksCount_other": "{{count}} looks",
+      "verLooks": "View looks",
+      "verLooksAria": "View looks for {{name}}",
       "agregar": "Add",
-      "agregado": "Added",
-      "cargarMas": "Load more"
+      "agregarAria": "Add {{name}}",
+      "agregado": "In your library",
+      "cargarMas": "Load more",
+      "cargando": "Loading avatars…",
+      "cargandoLooks": "Loading looks…",
+      "volver": "Back to avatars",
+      "elegirLook": "Choose the main look for this avatar.",
+      "agregarConLook": "Add with “{{name}}”",
+      "yaEnBiblioteca": "This avatar is already in your library: choose its main look from the library.",
+      "abrirEnBiblioteca": "Open in your library",
+      "vacioLooks": "This avatar doesn't have any ready looks yet.",
+      "orientacion": {
+        "portrait": "Portrait",
+        "landscape": "Landscape",
+        "square": "Square"
+      },
+      "previewAria": "Preview of {{name}}"
+    },
+    "detalle": {
+      "origen": {
+        "stock": "From HeyGen's stock",
+        "own": "Created by you"
+      },
+      "looks": "Looks of this avatar",
+      "looksHint": "A look is the same avatar with other clothes, another background or another framing. The main one is the one Vimo uses in your videos.",
+      "entrenando": "The looks show up when training finishes.",
+      "principal": "Main look",
+      "usarPrincipal": "Use as main",
+      "usarPrincipalAria": "Use as main: {{name}}",
+      "lookGenerando": "Generating…",
+      "lookFallido": "Couldn't be generated",
+      "cerrar": "Close"
+    },
+    "generar": {
+      "tarjeta": "Create scene",
+      "tarjetaHint": "Another pose, background or format, described in your own words.",
+      "necesitaPrincipal": "Wait until the avatar is ready.",
+      "soloPropios": "Scenes are generated on your own avatars.",
+      "titulo": "Create a scene for {{name}}",
+      "descripcion": "Describe the scene: the clothes, the place, the light. Vimo generates it from the main look and adds it to this avatar's looks.",
+      "prompt": "Description",
+      "promptPlaceholder": "Put them in a bright kitchen, wearing an apron, in morning light…",
+      "contador": "{{count}}/{{max}}",
+      "variarHint": "For another variation, change the description: repeating it returns the same look.",
+      "formato": "Format",
+      "ratios": {
+        "auto": "Automatic",
+        "r16x9": "Landscape 16:9",
+        "r9x16": "Portrait 9:16",
+        "r1x1": "Square 1:1",
+        "r4x5": "Portrait 4:5",
+        "r5x4": "Landscape 5:4"
+      },
+      "referencias": "Reference images (optional, up to {{max}})",
+      "referencia": "Reference image {{n}}",
+      "agregarReferencias": "Add images",
+      "quitarReferencia": "Remove image {{n}}",
+      "referenciasHint": "Use them to copy a garment, a background or a style. JPG or PNG up to 12 MB each.",
+      "nombre": "Look name (optional)",
+      "nombrePlaceholder": "Bright kitchen",
+      "normas": "HeyGen's content rules still apply: no recognizable people without permission and no prohibited content.",
+      "costoDetalle": "per look · deducted from your HeyGen balance",
+      "costoDesconocido": "It's deducted from your HeyGen balance when generating; the balance updates when it's done.",
+      "cancelar": "Cancel",
+      "generar": "Generate look"
     },
     "foto": {
       "titulo": "Create an avatar from a photo",
@@ -1853,7 +1930,9 @@
     "toasts": {
       "agregado": "Avatar added to your library.",
       "creado": "Your avatar is training. It'll be ready in a few minutes.",
-      "eliminado": "Avatar removed from your library."
+      "eliminado": "Avatar removed from your library.",
+      "lookPrincipal": "Main look updated.",
+      "lookGenerando": "Generating the look. It'll show up on your avatar in a few minutes."
     },
     "errors": {
       "invalidKey": "HeyGen rejected your key. Check it in API Keys.",
@@ -1861,14 +1940,20 @@
       "rateLimited": "HeyGen is getting too many requests. Wait a moment and try again.",
       "moderationRejected": "HeyGen rejected the request under its moderation policy: real people without permission and prohibited content aren't allowed.",
       "lookUnsupported": "That avatar or engine isn't available on your HeyGen account.",
+      "noCompatibleLook": "This avatar has no ready look compatible with Vimo (Avatar III).",
+      "groupMissing": "HeyGen no longer has this avatar. Remove it from your library.",
+      "lookNotListed": "HeyGen received the request, but the new look doesn't show up yet. Vimo will look for it again in a few seconds; if it doesn't appear, check your balance before trying another description.",
+      "mainLookNotReady": "The avatar doesn't have a ready main look yet. Choose one and try again.",
       "providerError": "HeyGen replied with something unexpected. Try again in a while.",
       "network": "Couldn't reach HeyGen. Check your connection.",
       "photoInvalid": "That photo won't work: it must be a JPG or PNG up to 12 MB.",
+      "referenceInvalid": "One of the reference images won't work: it must be a JPG or PNG up to 12 MB.",
       "notFound": "That avatar is no longer in your library.",
       "trainingFailed": "The avatar couldn't be trained with that photo.",
       "nameRequired": "Give the avatar a name.",
       "photoRequired": "Choose a photo.",
       "consentRequired": "Confirm you have the right to use the photo to continue.",
+      "promptRequired": "Write a description.",
       "invalid": "The request isn't valid.",
       "missingApiKey": "Your HeyGen key is missing in API Keys.",
       "missingProjectsRoot": "Choose a projects folder in Settings.",
@@ -2084,6 +2169,7 @@
     "eliminada": "Key deleted.",
     "validacionOk": "Connected successfully.",
     "validacionOkSaldo": "Connected successfully · balance {{amount}} cr.",
+    "validacionOkSaldoUsd": "Connected successfully · balance {{amount}}",
     "categoria": {
       "llm": "script AI (DeepInfra)",
       "image": "images (Fal.ai or Evolink)",

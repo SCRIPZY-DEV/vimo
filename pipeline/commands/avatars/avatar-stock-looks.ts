@@ -7,7 +7,9 @@ import type {
 import { requireHeyGenClient } from './heygen-client.ts'
 
 // Una página de looks de HeyGen: el stock público por defecto, o los propios
-// de la cuenta del usuario. El filtro de tipo se ignora si no es conocido.
+// de la cuenta del usuario. Con `groupId` solo los looks de ese avatar (el
+// grupo que devuelve `avatar-stock-groups`). El filtro de tipo se ignora si no
+// es conocido.
 export async function avatarStockLooks(
   context: PipelineContext,
 ): Promise<AvatarStockLooksResult> {
@@ -15,10 +17,14 @@ export async function avatarStockLooks(
   const client = requireHeyGenClient(context)
   const ownership = payload?.ownership === 'private' ? 'private' : 'public'
   const lookType = AVATAR_LOOK_TYPES.find((type) => type === payload?.lookType)
+  const groupId =
+    typeof payload?.groupId === 'string' && payload.groupId
+      ? payload.groupId
+      : undefined
   const token =
     typeof payload?.token === 'string' && payload.token
       ? payload.token
       : undefined
 
-  return client.listLooks({ ownership, lookType, token })
+  return client.listLooks({ ownership, lookType, groupId, token })
 }

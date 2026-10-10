@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { ImagePlus, Plus } from 'lucide-react'
@@ -10,33 +10,100 @@ import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
 import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
-import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
+import { AvatarBalanceBadge } from '@/modules/avatars/components/AvatarBalanceBadge'
 import { AvatarCard } from '@/modules/avatars/components/AvatarCard'
+import { AvatarDetailDialog } from '@/modules/avatars/components/AvatarDetailDialog'
 import { CreatePhotoAvatarDialog } from '@/modules/avatars/components/CreatePhotoAvatarDialog'
 import { StockLooksDialog } from '@/modules/avatars/components/StockLooksDialog'
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
+import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useProcessingAvatarsRefresh } from '@/modules/avatars/hooks/useProcessingAvatarsRefresh'
 
 type OpenDialog = 'stock' | 'photo' | null
 
-// Biblioteca de avatares (ADR-0057, entrega 1): los de stock de HeyGen y los
-// creados desde una foto, listos para elegir al crear un video (entrega 2).
+// Biblioteca de avatares (ADR-0057): los de stock de HeyGen y los creados
+// desde una foto, un avatar por tarjeta con sus looks, listos para elegir al
+// crear un video (entrega 2). En la cabecera, el saldo de HeyGen.
 export function AvatarLibrary() {
   const { t } = useTranslation()
   const { isNative, entries, isLoading, errorKey } = useAvatars()
   const { deleteAvatar } = useAvatarMutations()
-  const { missingKeys, ready } = useRequiredApiKeys({
-    requirements: MODULE_API_KEY_REQUIREMENTS.avatars,
-  })
+  // Hablar con HeyGen exige su clave: los botones esperan a que el llavero
+  // responda y, sin clave, al aviso.
+  const { canUseHeyGen, missingKey } = useHeyGenAccess()
   const [dialog, setDialog] = useState<OpenDialog>(null)
+  // El panel de un avatar se arma con su entrada actual de la lista: lo que
+  // cambia el sondeo se ve al instante y, si la entrada desaparece, se cierra.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const stockButtonRef = useRef<HTMLButtonElement>(null)
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  // Adónde vuelve el foco al cerrar el panel: el nombre de la tarjeta del
+  // avatar. Se busca al cerrar, porque el panel también se abre desde el stock
+  // con un avatar recién agregado. Se limpia al abrir un panel: si se cierra
+  // solo porque su entrada desapareció, el foco no salta a la tarjeta de un
+  // cierre anterior.
+  const panelReturnRef = useRef<HTMLElement | null>(null)
 
   usePageTitle(t('avatars.pageTitle'))
   useProcessingAvatarsRefresh(entries)
 
-  // Hablar con HeyGen exige su clave: los botones esperan a que el llavero
-  // responda (`ready` es falso mientras carga) y, sin clave, al aviso.
-  const canUseHeyGen = isNative && ready
+  const selectedAvatar = entries.find((entry) => entry.id === selectedId)
+  // Si la entrada desaparece (se quitó, o el sondeo ya no la trae), el panel
+  // se cierra del todo: no se vuelve a abrir solo si la entrada reaparece.
+  if (selectedId !== null && !selectedAvatar) setSelectedId(null)
+
+  const openPanel = (id: string) => {
+    panelReturnRef.current = null
+    setSelectedId(id)
+  }
+
+  // Desde el stock, directo al resultado: el diálogo se cierra y queda
+  // abierto el panel del avatar.
+  const showAvatar = (id: string) => {
+    setDialog(null)
+    openPanel(id)
+  }
+
+  // El nombre de la tarjeta de un avatar (`data-avatar-id`), el camino del
+  // teclado para abrir su panel.
+  const cardNameButton = (id: string | null) => {
+    if (!id) return null
+
+    return (
+      listRef.current?.querySelector<HTMLElement>(
+        `[data-avatar-id="${CSS.escape(id)}"]`,
+      ) ?? null
+    )
+  }
+
+  const closePanel = () => {
+    panelReturnRef.current = cardNameButton(selectedId)
+    setSelectedId(null)
+  }
+
+  // Adónde va el foco cuando la biblioteca queda vacía: «Agregar de stock»,
+  // o el título si ese botón está apagado (sin clave o fuera de la app).
+  const emptyLibraryFocus = () => {
+    if (stockButtonRef.current && !stockButtonRef.current.disabled)
+      return stockButtonRef.current
+
+    return titleRef.current
+  }
+
+  // Quitar desde el panel: la tarjeta sale de la lista, así que el foco va a
+  // la vecina (la siguiente, o la anterior si era la última) o, si la
+  // biblioteca queda vacía, a `emptyLibraryFocus`. Nunca a `<body>`.
+  const removeFromPanel = (id: string) => {
+    const index = entries.findIndex((entry) => entry.id === id)
+    const neighbour = entries[index + 1] ?? entries[index - 1]
+    panelReturnRef.current = neighbour
+      ? cardNameButton(neighbour.id)
+      : emptyLibraryFocus()
+    deleteAvatar(id)
+    setSelectedId(null)
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
@@ -48,7 +115,11 @@ export function AvatarLibrary() {
         <div className="flex items-center gap-3">
           <DoodleHappyFace size={48} delay={100} />
           <div>
-            <h1 className="font-display text-3xl font-extrabold text-foreground">
+            <h1
+              ref={titleRef}
+              tabIndex={-1}
+              className="font-display text-3xl font-extrabold text-foreground outline-none"
+            >
               {t('avatars.titulo')}
             </h1>
             <p className="font-handwritten text-lg text-muted-foreground">
@@ -56,8 +127,10 @@ export function AvatarLibrary() {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <AvatarBalanceBadge />
           <Button
+            ref={stockButtonRef}
             size="lg"
             variant="outline"
             disabled={!canUseHeyGen}
@@ -88,7 +161,7 @@ export function AvatarLibrary() {
         {t('avatars.intro')}
       </p>
 
-      {missingKeys && (
+      {missingKey && (
         <MissingApiKeysNotice
           requirements={MODULE_API_KEY_REQUIREMENTS.avatars}
         />
@@ -115,6 +188,7 @@ export function AvatarLibrary() {
 
       {entries.length > 0 && (
         <motion.ul
+          ref={listRef}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
@@ -127,6 +201,7 @@ export function AvatarLibrary() {
               <AvatarCard
                 avatar={entry}
                 disabled={!isNative}
+                onOpen={(avatar) => openPanel(avatar.id)}
                 onDelete={(avatar) => deleteAvatar(avatar.id)}
               />
             </li>
@@ -135,10 +210,22 @@ export function AvatarLibrary() {
       )}
 
       {dialog === 'stock' && (
-        <StockLooksDialog entries={entries} onClose={() => setDialog(null)} />
+        <StockLooksDialog
+          entries={entries}
+          onOpenAvatar={showAvatar}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog === 'photo' && (
         <CreatePhotoAvatarDialog onClose={() => setDialog(null)} />
+      )}
+      {selectedAvatar && (
+        <AvatarDetailDialog
+          avatar={selectedAvatar}
+          returnFocusRef={panelReturnRef}
+          onClose={closePanel}
+          onRemove={() => removeFromPanel(selectedAvatar.id)}
+        />
       )}
     </div>
   )

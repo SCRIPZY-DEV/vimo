@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Coins, ImagePlus, Loader2, Maximize2, Upload } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
@@ -14,6 +14,8 @@ import {
 } from '@/modules/common/ui/dialog'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
+import { cn } from '@/modules/common/utilities/cn'
+import { formatUsd } from '@/modules/common/utilities/formatUsd'
 import { avatarsApi } from '@/modules/avatars/api'
 import { AvatarConsentCard } from '@/modules/avatars/components/AvatarConsentCard'
 import {
@@ -40,17 +42,45 @@ export function CreatePhotoAvatarDialog({
   const [photoPath, setPhotoPath] = useState<string | null>(null)
   const [consent, setConsent] = useState(false)
   // Se intentó crear sin la confirmación: la tarjeta queda en rojo hasta que
-  // se marca (o hasta que se elige otra foto y se empieza de nuevo).
+  // se marca (cambiar de foto no la limpia: la casilla sigue sin marcar).
   const [consentMissing, setConsentMissing] = useState(false)
   const [zoomed, setZoomed] = useState(false)
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  // La vista previa que abre la foto ampliada: el foco vuelve ahí al cerrarla.
+  const zoomButtonRef = useRef<HTMLButtonElement>(null)
+  const createRef = useRef<HTMLButtonElement>(null)
+  // Guarda síncrona contra el doble envío de algo que cobra: `saving` llega
+  // al render una tarea después (TanStack avisa con setTimeout), así que dos
+  // clics en la misma tarea pasarían los dos.
+  const submittingRef = useRef(false)
+  // Tras un fallo del sidecar el foco vuelve a «Crear avatar» cuando se
+  // habilita de nuevo.
+  const refocusCreateRef = useRef(false)
+
+  // Mientras crea se apagan los controles y la X: el foco espera en la caja
+  // del diálogo, que el `FocusScope` de Radix mantiene adentro. Si quedara en
+  // un control apagado, Tab saldría a la página de atrás y Enter podría
+  // activar algo ahí con la creación cobrando. De layout: el foco se mueve en
+  // el mismo commit que apaga los controles, antes de cualquier tecla.
+  useLayoutEffect(() => {
+    if (saving) {
+      contentRef.current?.focus()
+      return
+    }
+
+    if (!refocusCreateRef.current) return
+
+    refocusCreateRef.current = false
+    createRef.current?.focus()
+  }, [saving])
 
   const preview = photoPath ? avatarsApi.imageSource(photoPath) : null
-  const price = new Intl.NumberFormat(i18n.resolvedLanguage ?? 'es', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(AVATAR_PHOTO_CREATION_USD)
+  const price = formatUsd(
+    AVATAR_PHOTO_CREATION_USD,
+    i18n.resolvedLanguage ?? 'es',
+  )
 
   const pickPhoto = async () => {
     const selected = await avatarsApi.pickPhotoFile()
@@ -59,7 +89,6 @@ export function CreatePhotoAvatarDialog({
     setPhotoPath(selected)
     // La confirmación habla de «esta foto»: con otra hay que volver a darla.
     setConsent(false)
-    setConsentMissing(false)
     setFormErrorKey(null)
   }
 
@@ -70,6 +99,8 @@ export function CreatePhotoAvatarDialog({
   }
 
   const save = async () => {
+    if (submittingRef.current) return
+
     if (!name.trim()) {
       setFormErrorKey('avatars.errors.nameRequired')
       return
@@ -87,17 +118,29 @@ export function CreatePhotoAvatarDialog({
     }
 
     setFormErrorKey(null)
-    const saved = await createFromPhoto({ name: name.trim(), photoPath }).catch(
-      () => null,
-    )
-    if (!saved) return
-    onClose()
+    submittingRef.current = true
+    try {
+      const saved = await createFromPhoto({
+        name: name.trim(),
+        photoPath,
+      }).catch(() => null)
+      if (!saved) {
+        refocusCreateRef.current = true
+        return
+      }
+
+      onClose()
+    } finally {
+      submittingRef.current = false
+    }
   }
 
   return (
     <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
       <DialogContent
-        className="max-h-[90vh] max-w-xl overflow-y-auto"
+        ref={contentRef}
+        closeDisabled={saving}
+        className="max-h-[90vh] max-w-xl overflow-y-auto outline-none"
         // Se arranca por el nombre: Radix enfocaría la caja de la foto (el
         // primer control) y su anillo parecería una selección.
         onOpenAutoFocus={(event) => {
@@ -117,9 +160,12 @@ export function CreatePhotoAvatarDialog({
         <div className="space-y-5">
           <div className="flex items-start gap-5">
             {/* Vertical y anclada arriba: siempre se ve la cara, no la mitad
-                del cuerpo. Vacía, la caja también abre el selector. */}
+                del cuerpo. Vacía, la caja es un atajo del mouse para elegir
+                la foto: el teclado y el lector de pantalla usan «Elegir foto»
+                de al lado, sin un segundo botón con el mismo nombre. */}
             {preview ? (
               <button
+                ref={zoomButtonRef}
                 type="button"
                 aria-label={t('avatars.foto.ampliar')}
                 onClick={() => setZoomed(true)}
@@ -136,15 +182,20 @@ export function CreatePhotoAvatarDialog({
                 </span>
               </button>
             ) : (
-              <button
-                type="button"
-                aria-label={t('avatars.foto.subir')}
-                disabled={saving}
-                onClick={() => void pickPhoto()}
-                className="flex aspect-[4/5] w-36 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/30 text-muted-foreground transition-colors hover:border-saffron/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+              <div
+                aria-hidden
+                onClick={() => {
+                  if (!saving) void pickPhoto()
+                }}
+                className={cn(
+                  'flex aspect-[4/5] w-36 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/30 text-muted-foreground transition-colors',
+                  saving
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'cursor-pointer hover:border-saffron/60 hover:text-foreground',
+                )}
               >
-                <ImagePlus aria-hidden className="h-7 w-7" />
-              </button>
+                <ImagePlus className="h-7 w-7" />
+              </div>
             )}
 
             <div className="min-w-0 flex-1 space-y-4">
@@ -216,6 +267,7 @@ export function CreatePhotoAvatarDialog({
             {t('avatars.foto.cancelar')}
           </Button>
           <Button
+            ref={createRef}
             disabled={saving}
             onClick={() => void save()}
             className="rounded-xl font-display font-bold"
@@ -230,6 +282,7 @@ export function CreatePhotoAvatarDialog({
             src={preview}
             alt={t('avatars.foto.fotoElegida')}
             closeLabel={t('avatars.foto.cerrarFoto')}
+            returnFocusRef={zoomButtonRef}
             onClose={() => setZoomed(false)}
           />
         )}

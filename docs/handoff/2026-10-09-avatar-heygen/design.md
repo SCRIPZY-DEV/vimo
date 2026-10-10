@@ -6,9 +6,13 @@
   «de resto me gusta el plan completo» con cuatro ajustes, incorporados acá) y aprobado el 2026-10-09
   («perfecto me suena todo»). **Entrega 1 implementada en la rama el 2026-10-09** (plan en
   `plan-e1.md` (interno); cinco tareas con revisión por tarea, revisión final y una ola de arreglos;
-  ledger, reportes y hoja de hechos en `execution/` (interno)); pendiente la QA del dueño en la app
-  de prueba `0.9.3-editor.2` (lista en «Después del plan» de plan-e1.md) y las sondas de §17 con su
-  clave. Entregas 2 y 3 sin plan todavía.
+  ledger, reportes y hoja de hechos en `execution/` (interno)); el dueño la probó en
+  `0.9.3-editor.2` y pidió ajustes (2026-10-09 18:51 y 19:10). **Entrega 1b implementada en la rama
+  el 2026-10-09/10** (plan en `plan-e1b.md` (interno): saldo de HeyGen, biblioteca por avatar con
+  sus looks y look principal, stock en dos niveles como HeyGen, «Crear escenario» por prompt,
+  diálogo de foto rediseñado; siete paquetes con revisión cada uno y una ola final de arreglos;
+  evidencia en `execution-e1b/` (interno)); la sonda 3 de §17 (saldo) quedó respondida.
+  Pendiente: QA del dueño en la app de prueba de la entrega 1b. Entregas 2 y 3 sin plan todavía.
 - **ADR:** [ADR-0057](../../adr/ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md).
 - **Relacionadas:** ADR-0013 (confirmación de escenas), ADR-0014 (edición sobre stages), ADR-0033
   (personajes con foto), ADR-0041/0042/0047 (clips animados como bloque), ADR-0046 (recuperación de
@@ -189,6 +193,15 @@ avatar?: {
 }
 ```
 
+**Motor fijo (decisión del dueño del 2026-10-09):** por ahora Vimo usa solo `avatar_iii`
+(`AVATAR_DEFAULT_ENGINE` en `pipeline/types/avatar.ts`). Al agregar un avatar y al elegir su
+principal, la biblioteca solo acepta un look listo que lo soporte (§12.2); un refresco conserva el
+principal mientras HeyGen no confirme que desapareció y, si desaparece y no queda ninguno compatible,
+puede dejar uno listo que no lo soporta. La interfaz muestra únicamente esa etiqueta, o «No compatible
+con Vimo» si falta; la entrega 2 mira `supportedEngines` del principal, nunca deduce la compatibilidad
+de `status: 'ready'`. El `engine` de estas opciones sale de esa constante mientras la decisión siga en
+pie, no de un selector.
+
 Constantes en `pipeline/types/avatar.ts` (espejadas en `src/modules/videos/constants.ts` solo donde
 la UI las necesita):
 
@@ -360,15 +373,20 @@ Separado del contrato de video de Kie (`providers/video/types.ts` no sirve: no t
 exige duración entera 4–12 y referencias de imagen). Base `https://api.heygen.com`, encabezado
 `X-Api-Key`, JSON salvo la subida.
 
-| Método                | Endpoint                               | Uso                                                   |
-| --------------------- | -------------------------------------- | ----------------------------------------------------- |
-| `me()`                | `GET /v3/users/me`                     | Validar la clave; saldo (`wallet`/`usage_based`, §17) |
-| `listLooks(filtros)`  | `GET /v3/avatars/looks`                | Stock (`ownership=public`) y propios; paginado        |
-| `uploadAsset(path)`   | `POST /v3/assets` (multipart, ≤ 32 MB) | Audio cortado, fondo, foto                            |
-| `createVideo(body)`   | `POST /v3/videos` + `Idempotency-Key`  | Un render por aparición                               |
-| `getVideo(id)`        | `GET /v3/videos/{video_id}`            | `pending/processing/completed/failed`, `video_url`    |
-| `listVideos()`        | `GET /v3/videos`                       | Recuperar un pedido ambiguo por `title`               |
-| `createPhotoAvatar()` | `POST /v3/avatars` `{ type: 'photo' }` | Biblioteca (entrega 1)                                |
+| Método                | Endpoint                                | Uso                                                    |
+| --------------------- | --------------------------------------- | ------------------------------------------------------ |
+| `me()`                | `GET /v3/users/me`                      | Validar la clave; saldo (`wallet`/`usage_based`, §17)  |
+| `listGroups(filtros)` | `GET /v3/avatars`                       | Avatares (grupos de looks); paginado                   |
+| `getGroup(id)`        | `GET /v3/avatars/{group_id}`            | Un avatar: nombre, portada, estado; 404 = no existe    |
+| `listLooks(filtros)`  | `GET /v3/avatars/looks`                 | Stock y propios; paginado; `group_id`: de un avatar    |
+| `getLook(id)`         | `GET /v3/avatars/looks/{look_id}`       | Un look que el listado del grupo no trajo              |
+| `uploadAsset(path)`   | `POST /v3/assets` (multipart, ≤ 32 MB)  | Audio cortado, fondo, foto                             |
+| `createVideo(body)`   | `POST /v3/videos` + `Idempotency-Key`   | Un render por aparición                                |
+| `getVideo(id)`        | `GET /v3/videos/{video_id}`             | `pending/processing/completed/failed`, `video_url`     |
+| `listVideos()`        | `GET /v3/videos`                        | Recuperar un pedido ambiguo por `title`                |
+| `createPhotoAvatar()` | `POST /v3/avatars` `{ type: 'photo' }`  | Biblioteca (entrega 1)                                 |
+| `createPromptLook()`  | `POST /v3/avatars` `{ type: 'prompt' }` | Un look nuevo desde un prompt (entrega 1b)             |
+| `getBalance()`        | `GET /v3/users/me`                      | Saldo de la billetera para la vista Avatares; no lanza |
 
 Cuerpo de `createVideo` (todo verificado contra la OpenAPI):
 `type: 'avatar'`, `avatar_id`, `audio_asset_id`, `engine: { type }`,
@@ -453,12 +471,17 @@ aviso de clave):
 - **Interruptor** «Avatar presentador». Apagado = nada viaja en el payload.
 - **Avatar:** selector con vista previa y nombre, tomado de la biblioteca (§12); enlace «Administrar
   avatares». Sin avatares en la biblioteca, el selector lleva a crearlos.
-- **Motor:** solo los que soporta el avatar elegido (`supportedEngines`), con su precio por minuto al
-  lado. Por defecto Avatar IV; Avatar III como opción económica; Avatar V solo si el avatar lo admite.
+- **Motor:** sin selector. Por decisión del dueño del 2026-10-09, Vimo usa solo Avatar III
+  (`AVATAR_DEFAULT_ENGINE = 'avatar_iii'`); el avatar elegido tiene que soportarlo (su look principal
+  lo trae en `supportedEngines`). Si algún día vuelven Avatar IV o V, el selector muestra solo los que
+  soporta el avatar, con su precio por minuto al lado.
 - **Apariciones:** 1–10, por defecto 3. **Segundos por aparición:** 7–60, por defecto 10.
 - **Empieza con el avatar:** casilla, por defecto activa.
-- **Total y costo:** «30 s de avatar ≈ 1,16 USD», con la fórmula `apariciones × segundos / 60 ×
-tarifa`, más una imagen de fondo por aparición en la línea de imágenes.
+- **Total y costo:** con Avatar III, «30 s de avatar ≈ 0,50 USD» para un avatar de foto o de estudio
+  (0,99 USD por minuto) y ≈ 0,30 USD para un gemelo digital (0,60 por minuto), con la fórmula
+  `apariciones × segundos / 60 × tarifa`, más una imagen de fondo por aparición en la línea de
+  imágenes. El chequeo de saldo compara en dólares solo si `avatar-balance` devuelve `currency: 'usd'`
+  (la OpenAPI admite `credits`): con otra moneda muestra el saldo sin bloquear.
 - **Aviso de moderación** (una línea): HeyGen rechaza contenido político, violento o engañoso y el uso
   de personas reales sin permiso.
 - Sin clave de HeyGen: la tarjeta avisa y enlaza a Claves API; el interruptor queda apagado.
@@ -568,49 +591,136 @@ nunca queda un avatar hablando con los labios de otra narración.
 Claves API con descripción, enlaces para crear la clave y recargar, `recommended: false`; en
 `pipeline/config/api-keys.ts`; enum y `ALL_PROVIDERS` en Rust; validación `GET /v3/users/me` (5 s)
 → 200 válida, 401 inválida, saldo si se puede leer (§17). En la entrega 1 la validación solo
-comprueba la clave (200 con `data.username`); el saldo se muestra desde la entrega 2, con la unidad
-que confirme la sonda. Tests en `src-tauri/src/api_keys/tests/validation.rs`.
+comprobaba la clave (200 con `data.username`); desde la entrega 1b (sonda 3 respondida) muestra
+además el saldo de la billetera en dólares (`data.wallet.remaining_balance`, solo si `currency` es
+`usd` o falta), y la vista Avatares lo muestra con `avatar-balance`. Tests en
+`src-tauri/src/api_keys/tests/validation.rs`.
 
 ### 12.2 Biblioteca
 
 Módulo `src/modules/avatars/` (ruta `/avatars`, entrada «Avatares» en el sidebar debajo de
 Personajes), con el patrón de la biblioteca de personajes:
 
-- **Almacenamiento:** `<projectsRoot>/avatars/<id>/{metadata.json, preview.<ext>}`; `avatars` en
-  `RESERVED_ROOT_DIRECTORIES`; ids `<slug>-<rand>` con la misma guarda de traversal. El `id` no se
-  guarda: se deriva del nombre de la carpeta, igual que la ruta absoluta del preview, así la carpeta
-  raíz puede moverse sin romper la biblioteca. `metadata.json` se escribe atómico (`avatar-refresh`
-  la reescribe mientras HeyGen entrena) y guarda `name`, `lookId`, `lookType`, `groupId?`,
-  `ownership` (`'stock' | 'own'`), `supportedEngines`, `preferredOrientation?`, `gender?`, `status`
-  (`'ready' | 'processing' | 'failed'`), `errorCode?`, `previewFile?` y `createdAt`. `lookId` es
-  `null` mientras HeyGen entrena un avatar desde foto y todavía no hay look (`avatar-refresh` lo
-  completa); `previewFile` es el nombre del archivo con su extensión real (`preview.png`,
-  `preview.jpg`), sin ruta; `errorCode` solo está si el entrenamiento terminó `failed`
-  (`avatar_training_failed`). Al listar se valida cada campo guardado: un valor fuera de rango cae a
-  `stock`, `ready` o sin motores, y un `lookType` desconocido saltea la entrada en vez de tumbar la
-  lista.
-- **Comandos** (`pipeline/commands/avatars/`): `avatars-list`,
-  `avatar-stock-looks { ownership?, lookType?, token? }` (proxy a `listLooks`, paginado),
-  `avatar-add { look, ownership }` (guarda la ficha y descarga la vista previa),
-  `avatar-create-photo { name, photoPath }` (magic bytes, solo JPEG o PNG, ≤ 12 MB leído del `stat`
-  antes de abrir el archivo, `uploadAsset` → `createPhotoAvatar` → ficha `processing`; el
+- **Almacenamiento:** `<projectsRoot>/avatars/<id>/{metadata.json, preview.<ext>, looks/}`;
+  `avatars` en `RESERVED_ROOT_DIRECTORIES`; ids `<slug>-<rand>` con la misma guarda de traversal.
+  Desde la entrega 1b (2026-10-09, enmienda de la ADR-0057) **un avatar = un grupo de HeyGen con sus
+  looks**, con un **look principal** que es el que usan los videos. `metadata.json` guarda `name`,
+  `groupId`, `ownership` (`'stock' | 'own'`), `gender?` (`'male' | 'female'`), `status`
+  (`'ready' | 'processing' | 'failed'`), `errorCode?`, `mainLookId`, `looks[]`, `previewFile?`,
+  `createdAt` y `syncedAt?`; cada look, `lookId`, `name`, `lookType`, `supportedEngines`,
+  `preferredOrientation?`, `status`, `origin` (`'heygen'`: venía del grupo; `'vimo'`: generado desde
+  Vimo con un prompt) y `createdAt`. El `id` y las rutas no se guardan: se derivan al listar, así la
+  carpeta raíz puede moverse sin romper la biblioteca. La vista previa de un look vive en
+  `looks/<lookId>.<ext>` (solo si el id es `[a-zA-Z0-9_-]`) y la del avatar es la de su look
+  principal o, sin ella, `preview.<ext>`: la foto subida mientras entrena o, en un avatar agregado,
+  una copia de la de su principal (o la portada del grupo si esa no bajó).
+  `mainLookId` es `null` mientras ningún look sirve de principal (un avatar desde foto que HeyGen
+  todavía entrena); al agregarlo o elegirlo, un principal tiene que estar listo y soportar
+  `avatar_iii`, pero un refresco puede dejar uno que no lo soporta (§3.4).
+  `errorCode` solo está si el avatar terminó `failed` (`avatar_training_failed`;
+  `avatar_no_compatible_look` si no le queda ningún look listo ni en camino; `avatar_group_missing`
+  si HeyGen ya no tiene el grupo). `metadata.json` se
+  escribe atómico, con un temporal único por escritura (`writeFileAtomic`: dos procesos que la
+  reescriben a la vez no comparten el temporal), y quien la modifica la relee justo antes de escribir
+  con un cambio puro (`updateAvatarMetadata`, sin E/S entre la relectura y el rename: las vistas
+  previas de `looks/` se escriben antes, y la cara del avatar —`preview.<ext>` en
+  `avatar-set-main-look`— y la vista previa de un look generado que llega listo, después de que la
+  metadata confirma el cambio): `avatar-refresh` corre en otro proceso mientras HeyGen entrena y no
+  pisa un look que se sumó mientras tanto. Al listar, una carpeta con la metadata ilegible deja un
+  `log warn`. Al listar se valida cada campo: un look sin id, nombre o tipo conocido (o
+  repetido) se descarta; un valor fuera de rango cae a `stock`, `ready`, `heygen` o sin motores; un
+  género que no es `male` ni `female` se descarta; un principal que no está entre los looks queda
+  en `null`; y una entrada sin `groupId` o sin `looks` se saltea en vez de tumbar la lista. La
+  metadata de la entrega 1 (un look por entrada, con `lookId` suelto) ya no se lee: el listado avisa
+  con un `log warn` y la persona vuelve a agregar ese avatar (no hay videos que dependan de ella);
+  la carpeta queda en disco.
+- **Comandos** (`pipeline/commands/avatars/`, diez): `avatars-list`,
+  `avatar-stock-groups { ownership?, token? }` (los avatares de HeyGen como grupos de looks, cada
+  uno con su `looksCount`; proxy a `listGroups`, paginado por cursor),
+  `avatar-stock-looks { ownership?, groupId?, lookType?, token? }` (proxy a `listLooks`, paginado;
+  con `groupId` solo los looks de ese avatar; el `gender` de grupos y looks sale normalizado a
+  `male` / `female` con `toAvatarGender`: HeyGen manda `male` / `female` en el stock público y
+  `Man` / `Woman` en lo propio, o nada),
+  `avatar-add { groupId, ownership, mainLookId?, gender?, name? }` (`name` solo nombra la fila del
+  log de soporte; el avatar guarda el nombre que devuelve HeyGen; un avatar ya agregado devuelve su
+  entrada sin hablar con HeyGen; si no, `getGroup` (nombre, género de los propios, portada) → todos
+  los looks del grupo, hasta 4 páginas de 50 → el principal: el pedido si está listo y soporta
+  `avatar_iii`, si no el primero que cumpla, y sin ninguno `avatar_no_compatible_look` → baja las
+  vistas previas del principal y de los dos siguientes, `AVATAR_CARD_LOOK_PREVIEWS` en total (un
+  fallo avisa y no tumba) → ficha `ready`; el `gender` del payload, que viene del listado, cubre a
+  los públicos, que `getGroup` trae sin género), `avatar-create-photo { name, photoPath }` (magic
+  bytes, solo JPEG o PNG, ≤ 12 MB leído del `stat` antes de abrir el archivo, `uploadAsset` →
+  `createPhotoAvatar` → ficha `processing` con el look que devolvió HeyGen, o sin looks si solo
+  devolvió el grupo, y la foto como vista previa; sin grupo, `avatar_provider_error`; el
   `POST /v3/assets` de HeyGen no acepta WEBP, su OpenAPI lista png, jpeg, mp4, webm, mp3, wav, pdf y
   srt, así que un WEBP se rechaza en local como `avatar_photo_invalid`, antes de hablar con HeyGen y
-  sin costo), `avatar-refresh { id }` (consulta el look por
-  `group_id` hasta `completed`/`failed`), `avatar-delete { id }` (solo local; nunca borra en HeyGen),
-  `avatars-credits` (saldo; llega con la entrega 2, todavía no existe). Todos de solo lectura salvo
-  los que escriben la carpeta.
-- **Vista `AvatarLibrary`:** cuadrícula de tarjetas (vista previa, nombre, tipo, motores); «Agregar
-  de stock» abre un diálogo con dos pestañas, los looks públicos de HeyGen y los propios de la cuenta
-  del usuario, con filtro por tipo, búsqueda por nombre entre lo cargado y «Cargar más» por cursor;
-  «Crear desde foto» abre un diálogo con nombre, foto (diálogo nativo), el precio (1,32 USD) y el
-  **aviso de moderación con casilla obligatoria**: el aviso dice «Importante: HeyGen no permite
-  clonar famosos ni personas reconocibles sin su consentimiento, y rechaza el contenido político,
-  violento o engañoso. Usá tu propia foto o la de alguien que te dio permiso», y la casilla, que hay
-  que marcar para crear, «Tengo derecho a usar esta foto y la persona me dio su permiso» (textos en
-  los tres idiomas). La foto queda como vista previa del avatar; el avatar nace `processing` y la
-  vista lo refresca contra HeyGen cada 15 s hasta `ready` o `failed`. Sin clave: aviso que lleva a
-  Claves API.
+  sin costo), `avatar-refresh { id }` (`getGroup`, y los looks del grupo; si HeyGen responde 404
+  por el grupo, el avatar queda `failed` con `avatar_group_missing` y el refresco lo devuelve sin
+  error, así el sondeo se detiene solo; con el grupo presente, los looks del
+  grupo: actualiza los conocidos y suma los nuevos como `heygen`; consulta uno por uno, hasta 6 por
+  refresco, los que no vinieron en el listado y hay que confirmar: el principal, los que procesaban
+  y los de Vimo listos sin vista previa en disco (404 = ya no existen). Un look que no vino y no se
+  pudo confirmar se queda si es de Vimo, procesaba o es el principal; uno de HeyGen listo se va. Un
+  listado vacío de un avatar con `looksCount` > 0 no se cree y no saca a nadie. Recalcula el
+  principal (si HeyGen confirmó que desapareció, el primero listo con `avatar_iii`) y el estado, y
+  baja hasta 6 vistas previas que falten: las de la tarjeta y las de los looks de Vimo que quedaron
+  listos), `avatar-set-main-look { id, lookId }` (el look tiene que ser del avatar
+  —`invalid_payload` si no—, estar listo y soportar `avatar_iii` —`avatar_no_compatible_look` si
+  no—; baja su vista previa si falta, con `getLook`, y la copia como `preview.<ext>`, la cara del
+  avatar; si HeyGen o la clave fallan, el principal cambia igual y el log avisa),
+  `avatar-generate-look { id, prompt, aspectRatio, referenceImagePaths?, name? }` («Crear
+  escenario»: un look nuevo desde un prompt de hasta `AVATAR_PROMPT_LIMIT` = 1000 caracteres, con
+  un formato de `AVATAR_ASPECT_RATIOS` (`auto`, `16:9`, `9:16`, `1:1`, `4:5`, `5:4`) y hasta
+  `AVATAR_REFERENCE_IMAGES_MAX` = 3 fotos de referencia con la misma regla que la foto del avatar.
+  Antes de pagar valida el payload (`invalid_payload`), lee cada referencia
+  (`avatar_photo_invalid`), la carpeta raíz, el avatar (`avatar_not_found`) y que su principal esté
+  listo (`avatar_main_look_not_ready`), y la clave; después sube las referencias y pide
+  `createPromptLook` con `avatar_id` = el principal, `avatar_group_id` = el grupo y la
+  `Idempotency-Key` `vimo-avatar-look-` + 32 hex del sha256 de id, look principal, prompt, formato
+  y el sha256 de cada referencia, separados por saltos de línea (con otro principal, el mismo
+  prompt pide otro look); el nombre, si falta, es `<avatar> · <n>` y no entra en la clave. El look
+  vuelve `processing` (salvo que ya venga listo: entonces se registra primero y su vista previa se
+  baja después, así una cancelación o un fallo de esa descarga no pierde el look ya pagado),
+  con `origin: 'vimo'`, y se suma primero en `looks[]`; si HeyGen acepta el pedido pero responde
+  solo con el grupo (la OpenAPI permite `avatar_item: null`), el look ya está pagado: se leen los
+  looks del grupo (gratis) y se suman los que la metadata no conoce —uno solo entra como `vimo` y es
+  el `lookId` devuelto; varios entran como `heygen`—; si todavía no aparece ninguno, es
+  `avatar_look_not_listed` y la vista vuelve a buscar los looks de ese avatar a los 20 s (gratis),
+  así un look que HeyGen lista tarde no queda invisible; siempre con un único `POST`. HeyGen
+  no publica el precio por look: `AVATAR_LOOK_GENERATION_USD = null` y la interfaz muestra el
+  saldo), `avatar-balance` (`getBalance`: el saldo de la billetera de la API, en USD; nunca falla:
+  sin clave, o ante cualquier fallo, `{ available: false, errorCode }`, con
+  `avatar_balance_unavailable` para una cuenta sin billetera legible), `avatar-delete { id }` (solo
+  local; nunca borra en HeyGen). Todos de solo lectura salvo los que escriben la carpeta.
+- **Vista `AvatarLibrary`** (rehecha en la entrega 1b tras la QA del dueño del 2026-10-09; plan
+  `plan-e1b.md` (interno)): en la cabecera, el **saldo de HeyGen** (`avatar-balance`; en dólares con
+  `formatUsd`, otra moneda como créditos; se relee al instante y a los 20 s de cada cobro, con un
+  botón para los casos especiales) y los botones «Agregar de stock» y «Crear desde foto». Cuadrícula
+  de **una tarjeta por avatar**: la cara del look principal anclada arriba (`aspect-[4/5]`) y, si
+  hay otros looks con vista previa, dos miniaturas a la derecha; chips del tipo y de **Avatar III**
+  (el único motor que Vimo usa por ahora) o «No compatible con Vimo»; el entrenamiento se muestra sin
+  nombrar al proveedor («Vimo está entrenando el motor de tu avatar…») y un fallo muestra el mensaje
+  de su código. Un clic abre el **panel del avatar**: la cara grande, el origen, sus looks con «Look
+  principal» y «Usar como principal», la tarjeta **«Crear escenario»** (solo en avatares propios:
+  descripción de hasta 1000 caracteres, formato, hasta 3 imágenes de referencia, el costo sin cifra
+  —HeyGen no la publica— con el saldo al lado y el aviso de que repetir la misma descripción
+  devuelve el mismo look) y quitar en dos pasos. «Agregar de stock» navega como HeyGen en dos
+  niveles: los avatares (grupos) con búsqueda y chips de género del lado del cliente y video de
+  vista previa al pasar el mouse, y los looks de cada uno para elegir el principal; esqueletos
+  mientras carga y un error de «Cargar más» que no borra lo ya cargado; sin filtro por tipo (los
+  grupos no tienen tipo). «Crear desde foto»: nombre, la foto JPG/PNG anclada arriba y ampliable en
+  un visor, la tarjeta de permisos con tres reglas (foto propia o con permiso; no famosos ni
+  personas reconocibles; sin contenido político, violento ni engañoso) y la casilla obligatoria
+  «Tengo derecho a usar esta foto», y el precio como badge (1,32 US$ por avatar). La vista relee cada
+  15 s los avatares o looks `processing` y solo deja de releer uno ante `avatar_not_found` o
+  `invalid_payload`; las consultas y mutaciones del módulo usan `networkMode: 'always'` (el sidecar
+  es local: sin red, el error de HeyGen llega igual en vez de quedar en pausa y dispararse solo al
+  volver). Mientras «Crear escenario» o «Crear desde foto» cobran, la X queda deshabilitada, el foco
+  se queda dentro del diálogo y una guarda síncrona impide el doble envío; tras un fallo, el foco
+  vuelve al botón que cobró («Generar look», «Crear avatar») y, al cerrar el panel, a su tarjeta,
+  con mouse o con teclado; en el stock y en la biblioteca, la vuelta al lugar de origen (la
+  tarjeta, «Ver looks», el botón de la foto) solo ocurre si la interacción fue de teclado. Sin
+  clave: aviso que lleva a Claves API.
 
 ## 13. Textos (i18n)
 
@@ -631,24 +741,28 @@ lista final la cierra el plan; `pnpm check:locales` las valida):
 
 ## 14. Errores
 
-| Código                         | Cuándo                                                        | Qué ve el usuario / qué hace Vimo                                          |
-| ------------------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `avatar_invalid_key`           | 401                                                           | Revisar la clave en Claves API                                             |
-| `avatar_insufficient_credits`  | saldo < estimado (pre-chequeo) o rechazo por saldo            | Pausa con recarga (patrón de voz/imágenes)                                 |
-| `avatar_rate_limited`          | 429                                                           | Espera y reintento automático (3 veces), luego fallo                       |
-| `avatar_look_unsupported`      | 400 por motor/look (`param: engine` o `avatar_id`)            | Elegir otro motor o avatar                                                 |
-| `avatar_moderation_rejected`   | `failure_code` de moderación                                  | Explica la política; no se cobra                                           |
-| `avatar_render_failed`         | otro `failure_code`                                           | Reintentar; no se cobra                                                    |
-| `avatar_timeout`               | plazo vencido                                                 | El recibo queda pendiente; la próxima corrida lo cosecha                   |
-| `avatar_download_failed`       | descarga inválida o URL vencida sin reemplazo                 | Reintentar (vuelve a pedir la URL)                                         |
-| `avatar_network`               | red / 5xx tras reintentos                                     | Reintentar                                                                 |
-| `avatar_incomplete`            | la fase terminó con escenas sin clip                          | Reanudar solo lo que falta                                                 |
-| `avatar_sentences_unavailable` | sin `words.json` al planificar o insertar                     | Transcribir primero                                                        |
-| `avatar_invalid_request`       | otro 4xx de HeyGen que no es de look ni de moderación         | «HeyGen respondió algo inesperado»; reintentar en un rato                  |
-| `avatar_provider_error`        | 200 con un cuerpo que no tiene la forma esperada              | Ídem: «HeyGen respondió algo inesperado»                                   |
-| `avatar_photo_invalid`         | la foto no se lee, no es JPG/PNG (WEBP no) o supera los 12 MB | El mensaje de la foto: elegir otra (se valida antes de subirla, sin costo) |
-| `avatar_not_found`             | el id del avatar ya no está en la biblioteca                  | «Ese avatar ya no está en tu biblioteca»                                   |
-| `avatar_training_failed`       | HeyGen no pudo entrenar el avatar desde la foto               | La ficha queda `failed` con «probá con otra foto»                          |
+| Código                         | Cuándo                                                        | Qué ve el usuario / qué hace Vimo                                           |
+| ------------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `avatar_invalid_key`           | 401                                                           | Revisar la clave en Claves API                                              |
+| `avatar_insufficient_credits`  | saldo < estimado (pre-chequeo) o rechazo por saldo            | Pausa con recarga (patrón de voz/imágenes)                                  |
+| `avatar_rate_limited`          | 429, o 409 `request_in_progress`                              | Espera y reintento (3 veces); el 409, sin cambiar el pedido                 |
+| `avatar_look_unsupported`      | 400 por motor/look (`param: engine` o `avatar_id`)            | Elegir otro motor o avatar                                                  |
+| `avatar_moderation_rejected`   | `failure_code` de moderación                                  | Explica la política; no se cobra                                            |
+| `avatar_render_failed`         | otro `failure_code`                                           | Reintentar; no se cobra                                                     |
+| `avatar_timeout`               | plazo vencido                                                 | El recibo queda pendiente; la próxima corrida lo cosecha                    |
+| `avatar_download_failed`       | descarga inválida o URL vencida sin reemplazo                 | Reintentar (vuelve a pedir la URL)                                          |
+| `avatar_network`               | red / 5xx tras reintentos                                     | Reintentar                                                                  |
+| `avatar_incomplete`            | la fase terminó con escenas sin clip                          | Reanudar solo lo que falta                                                  |
+| `avatar_sentences_unavailable` | sin `words.json` al planificar o insertar                     | Transcribir primero                                                         |
+| `avatar_invalid_request`       | otro 4xx de HeyGen que no es de look ni de moderación         | «HeyGen respondió algo inesperado»; reintentar en un rato                   |
+| `avatar_provider_error`        | 200 con un cuerpo que no tiene la forma esperada              | Ídem: «HeyGen respondió algo inesperado»                                    |
+| `avatar_photo_invalid`         | la foto no se lee, no es JPG/PNG (WEBP no) o supera los 12 MB | El mensaje de la foto: elegir otra (se valida antes de subirla, sin costo)  |
+| `avatar_not_found`             | el id del avatar ya no está en la biblioteca                  | «Ese avatar ya no está en tu biblioteca»                                    |
+| `avatar_training_failed`       | HeyGen no pudo entrenar el avatar desde la foto               | La ficha queda `failed` con «probá con otra foto»                           |
+| `avatar_main_look_not_ready`   | «Crear escenario» sobre un avatar sin look principal listo    | «El avatar todavía no tiene un look principal listo»; sin hablar con HeyGen |
+| `avatar_no_compatible_look`    | el avatar no tiene ningún look listo con Avatar III           | «Este avatar no tiene ningún look listo compatible con Vimo (Avatar III)»   |
+| `avatar_group_missing`         | HeyGen responde 404 por el grupo del avatar al refrescar      | La ficha queda `failed`: «HeyGen ya no tiene este avatar. Quitalo…»         |
+| `avatar_look_not_listed`       | look por prompt aceptado sin `avatar_item` y aún sin listar   | «HeyGen recibió el pedido…»; la vista lo vuelve a buscar a los 20 s         |
 
 Mapeo en `pipeline/providers/avatar/heygen-errors.ts` (puro, testeable). El orden importa: el saldo
 se mira antes que el status, el `param` de look (`avatar_id`, `engine`, `avatar_group_id`) antes que
@@ -674,7 +788,9 @@ pipeline (entrega 2) irán en `library.errors.*`, con el mismo patrón que `anim
   `coveredIntervals` hacia Kie.
 - `check-heygen-client.mjs` (entrega 1, existe): cliente de HeyGen, mapeo de HTTP y cuerpo a `avatar_*`,
   reintento ante 429, subida multipart, idempotencia y la biblioteca en disco; `check-avatar-library.mjs`
-  (entrega 1, existe): los seis subcomandos con HeyGen simulado. El mapeo de `failure_code` de los
+  (entrega 1, existe): los diez subcomandos de la biblioteca con HeyGen simulado (desde la entrega
+  1b, con el alta por grupo, el refresco de sus looks, el look principal, el look desde un prompt y
+  el saldo). El mapeo de `failure_code` de los
   videos se suma en la entrega 2.
 
 **Rust:** `src-tauri/src/api_keys/tests/validation.rs` para la rama de HeyGen.
@@ -697,6 +813,20 @@ igual; (3) «Avatar aquí», estirar con las asas con ajuste a frases, regenerar
 3. **Avatar desde el editor**: §11 (panel, «Avatar aquí», asas con ajuste a frases, regenerar,
    quitar, `placement: 'manual'`).
 
+La entrega 1b (ajustes de la QA del dueño a la entrega 1) va entre la 1 y la 2. Su revisión final
+dejó cuatro cuidados para el plan de la entrega 2, que se apoya en la biblioteca por avatar tal cual:
+
+- El look de un video es `looks.find((look) => look.lookId === mainLookId)` y su compatibilidad se
+  mira en `supportedEngines.includes(AVATAR_DEFAULT_ENGINE)`, nunca solo en `status: 'ready'` (un
+  refresco puede dejar un principal listo sin Avatar III).
+- Sin selector de motor mientras siga la decisión del dueño (§9), y el costo con la tarifa de
+  `avatar_iii`.
+- `avatar-balance` puede devolver una `currency` distinta de `usd`: el chequeo de saldo de la fase
+  `avatar` no compara créditos contra un estimado en dólares.
+- `options.avatar` (§3.4) suma el `id` del avatar de la biblioteca (para validar y copiar su vista
+  previa sin recorrer todos los avatares), y la copia en el proyecto conserva la extensión real de la
+  vista previa (puede ser PNG o WEBP, no solo `look.jpg`, §3.2).
+
 Cada entrega tiene su plan, su ejecución con subagentes y su QA del dueño; el push y el PR siguen
 pidiendo su aprobación cada vez.
 
@@ -709,8 +839,11 @@ cuarta, hasta 1,32 USD):
 1. **Avatar de foto + fondo de imagen:** confirmar que HeyGen reemplaza el fondo de la foto por el
    nuestro (si no, `remove_background` o fondo de color como respaldo).
 2. **Encuadre en 16:9:** `fit: 'contain'` contra omitirlo, con un look vertical.
-3. **Saldo:** qué traen `wallet` y `usage_based` en `GET /v3/users/me` (unidad y campo), para la
-   validación de la clave y `balanceFor`.
+3. **Saldo — respondida el 2026-10-09 (sonda gratis con la clave del dueño):** `GET /v3/users/me`
+   devuelve `data.billing_type: "wallet"` y `data.wallet: { currency: "usd", remaining_balance,
+auto_reload }`; no vienen `subscription` ni `usage_based`. La validación de la clave (entrega 1b)
+   lee `wallet.remaining_balance` y lo muestra en dólares; `balanceFor` (entrega 2) usa el subcomando
+   `avatar-balance`. Una cuenta sin billetera valida igual, sin saldo.
 4. **Cobro de un entrenamiento fallido:** si un avatar desde foto que termina `failed` se cobra
    (1,32 USD) o HeyGen lo devuelve. Hasta saberlo, el texto del precio en «Crear desde foto» solo
    dice cuánto cuesta («Crear el avatar cuesta {{price}} de tu cuenta de HeyGen.») y no promete que

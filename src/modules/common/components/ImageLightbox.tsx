@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import type { RefObject } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import {
@@ -11,11 +12,16 @@ import {
 
 interface ImageLightboxProps {
   src: string
-  // Describe la imagen; también es el título (oculto) del diálogo.
+  // Nombra la imagen: es el título (oculto) del diálogo, que el lector de
+  // pantalla anuncia al abrir. La imagen va con `alt` vacío para no repetirlo.
   alt: string
-  // La etiqueta del botón de cerrar llega ya traducida: `common` todavía no
-  // tiene una clave «Cerrar» compartida.
+  // La etiqueta del botón de cerrar llega ya traducida, propia de cada uso
+  // («Cerrar la foto»).
   closeLabel: string
+  // Adónde vuelve el foco al cerrar: el botón que la abrió. Sin
+  // `DialogTrigger` (se monta solo mientras está abierta) Radix lo dejaría en
+  // `<body>` y quien usa el teclado perdería su lugar.
+  returnFocusRef?: RefObject<HTMLElement | null>
   onClose: () => void
 }
 
@@ -23,12 +29,13 @@ interface ImageLightboxProps {
 // entra en la ventana, sobre el fondo oscurecido del kit. Radix da el cierre
 // con Escape y con un clic afuera de la imagen, y atrapa el foco adentro. Se
 // monta solo mientras está abierta. El contenido es el primitivo de Radix y
-// no el `DialogContent` del kit, que trae su caja de tarjeta y una X propia
-// con el texto fijo: acá la caja es la imagen.
+// no el `DialogContent` del kit, que trae su caja de tarjeta y su propia X:
+// acá la caja es la imagen.
 export function ImageLightbox({
   src,
   alt,
   closeLabel,
+  returnFocusRef,
   onClose,
 }: ImageLightboxProps) {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -49,12 +56,18 @@ export function ImageLightbox({
             event.preventDefault()
             contentRef.current?.focus()
           }}
+          onCloseAutoFocus={(event) => {
+            if (!returnFocusRef?.current) return
+
+            event.preventDefault()
+            returnFocusRef.current.focus()
+          }}
           className="fixed left-1/2 top-1/2 z-50 w-max max-w-[90vw] -translate-x-1/2 -translate-y-1/2 outline-none duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-1/2"
         >
           <DialogTitle className="sr-only">{alt}</DialogTitle>
           <img
             src={src}
-            alt={alt}
+            alt=""
             draggable={false}
             className="block max-h-[88vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
           />

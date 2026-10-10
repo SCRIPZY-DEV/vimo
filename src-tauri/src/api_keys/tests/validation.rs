@@ -107,7 +107,156 @@ fn kie_malformed_response_cannot_produce_success_feedback() {
 #[test]
 fn heygen_accepts_a_profile_with_username() {
     let body = json!({ "data": { "username": "sebas", "email": "s@x.io", "wallet": {} } });
-    assert_eq!(validate_heygen_response(StatusCode::OK, &body).unwrap(), None);
+    assert_eq!(
+        validate_heygen_response(StatusCode::OK, &body).unwrap(),
+        None
+    );
+}
+
+#[test]
+fn heygen_reads_the_wallet_balance() {
+    // Forma real verificada el 2026-10-09: billetera prepago en dólares. Un
+    // saldo en cero o entero sigue siendo un saldo legible.
+    for (raw, expected) in [
+        (json!(3.68), 3.68),
+        (json!(120.5), 120.5),
+        (json!(5), 5.0),
+        (json!(0), 0.0),
+    ] {
+        let body = json!({
+            "data": {
+                "username": "sebas",
+                "billing_type": "wallet",
+                "wallet": {
+                    "currency": "usd",
+                    "remaining_balance": raw,
+                    "auto_reload": { "enabled": false }
+                }
+            }
+        });
+        assert_eq!(
+            validate_heygen_response(StatusCode::OK, &body).unwrap(),
+            Some(expected),
+            "the wallet balance must be read as is: {body}"
+        );
+    }
+}
+
+#[test]
+fn heygen_without_wallet_is_valid_without_balance() {
+    for data in [
+        json!({ "username": "sebas" }),
+        json!({ "username": "sebas", "wallet": null }),
+        json!({ "username": "sebas", "wallet": "usd" }),
+        json!({ "username": "sebas", "wallet": {} }),
+        json!({ "username": "sebas", "wallet": { "currency": "usd" } }),
+    ] {
+        let body = json!({ "data": data });
+        assert_eq!(
+            validate_heygen_response(StatusCode::OK, &body).unwrap(),
+            None,
+            "an account without wallet is a valid key without balance: {body}"
+        );
+    }
+}
+
+#[test]
+fn heygen_ignores_a_malformed_balance() {
+    for raw in [
+        json!("3.68"),
+        json!(-1.5),
+        json!(-0.01),
+        json!(true),
+        json!(null),
+        json!([]),
+        json!({}),
+    ] {
+        let body = json!({
+            "data": { "username": "sebas", "wallet": { "remaining_balance": raw } }
+        });
+        assert_eq!(
+            validate_heygen_response(StatusCode::OK, &body).unwrap(),
+            None,
+            "a balance that is not a finite non-negative number must be ignored: {body}"
+        );
+    }
+}
+
+#[test]
+fn heygen_normalizes_a_negative_zero_balance() {
+    // `-0.0 >= 0.0` es verdadero y `assert_eq!(Some(-0.0), Some(0.0))` también:
+    // hay que mirar el signo, porque la UI lo formatearía como «-0,00 US$». Se
+    // prueba el valor armado a mano y el JSON tal como llega por la red.
+    let mut bodies = vec![json!({
+        "data": { "username": "sebas", "wallet": { "remaining_balance": -0.0 } }
+    })];
+    for raw in ["-0", "-0.0"] {
+        let text = r#"{ "data": { "username": "sebas", "wallet": { "remaining_balance": RAW } } }"#
+            .replace("RAW", raw);
+        bodies.push(serde_json::from_str(&text).unwrap());
+    }
+    for body in bodies {
+        let sent = body["data"]["wallet"]["remaining_balance"]
+            .as_f64()
+            .unwrap();
+        assert!(
+            sent.is_sign_negative(),
+            "the fixture must carry a negative zero: {body}"
+        );
+        let balance = validate_heygen_response(StatusCode::OK, &body)
+            .unwrap()
+            .expect("a zero balance is still a balance");
+        assert_eq!(balance, 0.0);
+        assert!(
+            balance.is_sign_positive(),
+            "a negative zero must not reach the UI: {body}"
+        );
+    }
+}
+
+#[test]
+fn heygen_accepts_the_usd_currency_in_any_case_or_without_it() {
+    // La UI rotula el saldo en dólares: «usd» en cualquier caso, o sin `currency`
+    // (se asume USD por la sonda del 2026-10-09), se lee igual.
+    for wallet in [
+        json!({ "currency": "usd", "remaining_balance": 3.68 }),
+        json!({ "currency": "USD", "remaining_balance": 3.68 }),
+        json!({ "currency": "Usd", "remaining_balance": 3.68 }),
+        json!({ "remaining_balance": 3.68 }),
+    ] {
+        let body = json!({ "data": { "username": "sebas", "wallet": wallet } });
+        assert_eq!(
+            validate_heygen_response(StatusCode::OK, &body).unwrap(),
+            Some(3.68),
+            "a USD (or unlabeled) wallet must show its balance: {body}"
+        );
+    }
+}
+
+#[test]
+fn heygen_ignores_a_balance_in_another_currency() {
+    // La clave vale igual: solo se descarta el saldo, que la UI mostraría como
+    // dólares. Una moneda que ni siquiera es texto tampoco se puede interpretar.
+    for currency in [
+        json!("eur"),
+        json!("EUR"),
+        json!("brl"),
+        json!(""),
+        json!(null),
+        json!(840),
+    ] {
+        let body = json!({
+            "data": {
+                "username": "sebas",
+                "wallet": { "currency": currency, "remaining_balance": 10 }
+            }
+        });
+        assert_eq!(
+            validate_heygen_response(StatusCode::OK, &body).unwrap(),
+            None,
+            "a balance whose currency is not USD must not be shown as dollars: {body}"
+        );
+    }
 }
 
 #[test]
@@ -130,6 +279,8 @@ fn heygen_rejects_a_success_without_profile() {
         json!({ "data": {} }),
         json!({ "data": { "username": "" } }),
         json!({ "data": { "username": 42 } }),
+        // Un saldo no reemplaza al perfil: sin `username` la clave no se valida.
+        json!({ "data": { "wallet": { "remaining_balance": 3.68 } } }),
     ] {
         assert!(
             matches!(
