@@ -49,10 +49,10 @@ export function GenerationErrorCard({
       <div className="flex items-start gap-4">
         <DoodleSadFace size={48} delay={100} />
         <div className="flex-1">
-          <p className="font-display text-base font-bold text-destructive">
+          <p className="font-display text-base font-bold text-destructive-text">
             {t('create.progress.error.title')}
           </p>
-          <p className="mt-1 font-body text-sm text-destructive/80">
+          <p className="mt-1 font-body text-sm text-destructive-text">
             {message}
           </p>
         </div>

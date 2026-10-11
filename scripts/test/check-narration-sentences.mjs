@@ -7,7 +7,10 @@
 // más larga (sin pausas, por el centro) entre los cortes que caen adentro de
 // ella; las frases son contiguas de 0 al fin del audio, con las fronteras al
 // cuadro de 25 fps y sin frases vacías, tampoco de 0 cuadros cuando el audio
-// no termina en la grilla.
+// no termina en la grilla. Cada frase lleva el fin de su última palabra tal
+// cual en words.json, sin llevar al cuadro (`lastWordEndSeconds`, entrega 2b:
+// con él el planificador mide el silencio que carga el avatar), también al
+// unir y al partir frases.
 // La marca llega a words.json por la fase de transcripción real, también en la
 // palabra que la fase recorta al fin del audio.
 // Importa el código real (Node quita los tipos) y simula Deepgram con `fetch`
@@ -64,6 +67,18 @@ const shape = (sentences) =>
 
 const onFrame = (seconds) =>
   Math.abs(seconds * 25 - Math.round(seconds * 25)) < 1e-6
+
+// El fin de la última palabra de cada frase es el `end` de words.json de su
+// palabra `wordTo`, tal cual.
+function assertLastWordEnds(sentences, words) {
+  assert.ok(sentences.length > 0)
+  for (const sentence of sentences)
+    assert.equal(
+      sentence.lastWordEndSeconds,
+      words[sentence.wordTo].end,
+      JSON.stringify(sentence),
+    )
+}
 
 // Lo que manda Deepgram con `punctuate=true`: `word` limpia y la palabra
 // puntuada aparte (con «¿», «¡», comas y cierres de comillas).
@@ -123,7 +138,8 @@ test('Deepgram: pide puntuación y marca sentenceEnd solo en la palabra que cier
 test('con puntuación: las frases cortan en las palabras con sentenceEnd, una pausa sin punto no corta y la cola sin punto es una frase más', () => {
   // Entre w9 (termina en 4,95) y w10 (5,5) hay 0,55 s de silencio.
   const starts = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.5, 6]
-  const sentences = detectSentences(wordsAt(starts, [3, 7]), 6.5)
+  const words = wordsAt(starts, [3, 7])
+  const sentences = detectSentences(words, 6.5)
   assert.deepEqual(shape(sentences), [
     [0, 2, wordsText(0, 3), 0, 3],
     [2, 4, wordsText(4, 7), 4, 7],
@@ -133,44 +149,58 @@ test('con puntuación: las frases cortan en las palabras con sentenceEnd, una pa
     sentences.map((sentence) => sentence.index),
     [0, 1, 2],
   )
+  assertLastWordEnds(sentences, words)
 })
 
 test('sin puntuación (los words.json de antes y el de la demo): una pausa de 0,35 s o más cierra la frase', () => {
   const starts = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.5, 6]
   // w10 empieza en 5,5 s, justo entre dos cuadros (137,5): la frontera va al
   // más cercano redondeando hacia arriba, el 138 (5,52 s).
-  assert.deepEqual(shape(detectSentences(wordsAt(starts), 6.5)), [
+  const words = wordsAt(starts)
+  const sentences = detectSentences(words, 6.5)
+  assert.deepEqual(shape(sentences), [
     [0, 5.52, wordsText(0, 9), 0, 9],
     [5.52, 6.5, wordsText(10, 11), 10, 11],
   ])
+  assertLastWordEnds(sentences, words)
   // 0,34 s no cierra; 0,35 s sí (la frontera va al cuadro: 1,59 → 1,6).
-  assert.deepEqual(shape(detectSentences(wordsAt([0, 0.79, 1.59]), 2.1)), [
+  const closing = wordsAt([0, 0.79, 1.59])
+  const closed = detectSentences(closing, 2.1)
+  assert.deepEqual(shape(closed), [
     [0, 1.6, 'w0 w1', 0, 1],
     [1.6, 2.1, 'w2', 2, 2],
   ])
+  assertLastWordEnds(closed, closing)
   // Una pausa de 0,35 s que la coma flotante deja en 0,3499… (2,8 − 2,45)
   // también cierra.
-  assert.deepEqual(shape(detectSentences(wordsAt([2, 2.8]), 3.5)), [
+  const noisy = wordsAt([2, 2.8])
+  const noisySentences = detectSentences(noisy, 3.5)
+  assert.deepEqual(shape(noisySentences), [
     [0, 2.8, 'w0', 0, 0],
     [2.8, 3.5, 'w1', 1, 1],
   ])
+  assertLastWordEnds(noisySentences, noisy)
 })
 
 test('una frase de 40 s sin pausas se parte por el centro, una y otra vez, hasta quedar de 15 s o menos', () => {
-  const sentences = detectSentences(wordsAt(halfSeconds(80)), 40)
+  const words = wordsAt(halfSeconds(80))
+  const sentences = detectSentences(words, 40)
   assert.deepEqual(shape(sentences), [
     [0, 10, wordsText(0, 19), 0, 19],
     [10, 20, wordsText(20, 39), 20, 39],
     [20, 30, wordsText(40, 59), 40, 59],
     [30, 40, wordsText(60, 79), 60, 79],
   ])
+  assertLastWordEnds(sentences, words)
 })
 
 test('la pausa más larga manda: una frase larga se parte primero donde la narración respira', () => {
   // w0…w29 cada 0,5 s; desde w30, 0,25 s más tarde: una pausa de 0,30 s (no
   // llega a cerrar frase) y el audio llega a 40,25 s.
   const starts = [...halfSeconds(30), ...halfSeconds(50, 15.25)]
-  const sentences = detectSentences(wordsAt(starts), 40.25)
+  const words = wordsAt(starts)
+  const sentences = detectSentences(words, 40.25)
+  assertLastWordEnds(sentences, words)
   assert.deepEqual(
     sentences.map(({ startSeconds, wordFrom }) => [startSeconds, wordFrom]),
     [
@@ -206,6 +236,13 @@ test('las fronteras van al cuadro de 25 fps y dos palabras en el mismo cuadro no
   ])
   for (const sentence of sentences.slice(1))
     assert.ok(onFrame(sentence.startSeconds), String(sentence.startSeconds))
+  // El fin de la última palabra no va al cuadro (2,9 s, no 2,92) y, en la
+  // frase unida, es el de «tres» (1,5), no el de «dos».
+  assert.deepEqual(
+    sentences.map((sentence) => sentence.lastWordEndSeconds),
+    [0.4, 1.5, 2.5, 2.9],
+  )
+  assertLastWordEnds(sentences, words)
 })
 
 test('foco 1: una narración vieja sin puntuación y con una sola pausa larga da frases de 15 s o menos, contiguas de 0 al final', () => {
@@ -227,6 +264,7 @@ test('foco 1: una narración vieja sin puntuación y con una sola pausa larga da
   )
   for (let index = 1; index < sentences.length; index++)
     assert.equal(sentences[index].startSeconds, sentences[index - 1].endSeconds)
+  assertLastWordEnds(sentences, words)
 })
 
 test('sin palabras no hay frases; un fin de audio roto o menor que la última palabra no la corta', () => {
@@ -245,9 +283,9 @@ test('la cola del audio: una palabra recortada al fin del audio no deja una fras
     { word: 'uno', start: 0, end: 1, sentenceEnd: true },
     { word: 'dos', start: 2, end: 2, sentenceEnd: true },
   ]
-  assert.deepEqual(shape(detectSentences(clipped, 2)), [
-    [0, 2, 'uno dos', 0, 1],
-  ])
+  const merged = detectSentences(clipped, 2)
+  assert.deepEqual(shape(merged), [[0, 2, 'uno dos', 0, 1]])
+  assertLastWordEnds(merged, clipped)
   // La misma palabra detrás de la pausa más larga de una frase de 25 s: el
   // corte en esa pausa caería en el fin del audio y dejaría una frase vacía.
   const tail = [
@@ -269,9 +307,14 @@ test('la cola del audio: una palabra recortada al fin del audio no deja una fras
     assert.equal(sentence.startSeconds, sentences[index - 1].endSeconds)
     assert.equal(sentence.wordFrom, sentences[index - 1].wordTo + 1)
   }
-  // Una sola palabra y 30 s de audio: no hay dónde partirla.
+  assertLastWordEnds(sentences, tail)
+  // Una sola palabra y 30 s de audio: no hay dónde partirla. La frase llega
+  // al fin del audio y su última palabra termina a los 1,4 s: el silencio
+  // de después queda adentro de la frase (el planificador lo recorta).
   const one = [{ word: 'hola', start: 0.2, end: 1.4 }]
-  assert.deepEqual(shape(detectSentences(one, 30)), [[0, 30, 'hola', 0, 0]])
+  const alone = detectSentences(one, 30)
+  assert.deepEqual(shape(alone), [[0, 30, 'hola', 0, 0]])
+  assert.equal(alone[0].lastWordEndSeconds, 1.4)
 })
 
 // Simula la respuesta de Deepgram con esas palabras crudas y devuelve lo que
@@ -393,29 +436,30 @@ test('una narración en japonés con puntuación se parte en sus frases en vez d
     { word: '行き', start: 2.3, end: 2.6, punctuated_word: '行き' },
     { word: 'ましょう', start: 2.6, end: 3.2, punctuated_word: 'ましょう！' },
   ])
+  const sentences = detectSentences(words, 3.2)
   assert.deepEqual(
-    detectSentences(words, 3.2).map(
-      ({ startSeconds, endSeconds, wordFrom, wordTo }) => [
-        startSeconds,
-        endSeconds,
-        wordFrom,
-        wordTo,
-      ],
-    ),
+    sentences.map(({ startSeconds, endSeconds, wordFrom, wordTo }) => [
+      startSeconds,
+      endSeconds,
+      wordFrom,
+      wordTo,
+    ]),
     [
       [0, 1.8, 0, 5],
       [1.8, 3.2, 6, 9],
     ],
   )
+  assertLastWordEnds(sentences, words)
 })
 
 test('con puntuación: una sola palabra con sentenceEnd (la última) ya pone el modo con puntuación y la pausa sin punto no corta', () => {
   // Entre w9 (termina en 4,95) y w10 (5,5) hay 0,55 s de silencio: en el modo
   // por pausas cortaría ahí.
   const starts = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.5, 6]
-  assert.deepEqual(shape(detectSentences(wordsAt(starts, [11]), 6.5)), [
-    [0, 6.5, wordsText(0, 11), 0, 11],
-  ])
+  const words = wordsAt(starts, [11])
+  const sentences = detectSentences(words, 6.5)
+  assert.deepEqual(shape(sentences), [[0, 6.5, wordsText(0, 11), 0, 11]])
+  assertLastWordEnds(sentences, words)
 })
 
 // 40 palabras cada 0,5 s y 0,25 s más de silencio detrás de la palabra
@@ -428,7 +472,8 @@ for (const gapAfter of [0, 1, 2, 37, 38]) {
       { length: 40 },
       (_, index) => index * 0.5 + (index > gapAfter ? 0.25 : 0),
     )
-    const sentences = detectSentences(wordsAt(starts), starts[39] + 0.45)
+    const words = wordsAt(starts)
+    const sentences = detectSentences(words, starts[39] + 0.45)
     assert.ok(
       sentences.some(
         (sentence, index) =>
@@ -437,6 +482,7 @@ for (const gapAfter of [0, 1, 2, 37, 38]) {
       ),
       JSON.stringify(shape(sentences)),
     )
+    assertLastWordEnds(sentences, words)
   })
 }
 
@@ -454,20 +500,20 @@ test('una frase de 25 s con la última palabra recortada al fin del audio se par
     ...wordsAt(halfSeconds(40)),
     { word: 'w40', start: 25, end: 25 },
   ]
+  const sentences = detectSentences(words, 25)
   assert.deepEqual(
-    detectSentences(words, 25).map(
-      ({ startSeconds, endSeconds, wordFrom, wordTo }) => [
-        startSeconds,
-        endSeconds,
-        wordFrom,
-        wordTo,
-      ],
-    ),
+    sentences.map(({ startSeconds, endSeconds, wordFrom, wordTo }) => [
+      startSeconds,
+      endSeconds,
+      wordFrom,
+      wordTo,
+    ]),
     [
       [0, 12.52, 0, 24],
       [12.52, 25, 25, 40],
     ],
   )
+  assertLastWordEnds(sentences, words)
 })
 
 test('dos palabras en el mismo cuadro al inicio del tramo: el corte que no avanza se salta y la frase de 20 s se parte por otro', () => {
@@ -482,20 +528,20 @@ test('dos palabras en el mismo cuadro al inicio del tramo: el corte que no avanz
       end: (index + 1) * 0.5,
     })),
   ]
+  const sentences = detectSentences(words, 20)
   assert.deepEqual(
-    detectSentences(words, 20).map(
-      ({ startSeconds, endSeconds, wordFrom, wordTo }) => [
-        startSeconds,
-        endSeconds,
-        wordFrom,
-        wordTo,
-      ],
-    ),
+    sentences.map(({ startSeconds, endSeconds, wordFrom, wordTo }) => [
+      startSeconds,
+      endSeconds,
+      wordFrom,
+      wordTo,
+    ]),
     [
       [0, 10, 0, 20],
       [10, 20, 21, 40],
     ],
   )
+  assertLastWordEnds(sentences, words)
 })
 
 test('con el fin del audio fuera de la grilla de cuadros, una palabra recortada en su último cuadro se une a la frase anterior y ninguna frase dura 0 cuadros', () => {
@@ -514,29 +560,33 @@ test('con el fin del audio fuera de la grilla de cuadros, una palabra recortada 
   // frase propia de 25 a 25,01 (10 ms, 0 cuadros en el render). Unida a la
   // anterior, esa pausa tampoco sirve para partir la frase de 25 s: se parte
   // por el centro (12,5 s, que al cuadro es 12,52).
-  const clipped = detectSentences(
-    [...wordsAt(halfSeconds(40)), { word: 'w40', start: 25.01, end: 25.01 }],
-    25.01,
-  )
+  const clippedWords = [
+    ...wordsAt(halfSeconds(40)),
+    { word: 'w40', start: 25.01, end: 25.01 },
+  ]
+  const clipped = detectSentences(clippedWords, 25.01)
   assert.deepEqual(spans(clipped), [
     [0, 12.52, 0, 24],
     [12.52, 25.01, 25, 40],
   ])
   for (const sentence of clipped)
     assert.ok(frames(sentence) >= 1, JSON.stringify(sentence))
+  assertLastWordEnds(clipped, clippedWords)
 
   // Con un cuadro entero antes del fin (25 a 25,03 s es el cuadro 625), la
   // palabra sigue siendo su propia frase.
-  const lastFrame = detectSentences(
-    [...wordsAt(halfSeconds(40)), { word: 'w40', start: 25, end: 25.03 }],
-    25.03,
-  )
+  const lastFrameWords = [
+    ...wordsAt(halfSeconds(40)),
+    { word: 'w40', start: 25, end: 25.03 },
+  ]
+  const lastFrame = detectSentences(lastFrameWords, 25.03)
   assert.deepEqual(spans(lastFrame), [
     [0, 12.52, 0, 24],
     [12.52, 25, 25, 39],
     [25, 25.03, 40, 40],
   ])
   assert.equal(frames(lastFrame.at(-1)), 1)
+  assertLastWordEnds(lastFrame, lastFrameWords)
 })
 
 test('fase de transcripción: la marca de Deepgram llega a words.json, también en la palabra que la fase recorta al fin del audio', async (t) => {
@@ -630,10 +680,14 @@ test('fase de transcripción: la marca de Deepgram llega a words.json, también 
   // Y las frases salen de la puntuación, no de las pausas: la de 0,4 s después
   // de «Hola,» no corta (es una coma) y la de 0,3 s antes de «adiós» sí, por el
   // punto de «mundo.». Por pausas saldría «hola» y «mundo adiós».
-  assert.deepEqual(shape(detectSentences(words, audioSeconds)), [
+  const sentences = detectSentences(words, audioSeconds)
+  assert.deepEqual(shape(sentences), [
     [0, 1.52, 'hola mundo', 0, 1],
     [1.52, audioSeconds, 'adiós', 2, 2],
   ])
+  // La palabra recortada al fin del audio cierra su frase en ese fin.
+  assertLastWordEnds(sentences, words)
+  assert.equal(sentences[1].lastWordEndSeconds, audioSeconds)
 })
 
 test('centinela: al terminar, fetch vuelve a ser el real', () => {

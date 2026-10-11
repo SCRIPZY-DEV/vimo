@@ -1,16 +1,20 @@
 import { useState } from 'react'
+import type { FocusEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Trash2 } from 'lucide-react'
-import { CharacterPortrait } from '@/modules/common/components/CharacterPortrait'
 import { Button } from '@/modules/common/ui/button'
 import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { avatarsApi } from '@/modules/avatars/api'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
+import { LookPreview } from '@/modules/avatars/components/LookPreview'
 import {
   CARD_SIDE_LOOKS,
   VIMO_AVATAR_ENGINE,
 } from '@/modules/avatars/constants'
+import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
+import { useHoverIntent } from '@/modules/avatars/hooks/useHoverIntent'
+import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
 import type { AvatarSummary } from '@pipeline/types/avatar.ts'
 
 interface AvatarCardProps {
@@ -22,11 +26,17 @@ interface AvatarCardProps {
 
 // Una tarjeta por avatar: vista previa vertical anclada arriba (la cara
 // siempre a la vista) y, si tiene otros looks a mano, dos miniaturas a la
-// derecha como en HeyGen; nombre, cuántos looks tiene, el tipo y solo el
-// motor que Vimo usa (los del look principal); mientras entrena, el estado
-// del entrenamiento, y si falló, el motivo. La imagen y el nombre abren el
-// panel del avatar. Borrado en dos pasos, como las tarjetas de personajes (el
-// ícono se vuelve un botón rojo «Seguro»).
+// derecha como en HeyGen, en un mosaico sin huecos. Al pasar el mouse, cada
+// imagen reproduce el video de su look (el foco del teclado en el nombre, el
+// de la principal): los videos salen del listado de HeyGen del avatar, que se
+// pide la primera vez que la persona se detiene en la tarjeta
+// (`useHoverIntent`; gratis, con la misma caché que su panel). Debajo, compacto: el nombre, cuántos looks tiene y el borrado en
+// dos pasos (el ícono se vuelve un botón rojo «Seguro»), y en otra fila el
+// tipo y solo el motor que Vimo usa (los del look principal); mientras
+// entrena, el estado del entrenamiento, y si falló, el motivo. La tarjeta
+// llena la fila de la grilla (`h-full`) con el contenido arriba y sin empujar
+// nada hacia abajo: solo junto a una tarjeta más alta de su fila queda aire
+// al pie. La imagen y el nombre abren el panel del avatar.
 export function AvatarCard({
   avatar,
   disabled,
@@ -34,11 +44,37 @@ export function AvatarCard({
   onDelete,
 }: AvatarCardProps) {
   const { t } = useTranslation()
+  const { canUseHeyGen } = useHeyGenAccess()
   const [confirming, setConfirming] = useState(false)
+  // Qué imagen está bajo el mouse: la principal o la miniatura de un look.
+  const [mainHovered, setMainHovered] = useState(false)
+  const [hoveredLookId, setHoveredLookId] = useState<string | null>(null)
+  // El foco visible del teclado en el nombre: activa la principal. El foco
+  // que la biblioteca devuelve al nombre al cerrar el panel con el mouse no
+  // es visible y no la activa.
+  const [nameFocused, setNameFocused] = useState(false)
+  // Una tarjeta que nadie miró (o que el mouse solo cruzó) no gasta un
+  // proceso del sidecar: los looks se piden con el mouse quieto sobre las
+  // imágenes o con el foco del teclado en el nombre.
+  const hoverIntent = useHoverIntent()
+  // Mismo listado (y misma caché) que el panel del avatar: un avatar propio
+  // se lista entre los privados de la cuenta.
+  const remote = useStockLooks({
+    ownership: avatar.ownership === 'own' ? 'private' : 'public',
+    groupId: avatar.groupId,
+    enabled: hoverIntent.hoveredOnce && canUseHeyGen,
+  })
+  const remoteVideos = new Map(
+    remote.looks.map((look) => [look.lookId, look.previewVideoUrl]),
+  )
 
   const preview = avatar.previewPath
     ? avatarsApi.imageSource(avatar.previewPath)
-    : null
+    : undefined
+  const mainVideo = avatar.mainLookId
+    ? remoteVideos.get(avatar.mainLookId)
+    : undefined
+  const mainActive = mainHovered || nameFocused
   // El tipo y los motores son los del look principal (un avatar es un grupo de
   // HeyGen con sus looks); sin principal todavía, la tarjeta no los muestra.
   const mainLook = avatar.looks.find(
@@ -61,6 +97,34 @@ export function AvatarCard({
     .slice(0, CARD_SIDE_LOOKS)
   const tallSide = sideLooks.length === 1
 
+  const focusName = (event: FocusEvent<HTMLButtonElement>) => {
+    const visible = event.currentTarget.matches(':focus-visible')
+    setNameFocused(visible)
+    if (visible) hoverIntent.focusedWithKeyboard()
+  }
+
+  const mainTile = (
+    <span
+      data-look-id={avatar.mainLookId ?? undefined}
+      onMouseEnter={() => setMainHovered(true)}
+      onMouseLeave={() => setMainHovered(false)}
+      className={cn(
+        'block h-full w-full',
+        sideLooks.length > 0 && 'col-span-2 row-span-2',
+      )}
+    >
+      <LookPreview
+        imageUrl={preview}
+        videoUrl={mainVideo}
+        alt={t('avatars.stock.previewAria', { name: avatar.name })}
+        active={mainActive}
+        videoPending={mainActive && remote.isLoading}
+        doodleSize={72}
+        className="h-full w-full"
+      />
+    </span>
+  )
+
   return (
     <article
       onMouseLeave={() => setConfirming(false)}
@@ -74,58 +138,72 @@ export function AvatarCard({
         aria-hidden
         disabled={disabled}
         onClick={() => onOpen(avatar)}
+        onMouseEnter={hoverIntent.pointerMoved}
+        onMouseMove={hoverIntent.pointerMoved}
+        onMouseLeave={hoverIntent.pointerLeft}
         className="relative block aspect-[4/5] w-full overflow-hidden"
       >
         {sideLooks.length === 0 ? (
-          <CharacterPortrait
-            src={preview}
-            doodleSize={72}
-            focus="top"
-            className="h-full w-full"
-          />
+          mainTile
         ) : (
-          <div className="grid h-full w-full grid-cols-3 grid-rows-2 gap-0.5 bg-card">
-            <CharacterPortrait
-              src={preview}
-              doodleSize={72}
-              focus="top"
-              className="col-span-2 row-span-2"
-            />
+          <span className="grid h-full w-full grid-cols-3 grid-rows-2 gap-px bg-border">
+            {mainTile}
             {sideLooks.map((look) => {
               if (look.status === 'processing') {
                 return (
-                  <div
+                  <span
                     key={look.lookId}
-                    className={cn('relative', tallSide && 'row-span-2')}
+                    className={cn(
+                      'relative block h-full w-full bg-muted',
+                      tallSide && 'row-span-2',
+                    )}
                   >
                     <Skeleton className="absolute inset-0 rounded-none bg-muted-foreground/15" />
                     <Loader2
                       aria-hidden
                       className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 animate-spin text-muted-foreground"
                     />
-                  </div>
+                  </span>
                 )
               }
 
+              const active = hoveredLookId === look.lookId
               return (
-                <CharacterPortrait
+                <span
                   key={look.lookId}
-                  src={
-                    look.previewPath
-                      ? avatarsApi.imageSource(look.previewPath)
-                      : null
+                  data-look-id={look.lookId}
+                  onMouseEnter={() => setHoveredLookId(look.lookId)}
+                  onMouseLeave={() =>
+                    setHoveredLookId((current) =>
+                      current === look.lookId ? null : current,
+                    )
                   }
-                  doodleSize={28}
-                  focus="top"
-                  className={cn(tallSide && 'row-span-2')}
-                />
+                  className={cn(
+                    'block h-full w-full',
+                    tallSide && 'row-span-2',
+                  )}
+                >
+                  <LookPreview
+                    imageUrl={
+                      look.previewPath
+                        ? avatarsApi.imageSource(look.previewPath)
+                        : undefined
+                    }
+                    videoUrl={remoteVideos.get(look.lookId)}
+                    alt={t('avatars.stock.previewAria', { name: look.name })}
+                    active={active}
+                    videoPending={active && remote.isLoading}
+                    doodleSize={28}
+                    className="h-full w-full"
+                  />
+                </span>
               )
             })}
-          </div>
+          </span>
         )}
       </button>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="space-y-1.5 px-3 py-2.5">
         <div className="flex items-center gap-2">
           {/* `data-avatar-id`: la biblioteca devuelve el foco acá al cerrar
               el panel del avatar. */}
@@ -134,6 +212,8 @@ export function AvatarCard({
             data-avatar-id={avatar.id}
             disabled={disabled}
             onClick={() => onOpen(avatar)}
+            onFocus={focusName}
+            onBlur={() => setNameFocused(false)}
             className="min-w-0 truncate rounded-sm text-left font-display text-base font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron"
           >
             {avatar.name}
@@ -143,55 +223,57 @@ export function AvatarCard({
               {t('avatars.stock.looksCount', { count: avatar.looks.length })}
             </span>
           )}
+          <div className="ml-auto shrink-0">
+            {confirming ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={disabled}
+                onClick={() => onDelete(avatar)}
+                onBlur={() => setConfirming(false)}
+                className="h-8 rounded-lg px-3 font-display"
+              >
+                {t('avatars.tarjeta.confirmar')}
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={disabled}
+                onClick={() => setConfirming(true)}
+                aria-label={t('avatars.tarjeta.eliminar')}
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive-text"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-1">
-          {mainLook && (
-            <span className="rounded bg-muted px-1.5 py-0.5 font-display text-[10px] font-bold text-muted-foreground">
-              {t(`avatars.types.${mainLook.lookType}`)}
-            </span>
-          )}
-          {supportsVimo && (
-            <span className="rounded bg-saffron/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-foreground">
-              {t(`avatars.engines.${VIMO_AVATAR_ENGINE}`)}
-            </span>
-          )}
-          {unsupported && (
-            <span className="rounded bg-destructive/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-foreground">
-              {t('avatars.tarjeta.noCompatible')}
-            </span>
-          )}
-        </div>
+
+        {(mainLook || unsupported) && (
+          <div className="flex flex-wrap gap-1">
+            {mainLook && (
+              <span className="rounded bg-muted px-1.5 py-0.5 font-display text-[10px] font-bold text-muted-foreground">
+                {t(`avatars.types.${mainLook.lookType}`)}
+              </span>
+            )}
+            {supportsVimo && (
+              <span className="rounded bg-saffron/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-foreground">
+                {t(`avatars.engines.${VIMO_AVATAR_ENGINE}`)}
+              </span>
+            )}
+            {unsupported && (
+              <span className="rounded bg-destructive/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-foreground">
+                {t('avatars.tarjeta.noCompatible')}
+              </span>
+            )}
+          </div>
+        )}
 
         <AvatarTrainingStatus
           status={avatar.status}
           errorCode={avatar.errorCode}
         />
-
-        <div className="mt-auto flex items-center justify-end pt-1">
-          {confirming ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={disabled}
-              onClick={() => onDelete(avatar)}
-              onBlur={() => setConfirming(false)}
-              className="rounded-lg font-display"
-            >
-              {t('avatars.tarjeta.confirmar')}
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={disabled}
-              onClick={() => setConfirming(true)}
-              aria-label={t('avatars.tarjeta.eliminar')}
-              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
       </div>
     </article>
   )

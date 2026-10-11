@@ -223,13 +223,17 @@ export function AvatarLibrary() {
         </button>
       )}
 
+      {/* Cada fila mide lo que su tarjeta más alta (sin `auto-rows-fr`, que
+          igualaba todas las filas a la más alta de la grilla) y cada tarjeta
+          llena su fila: las de una misma fila miden lo mismo y una tarjeta
+          con el estado del entrenamiento no estira las demás filas. */}
       {entries.length > 0 && (
         <motion.ul
           ref={listRef}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
-            'grid auto-rows-fr grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4',
+            'grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4',
             !isNative && 'pointer-events-none opacity-60',
           )}
         >

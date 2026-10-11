@@ -1198,7 +1198,6 @@
       "unavailable": "Unavailable",
       "noLookShort": "No look for this format",
       "lookLabel": "Look",
-      "chooseLook": "Choose the avatar's look",
       "lookHint": "The avatar appears exactly as in this look, with its background and in the video's format: Vimo doesn't generate images for those parts.",
       "noLookLandscape": "{{name}} has no landscape looks for a 16:9 video.",
       "noLookPortrait": "{{name}} has no portrait looks for a 9:16 video.",
@@ -1218,7 +1217,10 @@
       "pricePerMinute": "· {{price}} per minute",
       "moderationHint": "HeyGen rejects political, violent or misleading content, and using real people without their permission.",
       "noKey": "To add a presenter avatar, add your HeyGen key.",
-      "goToApiKeys": "Go to API Keys"
+      "goToApiKeys": "Go to API Keys",
+      "lookHelp": "Your library’s main look is used by default; pick another one with the video’s orientation here.",
+      "lookMainNote": "Your library’s main look",
+      "moderationTitle": "HeyGen content rules"
     }
   },
   "createDemo": {
@@ -1933,8 +1935,7 @@
       "cargando": "Loading avatars…",
       "cargandoLooks": "Loading looks…",
       "volver": "Back to avatars",
-      "elegirLook": "Choose the main look for this avatar.",
-      "agregarConLook": "Add with “{{name}}”",
+      "elegirLook": "Click a look to see it move and load it into your library.",
       "yaEnBiblioteca": "This avatar is already in your library: choose its main look from the library.",
       "abrirEnBiblioteca": "Open in your library",
       "vacioLooks": "This avatar doesn't have any ready looks yet.",
@@ -1943,7 +1944,21 @@
         "landscape": "Landscape",
         "square": "Square"
       },
-      "previewAria": "Preview of {{name}}"
+      "previewAria": "Preview of {{name}}",
+      "categoriaAria": "Category",
+      "categoria": {
+        "todos": "All",
+        "profesional": "Professional",
+        "estiloDeVida": "Lifestyle",
+        "comunidad": "Community",
+        "favoritos": "Favorites"
+      },
+      "clasificando": "Sorting HeyGen’s avatars…",
+      "clasificacionNoDisponible": "The avatars couldn’t be sorted: category filters aren’t available right now.",
+      "favoritoAria": "Favorite: {{name}}",
+      "vacioFavoritos": "No favorites yet: tap an avatar’s heart to keep it here.",
+      "buscandoMas": "Looking for more avatars…",
+      "abrirLookAria": "View the look {{name}}"
     },
     "detalle": {
       "origen": {
@@ -1959,6 +1974,23 @@
       "lookGenerando": "Generating…",
       "lookFallido": "Couldn't be generated",
       "cerrar": "Close"
+    },
+    "reproductor": {
+      "cargar": "Load into the library",
+      "cargando": "Loading…",
+      "esPrincipal": "This is the avatar’s main look.",
+      "noCompatibleHint": "This look isn’t compatible with Vimo: it can’t be used in a video.",
+      "noListoHint": "This look is still being generated.",
+      "yaEnBiblioteca": "This avatar is already in your library.",
+      "sinVideo": "This look has no preview video.",
+      "cerrar": "Close the preview",
+      "silenciar": "Mute",
+      "activarSonido": "Unmute",
+      "velocidad": "Speed: {{rate}}×",
+      "pantallaCompleta": "Full screen",
+      "salirPantallaCompleta": "Exit full screen",
+      "descripcion": "This is how the avatar appears in your videos: this outfit, this background and this framing.",
+      "errorVideo": "This look's video couldn't be loaded. Check your connection and open it again."
     },
     "generar": {
       "tarjeta": "Create scene",

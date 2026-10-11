@@ -80,11 +80,25 @@ interface SubtitleCue {
   text: string
 }
 
+// Hasta dónde habla una frase: su última palabra; la pausa que la sigue
+// pertenece a la frase pero no se dice. Sin ese dato (frases armadas a mano),
+// la frase entera.
+function spokenEnd(sentence: NarrationSentence): number {
+  if (!Number.isFinite(sentence.lastWordEndSeconds)) return sentence.endSeconds
+
+  return Math.min(sentence.endSeconds, sentence.lastWordEndSeconds)
+}
+
 // Las líneas de una escena: una sola con todo su texto, salvo la de un avatar
 // (ADR-0057), que habla hasta 60 s: ahí va una línea por frase de la
-// narración, recortada al tramo de la escena. La primera arranca con la
-// escena y la última termina con ella, así no queda un hueco sin subtítulo.
-// Sin frases (un proyecto sin `words.json`), la de avatar también sale entera.
+// narración, recortada al tramo de la escena. Una frase es de la escena si el
+// punto medio de su parte hablada (de su inicio a su última palabra) cae
+// adentro: con el tope de silencio del planificador (entrega 2b) la última
+// frase de una aparición puede terminar mucho después de la escena y, medida
+// entera, sus palabras no se subtitularían en ningún lado. La primera línea
+// arranca con la escena y la última termina con ella, así no queda un hueco
+// sin subtítulo. Sin frases (un proyecto sin `words.json`), la de avatar
+// también sale entera.
 function sceneCues(
   scene: Scene,
   sentences: readonly NarrationSentence[],
@@ -95,7 +109,7 @@ function sceneCues(
   if (!scene.avatar) return whole
 
   const inside = sentences.filter((sentence) => {
-    const middle = (sentence.startSeconds + sentence.endSeconds) / 2
+    const middle = (sentence.startSeconds + spokenEnd(sentence)) / 2
     return (
       middle >= startSeconds &&
       middle < endSeconds &&

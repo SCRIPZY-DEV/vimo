@@ -15,6 +15,8 @@ import {
 import { avatarsApi } from '@/modules/avatars/api'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
 import { GenerateLookCard } from '@/modules/avatars/components/GenerateLookCard'
+import { LookPlayerDialog } from '@/modules/avatars/components/LookPlayerDialog'
+import type { LookPlayerAction } from '@/modules/avatars/components/LookPlayerDialog'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
 import { StockLookCard } from '@/modules/avatars/components/StockLookCard'
 import {
@@ -23,9 +25,12 @@ import {
 } from '@/modules/avatars/constants'
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
+import { useOpenLook } from '@/modules/avatars/hooks/useOpenLook'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
+import { lookUnusableReasonKey } from '@/modules/avatars/utilities/lookUsability'
 import type {
   AvatarAspectRatio,
+  AvatarLookSummary,
   AvatarSummary,
 } from '@pipeline/types/avatar.ts'
 
@@ -50,11 +55,13 @@ interface AvatarDetailDialogProps {
 // sus chips, de dónde salió, el estado del entrenamiento y el borrado en dos
 // pasos; abajo, todos sus looks, con el principal marcado y «Usar como
 // principal» en los demás que sirven, encabezados por la ficha «Crear
-// escenario» (un look nuevo desde una descripción). Las vistas previas que no
-// están en disco salen del listado de HeyGen (gratis), con esqueleto mientras
-// llegan. Se monta solo mientras está abierto. El contenido es el primitivo
-// de Radix y no el `DialogContent` del kit, que trae su caja de tarjeta y su
-// X chica: acá la caja tiene su propio layout y su X redonda.
+// escenario» (un look nuevo desde una descripción). Un clic en un look abre
+// su reproductor, con «Usar como principal» al pie (se cierra solo al
+// lograrlo). Las vistas previas que no están en disco salen del listado de
+// HeyGen (gratis), con esqueleto mientras llegan. Se monta solo mientras está
+// abierto. El contenido es el primitivo de Radix y no el `DialogContent` del
+// kit, que trae su caja de tarjeta y su X chica: acá la caja tiene su propio
+// layout y su X redonda.
 export function AvatarDetailDialog({
   avatar,
   scenarioAspectRatio,
@@ -69,6 +76,16 @@ export function AvatarDetailDialog({
   const [makingMainId, setMakingMainId] = useState<string | null>(null)
   const [previewActive, setPreviewActive] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  // El reproductor de un look de la grilla; al cerrarlo, el foco vuelve a su
+  // ficha.
+  const {
+    openLookId,
+    gridRef: looksRef,
+    returnFocusRef: lookReturnRef,
+    open: openLook,
+    close: closeLook,
+    closeIfOpen: closeLookIfOpen,
+  } = useOpenLook<HTMLUListElement>()
 
   // Mismo listado (y misma caché) que los looks del stock: un avatar propio
   // se lista entre los privados de la cuenta.
@@ -94,10 +111,43 @@ export function AvatarDetailDialog({
   // compatible» solo se afirma de un avatar listo.
   const unsupported = avatar.status === 'ready' && !supportsVimo
 
+  const openedLook = avatar.looks.find((look) => look.lookId === openLookId)
+
+  // La vista previa de un look: la de disco o, si no está, la del listado de
+  // HeyGen; el video siempre sale del listado.
+  const lookMedia = (look: AvatarLookSummary) => {
+    const remoteLook = remoteById.get(look.lookId)
+    return {
+      imageUrl: look.previewPath
+        ? avatarsApi.imageSource(look.previewPath)
+        : remoteLook?.previewImageUrl,
+      videoUrl: remoteLook?.previewVideoUrl,
+    }
+  }
+
+  // Desde la ficha o desde el reproductor; si lo logra con el reproductor de
+  // ese look abierto, lo cierra (ya es el principal).
   const makeMain = async (lookId: string) => {
     setMakingMainId(lookId)
-    await setMainLook({ id: avatar.id, lookId }).catch(() => null)
+    const entry = await setMainLook({ id: avatar.id, lookId }).catch(() => null)
     setMakingMainId(null)
+    if (entry) closeLookIfOpen(lookId)
+  }
+
+  // El pie del reproductor: el principal lo dice; un look que sirve se puede
+  // hacer principal; uno que no, dice por qué.
+  const playerAction = (look: AvatarLookSummary): LookPlayerAction => {
+    if (look.lookId === avatar.mainLookId) return { kind: 'main' }
+
+    const reasonKey = lookUnusableReasonKey(look)
+    if (reasonKey) return { kind: 'unusable', reasonKey }
+
+    return {
+      kind: 'make-main',
+      busy: makingMainId === look.lookId,
+      disabled: saving,
+      onMakeMain: () => void makeMain(look.lookId),
+    }
   }
 
   return (
@@ -224,7 +274,7 @@ export function AvatarDetailDialog({
                   )}
               </header>
 
-              <ul className={STOCK_GRID_CLASS}>
+              <ul ref={looksRef} className={STOCK_GRID_CLASS}>
                 {/* «Crear escenario» abre la grilla, en un `li` flex del
                     ancho de una ficha. Un avatar que no pudo entrenar no
                     tiene de qué partir: no la muestra. */}
@@ -237,17 +287,15 @@ export function AvatarDetailDialog({
                   </li>
                 )}
                 {avatar.looks.map((look) => {
-                  const remoteLook = remoteById.get(look.lookId)
-                  const imageUrl = look.previewPath
-                    ? avatarsApi.imageSource(look.previewPath)
-                    : remoteLook?.previewImageUrl
+                  const { imageUrl, videoUrl } = lookMedia(look)
                   return (
                     <li key={look.lookId}>
                       <StockLookCard
                         look={look}
                         imageUrl={imageUrl}
-                        videoUrl={remoteLook?.previewVideoUrl}
+                        videoUrl={videoUrl}
                         previewLoading={!imageUrl && remote.isLoading}
+                        onOpen={openLook}
                         main={look.lookId === avatar.mainLookId}
                         busy={makingMainId === look.lookId}
                         disabled={saving}
@@ -259,6 +307,19 @@ export function AvatarDetailDialog({
               </ul>
             </section>
           </div>
+
+          {/* Encima del panel (Radix los apila: Escape cierra solo el
+              reproductor). */}
+          {openedLook && (
+            <LookPlayerDialog
+              look={openedLook}
+              {...lookMedia(openedLook)}
+              videoLoading={remote.isLoading}
+              action={playerAction(openedLook)}
+              returnFocusRef={lookReturnRef}
+              onClose={closeLook}
+            />
+          )}
 
           <DialogClose
             aria-label={t('avatars.detalle.cerrar')}

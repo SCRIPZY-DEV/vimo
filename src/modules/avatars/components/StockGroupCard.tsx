@@ -1,20 +1,33 @@
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Loader2, Plus } from 'lucide-react'
+import { Check, Heart, Loader2, Plus } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
+import { useHoverIntent } from '@/modules/avatars/hooks/useHoverIntent'
+import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
+import { coverLookVideoUrl } from '@/modules/avatars/utilities/coverLookVideo'
 import type { HeyGenAvatarGroup } from '@pipeline/types/avatar.ts'
 
 interface StockGroupCardProps {
   group: HeyGenAvatarGroup
+  // De qué listado sale (el stock público o los avatares de la cuenta): con
+  // él se piden sus looks cuando el grupo no trae video.
+  ownership: 'public' | 'private'
   // Ya está en la biblioteca (mismo grupo de HeyGen): no se vuelve a agregar.
   added: boolean
   // Esta tarjeta se está agregando.
   adding: boolean
   // Hay un alta en vuelo (de esta u otra tarjeta).
   disabled: boolean
+  // Marcado con el corazón (favoritos del stock público, en esta máquina).
+  favorite: boolean
+  // Lo guardado todavía no se leyó: el corazón no puede cambiar nada todavía
+  // y se muestra deshabilitado (`aria-disabled`, sigue enfocable).
+  favoriteDisabled?: boolean
+  // Solo en el stock público: sin él no hay corazón.
+  onToggleFavorite?: () => void
   onOpen: (group: HeyGenAvatarGroup) => void
   onAdd: (group: HeyGenAvatarGroup) => void
 }
@@ -22,21 +35,44 @@ interface StockGroupCardProps {
 // Un avatar de HeyGen en el primer nivel del stock, como en HeyGen: la vista
 // previa vertical (el video al pasar el mouse) con un zoom suave y, abajo, un
 // velo con «Ver looks» y «Agregar»; debajo, el nombre y cuántos looks tiene.
-// Toda la tarjeta abre sus looks con el mouse; con el teclado se llega por
-// «Ver looks», que aparece con el foco. Un avatar propio que todavía entrena
-// (o no pudo entrenar) muestra su estado y no se agrega. Presentacional.
+// Muchos grupos no traen video propio (diseño §18): entonces, la primera vez
+// que la persona se detiene en la tarjeta (`useHoverIntent`: el mouse quieto
+// HOVER_FETCH_DELAY_MS o el foco del teclado) pide los looks del avatar (la
+// misma caché que su segundo nivel) y reproduce el de su look de portada, con
+// un velo que late mientras llega. Arriba a la derecha, con
+// `onToggleFavorite` (solo el stock público), el corazón de favoritos: una
+// etiqueta fija y el estado en `aria-pressed`; siempre a la vista si está
+// marcado, si no con el mouse o el foco. Toda la tarjeta abre sus looks con
+// el mouse; con el teclado se llega por «Ver looks», que aparece con el foco.
+// Un avatar propio que todavía entrena (o no pudo entrenar) muestra su estado
+// y no se agrega.
 export function StockGroupCard({
   group,
+  ownership,
   added,
   adding,
   disabled,
+  favorite,
+  favoriteDisabled = false,
+  onToggleFavorite,
   onOpen,
   onAdd,
 }: StockGroupCardProps) {
   const { t } = useTranslation()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
+  // Una tarjeta que nadie miró (o que el mouse solo cruzó) no gasta un
+  // proceso del sidecar.
+  const hoverIntent = useHoverIntent()
+  const remote = useStockLooks({
+    ownership,
+    groupId: group.groupId,
+    enabled: hoverIntent.hoveredOnce && !group.previewVideoUrl,
+  })
 
+  const active = hovered || focused
+  const videoUrl =
+    group.previewVideoUrl ?? coverLookVideoUrl(group, remote.looks)
   // Los grupos del stock público no traen `status`: están listos.
   const trainingStatus =
     group.status && group.status !== 'ready' ? group.status : null
@@ -52,13 +88,30 @@ export function StockGroupCard({
     event.stopPropagation()
     onAdd(group)
   }
+  const toggleFavorite = (event: MouseEvent) => {
+    event.stopPropagation()
+    if (favoriteDisabled) return
+
+    onToggleFavorite?.()
+  }
 
   return (
     <article
       onClick={() => onOpen(group)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
+      onMouseEnter={() => {
+        setHovered(true)
+        hoverIntent.pointerMoved()
+      }}
+      onMouseMove={hoverIntent.pointerMoved}
+      onMouseLeave={() => {
+        setHovered(false)
+        hoverIntent.pointerLeft()
+      }}
+      onFocus={(event) => {
+        setFocused(true)
+        if (event.target.matches(':focus-visible'))
+          hoverIntent.focusedWithKeyboard()
+      }}
       onBlur={(event) => {
         if (event.currentTarget.contains(event.relatedTarget)) return
 
@@ -69,9 +122,10 @@ export function StockGroupCard({
       <div className="relative overflow-hidden rounded-2xl bg-muted shadow-sm ring-1 ring-border transition-shadow duration-300 group-hover:shadow-xl">
         <LookPreview
           imageUrl={group.previewImageUrl}
-          videoUrl={group.previewVideoUrl}
+          videoUrl={videoUrl}
           alt={t('avatars.stock.previewAria', { name: group.name })}
-          active={hovered || focused}
+          active={active}
+          videoPending={active && remote.isLoading}
           doodleSize={64}
           className="aspect-[4/5] w-full transition-transform duration-500 ease-out group-hover:scale-105"
         />
@@ -81,6 +135,35 @@ export function StockGroupCard({
             <Check aria-hidden strokeWidth={3} className="h-3 w-3" />
             {t('avatars.stock.agregado')}
           </span>
+        )}
+
+        {/* `transform-gpu`: queda en su capa, encima de la imagen que hace
+            zoom (ERRORES-CONOCIDOS: webkit-capa-compuesta-tapa-hermanos-con-
+            z-index-en-overflow-hidden-redondeado). `data-favorite`: el
+            diálogo lleva el foco acá al quitar con el teclado el favorito de
+            la tarjeta vecina. */}
+        {onToggleFavorite && (
+          <button
+            type="button"
+            data-favorite
+            aria-pressed={favorite}
+            aria-disabled={favoriteDisabled}
+            aria-label={t('avatars.stock.favoritoAria', { name: group.name })}
+            onClick={toggleFavorite}
+            className={cn(
+              'absolute right-2.5 top-2.5 flex h-8 w-8 transform-gpu items-center justify-center rounded-full bg-black/35 backdrop-blur-md transition hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+              favorite
+                ? 'text-coral opacity-100'
+                : 'text-white opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100',
+              favoriteDisabled &&
+                'cursor-not-allowed hover:bg-black/35 [&>svg]:opacity-50',
+            )}
+          >
+            <Heart
+              aria-hidden
+              className={cn('h-4 w-4', favorite && 'fill-current')}
+            />
+          </button>
         )}
 
         <div

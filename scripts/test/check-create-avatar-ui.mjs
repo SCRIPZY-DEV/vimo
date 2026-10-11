@@ -2,15 +2,22 @@
 // cambio de dirección del dueño del 2026-10-10: el look ES el escenario) con
 // sus hooks reales en Chrome headless: sin clave de HeyGen avisa y deja el
 // interruptor apagado; al encender elige sola el primer avatar que sirve con
-// su look principal; ofrece solo los looks con la orientación del formato y
-// deja elegir otro look u otro avatar; un avatar sin look para el formato lo
-// dice y lleva a «Crear escenario» en ese formato, y ese enlace abre en la
-// biblioteca el panel del avatar con el diálogo listo en el formato, una sola
-// vez; el costo sale con la tarifa de Avatar III del tipo del look; los
-// controles van de 1 a 10 apariciones y de 7 a 60 segundos; muestra el saldo
-// de HeyGen (en dólares, o tal cual si es otra moneda) y el aviso de
-// moderación; sin avatares lleva a crearlos; una elección horizontal no vale
-// en un video 9:16; un avatar de stock sin look no ofrece «Crear escenario»;
+// su look principal; el look se elige en un desplegable (entrega 2b) que
+// muestra el principal por defecto y ofrece solo los looks con la orientación
+// del formato, cada uno con su tipo y el principal con su nota; al lado, la
+// vista previa del elegido: la de disco si la hay y, si no, la imagen y el
+// video del listado de HeyGen (un avatar propio se pide entre los privados,
+// uno de stock entre los públicos, y uno sin look para el formato no se pide),
+// con el video mudo que pasa solo con el mouse encima; deja elegir otro look
+// u otro avatar; un avatar sin look para el formato lo dice y lleva a «Crear
+// escenario» en ese formato, y ese enlace abre en la biblioteca el panel del
+// avatar con el diálogo listo en el formato, una sola vez; el costo sale con
+// la tarifa de Avatar III del tipo del look; los controles van de 1 a 10
+// apariciones y de 7 a 60 segundos; muestra el saldo de HeyGen (en dólares, o
+// tal cual si es otra moneda) y el aviso de moderación destacado (una nota con
+// su título); sin avatares lleva a crearlos; una elección horizontal no vale
+// en un video 9:16 (el desplegable queda vacío y la vista previa sin foto);
+// un avatar de stock sin look no ofrece «Crear escenario»;
 // deshabilitada (la demo) nada responde; y una clave de HeyGen rechazada se
 // lee «Sin configurar». Encendida, la tarjeta sigue lo que entrena o genera un
 // look (el escenario pedido con «Crear escenario» aparece al terminar, sin
@@ -42,9 +49,11 @@ const mocks = {
   // `refresh` es lo que el sondeo le pregunta a HeyGen por un avatar que
   // entrena o tiene un look en camino: la respuesta sale del fixture (si el
   // caso preparó `refreshed`, el sidecar «guarda» ese estado nuevo).
+  // `listStockLooks` es el listado de HeyGen de los looks de un grupo, con sus
+  // vistas previas remotas (`fixture.stockLooks` por `groupId`).
   '@/modules/avatars/api': [
     "import { avatarsApi as real } from './src/modules/avatars/api/index.ts'",
-    'export const avatarsApi = { ...real, isNative: () => true, async list() { window.listCalls += 1; return structuredClone(window.fixture.avatars) }, async refresh(id) { window.refreshCalls += 1; if (window.fixture.refreshed?.[id]) window.fixture.avatars = window.fixture.avatars.map((item) => (item.id === id ? window.fixture.refreshed[id] : item)); return structuredClone(window.fixture.avatars.find((item) => item.id === id)) }, async balance() { window.balanceCalls += 1; return structuredClone(window.fixture.balance) }, async listStockLooks() { return { looks: [], nextToken: null } }, async listStockGroups() { return { groups: [], nextToken: null } }, imageSource: (path) => "fixture://" + path }',
+    'export const avatarsApi = { ...real, isNative: () => true, async list() { window.listCalls += 1; return structuredClone(window.fixture.avatars) }, async refresh(id) { window.refreshCalls += 1; if (window.fixture.refreshed?.[id]) window.fixture.avatars = window.fixture.avatars.map((item) => (item.id === id ? window.fixture.refreshed[id] : item)); return structuredClone(window.fixture.avatars.find((item) => item.id === id)) }, async balance() { window.balanceCalls += 1; return structuredClone(window.fixture.balance) }, async listStockLooks(payload) { window.stockLooksCalls.push(payload); return { looks: structuredClone(window.fixture.stockLooks?.[payload.groupId] ?? []), nextToken: null } }, async listStockGroups() { return { groups: [], nextToken: null } }, imageSource: (path) => window.diskImage(path) }',
   ].join('\n'),
   // useCostCheck solo le pregunta si corre en la app nativa.
   '@/modules/videos/api': [
@@ -70,6 +79,7 @@ import { avatarScenarioPath } from '@/modules/avatars/constants'
 import { AvatarLibrary } from '@/modules/avatars/views/AvatarLibrary'
 import { CreditsBadge } from '@/modules/common/components/CreditsBadge'
 import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
+import { TooltipProvider } from '@/modules/common/ui/tooltip'
 import { formatCompact } from '@/modules/common/utilities/formatCompact'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
 import { CREATE_FORM_INITIAL_VALUE } from '@/modules/videos/constants'
@@ -99,16 +109,36 @@ async function waitFor(get, message) {
 }
 await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolation: { escapeValue: false } })
 
-const look = (lookId, name, lookType, preferredOrientation, supportedEngines = ['avatar_iii']) => ({ lookId, name, lookType, supportedEngines, preferredOrientation, status: 'ready', origin: 'heygen', previewPath: '/library/looks/' + lookId + '.png', createdAt: '2026-10-09T00:00:00Z' })
+// Los videos de las vistas previas no se bajan ni suenan acá: play y pause
+// solo se anotan (con la URL del video) para ver qué los dispara.
+window.plays = []
+window.pauses = []
+HTMLMediaElement.prototype.play = function () { window.plays.push(this.getAttribute('src')); return Promise.resolve() }
+HTMLMediaElement.prototype.pause = function () { window.pauses.push(this.getAttribute('src')) }
+
+const look = (lookId, name, lookType, preferredOrientation, supportedEngines = ['avatar_iii'], previewPath = '/library/looks/' + lookId + '.png') => ({ lookId, name, lookType, supportedEngines, preferredOrientation, status: 'ready', origin: 'heygen', ...(previewPath ? { previewPath } : {}), createdAt: '2026-10-09T00:00:00Z' })
 const avatar = (id, name, ownership, mainLookId, looks, status = 'ready') => ({ id, name, groupId: 'group-' + id, ownership, status, mainLookId, looks, previewPath: '/library/' + id + '.jpg', createdAt: '2026-10-09T00:00:00Z' })
 // Ana (propia: oficina y cocina horizontales, una vertical), Teo (de stock,
 // gemelo digital horizontal), Vic (propio, solo vertical) y Luz (entrenando).
+// La cocina no tiene vista previa en disco: la biblioteca baja solo las de su
+// tarjeta (AVATAR_CARD_LOOK_PREVIEWS).
 const LIBRARY = [
-  avatar('ana-1', 'Ana', 'own', 'look-ana', [look('look-ana', 'Ana oficina', 'photo_avatar', 'landscape', ['avatar_iii', 'avatar_iv']), look('look-ana-vertical', 'Ana vertical', 'photo_avatar', 'portrait'), look('look-ana-cocina', 'Ana cocina', 'photo_avatar', 'landscape')]),
+  avatar('ana-1', 'Ana', 'own', 'look-ana', [look('look-ana', 'Ana oficina', 'photo_avatar', 'landscape', ['avatar_iii', 'avatar_iv']), look('look-ana-vertical', 'Ana vertical', 'photo_avatar', 'portrait'), look('look-ana-cocina', 'Ana cocina', 'photo_avatar', 'landscape', ['avatar_iii'], null)]),
   avatar('teo-2', 'Teo', 'stock', 'look-teo', [look('look-teo', 'Teo estudio', 'digital_twin', 'landscape')]),
   avatar('vic-3', 'Vic', 'own', 'look-vic', [look('look-vic', 'Vic', 'studio_avatar', 'portrait')]),
   avatar('luz-4', 'Luz', 'own', null, [], 'processing'),
 ]
+// Las imágenes cargan sin red (SVG en línea, distinto por ruta o por look):
+// las de disco salen de avatarsApi.imageSource (el simulacro llama a
+// window.diskImage) y el listado de HeyGen de cada grupo trae su imagen y
+// un video que nunca se baja (play está simulado).
+const svgImage = (title) => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="9"><title>' + title + '</title></svg>')
+const diskImage = (path) => svgImage('disk:' + path)
+window.diskImage = diskImage
+const remoteImage = (lookId) => svgImage('heygen:' + lookId)
+const remoteVideo = (lookId) => 'https://cdn.heygen.test/looks/' + lookId + '.mp4'
+const stockLook = (item) => ({ lookId: item.lookId, name: item.name, lookType: item.lookType, supportedEngines: item.supportedEngines, preferredOrientation: item.preferredOrientation, previewImageUrl: remoteImage(item.lookId), previewVideoUrl: remoteVideo(item.lookId) })
+const STOCK_LOOKS = Object.fromEntries(LIBRARY.map((item) => [item.groupId, item.looks.map(stockLook)]))
 const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar' }
 const ANA_KITCHEN = { ...ANA, lookId: 'look-ana-cocina', lookName: 'Ana cocina' }
 const TEO = { id: 'teo-2', name: 'Teo', lookId: 'look-teo', lookName: 'Teo estudio', lookType: 'digital_twin' }
@@ -123,14 +153,17 @@ function Host({ initial, disabled }) {
   window.value = value
   return <CreateAvatarSection value={value} disabled={disabled} onChange={(patch) => { window.patches.push(patch); setValue((current) => ({ ...current, ...patch })) }} />
 }
-// Cada caso arranca con caché, parches y biblioteca propios.
+// Cada caso arranca con caché, parches y biblioteca propios. El
+// TooltipProvider es el de App.tsx: la ayuda del desplegable del look lo usa.
+window.stockLooksCalls = []
 function mount(fixture, initial = CREATE_FORM_INITIAL_VALUE, disabled = false) {
-  window.fixture = fixture
+  window.fixture = { stockLooks: STOCK_LOOKS, ...fixture }
   window.patches = []
   window.listCalls = 0
   window.refreshCalls = 0
   window.balanceCalls = 0
-  reactRoot.render(<QueryClientProvider key={++revision} client={freshClient()}><I18nextProvider i18n={i18n}><MemoryRouter><Host initial={initial} disabled={disabled} /></MemoryRouter></I18nextProvider></QueryClientProvider>)
+  window.stockLooksCalls = []
+  reactRoot.render(<QueryClientProvider key={++revision} client={freshClient()}><I18nextProvider i18n={i18n}><TooltipProvider><MemoryRouter><Host initial={initial} disabled={disabled} /></MemoryRouter></TooltipProvider></I18nextProvider></QueryClientProvider>)
 }
 // La URL del router en memoria (el enlace de la biblioteca vive en ella).
 function LocationProbe() {
@@ -160,9 +193,41 @@ function mountWithAppClient(fixture, element) {
 const toggle = () => document.getElementById('create-avatar')
 const radiosIn = (labelKey) => [...(document.querySelector('[role=radiogroup][aria-label="' + i18n.t(labelKey) + '"]')?.querySelectorAll('[role=radio]') ?? [])]
 const avatarRadios = () => radiosIn('create.avatar.chooseAvatar')
-const lookRadios = () => radiosIn('create.avatar.chooseLook')
 const named = (radios, name) => radios.find((radio) => radio.textContent.startsWith(name))
 const isChecked = (radio) => radio?.getAttribute('aria-checked') === 'true'
+// El desplegable «Look» (LabeledSelect): su disparador va en la misma columna
+// que su etiqueta. Cerrado muestra el nombre del elegido; abierto, cada opción
+// lleva el nombre y la nota (tipo y, la principal, su nota) en su ItemText.
+const lookTrigger = () => [...document.querySelectorAll('label')].find((label) => label.textContent === i18n.t('create.avatar.lookLabel'))?.parentElement?.parentElement?.querySelector('[role=combobox]') ?? null
+async function openLookOptions() {
+  lookTrigger().click()
+  const options = await waitFor(() => { const found = [...document.querySelectorAll('[role=option]')]; return found.length > 0 ? found : null }, 'la lista de looks se abre')
+  return options.map((option) => {
+    const [label, note] = [...document.getElementById(option.getAttribute('aria-labelledby')).children].map((child) => child.textContent)
+    return { option, label, note, checked: option.getAttribute('data-state') === 'checked' }
+  })
+}
+async function closeLookOptions() {
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  await waitFor(() => document.querySelectorAll('[role=option]').length === 0, 'la lista de looks se cierra')
+}
+async function chooseLookNamed(name) {
+  const choice = (await openLookOptions()).find((option) => option.label === name)
+  choice.option.click()
+  await waitFor(() => document.querySelectorAll('[role=option]').length === 0, 'elegir un look cierra la lista')
+}
+// La vista previa de un look (o del avatar, sin look elegido) por su texto
+// alternativo: la imagen, el dibujo de respaldo y el video de su caja.
+function previewOf(name) {
+  const alt = i18n.t('avatars.stock.previewAria', { name })
+  const image = [...document.querySelectorAll('img')].find((element) => element.alt === alt) ?? null
+  const doodle = [...document.querySelectorAll('[role=img]')].find((element) => element.getAttribute('aria-label') === alt) ?? null
+  const box = (image ?? doodle)?.parentElement ?? null
+  return { image, doodle, box, video: box?.querySelector('video') ?? null }
+}
+// El mouse entra o sale de un elemento (React arma enter/leave con
+// mouseover/mouseout y el elemento de donde viene).
+const hover = (element, inside) => element.dispatchEvent(new MouseEvent(inside ? 'mouseover' : 'mouseout', { bubbles: true, relatedTarget: document.body }))
 // El cuerpo entero: los diálogos de la biblioteca van en un portal.
 const text = () => document.body.textContent
 const buttonNamed = (label) => [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === label)
@@ -192,34 +257,63 @@ try {
   toggle().click()
   await waitFor(() => window.patches.length === 1, 'encender el avatar')
   check(window.patches[0].useAvatar === true && same(window.patches[0].avatar, ANA), 'al encender se elige solo el primer avatar que sirve, con su look principal: ' + JSON.stringify(window.patches[0]))
-  await waitFor(() => avatarRadios().length === 4 && lookRadios().length > 0, 'una ficha por avatar y los looks del elegido')
+  await waitFor(() => avatarRadios().length === 4 && lookTrigger(), 'una ficha por avatar y el desplegable del look')
   check(isChecked(named(avatarRadios(), 'Ana')) && named(avatarRadios(), 'Ana').textContent.includes(i18n.t('create.avatar.lookCount', { count: 2 })), 'Ana marcada, con sus dos looks horizontales')
-  check(same(lookRadios().map((radio) => radio.textContent), ['Ana oficina', 'Ana cocina']) && isChecked(lookRadios()[0]), 'solo los looks horizontales, el principal primero y marcado: ' + lookRadios().map((radio) => radio.textContent).join(', '))
+  check(lookTrigger().textContent === 'Ana oficina', 'el desplegable muestra el look principal por defecto: ' + lookTrigger().textContent)
+  check(document.querySelector('button[aria-label="' + i18n.t('create.avatar.lookHelp') + '"]'), 'el desplegable lleva la ayuda del look')
+  const anaOptions = await openLookOptions()
+  check(same(anaOptions.map((option) => option.label), ['Ana oficina', 'Ana cocina']) && anaOptions[0].checked && !anaOptions[1].checked, 'solo los looks horizontales, el principal primero y marcado: ' + anaOptions.map((option) => option.label).join(', '))
+  check(anaOptions[0].note === i18n.t('avatars.types.photo_avatar') + ' · ' + i18n.t('create.avatar.lookMainNote') && anaOptions[1].note === i18n.t('avatars.types.photo_avatar'), 'cada look con su tipo, y el principal con la nota de la biblioteca: ' + anaOptions.map((option) => option.note).join(' | '))
+  await closeLookOptions()
   check(!named(avatarRadios(), 'Vic').disabled && named(avatarRadios(), 'Vic').textContent.includes(i18n.t('create.avatar.noLookShort')), 'Vic solo tiene un look vertical: se puede mirar, sin look para 16:9')
   check(named(avatarRadios(), 'Luz').disabled && named(avatarRadios(), 'Luz').textContent.includes(i18n.t('create.avatar.training')), 'Luz entrena: no se puede elegir')
   check(text().includes(i18n.t('create.avatar.cost', { amount: formatUsd(0.495, 'es') })), '3 × 10 s de un avatar de foto: ≈ 0,50 US$')
-  check(text().includes(i18n.t('create.avatar.lookHint')) && text().includes(i18n.t('create.avatar.moderationHint')), 'el look sale tal cual, sin imágenes, y el aviso de moderación')
+  check(text().includes(i18n.t('create.avatar.lookHint')), 'el look sale tal cual, sin imágenes')
+  const moderation = [...document.querySelectorAll('[role=note]')].find((element) => element.getAttribute('aria-label') === i18n.t('create.avatar.moderationTitle'))
+  check(moderation?.textContent.includes(i18n.t('create.avatar.moderationTitle')) && moderation.textContent.includes(i18n.t('create.avatar.moderationHint')) && moderation.querySelector('svg')?.getAttribute('aria-hidden') === 'true', 'el aviso de moderación es una nota destacada con su título, el texto de siempre y el escudo decorativo')
+  // La vista previa del principal es la de disco; su video, el del listado
+  // de HeyGen, que para un avatar propio se pide entre los privados.
+  const officePreview = await waitFor(() => { const preview = previewOf('Ana oficina'); return preview.image && preview.video ? preview : null }, 'la vista previa del principal con su video')
+  check(officePreview.image.getAttribute('src') === diskImage('/library/looks/look-ana.png') && officePreview.video.getAttribute('src') === remoteVideo('look-ana'), 'la imagen de disco y el video remoto del principal: ' + officePreview.image.getAttribute('src').slice(0, 40) + ' · ' + officePreview.video.getAttribute('src'))
+  check(window.stockLooksCalls.some((call) => call.groupId === 'group-ana-1' && call.ownership === 'private'), 'un avatar propio se lista entre los privados de la cuenta: ' + JSON.stringify(window.stockLooksCalls))
   await waitFor(() => text().includes(formatUsd(2.87, 'es')), 'el saldo de HeyGen en dólares')
   check(await waitFor(() => window.refreshCalls > 0, 'encendida, la tarjeta sigue a Luz, que entrena'), 'encendida, la tarjeta le pregunta a HeyGen por lo que entrena')
 
-  // 3. Otro look del mismo avatar.
-  named(lookRadios(), 'Ana cocina').click()
+  // 3. Otro look del mismo avatar, desde el desplegable.
+  await chooseLookNamed('Ana cocina')
   await waitFor(() => same(window.patches.at(-1), { avatar: ANA_KITCHEN }), 'elegir el look de la cocina')
-  check(isChecked(named(lookRadios(), 'Ana cocina')) && !isChecked(named(lookRadios(), 'Ana oficina')), 'el look elegido queda marcado')
+  check(window.value.avatar.lookId === 'look-ana-cocina' && lookTrigger().textContent === 'Ana cocina', 'elegir otra opción cambia avatar.lookId en el formulario y el desplegable la muestra')
+  const kitchenChecked = (await openLookOptions()).map((option) => option.checked)
+  await closeLookOptions()
+  check(same(kitchenChecked, [false, true]), 'en la lista queda marcado el look elegido, no el principal')
+  // La cocina no tiene vista previa en disco: imagen y video del listado de
+  // HeyGen. El video va mudo y pasa solo con el mouse sobre la vista previa.
+  const kitchenPreview = await waitFor(() => { const preview = previewOf('Ana cocina'); return preview.image && preview.video ? preview : null }, 'la vista previa remota de la cocina')
+  check(kitchenPreview.image.getAttribute('src') === remoteImage('look-ana-cocina') && kitchenPreview.video.getAttribute('src') === remoteVideo('look-ana-cocina'), 'un look sin vista previa en disco muestra la imagen y el video del listado de HeyGen: ' + kitchenPreview.image.getAttribute('src').slice(0, 40) + ' · ' + kitchenPreview.video.getAttribute('src'))
+  check(kitchenPreview.video.muted && kitchenPreview.video.getAttribute('preload') === 'none' && !window.plays.includes(remoteVideo('look-ana-cocina')), 'el video de la vista previa va mudo y no se baja ni pasa sin el mouse encima')
+  hover(kitchenPreview.box.parentElement, true)
+  await waitFor(() => window.plays.includes(remoteVideo('look-ana-cocina')), 'con el mouse encima pasa el video del look')
+  const pausesBefore = window.pauses.length
+  hover(kitchenPreview.box.parentElement, false)
+  await waitFor(() => window.pauses.length > pausesBefore && window.pauses.at(-1) === remoteVideo('look-ana-cocina'), 'al salir el mouse el video se pausa')
   const patchesBefore = window.patches.length
   named(avatarRadios(), 'Ana').click()
   await delay(100)
-  check(window.patches.length === patchesBefore && isChecked(named(lookRadios(), 'Ana cocina')), 'volver a mirar al avatar elegido conserva el look que se eligió (sin parche nuevo)')
+  check(window.patches.length === patchesBefore && lookTrigger().textContent === 'Ana cocina', 'volver a mirar al avatar elegido conserva el look que se eligió (sin parche nuevo)')
 
   // 4. Otro avatar: su look por defecto y su tarifa.
   named(avatarRadios(), 'Teo').click()
   await waitFor(() => same(window.patches.at(-1), { avatar: TEO }), 'elegir a Teo')
   check(text().includes(i18n.t('create.avatar.cost', { amount: formatUsd(0.3, 'es') })), 'un gemelo digital cobra 0,60 por minuto: ≈ 0,30 US$')
+  await waitFor(() => lookTrigger()?.textContent === 'Teo estudio' && window.stockLooksCalls.some((call) => call.groupId === 'group-teo-2'), 'el look de Teo y sus vistas previas de HeyGen')
+  check(window.stockLooksCalls.filter((call) => call.groupId === 'group-teo-2').every((call) => call.ownership === 'public'), 'un avatar de stock se lista entre los públicos: ' + JSON.stringify(window.stockLooksCalls))
 
   // 5. Un avatar sin look para el formato lo dice y lleva a «Crear escenario».
   named(avatarRadios(), 'Vic').click()
   await waitFor(() => same(window.patches.at(-1), { avatar: null }), 'mirar a Vic deja el formulario sin elección')
-  check(isChecked(named(avatarRadios(), 'Vic')) && lookRadios().length === 0 && text().includes(i18n.t('create.avatar.noLookLandscape', { name: 'Vic' })), 'Vic marcado, sin looks y con el motivo')
+  check(isChecked(named(avatarRadios(), 'Vic')) && lookTrigger() === null && text().includes(i18n.t('create.avatar.noLookLandscape', { name: 'Vic' })), 'Vic marcado, sin desplegable de looks y con el motivo')
+  await delay(200)
+  check(!window.stockLooksCalls.some((call) => call.groupId === 'group-vic-3'), 'un avatar sin look para el formato no pide vistas previas a HeyGen')
   const scenarioLink = [...document.querySelectorAll('a')].find((link) => link.getAttribute('href') === avatarScenarioPath('vic-3', '16:9'))
   check(scenarioLink?.textContent === i18n.t('create.avatar.createScenario'), 'lleva a «Crear escenario» de Vic en 16:9')
   check(text().includes(i18n.t('create.avatar.costPending')), 'sin look no hay costo que mostrar')
@@ -256,8 +350,11 @@ try {
 
   // 8. Video 9:16 con una elección horizontal: no vale y se explica.
   mount({ avatars: LIBRARY, balance: USD, keys: ['heygen'] }, { ...CREATE_FORM_INITIAL_VALUE, videoFormat: '9:16', useAvatar: true, avatar: ANA })
-  await waitFor(() => avatarRadios().length === 4 && lookRadios().length === 1, 'los looks verticales de Ana')
-  check(lookRadios()[0].textContent === 'Ana vertical' && !isChecked(lookRadios()[0]) && text().includes(i18n.t('create.avatar.previousUnavailable')), 'el look horizontal elegido no se marca en 9:16 y se dice por qué')
+  await waitFor(() => avatarRadios().length === 4 && lookTrigger(), 'el desplegable con los looks verticales de Ana')
+  const portraitOptions = await openLookOptions()
+  await closeLookOptions()
+  check(same(portraitOptions.map((option) => option.label), ['Ana vertical']) && !portraitOptions[0].checked && lookTrigger().textContent === '' && text().includes(i18n.t('create.avatar.previousUnavailable')), 'el look horizontal elegido no se marca en 9:16 (el desplegable queda vacío) y se dice por qué')
+  check(previewOf('Ana').doodle && !previewOf('Ana').image, 'sin look elegido, la vista previa es el dibujo con el nombre del avatar (no sugiere una elección que no hay)')
   check(named(avatarRadios(), 'Vic').textContent.includes(i18n.t('create.avatar.lookCount', { count: 1 })), 'en 9:16 Vic sí tiene look')
   named(avatarRadios(), 'Teo').click()
   await waitFor(() => text().includes(i18n.t('create.avatar.noLookPortrait', { name: 'Teo' })), 'Teo no tiene look vertical')
@@ -274,8 +371,10 @@ try {
   const coming = { ...look('look-ana-nuevo', 'Ana nueva', 'photo_avatar', 'landscape'), status: 'processing' }
   const anaWith = (extra) => ({ ...LIBRARY[0], looks: [...LIBRARY[0].looks, extra] })
   mount({ avatars: [anaWith(coming)], balance: USD, keys: ['heygen'], refreshed: { 'ana-1': anaWith({ ...coming, status: 'ready' }) } }, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: ANA })
-  await waitFor(() => window.refreshCalls > 0 && named(lookRadios(), 'Ana nueva'), 'el look nuevo aparece al terminar')
-  check(same(lookRadios().map((radio) => radio.textContent), ['Ana oficina', 'Ana cocina', 'Ana nueva']) && isChecked(named(lookRadios(), 'Ana oficina')), 'el look nuevo se suma a los de Ana y la elección no cambia: ' + lookRadios().map((radio) => radio.textContent).join(', '))
+  await waitFor(() => window.refreshCalls > 0 && named(avatarRadios(), 'Ana')?.textContent.includes(i18n.t('create.avatar.lookCount', { count: 3 })), 'el look nuevo aparece al terminar')
+  const withNewLook = await openLookOptions()
+  await closeLookOptions()
+  check(same(withNewLook.map((option) => option.label), ['Ana oficina', 'Ana cocina', 'Ana nueva']) && withNewLook[0].checked && lookTrigger().textContent === 'Ana oficina', 'el look nuevo se suma a los de Ana y la elección no cambia: ' + withNewLook.map((option) => option.label).join(', '))
 
   // 10. El enlace de «Crear escenario» abre la biblioteca en el panel de Vic
   // con el diálogo listo en el formato, una sola vez. Sin avatares
@@ -305,9 +404,9 @@ try {
 
   // 12. Deshabilitada (la demo, o el formulario entero): nada responde.
   mount({ avatars: LIBRARY, balance: USD, keys: ['heygen'] }, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: ANA }, true)
-  await waitFor(() => avatarRadios().length === 4 && lookRadios().length === 2, 'la tarjeta deshabilitada con su elección')
+  await waitFor(() => avatarRadios().length === 4 && lookTrigger()?.textContent === 'Ana oficina', 'la tarjeta deshabilitada con su elección')
   const startRow = [...document.querySelectorAll('input[type=checkbox]')].find((input) => input.closest('label')?.textContent.includes(i18n.t('create.avatar.startWithAvatar')))
-  check(toggle().disabled && avatarRadios().every((radio) => radio.disabled) && lookRadios().every((radio) => radio.disabled), 'deshabilitada: ni el interruptor ni las fichas responden')
+  check(toggle().disabled && avatarRadios().every((radio) => radio.disabled) && lookTrigger().disabled, 'deshabilitada: ni el interruptor, ni las fichas, ni el desplegable del look responden')
   check(document.getElementById('create-avatar-appearances').disabled && document.getElementById('create-avatar-seconds').disabled && startRow?.disabled === true, 'deshabilitada: tampoco las apariciones, los segundos ni la casilla')
 
   // 13. El pre-check de saldo con los hooks reales: la línea de HeyGen se compara en

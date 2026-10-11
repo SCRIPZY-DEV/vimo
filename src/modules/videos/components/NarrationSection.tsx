@@ -112,7 +112,7 @@ export function NarrationSection({
                   disabled={disabled}
                   onClick={() => onChange({ narrationFilePath: null })}
                   aria-label={t('create.narration.clearFile')}
-                  className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
+                  className="ml-auto shrink-0 text-muted-foreground hover:text-destructive-text"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

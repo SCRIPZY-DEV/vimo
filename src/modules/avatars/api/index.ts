@@ -1,5 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import { LazyStore } from '@tauri-apps/plugin-store'
 import {
   pipelineErrorCode,
   runPipelineJob,
@@ -8,7 +9,9 @@ import { isNative } from '@/modules/common/utilities/isNative'
 import {
   AVATAR_REFERENCE_IMAGES_MAX,
   AVATARS_ERROR_MESSAGE_KEYS,
+  AVATARS_STORE_FILE,
   PHOTO_EXTENSIONS,
+  STOCK_FAVORITES_STORE_KEY,
   UNKNOWN_AVATARS_ERROR_KEY,
 } from '@/modules/avatars/constants'
 import type {
@@ -26,9 +29,15 @@ import type {
   AvatarStockGroupsResult,
   AvatarStockLooksPayload,
   AvatarStockLooksResult,
+  AvatarStockTypesPayload,
+  AvatarStockTypesResult,
   AvatarSummary,
   AvatarsListResult,
 } from '@pipeline/types/avatar.ts'
+
+// Lo que el módulo guarda en esta máquina (favoritos del stock), como los
+// ajustes: el store de la app, que se carga al primer uso.
+const store = new LazyStore(AVATARS_STORE_FILE)
 
 export const avatarsApi = {
   isNative() {
@@ -50,6 +59,24 @@ export const avatarsApi = {
     payload: AvatarStockLooksPayload,
   ): Promise<AvatarStockLooksResult> {
     return runPipelineJob<AvatarStockLooksResult>('avatar-stock-looks', payload)
+  },
+  // Qué grupos públicos son de estudio y cuáles gemelos (entrega 2b): una
+  // barrida gratis de HeyGen con caché de 24 h en el sidecar.
+  async listStockTypes(
+    payload: AvatarStockTypesPayload = {},
+  ): Promise<AvatarStockTypesResult> {
+    return runPipelineJob<AvatarStockTypesResult>('avatar-stock-types', payload)
+  },
+  // Favoritos del stock público (ids de grupo de HeyGen), guardados en esta
+  // máquina. Lo guardado que no es una lista de textos cuenta como vacío.
+  async readStockFavorites(): Promise<string[]> {
+    const saved = await store.get<unknown>(STOCK_FAVORITES_STORE_KEY)
+    if (!Array.isArray(saved)) return []
+    return saved.filter((id): id is string => typeof id === 'string')
+  },
+  async writeStockFavorites(groupIds: string[]): Promise<void> {
+    await store.set(STOCK_FAVORITES_STORE_KEY, groupIds)
+    await store.save()
   },
   async addAvatar(payload: AvatarAddPayload): Promise<AvatarSummary> {
     const result = await runPipelineJob<AvatarAddResult>('avatar-add', payload)

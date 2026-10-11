@@ -130,7 +130,10 @@ fn labels_carry_a_fixed_prefix() {
         subject_label(&subject(SubjectKind::Project, "p"), Some("Mi video")).as_deref(),
         Some("Mi video")
     );
-    assert_eq!(subject_label(&subject(SubjectKind::Project, "p"), None), None);
+    assert_eq!(
+        subject_label(&subject(SubjectKind::Project, "p"), None),
+        None
+    );
 }
 
 #[test]
@@ -145,14 +148,22 @@ fn names_are_read_from_the_library_on_disk() {
     .unwrap();
     let character_directory = root.path().join(CHARACTERS_SUBDIRECTORY).join("Ana_x1");
     fs::create_dir_all(&character_directory).unwrap();
-    fs::write(character_directory.join(CHARACTER_METADATA_FILE), r#"{"name":"Ana"}"#).unwrap();
+    fs::write(
+        character_directory.join(CHARACTER_METADATA_FILE),
+        r#"{"name":"Ana"}"#,
+    )
+    .unwrap();
 
     assert_eq!(
         resolve_subject_name(Some(root.path()), &subject(SubjectKind::Style, "neon")).as_deref(),
         Some("Neón")
     );
     assert_eq!(
-        resolve_subject_name(Some(root.path()), &subject(SubjectKind::Character, "Ana_x1")).as_deref(),
+        resolve_subject_name(
+            Some(root.path()),
+            &subject(SubjectKind::Character, "Ana_x1")
+        )
+        .as_deref(),
         Some("Ana")
     );
     // El nombre del payload gana sobre el disco; sin archivo no hay nombre.
@@ -161,12 +172,18 @@ fn names_are_read_from_the_library_on_disk() {
         id: Some("neon".into()),
         name: Some("Otro".into()),
     };
-    assert_eq!(resolve_subject_name(Some(root.path()), &named).as_deref(), Some("Otro"));
+    assert_eq!(
+        resolve_subject_name(Some(root.path()), &named).as_deref(),
+        Some("Otro")
+    );
     assert_eq!(
         resolve_subject_name(Some(root.path()), &subject(SubjectKind::Style, "missing")),
         None
     );
-    assert_eq!(resolve_subject_name(None, &subject(SubjectKind::Style, "neon")), None);
+    assert_eq!(
+        resolve_subject_name(None, &subject(SubjectKind::Style, "neon")),
+        None
+    );
 }
 
 #[test]
@@ -236,7 +253,11 @@ fn avatar_names_are_read_from_the_library_on_disk() {
     .unwrap();
 
     assert_eq!(
-        resolve_subject_name(Some(root.path()), &subject(SubjectKind::Avatar, "ana-abc123")).as_deref(),
+        resolve_subject_name(
+            Some(root.path()),
+            &subject(SubjectKind::Avatar, "ana-abc123")
+        )
+        .as_deref(),
         Some("Ana")
     );
     // Un id con `..` nunca sale de la carpeta raíz, también para avatares.

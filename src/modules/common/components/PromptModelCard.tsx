@@ -19,7 +19,7 @@ interface PromptModelCardProps {
 const SPEED_BADGE_CLASS: Record<ModelSpeed, string> = {
   fast: 'border-ocean/40 bg-ocean/10 text-ocean',
   medium: 'border-saffron/50 bg-saffron/15 text-saffron',
-  slow: 'border-destructive/40 bg-destructive/10 text-destructive',
+  slow: 'border-destructive/40 bg-destructive/10 text-destructive-text',
 }
 
 const SPEED_LABEL_KEY: Record<ModelSpeed, string> = {

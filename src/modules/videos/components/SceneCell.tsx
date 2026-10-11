@@ -71,7 +71,7 @@ export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
             </span>
           )}
           {scene.imageStatus === 'error' && (
-            <AlertTriangle className="h-6 w-6 text-destructive" />
+            <AlertTriangle className="h-6 w-6 text-destructive-text" />
           )}
           {scene.imageStatus === 'pending' && (
             <span

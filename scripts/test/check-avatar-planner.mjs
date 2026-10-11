@@ -6,10 +6,22 @@
 // entra se cuenta en `dropped` y no falla, y el mismo plan para las mismas
 // frases. El foco 1 del plan: una narración sin puntuación con una sola pausa
 // larga da una aparición válida o un `dropped` honesto, nunca un avatar
-// corto. Puro: importa el código real, sin disco ni red.
+// corto. Entrega 2b (decisiones del dueño del 2026-10-11): cada aparición del
+// reparto arranca en la frase más cercana a su ancla desde la que cabe (la
+// que no cabe se saltea, antes o después del ancla) y ninguna carga más de
+// 2 s de silencio después de la última palabra de una frase (el tope, al
+// cuadro, cierra la aparición; el silencio inicial de la primera frase no se
+// recorta; el hueco y la zona libre se miden desde el fin útil). Rulings del
+// mismo día: el tope nunca deja una cola de menos de 3 s antes del fin del
+// audio (esa frase se mide hasta su fin para el máximo y hasta el recortado
+// para el mínimo). Puro: importa el código real, sin disco ni red.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
+import {
+  ANIMATION_FPS,
+  frameBoundary,
+} from '../../pipeline/animation/timing.ts'
 import { planAvatarSpans } from '../../pipeline/avatar/planner.ts'
 import { detectSentences } from '../../pipeline/narration/sentences.ts'
 import { MIN_SECONDS_PER_SCENE } from '../../pipeline/stages/scene-cuts/by-seconds.ts'
@@ -18,36 +30,43 @@ import {
   AVATAR_DEFAULT_APPEARANCES,
   AVATAR_MAX_APPEARANCE_SECONDS,
   AVATAR_MAX_APPEARANCES,
+  AVATAR_MAX_PAUSE_SECONDS,
   AVATAR_MIN_APPEARANCE_SECONDS,
   AVATAR_MIN_APPEARANCES,
   AVATAR_MIN_GAP_SECONDS,
 } from '../../pipeline/types/avatar.ts'
 
-// Frases contiguas desde 0 con estos largos (en segundos).
-function sentencesOf(lengths) {
+// Frases contiguas desde 0 con estos largos (en segundos). Sin `pauses`, la
+// última palabra de cada frase termina con ella; `pauses` da, por índice, los
+// segundos de silencio al final de una frase: `{ 1: 4 }` es la frase 1 con su
+// última palabra 4 s antes de su fin (`lastWordEndSeconds = endSeconds − 4`).
+function sentencesOf(lengths, { pauses = {} } = {}) {
   let start = 0
   return lengths.map((length, index) => {
+    const endSeconds = start + length
     const sentence = {
       index,
       text: `frase ${index}`,
       startSeconds: start,
-      endSeconds: start + length,
+      endSeconds,
+      lastWordEndSeconds: endSeconds - (pauses[index] ?? 0),
       wordFrom: index,
       wordTo: index,
     }
-    start += length
+    start = endSeconds
     return sentence
   })
 }
 
 // Frases entre estas fronteras (en segundos), al cuadro de 25 fps como las da
-// detectSentences.
-function sentencesAt(boundaries) {
+// detectSentences; `pauses`, como en sentencesOf.
+function sentencesAt(boundaries, { pauses = {} } = {}) {
   return boundaries.slice(1).map((endSeconds, index) => ({
     index,
     text: `frase ${index}`,
     startSeconds: boundaries[index],
     endSeconds,
+    lastWordEndSeconds: endSeconds - (pauses[index] ?? 0),
     wordFrom: index,
     wordTo: index,
   }))
@@ -56,13 +75,15 @@ function sentencesAt(boundaries) {
 const repeat = (length, count) => Array.from({ length: count }, () => length)
 
 // Una aparición de 10 s que abre el video, salvo que se pida otra cosa.
-const plan = (lengths, options = {}) =>
-  planAvatarSpans(sentencesOf(lengths), {
+const planOf = (sentences, options = {}) =>
+  planAvatarSpans(sentences, {
     appearances: 1,
     secondsPerAppearance: 10,
     startWithAvatar: true,
     ...options,
   })
+
+const plan = (lengths, options = {}) => planOf(sentencesOf(lengths), options)
 
 const spansOf = (result) =>
   result.spans.map(({ startSeconds, endSeconds, sentenceFrom, sentenceTo }) => [
@@ -227,10 +248,14 @@ test('muchas apariciones en un audio corto: entran las que caben y el resto va a
 
 // Una frase puede pasar los 15 s: una sola palabra con un silencio largo
 // detrás, o la pausa mayor justo antes de una palabra recortada al fin del
-// audio (ver check-narration-sentences.mjs). El planificador la toma entera
-// mientras no pase el máximo. Una que lo pasa no entra en ninguna aparición,
-// ni siquiera en la apertura, y las demás se planifican igual.
-test('frases de más de 15 s: entran enteras hasta el máximo; una más larga no entra en ninguna aparición y no tapa a las demás', () => {
+// audio (ver check-narration-sentences.mjs). Desde la entrega 2b una
+// aparición no carga más de 2 s de silencio después de la última palabra de
+// una frase, así que una palabra con un silencio largo detrás ya no es una
+// aparición: mide un par de segundos útiles y se saltea (antes era una
+// aparición de 19,6 s casi muda que HeyGen cobraba). Una frase de más del
+// máximo (medida hasta su fin útil) no entra en ninguna aparición, ni siquiera
+// en la apertura, y las demás se planifican igual.
+test('frases de más de 15 s: una palabra con un silencio largo detrás ya no es una aparición; una frase de más del máximo no entra en ninguna y no tapa a las demás', () => {
   // «b0» sola y 19,15 s de silencio detrás: frases 0–8,4, 8,4–28 y 28–38.
   const sentences = detectSentences(
     [
@@ -248,16 +273,21 @@ test('frases de más de 15 s: entran enteras hasta el máximo; una más larga no
       [28, 38],
     ],
   )
-  assert.deepEqual(
-    spansOf(
-      planAvatarSpans(sentences, {
-        appearances: 1,
-        secondsPerAppearance: 10,
-        startWithAvatar: false,
-      }),
-    ),
-    [[8.4, 28, 1, 1]],
+  // Su fin útil es 8,85 + 2 s al cuadro (10,84 s): mide 2,44 s y no llega al
+  // mínimo. La frase 0 arranca antes de MIN_SECONDS_PER_SCENE: la aparición
+  // es la frase 2.
+  assert.equal(sentences[1].lastWordEndSeconds, 8.85)
+  assert.equal(
+    frameBoundary(8.85 + AVATAR_MAX_PAUSE_SECONDS) / ANIMATION_FPS,
+    10.84,
   )
+  const afterSilence = planAvatarSpans(sentences, {
+    appearances: 1,
+    secondsPerAppearance: 10,
+    startWithAvatar: false,
+  })
+  assert.deepEqual(spansOf(afterSilence), [[28, 38, 2, 2]])
+  assert.equal(afterSilence.dropped, 0)
   // Una frase de más del máximo en el medio: la apertura frena antes y la
   // aparición siguiente la saltea.
   const overMaximum = AVATAR_MAX_APPEARANCE_SECONDS + 5
@@ -450,16 +480,314 @@ test('épsilon: el ruido de coma flotante entre fronteras al cuadro no cambia el
   ])
 })
 
-// La regla literal de la spec (diseño §5): la aparición arranca en la frase
-// más cercana a su ancla y, si esa frase no cabe (pasa el máximo), la
-// aparición se descarta aunque una frase un poco más lejos sí cabría. Es una
-// pregunta abierta al dueño: cambiarla tiene que ser deliberado.
-test('una frase de más del máximo que es la más cercana al ancla descarta esa aparición aunque haya lugar después', () => {
+// Diseño §5, decisión del dueño del 2026-10-11 (entrega 2b): una frase desde
+// la que la aparición no cabe (pasa el máximo, o el audio se acaba antes del
+// mínimo) no descarta la aparición; se saltea y la aparición se arma desde la
+// frase más cercana a su ancla desde la que sí cabe. Solo si ninguna sirve,
+// va a `dropped`. Antes de la 2b la regla era literal (la más cercana, y si no
+// cabía, se descartaba): el primer caso daba [[83, 93, 5, 6]] con 2
+// descartadas.
+test('una frase de más del máximo que es la más cercana al ancla se saltea y la aparición se arma desde la frase más cercana desde la que cabe', () => {
   // 3 s, una frase de 65 s y diez de 5 s (118 s). La apertura no cabe (3 s
-  // no llegan al mínimo y con la frase de 65 s pasa el máximo); la primera del
-  // reparto cae sobre la frase de 65 s, que no cabe, y se descarta; la segunda
-  // arranca a los 83 s.
+  // no llegan al mínimo y con la frase de 65 s pasa el máximo) y se cuenta. La
+  // primera del reparto busca arrancar a los 24,5 s: la frase más cercana es
+  // la de 65 s, que no cabe, y arranca en la de 68 s; la segunda, desde
+  // 78 + 10 s, en la de 88.
   const result = plan([3, 65, ...repeat(5, 10)], { appearances: 3 })
-  assert.deepEqual(spansOf(result), [[83, 93, 5, 6]])
+  assert.deepEqual(spansOf(result), [
+    [68, 78, 2, 3],
+    [88, 98, 6, 7],
+  ])
+  assert.equal(result.dropped, 1)
+  // La más cercana desde la que cabe puede quedar ANTES del ancla: con
+  // 39,5 s de inicio ideal, la frase de 65 s (arranca a los 14) es la más
+  // cercana y no cabe; gana la que arranca a los 4 s (a 35,5 s del inicio
+  // ideal) y no la de los 79 s (a 39,5), la primera que cabe después de la
+  // más cercana.
+  assert.deepEqual(spansOf(plan([4, 10, 65, 10], { startWithAvatar: false })), [
+    [4, 14, 1, 1],
+  ])
+})
+
+// Tope de silencio (entrega 2b, decisión del dueño del 2026-10-11): una
+// aparición no carga más de AVATAR_MAX_PAUSE_SECONDS (2 s) de silencio después
+// de la última palabra de una frase. La frase con más silencio termina en su
+// última palabra más el tope, al cuadro, y CIERRA la aparición: la siguiente
+// no se suma aunque acerque al objetivo. El silencio que queda afuera va a la
+// escena de imagen siguiente.
+test('tope de silencio: la aparición termina 2 s después de la última palabra y la frase siguiente no entra; con el silencio justo en el tope, nada cambia', () => {
+  // La frase 1 termina a los 10 s y su última palabra a los 7: fin útil 9 s,
+  // y la frase 2 no entra aunque 9 s queden lejos de los 20 del objetivo.
+  assert.equal(frameBoundary(7 + AVATAR_MAX_PAUSE_SECONDS) / ANIMATION_FPS, 9)
+  const capped = planOf(sentencesOf([5, 5, 5, 5], { pauses: { 1: 3 } }), {
+    secondsPerAppearance: 20,
+  })
+  assert.deepEqual(spansOf(capped), [[0, 9, 0, 1]])
+  // Justo en el tope (2 s de silencio): la frase 1 termina en 10 y la 2 entra.
+  const atCap = planOf(
+    sentencesOf([5, 5, 5, 5], { pauses: { 1: AVATAR_MAX_PAUSE_SECONDS } }),
+    { secondsPerAppearance: 15 },
+  )
+  assert.deepEqual(spansOf(atCap), [[0, 15, 0, 2]])
+  // Un cuadro más de silencio (2,04 s) ya recorta y cierra la aparición.
+  const oneFrameOver = planOf(
+    sentencesOf([5, 5, 5, 5], { pauses: { 1: 2.04 } }),
+    { secondsPerAppearance: 15 },
+  )
+  assert.deepEqual(spansOf(oneFrameOver), [[0, 9.96, 0, 1]])
+  // Justo en el tope con el fin del audio fuera de la grilla (25,01 s): la
+  // frase tampoco se recorta (llevada al cuadro terminaría a los 25 s, y esa
+  // cola corta la haría medir igual hasta su fin).
+  const offGridAtCap = planOf(
+    sentencesAt([0, 15, 25.01], { pauses: { 1: AVATAR_MAX_PAUSE_SECONDS } }),
+    { startWithAvatar: false },
+  )
+  assert.deepEqual(spansOf(offGridAtCap), [[15, 25.01, 1, 1]])
+})
+
+// El tope nunca deja una cola corta (rulings del 2026-10-11, diseño §5): si el
+// fin recortado de una frase queda a menos de MIN_SECONDS_PER_SCENE del fin
+// del audio, el corte absorbería esa cola en el avatar (pinnedTimeline) y la
+// aparición podría pasar el máximo. Esa frase se mide hasta su fin nominal
+// para el máximo (y el tramo termina ahí) y hasta el recortado para el mínimo.
+test('el tope nunca deja una cola de menos de 3 s antes del fin del audio: el máximo se mide hasta el fin de la frase y el mínimo hasta el recortado', () => {
+  // Objetivo 60 s y la última frase 55–61 con su última palabra a los 57,95:
+  // recortada (59,96 s) cabría, pero el corte le pegaría la cola de 1,04 s y
+  // la aparición duraría 61 s; medida hasta su fin no cabe. Queda 0–55 y la
+  // escena final de imagen 55–61, como antes de la 2b.
+  const sixty = sentencesOf([...repeat(5, 11), 6])
+  sixty[11].lastWordEndSeconds = 57.95
+  assert.deepEqual(spansOf(planOf(sixty, { secondsPerAppearance: 60 })), [
+    [0, 55, 0, 10],
+  ])
+  // La última frase 5–12 con su última palabra a los 7,95: recortada (9,96 s)
+  // dejaría 2,04 s; la aparición llega al fin del audio.
+  const twelve = sentencesOf([5, 7])
+  twelve[1].lastWordEndSeconds = 7.95
+  assert.deepEqual(spansOf(planOf(twelve)), [[0, 12, 0, 1]])
+  // Justo 3 s antes del fin el corte deja la cola como imagen: sí se recorta.
+  const exact = sentencesOf([5, 10])
+  exact[1].lastWordEndSeconds = 10
+  assert.deepEqual(spansOf(planOf(exact)), [[0, 12, 0, 1]])
+  // También con el ruido de las fronteras al cuadro: 10,04 − 7,04 da
+  // 2,999999999999999 y cuenta como 3.
+  assert.ok(10.04 - 7.04 < MIN_SECONDS_PER_SCENE, 'precondición del ruido')
+  const noisy = sentencesAt([0, 4, 10.04])
+  noisy[1].lastWordEndSeconds = 5.04
+  assert.deepEqual(spansOf(planOf(noisy)), [[0, 7.04, 0, 1]])
+  // No es la última frase: la 1 (5–15, última palabra a los 11,5) recortada
+  // terminaría a los 13,52, a 2,48 s del fin porque la sigue una frase de 1 s.
+  // Se mide hasta 15 y ya no cierra la aparición: con objetivo 16, la suma.
+  const beforeShortLast = sentencesOf([5, 10, 1], { pauses: { 1: 3.5 } })
+  assert.deepEqual(spansOf(planOf(beforeShortLast)), [[0, 15, 0, 1]])
+  assert.deepEqual(
+    spansOf(planOf(beforeShortLast, { secondsPerAppearance: 16 })),
+    [[0, 16, 0, 2]],
+  )
+  // El mínimo, en cambio, se mide hasta el fin recortado (ruling del
+  // 2026-10-11, ronda 2 de la 2b): una última frase casi muda al fin del audio
+  // no se vuelve aparición. La última (3–11 s, última palabra a los 7)
+  // recortada mide 6 s y no cabe, aunque hasta su fin mediría 8.
+  const nearlyMute = sentencesOf([3, 8], { pauses: { 1: 4 } })
+  assert.deepEqual(planOf(nearlyMute, { startWithAvatar: false }), {
+    spans: [],
+    dropped: 1,
+  })
+  // La que llega al mínimo con su fin recortado entra, y el tramo termina en
+  // su fin nominal (al corte no le queda cola que pegarle): la última (3–13 s,
+  // última palabra a los 9) recortada mide 8 s; el tramo, 3–13.
+  const reachesMinimum = sentencesOf([3, 10], { pauses: { 1: 4 } })
+  assert.deepEqual(
+    spansOf(planOf(reachesMinimum, { startWithAvatar: false })),
+    [[3, 13, 1, 1]],
+  )
+  // El mínimo también decide si sigue sumando: la frase 1 (3–10,52 s, última
+  // palabra a los 7,52, y la sigue una frase de 1 s) recortada dice 6,52 s;
+  // aunque hasta su fin mida 7,52, sigue debajo del mínimo y suma la última
+  // aunque no acerque al objetivo de 7 s: 3–11,52.
+  const keepsAdding = sentencesAt([0, 3, 10.52, 11.52])
+  keepsAdding[1].lastWordEndSeconds = 7.52
+  assert.deepEqual(
+    spansOf(
+      planOf(keepsAdding, { startWithAvatar: false, secondsPerAppearance: 7 }),
+    ),
+    [[3, 11.52, 1, 2]],
+  )
+  // Y el máximo se mide hasta el fin nominal: con el audio en 60 s (la última
+  // frase 55–60, última palabra a los 56,95) la aparición entra entera, justo
+  // en el máximo; con 61 s no entraba (arriba).
+  const exactlySixty = sentencesOf([...repeat(5, 11), 5])
+  exactlySixty[11].lastWordEndSeconds = 56.95
+  assert.deepEqual(
+    spansOf(planOf(exactlySixty, { secondsPerAppearance: 60 })),
+    [[0, 60, 0, 11]],
+  )
+})
+
+// El máximo por aparición es una regla del dueño («máx. 1 min») y se cumple
+// siempre (ruling del 2026-10-11, ronda 3 de la 2b): si una aparición
+// terminaría a menos de MIN_SECONDS_PER_SCENE del fin del audio, el corte le
+// pega esa cola (pinnedTimeline), así que su máximo se mide hasta el fin del
+// audio, haya o no tope de silencio en su última frase. El mínimo, como arriba.
+test('el máximo se mide hasta el fin del audio cuando la aparición terminaría a menos de 3 s de él, también sin ninguna pausa', () => {
+  // Once frases de 5 s, una de 4,6 y la final de 1,8, sin pausas (61,4 s).
+  // Con objetivo 60 la aparición sumaba hasta los 59,6 y el corte le pegaba
+  // la final: 61,4 s. Medida hasta el fin del audio, la de 4,6 no entra:
+  // 0–55, y la imagen final 55–61,4.
+  assert.deepEqual(
+    spansOf(plan([...repeat(5, 11), 4.6, 1.8], { secondsPerAppearance: 60 })),
+    [[0, 55, 0, 10]],
+  )
+  // Con la final de 3 s el corte la deja como imagen: la de 4,6 entra, 0–59,6.
+  assert.deepEqual(
+    spansOf(plan([...repeat(5, 11), 4.6, 3], { secondsPerAppearance: 60 })),
+    [[0, 59.6, 0, 11]],
+  )
+  // También con el ruido de las fronteras al cuadro: 64,24 − 61,24 da
+  // 2,999999999999993 y cuenta como 3, así que 3,24–61,24 (58 s) entra.
+  assert.ok(64.24 - 61.24 < MIN_SECONDS_PER_SCENE, 'precondición del ruido')
+  const noisyTail = sentencesAt([0, 3.24, 18.24, 33.24, 48.24, 61.24, 64.24])
+  assert.deepEqual(
+    spansOf(
+      planOf(noisyTail, { startWithAvatar: false, secondsPerAppearance: 60 }),
+    ),
+    [[3.24, 61.24, 1, 4]],
+  )
+  // Si ni sacando frases la aparición queda en el máximo, no cabe: la apertura
+  // de 59 s seguida de una final de 2 duraría 61 tras el corte.
+  assert.deepEqual(plan([59, 2], { secondsPerAppearance: 60 }), {
+    spans: [],
+    dropped: 1,
+  })
+})
+
+test('una frase cuya pausa pasa el tope igual es una aparición si llega al mínimo sola: termina en su fin útil y no suma la siguiente', () => {
+  // Frases 0–5, 5–18 (su última palabra termina a los 13: fin útil 15) y dos
+  // de 5 s. Sin el tope la aparición seguiría hasta los 23 s.
+  const result = planOf(sentencesOf([5, 13, 5, 5], { pauses: { 1: 5 } }), {
+    secondsPerAppearance: 20,
+    startWithAvatar: false,
+  })
+  assert.deepEqual(spansOf(result), [[5, 15, 1, 1]])
+  assert.equal(result.dropped, 0)
+})
+
+test('una frase casi muda (una palabra y 19 s de silencio) nunca es una aparición: el reparto arranca en otra frase', () => {
+  // La frase 1 (5–25 s) es una palabra de 1 s y 19 s de silencio: su fin útil
+  // es 8 s, mide 3 s útiles que no llegan al mínimo y cierra la aparición.
+  const result = planOf(sentencesOf([5, 20, 5, 5], { pauses: { 1: 19 } }), {
+    appearances: 3,
+    startWithAvatar: false,
+  })
+  assert.ok(
+    result.spans.every((span) => span.sentenceFrom !== 1),
+    JSON.stringify(result.spans),
+  )
+  assert.deepEqual(spansOf(result), [[25, 35, 2, 3]])
   assert.equal(result.dropped, 2)
+})
+
+test('apertura casi muda: la apertura no cabe (fin útil a los 3 s), cuenta como una descartada y la otra se reparte desde la frase 1', () => {
+  const result = planOf(sentencesOf([20, 5, 5, 5], { pauses: { 0: 19 } }), {
+    appearances: 2,
+  })
+  assert.deepEqual(spansOf(result), [[20, 30, 1, 2]])
+  assert.equal(result.dropped, 1)
+})
+
+// El hueco de AVATAR_MIN_GAP_SECONDS y la zona libre del reparto se miden
+// desde el fin útil de la aparición anterior: el silencio que el tope deja
+// afuera ya es parte de las imágenes entre una y otra.
+test('el hueco y la zona libre se miden desde el fin útil de la aparición anterior, no desde el fin de su frase', () => {
+  // La apertura termina a los 7 s (la frase 0, 0–12, habla hasta los 5): la
+  // zona libre arranca a los 17 y la otra aparición, también. Desde el fin de
+  // la frase (12) arrancaría a los 22 y daría 27–37.
+  const afterOpening = planOf(
+    sentencesOf([12, 5, 10, 10], { pauses: { 0: 7 } }),
+    { appearances: 2 },
+  )
+  assert.deepEqual(spansOf(afterOpening), [
+    [0, 7, 0, 0],
+    [17, 27, 2, 2],
+  ])
+  assert.equal(afterOpening.dropped, 0)
+  // Sin apertura: la primera termina a los 12 (la frase 1, 5–17, habla hasta
+  // los 10) y la segunda puede arrancar a los 22. Desde el fin de la frase
+  // (17) no podría antes de los 27 y daría 32–42.
+  const afterFirst = planOf(
+    sentencesOf([5, 12, 5, 10, 10], { pauses: { 1: 7 } }),
+    { appearances: 2, startWithAvatar: false },
+  )
+  assert.deepEqual(spansOf(afterFirst), [
+    [5, 12, 1, 1],
+    [22, 32, 3, 3],
+  ])
+})
+
+test('el silencio inicial de la primera frase no se recorta: con «empieza con el avatar» el video abre con el avatar', () => {
+  // La narración arranca a los 5 s: doce palabras hasta los 10,95 y dieciséis
+  // desde los 12. La frase 0 de detectSentences empieza igual en 0 y la
+  // apertura la toma entera, con los 5 s de silencio inicial: 0–12.
+  const sentences = detectSentences(
+    [...halfSecondWords('a', 12, 5), ...halfSecondWords('b', 16, 12)],
+    20,
+  )
+  assert.deepEqual(
+    sentences.map(({ startSeconds, endSeconds }) => [startSeconds, endSeconds]),
+    [
+      [0, 12],
+      [12, 20],
+    ],
+  )
+  assert.deepEqual(spansOf(planOf(sentences)), [[0, 12, 0, 0]])
+  // El tope solo mira el silencio de después de la última palabra: con 1 s
+  // de pausa al final (menos que el tope) la frase 0 no se recorta…
+  assert.deepEqual(
+    spansOf(planOf(sentencesAt([0, 12, 20], { pauses: { 0: 1 } }))),
+    [[0, 12, 0, 0]],
+  )
+  // …y con 7 s el tope recorta la cola, nunca el comienzo: 0–10.
+  assert.deepEqual(
+    spansOf(planOf(sentencesAt([0, 15, 25], { pauses: { 0: 7 } }))),
+    [[0, 10, 0, 0]],
+  )
+})
+
+test('al cuadro: el fin útil es la última palabra más 2 s llevado al cuadro de 25 fps, y el ajuste mide con ese valor', () => {
+  // 7,013 + 2 = 9,013 s es el cuadro 225,325: va al 225 (9 s).
+  assert.equal(frameBoundary(7.013 + AVATAR_MAX_PAUSE_SECONDS), 225)
+  // La frase 0 sola (7 s) queda a 3 s del objetivo; con el fin útil de la 1
+  // (9 s), a 1: la suma. Medida hasta su fin nominal (20 s) quedaría a 10 y no
+  // la sumaría.
+  const closer = sentencesOf([7, 13])
+  closer[1].lastWordEndSeconds = 7.013
+  assert.deepEqual(spansOf(planOf(closer)), [[0, 225 / ANIMATION_FPS, 0, 1]])
+  // El mínimo también se mide al cuadro: 4,99 + 2 = 6,99 s es el cuadro
+  // 174,75, que va al 175 (7 s), y la aparición llega al mínimo.
+  const minimum = sentencesOf([3, 17])
+  minimum[1].lastWordEndSeconds = 4.99
+  assert.deepEqual(spansOf(planOf(minimum)), [[0, 7, 0, 1]])
+  // El fin útil nunca pasa el de la frase: con el audio fuera de la grilla
+  // (25,035 s), el cuadro de 25,03 s es el de 25,04, después del audio (y,
+  // con la cola corta, la frase se mide igual hasta su fin).
+  const offGrid = sentencesAt([0, 15, 25.035], { pauses: { 1: 2.005 } })
+  assert.deepEqual(spansOf(planOf(offGrid, { startWithAvatar: false })), [
+    [15, 25.035, 1, 1],
+  ])
+})
+
+// Un words.json editado a mano o dañado (la fase scene-cuts no valida los
+// tiempos de cada palabra) no puede dejar un plan imposible.
+test('un words.json roto: sin el fin de la última palabra la frase no se recorta (nada de NaN) y un fin anterior al inicio de la frase no corta la anterior', () => {
+  const sentences = sentencesOf([5, 5, 5, 5])
+  sentences[1].lastWordEndSeconds = Number.NaN
+  assert.deepEqual(spansOf(planOf(sentences, { secondsPerAppearance: 20 })), [
+    [0, 20, 0, 3],
+  ])
+  // La frase 1 (12–30 s) dice que su última palabra termina a los 9: su fin
+  // útil se queda en su inicio (12), no en 11, y la aparición no termina antes
+  // del fin de la frase 0.
+  const backwards = sentencesOf([12, 18])
+  backwards[1].lastWordEndSeconds = 9
+  assert.deepEqual(spansOf(planOf(backwards)), [[0, 12, 0, 0]])
 })

@@ -350,7 +350,7 @@ export function LibraryEditor() {
 
         {task?.errorKey && (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3">
-            <p className="font-body text-sm text-destructive">
+            <p className="font-body text-sm text-destructive-text">
               {t(task.errorKey)}
             </p>
             <Button

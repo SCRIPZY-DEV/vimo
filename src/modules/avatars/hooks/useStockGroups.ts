@@ -1,13 +1,26 @@
+import { useCallback } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { avatarsApi } from '@/modules/avatars/api'
 import {
   avatarsQueryKeys,
   STOCK_LOOKS_STALE_TIME_MS,
 } from '@/modules/avatars/constants'
+import type { HeyGenAvatarGroup } from '@pipeline/types/avatar.ts'
 
 interface UseStockGroupsOptions {
   ownership: 'public' | 'private'
   enabled: boolean
+}
+
+// El listado de avatares de HeyGen tal como lo usa el diálogo de stock (y sus
+// filtros, que piden páginas solos).
+export interface StockGroupsListing {
+  groups: HeyGenAvatarGroup[]
+  isLoading: boolean
+  isFetchingMore: boolean
+  hasMore: boolean
+  loadMore: () => void
+  errorKey: string | null
 }
 
 // Páginas de avatares de HeyGen (grupos de looks) por cursor (`next_token`):
@@ -18,7 +31,10 @@ interface UseStockGroupsOptions {
 // y responde `avatar_network` por su cuenta: con el modo `online` por defecto
 // la consulta quedaría en pausa, cargando para siempre, sin conexión
 // (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online).
-export function useStockGroups({ ownership, enabled }: UseStockGroupsOptions) {
+export function useStockGroups({
+  ownership,
+  enabled,
+}: UseStockGroupsOptions): StockGroupsListing {
   const query = useInfiniteQuery({
     queryKey: [...avatarsQueryKeys.stockGroups, ownership],
     queryFn: ({ pageParam }) =>
@@ -36,6 +52,10 @@ export function useStockGroups({ ownership, enabled }: UseStockGroupsOptions) {
     // una es un proceso del sidecar más una llamada a HeyGen.
     refetchOnWindowFocus: false,
   })
+  const { fetchNextPage } = query
+  // Estable entre renders (`fetchNextPage` es del observador): la auto-carga
+  // de los filtros la llama desde un efecto que depende de ella.
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
 
   // Si el listado de HeyGen cambia entre una página y la siguiente, un avatar
   // puede repetirse: queda su primera aparición (su id es la clave de React).
@@ -54,7 +74,7 @@ export function useStockGroups({ ownership, enabled }: UseStockGroupsOptions) {
     isLoading: query.isLoading,
     isFetchingMore: query.isFetchingNextPage,
     hasMore: query.hasNextPage,
-    loadMore: () => void query.fetchNextPage(),
+    loadMore,
     errorKey: query.isError ? avatarsApi.errorMessageKey(query.error) : null,
   }
 }

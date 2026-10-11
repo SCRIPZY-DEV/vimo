@@ -8,6 +8,7 @@ import { avatarRefresh } from './avatar-refresh.ts'
 import { avatarSetMainLook } from './avatar-set-main-look.ts'
 import { avatarStockGroups } from './avatar-stock-groups.ts'
 import { avatarStockLooks } from './avatar-stock-looks.ts'
+import { avatarStockTypes } from './avatar-stock-types.ts'
 import { avatarsList } from './avatars-list.ts'
 
 // Todos llevan «avatar» en el nombre para que el diagnóstico los agrupe en su
@@ -16,6 +17,7 @@ export const avatarsSubcommands: Record<string, SubcommandHandler> = {
   'avatars-list': avatarsList,
   'avatar-stock-groups': avatarStockGroups,
   'avatar-stock-looks': avatarStockLooks,
+  'avatar-stock-types': avatarStockTypes,
   'avatar-add': avatarAdd,
   'avatar-create-photo': avatarCreatePhoto,
   'avatar-refresh': avatarRefresh,

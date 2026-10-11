@@ -905,6 +905,12 @@ async function startCreation(input: {
   // La pantalla aparece antes del preflight; ningún proyecto se crea hasta
   // que sus verificaciones aprueban. El callback descarta respuestas tardías.
   beforeCreate?: (isCurrent: () => boolean) => Promise<boolean>
+  // Avisa una sola vez que el proyecto ya existe en disco, justo después de
+  // anotar su id y solo si la tarea sigue siendo la actual. Existe para lo
+  // que tiene que esperar a ese momento y no antes: Crear descarta ahí su
+  // borrador, así un createProject que falla (una clave o un avatar
+  // rechazados) no se lleva el formulario.
+  onProjectCreated?: () => void
 }): Promise<void> {
   if (rejectIfBusy()) return
   stopActiveJob()
@@ -942,6 +948,7 @@ async function startCreation(input: {
     if (!isCurrent()) return
     projectId = project.projectId
     patchTask(taskId, { projectId })
+    input.onProjectCreated?.()
     // La biblioteca abre en la pestaña del formato recién creado.
     rememberLibraryTab(libraryTabFor(input.payload.options.videoFormat))
   } catch (error) {

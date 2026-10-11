@@ -171,6 +171,33 @@ export interface AvatarStockLooksResult {
   nextToken: string | null
 }
 
+// `avatar-stock-types` (entrega 2b, diseño §18): qué grupos públicos de HeyGen
+// son avatares de estudio y cuáles gemelos digitales; los demás son de foto.
+// HeyGen no expone categorías en el listado de grupos, así que Vimo barre los
+// looks públicos por tipo (gratis) y lo guarda 24 h en
+// `<projectsRoot>/avatars/STOCK_TYPES_CACHE_FILE`.
+export interface AvatarStockTypesPayload {
+  // true = ignorar la caché y volver a barrer HeyGen.
+  refresh?: boolean
+}
+
+export interface AvatarStockTypesResult {
+  // Ids de grupo, ordenados y sin repetir.
+  studioGroupIds: string[]
+  twinGroupIds: string[]
+  // Cuándo se barrió HeyGen (ISO 8601) y si la respuesta salió de la caché.
+  fetchedAt: string
+  fromCache: boolean
+  // Alguna barrida llegó al tope de páginas con más por leer: la lista es parcial.
+  truncated: boolean
+}
+
+export const STOCK_TYPES_CACHE_FILE = '.stock-types.json'
+export const STOCK_TYPES_CACHE_TTL_MS = 24 * 60 * 60_000
+// Tope de páginas por barrida (50 looks por página). Medido el 2026-10-11:
+// estudio 26 páginas, gemelos 17.
+export const STOCK_TYPES_MAX_PAGES = 80
+
 export interface AvatarAddPayload {
   groupId: string
   // stock → HeyGen ownership public; own → private.
@@ -265,6 +292,12 @@ export const AVATAR_MAX_APPEARANCES = 10
 export const AVATAR_DEFAULT_APPEARANCES = 3
 // Mínimo de imágenes entre dos apariciones.
 export const AVATAR_MIN_GAP_SECONDS = 10
+// Silencio máximo que una aparición carga después de la última palabra de una
+// frase (entrega 2b, decisión del dueño del 2026-10-11, diseño §5): una frase
+// que es una palabra y un silencio largo no se vuelve un avatar mudo que HeyGen
+// cobra. Por encima, la frase cierra la aparición en `lastWordEndSeconds` más
+// este tope, al cuadro.
+export const AVATAR_MAX_PAUSE_SECONDS = 2
 // Frases de la narración (pipeline/narration/sentences.ts): una pausa así
 // cierra una frase sin puntuación, y una frase más larga que el máximo se
 // parte en su pausa interna más larga.

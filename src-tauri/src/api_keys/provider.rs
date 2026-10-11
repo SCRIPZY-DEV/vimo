@@ -68,6 +68,13 @@ pub fn mask_key(key: &str) -> String {
         return "•".repeat(key.len().min(12));
     }
     let start: String = key.chars().take(visible).collect();
-    let end: String = key.chars().rev().take(visible).collect::<Vec<_>>().into_iter().rev().collect();
+    let end: String = key
+        .chars()
+        .rev()
+        .take(visible)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     format!("{start}…{end}")
 }

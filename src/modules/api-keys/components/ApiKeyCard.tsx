@@ -175,7 +175,7 @@ export function ApiKeyCard({
                 onClick={removeKey}
                 disabled={removing}
                 aria-label={t('apiKeys.eliminar')}
-                className="rounded-lg text-muted-foreground hover:text-destructive"
+                className="rounded-lg text-muted-foreground hover:text-destructive-text"
               >
                 {removing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -230,7 +230,7 @@ export function ApiKeyCard({
                 'flex items-start gap-2 rounded-lg border p-2.5 font-body text-sm',
                 validation.ok
                   ? 'border-saffron/30 bg-saffron/10 text-foreground'
-                  : 'border-destructive/30 bg-destructive/10 text-destructive',
+                  : 'border-destructive/30 bg-destructive/10 text-destructive-text',
               )}
             >
               {validation.ok ? (

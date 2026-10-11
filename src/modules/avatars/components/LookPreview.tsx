@@ -16,6 +16,9 @@ interface LookPreviewProps {
   // La URL de la imagen todavía no llegó (se está pidiendo): esqueleto en vez
   // del doodle.
   loading?: boolean
+  // El video todavía se está buscando (la tarjeta pidió los looks del avatar
+  // al activarse): un velo suave late sobre la imagen hasta que llega.
+  videoPending?: boolean
   doodleSize?: number
   className?: string
 }
@@ -34,6 +37,7 @@ export function LookPreview({
   focus = 'top',
   active = false,
   loading = false,
+  videoPending = false,
   doodleSize = 56,
   className,
 }: LookPreviewProps) {
@@ -76,6 +80,19 @@ export function LookPreview({
           <DoodleCharacter size={doodleSize} />
         </span>
       )}
+      {/* Montado siempre y apagado con opacidad: se apaga en el blur de la
+          tarjeta, y dentro de un diálogo de Radix un nodo que sale del DOM en
+          el blur devuelve el foco a su caja (ERRORES-CONOCIDOS: radix-
+          focusscope-devuelve-el-foco-al-dialogo-si-se-desmonta-un-nodo-
+          durante-el-blur). `animate-pulse` anima la opacidad: va solo
+          mientras late. */}
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 bg-white/25 transition-opacity',
+          videoPending ? 'animate-pulse' : 'opacity-0',
+        )}
+      />
       {videoUrl && (
         <HoverVideo src={videoUrl} anchor={anchor} active={active} />
       )}

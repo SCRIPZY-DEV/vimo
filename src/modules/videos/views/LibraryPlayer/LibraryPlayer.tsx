@@ -110,7 +110,7 @@ export function LibraryPlayer() {
           size="sm"
           disabled={deleting}
           onClick={removeProject}
-          className="rounded-lg font-display text-muted-foreground hover:text-destructive"
+          className="rounded-lg font-display text-muted-foreground hover:text-destructive-text"
         >
           <Trash2 className="mr-1.5 h-3.5 w-3.5" />
           {t('library.player.delete')}

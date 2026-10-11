@@ -68,7 +68,7 @@ export function UpdatesSection() {
             className={cn(
               'font-body text-sm',
               phase === UpdatePhase.error
-                ? 'text-destructive'
+                ? 'text-destructive-text'
                 : 'text-muted-foreground',
             )}
           >

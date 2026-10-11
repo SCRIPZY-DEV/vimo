@@ -1042,10 +1042,16 @@ export const AVATAR_NO_LOOK_KEYS: Record<VideoFormat, string> = {
   '16:9': 'create.avatar.noLookLandscape',
   '9:16': 'create.avatar.noLookPortrait',
 }
-// La miniatura de un look en la tarjeta, con la forma del video.
+// La vista previa del look elegido en la tarjeta, con la forma del video.
 export const AVATAR_LOOK_FRAME_CLASSES: Record<VideoFormat, string> = {
   '16:9': 'aspect-video',
   '9:16': 'aspect-[9/16]',
+}
+// Su ancho fijo, al lado del desplegable del look (el alto sale de la forma):
+// la vertical más angosta, para que no estire la tarjeta.
+export const AVATAR_LOOK_PREVIEW_WIDTH_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'w-40',
+  '9:16': 'w-24',
 }
 // Fichas de esqueleto mientras se lee la biblioteca de avatares.
 export const AVATAR_PICKER_SKELETONS = 5

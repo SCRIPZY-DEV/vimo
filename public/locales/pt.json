@@ -1198,7 +1198,6 @@
       "unavailable": "Indisponível",
       "noLookShort": "Sem look para este formato",
       "lookLabel": "Look",
-      "chooseLook": "Escolha o look do avatar",
       "lookHint": "O avatar aparece exatamente como neste look, com o fundo dele e no formato do vídeo: o Vimo não gera imagens para esses trechos.",
       "noLookLandscape": "{{name}} não tem looks horizontais para um vídeo 16:9.",
       "noLookPortrait": "{{name}} não tem looks verticais para um vídeo 9:16.",
@@ -1218,7 +1217,10 @@
       "pricePerMinute": "· {{price}} por minuto",
       "moderationHint": "A HeyGen rejeita conteúdo político, violento ou enganoso, e o uso de pessoas reais sem permissão.",
       "noKey": "Para adicionar um avatar apresentador, cadastre sua chave da HeyGen.",
-      "goToApiKeys": "Ir para Chaves de API"
+      "goToApiKeys": "Ir para Chaves de API",
+      "lookHelp": "O look principal da sua biblioteca é usado por padrão; aqui você pode escolher outro com a orientação do vídeo.",
+      "lookMainNote": "Look principal da sua biblioteca",
+      "moderationTitle": "Regras de conteúdo da HeyGen"
     }
   },
   "createDemo": {
@@ -1933,8 +1935,7 @@
       "cargando": "Carregando avatares…",
       "cargandoLooks": "Carregando looks…",
       "volver": "Voltar aos avatares",
-      "elegirLook": "Escolha o look principal deste avatar.",
-      "agregarConLook": "Adicionar com “{{name}}”",
+      "elegirLook": "Clique em um look para vê-lo em movimento e carregá-lo na sua biblioteca.",
       "yaEnBiblioteca": "Este avatar já está na sua biblioteca: escolha o look principal dele pela biblioteca.",
       "abrirEnBiblioteca": "Abrir na sua biblioteca",
       "vacioLooks": "Este avatar ainda não tem looks prontos.",
@@ -1943,7 +1944,21 @@
         "landscape": "Horizontal",
         "square": "Quadrado"
       },
-      "previewAria": "Prévia de {{name}}"
+      "previewAria": "Prévia de {{name}}",
+      "categoriaAria": "Categoria",
+      "categoria": {
+        "todos": "Todos",
+        "profesional": "Profissional",
+        "estiloDeVida": "Estilo de vida",
+        "comunidad": "Comunidade",
+        "favoritos": "Favoritos"
+      },
+      "clasificando": "Classificando os avatares da HeyGen…",
+      "clasificacionNoDisponible": "Não foi possível classificar os avatares: os filtros por categoria não estão disponíveis por enquanto.",
+      "favoritoAria": "Favorito: {{name}}",
+      "vacioFavoritos": "Você ainda não marcou favoritos: toque no coração de um avatar para guardá-lo aqui.",
+      "buscandoMas": "Procurando mais avatares…",
+      "abrirLookAria": "Ver o look {{name}}"
     },
     "detalle": {
       "origen": {
@@ -1959,6 +1974,23 @@
       "lookGenerando": "Gerando…",
       "lookFallido": "Não foi possível gerar",
       "cerrar": "Fechar"
+    },
+    "reproductor": {
+      "cargar": "Carregar na biblioteca",
+      "cargando": "Carregando…",
+      "esPrincipal": "É o look principal deste avatar.",
+      "noCompatibleHint": "Este look não é compatível com o Vimo: não pode ser usado em um vídeo.",
+      "noListoHint": "Este look ainda está sendo gerado.",
+      "yaEnBiblioteca": "Este avatar já está na sua biblioteca.",
+      "sinVideo": "Este look não tem vídeo de prévia.",
+      "cerrar": "Fechar a prévia",
+      "silenciar": "Silenciar",
+      "activarSonido": "Ativar o som",
+      "velocidad": "Velocidade: {{rate}}×",
+      "pantallaCompleta": "Tela cheia",
+      "salirPantallaCompleta": "Sair da tela cheia",
+      "descripcion": "É assim que o avatar aparece nos seus vídeos: com esta roupa, este fundo e este enquadramento.",
+      "errorVideo": "Não foi possível carregar o vídeo deste look. Verifique sua conexão e abra de novo."
     },
     "generar": {
       "tarjeta": "Criar cenário",

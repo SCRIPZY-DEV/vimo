@@ -415,3 +415,78 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
   (`pipeline/animation/timing.ts`) es único para frases, planificador y pines (los planificadores de Kie conservan los suyos), y `avatarSceneSpan`
   (`pipeline/types/avatar.ts`) es la única regla de «avatar de largo cero», en el carril, la
   cobertura de Kie, la pista y el visor.
+
+## Enmienda 2026-10-11 — entrega 2b (la QA del dueño de la entrega 2)
+
+Pedidos del dueño del 2026-10-11 tras probar la app `0.9.3-editor.4`, con capturas de HeyGen y de
+Vimo. Los hechos de las dos sondas gratis de ese día y la tabla de decisiones están en §18 del
+diseño; los rulings numerados de la ejecución (R10 a R38) están en
+`docs/handoff/2026-10-09-avatar-heygen/execution-e2b/ledger.md`. Nada de esto agrega un pedido que
+cobre: todo lo nuevo de HeyGen son `GET` gratis. Donde el diseño dice otra cosa que esta enmienda
+(cuándo se descarta el borrador de Crear, §9, y desde cuándo se piden los looks del stock al pasar
+el mouse, §12.2), manda esta enmienda.
+
+- **Planificador (§5).** Cada aparición arranca en la frase más cercana a su ancla **desde la que
+  cabe** (antes, la más cercana y, si no cabía, se descartaba). Una aparición nunca carga más de
+  `AVATAR_MAX_PAUSE_SECONDS` = 2 s de silencio después de la última palabra de una frase:
+  `NarrationSentence` trae `lastWordEndSeconds` y el fin recortado de una frase es
+  `min(endSeconds, cuadro(lastWordEndSeconds + 2 s))`; una frase recortada cierra la aparición y el
+  silencio que sobra pasa a la escena de imagen siguiente (una escena sin palabras ya era un caso
+  del corte). El tope no deja una cola corta ni pasa el máximo después del corte (rulings R10, R34 y
+  R37): si el fin recortado queda a menos de `MIN_SECONDS_PER_SCENE` del fin del audio, el tramo
+  llega a su fin nominal, porque `pinnedTimeline` absorbería esa cola igual; el **mínimo** de 7 s se
+  mide hasta el fin recortado (una última frase casi muda no es una aparición) y el **máximo** de 60
+  s con lo que deja el corte: una aparición que terminaría a menos de 3 s del fin del audio se mide
+  hasta el fin del audio, con tope de silencio o sin él, y si ni así entra se queda una frase antes
+  o, sin otra frase desde la que quepa, va a `dropped`. Esto precisa la nota de la entrega 2 («la
+  última aparición puede pasar hasta 2,99 s del plan»): sigue pudiendo alargarse hasta 3 s respecto
+  del plan, pero nunca por encima de los 60 s. Una pausa larga adentro de una frase de 15 s o menos
+  se carga entera (límite deliberado). Sin avatar nada cambia.
+- **Subtítulos (§10.1).** Una frase es de la escena de avatar por el punto medio de su parte hablada
+  (de su inicio a `lastWordEndSeconds`): con el tope, la última frase de una aparición puede
+  terminar después de la escena y, medida entera, sus palabras no salían en ningún subtítulo.
+- **Biblioteca (§12.2).** Los filtros de HeyGen no existen en su API: Vimo deriva «Profesional»
+  (estudio), «Comunidad» (gemelos) y «Estilo de vida» (los demás, de foto) del tipo de look con el
+  subcomando `avatar-stock-types` (dos barridas gratis de `GET /v3/avatars/looks` por `avatar_type`,
+  caché de 24 h en `avatars/.stock-types.json`). Una barrida sin ningún grupo se toma por un
+  `data: []` pasajero: no se guarda y, si hay una caché legible, sirve esa (R29); en la app, una
+  clasificación vacía no se cachea (`staleTime` 0): reabrir el stock la pide otra vez y el diálogo
+  dice «Clasificando…» mientras tanto (R30 y R35). «Favoritos» es una lista local (store
+  `avatars.json` de la app): se guarda con escrituras en cola (si una falla, avisa y relee el store
+  cuando la cola se vacía) y un favorito que el listado público completo de HeyGen ya no trae no se
+  borra del store (R38): solo se oculta y en la sesión deja de contar para la auto-carga de
+  «Favoritos». «UGC» no se ofrece. La tarjeta del stock reproduce al pasar el mouse el video del
+  look de portada cuando el grupo no trae video; la de la biblioteca, el de cada una de sus tres
+  imágenes, compacta y con la misma altura en su fila. Los looks se piden recién cuando el mouse
+  queda quieto 250 ms sobre la tarjeta (`HOVER_FETCH_DELAY_MS`) o con el foco del teclado: cruzar
+  una grilla no lanza un proceso del sidecar por tarjeta. Un clic en un look abre su reproductor
+  (`LookPlayerDialog`: sin autoplay, con sonido solo desde un clic, línea de tiempo, velocidad,
+  silencio y pantalla completa) con «Cargar a la biblioteca» en el stock y «Usar como principal» en
+  el panel; las fichas de looks siguen del mismo tamaño aunque el look sea vertical.
+- **Crear (§9).** El look se elige en un desplegable con el principal de la biblioteca por defecto y
+  la vista previa del elegido al lado (la de disco o, si falta, la del listado de HeyGen, con su
+  video al pasar el mouse); el aviso de moderación es un recuadro destacado con título. El
+  formulario vive también en un borrador en memoria del módulo: «Crear escenario» y los demás
+  enlaces que salen de Crear ya no lo pierden; un formulario intacto no se guarda, «Crear otro» y
+  cerrar la confirmación de escenas lo guardan, y en la demo no se usa. Se descarta cuando el
+  proyecto de la generación ya existe (`onProjectCreated` de `startCreation`), no antes: un
+  pre-chequeo que frena, una cancelación o un `createProject` que falla lo dejan (R36). Lo que
+  ninguna pantalla de Crear edita y solo siembra Ajustes (la duración de escena de las gemas y su
+  pausa) sale siempre de la preferencia actual y no del borrador (R32). Cerrar sesión no lo borra
+  (un reinicio sí): residual aceptado, como la tarea en curso.
+- **Módulos (R33).** Crear (`videos`) consume hooks y componentes del módulo `avatars`
+  (`LookPreview`, `useStockLooks`) como ya lo hace con `voices`, `api-keys` y `settings`: es la
+  práctica del repo para esa pantalla. Costo si estuviera mal: mover `LookPreview` a `common`.
+- **Verificación.** Guards nuevos: `check-avatar-library-ui.mjs` (la biblioteca en Chrome),
+  `check-create-draft.mjs` (el módulo del borrador, 5) y `check-create-draft-ui.mjs` (Crear entera
+  en Chrome). Ampliados: `check-avatar-library.mjs` (90, con `avatar-stock-types`),
+  `check-avatar-planner.mjs` (25), `check-scene-pins.mjs` (39), `check-avatar-blocks.mjs` (44),
+  `check-narration-sentences.mjs` (24) y `check-create-avatar-ui.mjs` (57 checks). Todo con HeyGen
+  simulado. **A confirmar en la QA del dueño, con la app real:** las capas de WebKit sobre el video
+  (la barra del reproductor y el corazón de la tarjeta), la pantalla completa en la WebView de
+  Tauri, `play()` con sonido tras un clic en la WKWebView y «Cargar a la biblioteca» de punta a
+  punta.
+
+Costo si estuviera mal: las categorías son una aproximación por tipo de look (un mapeo distinto es
+un cambio de constantes) y la frase más cercana, el tope de silencio y el máximo son reglas puras
+del planificador (`planner.ts`). La ADR sigue en «Propuesta»: pasa a Aceptada con la QA del dueño.

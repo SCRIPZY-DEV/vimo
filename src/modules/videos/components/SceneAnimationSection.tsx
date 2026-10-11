@@ -158,7 +158,7 @@ export function SceneAnimationSection({
         </p>
       )}
       {lastErrorKey && !animating && !staticTailOnly && (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive">
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 font-body text-xs text-destructive-text">
           {t('library.editor.panel.animation.lastError', {
             reason: t(lastErrorKey),
           })}

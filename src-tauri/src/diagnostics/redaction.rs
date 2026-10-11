@@ -55,21 +55,11 @@ const USER_PLACEHOLDER: &str = "<user>";
 
 /// Marcadores tras los que viene un secreto hasta el próximo separador.
 const SECRET_MARKERS: [&str; 6] = [
-    "Bearer ",
-    "bearer ",
-    "api_key=",
-    "apikey=",
-    "key=",
-    "token=",
+    "Bearer ", "bearer ", "api_key=", "apikey=", "key=", "token=",
 ];
 /// Prefijos de carpeta de usuario: el segmento siguiente es el nombre de la cuenta.
-const USER_DIRECTORY_MARKERS: [&str; 5] = [
-    "/Users/",
-    "/home/",
-    "\\Users\\",
-    "\\\\Users\\\\",
-    "/users/",
-];
+const USER_DIRECTORY_MARKERS: [&str; 5] =
+    ["/Users/", "/home/", "\\Users\\", "\\\\Users\\\\", "/users/"];
 
 /// Quita secretos y rutas personales de los strings del log. Conoce los valores
 /// reales de las claves API y las carpetas del usuario: reemplaza por

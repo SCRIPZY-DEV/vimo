@@ -75,7 +75,9 @@ export function MusicPromptSuggester({
               : t('music.sugerir.boton')}
           </Button>
           {errorKey && (
-            <p className="font-body text-sm text-destructive">{t(errorKey)}</p>
+            <p className="font-body text-sm text-destructive-text">
+              {t(errorKey)}
+            </p>
           )}
         </div>
       )}

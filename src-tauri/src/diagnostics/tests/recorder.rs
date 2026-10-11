@@ -11,15 +11,17 @@ fn failure_keeps_code_and_running_stage() {
     recorder.record_event(&json!({ "type": "stage-started", "stageId": "voice" }));
     recorder.record_event(&json!({ "type": "stage-completed", "stageId": "voice" }));
     recorder.record_event(&json!({ "type": "stage-started", "stageId": "images" }));
-    recorder.record_event(
-        &json!({ "type": "job-failed", "code": "image_timeout", "message": "boom" }),
-    );
+    recorder
+        .record_event(&json!({ "type": "job-failed", "code": "image_timeout", "message": "boom" }));
     let outcome = recorder.finish(Some(1), None);
 
     assert_eq!(outcome.status, RunStatus::Failed);
     assert_eq!(outcome.error_code.as_deref(), Some("image_timeout"));
     assert_eq!(outcome.failed_stage.as_deref(), Some("images"));
-    assert_eq!(outcome.subject.and_then(|subject| subject.id).as_deref(), Some("mi-video"));
+    assert_eq!(
+        outcome.subject.and_then(|subject| subject.id).as_deref(),
+        Some("mi-video")
+    );
 }
 
 #[test]
@@ -71,7 +73,11 @@ fn created_project_id_comes_from_the_result() {
         &json!({ "type": "job-completed", "result": { "projectId": "nuevo", "projectDir": "/x" } }),
     );
     assert_eq!(
-        recorder.finish(Some(0), None).subject.and_then(|subject| subject.id).as_deref(),
+        recorder
+            .finish(Some(0), None)
+            .subject
+            .and_then(|subject| subject.id)
+            .as_deref(),
         Some("nuevo")
     );
 }
@@ -119,14 +125,21 @@ fn progress_is_sampled_by_bucket() {
 fn long_timelines_keep_head_and_tail() {
     let mut recorder = recorder("run-video-pipeline", None);
     for index in 0..(HEAD_ENTRIES_LIMIT + TAIL_ENTRIES_LIMIT + 100) {
-        recorder.record_event(&json!({ "type": "log", "level": "info", "message": index.to_string() }));
+        recorder
+            .record_event(&json!({ "type": "log", "level": "info", "message": index.to_string() }));
     }
     let outcome = recorder.finish(Some(0), None);
 
     assert!(outcome.events_truncated);
-    assert_eq!(outcome.events.len(), HEAD_ENTRIES_LIMIT + TAIL_ENTRIES_LIMIT);
+    assert_eq!(
+        outcome.events.len(),
+        HEAD_ENTRIES_LIMIT + TAIL_ENTRIES_LIMIT
+    );
     assert_eq!(outcome.events[0]["message"], json!("0"));
-    assert_eq!(outcome.events.last().unwrap()["type"], json!("process-exited"));
+    assert_eq!(
+        outcome.events.last().unwrap()["type"],
+        json!("process-exited")
+    );
 }
 
 #[test]
@@ -154,7 +167,11 @@ fn avatar_scene_progress_is_sampled_by_time() {
         .collect();
     assert_eq!(
         types,
-        ["avatar-scene-progress", "avatar-scene-ready", "process-exited"]
+        [
+            "avatar-scene-progress",
+            "avatar-scene-ready",
+            "process-exited"
+        ]
     );
 }
 

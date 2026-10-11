@@ -283,7 +283,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           {actions.errorKey && (
             <p
               role="alert"
-              className="mx-5 mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-xs text-destructive sm:mx-6"
+              className="mx-5 mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 font-body text-xs text-destructive-text sm:mx-6"
             >
               {t(actions.errorKey)}
             </p>

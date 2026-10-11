@@ -26,6 +26,11 @@ export const avatarsQueryKeys = {
   list: ['avatars', 'list'],
   stockGroups: ['avatars', 'stockGroups'],
   stockLooks: ['avatars', 'stockLooks'],
+  stockTypes: ['avatars', 'stockTypes'],
+  stockFavorites: ['avatars', 'stockFavorites'],
+  // Favoritos que un recorrido completo del listado público no trajo: solo en
+  // memoria, por la sesión (nunca se borran de lo guardado).
+  stockFavoritesUnlisted: ['avatars', 'stockFavoritesUnlisted'],
   balance: ['avatars', 'balance'],
 } as const
 
@@ -127,6 +132,12 @@ export const AVATAR_LOOK_NOT_LISTED_CODE = 'avatar_look_not_listed'
 // looks): cada página es un proceso del sidecar contra HeyGen.
 export const STOCK_LOOKS_STALE_TIME_MS = 5 * 60_000
 
+// Cuánto tiene que quedarse quieto el mouse sobre una tarjeta (del stock o de
+// la biblioteca) para pedir los looks que dan su video al pasar el mouse:
+// cruzar tarjetas sin detenerse no lanza un proceso del sidecar por cada una.
+// El foco visible del teclado no espera.
+export const HOVER_FETCH_DELAY_MS = 250
+
 // Saldo de HeyGen en la cabecera: cuánto vale una lectura y cuándo se vuelve
 // a mirar tras un cobro (HeyGen puede descontar con retraso, así que se relee
 // al instante y otra vez a los 20 s).
@@ -147,6 +158,48 @@ export const STOCK_GENDER_LABEL_KEYS: Record<StockGenderFilter, string> = {
   male: 'avatars.stock.genero.hombres',
   female: 'avatars.stock.genero.mujeres',
 }
+
+// Filtros por categoría del stock público (entrega 2b, decisión del dueño del
+// 2026-10-11, diseño §12.2 y §18): HeyGen no expone sus categorías por la API,
+// así que Vimo las deriva del tipo de look que informa `avatar-stock-types`:
+// «Profesional» = avatares de estudio, «Comunidad» = gemelos digitales
+// compartidos, «Estilo de vida» = los demás (avatares de foto); «Favoritos» son
+// los marcados con el corazón en esta máquina. Solo en «De stock».
+export const STOCK_CATEGORY_FILTERS = [
+  'all',
+  'studio',
+  'photo',
+  'twin',
+  'favorites',
+] as const
+export type StockCategoryFilter = (typeof STOCK_CATEGORY_FILTERS)[number]
+export const STOCK_CATEGORY_LABEL_KEYS: Record<StockCategoryFilter, string> = {
+  all: 'avatars.stock.categoria.todos',
+  studio: 'avatars.stock.categoria.profesional',
+  photo: 'avatars.stock.categoria.estiloDeVida',
+  twin: 'avatars.stock.categoria.comunidad',
+  favorites: 'avatars.stock.categoria.favoritos',
+}
+
+// Con un filtro activo (categoría, género, favoritos o búsqueda), la grilla del
+// stock pide páginas sola hasta mostrar al menos estas tarjetas o llegar a la
+// última página: un filtro con pocas coincidencias no deja la grilla vacía con
+// «Cargar más» como única salida.
+export const STOCK_FILTER_MIN_VISIBLE = 12
+
+// Store de la app (plugin-store) con lo que el módulo guarda en esta máquina:
+// por ahora, los favoritos del stock público (ids de grupo de HeyGen).
+export const AVATARS_STORE_FILE = 'avatars.json'
+export const STOCK_FAVORITES_STORE_KEY = 'stockFavorites'
+
+// Velocidades del reproductor de un look (la vista previa de HeyGen), en el
+// orden en que las recorre el botón.
+export const LOOK_PLAYER_RATES = [0.5, 1, 1.5, 2] as const
+export type LookPlayerRate = (typeof LOOK_PLAYER_RATES)[number]
+
+// Cuántos segundos salta el reproductor de un look con las flechas izquierda y
+// derecha, con el foco en el escenario.
+export const LOOK_PLAYER_SKIP_SECONDS = 5
 
 // Grilla de avatares y de looks: el stock, sus esqueletos y el detalle de un
 // avatar comparten el layout para que nada salte al llegar los datos.

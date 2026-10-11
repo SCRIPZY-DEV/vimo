@@ -87,9 +87,9 @@ fn first_string_of(value: &Value, key: &str) -> Option<String> {
 // que nunca puede llevar `.`, `/` ni `\`.
 pub fn is_safe_entity_id(id: &str) -> bool {
     !id.is_empty()
-        && id
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_')
+        && id.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '-' || character == '_'
+        })
 }
 
 fn kind_of(subcommand: &str, payload: Option<&Value>) -> Option<SubjectKind> {
@@ -129,7 +129,10 @@ pub fn subject_from_payload(subcommand: &str, payload: Option<&Value>) -> Option
             string_field(payload, "id").or_else(|| string_field(payload, "styleId")),
             string_field(payload, NAME_FIELD),
         ),
-        SubjectKind::Character => (string_field(payload, "id"), string_field(payload, NAME_FIELD)),
+        SubjectKind::Character => (
+            string_field(payload, "id"),
+            string_field(payload, NAME_FIELD),
+        ),
         // Un avatar que ya está en la biblioteca (payload con `id`) se nombra
         // desde su metadata: en `avatar-generate-look`, `name` es el del look
         // nuevo, no el del avatar. Sin `id` (crear desde foto, agregar del

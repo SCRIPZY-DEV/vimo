@@ -305,12 +305,50 @@ export function planAvatarSpans(
   mínimo), cuenta como UNA aparición descartada y las demás se reparten como sin apertura (nunca
   antes de `MIN_SECONDS_PER_SCENE`); no se descarta el plan entero (ruling del 2026-10-10, tarea 3).
   Una frase de más de `AVATAR_MAX_SENTENCE_SECONDS` entra entera mientras no pase el máximo de la
-  aparición; una de más del máximo no entra en ninguna, y si es la más cercana al ancla esa aparición
-  se descarta aunque haya lugar después (regla literal; pregunta abierta al dueño).
+  aparición; una de más del máximo no entra en ninguna. **Desde la entrega 2b (decisión del dueño
+  del 2026-10-11):** una frase desde la que `fit` no cabe (pasa el máximo, o el audio se acaba
+  antes del mínimo) no descarta la aparición: se saltea y la aparición se arma desde la frase más
+  cercana al ancla desde la que sí cabe. Solo si ninguna frase de la zona sirve, la aparición se
+  cuenta en `dropped`. Antes de la 2b la regla era literal («la más cercana, y si no cabe, se
+  descarta»); el ejemplo de la tarea 3 —3 s, una frase de 65 s y diez de 5 s, tres apariciones de
+  10 s con apertura— daba `[[83, 93]]` con 2 descartadas y ahora da `[[68, 78], [88, 98]]` con 1.
 - **Las demás.** Se reparten parejo: la zona libre va desde el fin de la anterior más
   `AVATAR_MIN_GAP_SECONDS` hasta el fin del audio; para M apariciones restantes, el ancla k es el
   centro del tramo k de M tramos iguales; la aparición empieza en la frase cuyo inicio está más cerca
-  de `ancla − objetivo/2`, nunca antes del fin de la anterior más el hueco mínimo; `fit` desde ahí.
+  de `ancla − objetivo/2` entre las que arrancan después del fin de la anterior más el hueco mínimo
+  **y desde las que `fit` cabe** (con empate, la primera); `fit` desde ahí.
+- **Pausas (entrega 2b, decisión del dueño del 2026-10-11).** Una aparición nunca carga más de
+  `AVATAR_MAX_PAUSE_SECONDS` = 2 s de silencio después de la última palabra de una frase. Cada
+  `NarrationSentence` lleva `lastWordEndSeconds` (el fin de su última palabra, sin llevar al cuadro;
+  `detectSentences` lo saca de `words.json`) y su **fin recortado** para el avatar es
+  `min(endSeconds, cuadro(lastWordEndSeconds + AVATAR_MAX_PAUSE_SECONDS))` (al cuadro de 25 fps con
+  `frameBoundary`, nunca antes del inicio de la frase). `fit` mide los largos hasta el fin recortado
+  (con las dos excepciones de más abajo: la cola corta y el máximo después del corte), y una
+  frase cuya pausa pasa el tope **cierra** la aparición: la siguiente no se suma, aunque el largo esté
+  por debajo del mínimo (entonces esa aparición no cabe desde ahí). El silencio que queda afuera pasa
+  a la escena de imagen siguiente (el corte ya admite escenas sin palabras). El tope no cambia el
+  plan cuando todas las pausas son de 2 s o menos (la regla de la frase más cercana desde la que
+  cabe y la del máximo, de abajo, sí pueden cambiarlo sin ninguna pausa). El silencio inicial de la
+  primera frase (de 0 a su primera palabra) no se recorta: con «empieza con el avatar» el video abre
+  con el avatar. Ejemplo: una palabra y 19 s de silencio ya no es una aparición de 19,6 s que HeyGen
+  cobra: esa frase sola mide 2,44 s útiles, no puede sumar la siguiente, y la aparición se arma
+  desde otra frase.
+  **El tope nunca deja una cola corta** (rulings del 2026-10-11, revisión de la 2b): si el fin
+  recortado de una frase queda a menos de `MIN_SECONDS_PER_SCENE` del fin del audio, el tramo llega
+  a su fin nominal, porque el corte absorbería esa cola igual (§6.1); el mínimo se sigue midiendo
+  hasta el fin recortado, así una última frase casi muda al fin del audio no se vuelve aparición: la
+  última frase 3–11 con su última palabra a los 7 s no entra, y la 3–13 con su última palabra a los
+  9 s entra y llega a 13. Con la última frase 5–12 (última palabra a los 7,95 s, audio de 12 s) la
+  aparición es 0–12, como antes de la 2b. **El máximo se cumple después del corte** (ruling del
+  2026-10-11, ronda 3): los 60 s por aparición son una regla del dueño («máx. 1 min»), así que una
+  aparición que terminaría a menos de `MIN_SECONDS_PER_SCENE` del fin del audio se mide hasta el fin
+  del audio, haya o no tope de silencio en su última frase. Con objetivo 60 s y la última frase
+  55–61 (última palabra a los 57,95 s, audio de 61 s) el plan es 0–55 y la escena final de imagen
+  55–61; sin pausas, con once frases de 5 s, una de 4,6 y una final de 1,8 (audio de 61,4 s), 0–55 y
+  no 0–59,6. Si ni sacando frases la aparición queda en el máximo, se descarta (una apertura de 59 s
+  seguida de una final de 2 s). Una pausa larga ADENTRO de una frase de 15 s o menos (después de una
+  coma o de un punto que Deepgram no marcó) la aparición la carga entera: el tope mira solo la pausa
+  después de la última palabra (límite deliberado).
 - Determinista: mismas frases y opciones, mismo plan. Los que no caben se cuentan en `dropped` y se
   informan (evento `avatar-planned`), no fallan.
 
@@ -357,7 +395,8 @@ export function cutScenesAroundPins(
 - Un tramo libre menor a `MIN_SECONDS_PER_SCENE` (3 s) se absorbe en la escena de avatar vecina (la
   que le sigue; si no hay, la anterior): mejor que el avatar hable tres segundos más a que haya una
   imagen de dos segundos. Por eso los `avatarSpans` de la pausa y los tiempos de las escenas de avatar
-  salen YA absorbidos (la última aparición puede alargarse hasta 3 s respecto del plan), y el costo
+  salen YA absorbidos (la última aparición puede alargarse hasta 3 s respecto del plan, nunca por
+  encima del máximo: el planificador mide su máximo con esa cola, §5), y el costo
   se mide sobre ellos, no sobre el plan.
 - La caché del corte se conserva: si el corte previo es reutilizable, se mantienen las escenas
   previas con sus recibos (`scenes = reusable ? previous : fresh`, como hoy).
@@ -570,6 +609,39 @@ previa del look elegido a `<proyecto>/avatar/look.<ext>` y rechaza un look que n
 listo con Avatar III o no tenga la orientación del formato.
 La opción «Lo elijo en el editor» (`placement: 'manual'`) aparece en la entrega 3.
 
+**Desde la entrega 2b (QA del dueño del 2026-10-11, §18):**
+
+- **El look es un desplegable.** Debajo de la fila de avatares, un `LabeledSelect` «Look» con los
+  looks del avatar que sirven para el formato (`avatarLooksFor`), cada uno con su nombre y, como
+  nota, su tipo y «Look principal de tu biblioteca» si es el principal; **el principal va por
+  defecto** (ya era así: `defaultAvatarChoice`) y elegir otro cambia la elección. Al lado, la vista
+  previa del look elegido en el marco del formato (`AVATAR_LOOK_FRAME_CLASSES`) con el video al pasar
+  el mouse, y debajo la descripción de una línea (`create.avatar.lookHint`). Ya no hay grilla de
+  looks.
+- **Vistas previas correctas.** La biblioteca solo baja a disco las tres vistas previas de la tarjeta
+  (`AVATAR_CARD_LOOK_PREVIEWS`): los demás looks salían con el dibujo de respaldo. Crear completa lo
+  que falta con el listado de HeyGen (gratis): `useStockLooks` por avatar mostrado (misma caché que
+  el panel de la biblioteca), imagen y video de vista previa remotos cuando no hay archivo en disco.
+- **Aviso de moderación destacado:** un recuadro `role="note"` con ícono de escudo, el título
+  «Normas de contenido de HeyGen» y el texto de siempre, con fondo y borde saffron suaves, en vez de
+  una línea gris.
+- **El borrador de Crear sobrevive a la navegación.** «Crear escenario», «Administrar avatares»,
+  «Crear un avatar» e «Ir a Claves API» sacan de Crear; antes, al volver, el formulario arrancaba
+  vacío. Ahora el formulario (`CreateFormValue` y la selección de la otra pestaña) vive también en un
+  borrador en memoria del módulo (`src/modules/videos/utilities/createDraft.ts`) que Crear siembra al
+  montarse y escribe en cada cambio; se descarta recién cuando el proyecto de una generación ya
+  existe (`onProjectCreated` de `startCreation`: un pre-chequeo que frena, una cancelación o un
+  `createProject` que falla lo dejan) y al reiniciar la app; en la demo no se guarda, no se lee ni se
+  descarta. Los enlaces siguen siendo enlaces (`avatarScenarioPath`): no se abren diálogos de otro
+  módulo desde Crear. Un formulario intacto (la semilla con la que Crear se montó, sin borrador) no
+  se guarda, así Crear sigue tomando las preferencias y las claves del momento. «Crear otro» y
+  cerrar la confirmación de escenas guardan el formulario que vuelven a mostrar (en su manejador, no
+  en un efecto) con la misma regla: uno intacto no se guarda. Al restaurar el borrador, lo que
+  ninguna pantalla de Crear edita y solo siembra Ajustes (la duración de escena de las gemas y su
+  pausa) sale de la preferencia actual. Cerrar sesión no borra el borrador (igual que la tarea en
+  curso; un reinicio sí): residual aceptado en una app de escritorio de una sola persona (rulings del
+  2026-10-11).
+
 Estimación (`estimateCreateCost`): línea `{ domain: 'avatar', providerId: 'heygen', unit: 'usd' }`;
 `CreditsDomain` gana `'avatar'`, `creditsDomainOf('avatar_…')`, el prefijo `avatar_` en
 `insufficient-credits.ts` y una rama `heygen` en `balanceFor` (hoy todo lo que no es `poyo` cae en
@@ -586,6 +658,14 @@ solapamiento ya existente descarta cualquier clip de Kie que pise ese tramo (no 
 Una escena de avatar sin clip válido o desactualizada renderiza **estática con la vista previa del
 look** (con el movimiento de cámara de siempre) y un `warn`: el video nunca queda con un hueco. El
 fundido de 8 cuadros en los bordes de un clip (`transitions.ts`) aplica igual.
+
+**Subtítulos de una escena de avatar** (`pipeline/stages/render/subtitles.ts`): una línea por frase
+de la narración, recortada al tramo de la escena. Desde la entrega 2b (ruling del 2026-10-11) una
+frase es de la escena de avatar si el punto medio de su **parte hablada** (de su inicio a
+`lastWordEndSeconds`) cae adentro: con el tope de silencio (§5) la última frase de una aparición
+puede terminar después de la escena, y medida entera sus palabras no se subtitularían en ningún
+lado (el texto de la escena de imagen siguiente no las tiene). Las escenas de imagen no cambian (una
+línea con todo su texto).
 
 ### 10.2 Visor
 
@@ -799,6 +879,59 @@ Personajes), con el patrón de la biblioteca de personajes:
   con mouse o con teclado; en el stock y en la biblioteca, la vuelta al lugar de origen (la
   tarjeta, «Ver looks», el botón de la foto) solo ocurre si la interacción fue de teclado. Sin
   clave: aviso que lleva a Claves API.
+- **Desde la entrega 2b (QA del dueño del 2026-10-11, §18):**
+  - **Filtros por categoría del stock público**, como los de HeyGen: «Todos», «Profesional»,
+    «Estilo de vida», «Comunidad» y «Favoritos» (chips `FilterChips`, además de los de género y la
+    búsqueda; solo en «De stock»). HeyGen no expone sus categorías por la API (§18), así que Vimo las
+    deriva del tipo de look: «Profesional» = avatares de estudio (`studio_avatar`), «Comunidad» =
+    gemelos digitales compartidos (`digital_twin`), «Estilo de vida» = los demás (avatares de foto).
+    La clasificación la da el subcomando **`avatar-stock-types`** (§18): dos barridas de
+    `GET /v3/avatars/looks?ownership=public&avatar_type=…` (gratis, ~45 pedidos, ~20 s, en paralelo)
+    que devuelven los ids de grupo de estudio y de gemelo, con caché de 24 h en
+    `<projectsRoot>/avatars/.stock-types.json` (el listado de la biblioteca ignora los nombres que
+    no son un id). Una barrida que no devuelve ningún grupo de ningún tipo no se guarda en caché (un
+    `data: []` pasajero no deja los filtros vacíos un día entero) y sirve la caché que haya; en la app,
+    una clasificación vacía cuenta como no disponible y se vuelve a pedir al reabrir el stock
+    («Clasificando…» mientras llega). Mientras clasifica, los chips se pueden tocar y la grilla dice
+    «Clasificando los avatares de HeyGen…»; si falla, lo dice y «Todos» sigue andando. «Favoritos»
+    son los avatares marcados con el corazón de la tarjeta, guardados en esta máquina (store
+    `avatars.json` de la app, clave `stockFavorites`, ids de grupo), con las escrituras en fila y una
+    relectura del store cuando la fila se vacía tras un fallo. Vimo nunca borra un favorito por su
+    cuenta: uno que el listado completo de HeyGen no trae solo se oculta y, en la sesión, deja de
+    contar para la auto-carga (HeyGen corre su listado entre páginas: «no vino» no prueba que ya no
+    exista). Con cualquier filtro activo (categoría, género,
+    favoritos o búsqueda), la grilla pide páginas sola hasta mostrar al menos
+    `STOCK_FILTER_MIN_VISIBLE` = 12 tarjetas o llegar a la última («Buscando más avatares…» al pie):
+    un filtro con pocas coincidencias no deja la grilla vacía. «UGC» no se ofrece: la API no lo
+    distingue.
+  - **Video al pasar el mouse, siempre que exista.** El listado de grupos trae `preview_video_url`
+    en 1273 de 1417 avatares públicos, pero no en los primeros de la lista (Dante, Brody, Hayes…):
+    cuando el grupo no trae video, la tarjeta pide sus looks (`useStockLooks`, la misma caché que el
+    segundo nivel) y reproduce el del **look de portada**: el look cuya `previewImageUrl` es la
+    portada del grupo o, si ninguno coincide, el primero con video. Los pide recién cuando la persona
+    se detiene en la tarjeta (`useHoverIntent`: el mouse quieto `HOVER_FETCH_DELAY_MS` = 250 ms, o el
+    foco visible del teclado al instante), así cruzar la grilla no lanza un pedido por tarjeta.
+  - **La tarjeta de la biblioteca** reproduce al pasar el mouse el video de **cada** una de sus
+    imágenes (la principal y las dos miniaturas), cada una el suyo, con los looks remotos del avatar
+    (`useStockLooks`, con la misma espera de intención); el mosaico llena la tarjeta sin huecos; debajo, el nombre con
+    el contador de looks y el botón de quitar en la misma fila, y los chips (tipo, Avatar III o «No
+    compatible») en una fila compacta, sin espacio vacío. Las tarjetas de una misma fila miden lo
+    mismo (la grilla mide cada fila por su tarjeta más alta, sin `auto-rows-fr`, y cada tarjeta llena
+    su fila), así una tarjeta con el estado del entrenamiento no deja escalones ni estira las demás
+    filas. Quitar un favorito desde «Favoritos» con el teclado deja el foco en el corazón de la
+    tarjeta vecina (o en el chip «Favoritos» si no queda ninguna), nunca en la caja del diálogo.
+  - **Fichas parejas y un reproductor por look.** Las fichas de looks siguen todas del mismo tamaño
+    (`aspect-[4/5]`, recorte anclado arriba) sea el look vertical u horizontal; un clic en una ficha
+    abre el **reproductor del look** (`LookPlayerDialog`, como el modal de HeyGen): el nombre, sus
+    chips, el video entero en su formato real sobre un escenario oscuro con la imagen desenfocada de
+    fondo, un botón grande de reproducir (no arranca solo: el sonido se activa con el clic), y la
+    barra con reproducir/pausar, la línea de tiempo, el tiempo, silenciar, la velocidad (0,5×, 1×,
+    1,5×, 2×) y pantalla completa si el navegador la permite. El pie depende de dónde se abre: en el
+    stock, «Cargar a la biblioteca» (agrega el avatar con ese look como principal y abre su panel;
+    el antiguo «Agregar con «look»» del pie desaparece y las fichas ya no se seleccionan) o, si el
+    avatar ya está en la biblioteca, «Abrir en tu biblioteca»; en el panel de un avatar, «Usar como
+    principal» (o «Es el look principal de este avatar.»); un look no compatible o que todavía se
+    genera lo dice y no ofrece acción. Las vistas previas al pasar el mouse siguen mudas.
 
 ## 13. Textos (i18n)
 
@@ -923,6 +1056,11 @@ dejó cuatro cuidados para el plan de la entrega 2, que se apoya en la bibliotec
   previa sin recorrer todos los avatares), y la copia en el proyecto conserva la extensión real de la
   vista previa (puede ser PNG o WEBP, no solo `look.jpg`, §3.2).
 
+La entrega 2b (ajustes de la QA del dueño del 2026-10-11 a la entrega 2: §5 pausas y frase más
+cercana que cabe, §9 desplegable de looks, vistas previas, aviso destacado y borrador de Crear, §12.2
+filtros, favoritos, video al pasar el mouse y reproductor del look; hechos en §18) va entre la 2 y la
+3, con su plan `plan-e2b.md` (interno).
+
 Cada entrega tiene su plan, su ejecución con subagentes y su QA del dueño; el push y el PR siguen
 pidiendo su aprobación cada vez.
 
@@ -962,3 +1100,48 @@ Otros riesgos aceptados: los renders tardan minutos (la UI lo muestra con tiempo
 `punctuated_word`, el modo por pausas cubre); los términos de HeyGen sobre «autorizar a terceros» los
 asume el dueño hasta tener su visto bueno por escrito; la salida con alfa (`webm`) y la composición
 propia quedan para el sub-proyecto 3, con el mismo audio cortado y el mismo fondo ya guardados.
+
+## 18. Entrega 2b — la QA del dueño del 2026-10-11
+
+Pedidos del dueño (2026-10-11, 01:2x y 01:5x, con capturas de HeyGen y de Vimo) y lo decidido para
+cada uno. Hechos verificados con dos sondas gratis (solo `GET`) con la clave del dueño el 2026-10-11
+entre las 01:28 y las 01:36 (`heygen-probe.mjs` y `heygen-probe-2.mjs`, en el scratchpad de la
+sesión; no se guardan en el repo):
+
+- `GET /v3/avatars?ownership=public&limit=50`: **1417 grupos en 29 páginas (45 s)**; 1273 traen
+  `preview_video_url` y 1417 `preview_image_url`; `looks_count` suma 25 098. Los primeros de la lista
+  (Dante 27 looks, Brody 31, Hayes 33, Lasse 23, Julian 30, Fintan 25…) **no traen video de grupo**:
+  por eso la tarjeta del stock no se movía al pasar el mouse. `gender` llega como `male`/`female`
+  (129), `Man`/`Woman` (1271), `Unspecified` (1) o ausente (16). El listado de grupos **no trae
+  tipo, tags ni categoría**.
+- `GET /v3/avatars/looks?ownership=public&limit=50` sin filtro: 4000 looks en 80 páginas (53 s) y
+  quedaban más; todos `photo_avatar`, todos con `tags: []`, 3987 con video; 3441 horizontales
+  (1920×1080) y 559 verticales; cubren 189 grupos, y en 119 de ellos la portada del grupo es la
+  imagen de uno de sus looks.
+- Con `avatar_type=studio_avatar`: **1257 looks en 26 páginas (18 s), 157 grupos**, todos con video,
+  tags `AvatarTags.NEW` (1148); con `avatar_type=digital_twin`: **818 looks en 17 páginas (14 s),
+  708 grupos**, tags `AvatarTags.AVATAR_IV` y `AvatarTags.FOURK` (112). Todos soportan `avatar_iii`.
+  Los demás grupos (≈ 552) son avatares de foto.
+- Las vistas previas públicas son URLs estables del CDN (`resource2.heygen.ai/public-avatars/…`),
+  con `Range` (206); la portada de Hayes pesa 2 MB (JPEG).
+- La OpenAPI v3 no tiene favoritos ni categorías: las rutas de avatares son `GET/POST /v3/avatars`,
+  `GET/PATCH/DELETE /v3/avatars/{group_id}`, `POST …/consent`, `GET/POST /v3/avatars/looks`,
+  `GET /v3/avatars/look-templates`, `GET/PATCH/DELETE /v3/avatars/looks/{look_id}` y el avatar en
+  tiempo real.
+
+| Pedido del dueño                                                                                                                                        | Decisión                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| «Aplicá» los dos del planificador (frase casi muda; frase de más de 60 s cerca del ancla)                                                               | §5: la aparición se arma desde la frase más cercana al ancla **desde la que cabe**; y una aparición nunca carga más de `AVATAR_MAX_PAUSE_SECONDS` = 2 s de silencio tras la última palabra de una frase (`lastWordEndSeconds` en `NarrationSentence`).                                                                                                                               |
+| «Crear escenario» saca de Crear y pierde el formulario                                                                                                  | §9: borrador de Crear en memoria del módulo, sembrado al montar y escrito en cada cambio; se descarta cuando el proyecto existe y al reiniciar; nunca en la demo. Los enlaces siguen siendo enlaces.                                                                                                                                                                                 |
+| Los filtros de HeyGen (All, Professional, Lifestyle, UGC, Community, Favorites) funcionales en los públicos                                             | §12.2: «Profesional» = estudio, «Estilo de vida» = foto, «Comunidad» = gemelos, por `avatar-stock-types` (barrida por tipo con caché de 24 h); «Favoritos» locales con corazón; **«UGC» no se ofrece** (la API no lo distingue de los demás avatares de foto). Las categorías son una aproximación por tipo de look: no es la clasificación interna de HeyGen, que la API no expone. |
+| Todos los looks del mismo tamaño de ficha aunque sean verticales                                                                                        | §12.2: ya era así (`aspect-[4/5]`, recorte anclado arriba); se mantiene, y el video entero se ve en el reproductor.                                                                                                                                                                                                                                                                  |
+| Al hacer clic en el avatar (el look), un modal como el de HeyGen con el video, la línea de tiempo y un botón «Cargar…»                                  | §12.2: `LookPlayerDialog` con reproductor propio; en el stock el botón dice «Cargar a la biblioteca» (o «Abrir en tu biblioteca»), en el panel «Usar como principal».                                                                                                                                                                                                                |
+| Al pasar el mouse por la imagen del avatar del stock, que se mueva (la portada)                                                                         | §12.2: cuando el grupo no trae video, el del look de portada, pedido al primer hover.                                                                                                                                                                                                                                                                                                |
+| En la tarjeta de la biblioteca, que cada una de las tres imágenes se mueva al pasar el mouse                                                            | §12.2: video por imagen, con los looks remotos del avatar.                                                                                                                                                                                                                                                                                                                           |
+| La tarjeta tiene un espacio blanco; recortarla y ordenar las etiquetas                                                                                  | §12.2: mosaico sin huecos, quitar en la fila del nombre, chips compactos.                                                                                                                                                                                                                                                                                                            |
+| Con el interruptor de avatar, Crear no muestra las vistas previas de los looks; el look como desplegable con el principal por defecto y una descripción | §9: desplegable «Look» con el principal por defecto, vista previa remota cuando no hay archivo en disco, descripción de una línea.                                                                                                                                                                                                                                                   |
+| Resaltar el aviso de moderación                                                                                                                         | §9: recuadro destacado con título e ícono.                                                                                                                                                                                                                                                                                                                                           |
+
+Lo que **no** entra en la 2b: «UGC»; reproducir con sonido en las vistas previas al pasar el mouse;
+clasificar por escena (oficina, cocina…) a partir de los nombres de los looks; el reproductor en el
+selector de Crear (ahí alcanza la vista previa con video al pasar el mouse).

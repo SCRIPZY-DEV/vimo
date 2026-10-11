@@ -25,7 +25,7 @@ export function TaskErrorCard({
 
   return (
     <div className="space-y-3 rounded-2xl border-2 border-destructive/30 bg-destructive/10 p-4">
-      <p className="font-body text-sm text-destructive">{message}</p>
+      <p className="font-body text-sm text-destructive-text">{message}</p>
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"

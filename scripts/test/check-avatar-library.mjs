@@ -1,5 +1,5 @@
-// Los diez subcomandos de la biblioteca de avatares (ADR-0057, entregas 1 y
-// 1b) contra una carpeta raíz temporal y un HeyGen simulado con `fetch` falso.
+// Los once subcomandos de la biblioteca de avatares (ADR-0057, entregas 1, 1b y
+// 2b) contra una carpeta raíz temporal y un HeyGen simulado con `fetch` falso.
 // Desde la entrega 1b un avatar de la biblioteca es un grupo de HeyGen con sus
 // looks: el alta por grupo con el look principal elegido o por defecto (el
 // primero listo con Avatar III), sin duplicados, con las vistas previas de la
@@ -11,10 +11,19 @@
 // idempotencia determinista, y con la orientación del formato pedido si HeyGen
 // no informa la suya, que el refresco conserva); el saldo, que nunca falla; la
 // metadata de la entrega 1 descartada con un aviso; el listado de avatares
-// (grupos) y de los looks de un grupo, el género normalizado y el borrado.
+// (grupos) y de los looks de un grupo, el género normalizado y el borrado; y la
+// clasificación del stock público por tipo de look (`avatar-stock-types`).
 // Importa los handlers reales del sidecar.
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { test } from 'node:test'
@@ -26,6 +35,11 @@ import {
 import { lookIdempotencyKey } from '../../pipeline/commands/avatars/avatar-generate-look.ts'
 import { avatarsSubcommands } from '../../pipeline/commands/avatars/subcommands.ts'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
+import {
+  STOCK_TYPES_CACHE_FILE,
+  STOCK_TYPES_CACHE_TTL_MS,
+  STOCK_TYPES_MAX_PAGES,
+} from '../../pipeline/types/avatar.ts'
 
 const PNG_HEAD = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=',
@@ -229,7 +243,12 @@ const previewNames = (entry) =>
 // `GET /v3/avatars/looks/{id}` (404 si no está; `lookFailures` fuerza otro
 // status para un id). `groupFailures` fuerza un status para
 // `GET /v3/avatars/{id}` de ese grupo y `groupLooksStatus`, uno para el
-// listado de los looks de un grupo (`?group_id=…`). El CDN (`cdn.example`)
+// listado de los looks de un grupo (`?group_id=…`). `typeLooks` son las
+// barridas de `avatar-stock-types` (`GET /v3/avatars/looks?avatar_type=…` sin
+// `group_id`): por tipo, la lista de páginas de looks crudos, con el cursor
+// `page-<n>` (sin él, esa consulta devuelve el único look de siempre);
+// `typeLooksStatus` fuerza el fallo de esas barridas, con un status o con una
+// función `(avatar_type, página) => status | undefined`. El CDN (`cdn.example`)
 // sirve `cdnImage(ruta)`, salvo las rutas que `cdnFails` rechaza; `me` es la
 // respuesta de `GET /v3/users/me` (`{ status, body }`). La subida de una
 // referencia (`reference-<n>.<ext>`) devuelve `asset-reference-<n>`, y la de
@@ -250,6 +269,8 @@ function fakeHeyGen(
     lookFailures = {},
     groupFailures = {},
     groupLooksStatus,
+    typeLooks,
+    typeLooksStatus,
     cdnFails = () => false,
     me = { status: 200, body: { data: RAW_ME } },
     onRequest,
@@ -306,6 +327,29 @@ function fakeHeyGen(
       })
     if (target.pathname === '/v3/avatars/looks') {
       const groupId = target.searchParams.get('group_id')
+      const lookType = target.searchParams.get('avatar_type')
+      if (!groupId && typeLooks && lookType) {
+        const sweepToken = /^page-(\d+)$/.exec(
+          target.searchParams.get('token') ?? '',
+        )
+        const sweepPage = sweepToken ? Number(sweepToken[1]) : 0
+        const sweepStatus =
+          typeof typeLooksStatus === 'function'
+            ? typeLooksStatus(lookType, sweepPage)
+            : typeLooksStatus
+        if (sweepStatus)
+          return json(
+            { error: { code: 'unavailable', message: 'down' } },
+            sweepStatus,
+          )
+        const pages = typeLooks[lookType] ?? []
+        const more = sweepPage + 1 < pages.length
+        return json({
+          data: pages[sweepPage] ?? [],
+          has_more: more,
+          next_token: more ? `page-${sweepPage + 1}` : null,
+        })
+      }
       if (!groupId)
         return json({ data: [RAW_LOOK], has_more: false, next_token: null })
       if (groupLooksStatus)
@@ -378,7 +422,7 @@ const cdnCalls = (calls) =>
     .map((call) => call.path)
     .sort()
 
-test('el mapa expone exactamente los diez subcomandos', () => {
+test('el mapa expone exactamente los once subcomandos', () => {
   assert.deepEqual(Object.keys(avatarsSubcommands).sort(), [
     'avatar-add',
     'avatar-balance',
@@ -389,6 +433,7 @@ test('el mapa expone exactamente los diez subcomandos', () => {
     'avatar-set-main-look',
     'avatar-stock-groups',
     'avatar-stock-looks',
+    'avatar-stock-types',
     'avatars-list',
   ])
 })
@@ -3133,6 +3178,996 @@ test('avatar-stock-looks: con groupId pide solo los looks de ese avatar', async 
   for (const call of calls.slice(2)) {
     assert.equal(new URLSearchParams(call.search).get('group_id'), null)
   }
+})
+
+// ─── avatar-stock-types (entrega 2b): estudio y gemelos del stock público ───
+
+const STUDIO = 'studio_avatar'
+const TWIN = 'digital_twin'
+
+// Un look de las barridas por tipo; sin `groupId` no trae `group_id`.
+const typedLook = (id, groupId, lookType) => ({
+  id,
+  name: `Look ${id}`,
+  avatar_type: lookType,
+  supported_api_engines: ['avatar_iii'],
+  ...(groupId === undefined ? {} : { group_id: groupId }),
+})
+
+// Las páginas de un tipo desde el grupo de cada look de cada página: un grupo
+// que se repite es otro look del mismo avatar.
+const typedPages = (lookType, groupsByPage) =>
+  groupsByPage.map((groupIds, page) =>
+    groupIds.map((groupId, index) =>
+      typedLook(`${lookType}-${page}-${index}`, groupId, lookType),
+    ),
+  )
+
+// El grupo de la página `page` de un tipo (`<tipo>-000`, `<tipo>-001`…).
+const numberedGroupId = (lookType, page) =>
+  `${lookType}-${String(page).padStart(3, '0')}`
+
+// `pageCount` páginas de un solo grupo cada una.
+const numberedPages = (lookType, pageCount) =>
+  typedPages(
+    lookType,
+    Array.from({ length: pageCount }, (_, page) => [
+      numberedGroupId(lookType, page),
+    ]),
+  )
+
+// Tres páginas de estudio y dos de gemelos con los ids desordenados y repetidos
+// (dentro de una página y entre páginas), y con mayúsculas antes de minúsculas:
+// el orden de bytes de `sort()` no es el de `localeCompare`.
+const STUDIO_SWEEP = [['Zeta', 'alpha', 'Zeta'], ['mid', 'alpha'], ['Bravo']]
+const TWIN_SWEEP = [
+  ['twin-c', 'twin-a'],
+  ['twin-b', 'twin-a'],
+]
+const SWEPT_IDS = {
+  studioGroupIds: ['Bravo', 'Zeta', 'alpha', 'mid'],
+  twinGroupIds: ['twin-a', 'twin-b', 'twin-c'],
+}
+// Una barrida completa de esas: 3 páginas de estudio y 2 de gemelos.
+const SWEEP_REQUESTS = 5
+
+// El HeyGen simulado con esas barridas (o con las `typeLooks` que se pasen).
+function sweepingHeyGen(t, options = {}) {
+  return fakeHeyGen(t, {
+    typeLooks: {
+      [STUDIO]: typedPages(STUDIO, STUDIO_SWEEP),
+      [TWIN]: typedPages(TWIN, TWIN_SWEEP),
+    },
+    ...options,
+  })
+}
+
+const stockTypes = (root, payload, apiKeys, events) =>
+  avatarsSubcommands['avatar-stock-types'](
+    context(root, payload, apiKeys, events),
+  )
+
+const cacheFilePath = (root) => join(root, 'avatars', STOCK_TYPES_CACHE_FILE)
+
+async function writeCacheFile(root, content) {
+  await mkdir(join(root, 'avatars'), { recursive: true })
+  await writeFile(
+    cacheFilePath(root),
+    typeof content === 'string' ? content : JSON.stringify(content),
+  )
+}
+
+const readCacheFile = async (root) =>
+  JSON.parse(await readFile(cacheFilePath(root), 'utf8'))
+
+const hoursAgo = (hours) =>
+  new Date(Date.now() - hours * 3_600_000).toISOString()
+
+// La caché de `avatar-stock-types` como la deja el comando.
+const cacheFile = (overrides = {}) => ({
+  version: 1,
+  fetchedAt: hoursAgo(1),
+  studioGroupIds: ['cached-studio'],
+  twinGroupIds: ['cached-twin'],
+  truncated: false,
+  ...overrides,
+})
+
+// Lo que devuelve el comando cuando sirve esa caché.
+const servedFrom = (cache) => ({
+  studioGroupIds: cache.studioGroupIds,
+  twinGroupIds: cache.twinGroupIds,
+  fetchedAt: cache.fetchedAt,
+  fromCache: true,
+  truncated: cache.truncated,
+})
+
+// Lo que queda en disco tras barrer HeyGen y devolver `swept`.
+const writtenFrom = (swept, ids = SWEPT_IDS, truncated = false) => ({
+  version: 1,
+  fetchedAt: swept.fetchedAt,
+  ...ids,
+  truncated,
+})
+
+// Los pedidos de las barridas, como parámetros de la consulta y en el orden en
+// que salieron.
+const sweepParams = (calls) =>
+  calls
+    .filter((call) => call.path === '/v3/avatars/looks')
+    .map((call) => new URLSearchParams(call.search))
+
+// Los cursores mandados para un tipo, en orden (null = la primera página).
+const sweepTokens = (calls, lookType) =>
+  sweepParams(calls)
+    .filter((params) => params.get('avatar_type') === lookType)
+    .map((params) => params.get('token'))
+
+// Los cursores de una barrida de `pageCount` páginas.
+const tokensOfPages = (pageCount) =>
+  Array.from({ length: pageCount }, (_, page) =>
+    page === 0 ? null : `page-${page}`,
+  )
+
+// Los ids de los grupos de `numberedPages(lookType, pageCount)`, ya ordenados.
+const idsOfPages = (lookType, pageCount) =>
+  Array.from({ length: pageCount }, (_, page) =>
+    numberedGroupId(lookType, page),
+  )
+
+// Los eventos del log como `[tipo, nivel, mensaje]`.
+const logSummary = (events) =>
+  events.map((event) => [event.type, event.level, event.message])
+
+// El aviso de una barrida sin ningún grupo (una sola vez por llamada).
+const EMPTY_SWEEP_WARNING = [
+  ['log', 'warn', 'stock types sweep returned no groups; not cached'],
+]
+
+// Cede el turno al bucle de eventos varias veces: lo que siga vivo avanza.
+async function settle() {
+  for (let turn = 0; turn < 20; turn++)
+    await new Promise((resolve) => setImmediate(resolve))
+}
+
+test('avatar-stock-types: barre estudio y gemelos en paralelo, ordena y deduplica los grupos y escribe la caché', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t)
+  const events = []
+  const startedAt = Date.now()
+  const { fetchedAt, ...result } = await stockTypes(
+    root,
+    undefined,
+    undefined,
+    events,
+  )
+  const finishedAt = Date.now()
+
+  assert.deepEqual(result, { ...SWEPT_IDS, fromCache: false, truncated: false })
+  assert.equal(new Date(fetchedAt).toISOString(), fetchedAt)
+  assert.ok(Date.parse(fetchedAt) >= startedAt)
+  assert.ok(Date.parse(fetchedAt) <= finishedAt)
+
+  // Cada tipo pide sus páginas con el cursor de la anterior.
+  assert.equal(calls.length, SWEEP_REQUESTS)
+  assert.deepEqual(sweepTokens(calls, STUDIO), [null, 'page-1', 'page-2'])
+  assert.deepEqual(sweepTokens(calls, TWIN), [null, 'page-1'])
+  for (const call of calls) {
+    assert.equal(call.host, 'api.heygen.com')
+    assert.equal(call.init.method, 'GET')
+    assert.equal(call.init.headers['X-Api-Key'], 'key-123')
+  }
+  for (const params of sweepParams(calls)) {
+    assert.equal(params.get('ownership'), 'public')
+    assert.equal(params.get('limit'), '50')
+    assert.equal(params.get('group_id'), null)
+  }
+  // Los dos recorridos salen a la vez: los dos primeros pedidos son de cada tipo.
+  assert.deepEqual(
+    sweepParams(calls)
+      .slice(0, 2)
+      .map((params) => params.get('avatar_type'))
+      .sort(),
+    [STUDIO, TWIN].sort(),
+  )
+
+  // La caché queda escrita (sin temporales sueltos) y la barrida no avisó nada.
+  assert.deepEqual(await readCacheFile(root), writtenFrom({ fetchedAt }))
+  assert.deepEqual(await readdir(join(root, 'avatars')), [
+    STOCK_TYPES_CACHE_FILE,
+  ])
+  assert.deepEqual(events, [])
+})
+
+test('avatar-stock-types: la segunda llamada sale de la caché sin tocar HeyGen; solo refresh: true vuelve a barrer', async (t) => {
+  const { root } = await session(t)
+  const typeLooks = {
+    [STUDIO]: typedPages(STUDIO, STUDIO_SWEEP),
+    [TWIN]: typedPages(TWIN, TWIN_SWEEP),
+  }
+  const calls = fakeHeyGen(t, { typeLooks })
+  const first = await stockTypes(root)
+  assert.equal(first.fromCache, false)
+  assert.equal(calls.length, SWEEP_REQUESTS)
+
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...first, fromCache: true })
+
+  // Solo el booleano `true` fuerza la barrida: un texto, un número, un objeto o
+  // false no, y un payload que no es un objeto se ignora.
+  for (const refresh of [false, 'true', 1, {}, null, undefined])
+    assert.deepEqual(await stockTypes(root, { refresh }), {
+      ...first,
+      fromCache: true,
+    })
+  for (const payload of [null, [], 'refresh', 5, true])
+    assert.deepEqual(await stockTypes(root, payload), {
+      ...first,
+      fromCache: true,
+    })
+  assert.equal(calls.length, 0)
+
+  // HeyGen cambió: refresh: true lo vuelve a leer y reescribe la caché.
+  typeLooks[STUDIO] = typedPages(STUDIO, [['new-studio']])
+  const refreshed = await stockTypes(root, { refresh: true })
+  assert.equal(refreshed.fromCache, false)
+  assert.deepEqual(refreshed.studioGroupIds, ['new-studio'])
+  assert.deepEqual(refreshed.twinGroupIds, SWEPT_IDS.twinGroupIds)
+  assert.equal(calls.length, 3)
+  assert.deepEqual(
+    await readCacheFile(root),
+    writtenFrom(refreshed, {
+      studioGroupIds: ['new-studio'],
+      twinGroupIds: SWEPT_IDS.twinGroupIds,
+    }),
+  )
+
+  // La siguiente sale de la caché nueva.
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...refreshed, fromCache: true })
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: la caché dura 24 h: de 23 h 59 min se sirve; de 24 h 1 min se vuelve a barrer y se reescribe', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t)
+  assert.equal(STOCK_TYPES_CACHE_TTL_MS, 24 * 3_600_000)
+
+  const nearlyExpired = cacheFile({ fetchedAt: hoursAgo(24 - 1 / 60) })
+  await writeCacheFile(root, nearlyExpired)
+  assert.deepEqual(await stockTypes(root), servedFrom(nearlyExpired))
+  assert.equal(calls.length, 0)
+
+  const expired = cacheFile({ fetchedAt: hoursAgo(24 + 1 / 60) })
+  await writeCacheFile(root, expired)
+  const swept = await stockTypes(root)
+  assert.deepEqual(swept, {
+    ...SWEPT_IDS,
+    fetchedAt: swept.fetchedAt,
+    fromCache: false,
+    truncated: false,
+  })
+  assert.equal(calls.length, SWEEP_REQUESTS)
+  assert.ok(Date.parse(swept.fetchedAt) > Date.parse(expired.fetchedAt))
+  assert.deepEqual(await readCacheFile(root), writtenFrom(swept))
+
+  // La reescrita vuelve a valer 24 h.
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...swept, fromCache: true })
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: una caché que existe pero no sirve se ignora con un aviso y se vuelve a barrer', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t)
+  const brokenCaches = [
+    ['JSON cortado', '{"version": 1,', 'not valid JSON'],
+    ['archivo vacío', '', 'not valid JSON'],
+    ['null', 'null', 'not a JSON object'],
+    ['una lista', '[]', 'not a JSON object'],
+    ['un número', '7', 'not a JSON object'],
+    ['otra versión', cacheFile({ version: 2 }), 'unsupported version'],
+    ['sin versión', cacheFile({ version: undefined }), 'unsupported version'],
+    ['versión como texto', cacheFile({ version: '1' }), 'unsupported version'],
+    ['sin fecha', cacheFile({ fetchedAt: undefined }), 'invalid fetchedAt'],
+    [
+      'fecha que no es fecha',
+      cacheFile({ fetchedAt: 'ayer' }),
+      'invalid fetchedAt',
+    ],
+    ['fecha vacía', cacheFile({ fetchedAt: '' }), 'invalid fetchedAt'],
+    [
+      'fecha numérica',
+      cacheFile({ fetchedAt: Date.now() }),
+      'invalid fetchedAt',
+    ],
+    ['fecha nula', cacheFile({ fetchedAt: null }), 'invalid fetchedAt'],
+    [
+      'estudio que no es una lista',
+      cacheFile({ studioGroupIds: 'cached' }),
+      'invalid group ids',
+    ],
+    [
+      'gemelos sin definir',
+      cacheFile({ twinGroupIds: undefined }),
+      'invalid group ids',
+    ],
+    [
+      'ids que no son texto',
+      cacheFile({ studioGroupIds: [1, 2] }),
+      'invalid group ids',
+    ],
+    [
+      'ids mezclados',
+      cacheFile({ twinGroupIds: ['cached-twin', 5] }),
+      'invalid group ids',
+    ],
+    [
+      'ids anidados',
+      cacheFile({ studioGroupIds: [['cached-studio']] }),
+      'invalid group ids',
+    ],
+    ['un id vacío', cacheFile({ twinGroupIds: [''] }), 'invalid group ids'],
+    [
+      'truncated sin definir',
+      cacheFile({ truncated: undefined }),
+      'invalid truncated flag',
+    ],
+    [
+      'truncated como texto',
+      cacheFile({ truncated: 'false' }),
+      'invalid truncated flag',
+    ],
+  ]
+
+  for (const [name, content, reason] of brokenCaches) {
+    await writeCacheFile(root, content)
+    calls.length = 0
+    const events = []
+    const result = await stockTypes(root, undefined, undefined, events)
+    assert.equal(result.fromCache, false, name)
+    assert.deepEqual(result.studioGroupIds, SWEPT_IDS.studioGroupIds, name)
+    assert.equal(calls.length, SWEEP_REQUESTS, name)
+    // Avisa una sola vez, con el motivo (y sin la ruta, que el texto no lleva).
+    assert.deepEqual(
+      logSummary(events),
+      [['log', 'warn', `stock types cache ignored: ${reason}`]],
+      name,
+    )
+    // Quedó reescrita con una forma que sí vale.
+    assert.deepEqual(await readCacheFile(root), writtenFrom(result), name)
+  }
+})
+
+test('avatar-stock-types: una caché que no se puede leer avisa con el código del sistema, sin la ruta, y se vuelve a barrer', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t)
+  // Una carpeta donde va el archivo: existe, pero leerlo falla con EISDIR.
+  await mkdir(cacheFilePath(root), { recursive: true })
+  const events = []
+  const result = await stockTypes(root, undefined, undefined, events)
+
+  assert.equal(result.fromCache, false)
+  assert.deepEqual(result.studioGroupIds, SWEPT_IDS.studioGroupIds)
+  assert.equal(calls.length, SWEEP_REQUESTS)
+  // El aviso de la lectura va primero (escribir encima de la carpeta también
+  // falla y avisa después, pero eso es otro aviso).
+  assert.equal(
+    events[0].message,
+    'stock types cache ignored: could not be read (EISDIR)',
+  )
+  assert.ok(events.every((event) => !event.message.includes(root)))
+})
+
+test('avatar-stock-types: una caché con la fecha en el futuro no es vigente pero sirve de respaldo, sin avisar', async (t) => {
+  const { root } = await session(t)
+  const inOneHour = new Date(Date.now() + 3_600_000).toISOString()
+
+  for (const fetchedAt of [inOneHour, '2999-01-01T00:00:00.000Z']) {
+    const future = cacheFile({ fetchedAt })
+
+    // Con HeyGen respondiendo no vale como vigente: se vuelve a barrer y se
+    // reescribe. Es una fecha válida, así que no hay aviso de caché ignorada.
+    const calls = sweepingHeyGen(t)
+    await writeCacheFile(root, future)
+    const events = []
+    const swept = await stockTypes(root, undefined, undefined, events)
+    assert.equal(swept.fromCache, false, fetchedAt)
+    assert.equal(calls.length, SWEEP_REQUESTS, fetchedAt)
+    assert.deepEqual(events, [], fetchedAt)
+    assert.deepEqual(await readCacheFile(root), writtenFrom(swept), fetchedAt)
+
+    // Con HeyGen caído la caché se lee y sirve de respaldo, con su fecha.
+    sweepingHeyGen(t, { typeLooksStatus: 500 })
+    await writeCacheFile(root, future)
+    const fallbackEvents = []
+    assert.deepEqual(
+      await stockTypes(root, undefined, undefined, fallbackEvents),
+      servedFrom(future),
+      fetchedAt,
+    )
+    assert.deepEqual(
+      logSummary(fallbackEvents),
+      [
+        [
+          'log',
+          'warn',
+          `stock types sweep failed (avatar_network), serving the cache from ${fetchedAt}`,
+        ],
+      ],
+      fetchedAt,
+    )
+  }
+})
+
+test('avatar-stock-types: una caché válida se sirve aunque esté vacía, parcial o traiga campos de más', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t)
+  // La fecha en otro formato parseable sale normalizada a ISO 8601, y los
+  // campos que no son del contrato no se filtran al resultado.
+  const fetchedAt = new Date(Date.now() - 3_600_000).toUTCString()
+  await writeCacheFile(root, {
+    ...cacheFile({ fetchedAt, studioGroupIds: [], truncated: true }),
+    extra: 'no es del contrato',
+  })
+  assert.deepEqual(await stockTypes(root), {
+    studioGroupIds: [],
+    twinGroupIds: ['cached-twin'],
+    fetchedAt: new Date(Date.parse(fetchedAt)).toISOString(),
+    fromCache: true,
+    truncated: true,
+  })
+  assert.equal(calls.length, 0)
+
+  // Una caché que ya existe y está vacía del todo (la de una versión anterior,
+  // o escrita a mano) se sigue sirviendo: lo que el comando no hace es escribir
+  // una barrida así.
+  const empty = cacheFile({ studioGroupIds: [], twinGroupIds: [] })
+  await writeCacheFile(root, empty)
+  assert.deepEqual(await stockTypes(root), servedFrom(empty))
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: si HeyGen falla sirve la caché con un aviso; sin caché el fallo sale tal cual y no escribe nada', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t, { typeLooksStatus: 500 })
+
+  // Sin caché: HeyGen caído es `avatar_network` con su status y no deja nada.
+  const error = await failure(stockTypes(root))
+  assert.equal(error.code, 'avatar_network')
+  assert.equal(error.httpStatus, 500)
+  assert.equal(await exists(join(root, 'avatars')), false)
+
+  // Con una caché vencida: se sirve tal cual, con un aviso que lleva el código,
+  // y el archivo no se toca.
+  const stale = cacheFile({ fetchedAt: hoursAgo(25) })
+  await writeCacheFile(root, stale)
+  calls.length = 0
+  const events = []
+  assert.deepEqual(
+    await stockTypes(root, undefined, undefined, events),
+    servedFrom(stale),
+  )
+  assert.equal(calls.length, 2)
+  assert.deepEqual(logSummary(events), [
+    [
+      'log',
+      'warn',
+      `stock types sweep failed (avatar_network), serving the cache from ${stale.fetchedAt}`,
+    ],
+  ])
+  assert.deepEqual(await readCacheFile(root), stale)
+
+  // Cualquier otro fallo de la barrida cae igual en la caché, y el aviso lleva
+  // su código: clave rechazada, pedido inválido, red caída.
+  const failures = [
+    [{ typeLooksStatus: 401 }, 'avatar_invalid_key'],
+    [{ typeLooksStatus: 400 }, 'avatar_invalid_request'],
+    [
+      {
+        onRequest: () => {
+          throw new TypeError('fetch failed')
+        },
+      },
+      'avatar_network',
+    ],
+  ]
+  for (const [options, code] of failures) {
+    sweepingHeyGen(t, options)
+    const failureEvents = []
+    assert.deepEqual(
+      await stockTypes(root, undefined, undefined, failureEvents),
+      servedFrom(stale),
+      code,
+    )
+    assert.deepEqual(
+      logSummary(failureEvents),
+      [
+        [
+          'log',
+          'warn',
+          `stock types sweep failed (${code}), serving the cache from ${stale.fetchedAt}`,
+        ],
+      ],
+      code,
+    )
+  }
+
+  // `refresh: true` sobre una caché vigente: si HeyGen falla se sirve la que hay
+  // (`fromCache` dice que no se refrescó).
+  sweepingHeyGen(t, { typeLooksStatus: 500 })
+  const fresh = cacheFile()
+  await writeCacheFile(root, fresh)
+  const refreshEvents = []
+  assert.deepEqual(
+    await stockTypes(root, { refresh: true }, undefined, refreshEvents),
+    servedFrom(fresh),
+  )
+  assert.deepEqual(logSummary(refreshEvents), [
+    [
+      'log',
+      'warn',
+      `stock types sweep failed (avatar_network), serving the cache from ${fresh.fetchedAt}`,
+    ],
+  ])
+})
+
+test('avatar-stock-types: la caché vigente sirve sin clave; todo lo demás exige la clave antes de llamar', async (t) => {
+  const { root } = await session(t)
+  const calls = sweepingHeyGen(t)
+  const noKey = {}
+
+  // Sin clave y sin caché.
+  const missing = await failure(stockTypes(root, undefined, noKey))
+  assert.equal(missing.code, 'missing_api_key')
+  assert.equal(await exists(join(root, 'avatars')), false)
+
+  // Sin clave y con la caché vigente: se sirve.
+  const fresh = cacheFile()
+  await writeCacheFile(root, fresh)
+  assert.deepEqual(await stockTypes(root, undefined, noKey), servedFrom(fresh))
+
+  // Pedir un refresco, o tener la caché vencida, sí necesita la clave.
+  assert.equal(
+    (await failure(stockTypes(root, { refresh: true }, noKey))).code,
+    'missing_api_key',
+  )
+  await writeCacheFile(root, cacheFile({ fetchedAt: hoursAgo(25) }))
+  assert.equal(
+    (await failure(stockTypes(root, undefined, noKey))).code,
+    'missing_api_key',
+  )
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: sin carpeta raíz falla con missing_projects_root antes de llamar', async (t) => {
+  const calls = sweepingHeyGen(t)
+  const error = await failure(stockTypes(undefined))
+  assert.equal(error.code, 'missing_projects_root')
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: corta cada tipo en STOCK_TYPES_MAX_PAGES páginas y marca la lista como parcial', async (t) => {
+  const { root } = await session(t)
+  assert.equal(STOCK_TYPES_MAX_PAGES, 80)
+  // HeyGen siempre dice que hay más: 20 páginas de sobra por tipo.
+  const calls = fakeHeyGen(t, {
+    typeLooks: {
+      [STUDIO]: numberedPages(STUDIO, STOCK_TYPES_MAX_PAGES + 20),
+      [TWIN]: numberedPages(TWIN, STOCK_TYPES_MAX_PAGES + 20),
+    },
+  })
+  const result = await stockTypes(root)
+
+  assert.equal(result.truncated, true)
+  assert.equal(calls.length, 2 * STOCK_TYPES_MAX_PAGES)
+  assert.deepEqual(
+    sweepTokens(calls, STUDIO),
+    tokensOfPages(STOCK_TYPES_MAX_PAGES),
+  )
+  assert.deepEqual(
+    sweepTokens(calls, TWIN),
+    tokensOfPages(STOCK_TYPES_MAX_PAGES),
+  )
+  // Los ids son los de las páginas leídas, ni uno más.
+  assert.deepEqual(
+    result.studioGroupIds,
+    idsOfPages(STUDIO, STOCK_TYPES_MAX_PAGES),
+  )
+  assert.deepEqual(result.twinGroupIds, idsOfPages(TWIN, STOCK_TYPES_MAX_PAGES))
+
+  // La caché guarda que es parcial y así se sirve.
+  assert.equal((await readCacheFile(root)).truncated, true)
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...result, fromCache: true })
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: una barrida que termina justo en la última página permitida no es parcial; si un solo tipo se corta, la lista sí', async (t) => {
+  const { root } = await session(t)
+  const typeLooks = {
+    [STUDIO]: numberedPages(STUDIO, STOCK_TYPES_MAX_PAGES),
+    [TWIN]: numberedPages(TWIN, 3),
+  }
+  const calls = fakeHeyGen(t, { typeLooks })
+
+  const exact = await stockTypes(root)
+  assert.equal(exact.truncated, false)
+  assert.equal(sweepTokens(calls, STUDIO).length, STOCK_TYPES_MAX_PAGES)
+  assert.equal(exact.studioGroupIds.length, STOCK_TYPES_MAX_PAGES)
+
+  // Una página más de estudio: se corta ahí; los gemelos se leen completos.
+  typeLooks[STUDIO] = numberedPages(STUDIO, STOCK_TYPES_MAX_PAGES + 1)
+  calls.length = 0
+  const cut = await stockTypes(root, { refresh: true })
+  assert.equal(cut.truncated, true)
+  assert.equal(sweepTokens(calls, STUDIO).length, STOCK_TYPES_MAX_PAGES)
+  assert.deepEqual(cut.twinGroupIds, idsOfPages(TWIN, 3))
+  assert.equal((await readCacheFile(root)).truncated, true)
+
+  // Y al revés: los gemelos se cortan y el estudio se lee completo.
+  typeLooks[STUDIO] = numberedPages(STUDIO, 3)
+  typeLooks[TWIN] = numberedPages(TWIN, STOCK_TYPES_MAX_PAGES + 1)
+  calls.length = 0
+  const cutTwins = await stockTypes(root, { refresh: true })
+  assert.equal(cutTwins.truncated, true)
+  assert.equal(sweepTokens(calls, TWIN).length, STOCK_TYPES_MAX_PAGES)
+  assert.deepEqual(cutTwins.studioGroupIds, idsOfPages(STUDIO, 3))
+})
+
+test('avatar-stock-types: un look sin group_id (ausente, vacío o que no es texto) no entra en ningún conjunto', async (t) => {
+  const { root } = await session(t)
+  const typeLooks = {
+    [STUDIO]: [
+      [
+        typedLook('s-1', 'studio-1', STUDIO),
+        typedLook('s-2', undefined, STUDIO),
+        { ...typedLook('s-3', undefined, STUDIO), group_id: '' },
+        { ...typedLook('s-4', undefined, STUDIO), group_id: 7 },
+      ],
+    ],
+    [TWIN]: [[typedLook('t-1', undefined, TWIN)]],
+  }
+  const calls = fakeHeyGen(t, { typeLooks })
+  const events = []
+  const result = await stockTypes(root, undefined, undefined, events)
+  assert.deepEqual(result.studioGroupIds, ['studio-1'])
+  assert.deepEqual(result.twinGroupIds, [])
+  assert.equal(result.truncated, false)
+  assert.deepEqual(events, [])
+
+  // Con una sola lista vacía la barrida sigue siendo válida (hay un grupo de
+  // estudio): se guarda con la lista vacía tal cual y se sirve. La que no se
+  // guarda es la barrida sin ningún grupo (la prueba que sigue).
+  assert.deepEqual(
+    await readCacheFile(root),
+    writtenFrom(result, { studioGroupIds: ['studio-1'], twinGroupIds: [] }),
+  )
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...result, fromCache: true })
+  assert.equal(calls.length, 0)
+
+  // Y al revés: sin grupos de estudio y con uno de gemelos también se guarda.
+  typeLooks[STUDIO] = [[typedLook('s-1', undefined, STUDIO)]]
+  typeLooks[TWIN] = [[typedLook('t-1', 'twin-1', TWIN)]]
+  const reversedEvents = []
+  const reversed = await stockTypes(
+    root,
+    { refresh: true },
+    undefined,
+    reversedEvents,
+  )
+  assert.deepEqual(reversed.studioGroupIds, [])
+  assert.deepEqual(reversed.twinGroupIds, ['twin-1'])
+  assert.deepEqual(reversedEvents, [])
+  assert.deepEqual(
+    await readCacheFile(root),
+    writtenFrom(reversed, { studioGroupIds: [], twinGroupIds: ['twin-1'] }),
+  )
+})
+
+test('avatar-stock-types: una barrida sin ningún grupo no se guarda, avisa una vez y la siguiente vuelve a barrer', async (t) => {
+  const { root } = await session(t)
+  // HeyGen contesta 200 con `data: []` en los dos tipos (un fallo pasajero).
+  const typeLooks = { [STUDIO]: [[]], [TWIN]: [[]] }
+  const calls = fakeHeyGen(t, { typeLooks })
+
+  // Dos intentos seguidos: ninguno escribe nada (ni la carpeta), cada uno avisa
+  // una sola vez, y los dos vuelven a pedirle a HeyGen (una página por tipo).
+  for (const attempt of ['primero', 'segundo']) {
+    calls.length = 0
+    const events = []
+    const result = await stockTypes(root, undefined, undefined, events)
+    assert.deepEqual(
+      result,
+      {
+        studioGroupIds: [],
+        twinGroupIds: [],
+        fetchedAt: result.fetchedAt,
+        fromCache: false,
+        truncated: false,
+      },
+      attempt,
+    )
+    assert.equal(calls.length, 2, attempt)
+    assert.deepEqual(logSummary(events), EMPTY_SWEEP_WARNING, attempt)
+    assert.equal(await exists(join(root, 'avatars')), false, attempt)
+  }
+
+  // Lo mismo si llegan looks pero ninguno trae un grupo que valga.
+  typeLooks[STUDIO] = [[typedLook('s-1', undefined, STUDIO)]]
+  typeLooks[TWIN] = [
+    [
+      typedLook('t-1', undefined, TWIN),
+      { ...typedLook('t-2', undefined, TWIN), group_id: '' },
+    ],
+  ]
+  calls.length = 0
+  const noGroupsEvents = []
+  const noGroups = await stockTypes(root, undefined, undefined, noGroupsEvents)
+  assert.deepEqual(
+    [noGroups.studioGroupIds, noGroups.twinGroupIds, noGroups.fromCache],
+    [[], [], false],
+  )
+  assert.equal(calls.length, 2)
+  assert.deepEqual(logSummary(noGroupsEvents), EMPTY_SWEEP_WARNING)
+  assert.equal(await exists(join(root, 'avatars')), false)
+
+  // Cuando HeyGen responde bien, esa barrida sí se guarda, sin aviso, y desde
+  // ahí se sirve de la caché: la vacía de antes no dejó nada atrás.
+  typeLooks[STUDIO] = typedPages(STUDIO, STUDIO_SWEEP)
+  typeLooks[TWIN] = typedPages(TWIN, TWIN_SWEEP)
+  calls.length = 0
+  const recoveredEvents = []
+  const recovered = await stockTypes(
+    root,
+    undefined,
+    undefined,
+    recoveredEvents,
+  )
+  assert.deepEqual(recovered, {
+    ...SWEPT_IDS,
+    fetchedAt: recovered.fetchedAt,
+    fromCache: false,
+    truncated: false,
+  })
+  assert.equal(calls.length, SWEEP_REQUESTS)
+  assert.deepEqual(recoveredEvents, [])
+  assert.deepEqual(await readCacheFile(root), writtenFrom(recovered))
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...recovered, fromCache: true })
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: una barrida sin ningún grupo sirve la caché que ya existe y no la pisa', async (t) => {
+  const { root } = await session(t)
+  const calls = fakeHeyGen(t, { typeLooks: { [STUDIO]: [[]], [TWIN]: [[]] } })
+
+  // Caché vencida: se vuelve a barrer, la barrida viene vacía y se sirve la que
+  // había (`fromCache: true`) con un solo aviso; el archivo queda como estaba.
+  const stale = cacheFile({ fetchedAt: hoursAgo(25) })
+  await writeCacheFile(root, stale)
+  const events = []
+  assert.deepEqual(
+    await stockTypes(root, undefined, undefined, events),
+    servedFrom(stale),
+  )
+  assert.equal(calls.length, 2)
+  assert.deepEqual(logSummary(events), EMPTY_SWEEP_WARNING)
+  assert.deepEqual(await readCacheFile(root), stale)
+
+  // Caché vigente saltada con `refresh: true`: igual.
+  calls.length = 0
+  const fresh = cacheFile()
+  await writeCacheFile(root, fresh)
+  const refreshEvents = []
+  assert.deepEqual(
+    await stockTypes(root, { refresh: true }, undefined, refreshEvents),
+    servedFrom(fresh),
+  )
+  assert.equal(calls.length, 2)
+  assert.deepEqual(logSummary(refreshEvents), EMPTY_SWEEP_WARNING)
+  assert.deepEqual(await readCacheFile(root), fresh)
+
+  // Una caché con la fecha en el futuro también es legible: se sirve.
+  calls.length = 0
+  const future = cacheFile({
+    fetchedAt: new Date(Date.now() + 3_600_000).toISOString(),
+  })
+  await writeCacheFile(root, future)
+  const futureEvents = []
+  assert.deepEqual(
+    await stockTypes(root, undefined, undefined, futureEvents),
+    servedFrom(future),
+  )
+  assert.equal(calls.length, 2)
+  assert.deepEqual(logSummary(futureEvents), EMPTY_SWEEP_WARNING)
+  assert.deepEqual(await readCacheFile(root), future)
+})
+
+test('avatar-stock-types: una barrida sin grupos que el tope cortó sí se guarda: HeyGen devolvió páginas de looks', async (t) => {
+  const { root } = await session(t)
+  // Páginas de looks sin grupo de sobra: no hay ningún id, pero la barrida llegó
+  // al tope, así que no es un `data: []` pasajero sino una lista parcial.
+  const withoutGroups = (lookType) =>
+    typedPages(
+      lookType,
+      Array.from({ length: STOCK_TYPES_MAX_PAGES + 5 }, () => [undefined]),
+    )
+  const calls = fakeHeyGen(t, {
+    typeLooks: {
+      [STUDIO]: withoutGroups(STUDIO),
+      [TWIN]: withoutGroups(TWIN),
+    },
+  })
+  const events = []
+  const result = await stockTypes(root, undefined, undefined, events)
+  assert.deepEqual(result, {
+    studioGroupIds: [],
+    twinGroupIds: [],
+    fetchedAt: result.fetchedAt,
+    fromCache: false,
+    truncated: true,
+  })
+  assert.deepEqual(events, [])
+  assert.deepEqual(
+    await readCacheFile(root),
+    writtenFrom(result, { studioGroupIds: [], twinGroupIds: [] }, true),
+  )
+
+  calls.length = 0
+  assert.deepEqual(await stockTypes(root), { ...result, fromCache: true })
+  assert.equal(calls.length, 0)
+})
+
+test('avatar-stock-types: si la caché no se puede escribir avisa y devuelve igual lo barrido', async (t) => {
+  const { root } = await session(t)
+  sweepingHeyGen(t)
+  // `avatars` es un archivo: no hay dónde leer ni escribir la caché. Leerla no
+  // avisa (no hay archivo); escribirla sí, y es el único aviso.
+  await writeFile(join(root, 'avatars'), 'no soy una carpeta')
+  const events = []
+  const result = await stockTypes(root, undefined, undefined, events)
+
+  assert.deepEqual(result, {
+    ...SWEPT_IDS,
+    fetchedAt: result.fetchedAt,
+    fromCache: false,
+    truncated: false,
+  })
+  assert.deepEqual(
+    events.map((event) => [event.type, event.level]),
+    [['log', 'warn']],
+  )
+  assert.match(events[0].message, /^stock types cache could not be written: /)
+  // Lleva el motivo (el código del sistema), no la ruta del usuario.
+  assert.ok(!events[0].message.includes(root))
+  assert.equal(
+    await readFile(join(root, 'avatars'), 'utf8'),
+    'no soy una carpeta',
+  )
+})
+
+test('avatar-stock-types: una cancelación sale tal cual, aunque haya una caché que servir', async (t) => {
+  const { root } = await session(t)
+  const stale = cacheFile({ fetchedAt: hoursAgo(25) })
+  await writeCacheFile(root, stale)
+  const controller = new AbortController()
+  sweepingHeyGen(t, {
+    // La persona cancela (o cierra la app) con la barrida en vuelo.
+    onRequest: (_target, init) => {
+      controller.abort()
+      init.signal.throwIfAborted()
+    },
+  })
+  const events = []
+  const error = await failure(
+    avatarsSubcommands['avatar-stock-types']({
+      ...context(root, undefined, undefined, events),
+      signal: controller.signal,
+    }),
+  )
+
+  // Ni la caché vencida ni un aviso: la cancelación llega como cancelación.
+  assert.equal(error.name, 'AbortError')
+  assert.deepEqual(events, [])
+  assert.deepEqual(await readCacheFile(root), stale)
+
+  // Sin caché sale igual, y no deja nada escrito.
+  await rm(join(root, 'avatars'), { recursive: true })
+  const secondController = new AbortController()
+  sweepingHeyGen(t, {
+    onRequest: (_target, init) => {
+      secondController.abort()
+      init.signal.throwIfAborted()
+    },
+  })
+  const secondError = await failure(
+    avatarsSubcommands['avatar-stock-types']({
+      ...context(root, undefined, undefined, events),
+      signal: secondController.signal,
+    }),
+  )
+  assert.equal(secondError.name, 'AbortError')
+  assert.deepEqual(events, [])
+  assert.equal(await exists(join(root, 'avatars')), false)
+})
+
+test('avatar-stock-types: cuando un recorrido falla el otro deja de pedir páginas', async (t) => {
+  const { root } = await session(t)
+  let release
+  const gate = new Promise((resolve) => {
+    release = resolve
+  })
+  const calls = fakeHeyGen(t, {
+    typeLooks: {
+      [STUDIO]: numberedPages(STUDIO, 3),
+      [TWIN]: numberedPages(TWIN, 40),
+    },
+    // Estudio falla en su segunda página.
+    typeLooksStatus: (lookType, page) =>
+      lookType === STUDIO && page === 1 ? 500 : undefined,
+    // Los gemelos esperan en su segunda página a que el comando ya haya fallado,
+    // y entonces siguen como seguiría un fetch real: con la señal en la mano.
+    onRequest: async (target, init) => {
+      if (target.searchParams.get('avatar_type') !== TWIN) return
+      if (target.searchParams.get('token') === null) return
+      await gate
+      init.signal.throwIfAborted()
+    },
+  })
+
+  const error = await failure(stockTypes(root))
+  assert.equal(error.code, 'avatar_network')
+  release()
+  await settle()
+
+  // Los gemelos pidieron su primera página y la segunda (la que esperaba).
+  assert.deepEqual(sweepTokens(calls, TWIN), [null, 'page-1'])
+  assert.deepEqual(sweepTokens(calls, STUDIO), [null, 'page-1'])
+  assert.equal(await exists(join(root, 'avatars')), false)
+})
+
+test('avatars-list: el archivo de la caché del stock y su temporal no aparecen como avatar ni avisan', async (t) => {
+  const { root } = await session(t)
+  await writeStored(root, 'dante-aaaaaa', storedAvatar())
+  await writeStored(
+    root,
+    'ana-bbbbbb',
+    storedAvatar({
+      name: 'Ana',
+      groupId: 'group-ana',
+      createdAt: '2026-10-08T01:00:00.000Z',
+    }),
+  )
+  const listing = async () => {
+    const events = []
+    const result = await avatarsSubcommands['avatars-list'](
+      context(root, undefined, undefined, events),
+    )
+    return { result, events }
+  }
+  const without = await listing()
+  assert.equal(without.result.entries.length, 2)
+  assert.deepEqual(without.events, [])
+
+  // El archivo que escribe el comando de verdad, y el temporal huérfano de una
+  // escritura interrumpida.
+  sweepingHeyGen(t)
+  await stockTypes(root)
+  await writeFile(
+    join(root, 'avatars', `${STOCK_TYPES_CACHE_FILE}.4242-0a1b2c3d.tmp`),
+    '{',
+  )
+  const withCache = await listing()
+  assert.deepEqual(withCache.result, without.result)
+  assert.deepEqual(withCache.events, [])
+
+  // Y aunque la caché esté rota.
+  await writeCacheFile(root, '{"version": 1,')
+  const withBrokenCache = await listing()
+  assert.deepEqual(withBrokenCache.result, without.result)
+  assert.deepEqual(withBrokenCache.events, [])
 })
 
 test('avatar-delete: borra la carpeta y rechaza ids inválidos', async (t) => {

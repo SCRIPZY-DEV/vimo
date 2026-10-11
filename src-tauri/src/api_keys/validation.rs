@@ -26,10 +26,18 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     fn success(credits: Option<f64>) -> ValidationResult {
-        ValidationResult { ok: true, code: None, credits }
+        ValidationResult {
+            ok: true,
+            code: None,
+            credits,
+        }
     }
     fn failure(error: &ApiKeyError) -> ValidationResult {
-        ValidationResult { ok: false, code: Some(error.code()), credits: None }
+        ValidationResult {
+            ok: false,
+            code: Some(error.code()),
+            credits: None,
+        }
     }
 }
 
@@ -122,9 +130,7 @@ fn validate_heygen_response(
     status: reqwest::StatusCode,
     body: &serde_json::Value,
 ) -> Result<Option<f64>, ApiKeyError> {
-    if status == reqwest::StatusCode::UNAUTHORIZED
-        || status == reqwest::StatusCode::FORBIDDEN
-    {
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
         return Err(ApiKeyError::InvalidKey);
     }
     if status != reqwest::StatusCode::OK {

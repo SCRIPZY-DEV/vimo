@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { UserRound } from 'lucide-react'
+import { ShieldAlert, UserRound } from 'lucide-react'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { AvatarBalanceBadge } from '@/modules/avatars/components/AvatarBalanceBadge'
@@ -32,8 +32,8 @@ interface CreateAvatarSectionProps {
 // La tarjeta «Avatar presentador» de Crear (spec §9), con el molde de
 // CreateAnimationSection: interruptor, el avatar de la biblioteca y su look
 // para el formato del video, cuántas veces y cuánto sale, si abre el video,
-// el costo con la tarifa de Avatar III, el saldo de HeyGen y el aviso de
-// moderación. Sin clave de HeyGen avisa y lleva a Claves API, con el
+// el costo con la tarifa de Avatar III, el saldo de HeyGen y, destacado, el
+// aviso de moderación. Sin clave de HeyGen avisa y lleva a Claves API, con el
 // interruptor apagado (Crear le pasa el formulario con el avatar apagado:
 // withAvatarKey). Es dueña de su lectura de la biblioteca —y, encendida, del
 // sondeo de lo que entrena o genera un look, para que un escenario pedido con
@@ -147,9 +147,27 @@ export function CreateAvatarSection({
           />
           <CreateAvatarCost value={value} />
           <AvatarBalanceBadge />
-          <p className="font-body text-xs text-muted-foreground">
-            {t('create.avatar.moderationHint')}
-          </p>
+          {/* Destacado desde la entrega 2b (spec §9, pedido del dueño): un
+              recuadro con título e ícono en vez de una línea gris. El nombre
+              de la nota es su título, como el del costo. */}
+          <div
+            role="note"
+            aria-label={t('create.avatar.moderationTitle')}
+            className="flex items-start gap-2.5 rounded-xl border border-saffron/50 bg-saffron/10 px-3.5 py-3"
+          >
+            <ShieldAlert
+              aria-hidden
+              className="mt-0.5 h-4 w-4 shrink-0 text-foreground"
+            />
+            <div className="space-y-0.5">
+              <p className="font-display text-xs font-bold text-foreground">
+                {t('create.avatar.moderationTitle')}
+              </p>
+              <p className="font-body text-xs leading-relaxed text-foreground/80">
+                {t('create.avatar.moderationHint')}
+              </p>
+            </div>
+          </div>
         </>
       )}
     </section>

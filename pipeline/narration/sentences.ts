@@ -18,6 +18,9 @@ import type { TranscriptWord } from '../types/scenes.ts'
 // larga. Las frases son contiguas de 0 al fin del audio: la pausa pertenece a
 // la frase anterior y cada frontera es el inicio de la primera palabra de la
 // frase que sigue, llevado al cuadro más cercano (25 fps, el reloj visual).
+// Cada frase lleva además el fin de su última palabra, sin llevar al cuadro
+// (`lastWordEndSeconds`, entrega 2b): con él el planificador del avatar no
+// carga entera una pausa larga.
 
 export interface NarrationSentence {
   index: number
@@ -25,6 +28,10 @@ export interface NarrationSentence {
   // Contiguas: la pausa pertenece a la frase anterior.
   startSeconds: number
   endSeconds: number
+  // Fin de la última palabra de la frase, tal cual en words.json: la pausa que
+  // sigue, hasta `endSeconds`, pertenece a la frase pero el avatar no la carga
+  // entera (planner.ts).
+  lastWordEndSeconds: number
   // Índices en words.json, los dos inclusive.
   wordFrom: number
   wordTo: number
@@ -233,6 +240,7 @@ export function detectSentences(
       text,
       startSeconds: span.startSeconds,
       endSeconds: span.endSeconds,
+      lastWordEndSeconds: words[span.to].end,
       wordFrom: span.from,
       wordTo: span.to,
     }

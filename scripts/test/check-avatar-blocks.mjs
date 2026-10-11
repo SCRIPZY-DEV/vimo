@@ -1490,6 +1490,60 @@ test('subtítulos: una frase es de la escena de avatar por su punto medio, y las
   )
 })
 
+// Desde la entrega 2b (ruling del 2026-10-11, diseño §10.1) cuenta el punto
+// medio de la parte hablada de cada frase, de su inicio a su última palabra:
+// con el tope de silencio (planner.ts) la última frase de una aparición puede
+// terminar mucho después de la escena. El test de arriba, con frases sin
+// `lastWordEndSeconds`, cubre que sin ese dato se mide la frase entera.
+test('subtítulos: la frase que el tope de silencio deja con su cola afuera es de la escena de avatar por el punto medio de su parte hablada', async (t) => {
+  const sentences = [
+    // Adentro por su punto medio (6,5 s).
+    {
+      index: 0,
+      text: 'uno dos',
+      startSeconds: 3,
+      endSeconds: 10,
+      lastWordEndSeconds: 10,
+      wordFrom: 0,
+      wordTo: 0,
+    },
+    // Su última palabra termina a los 13,9 s, adentro del tramo (6–16 s), y
+    // la sigue un silencio hasta los 30: entera, su punto medio (20 s) caería
+    // afuera y sus palabras no saldrían en ningún subtítulo (el texto de la
+    // escena siguiente no las tiene); el de su parte hablada, 11,95 s, cae
+    // adentro.
+    {
+      index: 1,
+      text: 'tres cuatro',
+      startSeconds: 10,
+      endSeconds: 30,
+      lastWordEndSeconds: 13.9,
+      wordFrom: 1,
+      wordTo: 1,
+    },
+  ]
+  const file = await subtitleFile(t, renderScenes(READY), sentences)
+  assert.deepEqual(
+    file.split('\n').filter((line) => line.startsWith('Dialogue:')),
+    [
+      'Dialogue: 0,0:00:00.00,0:00:06.00,Default,,0,0,0,,Uno.',
+      'Dialogue: 0,0:00:06.00,0:00:10.00,Default,,0,0,0,,uno dos',
+      'Dialogue: 0,0:00:10.00,0:00:16.00,Default,,0,0,0,,tres cuatro',
+      'Dialogue: 0,0:00:16.00,0:00:22.00,Default,,0,0,0,,Tres.',
+    ],
+  )
+  // Sin avatar, las mismas frases no cambian ni un byte.
+  assert.equal(
+    await subtitleFile(t, renderScenes(), sentences),
+    await subtitleFile(t, renderScenes(), []),
+  )
+  // La parte hablada nunca pasa el fin de la frase: una última palabra que
+  // dice terminar a los 40 s (un words.json roto) no saca a «uno dos» de la
+  // escena.
+  const broken = [{ ...sentences[0], lastWordEndSeconds: 40 }, sentences[1]]
+  assert.equal(await subtitleFile(t, renderScenes(READY), broken), file)
+})
+
 // ─── Render con FFmpeg real (medios chicos generados al vuelo, sin red) ───
 
 const CHUNK_FRAME = { width: 320, height: 180 }

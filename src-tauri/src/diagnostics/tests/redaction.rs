@@ -26,15 +26,22 @@ fn replaces_bearer_and_query_tokens() {
 
 #[test]
 fn replaces_projects_root_before_home() {
-    let output = redactor()
-        .redact("/Users/ana/Documents/Vimo/mi-video/scenes/scene_1.jpg y /Users/ana/Downloads/a.mp3");
-    assert_eq!(output, "<projects>/mi-video/scenes/scene_1.jpg y ~/Downloads/a.mp3");
+    let output = redactor().redact(
+        "/Users/ana/Documents/Vimo/mi-video/scenes/scene_1.jpg y /Users/ana/Downloads/a.mp3",
+    );
+    assert_eq!(
+        output,
+        "<projects>/mi-video/scenes/scene_1.jpg y ~/Downloads/a.mp3"
+    );
 }
 
 #[test]
 fn masks_unknown_user_directories() {
     let output = redactor().redact("C:\\Users\\Pedro\\AppData\\x.log and /home/luis/file");
-    assert_eq!(output, "C:\\Users\\<user>\\AppData\\x.log and /home/<user>/file");
+    assert_eq!(
+        output,
+        "C:\\Users\\<user>\\AppData\\x.log and /home/<user>/file"
+    );
 }
 
 #[test]

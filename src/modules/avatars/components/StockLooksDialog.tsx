@@ -15,26 +15,33 @@ import {
 } from '@/modules/common/ui/dialog'
 import { Input } from '@/modules/common/ui/input'
 import { cn } from '@/modules/common/utilities/cn'
-import { matchesSearch } from '@/modules/common/utilities/matchesSearch'
 import { FilterChips } from '@/modules/avatars/components/FilterChips'
+import { LookPlayerDialog } from '@/modules/avatars/components/LookPlayerDialog'
+import type { LookPlayerAction } from '@/modules/avatars/components/LookPlayerDialog'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
 import { StockGridSkeleton } from '@/modules/avatars/components/StockGridSkeleton'
 import { StockGroupCard } from '@/modules/avatars/components/StockGroupCard'
 import { StockLookCard } from '@/modules/avatars/components/StockLookCard'
 import {
+  STOCK_CATEGORY_FILTERS,
+  STOCK_CATEGORY_LABEL_KEYS,
   STOCK_GENDER_FILTERS,
   STOCK_GENDER_LABEL_KEYS,
   STOCK_GRID_CLASS,
   STOCK_SKELETON_COUNT,
 } from '@/modules/avatars/constants'
-import type { StockGenderFilter } from '@/modules/avatars/constants'
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useLastInputWasKeyboard } from '@/modules/avatars/hooks/useLastInputWasKeyboard'
+import { useOpenLook } from '@/modules/avatars/hooks/useOpenLook'
+import { useStockFavorites } from '@/modules/avatars/hooks/useStockFavorites'
+import { useStockGroupFilters } from '@/modules/avatars/hooks/useStockGroupFilters'
 import { useStockGroups } from '@/modules/avatars/hooks/useStockGroups'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
+import { lookUnusableReasonKey } from '@/modules/avatars/utilities/lookUsability'
 import type {
   AvatarSummary,
   HeyGenAvatarGroup,
+  HeyGenLook,
 } from '@pipeline/types/avatar.ts'
 
 type Ownership = 'public' | 'private'
@@ -49,12 +56,20 @@ interface StockLooksDialogProps {
 
 // Explorar los avatares de HeyGen en dos niveles, como en HeyGen: primero los
 // avatares (el stock público o los propios de la cuenta), filtrables por
-// género y por nombre entre lo cargado; después los looks de uno, para
-// agregarlo con el look principal elegido. «Agregar» desde la tarjeta deja
-// que el sidecar elija el principal. Al volver, la grilla de avatares sigue
-// donde estaba y, con el teclado, el foco en el «Ver looks» de la tarjeta de
-// origen. Una página que no llega deja el error junto a lo ya cargado, sin
-// taparlo. Se monta solo mientras está abierto.
+// categoría (solo el público: Profesional, Estilo de vida, Comunidad o
+// Favoritos), por género y por nombre entre lo cargado; después los looks de
+// uno. Las categorías salen del tipo de look que informa `avatar-stock-types`
+// (diseño §18): mientras clasifica, la grilla lo dice; si falla, lo dice y
+// esas categorías muestran todo. Con un filtro activo la grilla pide páginas
+// sola hasta mostrar STOCK_FILTER_MIN_VISIBLE tarjetas o llegar a la última
+// (los filtros y esa auto-carga viven en `useStockGroupFilters`).
+// Un clic en un look abre su reproductor, con «Cargar a la biblioteca» (el
+// avatar con ese look como principal) o, si el avatar ya está, «Abrir en tu
+// biblioteca». «Agregar» desde la tarjeta deja que el sidecar elija el
+// principal. Al volver, la grilla de avatares sigue donde estaba y, con el
+// teclado, el foco en el «Ver looks» de la tarjeta de origen. Una página que
+// no llega deja el error junto a lo ya cargado, sin taparlo. Se monta solo
+// mientras está abierto.
 export function StockLooksDialog({
   entries,
   onOpenAvatar,
@@ -62,10 +77,7 @@ export function StockLooksDialog({
 }: StockLooksDialogProps) {
   const { t } = useTranslation()
   const [ownership, setOwnership] = useState<Ownership>('public')
-  const [gender, setGender] = useState<StockGenderFilter>('all')
-  const [search, setSearch] = useState('')
   const [group, setGroup] = useState<HeyGenAvatarGroup | null>(null)
-  const [selectedLookId, setSelectedLookId] = useState<string | null>(null)
   const [addingGroupId, setAddingGroupId] = useState<string | null>(null)
   const stockGroups = useStockGroups({ ownership, enabled: true })
   const stockLooks = useStockLooks({
@@ -73,27 +85,42 @@ export function StockLooksDialog({
     groupId: group?.groupId ?? '',
     enabled: group !== null,
   })
+  const favorites = useStockFavorites()
+  const filters = useStockGroupFilters({
+    listing: stockGroups,
+    ownership,
+    favorites,
+  })
+  // El reproductor de un look del segundo nivel; al cerrarlo, el foco vuelve
+  // a su ficha.
+  const {
+    openLookId,
+    gridRef: looksRef,
+    returnFocusRef: lookReturnRef,
+    open: openLook,
+    close: closeLook,
+  } = useOpenLook<HTMLDivElement>()
   const { addAvatar } = useAvatarMutations()
   const lastInputWasKeyboard = useLastInputWasKeyboard()
   const contentRef = useRef<HTMLDivElement>(null)
   // El primer nivel (la grilla de avatares): ahí se busca el «Ver looks» al
   // que vuelve el foco.
   const groupsRef = useRef<HTMLDivElement>(null)
+  // Los chips de categoría: ahí se busca el elegido («Favoritos»), adonde va
+  // el foco al quitar el último favorito con el teclado.
+  const categoryChipsRef = useRef<HTMLDivElement>(null)
 
   // La biblioteca guarda avatares (grupos de HeyGen): grupo → entrada.
   const libraryIds = new Map(entries.map((entry) => [entry.groupId, entry.id]))
-  const visibleGroups = stockGroups.groups.filter(
-    (item) =>
-      (gender === 'all' || item.gender === gender) &&
-      matchesSearch([item.name], search),
-  )
+  const { category, visibleGroups, classifying, autoLoading } = filters
+  const categoryOptions = STOCK_CATEGORY_FILTERS.map((filter) => {
+    return { id: filter, label: t(STOCK_CATEGORY_LABEL_KEYS[filter]) }
+  })
   const genderOptions = STOCK_GENDER_FILTERS.map((filter) => {
     return { id: filter, label: t(STOCK_GENDER_LABEL_KEYS[filter]) }
   })
   const groupEntryId = group ? libraryIds.get(group.groupId) : undefined
-  const selectedLook = stockLooks.looks.find(
-    (look) => look.lookId === selectedLookId,
-  )
+  const openedLook = stockLooks.looks.find((look) => look.lookId === openLookId)
   const adding = addingGroupId !== null
   const loadingLabelKey = loadingStatusKey(
     group !== null,
@@ -110,9 +137,16 @@ export function StockLooksDialog({
     )
   }
 
+  // Las categorías son del stock público: al cambiar de origen vuelven a
+  // «Todos».
+  const changeOwnership = (next: Ownership) => {
+    setOwnership(next)
+    filters.setCategory('all')
+  }
+
   const openGroup = (target: HeyGenAvatarGroup) => {
     setGroup(target)
-    setSelectedLookId(null)
+    closeLook()
   }
 
   // Con Escape o «Volver…» desde el teclado, el foco vuelve al «Ver looks»
@@ -125,11 +159,13 @@ export function StockLooksDialog({
     const originId = group?.groupId
     flushSync(() => {
       setGroup(null)
-      setSelectedLookId(null)
+      closeLook()
     })
     if (originId && lastInputWasKeyboard()) viewLooksButton(originId)?.focus()
   }
 
+  // `addingGroupId` cambia dentro del clic (antes de esperar al sidecar), así
+  // que el botón que lo disparó ya está apagado para el clic siguiente.
   const add = async (target: HeyGenAvatarGroup, mainLookId?: string) => {
     setAddingGroupId(target.groupId)
     // El listado de grupos trae el género; el detalle de un grupo público
@@ -167,15 +203,60 @@ export function StockLooksDialog({
     if (focusLost) viewLooksButton(target.groupId)?.focus()
   }
 
-  // Con el look elegido, directo al resultado: el avatar abierto en la
-  // biblioteca.
-  const addWithLook = async () => {
-    if (!group || !selectedLookId) return
+  // El corazón de una tarjeta. En «Favoritos», quitar un favorito saca su
+  // tarjeta de la grilla con el foco en el corazón, y Radix lo dejaría en la
+  // caja del diálogo: con el teclado, el foco pasa antes al corazón de la
+  // tarjeta vecina (la siguiente o, si era la última, la anterior) o, si no
+  // queda ninguna, al chip «Favoritos». Con el mouse no se mueve (ver
+  // `backToGroups`).
+  const toggleFavorite = (groupId: string) => {
+    const leavesGrid = category === 'favorites' && favorites.isFavorite(groupId)
+    if (leavesGrid && lastInputWasKeyboard()) focusAfterLeaving(groupId)
 
-    const entry = await add(group, selectedLookId)
+    favorites.toggle(groupId)
+  }
+
+  const focusAfterLeaving = (groupId: string) => {
+    const index = visibleGroups.findIndex((item) => item.groupId === groupId)
+    if (index < 0) return
+
+    const neighbour = visibleGroups[index + 1] ?? visibleGroups[index - 1]
+    const target = neighbour
+      ? viewLooksButton(neighbour.groupId)
+          ?.closest('article')
+          ?.querySelector<HTMLElement>('[data-favorite]')
+      : categoryChipsRef.current?.querySelector<HTMLElement>(
+          'button[aria-pressed="true"]',
+        )
+    target?.focus()
+  }
+
+  // «Cargar a la biblioteca» desde el reproductor: el avatar con ese look
+  // como principal y, directo al resultado, su panel en la biblioteca. Si
+  // falla (la mutación lo avisa), el reproductor sigue abierto.
+  const loadWithLook = async (lookId: string) => {
+    if (!group) return
+
+    const entry = await add(group, lookId)
     if (!entry) return
 
     onOpenAvatar(entry.id)
+  }
+
+  // El pie del reproductor: el avatar ya está en la biblioteca; o el look
+  // sirve y se carga; o no sirve y dice por qué.
+  const playerAction = (look: HeyGenLook): LookPlayerAction => {
+    if (groupEntryId)
+      return { kind: 'open-library', onOpen: () => onOpenAvatar(groupEntryId) }
+
+    const reasonKey = lookUnusableReasonKey(look)
+    if (reasonKey) return { kind: 'unusable', reasonKey }
+
+    return {
+      kind: 'load',
+      busy: adding,
+      onLoad: () => void loadWithLook(look.lookId),
+    }
   }
 
   const groupsContent = () => {
@@ -186,7 +267,28 @@ export function StockLooksDialog({
       return <ErrorMessage>{t(stockGroups.errorKey)}</ErrorMessage>
     if (stockGroups.isLoading)
       return <StockGridSkeleton count={STOCK_SKELETON_COUNT} />
+    if (classifying) {
+      return (
+        <p
+          role="status"
+          className="flex items-center justify-center gap-2 py-16 font-body text-sm text-muted-foreground"
+        >
+          <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          {t('avatars.stock.clasificando')}
+        </p>
+      )
+    }
     if (visibleGroups.length === 0) {
+      // Mientras busca más páginas, el pie lo dice («Buscando más…»).
+      if (autoLoading) return null
+      if (filters.noFavorites) {
+        return (
+          <p className="py-16 text-center font-body text-sm text-muted-foreground">
+            {t('avatars.stock.vacioFavoritos')}
+          </p>
+        )
+      }
+
       return (
         <p className="py-16 text-center font-body text-sm text-muted-foreground">
           {t('avatars.stock.vacio')}
@@ -200,15 +302,49 @@ export function StockLooksDialog({
           <li key={item.groupId}>
             <StockGroupCard
               group={item}
+              ownership={ownership}
               added={libraryIds.has(item.groupId)}
               adding={addingGroupId === item.groupId}
               disabled={adding}
+              favorite={favorites.isFavorite(item.groupId)}
+              favoriteDisabled={favorites.reading}
+              onToggleFavorite={
+                ownership === 'public'
+                  ? () => toggleFavorite(item.groupId)
+                  : undefined
+              }
               onOpen={openGroup}
               onAdd={(target) => void addFromCard(target)}
             />
           </li>
         ))}
       </ul>
+    )
+  }
+
+  // Al pie de la grilla de avatares: mientras pide páginas sola, lo dice; si
+  // no, «Cargar más» cuando HeyGen tiene más. Mientras clasifica no hay grilla
+  // a la que sumarle tarjetas.
+  const groupsFooter = () => {
+    if (classifying) return null
+    if (autoLoading) {
+      return (
+        <p
+          role="status"
+          className="flex items-center justify-center gap-2 pt-8 font-body text-sm text-muted-foreground"
+        >
+          <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          {t('avatars.stock.buscandoMas')}
+        </p>
+      )
+    }
+    if (!stockGroups.hasMore) return null
+
+    return (
+      <LoadMoreButton
+        loading={stockGroups.isFetchingMore}
+        onClick={stockGroups.loadMore}
+      />
     )
   }
 
@@ -241,9 +377,7 @@ export function StockLooksDialog({
               look={look}
               imageUrl={look.previewImageUrl}
               videoUrl={look.previewVideoUrl}
-              selected={look.lookId === selectedLookId}
-              selectable={!groupEntryId && !adding}
-              onSelect={setSelectedLookId}
+              onOpen={openLook}
             />
           </li>
         ))}
@@ -270,23 +404,9 @@ export function StockLooksDialog({
     }
 
     return (
-      <>
-        <p className="font-body text-sm text-muted-foreground">
-          {t('avatars.stock.elegirLook')}
-        </p>
-        {selectedLook && (
-          <Button
-            disabled={adding}
-            onClick={() => void addWithLook()}
-            className="min-w-0 max-w-[60%] shrink-0 rounded-xl font-display font-bold"
-          >
-            {adding && <Loader2 className="h-4 w-4 animate-spin" />}
-            <span className="truncate">
-              {t('avatars.stock.agregarConLook', { name: selectedLook.name })}
-            </span>
-          </Button>
-        )}
-      </>
+      <p className="font-body text-sm text-muted-foreground">
+        {t('avatars.stock.elegirLook')}
+      </p>
     )
   }
 
@@ -330,36 +450,52 @@ export function StockLooksDialog({
               group && 'invisible',
             )}
           >
-            <div className="flex flex-wrap items-center gap-3 border-b border-border px-6 pb-4 sm:px-8">
-              <div className="w-full sm:w-80">
-                <SegmentedTabs
-                  value={ownership}
-                  ariaLabel={t('avatars.stock.origenAria')}
-                  options={[
-                    { id: 'public', label: t('avatars.stock.publicos') },
-                    { id: 'private', label: t('avatars.stock.propios') },
-                  ]}
-                  onChange={setOwnership}
-                />
+            {/* Arriba, el origen y la búsqueda; debajo, los chips: la
+                categoría (solo el stock público) y el género. */}
+            <div className="space-y-3 border-b border-border px-6 pb-4 sm:px-8">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-full sm:w-80">
+                  <SegmentedTabs
+                    value={ownership}
+                    ariaLabel={t('avatars.stock.origenAria')}
+                    options={[
+                      { id: 'public', label: t('avatars.stock.publicos') },
+                      { id: 'private', label: t('avatars.stock.propios') },
+                    ]}
+                    onChange={changeOwnership}
+                  />
+                </div>
+                <div className="relative w-full sm:ml-auto sm:w-64">
+                  <Search
+                    aria-hidden
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    type="search"
+                    value={filters.search}
+                    onChange={(event) => filters.setSearch(event.target.value)}
+                    placeholder={t('avatars.stock.buscar')}
+                    aria-label={t('avatars.stock.buscar')}
+                    className="pl-10"
+                  />
+                </div>
               </div>
-              <FilterChips
-                value={gender}
-                ariaLabel={t('avatars.stock.generoAria')}
-                options={genderOptions}
-                onChange={setGender}
-              />
-              <div className="relative w-full sm:ml-auto sm:w-64">
-                <Search
-                  aria-hidden
-                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t('avatars.stock.buscar')}
-                  aria-label={t('avatars.stock.buscar')}
-                  className="pl-10"
+              <div className="flex flex-wrap items-center gap-3">
+                {ownership === 'public' && (
+                  <div ref={categoryChipsRef}>
+                    <FilterChips
+                      value={category}
+                      ariaLabel={t('avatars.stock.categoriaAria')}
+                      options={categoryOptions}
+                      onChange={filters.setCategory}
+                    />
+                  </div>
+                )}
+                <FilterChips
+                  value={filters.gender}
+                  ariaLabel={t('avatars.stock.generoAria')}
+                  options={genderOptions}
+                  onChange={filters.setGender}
                 />
               </div>
             </div>
@@ -370,22 +506,25 @@ export function StockLooksDialog({
               aria-busy={stockGroups.isLoading}
               className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6 sm:px-8"
             >
+              {filters.classificationFailed && (
+                <div className="pb-6">
+                  <ErrorMessage>
+                    {t('avatars.stock.clasificacionNoDisponible')}
+                  </ErrorMessage>
+                </div>
+              )}
               {groupsContent()}
               {stockGroups.errorKey && stockGroups.groups.length > 0 && (
                 <div className="pt-6">
                   <ErrorMessage>{t(stockGroups.errorKey)}</ErrorMessage>
                 </div>
               )}
-              {stockGroups.hasMore && (
-                <LoadMoreButton
-                  loading={stockGroups.isFetchingMore}
-                  onClick={stockGroups.loadMore}
-                />
-              )}
+              {groupsFooter()}
             </div>
           </div>
 
-          {/* Nivel 2, los looks del avatar elegido, con el pie para agregar. */}
+          {/* Nivel 2, los looks del avatar elegido: cada ficha abre su
+              reproductor; el pie dice qué hacer (o lleva a la biblioteca). */}
           {group && (
             <motion.div
               key={group.groupId}
@@ -421,6 +560,7 @@ export function StockLooksDialog({
               </div>
 
               <div
+                ref={looksRef}
                 aria-busy={stockLooks.isLoading}
                 className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6 sm:px-8"
               >
@@ -444,6 +584,19 @@ export function StockLooksDialog({
             </motion.div>
           )}
         </div>
+
+        {/* Encima de este diálogo (Radix los apila: Escape cierra solo el
+            reproductor). */}
+        {openedLook && (
+          <LookPlayerDialog
+            look={openedLook}
+            imageUrl={openedLook.previewImageUrl}
+            videoUrl={openedLook.previewVideoUrl}
+            action={playerAction(openedLook)}
+            returnFocusRef={lookReturnRef}
+            onClose={closeLook}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
