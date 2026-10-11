@@ -19,6 +19,7 @@ import {
 import { clamp } from '@/modules/common/utilities/clamp'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { TimelineClipItem } from '@/modules/videos/components/TimelineClipItem'
+import { TimelineAvatarItem } from '@/modules/videos/components/TimelineAvatarItem'
 import { TimelineSceneItem } from '@/modules/videos/components/TimelineSceneItem'
 import { TimelineTrackHeader } from '@/modules/videos/components/TimelineTrackHeader'
 import { TimelineWaveform } from '@/modules/videos/components/TimelineWaveform'
@@ -44,10 +45,11 @@ import {
 } from '@/modules/videos/constants'
 import { useAudioPeaks } from '@/modules/videos/hooks/useAudioPeaks'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
-import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import { sceneTimingLocked } from '@/modules/videos/utilities/sceneTimingLocked'
 import {
   firstSceneOf,
   lastSceneOf,
+  timelineBlockKey,
   timelineBlocks,
 } from '@/modules/videos/utilities/timelineBlocks'
 import { isTimelineTrackId } from '@/modules/videos/utilities/timelineLayout'
@@ -56,6 +58,7 @@ import type {
   SceneAnimationActivity,
   SceneAnimationFailure,
   SceneAnimationProgress,
+  SceneAvatarRendering,
   TimelineLayout,
   TimelineTrackId,
 } from '@/modules/videos/types/library'
@@ -80,6 +83,8 @@ interface EditorTimelineProps {
   sceneAnimationErrors: Record<number, SceneAnimationFailure>
   // Escenas que absorbería el clip de la escena seleccionada (ADR-0041).
   plannedSceneIds: number[]
+  // Renders de HeyGen en curso desde el editor (entrega 3); sin él, ninguno.
+  sceneAvatarRendering?: Record<number, SceneAvatarRendering>
   narrationSrc: string | null
   musicSrc: string | null
   // Orden, silencio en el visor y candado de las pistas (ADR-0056).
@@ -129,6 +134,7 @@ export function EditorTimeline({
   sceneAnimationProgress,
   sceneAnimationErrors,
   plannedSceneIds,
+  sceneAvatarRendering = {},
   narrationSrc,
   musicSrc,
   layout,
@@ -175,8 +181,13 @@ export function EditorTimeline({
   const totalWidth = Math.max(duration * pxPerSecond + 16, viewportWidth)
   const tracksHeight = TIMELINE_RULER_HEIGHT + 3 * TIMELINE_TRACK_HEIGHT
   // Un clip que cubre varias escenas es UN bloque del largo del hueco entero
-  // (ADR-0041); las fronteras arrastrables quedan solo entre bloques.
-  const blocks = timelineBlocks(timedScenes, sceneAnimationProgress)
+  // (ADR-0041) y una escena de avatar es un bloque propio (ADR-0057); las
+  // fronteras arrastrables quedan solo entre bloques.
+  const blocks = timelineBlocks(
+    timedScenes,
+    sceneAnimationProgress,
+    sceneAvatarRendering,
+  )
   // Candado de la pista de escenas (ADR-0056): sin arrastre de fronteras.
   const scenesLocked = layout.locked.scenes
 
@@ -360,7 +371,7 @@ export function EditorTimeline({
     if (
       timingBusy ||
       scenesLocked ||
-      animationTimingLocked(scenes, [left.id, right.id])
+      sceneTimingLocked(scenes, [left.id, right.id])
     )
       return
     event.preventDefault()
@@ -624,17 +635,13 @@ export function EditorTimeline({
                 const left = xOfSeconds(block.startSeconds)
                 const width = Math.max(xOfSeconds(block.endSeconds) - left, 4)
                 const next = blocks[index + 1]
-                const key =
-                  block.kind === 'clip'
-                    ? `clip-${block.id}`
-                    : `scene-${block.scene.id}-${block.startSeconds}`
                 return (
                   <div
-                    key={key}
+                    key={timelineBlockKey(block)}
                     style={{ left, width }}
                     className="absolute top-0 h-full"
                   >
-                    {block.kind === 'clip' ? (
+                    {block.kind === 'clip' && (
                       <TimelineClipItem
                         block={block}
                         selected={block.scenes.some(
@@ -645,7 +652,17 @@ export function EditorTimeline({
                         versions={sceneVersions}
                         onSelect={() => onSelectScene(block.lead.id)}
                       />
-                    ) : (
+                    )}
+                    {block.kind === 'avatar' && (
+                      <TimelineAvatarItem
+                        block={block}
+                        selected={block.scene.id === selectedSceneId}
+                        rendering={sceneAvatarRendering[block.scene.id]}
+                        version={sceneVersions[block.scene.id]}
+                        onSelect={() => onSelectScene(block.scene.id)}
+                      />
+                    )}
+                    {block.kind === 'scene' && (
                       <TimelineSceneItem
                         scene={block.scene}
                         selected={block.scene.id === selectedSceneId}
@@ -667,7 +684,7 @@ export function EditorTimeline({
                       !timingBusy &&
                       !scenesLocked &&
                       lastSceneOf(block).id !== firstSceneOf(next).id &&
-                      !animationTimingLocked(scenes, [
+                      !sceneTimingLocked(scenes, [
                         lastSceneOf(block).id,
                         firstSceneOf(next).id,
                       ]) && (

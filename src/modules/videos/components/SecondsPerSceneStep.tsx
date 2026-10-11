@@ -13,9 +13,9 @@ import {
   SECONDS_PER_SCENE_SHORTCUTS,
   SUPPORT_NOTE_CLASS,
 } from '@/modules/videos/constants'
+import { AvatarSpansNote } from '@/modules/videos/components/AvatarSpansNote'
 import { useSceneCutPreview } from '@/modules/videos/hooks/useSceneCutPreview'
-import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
-import { planPrefixSceneWindows } from '@pipeline/animation/prefix-scenes.ts'
+import { secondsStepSceneEstimate } from '@/modules/videos/utilities/secondsStepSceneEstimate'
 import { ANIMATION_PREFIX_SCENE_SECONDS } from '@pipeline/types/video-provider.ts'
 import type {
   SceneConfirmationView,
@@ -86,14 +86,7 @@ export function SecondsPerSceneStep({
 
     return 'create.secondsStep.perScene'
   }
-  const estimatedCount =
-    animationMinutes > 0
-      ? planPrefixSceneWindows({
-          totalSeconds: confirmation.audioDurationSeconds,
-          minutes: animationMinutes,
-          secondsPerScene: seconds,
-        }).length
-      : estimateSceneCount(confirmation.audioDurationSeconds, seconds)
+  const estimatedCount = secondsStepSceneEstimate(confirmation, seconds)
   const count =
     exact && preview.sceneCount !== null ? preview.sceneCount : estimatedCount
 
@@ -138,6 +131,12 @@ export function SecondsPerSceneStep({
             )}
           </p>
         )}
+
+        <AvatarSpansNote
+          spans={confirmation.avatarSpans}
+          dropped={confirmation.avatarDropped}
+          lookType={confirmation.avatarLookType}
+        />
 
         {!animatesEntireDuration && (
           <>

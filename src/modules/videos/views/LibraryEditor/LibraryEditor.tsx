@@ -46,7 +46,9 @@ import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
 import { useProjectAudio } from '@/modules/videos/hooks/useProjectAudio'
 import { useTimelineLayout } from '@/modules/videos/hooks/useTimelineLayout'
 import { animationPlanPreview } from '@/modules/videos/utilities/animationPlanPreview'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
+import { missingImageSceneIds } from '@/modules/videos/utilities/missingImageSceneIds'
 import { renderedVideoState } from '@/modules/videos/utilities/renderedVideoState'
 import type { EditorPlayerHandle } from '@/modules/videos/types/library'
 import type { VideoProjectOptions } from '@pipeline/types/video-project.ts'
@@ -263,6 +265,7 @@ export function LibraryEditor() {
   const generateDraft = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
+      ...avatarRunOptions(metadata.options.avatar),
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }
@@ -343,11 +346,7 @@ export function LibraryEditor() {
       </SlotPortal>
 
       <div className="flex flex-col gap-5 px-6 py-6 lg:h-full">
-        <MissingImagesBanner
-          sceneIds={workingScenes
-            .filter((scene) => !scene.imagePath)
-            .map((scene) => scene.id)}
-        />
+        <MissingImagesBanner sceneIds={missingImageSceneIds(workingScenes)} />
 
         {task?.errorKey && (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3">

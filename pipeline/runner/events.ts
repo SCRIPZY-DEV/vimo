@@ -220,6 +220,13 @@ export interface RenderProgressEvent {
   phase: RenderPhase
 }
 
+// Un tramo del video en segundos: dónde aparece el avatar en la pausa de
+// confirmación (ADR-0057).
+export interface AvatarSpanWindow {
+  startSeconds: number
+  endSeconds: number
+}
+
 // Pausa de confirmación (Fase 3): el job cierra LIMPIO después de esto —
 // no es un completado; la UI muestra el diálogo y relanza tras
 // confirm-scenes (semántica del origen, fuente histórica de bugs).
@@ -233,6 +240,74 @@ export interface AwaitingSceneConfirmationEvent {
   secondsPerScene?: number
   // El prefijo usa cortes fijos; el slider solo modifica el tramo restante.
   animationMinutes?: number
+  // Solo con avatar (ADR-0057): dónde aparece, ya ajustado a frases y con los
+  // tramos libres cortos absorbidos. Confirmar otra cantidad o duración solo
+  // reparte las escenas libres: estos tramos no se mueven. Vacío si ninguna
+  // aparición entró en el audio.
+  avatarSpans?: AvatarSpanWindow[]
+}
+
+// ─── Eventos del avatar presentador (ADR-0057, diseño §8) ───
+// `scene-cuts` emite `avatar-planned`; la fase `avatar` y el comando
+// `avatar-render-scenes`, el resto. `sceneId` es siempre una escena de avatar
+// (una aparición), y viaja suelto aunque haya un objeto: el log de
+// diagnóstico (ADR-0038) descarta los objetos.
+
+// El avatar quedó planificado en el corte: qué escenas son de avatar y
+// cuántas apariciones pedidas no entraron en el audio (no es un fallo; la UI
+// lo cuenta y lo toma como un valor, no lo suma). `scene-cuts` lo emite una
+// vez por corrida: con «Confirmar escenas», ANTES de
+// `awaiting-scene-confirmation` (las escenas del corte sugerido y las
+// descartadas del plan), y otra vez en el job que corta o reusa el corte, con
+// sus escenas y las pedidas que le faltan a ese corte.
+export interface AvatarPlannedEvent {
+  type: 'avatar-planned'
+  sceneIds: number[]
+  dropped: number
+}
+
+// Empezó el render de una aparición: la UI arranca su reloj (HeyGen tarda
+// minutos y la barra no puede parecer colgada).
+export interface AvatarSceneStartedEvent {
+  type: 'avatar-scene-started'
+  sceneId: number
+}
+
+// El paso del carril en el que va una aparición (diseño §7.2): el audio
+// cortado, las subidas, el render en HeyGen, la descarga y la normalización.
+export type AvatarScenePhase =
+  'audio' | 'upload' | 'render' | 'download' | 'normalize'
+
+export interface AvatarSceneProgressEvent {
+  type: 'avatar-scene-progress'
+  sceneId: number
+  phase: AvatarScenePhase
+  elapsedSeconds: number
+}
+
+// La aparición quedó lista: `scene` trae su resumen con la vista del avatar
+// (el clip y su estado).
+export interface AvatarSceneReadyEvent {
+  type: 'avatar-scene-ready'
+  sceneId: number
+  scene: SceneSummary
+}
+
+export interface AvatarSceneFailedEvent {
+  type: 'avatar-scene-failed'
+  sceneId: number
+  // Clave estable para i18n (avatar_*, en create.errors.*), como el code de
+  // job-failed.
+  code: string
+}
+
+// HeyGen está caído o degradado (red, 5xx o 429 que no ceden): el job sigue
+// con lo que pueda y la UI lo avisa. `httpStatus` solo viaja cuando hubo una
+// respuesta HTTP real (una caída de red no tiene).
+export interface AvatarProviderTroubleEvent {
+  type: 'avatar-provider-trouble'
+  code: string
+  httpStatus?: number
 }
 
 export interface JobCompletedEvent {
@@ -294,6 +369,12 @@ export type PipelineEventPayload =
   | BgmProgressEvent
   | RenderProgressEvent
   | AwaitingSceneConfirmationEvent
+  | AvatarPlannedEvent
+  | AvatarSceneStartedEvent
+  | AvatarSceneProgressEvent
+  | AvatarSceneReadyEvent
+  | AvatarSceneFailedEvent
+  | AvatarProviderTroubleEvent
   | JobCompletedEvent
   | JobFailedEvent
   | ProviderFailureEvent

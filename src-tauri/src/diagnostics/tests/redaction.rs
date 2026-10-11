@@ -100,3 +100,75 @@ fn provider_failures_keep_their_structured_keys() {
         })
     );
 }
+
+#[test]
+fn avatar_events_keep_what_support_needs() {
+    // ADR-0057: los seis eventos del avatar y la pausa con sus tramos. El
+    // resumen de la escena (`scene`) y los tramos (`avatarSpans`) son objetos:
+    // no se suben; por eso `avatar-scene-ready` lleva también `sceneId`.
+    let cases = [
+        (
+            json!({ "type": "avatar-planned", "jobId": "x", "sceneIds": [1, 5, 8], "dropped": 1 }),
+            json!({ "type": "avatar-planned", "sceneIds": [1, 5, 8], "dropped": 1 }),
+        ),
+        (
+            json!({ "type": "avatar-scene-started", "jobId": "x", "sceneId": 5 }),
+            json!({ "type": "avatar-scene-started", "sceneId": 5 }),
+        ),
+        (
+            json!({
+                "type": "avatar-scene-progress",
+                "jobId": "x",
+                "sceneId": 5,
+                "phase": "render",
+                "elapsedSeconds": 42,
+            }),
+            json!({
+                "type": "avatar-scene-progress",
+                "sceneId": 5,
+                "phase": "render",
+                "elapsedSeconds": 42,
+            }),
+        ),
+        (
+            json!({
+                "type": "avatar-scene-ready",
+                "jobId": "x",
+                "sceneId": 5,
+                "scene": { "id": 5, "text": "guion privado" },
+            }),
+            json!({ "type": "avatar-scene-ready", "sceneId": 5 }),
+        ),
+        (
+            json!({
+                "type": "avatar-scene-failed",
+                "jobId": "x",
+                "sceneId": 5,
+                "code": "avatar_render_failed",
+            }),
+            json!({ "type": "avatar-scene-failed", "sceneId": 5, "code": "avatar_render_failed" }),
+        ),
+        (
+            json!({
+                "type": "avatar-provider-trouble",
+                "jobId": "x",
+                "code": "avatar_network",
+                "httpStatus": 503,
+            }),
+            json!({ "type": "avatar-provider-trouble", "code": "avatar_network", "httpStatus": 503 }),
+        ),
+        (
+            json!({
+                "type": "awaiting-scene-confirmation",
+                "jobId": "x",
+                "suggestedScenes": 13,
+                "avatarSpans": [{ "startSeconds": 0, "endSeconds": 10 }],
+            }),
+            json!({ "type": "awaiting-scene-confirmation", "suggestedScenes": 13 }),
+        ),
+    ];
+
+    for (event, expected) in cases {
+        assert_eq!(Value::Object(redactor().project_event(&event)), expected);
+    }
+}

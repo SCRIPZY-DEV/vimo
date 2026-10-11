@@ -51,6 +51,9 @@ async function catalogPendingIds(
   const ids = new Set<number>()
   const style = resolveProjectStyle(context.options)
   for (const scene of scenes) {
+    // Una escena de avatar no lleva prompt ni imagen: su video lo hace HeyGen
+    // con el look tal cual (ADR-0057, enmienda del 2026-10-10).
+    if (scene.avatar) continue
     if (
       context.regenerateSceneIds?.size &&
       !context.regenerateSceneIds.has(scene.id)
@@ -80,8 +83,11 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     if (!scenes) return false
     if (!context.options.customStyle)
       return (await catalogPendingIds(context, scenes)).size === 0
-    // Una escena cuenta como lista solo con prompt VÁLIDO, tenga texto o no.
-    return scenes.every((scene) => isValidPrompt(scene.imagePrompt))
+    // Una escena cuenta como lista solo con prompt VÁLIDO, tenga texto o no;
+    // una de avatar no lleva prompt (ADR-0057) y no frena el cache-hit.
+    return scenes.every(
+      (scene) => scene.avatar !== undefined || isValidPrompt(scene.imagePrompt),
+    )
   },
 
   async run(context) {
@@ -120,7 +126,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
         if (!lane.written.has(scene.id)) continue
         context.emitter.emit({
           type: 'scene-prompt-ready',
-          scene: await toSceneSummary(context.paths, scene),
+          scene: await toSceneSummary(context.paths, scene, context.metadata),
         })
       }
       // El carril temporal exige completar y revisar todas las escenas antes
@@ -265,7 +271,7 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
           )
           context.emitter.emit({
             type: 'scene-prompt-ready',
-            scene: await toSceneSummary(context.paths, scene),
+            scene: await toSceneSummary(context.paths, scene, context.metadata),
           })
           if (!counted.has(scene.id)) {
             counted.add(scene.id)
@@ -326,7 +332,9 @@ async function readScript(context: CreateVideoContext): Promise<string> {
 // Presencia de los personajes por escena (port de prepararPersonaje): la
 // FRECUENCIA elegida manda sobre todo el video; sin frecuencia explícita, el
 // clasificador por sujeto/acción + rescate. La presencia persistida es
-// autoritativa en re-corridas (salvo la cura del caso "always" roto).
+// autoritativa en re-corridas (salvo la cura del caso "always" roto). Una
+// escena de avatar (ADR-0057) no tiene imagen: queda fuera del reparto y del
+// clasificador, y se guarda tal como estaba (sin `charactersPresent`).
 async function resolveCharacterPresence(
   context: CreateVideoContext,
   llm: SceneLlm,
@@ -335,18 +343,19 @@ async function resolveCharacterPresence(
 ): Promise<Scene[]> {
   if (characterCount === 0) return scenes
 
+  const eligible = scenes.filter((scene) => !scene.avatar)
   const characterIndexes = new Set<number>()
   for (let index = 0; index < characterCount; index++)
     characterIndexes.add(index)
   const frequency = context.options.characterFrequency
-  const alreadyClassified = scenes.some(
+  const alreadyClassified = eligible.some(
     (scene) => scene.charactersPresent !== undefined,
   )
 
   let marked: Scene[]
   if (!alreadyClassified && frequency) {
     marked = applyFrequencyToCharacters(
-      scenes.map((scene) => ({
+      eligible.map((scene) => ({
         ...scene,
         charactersPresent: scene.charactersPresent ?? [],
       })),
@@ -356,12 +365,12 @@ async function resolveCharacterPresence(
   } else if (!alreadyClassified) {
     const presence = await detectScenesWithCharacters(
       llm,
-      scenes,
+      eligible,
       (context.options.characters ?? []).map((character) => ({
         name: character.name,
       })),
     )
-    marked = scenes.map((scene) => ({
+    marked = eligible.map((scene) => ({
       ...scene,
       charactersPresent: presence.get(scene.id) ?? [],
     }))
@@ -373,7 +382,7 @@ async function resolveCharacterPresence(
     if (!anyPresent)
       marked = applyFrequencyToCharacters(marked, characterIndexes, 'always')
   } else {
-    marked = scenes.map((scene) =>
+    marked = eligible.map((scene) =>
       scene.charactersPresent !== undefined
         ? scene
         : { ...scene, charactersPresent: [] },
@@ -381,6 +390,9 @@ async function resolveCharacterPresence(
     if (needsAlwaysCure(marked, characterIndexes, frequency ?? 'balanced'))
       marked = applyFrequencyToCharacters(marked, characterIndexes, 'always')
   }
+
+  const markedById = new Map(marked.map((scene) => [scene.id, scene]))
+  const resolved = scenes.map((scene) => markedById.get(scene.id) ?? scene)
 
   const withCharacter = marked.filter(
     (scene) => (scene.charactersPresent ?? []).length > 0,
@@ -391,6 +403,6 @@ async function resolveCharacterPresence(
     message: `reference character present in ${withCharacter} of ${marked.length} scene(s)`,
   })
   context.signal.throwIfAborted()
-  await writeScenesOwned(context.paths, marked, context.regenerateSceneIds)
-  return marked
+  await writeScenesOwned(context.paths, resolved, context.regenerateSceneIds)
+  return resolved
 }

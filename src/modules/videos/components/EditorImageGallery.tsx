@@ -15,6 +15,7 @@ import { cn } from '@/modules/common/utilities/cn'
 import { EditorImageGalleryCard } from '@/modules/videos/components/EditorImageGalleryCard'
 import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
+import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
 import { useGalleryActions } from '@/modules/videos/hooks/useGalleryActions'
 import type { GalleryActionsOptions } from '@/modules/videos/types/galleryActions'
 
@@ -24,6 +25,11 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const { scenes, videoFormat, durationSeconds } = options
   const { t } = useTranslation()
   const actions = useGalleryActions(options)
+  // Las escenas de avatar no tienen imagen que regenerar (ADR-0057, spec
+  // §6.2): la galería no las lista ni las deja seleccionar, así un
+  // «Regenerar imágenes» múltiple nunca las incluye. Los planes de animación
+  // siguen mirando todas las escenas (Kie las saltea, spec §7.4).
+  const galleryScenes = scenes.filter(sceneImageEditable)
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selecting, setSelecting] = useState(false)
@@ -34,7 +40,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const triggerRef = useRef<HTMLInputElement>(null)
   const submissionRef = useRef(false)
 
-  const selection = scenes
+  const selection = galleryScenes
     .filter((scene) => selectedIds.includes(scene.id))
     .map((scene) => scene.id)
   const imageAvailability = actions.imageAvailability(selection)
@@ -177,7 +183,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           ref={triggerRef}
           type="checkbox"
           checked={open}
-          disabled={scenes.length === 0}
+          disabled={galleryScenes.length === 0}
           onChange={(event) => setOpen(event.target.checked)}
           aria-haspopup="dialog"
           className="h-4 w-4 accent-saffron"
@@ -206,7 +212,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
               </Dialog.Title>
               <Dialog.Description className="font-body text-sm text-muted-foreground">
                 {t('library.editor.imageGallery.description', {
-                  count: scenes.length,
+                  count: galleryScenes.length,
                 })}
               </Dialog.Description>
             </div>
@@ -294,7 +300,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                   : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5',
               )}
             >
-              {scenes.map((scene) => {
+              {galleryScenes.map((scene) => {
                 const selected = selecting
                   ? selection.includes(scene.id)
                   : selectedId === scene.id

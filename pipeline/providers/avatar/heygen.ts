@@ -14,9 +14,14 @@ import type {
   HeyGenAvatarGroup,
   HeyGenLook,
 } from '../../types/avatar.ts'
+import type { VideoFormat } from '../../types/video-format.ts'
 import { rateLimitDelayMs } from '../../utils/http-retry.ts'
 import { sleep } from '../../utils/sleep.ts'
-import { HEYGEN_PROVIDER, heygenFailure } from './heygen-errors.ts'
+import {
+  HEYGEN_PROVIDER,
+  HeyGenFailure,
+  heygenFailure,
+} from './heygen-errors.ts'
 
 // Cliente REST v3 de HeyGen (ADR-0057). Sin SDK oficial: `fetch` con la clave
 // del usuario en `X-Api-Key`, timeout por pedido y reintento solo ante 429.
@@ -29,12 +34,37 @@ const REQUEST_TIMEOUT_MS = 30_000
 const UPLOAD_TIMEOUT_MS = 120_000
 const RATE_LIMIT_MAX_RETRIES = 3
 // La cuenta no tiene una billetera con saldo legible (un plan de suscripción, o
-// un número que no sirve): la vista muestra «saldo no disponible».
-const BALANCE_UNAVAILABLE_CODE = 'avatar_balance_unavailable'
+// un número que no sirve): la vista muestra «saldo no disponible». La clave,
+// en cambio, sirvió: HeyGen respondió.
+export const BALANCE_UNAVAILABLE_CODE = 'avatar_balance_unavailable'
 // Sin moneda en la billetera, el saldo de la API es prepago en dólares (sonda
 // del 2026-10-09: `billing_type: 'wallet'`, `currency: 'usd'`).
 const DEFAULT_BALANCE_CURRENCY = 'usd'
 const CURRENCY_PATTERN = /^[a-z]+$/i
+// Render de una aparición del avatar (diseño §7.1): resolución y contenedor
+// fijos; los dos entran en la huella del pedido (pipeline/avatar/fingerprint.ts).
+export const HEYGEN_VIDEO_RESOLUTION = '1080p'
+export const HEYGEN_VIDEO_OUTPUT_FORMAT = 'mp4'
+// `GET /v3/videos` admite hasta 100 por página (OpenAPI v3).
+export const HEYGEN_VIDEOS_PAGE_LIMIT = 100
+// Un POST con la misma Idempotency-Key mientras el original sigue en vuelo
+// recibe `409 request_in_progress`: se espera y se repite el MISMO pedido
+// (diseño §14), tres veces, con 2, 4 y 8 s de espera.
+const IN_PROGRESS_MAX_RETRIES = 3
+const IN_PROGRESS_BASE_DELAY_MS = 2000
+// `Idempotency-Key` que HeyGen acepta (OpenAPI v3): de 1 a 255 caracteres de
+// este alfabeto.
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_\-:.]{1,255}$/
+// Estados de un render de HeyGen en los de Vimo. `waiting` es lo que devuelve
+// el POST antes del primer `pending`: para Vimo es lo mismo. Un Map, no un
+// objeto: un estado como `constructor` no puede colarse por el prototipo.
+const VIDEO_STATUSES = new Map<string, HeyGenVideoStatus>([
+  ['waiting', 'pending'],
+  ['pending', 'pending'],
+  ['processing', 'processing'],
+  ['completed', 'completed'],
+  ['failed', 'failed'],
+])
 
 export interface HeyGenListLooksParams {
   ownership?: 'public' | 'private'
@@ -86,6 +116,56 @@ export interface HeyGenCreatedAvatar {
   groupId: string | null
 }
 
+export type HeyGenVideoStatus =
+  'pending' | 'processing' | 'completed' | 'failed'
+
+// Un render de HeyGen en nuestra forma (`VideoDetail` de la OpenAPI v3).
+export interface HeyGenVideo {
+  videoId: string
+  title?: string
+  status: HeyGenVideoStatus
+  // URL prefirmada del mp4: vence; se vuelve a pedir con `getVideo`.
+  videoUrl?: string
+  durationSeconds?: number
+  // Solo en un render `failed`: el código y el texto de HeyGen, tal cual.
+  failureCode?: string
+  failureMessage?: string
+}
+
+// Un render de una aparición del avatar. Sin fondo: el clip ES la escena, con
+// el fondo propio del look (decisión del dueño del 2026-10-10).
+export interface HeyGenCreateVideoInput {
+  // El look (`avatar_id` para HeyGen) y el motor con el que se renderiza.
+  lookId: string
+  engine: AvatarEngine
+  // El WAV del tramo, ya subido con `uploadAsset`.
+  audioAssetId: string
+  // El formato del proyecto: HeyGen renderiza el look en ese cuadro.
+  aspectRatio: VideoFormat
+  // `vimo:<proyecto>:scene-<id>:<hash8>`: con él se recupera un pedido sin respuesta.
+  title: string
+  // Mismo pedido → misma clave: HeyGen repite la respuesta 24 h y no cobra dos veces.
+  idempotencyKey: string
+}
+
+export interface HeyGenListVideosParams {
+  // HeyGen filtra por substring; quien busca compara el título exacto.
+  title?: string
+  token?: string
+}
+
+// Un render de `GET /v3/videos`. Sin `status` si HeyGen mandó uno que Vimo no
+// conoce: la recuperación por título solo necesita el id y el título, y
+// descartarlo sería darlo por inexistente y repetir el pedido.
+export interface HeyGenListedVideo extends Omit<HeyGenVideo, 'status'> {
+  status?: HeyGenVideoStatus
+}
+
+export interface HeyGenVideosPage {
+  videos: HeyGenListedVideo[]
+  nextToken: string | null
+}
+
 export interface HeyGenClient {
   listGroups(params: HeyGenListGroupsParams): Promise<HeyGenGroupsPage>
   getGroup(groupId: string): Promise<HeyGenAvatarGroup>
@@ -99,6 +179,9 @@ export interface HeyGenClient {
   createPromptLook(
     input: HeyGenCreatePromptLookInput,
   ): Promise<HeyGenCreatedAvatar>
+  createVideo(input: HeyGenCreateVideoInput): Promise<string>
+  getVideo(videoId: string): Promise<HeyGenVideo>
+  listVideos(params: HeyGenListVideosParams): Promise<HeyGenVideosPage>
 }
 
 interface RawLook {
@@ -133,6 +216,16 @@ interface RawPage {
 interface RawWallet {
   currency?: unknown
   remaining_balance?: unknown
+}
+
+interface RawVideo {
+  id?: unknown
+  title?: unknown
+  status?: unknown
+  video_url?: unknown
+  duration?: unknown
+  failure_code?: unknown
+  failure_message?: unknown
 }
 
 function asString(value: unknown): string | undefined {
@@ -231,6 +324,55 @@ export function toHeyGenAvatarGroup(raw: unknown): HeyGenAvatarGroup | null {
   return result
 }
 
+// Un render de la API en nuestra forma; null sin id o con un estado que Vimo
+// no conoce. La duración solo si es un número finito y positivo.
+export function toHeyGenVideo(raw: unknown): HeyGenVideo | null {
+  if (!raw || typeof raw !== 'object') return null
+  const video = raw as RawVideo
+  const videoId = asString(video.id)
+  const status =
+    typeof video.status === 'string'
+      ? VIDEO_STATUSES.get(video.status)
+      : undefined
+  if (!videoId || !status) return null
+
+  const result: HeyGenVideo = { videoId, status }
+  const title = asString(video.title)
+  if (title) result.title = title
+  const videoUrl = asString(video.video_url)
+  if (videoUrl) result.videoUrl = videoUrl
+  if (
+    typeof video.duration === 'number' &&
+    Number.isFinite(video.duration) &&
+    video.duration > 0
+  )
+    result.durationSeconds = video.duration
+  const failureCode = asString(video.failure_code)
+  if (failureCode) result.failureCode = failureCode
+  const failureMessage = asString(video.failure_message)
+  if (failureMessage) result.failureMessage = failureMessage
+
+  return result
+}
+
+// Un render de un listado en nuestra forma: el de `toHeyGenVideo` o, si su
+// estado no es uno que Vimo conoce (los listados de HeyGen usan otros, como
+// `queued`), solo su id y su título, sin estado. Sin id, o sin estado conocido
+// y sin título, no hay render.
+export function toListedVideo(raw: unknown): HeyGenListedVideo | null {
+  const known = toHeyGenVideo(raw)
+  if (known) return known
+
+  if (!raw || typeof raw !== 'object') return null
+
+  const video = raw as RawVideo
+  const videoId = asString(video.id)
+  const title = asString(video.title)
+  if (!videoId || !title) return null
+
+  return { videoId, title }
+}
+
 function providerError(message: string, httpStatus?: number): PipelineFailure {
   return new PipelineFailure('avatar_provider_error', message, {
     provider: HEYGEN_PROVIDER,
@@ -303,14 +445,93 @@ function createdAvatarOf(body: unknown): HeyGenCreatedAvatar {
   return { look, groupId }
 }
 
+// `409 request_in_progress`: otro pedido con la misma Idempotency-Key sigue en
+// vuelo (heygen-errors.ts lo clasifica como avatar_rate_limited).
+function isRequestInProgress(error: unknown): boolean {
+  return (
+    error instanceof PipelineFailure &&
+    error.httpStatus === 409 &&
+    error.code === 'avatar_rate_limited'
+  )
+}
+
+// El rechazo con que terminó un pedido que antes recibió `409
+// request_in_progress`: el mismo fallo, marcado, porque el original estaba en
+// vuelo y este «no» no dice nada de él. Lo que no es un rechazo de HeyGen (una
+// cancelación, la red caída) sale tal cual.
+function afterRequestInProgress(error: unknown): unknown {
+  if (!(error instanceof HeyGenFailure)) return error
+
+  return new HeyGenFailure(
+    error.code,
+    error.message,
+    failureDetails(error),
+    error.param,
+    true,
+  )
+}
+
+function invalidVideoRequest(reason: string): PipelineFailure {
+  return new PipelineFailure(
+    'invalid_payload',
+    `HeyGen video request ${reason}`,
+  )
+}
+
+// Un render se paga: sin look, sin audio o con una clave que HeyGen no acepta
+// (un encabezado inválido podría tomarse como «sin clave» y dejar los
+// reintentos sin deduplicar), el pedido no sale. Es un error local: sin
+// proveedor ni status, porque HeyGen no llegó a ver nada.
+function assertVideoInput(input: HeyGenCreateVideoInput) {
+  if (!asString(input.lookId)) throw invalidVideoRequest('without a look id')
+
+  if (!asString(input.audioAssetId))
+    throw invalidVideoRequest('without an audio asset id')
+
+  // El tipo primero: RegExp.test convertiría un arreglo en texto.
+  if (
+    typeof input.idempotencyKey !== 'string' ||
+    !IDEMPOTENCY_KEY_PATTERN.test(input.idempotencyKey)
+  )
+    throw invalidVideoRequest('with an invalid Idempotency-Key')
+}
+
+// Cuerpo de `POST /v3/videos` (diseño §7.1 con el cambio del dueño del
+// 2026-10-10): el clip del avatar ES la escena, con el fondo propio del look,
+// así que no viajan `background`, `remove_background` ni `fit`: HeyGen
+// renderiza el look tal cual en el formato del proyecto.
+function createVideoBody(input: HeyGenCreateVideoInput) {
+  return {
+    type: 'avatar',
+    title: input.title,
+    avatar_id: input.lookId,
+    audio_asset_id: input.audioAssetId,
+    engine: { type: input.engine },
+    aspect_ratio: input.aspectRatio,
+    resolution: HEYGEN_VIDEO_RESOLUTION,
+    output_format: HEYGEN_VIDEO_OUTPUT_FORMAT,
+  }
+}
+
+// Ajustes de un cliente para una consulta que no puede demorar (el pre-vuelo
+// de la cuenta al crear un proyecto): el plazo de cada pedido y cuántas veces
+// se repite un 429. Sin ellos, 30 s y tres reintentos.
+export interface HeyGenClientOptions {
+  requestTimeoutMs?: number
+  rateLimitRetries?: number
+}
+
 export function createHeyGenClient(
   apiKey: string,
   signal: AbortSignal,
+  options: HeyGenClientOptions = {},
 ): HeyGenClient {
+  const rateLimitRetries = options.rateLimitRetries ?? RATE_LIMIT_MAX_RETRIES
+
   async function request(
     path: string,
     init: RequestInit,
-    timeoutMs = REQUEST_TIMEOUT_MS,
+    timeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
   ): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
       const timeout = AbortSignal.timeout(timeoutMs)
@@ -335,6 +556,9 @@ export function createHeyGenClient(
         try {
           return await response.json()
         } catch {
+          // La cancelación corta también la lectura del cuerpo (fetch lo lee
+          // con el mismo signal): es una cancelación, no un cuerpo raro.
+          signal.throwIfAborted()
           throw providerError(
             `HeyGen returned a non-JSON body for ${path}`,
             response.status,
@@ -343,7 +567,10 @@ export function createHeyGenClient(
       }
 
       const bodyText = (await response.text().catch(() => '')).slice(0, 2000)
-      if (response.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES) {
+      // Ídem: con el cuerpo cortado por la cancelación, un 409
+      // `request_in_progress` se leería como un rechazo cualquiera.
+      signal.throwIfAborted()
+      if (response.status === 429 && attempt < rateLimitRetries) {
         await sleep(rateLimitDelayMs(response, bodyText, attempt), signal)
         signal.throwIfAborted()
         continue
@@ -496,6 +723,66 @@ export function createHeyGenClient(
         }),
       })
       return createdAvatarOf(body)
+    },
+    async createVideo(input) {
+      assertVideoInput(input)
+      const init = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': input.idempotencyKey,
+        },
+        body: JSON.stringify(createVideoBody(input)),
+      }
+      let sawRequestInProgress = false
+      for (let attempt = 0; ; attempt++) {
+        let body: unknown
+        try {
+          body = await request('/v3/videos', init)
+        } catch (error) {
+          // El mismo pedido, con la misma clave, sigue en vuelo: se espera y se
+          // repite sin cambiar nada. Agotado, sale como avatar_rate_limited
+          // (409) y el carril deja el intento sin resolver. Cualquier rechazo
+          // que llegue después de un 409 así sale marcado
+          // (`sawRequestInProgress`): el carril tampoco lo da por definitivo.
+          const inProgress = isRequestInProgress(error)
+          if (!inProgress || attempt >= IN_PROGRESS_MAX_RETRIES)
+            throw sawRequestInProgress || inProgress
+              ? afterRequestInProgress(error)
+              : error
+
+          sawRequestInProgress = true
+          await sleep(IN_PROGRESS_BASE_DELAY_MS * 2 ** attempt, signal)
+          signal.throwIfAborted()
+          continue
+        }
+        const videoId = asString(dataOf(body, '/v3/videos').video_id)
+        if (!videoId)
+          throw providerError('HeyGen video creation returned no video_id')
+        return videoId
+      }
+    },
+    async getVideo(videoId) {
+      const body = await request(`/v3/videos/${encodeURIComponent(videoId)}`, {
+        method: 'GET',
+      })
+      const video = toHeyGenVideo(dataOf(body, '/v3/videos/{video_id}'))
+      if (!video)
+        throw providerError(`HeyGen video ${videoId} came back malformed`)
+      return video
+    },
+    async listVideos(params) {
+      const query = new URLSearchParams({
+        limit: String(HEYGEN_VIDEOS_PAGE_LIMIT),
+      })
+      if (params.title) query.set('title', params.title)
+      if (params.token) query.set('token', params.token)
+      const body = await request(`/v3/videos?${query}`, { method: 'GET' })
+      const { items, nextToken } = pageOf(body, '/v3/videos')
+      const videos = items
+        .map(toListedVideo)
+        .filter((video): video is HeyGenListedVideo => video !== null)
+      return { videos, nextToken }
     },
   }
 }

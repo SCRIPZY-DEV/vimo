@@ -69,13 +69,14 @@ export const CREDITS_REFRESH_DELAY_MS = 4000
 // Códigos del saldo (get-image-credits) que para la persona significan una
 // sola cosa: falta configurar la clave — no hay clave, o el proveedor la
 // rechazó (Fal responde 401/403 también cuando la clave no es de admin;
-// Evolink, cuando es inválida). Cualquier otro código es un error de red o
-// del proveedor y se muestra como tal.
+// Evolink, cuando es inválida; HeyGen, `avatar_invalid_key`). Cualquier otro
+// código es un error de red o del proveedor y se muestra como tal.
 export const NOT_CONFIGURED_CREDITS_CODES: ReadonlySet<string> = new Set([
   'missing_api_key',
   'fal_admin_key_required',
   'music_invalid_api_key',
   'animation_invalid_api_key',
+  'avatar_invalid_key',
 ])
 
 // Proveedores de voces (ADR-0024). Etiquetas de marca: no se traducen.

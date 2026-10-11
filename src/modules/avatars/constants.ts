@@ -5,6 +5,23 @@ export const AvatarsRoutes = {
   avatars: '/avatars',
 } as const
 
+// Abrir la biblioteca desde otro módulo con el panel de un avatar y su ficha
+// «Crear escenario» abierta en un formato: la tarjeta del avatar de Crear,
+// cuando el avatar no tiene un look para el formato del video (ADR-0057 §9).
+export const AVATAR_PANEL_PARAM = 'avatar'
+export const AVATAR_SCENARIO_PARAM = 'scenario'
+
+export function avatarScenarioPath(
+  id: string,
+  aspectRatio: AvatarAspectRatio,
+): string {
+  const params = new URLSearchParams({
+    [AVATAR_PANEL_PARAM]: id,
+    [AVATAR_SCENARIO_PARAM]: aspectRatio,
+  })
+  return `${AvatarsRoutes.avatars}?${params.toString()}`
+}
+
 export const avatarsQueryKeys = {
   list: ['avatars', 'list'],
   stockGroups: ['avatars', 'stockGroups'],

@@ -2,6 +2,10 @@ import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { TRANSITION_POLICY_VERSION } from '../../animation/transitions.ts'
 
+import {
+  detectSentences,
+  type NarrationSentence,
+} from '../../narration/sentences.ts'
 import { resolveProjectStyle } from '../shared/project-style.ts'
 import { isValidFile } from '../../project/paths.ts'
 import { readScenes } from '../../project/scenes-file.ts'
@@ -155,7 +159,12 @@ export const renderStage: Stage<CreateVideoContext> = {
     // El .ass se rearma en cada render: así un texto de escena editado en el
     // editor viaja al video sin pasos extra.
     const subtitlesFile = options.subtitles
-      ? await writeSubtitlesFile(context.paths, scenes, frame)
+      ? await writeSubtitlesFile(
+          context.paths,
+          scenes,
+          frame,
+          await avatarSentences(context, scenes),
+        )
       : undefined
 
     await mixFinalVideo(
@@ -193,7 +202,12 @@ export const renderStage: Stage<CreateVideoContext> = {
 // Toda escena que ocupa un tramo del timeline (tiene timestamps) DEBE tener
 // imagen válida —o formar parte de un clip de animación listo (ADR-0047)—:
 // descartarla en silencio dejaría el video más corto que el audio (voz
-// cortada) y desincronizaría todo lo posterior.
+// cortada) y desincronizaría todo lo posterior. Una escena de avatar
+// (ADR-0057) no tiene imagen propia: su clip o, si no sirve, la vista previa
+// del look; sin ninguno de los dos el render falla con
+// `avatar_render_look_unavailable` y no con `render_missing_images` (ni con
+// `avatar_look_unavailable`, el código de Crear: acá el proyecto ya existe y
+// su look no se elige de nuevo).
 async function collectRenderableScenes(
   context: CreateVideoContext,
   scenes: Scene[],
@@ -208,12 +222,15 @@ async function collectRenderableScenes(
       'no scenes with timestamps to render',
     )
 
-  const { renderScenes, missingImages } = await collectRenderScenes(
-    context.paths,
-    requireFfmpegPath(context.job.binaryPaths.ffmpeg),
-    timed,
-    (message) => context.emitter.emit({ type: 'log', level: 'warn', message }),
-  )
+  const { renderScenes, missingImages, missingAvatarLooks } =
+    await collectRenderScenes(
+      context.paths,
+      requireFfmpegPath(context.job.binaryPaths.ffmpeg),
+      timed,
+      context.metadata,
+      (message) =>
+        context.emitter.emit({ type: 'log', level: 'warn', message }),
+    )
 
   if (missingImages.length > 0)
     throw new PipelineFailure(
@@ -221,7 +238,39 @@ async function collectRenderableScenes(
       `scenes without a valid image: ${missingImages.sort((a, b) => a - b).join(', ')}`,
     )
 
+  if (missingAvatarLooks.length > 0)
+    throw new PipelineFailure(
+      'avatar_render_look_unavailable',
+      `avatar scenes without a usable clip or a look preview: ${missingAvatarLooks.sort((a, b) => a - b).join(', ')}`,
+    )
+
   return renderScenes
+}
+
+// Las frases de la narración, solo si hay escenas de avatar: sus subtítulos van
+// por frase (una aparición habla hasta 60 s). Sin `words.json` legible,
+// ninguna: el subtítulo de la escena sale entero, como siempre.
+async function avatarSentences(
+  context: CreateVideoContext,
+  scenes: Scene[],
+): Promise<NarrationSentence[]> {
+  if (!scenes.some((scene) => scene.avatar)) return []
+
+  try {
+    if (!(await isValidFile(context.paths.wordsFile))) return []
+
+    const words = JSON.parse(
+      await readTextWithRetry(context.paths.wordsFile),
+    ) as TranscriptWord[]
+    if (!Array.isArray(words) || words.length === 0) return []
+
+    return detectSentences(
+      words,
+      context.metadata.audioDurationSeconds ?? words[words.length - 1].end,
+    )
+  } catch {
+    return []
+  }
 }
 
 async function referenceDurationSeconds(

@@ -21,6 +21,8 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
+import { failureMessageOf } from '@/modules/videos/utilities/failedStage'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { projectBadge } from '@/modules/videos/utilities/projectBadge'
 
@@ -53,6 +55,15 @@ export function LibraryPlayer() {
   }
 
   const metadata = detail.metadata
+  // El mismo mensaje que la pantalla de progreso: con apariciones que HeyGen
+  // rechazó para siempre, la salida en vez de «Reanudá».
+  const failureMessage = failureMessageOf({
+    errorCode: metadata.errorCode ?? null,
+    errorKey: metadata.errorCode
+      ? videosApi.errorMessageKey({ code: metadata.errorCode })
+      : null,
+    scenes: detail.scenes,
+  })
   const badge = projectBadge(
     {
       state: metadata.state,
@@ -69,6 +80,7 @@ export function LibraryPlayer() {
   const retry = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
+      ...avatarRunOptions(metadata.options.avatar),
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }
@@ -109,11 +121,9 @@ export function LibraryPlayer() {
 
       {metadata.state === 'error' && (
         <TaskErrorCard
-          message={`${t('library.player.errorIntro')} ${t(
-            metadata.errorCode
-              ? videosApi.errorMessageKey({ code: metadata.errorCode })
-              : UNKNOWN_CREATE_ERROR_KEY,
-          )}`}
+          message={`${t('library.player.errorIntro')} ${t(failureMessage.key, {
+            count: failureMessage.count,
+          })}`}
           retryLabel={t('library.player.retry')}
           onRetry={() => void retry()}
           // Con imágenes faltantes el proyecto se repara también desde el

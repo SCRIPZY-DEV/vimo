@@ -35,7 +35,10 @@ import {
 } from '@/modules/videos/utilities/demoForm'
 import { readDemoState } from '@/modules/videos/utilities/demoState'
 import { customStyleForTab } from '@/modules/videos/utilities/formLane'
-import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
+import {
+  createProjectPayload,
+  withAvatarKey,
+} from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import {
@@ -128,7 +131,7 @@ function CreateView({
   demo,
 }: CreateViewProps) {
   const { t } = useTranslation()
-  const { isNative, missingKeys } = useRequiredApiKeys({
+  const { isNative, missingKeys, configuredProviders } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.videos,
   })
   const {
@@ -200,12 +203,18 @@ function CreateView({
     },
     newCatalog,
   )
+  // Sin clave de HeyGen la tarjeta del avatar se ve apagada: lo que se
+  // valida, se estima y se envía también lo tiene apagado (spec §9). La
+  // elección se queda en `form` para cuando vuelva la clave.
+  const keyedForm = withAvatarKey(form, configuredProviders.has('heygen'))
   const formValue =
-    customStyle === form.customStyle ? form : { ...form, customStyle }
+    customStyle === keyedForm.customStyle
+      ? keyedForm
+      : { ...keyedForm, customStyle }
 
   // El formulario ya avisa con el saldo cacheado; acá se re-lee justo antes
   // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse.
-  const { verify: verifyCredits } = useCreateCostCheck({ form })
+  const { verify: verifyCredits } = useCreateCostCheck({ form: keyedForm })
 
   // Sin auto-export el job termina sin video: el destino natural es el
   // editor (el proyecto quedó en borrador con todo generado, ADR-0016).

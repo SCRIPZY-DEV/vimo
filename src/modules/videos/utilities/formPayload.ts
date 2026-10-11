@@ -3,6 +3,7 @@ import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import { displayLaneOf, laneOf } from '@/modules/videos/utilities/formLane'
 import { projectCustomStyleFrom } from '@/modules/videos/utilities/projectCustomStyle'
 import { gemProjectStyleId } from '@/modules/videos/utilities/selectedCatalogStyle'
+import { AVATAR_DEFAULT_ENGINE } from '@pipeline/types/avatar.ts'
 import type {
   CreateFormValue,
   CreateProjectPayloadOptions,
@@ -59,6 +60,25 @@ export function createProjectPayload(
     // un borrador con opciones anteriores de N minutos o video completo.
     options.animationMinutes = ANIMATION_MINUTES_DEFAULT
     options.animateWholeVideo = false
+  }
+
+  // El avatar presentador (spec §3.4, §9 y §16): el avatar de la biblioteca,
+  // el look elegido (el escenario con el que sale) y el motor de Vimo;
+  // `placement: 'auto'` = Vimo elige los momentos al cortar (el manual llega
+  // con la entrega 3). La demo nunca lo lleva: el pack no tiene proveedores.
+  if (form.useAvatar && form.avatar && !demo) {
+    options.avatar = {
+      // El id de la biblioteca viaja como `avatarId` (ProjectAvatarOptions).
+      avatarId: form.avatar.id,
+      lookId: form.avatar.lookId,
+      lookName: form.avatar.lookName,
+      lookType: form.avatar.lookType,
+      engine: AVATAR_DEFAULT_ENGINE,
+      appearances: form.avatarAppearances,
+      secondsPerAppearance: form.avatarSecondsPerAppearance,
+      startWithAvatar: form.avatarStartsVideo,
+      placement: 'auto',
+    }
   }
 
   if (gemStyle) {
@@ -126,6 +146,20 @@ export function createProjectPayload(
   return payload
 }
 
+// El formulario tal como se valida, se estima y se envía (spec §9): sin clave
+// de HeyGen la tarjeta del avatar se dibuja apagada, así que el avatar también
+// va apagado acá. Nunca hay un «cargá tu clave» con la tarjeta apagada ni un
+// `options.avatar` sin con qué generarlo. La elección queda en el formulario
+// guardado: vuelve con la clave. Sin avatar encendido, el mismo objeto.
+export function withAvatarKey(
+  form: CreateFormValue,
+  heygenConfigured: boolean,
+): CreateFormValue {
+  if (!form.useAvatar || heygenConfigured) return form
+
+  return { ...form, useAvatar: false }
+}
+
 // Motivos por los que el formulario todavía no puede enviarse. El contexto
 // trae lo que no se deriva del formulario solo (ver FormBlockersContext).
 export function formBlockers(
@@ -134,6 +168,7 @@ export function formBlockers(
     promptModelsBlocked = false,
     fixedCharacterMissing = false,
     animationKeyMissing = false,
+    avatarUnavailable = false,
     newCatalog = false,
   }: FormBlockersContext = {},
 ): string[] {
@@ -146,6 +181,14 @@ export function formBlockers(
   if (form.animateScenes) {
     if (animationKeyMissing)
       blockers.push('create.validation.animationKeyRequired')
+  }
+
+  // El avatar presentador (spec §9): encendido pide un avatar de la
+  // biblioteca que siga sirviendo (la clave ya la resolvió withAvatarKey).
+  if (form.useAvatar) {
+    if (!form.avatar) blockers.push('create.validation.avatarRequired')
+    else if (avatarUnavailable)
+      blockers.push('create.validation.avatarUnavailable')
   }
 
   // v1.35.0 del origen: la galería propia arranca vacía y sin tarjeta

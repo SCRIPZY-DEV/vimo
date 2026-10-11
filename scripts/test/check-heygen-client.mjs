@@ -1,13 +1,21 @@
-// Cliente de HeyGen y biblioteca de avatares en disco (ADR-0057, entregas 1 y
-// 1b): la clasificación de errores, el reintento ante 429, el listado de
+// Cliente de HeyGen y biblioteca de avatares en disco (ADR-0057, entregas 1,
+// 1b y 2): la clasificación de errores, el reintento ante 429, el listado de
 // avatares (grupos) y de looks con su paginación, un avatar por su id (404 =
 // avatar_not_found), el género normalizado, la subida multipart, la clave de
 // idempotencia al crear un avatar desde foto, el saldo de la billetera (que
-// nunca lanza), el look nuevo desde un prompt, y la carpeta `avatars/` (un
-// avatar = un grupo con sus looks) con metadata tolerante, la de la entrega 1
-// reconocida y las reglas del look principal y del estado. Importa el código
-// real del sidecar (Node quita los tipos) y simula HeyGen con `fetch` falso:
-// nada sale a la red.
+// nunca lanza), el look nuevo desde un prompt, los renders de video (el cuerpo
+// de `createVideo` sin fondo ni `fit`, el 409 que se repite con la misma
+// clave y el mismo cuerpo a los 2, 4 y 8 s, el pedido que no sale sin look,
+// sin audio o con una clave inválida, la cancelación que nunca sale como un
+// fallo de HeyGen, el `param` del rechazo conservado, el rechazo marcado si
+// llegó después de un 409 del mismo pedido, el estado de un render, el 404
+// con su status, la búsqueda por título (que conserva un render con un estado
+// desconocido si trae id y título), el mapeo de `failure_code` y el código de
+// moderación del sobre de un rechazo) y la carpeta `avatars/`
+// (un avatar = un grupo con sus looks) con metadata tolerante, la de la
+// entrega 1 reconocida y las reglas del look principal y del estado. Importa
+// el código real del sidecar (Node quita los tipos) y simula HeyGen con
+// `fetch` falso: nada sale a la red.
 import assert from 'node:assert/strict'
 import {
   chmod,
@@ -27,8 +35,13 @@ import {
   toAvatarGender,
   toHeyGenAvatarGroup,
   toHeyGenLook,
+  toHeyGenVideo,
 } from '../../pipeline/providers/avatar/heygen.ts'
-import { heygenFailure } from '../../pipeline/providers/avatar/heygen-errors.ts'
+import {
+  HeyGenFailure,
+  heygenFailure,
+  heygenVideoFailure,
+} from '../../pipeline/providers/avatar/heygen-errors.ts'
 import {
   assertValidAvatarId,
   avatarStatusOf,
@@ -108,6 +121,10 @@ async function failure(promise) {
   }
   assert.fail('expected a failure')
 }
+
+// El fetch real, tomado antes de cualquier test: el centinela del final
+// comprueba que ningún simulado quedó puesto.
+const REAL_FETCH = globalThis.fetch
 
 // Un solo fetch simulado vivo por test: un segundo `t.mock.method` sobre el
 // mismo global toma al primero como «original» y, al terminar el test, lo deja
@@ -606,6 +623,30 @@ test('errores: la clasificación sigue el diseño §14', () => {
       '{"error":{"code":"invalid_request","message":"Name not allowed by policy","param":"name"}}',
       'avatar_moderation_rejected',
     ],
+    // Un código de moderación del sobre es moderación aunque el mensaje no
+    // use ninguna de esas palabras (antes salía `avatar_invalid_request`).
+    [
+      400,
+      '{"error":{"code":"avatar_not_usable","message":"This avatar cannot be used","param":null}}',
+      'avatar_moderation_rejected',
+    ],
+    [
+      422,
+      '{"error":{"code":"content_policy_violation","message":"Request rejected","param":null}}',
+      'avatar_moderation_rejected',
+    ],
+    // El `param` de look sigue mirándose antes, también ante un código así.
+    [
+      400,
+      '{"error":{"code":"avatar_not_usable","message":"This avatar cannot be used","param":"avatar_id"}}',
+      'avatar_look_unsupported',
+    ],
+    // Y en un 5xx el código no vuelve moderación a HeyGen caído.
+    [
+      503,
+      '{"error":{"code":"avatar_consent_required","message":"Unavailable"}}',
+      'avatar_network',
+    ],
   ]
   for (const [status, body, code] of cases) {
     const error = heygenFailure(status, body)
@@ -953,6 +994,619 @@ test('createPromptLook: sin referencias no manda el campo, auto viaja tal cual y
   const error = await failure(client().createPromptLook(PROMPT_LOOK_INPUT))
   assert.equal(error.code, 'avatar_provider_error')
   assert.equal(error.provider, 'heygen')
+})
+
+// `GET /v3/videos/{id}` de un render terminado, con la forma de las sondas
+// pagas del 2026-10-10 (7 s de audio → 7,000 s de video) y los campos que Vimo
+// ignora (`created_at`, `thumbnail_url`, `video_page_url`).
+const RAW_VIDEO = {
+  id: 'video-1',
+  title: 'vimo:mi-video:scene-3:ab12cd34',
+  status: 'completed',
+  created_at: 1791600000,
+  completed_at: 1791600060,
+  video_url: 'https://files.heygen.ai/video/video-1.mp4?Expires=1',
+  thumbnail_url: 'https://files.heygen.ai/thumb/video-1.jpg',
+  duration: 7,
+  video_page_url: 'https://app.heygen.com/videos/video-1',
+}
+
+const VIDEO_INPUT = {
+  lookId: 'look-1',
+  engine: 'avatar_iii',
+  audioAssetId: 'asset-audio',
+  aspectRatio: '16:9',
+  title: 'vimo:mi-video:scene-3:ab12cd34',
+  idempotencyKey: 'vimo-avatar-video-0123456789abcdef0123456789abcdef',
+}
+
+test('createVideo: cuerpo exacto del render, sin fondo ni fit, con título e Idempotency-Key', async (t) => {
+  let received
+  mockFetch(t, async (url, init) => {
+    received = {
+      url: String(url),
+      method: init.method,
+      headers: init.headers,
+      body: JSON.parse(init.body),
+    }
+    return json({
+      data: { video_id: 'video-1', status: 'waiting', output_format: 'mp4' },
+    })
+  })
+  assert.equal(await client().createVideo(VIDEO_INPUT), 'video-1')
+  assert.equal(received.url, 'https://api.heygen.com/v3/videos')
+  assert.equal(received.method, 'POST')
+  assert.equal(received.headers['Content-Type'], 'application/json')
+  assert.equal(received.headers['X-Api-Key'], 'key-123')
+  assert.equal(received.headers['Idempotency-Key'], VIDEO_INPUT.idempotencyKey)
+  // Decisión del dueño del 2026-10-10: el clip ES la escena, con el fondo
+  // propio del look. Vimo no manda fondo, ni recorte, ni encuadre.
+  assert.deepEqual(received.body, {
+    type: 'avatar',
+    title: 'vimo:mi-video:scene-3:ab12cd34',
+    avatar_id: 'look-1',
+    audio_asset_id: 'asset-audio',
+    engine: { type: 'avatar_iii' },
+    aspect_ratio: '16:9',
+    resolution: '1080p',
+    output_format: 'mp4',
+  })
+  for (const key of ['background', 'remove_background', 'fit'])
+    assert.equal(key in received.body, false, key)
+})
+
+test('createVideo: el formato del proyecto viaja tal cual: un proyecto vertical pide 9:16', async (t) => {
+  const bodies = []
+  mockFetch(t, async (_url, init) => {
+    bodies.push(JSON.parse(init.body))
+    return json({ data: { video_id: 'video-2', status: 'waiting' } })
+  })
+  assert.equal(
+    await client().createVideo({ ...VIDEO_INPUT, aspectRatio: '9:16' }),
+    'video-2',
+  )
+  assert.equal(bodies[0].aspect_ratio, '9:16')
+  assert.equal('background' in bodies[0], false)
+})
+
+test('createVideo: un 409 request_in_progress se repite con la MISMA clave y, agotado, queda como avatar_rate_limited; otro 409 no se repite', async (t) => {
+  // Las esperas de 2, 4 y 8 s se cumplen al instante, pero quedan anotadas.
+  const waits = []
+  t.mock.method(globalThis, 'setTimeout', (callback, ms) => {
+    waits.push(ms)
+    return setImmediate(callback)
+  })
+  const inProgress = () =>
+    json(
+      {
+        error: {
+          code: 'request_in_progress',
+          message:
+            'A request with this Idempotency-Key is already in progress. Retry shortly.',
+          param: null,
+        },
+      },
+      409,
+    )
+  // Un solo fetch simulado por test, con la cola de los tres pedidos: el
+  // primero sale al tercer intento, el segundo agota los reintentos y el
+  // tercero es otro 409 (el look todavía se procesa), que no se repite.
+  const responses = [
+    inProgress,
+    inProgress,
+    () => json({ data: { video_id: 'video-1', status: 'waiting' } }),
+    inProgress,
+    inProgress,
+    inProgress,
+    inProgress,
+    () =>
+      json(
+        {
+          error: {
+            code: 'resource_not_ready',
+            message:
+              'This avatar is still processing. Wait for avatar creation to complete, then try again.',
+            param: null,
+          },
+        },
+        409,
+      ),
+  ]
+  const keys = []
+  const bodies = []
+  mockFetch(t, async (_url, init) => {
+    keys.push(init.headers['Idempotency-Key'])
+    bodies.push(init.body)
+    return responses[keys.length - 1]()
+  })
+  assert.equal(await client().createVideo(VIDEO_INPUT), 'video-1')
+  assert.deepEqual(keys, [
+    VIDEO_INPUT.idempotencyKey,
+    VIDEO_INPUT.idempotencyKey,
+    VIDEO_INPUT.idempotencyKey,
+  ])
+  assert.deepEqual(waits.splice(0), [2000, 4000])
+
+  const error = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(error.code, 'avatar_rate_limited')
+  assert.equal(error.httpStatus, 409)
+  // El primero y tres repeticiones (7 llamadas con las 3 de arriba), a los 2,
+  // 4 y 8 s; ninguna con otra clave ni con otro cuerpo.
+  assert.equal(keys.length, 7)
+  assert.deepEqual(waits.splice(0), [2000, 4000, 8000])
+  assert.ok(keys.every((key) => key === VIDEO_INPUT.idempotencyKey))
+  assert.ok(bodies.every((body) => body === bodies[0]))
+
+  const notReady = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(notReady.code, 'avatar_invalid_request')
+  assert.equal(notReady.httpStatus, 409)
+  assert.equal(keys.length, 8)
+  assert.deepEqual(waits, [])
+})
+
+test('createVideo: un rechazo que llega después de un 409 request_in_progress sale marcado (sawRequestInProgress); sin ese 409, no', async (t) => {
+  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+  const inProgress = () =>
+    json(
+      {
+        error: {
+          code: 'request_in_progress',
+          message:
+            'A request with this Idempotency-Key is already in progress. Retry shortly.',
+          param: null,
+        },
+      },
+      409,
+    )
+  const engine = () =>
+    json(
+      {
+        error: {
+          code: 'invalid_parameter',
+          message: 'Engine not allowed for this avatar',
+          param: 'engine',
+        },
+      },
+      400,
+    )
+  const credits = () =>
+    json(
+      { error: { code: 'insufficient_credit', message: 'Not enough credit' } },
+      402,
+    )
+  // Tres pedidos: 409 → 400; 409 → 402; y un 400 directo.
+  const responses = [inProgress, engine, inProgress, credits, engine]
+  let posts = 0
+  mockFetch(t, async () => responses[posts++]())
+
+  const afterInFlight = await failure(client().createVideo(VIDEO_INPUT))
+  assert.ok(afterInFlight instanceof HeyGenFailure)
+  assert.equal(afterInFlight.code, 'avatar_look_unsupported')
+  assert.equal(afterInFlight.httpStatus, 400)
+  assert.equal(afterInFlight.param, 'engine')
+  assert.equal(afterInFlight.sawRequestInProgress, true)
+
+  const creditsAfterInFlight = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(creditsAfterInFlight.code, 'avatar_insufficient_credits')
+  assert.equal(creditsAfterInFlight.sawRequestInProgress, true)
+
+  const direct = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(direct.code, 'avatar_look_unsupported')
+  assert.equal(direct.sawRequestInProgress, false)
+  assert.equal(posts, 5)
+})
+
+test('createVideo: el 409 request_in_progress agotado también sale marcado', async (t) => {
+  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+  let posts = 0
+  mockFetch(t, async () => {
+    posts++
+    return json(
+      {
+        error: {
+          code: 'request_in_progress',
+          message: 'still in progress',
+          param: null,
+        },
+      },
+      409,
+    )
+  })
+  const error = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(error.code, 'avatar_rate_limited')
+  assert.equal(error.httpStatus, 409)
+  assert.equal(error.sawRequestInProgress, true)
+  assert.equal(posts, 4)
+})
+
+test('createVideo: un 429 que request() ya agotó no se vuelve a repetir', async (t) => {
+  // request() repite el 429 tres veces (las esperas se cumplen al instante) y,
+  // agotado, sale avatar_rate_limited con status 429: no es el 409 de un
+  // pedido en vuelo, así que createVideo no lo repite (serían hasta 16 POST).
+  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+  let posts = 0
+  mockFetch(t, async () => {
+    posts++
+    return json(
+      {
+        error: {
+          code: 'rate_limit_exceeded',
+          message:
+            'Too many requests. Retry after the duration specified in the Retry-After header.',
+          param: null,
+        },
+      },
+      429,
+    )
+  })
+  const error = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(error.code, 'avatar_rate_limited')
+  assert.equal(error.httpStatus, 429)
+  assert.equal(posts, 4)
+})
+
+test('createVideo: cancelar durante la espera del 409 sale como AbortError, sin repetir el POST', async (t) => {
+  // La persona cancela mientras HeyGen todavía procesa el pedido original: el
+  // carril tiene que ver una cancelación, no un fallo de HeyGen que lo lleve a
+  // marcar el intento como resuelto. La cancelación cae en plena espera (el
+  // `setTimeout` de la espera es el que aborta), después de leer el 409: así
+  // el corte es el de la espera y no el de la lectura del cuerpo.
+  const controller = new AbortController()
+  t.mock.method(globalThis, 'setTimeout', (callback) => {
+    controller.abort()
+    return setImmediate(callback)
+  })
+  let calls = 0
+  mockFetch(t, async () => {
+    calls++
+    return json(
+      {
+        error: {
+          code: 'request_in_progress',
+          message:
+            'A request with this Idempotency-Key is already in progress. Retry shortly.',
+          param: null,
+        },
+      },
+      409,
+    )
+  })
+  const error = await failure(
+    createHeyGenClient('key-123', controller.signal).createVideo(VIDEO_INPUT),
+  )
+  assert.equal(error.name, 'AbortError')
+  assert.equal(calls, 1)
+})
+
+test('createVideo: una cancelación que llega mientras se lee el cuerpo sale como AbortError, no como fallo de HeyGen', async (t) => {
+  // undici corta el cuerpo de un fetch con el mismo signal. Acá el cuerpo
+  // nunca termina solo y falla al abortar, y la persona cancela apenas
+  // llegaron los encabezados. Antes salían un 200 como avatar_provider_error,
+  // un 409 como avatar_invalid_request 409 (para el carril, «HeyGen dijo que
+  // no») y un 500 como avatar_network.
+  const cases = [200, 409, 500].map((status) => ({
+    status,
+    controller: new AbortController(),
+  }))
+  let posts = 0
+  mockFetch(t, async (_url, init) => {
+    const { status, controller } = cases[posts++]
+    const body = new ReadableStream({
+      start(stream) {
+        init.signal.addEventListener('abort', () =>
+          stream.error(init.signal.reason),
+        )
+      },
+    })
+    setImmediate(() => controller.abort())
+    return new Response(body, { status })
+  })
+  for (const { status, controller } of cases) {
+    const error = await failure(
+      createHeyGenClient('key-123', controller.signal).createVideo(VIDEO_INPUT),
+    )
+    assert.equal(error.name, 'AbortError', String(status))
+  }
+  assert.equal(posts, cases.length)
+})
+
+test('createVideo: sin look, sin audio o con una Idempotency-Key que HeyGen no acepta, el pedido no sale', async (t) => {
+  let posts = 0
+  mockFetch(t, async () => {
+    posts++
+    return json({ data: { video_id: 'video-1', status: 'waiting' } })
+  })
+  const invalid = [
+    ['sin look', { lookId: '' }],
+    ['sin audio', { audioAssetId: '' }],
+    ['audio de otro tipo', { audioAssetId: 5 }],
+    ['clave vacía', { idempotencyKey: '' }],
+    ['clave con espacios', { idempotencyKey: 'vimo avatar video' }],
+    ['clave de 256 caracteres', { idempotencyKey: 'k'.repeat(256) }],
+    // RegExp.test convierte un arreglo en texto: el tipo se mira antes.
+    ['clave en un arreglo', { idempotencyKey: ['vimo-avatar-video-1'] }],
+  ]
+  for (const [label, change] of invalid) {
+    const error = await failure(
+      client().createVideo({ ...VIDEO_INPUT, ...change }),
+    )
+    assert.equal(error.code, 'invalid_payload', label)
+    // Un error local: no hubo pedido a HeyGen, así que no lleva proveedor ni
+    // status.
+    assert.equal(error.provider, undefined, label)
+    assert.equal(error.httpStatus, undefined, label)
+  }
+  assert.equal(posts, 0)
+
+  // La clave más larga que HeyGen acepta, con todo su alfabeto, sí sale.
+  const longest = 'Az09_-:.'.padEnd(255, 'x')
+  assert.equal(
+    await client().createVideo({ ...VIDEO_INPUT, idempotencyKey: longest }),
+    'video-1',
+  )
+  assert.equal(posts, 1)
+})
+
+test('createVideo: un 200 sin video_id es avatar_provider_error y un 400 de look conserva el campo que HeyGen rechazó', async (t) => {
+  const responses = [
+    () => json({ data: { status: 'waiting' } }),
+    () =>
+      json(
+        {
+          error: {
+            code: 'invalid_parameter',
+            message: 'Engine not allowed for this avatar',
+            param: 'engine',
+          },
+        },
+        400,
+      ),
+    () =>
+      json(
+        {
+          error: {
+            code: 'invalid_parameter',
+            message:
+              'Exactly one visual source required: avatar_id, image_url, or image_asset_id.',
+            param: 'avatar_id',
+          },
+        },
+        400,
+      ),
+    () =>
+      json(
+        {
+          error: {
+            code: 'avatar_not_usable',
+            message:
+              'This avatar cannot be used because it did not pass content moderation.',
+            param: null,
+          },
+        },
+        400,
+      ),
+  ]
+  let call = 0
+  mockFetch(t, async () => responses[call++]())
+  const malformed = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(malformed.code, 'avatar_provider_error')
+  assert.equal(malformed.provider, 'heygen')
+
+  // «not allowed» en el mensaje no lo vuelve moderación: el `param` manda, y
+  // queda en el fallo para saber si HeyGen rechazó el motor o el look.
+  const engine = await failure(client().createVideo(VIDEO_INPUT))
+  assert.ok(engine instanceof HeyGenFailure)
+  assert.equal(engine.code, 'avatar_look_unsupported')
+  assert.equal(engine.httpStatus, 400)
+  assert.equal(engine.param, 'engine')
+
+  const look = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(look.code, 'avatar_look_unsupported')
+  assert.equal(look.param, 'avatar_id')
+
+  const moderated = await failure(client().createVideo(VIDEO_INPUT))
+  assert.equal(moderated.code, 'avatar_moderation_rejected')
+  assert.equal(moderated.param, null)
+  assert.equal(call, 4)
+})
+
+test('getVideo: pide el render por su id y lo devuelve normalizado, con el fallo de HeyGen tal cual', async (t) => {
+  const responses = [
+    () => json({ data: { ...RAW_VIDEO } }),
+    () => json({ data: { id: 'video/2', status: 'waiting' } }),
+    () =>
+      json({
+        data: {
+          id: 'video-3',
+          status: 'failed',
+          video_url: null,
+          duration: null,
+          failure_code: 'rendering_failed',
+          failure_message: 'Avatar rendering timed out',
+        },
+      }),
+    () => json({ data: { id: 'video-4', status: 'exploded' } }),
+    () =>
+      json(
+        {
+          error: {
+            code: 'not_found',
+            message: 'Video not found',
+            param: null,
+          },
+        },
+        404,
+      ),
+  ]
+  const urls = []
+  mockFetch(t, async (url) => {
+    urls.push(String(url))
+    return responses[urls.length - 1]()
+  })
+  assert.deepEqual(await client().getVideo('video-1'), {
+    videoId: 'video-1',
+    title: 'vimo:mi-video:scene-3:ab12cd34',
+    status: 'completed',
+    videoUrl: 'https://files.heygen.ai/video/video-1.mp4?Expires=1',
+    durationSeconds: 7,
+  })
+  // `waiting` (lo que devuelve el POST) es `pending` para Vimo.
+  assert.deepEqual(await client().getVideo('video/2'), {
+    videoId: 'video/2',
+    status: 'pending',
+  })
+  assert.deepEqual(await client().getVideo('video-3'), {
+    videoId: 'video-3',
+    status: 'failed',
+    failureCode: 'rendering_failed',
+    failureMessage: 'Avatar rendering timed out',
+  })
+  const unknown = await failure(client().getVideo('video-4'))
+  assert.equal(unknown.code, 'avatar_provider_error')
+  // Un 404 conserva su status: con él el carril deja el intento `ambiguous`
+  // en vez de darlo por perdido (diseño §7.2).
+  const missing = await failure(client().getVideo('video-5'))
+  assert.ok(missing instanceof HeyGenFailure)
+  assert.equal(missing.code, 'avatar_invalid_request')
+  assert.equal(missing.httpStatus, 404)
+  assert.equal(urls[0], 'https://api.heygen.com/v3/videos/video-1')
+  assert.equal(urls[1], 'https://api.heygen.com/v3/videos/video%2F2')
+  assert.equal(urls.length, 5)
+})
+
+test('listVideos: busca por título con la página máxima, conserva un render con un estado desconocido si tiene id y título, salta los incompletos y pagina solo con has_more', async (t) => {
+  const calls = []
+  const pages = [
+    {
+      data: [
+        RAW_VIDEO,
+        // Un estado que Vimo no conoce (otros listados de HeyGen dicen
+        // `queued`): con id y título, la recuperación por título lo necesita.
+        { id: 'video-queued', title: `${RAW_VIDEO.title}-q`, status: 'queued' },
+        // Sin título, o sin id, no sirve para nada.
+        { id: 'y', status: 'queued' },
+        { id: 'x' },
+        { status: 'completed' },
+      ],
+      has_more: true,
+      next_token: 'tok-2',
+    },
+    { data: [], has_more: false, next_token: 'tok-3' },
+    { data: { videos: [] } },
+  ]
+  mockFetch(t, async (url, init) => {
+    calls.push({ url: new URL(String(url)), method: init.method })
+    return json(pages[calls.length - 1])
+  })
+  const first = await client().listVideos({
+    title: RAW_VIDEO.title,
+    token: 'tok-1',
+  })
+  assert.deepEqual(
+    first.videos.map((video) => [video.videoId, video.status]),
+    [
+      ['video-1', 'completed'],
+      ['video-queued', undefined],
+    ],
+  )
+  assert.deepEqual(first.videos[1], {
+    videoId: 'video-queued',
+    title: `${RAW_VIDEO.title}-q`,
+  })
+  assert.equal(first.nextToken, 'tok-2')
+  assert.equal(calls[0].url.pathname, '/v3/videos')
+  assert.equal(calls[0].method, 'GET')
+  assert.equal(calls[0].url.searchParams.get('limit'), '100')
+  assert.equal(calls[0].url.searchParams.get('title'), RAW_VIDEO.title)
+  assert.equal(calls[0].url.searchParams.get('token'), 'tok-1')
+
+  const last = await client().listVideos({})
+  assert.equal(last.nextToken, null)
+  assert.equal(calls[1].url.search, '?limit=100')
+
+  const malformed = await failure(client().listVideos({}))
+  assert.equal(malformed.code, 'avatar_provider_error')
+})
+
+test('toHeyGenVideo: sin id o con un estado desconocido no hay video; la duración solo si es un número positivo', () => {
+  assert.equal(toHeyGenVideo(null), null)
+  assert.equal(toHeyGenVideo({ status: 'completed' }), null)
+  assert.equal(toHeyGenVideo({ id: 'v', status: 'constructor' }), null)
+  assert.deepEqual(toHeyGenVideo({ id: 'v', status: 'processing' }), {
+    videoId: 'v',
+    status: 'processing',
+  })
+  for (const duration of [0, -2, Infinity, '7', null])
+    assert.equal(
+      'durationSeconds' in
+        toHeyGenVideo({ id: 'v', status: 'completed', duration }),
+      false,
+      String(duration),
+    )
+})
+
+test('heygenVideoFailure: saldo, moderación y el resto de un render fallido (diseño §14)', () => {
+  const cases = [
+    [
+      'insufficient_credit',
+      'Your account has 5 credits but this video requires 10 credits.',
+      'avatar_insufficient_credits',
+    ],
+    [
+      'content_policy_violation',
+      'Content rejected',
+      'avatar_moderation_rejected',
+    ],
+    [
+      'avatar_not_usable',
+      'This avatar cannot be used',
+      'avatar_moderation_rejected',
+    ],
+    [
+      'internal_error',
+      'Video rejected by our usage policy',
+      'avatar_moderation_rejected',
+    ],
+    ['rendering_failed', 'Avatar rendering timed out', 'avatar_render_failed'],
+    [undefined, undefined, 'avatar_render_failed'],
+  ]
+  for (const [failureCode, failureMessage, code] of cases) {
+    const error = heygenVideoFailure(failureCode, failureMessage)
+    assert.equal(error.code, code, `${failureCode} ${failureMessage}`)
+    assert.equal(error.provider, 'heygen')
+    // El pedido fue aceptado: un render fallido no trae status HTTP.
+    assert.equal(error.httpStatus, undefined)
+  }
+  assert.ok(
+    INSUFFICIENT_CREDITS_CODES.has(
+      heygenVideoFailure('insufficient_credit', '').code,
+    ),
+  )
+})
+
+test('errores de los renders: el 402 de HeyGen, el 409 resource_not_ready y el param conservado (o null)', () => {
+  const credit = heygenFailure(
+    402,
+    '{"error":{"code":"insufficient_credit","message":"Your account has 5 credits but this video requires 10 credits."}}',
+  )
+  assert.ok(credit instanceof HeyGenFailure)
+  assert.equal(credit.code, 'avatar_insufficient_credits')
+  assert.equal(credit.param, null)
+  const notReady = heygenFailure(
+    409,
+    '{"error":{"code":"resource_not_ready","message":"This avatar is still processing.","param":null}}',
+  )
+  assert.equal(notReady.code, 'avatar_invalid_request')
+  assert.equal(notReady.httpStatus, 409)
+  const proxy = heygenFailure(502, '<html>Bad gateway</html>')
+  assert.equal(proxy.code, 'avatar_network')
+  assert.equal(proxy.param, null)
+  const name = heygenFailure(
+    400,
+    '{"error":{"code":"invalid_parameter","message":"title too long","param":"title"}}',
+  )
+  assert.equal(name.code, 'avatar_invalid_request')
+  assert.equal(name.param, 'title')
 })
 
 test('biblioteca: ids y carpeta reservada', () => {
@@ -1409,4 +2063,11 @@ test('biblioteca: la foto se valida por magic bytes y por tamaño', async (t) =>
     (await failure(readAvatarPhoto(join(root, 'missing.png')))).code,
     'avatar_photo_invalid',
   )
+})
+
+// Corre último (registro `node-test-doble-mock-del-mismo-metodo-deja-el-global-sucio`):
+// si un test montó dos fetch simulados sin restaurar el primero, ese queda
+// puesto como «original» y este test lo ve.
+test('centinela: al terminar, fetch vuelve a ser el real', () => {
+  assert.equal(globalThis.fetch, REAL_FETCH)
 })

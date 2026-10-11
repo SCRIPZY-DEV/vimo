@@ -4,6 +4,10 @@ import {
   COST_ESTIMATE_SAFETY_FACTOR,
   SPEECH_CHARS_PER_SECOND,
 } from '@/modules/videos/constants'
+import {
+  avatarCostEstimate,
+  avatarSpansCostEstimate,
+} from '@/modules/videos/utilities/avatarCostEstimate'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
@@ -15,6 +19,7 @@ import { animationRangePlan } from '@/modules/videos/utilities/animationRangePla
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
+import type { SceneSummary } from '@pipeline/types/scenes.ts'
 import type { VideoProjectStatusResult } from '@pipeline/types/video-project.ts'
 
 // Cuánto falta por gastar para terminar un proyecto que quedó a medias
@@ -46,6 +51,11 @@ export function estimateResumeCost(
   if (!completed.has('images')) {
     const images = pendingImagesLine(status)
     if (images) lines.push(images)
+  }
+
+  if (!completed.has('avatar')) {
+    const avatar = pendingAvatarLine(status)
+    if (avatar) lines.push(avatar)
   }
 
   if (hasAutomaticAnimation(options) && status.scenes.length > 0) {
@@ -101,16 +111,23 @@ function pendingImagesLine(
 }
 
 // Con escenas ya cortadas cuenta las que siguen sin imagen (también la muda,
-// sin texto: igual lleva imagen); antes del corte se aproxima como en Crear
-// (cantidad fija, o duración real del audio si ya se transcribió, o el guion).
+// sin texto: igual lleva imagen), salvo las de avatar, que no llevan imagen
+// propia (ADR-0057 §6.2: el look es el escenario); antes del corte se
+// aproxima como en Crear (cantidad fija, o duración real del audio si ya se
+// transcribió, o el guion), sin las apariciones del avatar.
 function pendingImageCount(status: VideoProjectStatusResult): number {
   const { metadata, scenes } = status
   const options = metadata.options
   if (scenes.length > 0)
-    return scenes.filter((scene) => !scene.imagePath).length
+    return scenes.filter((scene) => !scene.avatar && !scene.imagePath).length
 
+  const avatarScenes = options.avatar?.appearances ?? 0
+  const avatarSeconds = options.avatar
+    ? options.avatar.appearances * options.avatar.secondsPerAppearance
+    : 0
   const usesCustomStyle = options.customStyle !== undefined
-  if (!usesCustomStyle && options.sceneCount > 0) return options.sceneCount
+  if (!usesCustomStyle && options.sceneCount > 0)
+    return Math.max(1, options.sceneCount - avatarScenes)
 
   const durationSeconds =
     metadata.audioDurationSeconds ??
@@ -118,5 +135,54 @@ function pendingImageCount(status: VideoProjectStatusResult): number {
   const secondsPerScene = usesCustomStyle
     ? (options.secondsPerScene ?? AUTO_SECONDS_PER_SCENE)
     : AUTO_SECONDS_PER_SCENE
-  return estimateSceneCount(durationSeconds, secondsPerScene)
+  return estimateSceneCount(
+    Math.max(0, durationSeconds - avatarSeconds),
+    secondsPerScene,
+  )
+}
+
+// ¿La escena de avatar ya tiene su clip? Un desactualizado también: reanudar
+// no lo regenera (§11.4) y no se vuelve a cobrar.
+function hasAvatarClip(scene: SceneSummary): boolean {
+  const avatar = scene.avatar
+  if (!avatar || avatar.status !== 'ready') return false
+
+  return Boolean(avatar.clipPath)
+}
+
+// Lo que falta cobrar del avatar (spec §8): los tramos de las escenas de
+// avatar sin clip, contados como los cuenta la fase; antes del corte, lo que
+// pidió Crear. Con escenas cortadas la cifra es un techo (`upperBound`): la
+// vista no expone los recibos, y una escena con un pedido ya pagado se cosecha
+// sin cobro nuevo, así que la fase puede pagar menos de lo que suman todas las
+// pendientes. Si el corte no ubicó ninguna aparición (la narración no tenía
+// frases donde entraran), la fase no tiene nada que cobrar: no hay línea, ni
+// un saldo de HeyGen que pueda frenar «Reanudar».
+function pendingAvatarLine(
+  status: VideoProjectStatusResult,
+): CostEstimateLine | null {
+  const avatar = status.metadata.options.avatar
+  if (!avatar) return null
+
+  if (status.scenes.length === 0)
+    return avatarCostEstimate(
+      avatar.lookType,
+      avatar.appearances * avatar.secondsPerAppearance,
+    )
+
+  const avatarScenes = status.scenes.filter(
+    (scene) => scene.avatar !== undefined,
+  )
+  if (avatarScenes.length === 0) return null
+
+  const pendingSpans = avatarScenes
+    .filter((scene) => !hasAvatarClip(scene))
+    .map((scene) => ({
+      startSeconds: scene.startSeconds ?? 0,
+      endSeconds: scene.endSeconds ?? 0,
+    }))
+  const line = avatarSpansCostEstimate(avatar.lookType, pendingSpans)
+  if (!line) return null
+
+  return { ...line, upperBound: true }
 }

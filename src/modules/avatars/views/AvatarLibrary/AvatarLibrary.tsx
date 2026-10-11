@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router'
 import { motion } from 'framer-motion'
 import { ImagePlus, Plus } from 'lucide-react'
 import DoodleHappyFace from '@/modules/common/doodles/DoodleHappyFace'
@@ -15,6 +16,11 @@ import { AvatarCard } from '@/modules/avatars/components/AvatarCard'
 import { AvatarDetailDialog } from '@/modules/avatars/components/AvatarDetailDialog'
 import { CreatePhotoAvatarDialog } from '@/modules/avatars/components/CreatePhotoAvatarDialog'
 import { StockLooksDialog } from '@/modules/avatars/components/StockLooksDialog'
+import {
+  AVATAR_ASPECT_RATIOS,
+  AVATAR_PANEL_PARAM,
+  AVATAR_SCENARIO_PARAM,
+} from '@/modules/avatars/constants'
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
@@ -32,10 +38,22 @@ export function AvatarLibrary() {
   // Hablar con HeyGen exige su clave: los botones esperan a que el llavero
   // responda y, sin clave, al aviso.
   const { canUseHeyGen, missingKey } = useHeyGenAccess()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [dialog, setDialog] = useState<OpenDialog>(null)
+  // `?avatar=<id>&scenario=<formato>` (avatarScenarioPath, desde la tarjeta
+  // del avatar de Crear, ADR-0057 §9): el panel de ese avatar abre solo, con
+  // «Crear escenario» listo en ese formato. Vale una vez: cerrar el panel o
+  // abrir otro lo consume, y al consumirlo sale también de la URL (volver con
+  // el historial no lo reabre).
+  const [linkedId, setLinkedId] = useState(() =>
+    searchParams.get(AVATAR_PANEL_PARAM),
+  )
+  const linkedRatio = AVATAR_ASPECT_RATIOS.find(
+    (ratio) => ratio === searchParams.get(AVATAR_SCENARIO_PARAM),
+  )
   // El panel de un avatar se arma con su entrada actual de la lista: lo que
   // cambia el sondeo se ve al instante y, si la entrada desaparece, se cierra.
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(linkedId)
   const listRef = useRef<HTMLUListElement>(null)
   const stockButtonRef = useRef<HTMLButtonElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -52,10 +70,27 @@ export function AvatarLibrary() {
   const selectedAvatar = entries.find((entry) => entry.id === selectedId)
   // Si la entrada desaparece (se quitó, o el sondeo ya no la trae), el panel
   // se cierra del todo: no se vuelve a abrir solo si la entrada reaparece.
-  if (selectedId !== null && !selectedAvatar) setSelectedId(null)
+  // Mientras la lista carga no se decide: el panel de un enlace espera a su
+  // entrada.
+  if (selectedId !== null && !selectedAvatar && !isLoading) setSelectedId(null)
+
+  const consumeLink = () => {
+    setLinkedId(null)
+    if (
+      !searchParams.has(AVATAR_PANEL_PARAM) &&
+      !searchParams.has(AVATAR_SCENARIO_PARAM)
+    )
+      return
+
+    const rest = new URLSearchParams(searchParams)
+    rest.delete(AVATAR_PANEL_PARAM)
+    rest.delete(AVATAR_SCENARIO_PARAM)
+    setSearchParams(rest, { replace: true })
+  }
 
   const openPanel = (id: string) => {
     panelReturnRef.current = null
+    consumeLink()
     setSelectedId(id)
   }
 
@@ -80,6 +115,7 @@ export function AvatarLibrary() {
 
   const closePanel = () => {
     panelReturnRef.current = cardNameButton(selectedId)
+    consumeLink()
     setSelectedId(null)
   }
 
@@ -102,6 +138,7 @@ export function AvatarLibrary() {
       ? cardNameButton(neighbour.id)
       : emptyLibraryFocus()
     deleteAvatar(id)
+    consumeLink()
     setSelectedId(null)
   }
 
@@ -222,6 +259,9 @@ export function AvatarLibrary() {
       {selectedAvatar && (
         <AvatarDetailDialog
           avatar={selectedAvatar}
+          scenarioAspectRatio={
+            selectedAvatar.id === linkedId ? linkedRatio : undefined
+          }
           returnFocusRef={panelReturnRef}
           onClose={closePanel}
           onRemove={() => removeFromPanel(selectedAvatar.id)}

@@ -12,7 +12,8 @@ import {
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
-import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
+import { sceneTimingLocked } from '@/modules/videos/utilities/sceneTimingLocked'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import {
   animationUndoPending,
@@ -313,10 +314,13 @@ export function useLibraryEditor(projectId: string) {
   }
 
   // Con descripción pendiente se reescribe el prompt (guardándola antes si
-  // es un borrador); si no, un re-roll con el prompt vigente.
+  // es un borrador); si no, un re-roll con el prompt vigente. Una escena de
+  // avatar no tiene imagen que regenerar (el panel ni lo ofrece; acá también
+  // se corta, por si algún camino nuevo lo pidiera).
   const regenerateSelected = async () => {
     if (
       !selectedScene ||
+      !sceneImageEditable(selectedScene) ||
       commitMutation.isPending ||
       gallerySubmission.current ||
       undoMutation.isPending ||
@@ -343,6 +347,8 @@ export function useLibraryEditor(projectId: string) {
 
   // La galería entrega la intención al store: persiste las descripciones cuando
   // obtiene turno, incluso si el modal se cierra o cambia la ruta del editor.
+  // Una escena de avatar no entra (la galería no la lista; si llegara, el lote
+  // se rechaza entero, como uno con una escena que no existe).
   const regenerateGalleryImages = async (requests: GalleryImageRequest[]) => {
     if (
       gallerySubmission.current ||
@@ -359,11 +365,14 @@ export function useLibraryEditor(projectId: string) {
         workingScenes,
         unique.map((entry) => entry.id),
       ) ||
-      unique.some(
-        (entry) =>
-          !workingScenes.some((scene) => scene.id === entry.id) ||
-          entry.description.length > MAX_USER_PROMPT_CHARS,
-      )
+      unique.some((entry) => {
+        const scene = workingScenes.find((item) => item.id === entry.id)
+        return (
+          !scene ||
+          !sceneImageEditable(scene) ||
+          entry.description.length > MAX_USER_PROMPT_CHARS
+        )
+      })
     )
       return false
     const accepted = editorTask.enqueueRegen(
@@ -448,7 +457,7 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     if (
       editorTask.isProjectBusy(projectId) ||
-      animationTimingLocked(workingScenes, [leftId, rightId])
+      sceneTimingLocked(workingScenes, [leftId, rightId])
     )
       return
     patchWorkingScene(leftId, { endSeconds: boundarySeconds })
@@ -468,7 +477,7 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     if (
       editorTask.isProjectBusy(projectId) ||
-      animationTimingLocked(workingScenes, [leftId, rightId])
+      sceneTimingLocked(workingScenes, [leftId, rightId])
     )
       return
     commitScenes([
@@ -488,7 +497,7 @@ export function useLibraryEditor(projectId: string) {
   const canEditClipIn =
     selectedIndex > 0 &&
     !timingBusy &&
-    !animationTimingLocked(workingScenes, [
+    !sceneTimingLocked(workingScenes, [
       workingScenes[selectedIndex - 1].id,
       workingScenes[selectedIndex].id,
     ])
@@ -496,7 +505,7 @@ export function useLibraryEditor(projectId: string) {
     selectedIndex >= 0 &&
     selectedIndex < workingScenes.length - 1 &&
     !timingBusy &&
-    !animationTimingLocked(workingScenes, [
+    !sceneTimingLocked(workingScenes, [
       workingScenes[selectedIndex].id,
       workingScenes[selectedIndex + 1].id,
     ])

@@ -690,3 +690,22 @@ export async function readLookPreview(
     return null
   }
 }
+
+// La vista previa propia del avatar —la `preview.<ext>` que declara su
+// metadata— que ya está en disco, validada como imagen; null si no hay o no se
+// puede leer. No es `AvatarSummary.previewPath`, que prefiere la del look
+// PRINCIPAL: es la cara del grupo, y sirve de respaldo para un look que no trae
+// una legible.
+export async function readAvatarPreview(
+  entryDirectory: string,
+  metadata: Pick<StoredAvatarMetadata, 'previewFile'>,
+): Promise<DecodedImage | null> {
+  if (!metadata.previewFile) return null
+
+  try {
+    const bytes = await readFile(join(entryDirectory, metadata.previewFile))
+    return validateImageBytes(bytes)
+  } catch {
+    return null
+  }
+}

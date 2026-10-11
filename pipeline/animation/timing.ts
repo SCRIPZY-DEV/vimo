@@ -7,6 +7,15 @@ export const ANIMATION_TRANSITION_FRAMES = 8
 export const ANIMATION_TRANSITION_SECONDS =
   ANIMATION_TRANSITION_FRAMES / ANIMATION_FPS
 
+// Dos tiempos de la narración (en segundos) a menos de esto son el mismo: la
+// coma flotante deja ruido al sumar o restar fronteras que están en la grilla
+// de cuadros (10,04 − 3,04 = 6,999999999999999). Lo comparten las frases
+// (`narration/sentences.ts`), el planificador del avatar (`avatar/planner.ts`)
+// y los cortes alrededor de sus pines (`stages/scene-cuts/pins.ts`), así sus
+// garantías valen con la misma tolerancia. El planificador de clips y el
+// prefijo animado de esta carpeta usan las suyas.
+export const TIME_EPSILON = 1e-6
+
 export function frameBoundary(seconds: number): number {
   return Math.round(seconds * ANIMATION_FPS)
 }

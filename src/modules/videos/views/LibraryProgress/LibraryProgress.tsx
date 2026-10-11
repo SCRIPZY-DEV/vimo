@@ -24,6 +24,7 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type {
   ProjectRunOptions,
@@ -116,6 +117,8 @@ export function LibraryProgress() {
     voiceVendor: status?.metadata.options.voiceProvider
       ? vendorOfProvider(status.metadata.options.voiceProvider)
       : null,
+    ...avatarRunOptions(status?.metadata.options.avatar),
+    avatarDropped: status?.avatarDropped,
   }
   const resume = () =>
     void startPipelineForProject(projectId, projectName, runOptions)
@@ -177,6 +180,8 @@ export function LibraryProgress() {
     // El mismo objeto que guarda task.confirmation, reconstruido desde disco.
     // La pausa de un estilo propio con carril de segundos vuelve como el
     // paso inline también desde disco; el resto, con el diálogo de conteo.
+    // Con avatar, el estado rearma sus tramos y descartadas (el plan es puro)
+    // y el tipo de look sale de las opciones.
     const confirmation: SceneConfirmationView = {
       suggestedScenes: metadata.sceneCount ?? status.scenes.length,
       audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
@@ -188,6 +193,13 @@ export function LibraryProgress() {
       ...(metadata.options.customStyle &&
       metadata.options.secondsPerScene !== undefined
         ? { secondsPerScene: metadata.options.secondsPerScene }
+        : {}),
+      ...(status.avatarSpans
+        ? {
+            avatarSpans: status.avatarSpans,
+            avatarDropped: status.avatarDropped,
+            avatarLookType: metadata.options.avatar?.lookType,
+          }
         : {}),
     }
 

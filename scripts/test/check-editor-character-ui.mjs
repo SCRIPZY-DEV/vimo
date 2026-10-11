@@ -36,7 +36,7 @@ import { EditorScenePanel } from '@/modules/videos/components/EditorScenePanel'
 
 window.commits = []
 window.regens = []
-window.detail = { metadata: { options: { imageProvider: 'fal', imageQuality: 'low', characters: [{ name: 'Elena' }], customStyle: { systemPrompt: 'Watercolor' } } }, scenes: [{ id: 1, text: 'Elena repairs the antenna.', charactersPresent: [0], startSeconds: 0, endSeconds: 4 }, { id: 2, text: 'A greenhouse glows.', charactersPresent: [], startSeconds: 4, endSeconds: 8 }] }
+window.detail = { metadata: { options: { imageProvider: 'fal', imageQuality: 'low', characters: [{ name: 'Elena' }], customStyle: { systemPrompt: 'Watercolor' } } }, scenes: [{ id: 1, text: 'Elena repairs the antenna.', charactersPresent: [0], startSeconds: 0, endSeconds: 4 }, { id: 2, text: 'A greenhouse glows.', charactersPresent: [], startSeconds: 4, endSeconds: 8 }, { id: 3, text: 'Elena talks to camera.', imagePath: '/p/avatar/look.png', startSeconds: 8, endSeconds: 18, avatar: { lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', engine: 'avatar_iii', origin: 'auto', status: 'planned' } }] }
 const check = (condition, message) => { if (!condition) throw new Error(message) }
 const delay = () => new Promise(resolve => setTimeout(resolve, 30))
 async function waitFor(get, message) {
@@ -89,7 +89,18 @@ try {
   await waitFor(() => !regenerate().disabled, 'fallo libera panel')
   await waitFor(() => checkbox().checked, 'fallo restaura selección realmente guardada')
   check(window.regens.length === 2, 'fallo no dispara generación')
-  document.getElementById('result').textContent = 'PASS: editor selection UI (4 cases)'
+  // Una escena de avatar no tiene imagen que regenerar: el panel no lo
+  // ofrece y, si algún camino lo pidiera, ni el panel ni la galería encolan.
+  window.editor.setSelectedSceneId(3)
+  await waitFor(() => window.editor.selectedScene?.id === 3 && document.body.textContent.includes(i18n.t('library.editor.panel.avatarScene')), 'escena de avatar elegida')
+  check(!regenerate() && !checkbox(), 'el panel de la escena de avatar no ofrece regenerar ni personajes')
+  const queued = window.regens.length
+  await window.editor.regenerateSelected()
+  const alone = await window.editor.regenerateGalleryImages([{ id: 3, description: '' }])
+  const mixed = await window.editor.regenerateGalleryImages([{ id: 2, description: '' }, { id: 3, description: '' }])
+  await delay()
+  check(alone === false && mixed === false && window.regens.length === queued, 'ni el panel ni la galería encolan una escena de avatar (un lote con una se rechaza entero)')
+  document.getElementById('result').textContent = 'PASS: editor selection UI (5 cases)'
 } catch (error) {
   const renderError = window.renderErrors.length ? ' (render error: ' + window.renderErrors.join('; ') + ')' : ''
   document.getElementById('result').textContent = 'FAIL: ' + error.message + renderError

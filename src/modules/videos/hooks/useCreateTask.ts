@@ -18,7 +18,13 @@ import {
   RETRYABLE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
+import {
+  scenesWithAvatarEvent,
+  scenesWithAvatarRunEnded,
+} from '@/modules/videos/utilities/avatarTaskEvents'
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
+import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import { hasAutomaticAnimation } from '@pipeline/animation/scope.ts'
@@ -106,6 +112,8 @@ function restoreTask(): CreateTask | null {
         animationActivity: undefined,
         animationLeadId: undefined,
         animationProgress: undefined,
+        // El render de HeyGen también pertenece a un job vivo.
+        avatarActivity: undefined,
       })),
       cancelRequested: false,
       // Tareas persistidas antes de ADR-0028: sin carril conocido no hay
@@ -234,6 +242,14 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     if (event.type === 'job-completed' || event.type === 'job-failed')
       settlePendingSwitch(taskId)
     return
+  }
+
+  // El job terminó (éxito, pausa o fallo): un render del avatar que se anunció
+  // y no llegó a cerrarse —el saldo, la clave o una cancelación frenaron la
+  // corrida— ya no corre, y su fila no puede seguir girando.
+  if (event.type === 'job-completed' || event.type === 'job-failed') {
+    const scenes = scenesWithAvatarRunEnded(task.scenes)
+    if (scenes !== task.scenes) patchTask(taskId, { scenes })
   }
 
   switch (event.type) {
@@ -455,6 +471,55 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       })
       return
 
+    // Fase `avatar` (ADR-0057 §8): cuántas apariciones no entraron, y el
+    // render de cada escena con su fase y su tiempo («Avatar 2/3»). El corte
+    // lo anuncia antes de la pausa de escenas (y otra vez al cortar): la cifra
+    // se pisa, nunca se suma, y la pausa abierta también la recibe.
+    case 'avatar-planned':
+      patchTask(taskId, {
+        hasAvatar: true,
+        avatarDropped: event.dropped,
+        ...(task.confirmation
+          ? {
+              confirmation: {
+                ...task.confirmation,
+                avatarDropped: event.dropped,
+              },
+            }
+          : {}),
+      })
+      return
+
+    case 'avatar-scene-started':
+    case 'avatar-scene-progress':
+    case 'avatar-scene-ready':
+    case 'avatar-scene-failed':
+      patchTask(taskId, {
+        scenes: scenesWithAvatarEvent(task.scenes, event, Date.now()),
+      })
+      return
+
+    // HeyGen da problemas en el camino (red, 5xx, 429 o demoras que no
+    // ceden): el job sigue con lo que pueda (no hay otro proveedor de avatar
+    // al que pasar). Queda en los logs internos y la persona lo ve en un
+    // aviso pasajero, traducido, que no bloquea nada: uno a la vez (el
+    // sidecar lo anuncia una vez por código y corrida) y se va solo. Una
+    // caída de red no trae status HTTP.
+    case 'avatar-provider-trouble':
+      patchTask(taskId, {
+        logs: appendLog(
+          task,
+          event.httpStatus === undefined
+            ? `avatar provider trouble: ${event.code}`
+            : `avatar provider trouble: ${event.code} (HTTP ${event.httpStatus})`,
+        ),
+      })
+      toast({
+        title: i18next.t('create.progress.avatarTroubleTitle'),
+        description: i18next.t(errorKeyOf(event.code)),
+      })
+      return
+
     // Avance de una imagen en curso (solo Evolink lo informa): la celda de
     // la grilla muestra el porcentaje; se limpia al cerrar la imagen.
     case 'scene-image-progress':
@@ -523,6 +588,16 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           // Solo el carril de segundos lo trae: cambia el diálogo a slider.
           ...(event.secondsPerScene !== undefined
             ? { secondsPerScene: event.secondsPerScene }
+            : {}),
+          // Con avatar, los tramos (vacíos si ninguna aparición entró: la
+          // pausa lo dice), las descartadas que anunció `avatar-planned` y el
+          // tipo de look para el costo.
+          ...(event.avatarSpans
+            ? {
+                avatarSpans: event.avatarSpans,
+                avatarDropped: task.avatarDropped,
+                avatarLookType: task.avatarLookType,
+              }
             : {}),
         },
       })
@@ -754,6 +829,11 @@ function makeTask(
     imageProvider: options.imageProvider ?? null,
     voiceVendor: options.voiceVendor ?? null,
     creditsIssue: null,
+    hasAvatar:
+      options.hasAvatar ??
+      seed?.scenes.some((scene) => scene.avatar !== undefined),
+    avatarDropped: options.avatarDropped,
+    avatarLookType: options.avatarLookType,
   }
 }
 
@@ -840,6 +920,7 @@ async function startCreation(input: {
       voiceVendor: input.payload.options.voiceProvider
         ? vendorOfProvider(input.payload.options.voiceProvider)
         : null,
+      ...avatarRunOptions(input.payload.options.avatar),
     }),
   )
 

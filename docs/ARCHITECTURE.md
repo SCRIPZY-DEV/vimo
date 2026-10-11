@@ -88,7 +88,7 @@ permitidos de descarga y de subida le llegan en el payload.
 | Pantallas, navegación, estado de la UI        | `src/`                            |
 | Rutas, diálogos nativos y acceso a archivos   | `src/` + plugins de Tauri         |
 | Lanzar, escuchar y cancelar jobs del pipeline | `src-tauri/`                      |
-| Las 7 fases que generan el video              | `pipeline/` (stages)              |
+| Las 8 fases que generan el video              | `pipeline/` (stages)              |
 | Llamadas a los proveedores externos           | `pipeline/` (providers)           |
 | Ensamblado del video                          | FFmpeg, invocado por el sidecar   |
 | Registro, login y sesión                      | Supabase                          |
@@ -188,9 +188,11 @@ pipeline/
 ├── main.ts                entrada del sidecar: subcomandos, job JSON por stdin, NDJSON out
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
 ├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (music/, voices/, characters/, avatars/, videos/)
-├── stages/                las 7 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, animation/, render/ (ADR-0013), y shared/ con lo que usan varias fases
+├── stages/                las 8 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, avatar/, animation/, render/ (ADR-0013, ADR-0057), y shared/ con lo que usan varias fases
+├── avatar/                el avatar dentro del video (ADR-0057): nombres de los archivos de una escena de avatar, el planificador de apariciones, la orientación del look (la comparten Crear y el sidecar), el carril de una escena con HeyGen (huellas del pedido, corte del audio, recibos `creating`/`pending` con `Idempotency-Key`, descarga y ajuste del clip al tramo sin retimar) y la operación que comparten la fase `avatar` y el comando del editor (cosecha antes que pago, el saldo antes de cada escena, de a tres)
+├── narration/             frases de la narración, la unidad de continuidad del avatar (ADR-0057)
 ├── project/               la carpeta de un proyecto en disco: rutas tipadas, metadata, scenes.json y referencias de personajes (ADR-0009)
-├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM, overlay y la ficha de un video para clonar su estilo), avatar/ (HeyGen: avatares y sus looks, assets, creación desde foto, looks desde un prompt y saldo — ADR-0057)
+├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM, overlay y la ficha de un video para clonar su estilo), avatar/ (HeyGen: avatares y sus looks, assets, creación desde foto, looks desde un prompt, saldo y los renders de las escenas de avatar —crear, consultar y buscar por título— — ADR-0057)
 ├── prompts/               prompts de sistema como datos versionados (biblia visual, director de escenas, bloques del redactor, estilos)
 ├── config/                PipelineConfig + ApiKeys + BinaryPaths, con defaults inyectables
 ├── types/                 tipos del dominio (json, llm, music, voices, characters, avatar, images, scenes, video-project)
@@ -436,7 +438,10 @@ sube a la tabla `diagnostic_logs` de Supabase. Un subcomando nuevo queda cubiert
 sin escribir nada; pero de cada evento solo se sube una **allowlist de claves**
 (`ALLOWED_EVENT_KEYS` en `diagnostics/redaction.rs`): si agregás a un evento una
 clave útil para diagnosticar, sumala ahí — y nunca una que lleve contenido del
-usuario (guion, prompts, rutas).
+usuario (guion, prompts, rutas). La ADR-0057 sumó `dropped` (las apariciones del
+avatar que no cupieron, en `avatar-planned`); el progreso de cada render de HeyGen
+(`avatar-scene-progress`) se muestrea como todo `*-progress` sin porcentaje: uno cada
+30 s por tipo de evento, no por escena (con tres renders en paralelo queda uno solo).
 
 Tres reglas más para que el log sirva a soporte:
 
@@ -445,6 +450,9 @@ Tres reglas más para que el log sirva a soporte:
   creación fallida) o, si no hay proyecto, la entidad con prefijo fijo (`Estilo: X`,
   `Personaje: X`, `Avatar: X`, `Voz: X`, `Música`, `Demo`). Un subcomando nuevo que
   trabaje sobre un proyecto manda `projectId` en el payload aunque el handler no lo use.
+  Así `avatar-render-scenes` (ADR-0057) es del proyecto en Rust y, en el webview, la
+  palabra `scene` lo archiva en `videos` (`SUBCOMMAND_MODULE_KEYWORDS`) aunque su nombre
+  empiece con `avatar`.
 - **Los errores de proveedor son estructurados.** Un proveedor lanza
   `PipelineFailure(code, message, { provider, httpStatus })`; el `job-failed` reenvía
   ambos y llegan a `error_provider` / `error_http_status`. Todo reintento o fallback
@@ -497,22 +505,46 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    `features.remoteCatalog` además ([ADR-0049](adr/ADR-0049-catalogo-remoto-administrado.md),
    Entrega 3), la pestaña sincroniza el catálogo publicado en vimo.click
    (`_catalog/`), y un admin con conexión ve todos los estilos con su estado y
-   los administra desde ahí.
+   los administra desde ahí. Con el avatar presentador
+   ([ADR-0057](adr/ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)) la
+   tarjeta de Crear ofrece los avatares de la biblioteca y, de cada uno, solo los looks
+   con la orientación del formato del video (`lookOrientationFit`, la misma regla con la
+   que el sidecar los acepta): un look generado con «Crear escenario» guarda la
+   orientación del formato pedido cuando HeyGen no informa la suya
+   (`preferredOrientation`: 16:9 horizontal, 9:16 vertical, 1:1 cuadrado, que no sirve en
+   ningún formato de video; 4:5, 5:4 y `auto` quedan sin orientación). Sin clave de HeyGen
+   la tarjeta se ve apagada y el formulario que se valida, se estima y se envía lleva el
+   avatar apagado (`withAvatarKey`, derivado en el render, no un efecto): nunca un
+   `options.avatar` sin con qué generarlo. Con la tarjeta encendida, un look pedido con
+   «Crear escenario» o un avatar que entrena se sigue cada 15 s
+   (`useProcessingAvatarsRefresh`) y aparece al terminar sin salir de Crear.
 3. **Pre-flight del proveedor de voz** (`probe-tts`): valida contra los
    endpoints de LISTADO —no gasta créditos— y avisa antes de arrancar un
    pipeline largo. El resultado se cachea 2 minutos en la UI.
 4. **Pre-check de saldo** (ADR-0031): `useCreateCostCheck` estima el gasto
    por proveedor (voz por caracteres × `VOICE_COST_FACTORS`, imágenes por
-   escenas × precio de la calidad, música de fondo informativa) y lo cruza
-   con los saldos leídos (`compareCostLines`). Con saldo leído e
-   insuficiente el envío se frena y `InsufficientCreditsAlert` ofrece
-   recargar (`billingUrl` del catálogo de `api-keys`); un saldo ilegible
-   solo avisa. Al enviar, `verify()` re-lee el saldo justo antes de arrancar.
+   escenas × precio de la calidad —sin las escenas de avatar, que no llevan
+   imagen—, el avatar presentador por segundos × la tarifa de Avatar III —en
+   dólares de HeyGen, comparados solo con una billetera en `usd`—, música de
+   fondo informativa) y lo cruza con los saldos leídos
+   (`compareCostLines`). Con saldo leído e insuficiente el envío se frena y
+   `InsufficientCreditsAlert` ofrece recargar (`billingUrl` del catálogo de
+   `api-keys`); un saldo ilegible solo avisa. Al enviar, `verify()` re-lee el
+   saldo justo antes de arrancar.
 5. `create-video-project` crea la carpeta del proyecto con `project.json`,
    `script.txt` y las referencias de los personajes; con audio propio,
-   `upload-narration` lo copia (o transcodifica) a `narration.mp3`.
+   `upload-narration` lo copia (o transcodifica) a `narration.mp3`. Con avatar
+   presentador (ADR-0057), después de validar todo lo local (biblioteca, grupo, look,
+   orientación y vista previa) y antes de crear la carpeta, hace UNA lectura gratis de
+   la cuenta de HeyGen (`getBalance`): una clave que HeyGen rechaza (401 o 403) rechaza
+   la creación con `avatar_invalid_key`, sin clave el código es `missing_api_key`, y si
+   HeyGen no responde (red, 429, 5xx, o no contesta en 8 s: la lectura lleva su propio
+   plazo y no repite el 429) solo avisa y el proyecto se crea; el saldo no
+   frena acá (lo comparan Crear y la fase antes de pagar). Es lo que evita descubrir una
+   clave muerta con la voz y las imágenes ya pagadas, porque la fase `avatar` corre
+   después de ellas.
 
-### Las siete fases
+### Las ocho fases
 
 **Actualización de Catálogo (2026-09-12, [ADR-0036](adr/ADR-0036-prompts-de-catalogo-sin-relleno.md)):**
 la referencia histórica a «4 capas de garantía» queda reemplazada por streaming
@@ -526,15 +558,16 @@ Cada una implementa `Stage { id, skip?, run }` y el runner
 `stage-skipped` / `stage-completed`. **Toda fase es retomable**: si su artefacto
 en disco es válido, `skip()` la saltea.
 
-| Fase            | Qué hace el sidecar                                                                                                                                                                                                                                                                         | Qué muestra la interfaz                                                                                                                                                                                                                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                                                                                                                                                                                                 | `voice-progress`, `bgm-progress`                                                                                                                                                                                                                                                           |
-| `transcription` | Deepgram palabra a palabra + duración real del audio medida decodificando                                                                                                                                                                                                                   | fase en curso                                                                                                                                                                                                                                                                              |
-| `scene-cuts`    | Corta la duración en N escenas por tiempo; con `confirmScenes`, **pausa** acá                                                                                                                                                                                                               | `scenes-planned` o el diálogo                                                                                                                                                                                                                                                              |
-| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía); toda escena con timestamps recibe prompt — la muda (texto vacío del corte clásico) se ilustra como pausa desde la narración vecina ([fix](fixes/2026-09-22-fix-silent-scene-images/silent-scene-images.md)) | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim); `prompt-model-trouble` (el modelo elegido falló: se bloquea 1 h, ADR-0028); `job-failed` con `llm_prompt_language` si la gema pide otro idioma: se corrige la gema, sin bloquear el modelo |
-| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas; al primer rechazo por saldo aborta la fase entera (ADR-0031)                                                                                                                   | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)                                                                                                                    |
-| `animation`     | Opcional: agrupa las fuentes del prefijo en clips, conserva recibos y ajusta cada clip a su intervalo antes de publicarlo (ADR-0045). Sin animación automática se saltea.                                                                                                                   | `scene-animation-*`; carga azul por clip y reproducción de los clips listos.                                                                                                                                                                                                               |
-| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo                                                                                                                                                                                                   | `render-progress` por sub-fase                                                                                                                                                                                                                                                             |
+| Fase            | Qué hace el sidecar                                                                                                                                                                                                                                                                                                                                                                                                                                  | Qué muestra la interfaz                                                                                                                                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                                                                                                                                                                                                                                                                                                                                                          | `voice-progress`, `bgm-progress`                                                                                                                                                                                                                                                           |
+| `transcription` | Deepgram palabra a palabra, con puntuación (`sentenceEnd` en la palabra que cierra frase, ADR-0057), + duración real del audio medida decodificando                                                                                                                                                                                                                                                                                                  | fase en curso                                                                                                                                                                                                                                                                              |
+| `scene-cuts`    | Corta la duración en N escenas por tiempo; con avatar, fija antes sus apariciones en fronteras de frase y corta solo lo libre (ADR-0057); con `confirmScenes`, **pausa** acá                                                                                                                                                                                                                                                                         | `scenes-planned` (y `avatar-planned` con avatar, que con la pausa sale antes de ella) o el diálogo                                                                                                                                                                                         |
+| `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía); toda escena con timestamps recibe prompt — la muda (texto vacío del corte clásico) se ilustra como pausa desde la narración vecina ([fix](fixes/2026-09-22-fix-silent-scene-images/silent-scene-images.md)); una escena de avatar no lleva prompt: los dos carriles la saltean (ADR-0057)                                                                            | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim); `prompt-model-trouble` (el modelo elegido falló: se bloquea 1 h, ADR-0028); `job-failed` con `llm_prompt_language` si la gema pide otro idioma: se corrige la gema, sin bloquear el modelo |
+| `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas; al primer rechazo por saldo aborta la fase entera (ADR-0031); una escena de avatar no lleva imagen: su imagen fija es la vista previa del look elegido, `avatar/look.<ext>` (ADR-0057)                                                                                                                                                  | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)                                                                                                                    |
+| `avatar`        | Opcional (ADR-0057): sube a HeyGen el audio de cada escena de avatar y pide el look con su propio fondo, en el formato del video; guarda el intento antes del POST, sondea el render (plazo de 30 min, no una espera fija) y ajusta el clip al tramo sin retimar. Cosecha recibos y mira el saldo antes de cada pago, y no vuelve a pedir sola una aparición que HeyGen rechazó para siempre (moderación o look no soportado). Sin avatar se saltea. | `avatar-scene-*` con el paso y el tiempo transcurrido; `avatar-provider-trouble` (aviso pasajero)                                                                                                                                                                                          |
+| `animation`     | Opcional: agrupa las fuentes del prefijo en clips, conserva recibos y ajusta cada clip a su intervalo antes de publicarlo (ADR-0045). Sin animación automática se saltea. Una escena de avatar nunca se anima con Kie: sale de las marcas y su tramo viaja como cubierto.                                                                                                                                                                            | `scene-animation-*`; carga azul por clip y reproducción de los clips listos.                                                                                                                                                                                                               |
+| `render`        | Chunks con ken burns → concat sin re-encode → mezcla de audio, overlay y color del estilo; el clip de una escena de avatar listo y vigente tiene prioridad sobre Kie y entra a velocidad 1; sin clip, desactualizado o más corto que su tramo menos 1 s, la escena sale estática con la vista previa del look y un `warn`; sus subtítulos van por frase (ADR-0057)                                                                                   | `render-progress` por sub-fase                                                                                                                                                                                                                                                             |
 
 **Animación inicial (2026-09-29, [ADR-0045](adr/ADR-0045-prefijo-animado-por-parejas-y-fase-propia.md)):** el formulario ofrece solamente el primer minuto y lo limita al audio real. Se crean imágenes fuente cada 3 s hasta ese límite y la fase `animation` las agrupa en clips solicitados de 6 s. Desde el segundo 60, los cortes usan el intervalo estático elegido. La última pareja puede contener una cola parcial; sus bordes no se desplazan. El editor conserva su planificador existente. Los proyectos históricos de fuentes de 6 s y todos sus recibos se reanudan sin redistribuir escenas.
 
@@ -542,14 +575,19 @@ en disco es válido, `skip()` la saltea.
 flowchart LR
     runner["Runner del sidecar"]:::propio
     images["images<br/>Completa las imágenes"]:::propio
+    avatar["avatar<br/>Genera las escenas de avatar"]:::propio
     animation["animation<br/>Agrupa y anima el prefijo"]:::propio
     render["render<br/>Ensambla si corresponde"]:::propio
     files[("Archivos y recibos del proyecto")]:::datos
+    heygen(["HeyGen"]):::externo
     kie(["Kie.ai"]):::externo
     ui(["Pantalla de progreso"]):::propio
     runner -->|"genera fuentes · función local"| images
-    runner -->|"continúa tras imágenes · función local"| animation
+    runner -->|"continúa tras imágenes · función local"| avatar
+    runner -->|"continúa tras el avatar · función local"| animation
     runner -->|"continúa tras animación · función local"| render
+    avatar -->|"mira el saldo, sube el audio, pide y consulta renders · HTTPS"| heygen
+    avatar -->|"guarda recibos y clips · archivos"| files
     animation -->|"crea y consulta clips · HTTPS"| kie
     animation -->|"consulta recibos y guarda clips · archivos"| files
     runner -.->|"publica fases y clips · NDJSON vía Channel"| ui
@@ -558,7 +596,15 @@ flowchart LR
     classDef datos fill:#f3e5f5,stroke:#7b1fa2
 ```
 
-**Contrato:** el runner cierra `images` antes de iniciar `animation`, y publica el clip listo después de guardar su manifiesto. **Fallo:** una animación incompleta impide el ensamblaje de ese intento; reanudar conserva clips listos y consulta recibos pendientes antes de comprar trabajo nuevo. **Motivo:** mostrar una fase distinta evita presentar imágenes todavía «generándose» cuando el trabajo pendiente es video. El puente Rust conserva su contrato genérico de reenvío de JSON.
+**Contrato:** el runner cierra `images` antes de iniciar `animation`, y publica el clip listo después de guardar su manifiesto. La fase `avatar` cierra antes de `animation` y guarda el intento de cada render antes del POST; si HeyGen no responde, el intento queda sin resolver y la próxima corrida lo busca por su `title` o lo repite con la misma clave: nunca paga dos veces el mismo pedido. **Fallo:** una animación incompleta impide el ensamblaje de ese intento; reanudar conserva clips listos y consulta recibos pendientes antes de comprar trabajo nuevo. `avatar` vuelve a mirar el saldo de HeyGen antes de pagar cada escena (diseño §8): si no alcanza, o HeyGen dice que no hay saldo, no pide las que faltan, cosecha las que ya pidió y el proyecto queda pausado con `avatar_insufficient_credits` (el estimado y el saldo se comparan en millonésimas de dólar enteras, así una billetera igual a la cifra que muestra la interfaz alcanza); una escena que falla deja la fase en `avatar_incomplete` con el código dominante de las que fallaron y reanudar paga solo esa, salvo que la cuenta haya frenado la corrida: si alguna falló por un código de la cuenta (`avatar_invalid_key`, `missing_api_key` o `avatar_insufficient_credits`), ese es el dominante —manda sobre cualquier otro fallo, sea cual sea el orden en que terminan las escenas; si no, es el que más se repite— y la fase lanza ESE código, para que una clave que deja de servir a mitad de corrida no se disfrace de «apariciones sin generar» mientras un render pagado espera esa clave. La relectura del saldo no cuenta las escenas ya admitidas que todavía no se cobraron: detecta un gasto ajeno mayor que lo que está en vuelo, y uno menor lo ataja HeyGen con un 402. La cosecha de recibos va antes del saldo y puede repetir un POST con la MISMA `Idempotency-Key` (HeyGen deduplica, así que no cobra dos veces); si el original nunca llegó, esa repetición es en la práctica el primer pago y sale sin el chequeo, pero sin saldo HeyGen la rechaza con un 402 y la fase pausa. Si una escena de avatar se queda sin clip (la fase termina en `avatar_incomplete`) o su clip quedó desactualizado, el render la muestra estática con la vista previa del look y avisa en el log: el video nunca queda con un hueco. Tres comportamientos de HeyGen solo se confirman con la cuenta real (la QA del dueño, ADR-0057): si la búsqueda por `title` encuentra un render que HeyGen todavía tiene en `waiting` o `pending`, si guarda 24 h el error de una clave de idempotencia (un 402 repetido con la misma clave, tras recargar) y cuándo descuenta, al crear o al terminar el render. **Motivo:** mostrar una fase distinta evita presentar imágenes todavía «generándose» cuando el trabajo pendiente es video. El puente Rust conserva su contrato genérico de reenvío de JSON.
+
+**Qué hace el carril ante lo incierto (ADR-0057):** cada render tiene su recibo en `scene.avatar` y la regla es no pagar dos veces el MISMO pedido (misma huella) ni perder uno pagado. Un «no» definitivo al POST (un 4xx que no es 409 ni 429, o el cliente que no lo manda) cierra el recibo `failed` y el reintento usa la clave siguiente; todo lo demás lo deja `ambiguous`, y la corrida siguiente lo busca por `title` o repite la MISMA clave. Dos señales mantienen abierto el original: el cliente marca (`sawRequestInProgress`) todo rechazo que llega después de un `409 request_in_progress` del mismo pedido, porque HeyGen ya confirmó el original en vuelo, y en la REPETICIÓN de un recibo sin resolver un 401, 402, 403, 408 o 425 —o un rechazo por saldo— no dicen nada del original, así que lo dejan `ambiguous` (en el primer envío, esos mismos 401, 402 y 403 sí cierran el recibo `failed`; un 5xx que habla del saldo en una repetición lanza y deja la escena como estaba). La búsqueda por título no descarta un render cuyo estado Vimo no conoce si trae id y título (darlo por inexistente sería repetir el pedido). Un render que HeyGen rechazó para siempre —moderación o look no soportado— no se vuelve a pedir solo: repetirlo no se cobra pero falla igual, y la persona quedaría en un bucle de «Reanudá»; la escena queda `failed` con su código y un aviso, sin llamadas, hasta que cambie el look o la narración (otra huella) o la persona lo pida con `avatar-render-scenes` (`retryFinalRejection`; su botón en el editor es de la entrega 3). El mp4 final se marca desactualizado solo cuando una escena recibe un clip nuevo (el checkpoint que la deja lista lleva `newClip`), no con los recibos intermedios de un render que HeyGen después rechaza. Al entrar al carril de una escena se barren los temporales (`.cut-tmp.wav`, `.normalize-tmp.mp4`) que un job matado dejó para ella. **Fallo:** si guardar la intención falla no sale ningún POST; si guardar el `pending` falla después de un POST exitoso, en disco queda `creating` y la corrida siguiente repite la misma clave. **Motivo:** pagar una sola vez aunque el job muera: sin recibo guardado no hay POST.
+
+**Escenas de avatar (ADR-0057):** Kie nunca anima una escena de avatar ni empareja una imagen del prefijo a través de ella. `pipeline/animation/avatar-coverage.ts` (puro, browser-safe) saca a las escenas de avatar de las marcas del planificador (`withoutAvatarSceneIds`) y pasa su tramo como cubierto (`avatarCoveredIntervals`), en el sidecar (`hasAnimationWork` y `generateSceneAnimations`; la marca del prefijo, `needsPrefixMarker`, solo comprueba que la escena no sea de avatar) y en las cuatro utilidades de la UI que planifican clips (rango del editor y su costo de reanudación, galería, panel de la escena y tarjetas del progreso): el planificador rechaza por larga una escena marcada de más de 12 s antes de mirar la cobertura, y una aparición dura de 7 a 60 s en el plan (la cola absorbida puede sumarle hasta 2,99 s). La cobertura cuenta toda escena de avatar, en cualquier estado (planeada, con el pedido en curso, fallida, desactualizada o lista), salvo un tramo que no llega a un cuadro de 25 fps: `avatarSceneSpan` (`pipeline/types/avatar.ts`) es la regla única de «avatar de largo cero» y la comparten el carril, la cobertura, la pista y el visor. El planificador, el render y el visor descartan un clip de Kie heredado bajo cualquier avatar: `timelineBlocks` y `clipAt` aplican la misma regla (`overlapsAnySpan`). **Fallo:** una marca del editor sobre un avatar se descarta sin error.
+
+**Render con avatar (ADR-0057):** `collectRenderScenes` arma primero la candidata de cada escena de avatar con la misma vista que ya usan el timeline y el visor (`toSceneAvatarView`: clip listo, en disco y vigente por narración y por tramo) y la declara con el hueco cuantizado al cuadro, así el chunk la corre a velocidad 1 y nunca la retima. El tramo de toda escena de avatar, en cualquier estado, es suyo: un clip de Kie heredado que lo pise se descarta con un aviso. **Fallo:** sin clip que sirva (planeada, fallida, sin archivo, desactualizada, ilegible o más corta que su tramo menos 1 s —`ANIMATION_CLIP_PAD_SECONDS`, lo único que el chunk rellena con el último cuadro—) la escena sale estática con la vista previa del look (`avatar/look.<ext>`) y un `warn` (`avatar clip is too short` en el último caso); sin esa vista previa, el render y el export de clips fallan con `avatar_render_look_unavailable` (no con `render_missing_images`, ni con `avatar_look_unavailable`, que es el código de Crear: acá el proyecto ya existe y su look no se elige de nuevo), y si además faltan imágenes de escenas comunes gana `render_missing_images` (`clips_no_images` en el export), el camino de siempre. **Subtítulos:** los de una escena de avatar se parten por frase (`detectSentences` sobre `words.json`, recortadas al tramo) porque una aparición habla hasta 60 s; los de las demás escenas salen de su `scene.text`. Reemplazar la narración conserva `scene.text`: después de reemplazarla, los subtítulos de una escena de avatar salen de la transcripción nueva y los de sus vecinas del texto viejo, así que en el borde del avatar puede repetirse una palabra o faltar un subtítulo (la regla del punto medio lo amortigua). **Motivo:** la narración manda y el video no puede quedar con un hueco.
+
+**El avatar en la pantalla de progreso (ADR-0057):** la fase `avatar` (entre imágenes y animación, en morado) se muestra solo con avatar y **por datos** (`hasAvatar` del proyecto, la fase en curso o escenas de avatar), porque una fase saltada nunca queda en `completedStages`: sin eso un proyecto sin avatar reanudado desde disco la mostraría pendiente y la culparía de un fallo. `PipelineAvatarPanel` muestra «Avatar n/m» con la fase del render y su reloj (el tiempo que informa el sidecar más el reloj local; vuelve a 0 entre la cosecha y el pedido nuevo). Los `avatar-scene-*` quedan en `SceneView.avatarActivity` (memoria; no sobrevive al reinicio) y, al terminar el job, un render anunciado que no se cerró (saldo, clave o cancelación) vuelve a «En espera». Tres cosas más que la persona tiene que poder ver y que las filas no dicen: las apariciones que no entraron (`avatarDropped`, que `avatar-planned` anuncia y la interfaz toma como un valor, no suma) salen en una nota siempre que sean más de cero: debajo de las fases cuando el panel del avatar no está a la vista y no hay pausa; si no, lo dice el propio panel o el diálogo de la pausa, también cuando no entró ninguna y la fase se saltea («Ninguna aparición del avatar entró en la narración (N descartadas): el video sale sin avatar»); HeyGen caído o degradado (`avatar-provider-trouble`, una vez por código y corrida) sale como un aviso pasajero traducido, uno a la vez, además del log; y si el job termina en `avatar_incomplete` con un rechazo que reanudar no arregla como código dominante (moderación, look no soportado o pedido inválido), la cabecera no manda a «Reanudar» sino a renderizar desde el editor —sale con la imagen fija— o cambiar el look (`failureMessageOf`, `create.errors.avatarRejected`; con un código de la cuenta dominando, el texto de ese código). El reproductor de la biblioteca usa la misma cabecera para el mismo proyecto.
 
 La narración es **esencial** (si falla, el job muere); música y overlay son
 **opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
@@ -682,6 +728,73 @@ un completado**. La interfaz muestra el diálogo; al confirmar llama a
 `confirm-scenes` (que escribe `scenes-confirmed.json`) y **relanza** el job: voz
 y transcripción son cache-hit.
 
+Con avatar, el evento trae `avatarSpans` (dónde aparece, ya ajustado a frases y con
+los tramos libres de menos de 3 s absorbidos, la cola incluida) y `suggestedScenes`
+cuenta sus escenas (las imágenes a generar son `suggestedScenes − avatarSpans.length`);
+confirmar otra cantidad o duración solo reparte las escenas libres (ADR-0057).
+`countScenesAroundSpans` (`pipeline/stages/scene-cuts/pins.ts`, puro) cuenta igual que
+la fase sin las palabras.
+
+Antes de la pausa la fase emite `avatar-planned { sceneIds, dropped }` (los ids del corte
+sugerido y las apariciones que el plan no pudo ubicar), también cuando ninguna entró
+(`avatarSpans: []`): así la persona se entera antes de pagar las imágenes. La corrida que
+corta —tras confirmar, sin pausa o reusando el corte previo— lo emite una vez más con los
+ids finales, y con el corte ya hecho `dropped` cuenta las apariciones pedidas que le faltan
+a ESE corte (`droppedAppearances`, en `pins.ts`: las del plan menos las escenas de avatar
+del corte, nunca negativo): con un corte nuevo es lo mismo que el plan, pero uno reusado con
+sus recibos tras reemplazar la narración no dice «3 no entraron» con las tres apariciones
+todavía en el video. La interfaz lo toma como un valor (set, no suma). La pausa no guarda
+el plan: al reiniciar la app, o al abrir un proyecto en pausa desde la biblioteca,
+`video-project-status` devuelve `avatarSpans` y `avatarDropped` recalculados desde
+`words.json`, las opciones y la duración medida (el planificador es puro, así que da el
+mismo plan que anunció la pausa): los tramos y las descartadas del plan mientras se espera
+la confirmación, y los tramos de las escenas de avatar del corte con las pedidas que le
+faltan cuando ya está hecho. Solo con avatar automático (`placement: 'auto'`) y un
+`words.json` legible, con cada palabra con sus dos tiempos finitos: el recálculo va dentro de
+un `try` y un archivo roto deja el estado sin esos dos campos en vez de hacerlo fallar (el
+proyecto se abre igual). No se persiste nada nuevo en `project.json`.
+
+La interfaz dice dónde sale el avatar (`AvatarSpansNote`: «El avatar aparece 3 veces
+(0:00–0:11, …)») y lo que cobra HeyGen por esos tramos (`avatarSpansCostEstimate` sobre los
+`avatarSpans` y la tarifa del look elegido: la misma cifra que la fase compara con el saldo,
+contada en cuadros como ella). Con `avatarSpans` vacío —ninguna aparición entra— dice
+«Ninguna aparición del avatar entra en esta narración (N descartadas)» y que se puede
+cancelar y acortar las apariciones o alargar la narración; con tramos, suma «N apariciones
+no entraron» si las hubo; sin avatar (sin `avatarSpans`), la nota no dibuja nada. El paso de
+segundos cuenta el «≈ N escenas» local con `countScenesAroundSpans` hasta que llega la vista
+previa exacta, y el diálogo por cantidad con avatar muestra «≈ N escenas en total · M
+imágenes a generar (las apariciones del avatar no llevan)» con la misma cuenta que corta
+(`countStepSceneEstimate`): una cantidad menor que la mínima —una escena por tramo libre más
+las apariciones— se acota y se dice.
+
+**Cortes alrededor del avatar (ADR-0057):** la fase planifica las apariciones sobre las
+frases de la narración (`planAvatarSpans`) y las fija como _pines_
+(`pipeline/stages/scene-cuts/pins.ts`); lo libre entre pines lo corta el carril elegido
+—segundos, cantidad o prefijo animado— acotado a cada tramo, con ids contiguos y el
+texto de cada escena por su punto medio. Un tramo libre de menos de 3 s lo absorbe el
+avatar (la cola del audio también); una cantidad confirmada se reparte entre los tramos
+libres por promedios mayores (D'Hondt), con mínimo una escena por tramo. Con prefijo
+animado, las fuentes de 3 s se miden desde el inicio de cada tramo hasta el segundo del
+video donde termina el rango, y la fuente sobrante de menos de 3 s se une a la anterior
+(salvo si es la única del tramo o si cierra el audio). Un corte previo con recibos o clip
+de HeyGen (o con la fase `avatar` cumplida) se conserva; uno distinto sin nada pagado se
+rehace. En el carril de segundos, una confirmación por cantidad se traduce a los segundos
+equivalentes sobre el audio libre (los tramos libres, con los cortos ya absorbidos) y las
+escenas libres (la cantidad menos los pines, al menos una), no sobre el audio entero
+(`secondsForConfirmedCount`). Las frases (`detectSentences`) se miden en cuadros de 25 fps:
+una palabra recortada al fin del audio nunca queda como una frase de 0 cuadros (se une a la
+anterior) y las frases, el planificador y los pines comparten, del lado del avatar, un único `TIME_EPSILON` (los planificadores de Kie conservan los suyos)
+(`pipeline/animation/timing.ts`, browser-safe). Sin avatar el corte sale byte por byte como
+antes.
+
+**Imágenes de menos de 3 s:** sin prefijo animado, el carril de segundos y la cantidad
+automática no las dan (tampoco la explícita, hasta lo que cabe en los tramos libres); una
+cantidad explícita por encima de eso acorta las escenas parejo, como sin avatar. Con
+prefijo animado y avatar quedan tres residuales documentados: la única fuente corta de
+un tramo que arranca menos de 3 s antes del fin del rango, un resto corto posterior al
+prefijo que termina en una aparición (los dos, a lo sumo una vez por video) y la cola
+final del audio, igual que sin avatar.
+
 ### Reanudar un trabajo interrumpido
 
 El estado vive en **disco**: `project.json` guarda `state` y `completedStages`,
@@ -703,7 +816,14 @@ automático: la tarea guarda `creditsIssue` y la pantalla de progreso muestra
 `InsufficientCreditsCard` (saldo de la cuenta que rechazó, lo pendiente por
 gastar estimado desde disco, recargar, reanudar cuando alcanza). Biblioteca lo
 lista con el badge «Sin créditos» y `LibraryProgress` monta
-`NoCreditsResumePanel`, que re-lee el saldo antes de relanzar.
+`NoCreditsResumePanel`, que re-lee el saldo antes de relanzar. Con el avatar
+presentador (ADR-0057), `avatar_insufficient_credits` cae en el dominio
+`avatar` (la billetera de HeyGen, en dólares): la fase lee el saldo antes de
+pagar cada escena y pausa; al reanudar, `estimateResumeCost` cuenta todas las
+escenas de avatar sin clip y el aviso lo dice como techo («necesitás hasta X»),
+porque la vista no trae los recibos y un pedido ya pagado se cosecha sin cobro
+nuevo; con el corte hecho y ninguna escena de avatar (ninguna aparición entró) no
+pide nada de HeyGen: la fase no tiene qué cobrar.
 
 ### Editar después de crear (Library)
 
@@ -727,6 +847,33 @@ modelo, calidad y personajes esperan a la regeneración, que marca por su cuenta
 Concurrencia: un pipeline completo/render a la vez en la app, y las regens se
 coalescen en UN job por proyecto (cola en la UI); sin replay de eventos — al
 rehidratar, la UI refetchea el disco.
+El comando `avatar-render-scenes { projectId, sceneIds }` (ADR-0057) genera o
+regenera el avatar de escenas puntuales con el mismo carril y los mismos
+recibos que la fase `avatar`; como `animate-scenes`, toma el lease compartido
+de animación: las lecturas siguen disponibles y una escritura exclusiva falla
+con `animation_project_busy` hasta que termine. Una escena lista con el mismo
+pedido no se vuelve a pagar; una desactualizada pide un render nuevo. Sus
+`sceneIds` se validan en un solo lugar (`requestedAvatarSceneIds`: una lista no
+vacía de enteros, cada uno de una escena de avatar; sin lista o con un id que no
+lo es se rechaza todo con `invalid_payload`, nunca «todas las pendientes»), y a
+diferencia de la fase repite con la clave siguiente un render que HeyGen rechazó
+para siempre (`retryFinalRejection`): lo pide la persona, no la corrida (su botón en
+el editor es de la entrega 3). Marca el mp4 desactualizado solo si una escena recibe un clip nuevo.
+Los recibos de HeyGen viven en `scene.avatar` de `scenes.json`: se escriben solo
+bajo `withAnimationCheckpointLease` releyendo antes, y lo que reescribe
+`scenes.json` entero (los cortes, el reemplazo de narración) corre bajo el lease
+exclusivo del proyecto. Reemplazar la narración sube `metadata.narrationVersion`
+(toda escena de avatar se lee desactualizada) y, con avatar, escala el corte en
+vez de repartirlo uniforme. Una escena de avatar no tiene imagen que regenerar
+(`avatar_scene_without_image`: `update-scenes` rechaza además cualquier edición de
+su prompt, descripción, personajes, modelo o calidad de imagen con el mismo código,
+sin aplicar el resto del lote) y, con clip o recibos, sus dos fronteras no se mueven
+(`avatar_timing_locked`). En el editor, el panel de una escena de avatar muestra su
+In/Out de solo lectura y no la sección de animación (Kie nunca la anima), y la
+galería, el aviso de imágenes faltantes y las dos vías de «Regenerar imagen» no la
+cuentan (`sceneImageEditable`). El export para editar saca la escena de avatar como su
+clip o como el look, igual que el video final, y falla con
+`avatar_render_look_unavailable` si no tiene ninguno.
 
 ### Contrato con el sidecar
 
@@ -765,10 +912,10 @@ Este documento describe el destino. El código todavía no llegó ahí:
 | Módulo `music` (AI Music)                          | listo — ADR-0010 paso 2: pantalla completa (formulario Suno, sugerir prompt vía LLM, generación con progreso y cancelación, chooser de variaciones, historial en `<carpeta raíz>/_history/music/` con audio/cover/metadata, saldo de créditos); primeros jobs reales del sidecar (6 subcomandos en `pipeline/commands/`); asset protocol habilitado (scope `$HOME/**` + carpeta de proyectos en runtime, ADR-0037) para reproducir el audio local con `convertFileSrc`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Módulo `voices` (Voces TTS)                        | listo — ADR-0010 paso 3: explorador de voces de DubVoice (Minimax · ElevenLabs · Edge) y, desde ADR-0024, de ElevenLabs directo («Mis voces» + «Biblioteca», cuota de caracteres) según el proveedor elegido; filtros, favoritos e historial en `<carpeta raíz>/_history/voices/`; probador con progreso y cancelación; saldo de créditos. Las muestras suenan desde la URL del proveedor: los previews precomputados del origen (81 MB) y su síntesis con créditos no se portaron, y Edge queda sin muestra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Módulo `characters` (Personajes)                   | listo — ADR-0010 paso 4: biblioteca de identidades en `<carpeta raíz>/characters/` (una carpeta por personaje con `metadata.json` y un preview por estilo); el "experto" redacta la identidad neutra de estilo con el LLM en tier premium, y los previews estrenan los providers de imagen (Fal · Evolink) con la regla de oro de los proveedores pagos. El selector de hasta 2 personajes ya vive en Create (ADR-0013); desde ADR-0033 un personaje también se crea CON foto («cara idéntica»: la imagen subida es su identidad y viaja como referencia en todos los estilos, sin previews)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Módulo `avatars` (Avatares)                        | en construcción — ADR-0057 entrega 1 (con los ajustes de la 1b): biblioteca de avatares de HeyGen en `<carpeta raíz>/avatars/`, donde un avatar es un grupo de HeyGen con sus looks y un look principal (una carpeta por avatar con `metadata.json`, `preview.<ext>` y `looks/`): avatares de stock de HeyGen, creación desde una foto (1,32 USD, con aviso de moderación), look principal elegible, looks nuevos desde un prompt, saldo de HeyGen en la vista y borrado; la clave `heygen` (categoría `avatar`) se valida en Rust contra `GET /v3/users/me`. El avatar dentro del video (escenas de avatar sobre la narración) es la entrega 2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Módulo `avatars` (Avatares)                        | en construcción — ADR-0057 entrega 1 (con los ajustes de la 1b): biblioteca de avatares de HeyGen en `<carpeta raíz>/avatars/`, donde un avatar es un grupo de HeyGen con sus looks y un look principal (una carpeta por avatar con `metadata.json`, `preview.<ext>` y `looks/`): avatares de stock de HeyGen, creación desde una foto (1,32 USD, con aviso de moderación), look principal elegible, looks nuevos desde un prompt, saldo de HeyGen en la vista y borrado; la clave `heygen` (categoría `avatar`) se valida en Rust contra `GET /v3/users/me`. Entrega 2: el avatar dentro del video —sección «Avatar presentador» en Crear con el look elegido, escenas de avatar que HeyGen renderiza con el look tal cual sobre la narración (fase `avatar`) y su bloque morado en el timeline—; la entrega 3 (desde el editor) está pendiente.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | FFmpeg y yt-dlp empaquetados                       | listos para **macOS arm64, macOS x64 y Windows x64** — ADR-0013 / ADR-0026 / ADR-0034: `scripts/fetch-binaries.mjs` los descarga con URL y SHA-256 pineados por target triple (firma ad-hoc en macOS en desarrollo; en CI Tauri los re-firma con Developer ID y notariza el DMG) y los deja como `externalBin`; Rust los resuelve junto a `current_exe` con el sufijo de la plataforma y los inyecta en `PipelineJob.binaryPaths`. Los instaladores (NSIS de Windows y DMG de macOS arm64 e Intel) salen del workflow `.github/workflows/build-desktop.yml`, con los targets declarados en `scripts/release-targets.mjs`; un tag `v*` además firma los artefactos y publica `latest.json` para el updater de la app (ADR-0027, módulo `settings`). Pendientes: Linux, firma Authenticode y la revisión GPL→LGPL de ffmpeg                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Módulo `videos` (Create)                           | listo — ADR-0013: pantalla completa de creación (formulario con guion o audio propio, estilo, escenas, proveedor de imagen, selector de voz y de hasta 2 personajes, música y overlay), progreso en vivo por fases con grilla de escenas, pausa de confirmación de escenas, cancelar y reanudar, y panel del video terminado. La tarea vive en un store con `localStorage` y sobrevive a navegación y reload. Desde 2026-09-03 la pantalla de progreso calca la del origen (rama 7 de ADR-0016, port visual de `vimo-ui-pipeline`): página entera con cronómetro que descuenta la pausa, fases a la izquierda y un panel por fase, grilla de imágenes con visor a pantalla completa, paso de segundos por escena inline y el error dentro de la pantalla. Entrega 1 de gemas por secciones (ADR-0048), tras `features.gemTemplate`: modal de Mi estilo por secciones, migración de gemas viejas, `vimoServerFetch` y `useAccessFeature` en `common`. Entrega 2 (ADR-0039 Aceptada), tras `features.newCatalog`: pestaña Catálogo nueva con las 38 gemas de `pipeline/prompts/catalog-gems/` como tarjetas del carril de Mi estilo, «Ver» (muestras, etiquetas, modo de personaje recordado por estilo) y «Pasar a mi estilo» (`catalog-styles-list`, `catalog-style-copy`); el catálogo viejo sigue con el interruptor apagado y en la demo. |
-| Runner de stages y las 7 fases                     | listos — ADR-0013: `pipeline/runner/run-stages.ts` + `pipeline/stages/` (voice, transcription, scene-cuts, scene-prompts, images, animation, render; ADR-0045) con el registro declarativo en `stages/registry.ts`. Toda fase es retomable por `skip()`; los guards de gasto del origen se conservan textualmente (anti-doble-gasto del TTS, concat con re-encode, cosecha de tarea Evolink ya pagada, `-t` explícito en el render)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Runner de stages y las 8 fases                     | listos — ADR-0013: `pipeline/runner/run-stages.ts` + `pipeline/stages/` (voice, transcription, scene-cuts, scene-prompts, images, avatar, animation, render; ADR-0045, ADR-0057) con el registro declarativo en `stages/registry.ts`. Toda fase es retomable por `skip()`; los guards de gasto del origen se conservan textualmente (anti-doble-gasto del TTS, concat con re-encode, cosecha de tarea Evolink ya pagada, `-t` explícito en el render)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Módulo `videos` (Library)                          | listo — ADR-0014: biblioteca completa (grilla con estados y borrado en lote, partida en dos pestañas por formato desde 2026-09-08 —«Formato largo» con tarjetas 16:9 y «Shorts» con tarjetas 9:16 en una columna más—, la pestaña se recuerda en `localStorage` y queda en la del último proyecto creado; reproductor con velocidades, pantalla de progreso rehidratable) + editor (regeneración selectiva de imágenes con prompt propio y modelo/calidad por escena, drag de fronteras en el timeline, re-render con cache de chunks, export de clips a `clips/`, reemplazo de narración con re-transcripción, música IA/YouTube/archivo, mezcla de volúmenes y offset). 11 subcomandos nuevos en `pipeline/commands/videos/` sin tocar Rust; flag `videoOutdated` en `project.json`. Pendiente: prueba con claves reales en build instalado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Modo demo (`videos` + sidecar)                     | listo — ADR-0029 + ADR-0030: entrada «Demo» del sidebar (flag `demo` del veredicto de vimo.click: administradores y `demo_accesos`), puerta `/create-demo` que descarga una sola vez el pack v3 (318,7 MB, SHA-256 pineado; raíz v2 con cuatro historias 16:9 más `short/` con cuatro shorts 9:16) a `<carpeta raíz>/_demo-pack` y siembra la gema del pack en `_styles/demo-storytelling/`, Crear pre-llenado desde el manifest (la historia sigue a formato y estilo; «Subir mi audio» ya cargado con el audio de la historia) y `run-video-pipeline` simulando las seis fases (~40 s) con los archivos del pack, sin claves ni proveedores; regenerar imágenes y cambiar narración se rechazan (`demo_project`). Dominio `pipeline/commands/demo/` (`demo-status`, `demo-prepare`, `run-demo-pipeline`) sin tocar Rust. Guard `pnpm check:demo` (19 secciones) y armador `pnpm build:demo-pack`                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 

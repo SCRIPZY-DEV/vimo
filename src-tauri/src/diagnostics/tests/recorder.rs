@@ -128,3 +128,63 @@ fn long_timelines_keep_head_and_tail() {
     assert_eq!(outcome.events[0]["message"], json!("0"));
     assert_eq!(outcome.events.last().unwrap()["type"], json!("process-exited"));
 }
+
+#[test]
+fn avatar_scene_progress_is_sampled_by_time() {
+    let payload = json!({ "projectId": "mi-video" });
+    let mut recorder = recorder("run-video-pipeline", Some(&payload));
+    for step in 0..20 {
+        recorder.record_event(&json!({
+            "type": "avatar-scene-progress",
+            "sceneId": 2,
+            "phase": "render",
+            "elapsedSeconds": step * 5,
+        }));
+    }
+    recorder.record_event(&json!({ "type": "avatar-scene-ready", "sceneId": 2 }));
+    let outcome = recorder.finish(Some(0), None);
+
+    // Sin porcentaje, el progreso de un render de HeyGen se guarda uno por
+    // tramo de 30 s (el test corre en menos): un registro, el desenlace y el
+    // cierre del proceso.
+    let types: Vec<&str> = outcome
+        .events
+        .iter()
+        .filter_map(|event| event["type"].as_str())
+        .collect();
+    assert_eq!(
+        types,
+        ["avatar-scene-progress", "avatar-scene-ready", "process-exited"]
+    );
+}
+
+#[test]
+fn avatar_scene_progress_is_sampled_by_type_not_by_scene() {
+    let payload = json!({ "projectId": "mi-video" });
+    let mut recorder = recorder("run-video-pipeline", Some(&payload));
+    // Tres renders en paralelo: sus avisos llegan intercalados y, sin
+    // porcentaje, comparten el mismo tramo de 30 s.
+    for step in 0..6 {
+        for scene_id in [2, 5, 8] {
+            recorder.record_event(&json!({
+                "type": "avatar-scene-progress",
+                "sceneId": scene_id,
+                "phase": "render",
+                "elapsedSeconds": step * 5,
+            }));
+        }
+    }
+    let outcome = recorder.finish(Some(0), None);
+
+    // El cubo se indexa por tipo de evento (y `stageId`, que este no trae),
+    // no por escena: de las 18 entradas queda la primera, la de la escena 2,
+    // y las escenas 5 y 8 no dejan ninguna.
+    let progress: Vec<&Value> = outcome
+        .events
+        .iter()
+        .filter(|event| event["type"] == json!("avatar-scene-progress"))
+        .collect();
+    assert_eq!(progress.len(), 1);
+    assert_eq!(progress[0]["sceneId"], json!(2));
+    assert_eq!(outcome.events.len(), 2);
+}

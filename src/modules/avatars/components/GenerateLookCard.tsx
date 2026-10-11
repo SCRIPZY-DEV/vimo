@@ -4,10 +4,16 @@ import { Info, Sparkles } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { GenerateLookDialog } from '@/modules/avatars/components/GenerateLookDialog'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
-import type { AvatarSummary } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarAspectRatio,
+  AvatarSummary,
+} from '@pipeline/types/avatar.ts'
 
 interface GenerateLookCardProps {
   avatar: AvatarSummary
+  // Formato con el que el diálogo arranca abierto, desde el enlace de la
+  // tarjeta del avatar de Crear (ADR-0057 §9); sin él, se abre con un clic.
+  openWithAspectRatio?: AvatarAspectRatio
 }
 
 // «Crear escenario»: la primera ficha de los looks de un avatar, con borde
@@ -16,11 +22,17 @@ interface GenerateLookCardProps {
 // grupo público no está verificado: se revisa con la sonda paga) y con el
 // look principal listo; si no, queda a la vista pero apagada, con el motivo.
 // Apagada sigue enfocable (`aria-disabled`, no `disabled`) para que el lector
-// de pantalla llegue al motivo. Es dueña de su diálogo.
-export function GenerateLookCard({ avatar }: GenerateLookCardProps) {
+// de pantalla llegue al motivo. Es dueña de su diálogo. Desde un enlace, el
+// diálogo abre solo en el formato pedido apenas la ficha se puede usar (el
+// llavero responde después del primer render), una sola vez.
+export function GenerateLookCard({
+  avatar,
+  openWithAspectRatio,
+}: GenerateLookCardProps) {
   const { t } = useTranslation()
   const { canUseHeyGen, missingKey } = useHeyGenAccess()
   const [open, setOpen] = useState(false)
+  const [linkConsumed, setLinkConsumed] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const hintId = useId()
@@ -30,11 +42,19 @@ export function GenerateLookCard({ avatar }: GenerateLookCardProps) {
   // Mientras el llavero responde (sin acceso pero sin clave faltante) la
   // ficha espera apagada, sin acusar una clave que quizás está.
   const blocked = reasonKey !== null || !canUseHeyGen
+  const linkOpen =
+    openWithAspectRatio !== undefined && !linkConsumed && !blocked
 
   const openDialog = () => {
     if (blocked) return
 
     setOpen(true)
+  }
+
+  // Cerrar el diálogo consume el enlace: reabrir el panel no lo vuelve a abrir.
+  const closeDialog = () => {
+    setOpen(false)
+    setLinkConsumed(true)
   }
 
   return (
@@ -91,11 +111,12 @@ export function GenerateLookCard({ avatar }: GenerateLookCardProps) {
         )}
       </button>
 
-      {open && (
+      {(open || linkOpen) && (
         <GenerateLookDialog
           avatar={avatar}
+          initialAspectRatio={linkOpen ? openWithAspectRatio : undefined}
           returnFocusRef={buttonRef}
-          onClose={() => setOpen(false)}
+          onClose={closeDialog}
         />
       )}
     </div>

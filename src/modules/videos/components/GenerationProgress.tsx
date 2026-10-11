@@ -16,6 +16,7 @@ import DoodleStar from '@/modules/common/doodles/DoodleStar'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
+import { AvatarDroppedNote } from '@/modules/videos/components/AvatarDroppedNote'
 import { PhaseProgressPanel } from '@/modules/videos/components/PhaseProgressPanel'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
@@ -26,17 +27,22 @@ import { PromptModelIssueDialog } from '@/modules/videos/components/PromptModelI
 import { PromptStageWatchdog } from '@/modules/videos/components/PromptStageWatchdog'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
 import { PipelineAnimationPanel } from '@/modules/videos/components/PipelineAnimationPanel'
+import { PipelineAvatarPanel } from '@/modules/videos/components/PipelineAvatarPanel'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
 import {
   CANCEL_CONFIRM_WINDOW_MS,
   EDITOR_RESCUE_ERROR_CODES,
-  PIPELINE_STAGES,
   STYLE_GEM_ERROR_CODES,
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
+import { taskHasAvatar } from '@/modules/videos/utilities/avatarTaskEvents'
+import {
+  failedStageOf,
+  failureMessageOf,
+} from '@/modules/videos/utilities/failedStage'
 import { shortenHomePath } from '@/modules/videos/utilities/shortenHomePath'
 import { isVertical } from '@/modules/videos/utilities/videoFormat'
 import { voiceProgressPercent } from '@/modules/videos/utilities/voiceProgressPercent'
@@ -126,6 +132,19 @@ export function GenerationProgress({
     (task.stage === 'animation' ||
       task.scenes.some((scene) => scene.animationActivity !== undefined) ||
       completed.includes('animation'))
+  // El avatar, por datos como la animación: pedido al crear, en curso o con
+  // escenas de avatar (una fase saltada nunca queda en `completedStages`).
+  const hasAvatar = taskHasAvatar(task)
+  const showAvatarPanel =
+    hasAvatar &&
+    (task.stage === 'avatar' ||
+      task.scenes.some((scene) => scene.avatarActivity !== undefined))
+  // Las apariciones que no entraron se dicen siempre (spec §5), también si
+  // no entró ninguna y la fase se saltea; con el panel a la vista lo dice él,
+  // y en la pausa, la pausa.
+  const avatarDropped = task.avatarDropped ?? 0
+  const showAvatarDroppedNote =
+    hasAvatar && avatarDropped > 0 && !showAvatarPanel && !paused
 
   // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
   // disco y `stage` es null hasta el primer evento del job.
@@ -161,17 +180,18 @@ export function GenerationProgress({
       !generating)
   // La fase en la que se cayó el job: la primera sin completar.
   const failedStage = failed
-    ? (PIPELINE_STAGES.find(
-        (stage) =>
-          (stage.id !== 'animation' || hasAnimation) &&
-          !completed.includes(stage.id),
-      )?.id ?? null)
+    ? failedStageOf(completed, { hasAnimation, hasAvatar })
     : null
-  // Rescate por el editor: un fallo de imágenes, o un código que deja el
-  // proyecto reparable desde ahí aunque la fase caída sea otra (el render sin
-  // imágenes cae en `render` con todo lo demás en disco).
+  // Lo que dice la cabecera del fallo: el texto del código, salvo un avatar
+  // incompleto por rechazos definitivos de HeyGen, que dice la salida.
+  const failureMessage = failureMessageOf(task)
+  // Rescate por el editor: un fallo de imágenes, del avatar (sus escenas se
+  // ven con la imagen fija del look) o de la animación, o un código que deja
+  // el proyecto reparable desde ahí aunque la fase caída sea otra (el render
+  // sin imágenes cae en `render` con todo lo demás en disco).
   const editorRescue =
     failedStage === 'images' ||
+    failedStage === 'avatar' ||
     failedStage === 'animation' ||
     (task.errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(task.errorCode))
   // Solo el carril verbatim tiene un modelo elegible que cambiar — y no
@@ -254,6 +274,7 @@ export function GenerationProgress({
           <StageBar
             currentStage={task.stage}
             showAnimation={hasAnimation}
+            showAvatar={hasAvatar}
             completedStages={completed}
             paused={paused}
             recovery={recovery}
@@ -266,6 +287,15 @@ export function GenerationProgress({
                 scenes: task.scenes.length,
               })}
             </div>
+          )}
+          {showAvatarDroppedNote && (
+            <AvatarDroppedNote
+              dropped={avatarDropped}
+              noneFit={
+                task.scenes.length > 0 &&
+                !task.scenes.some((scene) => scene.avatar !== undefined)
+              }
+            />
           )}
         </aside>
 
@@ -425,7 +455,7 @@ export function GenerationProgress({
 
           {failed && !task.creditsIssue && (
             <GenerationErrorCard
-              message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
+              message={t(failureMessage.key, { count: failureMessage.count })}
               failedStage={failedStage}
               errorCode={task.errorCode}
               onRetry={onRetryPipeline}
@@ -451,6 +481,14 @@ export function GenerationProgress({
                   : task.promptsWritten
               }
               recovery={rewriting ? recovery : null}
+            />
+          )}
+
+          {showAvatarPanel && (
+            <PipelineAvatarPanel
+              scenes={task.scenes}
+              dropped={task.avatarDropped ?? 0}
+              active={generating && task.stage === 'avatar'}
             />
           )}
 

@@ -1,6 +1,39 @@
 // Sesión Chrome aislada por pipe CDP; nunca conecta al perfil del usuario.
 import { spawn } from 'node:child_process'
 
+// Chrome borra su socket y sus temporales de `$TMPDIR` (`com.google.Chrome.<id>`)
+// solo si sale por su cierre ordenado. Medido con Chrome 154 en macOS: el
+// `Browser.close` de CDP y SIGINT los dejan limpios (salida en ~100 ms);
+// SIGTERM sale con código 0 en ~30 ms pero los deja, igual que SIGKILL, y así
+// se acumularon miles. Se pide el cierre por CDP (también vale en Windows, donde
+// las señales no existen) y, si el navegador no sale a tiempo, se lo mata: un
+// Chrome colgado nunca deja esperando a la prueba.
+const GRACEFUL_CLOSE_MS = 2000
+
+function closeChrome(child, requestClose) {
+  const running =
+    child.pid !== undefined &&
+    child.exitCode === null &&
+    child.signalCode === null
+  if (!running) return Promise.resolve()
+
+  return new Promise((resolve) => {
+    const forceTimer = setTimeout(
+      () => child.kill('SIGKILL'),
+      GRACEFUL_CLOSE_MS,
+    )
+    child.once('exit', () => {
+      clearTimeout(forceTimer)
+      resolve()
+    })
+    try {
+      requestClose()
+    } catch {
+      child.kill('SIGKILL')
+    }
+  })
+}
+
 export async function withChrome(chrome, profile, execute) {
   const child = spawn(
     chrome,
@@ -74,7 +107,12 @@ export async function withChrome(chrome, profile, execute) {
     return await execute(call)
   } finally {
     // Solo el proceso de prueba creado arriba, con perfil temporal propio.
-    child.kill('SIGKILL')
+    await closeChrome(child, () => {
+      child.stdio[3].on('error', () => {})
+      child.stdio[3].write(
+        JSON.stringify({ id: ++nextId, method: 'Browser.close' }) + '\0',
+      )
+    })
     for (const value of pending.values())
       value.reject(new Error('Chrome session closed'))
     pending.clear()

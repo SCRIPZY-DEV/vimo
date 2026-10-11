@@ -67,6 +67,7 @@ html.theme-changing *::after {
     --iris: 253 78% 60%; /* Desactualizado */
     --graphite: 229 9% 46%; /* Borrador */
     --sky: 199 89% 55%; /* Escena animada (ADR-0047) */
+    --amethyst: 275 72% 62%; /* Escena de avatar (ADR-0057); igual en claro y oscuro */
     --lavender: 270 24% 92%;
     --warm-gray: 240 5% 97%;
     --ink: 224 45% 16%;

@@ -6,12 +6,18 @@
 // scenes.json: Library (paso 7) lee este formato — no se retocan después.
 
 import type { SceneAnimation, SceneAnimationView } from './animation.ts'
+import type { SceneAvatar, SceneAvatarView } from './avatar.ts'
 
 // Una palabra transcrita con sus timestamps (salida de Deepgram, Fase 2).
 export interface TranscriptWord {
   word: string
   start: number
   end: number
+  // La palabra cierra una frase (Deepgram con `punctuate`: su
+  // `punctuated_word` termina en . ? ! …). Solo está cuando es true y `word`
+  // sigue limpia. Los words.json anteriores no lo traen: sus frases salen por
+  // pausas (pipeline/narration/sentences.ts).
+  sentenceEnd?: true
 }
 
 // Tratamientos visuales que asigna el director de escenas (ADR-0013; port de
@@ -115,6 +121,10 @@ export interface Scene {
   // El tratamiento que declaró la etiqueta `[T:…]` del prompt de una gema de
   // plantilla con dinamismo (ADR-0048). Solo diagnóstico: mide el reparto.
   treatment?: SceneTreatment
+  // Escena de avatar (ADR-0057): presente solo si la escena es una aparición
+  // del avatar presentador. Ausente = escena normal, como en todos los
+  // proyectos anteriores (sin este campo el video sale byte-idéntico).
+  avatar?: SceneAvatar
 }
 
 export type SceneImageStatus = 'pending' | 'generating' | 'ok' | 'error'
@@ -140,4 +150,6 @@ export interface SceneSummary {
   animationPending?: SceneAnimationView[]
   visualSourceSceneId?: number
   absorbedBy?: number
+  // Vista de la escena de avatar (ADR-0057); ausente en las escenas normales.
+  avatar?: SceneAvatarView
 }

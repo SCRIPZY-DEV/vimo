@@ -2,13 +2,19 @@ import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { normalizeClipToSlot } from '@pipeline/animation/normalization.ts'
 import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
-import { CLIP_PREVIEW_DRIFT_SECONDS } from '@/modules/videos/constants'
+import { clipDriftAction } from '@/modules/videos/utilities/clipDriftAction'
 
 interface ClipPreviewVideoProps {
   src: string
   offsetSeconds: number
   slotSeconds: number
   startSeconds: number
+  // Desfase con la narración a partir del cual se reajusta el clip: 0,3 s en
+  // uno de Kie, 0,12 s en uno de avatar (los labios lo delatan antes).
+  resyncSeconds: number
+  // false = nunca cambia la velocidad: el clip de avatar llega normalizado al
+  // tramo exacto y la narración manda (spec §7.3).
+  retime: boolean
   clockRef: RefObject<HTMLMediaElement | null>
   playing: boolean
   onClick(): void
@@ -23,6 +29,8 @@ export function ClipPreviewVideo({
   offsetSeconds,
   slotSeconds,
   startSeconds,
+  resyncSeconds,
+  retime,
   clockRef,
   playing,
   onClick,
@@ -67,7 +75,7 @@ export function ClipPreviewVideo({
       video.defaultMuted = true
       if (!Number.isFinite(video.duration) || video.duration <= 0) return
       const fit = normalizeClipToSlot(video.duration, slotSeconds)
-      const rate = fit.fit === 'speed' ? fit.rate : 1
+      const rate = retime && fit.fit === 'speed' ? fit.rate : 1
       if (video.playbackRate !== rate) video.playbackRate = rate
 
       const clockSeconds =
@@ -93,8 +101,9 @@ export function ClipPreviewVideo({
         positionRequested = false
         holdingAhead = false
       } else if (!video.seeking && advancing) {
-        if (difference > CLIP_PREVIEW_DRIFT_SECONDS) video.currentTime = target
-        if (difference < -CLIP_PREVIEW_DRIFT_SECONDS) holdingAhead = true
+        const action = clipDriftAction(difference, resyncSeconds)
+        if (action === 'seek') video.currentTime = target
+        if (action === 'hold') holdingAhead = true
       }
       if (holdingAhead && difference >= -frameSeconds) holdingAhead = false
       // play() sobre un medio terminado puede reiniciarlo en 0: se conserva
@@ -143,7 +152,7 @@ export function ClipPreviewVideo({
       clock?.removeEventListener('waiting', pause)
       pause()
     }
-  }, [src, slotSeconds, startSeconds, playing, clockRef])
+  }, [src, slotSeconds, startSeconds, resyncSeconds, retime, playing, clockRef])
 
   return (
     <video

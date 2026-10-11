@@ -1,3 +1,4 @@
+import type { ProjectAvatarOptions } from './avatar.ts'
 import type { CharacterStyleId } from './characters.ts'
 import type { ColorFilterId, GemSections, StyleCharacter } from './styles.ts'
 import type { ImageProviderId } from './image-provider.ts'
@@ -7,6 +8,7 @@ import type {
   SceneSummary,
   TranscriptWord,
 } from './scenes.ts'
+import type { AvatarSpanWindow } from '../runner/events.ts'
 import type { StageId } from '../runner/stage-id.ts'
 import type { VideoFormat } from './video-format.ts'
 import type { VideoProviderId } from './video-provider.ts'
@@ -140,6 +142,9 @@ export interface VideoProjectOptions {
   animationMinutes?: number
   // Solo 9:16: anima todo el audio, cuya duración se conoce después de la voz.
   animateWholeVideo?: boolean
+  // Avatar presentador (ADR-0057). Ausente = sin avatar: los cortes, los
+  // archivos y el render quedan byte-idénticos.
+  avatar?: ProjectAvatarOptions
 }
 
 export type VideoProjectState =
@@ -188,6 +193,10 @@ export interface VideoProjectMetadata {
   // por política de contenido y «Regenerar imagen» lo reusan en vez de
   // rediseñarlo, así el video no cambia de personaje a mitad de camino.
   styleProtagonist?: StyleProtagonist
+  // Versión de la narración (ADR-0057, diseño §3.3): ausente = 0. La sube el
+  // reemplazo de narración (retranscribeAndRedistribute); una escena de avatar
+  // renderizada con otra versión se lee desactualizada.
+  narrationVersion?: number
 }
 
 // De dónde salió el protagonista guardado. Solo diagnóstico: no cambia cómo
@@ -325,6 +334,14 @@ export interface VideoProjectStatusResult {
   // Largo del guion en disco (script.txt), para estimar el costo de la voz
   // pendiente al reanudar sin volver a mandar el texto.
   scriptCharCount?: number
+  // Solo con avatar automático (ADR-0057) y la transcripción en disco: dónde
+  // aparece el avatar y cuántas apariciones pedidas no entraron, con la misma
+  // forma que `awaiting-scene-confirmation` y `avatar-planned`, para que la UI
+  // rearme la pausa de confirmación desde el disco (tras reiniciar la app).
+  // Mientras espera la confirmación (o sin corte), los tramos del plan; con
+  // el corte hecho, los de sus escenas de avatar.
+  avatarSpans?: AvatarSpanWindow[]
+  avatarDropped?: number
 }
 
 // ─── Contratos de Library (ADR-0014) ───

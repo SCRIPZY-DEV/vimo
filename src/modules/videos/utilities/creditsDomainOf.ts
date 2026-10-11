@@ -8,5 +8,6 @@ export function creditsDomainOf(code: string): CreditsDomain | null {
   if (code.startsWith('transcription_')) return 'transcription'
   if (code.startsWith('music_')) return 'music'
   if (code.startsWith('animation_')) return 'animation'
+  if (code.startsWith('avatar_')) return 'avatar'
   return null
 }

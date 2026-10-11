@@ -24,12 +24,18 @@ import {
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
-import type { AvatarSummary } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarAspectRatio,
+  AvatarSummary,
+} from '@pipeline/types/avatar.ts'
 
 interface AvatarDetailDialogProps {
   // La entrada actual de la biblioteca: quien lo monta la relee de la lista,
   // así los cambios del sondeo y del look principal se ven al instante.
   avatar: AvatarSummary
+  // Formato con el que «Crear escenario» abre solo, desde el enlace de la
+  // tarjeta del avatar de Crear (ADR-0057 §9); sin él, se abre con un clic.
+  scenarioAspectRatio?: AvatarAspectRatio
   // Adónde vuelve el foco al cerrar: la tarjeta que lo abrió. Sin
   // `DialogTrigger` (se abre por estado) Radix lo dejaría en `<body>`.
   returnFocusRef?: RefObject<HTMLElement | null>
@@ -51,6 +57,7 @@ interface AvatarDetailDialogProps {
 // X chica: acá la caja tiene su propio layout y su X redonda.
 export function AvatarDetailDialog({
   avatar,
+  scenarioAspectRatio,
   returnFocusRef,
   onClose,
   onRemove,
@@ -223,7 +230,10 @@ export function AvatarDetailDialog({
                     tiene de qué partir: no la muestra. */}
                 {avatar.status !== 'failed' && (
                   <li className="flex">
-                    <GenerateLookCard avatar={avatar} />
+                    <GenerateLookCard
+                      avatar={avatar}
+                      openWithAspectRatio={scenarioAspectRatio}
+                    />
                   </li>
                 )}
                 {avatar.looks.map((look) => {

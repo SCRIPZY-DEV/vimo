@@ -277,3 +277,30 @@ fn a_generated_look_is_logged_under_its_avatar_name() {
         Some("Avatar: Ana")
     );
 }
+
+#[test]
+fn avatar_scene_renders_are_logged_under_their_project() {
+    let root = TempDir::new().unwrap();
+    let project_directory = root.path().join("mi-video");
+    fs::create_dir_all(&project_directory).unwrap();
+    fs::write(
+        project_directory.join(PROJECT_METADATA_FILE),
+        r#"{ "name": "Mi video" }"#,
+    )
+    .unwrap();
+
+    // Lleva `projectId`: es un job del proyecto aunque su nombre empiece con
+    // «avatar» (ADR-0038; ruling de la entrega 2 de la ADR-0057).
+    let render = subject_from_payload(
+        "avatar-render-scenes",
+        Some(&json!({ "projectId": "mi-video", "sceneIds": [2, 5] })),
+    )
+    .expect("project subject");
+    assert_eq!(render, subject(SubjectKind::Project, "mi-video"));
+
+    let name = resolve_subject_name(Some(root.path()), &render);
+    assert_eq!(
+        subject_label(&render, name.as_deref()).as_deref(),
+        Some("Mi video")
+    );
+}

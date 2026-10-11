@@ -1,11 +1,13 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Clapperboard,
   Film,
   Mic,
   Music2,
   RectangleHorizontal,
   RectangleVertical,
   Upload,
+  UserRound,
   Wand2,
 } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
@@ -21,15 +23,26 @@ import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 import type { GemSectionKey } from '@pipeline/types/styles.ts'
 import type { ScenePromptFailureSource } from '@pipeline/types/scenes.ts'
 import {
+  AVATAR_DEFAULT_APPEARANCE_SECONDS,
+  AVATAR_DEFAULT_APPEARANCES,
+} from '@pipeline/types/avatar.ts'
+import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
-import type { CreateFormValue, SelectedCharacter } from './types/create'
+import type {
+  AvatarRenderPhase,
+  AvatarUsability,
+  CreateFormValue,
+  SelectedCharacter,
+  StageToneClasses,
+} from './types/create'
 import type {
   AudioMixValue,
   LibraryTab,
   ProjectBadge,
   SceneImageChoice,
+  TimelineBlockKind,
   TimelineLayout,
   TimelineTrackId,
   TimelineTrackKind,
@@ -201,6 +214,18 @@ export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
   'images_incomplete',
   'render_missing_images',
 ])
+// Rechazos definitivos de HeyGen para una aparición (spec §14): con el mismo
+// look y la misma narración, pedirla de nuevo falla igual. Si dominan en un
+// `avatar_incomplete`, la cabecera del fallo dice la salida (el editor, o
+// cambiar el look) en vez de «Reanudá». De estos, la fase no vuelve a pedir
+// sola la moderación ni el look no soportado (`isFinalRejection`,
+// pipeline/avatar/lane.ts); `avatar_invalid_request` sí se vuelve a pedir en
+// cada reanudación.
+export const AVATAR_DEFINITIVE_REJECTION_CODES: ReadonlySet<string> = new Set([
+  'avatar_moderation_rejected',
+  'avatar_look_unsupported',
+  'avatar_invalid_request',
+])
 // Por qué una escena de Catálogo quedó sin prompt (rescate por el editor):
 // quién falló, el redactor, el revisor narrativo o los modelos de texto.
 export const PROMPT_FAILURE_REASON_KEYS: Record<
@@ -356,6 +381,35 @@ export const SEEK_TOLERANCE_SECONDS = 0.5
 // Preview: el clip de animación se re-sincroniza con la narración solo si se
 // desvía más que esto mientras suena (un seek por tick lo trabaría).
 export const CLIP_PREVIEW_DRIFT_SECONDS = 0.3
+
+// Bloques de la pista de escenas con la tarjeta compartida (ADR-0057, §10.3):
+// el color de cada tipo viaja como variable CSS (`--tone`) y la ficha de
+// arriba a la izquierda lo identifica. El clip animado conserva el celeste de
+// ADR-0047; el avatar estrena el morado.
+export const TIMELINE_BLOCK_TONES: Record<TimelineBlockKind, string> = {
+  clip: 'var(--sky)',
+  avatar: 'var(--amethyst)',
+}
+export const TIMELINE_BLOCK_ICONS: Record<TimelineBlockKind, LucideIcon> = {
+  clip: Clapperboard,
+  avatar: UserRound,
+}
+// Avance simulado del render de un avatar (HeyGen no informa porcentaje):
+// lo medido va de 32 s a 4 min (spec §17); a los 2 min llega a
+// ANIMATION_RAMP_PERCENT y después frena hacia el tope.
+export const AVATAR_EXPECTED_RENDER_SECONDS = 120
+// Cada cuánto corre el reloj de los renders del avatar (editor y progreso).
+export const AVATAR_PROGRESS_TICK_MS = 1000
+// La fase del render de una aparición en el panel del progreso (spec §8).
+// Atada al tipo del evento: una fase nueva del sidecar no compila sin texto.
+export const AVATAR_RENDER_PHASE_KEYS: Record<AvatarRenderPhase, string> = {
+  audio: 'create.progress.avatarPhase.audio',
+  upload: 'create.progress.avatarPhase.upload',
+  render: 'create.progress.avatarPhase.render',
+  download: 'create.progress.avatarPhase.download',
+  normalize: 'create.progress.avatarPhase.normalize',
+}
+
 // Timeline: un click a menos de esto del final lleva exactamente al cierre.
 export const TIMELINE_END_SNAP_SECONDS = 0.5
 
@@ -371,9 +425,24 @@ export const PIPELINE_STAGES: { id: StageId; labelKey: string }[] = [
   { id: 'scene-cuts', labelKey: 'create.stages.sceneCuts' },
   { id: 'scene-prompts', labelKey: 'create.stages.scenePrompts' },
   { id: 'images', labelKey: 'create.stages.images' },
+  { id: 'avatar', labelKey: 'create.stages.avatar' },
   { id: 'animation', labelKey: 'create.stages.animation' },
   { id: 'render', labelKey: 'create.stages.render' },
 ]
+
+// Color de la fila de la fase en curso: la animación en celeste y el avatar
+// en morado, como sus bloques en el timeline; las demás en ocean.
+export const ACTIVE_STAGE_TONES: Partial<Record<StageId, StageToneClasses>> = {
+  animation: { row: 'border-sky/60 bg-sky/5', badge: 'bg-sky text-white' },
+  avatar: {
+    row: 'border-amethyst/60 bg-amethyst/5',
+    badge: 'bg-amethyst text-white',
+  },
+}
+export const DEFAULT_ACTIVE_STAGE_TONE: StageToneClasses = {
+  row: 'border-ocean/60 bg-ocean/5',
+  badge: 'bg-ocean text-white',
+}
 
 // Origen de la narración: leída por IA o subida por la persona.
 export const NARRATION_MODES: {
@@ -926,6 +995,11 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   animateScenes: false,
   animateWholeVideo: false,
   animationMinutes: ANIMATION_MINUTES_DEFAULT,
+  useAvatar: false,
+  avatar: null,
+  avatarAppearances: AVATAR_DEFAULT_APPEARANCES,
+  avatarSecondsPerAppearance: AVATAR_DEFAULT_APPEARANCE_SECONDS,
+  avatarStartsVideo: true,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
   voice: null,
@@ -951,6 +1025,36 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   customStyle: null,
 }
 
+// Qué dice cada ficha de avatar en la tarjeta de Crear: cuántos looks sirven
+// para el formato del video, o por qué no se puede usar. (La orientación del
+// look por formato NO se espeja acá: la regla es `lookOrientationFit`
+// (pipeline/avatar/look-orientation.ts), sobre AVATAR_LOOK_ORIENTATION_BY_FORMAT
+// de pipeline/types/avatar.ts, y un espejo podría divergir de ella.)
+export const AVATAR_USABILITY_LABEL_KEYS: Record<AvatarUsability, string> = {
+  usable: 'create.avatar.lookCount',
+  training: 'create.avatar.training',
+  failed: 'create.avatar.unavailable',
+  noLook: 'create.avatar.noLookShort',
+}
+// El motivo, con el nombre del avatar, cuando no tiene un look para el
+// formato del video.
+export const AVATAR_NO_LOOK_KEYS: Record<VideoFormat, string> = {
+  '16:9': 'create.avatar.noLookLandscape',
+  '9:16': 'create.avatar.noLookPortrait',
+}
+// La miniatura de un look en la tarjeta, con la forma del video.
+export const AVATAR_LOOK_FRAME_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'aspect-video',
+  '9:16': 'aspect-[9/16]',
+}
+// Fichas de esqueleto mientras se lee la biblioteca de avatares.
+export const AVATAR_PICKER_SKELETONS = 5
+// Cuánto vale la lectura de la biblioteca de avatares que hace Crear: quien
+// tiene la clave de HeyGen y no usa el avatar no paga un proceso del sidecar
+// en cada montaje ni en cada foco de la ventana. Agregar o quitar un avatar,
+// o el sondeo de lo que procesa, la invalidan igual.
+export const CREATE_AVATAR_LIBRARY_STALE_TIME_MS = 60_000
+
 // Con qué se regenera una escena que no trae calidad propia: los mismos
 // defaults del formulario de creación.
 export const DEFAULT_IMAGE_CHOICE: SceneImageChoice = {
@@ -965,6 +1069,15 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   project_not_found: 'create.errors.projectNotFound',
   project_metadata_corrupt: 'create.errors.projectCorrupt',
   project_exists: 'create.errors.projectExists',
+  // Avatar presentador elegido en Crear (ADR-0057): lo valida
+  // create-video-project contra la biblioteca. `avatar_not_found` y
+  // `avatar_group_missing` (HeyGen ya no tiene el avatar) reusan el texto de
+  // la biblioteca de avatares.
+  avatar_not_found: 'avatars.errors.notFound',
+  avatar_group_missing: 'avatars.errors.groupMissing',
+  avatar_look_unavailable: 'create.errors.avatarLookUnavailable',
+  avatar_look_orientation_mismatch:
+    'create.errors.avatarLookOrientationMismatch',
   script_missing: 'create.errors.scriptMissing',
   narration_missing: 'create.errors.narrationMissing',
   narration_source_missing: 'create.errors.narrationSourceMissing',
@@ -1072,6 +1185,31 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   animation_request_changed: 'create.errors.animationRequestChanged',
   animation_incomplete: 'create.errors.animationIncomplete',
   animation_timing_locked: 'create.errors.animationTimingLocked',
+  // Escenas de avatar con HeyGen (ADR-0057, spec §14). Los códigos que la
+  // biblioteca de avatares ya traduce reusan SUS claves (avatars.errors.*,
+  // las mismas de src/modules/avatars/constants.ts): no se duplica el texto.
+  // `avatar_not_found` → avatars.errors.notFound está arriba, con los
+  // rechazos de Crear.
+  avatar_invalid_key: 'avatars.errors.invalidKey',
+  avatar_insufficient_credits: 'avatars.errors.insufficientCredits',
+  avatar_rate_limited: 'avatars.errors.rateLimited',
+  avatar_look_unsupported: 'avatars.errors.lookUnsupported',
+  avatar_moderation_rejected: 'avatars.errors.moderationRejected',
+  avatar_invalid_request: 'avatars.errors.providerError',
+  avatar_provider_error: 'avatars.errors.providerError',
+  avatar_network: 'avatars.errors.network',
+  // Los que introduce la fase `avatar` llevan texto propio en create.errors.
+  avatar_render_failed: 'create.errors.avatarRenderFailed',
+  avatar_timeout: 'create.errors.avatarTimeout',
+  avatar_download_failed: 'create.errors.avatarDownloadFailed',
+  avatar_incomplete: 'create.errors.avatarIncomplete',
+  avatar_sentences_unavailable: 'create.errors.avatarSentencesUnavailable',
+  // El render (auto-export al final del pipeline) no encontró ni el clip ni
+  // la vista previa del look de una aparición.
+  avatar_render_look_unavailable: 'create.errors.avatarRenderLookUnavailable',
+  // Escena de avatar (ADR-0057): sus fronteras con clip o recibos de HeyGen no
+  // se mueven en la entrega 2.
+  avatar_timing_locked: 'create.errors.avatarTimingLocked',
   // Transversales
   missing_api_key: 'create.errors.missingApiKey',
   missing_projects_root: 'create.errors.missingProjectsRoot',
@@ -1101,6 +1239,11 @@ export const INTERRUPTED_ERROR_KEY = 'create.errors.interrupted'
 export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   ...CREATE_ERROR_MESSAGE_KEYS,
   animation_image_locked: 'library.errors.animationImageLocked',
+  // Rechazo del editor: una escena de avatar no tiene imagen (ADR-0057).
+  avatar_scene_without_image: 'library.errors.avatarSceneWithoutImage',
+  // El render o el export del editor no encontró ni el clip ni la vista
+  // previa del look de una aparición.
+  avatar_render_look_unavailable: 'library.errors.avatarRenderLookUnavailable',
   animation_undo_pending: 'library.errors.animationUndoPending',
   animation_source_missing: 'library.errors.animationSourceMissing',
   invalid_audio_url: 'library.errors.invalidAudioUrl',

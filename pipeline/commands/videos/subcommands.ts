@@ -5,6 +5,7 @@ import {
 } from '../../animation/coordination.ts'
 import { projectsRootOf, resolveProjectDir } from '../../project/paths.ts'
 import { animateScenes } from './animate-scenes.ts'
+import { avatarRenderScenes } from './avatar-render-scenes.ts'
 import { confirmScenes } from './confirm-scenes.ts'
 import { createVideoProject } from './create-video-project.ts'
 import { deleteVideoProjects } from './delete-video-projects.ts'
@@ -49,6 +50,7 @@ const handlers: Record<string, SubcommandHandler> = {
   'export-clips': exportClips,
   'get-image-credits': getImageCredits,
   'animate-scenes': animateScenes,
+  'avatar-render-scenes': avatarRenderScenes,
   'get-video-credits': getVideoCredits,
 }
 
@@ -63,6 +65,15 @@ const readOnlyCommands = new Set([
   'get-image-credits',
   'get-video-credits',
   'create-video-project',
+])
+
+// Los generadores que comparten el proyecto (ADR-0047, ADR-0057): guardan sus
+// recibos con escrituras serializadas aparte y escenas exclusivas, así las
+// consultas del editor siguen disponibles mientras esperan al proveedor. El
+// resto de los comandos que escriben toma el lease exclusivo.
+const ANIMATION_LEASE_COMMANDS = new Set([
+  'animate-scenes',
+  'avatar-render-scenes',
 ])
 
 export const videosSubcommands: Record<string, SubcommandHandler> =
@@ -80,10 +91,9 @@ export const videosSubcommands: Record<string, SubcommandHandler> =
           .map((id) => resolveProjectDir(projectsRootOf(context), id))
         const invokeAt = (index: number): Promise<unknown> => {
           if (index >= paths.length) return handler(context)
-          const lease =
-            name === 'animate-scenes'
-              ? withProjectAnimationLease
-              : withProjectWriteLease
+          const lease = ANIMATION_LEASE_COMMANDS.has(name)
+            ? withProjectAnimationLease
+            : withProjectWriteLease
           return lease(paths[index], context.signal, () => invokeAt(index + 1))
         }
         return invokeAt(0)

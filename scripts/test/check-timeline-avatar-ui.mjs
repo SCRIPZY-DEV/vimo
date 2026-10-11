@@ -1,0 +1,262 @@
+// Los bloques de la pista de escenas con la tarjeta compartida (ADR-0057,
+// spec §10.3): el avatar en morado con su busto, el clip animado en celeste
+// con su claqueta, esquinas rounded-lg, borde blanco al elegirlo, la
+// miniatura del avatar (la vista previa del look, que el sidecar le pone como
+// imagen fija: el look ES el escenario), sus estados (listo, desactualizado,
+// planeado, fallido con el motivo, generando con el avance simulado) y sus
+// fronteras bloqueadas, cada bloque con su `timelineBlockKey` (la `key` de
+// React se lee de la fibra del contenedor). Y el panel de la escena (ruling
+// D4): sobre una escena de avatar no ofrece «Regenerar imagen» ni la
+// descripción (spec §6.2).
+// Monta el EditorTimeline real en Chrome headless; solo `videosApi` se simula
+// (el real importa el cliente de Supabase, que exige variables de entorno al
+// cargarse) con lo único que la pista le pide: las URLs de las imágenes. La
+// raíz guarda `onUncaughtError` para que un render roto falle con su mensaje.
+import assert from 'node:assert/strict'
+import { pathToFileURL } from 'node:url'
+import { withChrome } from './chrome-session.mjs'
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { build } from 'esbuild'
+
+const chrome =
+  process.argv[2] ??
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+const root = await mkdtemp(join(tmpdir(), 'vimo-timeline-avatar-ui-'))
+// El color del avatar es una variable CSS (`--tone`) que nada valida en el
+// build: se mira acá que el token exista en los dos lugares que lo definen.
+const tokenChecks = [
+  [
+    /--amethyst:\s*\d/.test(await readFile('src/assets/css/main.css', 'utf8')),
+    'main.css define --amethyst',
+  ],
+  [
+    (await readFile('tailwind.config.ts', 'utf8')).includes(
+      "amethyst: 'hsl(var(--amethyst))'",
+    ),
+    'tailwind.config.ts expone la clase amethyst',
+  ],
+]
+const mocks = {
+  // Lo que piden la pista y el panel de la escena (el panel, como en
+  // check-editor-character-ui.mjs): las URLs de las imágenes y los dos
+  // helpers que lee al pintarse.
+  '@/modules/videos/api':
+    'export const videosApi = { isNative: () => true, errorMessageKey: () => "library.editor.regenFailed", imageSource: (path, version) => "fixture-image://" + path + "?v=" + version, videoSource: (path, version) => "fixture-media://" + path + "?v=" + version }',
+}
+const entry = String.raw`
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import i18n from 'i18next'
+import { I18nextProvider } from 'react-i18next'
+import { MemoryRouter } from 'react-router'
+import es from './public/locales/es.json'
+import { TooltipProvider } from '@/modules/common/ui/tooltip'
+import { DEFAULT_TIMELINE_LAYOUT } from '@/modules/videos/constants'
+import { EditorImageGallery } from '@/modules/videos/components/EditorImageGallery'
+import { EditorScenePanel } from '@/modules/videos/components/EditorScenePanel'
+import { EditorTimeline } from '@/modules/videos/components/EditorTimeline'
+import { avatarRenderPercent } from '@/modules/videos/utilities/avatarRenderPercent'
+import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
+import { formatSlotSeconds } from '@/modules/videos/utilities/formatSlotSeconds'
+import { missingImageSceneIds } from '@/modules/videos/utilities/missingImageSceneIds'
+import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
+import { sceneTimingLocked } from '@/modules/videos/utilities/sceneTimingLocked'
+import { timelineBlockKey, timelineBlocks } from '@/modules/videos/utilities/timelineBlocks'
+
+let checks = 0
+let renderError
+const check = (condition, message) => { if (!condition) throw new Error(message); checks += 1 }
+const delay = () => new Promise((done) => setTimeout(done, 30))
+async function waitFor(get, message) {
+  for (let index = 0; index < 100; index++) { if (renderError) throw renderError; const value = get(); if (value) return value; await delay() }
+  throw new Error(message)
+}
+await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolation: { escapeValue: false } })
+
+// La vista de una escena de avatar tal como la arma el sidecar (tarea 1, §3.3).
+const view = (overrides = {}) => ({ lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', engine: 'avatar_iii', origin: 'auto', status: 'ready', clipPath: '/p/avatar/scene.mp4', clipMtimeMs: 1, normalizedSeconds: 10, ...overrides })
+const scene = (id, startSeconds, endSeconds, extra = {}) => ({ id, text: 'Escena ' + id, imageStatus: 'ok', imagePath: '/p/scenes/scene_' + id + '.jpg', startSeconds, endSeconds, ...extra })
+// Una escena de avatar trae como imagen fija la vista previa del look copiada
+// al proyecto (no hay imagen generada); sin la copia, no trae imagen.
+const LOOK = '/p/avatar/look.png'
+const scenes = [
+  scene(1, 0, 4),
+  scene(2, 4, 14, { imagePath: LOOK, avatar: view() }),
+  scene(3, 14, 18),
+  scene(4, 18, 28, { imagePath: LOOK, avatar: view({ stale: true }) }),
+  scene(5, 28, 38, { imagePath: undefined, imageStatus: 'pending', avatar: view({ status: 'planned', clipPath: undefined }) }),
+  scene(6, 38, 48, { imagePath: LOOK, avatar: view({ status: 'failed', clipPath: undefined, errorCode: 'avatar_moderation_rejected' }) }),
+  scene(7, 48, 51, { animation: { id: 'clip-7', provider: 'kie', status: 'ready', sceneIds: [7, 8], slotSeconds: 6, clipPath: '/p/clips/clip-7.mp4', clipMtimeMs: 1 } }),
+  scene(8, 51, 54),
+  scene(9, 54, 64, { imagePath: LOOK, avatar: view({ status: 'planned', clipPath: undefined }) }),
+  scene(10, 64, 68),
+  scene(11, 68, 72),
+]
+// El render del avatar de la escena 9 lleva un minuto (en la entrega 3 lo
+// llena el job; acá entra directo por la prop).
+const startedAt = Date.now() - 60_000
+const noop = () => {}
+window.selected = []
+function Host() {
+  const [selectedSceneId, setSelectedSceneId] = React.useState(2)
+  return <EditorTimeline scenes={scenes} timingBusy={false} durationSeconds={72} playheadSeconds={0} selectedSceneId={selectedSceneId} sceneStatus={{}} sceneErrors={{}} sceneVersions={{}} sceneAnimationStatus={{}} sceneAnimationProgress={{}} sceneAnimationErrors={{}} plannedSceneIds={[]} narrationSrc={null} musicSrc={null} sceneAvatarRendering={{ 9: { startedAt } }} layout={DEFAULT_TIMELINE_LAYOUT} onReorderTracks={noop} onToggleMuted={noop} onToggleLocked={noop} zoomIndex={3} onZoomChange={noop} onSelectScene={(id) => { window.selected.push(id); setSelectedSceneId(id) }} onSeek={noop} onScrub={noop} onScrubStart={noop} onScrubEnd={noop} onBoundaryDrag={noop} onBoundaryCommit={noop} onOpenAudio={noop} onOpenMusic={noop} />
+}
+const reactRoot = createRoot(document.getElementById('root'), { onUncaughtError: (error) => { renderError = error } })
+reactRoot.render(<I18nextProvider i18n={i18n}><TooltipProvider><Host /></TooltipProvider></I18nextProvider>)
+const cards = () => [...document.querySelectorAll('button')].filter((button) => button.style.getPropertyValue('--tone'))
+const toneOf = (card) => card.style.getPropertyValue('--tone').trim()
+const cardTitled = (title) => cards().find((card) => card.title === title)
+// La key de React no sale al DOM: se lee de la fibra del contenedor de cada bloque.
+const reactKeyOf = (element) => { const name = Object.keys(element).find((key) => key.startsWith('__reactFiber$')); return name ? element[name].key : null }
+const seconds = formatSlotSeconds(10, 'es')
+try {
+  await waitFor(() => cards().length === 6, 'seis tarjetas tipadas (cinco avatares y un clip)')
+  const avatars = cards().filter((card) => toneOf(card) === 'var(--amethyst)')
+  const clips = cards().filter((card) => toneOf(card) === 'var(--sky)')
+  check(avatars.length === 5 && clips.length === 1, 'morado en los cinco avatares y celeste en el clip')
+  for (const [ok, message] of window.tokenChecks) check(ok, message)
+  check(avatars.every((card) => card.querySelector('svg.lucide-user-round')) && clips[0].querySelector('svg.lucide-clapperboard'), 'ficha del tipo: busto en el avatar y claqueta en el clip')
+  check(cards().every((card) => card.className.includes('rounded-lg')), 'esquinas rounded-lg en las dos tarjetas')
+  check(clips[0].textContent.includes('7 · 8'), 'el clip sigue mostrando las escenas que fusiona')
+  const blockKeys = [...document.querySelectorAll('div.absolute.top-0.h-full > button')].map((card) => reactKeyOf(card.parentElement))
+  check(blockKeys.length > 0 && blockKeys.every((key) => key !== null), 'no se pudo leer la key desde la fibra (__reactFiber$): cambió el nombre interno de React o el selector de los bloques')
+  const expectedKeys = timelineBlocks(scenes, {}, { 9: { startedAt } }).map(timelineBlockKey)
+  check(blockKeys.join() === expectedKeys.join() && blockKeys.includes('avatar-2') && new Set(blockKeys).size === blockKeys.length, 'cada bloque lleva su timelineBlockKey (el avatar, la suya) y ninguna se repite: ' + blockKeys.join(', '))
+  const ready = cardTitled(i18n.t('library.editor.timeline.avatarTitle', { name: 'Ana oficina', seconds }))
+  check(ready && ready.className.includes('border-white'), 'el avatar elegido lleva borde blanco')
+  check(ready.textContent.includes(i18n.t('library.editor.timeline.avatarDuration', { seconds })), 'la duración del avatar')
+  const sources = [...ready.querySelectorAll('img')].map((image) => image.getAttribute('src'))
+  check(sources.length === 1 && sources[0] === 'fixture-image://' + LOOK + '?v=0', 'la miniatura es la vista previa del look, sola: ' + sources.join(', '))
+  const stale = cardTitled(i18n.t('library.editor.timeline.avatarStaleHint'))
+  check(stale && stale.textContent.includes(i18n.t('library.editor.timeline.avatarStale')) && !stale.className.includes('border-white'), 'desactualizado con su etiqueta')
+  const planned = cardTitled(i18n.t('library.editor.timeline.avatarPlanned'))
+  check(planned && planned.querySelectorAll('img').length === 0, 'planeado y sin la copia del look: el gradiente')
+  // El texto de cada código lo da CREATE_ERROR_MESSAGE_KEYS (spec §14), que
+  // LIBRARY_ERROR_MESSAGE_KEYS hereda; acá se mira que el bloque muestre el
+  // motivo que da el mapa, y que el mapa caiga en el genérico si no lo conoce.
+  check(errorKeyOf(undefined) === 'create.errors.unknown' && errorKeyOf('codigo_inexistente') === 'create.errors.unknown' && errorKeyOf('avatar_scene_without_image') === 'library.errors.avatarSceneWithoutImage' && errorKeyOf('avatar_moderation_rejected') === 'avatars.errors.moderationRejected', 'errorKeyOf mapea los códigos del avatar y cae en el genérico')
+  const failed = cardTitled(i18n.t('library.editor.timeline.avatarFailed', { reason: i18n.t(errorKeyOf('avatar_moderation_rejected')) }))
+  check(failed && [...failed.querySelectorAll('span')].some((span) => span.className.includes('bg-destructive/40')), 'fallido con el motivo de HeyGen y el velo rojo')
+  const rendering = cardTitled(i18n.t('library.editor.timeline.avatarRendering'))
+  check(rendering && /\d+%/.test(rendering.textContent), 'generando con su porcentaje')
+  // El reloj corre solo (un tick por segundo): a 0,75 puntos por segundo el
+  // entero cambia en menos de 1,4 s.
+  const percentBefore = rendering.textContent.match(/\d+%/)[0]
+  check(await waitFor(() => cardTitled(rendering.title)?.textContent.match(/\d+%/)?.[0] !== percentBefore, 'el porcentaje del render avanza solo (sigue en ' + percentBefore + ')'), 'el porcentaje del render avanza solo')
+  check(document.querySelectorAll('[role=separator]').length === 1, 'una sola frontera arrastrable (entre las escenas 10 y 11): ' + document.querySelectorAll('[role=separator]').length)
+  failed.click()
+  await waitFor(() => window.selected.at(-1) === 6 && cardTitled(failed.title)?.className.includes('border-white'), 'clic en el avatar: selecciona su escena')
+  check(sceneTimingLocked(scenes, [1, 2]) && sceneTimingLocked(scenes, [9, 10]) && !sceneTimingLocked(scenes, [10, 11]), 'las fronteras de un avatar quedan bloqueadas y las otras no')
+  check(avatarRenderPercent(startedAt, startedAt + 60_000) === 45 && avatarRenderPercent(startedAt, startedAt + 120_000) === 90 && avatarRenderPercent(startedAt, startedAt + 3_600_000) === 99, 'el avance simulado: 45 % al minuto, 90 % a los 2 min, nunca 100')
+
+  // Ruling D4 (spec §6.2): el panel de una escena de avatar no tiene imagen
+  // que regenerar ni describir; el de una escena de imagen sí (control). La
+  // animación de la escena no es lo que se prueba: el mismo stub que
+  // check-editor-character-ui.mjs (sin clave de Kie, el aviso con su enlace).
+  check(!sceneImageEditable(scenes[1]) && sceneImageEditable(scenes[0]), 'sceneImageEditable: no en la escena de avatar, sí en la de imagen')
+  const panelAnimation = { busy: false, provider: 'kie', configuredProviders: new Set(), credits: null, creditsLoading: false, creditsRefreshing: false, onRefreshCredits() {}, activity: undefined, progress: undefined, error: undefined, plan: undefined, onAnimate() {} }
+  const panelHost = document.createElement('div')
+  document.body.append(panelHost)
+  const panelRoot = createRoot(panelHost, { onUncaughtError: (error) => { renderError = error } })
+  const showPanel = (panelScene) => panelRoot.render(<QueryClientProvider client={new QueryClient()}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorScenePanel scene={panelScene} characters={[]} imageChoice={{ provider: 'fal', quality: 'low' }} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={noop} busy={false} regenerateLocked={false} userPromptPending={false} errorKey={undefined} onUserPromptChange={noop} onUserPromptBlur={noop} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={noop} onImageChoiceChange={noop} onCharactersChange={noop} onRegenerate={noop} animation={panelAnimation} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
+  const panelRegenerate = () => [...panelHost.querySelectorAll('button')].find((button) => button.textContent.includes(i18n.t('library.editor.panel.regenerate')))
+  showPanel(scenes[1])
+  await waitFor(() => panelHost.textContent.includes(i18n.t('library.editor.panel.avatarScene')), 'el panel de la escena de avatar explica que no tiene imagen que regenerar')
+  check(!panelHost.querySelector('#scene-user-prompt') && !panelRegenerate(), 'sobre un avatar no hay descripción ni «Regenerar imagen»')
+  // Sus tiempos se leen (la fila In/Out, sin el campo para tipearlos: sus
+  // fronteras no se mueven) y Kie no la anima: sin la sección de animación.
+  const editLabels = [i18n.t('library.editor.panel.clipInEdit'), i18n.t('library.editor.panel.clipOutEdit')]
+  const animationTitle = i18n.t('library.editor.panel.animation.title')
+  check(panelHost.textContent.includes(i18n.t('library.editor.panel.clipIn')) && panelHost.textContent.includes(i18n.t('library.editor.panel.clipOut')) && ![...panelHost.querySelectorAll('[aria-label]')].some((element) => editLabels.includes(element.getAttribute('aria-label'))), 'la escena de avatar muestra su In/Out de solo lectura')
+  check(!panelHost.textContent.includes(animationTitle), 'sobre un avatar no hay sección de animación')
+  showPanel(scenes[0])
+  await waitFor(() => panelHost.querySelector('#scene-user-prompt'), 'el panel de una escena de imagen sigue con su descripción')
+  check(panelRegenerate() && !panelHost.textContent.includes(i18n.t('library.editor.panel.avatarScene')), 'y con «Regenerar imagen», sin la nota del avatar')
+  check(panelHost.textContent.includes(animationTitle) && panelHost.textContent.includes(i18n.t('library.editor.panel.clipIn')), 'y con su animación y su In/Out, como siempre')
+
+  // El aviso de imágenes faltantes no manda a regenerar una escena de avatar
+  // (la 5 del proyecto, planeada y sin la copia del look).
+  check(missingImageSceneIds(scenes).length === 0 && JSON.stringify(missingImageSceneIds([{ id: 1 }, { id: 2, avatar: view() }, { id: 3, imagePath: LOOK }])) === '[1]', 'las imágenes faltantes no cuentan las escenas de avatar')
+
+  // La galería: ni lista ni deja seleccionar las escenas de avatar.
+  const galleryHost = document.createElement('div')
+  document.body.append(galleryHost)
+  const galleryRoot = createRoot(galleryHost, { onUncaughtError: (error) => { renderError = error } })
+  galleryRoot.render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorImageGallery projectId="fixture" scenes={scenes} videoFormat="16:9" durationSeconds={72} locked={false} imageProvider="fal" onRegenerateImages={async () => true} onUndoAnimation={async () => true} undoingSceneId={null} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
+  const galleryTrigger = await waitFor(() => galleryHost.querySelector('input[aria-haspopup="dialog"]'), 'el interruptor de la galería')
+  galleryTrigger.click()
+  const imageScenes = scenes.filter((item) => !item.avatar).map((item) => item.id)
+  const galleryCards = () => [...document.querySelectorAll('button[aria-label]')].map((button) => button.getAttribute('aria-label')).filter((label) => scenes.some((item) => label === i18n.t('library.editor.imageGallery.select', { id: item.id })))
+  await waitFor(() => galleryCards().length > 0, 'la galería abierta con sus tarjetas')
+  check(JSON.stringify(galleryCards()) === JSON.stringify(imageScenes.map((id) => i18n.t('library.editor.imageGallery.select', { id }))) && document.body.textContent.includes(i18n.t('library.editor.imageGallery.description', { count: imageScenes.length })), 'la galería lista solo las escenas de imagen: ' + galleryCards().join(', '))
+  document.getElementById('result').textContent = 'PASS: avatar timeline blocks (' + checks + ' checks)'
+} catch (error) {
+  const reason = renderError && renderError !== error ? ' (render error: ' + renderError.message + ')' : ''
+  document.getElementById('result').textContent = 'FAIL: ' + error.message + reason
+}
+`
+
+try {
+  const output = await build({
+    stdin: { contents: entry, resolveDir: resolve('.'), loader: 'jsx' },
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    tsconfig: 'tsconfig.app.json',
+    define: { 'process.env.NODE_ENV': '"development"' },
+    plugins: [
+      {
+        name: 'api-fixtures',
+        setup(plugin) {
+          plugin.onResolve({ filter: /^@\// }, (args) =>
+            mocks[args.path]
+              ? { path: args.path, namespace: 'fixture' }
+              : undefined,
+          )
+          plugin.onLoad({ filter: /.*/, namespace: 'fixture' }, (args) => ({
+            contents: mocks[args.path],
+            loader: 'js',
+            resolveDir: resolve('.'),
+          }))
+        },
+      },
+    ],
+  })
+  await writeFile(join(root, 'app.js'), output.outputFiles[0].contents)
+  await writeFile(
+    join(root, 'index.html'),
+    '<!doctype html><meta charset="utf-8"><div id="root"></div><pre id="result">RUNNING</pre><script>window.tokenChecks = ' +
+      JSON.stringify(tokenChecks) +
+      '</script><script type="module" src="./app.js"></script>',
+  )
+  await withChrome(chrome, join(root, 'profile'), async (call) => {
+    const { targetId } = await call('Target.createTarget', {
+      url: pathToFileURL(join(root, 'index.html')).href,
+    })
+    const { sessionId } = await call('Target.attachToTarget', {
+      targetId,
+      flatten: true,
+    })
+    await new Promise((done) => setTimeout(done, 1000))
+    const result = await call(
+      'Runtime.evaluate',
+      {
+        expression:
+          '(async () => { for (let i = 0; i < 400; i++) { const text = document.getElementById("result")?.textContent; if (text && text !== "RUNNING") return text; await new Promise(resolve => setTimeout(resolve, 50)); } return "FAIL: UI timeout: " + document.body.innerText; })()',
+        awaitPromise: true,
+        returnByValue: true,
+      },
+      sessionId,
+    )
+    const status = result.result?.value
+    assert.ok(status?.startsWith('PASS:'), status ?? JSON.stringify(result))
+    process.stdout.write(status + '\n')
+  })
+} finally {
+  await rm(root, { recursive: true, force: true, maxRetries: 3 })
+}

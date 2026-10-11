@@ -7,14 +7,24 @@ import {
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import type { AvatarBalanceResult } from '@pipeline/types/avatar.ts'
 
+interface UseAvatarBalanceOptions {
+  // El pre-check de saldo de Crear (useCostCheck) lo pide solo cuando hay
+  // una línea de HeyGen que comparar.
+  enabled?: boolean
+}
+
 // Saldo de la billetera de HeyGen (USD en la cuenta del dueño). Solo se pide
 // en la app nativa y con la clave de HeyGen guardada, la misma condición que
-// habilita los botones de la vista. Se relee solo tras cada cobro (lo
-// invalidan las mutaciones que cobran); `refresh` es el botón para los casos
-// especiales. `status` null = no se pide (sin nativo o sin clave) o todavía no
-// llegó (`loading`); `refreshing` gira el ícono en cualquier relectura.
-export function useAvatarBalance() {
-  const { canUseHeyGen: enabled } = useHeyGenAccess()
+// habilita los botones de la vista, y si quien lo usa lo necesita. Se relee
+// solo tras cada cobro (lo invalidan las mutaciones que cobran); `refresh` es
+// el botón para los casos especiales. `status` null = no se pide (sin nativo,
+// sin clave o sin necesidad) o todavía no llegó (`loading`); `refreshing` gira
+// el ícono en cualquier relectura.
+export function useAvatarBalance({
+  enabled: wanted = true,
+}: UseAvatarBalanceOptions = {}) {
+  const { canUseHeyGen } = useHeyGenAccess()
+  const enabled = canUseHeyGen && wanted
 
   const query = useQuery({
     queryKey: avatarsQueryKeys.balance,

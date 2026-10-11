@@ -4,16 +4,25 @@ import { timelineBlocks } from '@/modules/videos/utilities/timelineBlocks'
 import type { TimelineBlock } from '@/modules/videos/utilities/timelineBlocks'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 
+// ¿El bloque se ve como video? El clip de Kie listo y el avatar listo y al
+// día (spec §10.1: el fundido de 8 cuadros aplica igual); un avatar planeado,
+// fallido o desactualizado se ve estático con la vista previa del look, como
+// una imagen.
+function isAnimated(block: TimelineBlock): boolean {
+  if (block.kind === 'clip')
+    return block.state === 'ready' && Boolean(block.animation?.clipPath)
+  if (block.kind === 'avatar') return block.state === 'ready'
+
+  return false
+}
+
 function transitionBlock(block: TimelineBlock) {
   return {
     startSeconds: block.startSeconds,
     endSeconds: block.endSeconds,
-    animated:
-      block.kind === 'clip' &&
-      block.state === 'ready' &&
-      Boolean(block.animation?.clipPath),
+    animated: isAnimated(block),
     staticTransitionIn:
-      block.kind === 'scene' ? block.scene.staticTransitionIn : undefined,
+      block.kind === 'clip' ? undefined : block.scene.staticTransitionIn,
   }
 }
 

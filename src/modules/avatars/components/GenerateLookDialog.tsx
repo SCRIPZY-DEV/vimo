@@ -46,6 +46,9 @@ import type {
 
 interface GenerateLookDialogProps {
   avatar: AvatarSummary
+  // Formato con el que arranca (el del video, desde el enlace de Crear,
+  // ADR-0057 §9); sin él, `auto` como siempre.
+  initialAspectRatio?: AvatarAspectRatio
   // Adónde vuelve el foco al cerrar: la ficha que lo abrió. Sin
   // `DialogTrigger` (el diálogo se monta solo mientras está abierto) Radix lo
   // dejaría en `<body>`, en medio del panel del avatar.
@@ -65,13 +68,16 @@ interface GenerateLookDialogProps {
 // está abierto.
 export function GenerateLookDialog({
   avatar,
+  initialAspectRatio,
   returnFocusRef,
   onClose,
 }: GenerateLookDialogProps) {
   const { t, i18n } = useTranslation()
   const { generateLook, saving } = useAvatarMutations()
   const [prompt, setPrompt] = useState('')
-  const [aspectRatio, setAspectRatio] = useState<AvatarAspectRatio>('auto')
+  const [aspectRatio, setAspectRatio] = useState<AvatarAspectRatio>(
+    initialAspectRatio ?? 'auto',
+  )
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [name, setName] = useState('')
   // La validación de la descripción: se muestra pegada al campo, que es lo

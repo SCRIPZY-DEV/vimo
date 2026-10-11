@@ -330,6 +330,10 @@ export async function runVerbatimLane(
 
   const pending = scenes.filter(
     (scene) =>
+      // Una escena de avatar no lleva prompt: su video lo hace HeyGen con el
+      // look tal cual (ADR-0057). Tampoco en el rescate por política de
+      // contenido ni desde el editor.
+      !scene.avatar &&
       (!context.regenerateSceneIds?.size ||
         context.regenerateSceneIds.has(scene.id)) &&
       !isValidPrompt(scene.imagePrompt),

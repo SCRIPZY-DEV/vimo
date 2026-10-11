@@ -49,6 +49,10 @@ export interface TimelineLayout {
   locked: Record<TimelineTrackId, boolean>
 }
 
+// Tipo de un bloque con tarjeta propia en la pista de escenas (ADR-0057): el
+// clip animado de Kie o la escena de avatar.
+export type TimelineBlockKind = 'clip' | 'avatar'
+
 // Estado del mp4 final del proyecto: decide la etiqueta del botón de render
 // y si el preview reproduce el video o lo simula.
 export type RenderedVideoState = 'none' | 'current' | 'outdated'
@@ -132,6 +136,14 @@ export interface SceneAnimationProgress {
   animationId?: string
   startSeconds?: number
   endSeconds?: number
+}
+
+// Render de HeyGen de una escena de avatar en curso desde el editor (spec
+// §3.3: «generando» vive en memoria, no en disco). Lo va a llenar el job de
+// `avatar-render-scenes` de la entrega 3; en la 2 nadie lo llena y el bloque
+// del timeline nunca está «generando» en el editor.
+export interface SceneAvatarRendering {
+  startedAt: number
 }
 
 // Lo que el planificador haría con la escena seleccionada si se animara

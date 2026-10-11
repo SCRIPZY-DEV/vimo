@@ -1,3 +1,4 @@
+import type { NarrationSentence } from '../../narration/sentences.ts'
 import type { ProjectPaths } from '../../project/paths.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type { FrameSize } from '../../types/video-format.ts'
@@ -73,12 +74,68 @@ function header(frame: FrameSize): string {
   )
 }
 
+interface SubtitleCue {
+  startSeconds: number
+  endSeconds: number
+  text: string
+}
+
+// Las líneas de una escena: una sola con todo su texto, salvo la de un avatar
+// (ADR-0057), que habla hasta 60 s: ahí va una línea por frase de la
+// narración, recortada al tramo de la escena. La primera arranca con la
+// escena y la última termina con ella, así no queda un hueco sin subtítulo.
+// Sin frases (un proyecto sin `words.json`), la de avatar también sale entera.
+function sceneCues(
+  scene: Scene,
+  sentences: readonly NarrationSentence[],
+): SubtitleCue[] {
+  const startSeconds = scene.startSeconds!
+  const endSeconds = scene.endSeconds!
+  const whole = [{ startSeconds, endSeconds, text: scene.text }]
+  if (!scene.avatar) return whole
+
+  const inside = sentences.filter((sentence) => {
+    const middle = (sentence.startSeconds + sentence.endSeconds) / 2
+    return (
+      middle >= startSeconds &&
+      middle < endSeconds &&
+      sentence.text.trim().length > 0
+    )
+  })
+  if (inside.length === 0) return whole
+
+  return inside.map((sentence, index) => {
+    const isFirst = index === 0
+    const isLast = index === inside.length - 1
+    return {
+      startSeconds: isFirst
+        ? startSeconds
+        : Math.max(startSeconds, sentence.startSeconds),
+      endSeconds: isLast
+        ? endSeconds
+        : Math.min(endSeconds, sentence.endSeconds),
+      text: sentence.text,
+    }
+  })
+}
+
+function dialogueLine(cue: SubtitleCue): string {
+  return (
+    `Dialogue: 0,${timecode(cue.startSeconds)},` +
+    `${timecode(cue.endSeconds)},Default,,0,0,0,,` +
+    `${escapeDialogue(cue.text)}\n`
+  )
+}
+
 // Devuelve la ruta del .ass escrito, o undefined si no hay ni una línea que
-// escribir (proyecto sin timestamps, o escenas todas en silencio).
+// escribir (proyecto sin timestamps, o escenas todas en silencio). Las frases
+// de la narración (`detectSentences`) solo las usa una escena de avatar; sin
+// ellas, todas salen con una línea por escena, como siempre.
 export async function writeSubtitlesFile(
   paths: ProjectPaths,
   scenes: Scene[],
   frame: FrameSize,
+  sentences: readonly NarrationSentence[] = [],
 ): Promise<string | undefined> {
   const cues = scenes.filter(
     (scene) =>
@@ -89,12 +146,8 @@ export async function writeSubtitlesFile(
   if (cues.length === 0) return undefined
 
   const dialogues = cues
-    .map(
-      (scene) =>
-        `Dialogue: 0,${timecode(scene.startSeconds!)},` +
-        `${timecode(scene.endSeconds!)},Default,,0,0,0,,` +
-        `${escapeDialogue(scene.text)}\n`,
-    )
+    .flatMap((scene) => sceneCues(scene, sentences))
+    .map(dialogueLine)
     .join('')
 
   await writeFileAtomic(paths.subtitlesFile, `${header(frame)}${dialogues}`)

@@ -75,7 +75,7 @@ export function createVerbatimPromptPersistence(
           if (!scene) continue
           context.emitter.emit({
             type: 'scene-prompt-ready',
-            scene: await toSceneSummary(context.paths, scene),
+            scene: await toSceneSummary(context.paths, scene, context.metadata),
           })
         }
       })
