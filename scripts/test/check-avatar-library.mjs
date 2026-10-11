@@ -1,5 +1,5 @@
-// Los once subcomandos de la biblioteca de avatares (ADR-0057, entregas 1, 1b y
-// 2b) contra una carpeta raíz temporal y un HeyGen simulado con `fetch` falso.
+// Los doce subcomandos de la biblioteca de avatares (ADR-0057, entregas 1, 1b,
+// 2b y 2c) contra una carpeta raíz temporal y un HeyGen simulado con `fetch` falso.
 // Desde la entrega 1b un avatar de la biblioteca es un grupo de HeyGen con sus
 // looks: el alta por grupo con el look principal elegido o por defecto (el
 // primero listo con Avatar III), sin duplicados, con las vistas previas de la
@@ -11,11 +11,14 @@
 // idempotencia determinista, y con la orientación del formato pedido si HeyGen
 // no informa la suya, que el refresco conserva); el saldo, que nunca falla; la
 // metadata de la entrega 1 descartada con un aviso; el listado de avatares
-// (grupos) y de los looks de un grupo, el género normalizado y el borrado; y la
-// clasificación del stock público por tipo de look (`avatar-stock-types`).
-// Importa los handlers reales del sidecar.
+// (grupos) y de los looks de un grupo, el género normalizado y el borrado; la
+// clasificación del stock público por tipo de look (`avatar-stock-types`); y,
+// desde la entrega 2c, el borrado de verdad en HeyGen (`deleteGroup` del
+// cliente y `avatar-heygen-delete`, siempre contra el `fetch` falso), las
+// medidas de la imagen de un look y su formato (`lookFormatOf`). Importa los
+// handlers reales del sidecar.
 import assert from 'node:assert/strict'
-import {
+import fsPromises, {
   mkdir,
   mkdtemp,
   readdir,
@@ -24,10 +27,12 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises'
+import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { test } from 'node:test'
 
+import { lookFormatOf } from '../../pipeline/avatar/look-orientation.ts'
 import {
   avatarCreatePhoto,
   photoIdempotencyKey,
@@ -36,10 +41,18 @@ import { lookIdempotencyKey } from '../../pipeline/commands/avatars/avatar-gener
 import { avatarsSubcommands } from '../../pipeline/commands/avatars/subcommands.ts'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 import {
+  createHeyGenClient,
+  toHeyGenLook,
+} from '../../pipeline/providers/avatar/heygen.ts'
+import {
   STOCK_TYPES_CACHE_FILE,
   STOCK_TYPES_CACHE_TTL_MS,
   STOCK_TYPES_MAX_PAGES,
 } from '../../pipeline/types/avatar.ts'
+
+// El `rm` real de fs/promises, tomado antes de cualquier test (el centinela del
+// final comprueba que ningún reemplazo quedó puesto).
+const REAL_RM = fsPromises.rm
 
 const PNG_HEAD = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=',
@@ -252,7 +265,10 @@ const previewNames = (entry) =>
 // sirve `cdnImage(ruta)`, salvo las rutas que `cdnFails` rechaza; `me` es la
 // respuesta de `GET /v3/users/me` (`{ status, body }`). La subida de una
 // referencia (`reference-<n>.<ext>`) devuelve `asset-reference-<n>`, y la de
-// cualquier otro archivo `asset-9`. `onRequest` corre
+// cualquier otro archivo `asset-9`. `DELETE /v3/avatars/{id}` (entrega 2c)
+// responde 200 con `{ data: { id } }`, salvo que `deleteStatus` (un status, o
+// una función `(groupId) => status | undefined`) fuerce otro, con el sobre de
+// error de HeyGen. `onRequest` corre
 // antes de responder (para cancelar, o para escribir en disco a mitad de un
 // job). El fetch simulado es global: un mock vivo por test (ver el registro de
 // errores conocidos: `node-test-doble-mock-del-mismo-metodo-deja-el-global-sucio`).
@@ -271,6 +287,7 @@ function fakeHeyGen(
     groupLooksStatus,
     typeLooks,
     typeLooksStatus,
+    deleteStatus,
     cdnFails = () => false,
     me = { status: 200, body: { data: RAW_ME } },
     onRequest,
@@ -384,6 +401,19 @@ function fakeHeyGen(
           )
     }
     const groupPath = /^\/v3\/avatars\/([^/]+)$/.exec(target.pathname)
+    if (groupPath && method === 'DELETE') {
+      const groupId = decodeURIComponent(groupPath[1])
+      const status =
+        typeof deleteStatus === 'function'
+          ? deleteStatus(groupId)
+          : deleteStatus
+      if (status)
+        return json(
+          { error: { code: 'rejected', message: 'nope', param: null } },
+          status,
+        )
+      return json({ data: { id: groupId } })
+    }
     if (groupPath) {
       const groupId = decodeURIComponent(groupPath[1])
       const failure = groupFailures[groupId]
@@ -422,13 +452,14 @@ const cdnCalls = (calls) =>
     .map((call) => call.path)
     .sort()
 
-test('el mapa expone exactamente los once subcomandos', () => {
+test('el mapa expone exactamente los doce subcomandos', () => {
   assert.deepEqual(Object.keys(avatarsSubcommands).sort(), [
     'avatar-add',
     'avatar-balance',
     'avatar-create-photo',
     'avatar-delete',
     'avatar-generate-look',
+    'avatar-heygen-delete',
     'avatar-refresh',
     'avatar-set-main-look',
     'avatar-stock-groups',
@@ -4199,8 +4230,385 @@ test('avatar-delete: borra la carpeta y rechaza ids inválidos', async (t) => {
   )
 })
 
-test('centinela: al terminar, fetch vuelve a ser el real', () => {
+// ─── Entrega 2c: borrar un avatar propio en HeyGen ───
+
+// Un cliente de HeyGen con el `fetch` simulado de cada test.
+const heygenClient = () =>
+  createHeyGenClient('key-123', new AbortController().signal)
+
+// Un fetch simulado que solo anota los pedidos y responde con `respond`
+// (sin aserciones adentro: ERRORES-CONOCIDOS, asercion-dentro-de-un-fetch-
+// simulado-se-vuelve-fallo-de-red-y-los-reintentos-la-tapan).
+function recordingFetch(t, respond) {
+  const requests = []
+  globalThis.fetch.mock?.restore()
+  t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    requests.push({
+      url: String(url),
+      method: init.method,
+      apiKey: init.headers?.['X-Api-Key'],
+    })
+    return respond(requests.length)
+  })
+  return requests
+}
+
+const heygenError = (status, message = 'nope') =>
+  json({ error: { code: 'rejected', message, param: null } }, status)
+
+// Dos entradas del avatar propio `g-own` y una de Dante, otro grupo.
+async function writeOwnLibrary(root) {
+  const own = storedAvatar({ name: 'Mía', groupId: 'g-own', ownership: 'own' })
+  await writeStored(root, 'mia-aaaaaa', own)
+  await writeStored(root, 'mia-bbbbbb', own)
+  await writeStored(root, 'dante-aaaaaa', storedAvatar())
+}
+
+const libraryIds = async (root) =>
+  (await avatarsSubcommands['avatars-list'](context(root))).entries
+    .map((entry) => entry.id)
+    .sort()
+
+const ALL_THREE = ['dante-aaaaaa', 'mia-aaaaaa', 'mia-bbbbbb']
+
+const heygenDelete = (root, payload, apiKeys, events) =>
+  avatarsSubcommands['avatar-heygen-delete'](
+    context(root, payload, apiKeys, events),
+  )
+
+test('deleteGroup: DELETE /v3/avatars/{id} con el id codificado y la clave; un 200 y un 2xx sin cuerpo son borrado', async (t) => {
+  const requests = recordingFetch(t, (count) =>
+    count === 1
+      ? json({ data: { id: 'grupo con/espacio?' } })
+      : new Response(null, { status: 204 }),
+  )
+
+  assert.equal(
+    await heygenClient().deleteGroup('grupo con/espacio?'),
+    undefined,
+  )
+  assert.deepEqual(requests[0], {
+    url: 'https://api.heygen.com/v3/avatars/grupo%20con%2Fespacio%3F',
+    method: 'DELETE',
+    apiKey: 'key-123',
+  })
+
+  // HeyGen documenta un 200 con cuerpo; un 204 vacío igual es un borrado: el
+  // cuerpo no se usa.
+  assert.equal(await heygenClient().deleteGroup('g-own'), undefined)
+  assert.equal(requests.length, 2)
+  assert.equal(requests[1].url, 'https://api.heygen.com/v3/avatars/g-own')
+})
+
+test('deleteGroup: un 404 (HeyGen ya no tiene el grupo) resuelve; 401, 400, 429 agotado, 500 y la red caída son fallos con su código', async (t) => {
+  let requests = recordingFetch(t, () => heygenError(404, 'Avatar not found'))
+  assert.equal(await heygenClient().deleteGroup('g-own'), undefined)
+  assert.equal(requests.length, 1)
+
+  const cases = [
+    [401, 'avatar_invalid_key'],
+    [400, 'avatar_invalid_request'],
+    [500, 'avatar_network'],
+  ]
+  for (const [status, code] of cases) {
+    requests = recordingFetch(t, () => heygenError(status))
+    const error = await failure(heygenClient().deleteGroup('g-own'))
+    assert.equal(error.code, code, `HTTP ${status}`)
+    assert.equal(error.httpStatus, status)
+    assert.equal(error.provider, 'heygen')
+    assert.equal(requests.length, 1, `HTTP ${status}: un solo pedido`)
+  }
+
+  // Un 429 se repite tres veces, como todo el cliente (las esperas se cumplen
+  // al instante), y agotado sale avatar_rate_limited.
+  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+  requests = recordingFetch(t, () => heygenError(429, 'slow'))
+  const limited = await failure(heygenClient().deleteGroup('g-own'))
+  assert.equal(limited.code, 'avatar_rate_limited')
+  assert.equal(limited.httpStatus, 429)
+  assert.equal(requests.length, 4)
+
+  recordingFetch(t, () => {
+    throw new TypeError('fetch failed')
+  })
+  const offline = await failure(heygenClient().deleteGroup('g-own'))
+  assert.equal(offline.code, 'avatar_network')
+  assert.equal(offline.httpStatus, undefined)
+})
+
+test('avatar-heygen-delete: borra el grupo en HeyGen y después todas sus entradas de la biblioteca, sin tocar las demás', async (t) => {
+  const { root } = await session(t)
+  await writeOwnLibrary(root)
+  // Qué había en disco cuando salió el DELETE (se anota; se afirma después).
+  const onDiskAtDelete = []
+  const calls = fakeHeyGen(t, {
+    onRequest: async (_target, init) => {
+      if (init.method !== 'DELETE') return
+      onDiskAtDelete.push(await libraryIds(root))
+    },
+  })
+
+  // El nombre viaja solo para la fila del log de soporte: el sidecar no lo usa.
+  const result = await heygenDelete(root, { groupId: 'g-own', name: 'Mía' })
+
+  assert.deepEqual(result, {
+    groupId: 'g-own',
+    removedEntryIds: ['mia-aaaaaa', 'mia-bbbbbb'],
+  })
+  assert.deepEqual(heygenCalls(calls), ['DELETE /v3/avatars/g-own'])
+  assert.equal(calls[0].init.headers['X-Api-Key'], 'key-123')
+  assert.deepEqual(onDiskAtDelete, [ALL_THREE], 'primero HeyGen, después disco')
+  assert.deepEqual(await libraryIds(root), ['dante-aaaaaa'])
+  assert.equal(await exists(join(root, 'avatars', 'mia-aaaaaa')), false)
+  assert.equal(await exists(join(root, 'avatars', 'mia-bbbbbb')), false)
+})
+
+test('avatar-heygen-delete: si HeyGen ya no tenía el grupo (404) cuenta como borrado; un grupo sin entradas no quita nada', async (t) => {
+  const { root } = await session(t)
+  await writeOwnLibrary(root)
+  let calls = fakeHeyGen(t, { deleteStatus: 404 })
+  assert.deepEqual(await heygenDelete(root, { groupId: 'g-own' }), {
+    groupId: 'g-own',
+    removedEntryIds: ['mia-aaaaaa', 'mia-bbbbbb'],
+  })
+  assert.deepEqual(heygenCalls(calls), ['DELETE /v3/avatars/g-own'])
+  assert.deepEqual(await libraryIds(root), ['dante-aaaaaa'])
+
+  calls = fakeHeyGen(t)
+  assert.deepEqual(await heygenDelete(root, { groupId: 'g-sin-entradas' }), {
+    groupId: 'g-sin-entradas',
+    removedEntryIds: [],
+  })
+  assert.deepEqual(heygenCalls(calls), ['DELETE /v3/avatars/g-sin-entradas'])
+  assert.deepEqual(await libraryIds(root), ['dante-aaaaaa'])
+})
+
+test('avatar-heygen-delete: si HeyGen falla no toca la biblioteca y el fallo sale tal cual', async (t) => {
+  const { root } = await session(t)
+  await writeOwnLibrary(root)
+  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+
+  const cases = [
+    [401, 'avatar_invalid_key', 1],
+    [400, 'avatar_invalid_request', 1],
+    [429, 'avatar_rate_limited', 4],
+    [500, 'avatar_network', 1],
+  ]
+  for (const [status, code, requests] of cases) {
+    const calls = fakeHeyGen(t, { deleteStatus: status })
+    const error = await failure(heygenDelete(root, { groupId: 'g-own' }))
+    assert.equal(error.code, code, `HTTP ${status}`)
+    assert.equal(error.httpStatus, status)
+    assert.equal(heygenCalls(calls).length, requests, `HTTP ${status}`)
+    assert.ok(
+      heygenCalls(calls).every((call) => call === 'DELETE /v3/avatars/g-own'),
+    )
+    assert.deepEqual(await libraryIds(root), ALL_THREE, `HTTP ${status}`)
+  }
+
+  fakeHeyGen(t, {
+    onRequest: () => {
+      throw new TypeError('fetch failed')
+    },
+  })
+  const offline = await failure(heygenDelete(root, { groupId: 'g-own' }))
+  assert.equal(offline.code, 'avatar_network')
+  assert.deepEqual(await libraryIds(root), ALL_THREE)
+})
+
+test('avatar-heygen-delete: un id que no es de HeyGen, sin clave o sin carpeta raíz falla antes de llamar y no toca nada', async (t) => {
+  const { root } = await session(t)
+  await writeOwnLibrary(root)
+  const calls = fakeHeyGen(t)
+
+  const invalid = [
+    undefined,
+    {},
+    { groupId: '' },
+    { groupId: '..' },
+    { groupId: '.' },
+    { groupId: '../g-own' },
+    { groupId: 'g/own' },
+    { groupId: 'g own' },
+    { groupId: 'g%2Fown' },
+    { groupId: 'g-own?x=1' },
+    { groupId: 7 },
+    { groupId: ['g-own'] },
+    { groupId: null },
+    { groupId: 'x'.repeat(129) },
+  ]
+  for (const payload of invalid) {
+    const error = await failure(heygenDelete(root, payload))
+    assert.equal(error.code, 'invalid_payload', JSON.stringify(payload))
+  }
+
+  const noKey = await failure(heygenDelete(root, { groupId: 'g-own' }, {}))
+  assert.equal(noKey.code, 'missing_api_key')
+
+  const noRoot = await failure(
+    avatarsSubcommands['avatar-heygen-delete'](
+      context(undefined, { groupId: 'g-own' }),
+    ),
+  )
+  assert.equal(noRoot.code, 'missing_projects_root')
+
+  assert.equal(calls.length, 0, 'nada llegó a HeyGen')
+  assert.deepEqual(await libraryIds(root), ALL_THREE)
+
+  // 128 caracteres del alfabeto de HeyGen sí son un id.
+  const longId = 'x'.repeat(128)
+  await heygenDelete(root, { groupId: longId })
+  assert.deepEqual(heygenCalls(calls), [`DELETE /v3/avatars/${longId}`])
+})
+
+test('avatar-heygen-delete: una carpeta que no se puede borrar avisa sin la ruta y no frena a las demás ni al job', async (t) => {
+  const { root } = await session(t)
+  await writeOwnLibrary(root)
+  const locked = join(root, 'avatars', 'mia-aaaaaa')
+  const events = []
+  fakeHeyGen(t)
+  // El `rm` de esa carpeta falla como en Windows con un archivo abierto
+  // (EBUSY, con los reintentos ya agotados), simulado: así la prueba no depende
+  // de permisos POSIX ni de no correr como root. `syncBuiltinESMExports` lleva
+  // el reemplazo a los `import { rm }` de los módulos; se deshace al terminar.
+  const realRm = fsPromises.rm
+  fsPromises.rm = async (path, options) => {
+    if (path === locked)
+      throw Object.assign(
+        new Error(`EBUSY: resource busy or locked, rm '${path}'`),
+        { code: 'EBUSY' },
+      )
+    return realRm(path, options)
+  }
+  syncBuiltinESMExports()
+  try {
+    const result = await heygenDelete(
+      root,
+      { groupId: 'g-own' },
+      undefined,
+      events,
+    )
+    assert.deepEqual(result, {
+      groupId: 'g-own',
+      removedEntryIds: ['mia-bbbbbb'],
+    })
+  } finally {
+    fsPromises.rm = realRm
+    syncBuiltinESMExports()
+  }
+
+  const warnings = events.filter((event) => event.level === 'warn')
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0].message, /^avatar mia-aaaaaa: .*\(EBUSY\)$/)
+  assert.ok(!warnings[0].message.includes(root), 'sin la ruta del usuario')
+  assert.deepEqual(await libraryIds(root), ['dante-aaaaaa', 'mia-aaaaaa'])
+})
+
+// ─── Entrega 2c: las medidas de la imagen de un look y su formato ───
+
+test('toHeyGenLook: suma las medidas de la imagen solo si las dos son enteros positivos', () => {
+  const sized = toHeyGenLook({
+    ...RAW_LOOK,
+    image_width: 1920,
+    image_height: 1080,
+  })
+  assert.equal(sized.imageWidth, 1920)
+  assert.equal(sized.imageHeight, 1080)
+
+  const invalid = [
+    { image_width: 1920 },
+    { image_height: 1080 },
+    { image_width: 0, image_height: 1080 },
+    { image_width: 1920, image_height: -1080 },
+    { image_width: 1920.5, image_height: 1080 },
+    { image_width: '1920', image_height: '1080' },
+    { image_width: Number.NaN, image_height: 1080 },
+    { image_width: Number.POSITIVE_INFINITY, image_height: 1080 },
+    { image_width: null, image_height: null },
+  ]
+  for (const sizes of invalid) {
+    const look = toHeyGenLook({ ...RAW_LOOK, ...sizes })
+    assert.ok(look, `el look sigue valiendo: ${JSON.stringify(sizes)}`)
+    assert.equal(look.imageWidth, undefined, JSON.stringify(sizes))
+    assert.equal(look.imageHeight, undefined, JSON.stringify(sizes))
+  }
+  assert.equal(toHeyGenLook(RAW_LOOK).imageWidth, undefined, 'sin medidas')
+})
+
+test('lookFormatOf: la orientación de HeyGen manda; sin ella, el formato más cercano a las medidas; sin datos o con medidas inválidas, ninguno', () => {
+  assert.equal(lookFormatOf({ preferredOrientation: 'landscape' }), '16:9')
+  assert.equal(lookFormatOf({ preferredOrientation: 'portrait' }), '9:16')
+  assert.equal(lookFormatOf({ preferredOrientation: 'square' }), '1:1')
+
+  const bySize = [
+    [1920, 1080, '16:9'],
+    [1080, 1920, '9:16'],
+    [1024, 1024, '1:1'],
+    [1080, 1350, '4:5'],
+    [1350, 1080, '5:4'],
+    // Los que no son exactos van al más cercano.
+    [1170, 2532, '9:16'],
+    [1000, 1150, '4:5'],
+    [900, 1000, '1:1'],
+    [1600, 1000, '16:9'],
+  ]
+  for (const [imageWidth, imageHeight, format] of bySize)
+    assert.equal(
+      lookFormatOf({ imageWidth, imageHeight }),
+      format,
+      `${imageWidth}×${imageHeight}`,
+    )
+
+  assert.equal(lookFormatOf({}), null, 'sin orientación ni medidas')
+  const invalid = [
+    { imageWidth: 1920 },
+    { imageHeight: 1080 },
+    { imageWidth: 0, imageHeight: 1080 },
+    { imageWidth: 1920, imageHeight: -1 },
+    { imageWidth: Number.NaN, imageHeight: 1080 },
+    // Infinitas: no son medidas (antes daban 16:9).
+    { imageWidth: Number.POSITIVE_INFINITY, imageHeight: 1080 },
+    { imageWidth: 1920, imageHeight: Number.POSITIVE_INFINITY },
+    { imageWidth: Number.NEGATIVE_INFINITY, imageHeight: 1080 },
+    {
+      imageWidth: Number.POSITIVE_INFINITY,
+      imageHeight: Number.POSITIVE_INFINITY,
+    },
+  ]
+  for (const sizes of invalid)
+    assert.equal(
+      lookFormatOf(sizes),
+      null,
+      `${sizes.imageWidth}×${sizes.imageHeight}`,
+    )
+  // Una medida enorme pero finita sigue siendo una medida.
+  assert.equal(lookFormatOf({ imageWidth: 1e300, imageHeight: 1e300 }), '1:1')
+
+  // La orientación manda sobre las medidas: es la que decide en qué videos
+  // sirve el look.
+  assert.equal(
+    lookFormatOf({
+      preferredOrientation: 'portrait',
+      imageWidth: 1920,
+      imageHeight: 1080,
+    }),
+    '9:16',
+  )
+  assert.equal(
+    lookFormatOf({
+      preferredOrientation: 'square',
+      imageWidth: 1080,
+      imageHeight: 1350,
+    }),
+    '1:1',
+  )
+})
+
+test('centinela: al terminar, fetch y el rm de fs/promises vuelven a ser los reales', () => {
   // Cada test deja un solo mock vivo de fetch y node:test lo restaura al
   // terminar: si alguno armara dos, este global quedaría simulado.
   assert.equal(globalThis.fetch.mock, undefined)
+  // El `rm` que simula una carpeta trabada se devuelve en su `finally`.
+  assert.equal(fsPromises.rm, REAL_RM)
+  assert.equal(rm, REAL_RM)
 })

@@ -35,7 +35,7 @@ export function CreditsBadge({
         ? 'create.credits.notConfigured'
         : 'create.credits.error'
       return (
-        <span className="flex items-center gap-1 text-coral">
+        <span className="flex items-center gap-1 text-coral-text">
           <AlertCircle className="h-3.5 w-3.5" />
           {t(reasonKey)}
         </span>

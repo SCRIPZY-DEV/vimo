@@ -5,13 +5,13 @@ import { AlertCircle, Loader2, Star } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { LookChips } from '@/modules/avatars/components/LookChips'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
+import type { DisplayedLook } from '@/modules/avatars/types/look'
 import { lookUnusableReasonKey } from '@/modules/avatars/utilities/lookUsability'
-import type { AvatarLookSummary, HeyGenLook } from '@pipeline/types/avatar.ts'
 
 interface StockLookCardProps {
   // Un look del stock de HeyGen (segundo nivel del diálogo de stock) o de un
-  // avatar de la biblioteca (su detalle).
-  look: HeyGenLook | AvatarLookSummary
+  // avatar de la biblioteca (su detalle, con las medidas de HeyGen si las hay).
+  look: DisplayedLook
   imageUrl?: string
   videoUrl?: string
   // La vista previa remota todavía se está pidiendo: esqueleto.
@@ -28,8 +28,8 @@ interface StockLookCardProps {
 }
 
 // Ficha de un look: vista previa vertical (video al pasar el mouse), nombre y
-// chips de tipo, orientación y motor («Avatar III» o «No compatible con
-// Vimo»). Un look que se está generando es un esqueleto con «Generando…»; uno
+// chips de tipo, formato (16:9, 9:16…) y motor («Avatar III» o «No compatible
+// con Vimo»). Un look que se está generando es un esqueleto con «Generando…»; uno
 // que falló lo dice. Un clic abre su reproductor; un look no listo o sin el
 // motor de Vimo no pasa a principal. El botón que abre es una capa que cubre
 // toda la ficha, debajo del resto (que deja pasar el mouse): así convive con

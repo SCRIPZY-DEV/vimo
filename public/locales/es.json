@@ -1218,9 +1218,13 @@
       "moderationHint": "HeyGen rechaza contenido político, violento o engañoso, y el uso de personas reales sin su permiso.",
       "noKey": "Para sumar un avatar presentador, cargá tu clave de HeyGen.",
       "goToApiKeys": "Ir a Claves API",
-      "lookHelp": "El look principal de tu biblioteca va por defecto; acá podés elegir otro con la orientación del video.",
-      "lookMainNote": "Look principal de tu biblioteca",
-      "moderationTitle": "Normas de contenido de HeyGen"
+      "moderationTitle": "Normas de contenido de HeyGen",
+      "looksToggleAria": "Ver los looks de {{name}}",
+      "moreLooks_one": "+{{count}} look",
+      "moreLooks_other": "+{{count}} looks",
+      "otherFormat": "Para videos {{format}}",
+      "unknownOrientation": "Sin orientación confirmada",
+      "mainLook": "Principal"
     }
   },
   "createDemo": {
@@ -1915,7 +1919,7 @@
       "descripcion": "Elegí un avatar, mirá sus looks y agregalo con el look que más te guste. Agregar no cuesta nada; cada video que hagas con él se cobra por minuto.",
       "origenAria": "Origen de los avatares",
       "publicos": "De stock",
-      "propios": "Mis avatares en HeyGen",
+      "propios": "Mis avatares",
       "generoAria": "Género",
       "genero": {
         "todos": "Todos",
@@ -1939,11 +1943,6 @@
       "yaEnBiblioteca": "Este avatar ya está en tu biblioteca: elegí su look principal desde la biblioteca.",
       "abrirEnBiblioteca": "Abrir en tu biblioteca",
       "vacioLooks": "Este avatar todavía no tiene looks listos.",
-      "orientacion": {
-        "portrait": "Vertical",
-        "landscape": "Horizontal",
-        "square": "Cuadrado"
-      },
       "previewAria": "Vista previa de {{name}}",
       "categoriaAria": "Categoría",
       "categoria": {
@@ -1958,7 +1957,12 @@
       "favoritoAria": "Favorito: {{name}}",
       "vacioFavoritos": "Todavía no marcaste favoritos: tocá el corazón de un avatar para guardarlo acá.",
       "buscandoMas": "Buscando más avatares…",
-      "abrirLookAria": "Ver el look {{name}}"
+      "abrirLookAria": "Ver el look {{name}}",
+      "eliminarHeygen": "Eliminar de HeyGen",
+      "eliminarHeygenAria": "Eliminar {{name}} de HeyGen",
+      "eliminarConfirmar": "¿Eliminar para siempre?",
+      "eliminando": "Eliminando…",
+      "eliminarHint": "Se borra de tu cuenta de HeyGen con todos sus looks y no se puede deshacer. Si está en tu biblioteca, también sale de ahí."
     },
     "detalle": {
       "origen": {
@@ -1991,6 +1995,14 @@
       "salirPantallaCompleta": "Salir de pantalla completa",
       "descripcion": "Así sale el avatar en tus videos: con esta ropa, este fondo y este encuadre.",
       "errorVideo": "No se pudo cargar el video de este look. Revisá tu conexión y volvé a abrirlo."
+    },
+    "formato": {
+      "r16x9": "16:9",
+      "r9x16": "9:16",
+      "r1x1": "1:1",
+      "r4x5": "4:5",
+      "r5x4": "5:4",
+      "aria": "Formato {{format}}"
     },
     "generar": {
       "tarjeta": "Crear escenario",
@@ -2057,7 +2069,8 @@
       "creado": "Tu avatar está en entrenamiento. En unos minutos queda listo.",
       "eliminado": "Avatar quitado de tu biblioteca.",
       "lookPrincipal": "Look principal actualizado.",
-      "lookGenerando": "Generando el look. En unos minutos aparece en tu avatar."
+      "lookGenerando": "Generando el look. En unos minutos aparece en tu avatar.",
+      "eliminadoHeygen": "{{name}} se eliminó de HeyGen."
     },
     "errors": {
       "invalidKey": "HeyGen rechazó tu clave. Revisala en Claves API.",

@@ -22,6 +22,8 @@ import type {
   AvatarCreatePhotoResult,
   AvatarGenerateLookPayload,
   AvatarGenerateLookResult,
+  AvatarHeygenDeletePayload,
+  AvatarHeygenDeleteResult,
   AvatarRefreshResult,
   AvatarSetMainLookPayload,
   AvatarSetMainLookResult,
@@ -119,6 +121,17 @@ export const avatarsApi = {
   },
   async remove(id: string): Promise<void> {
     await runPipelineJob('avatar-delete', { id })
+  },
+  // Borra de verdad un avatar propio de la cuenta de HeyGen, con todos sus
+  // looks, y su entrada de la biblioteca si la tenía (entrega 2c). No se puede
+  // deshacer: la interfaz lo confirma antes.
+  async deleteFromHeyGen(
+    payload: AvatarHeygenDeletePayload,
+  ): Promise<AvatarHeygenDeleteResult> {
+    return runPipelineJob<AvatarHeygenDeleteResult>(
+      'avatar-heygen-delete',
+      payload,
+    )
   },
   // La foto se elige con el dialog nativo y viaja como RUTA (precedente:
   // personajes): el sidecar la lee, la valida y la sube. Nada de base64.

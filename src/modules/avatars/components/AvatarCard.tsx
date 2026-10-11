@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FocusEvent } from 'react'
+import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
@@ -15,6 +15,10 @@ import {
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useHoverIntent } from '@/modules/avatars/hooks/useHoverIntent'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
+import {
+  ignoreHeldKey,
+  isSecondClickOfDoubleClick,
+} from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import type { AvatarSummary } from '@pipeline/types/avatar.ts'
 
 interface AvatarCardProps {
@@ -101,6 +105,14 @@ export function AvatarCard({
     const visible = event.currentTarget.matches(':focus-visible')
     setNameFocused(visible)
     if (visible) hoverIntent.focusedWithKeyboard()
+  }
+
+  // «Seguro» quita, salvo que sea el segundo clic del doble clic que armó la
+  // confirmación: un clic suelto después, sí.
+  const confirmDelete = (event: MouseEvent) => {
+    if (isSecondClickOfDoubleClick(event)) return
+
+    onDelete(avatar)
   }
 
   const mainTile = (
@@ -223,13 +235,17 @@ export function AvatarCard({
               {t('avatars.stock.looksCount', { count: avatar.looks.length })}
             </span>
           )}
+          {/* Los dos botones son el mismo nodo para React (mismo lugar, mismo
+              tipo): el foco sigue en «Seguro» al armar, así que una tecla
+              sostenida tiene que ignorarse en los dos. */}
           <div className="ml-auto shrink-0">
             {confirming ? (
               <Button
                 variant="destructive"
                 size="sm"
                 disabled={disabled}
-                onClick={() => onDelete(avatar)}
+                onClick={confirmDelete}
+                onKeyDown={ignoreHeldKey}
                 onBlur={() => setConfirming(false)}
                 className="h-8 rounded-lg px-3 font-display"
               >
@@ -241,6 +257,7 @@ export function AvatarCard({
                 size="icon"
                 disabled={disabled}
                 onClick={() => setConfirming(true)}
+                onKeyDown={ignoreHeldKey}
                 aria-label={t('avatars.tarjeta.eliminar')}
                 className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive-text"
               >

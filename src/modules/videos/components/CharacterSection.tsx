@@ -234,7 +234,7 @@ export function CharacterSection({
             <p className="font-display text-sm font-bold text-destructive-text">
               {t('create.characters.fixedMissingTitle')}
             </p>
-            <p className="font-body text-xs text-muted-foreground">
+            <p className="font-body text-xs text-foreground/65">
               {t('create.characters.fixedMissingHint')}
             </p>
           </StyleCharacterChip>

@@ -1,4 +1,5 @@
 import { Ban, UserCheck, UserX } from 'lucide-react'
+import type { AvatarLookFormat } from '@pipeline/avatar/look-orientation.ts'
 import type { AvatarAspectRatio, AvatarEngine } from '@pipeline/types/avatar.ts'
 
 export const AvatarsRoutes = {
@@ -22,9 +23,16 @@ export function avatarScenarioPath(
   return `${AvatarsRoutes.avatars}?${params.toString()}`
 }
 
+const STOCK_GROUPS_QUERY_KEY = ['avatars', 'stockGroups'] as const
+
 export const avatarsQueryKeys = {
   list: ['avatars', 'list'],
-  stockGroups: ['avatars', 'stockGroups'],
+  stockGroups: STOCK_GROUPS_QUERY_KEY,
+  // Las páginas de avatares de un origen (el stock público o los de la
+  // cuenta), como las pide `useStockGroups`: el borrado en HeyGen saca la
+  // tarjeta de esa misma caché.
+  stockGroupsOf: (ownership: 'public' | 'private') =>
+    [...STOCK_GROUPS_QUERY_KEY, ownership] as const,
   stockLooks: ['avatars', 'stockLooks'],
   stockTypes: ['avatars', 'stockTypes'],
   stockFavorites: ['avatars', 'stockFavorites'],
@@ -200,6 +208,17 @@ export type LookPlayerRate = (typeof LOOK_PLAYER_RATES)[number]
 // Cuántos segundos salta el reproductor de un look con las flechas izquierda y
 // derecha, con el foco en el escenario.
 export const LOOK_PLAYER_SKIP_SECONDS = 5
+
+// El formato de un look en su ficha (entrega 2c): la clave del texto de cada
+// formato de `lookFormatOf` (pipeline/avatar/look-orientation.ts). Atado al
+// tipo: un formato nuevo no compila sin su texto.
+export const AVATAR_LOOK_FORMAT_LABEL_KEYS: Record<AvatarLookFormat, string> = {
+  '16:9': 'avatars.formato.r16x9',
+  '9:16': 'avatars.formato.r9x16',
+  '1:1': 'avatars.formato.r1x1',
+  '4:5': 'avatars.formato.r4x5',
+  '5:4': 'avatars.formato.r5x4',
+}
 
 // Grilla de avatares y de looks: el stock, sus esqueletos y el detalle de un
 // avatar comparten el layout para que nada salte al llegar los datos.

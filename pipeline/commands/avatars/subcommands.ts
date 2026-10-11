@@ -4,6 +4,7 @@ import { avatarBalance } from './avatar-balance.ts'
 import { avatarCreatePhoto } from './avatar-create-photo.ts'
 import { avatarDelete } from './avatar-delete.ts'
 import { avatarGenerateLook } from './avatar-generate-look.ts'
+import { avatarHeygenDelete } from './avatar-heygen-delete.ts'
 import { avatarRefresh } from './avatar-refresh.ts'
 import { avatarSetMainLook } from './avatar-set-main-look.ts'
 import { avatarStockGroups } from './avatar-stock-groups.ts'
@@ -25,4 +26,6 @@ export const avatarsSubcommands: Record<string, SubcommandHandler> = {
   'avatar-generate-look': avatarGenerateLook,
   'avatar-balance': avatarBalance,
   'avatar-delete': avatarDelete,
+  // Borra el avatar de la cuenta de HeyGen, no solo de la biblioteca.
+  'avatar-heygen-delete': avatarHeygenDelete,
 }

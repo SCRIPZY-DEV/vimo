@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import type { InfiniteData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { avatarsApi } from '@/modules/avatars/api'
 import {
@@ -14,8 +15,29 @@ import type {
   AvatarCreatePhotoPayload,
   AvatarGenerateLookPayload,
   AvatarSetMainLookPayload,
+  AvatarStockGroupsResult,
   AvatarSummary,
+  HeyGenAvatarGroup,
 } from '@pipeline/types/avatar.ts'
+
+// Las páginas de avatares de `useStockGroups` sin un grupo; el cursor de cada
+// una queda igual.
+function withoutGroup(
+  data: InfiniteData<AvatarStockGroupsResult, string> | undefined,
+  groupId: string,
+) {
+  if (!data) return data
+
+  return {
+    ...data,
+    pages: data.pages.map((page) => {
+      return {
+        ...page,
+        groups: page.groups.filter((group) => group.groupId !== groupId),
+      }
+    }),
+  }
+}
 
 // Todas van al sidecar local, que sin red responde `avatar_network` por su
 // cuenta: con el `networkMode` por defecto (`online`), TanStack pausaría la
@@ -151,12 +173,40 @@ export function useAvatarMutations() {
     onSettled: invalidate,
   })
 
+  // Eliminar un avatar propio de HeyGen, de verdad (entrega 2c): el grupo con
+  // todos sus looks y sus entradas de la biblioteca. No se deshace: la tarjeta
+  // lo confirma antes. Al lograrlo, la tarjeta sale de «Mis avatares» en el
+  // acto (HeyGen ya no lo tiene) y, sin esperar, se releen los avatares de la
+  // cuenta y la biblioteca: la mutación termina con la tarjeta afuera. Si
+  // falla, avisa y nada cambia: la tarjeta vuelve.
+  // El nombre solo viaja para la fila del log de soporte («Avatar: <nombre>»).
+  const heygenDeleteMutation = useMutation({
+    mutationFn: (group: HeyGenAvatarGroup) =>
+      avatarsApi.deleteFromHeyGen({ groupId: group.groupId, name: group.name }),
+    networkMode: 'always',
+    onSuccess: (_result, group) => {
+      // Los avatares de la cuenta: la misma clave que usa `useStockGroups`.
+      const privateGroupsKey = avatarsQueryKeys.stockGroupsOf('private')
+      queryClient.setQueryData<InfiniteData<AvatarStockGroupsResult, string>>(
+        privateGroupsKey,
+        (data) => withoutGroup(data, group.groupId),
+      )
+      toast({
+        description: t('avatars.toasts.eliminadoHeygen', { name: group.name }),
+      })
+      void queryClient.invalidateQueries({ queryKey: privateGroupsKey })
+      void invalidate()
+    },
+    onError: (error) => showError(error),
+  })
+
   return {
     addAvatar: addMutation.mutateAsync,
     createFromPhoto: createMutation.mutateAsync,
     setMainLook: setMainMutation.mutateAsync,
     generateLook: generateMutation.mutateAsync,
     deleteAvatar: deleteMutation.mutate,
+    deleteFromHeyGen: heygenDeleteMutation.mutateAsync,
     saving:
       addMutation.isPending ||
       createMutation.isPending ||

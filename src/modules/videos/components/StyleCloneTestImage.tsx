@@ -51,7 +51,7 @@ export function StyleCloneTestImage({
           className,
         )}
       >
-        <TriangleAlert className="h-5 w-5 text-coral" />
+        <TriangleAlert className="h-5 w-5 text-coral-text" />
         <p className="font-display text-xs font-bold text-foreground">
           {t('create.styleClone.testFailed')}
         </p>

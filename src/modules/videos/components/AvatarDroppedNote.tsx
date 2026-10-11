@@ -20,7 +20,10 @@ export function AvatarDroppedNote({
 
   return (
     <p className="flex items-start gap-2 rounded-lg border border-coral/40 bg-coral/10 p-3 font-body text-sm text-foreground">
-      <UserRound aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-coral" />
+      <UserRound
+        aria-hidden
+        className="mt-0.5 h-4 w-4 shrink-0 text-coral-text"
+      />
       <span>
         {noneFit
           ? t('create.progress.avatarNoneFit', { count: dropped })

@@ -142,14 +142,21 @@ export interface HeyGenCreateVideoInput {
   audioAssetId: string
   // El formato del proyecto: HeyGen renderiza el look en ese cuadro.
   aspectRatio: VideoFormat
-  // `vimo:<proyecto>:scene-<id>:<hash8>`: con él se recupera un pedido sin respuesta.
+  // `<nombre del video> · <marca>` (la marca sola, sin nombre), con la marca
+  // `vimo:<proyecto>:scene-<id>:<hash8>` siempre entera y al final: con ella se
+  // recupera un pedido sin respuesta (diseño §7.1).
   title: string
   // Mismo pedido → misma clave: HeyGen repite la respuesta 24 h y no cobra dos veces.
   idempotencyKey: string
 }
 
 export interface HeyGenListVideosParams {
-  // HeyGen filtra por substring; quien busca compara el título exacto.
+  // Quien busca pasa el título guardado (una página: sirve aunque HeyGen filtre
+  // por igualdad o por prefijo) o la MARCA (según la OpenAPI el filtro es por
+  // substring y devuelve también las copias y los renders con otro nombre
+  // delante). La elección la hace quien busca (`findOwnVideo`, lane.ts):
+  // primero el título exacto que salió y, sin él, el que termina en la marca y
+  // no está `failed`.
   title?: string
   token?: string
 }
@@ -182,6 +189,9 @@ export interface HeyGenClient {
   createVideo(input: HeyGenCreateVideoInput): Promise<string>
   getVideo(videoId: string): Promise<HeyGenVideo>
   listVideos(params: HeyGenListVideosParams): Promise<HeyGenVideosPage>
+  // Borra para siempre un avatar propio (el grupo con todos sus looks). Un
+  // grupo que HeyGen ya no tiene cuenta como borrado.
+  deleteGroup(groupId: string): Promise<void>
 }
 
 interface RawLook {
@@ -194,6 +204,8 @@ interface RawLook {
   gender?: unknown
   supported_api_engines?: unknown
   preferred_orientation?: unknown
+  image_width?: unknown
+  image_height?: unknown
   status?: unknown
 }
 
@@ -239,6 +251,16 @@ function toCount(value: unknown): number {
   return value
 }
 
+// Una medida de imagen de la API: un entero mayor que cero.
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
+// Un status de una respuesta que HeyGen aceptó (2xx).
+function isSuccessStatus(status: number | undefined): boolean {
+  return status !== undefined && status >= 200 && status < 300
+}
+
 // Género de HeyGen → género de Vimo. El stock público lo manda como `male` /
 // `female` y los avatares propios como `Man` / `Woman` (sin distinguir
 // mayúsculas); cualquier otra cosa, o su ausencia, queda sin género.
@@ -260,7 +282,9 @@ function toLibraryStatus(value: unknown): AvatarLibraryStatus | undefined {
 }
 
 // Un look de la API en nuestra forma; null si le falta lo mínimo (id, nombre
-// y un tipo conocido). Los motores desconocidos se descartan.
+// y un tipo conocido). Los motores desconocidos se descartan. Las medidas de
+// la imagen van de a par: las dos enteras y positivas, o ninguna (una sola no
+// dice el formato del look, `lookFormatOf`).
 export function toHeyGenLook(raw: unknown): HeyGenLook | null {
   if (!raw || typeof raw !== 'object') return null
   const look = raw as RawLook
@@ -290,6 +314,13 @@ export function toHeyGenLook(raw: unknown): HeyGenLook | null {
     orientation === 'square'
   )
     result.preferredOrientation = orientation
+  if (
+    isPositiveInteger(look.image_width) &&
+    isPositiveInteger(look.image_height)
+  ) {
+    result.imageWidth = look.image_width
+    result.imageHeight = look.image_height
+  }
   const status = toLibraryStatus(look.status)
   if (status) result.status = status
 
@@ -783,6 +814,25 @@ export function createHeyGenClient(
         .map(toListedVideo)
         .filter((video): video is HeyGenListedVideo => video !== null)
       return { videos, nextToken }
+    },
+    async deleteGroup(groupId) {
+      // `DELETE /v3/avatars/{group_id}` (OpenAPI v3): 200 con `{ data: { id } }`.
+      // El cuerpo no se usa: una respuesta 2xx que no es JSON (un 204 sin
+      // cuerpo) también es un borrado. Un 404 es un grupo que HeyGen ya no
+      // tiene (se borró antes, desde HeyGen o desde otra ventana): para quien
+      // lo borra, el resultado es el mismo. El resto de los rechazos sale como
+      // en todo el cliente (`heygenFailure`).
+      try {
+        await request(`/v3/avatars/${encodeURIComponent(groupId)}`, {
+          method: 'DELETE',
+        })
+      } catch (error) {
+        if (!(error instanceof PipelineFailure)) throw error
+        if (error.httpStatus === 404) return
+        if (isSuccessStatus(error.httpStatus)) return
+
+        throw error
+      }
     },
   }
 }

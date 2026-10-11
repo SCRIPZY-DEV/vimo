@@ -57,6 +57,11 @@ const ID_NAME_LIMIT = 32
 export const MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
 const AVATAR_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
+// En Windows, Defender o el indexador pueden tener abierto un archivo de la
+// carpeta de un avatar y el `rm` choca con EBUSY/EPERM: se reintenta con
+// backoff lineal, con los mismos ocho intentos y 40 ms de `atomic-fs.ts`.
+const ENTRY_REMOVE_MAX_RETRIES = 8
+const ENTRY_REMOVE_RETRY_DELAY_MS = 40
 // La vista previa de un look se guarda con el id de HeyGen como nombre: solo
 // si el id no puede salir de la carpeta (sin `.`, `/` ni `\`). Un look con
 // otro id se queda sin vista previa local.
@@ -484,6 +489,52 @@ export async function findAvatarByGroup(
 ): Promise<StoredAvatar | null> {
   const avatars = await listStoredAvatars(avatarsDirectory)
   return avatars.find((avatar) => avatar.metadata.groupId === groupId) ?? null
+}
+
+// Borra la carpeta de una entrada de la biblioteca, con todo lo que tiene. Solo
+// en disco: no habla con HeyGen. Una carpeta que ya no está no es un error.
+// La usan `avatar-delete` (quitar de la biblioteca) y `removeGroupEntries`.
+export async function removeAvatarFolder(
+  entryDirectory: string,
+): Promise<void> {
+  await rm(entryDirectory, {
+    recursive: true,
+    force: true,
+    maxRetries: ENTRY_REMOVE_MAX_RETRIES,
+    retryDelay: ENTRY_REMOVE_RETRY_DELAY_MS,
+  })
+}
+
+// Quita de la biblioteca todas las entradas de un grupo de HeyGen (las que la
+// biblioteca lee, con metadata válida) y devuelve sus ids, ordenados. Lo llama
+// `avatar-heygen-delete` cuando HeyGen ya borró el grupo: una carpeta que no se
+// puede borrar no frena a las demás ni tumba el job (el borrado en HeyGen ya
+// ocurrió); avisa por el log con el código del sistema, sin la ruta, y queda
+// fuera de la lista (sigue en la biblioteca y su refresco la marcará
+// `avatar_group_missing`).
+export async function removeGroupEntries(
+  avatarsDirectory: string,
+  groupId: string,
+  emitter: PipelineEmitter,
+): Promise<string[]> {
+  const removed: string[] = []
+  for (const avatar of await listStoredAvatars(avatarsDirectory)) {
+    if (avatar.metadata.groupId !== groupId) continue
+
+    try {
+      await removeAvatarFolder(avatar.entryDirectory)
+      removed.push(avatar.id)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code
+      emitter.emit({
+        type: 'log',
+        level: 'warn',
+        message: `avatar ${avatar.id}: its group was deleted in HeyGen but its folder could not be removed (${code ?? 'unknown'})`,
+      })
+    }
+  }
+
+  return removed.sort()
 }
 
 // Un look de HeyGen como look guardado de la biblioteca. Un look público no

@@ -193,7 +193,7 @@ export function SceneAnimationSection({
         </p>
       )}
       {rejectionKey && (
-        <p className="font-body text-xs text-coral">{t(rejectionKey)}</p>
+        <p className="font-body text-xs text-coral-text">{t(rejectionKey)}</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <CreditsBadge

@@ -31,7 +31,8 @@ música, voces, personajes, claves) siguió con la clase vieja.
   `0 72% 45%` (`#c52020`). El del oscuro no cambia (coral `0 100% 70%`, `#ff6666`). `--destructive`
   no se toca: los botones rojos (`variant="destructive"`), `bg-destructive/N`, `border-destructive/N`
   y la variante `destructive` del toast quedan igual. El comentario del token ahora cuenta las
-  medidas.
+  medidas. **Valor superado por la ronda 3 de WP-I:** el tema claro pasó a `0 72% 43%` (`#bd1f1f`),
+  el mismo valor que `--destructive` (ver la actualización bajo la tabla de contrastes).
 - **24 componentes:** `text-destructive` → `text-destructive-text` en 32 usos (31 con la clase
   pelada, `hover:` o `focus:` más una `text-destructive/80`) de 29 líneas:
   `api-keys/ApiKeyCard`, `characters/CharacterCard`, `common/PromptModelCard`,
@@ -68,6 +69,14 @@ Las cajas tintadas (`bg-destructive/N`) se componen sobre su superficie en sRGB,
 | oscuro | `bg-destructive/10` sobre `card`   | 1,69:1                     | 5,93:1                            |
 | oscuro | `bg-destructive/15` sobre `card`   | 1,67:1                     | 5,84:1                            |
 
+> **Actualización (2026-10-11, WP-I):** el tema claro oscureció `--destructive` a `0 72% 43%` (R-I4) y,
+> en la ronda 3, `--destructive-text` al mismo valor, `#bd1f1f` (antes `#c52020`). Las filas del claro de
+> esta tabla ahora dan: `--background` y `--card` 6,21:1, `--muted` 5,80:1, `--accent` 5,06:1 y las
+> cajas `bg-destructive/5`, `/10` y `/15` 5,74:1, 5,27:1 y 4,81:1. El oscuro no cambia. La columna
+> «Después» de arriba, el «Por qué `0 72% 45%`» de abajo y las cifras de «Pruebas manuales» describen
+> el valor original. Ver
+> `docs/fixes/2026-10-11-fix-destructive-fill-contrast/destructive-fill-contrast.md` («Ronda 3»).
+
 Ejemplo a mano, `#c52020` sobre blanco: R=197 da 0,5586 y G=B=32 dan 0,0144; `L = 0,2126·0,5586 +
 0,7152·0,0144 + 0,0722·0,0144 = 0,1301`; `(1 + 0,05) / (0,1301 + 0,05) = 5,83`.
 
@@ -84,6 +93,9 @@ foco de los menús ya cae a 3,99:1.
   `src/`; al cambiarlo desaparece del CSS construido la clase `hover:text-destructive`.
 - **`--destructive` y todo lo que lo usa de fondo o borde no cambian**, como se pidió. En claro eso
   deja el botón rojo como blanco sobre coral (2,86:1), igual que antes; no es parte de este fix.
+  **Superado el 2026-10-11 (R-I4 de WP-I):** el tema claro oscureció `--destructive` a `0 72% 43%`
+  y el blanco encima da 6,21:1; ver
+  `docs/fixes/2026-10-11-fix-destructive-fill-contrast/destructive-fill-contrast.md`.
 - **`text-coral` queda fuera:** varios errores y avisos (`Login`, `ApiKeys`, `GemPasteStep`,
   `StyleCloneSourceStep`, `CreateAnimationSection`, `Alert` tono `danger`) usan `--coral`, que vale
   `0 100% 70%` en los dos temas, o sea los mismos 2,86:1 sobre blanco en claro. Es otra clase y una
@@ -148,7 +160,9 @@ foco de los menús ya cae a 3,99:1.
 
    Salida esperada: 14 líneas `ok` (claro de 4,75:1 a 5,83:1; oscuro de 4,75:1 a 6,55:1). Con el
    valor viejo del tema claro (`--destructive-text: 0 100% 70%`) las 7 líneas del claro dan `FAIL`
-   (de 2,33:1 a 2,86:1) y el código de salida es 1.
+   (de 2,33:1 a 2,86:1) y el código de salida es 1. Desde WP-I (R-I4 y ronda 3, que oscurecieron
+   `--destructive` y `--destructive-text` en claro) el claro va de 4,81:1 (`bg-destructive/15`) a
+   6,21:1, y no de 4,75:1 a 5,83:1.
 
 3. Formato, lint, catálogos y build: `pnpm exec prettier --check src docs/fixes`,
    `pnpm exec eslint src`, `pnpm check:locales` y `pnpm build`.
@@ -160,7 +174,8 @@ foco de los menús ya cae a 3,99:1.
    grep -oE "\.(hover\\\\:|focus\\\\:)?text-destructive-text\{[^}]*\}" dist/assets/*.css
    ```
 
-   Esperado: `0 72% 45%` (claro) y `0 100% 70%` (oscuro); `.text-destructive-text`,
+   Esperado: `0 72% 43%` (claro; era `0 72% 45%` hasta la ronda 3 de WP-I) y `0 100% 70%` (oscuro);
+   `.text-destructive-text`,
    `.hover\:text-destructive-text:hover` y `.focus\:text-destructive-text:focus`.
 
 ## Pruebas manuales

@@ -46,7 +46,7 @@ export function MissingApiKeysDialog({
               key={requirement.join('|')}
               className="flex items-center gap-2 rounded-xl border-2 border-coral/40 bg-coral/10 px-3 py-2"
             >
-              <KeyRound className="h-4 w-4 shrink-0 text-coral" />
+              <KeyRound className="h-4 w-4 shrink-0 text-coral-text" />
               <span className="font-display text-sm font-bold text-foreground">
                 {requirementLabel(requirement, connector)}
               </span>

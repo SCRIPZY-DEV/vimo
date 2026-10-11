@@ -13,23 +13,50 @@ import type {
 } from '@pipeline/types/avatar.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
-// ¿Este look sirve para un video en este formato? (spec §6.2 y §9: HeyGen
-// renderiza el look tal cual, con su fondo, así que tiene que tener la
-// orientación del video). La orientación la decide `lookOrientationFit`
-// (pipeline/avatar/look-orientation.ts), la misma regla con la que
-// create-video-project valida: acá solo se ofrece `match`; un look sin
-// orientación conocida (`unknown`) no se ofrece, porque el clip podría salir
-// recortado y el render ya estaría pagado. Además: listo, con el motor de
-// Vimo —mirado en `supportedEngines`, nunca deducido de `status: 'ready'`
-// (cuidado 1 de §16)— y con tarifa para su tipo.
+// Por qué un look no sirve para un video en este formato (`lookUnfitReason`).
+export type LookUnfitReason =
+  | 'processing'
+  | 'failed'
+  | 'engine'
+  | 'rate'
+  | 'unknownOrientation'
+  | 'otherFormat'
+
+// Por qué un look no sirve para un video en este formato, o null si sirve
+// (spec §6.2 y §9: HeyGen renderiza el look tal cual, con su fondo, así que
+// tiene que tener la orientación del video). Es LA regla: con ella Crear
+// ofrece los looks (`avatarLooksFor`) y la grilla del botón «Look» dice por
+// qué uno no se elige, sin espejos que puedan divergir. En orden: listo (ni
+// generándose ni fallido), con el motor de Vimo —mirado en
+// `supportedEngines`, nunca deducido de `status: 'ready'` (cuidado 1 de
+// §16)—, con tarifa para su tipo y con la orientación del formato según
+// `lookOrientationFit` (pipeline/avatar/look-orientation.ts), la misma regla
+// con la que create-video-project valida: un look sin orientación conocida
+// (`unknown`) no se ofrece, porque el clip podría salir recortado y el render
+// ya estaría pagado.
+export function lookUnfitReason(
+  look: AvatarLookSummary,
+  videoFormat: VideoFormat,
+): LookUnfitReason | null {
+  if (look.status === 'processing') return 'processing'
+
+  if (look.status === 'failed') return 'failed'
+
+  if (!look.supportedEngines.includes(AVATAR_DEFAULT_ENGINE)) return 'engine'
+
+  if (avatarRatePerMinute(look.lookType) === null) return 'rate'
+
+  const fit = lookOrientationFit(look, videoFormat)
+  if (fit === 'unknown') return 'unknownOrientation'
+
+  if (fit === 'mismatch') return 'otherFormat'
+
+  return null
+}
+
+// ¿Este look sirve para un video en este formato?
 function isLookFor(look: AvatarLookSummary, videoFormat: VideoFormat): boolean {
-  if (look.status !== 'ready') return false
-
-  if (!look.supportedEngines.includes(AVATAR_DEFAULT_ENGINE)) return false
-
-  if (avatarRatePerMinute(look.lookType) === null) return false
-
-  return lookOrientationFit(look, videoFormat) === 'match'
+  return lookUnfitReason(look, videoFormat) === null
 }
 
 // Los looks de un avatar que sirven para el formato, con el principal

@@ -43,7 +43,7 @@ export function AvatarBalanceBadge() {
     if (failed) {
       return (
         <span className="flex items-center gap-1.5 font-semibold text-foreground">
-          <AlertCircle aria-hidden className="h-3.5 w-3.5 text-coral" />
+          <AlertCircle aria-hidden className="h-3.5 w-3.5 text-coral-text" />
           {t('avatars.saldo.noDisponible')}
         </span>
       )

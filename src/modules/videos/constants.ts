@@ -22,6 +22,7 @@ import type {
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 import type { GemSectionKey } from '@pipeline/types/styles.ts'
 import type { ScenePromptFailureSource } from '@pipeline/types/scenes.ts'
+import type { AvatarLookFormat } from '@pipeline/avatar/look-orientation.ts'
 import {
   AVATAR_DEFAULT_APPEARANCE_SECONDS,
   AVATAR_DEFAULT_APPEARANCES,
@@ -37,6 +38,7 @@ import type {
   SelectedCharacter,
   StageToneClasses,
 } from './types/create'
+import type { LookUnfitReason } from './utilities/selectableAvatar'
 import type {
   AudioMixValue,
   LibraryTab,
@@ -1042,16 +1044,60 @@ export const AVATAR_NO_LOOK_KEYS: Record<VideoFormat, string> = {
   '16:9': 'create.avatar.noLookLandscape',
   '9:16': 'create.avatar.noLookPortrait',
 }
-// La vista previa del look elegido en la tarjeta, con la forma del video.
+// La forma de las tarjetas de la fila «Avatar» y de las celdas de la grilla de
+// looks: la del video (entrega 2c, pedido del dueño: un look 16:9 no se
+// muestra vertical).
 export const AVATAR_LOOK_FRAME_CLASSES: Record<VideoFormat, string> = {
   '16:9': 'aspect-video',
   '9:16': 'aspect-[9/16]',
 }
-// Su ancho fijo, al lado del desplegable del look (el alto sale de la forma):
-// la vertical más angosta, para que no estire la tarjeta.
-export const AVATAR_LOOK_PREVIEW_WIDTH_CLASSES: Record<VideoFormat, string> = {
-  '16:9': 'w-40',
-  '9:16': 'w-24',
+// Columnas de la fila «Avatar»: todas del mismo ancho, tantas como entren en
+// la tarjeta de Crear (`auto-fill`: con pocos avatares no se estiran). El
+// mínimo deja leer el nombre del look y «+N looks» sobre la imagen.
+export const AVATAR_CARD_GRID_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3',
+  '9:16': 'grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3',
+}
+// Columnas de la grilla del botón «Look», con el mismo criterio y celdas algo
+// más chicas: es una grilla para recorrer con scroll.
+export const AVATAR_LOOK_GRID_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3',
+  '9:16': 'grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3',
+}
+// La grilla de looks no crece más que esto: lo que sobra se recorre con scroll.
+export const AVATAR_LOOK_GRID_MAX_HEIGHT_CLASS = 'max-h-[26rem]'
+// La forma real de un look de otro formato dentro de una celda con la forma
+// del video (un look 9:16 en un video 16:9 se ve angosto, con aire a los
+// lados): la proporción del formato del look (`lookFormatOf`) y el lado que
+// llena la celda (en 16:9 todo otro formato es más alto que ancho en
+// proporción, en 9:16 más ancho).
+export const AVATAR_LOOK_SHAPE_CLASSES: Record<AvatarLookFormat, string> = {
+  ...AVATAR_LOOK_FRAME_CLASSES,
+  '1:1': 'aspect-square',
+  '4:5': 'aspect-[4/5]',
+  '5:4': 'aspect-[5/4]',
+}
+export const AVATAR_LOOK_SHAPE_FILL_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'h-full',
+  '9:16': 'w-full',
+}
+// El aire alrededor de esa forma: un rayado suave que se lee como marco
+// vacío, no como parte de la imagen.
+export const AVATAR_LOOK_LETTERBOX_CLASS =
+  'bg-[repeating-linear-gradient(135deg,hsl(var(--muted-foreground)/0.16)_0_1px,transparent_1px_7px)]'
+// Lo que dice una ficha de la grilla del botón «Look» que no se puede elegir,
+// por el motivo que da la regla (`lookUnfitReason`, selectableAvatar.ts). Un
+// look que se genera, que falló o sin el motor de Vimo usa el texto corto de
+// las tarjetas de la biblioteca; uno de otro formato dice para qué videos es
+// (`{{format}}`: el formato del look), y uno cuya orientación HeyGen no
+// informó lo dice tal cual, aunque su imagen tenga medidas.
+export const LOOK_UNFIT_REASON_KEYS: Record<LookUnfitReason, string> = {
+  processing: 'avatars.detalle.lookGenerando',
+  failed: 'avatars.detalle.lookFallido',
+  engine: 'avatars.tarjeta.noCompatible',
+  rate: 'avatars.tarjeta.noCompatible',
+  unknownOrientation: 'create.avatar.unknownOrientation',
+  otherFormat: 'create.avatar.otherFormat',
 }
 // Fichas de esqueleto mientras se lee la biblioteca de avatares.
 export const AVATAR_PICKER_SKELETONS = 5

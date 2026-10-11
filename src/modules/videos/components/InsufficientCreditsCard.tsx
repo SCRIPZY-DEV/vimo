@@ -64,7 +64,7 @@ export function InsufficientCreditsCard({
       <div className="flex items-start gap-4">
         <DoodleSadFace size={48} delay={100} />
         <div className="flex-1">
-          <p className="font-display text-base font-bold text-coral">
+          <p className="font-display text-base font-bold text-coral-text">
             {t('create.progress.noCredits.title')}
           </p>
           <p className="mt-1 font-body text-sm text-foreground/80">{message}</p>

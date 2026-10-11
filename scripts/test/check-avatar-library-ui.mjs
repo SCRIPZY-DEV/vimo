@@ -1,5 +1,6 @@
-// La biblioteca de avatares de la entrega 2b (design.md §12.2 y §18; plan-e2b
-// WP-C) con sus componentes y hooks reales en Chrome headless, y HeyGen
+// La biblioteca de avatares de las entregas 2b y 2c (design.md §12.2, §18 y
+// §19; plan-e2b WP-C y plan-e2c WP-G) con sus componentes y hooks reales en
+// Chrome headless, y HeyGen
 // simulado: `avatarsApi` es el real con las lecturas y escrituras del sidecar
 // y del store reemplazadas por un doble en memoria (grupos en dos páginas,
 // looks por grupo, la clasificación por tipo, favoritos, altas y cambios de
@@ -61,6 +62,29 @@
 //   al llegar, el foco sigue en el escenario; «Usar como principal» llama a
 //   `setMainLook` y cierra el reproductor (si falla, sigue abierto y el foco
 //   vuelve al botón), y el principal lo dice sin botón;
+// - eliminar de HeyGen (entrega 2c): el tacho solo en «Mis avatares», arriba a
+//   la izquierda («Agregado» pasa a la derecha), con dos pasos y la
+//   explicación como descripción accesible (armado, su nombre es el texto que
+//   se ve y lo describen el avatar y la explicación; lo confirma el árbol de
+//   accesibilidad de Chrome, también en reposo y eliminando); salir de la tarjeta, sacarle el
+//   foco o tocarla cancela (el foco nunca rebota a la caja del diálogo); el
+//   segundo clic de un doble clic no confirma, ni Enter o Espacio sostenidos
+//   (sus repeticiones automáticas; las dos cosas, también en «Quitar» de la
+//   tarjeta y del panel de la biblioteca); con el borrado en vuelo el diálogo
+//   no se cierra (Escape, clic afuera ni la X); confirmar pide
+//   `deleteFromHeyGen` con el `groupId` y el nombre (solo para el log de
+//   soporte), apaga la tarjeta («Eliminando…», `aria-busy`) y no deja agregar
+//   ni arrancar otro borrado; al lograrlo,
+//   avisa, la tarjeta sale, se releen los avatares de la cuenta y se marca
+//   vieja la lista de la biblioteca, y el foco del teclado va al tacho vecino
+//   (el siguiente o el anterior) o a la pestaña «Mis avatares» (con el mouse
+//   no se mueve); si falla, avisa con el error y la tarjeta vuelve con el foco
+//   en su tacho;
+// - el formato de los looks: las fichas del segundo nivel del stock, las del
+//   panel de un avatar (con las medidas del listado de HeyGen cuando la
+//   biblioteca no guarda la orientación) y el reproductor dicen 16:9, 9:16,
+//   1:1, 4:5 o 5:4 («Formato …» para el lector de pantalla) en lugar de
+//   «Vertical»/«Horizontal»/«Cuadrado»; sin orientación ni medidas, sin chip;
 // - `coverLookVideoUrl` (pura, en Node): portada coincidente, sin
 //   coincidencia, sin videos y sin portada.
 // Los simulacros parten del real (ERRORES-CONOCIDOS: simulacro-de-hook-en-un-
@@ -95,7 +119,7 @@ const ffmpeg = fileURLToPath(
 const mocks = {
   '@/modules/avatars/api': [
     "import { avatarsApi as real } from './src/modules/avatars/api/index.ts'",
-    'export const avatarsApi = { ...real, isNative: () => true, list: () => window.api.list(), listStockGroups: (payload) => window.api.listStockGroups(payload), listStockLooks: (payload) => window.api.listStockLooks(payload), listStockTypes: (payload) => window.api.listStockTypes(payload), readStockFavorites: () => window.api.readStockFavorites(), writeStockFavorites: (ids) => window.api.writeStockFavorites(ids), addAvatar: (payload) => window.api.addAvatar(payload), setMainLook: (payload) => window.api.setMainLook(payload), refresh: (id) => window.api.refresh(id), balance: () => window.api.balance(), imageSource: (path) => "fixture-image:" + path }',
+    'export const avatarsApi = { ...real, isNative: () => true, list: () => window.api.list(), listStockGroups: (payload) => window.api.listStockGroups(payload), listStockLooks: (payload) => window.api.listStockLooks(payload), listStockTypes: (payload) => window.api.listStockTypes(payload), readStockFavorites: () => window.api.readStockFavorites(), writeStockFavorites: (ids) => window.api.writeStockFavorites(ids), addAvatar: (payload) => window.api.addAvatar(payload), setMainLook: (payload) => window.api.setMainLook(payload), refresh: (id) => window.api.refresh(id), balance: () => window.api.balance(), deleteFromHeyGen: (payload) => window.api.deleteFromHeyGen(payload), imageSource: (path) => "fixture-image:" + path }',
   ].join('\n'),
   '@/modules/api-keys/api': [
     "import { apiKeysApi as real } from './src/modules/api-keys/api/index.ts'",
@@ -146,11 +170,14 @@ function input(request) {
   return waitFor(() => window.inputDone.has(id), 'entrada ' + request.type, 300)
 }
 const pressKey = (key) => input({ type: 'key', key })
+// La tecla sostenida: el keyDown, dos repeticiones automáticas y el keyUp.
+const holdKey = (key) => input({ type: 'keyHold', key })
 // Un clic de verdad sobre un elemento (sin CSS, el elemento está en el flujo).
-function clickOn(element) {
+// Con clickCount 2 es el segundo clic de un doble clic (su detail es 2).
+function clickOn(element, clickCount = 1) {
   element.scrollIntoView({ block: 'center' })
   const rect = element.getBoundingClientRect()
-  return input({ type: 'click', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+  return input({ type: 'click', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, clickCount })
 }
 // Los medios: quién llamó a play() (y desde qué evento) y quién a pause().
 const originalPlay = HTMLMediaElement.prototype.play
@@ -221,18 +248,30 @@ const PAGE_2 = [group('g-teo', 'Teo', 'male', { previewVideoUrl: 'media/teo.mp4'
 const DANTE_LOOKS = [look('l-dante-1', 'Dante cocina', { previewVideoUrl: 'media/l-dante-1.mp4' }), look('l-dante-cover', 'Dante oficina', { previewImageUrl: 'media/g-dante.png', previewVideoUrl: media('look.mp4') }), look('l-dante-iv', 'Dante sin motor', { supportedEngines: ['avatar_iv'], previewVideoUrl: media('look.mp4') }), look('l-dante-novideo', 'Dante sin video'), look('l-dante-broken', 'Dante video roto', { previewVideoUrl: media('missing.mp4') })]
 const TYPES = { studioGroupIds: ['g-dante', 'g-luz', 'g-vic'], twinGroupIds: ['g-brody', 'g-teo'], fetchedAt: '2026-10-11T00:00:00Z', fromCache: true, truncated: false }
 
+// Los avatares propios de la cuenta («Mis avatares», entrega 2c), con video de
+// grupo: el foco del teclado en una tarjeta no pide sus looks.
+const OWN = [group('g-mia', 'Mía', 'female', { previewVideoUrl: 'media/mia.mp4' }), group('g-leo', 'Leo', 'male', { previewVideoUrl: 'media/leo.mp4' }), group('g-sol', 'Sol', 'female', { previewVideoUrl: 'media/sol.mp4' })]
+
 function fakeApi(overrides = {}) {
-  const calls = { list: 0, groups: [], looks: [], types: 0, readFavorites: 0, writeFavorites: [], add: [], setMain: [] }
+  const calls = { list: 0, groups: [], looks: [], types: 0, readFavorites: 0, writeFavorites: [], add: [], setMain: [], deleteHeyGen: [] }
   const api = {
     calls,
     avatars: [],
     favorites: [],
+    privateGroups: structuredClone(OWN),
     looksByGroup: { 'g-dante': DANTE_LOOKS },
     async list() { calls.list += 1; return structuredClone(api.avatars) },
     async listStockGroups(payload) {
       calls.groups.push(payload)
+      if (payload.ownership === 'private') return { groups: structuredClone(api.privateGroups), nextToken: null }
       if (payload.token === 'page-2') return { groups: structuredClone(PAGE_2), nextToken: null }
       return { groups: structuredClone(PAGE_1), nextToken: 'page-2' }
+    },
+    // Como HeyGen: el grupo borrado ya no sale en el listado de la cuenta.
+    async deleteFromHeyGen(payload) {
+      calls.deleteHeyGen.push(payload)
+      api.privateGroups = api.privateGroups.filter((item) => item.groupId !== payload.groupId)
+      return { groupId: payload.groupId, removedEntryIds: [] }
     },
     async listStockLooks(payload) {
       calls.looks.push(payload)
@@ -1055,6 +1094,449 @@ scenario('3 · auto-carga: un filtro con pocas tarjetas pide la página siguient
   check(document.querySelectorAll('[role=alert]').length === 1, 'el error a la vista, junto a lo cargado')
 })
 
+// ─── Entrega 2c: eliminar de HeyGen desde «Mis avatares» y el formato de los looks ───
+const cardOf = (groupId) => document.querySelector('[data-group-id="' + groupId + '"]')?.closest('article')
+const trashFor = (groupId) => cardOf(groupId)?.querySelector('[data-heygen-delete]')
+// Lo que describe al tacho (aria-describedby, en orden).
+const describedBy = (groupId) => (trashFor(groupId)?.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).map((id) => document.getElementById(id))
+const describedTexts = (groupId) => describedBy(groupId).map((element) => element?.textContent ?? null)
+// La explicación del borrado de una tarjeta: está entre lo que describe al tacho.
+const deleteHintOf = (groupId) => describedBy(groupId).find((element) => element?.textContent === tr('avatars.stock.eliminarHint')) ?? null
+// Armado: sin aria-label (su nombre es el texto que se ve, «¿Eliminar para
+// siempre?») y descripto por el nombre del avatar y la explicación.
+const isArmed = (groupId, name) => {
+  const trash = trashFor(groupId)
+  if (!trash || trash.hasAttribute('aria-label')) return false
+  return trash.textContent === tr('avatars.stock.eliminarConfirmar') && !trash.querySelector('span').classList.contains('hidden') && same(describedTexts(groupId), [name, tr('avatars.stock.eliminarHint')])
+}
+const isIdle = (groupId, name) => trashFor(groupId)?.getAttribute('aria-label') === tr('avatars.stock.eliminarHeygenAria', { name })
+// El nombre y la descripción que calcula Chrome para el tacho de una tarjeta
+// (su árbol de accesibilidad, por CDP desde Node): lo que anuncia un lector de
+// pantalla y lo que busca el control por voz.
+async function accessibleTrash(groupId) {
+  const id = ++nextInput
+  window.inputQueue.push({ id, type: 'ax', selector: 'article:has([data-group-id="' + groupId + '"]) [data-heygen-delete]' })
+  await waitFor(() => window.inputDone.has(id), 'accesibilidad del tacho de ' + groupId, 300)
+  return window.axResults[id]
+}
+const ownTab = () => buttonNamed(tr('avatars.stock.propios'))
+async function openOwnTab() {
+  const tab = await waitFor(ownTab, 'la pestaña «Mis avatares»')
+  tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  tab.click()
+  await waitFor(() => same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), '«Mis avatares»: ' + visibleGroupIds())
+}
+const privateListings = (api) => api.calls.groups.filter((payload) => payload.ownership === 'private').length
+
+scenario('8 · «Mis avatares»: el tacho solo ahí, en dos pasos con la explicación; salir de la tarjeta, sacarle el foco o tocarla cancela, y el segundo clic de un doble clic no confirma', async () => {
+  const api = fakeApi()
+  mount(<StockLooksDialog entries={[{ id: 'lib-sol', groupId: 'g-sol' }]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  await waitFor(() => visibleGroupIds().length === 4, 'el stock público')
+  check(document.querySelectorAll('[data-heygen-delete]').length === 0, '«De stock» no tiene tacho')
+  check(ownTab()?.textContent === 'Mis avatares', 'la pestaña se llama «Mis avatares»: ' + ownTab()?.textContent)
+  await openOwnTab()
+  const dialogBox = dialogs()[0]
+  check(['g-mia', 'g-leo', 'g-sol'].every((id) => trashFor(id)), 'cada tarjeta de «Mis avatares» trae su tacho')
+  check(!heartOf('Mía'), 'sin corazón')
+  const trash = trashFor('g-mia')
+  check(isIdle('g-mia', 'Mía') && trash.title === tr('avatars.stock.eliminarHeygen'), 'nombra al avatar y dice qué hace: ' + trash.getAttribute('aria-label'))
+  check(trash.compareDocumentPosition(byLabel(tr('avatars.stock.verLooksAria', { name: 'Mía' }))) & Node.DOCUMENT_POSITION_FOLLOWING, 'el tacho va antes que «Ver looks» (arriba, en la imagen)')
+  check(trash.className.includes('left-2.5') && trash.className.includes('top-2.5'), 'arriba a la izquierda')
+  check(deleteHintOf('g-mia')?.textContent === tr('avatars.stock.eliminarHint') && deleteHintOf('g-mia').classList.contains('invisible'), 'la explicación es su descripción accesible, oculta en reposo')
+  const idleAccessible = await accessibleTrash('g-mia')
+  check(idleAccessible.name === tr('avatars.stock.eliminarHeygenAria', { name: 'Mía' }) && idleAccessible.description === tr('avatars.stock.eliminarHint'), 'para Chrome, en reposo se llama «Eliminar Mía de HeyGen» y la explicación lo describe: ' + JSON.stringify(idleAccessible))
+  const solBadge = [...cardOf('g-sol').querySelectorAll('span')].find((span) => span.textContent === tr('avatars.stock.agregado'))
+  check(solBadge?.className.includes('right-2.5'), 'con tacho, «Agregado» va arriba a la derecha')
+
+  // Primer clic: pide la confirmación, sin borrar nada.
+  await clickOn(trash)
+  await waitFor(() => isArmed('g-mia', 'Mía'), 'el primer clic pide la confirmación')
+  check(trash.textContent === tr('avatars.stock.eliminarConfirmar') && !trash.querySelector('span').classList.contains('hidden') && !trash.hasAttribute('title'), '«¿Eliminar para siempre?» a la vista: ' + trash.textContent)
+  check(trash.className.includes('bg-destructive'), 'en rojo')
+  // Su nombre es el texto que se ve (WCAG 2.5.3: el control por voz lo
+  // encuentra por lo que dice); el avatar y la explicación lo describen.
+  check(!trash.hasAttribute('aria-label') && same(describedTexts('g-mia'), ['Mía', tr('avatars.stock.eliminarHint')]), 'armado, sin aria-label y descripto por el nombre y la explicación: ' + JSON.stringify(describedTexts('g-mia')))
+  const armedAccessible = await accessibleTrash('g-mia')
+  check(armedAccessible.name === tr('avatars.stock.eliminarConfirmar') && armedAccessible.description?.startsWith('Mía') && armedAccessible.description.includes(tr('avatars.stock.eliminarHint')), 'para Chrome, armado se llama «¿Eliminar para siempre?» y lo describen Mía y la explicación: ' + JSON.stringify(armedAccessible))
+  check(deleteHintOf('g-mia').classList.contains('visible') && !deleteHintOf('g-mia').classList.contains('invisible'), 'la explicación a la vista')
+  check(api.calls.deleteHeyGen.length === 0, 'el primer clic no borra')
+  // El segundo clic de un doble clic, en el mismo lugar, no confirma.
+  await clickOn(trash, 2)
+  await delay(150)
+  check(api.calls.deleteHeyGen.length === 0 && isArmed('g-mia', 'Mía'), 'el doble clic no borra y la confirmación sigue')
+  // Salir de la tarjeta la cancela.
+  await input({ type: 'move', x: 0, y: 0 })
+  await waitFor(() => isIdle('g-mia', 'Mía'), 'salir de la tarjeta cancela')
+  check(deleteHintOf('g-mia').classList.contains('invisible') && trash.querySelector('span').classList.contains('hidden'), 'y la explicación y el texto se ocultan (siguen montados)')
+
+  // Tocar otra parte de la tarjeta la cancela, sin abrir sus looks.
+  await clickOn(trash)
+  await waitFor(() => isArmed('g-mia', 'Mía'), 'pide la confirmación otra vez')
+  await clickOn(cardOf('g-mia').querySelector('h3'))
+  await waitFor(() => isIdle('g-mia', 'Mía'), 'tocar la tarjeta cancela')
+  await delay(100)
+  check(!buttonNamed(tr('avatars.stock.volver')) && api.calls.looks.length === 0, 'y no abre los looks')
+  await input({ type: 'move', x: 0, y: 0 })
+
+  // Con el teclado: Enter pide la confirmación y el foco sigue en el tacho;
+  // Tab la cancela y el foco pasa al control siguiente, nunca a la caja del
+  // diálogo (en el blur nada sale del DOM). El banco no carga CSS: el
+  // siguiente es «Ver looks» de la misma tarjeta; en la app, con su barra
+  // oculta mientras confirma, es el tacho de la tarjeta siguiente.
+  trash.focus()
+  await pressKey('Enter')
+  await waitFor(() => isArmed('g-mia', 'Mía'), 'Enter pide la confirmación')
+  check(document.activeElement === trash, 'el foco sigue en el tacho, que ahora confirma')
+  check(cardOf('g-mia').querySelector('.invisible [data-group-id]'), 'mientras confirma, «Ver looks» queda oculto bajo la explicación')
+  await pressKey('Tab')
+  await waitFor(() => isIdle('g-mia', 'Mía'), 'Tab saca el foco y cancela')
+  await delay(100)
+  check(document.activeElement === byLabel(tr('avatars.stock.verLooksAria', { name: 'Mía' })), 'el foco llega al control siguiente, no a la caja del diálogo: ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(document.activeElement !== dialogBox && api.calls.deleteHeyGen.length === 0, 'nada se borró')
+})
+
+scenario('8b · «Mis avatares»: eliminar pide el borrado con el groupId y apaga la tarjeta; al lograrlo avisa, la saca y relee la cuenta y la biblioteca; el foco del teclado va al tacho vecino o a la pestaña; con el mouse no se mueve', async () => {
+  const api = fakeApi()
+  const pending = []
+  const instant = api.deleteFromHeyGen
+  api.deleteFromHeyGen = (payload) => {
+    const done = gate()
+    pending.push(done)
+    return done.promise.then(() => instant(payload))
+  }
+  // La relectura de la cuenta tras un borrado espera a que el escenario la
+  // suelte: la tarjeta tiene que salir antes, sin esperarla.
+  const listing = api.listStockGroups
+  let slowListing = null
+  api.listStockGroups = (payload) => {
+    if (!slowListing || payload.ownership !== 'private') return listing(payload)
+    return slowListing.promise.then(() => listing(payload))
+  }
+  const client = mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  client.setQueryData(['avatars', 'list'], [])
+  await openOwnTab()
+  const dialogBox = dialogs()[0]
+  const listingsBefore = privateListings(api)
+
+  // Leo, en el medio, con el teclado: Enter pide la confirmación, Enter
+  // elimina.
+  trashFor('g-leo').focus()
+  await pressKey('Enter')
+  await waitFor(() => isArmed('g-leo', 'Leo'), 'pide la confirmación')
+  await pressKey('Enter')
+  await waitFor(() => pending.length === 1, 'pide el borrado')
+  await waitFor(() => trashFor('g-leo').textContent === tr('avatars.stock.eliminando'), '«Eliminando…» mientras tanto')
+  check(api.calls.deleteHeyGen.length === 0, 'un solo pedido, en vuelo')
+  const card = cardOf('g-leo')
+  check(card.getAttribute('aria-busy') === 'true' && card.className.includes('opacity-50') && card.className.includes('pointer-events-none'), 'la tarjeta apagada')
+  check(trashFor('g-leo').getAttribute('aria-disabled') === 'true' && !trashFor('g-leo').hasAttribute('aria-label'), 'el tacho no hace nada más y se nombra «Eliminando…»')
+  const deletingAccessible = await accessibleTrash('g-leo')
+  check(deletingAccessible.name === tr('avatars.stock.eliminando') && deletingAccessible.description === 'Leo', 'para Chrome, se llama «Eliminando…» y lo describe Leo: ' + JSON.stringify(deletingAccessible))
+  check(document.activeElement === trashFor('g-leo'), 'el foco espera en el tacho (aria-disabled, sigue enfocable)')
+  check([...document.querySelectorAll('button')].filter((button) => button.textContent.trim() === tr('avatars.stock.agregar')).every((button) => button.disabled), 'mientras borra no se agrega nada')
+  trashFor('g-mia').click()
+  await delay(100)
+  check(isIdle('g-mia', 'Mía') && trashFor('g-mia').getAttribute('aria-disabled') === 'true' && pending.length === 1, 'otro tacho no arranca otro borrado')
+  slowListing = gate()
+  pending[0].resolve()
+  await waitFor(() => same(visibleGroupIds(), ['g-mia', 'g-sol']), 'Leo sale de la grilla sin esperar la relectura: ' + visibleGroupIds())
+  check(same(api.calls.deleteHeyGen, [{ groupId: 'g-leo', name: 'Leo' }]), 'el pedido lleva el groupId y, para el log de soporte, el nombre: ' + JSON.stringify(api.calls.deleteHeyGen))
+  await waitFor(() => window.toastLog.includes(tr('avatars.toasts.eliminadoHeygen', { name: 'Leo' })), 'el aviso: ' + JSON.stringify(window.toastLog))
+  await delay(100)
+  check(document.activeElement === trashFor('g-sol'), 'el foco pasa al tacho de la siguiente, Sol: ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(client.getQueryState(['avatars', 'list'])?.isInvalidated, 'marca vieja la lista de la biblioteca')
+  check(privateListings(api) === listingsBefore, 'la relectura de la cuenta sigue en vuelo')
+  slowListing.resolve()
+  slowListing = null
+  await waitFor(() => privateListings(api) > listingsBefore, 'relee los avatares de la cuenta')
+  await delay(100)
+  check(same(visibleGroupIds(), ['g-mia', 'g-sol']), 'la relectura coincide: Leo no vuelve')
+
+  // Sol, la última: el foco va al tacho de la anterior, Mía.
+  check(document.activeElement === trashFor('g-sol'), 'el foco sigue en el tacho de Sol')
+  await pressKey('Enter')
+  await pressKey('Enter')
+  await waitFor(() => pending.length === 2, 'pide borrar a Sol')
+  pending[1].resolve()
+  await waitFor(() => same(visibleGroupIds(), ['g-mia']), 'Sol sale de la grilla')
+  await delay(100)
+  check(document.activeElement === trashFor('g-mia'), 'el foco queda en el tacho de la anterior, Mía: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // Mía, la única: el foco va a la pestaña «Mis avatares».
+  await pressKey('Enter')
+  await pressKey('Enter')
+  await waitFor(() => pending.length === 3, 'pide borrar a Mía')
+  pending[2].resolve()
+  await waitFor(() => visibleGroupIds().length === 0 && text().includes(tr('avatars.stock.vacio')), 'sin avatares, lo dice')
+  await delay(100)
+  check(document.activeElement === ownTab() && ownTab().getAttribute('aria-selected') === 'true', 'el foco va a la pestaña «Mis avatares»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(document.activeElement !== dialogBox, 'nunca en la caja del diálogo')
+  check(same(api.calls.deleteHeyGen.map((payload) => payload.groupId), ['g-leo', 'g-sol', 'g-mia']), 'tres borrados, de a uno')
+
+  // Con el mouse (clics de verdad), el foco no salta a la tarjeta vecina.
+  await unmount()
+  const mouseApi = fakeApi()
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  await openOwnTab()
+  await clickOn(trashFor('g-mia'))
+  await waitFor(() => isArmed('g-mia', 'Mía'), 'el clic pide la confirmación')
+  await clickOn(trashFor('g-mia'))
+  await waitFor(() => same(visibleGroupIds(), ['g-leo', 'g-sol']), 'el segundo clic la elimina')
+  await delay(150)
+  check(same(mouseApi.calls.deleteHeyGen, [{ groupId: 'g-mia', name: 'Mía' }]), 'con su groupId y su nombre: ' + JSON.stringify(mouseApi.calls.deleteHeyGen))
+  check(document.activeElement !== trashFor('g-leo') && document.activeElement !== ownTab(), 'con el mouse el foco no salta: ' + document.activeElement?.outerHTML.slice(0, 100))
+})
+
+scenario('8c · «Mis avatares»: si eliminar falla, avisa con el error y la tarjeta vuelve, con el foco en su tacho; sin red el pedido sale igual y no se repite al volver', async () => {
+  const api = fakeApi()
+  const answer = gate()
+  api.deleteFromHeyGen = (payload) => {
+    api.calls.deleteHeyGen.push(payload)
+    return answer.promise.then(() => { throw Object.assign(new Error('HeyGen rechazó la clave'), { code: 'avatar_invalid_key' }) })
+  }
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  await openOwnTab()
+  const listingsBefore = privateListings(api)
+  // Un webview sin red avisa offline: el borrado va al sidecar igual (que
+  // responde por su cuenta), no queda en pausa para salir solo al volver la
+  // red (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online).
+  window.dispatchEvent(new Event('offline'))
+  try {
+    trashFor('g-mia').focus()
+    await pressKey('Enter')
+    await pressKey('Enter')
+    await waitFor(() => api.calls.deleteHeyGen.length === 1, 'sin red, el pedido sale igual')
+    await waitFor(() => trashFor('g-mia')?.textContent === tr('avatars.stock.eliminando'), 'eliminando')
+    answer.resolve()
+    await waitFor(() => window.toastLog.includes(tr('avatars.errors.invalidKey')), 'avisa con el error: ' + JSON.stringify(window.toastLog))
+    await waitFor(() => isIdle('g-mia', 'Mía'), 'el tacho vuelve a reposo')
+    check(same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), 'la tarjeta sigue en la grilla')
+    const card = cardOf('g-mia')
+    check(card.getAttribute('aria-busy') === 'false' && !card.className.includes('opacity-50') && trashFor('g-mia').getAttribute('aria-disabled') === 'false', 'y vuelve a la normalidad')
+    check(document.activeElement === trashFor('g-mia'), 'el foco sigue en su tacho: ' + document.activeElement?.outerHTML.slice(0, 100))
+    check(!window.toastLog.includes(tr('avatars.toasts.eliminadoHeygen', { name: 'Mía' })), 'sin el aviso de éxito')
+  } finally {
+    window.dispatchEvent(new Event('online'))
+  }
+  await delay(150)
+  check(api.calls.deleteHeyGen.length === 1, 'al volver la red no se repite: ' + api.calls.deleteHeyGen.length)
+  check(privateListings(api) === listingsBefore, 'sin borrado, no relee la cuenta')
+})
+
+scenario('8d · «Mis avatares»: una tecla sostenida no confirma: Enter o Espacio sostenidos solo arman; soltar y volver a apretar elimina', async () => {
+  const api = fakeApi()
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  await openOwnTab()
+  // Enter sostenido: el primer keyDown arma; sus repeticiones automáticas no
+  // confirman (en un botón, cada Enter repetido sería otro clic).
+  trashFor('g-mia').focus()
+  await holdKey('Enter')
+  await delay(300)
+  check(api.calls.deleteHeyGen.length === 0 && isArmed('g-mia', 'Mía'), 'Enter sostenido solo arma: ' + JSON.stringify(api.calls.deleteHeyGen))
+  await pressKey('Enter')
+  await waitFor(() => api.calls.deleteHeyGen.length === 1, 'soltar y volver a apretar Enter elimina')
+  check(api.calls.deleteHeyGen[0].groupId === 'g-mia', 'a Mía: ' + JSON.stringify(api.calls.deleteHeyGen))
+  await waitFor(() => same(visibleGroupIds(), ['g-leo', 'g-sol']), 'Mía sale de la grilla')
+
+  // Espacio sostenido: también solo arma.
+  trashFor('g-leo').focus()
+  await holdKey(' ')
+  await delay(300)
+  check(api.calls.deleteHeyGen.length === 1 && isArmed('g-leo', 'Leo'), 'Espacio sostenido solo arma: ' + JSON.stringify(api.calls.deleteHeyGen))
+  await pressKey(' ')
+  await waitFor(() => api.calls.deleteHeyGen.length === 2, 'soltar y volver a apretar Espacio elimina')
+  check(api.calls.deleteHeyGen[1].groupId === 'g-leo', 'a Leo: ' + JSON.stringify(api.calls.deleteHeyGen))
+})
+
+scenario('8e · «Mis avatares»: mientras se agrega un avatar, ningún tacho arma ni borra; al terminar el alta, vuelven', async () => {
+  const api = fakeApi()
+  const added = gate()
+  api.addAvatar = (payload) => {
+    api.calls.add.push(payload)
+    return added.promise.then(() => ({ id: 'lib-' + payload.groupId, groupId: payload.groupId }))
+  }
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  await openOwnTab()
+  byLabel(tr('avatars.stock.agregarAria', { name: 'Mía' })).click()
+  await waitFor(() => api.calls.add.length === 1, 'pide agregar a Mía')
+  // Con el alta en vuelo, ni el tacho de Mía (la misma tarjeta) ni el de Leo
+  // arman o borran, aunque se los apriete dos veces.
+  for (const [groupId, name] of [['g-mia', 'Mía'], ['g-leo', 'Leo']]) {
+    check(trashFor(groupId).getAttribute('aria-disabled') === 'true', 'el tacho de ' + name + ' está apagado mientras se agrega')
+    trashFor(groupId).focus()
+    await pressKey('Enter')
+    await pressKey('Enter')
+    await delay(100)
+    check(isIdle(groupId, name) && api.calls.deleteHeyGen.length === 0, 'Enter dos veces en el tacho de ' + name + ' no arma ni borra: ' + JSON.stringify(api.calls.deleteHeyGen))
+  }
+  check(same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), 'las tarjetas siguen igual')
+  added.resolve()
+  await waitFor(() => trashFor('g-leo').getAttribute('aria-disabled') === 'false', 'al terminar el alta, el tacho vuelve')
+  trashFor('g-leo').focus()
+  await pressKey('Enter')
+  await waitFor(() => isArmed('g-leo', 'Leo'), 'y arma otra vez')
+  check(api.calls.deleteHeyGen.length === 0, 'sin borrar nada')
+})
+
+scenario('7b · tarjeta de la biblioteca: una tecla sostenida no confirma «Quitar»: solo arma; soltar y volver a apretar quita', async () => {
+  fakeApi()
+  const removed = []
+  mount(<AvatarCard avatar={ANA_CARD} disabled={false} onOpen={() => {}} onDelete={(avatar) => removed.push(avatar.id)} />)
+  const card = await waitFor(() => document.querySelector('[data-avatar-id="ana-card"]')?.closest('article'), 'la tarjeta')
+  byLabel(tr('avatars.tarjeta.eliminar'), card).focus()
+  await holdKey('Enter')
+  await delay(200)
+  check(removed.length === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'Enter sostenido solo arma («Seguro» a la vista, sin quitar): ' + JSON.stringify(removed))
+  check(document.activeElement === buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'el foco está en «Seguro»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Enter')
+  await waitFor(() => removed.length === 1, 'soltar y volver a apretar Enter quita')
+  check(same(removed, ['ana-card']), 'una sola vez, a Ana: ' + JSON.stringify(removed))
+})
+
+scenario('6d · panel del avatar: una tecla sostenida no confirma «Quitar avatar»: solo arma; soltar y volver a apretar quita', async () => {
+  const api = fakeApi()
+  api.avatars = [ANA]
+  api.looksByGroup = { 'g-ana': ANA_REMOTE }
+  let removes = 0
+  mount(<AvatarDetailDialog avatar={ANA} onClose={() => {}} onRemove={() => { removes += 1 }} />)
+  const remove = await waitFor(() => buttonNamed(tr('avatars.tarjeta.eliminar'), topDialog()), '«Quitar avatar» en el panel')
+  remove.focus()
+  await holdKey('Enter')
+  await delay(200)
+  check(removes === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'Enter sostenido solo arma («Seguro» a la vista, sin quitar): ' + removes)
+  check(document.activeElement === buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'el foco está en «Seguro»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Enter')
+  await waitFor(() => removes === 1, 'soltar y volver a apretar Enter quita')
+  await delay(100)
+  check(removes === 1, 'una sola vez: ' + removes)
+})
+
+scenario('7c · tarjeta de la biblioteca: el segundo clic de un doble clic no confirma «Quitar»; un clic suelto después, sí', async () => {
+  fakeApi()
+  const removed = []
+  mount(<AvatarCard avatar={ANA_CARD} disabled={false} onOpen={() => {}} onDelete={(avatar) => removed.push(avatar.id)} />)
+  const card = await waitFor(() => document.querySelector('[data-avatar-id="ana-card"]')?.closest('article'), 'la tarjeta')
+  await clickOn(byLabel(tr('avatars.tarjeta.eliminar'), card))
+  const sure = await waitFor(() => buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'el primer clic arma «Seguro»')
+  await clickOn(sure, 2)
+  await delay(150)
+  check(removed.length === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'el segundo clic de un doble clic no quita: ' + JSON.stringify(removed))
+  await clickOn(buttonNamed(tr('avatars.tarjeta.confirmar'), card))
+  await waitFor(() => removed.length === 1, 'un clic suelto después quita')
+  check(same(removed, ['ana-card']), 'una sola vez, a Ana: ' + JSON.stringify(removed))
+})
+
+scenario('6e · panel del avatar: el segundo clic de un doble clic no confirma «Quitar avatar»; un clic suelto después, sí', async () => {
+  const api = fakeApi()
+  api.avatars = [ANA]
+  api.looksByGroup = { 'g-ana': ANA_REMOTE }
+  let removes = 0
+  mount(<AvatarDetailDialog avatar={ANA} onClose={() => {}} onRemove={() => { removes += 1 }} />)
+  const remove = await waitFor(() => buttonNamed(tr('avatars.tarjeta.eliminar'), topDialog()), '«Quitar avatar» en el panel')
+  await clickOn(remove)
+  const sure = await waitFor(() => buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'el primer clic arma «Seguro»')
+  await clickOn(sure, 2)
+  await delay(150)
+  check(removes === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'el segundo clic de un doble clic no quita: ' + removes)
+  await clickOn(buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()))
+  await waitFor(() => removes === 1, 'un clic suelto después quita')
+  await delay(100)
+  check(removes === 1, 'una sola vez: ' + removes)
+})
+
+scenario('8f · «Mis avatares»: con un borrado en HeyGen en vuelo el diálogo no se cierra (Escape, clic afuera, la X); al terminar, sí', async () => {
+  const api = fakeApi()
+  const answer = gate()
+  const instant = api.deleteFromHeyGen
+  api.deleteFromHeyGen = (payload) => answer.promise.then(() => instant(payload))
+  let closes = 0
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => { closes += 1 }} />)
+  await openOwnTab()
+  trashFor('g-mia').focus()
+  await pressKey('Enter')
+  await pressKey('Enter')
+  await waitFor(() => trashFor('g-mia')?.textContent === tr('avatars.stock.eliminando'), 'eliminando a Mía')
+  await pressKey('Escape')
+  await delay(100)
+  check(closes === 0, 'Escape no cierra mientras borra: ' + closes)
+  await input({ type: 'click', x: 3, y: 3 })
+  await delay(100)
+  check(closes === 0, 'un clic afuera tampoco: ' + closes)
+  buttonNamed(tr('common.cerrar'), dialogs()[0]).click()
+  await delay(100)
+  check(closes === 0 && dialogs().length === 1, 'ni la X: ' + closes)
+  answer.resolve()
+  await waitFor(() => same(visibleGroupIds(), ['g-leo', 'g-sol']), 'Mía sale de la grilla')
+  await pressKey('Escape')
+  await waitFor(() => closes === 1, 'al terminar el borrado, Escape cierra')
+})
+
+// El chip de formato de una ficha o del reproductor: su etiqueta para el lector
+// de pantalla y el texto que se ve (fuera del lector), o null si no tiene.
+function formatChip(root) {
+  const prefix = tr('avatars.formato.aria', { format: '' })
+  const label = [...root.querySelectorAll('span.sr-only')].find((span) => span.textContent.startsWith(prefix))
+  if (!label) return null
+  const shown = label.nextElementSibling
+  return { label: label.textContent, shown: shown?.textContent, hidden: shown?.getAttribute('aria-hidden') }
+}
+const lookCardOf = (lookId) => document.querySelector('[data-look-id="' + lookId + '"]')?.closest('article')
+const formatIs = (root, format) => same(formatChip(root), { label: tr('avatars.formato.aria', { format }), shown: format, hidden: 'true' })
+// En literal (lo que decían las fichas antes de la 2c): las claves
+// avatars.stock.orientacion.* quedaron sin uso y se borran, y leídas con tr()
+// el chequeo pasaría siempre.
+const ORIENTATION_WORDS = ['Vertical', 'Horizontal', 'Cuadrado']
+
+scenario('9 · formato de los looks: las fichas del stock y del panel y el reproductor dicen 16:9, 9:16, 1:1, 4:5 o 5:4 en lugar de la orientación; sin datos, sin chip', async () => {
+  const api = fakeApi()
+  api.looksByGroup = { 'g-dante': [
+    look('f-wide', 'Look ancho'),
+    // La orientación de HeyGen manda sobre las medidas.
+    look('f-tall', 'Look alto', { preferredOrientation: 'portrait', imageWidth: 1920, imageHeight: 1080 }),
+    look('f-even', 'Look parejo', { preferredOrientation: 'square' }),
+    look('f-45', 'Look cuatro por cinco', { preferredOrientation: undefined, imageWidth: 1080, imageHeight: 1350 }),
+    look('f-54', 'Look cinco por cuatro', { preferredOrientation: undefined, imageWidth: 1350, imageHeight: 1080 }),
+    look('f-none', 'Look sin datos', { preferredOrientation: undefined }),
+  ] }
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  ;(await waitFor(() => document.querySelector('[data-group-id="g-dante"]'), 'la tarjeta de Dante')).click()
+  await waitFor(() => lookCardOf('f-none'), 'los looks de Dante')
+  const expected = { 'f-wide': '16:9', 'f-tall': '9:16', 'f-even': '1:1', 'f-45': '4:5', 'f-54': '5:4' }
+  for (const [lookId, format] of Object.entries(expected))
+    check(formatIs(lookCardOf(lookId), format), lookId + ' dice ' + format + ': ' + JSON.stringify(formatChip(lookCardOf(lookId))))
+  check(formatChip(lookCardOf('f-none')) === null, 'sin orientación ni medidas, sin chip')
+  const looksText = Object.keys(expected).map((lookId) => lookCardOf(lookId).textContent).join(' ')
+  check(!ORIENTATION_WORDS.some((word) => looksText.includes(word)), 'ya no dice Vertical, Horizontal ni Cuadrado: ' + looksText)
+
+  // El reproductor del look lo hereda.
+  lookCardOf('f-45').querySelector('[data-look-id]').click()
+  await waitFor(() => dialogs().length === 2, 'el reproductor del look 4:5')
+  check(formatIs(topDialog(), '4:5'), 'el reproductor dice 4:5: ' + JSON.stringify(formatChip(topDialog())))
+  await pressKey('Escape')
+  await waitFor(() => dialogs().length === 1, 'cierra el reproductor')
+
+  // El panel de un avatar: la biblioteca guarda solo la orientación; las
+  // medidas salen del listado de HeyGen cuando las trae.
+  await unmount()
+  const panelApi = fakeApi()
+  const PIA = { id: 'pia-1', name: 'Pía', groupId: 'g-pia', ownership: 'own', status: 'ready', mainLookId: 'p-wide', looks: [avatarLook('p-wide', 'Pía oficina'), avatarLook('p-45', 'Pía retrato', { preferredOrientation: undefined }), avatarLook('p-none', 'Pía sin datos', { preferredOrientation: undefined })], previewPath: '/library/pia.png', createdAt: '2026-10-09T00:00:00Z' }
+  const remote = gate()
+  panelApi.listStockLooks = (payload) => {
+    panelApi.calls.looks.push(payload)
+    return remote.promise.then(() => ({ looks: [look('p-wide', 'Pía oficina', { groupId: 'g-pia' }), look('p-45', 'Pía retrato', { groupId: 'g-pia', preferredOrientation: undefined, imageWidth: 1080, imageHeight: 1350 }), look('p-none', 'Pía sin datos', { groupId: 'g-pia', preferredOrientation: undefined })], nextToken: null }))
+  }
+  mount(<AvatarDetailDialog avatar={PIA} onClose={() => {}} onRemove={() => {}} />)
+  await waitFor(() => lookCardOf('p-none'), 'los looks de Pía')
+  check(formatIs(lookCardOf('p-wide'), '16:9'), 'la orientación guardada ya da el formato')
+  check(formatChip(lookCardOf('p-45')) === null, 'sin orientación, espera las medidas de HeyGen')
+  remote.resolve()
+  await waitFor(() => formatIs(lookCardOf('p-45'), '4:5'), 'con las medidas del listado, 4:5: ' + JSON.stringify(formatChip(lookCardOf('p-45'))))
+  check(formatChip(lookCardOf('p-none')) === null, 'sin datos en ningún lado, sin chip')
+  lookCardOf('p-45').querySelector('[data-look-id]').click()
+  await waitFor(() => dialogs().length === 2, 'el reproductor del look del panel')
+  check(formatIs(topDialog(), '4:5'), 'el reproductor del panel también: ' + JSON.stringify(formatChip(topDialog())))
+})
+
 // ─── Corrida ───
 window.results = []
 // Un clic de verdad en la página antes de empezar: el sonido del reproductor
@@ -1117,7 +1599,7 @@ async function runPage(call, root) {
             x: request.x,
             y: request.y,
             button: 'left',
-            clickCount: 1,
+            clickCount: request.clickCount ?? 1,
           })
       }
       if (request.type === 'move') {
@@ -1127,15 +1609,43 @@ async function runPage(call, root) {
           y: request.y,
         })
       }
-      if (request.type === 'key') {
+      // El nombre y la descripción accesibles de un elemento, como los calcula
+      // Chrome (su árbol de accesibilidad), para la página.
+      if (request.type === 'ax') {
+        const { result } = await send('Runtime.evaluate', {
+          expression: `document.querySelector(${JSON.stringify(request.selector)})`,
+        })
+        const accessible = result?.objectId
+          ? (
+              await send('Accessibility.getPartialAXTree', {
+                objectId: result.objectId,
+                fetchRelatives: false,
+              })
+            ).nodes[0]
+          : undefined
+        const value = {
+          name: accessible?.name?.value ?? null,
+          description: accessible?.description?.value ?? null,
+        }
+        await evaluate(
+          `(window.axResults = window.axResults || {})[${request.id}] = ${JSON.stringify(value)}`,
+        )
+      }
+      if (request.type === 'key' || request.type === 'keyHold') {
         const key = keyCodes[request.key]
         const { text, ...rest } = key
-        await send('Input.dispatchKeyEvent', {
+        const down = {
           type: 'keyDown',
           key: request.key,
           ...rest,
           ...(text ? { text, unmodifiedText: text } : {}),
-        })
+        }
+        await send('Input.dispatchKeyEvent', down)
+        // Una tecla sostenida: la repetición automática del sistema manda más
+        // keyDown con `autoRepeat` (`event.repeat` en la página) antes de soltar.
+        if (request.type === 'keyHold')
+          for (let repeat = 0; repeat < 2; repeat++)
+            await send('Input.dispatchKeyEvent', { ...down, autoRepeat: true })
         await send('Input.dispatchKeyEvent', {
           type: 'keyUp',
           key: request.key,

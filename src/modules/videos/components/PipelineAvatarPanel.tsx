@@ -53,7 +53,7 @@ export function PipelineAvatarPanel({
         </p>
       )}
       {dropped > 0 && (
-        <p className="font-body text-xs text-coral">
+        <p className="font-body text-xs text-coral-text">
           {t('create.progress.avatarDropped', { count: dropped })}
         </p>
       )}

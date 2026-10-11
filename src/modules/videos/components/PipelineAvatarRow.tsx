@@ -68,7 +68,7 @@ export function PipelineAvatarRow({
         <p
           className={cn(
             'flex items-center justify-end gap-1.5 font-body text-xs',
-            status === 'failed' ? 'text-coral' : 'text-foreground',
+            status === 'failed' ? 'text-coral-text' : 'text-foreground',
           )}
         >
           {status === 'generating' && (

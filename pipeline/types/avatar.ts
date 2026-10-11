@@ -90,6 +90,11 @@ export interface HeyGenLook {
   gender?: AvatarGender
   supportedEngines: AvatarEngine[]
   preferredOrientation?: AvatarOrientation
+  // Medidas de la imagen del look (`image_width`/`image_height` de HeyGen),
+  // solo si son enteros positivos: el formato de la ficha cuando HeyGen no
+  // informa la orientación (`lookFormatOf`, entrega 2c).
+  imageWidth?: number
+  imageHeight?: number
   // Solo en looks privados: cómo va el entrenamiento.
   status?: AvatarLibraryStatus
 }
@@ -179,6 +184,25 @@ export interface AvatarStockLooksResult {
 export interface AvatarStockTypesPayload {
   // true = ignorar la caché y volver a barrer HeyGen.
   refresh?: boolean
+}
+
+// `avatar-heygen-delete` (entrega 2c, pedido del dueño del 2026-10-11): borra
+// de verdad un avatar PROPIO de la cuenta de HeyGen (`DELETE
+// /v3/avatars/{group_id}`, con todos sus looks; HeyGen no deja borrar grupos
+// públicos ni de la comunidad) y, si estaba en la biblioteca, también su
+// entrada local. No se puede deshacer.
+export interface AvatarHeygenDeletePayload {
+  groupId: string
+  // Nombre del avatar, solo para la fila del log de soporte
+  // (`diagnostics/subject.rs` lee `name`), como en `avatar-add`: el sidecar no
+  // lo usa.
+  name?: string
+}
+
+export interface AvatarHeygenDeleteResult {
+  groupId: string
+  // Ids de las entradas de la biblioteca que se quitaron por ser de ese grupo.
+  removedEntryIds: string[]
 }
 
 export interface AvatarStockTypesResult {
@@ -310,6 +334,12 @@ export const AVATAR_POLL_INITIAL_MS = 5000
 export const AVATAR_POLL_MAX_MS = 20_000
 // HeyGen dice 1–5 min; su centro de ayuda, hasta 10 por minuto de video.
 export const AVATAR_RENDER_DEADLINE_MS = 30 * 60_000
+// Grafemas (lo que se ve como un carácter) del nombre del video que entran en
+// el título de cada render de HeyGen (entrega 2c, decisión del dueño del
+// 2026-10-11, diseño §7.1): el título es `<nombre> · <marca>` y la marca, que
+// recupera un pedido sin respuesta, va siempre entera (avatarNamedVideoTitle,
+// pipeline/avatar/fingerprint.ts).
+export const AVATAR_VIDEO_TITLE_NAME_LIMIT = 80
 // Desfase a partir del cual el visor reajusta un clip de avatar: los labios no
 // toleran los 0,3 s que se le permiten a un clip animado.
 export const AVATAR_PREVIEW_RESYNC_SECONDS = 0.12
@@ -391,7 +421,8 @@ export type SceneAvatarStatus = 'planned' | 'ready' | 'failed'
 
 // Recibo de un pedido a HeyGen (pago una sola vez, como AnimationAttempt):
 // `creating` se persiste ANTES del POST, `pending` con el `videoId` después y
-// `ambiguous` si el POST no respondió (la próxima corrida busca el `title`).
+// `ambiguous` si el POST no respondió (la próxima corrida busca su render por
+// la marca del `title`).
 // Sin fondo propio: el clip trae el del look (dirección del dueño del
 // 2026-10-10), así que no hay asset ni huella de fondo.
 export interface AvatarAttempt {
@@ -399,14 +430,22 @@ export interface AvatarAttempt {
   // cortado + versión de la narración. El número de intentos fallidos o
   // rechazados del mismo pedido NO entra acá: va en la clave del intento
   // (avatarRequestKey(hash, retryIndex), pipeline/avatar/fingerprint.ts), de la
-  // que salen la Idempotency-Key, el `title` y los mp4; así un fallo o un
-  // rechazo no se repite 24 h con la misma clave y los intentos de un mismo
-  // pedido comparten `hash`.
+  // que salen la Idempotency-Key, la marca del `title` y los mp4; así un fallo
+  // o un rechazo no se repite 24 h con la misma clave y los intentos de un
+  // mismo pedido comparten `hash`.
   hash: string
   state: 'creating' | 'pending' | 'succeeded' | 'failed' | 'ambiguous'
   engine: AvatarEngine
   lookId: string
   audioAssetId?: string
+  // El `title` exacto que salió en el POST de este intento (entrega 2c): el
+  // nombre del video y la marca. Se guarda ANTES del POST y cada repetición
+  // manda este mismo, aunque el video cambie de nombre. Un recibo de antes de
+  // la 2c no lo tiene: su POST llevaba la marca sola y su repetición también.
+  // La recuperación busca primero el render con este título exacto (o con la
+  // marca sola, si falta), también pidiéndolo por este título, y solo sin él
+  // uno que termine en la marca (findOwnVideo, pipeline/avatar/lane.ts).
+  title?: string
   videoId?: string
   videoUrl?: string
   // El `failure_code` de HeyGen, tal cual.

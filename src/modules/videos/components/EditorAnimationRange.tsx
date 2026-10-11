@@ -169,12 +169,12 @@ export function EditorAnimationRange({
             </p>
           )}
           {rejected && (
-            <p className="font-body text-xs text-coral">
+            <p className="font-body text-xs text-coral-text">
               {t('library.editor.animationRange.invalidScenes')}
             </p>
           )}
           {missingImages && (
-            <p className="font-body text-xs text-coral">
+            <p className="font-body text-xs text-coral-text">
               {t('create.errors.animationImageMissing')}
             </p>
           )}

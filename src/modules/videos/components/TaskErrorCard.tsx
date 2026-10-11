@@ -51,7 +51,7 @@ export function TaskErrorCard({
             variant="ghost"
             size="sm"
             onClick={onDiscard}
-            className="rounded-lg font-display text-muted-foreground"
+            className="rounded-lg font-display text-foreground/65"
           >
             {t('create.errors.discard')}
           </Button>

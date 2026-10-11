@@ -14,7 +14,7 @@ import {
 } from '@/modules/common/ui/dialog'
 import { LookChips } from '@/modules/avatars/components/LookChips'
 import { LookPlayer } from '@/modules/avatars/components/LookPlayer'
-import type { AvatarLookSummary, HeyGenLook } from '@pipeline/types/avatar.ts'
+import type { DisplayedLook } from '@/modules/avatars/types/look'
 
 // Lo que ofrece el pie según desde dónde se abre el reproductor: en el stock,
 // cargar el avatar a la biblioteca con este look como principal (`load`) o, si
@@ -34,7 +34,7 @@ export type LookPlayerAction =
   | { kind: 'unusable'; reasonKey: string }
 
 interface LookPlayerDialogProps {
-  look: HeyGenLook | AvatarLookSummary
+  look: DisplayedLook
   imageUrl?: string
   videoUrl?: string
   // El video todavía se busca (en el panel de un avatar, la lista de looks de

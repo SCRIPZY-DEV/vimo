@@ -112,7 +112,7 @@ export function InsufficientCreditsAlert({
               <span
                 className={cn(
                   'tabular-nums',
-                  line.sufficient === false && 'font-bold text-coral',
+                  line.sufficient === false && 'font-bold text-coral-text',
                 )}
               >
                 {line.available === null

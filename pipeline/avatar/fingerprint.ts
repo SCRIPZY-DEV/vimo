@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto'
 
-import type { AvatarAttempt, AvatarEngine } from '../types/avatar.ts'
+import {
+  AVATAR_VIDEO_TITLE_NAME_LIMIT,
+  type AvatarAttempt,
+  type AvatarEngine,
+} from '../types/avatar.ts'
 import type { VideoFormat } from '../types/video-format.ts'
 
 // Huellas del avatar de una escena (diseño §3.1 y §7.2, sin el fondo: desde la
@@ -11,7 +15,7 @@ import type { VideoFormat } from '../types/video-format.ts'
 //  - la del PEDIDO (look, motor, formato, resolución, corte y versión de la
 //    narración) es `attempt.hash`; con el número de reintento da la clave del
 //    intento, de la que salen la `Idempotency-Key` (con el proyecto y la
-//    escena), el `title` y los nombres de los mp4;
+//    escena), la marca del `title` y los nombres de los mp4;
 //  - la del RENDER (look, motor, tramo y versión de la narración) es
 //    `renderHash`: si ya no coincide con la escena, el clip está desactualizado.
 // Se hashea un arreglo JSON, no un objeto: el orden queda fijo. Usa node:crypto:
@@ -20,8 +24,17 @@ import type { VideoFormat } from '../types/video-format.ts'
 const IDEMPOTENCY_PREFIX = 'vimo-avatar-video-'
 // Hex que van en la Idempotency-Key.
 const IDEMPOTENCY_HEX_LENGTH = 32
-// Hex de la clave del intento que van en el `title` del render.
+// Hex de la clave del intento que van en la marca del `title` del render.
 const TITLE_HEX_LENGTH = 8
+// Entre el nombre del video y la marca, en el título del render.
+const TITLE_NAME_SEPARATOR = ' · '
+// Lo que en el nombre cuenta como un hueco: los espacios (también saltos de
+// línea, tabulaciones y los de Unicode), los caracteres de control y las
+// mitades sueltas de un par sustituto, que no se pueden escribir en un título.
+const TITLE_NAME_GAPS = /[\s\p{Cc}\p{Cs}]+/gu
+// Grafemas: lo que se ve como un solo carácter (una letra con su tilde, un
+// emoji con su tono de piel o unido con ZWJ, una bandera).
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 export interface AvatarAudioCut {
   narrationSha256: string
@@ -115,10 +128,58 @@ export function avatarIdempotencyKey(
   return IDEMPOTENCY_PREFIX + scoped.slice(0, IDEMPOTENCY_HEX_LENGTH)
 }
 
+// La MARCA del render de un intento: proyecto, escena y 8 hex de su clave.
+// Desde la entrega 2c va al final del título que se manda
+// (avatarNamedVideoTitle) y sigue siendo lo que se busca en HeyGen para
+// recuperar un pedido sin respuesta; antes de la 2c era el título entero.
 export function avatarVideoTitle(
   projectId: string,
   sceneId: number,
   requestKey: string,
 ): string {
   return `vimo:${projectId}:scene-${sceneId}:${requestKey.slice(0, TITLE_HEX_LENGTH)}`
+}
+
+// El nombre del video como entra en el título: en NFC, sin espacios de más
+// (cada hueco de TITLE_NAME_GAPS cuenta como un espacio) y cortado en
+// AVATAR_VIDEO_TITLE_NAME_LIMIT grafemas, así ni un emoji compuesto ni una
+// bandera quedan partidos. Un nombre llano no le manda a HeyGen lo que podría
+// rechazar (un NUL) o guardar a medias.
+function videoTitleName(videoName: string): string {
+  const clean = videoName.normalize('NFC').replace(TITLE_NAME_GAPS, ' ').trim()
+  return Array.from(GRAPHEMES.segment(clean), ({ segment }) => segment)
+    .slice(0, AVATAR_VIDEO_TITLE_NAME_LIMIT)
+    .join('')
+    .trimEnd()
+}
+
+// El título que sale en el POST (entrega 2c, decisión del dueño del
+// 2026-10-11, diseño §7.1): `<nombre del video> · <marca>`; sin nombre, la
+// marca sola. La marca va siempre entera y al final.
+export function avatarNamedVideoTitle(
+  videoName: string,
+  marker: string,
+): string {
+  // project.json se lee sin validar (readProjectMetadata): un nombre que no es
+  // texto cuenta como sin nombre y no frena el render.
+  const name = typeof videoName === 'string' ? videoTitleName(videoName) : ''
+  if (!name) return marker
+
+  return `${name}${TITLE_NAME_SEPARATOR}${marker}`
+}
+
+// Si `title` termina en la marca (entrega 2c, rondas 1 a 3): un render de este
+// pedido con lo que sea delante —el nombre o el separador que HeyGen haya
+// guardado distinto—, porque la marca es ASCII, va al final y ninguna otra
+// marca de Vimo puede terminar en ella (lleva `vimo:` y dos puntos, que un id
+// de proyecto no tiene). Una copia hecha en HeyGen («Copia de <título>»)
+// también termina así: la recuperación prefiere el título exacto y, entre los
+// que solo terminan en la marca, nunca elige uno `failed`
+// (pipeline/avatar/lane.ts). La marca en otro lugar (`<marca> (copia)`,
+// `<marca> · <nombre>`) no cuenta.
+export function endsWithAvatarVideoMarker(
+  title: string,
+  marker: string,
+): boolean {
+  return title.endsWith(marker)
 }

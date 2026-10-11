@@ -146,7 +146,7 @@ export function StageBar({
                 </span>
               )}
               {active && promptModelStalled && stage.id === 'scene-prompts' && (
-                <span className="block font-body text-sm font-normal text-coral">
+                <span className="block font-body text-sm font-normal text-coral-text">
                   {t('create.progress.promptModelStalled')}
                 </span>
               )}

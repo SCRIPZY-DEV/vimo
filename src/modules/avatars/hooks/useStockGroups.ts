@@ -36,7 +36,7 @@ export function useStockGroups({
   enabled,
 }: UseStockGroupsOptions): StockGroupsListing {
   const query = useInfiniteQuery({
-    queryKey: [...avatarsQueryKeys.stockGroups, ownership],
+    queryKey: avatarsQueryKeys.stockGroupsOf(ownership),
     queryFn: ({ pageParam }) =>
       avatarsApi.listStockGroups({
         ownership,

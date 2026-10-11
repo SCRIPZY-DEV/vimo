@@ -238,7 +238,7 @@ export function GenerateLookDialog({
                 className={cn(
                   'font-mono text-[11px] tabular-nums',
                   prompt.length >= AVATAR_PROMPT_LIMIT
-                    ? 'text-coral'
+                    ? 'text-coral-text'
                     : 'text-muted-foreground',
                 )}
               >

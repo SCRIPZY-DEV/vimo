@@ -67,7 +67,7 @@ export function BlockedPromptModelsSection() {
               key={block.modelId}
               className="flex items-center gap-3 rounded-xl border-2 border-coral/40 bg-coral/5 px-4 py-3"
             >
-              <Ban className="h-5 w-5 shrink-0 text-coral" />
+              <Ban className="h-5 w-5 shrink-0 text-coral-text" />
               <div className="min-w-0 flex-1">
                 <p className="font-display text-sm font-bold text-foreground">
                   {labelOf(block.modelId)}

@@ -66,7 +66,7 @@ export function PromptModelCard({
         {model.author}
       </span>
       {blocked && (
-        <span className="mt-1 flex items-center gap-1 font-display text-xs font-bold text-coral">
+        <span className="mt-1 flex items-center gap-1 font-display text-xs font-bold text-coral-text">
           <Ban className="h-3.5 w-3.5" />
           {t('common.promptModelBlocked.badge', {
             minutes: blockedMinutesLeft(blockedUntil),

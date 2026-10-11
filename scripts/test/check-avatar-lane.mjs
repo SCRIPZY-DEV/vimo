@@ -35,9 +35,24 @@
 // título que falla sin POST; una escena lista que no vuelve a HeyGen;
 // `needs-request` sin tocar nada; un recibo sin su audio, que se cierra sin
 // POST; y un tramo sin cuadros (la regla única de `avatarSceneSpan`, en cuadros
-// de 25 fps) o un avatar sin look, sin hablar con HeyGen. Un solo fetch
-// simulado por test (con `reset` entre corridas) y un centinela al final. Los
-// nombres de archivo y la tarifa los fija `check-avatar-scene-model.mjs`.
+// de 25 fps) o un avatar sin look, sin hablar con HeyGen. Y el título de cada
+// render (entrega 2c, diseño §7.1, con las rondas 1 a 4): `<nombre del video>
+// · <marca>` con el nombre sin espacios de más y cortado en 80 grafemas (ni un
+// emoji compuesto ni una bandera partidos; sin nombre, la marca sola),
+// guardado en el intento ANTES del POST; la recuperación, que adopta primero
+// el render con el título exacto que salió (pedido por ese título, una
+// página, y después por la marca, en cualquier página y con cualquier estado;
+// también con un HeyGen que filtre por igualdad) y, solo sin él, uno que
+// termine en la marca y no esté `failed`, el más avanzado (así ni un nombre ni
+// un separador que HeyGen guardó distinto impiden recuperar, y una copia de
+// HeyGen que termina igual no le gana al exacto), nunca uno con la marca en
+// otro lugar; una consulta por el título que falla, que deja la escena fallida
+// y el intento sin resolver, sin seguir por la marca ni pagar; un renombre en
+// el medio que no cambia nada; y la repetición byte a byte: el título guardado
+// o, en un recibo de antes de la 2c, la marca sola, sin escribir nada antes
+// del POST. Un solo fetch simulado por test (con
+// `reset` entre corridas) y un centinela al final. Los nombres de archivo y la
+// tarifa los fija `check-avatar-scene-model.mjs`.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
@@ -63,11 +78,13 @@ import {
 import {
   avatarAudioCutHash,
   avatarIdempotencyKey,
+  avatarNamedVideoTitle,
   avatarRenderHash,
   avatarRequestHash,
   avatarRequestKey,
   avatarRetryIndex,
   avatarVideoTitle,
+  endsWithAvatarVideoMarker,
 } from '../../pipeline/avatar/fingerprint.ts'
 import { renderAvatarScene } from '../../pipeline/avatar/lane.ts'
 import {
@@ -79,7 +96,10 @@ import { resolveProjectPaths } from '../../pipeline/project/paths.ts'
 import { toSceneAvatarView } from '../../pipeline/project/scenes-file.ts'
 import { createHeyGenClient } from '../../pipeline/providers/avatar/heygen.ts'
 import { PipelineFailure } from '../../pipeline/runner/failure.ts'
-import { avatarSceneSpan } from '../../pipeline/types/avatar.ts'
+import {
+  AVATAR_VIDEO_TITLE_NAME_LIMIT,
+  avatarSceneSpan,
+} from '../../pipeline/types/avatar.ts'
 import {
   FFMPEG,
   ORIGINAL_FETCH,
@@ -198,6 +218,9 @@ function lane(paths, overrides = {}) {
     client: createHeyGenClient('key-123', new AbortController().signal),
     paths,
     projectId: PROJECT_ID,
+    // Sin nombre, el título es la marca sola (como antes de la 2c): los tests
+    // del título le ponen uno.
+    videoName: '',
     ffmpegPath: FFMPEG,
     format: '16:9',
     frame: SMALL_FRAME,
@@ -2100,6 +2123,822 @@ test('el asset rechazado sale solo de los recibos del mismo pedido: un recibo de
       [true, 'failed', undefined],
     ],
   )
+})
+
+// ─── El título del video en cada render (entrega 2c, diseño §7.1) ───
+
+const VIDEO_NAME = 'Mi video'
+// La marca del intento `retryIndex` del pedido de la escena 3.
+const markerOf = (retryIndex) =>
+  avatarVideoTitle(PROJECT_ID, 3, avatarRequestKey(REQUEST_HASH, retryIndex))
+// El título que sale con ese nombre de video, escrito a mano: el formato es
+// el contrato.
+const namedTitle = (name, retryIndex = 0) => `${name} · ${markerOf(retryIndex)}`
+
+test('título: `<nombre> · <marca>` con el nombre sin espacios de más y cortado en 80 caracteres enteros; sin nombre, la marca sola', () => {
+  const marker = markerOf(0)
+  assert.equal(AVATAR_VIDEO_TITLE_NAME_LIMIT, 80)
+  assert.equal(
+    avatarNamedVideoTitle(VIDEO_NAME, marker),
+    namedTitle(VIDEO_NAME),
+  )
+  // Sin espacios de más: las puntas, los dobles, los saltos de línea y las
+  // tabulaciones quedan en un espacio.
+  assert.equal(
+    avatarNamedVideoTitle('  Mi   video\n\tfinal  ', marker),
+    `Mi video final · ${marker}`,
+  )
+  // Sin nombre (vacío, solo espacios, o un project.json sin `name`): la marca
+  // sola, como antes de la 2c.
+  for (const name of ['', '   ', '\n\t ', undefined])
+    assert.equal(
+      avatarNamedVideoTitle(name, marker),
+      marker,
+      JSON.stringify(name),
+    )
+  // Un nombre largo se corta en 80 caracteres; la marca va entera al final.
+  assert.equal(
+    avatarNamedVideoTitle('a'.repeat(120), marker),
+    `${'a'.repeat(80)} · ${marker}`,
+  )
+  // El corte cuenta grafemas: nunca deja medio emoji ni UTF-16 inválido.
+  const emoji = avatarNamedVideoTitle(`${'a'.repeat(79)}😀b`, marker)
+  assert.equal(emoji, `${'a'.repeat(79)}😀 · ${marker}`)
+  assert.ok(emoji.isWellFormed())
+  // Tampoco parte un emoji unido con ZWJ, una bandera ni un tono de piel,
+  // aunque el corte caiga entre sus code points.
+  for (const grapheme of [
+    String.fromCodePoint(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467),
+    String.fromCodePoint(0x1f1e6, 0x1f1f7),
+    String.fromCodePoint(0x1f44d, 0x1f3fd),
+  ])
+    assert.equal(
+      avatarNamedVideoTitle(`${'a'.repeat(79)}${grapheme}b`, marker),
+      `${'a'.repeat(79)}${grapheme} · ${marker}`,
+      grapheme,
+    )
+  // Un corte que cae en un espacio no deja dos antes del separador.
+  assert.equal(
+    avatarNamedVideoTitle(`${'a'.repeat(79)} bcd`, marker),
+    `${'a'.repeat(79)} · ${marker}`,
+  )
+  // En NFC, y sin caracteres de control ni mitades sueltas de un par sustituto.
+  assert.equal(
+    avatarNamedVideoTitle('Jose\u0301\u0000\uD800 Pérez', marker),
+    `José Pérez · ${marker}`,
+  )
+})
+
+test('título: el POST lleva `<nombre del video> · <marca>`, el intento lo guarda ANTES de salir y lo conserva; la Idempotency-Key no depende del nombre', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const { options, checkpoints } = lane(paths, { videoName: VIDEO_NAME })
+  const seenAtPost = []
+  const fake = fakeHeyGen(t, {
+    clip,
+    onRequest(call) {
+      if (call.method === 'POST' && call.path === '/v3/videos')
+        seenAtPost.push(structuredClone(checkpoints.at(-1)))
+    },
+  })
+  const result = await renderAvatarScene(SCENE, options)
+  assert.equal(result.outcome, 'ready')
+  const title = namedTitle(VIDEO_NAME)
+  assert.deepEqual(
+    fake
+      .posts()
+      .map((call) => [call.body.title, call.headers['Idempotency-Key']]),
+    [[title, idempotencyKey(0)]],
+  )
+  // En disco ya estaba el título exacto cuando salió el POST: viajó con la
+  // intención, en la misma escritura (ninguna de más antes del POST).
+  assert.deepEqual(
+    seenAtPost.map((avatar) =>
+      avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+    ),
+    [[['creating', title]]],
+  )
+  assert.deepEqual(
+    checkpoints.map((avatar) => avatar.attempts.at(-1)?.state),
+    ['creating', 'pending', 'succeeded', 'succeeded'],
+  )
+  assert.deepEqual(
+    result.avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+    [['succeeded', title]],
+  )
+})
+
+test('título: el intento que sigue a uno fallido lleva la marca de SU clave (la siguiente), en el título y en la búsqueda', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const fake = fakeHeyGen(t, { clip })
+  const result = await renderAvatarScene(
+    withAttempts([
+      {
+        ...creatingAttempt(),
+        state: 'failed',
+        errorCode: 'avatar_render_failed',
+      },
+    ]),
+    lane(paths, { videoName: VIDEO_NAME }).options,
+  )
+  assert.equal(result.outcome, 'ready')
+  assert.deepEqual(
+    fake
+      .posts()
+      .map((call) => [call.body.title, call.headers['Idempotency-Key']]),
+    [[namedTitle(VIDEO_NAME, 1), idempotencyKey(1)]],
+  )
+  assert.notEqual(markerOf(1), markerOf(0))
+  assert.deepEqual(
+    result.avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+    [
+      ['failed', undefined],
+      ['succeeded', namedTitle(VIDEO_NAME, 1)],
+    ],
+  )
+})
+
+test('título: un render de este pedido se reconoce por la marca al final, con lo que sea delante (el nombre o el separador que HeyGen haya guardado distinto; también una copia de HeyGen, que la decide el orden de la recuperación); la marca en otro lugar, no', () => {
+  const marker = markerOf(0)
+  for (const title of [
+    marker,
+    namedTitle(VIDEO_NAME),
+    // El nombre como HeyGen lo pudo haber guardado: descompuesto y con otro
+    // emoji. La marca es ASCII y va al final: no cambia.
+    `${'José'.normalize('NFD')} 🙂 · ${marker}`,
+    // El separador cambiado o perdido.
+    `${VIDEO_NAME}·${marker}`,
+    `${VIDEO_NAME} - ${marker}`,
+    `${VIDEO_NAME} ${marker}`,
+    `${VIDEO_NAME}${marker}`,
+    // Una copia hecha en HeyGen también termina así: por eso la recuperación
+    // prefiere el título exacto y no elige una `failed`.
+    `Copia de ${namedTitle(VIDEO_NAME)}`,
+    `Copia de ${marker}`,
+  ])
+    assert.equal(endsWithAvatarVideoMarker(title, marker), true, title)
+  for (const title of [
+    `${marker} (copia)`,
+    `${marker} · ${VIDEO_NAME}`,
+    `${marker} `,
+    `${marker}x`,
+    // La marca de otra escena o de otro proyecto que termina parecido.
+    namedTitle(VIDEO_NAME).replace(':scene-3:', ':scene-13:'),
+    namedTitle(VIDEO_NAME).replace('vimo:mi-video:', 'vimo:otro-mi-video:'),
+  ])
+    assert.equal(endsWithAvatarVideoMarker(title, marker), false, title)
+})
+
+test('reanudar un recibo de la 2c sin su título exacto en HeyGen: se busca por el título que salió y por la marca, y se adopta sin pagar el render que termina en la marca (HeyGen guardó el nombre distinto); las copias con la marca en otro lugar no', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const marker = markerOf(0)
+  const sent = avatarNamedVideoTitle('José 😀', marker)
+  assert.equal(sent, `José 😀 · ${marker}`)
+  // HeyGen filtra por substring: con la marca vuelven también las copias.
+  const fake = fakeHeyGen(t, {
+    clip,
+    listed: [
+      { id: 'video-copia', title: `${sent} (copia)`, status: 'completed' },
+      {
+        id: 'video-marca-al-medio',
+        title: `${marker} · José 😀`,
+        status: 'completed',
+      },
+      // El render pagado, con el nombre como HeyGen lo pudo haber guardado:
+      // descompuesto y con otro emoji.
+      {
+        id: 'video-pagado',
+        title: `${'José'.normalize('NFD')} 🙂 · ${marker}`,
+        status: 'processing',
+      },
+    ],
+  })
+  const result = await renderAvatarScene(
+    withAttempts([{ ...creatingAttempt(), title: sent }]),
+    lane(paths, { videoName: 'José 😀' }).options,
+  )
+  assert.equal(result.outcome, 'ready')
+  assert.equal(fake.posts().length, 0)
+  assert.equal(fake.uploads().length, 0)
+  // Primero una página por el título que salió; después, por la marca.
+  assert.deepEqual(
+    fake.lists().map((call) => new URLSearchParams(call.search).get('title')),
+    [sent, marker],
+  )
+  // El recibo conserva el título que salió: es para repetir el mismo cuerpo.
+  assert.deepEqual(
+    result.avatar.attempts.map((attempt) => [
+      attempt.state,
+      attempt.videoId,
+      attempt.title,
+    ]),
+    [['succeeded', 'video-pagado', sent]],
+  )
+})
+
+test('reanudar un recibo de antes de la 2c (sin título): se busca solo por la marca y se adopta sin pagar el render con la marca sola, aunque antes aparezcan otros que terminan en la marca; las copias con la marca adentro no', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const marker = markerOf(0)
+  const fake = fakeHeyGen(t, {
+    clip,
+    listed: [
+      // Un candidato por el sufijo: el exacto (la marca sola) le gana.
+      {
+        id: 'video-con-nombre',
+        title: `${VIDEO_NAME} · ${marker}`,
+        status: 'completed',
+      },
+      { id: 'video-copia', title: `${marker} (copia)`, status: 'completed' },
+      { id: 'video-copia-2', title: `Copia de ${marker}`, status: 'completed' },
+      {
+        id: 'video-marca-al-medio',
+        title: `${marker} · ${VIDEO_NAME}`,
+        status: 'completed',
+      },
+      { id: 'video-pagado', title: marker, status: 'completed' },
+    ],
+  })
+  const result = await renderAvatarScene(
+    withAttempts([{ ...creatingAttempt(), state: 'ambiguous' }]),
+    lane(paths, { videoName: VIDEO_NAME }).options,
+  )
+  assert.equal(result.outcome, 'ready')
+  assert.equal(fake.posts().length, 0)
+  assert.equal(fake.uploads().length, 0)
+  assert.equal(result.avatar.attempts[0].videoId, 'video-pagado')
+  // Sin título guardado no hay búsqueda por título: solo por la marca.
+  assert.deepEqual(
+    fake.lists().map((call) => new URLSearchParams(call.search).get('title')),
+    [marker],
+  )
+  // No mandó nada: el recibo sigue sin título.
+  assert.equal(result.avatar.attempts[0].title, undefined)
+})
+
+test('una copia nunca se adopta: con solo títulos que llevan la marca en otro lugar (no al final) se repite el MISMO pedido con la MISMA clave y el mismo cuerpo, en un recibo de antes de la 2c y en uno de después', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  const marker = markerOf(0)
+  const title = namedTitle(VIDEO_NAME)
+  const copies = [
+    `${marker} (copia)`,
+    `${marker} · ${VIDEO_NAME}`,
+    `${title} (1)`,
+    `${marker} `,
+    `${marker}x`,
+  ]
+  for (const stored of [undefined, title]) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    fake.reset({
+      clip,
+      listed: copies.map((listedTitle, index) => ({
+        id: `video-ajeno-${index}`,
+        title: listedTitle,
+        status: 'completed',
+      })),
+    })
+    const attempt = { ...creatingAttempt(), state: 'ambiguous' }
+    const result = await renderAvatarScene(
+      withAttempts([stored ? { ...attempt, title: stored } : attempt]),
+      lane(paths, { videoName: VIDEO_NAME }).options,
+    )
+    const label = stored ?? 'sin título'
+    assert.equal(result.outcome, 'ready', label)
+    // El mismo cuerpo que el envío original: el título guardado o, sin él,
+    // la marca sola.
+    assert.deepEqual(
+      fake
+        .posts()
+        .map((call) => [
+          call.headers['Idempotency-Key'],
+          call.body.title,
+          call.body.audio_asset_id,
+        ]),
+      [[idempotencyKey(0), stored ?? marker, 'asset-audio']],
+      label,
+    )
+    assert.equal(fake.uploads().length, 0, label)
+    assert.equal(result.avatar.attempts[0].videoId, 'video-3-1', label)
+  }
+})
+
+test('renombrar el video entre el POST y la recuperación no cambia nada: se adopta el render por su marca y, sin rastro, se repite el título guardado (el del nombre viejo) con la MISMA clave', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  // Primera corrida con el nombre viejo: la red se cae en el POST.
+  const fake = fakeHeyGen(t, { clip, create: () => 'network' })
+  const first = await renderAvatarScene(
+    SCENE,
+    lane(paths, { videoName: 'Nombre viejo' }).options,
+  )
+  assert.equal(first.outcome, 'failed')
+  const sent = namedTitle('Nombre viejo')
+  assert.equal(fake.posts()[0].body.title, sent)
+  assert.deepEqual(
+    first.avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+    [['ambiguous', sent]],
+  )
+
+  // El video se llama distinto. HeyGen tiene el render con el título que
+  // salió, y una copia con la marca al medio que no es nuestra.
+  fake.reset({
+    clip,
+    listed: [
+      {
+        id: 'video-copia',
+        title: `${markerOf(0)} · Nombre viejo`,
+        status: 'completed',
+      },
+      { id: 'video-pagado', title: sent, status: 'completed' },
+    ],
+  })
+  const second = await renderAvatarScene(
+    { ...SCENE, avatar: first.avatar },
+    lane(paths, { videoName: 'Nombre nuevo' }).options,
+  )
+  assert.equal(second.outcome, 'ready')
+  assert.equal(fake.posts().length, 0)
+  assert.deepEqual(
+    second.avatar.attempts.map((attempt) => [
+      attempt.state,
+      attempt.videoId,
+      attempt.title,
+    ]),
+    [['succeeded', 'video-pagado', sent]],
+  )
+
+  // Otra corrida posible, sin rastro en HeyGen: la repetición manda el título
+  // guardado (el del nombre viejo) con la misma clave, el mismo cuerpo.
+  const other = await project(t)
+  fake.reset({ clip, listed: [] })
+  const third = await renderAvatarScene(
+    { ...SCENE, avatar: first.avatar },
+    lane(other.paths, { videoName: 'Nombre nuevo' }).options,
+  )
+  assert.equal(third.outcome, 'ready')
+  assert.deepEqual(
+    fake
+      .posts()
+      .map((call) => [call.headers['Idempotency-Key'], call.body.title]),
+    [[idempotencyKey(0), sent]],
+  )
+  assert.equal(third.avatar.attempts[0].title, sent)
+})
+
+test('un recibo de antes de la 2c sin rastro se repite byte a byte: la MISMA clave y el cuerpo de su POST original, con la marca sola, sin guardar un título ni escribir antes del POST; la corrida siguiente lo adopta sin pagar', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  for (const state of ['creating', 'ambiguous']) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    const { options, checkpoints } = lane(paths, { videoName: VIDEO_NAME })
+    const writesAtPost = []
+    // La repetición también se queda sin respuesta.
+    fake.reset({
+      listed: [],
+      create: () => 'network',
+      onRequest(call) {
+        if (call.method === 'POST' && call.path === '/v3/videos')
+          writesAtPost.push(checkpoints.length)
+      },
+    })
+    const repeated = await renderAvatarScene(
+      withAttempts([{ ...creatingAttempt(), state }]),
+      options,
+    )
+    assert.equal(repeated.errorCode, 'avatar_network', state)
+    // El cuerpo del POST de antes de la 2c, tal cual: la marca sola.
+    assert.deepEqual(
+      fake.posts().map((call) => [call.headers['Idempotency-Key'], call.body]),
+      [
+        [
+          idempotencyKey(0),
+          {
+            type: 'avatar',
+            title: markerOf(0),
+            avatar_id: 'look-1',
+            audio_asset_id: 'asset-audio',
+            engine: { type: 'avatar_iii' },
+            aspect_ratio: '16:9',
+            resolution: '1080p',
+            output_format: 'mp4',
+          },
+        ],
+      ],
+      state,
+    )
+    // Nada se escribió antes del POST y el recibo no ganó título.
+    assert.deepEqual(writesAtPost, [0], state)
+    assert.deepEqual(
+      repeated.avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+      [['ambiguous', undefined]],
+      state,
+    )
+
+    // La corrida siguiente (con otro nombre) lo encuentra por la marca y no paga.
+    const next = await project(t)
+    fake.reset({
+      clip,
+      listed: [
+        { id: 'video-original', title: markerOf(0), status: 'completed' },
+      ],
+    })
+    const resumed = await renderAvatarScene(
+      { ...SCENE, avatar: repeated.avatar },
+      lane(next.paths, { videoName: 'Otro nombre' }).options,
+    )
+    assert.equal(resumed.outcome, 'ready', state)
+    assert.equal(fake.posts().length, 0, state)
+    assert.equal(resumed.avatar.attempts[0].videoId, 'video-original', state)
+  }
+})
+
+test('un título guardado que no es texto (un scenes.json editado) cuenta como sin título: se adopta por la marca y, sin rastro, la repetición manda la marca sola', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  for (const listed of [
+    [{ id: 'video-pagado', title: markerOf(0), status: 'completed' }],
+    [],
+  ]) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    fake.reset({ clip, listed })
+    const result = await renderAvatarScene(
+      withAttempts([{ ...creatingAttempt(), state: 'ambiguous', title: 42 }]),
+      lane(paths, { videoName: VIDEO_NAME }).options,
+    )
+    assert.equal(result.outcome, 'ready')
+    if (listed.length > 0) {
+      assert.equal(fake.posts().length, 0)
+      assert.equal(result.avatar.attempts[0].videoId, 'video-pagado')
+      continue
+    }
+
+    assert.deepEqual(
+      fake
+        .posts()
+        .map((call) => [call.headers['Idempotency-Key'], call.body.title]),
+      [[idempotencyKey(0), markerOf(0)]],
+    )
+  }
+})
+
+// ─── Ronda 2 de la 2c: el título exacto primero (R-H3) ───
+
+// La consulta de un render `failed`, como la devuelve HeyGen.
+const failedRender = {
+  status: 'failed',
+  extra: { failure_code: 'render_error', failure_message: 'Render failed' },
+}
+
+test('una copia hecha en HeyGen («Copia de <título>») que aparece antes nunca le gana al render con el título exacto: ni `failed` (se pagaría otro render) ni de estado desconocido (avatar_timeout para siempre)', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  const title = namedTitle(VIDEO_NAME)
+  for (const copyStatus of ['failed', 'draft']) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    fake.reset({
+      clip,
+      listed: [
+        { id: 'video-copia', title: `Copia de ${title}`, status: copyStatus },
+        { id: 'video-pagado', title, status: 'completed' },
+      ],
+      // Si se adoptara la copia, su consulta diría lo mismo que el listado.
+      poll: (videoId) => {
+        if (videoId !== 'video-copia') return { status: 'completed' }
+        if (copyStatus === 'failed') return failedRender
+
+        return { status: copyStatus }
+      },
+    })
+    const result = await renderAvatarScene(
+      withAttempts([{ ...creatingAttempt(), state: 'ambiguous', title }]),
+      lane(paths, { videoName: VIDEO_NAME }).options,
+    )
+    assert.equal(result.outcome, 'ready', copyStatus)
+    assert.equal(fake.posts().length, 0, copyStatus)
+    assert.equal(result.avatar.attempts[0].videoId, 'video-pagado', copyStatus)
+    assert.equal(
+      fake.calls.some((call) => call.path === '/v3/videos/video-copia'),
+      false,
+      copyStatus,
+    )
+  }
+})
+
+test('el render con el título exacto gana aunque llegue en la tercera página y un candidato por el sufijo haya aparecido en la primera', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const marker = markerOf(0)
+  const title = namedTitle(VIDEO_NAME)
+  const fake = fakeHeyGen(t, {
+    clip,
+    pageSize: 2,
+    listed: [
+      {
+        id: 'video-sufijo',
+        title: `Otro nombre · ${marker}`,
+        status: 'completed',
+      },
+      { id: 'video-copia-1', title: `${title} (1)`, status: 'completed' },
+      { id: 'video-copia-2', title: `${title} (2)`, status: 'completed' },
+      { id: 'video-copia-3', title: `${title} (3)`, status: 'completed' },
+      { id: 'video-pagado', title, status: 'processing' },
+    ],
+  })
+  const result = await renderAvatarScene(
+    withAttempts([{ ...creatingAttempt(), title }]),
+    lane(paths, { videoName: VIDEO_NAME }).options,
+  )
+  assert.equal(result.outcome, 'ready')
+  assert.equal(fake.posts().length, 0)
+  // Una página por el título que salió y, sin el exacto ahí, tres por la marca.
+  assert.deepEqual(
+    fake.lists().map((call) => {
+      const query = new URLSearchParams(call.search)
+      return [query.get('title'), query.get('token')]
+    }),
+    [
+      [title, null],
+      [marker, null],
+      [marker, '2'],
+      [marker, '4'],
+    ],
+  )
+  assert.equal(result.avatar.attempts[0].videoId, 'video-pagado')
+})
+
+test('sin el título exacto en las páginas revisadas, gana el candidato por el sufijo más avanzado (completado, después en curso, después de estado desconocido; entre iguales, el primero) y nunca uno `failed`; con solo `failed`, se repite el MISMO pedido', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  const marker = markerOf(0)
+  const title = namedTitle(VIDEO_NAME)
+  // Un render que solo termina en la marca, con el estado que trae el listado.
+  const candidate = (id, status) => ({ id, title: `${id} · ${marker}`, status })
+  for (const [stored, listed, adopted] of [
+    [
+      title,
+      [
+        candidate('desconocido', 'draft'),
+        candidate('fallido', 'failed'),
+        candidate('procesando', 'processing'),
+        candidate('completado', 'completed'),
+      ],
+      'completado',
+    ],
+    [
+      title,
+      [
+        candidate('desconocido', 'queued'),
+        candidate('fallido', 'failed'),
+        candidate('esperando', 'waiting'),
+        candidate('procesando', 'processing'),
+      ],
+      'esperando',
+    ],
+    [
+      title,
+      [candidate('fallido', 'failed'), candidate('desconocido', 'draft')],
+      'desconocido',
+    ],
+    // La regla vale también para un recibo de antes de la 2c sin su exacto.
+    [undefined, [candidate('completado', 'completed')], 'completado'],
+    [title, [candidate('fallido', 'failed')], undefined],
+  ]) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    fake.reset({ clip, listed })
+    const attempt = { ...creatingAttempt(), state: 'ambiguous' }
+    const result = await renderAvatarScene(
+      withAttempts([stored ? { ...attempt, title: stored } : attempt]),
+      lane(paths, { videoName: VIDEO_NAME }).options,
+    )
+    const label = listed.map((video) => video.id).join(', ')
+    assert.equal(result.outcome, 'ready', label)
+    if (adopted) {
+      assert.equal(fake.posts().length, 0, label)
+      assert.equal(result.avatar.attempts[0].videoId, adopted, label)
+      continue
+    }
+
+    // Sin candidato que sirva: el mismo pedido, con la misma clave y el
+    // mismo cuerpo.
+    assert.deepEqual(
+      fake
+        .posts()
+        .map((call) => [call.headers['Idempotency-Key'], call.body.title]),
+      [[idempotencyKey(0), title]],
+      label,
+    )
+    assert.equal(result.avatar.attempts[0].videoId, 'video-3-1', label)
+  }
+})
+
+test('el render con el título exacto se adopta aunque esté `failed` (es el nuestro y no se cobró): le gana a una copia completada y el intento se cierra `failed` sin otro POST, en un recibo de la 2c y en uno de antes', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  const marker = markerOf(0)
+  const title = namedTitle(VIDEO_NAME)
+  for (const stored of [title, undefined]) {
+    const { paths } = await project(t)
+    const exactTitle = stored ?? marker
+    fake.reset({
+      listed: [
+        {
+          id: 'video-copia',
+          title: `Copia de ${exactTitle}`,
+          status: 'completed',
+        },
+        { id: 'video-propio', title: exactTitle, status: 'failed' },
+      ],
+      poll: () => failedRender,
+    })
+    const attempt = { ...creatingAttempt(), state: 'ambiguous' }
+    const result = await renderAvatarScene(
+      withAttempts([stored ? { ...attempt, title: stored } : attempt]),
+      lane(paths, { videoName: VIDEO_NAME }).options,
+    )
+    const label = stored ?? 'sin título'
+    assert.equal(result.outcome, 'failed', label)
+    assert.equal(result.errorCode, 'avatar_render_failed', label)
+    assert.equal(fake.posts().length, 0, label)
+    assert.deepEqual(
+      result.avatar.attempts.map((attempt) => [attempt.state, attempt.videoId]),
+      [['failed', 'video-propio']],
+      label,
+    )
+  }
+})
+
+// ─── Ronda 3 de la 2c: búsqueda por el título exacto y cualquier separador (R-H4) ───
+
+test('con un HeyGen que filtra el listado por título EXACTO, el render de un recibo de la 2c se recupera pidiéndolo por su título guardado (una página), sin pagar; uno de antes de la 2c, por la marca', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  const marker = markerOf(0)
+  const title = namedTitle(VIDEO_NAME)
+  for (const [stored, listedTitle, queries] of [
+    [title, title, [title]],
+    [undefined, marker, [marker]],
+  ]) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    fake.reset({
+      clip,
+      listed: [
+        {
+          id: 'video-copia',
+          title: `Copia de ${listedTitle}`,
+          status: 'completed',
+        },
+        { id: 'video-pagado', title: listedTitle, status: 'completed' },
+      ],
+    })
+    // El cliente de siempre, con el listado filtrado por igualdad, como lo
+    // devolvería un HeyGen de filtro exacto.
+    const real = createHeyGenClient('key-123', new AbortController().signal)
+    const client = {
+      ...real,
+      async listVideos(params) {
+        const page = await real.listVideos(params)
+        return {
+          ...page,
+          videos: page.videos.filter((video) => video.title === params.title),
+        }
+      },
+    }
+    const attempt = { ...creatingAttempt(), state: 'ambiguous' }
+    const result = await renderAvatarScene(
+      withAttempts([stored ? { ...attempt, title: stored } : attempt]),
+      lane(paths, { videoName: VIDEO_NAME, client }).options,
+    )
+    const label = stored ?? 'sin título'
+    assert.equal(result.outcome, 'ready', label)
+    assert.equal(fake.posts().length, 0, label)
+    assert.equal(result.avatar.attempts[0].videoId, 'video-pagado', label)
+    assert.deepEqual(
+      fake.lists().map((call) => new URLSearchParams(call.search).get('title')),
+      queries,
+      label,
+    )
+  }
+})
+
+test('un render cuyo título volvió de HeyGen con otro separador (o sin él) delante de la marca se adopta por el respaldo, sin pagar', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  const marker = markerOf(0)
+  const title = namedTitle(VIDEO_NAME)
+  for (const returned of [
+    `${VIDEO_NAME} - ${marker}`,
+    `${VIDEO_NAME} ${marker}`,
+    `${VIDEO_NAME}${marker}`,
+  ]) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    fake.reset({
+      clip,
+      listed: [
+        { id: 'video-copia', title: `${marker} (copia)`, status: 'completed' },
+        { id: 'video-pagado', title: returned, status: 'completed' },
+      ],
+    })
+    const result = await renderAvatarScene(
+      withAttempts([{ ...creatingAttempt(), state: 'ambiguous', title }]),
+      lane(paths, { videoName: VIDEO_NAME }).options,
+    )
+    assert.equal(result.outcome, 'ready', returned)
+    assert.equal(fake.posts().length, 0, returned)
+    assert.equal(result.avatar.attempts[0].videoId, 'video-pagado', returned)
+  }
+})
+
+// ─── Ronda 4 de la 2c: una consulta por el título que falla no paga ───
+
+test('si falla la consulta por el título guardado de un recibo de la 2c, el carril no sigue por la marca ni repite el POST: la escena falla y el intento queda sin resolver con su título; si la persona cancela en esa consulta, sale como cancelación sin escribir nada', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  let clip
+  const title = namedTitle(VIDEO_NAME)
+  for (const [state, failure] of [
+    [
+      'creating',
+      new PipelineFailure(
+        'avatar_invalid_request',
+        'HeyGen rejected the title filter',
+        { provider: 'heygen', httpStatus: 400 },
+      ),
+    ],
+    [
+      'ambiguous',
+      new PipelineFailure('avatar_network', 'HeyGen is down', {
+        provider: 'heygen',
+        httpStatus: 503,
+      }),
+    ],
+    ['ambiguous', 'cancelación'],
+  ]) {
+    const { paths } = await project(t)
+    clip ??= await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    // Por la marca, HeyGen sí tiene el render pagado: si el carril siguiera
+    // por ahí, lo adoptaría.
+    fake.reset({
+      clip,
+      listed: [{ id: 'video-pagado', title, status: 'completed' }],
+    })
+    // El cliente de siempre, pero la consulta por el título guardado falla.
+    const controller = new AbortController()
+    const real = createHeyGenClient('key-123', new AbortController().signal)
+    const queries = []
+    const client = {
+      ...real,
+      async listVideos(params) {
+        queries.push(params.title)
+        if (params.title !== title) return real.listVideos(params)
+        if (failure !== 'cancelación') throw failure
+
+        controller.abort()
+        throw controller.signal.reason
+      },
+    }
+    const { options, checkpoints } = lane(paths, {
+      videoName: VIDEO_NAME,
+      client,
+      signal: controller.signal,
+    })
+    const scene = withAttempts([{ ...creatingAttempt(), state, title }])
+    const label = failure === 'cancelación' ? failure : failure.code
+    if (failure === 'cancelación') {
+      await assert.rejects(
+        renderAvatarScene(scene, options),
+        { name: 'AbortError' },
+        label,
+      )
+      // Nada se escribió: en disco el recibo sigue como estaba.
+      assert.deepEqual(checkpoints, [], label)
+    } else {
+      const result = await renderAvatarScene(scene, options)
+      assert.equal(result.outcome, 'failed', label)
+      assert.equal(result.errorCode, failure.code, label)
+      assert.deepEqual(
+        result.avatar.attempts.map((attempt) => [
+          attempt.state,
+          attempt.title,
+          attempt.videoId,
+        ]),
+        [[state, title, undefined]],
+        label,
+      )
+    }
+    // Ni consulta por la marca, ni POST, ni subida.
+    assert.deepEqual(queries, [title], label)
+    assert.equal(fake.lists().length, 0, label)
+    assert.equal(fake.posts().length, 0, label)
+    assert.equal(fake.uploads().length, 0, label)
+  }
 })
 
 // Centinela (registro `node-test-doble-mock-del-mismo-metodo-deja-el-global-sucio`):

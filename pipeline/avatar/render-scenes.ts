@@ -451,6 +451,8 @@ export async function renderAvatarScenes(
           client,
           paths,
           projectId: context.metadata.id,
+          // El nombre del video va en el título de cada render nuevo (entrega 2c).
+          videoName: context.metadata.name,
           ffmpegPath,
           format,
           frame: frameSizeFor(format),

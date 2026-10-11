@@ -1218,9 +1218,13 @@
       "moderationHint": "HeyGen rejects political, violent or misleading content, and using real people without their permission.",
       "noKey": "To add a presenter avatar, add your HeyGen key.",
       "goToApiKeys": "Go to API Keys",
-      "lookHelp": "Your library’s main look is used by default; pick another one with the video’s orientation here.",
-      "lookMainNote": "Your library’s main look",
-      "moderationTitle": "HeyGen content rules"
+      "moderationTitle": "HeyGen content rules",
+      "looksToggleAria": "See {{name}}'s looks",
+      "moreLooks_one": "+{{count}} look",
+      "moreLooks_other": "+{{count}} looks",
+      "otherFormat": "For {{format}} videos",
+      "unknownOrientation": "Orientation not confirmed",
+      "mainLook": "Main"
     }
   },
   "createDemo": {
@@ -1915,7 +1919,7 @@
       "descripcion": "Pick an avatar, browse its looks and add it with the one you like best. Adding is free; every video you make with it is billed per minute.",
       "origenAria": "Avatar source",
       "publicos": "Stock",
-      "propios": "My HeyGen avatars",
+      "propios": "My avatars",
       "generoAria": "Gender",
       "genero": {
         "todos": "All",
@@ -1939,11 +1943,6 @@
       "yaEnBiblioteca": "This avatar is already in your library: choose its main look from the library.",
       "abrirEnBiblioteca": "Open in your library",
       "vacioLooks": "This avatar doesn't have any ready looks yet.",
-      "orientacion": {
-        "portrait": "Portrait",
-        "landscape": "Landscape",
-        "square": "Square"
-      },
       "previewAria": "Preview of {{name}}",
       "categoriaAria": "Category",
       "categoria": {
@@ -1958,7 +1957,12 @@
       "favoritoAria": "Favorite: {{name}}",
       "vacioFavoritos": "No favorites yet: tap an avatar’s heart to keep it here.",
       "buscandoMas": "Looking for more avatars…",
-      "abrirLookAria": "View the look {{name}}"
+      "abrirLookAria": "View the look {{name}}",
+      "eliminarHeygen": "Delete from HeyGen",
+      "eliminarHeygenAria": "Delete {{name}} from HeyGen",
+      "eliminarConfirmar": "Delete for good?",
+      "eliminando": "Deleting…",
+      "eliminarHint": "It's removed from your HeyGen account with all its looks and can't be undone. If it's in your library, it's removed there too."
     },
     "detalle": {
       "origen": {
@@ -1991,6 +1995,14 @@
       "salirPantallaCompleta": "Exit full screen",
       "descripcion": "This is how the avatar appears in your videos: this outfit, this background and this framing.",
       "errorVideo": "This look's video couldn't be loaded. Check your connection and open it again."
+    },
+    "formato": {
+      "r16x9": "16:9",
+      "r9x16": "9:16",
+      "r1x1": "1:1",
+      "r4x5": "4:5",
+      "r5x4": "5:4",
+      "aria": "Format {{format}}"
     },
     "generar": {
       "tarjeta": "Create scene",
@@ -2057,7 +2069,8 @@
       "creado": "Your avatar is training. It'll be ready in a few minutes.",
       "eliminado": "Avatar removed from your library.",
       "lookPrincipal": "Main look updated.",
-      "lookGenerando": "Generating the look. It'll show up on your avatar in a few minutes."
+      "lookGenerando": "Generating the look. It'll show up on your avatar in a few minutes.",
+      "eliminadoHeygen": "{{name}} was deleted from HeyGen."
     },
     "errors": {
       "invalidKey": "HeyGen rejected your key. Check it in API Keys.",

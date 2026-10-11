@@ -59,7 +59,7 @@ export function GemPasteStep({
         <p
           className={cn(
             'text-[11px] tabular-nums',
-            overLimit ? 'text-coral' : 'text-muted-foreground',
+            overLimit ? 'text-coral-text' : 'text-muted-foreground',
           )}
         >
           {t('create.gemTemplate.pasteCount', {
@@ -68,7 +68,7 @@ export function GemPasteStep({
           })}
         </p>
         {overLimit && (
-          <p role="alert" className="text-xs text-coral">
+          <p role="alert" className="text-xs text-coral-text">
             {t('create.gemTemplate.errors.invalidText', {
               limit: CUSTOM_STYLE_PROMPT_LIMIT.toLocaleString(),
             })}

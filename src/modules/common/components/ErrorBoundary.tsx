@@ -68,7 +68,7 @@ function ErrorFallback({ error, action, onRetry }: ErrorFallbackProps) {
     <div className="mx-auto max-w-2xl px-8 py-16">
       <div className="space-y-5 rounded-2xl border-2 border-coral/40 bg-card p-8 text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-coral/20">
-          <AlertCircle className="h-8 w-8 text-coral" />
+          <AlertCircle className="h-8 w-8 text-coral-text" />
         </div>
         <div>
           <h2 className="font-display text-2xl font-extrabold text-foreground">

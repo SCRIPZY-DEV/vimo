@@ -108,7 +108,7 @@ export function StyleCloneSessionCard({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={onDiscard}
-                className="text-coral focus:text-coral"
+                className="text-coral-text focus:text-coral-text"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 {t('create.styleClone.discard')}

@@ -37,17 +37,31 @@ html.theme-changing *::after {
     --accent: 270 24% 92%;
     --accent-foreground: 231 33% 14%;
 
-    --destructive: 0 100% 70%;
+    /* Relleno de error con texto o ícono blanco encima: el botón rojo, el
+       toast de error y el distintivo «archivado». Era el coral de la marca
+       (`0 100% 70%`, 2,86:1 con blanco); este rojo, del mismo tono y más
+       oscuro, da 6,21:1 con blanco, 5,37:1 con el hover `/90` del botón y con
+       el texto del toast al 90 %, y 3,27:1 para el ícono de cierre `red-300`
+       del toast. Es también la base de las cajas tintadas, los bordes y el
+       velo `/N` (`bg-destructive/5` a `/15` y `/40`, `border-destructive/30`
+       a `/60`): sobre las cajas, `text-destructive-text` da 5,74:1 (`/5`),
+       5,27:1 (`/10`) y 4,81:1 (`/15`, la peor) y `text-foreground` más de
+       12:1; el borde `/60` da 3,04:1 contra el blanco. El texto de ayuda
+       dentro de una caja tintada va en `text-foreground/65` (5,13:1 sobre la
+       `/5`, 4,97:1 sobre la `/10`) y no en `text-muted-foreground`, que ahí
+       da 4,34:1 y 3,99:1. En oscuro es otro valor (ver `.dark`). */
+    --destructive: 0 72% 43%;
     --destructive-foreground: 0 0% 100%;
     /* Texto e íconos de error sobre el fondo (`text-destructive-text`:
        ErrorMessage, los fallos de los avatares y todo mensaje de error). El
-       coral de `destructive` es para fondos (botones con texto blanco) y como
-       texto da 2,86:1 sobre `background`, por debajo del 4,5:1 de AA. Este rojo
-       más oscuro da 5,83:1 sobre `background` y `card`, 5,45:1 sobre `muted`
-       y no baja de 4,75:1 sobre `accent` (el fondo de un ítem de menú con foco)
-       ni sobre las cajas tintadas `bg-destructive/5` a `/15` (4,99:1 la peor).
-       En oscuro es otro valor (ver `.dark`). */
-    --destructive-text: 0 72% 45%;
+       coral de antes daba 2,86:1 sobre `background`, por debajo del 4,5:1 de
+       AA. Este rojo más oscuro, el mismo valor que `--destructive`, da 6,21:1
+       sobre `background` y `card`, 5,80:1 sobre `muted` y 5,06:1 sobre
+       `accent` (el fondo de un ítem de menú con foco); sobre las cajas
+       tintadas `bg-destructive/N` da 5,74:1 (`/5`), 5,27:1 (`/10`) y 4,81:1
+       (`/15`, la peor; con la `/20`, que nadie usa, daría 4,42:1). En oscuro
+       es otro valor (ver `.dark`). */
+    --destructive-text: 0 72% 43%;
 
     --border: 0 0% 91%;
     --input: 0 0% 91%;
@@ -59,14 +73,33 @@ html.theme-changing *::after {
     --saffron: 43 100% 52%;
     --charcoal: 231 33% 14%;
     --coral: 0 100% 70%;
+    /* Texto e íconos de aviso en coral (`text-coral-text`, entrega 2c): el
+       coral de la marca da 2,86:1 sobre el blanco, por debajo del 4,5:1 de
+       AA. Este coral más oscuro, del mismo tono, da 5,83:1 sobre `background`,
+       `card` y `popover`, 5,44:1 sobre `muted` y 4,74:1 sobre `accent` (el
+       fondo de un ítem de menú con foco). Sobre las cajas tintadas
+       `bg-coral/5` a `/20` da de 5,52:1 a 4,71:1 (sobre `background` o
+       `card`); sobre `muted`, de 5,18:1 a 4,68:1 hasta la `/15`, y 4,46:1 con
+       la `/20` (esa no usarla ahí). Es para TEXTO: un relleno con texto o
+       ícono blanco encima va en `bg-wine`, el rojo de «Error» de la paleta de
+       estados (7,40:1 con blanco, igual en los dos temas), porque como fondo
+       este token solo sirve en claro (5,83:1; en oscuro es el coral de siempre
+       y da 2,86:1). El coral pleno sigue para bordes, adornos y rellenos sin
+       texto. En oscuro es otro valor (ver `.dark`). */
+    --coral-text: 5 85% 42%;
     --ocean: 174 56% 55%;
     /* Colores plenos de los badges de estado de la Biblioteca, uno por estado;
-       todos pasan AA (≥ 4,5:1) con texto blanco encima. `raspberry` es para
-       «Sin saldo», el estado que llega con dev (#66). */
+       todos pasan AA (≥ 4,5:1) con texto blanco encima: `mint` 4,73:1,
+       `ocean-deep` 5,03:1, `ember` 4,72:1, `cherry` 4,60:1, `raspberry`
+       5,70:1, `wine` 7,40:1, `iris` 5,57:1 y `graphite` 4,99:1. `cherry`
+       bajó de 54 % a 53 % de luminosidad: con 54 % daba 4,47:1. `raspberry`
+       es para «Sin saldo», el estado que llega con dev (#66). Ninguno cambia
+       con el tema. `sky` y `amethyst`, más abajo, no son badges de estado:
+       con blanco dan 2,40:1 y 4,02:1. */
     --mint: 152 60% 32%; /* Exportado y Generando */
     --ocean-deep: 174 62% 30%; /* Confirmar escenas */
     --ember: 18 82% 43%; /* Interrumpido */
-    --cherry: 354 70% 54%; /* Cancelado */
+    --cherry: 354 70% 53%; /* Cancelado */
     --raspberry: 339 68% 45%; /* Sin saldo */
     --wine: 354 62% 39%; /* Error */
     --iris: 253 78% 60%; /* Desactualizado */
@@ -129,6 +162,10 @@ html.theme-changing *::after {
        usa el coral de la marca: 6,6:1 sobre `background`, 6,1:1 sobre `card`
        y 6,4:1 sobre la caja de ErrorMessage (AA pide 4,5:1). */
     --destructive-text: 0 100% 70%;
+    /* En oscuro el coral de la marca ya se lee como texto: 6,55:1 sobre
+       `background`, 6,09:1 sobre `card` y 4,75:1 sobre `accent`. Como fondo no
+       admite texto blanco (2,86:1): para eso, `bg-wine` (7,40:1 con blanco). */
+    --coral-text: 0 100% 70%;
     --border: 0 0% 17%;
     --input: 0 0% 17%;
     --ring: 43 100% 52%;

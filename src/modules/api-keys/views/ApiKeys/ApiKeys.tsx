@@ -100,7 +100,7 @@ export function ApiKeys() {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-start gap-3 rounded-2xl border-2 border-coral/40 bg-coral/10 p-4"
           >
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-coral" />
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-coral-text" />
             <div>
               <p className="font-display text-sm font-bold text-foreground">
                 {t('apiKeys.faltanTitulo')}

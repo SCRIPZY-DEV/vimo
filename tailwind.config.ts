@@ -60,6 +60,7 @@ export default {
         saffron: 'hsl(var(--saffron))',
         charcoal: 'hsl(var(--charcoal))',
         coral: 'hsl(var(--coral))',
+        'coral-text': 'hsl(var(--coral-text))',
         ocean: 'hsl(var(--ocean))',
         mint: 'hsl(var(--mint))',
         'ocean-deep': 'hsl(var(--ocean-deep))',

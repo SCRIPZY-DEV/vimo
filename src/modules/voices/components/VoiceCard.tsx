@@ -48,7 +48,7 @@ export function VoiceCard({
         <p className="truncate font-display text-sm font-bold text-foreground">
           {voice.name}
           {voice.isClone && (
-            <span className="ml-1.5 rounded-full bg-coral/15 px-1.5 py-0.5 font-body text-[10px] font-semibold text-coral">
+            <span className="ml-1.5 rounded-full bg-coral/15 px-1.5 py-0.5 font-body text-[10px] font-semibold text-coral-text">
               {t('voices.tarjeta.clon')}
             </span>
           )}
@@ -99,7 +99,9 @@ export function VoiceCard({
         }
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
-          isFavorite ? 'text-coral' : 'text-muted-foreground hover:text-coral',
+          isFavorite
+            ? 'text-coral-text'
+            : 'text-muted-foreground hover:text-coral-text',
         )}
       >
         <Heart className={cn('h-4 w-4', isFavorite && 'fill-current')} />

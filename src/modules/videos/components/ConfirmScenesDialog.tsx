@@ -116,7 +116,7 @@ function ConfirmScenesForm({
                 count: avatarEstimate.images,
               })}
               {sceneCount < avatarEstimate.minimum && (
-                <span className="mt-0.5 block text-coral">
+                <span className="mt-0.5 block text-coral-text">
                   {t('create.confirmScenes.avatarMinimum', {
                     minimum: avatarEstimate.minimum,
                   })}

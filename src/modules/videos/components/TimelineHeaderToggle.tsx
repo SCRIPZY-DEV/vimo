@@ -33,7 +33,7 @@ export function TimelineHeaderToggle({
           aria-pressed={active}
           className={cn(
             'flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted',
-            active ? 'text-coral' : 'text-muted-foreground',
+            active ? 'text-coral-text' : 'text-muted-foreground',
           )}
         >
           {children}

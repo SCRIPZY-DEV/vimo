@@ -24,7 +24,14 @@
 // HeyGen (un id que no es de avatar no deja pagar a ninguno), solo las escenas
 // pedidas, una escena lista que no se vuelve a pagar,
 // y el lease de animación (lecturas y otros generadores disponibles,
-// escrituras exclusivas frenadas).
+// escrituras exclusivas frenadas). Y el título de cada render (entrega 2c,
+// diseño §7.1, con las rondas 1 y 2): la fase y el comando abren el título con
+// el nombre de project.json (sin espacios de más, cortado en 80 grafemas; sin
+// nombre, la marca sola) y el recibo de scenes.json lo guarda; un renombre
+// entre el POST y la recuperación no impide adoptar, sin pagar, el render con
+// el título que salió; un recibo de antes de la 2c se repite con la marca sola
+// y no gana título; y sin avatar la fase no habla con HeyGen ni toca
+// scenes.json.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
@@ -1378,6 +1385,167 @@ test('avatar-render-scenes: corre con el lease de animación: las lecturas y otr
     await job.catch(() => undefined)
   }
   assert.deepEqual(await job, { rendered: [1], failed: [] })
+})
+
+// ─── El título del video en cada render (entrega 2c, diseño §7.1) ───
+
+// La marca del primer intento del pedido actual de una escena de este proyecto.
+async function markerOf(projectDir, scene) {
+  const hash = await currentHash(projectDir, scene)
+  return avatarVideoTitle(PROJECT_ID, scene.id, avatarRequestKey(hash, 0))
+}
+
+test('título: la fase manda `<nombre del video> · <marca>` con el nombre de project.json (sin espacios de más y cortado en 80; sin nombre, la marca sola) y el recibo de scenes.json lo guarda', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  for (const [name, titleName] of [
+    ['Mi video', 'Mi video'],
+    ['  Mi   video  ', 'Mi video'],
+    ['', ''],
+    ['   ', ''],
+    ['x'.repeat(100), 'x'.repeat(80)],
+  ]) {
+    const scene = avatarScene(1, 0)
+    const project = await videoProject(t, [scene], { metadata: { name } })
+    fake.reset({ clip: project.clip, clipSeconds: 1 })
+    await avatarStage.run(await stageContext(project.root, []))
+    const marker = await markerOf(project.projectDir, scene)
+    const title = titleName ? `${titleName} · ${marker}` : marker
+    const label = JSON.stringify(name)
+    assert.deepEqual(
+      fake.posts().map((call) => call.body.title),
+      [title],
+      label,
+    )
+    const [saved] = await readScenesJson(project.projectDir)
+    assert.deepEqual(
+      saved.avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+      [['succeeded', title]],
+      label,
+    )
+  }
+})
+
+test('título: el comando del editor (`avatar-render-scenes`) también abre el título con el nombre del video', async (t) => {
+  const scene = avatarScene(2, 1)
+  const project = await videoProject(t, [avatarScene(1, 0), scene], {
+    metadata: { name: 'Video del editor' },
+  })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await renderScenes(project.root, { projectId: PROJECT_ID, sceneIds: [2] }),
+    { rendered: [2], failed: [] },
+  )
+  const title = `Video del editor · ${await markerOf(project.projectDir, scene)}`
+  assert.deepEqual(
+    fake.posts().map((call) => call.body.title),
+    [title],
+  )
+  const scenes = await readScenesJson(project.projectDir)
+  assert.equal(scenes[1].avatar.attempts[0].title, title)
+})
+
+test('título: renombrar el video entre el POST y la recuperación no impide recuperar: la fase adopta el render por su marca, sin pagar, y scenes.json conserva el título que salió', async (t) => {
+  const scene = avatarScene(1, 0)
+  const project = await videoProject(t, [scene], {
+    metadata: { name: 'Nombre viejo' },
+  })
+  // La red se cae en el POST: el recibo queda sin resolver, con su título.
+  const fake = fakeHeyGen(t, {
+    clip: project.clip,
+    clipSeconds: 1,
+    create: () => 'network',
+  })
+  await assert.rejects(avatarStage.run(await stageContext(project.root, [])), {
+    code: 'avatar_incomplete',
+  })
+  const marker = await markerOf(project.projectDir, scene)
+  const sent = `Nombre viejo · ${marker}`
+  const [unresolved] = await readScenesJson(project.projectDir)
+  assert.deepEqual(
+    unresolved.avatar.attempts.map((attempt) => [attempt.state, attempt.title]),
+    [['ambiguous', sent]],
+  )
+
+  // La persona renombra el video. HeyGen tiene el render con el título que
+  // salió, y una copia con la marca al medio que no es nuestra.
+  const metadataFile = join(project.projectDir, 'project.json')
+  const metadata = JSON.parse(await readFile(metadataFile, 'utf8'))
+  await writeFile(
+    metadataFile,
+    JSON.stringify({ ...metadata, name: 'Nombre nuevo' }),
+  )
+  fake.reset({
+    clip: project.clip,
+    clipSeconds: 1,
+    listed: [
+      {
+        id: 'video-copia',
+        title: `${marker} · Nombre viejo`,
+        status: 'completed',
+      },
+      { id: 'video-pagado', title: sent, status: 'completed' },
+    ],
+  })
+  await avatarStage.run(await stageContext(project.root, []))
+  assert.deepEqual(fake.posts(), [])
+  const [recovered] = await readScenesJson(project.projectDir)
+  assert.equal(recovered.avatar.status, 'ready')
+  assert.deepEqual(
+    recovered.avatar.attempts.map((attempt) => [
+      attempt.state,
+      attempt.videoId,
+      attempt.title,
+    ]),
+    [['succeeded', 'video-pagado', sent]],
+  )
+})
+
+test('título: un recibo de antes de la 2c se repite con la marca sola, como su POST original, aunque el video tenga nombre, y scenes.json no le agrega título', async (t) => {
+  const scene = avatarScene(1, 0)
+  const project = await videoProject(t, [scene])
+  const scenes = await readScenesJson(project.projectDir)
+  scenes[0].avatar.attempts = [
+    {
+      hash: await currentHash(project.projectDir, scene),
+      state: 'creating',
+      engine: 'avatar_iii',
+      lookId: 'look-1',
+      audioAssetId: 'asset-a',
+      createdAt: '2026-10-10T15:00:00.000Z',
+    },
+  ]
+  await writeFile(
+    join(project.projectDir, 'scenes.json'),
+    JSON.stringify(scenes),
+  )
+  const fake = fakeHeyGen(t, {
+    clip: project.clip,
+    clipSeconds: 1,
+    listed: [],
+  })
+  await avatarStage.run(await stageContext(project.root, []))
+  assert.deepEqual(
+    fake.posts().map((call) => call.body.title),
+    [await markerOf(project.projectDir, scene)],
+  )
+  const [saved] = await readScenesJson(project.projectDir)
+  assert.equal(saved.avatar.status, 'ready')
+  assert.deepEqual(
+    saved.avatar.attempts.map((attempt) => [attempt.state, 'title' in attempt]),
+    [['succeeded', false]],
+  )
+})
+
+test('sin avatar, nada cambia: la fase no habla con HeyGen ni toca un byte de scenes.json', async (t) => {
+  const project = await videoProject(t, [plainScene(1, 0), plainScene(2, 1)])
+  const scenesFile = join(project.projectDir, 'scenes.json')
+  const before = await readFile(scenesFile)
+  const fake = fakeHeyGen(t, {})
+  const context = await stageContext(project.root, [])
+  assert.equal(await avatarStage.skip(context), true)
+  await avatarStage.run(context)
+  assert.deepEqual(fake.calls, [])
+  assert.deepEqual(await readFile(scenesFile), before)
 })
 
 // Centinela (registro `node-test-doble-mock-del-mismo-metodo-deja-el-global-sucio`):

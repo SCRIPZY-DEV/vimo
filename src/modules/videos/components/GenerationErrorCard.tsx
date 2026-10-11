@@ -69,7 +69,7 @@ export function GenerationErrorCard({
             ? t('create.progress.error.retryRender')
             : t('create.progress.error.retryFromCheckpoint')}
         </Button>
-        <p className="text-center font-body text-xs text-muted-foreground">
+        <p className="text-center font-body text-xs text-foreground/65">
           {renderFailed
             ? t('create.progress.error.retryRenderHint')
             : t('create.progress.error.retryHint')}
@@ -87,7 +87,7 @@ export function GenerationErrorCard({
             <Shuffle className="mr-2 h-4 w-4" />
             {t('create.progress.error.switchModel')}
           </Button>
-          <p className="text-center font-body text-xs text-muted-foreground">
+          <p className="text-center font-body text-xs text-foreground/65">
             {t('create.progress.error.switchModelHint')}
           </p>
         </div>
@@ -104,7 +104,7 @@ export function GenerationErrorCard({
             <Pencil className="mr-2 h-4 w-4" />
             {t('create.errors.continueInEditor')}
           </Button>
-          <p className="text-center font-body text-xs text-muted-foreground">
+          <p className="text-center font-body text-xs text-foreground/65">
             {t('create.progress.error.continueHint')}
           </p>
         </div>

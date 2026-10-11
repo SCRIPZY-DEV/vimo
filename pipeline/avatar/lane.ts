@@ -10,6 +10,7 @@ import {
   type HeyGenClient,
   type HeyGenListedVideo,
   type HeyGenVideo,
+  type HeyGenVideoStatus,
 } from '../providers/avatar/heygen.ts'
 import {
   HEYGEN_PROVIDER,
@@ -44,11 +45,13 @@ import {
 import {
   avatarAudioCutHash,
   avatarIdempotencyKey,
+  avatarNamedVideoTitle,
   avatarRenderHash,
   avatarRequestHash,
   avatarRequestKey,
   avatarRetryIndex,
   avatarVideoTitle,
+  endsWithAvatarVideoMarker,
 } from './fingerprint.ts'
 import {
   AVATAR_DURATION_TOLERANCE_SECONDS,
@@ -65,10 +68,14 @@ import {
 //  1. la identidad del pedido sale de trabajo local (el tramo en cuadros y la
 //     huella del corte de audio), sin hablar con HeyGen;
 //  2. un recibo del pedido actual se cosecha: `succeeded` se baja, `pending`
-//     se consulta, `creating`/`ambiguous` se busca por su `title` y, sin
-//     rastro, se repite con la MISMA `Idempotency-Key` (HeyGen deduplica 24 h);
+//     se consulta, `creating`/`ambiguous` se busca en HeyGen (findOwnVideo:
+//     una página por su título guardado si no es la marca sola, y después por
+//     la marca; el título exacto primero y, sin él, uno que termine en la
+//     marca y no esté `failed`) y, sin rastro, se repite con la MISMA
+//     `Idempotency-Key` (HeyGen deduplica 24 h) y el mismo título;
 //  3. solo sin recibo (y con `allowNewRequest`) se corta y se sube el audio, se
-//     persiste `creating` ANTES del POST y `pending` después;
+//     persiste `creating` (con el título que va a salir) ANTES del POST y
+//     `pending` después;
 //  4. espera creciente con plazo, descarga y normalización al cuadro del
 //     render sin cambiar la velocidad: la narración manda (§7.3).
 // Un «no» definitivo al POST (un 4xx que no es 409 ni 429, o el cliente que no
@@ -88,12 +95,30 @@ import {
 // narración, que es otra huella.
 // Una cancelación sale como tal (nunca como un fallo de HeyGen) y deja los
 // recibos guardados.
+// El título de cada render (entrega 2c, diseño §7.1) es `<nombre del video> ·
+// <marca>` (fingerprint.ts) y queda guardado en el intento antes de salir.
+// Cada POST del intento lleva el MISMO cuerpo: su título guardado o, en un
+// recibo de antes de la 2c (que no lo tiene), la marca sola, como salió su POST
+// original. La recuperación adopta, en este orden: el render con ese título
+// EXACTO —buscado primero por el título guardado, una página, por si HeyGen
+// filtra por igualdad o por prefijo, y después por la marca, en cualquiera de
+// las páginas revisadas—; si no aparece, uno que termine en la marca (HeyGen
+// pudo guardar distinto el nombre o el separador) y no esté `failed`, el más
+// avanzado. Una copia hecha en HeyGen («Copia de <título>») también termina
+// así: nunca le gana al exacto, y una `failed` no se elige (cerraría el
+// intento y se pagaría otro render). Un renombre del video no cambia nada: se
+// busca y se repite el título guardado.
 
 // Cada consulta de estado espera un 50 % más que la anterior, hasta el tope.
 const POLL_GROWTH = 1.5
 // Páginas de `GET /v3/videos?title=…` que se revisan al buscar un pedido sin
-// respuesta (el título es único por intento; HeyGen filtra por substring).
+// respuesta (la marca es única por intento; HeyGen filtra por substring y
+// también devuelve las copias).
 const RECOVERY_PAGES = 3
+// Entre los renders que solo terminan en la marca, cuál se adopta: el
+// completado antes que el que está en curso, y ese antes que uno con un estado
+// que Vimo no conoce. Uno `failed` no se adopta nunca por el sufijo.
+const SUFFIX_RANK = { completed: 0, inProgress: 1, unknown: 2 } as const
 // Un recibo sin resolver que perdió su audio se cierra con el código de un
 // render fallido: para la persona es lo mismo, reintentar pide el render de
 // nuevo.
@@ -156,6 +181,9 @@ export interface AvatarLaneOptions {
   client: HeyGenClient
   paths: ProjectPaths
   projectId: string
+  // El nombre del video (`name` de project.json): abre el título de cada
+  // render nuevo (entrega 2c). Vacío, el título es la marca sola.
+  videoName: string
   ffmpegPath: string
   // El formato del proyecto (viaja a HeyGen) y su cuadro de render.
   format: VideoFormat
@@ -222,7 +250,7 @@ function isLocalRejection(failure: PipelineFailure): boolean {
 // no se creó ningún video. Un 409 (el original todavía en vuelo, o uno cuyo
 // cuerpo no se pudo leer) y un 429 (HeyGen no guarda esa respuesta bajo la
 // clave) no dicen nada de un envío anterior con la misma clave: el intento
-// queda sin resolver y la próxima corrida lo busca por título o repite la
+// queda sin resolver y la próxima corrida lo busca por su marca o repite la
 // MISMA clave, que es seguro y gratis. Vale también para el primer envío.
 function isConfirmedRejection(failure: PipelineFailure): boolean {
   const status = failure.httpStatus
@@ -266,7 +294,8 @@ function leavesOriginalOpen(
 }
 
 // Cómo se manda un pedido: `repeat` cuando es la repetición, con la misma
-// clave, de un recibo sin resolver que no apareció por título.
+// clave, de un recibo sin resolver que la búsqueda en HeyGen (por su título
+// guardado y por su marca, findOwnVideo) no encontró.
 interface PostOptions {
   repeat?: boolean
 }
@@ -289,23 +318,72 @@ async function isReadableVideo(
   }
 }
 
-// El render de un intento por su título EXACTO (una copia con el título
-// adentro no es nuestra). `listVideos` trae una página: se sigue el cursor.
-async function findVideoByTitle(
+// El título guardado de un intento: el que salió en su POST (entrega 2c). Un
+// recibo de antes de la 2c no lo tiene, y uno que no es texto (un scenes.json
+// editado) cuenta como sin título.
+function storedTitle(attempt: AvatarAttempt): string | undefined {
+  if (typeof attempt.title !== 'string' || !attempt.title) return undefined
+
+  return attempt.title
+}
+
+function suffixRank(status: HeyGenVideoStatus | undefined): number {
+  if (status === 'completed') return SUFFIX_RANK.completed
+  if (status === 'processing' || status === 'pending')
+    return SUFFIX_RANK.inProgress
+
+  return SUFFIX_RANK.unknown
+}
+
+// Un render que solo se reconoce por el final del título: termina en la marca
+// y no está `failed`.
+function isSuffixCandidate(video: HeyGenListedVideo, marker: string): boolean {
+  if (video.status === 'failed' || video.title === undefined) return false
+
+  return endsWithAvatarVideoMarker(video.title, marker)
+}
+
+// El render de un intento (rondas 1 a 3 de la 2c); `listVideos` trae una
+// página. Gana el render con el título EXACTO que salió en el POST
+// (`sentTitle`), con cualquier estado: es el nuestro. Se busca primero por ese
+// título, una página, si no es la marca sola: la OpenAPI dice que el filtro
+// `title` es por substring, pero si HeyGen filtrara por igualdad o por prefijo
+// la búsqueda por la marca no lo devolvería. Después, por la marca, siguiendo
+// el cursor: el exacto, si aparece en alguna página; si no, el candidato por
+// sufijo más avanzado (isSuffixCandidate, SUFFIX_RANK; entre iguales, el
+// primero del listado).
+async function findOwnVideo(
   client: HeyGenClient,
-  title: string,
+  marker: string,
+  sentTitle: string,
 ): Promise<HeyGenListedVideo | undefined> {
+  if (sentTitle !== marker) {
+    const byTitle = await client.listVideos({ title: sentTitle })
+    const exact = byTitle.videos.find((video) => video.title === sentTitle)
+    if (exact) return exact
+  }
+
+  let best: HeyGenListedVideo | undefined
   let token: string | undefined
   for (let page = 0; page < RECOVERY_PAGES; page++) {
-    const result = await client.listVideos(token ? { title, token } : { title })
-    const match = result.videos.find((video) => video.title === title)
-    if (match) return match
-    if (!result.nextToken) return undefined
+    const result = await client.listVideos(
+      token ? { title: marker, token } : { title: marker },
+    )
+    const exact = result.videos.find((video) => video.title === sentTitle)
+    if (exact) return exact
+
+    for (const video of result.videos) {
+      if (!isSuffixCandidate(video, marker)) continue
+      if (best && suffixRank(video.status) >= suffixRank(best.status)) continue
+
+      best = video
+    }
+    if (!result.nextToken) return best
 
     token = result.nextToken
   }
 
-  return undefined
+  return best
 }
 
 export async function renderAvatarScene(
@@ -403,6 +481,18 @@ export async function renderAvatarScene(
     )
   const keyOf = (index: number) =>
     avatarRequestKey(attempts[index].hash, avatarRetryIndex(attempts, index))
+  // La marca del intento `index` (sale de su clave) y el título que llevaría
+  // un POST suyo con el nombre del video de hoy.
+  const markerOf = (index: number) =>
+    avatarVideoTitle(options.projectId, sceneId, keyOf(index))
+  const namedTitleOf = (index: number) =>
+    avatarNamedVideoTitle(options.videoName, markerOf(index))
+  // El título que salió (y sale) en cada POST del intento `index`, el mismo
+  // cuerpo siempre: el guardado, aunque el video haya cambiado de nombre, o,
+  // en un recibo de antes de la 2c (que no lo tiene), la marca sola, como salió
+  // su POST original.
+  const sentTitleOf = (index: number) =>
+    storedTitle(attempts[index]) ?? markerOf(index)
   // El código con que HeyGen rechazó para siempre el último intento del pedido
   // actual, si ese fue su final.
   const finalRejectionCode = (): string | undefined => {
@@ -475,8 +565,9 @@ export async function renderAvatarScene(
     }
   }
 
-  // Manda (o repite, con la MISMA clave) el pedido del intento `index`.
-  // Devuelve el resultado si la escena terminó; undefined si sigue.
+  // Manda (o repite, con la MISMA clave y el MISMO título) el pedido del
+  // intento `index`. Devuelve el resultado si la escena terminó; undefined si
+  // sigue.
   const post = async (
     index: number,
     { repeat = false }: PostOptions = {},
@@ -496,6 +587,9 @@ export async function renderAvatarScene(
       return failed(RECEIPT_WITHOUT_AUDIO_CODE)
     }
 
+    // El mismo cuerpo que el POST original: nada se guarda antes y ni la
+    // clave ni el título cambian.
+    const title = sentTitleOf(index)
     const key = keyOf(index)
     progress('render')
     // El `try` cubre solo el pedido: un error al guardar el recibo después no
@@ -507,7 +601,7 @@ export async function renderAvatarScene(
         engine: attempt.engine,
         audioAssetId,
         aspectRatio: options.format,
-        title: avatarVideoTitle(options.projectId, sceneId, key),
+        title,
         idempotencyKey: avatarIdempotencyKey(options.projectId, sceneId, key),
       })
     } catch (error) {
@@ -533,8 +627,8 @@ export async function renderAvatarScene(
       }
       if (!isLocalRejection(failure) && !isConfirmedRejection(failure)) {
         // Sin un «no» definitivo (red, 5xx, un 200 raro, un 409, un 429): pudo
-        // haberse creado. Bloquea otro POST hasta resolverse por título o con
-        // la MISMA clave.
+        // haberse creado. Bloquea otro POST hasta resolverse por su marca o
+        // con la MISMA clave.
         attempts[index] = { ...attempts[index], state: 'ambiguous' }
         return failed(failure.code, failure)
       }
@@ -556,23 +650,28 @@ export async function renderAvatarScene(
     }
 
     // Si esta escritura falla, el error sube y en disco queda el recibo sin
-    // resolver (`creating` o `ambiguous`): la próxima corrida lo busca por
-    // título o repite la MISMA clave.
+    // resolver (`creating` o `ambiguous`): la próxima corrida lo busca por su
+    // marca o repite la MISMA clave.
     attempts[index] = { ...attempts[index], state: 'pending', videoId }
     await checkpoint()
     return undefined
   }
 
   // Un intento `creating`/`ambiguous` del pedido actual: se busca su render
-  // por título; si HeyGen no lo tiene, se repite el MISMO pedido con la MISMA
-  // clave (si había llegado, HeyGen devuelve el mismo video y no cobra).
+  // (findOwnVideo: una página por su título guardado si no es la marca sola,
+  // y después por la marca; el exacto primero y, sin él, uno que termine en la
+  // marca y no esté `failed`); si HeyGen no lo tiene, se repite el MISMO
+  // pedido con la MISMA clave (si había llegado, HeyGen devuelve el mismo
+  // video y no cobra). Si cualquiera de esas consultas falla, la escena falla
+  // sin POST y el intento sigue sin resolver: la corrida siguiente vuelve a
+  // buscar. Seguir por la marca sin la respuesta de la consulta por el título
+  // podría terminar en otro POST.
   const resolve = async (
     index: number,
   ): Promise<AvatarLaneResult | undefined> => {
-    const title = avatarVideoTitle(options.projectId, sceneId, keyOf(index))
     let found: HeyGenListedVideo | undefined
     try {
-      found = await findVideoByTitle(client, title)
+      found = await findOwnVideo(client, markerOf(index), sentTitleOf(index))
     } catch (error) {
       if (signal.aborted) throw error
 
@@ -614,8 +713,9 @@ export async function renderAvatarScene(
         const failure = toPipelineFailure(error)
         if (failure.httpStatus === 404) {
           // HeyGen no reconoce el video (sale avatar_invalid_request con
-          // status 404): la próxima corrida lo busca por título y, sin rastro,
-          // repite el pedido con la misma clave. Nunca se paga otro de entrada.
+          // status 404): la próxima corrida lo busca por su marca y, sin
+          // rastro, repite el pedido con la misma clave. Nunca se paga otro de
+          // entrada.
           attempts[index] = { ...attempts[index], state: 'ambiguous' }
           return failed('avatar_render_failed', failure)
         }
@@ -806,10 +906,15 @@ export async function renderAvatarScene(
       audioAssetId,
       createdAt: new Date(clock.now()).toISOString(),
     })
+    // El título va en la intención, con el nombre del video de hoy: el POST
+    // lleva este mismo. Se arma con el intento ya anotado porque su marca
+    // sale de la clave, que cuenta los intentos fallidos anteriores.
+    const intent = attempts.length - 1
+    attempts[intent] = { ...attempts[intent], title: namedTitleOf(intent) }
     if (usdEstimated !== null) avatar = { ...avatar, usdEstimated }
     // Si esta escritura falla, sale sin mandar nada: sin intención no hay POST.
     await checkpoint()
-    const result = await post(attempts.length - 1)
+    const result = await post(intent)
     if (result) return result
   }
 }

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { MouseEvent, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Trash2, X } from 'lucide-react'
@@ -27,6 +27,11 @@ import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useOpenLook } from '@/modules/avatars/hooks/useOpenLook'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
+import type { SizedLibraryLook } from '@/modules/avatars/types/look'
+import {
+  ignoreHeldKey,
+  isSecondClickOfDoubleClick,
+} from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import { lookUnusableReasonKey } from '@/modules/avatars/utilities/lookUsability'
 import type {
   AvatarAspectRatio,
@@ -123,6 +128,29 @@ export function AvatarDetailDialog({
         : remoteLook?.previewImageUrl,
       videoUrl: remoteLook?.previewVideoUrl,
     }
+  }
+
+  // El formato del look en su ficha y en su reproductor (`LookChips`): la
+  // biblioteca guarda solo la orientación, así que las medidas de la imagen
+  // salen del listado de HeyGen cuando las trae (un look de 4:5 o de 5:4 no
+  // tiene orientación).
+  const withImageSize = (look: AvatarLookSummary): SizedLibraryLook => {
+    const remoteLook = remoteById.get(look.lookId)
+    if (!remoteLook?.imageWidth || !remoteLook.imageHeight) return look
+
+    return {
+      ...look,
+      imageWidth: remoteLook.imageWidth,
+      imageHeight: remoteLook.imageHeight,
+    }
+  }
+
+  // «Seguro» quita, salvo que sea el segundo clic del doble clic que armó la
+  // confirmación: un clic suelto después, sí.
+  const confirmRemove = (event: MouseEvent) => {
+    if (isSecondClickOfDoubleClick(event)) return
+
+    onRemove()
   }
 
   // Desde la ficha o desde el reproductor; si lo logra con el reproductor de
@@ -227,12 +255,16 @@ export function AvatarDetailDialog({
                 />
 
                 <div className="mt-auto pt-2">
+                  {/* Los dos botones son el mismo nodo para React: el foco
+                      sigue en «Seguro» al armar, así que una tecla sostenida
+                      se ignora en los dos. */}
                   {confirming ? (
                     <Button
                       variant="destructive"
                       size="sm"
                       autoFocus
-                      onClick={onRemove}
+                      onClick={confirmRemove}
+                      onKeyDown={ignoreHeldKey}
                       onBlur={() => setConfirming(false)}
                       className="rounded-xl font-display font-bold"
                     >
@@ -243,6 +275,7 @@ export function AvatarDetailDialog({
                       variant="ghost"
                       size="sm"
                       onClick={() => setConfirming(true)}
+                      onKeyDown={ignoreHeldKey}
                       className="-ml-3 rounded-xl font-display text-muted-foreground hover:text-foreground"
                     >
                       <Trash2 aria-hidden className="h-4 w-4" />
@@ -291,7 +324,7 @@ export function AvatarDetailDialog({
                   return (
                     <li key={look.lookId}>
                       <StockLookCard
-                        look={look}
+                        look={withImageSize(look)}
                         imageUrl={imageUrl}
                         videoUrl={videoUrl}
                         previewLoading={!imageUrl && remote.isLoading}
@@ -312,7 +345,7 @@ export function AvatarDetailDialog({
               reproductor). */}
           {openedLook && (
             <LookPlayerDialog
-              look={openedLook}
+              look={withImageSize(openedLook)}
               {...lookMedia(openedLook)}
               videoLoading={remote.isLoading}
               action={playerAction(openedLook)}

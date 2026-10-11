@@ -12,7 +12,15 @@
   sus looks y look principal, stock en dos niveles como HeyGen, «Crear escenario» por prompt,
   diálogo de foto rediseñado; siete paquetes con revisión cada uno y una ola final de arreglos;
   evidencia en `execution-e1b/` (interno)); la sonda 3 de §17 (saldo) quedó respondida.
-  Pendiente: QA del dueño en la app de prueba de la entrega 1b. Entregas 2 y 3 sin plan todavía.
+  **Entrega 2 implementada en la rama el 2026-10-10/11** (plan en `plan-e2.md` (interno): el
+  avatar dentro del video desde Crear; evidencia en `execution-e2/` (interno)), y dos rondas
+  sobre la QA del dueño del 2026-10-11: la **entrega 2b** (plan en `plan-e2b.md` (interno):
+  planificador, filtros y favoritos del stock, reproductor de looks y borrador de Crear; evidencia en
+  `execution-e2b/` (interno)) y la **entrega 2c** (plan en `plan-e2c.md` (interno):
+  eliminar en HeyGen, formato de los looks, título del video en cada render, coral legible en tema
+  claro y la tarjeta de Crear con el formato del look; evidencia en `execution-e2c/` (interno)).
+  Pendiente: la QA del dueño en `0.9.3-editor.6` ([qa-2c.md](execution-e2c/qa-2c.md)), con los
+  puntos que gastan saldo de HeyGen. La entrega 3 (el avatar desde el editor) no tiene plan todavía.
 - **ADR:** [ADR-0057](../../adr/ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md).
 - **Relacionadas:** ADR-0013 (confirmación de escenas), ADR-0014 (edición sobre stages), ADR-0033
   (personajes con foto), ADR-0041/0042/0047 (clips animados como bloque), ADR-0046 (recuperación de
@@ -453,7 +461,7 @@ exige duración entera 4–12 y referencias de imagen). Base `https://api.heygen
 | `uploadAsset(path)`   | `POST /v3/assets` (multipart, ≤ 32 MB)  | Audio cortado, fondo, foto                             |
 | `createVideo(body)`   | `POST /v3/videos` + `Idempotency-Key`   | Un render por aparición                                |
 | `getVideo(id)`        | `GET /v3/videos/{video_id}`             | `pending/processing/completed/failed`, `video_url`     |
-| `listVideos()`        | `GET /v3/videos`                        | Recuperar un pedido ambiguo por `title`                |
+| `listVideos()`        | `GET /v3/videos`                        | Recuperar un pedido ambiguo por `title` (§7.1)         |
 | `createPhotoAvatar()` | `POST /v3/avatars` `{ type: 'photo' }`  | Biblioteca (entrega 1)                                 |
 | `createPromptLook()`  | `POST /v3/avatars` `{ type: 'prompt' }` | Un look nuevo desde un prompt (entrega 1b)             |
 | `getBalance()`        | `GET /v3/users/me`                      | Saldo de la billetera para la vista Avatares; no lanza |
@@ -463,6 +471,28 @@ renderiza tal cual, con su propio fondo): `type: 'avatar'`, `avatar_id` (el look
 `audio_asset_id` (el pedazo de narración cortado), `engine: { type: 'avatar_iii' }`,
 `aspect_ratio: '16:9' | '9:16'` (el formato del proyecto; el look tiene la misma orientación, §6.2),
 `resolution: '1080p'`, `output_format: 'mp4'`, `title: 'vimo:<projectId>:scene-<id>:<hash8>'`.
+**Desde la entrega 2c (decisión del dueño del 2026-10-11, «debe llevar título video»)** el título es
+`<nombre del video> · vimo:<projectId>:scene-<id>:<hash8>`: el nombre que la persona le puso al video
+(sin espacios de más y cortado en `AVATAR_VIDEO_TITLE_NAME_LIMIT` = 80 grafemas; sin nombre, solo la
+marca) y la marca de antes, que sigue siendo la clave para recuperar un pedido sin respuesta.
+El recibo guarda el título exacto que se mandó y cada repetición manda el mismo cuerpo bajo la misma
+clave: un recibo de antes de la 2c, que no tiene título guardado, repite la marca sola, como salió
+su POST original. La recuperación busca el render cuyo título es EXACTAMENTE el que salió (el
+guardado, o la marca sola en un recibo de antes de la 2c): primero, si el recibo tiene un título
+guardado distinto de la marca, una página de `GET /v3/videos?title=<título guardado>` (la OpenAPI
+dice que el filtro es por substring; así también sirve si HeyGen filtra por igualdad o por prefijo),
+y después por la MARCA, hasta tres páginas, donde también vuelven las copias. El exacto se adopta
+con cualquier estado. Solo si no aparece, uno cuyo título termine en la marca, con lo que sea
+delante (HeyGen pudo guardar distinto el nombre o el separador), y no esté `failed`, el más avanzado
+(completado, después en curso, después de estado desconocido; entre iguales, el primero del
+listado). Una copia hecha en HeyGen («`Copia de <título>`») también termina así, pero nunca le gana
+al exacto, y una `failed` nunca se elige: cerraría el intento y el siguiente pagaría otro render. Un
+título con la marca en otro lugar (no al final) no se adopta. Así un render pedido antes del cambio
+se sigue recuperando sin pagar dos veces y un renombre del video en el medio no rompe nada.
+**Medición pendiente (QA HR; aquí va la oración «Medido el …»):** cómo filtra de verdad
+`GET /v3/videos?title=` (por substring, por prefijo o por igualdad) y si devuelve el título tal
+cual. La sonda gratis del 2026-10-11 a las 17:06 (`GET /v3/videos?limit=20`) no encontró renders en
+la cuenta para probar el filtro, así que se mide con el primer render de la QA HR.
 **Sin `background`, sin `remove_background` y sin `fit`.** Sin webhooks (una app de escritorio no
 tiene URL pública): se consulta el estado. Medido con siete renders pagos de 7 s (§17): 7 s de audio →
 video de 7,000 s a 25 fps, 0,11–0,12 USD a 720p con Avatar III, entre 32 s y 4 min de espera.
@@ -482,8 +512,10 @@ Pago una sola vez, como el carril de Kie (ADR-0042), pero con recibos propios en
 3. **Pedido.** Se persiste `{ state: 'creating', hash, … }` **antes** del POST y
    `{ state: 'pending', videoId }` después (fuera del `try` del POST: un error al persistir nunca se
    clasifica como respuesta de HeyGen). Sin respuesta → `ambiguous`: la próxima corrida busca el
-   `title` en `listVideos()` (recorriendo `nextToken`) y adopta el video si existe; si no, repite el
-   POST con la **misma** `Idempotency-Key` (HeyGen deduplica 24 h). Un intento `creating`/`ambiguous`
+   render en `listVideos()` (primero por el título guardado, una página, y después por la marca,
+   recorriendo `nextToken`) y adopta el que corresponda (la regla, en §7.1); si no hay, repite el
+   POST con la **misma** `Idempotency-Key` y el mismo cuerpo (HeyGen deduplica 24 h). Un intento
+   `creating`/`ambiguous`
    bloquea cualquier POST nuevo hasta resolverse. Clasificación (rulings del 2026-10-10, tarea 7,
    rondas 1 y 2): todo `409` y el `429` agotado dejan el recibo `ambiguous`, también en el primer
    envío (un 4xx de esos en una repetición no dice nada del original); un rechazo definitivo (400,
@@ -540,7 +572,7 @@ puede animar con Kie ni marcar para animar.
 'insufficient-credits'` y `errorCode: 'avatar_insufficient_credits'` y ninguna otra escena de la
   corrida paga (el mismo patrón que voz e imágenes; con `currency` distinta de `usd` el saldo se
   muestra y no bloquea); antes de pedir nada, una pasada de **cosecha** resuelve los recibos
-  `creating`/`pending`/`ambiguous` (por título o repitiendo la misma clave, sin pasar por el saldo
+  `creating`/`pending`/`ambiguous` (por su título guardado y su marca, o repitiendo la misma clave, sin pasar por el saldo
   porque HeyGen deduplica); (2) carril por escena pendiente, tres a la vez, con una cola de escrituras
   compartida que relee `scenes.json` bajo el lease de escena; `avatar-scene-started` se emite una vez
   por escena y corrida; (3) si alguna no quedó `ready`, la fase falla con `avatar_incomplete` y el
@@ -617,11 +649,34 @@ La opción «Lo elijo en el editor» (`placement: 'manual'`) aparece en la entre
   defecto** (ya era así: `defaultAvatarChoice`) y elegir otro cambia la elección. Al lado, la vista
   previa del look elegido en el marco del formato (`AVATAR_LOOK_FRAME_CLASSES`) con el video al pasar
   el mouse, y debajo la descripción de una línea (`create.avatar.lookHint`). Ya no hay grilla de
-  looks.
+  looks (superado por la entrega 2c: la grilla vuelve detrás de un botón «Look»; ver «Desde la
+  entrega 2c» más abajo).
 - **Vistas previas correctas.** La biblioteca solo baja a disco las tres vistas previas de la tarjeta
   (`AVATAR_CARD_LOOK_PREVIEWS`): los demás looks salían con el dibujo de respaldo. Crear completa lo
   que falta con el listado de HeyGen (gratis): `useStockLooks` por avatar mostrado (misma caché que
   el panel de la biblioteca), imagen y video de vista previa remotos cuando no hay archivo en disco.
+- **Desde la entrega 2c (QA del dueño del 2026-10-11, tarde, §19) la elección del look cambia otra
+  vez: el desplegable de nombres se reemplaza por tarjetas.** Las tarjetas de la fila «Avatar»
+  tienen el formato del video (horizontales en 16:9, verticales en 9:16) y muestran el look de ese
+  avatar para este video: el elegido en el avatar elegido y el look por defecto en los demás, con su
+  imagen (la de disco o la del listado de HeyGen), su video al pasar el mouse (con la espera de
+  intención de la biblioteca) y abajo, adentro de la tarjeta, en blanco sobre un degradado oscuro,
+  el nombre del look y «+N looks» (los demás looks del avatar). Al montar Crear solo la tarjeta del
+  avatar elegido pide el listado de HeyGen (gratis); las demás muestran su look si su vista previa
+  está en disco o, si no, la cara del avatar, y piden el listado recién con la intención de mirarlas
+  (el mouse quieto encima o el foco visible del teclado). Un avatar sin look para el formato muestra
+  su cara con el motivo de siempre. Debajo, un botón «Look» (con flecha, `aria-expanded`) abre y
+  cierra la grilla con TODOS los looks del avatar mirado, como estaba antes de la 2b; el botón
+  aparece también en un avatar sin look para el formato (con todos sus looks atenuados) y no le pide
+  nada a HeyGen hasta abrirse. Cada ficha tiene su vista previa, el video al pasar el mouse, su
+  formato (`lookFormatOf`: 16:9, 9:16, 1:1…) y «Principal» en el principal; los del otro formato,
+  los que no están listos y los que no tienen Avatar III se ven pero no se eligen (atenuados, con el
+  motivo: «Para videos 9:16»), y un look sin orientación en la biblioteca dice «Sin orientación
+  confirmada» aunque su chip muestre un formato sacado de las medidas del listado. Las fichas que no
+  se eligen siguen enfocables con el teclado (`aria-disabled`) para llegar a su motivo y a su video.
+  La grilla tiene una altura máxima con scroll; elegir un look lo marca, cierra la grilla, deja el
+  foco en el botón y actualiza la tarjeta de arriba. Debajo sigue la línea de ayuda del look (no
+  aparece si no hay nada que elegir).
 - **Aviso de moderación destacado:** un recuadro `role="note"` con ícono de escudo, el título
   «Normas de contenido de HeyGen» y el texto de siempre, con fondo y borde saffron suaves, en vez de
   una línea gris.
@@ -920,6 +975,30 @@ Personajes), con el patrón de la biblioteca de personajes:
     su fila), así una tarjeta con el estado del entrenamiento no deja escalones ni estira las demás
     filas. Quitar un favorito desde «Favoritos» con el teclado deja el foco en el corazón de la
     tarjeta vecina (o en el chip «Favoritos» si no queda ninguna), nunca en la caja del diálogo.
+  - **Entrega 2c (QA del dueño del 2026-10-11, tarde, §19).** La pestaña de los avatares propios se
+    llama «Mis avatares» (antes «Mis avatares en HeyGen»: es obvio que son de HeyGen). En esa
+    pestaña, cada tarjeta trae un botón (un tacho, arriba a la izquierda) para **eliminar el avatar
+    de HeyGen de verdad**: aparece con el mouse o el foco, pide confirmación en dos pasos («Eliminar
+    de HeyGen» → «¿Eliminar para siempre?», con la explicación de que se borra de la cuenta de
+    HeyGen con todos sus looks, no se puede deshacer y, si está en la biblioteca, sale también de
+    ahí) y llama al subcomando `avatar-heygen-delete` (`DELETE /v3/avatars/{group_id}`, gratis;
+    HeyGen no deja borrar grupos públicos ni de la comunidad). El subcomando valida el id
+    (`[a-zA-Z0-9_-]`, hasta 128) antes de llamar y, solo cuando HeyGen confirma, quita las entradas
+    de la biblioteca de ese grupo; si HeyGen falla, no toca nada. Un 404 de HeyGen (ya no estaba) y
+    un 2xx sin cuerpo cuentan como borrado. Nunca aparece en «De stock». Reglas de la confirmación
+    (cada una la fija el guard de la biblioteca): ni el segundo clic de un doble clic ni una **tecla
+    sostenida** (Enter o Espacio) confirman, y las dos guardas valen también en los otros dos
+    borrados en dos pasos del módulo, «Quitar» → «Seguro» de la tarjeta de la biblioteca y del
+    panel: el primer gesto arma; soltar y volver a apretar, o un clic aparte, confirma. Salir de la
+    tarjeta, sacarle el foco o tocarla cancela (tocarla no abre los looks). Ya armado, el botón se
+    llama como su texto visible («¿Eliminar para siempre?»; «Eliminando…» mientras borra), sin
+    `aria-label`, y lo describen el avatar y la explicación. El diálogo hace un borrado a la vez y
+    nunca junto a un alta, y no se cierra (Escape, clic afuera ni la X) mientras el borrado está en
+    vuelo; al lograrlo, la tarjeta sale en el acto, se relee la cuenta y el foco del teclado pasa al
+    tacho vecino o a la pestaña. Cada ficha de look (segundo nivel del stock, panel del avatar y
+    reproductor) muestra su **formato** (`lookFormatOf`: 16:9, 9:16, 1:1, 4:5 o 5:4; manda la
+    orientación de HeyGen, que decide en qué videos sirve el look; sin ella, el formato más cercano
+    a las medidas de la imagen; sin datos, sin chip) en lugar de «Vertical»/«Horizontal»/«Cuadrado».
   - **Fichas parejas y un reproductor por look.** Las fichas de looks siguen todas del mismo tamaño
     (`aspect-[4/5]`, recorte anclado arriba) sea el look vertical u horizontal; un clic en una ficha
     abre el **reproductor del look** (`LookPlayerDialog`, como el modal de HeyGen): el nombre, sus
@@ -1061,6 +1140,11 @@ cercana que cabe, §9 desplegable de looks, vistas previas, aviso destacado y bo
 filtros, favoritos, video al pasar el mouse y reproductor del look; hechos en §18) va entre la 2 y la
 3, con su plan `plan-e2b.md` (interno).
 
+La entrega 2c (QA del dueño del 2026-10-11, tarde: las tarjetas de Crear con el formato del video y
+el botón «Look» en §9, eliminar de HeyGen y el formato de los looks en §12.2, el título del render
+en §7.1 y el coral legible; hechos y rulings en §19) va después de la 2b y antes de la 3, con su
+plan `plan-e2c.md` (interno).
+
 Cada entrega tiene su plan, su ejecución con subagentes y su QA del dueño; el push y el PR siguen
 pidiendo su aprobación cada vez.
 
@@ -1145,3 +1229,45 @@ sesión; no se guardan en el repo):
 Lo que **no** entra en la 2b: «UGC»; reproducir con sonido en las vistas previas al pasar el mouse;
 clasificar por escena (oficina, cocina…) a partir de los nombres de los looks; el reproductor en el
 selector de Crear (ahí alcanza la vista previa con video al pasar el mouse).
+
+## 19. Entrega 2c — la QA del dueño del 2026-10-11 (tarde)
+
+Pedidos del dueño tras el cierre de la 2b (con una captura de la tarjeta del avatar en Crear) y
+lo decidido. Los hechos de HeyGen salen de la OpenAPI v3 descargada el 2026-10-11:
+`DELETE /v3/avatars/{group_id}` «borra para siempre un grupo y todos sus looks; no se pueden borrar
+grupos públicos ni de la comunidad» (200 con `{ data: { id } }`; 400, 401, 404 y 429); los looks
+traen `image_width` e `image_height`.
+
+| Pedido del dueño                                                                                                                                                                                                                                                       | Decisión                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| La tarjeta del avatar en Crear con el formato del look elegido (no vertical si el look es 16:9), el nombre del look abajo en blanco y los looks restantes; el look como un botón «Look» que despliega las tarjetas de todos los looks con su vista previa y su formato | §9: tarjetas de la fila en el formato del video con overlay; botón «Look» que abre la grilla de todos los looks, con formato, y los del otro formato visibles pero no elegibles           |
+| Un botón en «Mis avatares» que elimine el avatar de verdad, y la pestaña sin «en HeyGen»                                                                                                                                                                               | §12.2: `avatar-heygen-delete` con confirmación en dos pasos; pestaña «Mis avatares»                                                                                                       |
+| El título de cada render en HeyGen lleva el título del video                                                                                                                                                                                                           | §7.1: `<nombre del video> · <marca>`, con la marca de antes para recuperar y el título exacto guardado en el recibo                                                                       |
+| El coral de los avisos se lee poco en tema claro                                                                                                                                                                                                                       | Token `--coral-text` (`text-coral-text`: `5 85% 42%` en claro, el coral de siempre en oscuro) para todo texto o ícono de aviso en coral; el coral pleno sigue en fondos, bordes y adornos |
+| La grilla de looks de Avatares dice el formato del look                                                                                                                                                                                                                | §12.2: chip de formato con `lookFormatOf` en todas las fichas de looks                                                                                                                    |
+
+Fuera de la 2c: borrar un look suelto de HeyGen (`DELETE /v3/avatars/looks/{look_id}`) y las seis
+preguntas del 2026-10-10 15:13. El botón rojo (`variant="destructive"`, blanco sobre coral) también
+quedaba afuera, pero la ejecución lo cubrió (ver abajo).
+
+**Lo que la ejecución ajustó** (rulings del 2026-10-11 de `execution-e2c/ledger.md` (interno); donde dicen
+otra cosa que la tabla de arriba, mandan ellos):
+
+- **Título del render (R-H1 a R-H4, §7.1).** La marca sigue siendo la clave de recuperación, pero ya
+  no se adopta cualquier render que la lleve: primero el de título exacto (pedido también por el
+  título guardado, por si HeyGen filtra por igualdad); sin él, el que termina en la marca, con
+  cualquier separador delante, y no está `failed`, el más avanzado. Un recibo de antes de la 2c
+  repite la marca sola, y el nombre se corta en 80 grafemas.
+- **Crear (§9).** El botón «Look» aparece también en un avatar sin look para el formato (todos
+  atenuados); al montar, solo el avatar elegido pide el listado de HeyGen; un look sin orientación
+  confirmada lo dice.
+- **Biblioteca (§12.2).** Los tres borrados en dos pasos ignoran una tecla sostenida y el segundo
+  clic de un doble clic, el botón armado se llama como su texto visible y el diálogo del stock no se
+  cierra con un borrado en vuelo.
+- **Coral y rojo (R-I3 y R-I4).** El pedido del coral se extendió a los rellenos con texto blanco:
+  la etiqueta de error de la clonación de estilo y el botón de quitar imagen pasan a `bg-wine`
+  (blanco 7,40:1 en los dos temas) y `--destructive` se oscurece en el tema claro (`0 72% 43%`), con
+  lo que el blanco del botón rojo, del toast de error y de los distintivos llega a 6,21:1.
+  `--destructive-text` en claro (`0 72% 43%`) y `--cherry` (`354 70% 53%`) completan la pasada; los
+  grises de ayuda sobre cajas rojas pasan a `text-foreground/65`. Quedan aparcados, fuera del
+  pedido, `--muted-foreground` en claro (marginal) y el blanco sobre `sky` y `amethyst`.

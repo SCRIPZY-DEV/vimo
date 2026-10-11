@@ -465,7 +465,8 @@ el mouse, §12.2), manda esta enmienda.
   el panel; las fichas de looks siguen del mismo tamaño aunque el look sea vertical.
 - **Crear (§9).** El look se elige en un desplegable con el principal de la biblioteca por defecto y
   la vista previa del elegido al lado (la de disco o, si falta, la del listado de HeyGen, con su
-  video al pasar el mouse); el aviso de moderación es un recuadro destacado con título. El
+  video al pasar el mouse; superado por la 2c: tarjetas y botón «Look», en la enmienda de abajo);
+  el aviso de moderación es un recuadro destacado con título. El
   formulario vive también en un borrador en memoria del módulo: «Crear escenario» y los demás
   enlaces que salen de Crear ya no lo pierden; un formulario intacto no se guarda, «Crear otro» y
   cerrar la confirmación de escenas lo guardan, y en la demo no se usa. Se descarta cuando el
@@ -490,3 +491,29 @@ el mouse, §12.2), manda esta enmienda.
 Costo si estuviera mal: las categorías son una aproximación por tipo de look (un mapeo distinto es
 un cambio de constantes) y la frase más cercana, el tope de silencio y el máximo son reglas puras
 del planificador (`planner.ts`). La ADR sigue en «Propuesta»: pasa a Aceptada con la QA del dueño.
+
+## Enmienda 2026-10-11 (tarde) — entrega 2c
+
+Pedidos del dueño tras la 2b (hechos y decisiones: §19 del diseño; rulings:
+`docs/handoff/2026-10-09-avatar-heygen/execution-e2c/ledger.md`). El único `DELETE` nuevo es gratis:
+nada cobra de más.
+
+- **Borrar de verdad (G1).** «Mis avatares» elimina el avatar en HeyGen
+  (`DELETE /v3/avatars/{group_id}`, con sus looks) tras una confirmación en dos pasos; solo los
+  propios (HeyGen no borra los públicos). HeyGen primero, el disco después, y un 404 cuenta como
+  borrado: un fallo de HeyGen nunca saca de la biblioteca un avatar que sigue existiendo.
+- **Formato de la ficha (G2).** Manda la orientación de HeyGen; sin ella, el formato más cercano a
+  las medidas de la imagen; sin datos, sin chip.
+- **Título del render (H1).** `<nombre del video> · <marca>`: la marca sigue siendo la clave de
+  recuperación y el recibo guarda el título exacto. Se adopta primero el render de título exacto
+  (pedido también por él, por si HeyGen filtra por igualdad) y, sin él, uno que termina en la marca
+  y no está `failed` (R-H1 a R-H4); una copia hecha en HeyGen nunca le gana al exacto.
+- **Coral legible (I1).** `text-coral-text` (`5 85% 42%` en claro: ≥ 4,71:1, contra 2,31:1 a 2,86:1
+  del coral pleno) para texto e íconos de aviso; el coral pleno queda en fondos, bordes y adornos
+  (R-I3 y R-I4 lo extendieron a los rellenos con texto blanco).
+- **Tarjetas y botón «Look» (J1).** Las tarjetas de la fila tienen el formato del video; el botón
+  «Look» abre la grilla de todos los looks, los de otro formato visibles pero no elegibles.
+
+**A confirmar en la QA del dueño:** cómo filtra `GET /v3/videos?title=` (la sonda gratis del
+2026-10-11 no encontró renders para probarlo), si HeyGen conserva el final del título (hasta unos
+170 caracteres) y en qué orden lista renders y copias. La ADR sigue en «Propuesta».

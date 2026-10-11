@@ -45,7 +45,10 @@ export function AvatarSpansNote({
   if (spans.length === 0) {
     return (
       <p className={cn(boxClass, 'border-coral/50 bg-coral/10')}>
-        <UserRound aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-coral" />
+        <UserRound
+          aria-hidden
+          className="mt-0.5 h-4 w-4 shrink-0 text-coral-text"
+        />
         <span>
           {dropped
             ? t('create.confirmScenes.avatarNoneFits', { count: dropped })
@@ -70,7 +73,7 @@ export function AvatarSpansNote({
           ranges: avatarSpansLabel(spans, language),
         })}
         {dropped !== undefined && dropped > 0 && (
-          <span className="mt-0.5 block text-xs text-coral">
+          <span className="mt-0.5 block text-xs text-coral-text">
             {t('create.confirmScenes.avatarDropped', { count: dropped })}
           </span>
         )}

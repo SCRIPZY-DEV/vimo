@@ -68,7 +68,9 @@ interface StockLooksDialogProps {
 // biblioteca». «Agregar» desde la tarjeta deja que el sidecar elija el
 // principal. Al volver, la grilla de avatares sigue donde estaba y, con el
 // teclado, el foco en el «Ver looks» de la tarjeta de origen. Una página que
-// no llega deja el error junto a lo ya cargado, sin taparlo. Se monta solo
+// no llega deja el error junto a lo ya cargado, sin taparlo. En «Mis avatares»
+// cada tarjeta trae el tacho para eliminar el avatar de HeyGen de verdad (la
+// tarjeta confirma; de a un borrado, y nunca junto a un alta). Se monta solo
 // mientras está abierto.
 export function StockLooksDialog({
   entries,
@@ -79,6 +81,7 @@ export function StockLooksDialog({
   const [ownership, setOwnership] = useState<Ownership>('public')
   const [group, setGroup] = useState<HeyGenAvatarGroup | null>(null)
   const [addingGroupId, setAddingGroupId] = useState<string | null>(null)
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null)
   const stockGroups = useStockGroups({ ownership, enabled: true })
   const stockLooks = useStockLooks({
     ownership,
@@ -100,7 +103,7 @@ export function StockLooksDialog({
     open: openLook,
     close: closeLook,
   } = useOpenLook<HTMLDivElement>()
-  const { addAvatar } = useAvatarMutations()
+  const { addAvatar, deleteFromHeyGen } = useAvatarMutations()
   const lastInputWasKeyboard = useLastInputWasKeyboard()
   const contentRef = useRef<HTMLDivElement>(null)
   // El primer nivel (la grilla de avatares): ahí se busca el «Ver looks» al
@@ -109,6 +112,9 @@ export function StockLooksDialog({
   // Los chips de categoría: ahí se busca el elegido («Favoritos»), adonde va
   // el foco al quitar el último favorito con el teclado.
   const categoryChipsRef = useRef<HTMLDivElement>(null)
+  // Las pestañas del origen: ahí se busca la elegida («Mis avatares»), adonde
+  // va el foco al eliminar de HeyGen el último avatar con el teclado.
+  const ownershipTabsRef = useRef<HTMLDivElement>(null)
 
   // La biblioteca guarda avatares (grupos de HeyGen): grupo → entrada.
   const libraryIds = new Map(entries.map((entry) => [entry.groupId, entry.id]))
@@ -122,6 +128,7 @@ export function StockLooksDialog({
   const groupEntryId = group ? libraryIds.get(group.groupId) : undefined
   const openedLook = stockLooks.looks.find((look) => look.lookId === openLookId)
   const adding = addingGroupId !== null
+  const deleting = deletingGroupId !== null
   const loadingLabelKey = loadingStatusKey(
     group !== null,
     stockGroups.isLoading,
@@ -231,6 +238,60 @@ export function StockLooksDialog({
     target?.focus()
   }
 
+  // El tacho de una tarjeta del primer nivel (`data-heygen-delete`).
+  const deleteButton = (groupId: string) => {
+    return (
+      viewLooksButton(groupId)
+        ?.closest('article')
+        ?.querySelector<HTMLElement>('[data-heygen-delete]') ?? null
+    )
+  }
+
+  // Eliminar de HeyGen el avatar de una tarjeta, ya confirmado en ella. Al
+  // lograrlo, la tarjeta sale de la grilla con el foco adentro y Radix lo
+  // dejaría en la caja del diálogo: con el teclado, el foco pasa al tacho de
+  // la tarjeta vecina (la siguiente o, si era la última, la anterior, en el
+  // orden de la grilla al empezar) o, si no queda ninguna, a la pestaña «Mis
+  // avatares». Solo si sigue perdido al terminar (en el tacho, en `<body>` o
+  // en la caja): si en el medio la persona siguió con Tab, se queda donde
+  // llegó. Con el mouse no se mueve (ver `backToGroups`). Si falla, la
+  // mutación lo avisa y la tarjeta vuelve con el foco donde estaba.
+  const deleteFromCard = async (target: HeyGenAvatarGroup) => {
+    if (adding || deleting) return
+
+    const trigger = document.activeElement
+    const card = viewLooksButton(target.groupId)?.closest('article')
+    const fromKeyboard =
+      lastInputWasKeyboard() && (card?.contains(trigger) ?? false)
+    const order = visibleGroups.map((item) => item.groupId)
+    setDeletingGroupId(target.groupId)
+    const result = await deleteFromHeyGen(target).catch(() => null)
+    setDeletingGroupId(null)
+    if (!result || !fromKeyboard) return
+
+    const active = document.activeElement
+    const focusLost =
+      active === trigger ||
+      active === document.body ||
+      active === contentRef.current
+    if (focusLost) focusAfterDeleting(order, target.groupId)
+  }
+
+  const focusAfterDeleting = (order: string[], groupId: string) => {
+    const index = order.indexOf(groupId)
+    const after = order.slice(index + 1)
+    const before = order.slice(0, Math.max(index, 0)).reverse()
+    const neighbour = [...after, ...before]
+      .map(deleteButton)
+      .find((button) => button !== null)
+    const target =
+      neighbour ??
+      ownershipTabsRef.current?.querySelector<HTMLElement>(
+        '[role="tab"][aria-selected="true"]',
+      )
+    target?.focus()
+  }
+
   // «Cargar a la biblioteca» desde el reproductor: el avatar con ese look
   // como principal y, directo al resultado, su panel en la biblioteca. Si
   // falla (la mutación lo avisa), el reproductor sigue abierto.
@@ -305,7 +366,7 @@ export function StockLooksDialog({
               ownership={ownership}
               added={libraryIds.has(item.groupId)}
               adding={addingGroupId === item.groupId}
-              disabled={adding}
+              disabled={adding || deleting}
               favorite={favorites.isFavorite(item.groupId)}
               favoriteDisabled={favorites.reading}
               onToggleFavorite={
@@ -313,6 +374,13 @@ export function StockLooksDialog({
                   ? () => toggleFavorite(item.groupId)
                   : undefined
               }
+              onDeleteFromHeyGen={
+                ownership === 'private'
+                  ? () => void deleteFromCard(item)
+                  : undefined
+              }
+              deleting={deletingGroupId === item.groupId}
+              deleteDisabled={adding || deleting}
               onOpen={openGroup}
               onAdd={(target) => void addFromCard(target)}
             />
@@ -411,7 +479,12 @@ export function StockLooksDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !adding && onClose()}>
+    // Con un alta o un borrado en HeyGen en vuelo no se cierra (Escape, clic
+    // afuera ni la X): la persona ve cómo termina, también si falla.
+    <Dialog
+      open
+      onOpenChange={(open) => !open && !adding && !deleting && onClose()}
+    >
       <DialogContent
         ref={contentRef}
         className="flex h-[88vh] w-[calc(100vw-3rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:rounded-2xl"
@@ -454,7 +527,7 @@ export function StockLooksDialog({
                 categoría (solo el stock público) y el género. */}
             <div className="space-y-3 border-b border-border px-6 pb-4 sm:px-8">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="w-full sm:w-80">
+                <div ref={ownershipTabsRef} className="w-full sm:w-80">
                   <SegmentedTabs
                     value={ownership}
                     ariaLabel={t('avatars.stock.origenAria')}

@@ -90,7 +90,7 @@ export function CreateAvatarSection({
       </Label>
       {!heygenConfigured && (
         <div className="space-y-2">
-          <p className="font-body text-xs text-coral">
+          <p className="font-body text-xs text-coral-text">
             {t('create.avatar.noKey')}
           </p>
           <Button asChild size="sm" variant="outline">
