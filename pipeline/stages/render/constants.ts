@@ -12,6 +12,15 @@ export { ZOOM_MAX, ZOOM_PAN } from '../../animation/timing.ts'
 // Escenas por chunk: evita el pthread_create EAGAIN de FFmpeg con >100 inputs.
 export const CHUNK_SIZE = 30
 
+// Chunks en paralelo según el equipo del usuario (render-concurrency.ts). Un
+// FFmpeg de chunk ya ocupa ~5 núcleos y llega a ~1,6 GB de RAM (medido en un
+// M4 con 30 escenas 1080p): un segundo proceso solo acelera si sobran núcleos,
+// y jamás debe dejar sin memoria a un equipo de gama baja.
+export const RENDER_CORES_PER_PROCESS = 6
+export const RENDER_MEMORY_PER_PROCESS_BYTES = 2 * 1024 ** 3
+export const RENDER_MEMORY_SHARE = 0.5
+export const RENDER_MAX_PARALLEL_CHUNKS = 3
+
 // Watchdog de ESTANCAMIENTO: FFmpeg sano escribe progreso cada ~500ms; si no
 // emite NINGÚN byte en este tiempo está muerto. No se mata al primer disparo:
 // un wake-up tras suspend congela los timers y parece un cuelgue — período de

@@ -14,18 +14,16 @@ import { ensureDirectory, readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { requireFfmpegPath } from '../../utils/ffmpeg.ts'
 import type { CreateVideoContext } from '../context.ts'
 import { collectRenderScenes } from './animated-scenes.ts'
+import { renderAllChunks } from './chunk-queue.ts'
 import {
   CHUNK_SIZE,
   chunkDurationSeconds,
-  chunkFileFor,
-  chunkManifestFor,
-  isChunkCacheValid,
-  renderChunk,
   type RenderScene,
 } from './chunk-renderer.ts'
 import { CHUNKS_PROGRESS_SHARE, CONCAT_PROGRESS_SHARE } from './constants.ts'
 import { concatChunks, mixFinalVideo } from './final-mix.ts'
 import { exportPromptsMarkdown } from './prompts-export.ts'
+import { parallelChunksFor } from './render-concurrency.ts'
 import { subtitlesFilter, writeSubtitlesFile } from './subtitles.ts'
 
 // Fase 6: ensamblado final (port de ensamblarVideo + rendereoFinal).
@@ -87,47 +85,29 @@ export const renderStage: Stage<CreateVideoContext> = {
       context.emitter.emit({ type: 'render-progress', percent, phase })
     }
 
-    // 1. Chunks mudos (con cache por manifest). El progreso de cada chunk se
-    // reescala por su duración para que el % sea monotónico.
-    const chunkFiles: string[] = []
+    // 1. Chunks mudos (con cache por manifest), tantos a la vez como aguante
+    // el equipo del usuario (1 en equipos modestos: el render de siempre).
     const totalChunks = Math.ceil(renderScenes.length / CHUNK_SIZE)
-    let renderedSeconds = 0
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      context.signal.throwIfAborted()
-
-      const start = chunkIndex * CHUNK_SIZE
-      const chunkScenes = renderScenes.slice(start, start + CHUNK_SIZE)
-      const chunkSeconds = chunkDurationSeconds(chunkScenes)
-      const chunkFile = chunkFileFor(chunksDirectory, chunkIndex + 1)
-
-      const previousScene = start > 0 ? renderScenes[start - 1] : undefined
-      const expectedManifest = await chunkManifestFor(
-        chunkScenes,
-        start,
-        frame,
-        previousScene,
-      )
-      if (await isChunkCacheValid(chunkFile, expectedManifest)) {
-        renderedSeconds += chunkSeconds
-        if (totalSeconds > 0)
+    const parallelChunks = parallelChunksFor(totalChunks)
+    context.emitter.emit({
+      type: 'log',
+      level: 'info',
+      message: `render: ${totalChunks} chunks, ${parallelChunks} at a time`,
+    })
+    const chunkFiles = await renderAllChunks(
+      ffmpegPath,
+      renderScenes,
+      chunksDirectory,
+      frame,
+      {
+        parallelChunks,
+        signal: context.signal,
+        onRenderedSeconds(renderedSeconds) {
+          if (totalSeconds <= 0) return
           emitProgress('chunks', renderedSeconds / totalSeconds)
-      } else {
-        const secondsBeforeChunk = renderedSeconds
-        await renderChunk(ffmpegPath, chunkScenes, start, chunkFile, frame, {
-          previousScene,
-          signal: context.signal,
-          onProgress(fraction) {
-            if (totalSeconds <= 0) return
-            emitProgress(
-              'chunks',
-              (secondsBeforeChunk + fraction * chunkSeconds) / totalSeconds,
-            )
-          },
-        })
-        renderedSeconds += chunkSeconds
-      }
-      chunkFiles.push(chunkFile)
-    }
+        },
+      },
+    )
 
     // Limpieza best-effort de chunks huérfanos de corridas con más escenas.
     await cleanupOrphanChunks(chunksDirectory, totalChunks)
