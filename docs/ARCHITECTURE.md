@@ -117,6 +117,17 @@ La línea es explícita, porque si ambos lados calculan rutas terminan divergien
 
 ---
 
+### Motor alternativo Flow
+
+Desde la integración local descrita en [ADR-0052](adr/ADR-0052-flow-como-motor-de-imagenes.md),
+Rust administra además un coordinador persistente de la extensión. La SPA sigue
+usando `invoke`; sólo los procesos nativos usan su HTTP loopback autenticado.
+Catálogo y Mi estilo conservan sus fases. Flow sustituye la generación de
+imágenes, incluidas muestras y regeneración; no añade un pipeline paralelo.
+El diagrama, contratos, fallos y límites de confianza viven en la ADR.
+
+---
+
 ## 2. Stack
 
 | Capa            | Tecnología               | Rol                                                                      |

@@ -1,4 +1,4 @@
-import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
   StyleCloneCharacterMode,
   StyleCloneCharacterTravel,
@@ -93,7 +93,7 @@ export interface StyleCloneSession {
   // catálogo, el personaje viaja solo como identidad de prompt y queda como el
   // personaje fijo de la gema).
   replicateCharacter: boolean
-  imageProvider: ImageProviderId
+  imageProvider: PaidImageProviderId
   status: StyleCloneStatus
   // null hasta que llega el primer análisis.
   step: StyleCloneStep | null
@@ -133,7 +133,7 @@ export interface StyleCloneStartInput {
   target: StyleCloneTarget
   source: StyleCloneSource
   replicateCharacter: boolean
-  imageProvider: ImageProviderId
+  imageProvider: PaidImageProviderId
   // El nombre del estilo si la IA no propone uno (lo traduce quien empieza).
   fallbackName: string
 }

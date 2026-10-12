@@ -1,3 +1,4 @@
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { useSyncExternalStore } from 'react'
 import i18next from 'i18next'
 import { toast } from '@/modules/common/hooks/useToast'
@@ -28,6 +29,7 @@ import {
   rememberLibraryTab,
 } from '@/modules/videos/utilities/libraryTab'
 import { refreshProjectQueries } from '@/modules/videos/utilities/projectRefresh'
+import { syncProjectImage } from '@/modules/videos/utilities/syncProjectImage'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PromptModelBlockReason } from '@/modules/common/types/promptModelBlocks'
 import type {
@@ -75,7 +77,13 @@ function setTask(task: CreateTask | null) {
 // Ignora patches de callbacks viejos si la tarea ya fue reemplazada.
 function patchTask(taskId: string, patch: Partial<CreateTask>) {
   if (!currentTask || currentTask.id !== taskId) return
-  setTask({ ...currentTask, ...patch })
+
+  const stoppedTiming =
+    patch.status === 'error' && currentTask.status !== 'error'
+      ? { finishedAt: currentTask.finishedAt ?? Date.now() }
+      : {}
+
+  setTask({ ...currentTask, ...stoppedTiming, ...patch })
 }
 
 function restoreTask(): CreateTask | null {
@@ -95,6 +103,18 @@ function restoreTask(): CreateTask | null {
       pausedAt: stored.pausedAt ?? null,
       pausedMs: stored.pausedMs ?? 0,
       finishedAt: stored.finishedAt ?? null,
+      // No sabemos cuándo terminó una tarea que murió con la app ni un
+      // error/completado antiguo sin frontera. La hora de reapertura no sirve.
+      timingUnknown:
+        stored.timingUnknown === true ||
+        !Number.isFinite(stored.startedAt) ||
+        stored.status === 'creating' ||
+        stored.status === 'generating' ||
+        ((stored.status === 'error' ||
+          stored.status === 'completed' ||
+          stored.status === 'awaitingConfirmation') &&
+          !Number.isFinite(stored.finishedAt) &&
+          !Number.isFinite(stored.pausedAt)),
       retry: null,
       retryAttempts: stored.retryAttempts ?? 0,
       videoFormat: stored.videoFormat ?? '16:9',
@@ -315,7 +335,11 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'scene-prompt-ready':
       patchTask(taskId, {
-        scenes: mergeScene(task.scenes, event.scene),
+        scenes: mergeScene(
+          task.scenes,
+          event.scene,
+          task.imageProvider === 'flow',
+        ),
         promptsStageActivity: touchPromptsActivity(task),
       })
       return
@@ -358,10 +382,18 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     }
 
     case 'scene-image-started':
+      // Reanudar el pipeline puede repetir eventos de un recibo importado.
+      // La regeneración intencional vive en el store separado del editor.
+      if (
+        task.imageProvider === 'flow' &&
+        hasReadyImage(task.scenes.find((scene) => scene.id === event.sceneId))
+      )
+        return
       patchTask(taskId, {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageStatus: 'generating',
           imageProgress: undefined,
+          imagePhase: undefined,
         }),
       })
       return
@@ -458,14 +490,24 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     // Avance de una imagen en curso (solo Evolink lo informa): la celda de
     // la grilla muestra el porcentaje; se limpia al cerrar la imagen.
     case 'scene-image-progress':
+      if (
+        task.imageProvider === 'flow' &&
+        hasReadyImage(task.scenes.find((scene) => scene.id === event.sceneId))
+      )
+        return
       patchTask(taskId, {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageProgress: event.percent,
+          imagePhase: task.imageProvider === 'flow' ? event.status : undefined,
+          ...(['queued', 'awaiting_sync'].includes(event.status)
+            ? { imageStatus: 'pending' as const }
+            : {}),
         }),
       })
       return
 
     case 'scene-image-ready':
+      syncProjectImage(task.projectId, event.sceneId, event.imagePath)
       patchTask(taskId, {
         scenes: patchScene(task.scenes, event.sceneId, {
           imageStatus: 'ok',
@@ -530,6 +572,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'job-completed': {
       stopActiveJob()
+      refreshProjectQueries(task.projectId)
       const result = event.result as unknown as RunVideoPipelineResult | null
       // Cierre limpio en pausa: NO es un completado (semántica del origen).
       if (result?.status === 'awaiting-confirmation') {
@@ -557,6 +600,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     case 'job-failed': {
       stopActiveJob()
+      refreshProjectQueries(task.projectId)
       // Saldo agotado (ADR-0031): ni reintento automático ni diálogo del
       // modelo — el proyecto quedó pausado en disco; la tarjeta muestra el
       // saldo, manda a recargar y re-chequea antes de reanudar.
@@ -645,6 +689,7 @@ function touchPromptsActivity(
 function mergeScene(
   scenes: CreateTask['scenes'],
   incoming: CreateTask['scenes'][number],
+  preserveReadyImage: boolean,
 ): CreateTask['scenes'] {
   // Merge por id (nunca reemplazo): conserva el estado de imagen ya conocido
   // y un prompt ya visto si el evento no trae otro — el contador de prompts
@@ -652,11 +697,18 @@ function mergeScene(
   const index = scenes.findIndex((scene) => scene.id === incoming.id)
   if (index < 0) return [...scenes, incoming].sort((a, b) => a.id - b.id)
   const known = scenes[index]
+  const keepImage =
+    preserveReadyImage &&
+    hasReadyImage(known) &&
+    incoming.imageStatus === 'pending'
   const merged = [...scenes]
   merged[index] = {
     ...known,
     ...incoming,
     imagePrompt: hasPrompt(incoming) ? incoming.imagePrompt : known.imagePrompt,
+    ...(keepImage
+      ? { imageStatus: known.imageStatus, imagePath: known.imagePath }
+      : {}),
   }
   return merged
 }
@@ -691,6 +743,14 @@ function clearPrompts(
   return scenes.map((scene) =>
     targets.has(scene.id) ? { ...scene, imagePrompt: undefined } : scene,
   )
+}
+
+// Solo protege progreso repetido: un fallo concreto sigue prevaleciendo y
+// una tarea nueva toma su estado de la semilla autoritativa leída de disco.
+function hasReadyImage(
+  scene: CreateTask['scenes'][number] | undefined,
+): boolean {
+  return scene?.imageStatus === 'ok' && Boolean(scene.imagePath)
 }
 
 function patchScene(
@@ -736,6 +796,7 @@ function makeTask(
     pausedAt: null,
     pausedMs: 0,
     finishedAt: null,
+    timingUnknown: false,
     retry: null,
     retryAttempts: 0,
     videoFormat: options.videoFormat ?? '16:9',
@@ -752,20 +813,34 @@ function makeTask(
     promptModelIssue: null,
     promptModelSwitch: null,
     imageProvider: options.imageProvider ?? null,
+    ...(options.executionPlan
+      ? { executionPlan: { ...options.executionPlan } }
+      : {}),
     voiceVendor: options.voiceVendor ?? null,
     creditsIssue: null,
   }
 }
 
 // Lanza el job del pipeline y engancha sus eventos a la tarea.
-async function runPipeline(taskId: string, projectId: string): Promise<void> {
-  // Si venía en pausa (confirmación), el tramo pausado se acumula y el
-  // cronómetro retoma.
+async function runPipeline(
+  taskId: string,
+  projectId: string,
+  flowRestartRequest?: FlowRestartRequest,
+): Promise<void> {
+  if (flowRestartRequest) patchTask(taskId, { flowRestartRequest })
+  // La espera en confirmación o tras un error no es tiempo de trabajo.
+  // Una sola frontera evita descontarla dos veces; el auto-retry conserva
+  // su política actual y no atraviesa un estado de error terminal.
   const previous = currentTask
+  const stoppedAt =
+    previous?.id === taskId
+      ? (previous.pausedAt ??
+        (previous.status === 'error' ? previous.finishedAt : null))
+      : null
   const pausePatch =
-    previous?.id === taskId && previous.pausedAt !== null
+    previous?.id === taskId && stoppedAt !== null
       ? {
-          pausedMs: previous.pausedMs + (Date.now() - previous.pausedAt),
+          pausedMs: previous.pausedMs + Math.max(0, Date.now() - stoppedAt),
           pausedAt: null,
         }
       : {}
@@ -776,6 +851,7 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
   // `imagesRecovery` sí: describe una pasada del job anterior, ya muerto.
   patchTask(taskId, {
     status: 'generating',
+    finishedAt: null,
     errorKey: null,
     errorCode: null,
     confirmation: null,
@@ -794,8 +870,11 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
   if (currentTask?.id !== taskId) return
 
   try {
-    const job = await videosApi.startPipeline({ projectId }, (event) =>
-      handleEvent(taskId, event),
+    const restart =
+      currentTask?.id === taskId ? currentTask.flowRestartRequest : undefined
+    const job = await videosApi.startPipeline(
+      { projectId, ...restart },
+      (event) => handleEvent(taskId, event),
     )
     // El job pudo terminar con eventos encolados antes de llegar acá.
     const task = currentTask
@@ -837,6 +916,7 @@ async function startCreation(input: {
       usesCustomStyle,
       promptModel: usesCustomStyle ? (input.promptModel ?? null) : null,
       imageProvider: input.payload.options.imageProvider,
+      executionPlan: input.payload.options.executionPlan,
       voiceVendor: input.payload.options.voiceProvider
         ? vendorOfProvider(input.payload.options.voiceProvider)
         : null,
@@ -914,13 +994,19 @@ async function startPipelineForProject(
   projectId: string,
   projectName: string,
   options: ProjectRunOptions = {},
+  flowRestartRequest?: FlowRestartRequest,
 ): Promise<boolean> {
   if (rejectIfBusy()) return false
 
+  const restart =
+    flowRestartRequest ??
+    (currentTask?.projectId === projectId
+      ? currentTask.flowRestartRequest
+      : undefined)
   stopActiveJob()
   const taskId = newTaskId()
   setTask(makeTask(taskId, projectId, projectName, options))
-  await runPipeline(taskId, projectId)
+  await runPipeline(taskId, projectId, restart)
   return true
 }
 
@@ -969,13 +1055,13 @@ async function confirmScenes(choice: SceneCutChoice): Promise<void> {
 }
 
 // Reanuda tras un error o una cancelación: el proyecto sigue en disco.
-async function resume(): Promise<void> {
+async function resume(flowRestartRequest?: FlowRestartRequest): Promise<void> {
   const task = currentTask
   if (!task || !task.projectId) return
   if (task.status !== 'error' || activeJob || task.cancelRequested) return
   stopRetryTimer()
   patchTask(task.id, { retry: null })
-  await runPipeline(task.id, task.projectId)
+  await runPipeline(task.id, task.projectId, flowRestartRequest)
 }
 
 // ── Modelo de prompts trabado o con errores (ADR-0028) ──

@@ -82,7 +82,10 @@ function estimateImagesLine(
 // El audio propio conserva su cantidad manual hasta medir la duración.
 // Un estilo del catálogo nuevo corta como Mi estilo: por segundos por escena,
 // sin cantidad fija (plan E2 §5.4).
-function estimatedSceneCount(form: CreateFormValue, script: string): number {
+export function estimatedSceneCount(
+  form: CreateFormValue,
+  script: string,
+): number {
   const usesGemLane = laneOf(form) !== 'legacy-catalog'
   const hasFixedCount = !usesGemLane && form.sceneCount > 0
   if (form.narrationMode !== 'tts' || !script)

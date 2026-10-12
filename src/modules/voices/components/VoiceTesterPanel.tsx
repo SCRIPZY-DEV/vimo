@@ -118,6 +118,7 @@ export function VoiceTesterPanel({
   // ANTES de generar; lo que se sintetiza (y queda en el historial) es la
   // voz de cuenta que devuelve.
   const generate = async () => {
+    if (disabled) return
     resetAddLibraryVoice()
     let voiceId = voice.voiceId
     if (voice.libraryOwnerId) {
@@ -143,9 +144,7 @@ export function VoiceTesterPanel({
   }
 
   return (
-    <section
-      className={cn('space-y-4', disabled && 'pointer-events-none opacity-60')}
-    >
+    <section className={cn('space-y-4', disabled && 'opacity-60')}>
       <DialogHeader>
         <DialogTitle className="font-display text-xl font-extrabold text-foreground">
           {t('voices.probador.titulo')}
@@ -239,7 +238,7 @@ export function VoiceTesterPanel({
         <Button
           size="lg"
           onClick={() => void generate()}
-          disabled={generating || !text.trim() || insufficient}
+          disabled={disabled || generating || !text.trim() || insufficient}
           className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
         >
           {generating ? (

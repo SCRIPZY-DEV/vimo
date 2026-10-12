@@ -1,7 +1,12 @@
 import { useSyncExternalStore } from 'react'
+import {
+  flowExecutionPlansEqual,
+  normalizeFlowExecutionPlan,
+} from '@/modules/common/utilities/flowExecutionPlan'
 import { blockAnimationProvider } from '@/modules/common/utilities/animationProviderBlocks'
 import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { videosApi } from '@/modules/videos/api'
+import { syncProjectImage } from '@/modules/videos/utilities/syncProjectImage'
 import {
   INSUFFICIENT_CREDITS_CODES,
   NON_RETRYABLE_ANIMATION_CODES,
@@ -60,6 +65,7 @@ function emptyTask(projectId: string): LibraryEditorTask {
     sceneStatus: {},
     sceneErrors: {},
     sceneVersions: {},
+    sceneCompletionVersions: {},
     render: null,
     export: null,
     animation: null,
@@ -151,17 +157,25 @@ function enqueueRegen(projectId: string, entries: RegenQueueEntry[]): boolean {
     return false
   const task = taskOf(projectId)
   const order = ++generationOrder
-  const queued = unique.map((entry) => ({
-    ...entry,
-    imageProvider:
-      entry.imageProvider ?? task.pendingImageProvider ?? undefined,
-    order,
-  }))
+  const queued = unique.map((entry) => {
+    const imageProvider =
+      entry.imageProvider ?? task.pendingImageProvider ?? undefined
+    const executionPlan = normalizeFlowExecutionPlan(entry.executionPlan)
+    if (executionPlan && imageProvider !== 'flow')
+      throw new Error('execution_plan_invalid')
+
+    return {
+      ...entry,
+      imageProvider,
+      ...(executionPlan ? { executionPlan } : {}),
+      order,
+    }
+  })
   const sceneStatus = { ...task.sceneStatus }
   const sceneErrors = { ...task.sceneErrors }
   const sceneRegenDrafts = { ...task.sceneRegenDrafts }
   for (const entry of queued) {
-    sceneStatus[entry.id] = 'generating'
+    sceneStatus[entry.id] = 'pending'
     delete sceneErrors[entry.id]
     if (entry.userPrompt !== undefined)
       sceneRegenDrafts[entry.id] = entry.userPrompt
@@ -230,6 +244,11 @@ async function dispatchRegen(projectId: string): Promise<void> {
   for (const entry of task.regenQueue) {
     if (
       entry.imageProvider !== first.imageProvider ||
+      entry.flowRegenerationRequestId !== first.flowRegenerationRequestId ||
+      entry.flowRecoverOnly !== first.flowRecoverOnly ||
+      !flowExecutionPlansEqual(entry.executionPlan, first.executionPlan) ||
+      entry.flowRestartRequest?.flowRestartRequestId !==
+        first.flowRestartRequest?.flowRestartRequestId ||
       (nextAnimation && entry.order > nextAnimation.order)
     )
       break
@@ -264,6 +283,16 @@ async function dispatchRegen(projectId: string): Promise<void> {
         projectId,
         scenes: batch.map(({ id, rewritePrompt }) => ({ id, rewritePrompt })),
         ...(first.imageProvider ? { imageProvider: first.imageProvider } : {}),
+        ...(first.imageProvider === 'flow'
+          ? {
+              flowRegenerationRequestId: first.flowRegenerationRequestId,
+              ...(first.flowRecoverOnly ? { flowRecoverOnly: true } : {}),
+              ...(first.executionPlan
+                ? { executionPlan: first.executionPlan }
+                : {}),
+              ...first.flowRestartRequest,
+            }
+          : {}),
       },
       (event) => handleRegenEvent(projectId, requestId, sceneIds, event),
     )
@@ -282,7 +311,7 @@ async function dispatchRegen(projectId: string): Promise<void> {
       projectId,
       requestId,
       sceneIds,
-      videosApi.errorMessageKey(error),
+      regenerationErrorKey(error),
       videosApi.errorCode(error),
     )
   }
@@ -298,25 +327,49 @@ function handleRegenEvent(
   if (task.activeRegen?.requestId !== requestId) return
 
   switch (event.type) {
+    case 'scene-image-progress':
+      if (!sceneIds.includes(event.sceneId)) return
+      if (event.status === 'queued' || event.status === 'awaiting_sync') {
+        const sceneErrors = { ...task.sceneErrors }
+        delete sceneErrors[event.sceneId]
+        patchTask(projectId, {
+          sceneStatus: {
+            ...task.sceneStatus,
+            [event.sceneId]:
+              event.status === 'awaiting_sync' ? 'awaiting_sync' : 'pending',
+          },
+          sceneErrors,
+        })
+      }
+      return
+
     case 'scene-image-started':
+      if (!sceneIds.includes(event.sceneId)) return
       patchTask(projectId, {
         sceneStatus: { ...task.sceneStatus, [event.sceneId]: 'generating' },
       })
       return
 
-    case 'scene-image-ready':
+    case 'scene-image-ready': {
+      if (!sceneIds.includes(event.sceneId)) return
+      syncProjectImage(projectId, event.sceneId, event.imagePath)
+      const sceneErrors = { ...task.sceneErrors }
+      delete sceneErrors[event.sceneId]
       patchTask(projectId, {
         sceneStatus: { ...task.sceneStatus, [event.sceneId]: 'ok' },
+        sceneErrors,
         sceneVersions: { ...task.sceneVersions, [event.sceneId]: Date.now() },
       })
       return
+    }
 
     case 'scene-image-failed':
+      if (!sceneIds.includes(event.sceneId)) return
       patchTask(projectId, {
         sceneStatus: { ...task.sceneStatus, [event.sceneId]: 'error' },
         sceneErrors: {
           ...task.sceneErrors,
-          [event.sceneId]: videosApi.errorMessageKey({ code: event.code }),
+          [event.sceneId]: regenerationErrorKey({ code: event.code }),
         },
       })
       return
@@ -334,6 +387,7 @@ function handleRegenEvent(
         failed.length > 0 ? 'library.editor.regenFailed' : null,
         null,
         new Set(failed),
+        true,
       )
       return
     }
@@ -343,7 +397,7 @@ function handleRegenEvent(
         projectId,
         requestId,
         sceneIds,
-        videosApi.errorMessageKey({ code: event.code }),
+        regenerationErrorKey({ code: event.code }),
         event.code,
       )
       return
@@ -359,27 +413,43 @@ function finishRegen(
   sceneIds: number[],
   errorKey: string | null,
   errorCode: string | null,
-  failedIds: Set<number> = new Set(sceneIds),
+  failedIds?: Set<number>,
+  confirmed = false,
 ) {
   const task = taskOf(projectId)
   if (task.activeRegen?.requestId !== requestId) return
+
+  const failed =
+    failedIds ??
+    new Set(sceneIds.filter((sceneId) => task.sceneStatus[sceneId] !== 'ok'))
   const sceneStatus = { ...task.sceneStatus }
   const sceneErrors = { ...task.sceneErrors }
   const sceneRegenDrafts = { ...task.sceneRegenDrafts }
-  // Los estados transitorios del lote se limpian; el detail refetcheado
-  // cuenta la verdad (una fallida conserva su imagen anterior en disco). El
-  // motivo del fallo se conserva por escena hasta el próximo intento.
+  const sceneCompletionVersions = { ...task.sceneCompletionVersions }
+  // Una importación conocida no hereda un fallo global posterior. Sólo el
+  // cierre confirmado permite abandonar el UUID anterior de regeneración;
+  // ready seguido de un ACK perdido debe seguir siendo recuperable.
   for (const sceneId of sceneIds) {
+    // El observador se cerró sin fallo confirmado de esta escena. Conserva
+    // su espera explícita y el error global, nunca inventa un error individual.
+    if (sceneStatus[sceneId] === 'awaiting_sync') {
+      delete sceneErrors[sceneId]
+      continue
+    }
     delete sceneStatus[sceneId]
-    if (!failedIds.has(sceneId)) {
+    if (!failed.has(sceneId)) {
       delete sceneErrors[sceneId]
       delete sceneRegenDrafts[sceneId]
+      if (confirmed)
+        sceneCompletionVersions[sceneId] =
+          (sceneCompletionVersions[sceneId] ?? 0) + 1
     } else sceneErrors[sceneId] ??= errorKey ?? 'create.errors.unknown'
   }
   patchTask(projectId, {
     activeRegen: null,
     sceneStatus,
     sceneErrors,
+    sceneCompletionVersions,
     sceneRegenDrafts,
     errorKey,
     errorCode,
@@ -1102,4 +1172,14 @@ export function useLibraryEditorTask(projectId: string) {
     canStartAnimation,
     canQueueRegeneration,
   }
+}
+
+function regenerationErrorKey(error: unknown): string {
+  const key = videosApi.errorMessageKey(error)
+  if (
+    key === 'extension.restartRequired' ||
+    key === 'create.errors.imagesIncomplete'
+  )
+    return 'library.editor.panel.regenerationIncomplete'
+  return key
 }

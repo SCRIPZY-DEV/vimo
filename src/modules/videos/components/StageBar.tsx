@@ -6,6 +6,7 @@ import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { ImagesRecoveryView } from '@/modules/videos/types/create'
 
 interface StageBarProps {
+  flowImages?: boolean
   currentStage: StageId | null
   showAnimation?: boolean
   completedStages: StageId[]
@@ -52,6 +53,7 @@ function recoveryNote(
 // pendiente neutra con un punto. Un escalón más grande que el origen (alto,
 // ícono y texto): a ventana completa la lista se veía diminuta.
 export function StageBar({
+  flowImages = false,
   currentStage,
   showAnimation = false,
   completedStages,
@@ -127,7 +129,11 @@ export function StageBar({
                 pending && 'text-muted-foreground',
               )}
             >
-              {t(stage.labelKey)}
+              {t(
+                flowImages && stage.id === 'images'
+                  ? 'extension.generatingImages'
+                  : stage.labelKey,
+              )}
               {waiting && (
                 <span className="block font-body text-sm font-normal text-saffron">
                   {t('create.progress.waitingForYou')}

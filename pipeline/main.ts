@@ -8,6 +8,7 @@ import { stylesSubcommands } from './commands/styles/subcommands.ts'
 import { videosSubcommands } from './commands/videos/subcommands.ts'
 import { voicesSubcommands } from './commands/voices/subcommands.ts'
 import { resolvePipelineConfig } from './config/pipeline-config.ts'
+import { runFlowService } from './providers/flow/service.ts'
 import { createEmitter } from './runner/emitter.ts'
 import {
   PipelineFailure,
@@ -91,6 +92,8 @@ function readJob(
 
 async function main(): Promise<number> {
   const subcommandName = process.argv[2] ?? ''
+  if (subcommandName === 'flow-service') return runFlowService()
+
   const abortController = new AbortController()
   const lines = createInterface({ input: process.stdin })
 

@@ -1,4 +1,11 @@
-import { useState } from 'react'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
+import type {
+  FlowRestartConsent,
+  FlowRestartRequest,
+} from '@/modules/common/types/flow'
+import { resolveFlowRestartConsent } from '@/modules/common/utilities/flowRestartConsent'
+import { useRef, useState } from 'react'
 import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { queryClient } from '@/modules/common/queryClient'
@@ -27,6 +34,7 @@ export interface SampleGenerationState {
   // Progreso por muestra (id → %) durante la fase de imágenes.
   samplePercents: Record<number, number>
   promptPercents: Record<number, number>
+  sampleStatuses: Record<number, string>
   sampleImages: Record<number, string>
   completed: boolean
   errorKey: string | null
@@ -37,6 +45,7 @@ const INITIAL_STATE: SampleGenerationState = {
   phase: null,
   samplePercents: {},
   promptPercents: {},
+  sampleStatuses: {},
   sampleImages: {},
   completed: false,
   errorKey: null,
@@ -77,6 +86,7 @@ function samplesOfResult(result: unknown): StyleSample[] {
 // `generateForCatalogDraft` las devuelve para que el modal las suba.
 export function useStyleSampleGeneration() {
   const [state, setState] = useState(INITIAL_STATE)
+  const restartRequest = useRef<FlowRestartConsent | null>(null)
   // Una gema de plantilla escribe sus muestras con el modelo de Ajustes, como
   // el video (spec §5.6, ADR-0022), resuelto igual que en Crear: uno retirado
   // o bloqueado (ADR-0028) cae a otro del catálogo.
@@ -131,6 +141,15 @@ export function useStyleSampleGeneration() {
                     ),
                   }
                 : previous.sampleImages,
+            sampleStatuses:
+              detail.phase === 'images' &&
+              detail.sampleId !== undefined &&
+              detail.status
+                ? {
+                    ...previous.sampleStatuses,
+                    [detail.sampleId]: detail.status,
+                  }
+                : previous.sampleStatuses,
             samplePercents:
               detail.phase === 'images' && detail.sampleId !== undefined
                 ? {
@@ -142,6 +161,7 @@ export function useStyleSampleGeneration() {
           return
         }
         if (event.type === 'job-completed') {
+          restartRequest.current = null
           setState((previous) => ({
             ...previous,
             running: false,
@@ -182,13 +202,33 @@ export function useStyleSampleGeneration() {
   const generate = async (
     styleId: string,
     imageProvider: ImageProviderId,
-    { templateGem }: SampleGenerationOptions,
+    {
+      templateGem,
+      restart,
+      revision = styleId,
+      executionPlan,
+    }: SampleGenerationOptions,
   ) => {
-    // Una gema vieja manda exactamente lo de siempre.
+    const plan = normalizeFlowExecutionPlan(executionPlan)
+    if (plan && imageProvider !== 'flow')
+      throw new Error('execution_plan_invalid')
+    const scope = JSON.stringify([
+      styleId,
+      imageProvider,
+      revision,
+      ...(plan ? [plan] : []),
+    ])
+    restartRequest.current =
+      imageProvider === 'flow'
+        ? resolveFlowRestartConsent(restartRequest.current, scope, restart)
+        : null
+    // Conserva el modelo de plantilla y el consentimiento del mismo recibo.
     await run(
       {
         styleId,
         imageProvider,
+        ...(plan ? { executionPlan: plan } : {}),
+        ...restartRequest.current?.request,
         ...(templateGem && settingsPromptModel
           ? { promptModel: settingsPromptModel }
           : {}),
@@ -202,15 +242,33 @@ export function useStyleSampleGeneration() {
   const generateForCatalogDraft = (
     catalogDraft: CatalogDraftSamplesSource,
     imageProvider: ImageProviderId,
-  ) =>
-    run(
+    restart?: FlowRestartRequest,
+    executionPlan?: FlowToolsExecutionPlan,
+  ) => {
+    const plan = normalizeFlowExecutionPlan(executionPlan)
+    if (plan && imageProvider !== 'flow')
+      throw new Error('execution_plan_invalid')
+    const scope = JSON.stringify([
+      catalogDraft,
+      imageProvider,
+      settingsPromptModel,
+      ...(plan ? [plan] : []),
+    ])
+    restartRequest.current =
+      imageProvider === 'flow'
+        ? resolveFlowRestartConsent(restartRequest.current, scope, restart)
+        : null
+    return run(
       {
         catalogDraft,
         imageProvider,
+        ...(plan ? { executionPlan: plan } : {}),
+        ...restartRequest.current?.request,
         ...(settingsPromptModel ? { promptModel: settingsPromptModel } : {}),
       },
       false,
     )
+  }
 
   return { ...state, generate, generateForCatalogDraft }
 }

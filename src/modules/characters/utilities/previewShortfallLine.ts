@@ -14,6 +14,15 @@ export function previewShortfallLine(
   provider: ImageProviderId,
   credits: ImageCreditsResult | null,
 ): CreditsShortfallLine {
+  if (provider === 'flow')
+    return {
+      providerId: provider,
+      providerLabel: 'Flow',
+      unit: 'credits',
+      estimated: null,
+      available: null,
+      sufficient: null,
+    }
   const balance = balanceFor('image', provider, { image: credits, voice: null })
   return {
     providerId: provider,

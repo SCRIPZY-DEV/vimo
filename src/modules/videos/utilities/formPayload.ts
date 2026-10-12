@@ -1,3 +1,4 @@
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
 import { ANIMATION_MINUTES_DEFAULT } from '@/modules/videos/constants'
 import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import { displayLaneOf, laneOf } from '@/modules/videos/utilities/formLane'
@@ -27,7 +28,12 @@ export function createProjectPayload(
   // un estilo heredado del catálogo, que lleva su id. El catálogo viejo manda
   // lo de siempre.
   const gemStyle = laneOf(form) === 'legacy-catalog' ? null : form.customStyle
+  const executionPlan =
+    !demo && form.imageProvider === 'flow'
+      ? normalizeFlowExecutionPlan(form.executionPlan)
+      : undefined
   const options: VideoProjectOptions = {
+    ...(executionPlan ? { executionPlan } : {}),
     styleId: gemStyle ? gemProjectStyleId(gemStyle) : form.styleId,
     // Con una gema el corte va por duración: la cantidad que quedó en el
     // formulario no aplica y viaja como automática para no mentir el metadata.

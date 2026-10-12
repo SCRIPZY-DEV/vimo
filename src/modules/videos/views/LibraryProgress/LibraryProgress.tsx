@@ -95,28 +95,44 @@ export function LibraryProgress() {
   // El carril y el modelo salen de project.json (ADR-0028): el modelo se
   // resuelve como en Crear (null = el de la casa) para saber a quién bloquear.
   const usesCustomStyle = status?.metadata.options.customStyle !== undefined
-  const runOptions: ProjectRunOptions = {
-    videoFormat: status?.metadata.options.videoFormat,
-    seed: status
-      ? {
-          scenes: status.scenes,
-          completedStages: status.metadata.completedStages,
-          audioDurationSeconds: status.metadata.audioDurationSeconds ?? null,
-        }
-      : undefined,
-    usesCustomStyle,
-    promptModel: usesCustomStyle
-      ? resolvePromptModel(
-          status?.metadata.options.promptModel ?? null,
-          models,
-          defaultId,
-        )
-      : null,
-    imageProvider: status?.metadata.options.imageProvider ?? null,
-    voiceVendor: status?.metadata.options.voiceProvider
-      ? vendorOfProvider(status.metadata.options.voiceProvider)
-      : null,
-  }
+  const runOptions: ProjectRunOptions = ownTask
+    ? {
+        videoFormat: ownTask.videoFormat,
+        seed: {
+          scenes: ownTask.scenes,
+          completedStages: ownTask.completedStages,
+          audioDurationSeconds: ownTask.audioDurationSeconds,
+        },
+        usesCustomStyle: ownTask.usesCustomStyle,
+        promptModel: ownTask.promptModel,
+        imageProvider: ownTask.imageProvider,
+        executionPlan: ownTask.executionPlan,
+        voiceVendor: ownTask.voiceVendor,
+      }
+    : {
+        videoFormat: status?.metadata.options.videoFormat,
+        seed: status
+          ? {
+              scenes: status.scenes,
+              completedStages: status.metadata.completedStages,
+              audioDurationSeconds:
+                status.metadata.audioDurationSeconds ?? null,
+            }
+          : undefined,
+        usesCustomStyle,
+        promptModel: usesCustomStyle
+          ? resolvePromptModel(
+              status?.metadata.options.promptModel ?? null,
+              models,
+              defaultId,
+            )
+          : null,
+        imageProvider: status?.metadata.options.imageProvider ?? null,
+        executionPlan: status?.metadata.options.executionPlan,
+        voiceVendor: status?.metadata.options.voiceProvider
+          ? vendorOfProvider(status.metadata.options.voiceProvider)
+          : null,
+      }
   const resume = () =>
     void startPipelineForProject(projectId, projectName, runOptions)
   const confirmFromDisk = (choice: SceneCutChoice) => {
@@ -142,6 +158,14 @@ export function LibraryProgress() {
         }}
         onCancel={cancelToLibrary}
         onRetryPipeline={resume}
+        onRestartFlow={(request) =>
+          void startPipelineForProject(
+            projectId,
+            projectName,
+            runOptions,
+            request,
+          )
+        }
         onContinueInEditor={() => void navigate(libraryEditorPath(projectId))}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
         onDismissConfirmation={backToLibrary}

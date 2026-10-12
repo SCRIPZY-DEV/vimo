@@ -1,3 +1,4 @@
+import { FLOW_PHASE_KEYS } from '@/modules/common/constants'
 import { useTranslation } from 'react-i18next'
 import type { SampleGenerationState } from '@/modules/videos/hooks/useStyleSampleGeneration'
 
@@ -43,7 +44,11 @@ export function SampleGenerationProgress({
             </span>
             {!image && (
               <p className="font-body text-xs text-muted-foreground">
-                <SampleProgressText writing={writing} percent={percent} />
+                <SampleProgressText
+                  writing={writing}
+                  percent={percent}
+                  status={job.sampleStatuses[id]}
+                />
               </p>
             )}
             {!image && (
@@ -64,13 +69,20 @@ export function SampleGenerationProgress({
 interface SampleProgressTextProps {
   writing: boolean
   percent: number
+  status?: string
 }
 
 // Qué dice cada tarjeta de muestra mientras se genera.
-function SampleProgressText({ writing, percent }: SampleProgressTextProps) {
+function SampleProgressText({
+  writing,
+  percent,
+  status,
+}: SampleProgressTextProps) {
   const { t } = useTranslation()
 
   if (writing) return t('create.customStyles.writingPrompts')
   if (percent >= 100) return t('create.customStyles.sampleReady')
+  if (status && Object.hasOwn(FLOW_PHASE_KEYS, status))
+    return t(FLOW_PHASE_KEYS[status])
   return t('create.customStyles.sampleGenerating', { percent })
 }

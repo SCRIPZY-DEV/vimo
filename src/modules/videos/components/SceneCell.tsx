@@ -1,3 +1,4 @@
+import { FLOW_PHASE_KEYS } from '@/modules/common/constants'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
@@ -70,6 +71,13 @@ export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
               {Math.round(progress)}%
             </span>
           )}
+          {generating &&
+            scene.imagePhase &&
+            Object.hasOwn(FLOW_PHASE_KEYS, scene.imagePhase) && (
+              <span className="px-2 text-center text-xs text-ocean">
+                {t(FLOW_PHASE_KEYS[scene.imagePhase])}
+              </span>
+            )}
           {scene.imageStatus === 'error' && (
             <AlertTriangle className="h-6 w-6 text-destructive" />
           )}
@@ -77,7 +85,11 @@ export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
             <span
               className={cn(SUPPORT_NOTE_CLASS, 'text-muted-foreground/50')}
             >
-              ?
+              {t(
+                scene.imagePhase === 'awaiting_sync'
+                  ? 'extension.awaitingSync'
+                  : 'extension.queued',
+              )}
             </span>
           )}
         </div>

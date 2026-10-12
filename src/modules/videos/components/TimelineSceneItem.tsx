@@ -10,13 +10,13 @@ import type {
   SceneAnimationProgress,
 } from '@/modules/videos/types/library'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
-import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
+import type { EditorSceneImageStatus } from '@/modules/videos/types/library'
 
 interface TimelineSceneItemProps {
   scene: SceneDetail
   selected: boolean
   // Estado transitorio del store (cola/regen); undefined = el del disco.
-  transientStatus: SceneImageStatus | undefined
+  transientStatus: EditorSceneImageStatus | undefined
   // Último fallo de regeneración (clave i18n): velo rojo persistente + title.
   errorKey: string | undefined
   // Animación en curso (ADR-0047), su avance y el último fallo (clave i18n).
@@ -50,19 +50,20 @@ export function TimelineSceneItem({
   const { t, i18n } = useTranslation()
 
   const regenerating = transientStatus === 'generating'
+  const awaitingSync = transientStatus === 'awaiting_sync'
+  const queued = transientStatus === 'pending' || awaitingSync
+  const imageStatus = transientStatus ?? scene.imageStatus
   const animating = animationActivity === 'generating'
   const percent = useAnimationProgress(
     animating ? animationProgress : undefined,
   )
-  const failed =
-    transientStatus === 'error' ||
-    errorKey !== undefined ||
-    scene.imageStatus === 'error'
+  // Un ready recién importado gana al detail todavía sin refetchear.
+  const failed = imageStatus === 'error' || errorKey !== undefined
   const animationFailed =
     animationActivity === 'error' || animationErrorKey !== undefined
   // Regenerando gana sobre el error: el velo rojo espera a que termine.
   const showErrorVeil =
-    (failed || animationFailed) && !regenerating && !animating
+    (failed || animationFailed) && !regenerating && !queued && !animating
   const leadsClip = scene.animation?.status === 'ready'
   const absorbed = scene.absorbedBy !== undefined
   const animated = leadsClip || absorbed
@@ -118,7 +119,7 @@ export function TimelineSceneItem({
           draggable={false}
           className={cn(
             'h-full w-full object-cover',
-            scene.imageStatus === 'pending' && 'opacity-50 blur-[1px]',
+            imageStatus === 'pending' && 'opacity-50 blur-[1px]',
           )}
         />
       ) : (
@@ -156,6 +157,11 @@ export function TimelineSceneItem({
 
       {showErrorVeil && (
         <span aria-hidden className="absolute inset-0 bg-destructive/40" />
+      )}
+      {queued && !animating && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-[10px] font-semibold text-white">
+          {t(awaitingSync ? 'extension.awaitingSync' : 'extension.queued')}
+        </span>
       )}
       {regenerating && (
         <span className="absolute inset-0 flex items-center justify-center bg-black/70">

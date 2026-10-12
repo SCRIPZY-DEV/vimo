@@ -18,6 +18,7 @@ interface CharacterProfileFieldsProps {
   value: CharacterFormValue
   disabled: boolean
   suggesting: boolean
+  canSuggest: boolean
   missingLlmKey: boolean
   // Con guion a mano (Create + Mi estilo) la IA infiere del guion y no exige
   // los cuatro campos; sin guion, sí (v0.43.4 del origen).
@@ -31,6 +32,7 @@ export function CharacterProfileFields({
   value,
   disabled,
   suggesting,
+  canSuggest,
   missingLlmKey,
   suggestFromScript = false,
   suggestLabelKey = 'characters.experto.boton',
@@ -120,7 +122,9 @@ export function CharacterProfileFields({
         <Button
           type="button"
           variant="outline"
-          disabled={disabled || suggesting || !complete || missingLlmKey}
+          disabled={
+            disabled || suggesting || !complete || !canSuggest || missingLlmKey
+          }
           onClick={onSuggest}
           className="rounded-xl font-display"
         >

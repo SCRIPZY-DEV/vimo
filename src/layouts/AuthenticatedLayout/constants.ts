@@ -1,4 +1,5 @@
 import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigation'
+import { ExtensionRoutes } from '@/modules/extension/constants'
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import { AuthRoutesPaths } from '@/modules/auth/constants'
 import { CharactersRoutes } from '@/modules/characters/constants'
@@ -33,6 +34,11 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     route: CharactersRoutes.characters,
     labelKey: 'layout.nav.personajes',
     Icon: DoodleCharacter,
+  },
+  {
+    route: ExtensionRoutes.extension,
+    labelKey: 'layout.nav.extension',
+    Icon: DoodlePlay,
   },
   {
     route: VoicesRoutes.voices,

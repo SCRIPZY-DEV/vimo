@@ -108,6 +108,7 @@ export function demoFormValue(
   const styleId = demoStyleIds(manifest)[0] ?? base.styleId
   return {
     ...base,
+    executionPlan: undefined,
     narrationMode: 'tts',
     styleSource: 'catalog',
     styleId,

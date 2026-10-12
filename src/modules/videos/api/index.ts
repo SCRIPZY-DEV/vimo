@@ -17,6 +17,7 @@ import {
   vimoServerErrorDetail,
   vimoServerRetryAt,
 } from '@/modules/common/fetcher/vimoServerError'
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
 import { bytesToBase64 } from '@/modules/common/utilities/bytesToBase64'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
@@ -242,7 +243,19 @@ export const videosApi = {
     payload: RegenerateSceneImagesPayload,
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
-    return startPipelineJob('regenerate-scene-images', payload, onEvent)
+    const executionPlan = normalizeFlowExecutionPlan(payload.executionPlan)
+    if (
+      executionPlan &&
+      payload.imageProvider !== undefined &&
+      payload.imageProvider !== 'flow'
+    )
+      throw new Error('execution_plan_invalid')
+
+    return startPipelineJob(
+      'regenerate-scene-images',
+      { ...payload, ...(executionPlan ? { executionPlan } : {}) },
+      onEvent,
+    )
   },
   async startAnimation(
     payload: AnimateScenesPayload,

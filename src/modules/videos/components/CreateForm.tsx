@@ -1,3 +1,5 @@
+import { estimatedSceneCount } from '@/modules/videos/utilities/estimateCreateCost'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
@@ -54,6 +56,8 @@ import type { CustomStyleSummary } from '@pipeline/types/styles.ts'
 
 interface CreateFormProps {
   value: CreateFormValue
+  apiReady: boolean
+  apiIssueKey?: string
   disabled: boolean
   submitting: boolean
   // Manifest del pack cuando se entra por la puerta de la demo (ADR-0027).
@@ -74,6 +78,8 @@ interface CreateFormProps {
 
 export function CreateForm({
   value,
+  apiReady,
+  apiIssueKey,
   disabled,
   submitting,
   demo,
@@ -87,6 +93,11 @@ export function CreateForm({
   const { t } = useTranslation()
   const { configuredProviders } = useRequiredApiKeys()
 
+  const flowCapacity = useFlowCapacity(
+    estimatedSceneCount(value, value.script.trim()) || 1,
+    value.imageProvider === 'flow' && !demo,
+    { executionPlan: value.executionPlan },
+  )
   const [attempts, setAttempts] = useState(0)
   const blockersRef = useRef<HTMLDivElement>(null)
   // La copia de «Pasar a mi estilo» que Mi estilo abre en su modal apenas se
@@ -115,6 +126,9 @@ export function CreateForm({
     animationKeyMissing: !configuredProviders.has('kie'),
     newCatalog,
   })
+  if (!apiReady) missingSteps.push(apiIssueKey ?? 'extension.apiKeysRequired')
+  if (value.imageProvider === 'flow' && !demo && !flowCapacity.ready)
+    missingSteps.push('extension.notReady')
   const blockers = costCheck.result.blocking
     ? [...missingSteps, 'create.validation.insufficientCredits']
     : missingSteps
@@ -314,6 +328,7 @@ export function CreateForm({
 
       <ImageProviderSection
         value={value}
+        demo={demo !== null}
         disabled={disabled}
         onChange={onChange}
       />

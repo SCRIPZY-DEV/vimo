@@ -1,3 +1,4 @@
+import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
@@ -16,6 +17,8 @@ import { EditorImageGalleryCard } from '@/modules/videos/components/EditorImageG
 import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import { useGalleryActions } from '@/modules/videos/hooks/useGalleryActions'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
 import type { GalleryActionsOptions } from '@/modules/videos/types/galleryActions'
 
 // La galería conserva sus borradores; las generaciones pertenecen al almacén del
@@ -23,7 +26,8 @@ import type { GalleryActionsOptions } from '@/modules/videos/types/galleryAction
 export function EditorImageGallery(options: GalleryActionsOptions) {
   const { scenes, videoFormat, durationSeconds } = options
   const { t } = useTranslation()
-  const actions = useGalleryActions(options)
+  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const actions = useGalleryActions({ ...options, executionPlan })
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selecting, setSelecting] = useState(false)
@@ -37,6 +41,9 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const selection = scenes
     .filter((scene) => selectedIds.includes(scene.id))
     .map((scene) => scene.id)
+  const recoveringFlow = actions.isFlowRecovery(
+    selecting ? selection : selectedId === null ? [] : [selectedId],
+  )
   const imageAvailability = actions.imageAvailability(selection)
   const animationAvailability = actions.animationAvailability(selection)
   const animationLabels = selection.map((id) => actions.getAnimationLabel(id))
@@ -273,6 +280,28 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
             <p className="shrink-0 border-b border-border px-5 py-3 font-body text-xs leading-relaxed text-muted-foreground sm:px-6">
               {t(staticTailHint())}
             </p>
+          )}
+          {options.imageProvider === 'flow' && (
+            <div className="space-y-3 px-5 pt-3 sm:px-6">
+              {!recoveringFlow && (
+                <FlowExecutionSelector
+                  executionPlan={executionPlan}
+                  onChange={setExecutionPlan}
+                  disabled={actions.submitting}
+                />
+              )}
+              {!recoveringFlow && (
+                <FlowCapacityNotice
+                  count={selection.length || 1}
+                  executionPlan={executionPlan}
+                />
+              )}
+              {recoveringFlow && (
+                <p className="text-xs text-muted-foreground">
+                  {t('extension.recoverHint')}
+                </p>
+              )}
+            </div>
           )}
           {actions.errorKey && (
             <p

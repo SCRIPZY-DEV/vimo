@@ -10,7 +10,6 @@ import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
-import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { CharacterCard } from '@/modules/characters/components/CharacterCard'
 import { CharacterModal } from '@/modules/characters/components/CharacterModal'
@@ -26,7 +25,7 @@ export function Characters() {
   const { isNative, entries, isLoading, errorKey } = useCharacters()
   const { deleteCharacter } = useCharacterMutations()
   const { missingKeys } = useRequiredApiKeys({
-    requirements: MODULE_API_KEY_REQUIREMENTS.characters,
+    requirements: [['deepinfra']],
   })
 
   const [editing, setEditing] = useState<CharacterSummary | null>(null)
@@ -97,11 +96,7 @@ export function Characters() {
         {t('characters.intro')}
       </p>
 
-      {missingKeys && (
-        <MissingApiKeysNotice
-          requirements={MODULE_API_KEY_REQUIREMENTS.characters}
-        />
-      )}
+      {missingKeys && <MissingApiKeysNotice requirements={[['deepinfra']]} />}
 
       {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
 

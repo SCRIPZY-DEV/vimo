@@ -14,6 +14,7 @@ import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
 import {
   EDITOR_RESCUE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
+  FLOW_PIPELINE_RECOVERY_ERROR_KEYS,
   VideosRoutes,
   libraryEditorPath,
   libraryProgressPath,
@@ -69,6 +70,8 @@ export function LibraryPlayer() {
   const retry = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
+      imageProvider: metadata.options.imageProvider ?? null,
+      executionPlan: metadata.options.executionPlan,
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }
@@ -109,6 +112,12 @@ export function LibraryPlayer() {
 
       {metadata.state === 'error' && (
         <TaskErrorCard
+          flowRecovery={
+            metadata.options.imageProvider === 'flow' &&
+            FLOW_PIPELINE_RECOVERY_ERROR_KEYS.has(
+              videosApi.errorMessageKey({ code: metadata.errorCode }),
+            )
+          }
           message={`${t('library.player.errorIntro')} ${t(
             metadata.errorCode
               ? videosApi.errorMessageKey({ code: metadata.errorCode })

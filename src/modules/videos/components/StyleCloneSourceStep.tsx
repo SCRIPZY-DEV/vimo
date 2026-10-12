@@ -14,7 +14,7 @@ import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
 import { videosApi } from '@/modules/videos/api'
 import {
   CUSTOM_STYLE_FIELD_CLASS,
-  IMAGE_PROVIDERS,
+  PAID_IMAGE_PROVIDERS,
   STYLE_CLONE_IMAGE_LIMIT,
 } from '@/modules/videos/constants'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
@@ -29,7 +29,7 @@ import type {
   StyleCloneStartInput,
   StyleCloneTarget,
 } from '@/modules/videos/types/styleClone'
-import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
 
 interface StyleCloneSourceStepProps {
   // Adónde va el estilo. Con destino catálogo el personaje replicado queda
@@ -84,9 +84,8 @@ export function StyleCloneSourceStep({
   const [replicate, setReplicate] = useState<boolean | null>(
     rejected ? rejected.replicateCharacter : null,
   )
-  const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
-    rejected?.imageProvider ?? null,
-  )
+  const [chosenProvider, setChosenProvider] =
+    useState<PaidImageProviderId | null>(rejected?.imageProvider ?? null)
   const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
 
   const linkTyped = url.trim().length > 0
@@ -326,7 +325,7 @@ export function StyleCloneSourceStep({
         </p>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
-            {IMAGE_PROVIDERS.map((imageProvider) => (
+            {PAID_IMAGE_PROVIDERS.map((imageProvider) => (
               <button
                 key={imageProvider.id}
                 type="button"
@@ -338,7 +337,7 @@ export function StyleCloneSourceStep({
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {imageProvider.label}
+                {t(imageProvider.labelKey)}
               </button>
             ))}
           </div>

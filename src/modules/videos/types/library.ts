@@ -1,3 +1,5 @@
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type { SceneAnimationReviewOutcome } from '@/modules/videos/types/sceneImageReview'
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
@@ -69,7 +71,14 @@ export interface EditorPlayerHandle {
 
 // Una escena esperando regeneración. La cola se coalesce: UN job de regen
 // por proyecto a la vez; lo encolado durante un job sale en el siguiente.
-export interface RegenQueueEntry {
+export interface FlowRegenerationIntent {
+  flowRecoverOnly?: boolean
+  flowRegenerationRequestId?: string
+  executionPlan?: FlowToolsExecutionPlan
+}
+
+export interface RegenQueueEntry extends FlowRegenerationIntent {
+  flowRestartRequest?: FlowRestartRequest
   id: number
   rewritePrompt: boolean
   // Instantánea de la intención; se guarda al adquirir el turno de escritura.
@@ -196,6 +205,9 @@ export interface EditorAnimationState {
 // Estado del editor de UN proyecto: vive fuera de React (los jobs siguen al
 // navegar) y NO se persiste — un job muere con la app y el detail refetchea
 // la verdad del disco al volver.
+// Estado local de observación, nunca se persiste en scenes.json.
+export type EditorSceneImageStatus = SceneImageStatus | 'awaiting_sync'
+
 export interface LibraryEditorTask {
   projectId: string
   // Reserva breve durante el guardado de descripciones anterior al encolado.
@@ -212,12 +224,14 @@ export interface LibraryEditorTask {
   // Override transitorio del proveedor para el próximo lote de regen.
   pendingImageProvider: ImageProviderId | null
   // Estados transitorios por escena (spinner de la cola y del job).
-  sceneStatus: Record<number, SceneImageStatus>
+  sceneStatus: Record<number, EditorSceneImageStatus>
   // Motivo (clave i18n) del último fallo por escena: sobrevive al cierre
   // del job y se borra al reintentar esa escena.
   sceneErrors: Record<number, string>
   // Cache-buster por escena: sube cuando llega una imagen nueva.
   sceneVersions: Record<number, number>
+  // Avanza sólo cuando el job confirma el éxito, no con un recibo aislado.
+  sceneCompletionVersions: Record<number, number>
   render: EditorRenderState | null
   export: EditorExportState | null
   // Job de animación en curso (ADR-0047); exclusión con regen/render/export.

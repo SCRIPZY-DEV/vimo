@@ -1,3 +1,9 @@
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
+import { FLOW_PHASE_KEYS } from '@/modules/common/constants'
+import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -29,8 +35,12 @@ interface CharacterPreviewPanelProps {
   styles: PreviewStyleOption[]
   styleId: string
   provider: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
+  onExecutionPlanChange: (plan?: FlowToolsExecutionPlan) => void
+  recoveringFlow: boolean
   generating: boolean
   phase: CharacterPreviewPhase | null
+  imageStatus?: string | null
   // Avance de la fase en curso; null = todavía sin dato (solo el spinner).
   percent: number | null
   errorKey: string | null
@@ -48,6 +58,7 @@ interface CharacterPreviewPanelProps {
   onRefreshCredits: () => void
   onStyleChange: (styleId: string) => void
   onProviderChange: (provider: ImageProviderId) => void
+  onRestart: (request: FlowRestartRequest) => void
   onGenerate: () => void
   onCancel: () => void
 }
@@ -57,8 +68,12 @@ export function CharacterPreviewPanel({
   styles,
   styleId,
   provider,
+  executionPlan,
+  onExecutionPlanChange,
+  recoveringFlow,
   generating,
   phase,
+  imageStatus,
   percent,
   errorKey,
   disabled,
@@ -71,6 +86,7 @@ export function CharacterPreviewPanel({
   onRefreshCredits,
   onStyleChange,
   onProviderChange,
+  onRestart,
   onGenerate,
   onCancel,
 }: CharacterPreviewPanelProps) {
@@ -99,12 +115,22 @@ export function CharacterPreviewPanel({
   const visiblePreviews = generating
     ? previews.filter((preview) => preview.styleId !== styleId)
     : previews
+  const queued =
+    provider === 'flow' && phase !== 'prompt' && imageStatus === 'queued'
   const generatingLabel =
     phase === 'prompt'
       ? t('characters.preview.writingPrompt')
-      : t('characters.preview.generando')
-  const providerLabel =
-    PREVIEW_PROVIDERS.find((item) => item.id === provider)?.label ?? provider
+      : imageStatus && Object.hasOwn(FLOW_PHASE_KEYS, imageStatus)
+        ? t(FLOW_PHASE_KEYS[imageStatus])
+        : t(
+            provider === 'flow'
+              ? 'extension.generatingImages'
+              : 'characters.preview.generando',
+          )
+  const providerLabel = t(
+    PREVIEW_PROVIDERS.find((item) => item.id === provider)?.labelKey ??
+      'extension.engineFlow',
+  )
   const generateLabel = t(
     activePreview
       ? 'characters.preview.regenerar'
@@ -113,9 +139,10 @@ export function CharacterPreviewPanel({
   )
   // Las claves que faltan se piden juntas: la del proveedor y, con estilo
   // propio, la del LLM.
+  const paidProviders = provider === 'flow' ? [] : [provider]
   const missingKeyProviders = selectedStyle?.custom
-    ? ['deepinfra' as const, provider]
-    : [provider]
+    ? ['deepinfra' as const, ...paidProviders]
+    : paidProviders
 
   return (
     <section className="space-y-4 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-4">
@@ -152,10 +179,11 @@ export function CharacterPreviewPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PreviewProviderChips
           provider={provider}
-          disabled={disabled || generating}
+          disabled={disabled || generating || recoveringFlow}
           onProviderChange={onProviderChange}
         />
         <ImageCreditsBadges
+          showFlowGenerationControls={recoveringFlow}
           credits={credits}
           loading={creditsLoading}
           refreshing={creditsRefreshing}
@@ -164,6 +192,22 @@ export function CharacterPreviewPanel({
           onRefresh={onRefreshCredits}
         />
       </div>
+
+      {provider === 'flow' && (
+        <FlowExecutionSelector
+          executionPlan={executionPlan}
+          onChange={onExecutionPlanChange}
+          disabled={disabled || generating || recoveringFlow}
+        />
+      )}
+      {provider === 'flow' && !recoveringFlow && (
+        <FlowCapacityNotice count={1} executionPlan={executionPlan} />
+      )}
+      {recoveringFlow && (
+        <p className="text-xs text-muted-foreground">
+          {t('extension.recoverHint')}
+        </p>
+      )}
 
       <div className="flex items-center gap-2">
         <Button
@@ -178,12 +222,14 @@ export function CharacterPreviewPanel({
           onClick={onGenerate}
           className="btn-squish h-auto w-full rounded-xl bg-ocean py-4 font-display text-base font-bold text-white hover:bg-ocean/90"
         >
-          {generating ? (
+          {generating && !queued ? (
             <Loader2 className="mr-2 h-5 w-5 shrink-0 animate-spin" />
           ) : (
             <ImageIcon className="mr-2 h-5 w-5 shrink-0" />
           )}
-          <span className="truncate">{generateLabel}</span>
+          <span className="truncate">
+            {recoveringFlow ? t('extension.recoverResult') : generateLabel}
+          </span>
         </Button>
         {generating && (
           <Button
@@ -221,11 +267,18 @@ export function CharacterPreviewPanel({
       )}
 
       {errorKey && <ErrorMessage>{t(errorKey)}</ErrorMessage>}
+      {provider === 'flow' && errorKey === 'extension.restartRequired' && (
+        <FlowRestartInline
+          disabled={disabled || generating}
+          onRestart={onRestart}
+        />
+      )}
 
       <PreviewThumbnailGrid
         previews={visiblePreviews}
         generating={generating}
         generatingLabel={generatingLabel}
+        queued={queued}
         percent={percent}
         labelOf={labelOf}
       />

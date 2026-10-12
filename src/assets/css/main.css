@@ -216,3 +216,28 @@ html.theme-changing *::after {
 .animate-float-slow {
   animation: float 4s ease-in-out 0.5s infinite;
 }
+
+/* Entrada decorativa de las rutas: incluso detenida debe dejar visible el
+   destino. El montaje no espera animationend, rAF ni una salida anterior. */
+.route-entry {
+  opacity: 1;
+  transform: none;
+  animation: route-entry 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes route-entry {
+  from {
+    opacity: 0.96;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-entry {
+    animation: none;
+  }
+}

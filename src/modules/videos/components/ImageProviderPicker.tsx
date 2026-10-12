@@ -2,17 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { cn } from '@/modules/common/utilities/cn'
 import { IMAGE_PROVIDERS } from '@/modules/videos/constants'
-import type { useImageCredits } from '@/modules/common/hooks/useImageCredits'
-import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
-
-interface ImageProviderPickerProps {
-  // El proveedor elegido; null hasta que haya una clave configurada.
-  provider: ImageProviderId | null
-  disabled: boolean
-  // Saldo por proveedor (la misma query que Crear y el editor).
-  credits: ReturnType<typeof useImageCredits>
-  onChoose: (provider: ImageProviderId) => void
-}
+import type { ImageProviderPickerProps } from '@/modules/videos/types/imageProviderPicker'
 
 // Con qué proveedor salen las muestras de un estilo: el mismo control
 // segmentado que el formulario de Crear (el elegido en saffron pleno), con el
@@ -22,6 +12,7 @@ export function ImageProviderPicker({
   provider,
   disabled,
   credits,
+  showFlowGenerationControls = true,
   onChoose,
 }: ImageProviderPickerProps) {
   const { t } = useTranslation()
@@ -32,7 +23,7 @@ export function ImageProviderPicker({
         {t('create.customStyles.providerQuestion')}
       </p>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
+        <div className="inline-flex flex-wrap items-center rounded-2xl border border-border bg-muted p-0.5">
           {IMAGE_PROVIDERS.map((imageProvider) => {
             const chosen = provider === imageProvider.id
             return (
@@ -48,12 +39,13 @@ export function ImageProviderPicker({
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {imageProvider.label}
+                {t(imageProvider.labelKey)}
               </button>
             )
           })}
         </div>
         <ImageCreditsBadges
+          showFlowGenerationControls={showFlowGenerationControls}
           credits={credits.credits}
           loading={credits.isLoading}
           refreshing={credits.isRefreshing}

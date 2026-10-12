@@ -1,3 +1,6 @@
+import { FlowRestartButton } from '@/modules/common/components/FlowRestartButton'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
+import { FlowRunControls } from '@/modules/common/components/FlowRunControls'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
@@ -32,6 +35,7 @@ import { StageBar } from '@/modules/videos/components/StageBar'
 import {
   CANCEL_CONFIRM_WINDOW_MS,
   EDITOR_RESCUE_ERROR_CODES,
+  FLOW_PIPELINE_RECOVERY_ERROR_KEYS,
   PIPELINE_STAGES,
   STYLE_GEM_ERROR_CODES,
   SUPPORT_NOTE_CLASS,
@@ -54,6 +58,7 @@ interface GenerationProgressProps {
   onCancel: () => void
   // Reintentar desde el último checkpoint cuando el job falló.
   onRetryPipeline: () => void
+  onRestartFlow?: (request: FlowRestartRequest) => void
   // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
   // imágenes no bloquea — se sigue en el editor y se regenera desde ahí.
   onContinueInEditor: () => void
@@ -84,6 +89,7 @@ export function GenerationProgress({
   back,
   onCancel,
   onRetryPipeline,
+  onRestartFlow,
   onContinueInEditor,
   onConfirmScenes,
   onDismissConfirmation,
@@ -251,7 +257,9 @@ export function GenerationProgress({
           <h2 className="font-display text-base font-bold text-foreground">
             {t('create.progress.phasesTitle')}
           </h2>
+          {task.imageProvider === 'flow' && <FlowRunControls />}
           <StageBar
+            flowImages={task.imageProvider === 'flow'}
             currentStage={task.stage}
             showAnimation={hasAnimation}
             completedStages={completed}
@@ -425,6 +433,11 @@ export function GenerationProgress({
 
           {failed && !task.creditsIssue && (
             <GenerationErrorCard
+              flowRecovery={
+                task.imageProvider === 'flow' &&
+                failedStage === 'images' &&
+                FLOW_PIPELINE_RECOVERY_ERROR_KEYS.has(task.errorKey ?? '')
+              }
               message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
               failedStage={failedStage}
               errorCode={task.errorCode}
@@ -437,6 +450,11 @@ export function GenerationProgress({
               }
             />
           )}
+
+          {failed &&
+            task.imageProvider === 'flow' &&
+            task.errorKey === 'extension.restartRequired' &&
+            onRestartFlow && <FlowRestartButton onRestart={onRestartFlow} />}
 
           {showPromptsPanel && (
             <PromptsGrid

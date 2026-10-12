@@ -1,3 +1,6 @@
+import { estimatedSceneCount } from '@/modules/videos/utilities/estimateCreateCost'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
+import { createApiRequirements } from '@/modules/videos/utilities/createApiRequirements'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -10,8 +13,9 @@ import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlocks'
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { resolvePromptModel } from '@/modules/common/utilities/resolvePromptModel'
+import { Button } from '@/modules/common/ui/button'
+import { useVoiceVendor } from '@/modules/voices/hooks/useVoiceVendor'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
-import { MODULE_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { useDefaultSceneCount } from '@/modules/settings/hooks/useDefaultSceneCount'
 import { useSceneDurationDefaults } from '@/modules/settings/hooks/useSceneDurationDefaults'
@@ -58,9 +62,11 @@ export function Create() {
     useSceneDurationDefaults()
   const { promptModelDefaults, isLoading: loadingPromptModel } =
     usePromptModelPreference()
-  const { configuredProviders, isLoading: loadingApiKeys } = useRequiredApiKeys(
-    { requirements: MODULE_API_KEY_REQUIREMENTS.videos },
-  )
+  const {
+    configuredProviders,
+    isLoading: loadingApiKeys,
+    isFetched: fetchedApiKeys,
+  } = useRequiredApiKeys({ requirements: [] })
   const location = useLocation()
   const navigate = useNavigate()
   // El manifest de la demo llega una sola vez, en el state del router de la
@@ -76,7 +82,14 @@ export function Create() {
     void navigate(VideosRoutes.create, { replace: true })
   }, [location.state, navigate])
 
-  if (isLoading || loadingSceneDuration || loadingPromptModel || loadingApiKeys)
+  // Tras el primer resultado, incluso si fue un error, los reintentos no
+  // desmontan el formulario ni descartan lo que la persona ya escribió.
+  if (
+    isLoading ||
+    loadingSceneDuration ||
+    loadingPromptModel ||
+    (loadingApiKeys && !fetchedApiKeys)
+  )
     return <ViewSpinner />
 
   return (
@@ -128,9 +141,6 @@ function CreateView({
   demo,
 }: CreateViewProps) {
   const { t } = useTranslation()
-  const { isNative, missingKeys } = useRequiredApiKeys({
-    requirements: MODULE_API_KEY_REQUIREMENTS.videos,
-  })
   const {
     task,
     startCreation,
@@ -179,6 +189,27 @@ function CreateView({
   const [otherTabStyle, setOtherTabStyle] =
     useState<SelectedCustomStyle | null>(null)
 
+  const { vendor: defaultVoiceVendor, isLoading: loadingVoiceVendor } =
+    useVoiceVendor()
+  const checkingVoiceVendor =
+    form.narrationMode === 'tts' && !form.voice && loadingVoiceVendor
+  const requirements = createApiRequirements(form, defaultVoiceVendor)
+  const {
+    isNative,
+    missingKeys,
+    missingRequirements,
+    ready: keysReady,
+    isFetching: checkingKeys,
+    errorKey: keysErrorKey,
+    refreshStatus,
+  } = useRequiredApiKeys({ requirements })
+  const apiReady = keysReady && !checkingVoiceVendor
+  const flowCapacity = useFlowCapacity(
+    estimatedSceneCount(form, form.script.trim()) || 1,
+    form.imageProvider === 'flow' && !demo,
+    { executionPlan: form.executionPlan },
+  )
+
   // En demo la gema del pack arranca en uso apenas la galería la lista: se
   // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
   const demoGem =
@@ -224,6 +255,9 @@ function CreateView({
     setForm((current) => ({
       ...current,
       ...patch,
+      ...(demo || (patch.imageProvider ?? current.imageProvider) !== 'flow'
+        ? { executionPlan: undefined }
+        : {}),
       // En demo la historia sigue al estilo elegido.
       ...(demo ? demoFollowStyle(demo, current, patch) : {}),
     }))
@@ -235,6 +269,13 @@ function CreateView({
   }
 
   const submit = async () => {
+    if (!apiReady && !demo) return
+    if (
+      form.imageProvider === 'flow' &&
+      !demo &&
+      !(await flowCapacity.verify())
+    )
+      return
     setProbeFailure(null)
     const promptModel = resolvePromptModel(
       form.promptModel,
@@ -288,6 +329,7 @@ function CreateView({
           void navigate(VideosRoutes.library)
         }}
         onRetryPipeline={() => void resume()}
+        onRestartFlow={(request) => void resume(request)}
         onContinueInEditor={() => {
           const projectId = task.projectId
           discardTask()
@@ -326,10 +368,25 @@ function CreateView({
         </p>
       )}
 
-      {missingKeys && !demo && (
-        <MissingApiKeysNotice
-          requirements={MODULE_API_KEY_REQUIREMENTS.videos}
-        />
+      {keysErrorKey && !demo && (
+        <div
+          role="alert"
+          className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4"
+        >
+          <p className="text-sm">{t('apiKeys.statusCheckFailed')}</p>
+          <p className="text-xs text-muted-foreground">{t(keysErrorKey)}</p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={checkingKeys}
+            onClick={() => void refreshStatus()}
+          >
+            {t(checkingKeys ? 'apiKeys.checkingStatus' : 'apiKeys.retryStatus')}
+          </Button>
+        </div>
+      )}
+      {missingKeys && !checkingVoiceVendor && !demo && (
+        <MissingApiKeysNotice requirements={missingRequirements} />
       )}
 
       <motion.section
@@ -343,7 +400,15 @@ function CreateView({
           newCatalog={newCatalog}
           otherTabStyle={otherTabStyle}
           onOtherTabStyleChange={setOtherTabStyle}
-          disabled={!isNative || (missingKeys && !demo)}
+          disabled={!isNative}
+          apiReady={apiReady || demo !== null}
+          apiIssueKey={
+            keysErrorKey
+              ? 'apiKeys.statusCheckFailed'
+              : !apiReady && (checkingKeys || checkingVoiceVendor)
+                ? 'apiKeys.checkingStatus'
+                : undefined
+          }
           submitting={probing}
           onChange={patchForm}
           onPickAudio={() => void pickAudio()}

@@ -24,8 +24,8 @@ Los cascarones viven en **`src/layouts/`** (nueva carpeta de infraestructura, ju
 - **`AuthenticatedLayout/`** — shell de la app con sesión: `Sidebar` (colapsable, port
   del original), `Navbar` (toggle de tema + selector de idioma), `ErrorBoundary` (port
   de LimiteDeError: si una vista explota, el sidebar sigue vivo) y `FrozenOutlet`
-  (port de OutletCongelado: evita el doble-mount con AnimatePresence). Cada layout
-  lleva sus `components/` y `types/` propios.
+  (captura única de la vista por instancia de ruta; véase la enmienda del
+  2026-10-08). Cada layout lleva sus `components/` y `types/` propios.
 - **`GuestLayout/`** — full-screen con el gradient hero y doodles flotantes; hospeda
   las vistas de `auth` (login, acceso denegado).
 - **Módulos base:** `auth` (views `Login`, `AccessDenied`), `home` (view `Home`, panel
@@ -94,3 +94,38 @@ acceso, progreso real del splash.
 - ADR-0003 (fundaciones), ADR-0004 (i18next).
 - Origen de los ports: `02-vimo/cursor-video/app/src/compartido/layout/` y
   `caracteristicas/gestion-de-licencias/` del repo original.
+
+## Enmienda 2026-10-08 — La navegación no espera animaciones
+
+La QA nativa mostró ruta destino seleccionada en el sidebar mientras el main
+quedaba invisible y el contenido/título anteriores permanecían montados. Se
+reprodujo el mecanismo con el layout real y sus dependencias: retener solamente
+`onfinish` de la salida de opacidad impide a `AnimatePresence mode="wait"`
+liberar el outlet anterior. Entregar ese mismo callback permite montar el destino.
+La razón de la demora concreta de WebKit sigue sin determinarse.
+
+La presentación de rutas pasa a un `div` con la misma key de pathname/idioma.
+React reemplaza la instancia anterior al confirmar la ruta; no hay salida que
+retenga el montaje. Se conservan `FrozenOutlet`, `ErrorBoundary` y el scroller.
+La captura sigue evitando montajes añadidos por cambios locales del shell.
+
+La entrada es CSS decorativa de 220 ms, desplazamiento de 8 px y opacidad
+0.96→1. El estado base es visible; no usa callbacks ni relleno backwards/both.
+Con movimiento reducido se desactiva. Una animación detenida no oculta la vista
+ni decide su ciclo de vida. La antigua salida/fundido desde cero queda retirada.
+
+```mermaid
+flowchart LR
+    router["Router y locale"] -->|"confirman key de vista · React"| shell["Wrapper de ruta"]
+    shell -->|"monta una instancia · React"| view["FrozenOutlet y ErrorBoundary"]
+    shell -.->|"aplica entrada decorativa · CSS"| effect["Movimiento y opacidad visible"]
+```
+
+**Contrato:** un destino comprometido tiene una instancia montada; no depende de
+`onExitComplete`, de rAF ni de eventos CSS. StrictMode puede repetir efectos en
+la misma instancia de desarrollo. **Fallo:** si falla la animación, el contenido
+sigue montado y visible; si falla el render, permanece el ErrorBoundary.
+**Por qué:** una transición visual no puede impedir la navegación. No se modifica
+el árbol de rutas, los loaders de acceso, la sesión ni el pipeline.
+
+Alcance y evidencia: [fix de navegación](../../fixes/2026-10-08_nonblocking-route-navigation.md).

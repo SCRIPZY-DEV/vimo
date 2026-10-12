@@ -81,7 +81,12 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     if (!context.options.customStyle)
       return (await catalogPendingIds(context, scenes)).size === 0
     // Una escena cuenta como lista solo con prompt VÁLIDO, tenga texto o no.
-    return scenes.every((scene) => isValidPrompt(scene.imagePrompt))
+    return scenes.every(
+      (scene) =>
+        (context.regenerateSceneIds?.size &&
+          !context.regenerateSceneIds.has(scene.id)) ||
+        isValidPrompt(scene.imagePrompt),
+    )
   },
 
   async run(context) {

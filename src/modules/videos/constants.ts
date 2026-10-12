@@ -6,7 +6,10 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
-import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type {
+  ImageProviderId,
+  PaidImageProviderId,
+} from '@pipeline/types/image-provider.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type {
@@ -704,9 +707,16 @@ export const VIDEO_FORMATS: {
 ]
 
 // Proveedores de imagen; las etiquetas son marcas, no se traducen.
-export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
-  { id: 'evolink', label: 'Evolink' },
-  { id: 'fal', label: 'Fal' },
+export const PAID_IMAGE_PROVIDERS: {
+  id: PaidImageProviderId
+  labelKey: string
+}[] = [
+  { id: 'evolink', labelKey: 'extension.engineEvolink' },
+  { id: 'fal', labelKey: 'extension.engineFal' },
+]
+export const IMAGE_PROVIDERS: { id: ImageProviderId; labelKey: string }[] = [
+  ...PAID_IMAGE_PROVIDERS,
+  { id: 'flow', labelKey: 'extension.engineFlow' },
 ]
 
 // Proveedores de animación de escenas (ADR-0047), en el orden del selector.
@@ -992,6 +1002,32 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   image_network: 'create.errors.imageNetwork',
   image_invalid_api_key: 'create.errors.imageInvalidApiKey',
   image_account_rejected: 'create.errors.imageAccountRejected',
+  flow_not_connected: 'extension.notReady',
+  flow_capacity_required: 'extension.notReady',
+  flow_transport_unknown: 'extension.reviewRequired',
+  flow_review_required: 'extension.reviewRequired',
+  flow_account_review_required: 'extension.accountReviewRequired',
+  flow_submission_unknown: 'extension.submissionUnknown',
+  flow_restart_required: 'extension.restartRequired',
+  flow_download_failed: 'extension.downloadFailed',
+  flow_result_invalid: 'extension.resultInvalid',
+  flow_result_obsolete: 'extension.resultObsolete',
+  flow_intent_conflict: 'extension.intentConflict',
+  batch_execution_plan_mixed: 'extension.intentConflict',
+  execution_plan_mismatch: 'extension.intentConflict',
+  batch_execution_plan_conflict: 'extension.intentConflict',
+  batch_id_conflict: 'extension.intentConflict',
+  job_hash_mismatch: 'extension.intentConflict',
+  store_execution_plan_invalid: 'extension.intentConflict',
+  flow_tools_coordinator_upgrade_required: 'extension.toolsUpgradeRequired',
+  execution_plan_invalid: 'extension.toolsIntentInvalid',
+  seed_invalid: 'extension.toolsIntentInvalid',
+  flow_tools_model_or_aspect_invalid: 'extension.toolsIntentInvalid',
+  execution_plan_unavailable: 'extension.toolsUnavailable',
+  retry_execution_plan_unavailable: 'extension.toolsUnavailable',
+  flow_unavailable: 'extension.unavailable',
+  flow_port_in_use: 'extension.portInUse',
+  flow_command_failed: 'extension.actionFailed',
   image_provider_error: 'create.errors.imageProviderError',
   image_task_not_found: 'create.errors.imageProviderError',
   image_content_policy: 'create.errors.imageContentPolicy',
@@ -1084,3 +1120,13 @@ export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   missing_projects_root: 'create.errors.missingProjectsRoot',
 }
 export const UNKNOWN_DEMO_ERROR_KEY = 'createDemo.errors.unknown'
+
+// Recuperar el lote conserva sus recibos; no es consentimiento para reemplazarlo.
+export const FLOW_PIPELINE_RECOVERY_ERROR_KEYS: ReadonlySet<string> = new Set([
+  'extension.reviewRequired',
+  'extension.accountReviewRequired',
+  'extension.submissionUnknown',
+  'extension.downloadFailed',
+  'extension.resultInvalid',
+  'extension.resultObsolete',
+])

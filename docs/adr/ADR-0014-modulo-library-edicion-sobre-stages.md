@@ -307,6 +307,27 @@ Se elimina el bloqueo global de la galería sin alterar las leases, el contrato 
 sidecar, la planificación de tiempos ni las cuotas. Ver
 [el fix de selección y cola](../../fixes/2026-09-29_gallery-selection-and-queue.md).
 
+## Adenda — selección y cola de regeneraciones, 2026-09-19
+
+El gate de `imagesStage` y la omisión de prompts de Mi estilo consideran sólo
+`regenerateSceneIds` en el editor; Create conserva su evaluación global. También
+se acotan a esa selección el despacho pago y las pasadas de recuperación: una
+regeneración no genera escenas vacías ajenas al pedido.
+
+El store conserva un único escritor por proyecto. La UI permite selección
+múltiple Flow y encolar otras escenas mientras trabaja. Captura el proveedor y
+el borrador por solicitud; guarda esos borradores bajo la exclusión del job.
+Durante una regeneración bloquea la edición de campos y fronteras del timeline,
+pero permite elegir otras escenas para encolarlas. Esto reduce la ventana de
+read-modify-write mencionada antes; no introduce un mutex global nuevo.
+
+Cada operación tiene identidad propia para rechazar eventos/handles tardíos.
+`scene-image-ready` limpia el error de esa escena; un fallo global posterior no
+se le atribuye si su imagen ya se importó. Un fallo específico posterior sí se
+conserva. El cierre refetchea el disco y el aviso amarillo sigue mostrando los
+faltantes reales. Los detalles de UUID, reservas y recuperación Flow están en
+[ADR-0052](ADR-0052-flow-como-motor-de-imagenes.md#regeneración-del-editor-por-selección--2026-09-19).
+
 ### Enmienda 2026-10-11: movimiento opcional al exportar clips
 
 La UI confirma la exportación antes de iniciar `export-clips`. El payload admite

@@ -1,3 +1,6 @@
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
+import { resolveFlowRestartConsent } from '@/modules/common/utilities/flowRestartConsent'
+import type { FlowRestartConsent } from '@/modules/common/types/flow'
 import { useEffect, useRef, useState } from 'react'
 import { charactersApi } from '@/modules/characters/api'
 import { UNKNOWN_CHARACTERS_ERROR_KEY } from '@/modules/characters/constants'
@@ -26,6 +29,7 @@ function progressPhase(detail: unknown): CharacterPreviewPhase | null {
 // solo existe mientras el modal está abierto, y al cerrarlo se cancela el job
 export function useCharacterPreview() {
   const [generating, setGenerating] = useState(false)
+  const [imageStatus, setImageStatus] = useState<string | null>(null)
   const [percent, setPercent] = useState(0)
   // Hasta el primer `progress` con porcentaje de la fase en curso no hay
   // número que mostrar, solo el spinner (el sidecar simula el avance de Fal y
@@ -34,6 +38,7 @@ export function useCharacterPreview() {
   // Solo con estilo propio: la gema escribe el prompt antes de la imagen.
   const [phase, setPhase] = useState<CharacterPreviewPhase | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
+  const restartRequest = useRef<FlowRestartConsent | null>(null)
   const activeJob = useRef<PipelineJobHandle | null>(null)
 
   // El job no debe sobrevivir al modal que lo lanzó.
@@ -47,9 +52,39 @@ export function useCharacterPreview() {
     }
   }, [])
 
-  const generate = (payload: GenerateCharacterPreviewPayload) => {
+  const generate = (input: GenerateCharacterPreviewPayload) => {
+    const executionPlan = normalizeFlowExecutionPlan(input.executionPlan)
+    if (executionPlan && input.provider !== 'flow')
+      throw new Error('execution_plan_invalid')
+    const scope = JSON.stringify([
+      input.provider,
+      input.styleId,
+      input.identityPrompt,
+      ...(executionPlan ? [executionPlan] : []),
+    ])
+    const explicitRestart =
+      input.flowRestartRequestId && input.flowAcknowledgeDuplicateRisk
+        ? {
+            flowRestartRequestId: input.flowRestartRequestId,
+            flowAcknowledgeDuplicateRisk: true as const,
+          }
+        : undefined
+    restartRequest.current =
+      input.provider === 'flow'
+        ? resolveFlowRestartConsent(
+            restartRequest.current,
+            scope,
+            explicitRestart,
+          )
+        : null
+    const payload = {
+      ...input,
+      ...(executionPlan ? { executionPlan } : {}),
+      ...restartRequest.current?.request,
+    }
     return new Promise<string | null>((resolve) => {
       setGenerating(true)
+      setImageStatus(payload.provider === 'flow' ? 'queued' : null)
       setPercent(0)
       setHasProgress(false)
       setPhase(null)
@@ -61,6 +96,7 @@ export function useCharacterPreview() {
       let currentPhase: CharacterPreviewPhase | null = null
       const finish = (dataUri: string | null, failureKey: string | null) => {
         finished = true
+        if (dataUri) restartRequest.current = null
         activeJob.current?.stop()
         activeJob.current = null
         setGenerating(false)
@@ -74,6 +110,10 @@ export function useCharacterPreview() {
       const handleEvent = (event: PipelineEventPayload) => {
         if (event.type === 'progress') {
           const nextPhase = progressPhase(event.detail)
+          const detail = event.detail as
+            CharacterPreviewProgressDetail | undefined
+          if (payload.provider === 'flow' && detail?.status)
+            setImageStatus(detail.status)
           // Cambio de fase (prompt → imagen): la barra arranca de nuevo.
           if (nextPhase && nextPhase !== currentPhase) {
             currentPhase = nextPhase
@@ -134,6 +174,7 @@ export function useCharacterPreview() {
 
   return {
     generating,
+    imageStatus,
     percent,
     hasProgress,
     phase,

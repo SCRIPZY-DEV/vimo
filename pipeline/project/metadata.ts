@@ -1,3 +1,4 @@
+import { flowVideoIsOutdated } from './flow-video-outdated.ts'
 import { PipelineFailure } from '../runner/failure.ts'
 import type { VideoProjectMetadata } from '../types/video-project.ts'
 import { readTextWithRetry, writeFileAtomicStrict } from '../utils/atomic-fs.ts'
@@ -18,7 +19,11 @@ export async function readProjectMetadata(
 
   try {
     const raw = await readTextWithRetry(paths.metadataFile)
-    return JSON.parse(raw) as VideoProjectMetadata
+    const metadata = JSON.parse(raw) as VideoProjectMetadata
+    // A background image import never rewrites project.json. Its separate
+    // marker only adds invalidation for the exact video that it observed.
+    if (await flowVideoIsOutdated(paths)) metadata.videoOutdated = true
+    return metadata
   } catch (error) {
     throw new PipelineFailure(
       'project_metadata_corrupt',

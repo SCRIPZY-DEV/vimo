@@ -37,7 +37,7 @@ import type {
 } from '@/modules/videos/types/library'
 import type { SceneImageReviewRequest } from '@/modules/videos/types/sceneImageReview'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
-import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
+import type { EditorSceneImageStatus } from '@/modules/videos/types/library'
 
 interface EditorTimelineProps {
   scenes: SceneDetail[]
@@ -46,7 +46,7 @@ interface EditorTimelineProps {
   playheadSeconds: number
   selectedSceneId: number | null
   revealScene?: SceneImageReviewRequest
-  sceneStatus: Record<number, SceneImageStatus>
+  sceneStatus: Record<number, EditorSceneImageStatus>
   // Motivo (clave i18n) del último fallo de regeneración por escena.
   sceneErrors: Record<number, string>
   sceneVersions: Record<number, number>

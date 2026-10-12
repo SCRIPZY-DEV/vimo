@@ -12,6 +12,7 @@ import {
   projectsRootOf,
   resolveProjectPaths,
 } from '../../project/paths.ts'
+import { assertFlowPlanProvider } from '../../providers/flow/execution-plan.ts'
 import { decodeImageDataUri } from '../../providers/image/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -68,6 +69,10 @@ export async function createVideoProject(
 ): Promise<CreateVideoProjectResult> {
   const payload = context.job.payload as CreateVideoProjectPayload | undefined
   validatePayload(payload)
+  const executionPlan = assertFlowPlanProvider(
+    payload.options.executionPlan,
+    payload.options.imageProvider,
+  )
 
   const projectsRoot = projectsRootOf(context)
   const projectId = await resolveAvailableSlug(projectsRoot, payload.name)
@@ -91,7 +96,11 @@ export async function createVideoProject(
     createdAt: now,
     updatedAt: now,
     state: 'draft',
-    options: { ...payload.options, characters },
+    options: {
+      ...payload.options,
+      characters,
+      ...(executionPlan ? { executionPlan } : {}),
+    },
     completedStages: [],
   }
   await writeProjectMetadata(paths, metadata)
@@ -141,10 +150,10 @@ function validatePayload(
       'invalid_payload',
       'options.narrationMode must be tts or own-audio',
     )
-  if (options.imageProvider !== 'fal' && options.imageProvider !== 'evolink')
+  if (!['fal', 'evolink', 'flow'].includes(options.imageProvider))
     throw new PipelineFailure(
       'invalid_payload',
-      'options.imageProvider must be fal or evolink',
+      'options.imageProvider must be fal, evolink or flow',
     )
   if (options.subtitles !== undefined && typeof options.subtitles !== 'boolean')
     throw new PipelineFailure(

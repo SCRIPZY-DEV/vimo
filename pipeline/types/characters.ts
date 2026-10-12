@@ -1,4 +1,5 @@
-import type { ImageProviderId } from './image-provider.ts'
+import type { FlowToolsExecutionPlan } from './flow-execution-plan.ts'
+import type { ImageProviderId, FlowRestartRequest } from './image-provider.ts'
 
 // Dominio de personajes: biblioteca de identidades reutilizables entre videos.
 // La "identidad" es una descripción NEUTRA DE ESTILO (quién es el personaje,
@@ -109,12 +110,14 @@ export interface SuggestCharacterProfileResult {
   role: string
 }
 
-export interface GenerateCharacterPreviewPayload {
+export interface GenerateCharacterPreviewPayload extends FlowRestartRequest {
   identityPrompt: string
   // Catálogo → plantilla fija; estilo propio → la gema escribe el prompt
   // (una llamada al LLM, como las muestras del estilo).
   styleId: string
   provider: ImageProviderId
+  // Sólo intenciones nuevas Flow; ausente conserva el ejecutor RPC.
+  executionPlan?: FlowToolsExecutionPlan
   // Con `true`, una gema del catálogo nuevo se busca primero en el catálogo
   // sincronizado (`_catalog/`, ADR-0049); ausente o `false`, solo en las
   // empaquetadas: con el interruptor `remoteCatalog` apagado nada cambia.

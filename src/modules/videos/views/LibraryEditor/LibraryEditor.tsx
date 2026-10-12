@@ -229,6 +229,7 @@ export function LibraryEditor() {
   const generateDraft = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
+      executionPlan: metadata.options.executionPlan,
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }
@@ -391,6 +392,7 @@ export function LibraryEditor() {
 
         <div className="lg:min-h-0 lg:w-[30%] lg:max-w-[420px] lg:shrink-0">
           <EditorScenePanel
+            key={projectId}
             scene={selectedScene}
             characters={options?.characters ?? []}
             imageChoice={editor.imageChoice}
@@ -401,8 +403,33 @@ export function LibraryEditor() {
             onRefreshCredits={refreshCredits}
             busy={busy || editor.savingChanges}
             savingScenes={task?.savingScenes === true}
+            regenerationBusy={
+              Boolean(
+                task?.savingScenes ||
+                task?.render ||
+                task?.export ||
+                task?.audioBusy,
+              ) ||
+              creatingHere ||
+              audio.audioBusy ||
+              editor.savingChanges ||
+              editor.regenerationSceneIds.some((id) =>
+                editor.occupiedSceneIds.has(id),
+              )
+            }
+            regenerationCount={editor.regenerationSceneIds.length}
+            queuedCount={task?.regenQueue.length ?? 0}
+            scenes={workingScenes}
+            selectedFlowSceneIds={editor.selectedFlowSceneIds}
+            occupiedSceneIds={editor.occupiedSceneIds}
+            onToggleFlowScene={editor.toggleFlowScene}
+            onClearFlowSelection={editor.clearFlowSelection}
             regenerateLocked={demoProject}
             userPromptPending={editor.userPromptPending}
+            awaitingSync={
+              !!selectedScene &&
+              task?.sceneStatus[selectedScene.id] === 'awaiting_sync'
+            }
             errorKey={
               selectedScene ? task?.sceneErrors[selectedScene.id] : undefined
             }
@@ -413,7 +440,7 @@ export function LibraryEditor() {
             onClipTimeChange={editor.moveSelectedClipEdge}
             onImageChoiceChange={editor.changeImageChoice}
             onCharactersChange={editor.changeCharacters}
-            onRegenerate={() => void editor.regenerateSelected()}
+            onRegenerate={editor.regenerateSelected}
             animation={{
               busy:
                 editor.savingChanges ||
@@ -475,7 +502,7 @@ export function LibraryEditor() {
 
       <div className="shrink-0">
         <EditorTimeline
-          timingBusy={busy}
+          timingBusy={busy || editor.savingChanges}
           scenes={workingScenes}
           durationSeconds={durationSeconds}
           playheadSeconds={cursorSeconds}

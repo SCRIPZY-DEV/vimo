@@ -1,18 +1,16 @@
-export type ApiKeyProviderId =
-  | 'deepinfra'
-  | 'fal'
-  | 'evolink'
-  | 'dubvoice'
-  | 'elevenlabs'
-  | 'deepgram'
-  | 'kie'
-  | 'poyo'
+import type {
+  ApiKeyProviderId,
+  ApiKeyRequirement,
+} from '@/modules/common/types/apiKeys'
+export type {
+  ApiKeyProviderId,
+  ApiKeyRequirement,
+} from '@/modules/common/types/apiKeys'
 
 export type ApiKeyCategory =
   'llm' | 'image' | 'voice' | 'transcription' | 'animation'
 
 // Un requisito: lista de proveedores alternativos, basta uno configurado.
-export type ApiKeyRequirement = ApiKeyProviderId[]
 
 // Opciones de useRequiredApiKeys: sin requirements, exige las 4 categorías.
 export interface RequiredApiKeysOptions {

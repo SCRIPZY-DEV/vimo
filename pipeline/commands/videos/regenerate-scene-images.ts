@@ -1,11 +1,29 @@
 import { stat } from 'node:fs/promises'
 
 import { sceneAnimationBlocks } from '../../animation/scene-blocks.ts'
+import { loadPipelineCharacters } from '../../project/characters.ts'
 
 import { markVideoOutdated } from '../../project/metadata.ts'
 import { sceneImageFile, type ProjectPaths } from '../../project/paths.ts'
-import { mergeScenesById, readScenes } from '../../project/scenes-file.ts'
+import {
+  mergeScenesById,
+  readScenes,
+  resolveSceneImageSourceId,
+} from '../../project/scenes-file.ts'
 import { hasPendingUserPrompt } from '../../project/user-prompt.ts'
+import {
+  recoverPendingFlowRegeneration,
+  verifyFlowExecutionPlan,
+} from '../../providers/flow/client.ts'
+import {
+  assertFlowPlanProvider,
+  flowExecutionPlansEqual,
+  normalizeFlowExecutionPlan,
+} from '../../providers/flow/execution-plan.ts'
+import {
+  flowSceneRequestRevision,
+  flowTargetSceneId,
+} from '../../stages/images/flow-lane.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { runStages } from '../../runner/run-stages.ts'
@@ -35,6 +53,32 @@ export async function regenerateSceneImages(
       'invalid_payload',
       'payload.projectId is required',
     )
+  if (
+    payload.flowRegenerationRequestId !== undefined &&
+    (typeof payload.flowRegenerationRequestId !== 'string' ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        payload.flowRegenerationRequestId,
+      ) ||
+      payload.flowRestartRequestId !== undefined ||
+      payload.flowAcknowledgeDuplicateRisk !== undefined)
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'Flow regeneration needs one valid request UUID',
+    )
+
+  if (
+    (payload.flowRecoverOnly !== undefined &&
+      typeof payload.flowRecoverOnly !== 'boolean') ||
+    (payload.flowRecoverOnly === true && !payload.flowRegenerationRequestId)
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'Flow recovery needs an existing intent lookup',
+    )
+
+  // null nunca equivale a RPC; rechazar el plan antes de cualquier redacción.
+  const requestedPlan = normalizeFlowExecutionPlan(payload.executionPlan)
   const requests = payload.scenes
   if (!Array.isArray(requests) || requests.length === 0)
     throw new PipelineFailure(
@@ -57,23 +101,54 @@ export async function regenerateSceneImages(
       'demo projects cannot regenerate images',
     )
 
-  // Override transitorio del proveedor: SOLO este job; el clon de options no
-  // toca metadata (scenes.json está congelado — nada nuevo se persiste ahí).
-  if (payload.imageProvider)
-    videoContext.options = {
-      ...videoContext.options,
-      imageProvider: payload.imageProvider,
-    }
+  // Una elección explícita Flow sin plan pide RPC. Sin override, se conserva
+  // el plan del proyecto; el clon sólo afecta esta intención, nunca metadata.
+  const imageProvider =
+    payload.imageProvider ?? videoContext.options.imageProvider
+  const executionPlan = assertFlowPlanProvider(
+    payload.executionPlan !== undefined || payload.imageProvider !== undefined
+      ? requestedPlan
+      : videoContext.options.executionPlan,
+    imageProvider,
+  )
+  videoContext.options = { ...videoContext.options, imageProvider }
+  if (executionPlan) videoContext.options.executionPlan = executionPlan
+  else delete videoContext.options.executionPlan
+
+  if (payload.flowRegenerationRequestId !== undefined) {
+    if (videoContext.options.imageProvider !== 'flow')
+      throw new PipelineFailure(
+        'invalid_payload',
+        'Flow regeneration consent requires the Flow provider',
+      )
+    videoContext.flowRegenerationRequestId = payload.flowRegenerationRequestId
+  }
 
   const scenes = await readScenes(videoContext.paths)
   if (!scenes)
     throw new PipelineFailure('scenes_missing', 'the project has no scenes')
 
   const selectedIds = new Set(requests.map((request) => request.id))
+  // Un clip heredado puede usar la imagen de otra escena por alias. También
+  // se protege esa fuente efectiva; una imagen propia prevalece sobre el alias.
+  const imageSources = new Map(
+    await Promise.all(
+      scenes.map(
+        async (scene) =>
+          [
+            scene.id,
+            await resolveSceneImageSourceId(videoContext.paths, scene),
+          ] as const,
+      ),
+    ),
+  )
   const protectedSource = scenes.some((scene) =>
     [...sceneAnimationBlocks(scene), ...(scene.animationPending ?? [])].some(
       (animation) =>
-        animation.sceneIds.some((id) => selectedIds.has(id)) &&
+        animation.sceneIds.some(
+          (id) =>
+            selectedIds.has(id) || selectedIds.has(imageSources.get(id) ?? id),
+        ) &&
         (animation.status === 'ready' ||
           animation.status === 'pending' ||
           animation.attempts?.some((attempt) => attempt.state !== 'failed') ||
@@ -87,8 +162,66 @@ export async function regenerateSceneImages(
     )
 
   const scenesById = new Map(scenes.map((scene) => [scene.id, scene]))
+  const recoveringFlowRequest = payload.flowRegenerationRequestId
+    ? await recoverPendingFlowRegeneration(
+        context,
+        `scenes:${videoContext.paths.root}`,
+        payload.flowRegenerationRequestId,
+        async (batch) => {
+          const recoveryPlan = payload.flowRecoverOnly
+            ? normalizeFlowExecutionPlan(batch.executionPlan)
+            : executionPlan
+          // Un plan explícito nunca cambia por recuperar; sin preferencia,
+          // el recibo manda aunque el proyecto sea RPC y este override Tools.
+          if (
+            !flowExecutionPlansEqual(batch.executionPlan, recoveryPlan) ||
+            (payload.flowRecoverOnly &&
+              payload.executionPlan !== undefined &&
+              !flowExecutionPlansEqual(requestedPlan, recoveryPlan))
+          )
+            return false
+          const recoveryOptions = { ...videoContext.options }
+          if (recoveryPlan) recoveryOptions.executionPlan = recoveryPlan
+          else delete recoveryOptions.executionPlan
+          const targets = new Set<number>()
+          for (const request of requests) {
+            const scene = scenesById.get(request.id)
+            if (!scene) return false
+            targets.add(flowTargetSceneId(scene))
+          }
+          if (targets.size !== batch.requests.length) return false
+          const characters = await loadPipelineCharacters(
+            videoContext.paths,
+            videoContext.options.characters,
+          )
+          const matches = batch.requests.every((request) => {
+            const target = Number(request.key)
+            const scene = scenesById.get(target)
+            return (
+              targets.has(target) &&
+              scene !== undefined &&
+              request.destination ===
+                sceneImageFile(videoContext.paths, target) &&
+              request.revision ===
+                flowSceneRequestRevision(scene, recoveryOptions, characters)
+            )
+          })
+          if (matches && payload.flowRecoverOnly)
+            videoContext.options = recoveryOptions
+          return matches
+        },
+      )
+    : false
+  if (payload.flowRecoverOnly && !recoveringFlowRequest)
+    throw new PipelineFailure(
+      'flow_intent_conflict',
+      'There is no matching pending Flow intent to recover',
+    )
+  if (!recoveringFlowRequest)
+    await verifyFlowExecutionPlan(context, executionPlan)
   const targetIds = new Set<number>()
   const rewrites: Scene[] = []
+  const appliedPromptIds = new Set<number>()
   for (const request of requests) {
     const scene = scenesById.get(request.id)
     if (!scene)
@@ -98,6 +231,11 @@ export async function regenerateSceneImages(
       )
     targetIds.add(request.id)
     if (!request.rewritePrompt && !hasPendingUserPrompt(scene)) continue
+
+    appliedPromptIds.add(request.id)
+    // Un replay conserva el prompt que ya fijó la intención. El cliente Flow
+    // aún comprueba su revisión antes de importar, sin volver a gastar en LLM.
+    if (recoveringFlowRequest) continue
 
     // Borrar el prompt fuerza a scene-prompts a redactarlo de nuevo.
     const stripped = { ...scene }
@@ -117,11 +255,8 @@ export async function regenerateSceneImages(
   videoContext.regenerateSceneIds = targetIds
   await runStages([scenePromptsStage, imagesStage], videoContext)
 
-  if (rewrites.length > 0)
-    await markAppliedUserPrompts(
-      videoContext.paths,
-      new Set(rewrites.map((scene) => scene.id)),
-    )
+  if (appliedPromptIds.size > 0)
+    await markAppliedUserPrompts(videoContext.paths, appliedPromptIds)
 
   // El archivo viejo se conserva hasta que el nuevo sale OK (contrato del
   // lane): un mtime que no cambió = esa escena no se regeneró.
@@ -129,7 +264,10 @@ export async function regenerateSceneImages(
   const regenerated: number[] = []
   const failed: number[] = []
   for (const id of targetIds) {
-    if (after.get(id) !== undefined && after.get(id) !== before.get(id))
+    if (
+      videoContext.flowReadySceneIds?.has(id) ||
+      (after.get(id) !== undefined && after.get(id) !== before.get(id))
+    )
       regenerated.push(id)
     else failed.push(id)
   }

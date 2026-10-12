@@ -15,7 +15,7 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
 import {
   IMAGE_MODEL,
-  type ImageProviderId,
+  type PaidImageProviderId,
 } from '../../types/image-provider.ts'
 import type { Scene } from '../../types/scenes.ts'
 import { videoFormatOf } from '../../types/video-format.ts'
@@ -68,6 +68,7 @@ import {
   type FixedPhrases,
 } from '../../prompts/template-frame.ts'
 import { rescueReferencePrompt } from '../scene-prompts/verbatim/subject-weaver.ts'
+import { generateFlowScenes } from './flow-lane.ts'
 
 // Fase 5 (port de la Fase «imágenes» del orquestador + images.ts): dispatcher
 // con chokepoint único de seguridad, carril normal y carril de personaje en
@@ -79,6 +80,15 @@ import { rescueReferencePrompt } from '../scene-prompts/verbatim/subject-weaver.
 
 const MAX_RECOVERY_PASSES = 4
 const PROGRESS_DEBOUNCE_MS = 250
+
+// La regeneración sólo es dueña de las escenas seleccionadas. Los huecos
+// ajenos conservan su estado global, pero no son fallos de este intento.
+function isImageTarget(scene: Scene, context: CreateVideoContext): boolean {
+  return (
+    !context.regenerateSceneIds?.size ||
+    context.regenerateSceneIds.has(scene.id)
+  )
+}
 
 // Qué prompts reescribe una pasada de recuperación: los rechazados por
 // contenido o inválidos, siempre que la escena siga sin imagen. Es el mismo
@@ -196,7 +206,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     let alreadyReady = await idsWithValidImage(context, storedScenes)
     let scenes = applyProjectImageDefaults(
       storedScenes.map((scene) =>
-        isReady(scene.id, alreadyReady)
+        !isImageTarget(scene, context) || isReady(scene.id, alreadyReady)
           ? scene
           : { ...scene, contentRejected: false },
       ),
@@ -215,6 +225,30 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // En modo regeneración selectiva los objetivos se fuerzan desde la
     // primera pasada; en Create el set vacío deja todo el cache intacto.
     scenes = await generateImages(scenes, generation, targets, events)
+    // Flow solo publica JPEG y recibos: no reescribe el snapshot de escenas,
+    // que puede haber cambiado mientras llegaban resultados de otras escenas.
+    if (context.options.imageProvider === 'flow') {
+      const latest = await readScenes(context.paths)
+      if (!latest)
+        throw new PipelineFailure(
+          'scenes_missing',
+          'The project was removed during Flow generation',
+        )
+      const ready = await idsWithValidImage(context, latest)
+      if (
+        latest.some(
+          (scene) =>
+            isImageTarget(scene, context) &&
+            !ready.has(scene.id) &&
+            (targets.size === 0 || !isParked(scene)),
+        )
+      )
+        throw new PipelineFailure(
+          'images_incomplete',
+          'Flow did not publish every required image',
+        )
+      return undefined
+    }
     await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
 
     // Pasadas de recuperación: reescriben el prompt SOLO de las rechazadas
@@ -224,7 +258,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
       alreadyReady = await idsWithValidImage(context, scenes)
       // Las apartadas no tienen prompt que reintentar: esperan al editor.
       const missing = scenes.filter(
-        (scene) => !isReady(scene.id, alreadyReady) && !isParked(scene),
+        (scene) =>
+          isImageTarget(scene, context) &&
+          !isReady(scene.id, alreadyReady) &&
+          !isParked(scene),
       )
       if (missing.length === 0) break
 
@@ -238,8 +275,10 @@ export const imagesStage: Stage<CreateVideoContext> = {
       })
 
       const readyNow = alreadyReady
-      const toRewrite = scenes.filter((scene) =>
-        needsPromptRewrite(scene, isReady(scene.id, readyNow)),
+      const toRewrite = scenes.filter(
+        (scene) =>
+          isImageTarget(scene, context) &&
+          needsPromptRewrite(scene, isReady(scene.id, readyNow)),
       )
       // La UI devuelve la fila de prompts a «en curso» con este evento; la
       // fase NO se reabre en el runner (ADR-0013: acá no se emite stage-*).
@@ -298,7 +337,8 @@ export const imagesStage: Stage<CreateVideoContext> = {
       } else {
         scenes = await regeneratePromptsForRejected(
           scenes,
-          (scene) => isReady(scene.id, readyNow),
+          (scene) =>
+            !isImageTarget(scene, context) || isReady(scene.id, readyNow),
           pass,
           {
             llm: createCatalogSceneLlm(context),
@@ -321,7 +361,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
       await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
 
       scenes = scenes.map((scene) =>
-        isReady(scene.id, readyNow)
+        !isImageTarget(scene, context) || isReady(scene.id, readyNow)
           ? scene
           : { ...scene, contentRejected: false },
       )
@@ -342,7 +382,8 @@ export const imagesStage: Stage<CreateVideoContext> = {
       await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
     }
 
-    // Gate final: el proyecto no sigue al render con huecos. Un objetivo de
+    // Gate final: Create no sigue al render con huecos. En el editor solo
+    // cuentan los huecos de la selección de este intento. Un objetivo de
     // regeneración que no salió NO es un hueco (su imagen vieja sigue siendo
     // válida para el render): el subcomando lo reporta en `failed` y la UI
     // lo muestra por escena.
@@ -350,7 +391,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // de ESTE job: el subcomando la reporta en `failed` con su motivo.
     const ready = await idsWithValidImage(context, scenes)
     const stillMissing = scenes
-      .filter((scene) => !ready.has(scene.id))
+      .filter((scene) => isImageTarget(scene, context) && !ready.has(scene.id))
       .filter((scene) => targets.size === 0 || !isParked(scene))
       .map((scene) => scene.id)
       .sort((a, b) => a - b)
@@ -372,6 +413,7 @@ function applyProjectImageDefaults(
 ): Scene[] {
   const options = context.options
   return scenes.map((scene) => {
+    if (!isImageTarget(scene, context)) return scene
     if (scene.imageModel && scene.imageQuality) return scene
     return {
       ...scene,
@@ -427,6 +469,7 @@ function laneEvents(
   // construcción (regla del origen) — un reintento del carril o un poll sin
   // `progress` no la devuelven a cero.
   const lastPercent = new Map<number, number>()
+  const lastStatus = new Map<number, string>()
   return {
     onProviderFailure: createProviderFailureReporter(context.emitter, 'images'),
     onStarted(sceneId, attempt) {
@@ -458,16 +501,21 @@ function laneEvents(
       const terminal = percent >= 100 || status === 'completed'
       // Solo si subió: un valor igual o menor al último emitido se descarta.
       const previous = lastPercent.get(sceneId) ?? -1
-      if (!terminal && percent <= previous) return
+      const changedFlowState =
+        context.options.imageProvider === 'flow' &&
+        lastStatus.get(sceneId) !== status
+      if (!terminal && percent <= previous && !changedFlowState) return
       // Debounce por escena: 100 escenas × polls cada 5s saturarían el canal.
       const now = Date.now()
       if (
         !terminal &&
+        !changedFlowState &&
         now - (lastProgressAt.get(sceneId) ?? 0) < PROGRESS_DEBOUNCE_MS
       )
         return
       lastProgressAt.set(sceneId, now)
       lastPercent.set(sceneId, Math.max(previous, percent))
+      lastStatus.set(sceneId, status)
       context.emitter.emit({
         type: 'scene-image-progress',
         sceneId,
@@ -495,6 +543,7 @@ async function generateImages(
   if (!context.options.customStyle) {
     const invalidIds: number[] = []
     for (const scene of scenes) {
+      if (!isImageTarget(scene, context)) continue
       if (hasCatalogPrompt(scene, style)) continue
       if (
         !forceRegenerate.has(scene.id) &&
@@ -516,6 +565,7 @@ async function generateImages(
   // Capa 4: ninguna escena llega al proveedor sin prompt válido (la muda
   // también: el fallback la ilustra desde la ventana vecina).
   const safeScenes = scenes.map((scene) => {
+    if (!isImageTarget(scene, context)) return scene
     // Catálogo jamás llega al fallback de compatibilidad de Mi estilo.
     if (!context.options.customStyle) return scene
     if (isValidPrompt(scene.imagePrompt)) return scene
@@ -554,6 +604,7 @@ async function generateImages(
   const explicitNewImage = new Set(context.regenerateSceneIds ?? [])
   const lockedScenes = await Promise.all(
     safeScenes.map(async (scene) => {
+      if (!isImageTarget(scene, context)) return scene
       if (context.options.customStyle) return scene
       if (!isValidPrompt(scene.imagePrompt)) return scene
       if (scene.imageTask && !explicitNewImage.has(scene.id)) return scene
@@ -577,6 +628,7 @@ async function generateImages(
   )
 
   const finalScenes = lockedScenes.map((scene) => {
+    if (!isImageTarget(scene, context)) return scene
     if (!isValidPrompt(scene.imagePrompt)) return scene
     return {
       ...scene,
@@ -590,6 +642,17 @@ async function generateImages(
       ),
     }
   })
+
+  // Flow comparte la redacción final de dev, pero reserva su lote completo
+  // antes de enviar y nunca entra en recuperación o saldo de proveedores pagos.
+  if (context.options.imageProvider === 'flow')
+    return generateFlowScenes(
+      context,
+      finalScenes.filter((scene) => !parkedForEditor(scene, context, style)),
+      inputs.characters,
+      forceRegenerate,
+      events,
+    )
 
   // Saldo agotado o cuenta rechazada en cualquier carril: se cortan los que
   // siguen en vuelo (no piden más imágenes que fallarían igual) y el job cae
@@ -641,6 +704,12 @@ async function dispatchLanes(
 ): Promise<Scene[]> {
   const { context } = inputs
   const provider = context.options.imageProvider
+  if (provider === 'flow')
+    throw new PipelineFailure('invalid_payload', 'Flow must use its batch lane')
+
+  const targetScenes = finalScenes.filter((scene) =>
+    isImageTarget(scene, context),
+  )
 
   // Carril de personaje: solo los personajes CON foto (los sin foto ya viajan
   // inyectados por texto). Sin ninguna foto → todo normal.
@@ -652,7 +721,7 @@ async function dispatchLanes(
   if (photoIndexes.size === 0)
     return mergeResults(
       finalScenes,
-      await dispatchNormal(finalScenes, provider, inputs, laneOptions),
+      await dispatchNormal(targetScenes, provider, inputs, laneOptions),
     )
 
   const characterLane = resolveCharacterLane(provider, context)
@@ -665,7 +734,7 @@ async function dispatchLanes(
     })
     return mergeResults(
       finalScenes,
-      await dispatchNormal(finalScenes, provider, inputs, laneOptions),
+      await dispatchNormal(targetScenes, provider, inputs, laneOptions),
     )
   }
 
@@ -673,7 +742,7 @@ async function dispatchLanes(
   // a su llamada con sus referencias.
   const withoutPhoto: Scene[] = []
   const groups = new Map<string, { indexes: number[]; scenes: Scene[] }>()
-  for (const scene of finalScenes) {
+  for (const scene of targetScenes) {
     const indexes = (scene.charactersPresent ?? []).filter((index) =>
       photoIndexes.has(index),
     )
@@ -769,7 +838,7 @@ async function dispatchLanes(
 // spec §5.4 (`rescuedPromptWithPhrases`).
 async function rescueWithoutReference(
   scenes: Scene[],
-  provider: ImageProviderId,
+  provider: PaidImageProviderId,
   inputs: GenerationInputs,
   laneOptions: ImageLaneOptions,
 ): Promise<LaneResult[]> {
@@ -849,9 +918,9 @@ function rescuedPromptWithPhrases(
 }
 
 function resolveCharacterLane(
-  provider: ImageProviderId,
+  provider: PaidImageProviderId,
   context: CreateVideoContext,
-): { provider: ImageProviderId; apiKey: string } | null {
+): { provider: PaidImageProviderId; apiKey: string } | null {
   const falKey = context.job.apiKeys.fal
   const evolinkKey = context.job.apiKeys.evolink
   // El proveedor del proyecto primero; si no tiene clave, el otro.
@@ -865,7 +934,7 @@ function resolveCharacterLane(
 
 async function dispatchNormal(
   scenes: Scene[],
-  provider: ImageProviderId,
+  provider: PaidImageProviderId,
   inputs: GenerationInputs,
   laneOptions: ImageLaneOptions,
 ): Promise<LaneResult[]> {

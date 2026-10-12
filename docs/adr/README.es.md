@@ -94,6 +94,7 @@ agrega ruido.
 | [ADR-0003](ADR-0003-fundaciones-de-la-interfaz.md)                                       | Fundaciones de la interfaz: portar la capa común original                         | Aceptada (i18n → 0004)     | app                           |
 | [ADR-0002](ADR-0002-servidor-local-como-sidecar-de-tauri.md)                             | El servidor local se empaqueta como sidecar de Tauri                              | Reemplazada por ADR-0007   | distribución                  |
 | [ADR-0001](ADR-0001-separacion-interfaz-y-pipeline.md)                                   | Separar la interfaz del pipeline y reescribirla desde cero                        | Reemplazada por ADR-0002   | app                           |
+| [ADR-0052](ADR-0052-flow-como-motor-de-imagenes.md)                                      | Flow como motor de imágenes con coordinador nativo                                | Aceptada localmente        | app / pipeline / extensión    |
 
 ## Nota sobre distribución
 

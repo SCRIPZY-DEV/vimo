@@ -22,20 +22,20 @@ import { useAnimationProgress } from '@/modules/videos/hooks/useAnimationProgres
 import { sceneImageSource } from '@/modules/videos/utilities/sceneImageSource'
 import type { GalleryActionAvailability } from '@/modules/videos/types/galleryActions'
 import type {
+  EditorSceneImageStatus,
   SceneAnimationActivity,
   SceneAnimationFailure,
   SceneAnimationProgress,
 } from '@/modules/videos/types/library'
 import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
-import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 interface EditorImageGalleryCardProps {
   scene: SceneDetail
   videoFormat: VideoFormat
   version?: number
-  status?: SceneImageStatus
+  status?: EditorSceneImageStatus
   imageError?: string
   animationActivity?: SceneAnimationActivity
   animationProgress?: SceneAnimationProgress
@@ -96,7 +96,9 @@ export function EditorImageGalleryCard({
   const unavailable = !source || source === failedSource
   const imageStatus = status ?? scene.imageStatus
   const generating = imageStatus === 'generating'
-  const failed = !generating && (imageStatus === 'error' || Boolean(imageError))
+  const waiting = imageStatus === 'pending' || imageStatus === 'awaiting_sync'
+  const failed =
+    !generating && !waiting && (imageStatus === 'error' || Boolean(imageError))
   const animating = animationActivity === 'generating'
   const percent = useAnimationProgress(
     animating ? animationProgress : undefined,
@@ -231,7 +233,7 @@ export function EditorImageGalleryCard({
         >
           {scene.text}
         </p>
-        {(generating || failed) && (
+        {(generating || waiting || failed) && (
           <p
             role="status"
             className={cn(
@@ -246,9 +248,13 @@ export function EditorImageGalleryCard({
               />
             )}
             {t(
-              generating
-                ? 'library.editor.imageGallery.generating'
-                : (imageError ?? 'library.editor.imageGallery.failed'),
+              waiting
+                ? imageStatus === 'awaiting_sync'
+                  ? 'extension.awaitingSync'
+                  : 'extension.queued'
+                : generating
+                  ? 'library.editor.imageGallery.generating'
+                  : (imageError ?? 'library.editor.imageGallery.failed'),
             )}
           </p>
         )}

@@ -11,7 +11,7 @@ import { generateFalImage } from '../../providers/image/fal.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure, toPipelineFailure } from '../../runner/failure.ts'
 import type { DecodedImage } from '../../types/images.ts'
-import type { ImageProviderId } from '../../types/image-provider.ts'
+import type { PaidImageProviderId } from '../../types/image-provider.ts'
 import type {
   StyleCloneCharacter,
   StyleCloneDrawItem,
@@ -275,7 +275,7 @@ async function readDesign(
 // escenas llevan al personaje como texto (mismo degradado que las muestras).
 async function referenceUrls(
   context: PipelineContext,
-  provider: ImageProviderId,
+  provider: PaidImageProviderId,
   apiKey: string,
   designDataUri: string | undefined,
 ): Promise<string[]> {

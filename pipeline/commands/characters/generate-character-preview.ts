@@ -1,3 +1,22 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import {
+  generateFlowBatch,
+  verifyFlowExecutionPlan,
+} from '../../providers/flow/client.ts'
+import {
+  assertFlowPlanProvider,
+  flowExecutionRevision,
+} from '../../providers/flow/execution-plan.ts'
+import type { FlowToolsExecutionPlan } from '../../types/flow-execution-plan.ts'
+import { flowJpeg } from '../../providers/flow/import-image.ts'
+import {
+  flowHash,
+  flowIntentDirectory,
+  readPendingFlowBatch,
+  writeFlowFile,
+} from '../../providers/flow/storage.ts'
 import { toDataUri } from '../../providers/image/download.ts'
 import { generateEvolinkImage } from '../../providers/image/evolink.ts'
 import { generateFalImage } from '../../providers/image/fal.ts'
@@ -85,6 +104,10 @@ export async function generateCharacterPreview(
 ): Promise<GenerateCharacterPreviewResult> {
   const payload = context.job.payload as
     GenerateCharacterPreviewPayload | undefined
+  const executionPlan = assertFlowPlanProvider(
+    payload?.executionPlan,
+    payload?.provider,
+  )
 
   const identityPrompt = payload?.identityPrompt?.trim() ?? ''
   if (identityPrompt.length < MIN_IDENTITY_LENGTH)
@@ -99,10 +122,19 @@ export async function generateCharacterPreview(
       'payload.styleId is not a known visual style',
     )
 
-  // Fail-safe del origen: solo un 'fal' explícito usa Fal; cualquier otro
-  // valor cae a Evolink.
   const provider: ImageProviderId =
-    payload?.provider === 'fal' ? 'fal' : 'evolink'
+    payload?.provider === 'flow'
+      ? 'flow'
+      : payload?.provider === 'fal'
+        ? 'fal'
+        : 'evolink'
+  if (provider === 'flow')
+    return generateFlowCharacterPreview(
+      context,
+      styleId,
+      identityPrompt,
+      executionPlan,
+    )
   const apiKey = context.job.apiKeys[provider]
   if (!apiKey)
     throw new PipelineFailure(
@@ -133,12 +165,15 @@ async function writeCustomStylePrompt(
   context: PipelineContext,
   styleId: string,
   identityPrompt: string,
+  resolvedStyle?: PreviewGem,
 ): Promise<string> {
-  const style = await readPreviewGem(
-    context,
-    styleId,
-    wantsRemoteCatalog(context.job.payload),
-  )
+  const style =
+    resolvedStyle ??
+    (await readPreviewGem(
+      context,
+      styleId,
+      wantsRemoteCatalog(context.job.payload),
+    ))
   const writers = PORTRAIT_SCENE_MODELS.map((model) => ({
     model,
     llm: portraitSceneLlm(context, model),
@@ -307,4 +342,96 @@ function emitProgress(
   percent: number,
 ) {
   context.emitter.emit({ type: 'progress', percent, detail: { phase } })
+}
+
+async function generateFlowCharacterPreview(
+  context: PipelineContext,
+  styleId: string,
+  identityPrompt: string,
+  executionPlan: FlowToolsExecutionPlan | undefined,
+): Promise<GenerateCharacterPreviewResult> {
+  const style = isCharacterStyleId(styleId)
+    ? null
+    : await readPreviewGem(
+        context,
+        styleId,
+        wantsRemoteCatalog(context.job.payload),
+      )
+  const scope = `character-preview:${context.job.projectsRoot}:${styleId}:${flowHash(identityPrompt)}`
+  // Sólo contenido que escribe el retrato: samples, mtime, título y demás
+  // metadata de galería no cambian la imagen encargada.
+  const revisionOf = (gem: PreviewGem | null) => {
+    const legacyRevision = flowHash(
+      JSON.stringify([
+        identityPrompt,
+        styleId,
+        gem?.systemPrompt,
+        gem?.sections,
+        gem?.shots,
+      ]),
+    )
+    return flowExecutionRevision(legacyRevision, executionPlan)
+  }
+  const revision = revisionOf(style)
+  const pending = await readPendingFlowBatch(
+    context,
+    scope,
+    revision,
+    executionPlan,
+  )
+  if (!pending) await verifyFlowExecutionPlan(context, executionPlan)
+  const finalPrompt =
+    pending?.requests[0]?.prompt ??
+    (isCharacterStyleId(styleId)
+      ? assembleUserScenePrompt(
+          VISUAL_STYLES[styleId],
+          buildPreviewScene(identityPrompt, styleId),
+        )
+      : await writeCustomStylePrompt(
+          context,
+          styleId,
+          identityPrompt,
+          style ?? undefined,
+        ))
+  const directory = flowIntentDirectory(context, scope)
+  const destination = join(directory, 'preview.jpg')
+  emitPhase(context, 'image')
+  await generateFlowBatch(context, {
+    scope,
+    revision,
+    ...(executionPlan ? { executionPlan } : {}),
+    requests: [{ key: 'preview', prompt: finalPrompt, aspectRatio: '16:9' }],
+    onState(_request, status) {
+      context.emitter.emit({
+        type: 'progress',
+        percent: status === 'downloading' || status === 'ready' ? 95 : 0,
+        detail: { phase: 'image', status },
+      })
+    },
+    async onReady(_request, bytes) {
+      if (!isCharacterStyleId(styleId)) {
+        const latest = await readPreviewGem(
+          context,
+          styleId,
+          wantsRemoteCatalog(context.job.payload),
+        )
+        if (revisionOf(latest) !== revision)
+          throw new PipelineFailure(
+            'flow_result_obsolete',
+            'The preview style changed during generation',
+          )
+      }
+      const jpeg = await flowJpeg(context, bytes)
+      await writeFlowFile(destination, jpeg)
+      emitProgress(context, 'image', 100)
+    },
+  })
+  return {
+    dataUri: toDataUri({
+      bytes: await readFile(destination),
+      ext: 'jpg',
+      mime: 'image/jpeg',
+    }),
+    finalPrompt,
+  }
 }

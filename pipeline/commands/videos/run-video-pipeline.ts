@@ -1,5 +1,6 @@
 import { runDemoPipeline } from '../demo/run-demo-pipeline.ts'
 import { isValidFile } from '../../project/paths.ts'
+import { assertFlowPlanProvider } from '../../providers/flow/execution-plan.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure, toPipelineFailure } from '../../runner/failure.ts'
 import { runStages } from '../../runner/run-stages.ts'
@@ -32,6 +33,12 @@ export async function runVideoPipeline(
     )
 
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
+  // Un plan persistido inválido nunca puede caer al proveedor pago ni gastar
+  // en fases previas. Recuperar conserva el plan guardado, sin preferencia UI.
+  assertFlowPlanProvider(
+    videoContext.options.executionPlan,
+    videoContext.options.imageProvider,
+  )
 
   // Modo demo (ADR-0029): el proyecto nació desde la puerta de la demo y no
   // hay proveedores que llamar — se simulan las fases con el pack pre-hecho.

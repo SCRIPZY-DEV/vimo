@@ -34,7 +34,7 @@ export function PreviewProviderChips({
               : 'border-border bg-card text-muted-foreground hover:border-ocean/40 hover:text-foreground',
           )}
         >
-          {item.label}
+          {t(item.labelKey)}
         </button>
       ))}
     </div>

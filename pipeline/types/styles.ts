@@ -1,4 +1,5 @@
-import type { ImageProviderId } from './image-provider.ts'
+import type { FlowToolsExecutionPlan } from './flow-execution-plan.ts'
+import type { ImageProviderId, FlowRestartRequest } from './image-provider.ts'
 
 // Dominio de los estilos visuales propios («Mi estilo»). Browser-safe: la UI
 // consume estos contratos solo con `import type`.
@@ -143,12 +144,14 @@ export interface CatalogDraftSamplesSource {
   sampleMode: Extract<StyleCharacterMode, 'generic' | 'none'>
 }
 
-export interface GenerateStyleSamplesPayload {
+export interface GenerateStyleSamplesPayload extends FlowRestartRequest {
   /** Un estilo propio de Mi estilo. Excluyente con `catalogDraft`. */
   styleId?: string
   /** Un borrador del catálogo (ADR-0049). Excluyente con `styleId`. */
   catalogDraft?: CatalogDraftSamplesSource
   imageProvider: ImageProviderId
+  // Sólo intenciones nuevas Flow; ausente conserva el ejecutor RPC.
+  executionPlan?: FlowToolsExecutionPlan
   /** Modelo de Ajustes para las gemas de plantilla. Ausente = el de la casa. */
   promptModel?: string
 }

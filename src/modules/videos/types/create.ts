@@ -1,3 +1,5 @@
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type {
   ImagesRecoveryKind,
   RenderPhase,
@@ -118,6 +120,7 @@ export type SceneView = SceneSummary & {
   animationActivity?: 'generating' | 'ready' | 'error'
   animationLeadId?: number
   animationProgress?: SceneAnimationProgress
+  imagePhase?: string
 }
 
 // Una generación de video de punta a punta. Vive fuera de React (módulo
@@ -125,6 +128,9 @@ export type SceneView = SceneSummary & {
 // corriendo; se persiste en localStorage porque el proyecto queda en disco y
 // la pausa de confirmación puede resolverse tras reabrir la app.
 export interface CreateTask {
+  executionPlan?: FlowToolsExecutionPlan
+  // Decisión explícita de reemplazo; el mismo ID sobrevive a una respuesta perdida.
+  flowRestartRequest?: FlowRestartRequest
   id: string
   jobId: string | null
   projectId: string
@@ -154,8 +160,11 @@ export interface CreateTask {
   // cuenta. pausedAt marca la pausa en curso; pausedMs acumula las cerradas.
   pausedAt: number | null
   pausedMs: number
-  // Congela el cronómetro al completar (la vista «Listo» muestra el total).
+  // Frontera conocida de éxito o error; se limpia al reanudar la misma tarea.
   finishedAt: number | null
+  // Una tarea restaurada sin frontera fiable no puede reconstruir su duración.
+  // Se conserva al reanudar; sólo una tarea nueva vuelve a tener tiempo conocido.
+  timingUnknown?: boolean
   // Cuenta regresiva del reintento automático en curso; null = no hay.
   retry: RetryView | null
   // Reintentos automáticos ya consumidos (se agota en AUTO_RETRY_MAX_ATTEMPTS).
@@ -193,7 +202,7 @@ export interface CreateTask {
 // del sidecar y no sirve como dependencia de un intervalo.
 export type CreateTaskTiming = Pick<
   CreateTask,
-  'startedAt' | 'pausedAt' | 'pausedMs' | 'finishedAt'
+  'startedAt' | 'pausedAt' | 'pausedMs' | 'finishedAt' | 'timingUnknown'
 >
 
 // Semilla desde disco al reanudar un proyecto (origen: `hidratar`): la grilla
@@ -206,6 +215,7 @@ export interface CreateTaskSeed {
 
 // Cómo se lanza (o reanuda) el pipeline de un proyecto que ya existe en disco.
 export interface ProjectRunOptions {
+  executionPlan?: FlowToolsExecutionPlan
   videoFormat?: VideoFormat
   // Estado en disco para sembrar la tarea (Library lo tiene a mano).
   seed?: CreateTaskSeed
@@ -261,6 +271,7 @@ export interface TabSwitchSelection {
 
 // Estado completo del formulario de creación.
 export interface CreateFormValue {
+  executionPlan?: FlowToolsExecutionPlan
   name: string
   narrationMode: NarrationMode
   script: string

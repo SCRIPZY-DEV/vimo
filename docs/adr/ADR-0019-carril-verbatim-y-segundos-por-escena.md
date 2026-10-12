@@ -153,6 +153,22 @@ sigue siendo un rol). Con el rol rechazado, la escena nombra al personaje por su
 descripción completa sigue al final. No cambian las huellas de las gemas viejas ni los roles
 del catálogo. Ver [causa, corrección y QA](../../fixes/2026-10-05_library-character-feature-role.md).
 
+## Verificación 2026-09-19 — Experimento descartado
+
+Se ensayó una aclaración declarada al system de Fase 2 para delimitar «misma
+escena» al lugar/momento narrado y representar directamente lo descrito. Una
+copia aislada ejecutó sólo la fase de prompts con DeepInfra real: diez IDs,
+mismo guion/gema/modelo/fragmentos y dos llamadas. El registro de hashes de las
+solicitudes confirmó la gema como prefijo exacto y la adenda en Fase 2.
+
+El resultado fue insuficiente: diez de diez prompts volvieron a situarse en el
+mismo estudio; las ciudades y el drenaje del Indo siguieron en mapas o maquetas.
+No se generaron imágenes ni se ejecutó Catálogo en este segundo ensayo. Se
+retiró la adenda y se restauró el código anterior; no se incorpora como decisión
+vigente ni se declara solucionada la repetición. La consigna de usuario
+preexistente también resultó insuficiente en la primera prueba real y permanece
+sin cambios. Evidencia y límites: [informe del experimento](../../fixes/2026-09-19_custom-style-scene-continuity.md).
+
 ## Qué NO cambia
 
 - Un proyecto **sin** `customStyle` recorre el carril de la casa byte por

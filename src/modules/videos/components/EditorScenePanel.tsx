@@ -1,3 +1,11 @@
+import { useRef, useState } from 'react'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
+import { EditorFlowSceneSelection } from '@/modules/videos/components/EditorFlowSceneSelection'
+import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
+import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { apiKeysApi } from '@/modules/api-keys/api'
@@ -47,12 +55,21 @@ interface EditorScenePanelProps {
   busy: boolean
   // El guardado por lote de la galería reserva el proyecto brevemente.
   savingScenes?: boolean
+  regenerationBusy: boolean
+  regenerationCount: number
+  queuedCount: number
+  scenes: SceneDetail[]
+  selectedFlowSceneIds: number[]
+  occupiedSceneIds: ReadonlySet<number>
+  onToggleFlowScene(sceneId: number): void
+  onClearFlowSelection(): void
   // Proyecto demo: regenerar no aplica (las imágenes son del pack).
   regenerateLocked: boolean
   // Hay una descripción que la imagen actual todavía no refleja.
   userPromptPending: boolean
   // Clave i18n del último fallo de regeneración de esta escena.
   errorKey: string | undefined
+  awaitingSync?: boolean
   onUserPromptChange(value: string): void
   // Al salir de la textarea la descripción se persiste (como el origen).
   onUserPromptBlur(): void
@@ -62,7 +79,7 @@ interface EditorScenePanelProps {
   onClipTimeChange(edge: ClipEdge, seconds: number): void
   onImageChoiceChange(value: SceneImageChoice): void
   onCharactersChange(indexes: number[]): void
-  onRegenerate(): void
+  onRegenerate(executionPlan?: FlowToolsExecutionPlan): Promise<boolean>
   // Animación de la escena (ADR-0047): proveedor, saldo, estado y acción.
   animation: SceneAnimationControls
 }
@@ -80,9 +97,18 @@ export function EditorScenePanel({
   onRefreshCredits,
   busy,
   savingScenes = false,
+  regenerationBusy,
+  regenerationCount,
+  queuedCount,
+  scenes,
+  selectedFlowSceneIds,
+  occupiedSceneIds,
+  onToggleFlowScene,
+  onClearFlowSelection,
   regenerateLocked,
   userPromptPending,
   errorKey,
+  awaitingSync = false,
   onUserPromptChange,
   onUserPromptBlur,
   canEditClipIn,
@@ -94,6 +120,18 @@ export function EditorScenePanel({
   animation,
 }: EditorScenePanelProps) {
   const { t } = useTranslation()
+  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const [submitting, setSubmitting] = useState(false)
+  const submission = useRef(false)
+  const flowCapacity = useFlowCapacity(
+    regenerationCount,
+    imageChoice.provider === 'flow',
+    { executionPlan },
+  )
+  const recoveringFlow =
+    imageChoice.provider === 'flow' &&
+    selectedFlowSceneIds.length === 0 &&
+    (awaitingSync || (!!errorKey && FLOW_RESULT_RECOVERY_KEYS.has(errorKey)))
 
   if (!scene) {
     return (
@@ -205,6 +243,7 @@ export function EditorScenePanel({
           el botón de refrescar. Tras regenerar, el saldo se vuelve a pedir
           solo (scheduleCreditsRefresh): el botón es para revisarlo a mano. */}
           <ImageCreditsBadges
+            showFlowGenerationControls={recoveringFlow}
             credits={credits}
             loading={creditsLoading}
             refreshing={creditsRefreshing}
@@ -212,6 +251,42 @@ export function EditorScenePanel({
             onlyActive
             onRefresh={onRefreshCredits}
           />
+
+          {imageChoice.provider === 'flow' && !regenerateLocked && (
+            <EditorFlowSceneSelection
+              scenes={scenes}
+              selectedIds={selectedFlowSceneIds}
+              occupiedIds={occupiedSceneIds}
+              disabled={regenerationBusy && occupiedSceneIds.size === 0}
+              onToggle={onToggleFlowScene}
+              onClear={onClearFlowSelection}
+            />
+          )}
+          {imageChoice.provider === 'flow' &&
+            !regenerateLocked &&
+            !recoveringFlow && (
+              <FlowExecutionSelector
+                executionPlan={executionPlan}
+                onChange={setExecutionPlan}
+                disabled={submitting}
+              />
+            )}
+          {imageChoice.provider === 'flow' && !recoveringFlow && (
+            <FlowCapacityNotice
+              count={regenerationCount}
+              executionPlan={executionPlan}
+            />
+          )}
+          {awaitingSync && (
+            <p role="status" className="text-xs text-muted-foreground">
+              {t('extension.awaitingSync')}
+            </p>
+          )}
+          {recoveringFlow && (
+            <p className="text-xs text-muted-foreground">
+              {t('extension.recoverHint')}
+            </p>
+          )}
 
           {characters.length > 0 && (
             <div className="space-y-1.5">
@@ -248,6 +323,15 @@ export function EditorScenePanel({
             </p>
           )}
 
+          {queuedCount > 0 && (
+            <p
+              role="status"
+              className="font-body text-xs text-muted-foreground"
+            >
+              {t('library.editor.panel.queuedScenes', { count: queuedCount })}
+            </p>
+          )}
+
           {/* Sin precio (se rehacen aparte). Con el panel angosto la etiqueta se
           trunca en vez de salirse del botón junto con el ícono. En un proyecto
           demo el botón queda deshabilitado con el porqué en el tooltip (el
@@ -278,15 +362,48 @@ export function EditorScenePanel({
               // Sin esto el mousedown le saca el foco a la textarea, su guardado
               // deshabilita el botón y el clic se pierde. Regenerar ya guarda.
               onMouseDown={(event) => event.preventDefault()}
-              onClick={onRegenerate}
-              disabled={busy || creditsCheck.blocking}
+              onClick={async () => {
+                if (submission.current) return
+                submission.current = true
+                setSubmitting(true)
+                try {
+                  const plan =
+                    imageChoice.provider === 'flow' && !recoveringFlow
+                      ? normalizeFlowExecutionPlan(executionPlan)
+                      : undefined
+                  if (
+                    imageChoice.provider !== 'flow' ||
+                    recoveringFlow ||
+                    (await flowCapacity.verify())
+                  )
+                    await onRegenerate(plan)
+                } finally {
+                  submission.current = false
+                  setSubmitting(false)
+                }
+              }}
+              disabled={
+                submitting ||
+                savingScenes ||
+                regenerationBusy ||
+                creditsCheck.blocking ||
+                (imageChoice.provider === 'flow' &&
+                  !recoveringFlow &&
+                  !flowCapacity.ready)
+              }
               className="w-full min-w-0 rounded-xl font-display font-bold"
             >
               <RefreshCw className="mr-1.5 h-4 w-4" />
               <span className="min-w-0 truncate">
-                {userPromptPending
-                  ? t('library.editor.panel.regenerateWithPrompt')
-                  : t('library.editor.panel.regenerate')}
+                {recoveringFlow
+                  ? t('extension.recoverResult')
+                  : imageChoice.provider === 'flow'
+                    ? t('library.editor.panel.regenerateFlowCount', {
+                        count: regenerationCount,
+                      })
+                    : userPromptPending
+                      ? t('library.editor.panel.regenerateWithPrompt')
+                      : t('library.editor.panel.regenerate')}
               </span>
             </Button>
           )}

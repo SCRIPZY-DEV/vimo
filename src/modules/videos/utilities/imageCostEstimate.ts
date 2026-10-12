@@ -14,7 +14,7 @@ export function imageCostEstimate(
   quality: string,
   count: number,
 ): CostEstimateLine | null {
-  if (count <= 0) return null
+  if (count <= 0 || provider === 'flow') return null
 
   if (provider === 'evolink') {
     const credits = creditsForQuality(quality)

@@ -6,6 +6,7 @@ interface PreviewThumbnailGridProps {
   // Ya vienen filtrados: mientras se genera, el estilo en curso no está
   previews: PreviewView[]
   generating: boolean
+  queued?: boolean
   generatingLabel: string
   // Avance del preview en curso (real de Evolink o simulado por el sidecar);
   // null = todavía sin dato, solo el spinner.
@@ -16,6 +17,7 @@ interface PreviewThumbnailGridProps {
 export function PreviewThumbnailGrid({
   previews,
   generating,
+  queued = false,
   generatingLabel,
   percent,
   labelOf,
@@ -55,13 +57,19 @@ export function PreviewThumbnailGrid({
           {/* Misma casilla que la grilla de imágenes del pipeline (SceneCell):
               spinner, porcentaje en mono y barra fina abajo. */}
           <div className="relative flex aspect-square w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-ocean/60 bg-ocean/10">
-            <Loader2 className="h-6 w-6 animate-spin text-ocean" />
-            {progress !== null && (
+            {queued ? (
+              <span className="text-xs text-muted-foreground">
+                {t('extension.queued')}
+              </span>
+            ) : (
+              <Loader2 className="h-6 w-6 animate-spin text-ocean" />
+            )}
+            {!queued && progress !== null && (
               <span className="font-mono text-sm font-bold tabular-nums text-ocean">
                 {Math.round(progress)}%
               </span>
             )}
-            {progress !== null && (
+            {!queued && progress !== null && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
                 <div
                   className="h-full bg-ocean transition-all duration-500"
