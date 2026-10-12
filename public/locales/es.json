@@ -2175,7 +2175,7 @@
     "securityHint": "Vimo no solicita tu contraseña de Google. Las credenciales permanentes no se muestran ni se guardan en la interfaz. Desvincular revoca el acceso de esa instalación.",
     "engineEvolink": "GPT Image 2 · Evolink (pago)",
     "engineFal": "GPT Image 2 · Fal (pago)",
-    "engineFlow": "Flow (Gratis)",
+    "engineFlow": "vimo (gratis)",
     "engineHint": "Las imágenes se generan con Nano Banana 2 Lite en Flow, en 16:9 o 9:16. Se mantienen tus prompts, personajes, voz y edición. Los otros servicios del video conservan sus costos.",
     "manage": "Ver cuentas y disponibilidad",
     "generatingImages": "Generando imágenes (extensión)",

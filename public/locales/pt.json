@@ -2175,7 +2175,7 @@
     "securityHint": "O Vimo não solicita sua senha do Google. Credenciais permanentes não são exibidas nem armazenadas na interface. Desvincular revoga o acesso desta instalação.",
     "engineEvolink": "GPT Image 2 · Evolink (pago)",
     "engineFal": "GPT Image 2 · Fal (pago)",
-    "engineFlow": "Flow (Grátis)",
+    "engineFlow": "vimo (grátis)",
     "engineHint": "As imagens são geradas com Nano Banana 2 Lite no Flow, em 16:9 ou 9:16. Seus prompts, personagens, voz e edição são mantidos. Os outros serviços do vídeo mantêm seus custos.",
     "manage": "Ver contas e disponibilidade",
     "generatingImages": "Gerando imagens (extensão)",

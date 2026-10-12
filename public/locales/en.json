@@ -2175,7 +2175,7 @@
     "securityHint": "Vimo does not request your Google password. Permanent credentials are never shown or stored in the interface. Unlinking revokes this installation’s access.",
     "engineEvolink": "GPT Image 2 · Evolink (paid)",
     "engineFal": "GPT Image 2 · Fal (paid)",
-    "engineFlow": "Flow (Free)",
+    "engineFlow": "vimo (free)",
     "engineHint": "Images are generated with Nano Banana 2 Lite in Flow, in 16:9 or 9:16. Your prompts, characters, voice and editing stay the same. Other video services retain their costs.",
     "manage": "View accounts and availability",
     "generatingImages": "Generating images (extension)",
