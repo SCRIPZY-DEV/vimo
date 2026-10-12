@@ -15,7 +15,7 @@ El despliegue local requiere cerrar las dos apps Vimo, respaldar ambos almacenes
 
 ## Límites deliberados
 
-No copia ni fusiona ledgers, no cambia credenciales, no fuerza pausas, no resuelve inciertos históricos y no genera imágenes. Una sola app puede controlar ese coordinador por vez, garantizado por el lock existente. No se migra la biblioteca QA a la raíz de proyectos habitual; los proyectos nuevos usan los ajustes habituales. Conserva Nano Banana2Lite y «vimo (gratis)».
+No copia ni fusiona ledgers, no cambia credenciales, no fuerza pausas, no resuelve inciertos históricos y no genera imágenes. Una sola app puede controlar ese coordinador por vez, garantizado por el lock existente. No se migra la biblioteca QA a la raíz de proyectos habitual; los proyectos nuevos usan los ajustes habituales. Conserva Nano Banana2Lite. El rótulo final es «Vimo (gratis)» y Multimagen es la única opción para solicitudes nuevas (f2ca1356).
 
 ## Validación reproducible
 
@@ -26,4 +26,4 @@ No copia ni fusiona ledgers, no cambia credenciales, no fuerza pausas, no resuel
 
 ## Pruebas manuales realizadas
 
-Validación técnica completada: 58/58 tests Rust, formato/lint/build/i18n correctos, bundle con identidad habitual y firma deep/strict válida. El SHA del SEA coincide exactamente con la entrega anterior: no cambian generación ni exportación. Se solicitó cerrar ambas apps Vimo para aplicar; Chrome Beta permanece abierto. La activación real y la comprobación de cinco cuentas se documentarán después, sin presentarlas como realizadas todavía.
+Validación técnica completada: 58/58 tests Rust, formato/lint/build/i18n correctos, bundle con identidad habitual y firma deep/strict válida. El SHA del SEA coincide exactamente con la entrega anterior: no cambian generación ni exportación. El 2026-10-11 se cerraron ambas apps (QA mediante ⌘Q), sin locks restantes. Se respaldaron y compararon por SHA-256 todos los archivos de ambos almacenes; 117 trabajos habituales y 459 de QA permanecen intactos. Se instaló f2ca1356, se verificó la firma en destino y se activó atómicamente la selección del almacén existente/43137 con permisos0600. La app anterior permanece respaldada. Evidencia privada: `Vimo-builds/Adopcion-cuentas-2026-10-11/activation-proof.json`. Pendiente: apertura por el usuario y reconexión real de cinco cuentas; activar configuración no demuestra todavía esa reconexión.
