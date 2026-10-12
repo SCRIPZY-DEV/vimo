@@ -24,6 +24,23 @@ import {
 import { cameraEffect } from './ken-burns.ts'
 import { runRenderFfmpeg } from './render-ffmpeg.ts'
 
+// Codificación de los chunks. La mezcla final copia el video sin recodificar
+// cuando no hay nada que dibujar encima (final-mix.ts), y el demuxer concat
+// solo une archivos con la MISMA codificación: el tramo congelado del final
+// sale con estos mismos argumentos.
+export const CHUNK_VIDEO_ENCODING_ARGS = [
+  '-c:v',
+  'libx264',
+  '-preset',
+  'veryfast',
+  '-crf',
+  '20',
+  '-pix_fmt',
+  'yuv420p',
+  '-movflags',
+  '+faststart',
+]
+
 export interface RenderScene {
   id: number
   imagePath: string
@@ -269,16 +286,7 @@ export async function renderChunk(
         '-an',
         '-frames:v',
         String(totalFrames),
-        '-c:v',
-        'libx264',
-        '-preset',
-        'veryfast',
-        '-crf',
-        '20',
-        '-pix_fmt',
-        'yuv420p',
-        '-movflags',
-        '+faststart',
+        ...CHUNK_VIDEO_ENCODING_ARGS,
         '-y',
         temporaryFile,
       ],

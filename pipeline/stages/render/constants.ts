@@ -45,6 +45,11 @@ export const SUBTITLE_MARGIN_HORIZONTAL_DIVISOR = 12
 export const SUBTITLE_OUTLINE = 3
 export const SUBTITLE_SHADOW = 1
 
+// Mezcla final sin recodificar el video cuando no hay nada que dibujar encima
+// (final-mix.ts). Interruptor para deshacerlo rápido: en `false` toda mezcla
+// vuelve a recodificar, exactamente como antes.
+export const FINAL_MIX_VIDEO_COPY = true
+
 // Colita visual tras el fin del audio: la última imagen no corta en seco.
 export const PAD_MARGIN_SECONDS = 0.2
 
