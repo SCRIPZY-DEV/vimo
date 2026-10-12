@@ -1,4 +1,4 @@
-import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
 import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
@@ -121,7 +121,7 @@ export function CharacterModal({
   const [provider, setProvider] = useState<ImageProviderId>(
     DEFAULT_PREVIEW_PROVIDER,
   )
-  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
   const photoMode = character
@@ -390,7 +390,6 @@ export function CharacterModal({
                 styleId={styleId}
                 provider={provider}
                 executionPlan={executionPlan}
-                onExecutionPlanChange={setExecutionPlan}
                 generating={preview.generating}
                 phase={preview.phase}
                 imageStatus={preview.imageStatus}
@@ -414,7 +413,6 @@ export function CharacterModal({
                 onStyleChange={setStyleId}
                 onProviderChange={(nextProvider) => {
                   setProvider(nextProvider)
-                  if (nextProvider !== 'flow') setExecutionPlan(undefined)
                 }}
                 onGenerate={() => void generatePreview()}
                 onRestart={(request) => void generatePreview(request)}

@@ -1,5 +1,5 @@
-import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
 import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
@@ -161,7 +161,7 @@ export function CatalogAdminModal({
   const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
     null,
   )
-  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
   const autoStarted = useRef(false)
   const flowCapacity = useFlowCapacity(
@@ -371,8 +371,7 @@ export function CatalogAdminModal({
 
   const chooseProvider = (imageProvider: ImageProviderId) => {
     setChosenProvider(imageProvider)
-    if (imageProvider !== 'flow') setExecutionPlan(undefined)
-    // Flow necesita una elección explícita del ejecutor antes de generar.
+    // Multimagen se envía desde Generar, después de verificar las cuentas.
     if (imageProvider === 'flow') return
     if (!generateOnOpen || autoStarted.current) return
     autoStarted.current = true
@@ -502,13 +501,7 @@ export function CatalogAdminModal({
                 onChoose={chooseProvider}
               />
 
-              {provider === 'flow' && (
-                <FlowExecutionSelector
-                  executionPlan={executionPlan}
-                  onChange={setExecutionPlan}
-                  disabled={locked || samplesJob.running || recoveringFlow}
-                />
-              )}
+              {provider === 'flow' && !recoveringFlow && <FlowExecutionMode />}
               {provider === 'flow' && !recoveringFlow && (
                 <FlowCapacityNotice
                   count={CATALOG_DRAFT_SAMPLE_COUNT}

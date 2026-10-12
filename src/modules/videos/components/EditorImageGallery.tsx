@@ -1,3 +1,4 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -17,8 +18,7 @@ import { EditorImageGalleryCard } from '@/modules/videos/components/EditorImageG
 import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import { useGalleryActions } from '@/modules/videos/hooks/useGalleryActions'
-import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import type { GalleryActionsOptions } from '@/modules/videos/types/galleryActions'
 
 // La galería conserva sus borradores; las generaciones pertenecen al almacén del
@@ -26,7 +26,7 @@ import type { GalleryActionsOptions } from '@/modules/videos/types/galleryAction
 export function EditorImageGallery(options: GalleryActionsOptions) {
   const { scenes, videoFormat, durationSeconds } = options
   const { t } = useTranslation()
-  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const actions = useGalleryActions({ ...options, executionPlan })
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -283,13 +283,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           )}
           {options.imageProvider === 'flow' && (
             <div className="space-y-3 px-5 pt-3 sm:px-6">
-              {!recoveringFlow && (
-                <FlowExecutionSelector
-                  executionPlan={executionPlan}
-                  onChange={setExecutionPlan}
-                  disabled={actions.submitting}
-                />
-              )}
+              {!recoveringFlow && <FlowExecutionMode />}
               {!recoveringFlow && (
                 <FlowCapacityNotice
                   count={selection.length || 1}

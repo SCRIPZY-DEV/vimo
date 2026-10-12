@@ -635,3 +635,20 @@ intacto, separado y respaldado.
 rompería su identidad. Reutilizar el mismo coordinador preserva esos contratos sin
 intervenir en el contenido del ledger. No amplía permisos de Chrome ni la confianza
 del WebSocket ni agrega un API externo.
+
+## Adenda 2026-10-11 — Multimagen como única opción de nuevas imágenes
+
+Por pedido del usuario, «Vimo (gratis)» presenta sólo Multimagen. Sustituye la
+selección RPC/Tools descrita el 2026-10-07 **para nuevas solicitudes desde la UI**:
+Crear, editor, galería, muestras de estilo y retratos inicializan el plan Tools
+fijo. Cambiar de proveedor y volver a Vimo conserva ese modo. La admisión sigue
+requiriendo capacidad Tools real; estar desconectado no activa Flow directo.
+
+El estado de cuentas, capacidad y motivos se agrupa en «Ver estado de las
+cuentas», un desplegable nativo cerrado por defecto. Las consultas y controles
+existentes permanecen montados; contraerlo no pausa ni reinicia generaciones.
+
+Los contratos y el diagrama de intención inmutable de la adenda anterior siguen
+vigentes. La ausencia de plan en recibos históricos continúa significando RPC;
+recuperar/reanudar usa el plan persistido. La demo sigue sin generar imágenes.
+La política de recuperación automática validada no cambia con este ajuste de UX.

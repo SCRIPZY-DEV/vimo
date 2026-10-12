@@ -1,5 +1,5 @@
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FLOW_PHASE_KEYS } from '@/modules/common/constants'
@@ -36,7 +36,6 @@ interface CharacterPreviewPanelProps {
   styleId: string
   provider: ImageProviderId
   executionPlan?: FlowToolsExecutionPlan
-  onExecutionPlanChange: (plan?: FlowToolsExecutionPlan) => void
   recoveringFlow: boolean
   generating: boolean
   phase: CharacterPreviewPhase | null
@@ -69,7 +68,6 @@ export function CharacterPreviewPanel({
   styleId,
   provider,
   executionPlan,
-  onExecutionPlanChange,
   recoveringFlow,
   generating,
   phase,
@@ -193,13 +191,7 @@ export function CharacterPreviewPanel({
         />
       </div>
 
-      {provider === 'flow' && (
-        <FlowExecutionSelector
-          executionPlan={executionPlan}
-          onChange={onExecutionPlanChange}
-          disabled={disabled || generating || recoveringFlow}
-        />
-      )}
+      {provider === 'flow' && !recoveringFlow && <FlowExecutionMode />}
       {provider === 'flow' && !recoveringFlow && (
         <FlowCapacityNotice count={1} executionPlan={executionPlan} />
       )}

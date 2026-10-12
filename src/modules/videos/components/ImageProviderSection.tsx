@@ -1,4 +1,5 @@
-import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { estimatedSceneCount } from '@/modules/videos/utilities/estimateCreateCost'
 import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useTranslation } from 'react-i18next'
@@ -51,7 +52,7 @@ export function ImageProviderSection({
     onChange({
       imageProvider: provider,
       executionPlan:
-        provider === 'flow' && !demo ? value.executionPlan : undefined,
+        provider === 'flow' && !demo ? FLOW_TOOLS_EXECUTION_PLAN : undefined,
       imageQuality: defaultQualityFor(provider, value.videoFormat),
     })
   }
@@ -98,13 +99,7 @@ export function ImageProviderSection({
 
       {value.imageProvider === 'flow' ? (
         <>
-          {!demo && (
-            <FlowExecutionSelector
-              executionPlan={value.executionPlan}
-              disabled={disabled}
-              onChange={(executionPlan) => onChange({ executionPlan })}
-            />
-          )}
+          {!demo && <FlowExecutionMode />}
           <FlowCapacityNotice
             count={estimatedSceneCount(value, value.script.trim()) || null}
             executionPlan={demo ? undefined : value.executionPlan}

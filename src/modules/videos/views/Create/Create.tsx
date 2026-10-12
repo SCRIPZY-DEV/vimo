@@ -1,3 +1,4 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { estimatedSceneCount } from '@/modules/videos/utilities/estimateCreateCost'
 import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { createApiRequirements } from '@/modules/videos/utilities/createApiRequirements'
@@ -169,6 +170,8 @@ function CreateView({
       sceneCount: initialSceneCount,
       // Los ids de calidad son por proveedor: la calidad acompaña al elegido.
       imageProvider: initialImageProvider,
+      executionPlan:
+        initialImageProvider === 'flow' ? FLOW_TOOLS_EXECUTION_PLAN : undefined,
       imageQuality: defaultQualityFor(
         initialImageProvider,
         CREATE_FORM_INITIAL_VALUE.videoFormat,
@@ -257,7 +260,7 @@ function CreateView({
       ...patch,
       ...(demo || (patch.imageProvider ?? current.imageProvider) !== 'flow'
         ? { executionPlan: undefined }
-        : {}),
+        : { executionPlan: FLOW_TOOLS_EXECUTION_PLAN }),
       // En demo la historia sigue al estilo elegido.
       ...(demo ? demoFollowStyle(demo, current, patch) : {}),
     }))

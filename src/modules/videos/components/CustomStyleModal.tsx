@@ -1,5 +1,5 @@
-import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
@@ -181,7 +181,7 @@ export function CustomStyleModal({
   const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
     null,
   )
-  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
   // Ausente en disco = genérico (gemas previas a ADR-0020). Viaja SIEMPRE en
   // el payload: el guard del sidecar conserva el bloque solo cuando falta.
@@ -389,8 +389,7 @@ export function CustomStyleModal({
 
   const chooseProvider = (imageProvider: ImageProviderId) => {
     setChosenProvider(imageProvider)
-    if (imageProvider !== 'flow') setExecutionPlan(undefined)
-    // Flow necesita una elección explícita del ejecutor antes de generar.
+    // Multimagen se envía desde Generar, después de verificar las cuentas.
     if (imageProvider === 'flow') return
     if (!generateOnOpen || autoStarted.current) return
     autoStarted.current = true
@@ -550,13 +549,7 @@ export function CustomStyleModal({
                 onChoose={chooseProvider}
               />
 
-              {provider === 'flow' && (
-                <FlowExecutionSelector
-                  executionPlan={executionPlan}
-                  onChange={setExecutionPlan}
-                  disabled={locked || samplesJob.running || recoveringFlow}
-                />
-              )}
+              {provider === 'flow' && !recoveringFlow && <FlowExecutionMode />}
               {provider === 'flow' && !recoveringFlow && (
                 <FlowCapacityNotice
                   count={CUSTOM_STYLE_SAMPLE_COUNT}

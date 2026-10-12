@@ -1,6 +1,7 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { useRef, useState } from 'react'
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionSelector } from '@/modules/common/components/FlowExecutionSelector'
+import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
 import { EditorFlowSceneSelection } from '@/modules/videos/components/EditorFlowSceneSelection'
 import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
@@ -120,7 +121,7 @@ export function EditorScenePanel({
   animation,
 }: EditorScenePanelProps) {
   const { t } = useTranslation()
-  const [executionPlan, setExecutionPlan] = useState<FlowToolsExecutionPlan>()
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const [submitting, setSubmitting] = useState(false)
   const submission = useRef(false)
   const flowCapacity = useFlowCapacity(
@@ -264,13 +265,7 @@ export function EditorScenePanel({
           )}
           {imageChoice.provider === 'flow' &&
             !regenerateLocked &&
-            !recoveringFlow && (
-              <FlowExecutionSelector
-                executionPlan={executionPlan}
-                onChange={setExecutionPlan}
-                disabled={submitting}
-              />
-            )}
+            !recoveringFlow && <FlowExecutionMode />}
           {imageChoice.provider === 'flow' && !recoveringFlow && (
             <FlowCapacityNotice
               count={regenerationCount}
