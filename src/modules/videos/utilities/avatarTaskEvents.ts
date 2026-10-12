@@ -1,3 +1,4 @@
+import { isAvatarFallback } from '@/modules/videos/utilities/avatarFallback'
 import type {
   AvatarSceneActivity,
   CreateTask,
@@ -17,8 +18,10 @@ export type AvatarSceneEvent = Extract<
   }
 >
 
-// Cómo va la fila de una aparición en la pantalla de progreso.
-export type AvatarRowStatus = 'queued' | 'generating' | 'ready' | 'failed'
+// Cómo va la fila de una aparición en la pantalla de progreso. `stale`: una
+// desactualizada, que la fase no regenera sola (entrega 2d).
+export type AvatarRowStatus =
+  'queued' | 'generating' | 'ready' | 'failed' | 'stale'
 
 // Segundos de un render: el último que informó el sidecar más lo que corrió
 // el reloj desde que llegó, mientras genera; fijo al terminar.
@@ -121,15 +124,22 @@ export function scenesWithAvatarRunEnded(scenes: SceneView[]): SceneView[] {
 }
 
 // La fila de una aparición: lo que pasó en esta corrida manda; sin eventos
-// (proyecto reanudado), lo que dice el disco.
+// (proyecto reanudado), lo que dice el disco. «No se completó» es la regla
+// única de la imagen fija (`isAvatarFallback` en el contexto `progress`), así
+// la fila y el aviso del final nunca se contradicen. Una desactualizada, con o
+// sin clip, tiene su propio estado (ronda 2 de WP-P): antes, la que perdió su
+// clip decía «No se completó» con el motivo de la descarga, que promete reusar
+// el video pagado, y el aviso no la contaba.
 export function avatarRowStatus(
   scene: Pick<SceneView, 'avatar' | 'avatarActivity'>,
 ): AvatarRowStatus {
   if (scene.avatarActivity) return scene.avatarActivity.status
 
-  if (scene.avatar?.status === 'ready' && scene.avatar.clipPath) return 'ready'
+  if (scene.avatar?.stale) return 'stale'
 
-  if (scene.avatar?.status === 'failed') return 'failed'
+  if (isAvatarFallback(scene, 'progress')) return 'failed'
+
+  if (scene.avatar?.status === 'ready') return 'ready'
 
   return 'queued'
 }

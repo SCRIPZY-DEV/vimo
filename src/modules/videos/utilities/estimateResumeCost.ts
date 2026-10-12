@@ -53,6 +53,10 @@ export function estimateResumeCost(
     if (images) lines.push(images)
   }
 
+  // Terminada, la fase `avatar` no vuelve a correr al reanudar (entrega 2d,
+  // ronda 1 de WP-P): lo que dejó con la imagen fija del look se regenera
+  // desde el editor, con su propio costo. Sin terminar (una pausa de la
+  // cuenta), cuenta lo pendiente como la fase.
   if (!completed.has('avatar')) {
     const avatar = pendingAvatarLine(status)
     if (avatar) lines.push(avatar)
@@ -141,23 +145,33 @@ function pendingImageCount(status: VideoProjectStatusResult): number {
   )
 }
 
-// ¿La escena de avatar ya tiene su clip? Un desactualizado también: reanudar
-// no lo regenera (§11.4) y no se vuelve a cobrar.
-function hasAvatarClip(scene: SceneSummary): boolean {
+// ¿La fase `avatar` trabaja esta escena al reanudar? La regla de
+// `isAvatarScenePending` (pipeline/avatar/render-scenes.ts), leída de la
+// vista: pendiente si no quedó lista con su clip, salvo que esté
+// desactualizada. Esa no se paga sola, tenga o no su clip (entrega 2d, §11.4):
+// la regenera la persona desde el editor con el costo a la vista. La vista
+// marca `stale` en toda escena lista, también en la que perdió su clip y se
+// muestra fallida (toSceneAvatarView).
+function isAvatarScenePending(scene: SceneSummary): boolean {
   const avatar = scene.avatar
-  if (!avatar || avatar.status !== 'ready') return false
+  if (!avatar) return false
 
-  return Boolean(avatar.clipPath)
+  if (avatar.stale) return false
+
+  // Solo una escena lista trae su clip: la vista saca fallida a la que lo
+  // perdió, y una planeada o fallida nunca lo tiene.
+  return !avatar.clipPath
 }
 
-// Lo que falta cobrar del avatar (spec §8): los tramos de las escenas de
-// avatar sin clip, contados como los cuenta la fase; antes del corte, lo que
-// pidió Crear. Con escenas cortadas la cifra es un techo (`upperBound`): la
-// vista no expone los recibos, y una escena con un pedido ya pagado se cosecha
-// sin cobro nuevo, así que la fase puede pagar menos de lo que suman todas las
-// pendientes. Si el corte no ubicó ninguna aparición (la narración no tenía
-// frases donde entraran), la fase no tiene nada que cobrar: no hay línea, ni
-// un saldo de HeyGen que pueda frenar «Reanudar».
+// Lo que falta cobrar del avatar (spec §8): los tramos de las escenas que la
+// fase va a trabajar (isAvatarScenePending), contados como los cuenta la
+// fase; antes del corte, lo que pidió Crear. Con escenas cortadas la cifra es
+// un techo (`upperBound`): la vista no expone los recibos, y una escena con un
+// pedido ya pagado se cosecha sin cobro nuevo, así que la fase puede pagar
+// menos de lo que suman todas las pendientes. Si el corte no ubicó ninguna
+// aparición (la narración no tenía frases donde entraran), la fase no tiene
+// nada que cobrar: no hay línea, ni un saldo de HeyGen que pueda frenar
+// «Reanudar».
 function pendingAvatarLine(
   status: VideoProjectStatusResult,
 ): CostEstimateLine | null {
@@ -176,7 +190,7 @@ function pendingAvatarLine(
   if (avatarScenes.length === 0) return null
 
   const pendingSpans = avatarScenes
-    .filter((scene) => !hasAvatarClip(scene))
+    .filter(isAvatarScenePending)
     .map((scene) => ({
       startSeconds: scene.startSeconds ?? 0,
       endSeconds: scene.endSeconds ?? 0,

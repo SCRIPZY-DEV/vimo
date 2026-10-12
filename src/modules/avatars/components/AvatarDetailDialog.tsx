@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react'
-import type { MouseEvent, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { Trash2, X } from 'lucide-react'
-import { Button } from '@/modules/common/ui/button'
+import { X } from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -13,6 +12,7 @@ import {
   DialogTitle,
 } from '@/modules/common/ui/dialog'
 import { avatarsApi } from '@/modules/avatars/api'
+import { AvatarDeleteMenu } from '@/modules/avatars/components/AvatarDeleteMenu'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
 import { GenerateLookCard } from '@/modules/avatars/components/GenerateLookCard'
 import { LookPlayerDialog } from '@/modules/avatars/components/LookPlayerDialog'
@@ -23,15 +23,12 @@ import {
   STOCK_GRID_CLASS,
   VIMO_AVATAR_ENGINE,
 } from '@/modules/avatars/constants'
+import { useAvatarDeleteMenu } from '@/modules/avatars/hooks/useAvatarDeleteMenu'
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useOpenLook } from '@/modules/avatars/hooks/useOpenLook'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
 import type { SizedLibraryLook } from '@/modules/avatars/types/look'
-import {
-  ignoreHeldKey,
-  isSecondClickOfDoubleClick,
-} from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import { lookUnusableReasonKey } from '@/modules/avatars/utilities/lookUsability'
 import type {
   AvatarAspectRatio,
@@ -50,34 +47,48 @@ interface AvatarDetailDialogProps {
   // `DialogTrigger` (se abre por estado) Radix lo dejaría en `<body>`.
   returnFocusRef?: RefObject<HTMLElement | null>
   onClose: () => void
-  // Quitar el avatar (el segundo paso del borrado): lo hace la biblioteca,
-  // que sabe adónde va el foco cuando la tarjeta desaparece, y cierra.
+  // «Eliminar de la lista»: lo hace la biblioteca, que sabe adónde va el foco
+  // cuando la tarjeta desaparece, y cierra.
   onRemove: () => void
+  // «Eliminar permanentemente de HeyGen», ya confirmado con «Seguro»: también
+  // lo hace la biblioteca. Solo se ofrece en un avatar propio y si la
+  // biblioteca lo pasa.
+  onDeleteFromHeyGen?: () => void
+  // El borrado en HeyGen está en vuelo: el botón de eliminar dice
+  // «Eliminando…» y el panel no se cierra hasta que termine.
+  deleting?: boolean
+  // El de otro avatar está en vuelo (uno a la vez): el botón de eliminar
+  // todavía no hace nada (`aria-disabled`, sigue enfocable).
+  deleteDisabled?: boolean
 }
 
 // El panel de un avatar de la biblioteca, como en HeyGen: arriba, la vista
 // previa grande de su look principal (el video al pasar el mouse), el nombre,
-// sus chips, de dónde salió, el estado del entrenamiento y el borrado en dos
-// pasos; abajo, todos sus looks, con el principal marcado y «Usar como
-// principal» en los demás que sirven, encabezados por la ficha «Crear
-// escenario» (un look nuevo desde una descripción). Un clic en un look abre
-// su reproductor, con «Usar como principal» al pie (se cierra solo al
-// lograrlo). Las vistas previas que no están en disco salen del listado de
-// HeyGen (gratis), con esqueleto mientras llegan. Se monta solo mientras está
-// abierto. El contenido es el primitivo de Radix y no el `DialogContent` del
-// kit, que trae su caja de tarjeta y su X chica: acá la caja tiene su propio
-// layout y su X redonda.
+// sus chips, de dónde salió, el estado del entrenamiento y el botón de
+// eliminar (`AvatarDeleteMenu`, entrega 2d: «Eliminar de la lista» y, en un
+// avatar propio, «Eliminar permanentemente de HeyGen» con «Seguro»); abajo,
+// todos sus looks, con el principal marcado y «Usar como principal» en los
+// demás que sirven, encabezados por la ficha «Crear escenario» (un look nuevo
+// desde una descripción). Un clic en un look abre su reproductor, con «Usar
+// como principal» al pie (se cierra solo al lograrlo). Las vistas previas que
+// no están en disco salen del listado de HeyGen (gratis), con esqueleto
+// mientras llegan. Se monta solo mientras está abierto. El contenido es el
+// primitivo de Radix y no el `DialogContent` del kit, que trae su caja de
+// tarjeta y su X chica: acá la caja tiene su propio layout y su X redonda.
 export function AvatarDetailDialog({
   avatar,
   scenarioAspectRatio,
   returnFocusRef,
   onClose,
   onRemove,
+  onDeleteFromHeyGen,
+  deleting = false,
+  deleteDisabled = false,
 }: AvatarDetailDialogProps) {
   const { t } = useTranslation()
   const { setMainLook, saving } = useAvatarMutations()
   const { canUseHeyGen } = useHeyGenAccess()
-  const [confirming, setConfirming] = useState(false)
+  const deleteMenu = useAvatarDeleteMenu()
   const [makingMainId, setMakingMainId] = useState<string | null>(null)
   const [previewActive, setPreviewActive] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -145,14 +156,6 @@ export function AvatarDetailDialog({
     }
   }
 
-  // «Seguro» quita, salvo que sea el segundo clic del doble clic que armó la
-  // confirmación: un clic suelto después, sí.
-  const confirmRemove = (event: MouseEvent) => {
-    if (isSecondClickOfDoubleClick(event)) return
-
-    onRemove()
-  }
-
   // Desde la ficha o desde el reproductor; si lo logra con el reproductor de
   // ese look abierto, lo cierra (ya es el principal).
   const makeMain = async (lookId: string) => {
@@ -179,13 +182,15 @@ export function AvatarDetailDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    // Con el borrado en HeyGen en vuelo no se cierra (Escape, clic afuera ni
+    // la X): la persona ve cómo termina, también si falla.
+    <Dialog open onOpenChange={(open) => !open && !deleting && onClose()}>
       <DialogPortal>
         <DialogOverlay className="backdrop-blur-sm" />
         <DialogPrimitive.Content
           ref={contentRef}
           // Al abrir, el foco va al panel y no al primer botón (que es
-          // «Quitar avatar»): así dos Enter seguidos no lo borran.
+          // «Eliminar»): así dos Enter seguidos no abren sus opciones.
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             contentRef.current?.focus()
@@ -255,33 +260,19 @@ export function AvatarDetailDialog({
                 />
 
                 <div className="mt-auto pt-2">
-                  {/* Los dos botones son el mismo nodo para React: el foco
-                      sigue en «Seguro» al armar, así que una tecla sostenida
-                      se ignora en los dos. */}
-                  {confirming ? (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      autoFocus
-                      onClick={confirmRemove}
-                      onKeyDown={ignoreHeldKey}
-                      onBlur={() => setConfirming(false)}
-                      className="rounded-xl font-display font-bold"
-                    >
-                      {t('avatars.tarjeta.confirmar')}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirming(true)}
-                      onKeyDown={ignoreHeldKey}
-                      className="-ml-3 rounded-xl font-display text-muted-foreground hover:text-foreground"
-                    >
-                      <Trash2 aria-hidden className="h-4 w-4" />
-                      {t('avatars.tarjeta.eliminar')}
-                    </Button>
-                  )}
+                  <AvatarDeleteMenu
+                    menu={deleteMenu}
+                    variant="panel"
+                    name={avatar.name}
+                    onRemoveFromList={onRemove}
+                    onDeleteFromHeyGen={
+                      avatar.ownership === 'own'
+                        ? onDeleteFromHeyGen
+                        : undefined
+                    }
+                    deleting={deleting}
+                    disabled={deleteDisabled}
+                  />
                 </div>
               </div>
             </div>
@@ -354,9 +345,13 @@ export function AvatarDetailDialog({
             />
           )}
 
+          {/* Apagada mientras elimina de HeyGen: el foco espera en el botón
+              de eliminar, que sigue enfocable (`aria-disabled`), así Tab no
+              sale del panel. */}
           <DialogClose
             aria-label={t('avatars.detalle.cerrar')}
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-muted/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron"
+            disabled={deleting}
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-muted/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron disabled:pointer-events-none disabled:opacity-40"
           >
             <X aria-hidden className="h-4 w-4" />
           </DialogClose>

@@ -5,13 +5,24 @@ import type { LookPlayerRate } from '@/modules/avatars/constants'
 
 type VideoEvent = SyntheticEvent<HTMLVideoElement>
 
+// El navegador no deja reproducir con sonido sin un gesto de la persona (la
+// política de reproducción automática de Chrome y de WebKit): `play()` se
+// rechaza con este error. Otros rechazos (el video no carga, una pausa antes
+// de arrancar) no son de la política.
+function isAutoplayBlocked(error: unknown) {
+  return error instanceof DOMException && error.name === 'NotAllowedError'
+}
+
 // La reproducción del video de un look en su reproductor (LookPlayer). El
 // `<video>` es la fuente de verdad: el estado solo espeja sus eventos y las
 // acciones escriben en él (como los controles del video final, que viven en
-// otro módulo). El video tiene sonido, así que `play()` sale siempre del
-// manejador de un clic o de una tecla de la persona, nunca de un efecto: es
-// la activación del usuario que pide WebKit para arrancar con sonido.
-// `stageRef` es la caja del escenario, la que pasa a pantalla completa.
+// otro módulo). Arranca solo al montarse con video (entrega 2d): con sonido y,
+// si el navegador no lo deja sin un gesto de la persona, silenciado, con el
+// botón de sonido en «Activar el sonido»; si tampoco así arranca, queda en
+// pausa con el sonido de vuelta, para el botón grande. Quien lo monta le
+// cambia la `key` al cambiar el video, así cada video arranca solo. Los demás
+// `play()` salen del clic o la tecla de la persona. `stageRef` es la caja del
+// escenario, la que pasa a pantalla completa.
 export function useLookPlayback(stageRef: RefObject<HTMLElement | null>) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
@@ -22,6 +33,32 @@ export function useLookPlayback(stageRef: RefObject<HTMLElement | null>) {
   const [currentSeconds, setCurrentSeconds] = useState(0)
   const [durationSeconds, setDurationSeconds] = useState(0)
   const [fullscreen, setFullscreen] = useState(false)
+
+  // El arranque solo. Una respuesta que llega con el reproductor ya cerrado
+  // (o, en desarrollo, del primer montaje de StrictMode) no toca el video: un
+  // `play()` sobre un video que salió del documento lo haría sonar igual.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    let disposed = false
+    video.play().catch((error: unknown) => {
+      if (disposed || !isAutoplayBlocked(error)) return
+
+      video.muted = true
+      setMuted(true)
+      video.play().catch(() => {
+        if (disposed) return
+
+        video.muted = false
+        setMuted(false)
+      })
+    })
+
+    return () => {
+      disposed = true
+    }
+  }, [])
 
   // La pantalla completa la cambia también el navegador (Escape la cierra):
   // el estado escucha al documento.

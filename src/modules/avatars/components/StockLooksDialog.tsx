@@ -69,9 +69,11 @@ interface StockLooksDialogProps {
 // principal. Al volver, la grilla de avatares sigue donde estaba y, con el
 // teclado, el foco en el «Ver looks» de la tarjeta de origen. Una página que
 // no llega deja el error junto a lo ya cargado, sin taparlo. En «Mis avatares»
-// cada tarjeta trae el tacho para eliminar el avatar de HeyGen de verdad (la
-// tarjeta confirma; de a un borrado, y nunca junto a un alta). Se monta solo
-// mientras está abierto.
+// cada tarjeta trae el botón de eliminar (entrega 2d): «Eliminar
+// permanentemente de HeyGen» borra el avatar de la cuenta de verdad (la
+// tarjeta pide «Seguro»; de a un borrado, y nunca junto a un alta) y, si el
+// avatar está en la biblioteca, «Eliminar de la lista» lo saca de ahí. Se monta
+// solo mientras está abierto.
 export function StockLooksDialog({
   entries,
   onOpenAvatar,
@@ -103,7 +105,7 @@ export function StockLooksDialog({
     open: openLook,
     close: closeLook,
   } = useOpenLook<HTMLDivElement>()
-  const { addAvatar, deleteFromHeyGen } = useAvatarMutations()
+  const { addAvatar, deleteAvatar, deleteFromHeyGen } = useAvatarMutations()
   const lastInputWasKeyboard = useLastInputWasKeyboard()
   const contentRef = useRef<HTMLDivElement>(null)
   // El primer nivel (la grilla de avatares): ahí se busca el «Ver looks» al
@@ -238,24 +240,35 @@ export function StockLooksDialog({
     target?.focus()
   }
 
-  // El tacho de una tarjeta del primer nivel (`data-heygen-delete`).
+  // El botón de eliminar de una tarjeta del primer nivel
+  // (`data-avatar-delete`).
   const deleteButton = (groupId: string) => {
     return (
       viewLooksButton(groupId)
         ?.closest('article')
-        ?.querySelector<HTMLElement>('[data-heygen-delete]') ?? null
+        ?.querySelector<HTMLElement>('[data-avatar-delete]') ?? null
     )
+  }
+
+  // «Eliminar de la lista» en «Mis avatares»: saca de la biblioteca la
+  // entrada de ese grupo; el avatar sigue en HeyGen, así que la tarjeta se
+  // queda (sin «Agregado») con el foco en su botón de eliminar.
+  const removeFromList = (groupId: string) => {
+    const entry = entries.find((item) => item.groupId === groupId)
+    if (!entry) return
+
+    deleteAvatar(entry)
   }
 
   // Eliminar de HeyGen el avatar de una tarjeta, ya confirmado en ella. Al
   // lograrlo, la tarjeta sale de la grilla con el foco adentro y Radix lo
-  // dejaría en la caja del diálogo: con el teclado, el foco pasa al tacho de
-  // la tarjeta vecina (la siguiente o, si era la última, la anterior, en el
-  // orden de la grilla al empezar) o, si no queda ninguna, a la pestaña «Mis
-  // avatares». Solo si sigue perdido al terminar (en el tacho, en `<body>` o
-  // en la caja): si en el medio la persona siguió con Tab, se queda donde
-  // llegó. Con el mouse no se mueve (ver `backToGroups`). Si falla, la
-  // mutación lo avisa y la tarjeta vuelve con el foco donde estaba.
+  // dejaría en la caja del diálogo: con el teclado, el foco pasa al botón de
+  // eliminar de la tarjeta vecina (la siguiente o, si era la última, la
+  // anterior, en el orden de la grilla al empezar) o, si no queda ninguna, a la
+  // pestaña «Mis avatares». Solo si sigue perdido al terminar (en el botón, en
+  // `<body>` o en la caja): si en el medio la persona siguió con Tab, se queda
+  // donde llegó. Con el mouse no se mueve (ver `backToGroups`). Si falla, la
+  // mutación lo avisa y la tarjeta vuelve con el foco en su botón.
   const deleteFromCard = async (target: HeyGenAvatarGroup) => {
     if (adding || deleting) return
 
@@ -377,6 +390,11 @@ export function StockLooksDialog({
               onDeleteFromHeyGen={
                 ownership === 'private'
                   ? () => void deleteFromCard(item)
+                  : undefined
+              }
+              onRemoveFromList={
+                ownership === 'private' && libraryIds.has(item.groupId)
+                  ? () => removeFromList(item.groupId)
                   : undefined
               }
               deleting={deletingGroupId === item.groupId}

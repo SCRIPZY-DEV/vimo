@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Check, Loader2 } from 'lucide-react'
+import { AlertTriangle, Check, History, Loader2 } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { SceneThumbnail } from '@/modules/videos/components/SceneThumbnail'
@@ -40,6 +40,10 @@ export function PipelineAvatarRow({
       return t(AVATAR_RENDER_PHASE_KEYS[activity?.phase ?? 'audio'])
 
     if (status === 'ready') return t('create.progress.avatarReady')
+
+    // Desactualizada: no es «No se completó», porque la fase no la paga sola
+    // y se regenera desde el editor. Concuerda con «Lista» y con la aparición.
+    if (status === 'stale') return t('create.progress.avatarStale')
 
     if (status === 'failed') {
       return t('create.progress.avatarFailed', {
@@ -82,6 +86,9 @@ export function PipelineAvatarRow({
           )}
           {status === 'failed' && (
             <AlertTriangle aria-hidden className="h-3.5 w-3.5" />
+          )}
+          {status === 'stale' && (
+            <History aria-hidden className="h-3.5 w-3.5 text-saffron" />
           )}
           <span className="line-clamp-2">{statusText()}</span>
         </p>

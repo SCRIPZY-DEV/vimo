@@ -3,11 +3,13 @@
 // con su claqueta, esquinas rounded-lg, borde blanco al elegirlo, la
 // miniatura del avatar (la vista previa del look, que el sidecar le pone como
 // imagen fija: el look ES el escenario), sus estados (listo, desactualizado,
-// planeado, fallido con el motivo, generando con el avance simulado) y sus
+// planeado, fallido con el motivo, generando con el avance simulado —y, en
+// cola, sin porcentaje hasta que su render arranca, entrega 2d—) y sus
 // fronteras bloqueadas, cada bloque con su `timelineBlockKey` (la `key` de
 // React se lee de la fibra del contenedor). Y el panel de la escena (ruling
 // D4): sobre una escena de avatar no ofrece «Regenerar imagen» ni la
-// descripción (spec §6.2).
+// descripción (spec §6.2) y la explica con `avatarSceneHint` (entrega 2d; sus
+// botones de generar el avatar los prueba check-editor-avatar-regenerate-ui.mjs).
 // Monta el EditorTimeline real en Chrome headless; solo `videosApi` se simula
 // (el real importa el cliente de Supabase, que exige variables de entorno al
 // cargarse) con lo único que la pista le pide: las URLs de las imágenes. La
@@ -95,14 +97,17 @@ const scenes = [
   scene(10, 64, 68),
   scene(11, 68, 72),
 ]
-// El render del avatar de la escena 9 lleva un minuto (en la entrega 3 lo
-// llena el job; acá entra directo por la prop).
+// El render del avatar de la escena 9 lleva un minuto (desde la entrega 2d lo
+// llena la tarea del editor, check-editor-avatar-regenerate-ui.mjs; acá entra
+// directo por la prop, y el caso de la cola la cambia).
 const startedAt = Date.now() - 60_000
 const noop = () => {}
 window.selected = []
 function Host() {
   const [selectedSceneId, setSelectedSceneId] = React.useState(2)
-  return <EditorTimeline scenes={scenes} timingBusy={false} durationSeconds={72} playheadSeconds={0} selectedSceneId={selectedSceneId} sceneStatus={{}} sceneErrors={{}} sceneVersions={{}} sceneAnimationStatus={{}} sceneAnimationProgress={{}} sceneAnimationErrors={{}} plannedSceneIds={[]} narrationSrc={null} musicSrc={null} sceneAvatarRendering={{ 9: { startedAt } }} layout={DEFAULT_TIMELINE_LAYOUT} onReorderTracks={noop} onToggleMuted={noop} onToggleLocked={noop} zoomIndex={3} onZoomChange={noop} onSelectScene={(id) => { window.selected.push(id); setSelectedSceneId(id) }} onSeek={noop} onScrub={noop} onScrubStart={noop} onScrubEnd={noop} onBoundaryDrag={noop} onBoundaryCommit={noop} onOpenAudio={noop} onOpenMusic={noop} />
+  const [avatarRendering, setAvatarRendering] = React.useState({ 9: { startedAt } })
+  window.setAvatarRendering = setAvatarRendering
+  return <EditorTimeline scenes={scenes} timingBusy={false} durationSeconds={72} playheadSeconds={0} selectedSceneId={selectedSceneId} sceneStatus={{}} sceneErrors={{}} sceneVersions={{}} sceneAnimationStatus={{}} sceneAnimationProgress={{}} sceneAnimationErrors={{}} plannedSceneIds={[]} narrationSrc={null} musicSrc={null} sceneAvatarRendering={avatarRendering} layout={DEFAULT_TIMELINE_LAYOUT} onReorderTracks={noop} onToggleMuted={noop} onToggleLocked={noop} zoomIndex={3} onZoomChange={noop} onSelectScene={(id) => { window.selected.push(id); setSelectedSceneId(id) }} onSeek={noop} onScrub={noop} onScrubStart={noop} onScrubEnd={noop} onBoundaryDrag={noop} onBoundaryCommit={noop} onOpenAudio={noop} onOpenMusic={noop} />
 }
 const reactRoot = createRoot(document.getElementById('root'), { onUncaughtError: (error) => { renderError = error } })
 reactRoot.render(<I18nextProvider i18n={i18n}><TooltipProvider><Host /></TooltipProvider></I18nextProvider>)
@@ -146,6 +151,13 @@ try {
   // entero cambia en menos de 1,4 s.
   const percentBefore = rendering.textContent.match(/\d+%/)[0]
   check(await waitFor(() => cardTitled(rendering.title)?.textContent.match(/\d+%/)?.[0] !== percentBefore, 'el porcentaje del render avanza solo (sigue en ' + percentBefore + ')'), 'el porcentaje del render avanza solo')
+  // En cola (HeyGen renderiza de a tres): el mismo «Generando el avatar…»,
+  // sin porcentaje, aunque su reloj venga de hace un minuto; al arrancar, el
+  // porcentaje vuelve (entrega 2d).
+  window.setAvatarRendering({ 9: { startedAt, queued: true } })
+  check(await waitFor(() => { const card = cardTitled(i18n.t('library.editor.timeline.avatarRendering')); return card && !/\d+%/.test(card.textContent) }, 'en cola, el bloque no muestra porcentaje'), 'en cola: «Generando el avatar…» sin porcentaje')
+  window.setAvatarRendering({ 9: { startedAt } })
+  check(await waitFor(() => /\d+%/.test(cardTitled(i18n.t('library.editor.timeline.avatarRendering'))?.textContent ?? ''), 'al arrancar, el porcentaje vuelve'), 'al arrancar su render, el porcentaje vuelve')
   check(document.querySelectorAll('[role=separator]').length === 1, 'una sola frontera arrastrable (entre las escenas 10 y 11): ' + document.querySelectorAll('[role=separator]').length)
   failed.click()
   await waitFor(() => window.selected.at(-1) === 6 && cardTitled(failed.title)?.className.includes('border-white'), 'clic en el avatar: selecciona su escena')
@@ -161,10 +173,13 @@ try {
   const panelHost = document.createElement('div')
   document.body.append(panelHost)
   const panelRoot = createRoot(panelHost, { onUncaughtError: (error) => { renderError = error } })
-  const showPanel = (panelScene) => panelRoot.render(<QueryClientProvider client={new QueryClient()}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorScenePanel scene={panelScene} characters={[]} imageChoice={{ provider: 'fal', quality: 'low' }} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={noop} busy={false} regenerateLocked={false} userPromptPending={false} errorKey={undefined} onUserPromptChange={noop} onUserPromptBlur={noop} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={noop} onImageChoiceChange={noop} onCharactersChange={noop} onRegenerate={noop} animation={panelAnimation} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
+  const showPanel = (panelScene) => panelRoot.render(<QueryClientProvider client={new QueryClient()}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorScenePanel scene={panelScene} projectId="fixture" scenes={scenes} characters={[]} imageChoice={{ provider: 'fal', quality: 'low' }} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={noop} busy={false} regenerateLocked={false} userPromptPending={false} errorKey={undefined} onUserPromptChange={noop} onUserPromptBlur={noop} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={noop} onImageChoiceChange={noop} onCharactersChange={noop} onRegenerate={noop} animation={panelAnimation} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
   const panelRegenerate = () => [...panelHost.querySelectorAll('button')].find((button) => button.textContent.includes(i18n.t('library.editor.panel.regenerate')))
   showPanel(scenes[1])
-  await waitFor(() => panelHost.textContent.includes(i18n.t('library.editor.panel.avatarScene')), 'el panel de la escena de avatar explica que no tiene imagen que regenerar')
+  await waitFor(() => panelHost.textContent.includes(i18n.t('library.editor.panel.avatarSceneHint')), 'el panel de la escena de avatar la explica (avatarSceneHint, entrega 2d)')
+  // La nota es la clave vigente del catálogo: comparar con i18n.t de una clave
+  // que no existe (la vieja avatarScene, cuando se borre) pasa en vacío.
+  check(i18n.exists('library.editor.panel.avatarSceneHint'), 'la nota del avatar es la clave vigente del catálogo (avatarSceneHint)')
   check(!panelHost.querySelector('#scene-user-prompt') && !panelRegenerate(), 'sobre un avatar no hay descripción ni «Regenerar imagen»')
   // Sus tiempos se leen (la fila In/Out, sin el campo para tipearlos: sus
   // fronteras no se mueven) y Kie no la anima: sin la sección de animación.
@@ -174,7 +189,7 @@ try {
   check(!panelHost.textContent.includes(animationTitle), 'sobre un avatar no hay sección de animación')
   showPanel(scenes[0])
   await waitFor(() => panelHost.querySelector('#scene-user-prompt'), 'el panel de una escena de imagen sigue con su descripción')
-  check(panelRegenerate() && !panelHost.textContent.includes(i18n.t('library.editor.panel.avatarScene')), 'y con «Regenerar imagen», sin la nota del avatar')
+  check(panelRegenerate() && !panelHost.textContent.includes(i18n.t('library.editor.panel.avatarSceneHint')), 'y con «Regenerar imagen», sin la nota del avatar')
   check(panelHost.textContent.includes(animationTitle) && panelHost.textContent.includes(i18n.t('library.editor.panel.clipIn')), 'y con su animación y su In/Out, como siempre')
 
   // El aviso de imágenes faltantes no manda a regenerar una escena de avatar

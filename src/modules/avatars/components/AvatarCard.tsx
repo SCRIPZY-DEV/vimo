@@ -1,31 +1,40 @@
 import { useState } from 'react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Trash2 } from 'lucide-react'
-import { Button } from '@/modules/common/ui/button'
+import { Loader2 } from 'lucide-react'
 import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { avatarsApi } from '@/modules/avatars/api'
+import { AvatarDeleteMenu } from '@/modules/avatars/components/AvatarDeleteMenu'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
 import {
   CARD_SIDE_LOOKS,
   VIMO_AVATAR_ENGINE,
 } from '@/modules/avatars/constants'
+import { useAvatarDeleteMenu } from '@/modules/avatars/hooks/useAvatarDeleteMenu'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useHoverIntent } from '@/modules/avatars/hooks/useHoverIntent'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
-import {
-  ignoreHeldKey,
-  isSecondClickOfDoubleClick,
-} from '@/modules/avatars/utilities/twoStepConfirmGuards'
+import { isSecondClickOfDoubleClick } from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import type { AvatarSummary } from '@pipeline/types/avatar.ts'
 
 interface AvatarCardProps {
   avatar: AvatarSummary
   disabled: boolean
+  // El borrado en HeyGen de este avatar está en vuelo: el botón de eliminar
+  // dice «Eliminando…».
+  deleting?: boolean
+  // El de otro avatar está en vuelo (uno a la vez): el botón de eliminar
+  // todavía no hace nada (`aria-disabled`, sigue enfocable).
+  deleteDisabled?: boolean
   onOpen: (avatar: AvatarSummary) => void
+  // «Eliminar de la lista»: lo saca de la biblioteca de Vimo (sigue en
+  // HeyGen).
   onDelete: (avatar: AvatarSummary) => void
+  // «Eliminar permanentemente de HeyGen», ya confirmado con «Seguro». Solo se
+  // ofrece en un avatar propio y si quien monta la tarjeta lo pasa.
+  onDeleteFromHeyGen?: (avatar: AvatarSummary) => void
 }
 
 // Una tarjeta por avatar: vista previa vertical anclada arriba (la cara
@@ -34,22 +43,28 @@ interface AvatarCardProps {
 // imagen reproduce el video de su look (el foco del teclado en el nombre, el
 // de la principal): los videos salen del listado de HeyGen del avatar, que se
 // pide la primera vez que la persona se detiene en la tarjeta
-// (`useHoverIntent`; gratis, con la misma caché que su panel). Debajo, compacto: el nombre, cuántos looks tiene y el borrado en
-// dos pasos (el ícono se vuelve un botón rojo «Seguro»), y en otra fila el
-// tipo y solo el motor que Vimo usa (los del look principal); mientras
-// entrena, el estado del entrenamiento, y si falló, el motivo. La tarjeta
-// llena la fila de la grilla (`h-full`) con el contenido arriba y sin empujar
-// nada hacia abajo: solo junto a una tarjeta más alta de su fila queda aire
-// al pie. La imagen y el nombre abren el panel del avatar.
+// (`useHoverIntent`; gratis, con la misma caché que su panel). Debajo,
+// compacto: el nombre, cuántos looks tiene y el botón de eliminar
+// (`AvatarDeleteMenu`, entrega 2d), que despliega sobre la imagen «Eliminar de
+// la lista» y, en un avatar propio, «Eliminar permanentemente de HeyGen»; en
+// otra fila el tipo y solo el motor que Vimo usa (los del look principal);
+// mientras entrena, el estado del entrenamiento, y si falló, el motivo. La
+// tarjeta llena la fila de la grilla (`h-full`) con el contenido arriba y sin
+// empujar nada hacia abajo: solo junto a una tarjeta más alta de su fila queda
+// aire al pie. La imagen y el nombre abren el panel del avatar; salir de la
+// tarjeta o abrir su panel cierra el menú.
 export function AvatarCard({
   avatar,
   disabled,
+  deleting = false,
+  deleteDisabled = false,
   onOpen,
   onDelete,
+  onDeleteFromHeyGen,
 }: AvatarCardProps) {
   const { t } = useTranslation()
   const { canUseHeyGen } = useHeyGenAccess()
-  const [confirming, setConfirming] = useState(false)
+  const deleteMenu = useAvatarDeleteMenu()
   // Qué imagen está bajo el mouse: la principal o la miniatura de un look.
   const [mainHovered, setMainHovered] = useState(false)
   const [hoveredLookId, setHoveredLookId] = useState<string | null>(null)
@@ -107,12 +122,15 @@ export function AvatarCard({
     if (visible) hoverIntent.focusedWithKeyboard()
   }
 
-  // «Seguro» quita, salvo que sea el segundo clic del doble clic que armó la
-  // confirmación: un clic suelto después, sí.
-  const confirmDelete = (event: MouseEvent) => {
+  // El panel se abre encima: el menú de eliminar no queda abierto detrás (con
+  // el mouse en WebKit, el clic no le saca el foco). El segundo clic de un
+  // doble clic no abre nada: el primero ya abrió o, si fue sobre «Eliminar de
+  // la lista» de la tarjeta que estaba acá, esta ocupó su lugar.
+  const openPanel = (event: MouseEvent) => {
     if (isSecondClickOfDoubleClick(event)) return
 
-    onDelete(avatar)
+    deleteMenu.close()
+    onOpen(avatar)
   }
 
   const mainTile = (
@@ -137,10 +155,16 @@ export function AvatarCard({
     </span>
   )
 
+  // `relative`: las opciones de eliminar cubren la imagen. Mientras elimina
+  // de HeyGen, la tarjeta se apaga como en «Mis avatares».
   return (
     <article
-      onMouseLeave={() => setConfirming(false)}
-      className="flex h-full flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card transition-colors hover:border-saffron/50"
+      aria-busy={deleting}
+      onMouseLeave={deleteMenu.close}
+      className={cn(
+        'relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-card transition-colors hover:border-saffron/50',
+        deleting && 'pointer-events-none opacity-50',
+      )}
     >
       {/* El clic en la imagen es un atajo del mouse: con el teclado se abre
           desde el nombre. */}
@@ -149,7 +173,7 @@ export function AvatarCard({
         tabIndex={-1}
         aria-hidden
         disabled={disabled}
-        onClick={() => onOpen(avatar)}
+        onClick={openPanel}
         onMouseEnter={hoverIntent.pointerMoved}
         onMouseMove={hoverIntent.pointerMoved}
         onMouseLeave={hoverIntent.pointerLeft}
@@ -223,7 +247,7 @@ export function AvatarCard({
             type="button"
             data-avatar-id={avatar.id}
             disabled={disabled}
-            onClick={() => onOpen(avatar)}
+            onClick={openPanel}
             onFocus={focusName}
             onBlur={() => setNameFocused(false)}
             className="min-w-0 truncate rounded-sm text-left font-display text-base font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron"
@@ -235,35 +259,20 @@ export function AvatarCard({
               {t('avatars.stock.looksCount', { count: avatar.looks.length })}
             </span>
           )}
-          {/* Los dos botones son el mismo nodo para React (mismo lugar, mismo
-              tipo): el foco sigue en «Seguro» al armar, así que una tecla
-              sostenida tiene que ignorarse en los dos. */}
           <div className="ml-auto shrink-0">
-            {confirming ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={disabled}
-                onClick={confirmDelete}
-                onKeyDown={ignoreHeldKey}
-                onBlur={() => setConfirming(false)}
-                className="h-8 rounded-lg px-3 font-display"
-              >
-                {t('avatars.tarjeta.confirmar')}
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={disabled}
-                onClick={() => setConfirming(true)}
-                onKeyDown={ignoreHeldKey}
-                aria-label={t('avatars.tarjeta.eliminar')}
-                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive-text"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            <AvatarDeleteMenu
+              menu={deleteMenu}
+              variant="library"
+              name={avatar.name}
+              onRemoveFromList={() => onDelete(avatar)}
+              onDeleteFromHeyGen={
+                avatar.ownership === 'own' && onDeleteFromHeyGen
+                  ? () => onDeleteFromHeyGen(avatar)
+                  : undefined
+              }
+              deleting={deleting}
+              disabled={disabled || deleteDisabled}
+            />
           </div>
         </div>
 

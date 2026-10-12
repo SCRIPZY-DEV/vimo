@@ -24,7 +24,9 @@ import {
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
+import { useLastInputWasKeyboard } from '@/modules/avatars/hooks/useLastInputWasKeyboard'
 import { useProcessingAvatarsRefresh } from '@/modules/avatars/hooks/useProcessingAvatarsRefresh'
+import type { AvatarSummary } from '@pipeline/types/avatar.ts'
 
 type OpenDialog = 'stock' | 'photo' | null
 
@@ -34,7 +36,15 @@ type OpenDialog = 'stock' | 'photo' | null
 export function AvatarLibrary() {
   const { t } = useTranslation()
   const { isNative, entries, isLoading, errorKey } = useAvatars()
-  const { deleteAvatar } = useAvatarMutations()
+  const { deleteAvatar, deleteFromHeyGen } = useAvatarMutations()
+  const lastInputWasKeyboard = useLastInputWasKeyboard()
+  // El avatar que se está eliminando de HeyGen (de a uno): su tarjeta y su
+  // panel dicen «Eliminando…» y el panel no se cierra.
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  // Un borrado de HeyGen a la vez, como en «Mis avatares»: mientras uno está
+  // en vuelo, el botón de eliminar de las demás tarjetas y del panel no hace
+  // nada (`aria-disabled`), así ninguna confirmación se pierde en silencio.
+  const heyGenDeleteInFlight = deletingId !== null
   // Hablar con HeyGen exige su clave: los botones esperan a que el llavero
   // responda y, sin clave, al aviso.
   const { canUseHeyGen, missingKey } = useHeyGenAccess()
@@ -128,18 +138,58 @@ export function AvatarLibrary() {
     return titleRef.current
   }
 
-  // Quitar desde el panel: la tarjeta sale de la lista, así que el foco va a
-  // la vecina (la siguiente, o la anterior si era la última) o, si la
-  // biblioteca queda vacía, a `emptyLibraryFocus`. Nunca a `<body>`.
-  const removeFromPanel = (id: string) => {
+  // Adónde va el foco cuando la tarjeta de un avatar sale de la lista: el
+  // nombre de la vecina (la siguiente, o la anterior si era la última) o, si
+  // la biblioteca queda vacía, `emptyLibraryFocus`. Nunca a `<body>`.
+  const focusAfterLeaving = (id: string) => {
     const index = entries.findIndex((entry) => entry.id === id)
     const neighbour = entries[index + 1] ?? entries[index - 1]
-    panelReturnRef.current = neighbour
-      ? cardNameButton(neighbour.id)
-      : emptyLibraryFocus()
-    deleteAvatar(id)
+    if (neighbour) return cardNameButton(neighbour.id)
+
+    return emptyLibraryFocus()
+  }
+
+  // «Eliminar de la lista» desde la tarjeta: sale sin otro paso. Con el
+  // teclado, el foco pasa antes a la vecina (o, si la biblioteca queda vacía,
+  // a «Agregar de stock»): el menú lo devolvió a su botón, que sale con la
+  // tarjeta, y caería en `<body>`. Con el mouse no se mueve.
+  const removeFromCard = (avatar: AvatarSummary) => {
+    if (lastInputWasKeyboard()) focusAfterLeaving(avatar.id)?.focus()
+    deleteAvatar(avatar)
+  }
+
+  // «Eliminar de la lista» desde el panel: la tarjeta sale de la lista y el
+  // panel se cierra con el foco en la vecina.
+  const removeFromPanel = (avatar: AvatarSummary) => {
+    panelReturnRef.current = focusAfterLeaving(avatar.id)
+    deleteAvatar(avatar)
     consumeLink()
     setSelectedId(null)
+  }
+
+  // «Eliminar permanentemente de HeyGen» desde la tarjeta o el panel, ya
+  // confirmado con «Seguro». Al lograrlo, la entrada sale de la lista: el
+  // panel se cierra solo con el foco en la tarjeta vecina y, desde la
+  // tarjeta, con el teclado, el foco también pasa a la vecina si sigue en el
+  // botón que eliminó o en `<body>` (con el mouse no se mueve). La tarjeta sale
+  // después de que la mutación termina (la caché avisa en otra vuelta), así
+  // que se mueve antes de que el botón desaparezca. Si falla, la mutación
+  // avisa y la tarjeta vuelve con el foco en su botón. Con otro en vuelo no
+  // hace nada: es la última defensa, porque los botones ya están apagados.
+  const deleteFromHeyGenAndFocus = async (avatar: AvatarSummary) => {
+    if (heyGenDeleteInFlight) return
+
+    const trigger = document.activeElement
+    const fromKeyboard = lastInputWasKeyboard()
+    const next = focusAfterLeaving(avatar.id)
+    if (avatar.id === selectedId) panelReturnRef.current = next
+    setDeletingId(avatar.id)
+    const result = await deleteFromHeyGen(avatar).catch(() => null)
+    setDeletingId(null)
+    if (!result || !fromKeyboard) return
+
+    const active = document.activeElement
+    if (active === trigger || active === document.body) next?.focus()
   }
 
   return (
@@ -242,8 +292,13 @@ export function AvatarLibrary() {
               <AvatarCard
                 avatar={entry}
                 disabled={!isNative}
+                deleting={deletingId === entry.id}
+                deleteDisabled={heyGenDeleteInFlight}
                 onOpen={(avatar) => openPanel(avatar.id)}
-                onDelete={(avatar) => deleteAvatar(avatar.id)}
+                onDelete={removeFromCard}
+                onDeleteFromHeyGen={(avatar) =>
+                  void deleteFromHeyGenAndFocus(avatar)
+                }
               />
             </li>
           ))}
@@ -267,8 +322,13 @@ export function AvatarLibrary() {
             selectedAvatar.id === linkedId ? linkedRatio : undefined
           }
           returnFocusRef={panelReturnRef}
+          deleting={deletingId === selectedAvatar.id}
+          deleteDisabled={heyGenDeleteInFlight}
           onClose={closePanel}
-          onRemove={() => removeFromPanel(selectedAvatar.id)}
+          onRemove={() => removeFromPanel(selectedAvatar)}
+          onDeleteFromHeyGen={() =>
+            void deleteFromHeyGenAndFocus(selectedAvatar)
+          }
         />
       )}
     </div>

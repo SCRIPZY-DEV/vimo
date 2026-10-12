@@ -10,7 +10,7 @@ import type { TimelineAvatarBlock } from '@/modules/videos/utilities/timelineBlo
 interface TimelineAvatarItemProps {
   block: TimelineAvatarBlock
   selected: boolean
-  // Render en curso desde el editor (entrega 3); undefined = ninguno.
+  // Render en curso desde el editor (entrega 2d); undefined = ninguno.
   rendering: SceneAvatarRendering | undefined
   // Cache-buster de la imagen fija de la escena.
   version: number | undefined
@@ -21,9 +21,10 @@ interface TimelineAvatarItemProps {
 // tarjeta morada con la vista previa del look como miniatura (el look ES el
 // escenario, cambio de dirección del dueño del 2026-10-10: el sidecar se la
 // pone a la escena como imagen fija; sin la copia, un gradiente). Planeado
-// (sin clip todavía), generando (avance simulado), listo, fallido (velo rojo
-// y el motivo) o desactualizado (etiqueta y franja). Sin asas: en la entrega
-// 2 sus fronteras no se mueven.
+// (sin clip todavía), generando (avance simulado desde que arranca su render;
+// en cola, sin porcentaje), listo, fallido (velo rojo y el motivo) o
+// desactualizado (etiqueta y franja). Sin asas: en la entrega 2 sus fronteras
+// no se mueven.
 export function TimelineAvatarItem({
   block,
   selected,
@@ -33,7 +34,9 @@ export function TimelineAvatarItem({
 }: TimelineAvatarItemProps) {
   const { t, i18n } = useTranslation()
   const generating = block.state === 'generating'
-  const percent = useAvatarRenderPercent(generating ? rendering : undefined)
+  const percent = useAvatarRenderPercent(
+    generating && !rendering?.queued ? rendering : undefined,
+  )
   const seconds = formatSlotSeconds(
     block.endSeconds - block.startSeconds,
     i18n.resolvedLanguage ?? 'es',

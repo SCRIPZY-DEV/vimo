@@ -18,9 +18,14 @@
   planificador, filtros y favoritos del stock, reproductor de looks y borrador de Crear; evidencia en
   `execution-e2b/` (interno)) y la **entrega 2c** (plan en `plan-e2c.md` (interno):
   eliminar en HeyGen, formato de los looks, título del video en cada render, coral legible en tema
-  claro y la tarjeta de Crear con el formato del look; evidencia en `execution-e2c/` (interno)).
-  Pendiente: la QA del dueño en `0.9.3-editor.6` ([qa-2c.md](execution-e2c/qa-2c.md)), con los
-  puntos que gastan saldo de HeyGen. La entrega 3 (el avatar desde el editor) no tiene plan todavía.
+  claro y la tarjeta de Crear con el formato del look; evidencia en `execution-e2c/` (interno)) y la
+  **entrega 2d** (plan en `plan-e2d.md` (interno): el reproductor de Crear con «Usar», los textos de
+  avatares sin el nombre del proveedor, eliminar de la lista o de HeyGen, una aparición que falla que no
+  frena el video, la escena desactualizada que no se paga sola, el mínimo de 5 s y «Generar» / «Regenerar»
+  desde el editor; evidencia en `execution-e2d/` (interno)). Pendiente: la QA del dueño de la 2d
+  ([qa-2d.md](execution-e2d/qa-2d.md), con la app de prueba que ahí se nombra), con los puntos que gastan
+  saldo de HeyGen. Lo que falta de la entrega 3 (cambiar de avatar, «Avatar aquí», mover y estirar, quitar)
+  no tiene plan todavía.
 - **ADR:** [ADR-0057](../../adr/ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md).
 - **Relacionadas:** ADR-0013 (confirmación de escenas), ADR-0014 (edición sobre stages), ADR-0033
   (personajes con foto), ADR-0041/0042/0047 (clips animados como bloque), ADR-0046 (recuperación de
@@ -189,6 +194,12 @@ lo incrementa `replace-narration`, §11.4). Estados que ve la UI:
 
 `stale` es siempre derivado al leer (`toSceneSummary`), nunca persistido.
 
+**Desde la entrega 2d (§20)** `stale` se deriva en TODA escena `ready` desactualizada, también en la que
+perdió su clip (esa sigue viniendo con `status: 'failed'` y `avatar_download_failed`). Para mostrar una
+escena lista, `stale` manda sobre `failed`: el bloque y el panel del editor la muestran **desactualizada**,
+porque regenerarla paga un render nuevo y el texto de la descarga promete que no se cobra otra vez. Una
+`ready` al día que perdió su clip sí sigue fallida (repetir el mismo pedido reusa el video ya pagado).
+
 ### 3.4 Opciones del proyecto
 
 ```ts
@@ -200,7 +211,7 @@ avatar?: {
   lookType: AvatarLookType
   engine: AvatarEngine
   appearances: number // 1..10
-  secondsPerAppearance: number // 7..60
+  secondsPerAppearance: number // 5..60
   startWithAvatar: boolean // la primera aparición abre el video
   placement: 'auto' | 'manual' // manual = sin cortes al crear; se agregan desde el editor (entrega 3)
 }
@@ -220,7 +231,7 @@ la UI las necesita):
 
 | Constante                            | Valor                             | Para qué                                                     |
 | ------------------------------------ | --------------------------------- | ------------------------------------------------------------ |
-| `AVATAR_MIN_APPEARANCE_SECONDS`      | 7                                 | Mínimo por aparición (decisión del dueño del 2026-10-07)     |
+| `AVATAR_MIN_APPEARANCE_SECONDS`      | 5                                 | Mínimo por aparición (5 desde la 2d; antes 7)                |
 | `AVATAR_MAX_APPEARANCE_SECONDS`      | 60                                | Máximo por aparición                                         |
 | `AVATAR_DEFAULT_APPEARANCE_SECONDS`  | 10                                | Valor inicial del formulario                                 |
 | `AVATAR_MIN_APPEARANCES`             | 1                                 |                                                              |
@@ -306,8 +317,10 @@ export function planAvatarSpans(
 
 - **Ajuste a frases (`fit`).** Desde una frase de inicio, suma frases enteras mientras acercarse a
   `secondsPerAppearance` mejore: incluye la siguiente solo si |largo − objetivo| baja. Nunca menos de
-  `AVATAR_MIN_APPEARANCE_SECONDS` (sigue sumando) ni más de `AVATAR_MAX_APPEARANCE_SECONDS`. Si el
-  audio se acaba antes de llegar al mínimo, esa aparición no cabe.
+  `AVATAR_MIN_APPEARANCE_SECONDS` (5 s desde la entrega 2d, pregunta 4 del dueño; 7 hasta la 2c; sigue
+  sumando) ni más de `AVATAR_MAX_APPEARANCE_SECONDS`. Si el audio se acaba antes de llegar al mínimo, esa
+  aparición no cabe. Los ejemplos con números de esta sección se escribieron con el mínimo de 7 s: con el de
+  5 s algunos dan otro plan (el guard lee la constante y reescaló sus casos).
 - **Primera aparición.** Con `startWithAvatar`, `fit` desde la frase 0: el video abre con el avatar.
   Si la apertura no cabe (la primera frase sola pasa el máximo, o el audio es más corto que el
   mínimo), cuenta como UNA aparición descartada y las demás se reparten como sin apertura (nunca
@@ -412,7 +425,7 @@ export function cutScenesAroundPins(
 **Confirmación de escenas (ADR-0013).** `suggestedScenes` cuenta todas las escenas, avatar incluido.
 El evento `awaiting-scene-confirmation` suma `avatarSpans: [{ startSeconds, endSeconds }]` y el
 diálogo muestra una línea: «El avatar aparece 3 veces (0:00–0:11, 1:02–1:13, 2:10–2:19)» con el costo
-real («Costo en HeyGen: ≈ X US$», calculado sobre esos tramos ya absorbidos). Cambiar la
+real («Costo del avatar: ≈ X US$», calculado sobre esos tramos ya absorbidos). Cambiar la
 cantidad o los segundos en el diálogo solo reparte las escenas libres; los pines no se mueven; el
 «≈ N escenas · M imágenes» del diálogo sale de `countScenesAroundSpans` con los tramos reales (nunca
 del número elegido a mano; con prefijo animado, una cantidad mayor se acota). Si ninguna aparición entra
@@ -531,8 +544,9 @@ Pago una sola vez, como el carril de Kie (ADR-0042), pero con recibos propios en
    proyecto se marca desactualizado solo con el checkpoint que trae un clip nuevo; el carril barre al
    entrar los temporales (`.cut-tmp.wav`, `.normalize-tmp.mp4`) que un job matado dejó para su escena.
 4. **Espera.** `getVideo` cada `AVATAR_POLL_INITIAL_MS`, creciendo ×1,5 hasta `AVATAR_POLL_MAX_MS`;
-   `AVATAR_RENDER_CONCURRENCY` a la vez; plazo `AVATAR_RENDER_DEADLINE_MS` → `avatar_timeout` (el
-   recibo queda `pending`: se cosecha en la próxima corrida, no se vuelve a pagar).
+   `AVATAR_RENDER_CONCURRENCY` a la vez; plazo `AVATAR_RENDER_DEADLINE_MS` → `avatar_timeout` (el recibo
+   queda `pending` y no se vuelve a pagar: lo cosecha sin pagar el «Regenerar» del editor, o reanudar si la
+   fase no terminó).
 5. **Descarga** con el `video_url` (vence: se persiste y se vuelve a pedir si venció) a
    `scene_<id>.<hash8>.raw.mp4`, reusando `saveClipToFile` (200 MB, magic bytes mp4).
 6. **Normalización** a `scene_<id>.<hash8>.mp4`: escala y recorte al cuadro del render (1920×1080 o
@@ -565,7 +579,10 @@ puede animar con Kie ni marcar para animar.
 
 - `STAGE_IDS` gana `'avatar'` entre `images` y `animation`; `CREATE_VIDEO_STAGES` igual;
   `PIPELINE_STAGES` y `create.stages.avatar` en la UI.
-- `skip()`: no hay escenas de avatar, o todas están `ready` con clip válido.
+- `skip()`: no hay escenas de avatar, o ninguna está pendiente (`isAvatarScenePending`: una `ready`
+  desactualizada no lo está aunque le falte el clip, §20), o la fase ya está en `completedStages`
+  (terminada: no vuelve a correr al reanudar; lo que dejó con la imagen fija se regenera desde el editor, y
+  una pausa de la cuenta no la completa).
 - `run()`: (1) saldo con `me()` **antes de cada escena que paga** (no solo al inicio), contra lo que
   falta pagar en la corrida (estimación exacta por la duración real de la escena, en cuadros); si no
   alcanza, o HeyGen responde 402 (o un fallo cuyo código habla de saldo), pausa con `pauseReason:
@@ -575,12 +592,19 @@ puede animar con Kie ni marcar para animar.
   `creating`/`pending`/`ambiguous` (por su título guardado y su marca, o repitiendo la misma clave, sin pasar por el saldo
   porque HeyGen deduplica); (2) carril por escena pendiente, tres a la vez, con una cola de escrituras
   compartida que relee `scenes.json` bajo el lease de escena; `avatar-scene-started` se emite una vez
-  por escena y corrida; (3) si alguna no quedó `ready`, la fase falla con `avatar_incomplete` y el
-  código dominante, como imágenes: reanudar solo retoma lo que falta (rulings del 2026-10-10, tarea 8).
-  Ola final: si el código dominante es de la cuenta, la fase lanza ESE código (gana aunque otra escena
-  haya sido rechazada); una escena cuyo último intento `failed` del mismo pedido fue moderación o look
-  no soportado no se vuelve a pedir sola (queda `failed`, con aviso; desde el editor sí, con
-  `retryFinalRejection`).
+  por escena y corrida; (3) si alguna no quedó `ready` por un fallo de la escena (render fallido, plazo
+  vencido, moderación, look no soportado, descarga, HeyGen caído), la fase **termina** con un aviso `warn`
+  en el log y el render deja esa escena con la imagen fija del look (§10.1). Así es **desde la entrega 2d**
+  (§20): hasta la 2c la fase fallaba con `avatar_incomplete` y el código dominante, como imágenes, y
+  reanudar retomaba lo que faltaba (rulings del 2026-10-10, tarea 8). Terminada, reanudar NO la vuelve a
+  correr —su `skip` mira `completedStages`, donde el pipeline la anota solo si `run` terminó—: esas
+  apariciones se regeneran desde el editor, que también cosecha sin pagar un recibo `pending` vencido
+  (ruling R-P2). Solo la cuenta la frena: si el código dominante es de la cuenta (`avatar_invalid_key`,
+  `missing_api_key`, `avatar_insufficient_credits`), la fase lanza ESE código (gana aunque otra escena haya
+  sido rechazada), pausa o falla como voz e imágenes y NO se completa, así que reanudar retoma lo pendiente;
+  `avatar_incomplete` queda solo en proyectos de antes de la 2d. Una escena cuyo último intento `failed` del
+  mismo pedido fue moderación o look no soportado no se vuelve a pedir sola (queda `failed`, con aviso;
+  desde el editor sí, con `retryFinalRejection`).
 - `avatar-planned { sceneIds, dropped }` se emite apenas se conoce el plan, ANTES de la pausa
   `awaiting-scene-confirmation` (una vez por corrida; el job que sigue a la confirmación lo vuelve a
   emitir), y el estado del proyecto con que la app rearma la pausa tras reiniciar trae `avatarSpans` y
@@ -596,7 +620,8 @@ puede animar con Kie ni marcar para animar.
 - Desde el editor, el comando `avatar-render-scenes { projectId, sceneIds }` corre el mismo carril
   para esas escenas, con el lease de animación (`withProjectAnimationLease`: las lecturas siguen
   disponibles mientras se guardan recibos). `isProjectBusy` / la admisión del editor lo tratan como a
-  `animate-scenes`.
+  `animate-scenes`. Desde la entrega 2d lo lanzan el «Generar» / «Regenerar» del panel y del aviso del
+  editor (§11.1), con el costo y el saldo a la vista antes de confirmar.
 
 ## 9. Crear: la sección «Avatar»
 
@@ -612,7 +637,7 @@ aviso de clave):
   (`AVATAR_DEFAULT_ENGINE = 'avatar_iii'`); el avatar elegido tiene que soportarlo (su look principal
   lo trae en `supportedEngines`). Si algún día vuelven Avatar IV o V, el selector muestra solo los que
   soporta el avatar, con su precio por minuto al lado.
-- **Apariciones:** 1–10, por defecto 3. **Segundos por aparición:** 7–60, por defecto 10.
+- **Apariciones:** 1–10, por defecto 3. **Segundos por aparición:** 5–60 (7–60 hasta la 2c), por defecto 10.
 - **Empieza con el avatar:** casilla, por defecto activa.
 - **Total y costo:** con Avatar III, «30 s de avatar ≈ 0,50 USD» para un avatar de foto o de estudio
   (0,99 USD por minuto) y ≈ 0,30 USD para un gemelo digital (0,60 por minuto), con la fórmula
@@ -620,16 +645,18 @@ aviso de clave):
   imágenes cuenta solo las escenas libres. El chequeo de saldo compara en dólares solo si
   `avatar-balance` devuelve `currency: 'usd'` (la OpenAPI admite `credits`): con otra moneda muestra
   el saldo sin bloquear.
-- **Aviso de moderación** (una línea): HeyGen rechaza contenido político, violento o engañoso y el uso
-  de personas reales sin permiso.
+- **Aviso de moderación** (una línea): no se acepta contenido político, violento o engañoso, ni usar a
+  personas reales sin su permiso (`create.avatar.moderationHint`; desde la 2d no nombra al proveedor, §20).
 - Sin clave de HeyGen: la tarjeta avisa y enlaza a Claves API; el interruptor queda apagado, y si la
   clave desaparece con Crear abierto el avatar se apaga en el formulario (derivado, no con efecto):
   nunca viaja `options.avatar` sin clave. Crear refresca los looks que siguen procesándose (al volver
   de «Crear escenario») y un look generado conserva la orientación del formato pedido si HeyGen no la
   informa. Durante la fase, un `avatar-provider-trouble` se muestra como aviso pasajero traducido.
 - Sin saldo: bloqueo, como con las demás líneas (`useCostCheck` lee el saldo del dominio `avatar`).
-  Al reanudar un proyecto con escenas de avatar pendientes, el costo se muestra como techo
-  («necesitás hasta X»): la fase relee el saldo antes de cada escena y puede pagar menos.
+  Al reanudar un proyecto con escenas de avatar pendientes, el costo se muestra como techo («necesitás hasta
+  X»): la fase relee el saldo antes de cada escena y puede pagar menos. Desde la entrega 2d solo cuenta lo
+  que la fase va a pagar: una escena desactualizada no cuenta aunque le falte el clip, y con la fase
+  terminada no cuenta nada (§8, §20).
 - No se ofrecen avatares que HeyGen perdió (`failed` con `errorCode: 'avatar_group_missing'`, aunque
   sus looks sigan «listos» en disco); `create-video-project` los rechaza igual con ese código, antes
   de pagar nada (ruling del 2026-10-10, tarea 12).
@@ -672,13 +699,15 @@ La opción «Lo elijo en el editor» (`placement: 'manual'`) aparece en la entre
   formato (`lookFormatOf`: 16:9, 9:16, 1:1…) y «Principal» en el principal; los del otro formato,
   los que no están listos y los que no tienen Avatar III se ven pero no se eligen (atenuados, con el
   motivo: «Para videos 9:16»), y un look sin orientación en la biblioteca dice «Sin orientación
-  confirmada» aunque su chip muestre un formato sacado de las medidas del listado. Las fichas que no
-  se eligen siguen enfocables con el teclado (`aria-disabled`) para llegar a su motivo y a su video.
-  La grilla tiene una altura máxima con scroll; elegir un look lo marca, cierra la grilla, deja el
-  foco en el botón y actualiza la tarjeta de arriba. Debajo sigue la línea de ayuda del look (no
+  confirmada» aunque su chip muestre un formato sacado de las medidas del listado. Las fichas que no se
+  eligen siguen enfocables con el teclado (`aria-disabled`) para llegar a su motivo y a su video (superado
+  por la entrega 2d: ya no son `aria-disabled`, abren el reproductor y dicen su motivo allí). La grilla
+  tiene una altura máxima con scroll; elegir un look lo marca, cierra la grilla, deja el foco en el botón y
+  actualiza la tarjeta de arriba (superado por la entrega 2d: tocar una ficha abre su reproductor y «Usar»
+  elige; ver abajo). Debajo sigue la línea de ayuda del look (no
   aparece si no hay nada que elegir).
 - **Aviso de moderación destacado:** un recuadro `role="note"` con ícono de escudo, el título
-  «Normas de contenido de HeyGen» y el texto de siempre, con fondo y borde saffron suaves, en vez de
+  «Normas de contenido» y el texto de siempre, con fondo y borde saffron suaves, en vez de
   una línea gris.
 - **El borrador de Crear sobrevive a la navegación.** «Crear escenario», «Administrar avatares»,
   «Crear un avatar» e «Ir a Claves API» sacan de Crear; antes, al volver, el formulario arrancaba
@@ -696,6 +725,21 @@ La opción «Lo elijo en el editor» (`placement: 'manual'`) aparece en la entre
   pausa) sale de la preferencia actual. Cerrar sesión no borra el borrador (igual que la tarea en
   curso; un reinicio sí): residual aceptado en una app de escritorio de una sola persona (rulings del
   2026-10-11).
+- **Desde la entrega 2d (QA del dueño del 2026-10-11, noche, §20) tocar una ficha de la grilla «Look» ya no
+  elige: abre el reproductor del look.** La grilla es una lista de botones (una `ul` con un `li` por look,
+  `aria-haspopup="dialog"`; el elegido lleva `aria-current` y dice «Elegido»; deja de ser un `radiogroup`,
+  porque un clic ya no elige). Un clic, Enter o Espacio en una ficha abre el `LookPlayerDialog` del módulo
+  `avatars` (`CreateLookPlayer`) con el nombre del look, sus chips, su imagen y su video de vista previa (el
+  mismo del hover; mientras el listado de HeyGen llega, un spinner, y si no lo trae, «sin video»). Un look
+  que sirve abre con la acción `use`: **«Usar»** elige el look, cierra el reproductor y la grilla y deja el
+  foco en el botón «Look» (el ya elegido no cambia nada). Un look que no sirve (otro formato, generándose,
+  fallido, sin Avatar III, sin orientación confirmada) abre igual y dice por qué con una frase entera, sin
+  «Usar»: el reproductor traduce el motivo sin variables, así que tiene su clave por motivo
+  (`LOOK_PLAYER_REASON_KEYS`) aparte de las etiquetas de la ficha. Cerrar sin elegir (X, Escape o clic
+  afuera) devuelve el foco a la ficha (`returnFocusRef`; tras «Usar» apunta al botón «Look», porque la ficha
+  se va con la grilla). El reproductor sigue a lo que se muestra: si cambia el avatar que se mira o se
+  deshabilita el formulario, se cierra sin elegir y no se reabre solo al volver. Arranca solo, como en
+  Avatares (§12.2).
 
 Estimación (`estimateCreateCost`): línea `{ domain: 'avatar', providerId: 'heygen', unit: 'usd' }`;
 `CreditsDomain` gana `'avatar'`, `creditsDomainOf('avatar_…')`, el prefijo `avatar_` en
@@ -711,8 +755,16 @@ Kie: eso es un bug latente para cualquier proveedor nuevo).
 clipPath, clipSeconds, cameraIndex }` (su `imagePath` es la vista previa del look, §6.2). La regla de
 solapamiento ya existente descarta cualquier clip de Kie que pise ese tramo (no debería haber: §7.4).
 Una escena de avatar sin clip válido o desactualizada renderiza **estática con la vista previa del
-look** (con el movimiento de cámara de siempre) y un `warn`: el video nunca queda con un hueco. El
-fundido de 8 cuadros en los bordes de un clip (`transitions.ts`) aplica igual.
+look** (con el movimiento de cámara de siempre) y un `warn`: el video nunca queda con un hueco. Desde la
+entrega 2d este es también el camino de una aparición que falla (§8, §20): el video sale en vez de frenarse.
+**Qué apariciones salen así lo decide una sola regla**, `isAvatarFallback`
+(`src/modules/videos/utilities/avatarFallback.ts`): manda lo que pasó en la corrida y, si no, la vista;
+cuentan las fallidas y la lista que perdió su clip; una desactualizada no cuenta nunca (su fila dice
+«Desactualizada»); una planeada cuenta solo en un proyecto ya hecho (contexto `project`; en la pantalla de
+progreso, contexto `progress`, todavía la genera la fase). La comparten la fila de cada aparición, el aviso
+del final de Crear, el del reproductor de la biblioteca y el del editor, y el aviso dice cuántas salieron
+así y que se regeneran desde el editor. El fundido de 8 cuadros en los bordes de un clip (`transitions.ts`)
+aplica igual.
 
 **Subtítulos de una escena de avatar** (`pipeline/stages/render/subtitles.ts`): una línea por frase
 de la narración, recortada al tramo de la escena. Desde la entrega 2b (ruling del 2026-10-11) una
@@ -767,6 +819,28 @@ nombre), el motor, el estado (§3.3), la duración, el costo estimado y los boto
 regeneración de imagen de siempre), **Cambiar avatar** (otro look de la biblioteca → planeado) y
 **Quitar avatar** (§11.3). Un bloque desactualizado explica por qué (narración nueva o tramo movido).
 
+**Desde la entrega 2d (adelantado de la entrega 3, §20)** el panel de una escena de avatar ya tiene el
+«Generar» / «Regenerar», sin «Regenerar fondo» (la escena de avatar no tiene imagen que regenerar, §6.2).
+Explica la escena con la nota `avatarSceneHint` y ofrece **Generar avatar** (planeada), **Regenerar avatar**
+(fallida, desactualizada —con o sin clip— o lista sin clip) y, con más de una escena de avatar sin clip
+válido o desactualizada, **Regenerar todos (N)** (§11.4). Una lista y al día, o una que se está generando,
+no ofrece nada. El botón abre una confirmación con la cantidad y el costo (el de Crear, por la duración real
+de cada tramo, `avatarSpansCostEstimate`) y el saldo de avatares, que se relee antes de pagar: si no
+alcanza, lo dice y «Generar» queda apagado; sin la clave, el aviso de Crear. Confirmar corre
+`avatar-render-scenes { projectId, sceneIds }` como una tarea del editor (`startAvatarRender`, con el patrón
+de `startRegeneration`): una a la vez con las demás del proyecto —Crear tampoco lanza ni reanuda el pipeline
+de ese proyecto mientras tanto: avisa que está ocupado— y cancelable (lo pagado queda en los
+recibos y se cosecha sin cobrar), con el avance de los eventos `avatar-scene-*` en el bloque del timeline
+(«Generando el avatar…»; las pedidas esperan en cola, sin porcentaje, hasta que su render arranca). Al
+terminar se relee el proyecto: el bloque queda listo con su clip o fallido con su motivo, con un aviso
+`listo` si todas quedaron listas, y el video exportado queda desactualizado como con cualquier cambio del
+editor. Una tecla sostenida no paga dos veces ni cancela lo que acaba de confirmar; al arrancar, el foco va
+a la región del avance y, al terminar, vuelve al botón que abrió la confirmación o al panel de la escena,
+nunca a `body`. Arriba del editor, el aviso de las apariciones con la imagen fija (§10.1) ofrece
+«Regenerarlas (N)» con la misma confirmación (§11.4). El costo de un clip ya pagado que solo hay que volver
+a bajar se muestra completo (un techo seguro; marcarlo «recuperable sin costo» queda para la entrega 3).
+«Cambiar avatar», «Quitar avatar», «Avatar aquí», mover y estirar siguen en la entrega 3.
+
 ### 11.2 Agregar, mover y estirar
 
 - **«Avatar aquí»** en el panel de cualquier escena normal: propone un tramo desde la frase más cercana
@@ -776,7 +850,8 @@ regeneración de imagen de siempre), **Cambiar avatar** (otro look de la bibliot
   ordenado por tiempo), recorta las vecinas parciales y quita las escenas que quedan enteras dentro
   (sus imágenes quedan en disco). Devuelve el detalle nuevo; el render de HeyGen corre aparte.
 - **Asas:** estirar un extremo ajusta a la frontera de frase más cercana (el detalle del proyecto trae
-  `sentences`), respeta el mínimo de 7 s y mueve tiempo con la vecina, como la frontera arrastrable
+  `sentences`), respeta el mínimo (`AVATAR_MIN_APPEARANCE_SECONDS`, 5 s desde la 2d) y mueve tiempo con la
+  vecina, como la frontera arrastrable
   de siempre (`update-scenes`). Mover el bloque entero = las dos fronteras. El tramo nuevo deja el
   clip **desactualizado** (el `renderHash` ya no coincide) hasta que el usuario regenera; el fondo se
   conserva.
@@ -793,8 +868,17 @@ poner el avatar es «Avatar aquí» otra vez, y si el hash coincide, el carril r
 
 `replace-narration` incrementa `metadata.narrationVersion` además de redistribuir los tiempos. Toda
 escena de avatar queda **desactualizada** al leerse (§3.3): el bloque lo muestra, el render la salta
-(estática con la vista previa del look) y el panel ofrece «Regenerar» o «Regenerar todos» con el costo total. Así
-nunca queda un avatar hablando con los labios de otra narración.
+(estática con la vista previa del look) y el panel ofrece «Regenerar» o «Regenerar todos» con el costo
+total. Así nunca queda un avatar hablando con los labios de otra narración.
+
+Desde la entrega 2d (§20) esto ya funciona: reanudar NO paga una escena desactualizada aunque le falte el
+clip (§8) y se regenera desde el editor, con el costo a la vista. Hay **dos «Regenerar» con alcance
+distinto**: el del panel, «Regenerar todos (N)», cuenta todas las escenas de avatar sin clip válido o
+desactualizadas; el del aviso de arriba del editor, «Regenerarlas (N)», pide exactamente las que el aviso
+cuenta —la regla única `isAvatarFallback` en el contexto `project` (§10.1) y solo escenas con tramo
+(`editorFallbackSceneIds`)—, sin las desactualizadas, así que los dos números pueden diferir. El aviso del
+editor tiene su propio texto (`library.editor.avatar.fallbackNote`), sin la frase «podés regenerarlas desde
+el editor», que ahí sería circular.
 
 ## 12. Biblioteca de avatares y clave de HeyGen (entrega 1)
 
@@ -907,8 +991,9 @@ Personajes), con el patrón de la biblioteca de personajes:
   local; nunca borra en HeyGen). Todos de solo lectura salvo los que escriben la carpeta.
 - **Vista `AvatarLibrary`** (rehecha en la entrega 1b tras la QA del dueño del 2026-10-09; plan
   `plan-e1b.md` (interno)): en la cabecera, el **saldo de HeyGen** (`avatar-balance`; en dólares con
-  `formatUsd`, otra moneda como créditos; se relee al instante y a los 20 s de cada cobro, con un
-  botón para los casos especiales) y los botones «Agregar de stock» y «Crear desde foto». Cuadrícula
+  `formatUsd`, otra moneda como créditos; se relee al instante y a los 20 s de cada cobro, con un botón para
+  los casos especiales; desde la 2d la píldora dice «Saldo · US$ …» y no nombra al proveedor) y los botones
+  «Agregar de stock» y «Crear desde foto». Cuadrícula
   de **una tarjeta por avatar**: la cara del look principal anclada arriba (`aspect-[4/5]`) y, si
   hay otros looks con vista previa, dos miniaturas a la derecha; chips del tipo y de **Avatar III**
   (el único motor que Vimo usa por ahora) o «No compatible con Vimo»; el entrenamiento se muestra sin
@@ -917,7 +1002,8 @@ Personajes), con el patrón de la biblioteca de personajes:
   principal» y «Usar como principal», la tarjeta **«Crear escenario»** (solo en avatares propios:
   descripción de hasta 1000 caracteres, formato, hasta 3 imágenes de referencia, el costo sin cifra
   —HeyGen no la publica— con el saldo al lado y el aviso de que repetir la misma descripción
-  devuelve el mismo look) y quitar en dos pasos. «Agregar de stock» navega como HeyGen en dos
+  devuelve el mismo look) y quitar en dos pasos (superado por la 2d: el menú de eliminar, abajo). «Agregar
+  de stock» navega como HeyGen en dos
   niveles: los avatares (grupos) con búsqueda y chips de género del lado del cliente y video de
   vista previa al pasar el mouse, y los looks de cada uno para elegir el principal; esqueletos
   mientras carga y un error de «Cargar más» que no borra lo ya cargado; sin filtro por tipo (los
@@ -948,7 +1034,7 @@ Personajes), con el patrón de la biblioteca de personajes:
     `data: []` pasajero no deja los filtros vacíos un día entero) y sirve la caché que haya; en la app,
     una clasificación vacía cuenta como no disponible y se vuelve a pedir al reabrir el stock
     («Clasificando…» mientras llega). Mientras clasifica, los chips se pueden tocar y la grilla dice
-    «Clasificando los avatares de HeyGen…»; si falla, lo dice y «Todos» sigue andando. «Favoritos»
+    «Clasificando los avatares del stock…»; si falla, lo dice y «Todos» sigue andando. «Favoritos»
     son los avatares marcados con el corazón de la tarjeta, guardados en esta máquina (store
     `avatars.json` de la app, clave `stockFavorites`, ids de grupo), con las escrituras en fila y una
     relectura del store cuando la fila se vacía tras un fallo. Vimo nunca borra un favorito por su
@@ -975,8 +1061,11 @@ Personajes), con el patrón de la biblioteca de personajes:
     su fila), así una tarjeta con el estado del entrenamiento no deja escalones ni estira las demás
     filas. Quitar un favorito desde «Favoritos» con el teclado deja el foco en el corazón de la
     tarjeta vecina (o en el chip «Favoritos» si no queda ninguna), nunca en la caja del diálogo.
-  - **Entrega 2c (QA del dueño del 2026-10-11, tarde, §19).** La pestaña de los avatares propios se
-    llama «Mis avatares» (antes «Mis avatares en HeyGen»: es obvio que son de HeyGen). En esa
+  - **Entrega 2c (QA del dueño del 2026-10-11, tarde, §19).** La pestaña de los avatares propios se llama
+    «Mis avatares» (antes «Mis avatares en HeyGen»: es obvio que son de HeyGen). Los borrados que describe
+    esta viñeta —el tacho de dos pasos de esa pestaña y el «Quitar» → «Seguro» de la tarjeta y del panel de
+    la biblioteca— los reemplaza el menú de eliminar de la entrega 2d (abajo); lo demás (el subcomando, el
+    404, las guardas de tecla sostenida y doble clic, un borrado a la vez, el foco) sigue. En esa
     pestaña, cada tarjeta trae un botón (un tacho, arriba a la izquierda) para **eliminar el avatar
     de HeyGen de verdad**: aparece con el mouse o el foco, pide confirmación en dos pasos («Eliminar
     de HeyGen» → «¿Eliminar para siempre?», con la explicación de que se borra de la cuenta de
@@ -1003,14 +1092,54 @@ Personajes), con el patrón de la biblioteca de personajes:
     (`aspect-[4/5]`, recorte anclado arriba) sea el look vertical u horizontal; un clic en una ficha
     abre el **reproductor del look** (`LookPlayerDialog`, como el modal de HeyGen): el nombre, sus
     chips, el video entero en su formato real sobre un escenario oscuro con la imagen desenfocada de
-    fondo, un botón grande de reproducir (no arranca solo: el sonido se activa con el clic), y la
-    barra con reproducir/pausar, la línea de tiempo, el tiempo, silenciar, la velocidad (0,5×, 1×,
+    fondo, un botón grande de reproducir (arranca solo, desde la entrega 2d: con sonido o, si el navegador
+    no lo deja, silenciado y con «Activar el sonido»; en la 2b esperaba un clic), y la barra con
+    reproducir/pausar, la línea de tiempo, el tiempo, silenciar, la velocidad (0,5×, 1×,
     1,5×, 2×) y pantalla completa si el navegador la permite. El pie depende de dónde se abre: en el
     stock, «Cargar a la biblioteca» (agrega el avatar con ese look como principal y abre su panel;
     el antiguo «Agregar con «look»» del pie desaparece y las fichas ya no se seleccionan) o, si el
     avatar ya está en la biblioteca, «Abrir en tu biblioteca»; en el panel de un avatar, «Usar como
     principal» (o «Es el look principal de este avatar.»); un look no compatible o que todavía se
     genera lo dice y no ofrece acción. Las vistas previas al pasar el mouse siguen mudas.
+  - **Entrega 2d (QA del dueño del 2026-10-11, noche, §20).**
+    - **El reproductor arranca solo** (R-2d-1) en los tres lugares donde se abre (segundo nivel del stock,
+      panel del avatar y Crear): al montarse con video llama a `play()` con sonido; si el navegador lo
+      rechaza por su política de reproducción automática (`NotAllowedError`), lo silencia, el botón de
+      sonido pasa a «Activar el sonido» y reintenta; otro rechazo (un video que no carga, un `AbortError`)
+      no lo silencia ni reintenta, y si tampoco arranca silenciado queda en pausa con el sonido de vuelta y
+      el botón grande; una respuesta que llega con el reproductor ya cerrado no toca el video. El video que
+      llega después (el panel espera la lista de looks) también arranca solo. Pausar, la línea de tiempo, la
+      velocidad, la pantalla completa y Escape siguen igual, y las vistas previas al pasar el mouse siguen
+      mudas. La lógica vive en `useLookPlayback`.
+    - **El botón de eliminar ofrece dos opciones** (R-2d-2), en un componente propio (`AvatarDeleteMenu`,
+      con su estado en `useAvatarDeleteMenu`) que usan la tarjeta y el panel de la biblioteca y «Mis
+      avatares» (ahí arriba a la izquierda de la imagen, con el mouse o el foco). **«Eliminar de la lista»**
+      saca el avatar de la biblioteca de Vimo sin otro paso (`avatar-delete`; sigue en HeyGen y se puede
+      volver a agregar; aviso «{{name}} salió de tu lista.»). **«Eliminar permanentemente de HeyGen»** (en
+      rojo; solo en un avatar propio, `ownership === 'own'`) se vuelve **«Seguro»** en su mismo lugar, con
+      «Este avatar se eliminará también de HeyGen. ¿Seguro?» y «Cancelar» en el lugar de la lista, y recién
+      ahí llama a `avatar-heygen-delete { groupId, name }` (aviso «{{name}} se eliminó de tu lista y de
+      HeyGen.»; sale de la biblioteca y de «Mis avatares»). Los lugares importan: la revisión midió que con
+      «Seguro» donde estaba «Eliminar de la lista» un clic de corrección borraba para siempre, así que sobre
+      la imagen la columna se apoya abajo y en el panel las opciones son dos celdas iguales. En «Mis
+      avatares», «Eliminar de la lista» aparece solo si el avatar está en la biblioteca; un avatar de stock
+      en la biblioteca solo tiene la lista.
+    - **Las guardas de la 2c siguen y se suman otras.** Ni una tecla sostenida ni el segundo clic de un
+      doble clic confirman, ni abren lo que queda debajo (la imagen y el nombre de la tarjeta, la tarjeta de
+      «Mis avatares»); sacarle el foco, Escape, «Cancelar», volver a tocar el botón, tocar el velo o salir
+      de la tarjeta lo cancelan, y el diálogo del stock no se cierra con un borrado de HeyGen en vuelo.
+      Nuevo: al abrir, el foco entra a la primera opción (el mousedown nunca lo mueve dentro del menú, así
+      se comporta igual en WebKit, donde un clic no enfoca un botón) sin desplazar la grilla
+      (`preventScroll` en todo foco del menú: con una opción a medias a la vista el navegador la traería
+      entera y «Seguro», más bajo, caería sobre la lista) y Escape cierra solo el menú y no el
+      diálogo de atrás; en la biblioteca hay un borrado de HeyGen a la vez (con uno en vuelo, el botón de
+      eliminar de las demás tarjetas y del panel queda apagado) y, tras «Eliminar de la lista», el foco del
+      teclado pasa a la tarjeta vecina o, con la biblioteca vacía, a «Agregar de stock». Mientras elimina de
+      HeyGen el botón dice «Eliminando…» (en la tarjeta de la biblioteca, un spinner con el texto para el
+      lector de pantalla, y la tarjeta apagada).
+    - **El saldo y los títulos no nombran al proveedor** (§13, R-2d-3): la píldora del saldo dice «Saldo ·
+      US$…» y el diálogo del stock se titula «Agregar un avatar» (con las pestañas «De stock» y «Mis
+      avatares»).
 
 ## 13. Textos (i18n)
 
@@ -1029,6 +1158,32 @@ lista final la cierra el plan; `pnpm check:locales` las valida):
 | `library.editor.panel.avatar.*` | `title`, `says`, `engine`, `status.*`, `generate`, `regenerate`, `regenerateBackdrop`, `changeLook`, `remove`, `addHere`, `cost`, `staleReason.*`                                                  |
 | `create.errors.*` (entrega 2)   | la familia `avatar_*` que aparece en pleno pipeline (§14); los códigos de la biblioteca de la entrega 1 ya viven en `avatars.errors.*`                                                             |
 
+**Desde la entrega 2d (§20)** se suman estas claves, y los textos de avatares dejan de nombrar al proveedor:
+
+- `avatars.*`: `eliminar.*` (`boton`, `botonAria`, `opcionesAria`, `deLista`, `deHeygen`, `confirmarHeygen`,
+  `seguro`, `cancelar`, `eliminando`), `reproductor.usar` y `usarHint`, `saldo.etiqueta`,
+  `toasts.eliminadoLista` y `toasts.eliminadoHeygen` (texto nuevo).
+- `create.avatar.*`: `lookOpenAria`, `selectedLook` y `otherFormatHint`, `failedLookHint` y
+  `unknownOrientationHint` (las tres últimas son las frases del pie del reproductor de Crear para un look
+  que no sirve: el reproductor traduce el motivo sin variables).
+- `create.progress.*`: `avatarFallback_one` / `_other` (el aviso de las apariciones con la imagen fija) y
+  `avatarStale` («Desactualizada», la fila de una aparición desactualizada).
+- `library.editor.avatar.*`: `generar`, `regenerar`, `regenerarTodos`, `regenerarAviso`, `costo`, `saldo`,
+  `saldoInsuficiente`, `confirmarTitulo`, `confirmarTexto_one` / `_other`, `confirmar`, `cancelar`, `listo`,
+  `fallo` y `fallbackNote_one` / `_other` (el aviso de arriba del editor, sin la frase circular);
+  `library.editor.panel.avatarSceneHint` reemplaza a `avatarScene`.
+- **Sin el nombre del proveedor (R-2d-3).** Ningún texto visible de avatares, Crear, progreso, editor ni
+  errores nombra a HeyGen («el servicio de avatares», «tu saldo de avatares», «la clave del avatar
+  presentador»), salvo `apiKeys.categoria.avatar` (en Claves API el nombre identifica la clave) y las claves
+  del borrado en HeyGen (`avatars.eliminar.deHeygen`, `avatars.eliminar.confirmarHeygen` y
+  `avatars.toasts.eliminadoHeygen`). El guard `check-avatar-texts-without-provider.mjs` lo exige en los tres
+  catálogos, con una lista permitida de esas cuatro claves. Las citas de textos de pantalla de esta spec ya
+  son las vigentes.
+- **Claves borradas** (nueve por idioma): `library.editor.panel.avatarScene`, `avatars.tarjeta.eliminar` y
+  `confirmar`, `avatars.toasts.eliminado` y `avatars.stock.eliminarHeygen`, `eliminarHeygenAria`,
+  `eliminarConfirmar`, `eliminando` y `eliminarHint`: el menú de eliminar reemplazó al tacho de dos pasos y
+  al «Quitar» → «Seguro».
+
 ## 14. Errores
 
 | Código                             | Cuándo                                                                                                            | Qué ve el usuario / qué hace Vimo                                                                                                 |
@@ -1039,20 +1194,20 @@ lista final la cierra el plan; `pnpm check:locales` las valida):
 | `avatar_look_unsupported`          | 400 por motor/look (`param: engine` o `avatar_id`)                                                                | Elegir otro motor o avatar                                                                                                        |
 | `avatar_moderation_rejected`       | `failure_code` de moderación                                                                                      | Explica la política; no se cobra                                                                                                  |
 | `avatar_render_failed`             | otro `failure_code`                                                                                               | Reintentar; no se cobra                                                                                                           |
-| `avatar_timeout`                   | plazo vencido                                                                                                     | El recibo queda pendiente; la próxima corrida lo cosecha                                                                          |
+| `avatar_timeout`                   | plazo vencido                                                                                                     | El recibo queda pendiente; lo cosecha sin pagar el «Regenerar» del editor (reanudar, solo si la fase no terminó)                  |
 | `avatar_download_failed`           | descarga inválida o URL vencida sin reemplazo                                                                     | Reintentar (vuelve a pedir la URL)                                                                                                |
 | `avatar_network`                   | red / 5xx tras reintentos                                                                                         | Reintentar                                                                                                                        |
-| `avatar_incomplete`                | la fase terminó con escenas sin clip                                                                              | Reanudar solo lo que falta                                                                                                        |
+| `avatar_incomplete`                | hasta la 2c: la fase terminó con escenas sin clip; desde la 2d no la lanza                                        | Heredado: un proyecto detenido con este error antes de la 2d se reanuda y retoma lo que falta                                     |
 | `avatar_sentences_unavailable`     | sin `words.json` al planificar o insertar                                                                         | Transcribir primero                                                                                                               |
-| `avatar_invalid_request`           | otro 4xx de HeyGen que no es de look ni de moderación                                                             | «HeyGen respondió algo inesperado»; reintentar en un rato                                                                         |
-| `avatar_provider_error`            | 200 con un cuerpo que no tiene la forma esperada                                                                  | Ídem: «HeyGen respondió algo inesperado»                                                                                          |
+| `avatar_invalid_request`           | otro 4xx de HeyGen que no es de look ni de moderación                                                             | «El servicio de avatares respondió algo inesperado»; reintentar en un rato                                                        |
+| `avatar_provider_error`            | 200 con un cuerpo que no tiene la forma esperada                                                                  | Ídem: «El servicio de avatares respondió algo inesperado»                                                                         |
 | `avatar_photo_invalid`             | la foto no se lee, no es JPG/PNG (WEBP no) o supera los 12 MB                                                     | El mensaje de la foto: elegir otra (se valida antes de subirla, sin costo)                                                        |
 | `avatar_not_found`                 | el id del avatar ya no está en la biblioteca                                                                      | «Ese avatar ya no está en tu biblioteca»                                                                                          |
 | `avatar_training_failed`           | HeyGen no pudo entrenar el avatar desde la foto                                                                   | La ficha queda `failed` con «probá con otra foto»                                                                                 |
 | `avatar_main_look_not_ready`       | «Crear escenario» sobre un avatar sin look principal listo                                                        | «El avatar todavía no tiene un look principal listo»; sin hablar con HeyGen                                                       |
 | `avatar_no_compatible_look`        | el avatar no tiene ningún look listo con Avatar III                                                               | «Este avatar no tiene ningún look listo compatible con Vimo (Avatar III)»                                                         |
-| `avatar_group_missing`             | HeyGen responde 404 por el grupo del avatar al refrescar                                                          | La ficha queda `failed`: «HeyGen ya no tiene este avatar. Quitalo…»                                                               |
-| `avatar_look_not_listed`           | look por prompt aceptado sin `avatar_item` y aún sin listar                                                       | «HeyGen recibió el pedido…»; la vista lo vuelve a buscar a los 20 s                                                               |
+| `avatar_group_missing`             | HeyGen responde 404 por el grupo del avatar al refrescar                                                          | La ficha queda `failed`: «El servicio de avatares ya no tiene este avatar. Quitalo…»                                              |
+| `avatar_look_not_listed`           | look por prompt aceptado sin `avatar_item` y aún sin listar                                                       | «El servicio de avatares recibió el pedido…»; la vista lo vuelve a buscar a los 20 s                                              |
 | `avatar_look_unavailable`          | al crear: el look no es del avatar, no está listo con Avatar III o no tiene vista previa (ni la del avatar)       | Elegir otro look; texto en `create.errors.*` (entrega 2)                                                                          |
 | `avatar_look_orientation_mismatch` | al crear: el look no tiene la orientación del formato                                                             | Crear un look en ese formato («Crear escenario»); `create.errors.*`                                                               |
 | `avatar_timing_locked`             | mover la frontera de una escena de avatar con clip o recibos                                                      | Como `animation_timing_locked`; `create.errors.*` (mismo precedente que `animation_timing_locked`; la biblioteca lo hereda)       |
@@ -1062,11 +1217,10 @@ lista final la cierra el plan; `pnpm check:locales` las valida):
 Reglas del carril fijadas en la ola final del 2026-10-10 (ver §7.2): un rechazo que llega después de
 un `409 request_in_progress` de la misma cadena deja el recibo `ambiguous` (`sawRequestInProgress`),
 igual que un 408 o 425 en una repetición; la fase no vuelve a pedir sola un render cuyo último intento
-`failed` del mismo pedido fue `avatar_moderation_rejected` o `avatar_look_unsupported` (la escena
-queda `failed` con ese código y la cabecera dice que el video sale con su imagen fija; desde el editor
-sí se repite, `retryFinalRejection`); si el código dominante de la fase es de la cuenta
-(`avatar_invalid_key`, `missing_api_key`, `avatar_insufficient_credits`) la fase lanza ese código y no
-`avatar_incomplete`, y un código de cuenta gana aunque otra escena haya sido rechazada; el saldo se
+`failed` del mismo pedido fue `avatar_moderation_rejected` o `avatar_look_unsupported` (la escena queda `failed` con ese código —en un proyecto de antes de la 2d, la cabecera dice que el video sale con su imagen fija—; desde el editor sí se repite, `retryFinalRejection`); si el código dominante de la fase es de la cuenta
+(`avatar_invalid_key`, `missing_api_key`, `avatar_insufficient_credits`) la fase lanza ese código —desde la
+2d cualquier otro fallo de escena la deja terminar (§8), así que `avatar_incomplete` ya no se lanza—, y un
+código de cuenta gana aunque otra escena haya sido rechazada; el saldo se
 compara en millonésimas de dólar; `create-video-project` hace un pre-vuelo de la cuenta cuando el
 proyecto lleva avatar (401/403 → `avatar_invalid_key`; sin clave → `missing_api_key`; red, 429 o
 plazo corto vencido → aviso y sigue; el saldo no frena).
@@ -1087,7 +1241,8 @@ entrega 1 siguen en `avatars.errors.*` y se reutilizan por clave).
 
 - `check-narration-sentences.mjs`: modo con `sentenceEnd`, modo por pausas, partición de frases
   largas, contigüidad 0→fin, cuantización.
-- `check-avatar-planner.mjs`: `fit` (más cerca del objetivo, mínimo 7, máximo 60), primera aparición
+- `check-avatar-planner.mjs`: `fit` (más cerca del objetivo, mínimo 5 desde la 2d y 7 antes, máximo 60),
+  primera aparición
   en 0, reparto parejo, hueco mínimo, `dropped`, determinismo.
 - `check-scene-pins.mjs`: pines con los tres cortadores (segundos, cantidad, prefijo animado), tramos
   cortos absorbidos, ids contiguos, textos por palabras, caché reutilizable con recibos.
@@ -1098,8 +1253,17 @@ entrega 1 siguen en `avatars.errors.*` y se reutilizan por clave).
   reintento ante 429, subida multipart, idempotencia y la biblioteca en disco; `check-avatar-library.mjs`
   (entrega 1, existe): los diez subcomandos de la biblioteca con HeyGen simulado (desde la entrega
   1b, con el alta por grupo, el refresco de sus looks, el look principal, el look desde un prompt y
-  el saldo). El mapeo de `failure_code` de los
-  videos se suma en la entrega 2.
+  el saldo). El mapeo de `failure_code` de los videos se suma en la entrega 2.
+- **Desde la entrega 2d:** `check-editor-avatar-regenerate-ui.mjs` (el «Generar» / «Regenerar» del editor
+  con el panel, la pista y el store reales y el sidecar simulado: botones por estado, confirmación con costo
+  y saldo, ids exactos, cola y avance, cancelar, tecla sostenida, foco, el aviso de arriba y Crear esperando
+  al editor con su store real) y
+  `check-avatar-texts-without-provider.mjs` (ningún texto de los catálogos nombra al proveedor fuera de la
+  lista permitida); y ampliados `check-create-avatar-ui.mjs` (el reproductor y «Usar»),
+  `check-avatar-library-ui.mjs` (el menú de eliminar y el arranque automático), `check-avatar-stage.mjs` (la
+  fase que termina con una fallida, la desactualizada que no se paga, reanudar),
+  `check-avatar-progress-ui.mjs` (la regla única y los avisos) y los del planificador,
+  `create-video-project` y el modelo de escena (mínimo de 5 s, `stale` en una lista sin clip).
 
 **Rust:** `src-tauri/src/api_keys/tests/validation.rs` para la rama de HeyGen.
 
@@ -1119,7 +1283,8 @@ igual; (3) «Avatar aquí», estirar con las asas con ajuste a frases, regenerar
    render, visor, bloque morado con el diseño nuevo también en el clip animado, desactualizado al
    cambiar la narración). Fronteras del avatar bloqueadas.
 3. **Avatar desde el editor**: §11 (panel, «Avatar aquí», asas con ajuste a frases, regenerar,
-   quitar, `placement: 'manual'`).
+   quitar, `placement: 'manual'`); el «Generar» / «Regenerar» del panel y del aviso ya llegó con la 2d
+   (§20).
 
 La entrega 1b (ajustes de la QA del dueño a la entrega 1) va entre la 1 y la 2. Su revisión final
 dejó cuatro cuidados para el plan de la entrega 2, que se apoya en la biblioteca por avatar tal cual:
@@ -1142,8 +1307,15 @@ filtros, favoritos, video al pasar el mouse y reproductor del look; hechos en §
 
 La entrega 2c (QA del dueño del 2026-10-11, tarde: las tarjetas de Crear con el formato del video y
 el botón «Look» en §9, eliminar de HeyGen y el formato de los looks en §12.2, el título del render
-en §7.1 y el coral legible; hechos y rulings en §19) va después de la 2b y antes de la 3, con su
-plan `plan-e2c.md` (interno).
+en §7.1 y el coral legible; hechos y rulings en §19) va después de la 2b y antes de la 3, con su plan
+`plan-e2c.md` (interno).
+
+La entrega 2d (QA del dueño del 2026-10-11, noche: el reproductor de Crear con «Usar» en §9, los textos sin
+el nombre del proveedor en §13, eliminar de la lista o de HeyGen y el reproductor que arranca solo en §12.2,
+una aparición que falla y la desactualizada que no se paga sola en §8, el mínimo de 5 s en §3.4 y «Generar»
+/ «Regenerar» desde el editor en §11; hechos y rulings en §20) va después de la 2c y antes de la 3, con su
+plan `plan-e2d.md` (interno). Adelanta de la 3 el «Generar» / «Regenerar» / «Regenerar todos» del editor (§11.1 y
+§11.4).
 
 Cada entrega tiene su plan, su ejecución con subagentes y su QA del dueño; el push y el PR siguen
 pidiendo su aprobación cada vez.
@@ -1175,7 +1347,8 @@ auto_reload }`; no vienen `subscription` ni `usage_based`. La validación de la 
    `avatar-balance`. Una cuenta sin billetera valida igual, sin saldo.
 4. **Cobro de un entrenamiento fallido:** si un avatar desde foto que termina `failed` se cobra
    (1,32 USD) o HeyGen lo devuelve. Hasta saberlo, el texto del precio en «Crear desde foto» solo
-   dice cuánto cuesta («Crear el avatar cuesta {{price}} de tu cuenta de HeyGen.») y no promete que
+   dice cuánto cuesta (`avatars.foto.precio.detalle`: «por avatar · se descuenta de tu saldo de avatares»;
+   la propuesta de la 1b nombraba a HeyGen) y no promete que
    un rechazo no se cobre. Se sondea con una foto sin cara, mirando el saldo antes y después (la
    sonda 3 dice cómo leerlo).
 
@@ -1271,3 +1444,77 @@ otra cosa que la tabla de arriba, mandan ellos):
   `--destructive-text` en claro (`0 72% 43%`) y `--cherry` (`354 70% 53%`) completan la pasada; los
   grises de ayuda sobre cajas rojas pasan a `text-foreground/65`. Quedan aparcados, fuera del
   pedido, `--muted-foreground` en claro (marginal) y el blanco sobre `sky` y `amethyst`.
+
+## 20. Entrega 2d — la QA del dueño del 2026-10-11 (noche)
+
+Pedidos del dueño tras el cierre de la 2c, con una captura de la grilla «Look» de Crear, y lo
+decidido. Donde el pedido admitía dos lecturas, la decisión dice cuál se tomó (ruling) para que el
+dueño la corrija en la QA.
+
+| Pedido del dueño                                                                                                                                                                                           | Decisión                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| En Crear, un clic en una ficha de la grilla «Look» abre el mismo reproductor de la ruta Avatares, que reproduce el avatar solo, con un botón «Usar» abajo; «Usar» cierra la grilla y deja ese look elegido | §9: la ficha abre `LookPlayerDialog` con la acción nueva `use` («Usar»); los looks que no sirven abren igual y dicen por qué, sin «Usar». «Usar» elige el look, cierra el reproductor y la grilla, y el foco vuelve al botón «Look». El reproductor arranca solo al abrirse, en todos los lugares donde se usa (stock, panel del avatar y Crear): con sonido y, si el navegador no lo deja, sin sonido y con «Activar el sonido» a mano                                                                                                                                                                                                                                                                                                                        |
+| Los mensajes y avisos de avatares no mencionan a HeyGen; solo la eliminación dice «este avatar se eliminará también de HeyGen, ¿seguro?»                                                                   | §13: todos los textos de avatares, Crear, progreso, editor y errores dejan de nombrar a HeyGen («el servicio de avatares», «tu saldo de avatares», «tu clave del avatar presentador»). Quedan con el nombre solo las opciones y la confirmación del borrado en HeyGen y la pantalla de Claves API, donde el nombre identifica la clave                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| El botón de eliminar un avatar pregunta ahí mismo «Eliminar permanente de HeyGen» o «Eliminar de la lista»; HeyGen pide «Seguro» y la lista elimina directo                                                | §12.2: el botón de eliminar abre dos opciones en la misma tarjeta. «Eliminar de la lista» saca el avatar de tu biblioteca de Vimo sin otro paso (sigue en HeyGen y se puede volver a agregar). «Eliminar permanentemente de HeyGen», solo en avatares propios (`ownership: 'own'`), pide «Este avatar se eliminará también de HeyGen. ¿Seguro?» y recién ahí borra (`avatar-heygen-delete`). Va en la tarjeta y el panel de la biblioteca y en la pestaña «Mis avatares», donde «Eliminar de la lista» aparece solo si el avatar está en tu biblioteca. Siguen las guardas de tecla sostenida y doble clic                                                                                                                                                     |
+| Implementar las soluciones de las seis preguntas del 2026-10-10 15:13                                                                                                                                      | Las respuestas recomendadas ese día ya rigen en 1 (solo looks con la orientación del video), 2 (un look por video), 3 (reparto parejo con la opción de abrir con el avatar) y 5 (frases enteras): quedan decididas. 4: el mínimo por aparición baja a **5 s** (`AVATAR_MIN_APPEARANCE_SECONDS`, lo que pidió el dueño; el máximo sigue en 60 s y hasta 10 apariciones). 6: **una aparición que falla no frena el video**: la fase `avatar` deja de lanzar `avatar_incomplete` por fallos de una escena (render, plazo, moderación, look), el video sale con la imagen fija del look en esas escenas (§10.1), la pantalla de progreso lo avisa y el editor ofrece regenerarlas. Los códigos de la cuenta (clave, saldo) siguen pausando, como en voz e imágenes |
+| Implementar la solución de la escena desactualizada que se paga sola al reanudar                                                                                                                           | §8: una escena `ready` desactualizada **no cuenta como pendiente aunque falte su clip**: reanudar no la paga, el render la muestra estática con la vista previa del look y se regenera desde el editor con el costo a la vista. El costo de reanudar cuenta exactamente lo que la fase va a pagar                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Implementar la excepción de dependencias en `CLAUDE.md`                                                                                                                                                    | `CLAUDE.md`, «Regla de dependencias», y enmienda de la ADR-0005: `videos` (Crear y el editor) arma el video con piezas de otros dominios y puede importar lo que esos módulos exponen para elegir o mostrar algo; ningún otro módulo tiene la excepción                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+**Regenerar desde el editor (§11.1 y §11.4, adelantado de la entrega 3).** Sin esto, las escenas que
+la decisión 6 y la escena desactualizada dejan estáticas no tendrían salida. El panel de una escena
+de avatar ofrece **Generar** (planeada), **Regenerar** (fallida o desactualizada) y **Regenerar
+todos** (todas las de avatar sin clip válido o desactualizadas), con el costo estimado y el saldo antes
+de confirmar; corre `avatar-render-scenes { projectId, sceneIds }` como tarea del editor, con el
+progreso en el bloque del timeline. Al terminar, el video exportado queda desactualizado como con
+cualquier cambio del editor. «Cambiar avatar», «Avatar aquí», mover y estirar siguen en la entrega 3.
+
+Fuera de la 2d: ocultar avatares de «Mis avatares» sin borrarlos de HeyGen, elegir un look distinto
+por aparición y un tope de minutos de avatar por video.
+
+**Lo que la ejecución ajustó** (rulings del 2026-10-11 de `execution-e2d/ledger.md` (interno); donde dicen otra cosa
+que la tabla de arriba, mandan ellos):
+
+- **Crear (§9).** La ficha deja de ser un `radio`: la grilla es una lista de botones (`ul`, con
+  `aria-current` y «Elegido»). Un look que no sirve abre el reproductor con una frase propia por motivo,
+  porque el reproductor traduce el motivo sin variables (`create.avatar.otherFormatHint`, `failedLookHint` y
+  `unknownOrientationHint`, más las del reproductor de Avatares). El reproductor se cierra si cambia el
+  avatar que se mira o se deshabilita el formulario, y no se reabre solo al volver. La píldora del saldo ya
+  no nombra al proveedor.
+- **El reproductor (§12.2).** Arranca solo con sonido; si la política de reproducción automática lo rechaza
+  (`NotAllowedError`), queda silenciado con «Activar el sonido»; otro rechazo no lo silencia y, si tampoco
+  arranca silenciado, queda en pausa con el sonido; una respuesta tardía con el reproductor cerrado no toca
+  el video.
+- **Eliminar (R-2d-2, §12.2).** «Seguro» ocupa el lugar de «Eliminar permanentemente de HeyGen» y «Cancelar»
+  el de la lista (la revisión midió que de otro modo un clic de corrección borraba para siempre). El valor
+  de un avatar propio es `'own'` (`'private'` es el del listado de HeyGen). El foco entra a la primera
+  opción al abrir y ningún foco del menú desplaza la grilla (`preventScroll`), Escape cierra solo el menú,
+  el segundo clic de un doble clic no confirma ni abre lo que
+  queda debajo, y la biblioteca también hace un borrado de HeyGen a la vez.
+- **Textos (R-2d-3, §13).** Se quedan con el nombre la categoría de Claves API, el borrado en HeyGen y, por
+  decisión del controlador, las filas del aviso de saldo y de «Faltan claves» (dicen qué cuenta recargar o
+  qué clave cargar). Un guard permanente (`check-avatar-texts-without-provider.mjs`, cuatro claves
+  permitidas) lo exige. Se borraron nueve claves sin uso.
+- **Una aparición que falla (pregunta 6, R-2d-4 y R-P2, §8).** Una vez terminada, la fase no vuelve a correr
+  al reanudar: las apariciones con la imagen fija se regeneran solo desde el editor, que también cosecha sin
+  pagar un recibo `pending` vencido; una pausa de la cuenta (clave o saldo) no la completa. Si el dueño
+  prefiere que reanudar reintente las fallidas, es la línea del `skip` que mira `completedStages` (y volver
+  a contar el avatar en el costo de reanudar). `avatar_incomplete` queda como código heredado de proyectos
+  de antes de la 2d.
+- **Una sola regla para «sale con la imagen fija» (§10.1).** `isAvatarFallback` decide qué apariciones
+  cuentan para la fila del progreso, el aviso del final de Crear (contexto `progress`: una planeada todavía
+  no cuenta), el del reproductor de la biblioteca y el del editor (contexto `project`: una planeada sí
+  cuenta). Una desactualizada no cuenta nunca y su fila dice «Desactualizada»
+  (`create.progress.avatarStale`).
+- **La desactualizada (R-2d-5, §3.3).** Para mostrar una escena lista, `stale` manda sobre `failed`: el
+  bloque y el panel del editor dicen «Desactualizado» también en la que perdió su clip, y regenerarla paga
+  un render nuevo.
+- **Regenerar desde el editor (R-2d-6, §11).** Hay dos «Regenerar» con alcance distinto: «Regenerar todos
+  (N)» en el panel (todas las de avatar sin clip válido o desactualizadas) y «Regenerarlas (N)» en el aviso
+  de arriba del editor (exactamente lo que el aviso cuenta: sin las desactualizadas y solo con tramo). La
+  confirmación es una sola para los dos y relee el saldo antes de pagar; la tarea es exclusiva con las demás
+  del proyecto y con Crear (que espera con el aviso de «ocupado»), las pedidas esperan en cola sin
+  porcentaje, una tecla sostenida no paga dos veces y el foco
+  nunca cae a `body`. El costo de un clip ya pagado que solo hay que volver a bajar se muestra completo (un
+  techo): marcarlo «recuperable sin costo» queda para la QA y la entrega 3.
+- **Módulos (R-2d-7).** La excepción de dependencias de `videos` incluye también las constantes públicas de
+  otros módulos (claves de query, límites, tiempos), como dice `CLAUDE.md`.

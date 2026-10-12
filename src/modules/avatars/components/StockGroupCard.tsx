@@ -1,17 +1,16 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Heart, Loader2, Plus, Trash2 } from 'lucide-react'
+import { Check, Heart, Loader2, Plus } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
+import { AvatarDeleteMenu } from '@/modules/avatars/components/AvatarDeleteMenu'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
+import { useAvatarDeleteMenu } from '@/modules/avatars/hooks/useAvatarDeleteMenu'
 import { useHoverIntent } from '@/modules/avatars/hooks/useHoverIntent'
 import { useStockLooks } from '@/modules/avatars/hooks/useStockLooks'
 import { coverLookVideoUrl } from '@/modules/avatars/utilities/coverLookVideo'
-import {
-  ignoreHeldKey,
-  isSecondClickOfDoubleClick,
-} from '@/modules/avatars/utilities/twoStepConfirmGuards'
+import { isSecondClickOfDoubleClick } from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import type { HeyGenAvatarGroup } from '@pipeline/types/avatar.ts'
 
 interface StockGroupCardProps {
@@ -32,13 +31,17 @@ interface StockGroupCardProps {
   favoriteDisabled?: boolean
   // Solo en el stock público: sin él no hay corazón.
   onToggleFavorite?: () => void
-  // Solo en «Mis avatares»: sin él no hay tacho. Borra el avatar de la cuenta
-  // de HeyGen, de verdad (la tarjeta pide antes la confirmación).
+  // Solo en «Mis avatares» (sin él no hay botón de eliminar): «Eliminar
+  // permanentemente de HeyGen» borra el avatar de la cuenta de HeyGen, de
+  // verdad (el menú pide antes «Seguro»).
   onDeleteFromHeyGen?: () => void
+  // Solo en «Mis avatares» y con el avatar en la biblioteca: «Eliminar de la
+  // lista» lo saca de la biblioteca de Vimo (sigue en HeyGen).
+  onRemoveFromList?: () => void
   // Esta tarjeta se está borrando de HeyGen: «Eliminando…» y apagada.
   deleting?: boolean
-  // Hay un alta o un borrado en vuelo: el tacho todavía no hace nada
-  // (`aria-disabled`, sigue enfocable).
+  // Hay un alta o un borrado en vuelo: el botón de eliminar todavía no hace
+  // nada (`aria-disabled`, sigue enfocable).
   deleteDisabled?: boolean
   onOpen: (group: HeyGenAvatarGroup) => void
   onAdd: (group: HeyGenAvatarGroup) => void
@@ -57,18 +60,13 @@ interface StockGroupCardProps {
 // marcado, si no con el mouse o el foco. Toda la tarjeta abre sus looks con
 // el mouse; con el teclado se llega por «Ver looks», que aparece con el foco.
 // Un avatar propio que todavía entrena (o no pudo entrenar) muestra su estado
-// y no se agrega. En «Mis avatares» (`onDeleteFromHeyGen`), arriba a la
-// izquierda, el tacho para eliminar el avatar de HeyGen (entrega 2c), con el
-// mouse o el foco: el primer clic lo vuelve «¿Eliminar para siempre?» en rojo
-// con la explicación sobre la imagen (también es su descripción accesible);
-// el segundo, que no puede ser el de un doble clic, lo elimina («Eliminando…»
-// con la tarjeta apagada). Salir de la tarjeta, sacarle el foco o tocar otra
-// parte de la tarjeta cancela la confirmación. Ahí, «Agregado» va arriba a la
-// derecha, donde no hay corazón. Nada de esto entra o sale del DOM en el blur:
-// cambian clases y atributos, porque dentro del diálogo un nodo que se va en el
-// blur hace que Radix devuelva el foco a su caja (ERRORES-CONOCIDOS: radix-
-// focusscope-devuelve-el-foco-al-dialogo-si-se-desmonta-un-nodo-durante-el-
-// blur).
+// y no se agrega. En «Mis avatares», arriba a la izquierda, el botón de
+// eliminar (`AvatarDeleteMenu`, entrega 2d), con el mouse o el foco: despliega
+// sobre la imagen «Eliminar de la lista» (si el avatar está en la biblioteca)
+// y «Eliminar permanentemente de HeyGen», que pide «Seguro»; mientras elimina,
+// «Eliminando…» con la tarjeta apagada. Salir de la tarjeta o tocar otra parte
+// de ella cierra el menú (tocarla no abre los looks). Ahí, «Agregado» va
+// arriba a la derecha, donde no hay corazón.
 export function StockGroupCard({
   group,
   ownership,
@@ -79,6 +77,7 @@ export function StockGroupCard({
   favoriteDisabled = false,
   onToggleFavorite,
   onDeleteFromHeyGen,
+  onRemoveFromList,
   deleting = false,
   deleteDisabled = false,
   onOpen,
@@ -87,10 +86,7 @@ export function StockGroupCard({
   const { t } = useTranslation()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  // El tacho pidió la confirmación y espera el segundo clic.
-  const [confirming, setConfirming] = useState(false)
-  const deleteHintId = useId()
-  const groupNameId = useId()
+  const deleteMenu = useAvatarDeleteMenu()
   // Una tarjeta que nadie miró (o que el mouse solo cruzó) no gasta un
   // proceso del sidecar.
   const hoverIntent = useHoverIntent()
@@ -107,8 +103,10 @@ export function StockGroupCard({
   const trainingStatus =
     group.status && group.status !== 'ready' ? group.status : null
   const canAdd = !added && !trainingStatus
-  // El tacho, ancho y en rojo: pide la confirmación o está eliminando.
-  const deleteExpanded = confirming || deleting
+  const hasDeleteMenu =
+    onDeleteFromHeyGen !== undefined || onRemoveFromList !== undefined
+  // Las opciones de eliminar cubren la imagen, o el botón dice «Eliminando…».
+  const deleteExpanded = deleteMenu.open || deleting
 
   // Los botones del velo no dejan subir el clic: si no, la tarjeta también
   // abriría los looks.
@@ -127,62 +125,32 @@ export function StockGroupCard({
     onToggleFavorite?.()
   }
 
-  // Primer clic: pide la confirmación; el segundo elimina. El segundo clic de
-  // un doble clic (`detail` 2 o más) no confirma: eliminar no se deshace.
-  // Enter y Espacio llegan con `detail` 0.
-  const deleteFromHeyGen = (event: MouseEvent) => {
-    event.stopPropagation()
-    if (deleting || deleteDisabled) return
-    if (!confirming) {
-      setConfirming(true)
-      return
-    }
+  // Con el menú de eliminar abierto, tocar la tarjeta lo cierra en vez de
+  // abrir los looks. El mousedown no mueve el foco mientras tanto: si el botón
+  // lo perdiera, su blur cerraría el menú antes del clic y el clic abriría los
+  // looks (ERRORES-CONOCIDOS: autosave-blur-vs-decision-click, variante del
+  // diálogo de Radix). El segundo clic de un doble clic no abre nada: el
+  // primero ya abrió los looks, cerró el menú o eligió «Eliminar de la lista»
+  // (que cierra el menú y deja la imagen debajo del puntero).
+  const openFromCard = (event: MouseEvent) => {
     if (isSecondClickOfDoubleClick(event)) return
 
-    setConfirming(false)
-    onDeleteFromHeyGen?.()
-  }
-
-  // El nombre del tacho para el lector de pantalla. En reposo es solo un ícono
-  // y su nombre nombra al avatar (hay uno por tarjeta); armado o eliminando,
-  // es el texto que se ve («¿Eliminar para siempre?», «Eliminando…»), así el
-  // control por voz lo encuentra por lo que dice (WCAG 2.5.3).
-  const deleteLabel = () => {
-    if (deleteExpanded) return undefined
-
-    return t('avatars.stock.eliminarHeygenAria', { name: group.name })
-  }
-
-  // Su descripción: en reposo, la explicación; armado, el avatar y la
-  // explicación; eliminando, el avatar.
-  const deleteDescription = () => {
-    if (deleting) return groupNameId
-    if (confirming) return `${groupNameId} ${deleteHintId}`
-
-    return deleteHintId
-  }
-
-  // Con la confirmación a la vista, tocar la tarjeta la cancela en vez de
-  // abrir los looks. El mousedown no mueve el foco mientras tanto: si el tacho
-  // lo perdiera, su blur la cancelaría antes del clic y el clic abriría los
-  // looks.
-  const openFromCard = () => {
-    if (confirming) {
-      setConfirming(false)
+    if (deleteMenu.open) {
+      deleteMenu.close()
       return
     }
 
     onOpen(group)
   }
-  const keepFocusWhileConfirming = (event: MouseEvent) => {
-    if (confirming) event.preventDefault()
+  const keepFocusWhileDeleteMenuOpen = (event: MouseEvent) => {
+    if (deleteMenu.open) event.preventDefault()
   }
 
   return (
     <article
       aria-busy={deleting}
       onClick={openFromCard}
-      onMouseDown={keepFocusWhileConfirming}
+      onMouseDown={keepFocusWhileDeleteMenuOpen}
       onMouseEnter={() => {
         setHovered(true)
         hoverIntent.pointerMoved()
@@ -190,7 +158,7 @@ export function StockGroupCard({
       onMouseMove={hoverIntent.pointerMoved}
       onMouseLeave={() => {
         setHovered(false)
-        setConfirming(false)
+        deleteMenu.close()
         hoverIntent.pointerLeft()
       }}
       onFocus={(event) => {
@@ -219,13 +187,13 @@ export function StockGroupCard({
           className="aspect-[4/5] w-full transition-transform duration-500 ease-out group-hover:scale-105"
         />
 
-        {/* Con tacho, a la derecha (en «Mis avatares» no hay corazón), y
-            oculto mientras el tacho está ancho. */}
+        {/* Con el botón de eliminar, a la derecha (en «Mis avatares» no hay
+            corazón), y oculto mientras el menú está abierto o elimina. */}
         {added && (
           <span
             className={cn(
               'pointer-events-none absolute top-2.5 inline-flex items-center gap-1 rounded-full bg-saffron px-2.5 py-1 font-display text-[11px] font-bold text-charcoal shadow-sm transition-opacity',
-              onDeleteFromHeyGen ? 'right-2.5' : 'left-2.5',
+              hasDeleteMenu ? 'right-2.5' : 'left-2.5',
               deleteExpanded && 'opacity-0',
             )}
           >
@@ -263,66 +231,20 @@ export function StockGroupCard({
           </button>
         )}
 
-        {/* El borrado en HeyGen (solo «Mis avatares»): la explicación, a la
-            vista mientras se confirma y siempre como descripción del tacho, y
-            el tacho, que se vuelve el botón rojo de confirmar. Ambos montados
-            siempre y en su capa (`transform-gpu`, como el corazón).
-            `data-heygen-delete`: el diálogo lleva el foco acá al eliminar con
-            el teclado la tarjeta vecina. */}
-        {onDeleteFromHeyGen && (
-          <>
-            <span
-              id={deleteHintId}
-              className={cn(
-                'pointer-events-none absolute inset-0 flex transform-gpu items-end bg-black/75 p-3 pt-14 font-body text-xs leading-snug text-white transition-opacity duration-200',
-                confirming ? 'visible opacity-100' : 'invisible opacity-0',
-              )}
-            >
-              {t('avatars.stock.eliminarHint')}
-            </span>
-            <button
-              type="button"
-              data-heygen-delete
-              aria-label={deleteLabel()}
-              aria-describedby={deleteDescription()}
-              aria-disabled={deleteDisabled || deleting}
-              title={
-                deleteExpanded ? undefined : t('avatars.stock.eliminarHeygen')
-              }
-              onClick={deleteFromHeyGen}
-              // Una tecla sostenida no arma y confirma en una sola pulsación.
-              onKeyDown={ignoreHeldKey}
-              onBlur={() => setConfirming(false)}
-              className={cn(
-                'absolute left-2.5 top-2.5 flex h-8 max-w-[calc(100%-1.25rem)] transform-gpu items-center justify-center gap-1.5 rounded-full font-display text-xs font-bold backdrop-blur-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
-                deleteExpanded
-                  ? 'bg-destructive px-3 text-destructive-foreground opacity-100'
-                  : 'w-8 bg-black/35 text-white opacity-0 hover:bg-black/55 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100',
-                deleteDisabled &&
-                  !deleteExpanded &&
-                  'cursor-not-allowed hover:bg-black/35 [&>svg]:opacity-50',
-              )}
-            >
-              <Trash2
-                aria-hidden
-                className={cn('h-4 w-4 shrink-0', deleting && 'hidden')}
-              />
-              <Loader2
-                aria-hidden
-                className={cn(
-                  'h-4 w-4 shrink-0 animate-spin',
-                  !deleting && 'hidden',
-                )}
-              />
-              <span
-                className={cn('min-w-0 truncate', !deleteExpanded && 'hidden')}
-              >
-                {deleting
-                  ? t('avatars.stock.eliminando')
-                  : t('avatars.stock.eliminarConfirmar')}
-              </span>
-            </button>
-          </>
+        {/* Eliminar (solo «Mis avatares»): el botón arriba a la izquierda y
+            las opciones sobre la imagen. Su botón lleva `data-avatar-delete`:
+            el diálogo lleva el foco acá al eliminar con el teclado la tarjeta
+            vecina. */}
+        {hasDeleteMenu && (
+          <AvatarDeleteMenu
+            menu={deleteMenu}
+            variant="stock"
+            name={group.name}
+            onRemoveFromList={onRemoveFromList}
+            onDeleteFromHeyGen={onDeleteFromHeyGen}
+            deleting={deleting}
+            disabled={deleteDisabled}
+          />
         )}
 
         <div
@@ -331,7 +253,7 @@ export function StockGroupCard({
             adding
               ? 'opacity-100'
               : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
-            // La explicación del borrado ocupa la imagen: sin «Ver looks» ni
+            // Las opciones de eliminar ocupan la imagen: sin «Ver looks» ni
             // «Agregar» encima.
             deleteExpanded && 'invisible',
           )}
@@ -368,10 +290,7 @@ export function StockGroupCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 px-0.5">
-        <h3
-          id={groupNameId}
-          className="min-w-0 truncate font-display text-sm font-bold text-foreground"
-        >
+        <h3 className="min-w-0 truncate font-display text-sm font-bold text-foreground">
           {group.name}
         </h3>
         <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-display text-[10px] font-bold tabular-nums text-muted-foreground">

@@ -3,7 +3,8 @@
 // proyecto y los nombres de sus archivos (§3.2: el clip que se lee de
 // scenes.json se valida antes de usarse, como el de las animaciones), la vista
 // que la UI recibe de una escena de avatar (§3.3: sin recibos, con la ruta del
-// clip, «desactualizada» derivada al leer y, como vista previa fija, la del
+// clip, «desactualizada» derivada al leer —desde la entrega 2d, también en una
+// lista que perdió su clip— y, como vista previa fija, la del
 // look: Vimo no genera imagen para una escena de avatar) y la versión de la
 // narración, que sube al reemplazarla sin tocar los recibos de HeyGen que
 // viven en las escenas. Importa el código real del sidecar (Node quita los
@@ -404,6 +405,79 @@ test('vista: un clip vacío no es un clip, la lista de escenas le pasa el proyec
     })
     assert.equal('stale' in view.avatar, false, avatar.status)
   }
+})
+
+test('vista (entrega 2d): «desactualizada» se marca en toda escena lista, también en la que perdió su clip y se muestra fallida; una al día sin clip no la lleva', async (t) => {
+  const { project } = await projectFolder(t)
+  const scene = {
+    id: 1,
+    text: 'hola',
+    startSeconds: 0,
+    endSeconds: 10,
+    avatar: { ...READY_AVATAR, renderHash: renderHashUntil(10) },
+  }
+
+  // Sin el archivo y al día: fallida, sin la marca (la fase cosecha su recibo).
+  const current = (
+    await toSceneSummary(project, scene, { narrationVersion: 0 })
+  ).avatar
+  assert.equal(current.status, 'failed')
+  assert.equal(current.errorCode, 'avatar_download_failed')
+  assert.equal('stale' in current, false)
+  // Sin el archivo y con otra narración: fallida y desactualizada (la fase no
+  // la paga sola; el costo de reanudar la deja afuera por esta marca).
+  const replaced = (
+    await toSceneSummary(project, scene, { narrationVersion: 1 })
+  ).avatar
+  assert.equal(replaced.status, 'failed')
+  assert.equal(replaced.errorCode, 'avatar_download_failed')
+  assert.equal(replaced.clipPath, undefined)
+  assert.equal(replaced.stale, true)
+  // Sin el archivo y con el tramo movido (la misma narración): también.
+  const moved = (
+    await toSceneSummary(
+      project,
+      { ...scene, endSeconds: 12 },
+      { narrationVersion: 0 },
+    )
+  ).avatar
+  assert.equal(moved.status, 'failed')
+  assert.equal(moved.stale, true)
+  // Las dos causas de §3.3 por separado: otra versión anotada en la escena ya
+  // alcanza, aunque la huella sea la del tramo y la narración de hoy.
+  const otherVersion = (
+    await toSceneSummary(
+      project,
+      {
+        ...scene,
+        avatar: {
+          ...scene.avatar,
+          narrationVersion: 0,
+          renderHash: avatarRenderHash({
+            lookId: 'look-1',
+            engine: 'avatar_iii',
+            startFrame: 0,
+            endFrame: 250,
+            narrationVersion: 1,
+          }),
+        },
+      },
+      { narrationVersion: 1 },
+    )
+  ).avatar
+  assert.equal(otherVersion.stale, true)
+
+  // Con su archivo, como siempre: lista, desactualizada solo si cambió algo.
+  await writeFile(avatarClipFile(project, 1, HASH), Buffer.from('mp4'))
+  const withClip = (
+    await toSceneSummary(project, scene, { narrationVersion: 1 })
+  ).avatar
+  assert.equal(withClip.status, 'ready')
+  assert.equal(withClip.stale, true)
+  const fresh = (await toSceneSummary(project, scene, { narrationVersion: 0 }))
+    .avatar
+  assert.equal(fresh.status, 'ready')
+  assert.equal('stale' in fresh, false)
 })
 
 test('reemplazar la narración sube narrationVersion y no toca el avatar de las escenas: sus recibos siguen y el clip queda desactualizado', async (t) => {

@@ -17,6 +17,7 @@ import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
 import { AvatarDroppedNote } from '@/modules/videos/components/AvatarDroppedNote'
+import { AvatarFallbackNote } from '@/modules/videos/components/AvatarFallbackNote'
 import { PhaseProgressPanel } from '@/modules/videos/components/PhaseProgressPanel'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
@@ -38,6 +39,7 @@ import {
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
+import { avatarFallbackCount } from '@/modules/videos/utilities/avatarFallback'
 import { taskHasAvatar } from '@/modules/videos/utilities/avatarTaskEvents'
 import {
   failedStageOf,
@@ -371,6 +373,15 @@ export function GenerationProgress({
                 </Button>
               </div>
             </motion.div>
+          )}
+          {/* Las apariciones que salieron con la imagen fija del look (entrega
+              2d): al terminar, aunque la fase se haya salteado en esta
+              corrida, con la regla de la pantalla de progreso (una planeada
+              todavía la genera la fase). Sin ninguna no dice nada. */}
+          {finished && (
+            <AvatarFallbackNote
+              count={avatarFallbackCount(task.scenes, 'progress')}
+            />
           )}
 
           {showVoicePanel && voice && (

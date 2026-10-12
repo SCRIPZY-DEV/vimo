@@ -1,3 +1,4 @@
+import type { CostEstimateLine } from '@/modules/common/types/credits'
 import type { SceneAnimationReviewOutcome } from '@/modules/videos/types/sceneImageReview'
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
@@ -13,6 +14,7 @@ import type {
   VideoCreditsResult,
 } from '@pipeline/types/animation.ts'
 import type { AnimationUnit } from '@pipeline/animation/planner.ts'
+import type { AvatarBalanceResult } from '@pipeline/types/avatar.ts'
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 
 // Tipos de las vistas de biblioteca (Library, Player, Progress, Editor).
@@ -139,11 +141,49 @@ export interface SceneAnimationProgress {
 }
 
 // Render de HeyGen de una escena de avatar en curso desde el editor (spec
-// §3.3: «generando» vive en memoria, no en disco). Lo va a llenar el job de
-// `avatar-render-scenes` de la entrega 3; en la 2 nadie lo llena y el bloque
-// del timeline nunca está «generando» en el editor.
+// §3.3: «generando» vive en memoria, no en disco). Lo llena la tarea de
+// `avatar-render-scenes` (entrega 2d, §20). `startedAt` es cuándo arrancó su
+// render (el `avatar-scene-started` del job) y nunca se reinicia; `queued`, que
+// todavía espera su turno (HeyGen renderiza de a AVATAR_RENDER_CONCURRENCY):
+// el bloque dice «Generando el avatar…» sin porcentaje hasta que arranca.
 export interface SceneAvatarRendering {
   startedAt: number
+  queued?: boolean
+}
+
+// Qué ofrece el panel para una escena de avatar (spec §11.1 y §3.3): generarla
+// por primera vez (planeada) o regenerarla (fallida, desactualizada o lista
+// sin clip). Una lista y al día no ofrece nada.
+export type AvatarSceneAction = 'generate' | 'regenerate'
+
+// Cómo terminó un «Generar» de la confirmación del avatar (entrega 2d):
+// arrancó la tarea; el saldo releído no alcanzó y la confirmación sigue
+// abierta con su aviso; o no se hizo nada (otro clic ya estaba releyendo, o
+// el proyecto se ocupó y la confirmación se cerró). Solo el segundo mueve el
+// foco a «Cancelar» del diálogo.
+export type AvatarConfirmOutcome = 'started' | 'blocked' | 'skipped'
+
+// La confirmación abierta de pagar el avatar de unas escenas desde el editor
+// (entrega 2d, useAvatarRenderConfirmation): cuántas, lo que cuestan (null si
+// el motor no tiene tarifa), el saldo de avatares leído (null mientras llega),
+// si no alcanza y si se está releyendo antes de pagar.
+export interface AvatarRenderConfirmationState {
+  count: number
+  cost: CostEstimateLine | null
+  balance: AvatarBalanceResult | null
+  insufficient: boolean
+  checking: boolean
+}
+
+// La tarea del editor que corre `avatar-render-scenes` (entrega 2d): una a la
+// vez y exclusiva con las demás del proyecto. `failures` guarda el código de
+// cada escena que falló en esta corrida, para el aviso del final.
+export interface EditorAvatarRenderState {
+  requestId: string
+  jobId: string | null
+  sceneIds: number[]
+  failures: Record<number, string>
+  cancelled?: boolean
 }
 
 // Lo que el planificador haría con la escena seleccionada si se animara
@@ -260,6 +300,13 @@ export interface LibraryEditorTask {
   // Fallos del último job de animación, para el modal; null = nada que
   // mostrar (o ya se cerró).
   animationFailure: AnimationFailureNotice | null
+  // Render de avatares de HeyGen en curso (entrega 2d): exclusión con todo lo
+  // demás del proyecto.
+  avatarRender: EditorAvatarRenderState | null
+  // Las escenas de ese render, en cola o generándose: el bloque del timeline
+  // las muestra «generando» (spec §3.3). Cada una sale al quedar lista o
+  // fallida, y todas al cerrar el job.
+  sceneAvatarRendering: Record<number, SceneAvatarRendering>
   // Reemplazo de narración / música en curso (exclusión con regen/render).
   audioBusy: boolean
   errorKey: string | null

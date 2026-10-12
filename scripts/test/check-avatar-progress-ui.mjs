@@ -13,7 +13,16 @@
 // Y la pantalla de progreso de la biblioteca de punta a punta (reanudar un
 // proyecto desde disco, los eventos del job y lo que se ve): la fila y el panel
 // solo con avatar, el fallo que se le atribuye a la fase correcta y la pausa
-// por saldo de HeyGen. Solo `videosApi` se simula (el real importa el cliente
+// por saldo de HeyGen. Y el aviso del final (entrega 2d): la pantalla de Crear
+// que termina con apariciones sin generar dice cuántas salieron con la imagen
+// fija del look (las que fallaron en la corrida y, sin eventos, las del disco
+// fallidas o listas sin clip; nunca las desactualizadas), nunca mientras
+// corre, ni con todas listas, ni en un error, ni sin avatar; el reproductor
+// de la biblioteca dice lo mismo desde los datos del proyecto, solo con video
+// y contando también una planeada (rondas 1 y 2 de WP-P); y la regla única
+// (`isAvatarFallback`) en sus dos contextos, la fila que dice «Desactualizada»
+// para una desactualizada en vez de «No se completó» y la API del aviso con
+// su acción. Solo `videosApi` se simula (el real importa el cliente
 // de Supabase), con las URLs de las miniaturas, la lectura del proyecto y el
 // canal de eventos del job; la tarjeta de saldo se reemplaza (su hook lee la
 // billetera de HeyGen del sidecar). La raíz guarda `onUncaughtError`.
@@ -79,7 +88,10 @@ import i18n from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import es from './public/locales/es.json'
+import { AvatarFallbackNote } from '@/modules/videos/components/AvatarFallbackNote'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
+import { GenerationProgress } from '@/modules/videos/components/GenerationProgress'
+import { avatarFallbackCount, isAvatarFallback } from '@/modules/videos/utilities/avatarFallback'
 import { PipelineAvatarPanel } from '@/modules/videos/components/PipelineAvatarPanel'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
@@ -579,6 +591,209 @@ try {
   draftButton.click()
   await waitFor(() => probe.task?.projectId === 'pe' && probe.task.status === 'generating', 'genera el borrador desde el editor')
   check(probe.task.hasAvatar === true && probe.task.avatarLookType === 'photo_avatar', 'generar el borrador desde el editor lleva el avatar y su tipo de look')
+
+  // 12. El aviso del final (entrega 2d, pregunta 6 del dueño): un job que
+  // termina con apariciones sin generar dice cuántas salieron con la imagen
+  // fija del look, además del estado por aparición. Es la pantalla de Crear
+  // (la de la biblioteca se va al reproductor o al editor al terminar), con el
+  // store real y los eventos del sidecar. Lo que pasó en la corrida manda; sin
+  // eventos, el disco (sin clip, o desactualizada: la fase no la paga sola).
+  // Antes que nada, las claves contra las que comparan las aserciones de las
+  // secciones 12 a 14 están en el catálogo: una clave sin texto se traduce
+  // como sí misma y comparar con i18n.t de la misma clave pasaría en vacío
+  // (registro test-que-compara-el-texto-con-i18n-t-de-la-misma-clave).
+  for (const [key, options] of [
+    ['create.progress.avatarFallback', { count: 1 }],
+    ['create.progress.avatarFallback', { count: 2 }],
+    ['create.progress.savedAt'],
+    ['create.progress.avatarCount'],
+    ['create.progress.avatarItem'],
+    ['create.progress.avatarFailed'],
+    ['create.progress.avatarQueued'],
+    ['create.progress.avatarHint'],
+    ['create.progress.avatarStale'],
+    ['create.progress.error.retryRender'],
+    ['library.player.noVideo'],
+    [errorKeyOf('avatar_timeout')],
+    [errorKeyOf('avatar_render_failed')],
+  ])
+    check(i18n.exists(key, options), 'la clave ' + key + ' está en el catálogo')
+  emit({ type: 'job-failed', code: 'voice_failed', message: 'fin' })
+  await waitFor(() => probe.task.status === 'error', 'se libera el turno del borrador')
+  function LiveProgress() {
+    const { task } = useCreateTask()
+    if (!task) return null
+    const noop = () => {}
+    return <GenerationProgress task={task} back={{ labelKey: 'create.progress.createAnother', onClick: noop }} onCancel={noop} onRetryPipeline={noop} onContinueInEditor={noop} onConfirmScenes={noop} onDismissConfirmation={noop} onPromptModelStall={noop} onSnoozePromptModelIssue={noop} onSwitchPromptModel={noop} />
+  }
+  const fallbackShown = (count) => text().includes(i18n.t('create.progress.avatarFallback', { count }))
+  const anyFallback = () => [1, 2, 3].some(fallbackShown)
+  const savedAt = i18n.t('create.progress.savedAt')
+  const runToTheEnd = async (projectId, seedScenes, hasAvatar = true) => {
+    probe.api.discardTask()
+    await waitFor(() => probe.task === null, 'se descarta la tarea')
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <TooltipProvider>
+          <Probe />
+          <MemoryRouter><LiveProgress /></MemoryRouter>
+        </TooltipProvider>
+      </QueryClientProvider>,
+    )
+    await waitFor(() => probe.api, 'el store monta')
+    await probe.api.startPipelineForProject(projectId, 'Final ' + projectId, { hasAvatar, seed: { scenes: seedScenes, completedStages: BEFORE_AVATAR, audioDurationSeconds: 150 } })
+    await waitFor(() => probe.task?.projectId === projectId && probe.task.status === 'generating', 'arranca ' + projectId)
+  }
+  // (a) Una lista y dos que fallaron en la corrida (render y plazo), con una
+  // escena de imagen y una planeada sin eventos, que no cuentan (en la
+  // pantalla de progreso la fase todavía la genera: ronda 2 de WP-P): mientras
+  // corre no hay aviso (lo dicen las filas); al terminar, «2 apariciones».
+  await runToTheEnd('pf', [...base, { id: 4, text: 'una imagen', imageStatus: 'ok', imagePath: '/p/scenes/scene_4.jpg', startSeconds: 130, endSeconds: 150 }, avatarScene(5, 160)])
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  for (const sceneId of [1, 2, 3]) emit({ type: 'avatar-scene-started', sceneId })
+  emit({ type: 'avatar-scene-ready', sceneId: 1, scene: { ...base[0], avatar: readyView } })
+  emit({ type: 'avatar-scene-failed', sceneId: 2, code: 'avatar_render_failed' })
+  emit({ type: 'avatar-scene-failed', sceneId: 3, code: 'avatar_timeout' })
+  emit({ type: 'stage-completed', stageId: 'avatar' })
+  await waitFor(() => probe.task.scenes[2].avatarActivity?.status === 'failed' && text().includes(i18n.t('create.progress.avatarCount', { ready: 1, total: 4 })), 'las filas de la corrida')
+  check(!anyFallback(), 'mientras el job corre, el aviso no sale')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pf.mp4' } })
+  await waitFor(() => fallbackShown(2), 'al terminar, cuántas salieron con la imagen fija del look')
+  check(text().includes(savedAt) && text().includes(i18n.t('create.progress.avatarItem', { index: 3, total: 4 })) && text().includes(i18n.t('create.progress.avatarFailed', { reason: i18n.t(errorKeyOf('avatar_timeout')) })) && text().includes(i18n.t('create.progress.avatarQueued')), 'el aviso va con el video y con el estado de cada aparición; la planeada, en espera')
+  // (b) Todas listas: el video termina sin aviso.
+  await runToTheEnd('pg', base)
+  for (const scene of base) {
+    emit({ type: 'avatar-scene-started', sceneId: scene.id })
+    emit({ type: 'avatar-scene-ready', sceneId: scene.id, scene: { ...scene, avatar: { ...readyView, clipPath: '/p/avatar/scene_' + scene.id + '.mp4' } } })
+  }
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pg.mp4' } })
+  await waitFor(() => probe.task.status === 'completed' && text().includes(savedAt), 'termina con todas listas')
+  check(!anyFallback(), 'con todas listas no hay aviso')
+  // (c) Sin eventos (la fase ya terminó y se saltea), lo del disco con la
+  // regla de la ronda 1 de WP-P: cuentan las fallidas y la lista que perdió su
+  // clip (su vista sale fallida); no la lista, ni las desactualizadas, con o
+  // sin clip (se muestran como tales). El panel no aparece; el aviso, sí.
+  const onDisk = [
+    avatarScene(1, 0, { avatar: readyView }),
+    avatarScene(2, 30, { avatar: { ...readyView, clipPath: '/p/avatar/scene_2.mp4', stale: true } }),
+    avatarScene(3, 60, { avatar: { ...planned, status: 'failed', errorCode: 'avatar_download_failed', stale: true } }),
+    avatarScene(4, 90, { avatar: { ...planned, status: 'failed', errorCode: 'avatar_download_failed' } }),
+    avatarScene(5, 120, { avatar: { ...planned, status: 'failed', errorCode: 'avatar_render_failed' } }),
+  ]
+  await runToTheEnd('ph', onDisk)
+  emit({ type: 'stage-skipped', stageId: 'avatar' })
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-ph.mp4' } })
+  await waitFor(() => fallbackShown(2), 'el disco: la fallida y la que perdió su clip, sin las desactualizadas')
+  check(!text().includes(i18n.t('create.progress.avatarHint')) && !text().includes(i18n.t('create.progress.avatarItem', { index: 1, total: 5 })), 'sin eventos de la fase el panel no aparece, el aviso sí')
+  // (d) Un job que termina en error no lo dice: la cabecera del fallo manda.
+  await runToTheEnd('pi', base)
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit({ type: 'avatar-scene-failed', sceneId: 2, code: 'avatar_render_failed' })
+  emit({ type: 'stage-completed', stageId: 'avatar' })
+  emit({ type: 'stage-started', stageId: 'render' })
+  emit({ type: 'job-failed', code: 'render_failed', message: 'ffmpeg' })
+  await waitFor(() => probe.task.status === 'error' && text().includes(i18n.t('create.progress.error.retryRender')), 'el job cae en el ensamblado')
+  check(!anyFallback(), 'un job que termina en error no dice el aviso del final')
+  // (e) Sin avatar, nada.
+  await runToTheEnd('pj', [{ id: 1, text: 'una imagen', imageStatus: 'ok', startSeconds: 0, endSeconds: 150 }], false)
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pj.mp4' } })
+  await waitFor(() => probe.task.status === 'completed' && text().includes(savedAt), 'termina sin avatar')
+  check(!anyFallback(), 'un video sin avatar no tiene aviso')
+
+  // 13. El reproductor de la biblioteca (rondas 1 y 2 de WP-P): el mismo
+  // aviso, sacado de los datos del proyecto y no de una corrida, así sale cada
+  // vez que se abre el proyecto terminado hasta que se regeneran. Es el
+  // proyecto ya hecho: cuentan las fallidas, la lista que perdió su clip y una
+  // planeada (el camino «Continuar en el editor» → exportar); no las
+  // desactualizadas, con o sin clip, ni una lista. Solo con video: el texto
+  // habla de él.
+  const finishedDetail = (id, scenes, extra = {}) => ({
+    metadata: { id, name: 'Terminado ' + id, state: 'completed', completedStages: [...BEFORE_AVATAR, 'avatar', 'render'], options: { videoFormat: '16:9', imageProvider: 'fal', avatar: avatarOptions } },
+    scenes,
+    words: [],
+    script: '',
+    videoPath: '/v/' + id + '.mp4',
+    videoMtimeMs: 1,
+    ...extra,
+  })
+  window.projectDetails.py = finishedDetail('py', [
+    ...onDisk,
+    avatarScene(6, 140, { avatar: planned }),
+    { id: 7, text: 'una imagen', imageStatus: 'ok', imagePath: '/p/scenes/scene_7.jpg', startSeconds: 150, endSeconds: 160 },
+  ])
+  window.projectDetails.pz = finishedDetail('pz', [avatarScene(1, 0, { avatar: readyView })])
+  window.projectDetails.pw = finishedDetail('pw', onDisk, { videoPath: undefined, metadata: { ...finishedDetail('pw', []).metadata, state: 'draft' } })
+  // Concern 6 de WP-Q: la única sin generar es una lista desactualizada que
+  // perdió su clip (la vista la manda fallida y con stale): no es fallida.
+  window.projectDetails.pv = finishedDetail('pv', [
+    avatarScene(1, 0, { avatar: readyView }),
+    avatarScene(2, 60, { avatar: { ...planned, status: 'failed', errorCode: 'avatar_download_failed', stale: true } }),
+  ])
+  await openView('/view/py', <LibraryPlayer />, 'Terminado py')
+  await waitFor(() => fallbackShown(3), 'el reproductor dice cuántas apariciones salieron con la imagen fija, con la planeada')
+  check(document.querySelector('video') !== null, 'el aviso acompaña al video del proyecto')
+  await openView('/view/pv', <LibraryPlayer />, 'Terminado pv')
+  await waitFor(() => document.querySelector('video') !== null, 'el reproductor con una desactualizada sin clip')
+  check(!anyFallback(), 'una desactualizada sin clip no cuenta como fallida en el reproductor')
+  await openView('/view/pz', <LibraryPlayer />, 'Terminado pz')
+  await waitFor(() => document.querySelector('video') !== null, 'el reproductor con todas listas')
+  check(!anyFallback(), 'con todas las apariciones listas, el reproductor no avisa')
+  await openView('/view/pw', <LibraryPlayer />, 'Terminado pw')
+  await waitFor(() => text().includes(i18n.t('library.player.noVideo')), 'un borrador sin video')
+  check(!anyFallback(), 'sin video no hay aviso: el texto habla del video')
+
+  // 14. Una sola regla (ronda 2 de WP-P): isAvatarFallback decide qué
+  // apariciones salen con la imagen fija del look, para la fila de cada
+  // aparición, el aviso del final de Crear, el reproductor y el editor. Las
+  // desactualizadas nunca cuentan (tienen su propio aviso); una planeada, solo
+  // en el proyecto ya hecho; lo que pasó en la corrida manda.
+  const failedView = { ...planned, status: 'failed', errorCode: 'avatar_render_failed' }
+  const lostClipView = { ...planned, status: 'failed', errorCode: 'avatar_download_failed' }
+  const staleNoClip = { ...lostClipView, stale: true }
+  const activity = (status) => ({ status, phase: 'render', elapsedSeconds: 3, receivedAt: 1, ...(status === 'failed' ? { code: 'avatar_timeout' } : {}) })
+  // [qué es, la escena, ¿cuenta en el progreso?, ¿cuenta en el proyecto?]
+  const shapes = [
+    ['sin avatar', { id: 1, text: 'x', imageStatus: 'ok' }, false, false],
+    ['planeada', avatarScene(1, 0), false, true],
+    ['fallida', avatarScene(1, 0, { avatar: failedView }), true, true],
+    ['lista que perdió su clip', avatarScene(1, 0, { avatar: lostClipView }), true, true],
+    ['lista sin clipPath (la vista no la manda así; el render la deja fija)', avatarScene(1, 0, { avatar: { ...planned, status: 'ready' } }), true, true],
+    ['lista con su clip', avatarScene(1, 0, { avatar: readyView }), false, false],
+    ['desactualizada con clip', avatarScene(1, 0, { avatar: { ...readyView, stale: true } }), false, false],
+    ['desactualizada sin clip', avatarScene(1, 0, { avatar: staleNoClip }), false, false],
+    ['falló en la corrida', avatarScene(1, 0, { avatarActivity: activity('failed') }), true, true],
+    ['quedó lista en la corrida', avatarScene(1, 0, { avatar: readyView, avatarActivity: activity('ready') }), false, false],
+    ['se está generando', avatarScene(1, 0, { avatarActivity: activity('generating') }), false, false],
+  ]
+  for (const [name, scene, inProgress, inProject] of shapes)
+    check(isAvatarFallback(scene, 'progress') === inProgress && isAvatarFallback(scene, 'project') === inProject, 'regla única: ' + name)
+  const everyShape = shapes.map(([, scene], index) => ({ ...scene, id: index + 1 }))
+  check(avatarFallbackCount(everyShape, 'progress') === 4 && avatarFallbackCount(everyShape, 'project') === 5, 'la cuenta de cada contexto: 4 en el progreso y 5 en el proyecto ya hecho')
+  check(everyShape.filter((scene) => scene.avatar && avatarRowStatus(scene) === 'failed').length === avatarFallbackCount(everyShape, 'progress'), 'la fila «No se completó» y el aviso del progreso cuentan las mismas')
+  check(avatarRowStatus(avatarScene(1, 0, { avatar: staleNoClip })) === 'stale' && avatarRowStatus(avatarScene(1, 0, { avatar: { ...readyView, stale: true } })) === 'stale', 'una desactualizada, con o sin clip, tiene su propio estado en la fila')
+  // El caso raro (concern 6 de WP-Q): una lista desactualizada que perdió su
+  // clip decía «No se completó» con el motivo de la descarga, que promete
+  // reusar el video pagado, y el aviso no la contaba. Ahora la fila dice
+  // «Desactualizada» (create.progress.avatarStale, que concuerda con «Lista»;
+  // ronda 3 de WP-P) y el aviso tampoco la cuenta.
+  const rareScenes = [avatarScene(1, 0, { avatar: readyView }), avatarScene(2, 60, { avatar: staleNoClip }), avatarScene(3, 120, { avatar: failedView })]
+  render(<PipelineAvatarPanel scenes={rareScenes} dropped={0} active={false} />)
+  await waitFor(() => rows().length === 3, 'tres filas')
+  const notCompleted = i18n.t('create.progress.avatarFailed', { reason: '' }).trim()
+  check(rows()[1].textContent.includes(i18n.t('create.progress.avatarStale')) && !rows()[1].textContent.includes(notCompleted), 'la desactualizada sin clip dice «Desactualizada» en su fila, no «No se completó»')
+  check(rows()[2].textContent.includes(i18n.t('create.progress.avatarFailed', { reason: i18n.t(errorKeyOf('avatar_render_failed')) })), 'la fallida de verdad sigue con «No se completó» y su motivo')
+  check(text().includes(i18n.t('create.progress.avatarCount', { ready: 1, total: 3 })), 'la desactualizada no cuenta como lista')
+  render(<AvatarFallbackNote count={avatarFallbackCount(rareScenes, 'progress')} />)
+  await waitFor(() => fallbackShown(1), 'el aviso del progreso cuenta solo la fallida')
+  checks += 1
+  check(dominantAvatarFailure(rareScenes) === 'avatar_render_failed' && dominantAvatarFailure([rareScenes[1]]) === undefined, 'la cabecera de un proyecto de antes de la 2d tampoco toma la desactualizada como fallo')
+  // La API del aviso para el editor (WP-Q): la cifra y una acción opcional.
+  render(<AvatarFallbackNote count={2} action={<button type="button">Regenerar todos</button>} />)
+  await waitFor(() => fallbackShown(2) && [...document.querySelectorAll('button')].some((button) => button.textContent === 'Regenerar todos'), 'el aviso con la acción del editor')
+  checks += 1
+  render(<AvatarFallbackNote count={0} action={<button type="button">Regenerar todos</button>} />)
+  await waitFor(() => !anyFallback() && document.querySelectorAll('button').length === 0, 'sin ninguna, ni el aviso ni la acción')
+  checks += 1
   document.getElementById('result').textContent = 'PASS: avatar progress (' + checks + ' checks)'
 } catch (error) {
   const reason = renderError && renderError !== error ? ' (render error: ' + renderError.message + ')' : ''

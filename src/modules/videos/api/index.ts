@@ -88,6 +88,7 @@ import type {
   AnimateScenesPayload,
   UndoSceneAnimationResult,
 } from '@pipeline/types/animation.ts'
+import type { AvatarRenderScenesPayload } from '@pipeline/types/avatar.ts'
 import type {
   CatalogCopyToCustomPayload,
   CatalogCopyToCustomResult,
@@ -249,6 +250,14 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('animate-scenes', payload, onEvent)
+  },
+  // «Generar» / «Regenerar» el avatar de escenas puntuales desde el editor
+  // (entrega 2d): cobra en HeyGen, así que la vista confirma el costo antes.
+  async startAvatarRender(
+    payload: AvatarRenderScenesPayload,
+    onEvent: (event: PipelineEventPayload) => void,
+  ): Promise<PipelineJobHandle> {
+    return startPipelineJob('avatar-render-scenes', payload, onEvent)
   },
   async undoAnimation(
     projectId: string,

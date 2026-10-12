@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, Shirt } from 'lucide-react'
 import { avatarsApi } from '@/modules/avatars/api'
 import { AVATAR_LOOK_FORMAT_LABEL_KEYS } from '@/modules/avatars/constants'
+import type { SizedLibraryLook } from '@/modules/avatars/types/look'
 import { cn } from '@/modules/common/utilities/cn'
 import { CreateLookCard } from '@/modules/videos/components/CreateLookCard'
+import { CreateLookPlayer } from '@/modules/videos/components/CreateLookPlayer'
 import {
   AVATAR_LOOK_GRID_CLASSES,
   AVATAR_LOOK_GRID_MAX_HEIGHT_CLASS,
@@ -18,6 +20,7 @@ import type { AvatarLookFormat } from '@pipeline/avatar/look-orientation.ts'
 import type {
   AvatarLookSummary,
   AvatarSummary,
+  HeyGenLook,
 } from '@pipeline/types/avatar.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
@@ -34,17 +37,40 @@ interface CreateAvatarLooksProps {
   onChoose(look: AvatarLookSummary): void
 }
 
+// El look con lo que el listado de HeyGen sabe de él y la biblioteca no: la
+// orientación (si la biblioteca no la guardó) y las medidas de la imagen. Es
+// lo que leen el formato de su ficha y los chips de su reproductor, así los
+// dos dicen lo mismo.
+function displayedLook(
+  look: AvatarLookSummary,
+  remoteLook: HeyGenLook | undefined,
+): SizedLibraryLook {
+  return {
+    ...look,
+    preferredOrientation:
+      look.preferredOrientation ?? remoteLook?.preferredOrientation,
+    imageWidth: remoteLook?.imageWidth,
+    imageHeight: remoteLook?.imageHeight,
+  }
+}
+
 // El botón «Look» de la tarjeta del avatar en Crear y su grilla (spec §9,
 // entrega 2c, pedido del dueño: «se despliegan todas las cards de cada look,
 // para ver sus previews, y uno va scrolleando»; nunca una lista de nombres).
 // La grilla trae TODOS los looks del avatar, el principal primero, cada uno
-// con su vista previa, su video al pasar el mouse y su formato; se eligen solo
-// los que sirven para el video y los demás se ven atenuados con el motivo, los
-// dos según la misma regla (`lookUnfitReason`, selectableAvatar.ts, la que usa
-// `avatarLooksFor`). Elegir uno lo pasa al formulario, cierra la grilla y deja
-// el foco en el botón. Las vistas previas que no están en disco y los videos
-// salen del listado de HeyGen (el mismo, y con la misma caché, que el de la
-// tarjeta del avatar y el panel de la biblioteca), pedido al abrir.
+// con su vista previa, su video al pasar el mouse y su formato; los que no
+// sirven para el video se ven atenuados con el motivo, según la misma regla
+// (`lookUnfitReason`, selectableAvatar.ts, la que usa `avatarLooksFor`). Las
+// vistas previas que no están en disco y los videos salen del listado de
+// HeyGen (el mismo, y con la misma caché, que el de la tarjeta del avatar y el
+// panel de la biblioteca), pedido al abrir.
+//
+// Desde la entrega 2d (pedido del dueño) tocar una ficha no elige el look:
+// abre su reproductor (`CreateLookPlayer`, el de la ruta Avatares) con el
+// video entero. Ahí «Usar» lo pasa al formulario, cierra el reproductor y la
+// grilla, y deja el foco en el botón «Look»; un look que no sirve abre igual y
+// dice por qué, sin «Usar». Cerrar el reproductor sin elegir no cambia nada y
+// devuelve el foco a la ficha.
 export function CreateAvatarLooks({
   entry,
   videoFormat,
@@ -54,7 +80,13 @@ export function CreateAvatarLooks({
 }: CreateAvatarLooksProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  // El look cuyo reproductor está abierto.
+  const [playerLookId, setPlayerLookId] = useState<string | null>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
+  // Adónde vuelve el foco al cerrar el reproductor (lo lee él, al cerrarse):
+  // la ficha que lo abrió o, si se eligió el look, el botón «Look» (la ficha
+  // se va con la grilla).
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const regionId = useId()
   const remote = useAvatarRemoteLooks({ avatar: entry, enabled: open })
 
@@ -67,6 +99,21 @@ export function CreateAvatarLooks({
     (look) => lookUnfitReason(look, videoFormat) === null,
   )
 
+  // Todo lo que la ficha de un look y su reproductor leen del mismo lugar.
+  const describeLook = (look: AvatarLookSummary) => {
+    const remoteLook = remoteById.get(look.lookId)
+    const displayed = displayedLook(look, remoteLook)
+    return {
+      displayed,
+      format: lookFormatOf(displayed),
+      imageUrl: look.previewPath
+        ? avatarsApi.imageSource(look.previewPath)
+        : remoteLook?.previewImageUrl,
+      videoUrl: remoteLook?.previewVideoUrl,
+      unfitReason: lookUnfitReason(look, videoFormat),
+    }
+  }
+
   // El motivo en palabras. El de otro formato lleva el formato del look: la
   // regla solo lo da con la orientación conocida, así que siempre lo hay.
   const reasonText = (
@@ -77,11 +124,39 @@ export function CreateAvatarLooks({
     return t(LOOK_UNFIT_REASON_KEYS[reason], { format: formatLabel })
   }
 
-  const choose = (look: AvatarLookSummary) => {
-    if (look.lookId !== chosenLookId) onChoose(look)
-    setOpen(false)
-    toggleRef.current?.focus()
+  const openPlayer = (look: AvatarLookSummary, card: HTMLButtonElement) => {
+    returnFocusRef.current = card
+    setPlayerLookId(look.lookId)
   }
+
+  const closePlayer = () => setPlayerLookId(null)
+
+  // «Usar»: el look pasa al formulario (el ya elegido no cambia nada), y se
+  // cierran el reproductor y la grilla. El foco vuelve al botón «Look» por el
+  // propio reproductor: moverlo acá, con el diálogo todavía abierto, lo
+  // devolvería a su caja.
+  const chooseLook = (look: AvatarLookSummary) => {
+    if (look.lookId !== chosenLookId) onChoose(look)
+    returnFocusRef.current = toggleRef.current
+    setPlayerLookId(null)
+    setOpen(false)
+  }
+
+  // El reproductor sigue a lo que se muestra: con la tarjeta deshabilitada, o si
+  // el look ya no está entre los del avatar que se mira (cambió el avatar o la
+  // biblioteca), se cierra y no se reabre solo cuando todo vuelve. Sin esto la
+  // grilla, que sigue abierta al mirar otro avatar, reabría sola el reproductor
+  // del mismo look al volver el avatar. Se ajusta el estado durante el render
+  // (así deriva React el estado de las props) y no con un efecto; «Usar» no
+  // puede elegir con la tarjeta deshabilitada porque el reproductor ya no existe.
+  const playerLook = disabled
+    ? undefined
+    : looks.find((look) => look.lookId === playerLookId)
+  if (playerLookId !== null && !playerLook) setPlayerLookId(null)
+
+  const player = playerLook
+    ? { look: playerLook, ...describeLook(playerLook) }
+    : null
 
   return (
     <div className="space-y-2.5">
@@ -118,51 +193,54 @@ export function CreateAvatarLooks({
             )}
           >
             {/* Dice de quién son los looks, como el botón que la abre. */}
-            <div
-              role="radiogroup"
+            <ul
               aria-label={t('create.avatar.looksToggleAria', {
                 name: entry.name,
               })}
               className={AVATAR_LOOK_GRID_CLASSES[videoFormat]}
             >
               {looks.map((look) => {
-                const remoteLook = remoteById.get(look.lookId)
-                // Las medidas del listado completan el formato de un look
-                // cuya orientación la biblioteca no conoce.
-                const format = lookFormatOf({
-                  preferredOrientation:
-                    look.preferredOrientation ??
-                    remoteLook?.preferredOrientation,
-                  imageWidth: remoteLook?.imageWidth,
-                  imageHeight: remoteLook?.imageHeight,
-                })
-                const reason = lookUnfitReason(look, videoFormat)
-                const imageUrl = look.previewPath
-                  ? avatarsApi.imageSource(look.previewPath)
-                  : remoteLook?.previewImageUrl
+                const { format, imageUrl, videoUrl, unfitReason } =
+                  describeLook(look)
                 return (
                   <CreateLookCard
                     key={look.lookId}
                     look={look}
                     imageUrl={imageUrl}
-                    videoUrl={remoteLook?.previewVideoUrl}
+                    videoUrl={videoUrl}
                     loading={!imageUrl && remote.isLoading}
                     format={format}
                     videoFormat={videoFormat}
                     main={look.lookId === entry.mainLookId}
                     chosen={look.lookId === chosenLookId}
                     unavailableReason={
-                      reason === null ? null : reasonText(reason, format)
+                      unfitReason === null
+                        ? null
+                        : reasonText(unfitReason, format)
                     }
                     disabled={disabled}
-                    onChoose={() => choose(look)}
+                    onOpen={(card) => openPlayer(look, card)}
                   />
                 )
               })}
-            </div>
+            </ul>
           </div>
         )}
       </div>
+
+      {/* El reproductor del look tocado: encima de todo, con su video entero. */}
+      {player && (
+        <CreateLookPlayer
+          look={player.displayed}
+          imageUrl={player.imageUrl}
+          videoUrl={player.videoUrl}
+          videoLoading={remote.isLoading}
+          unfitReason={player.unfitReason}
+          returnFocusRef={returnFocusRef}
+          onUse={() => chooseLook(player.look)}
+          onClose={closePlayer}
+        />
+      )}
 
       {/* La ayuda habla del look elegido: sin nada que elegir, no va. */}
       {anyChoosable && (

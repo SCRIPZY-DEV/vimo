@@ -39,7 +39,7 @@ al cuadro del render, mudo, sobre la narración de siempre.
 1. **Frases como unidad** (`pipeline/narration/sentences.ts`): `words.json` gana un `sentenceEnd?`
    opcional por palabra (Deepgram con `punctuate=true`, `word` sigue limpio); sin él, pausas ≥ 0,35 s.
 2. **Planificador propio** (`pipeline/avatar/planner.ts`): apariciones × segundos del usuario, ajuste
-   a frases enteras, mínimo 7 s, reparto parejo con hueco mínimo de 10 s, determinista.
+   a frases enteras, mínimo 7 s (5 s desde la 2d), reparto parejo con hueco mínimo de 10 s, determinista.
 3. **Pines en el corte** (`pipeline/stages/scene-cuts/pins.ts`): la fase `scene-cuts` planifica el
    avatar antes de cortar y corta el resto alrededor; las escenas siguen contiguas y con una imagen
    cada una. El diálogo de confirmación muestra las apariciones.
@@ -185,7 +185,8 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
 - Clave de HeyGen rechazada: al crear, el proyecto no se crea (`avatar_invalid_key`, sin haber
   pagado voz ni imágenes); a mitad de corrida, la fase termina con ese mismo código y no con
   `avatar_incomplete`.
-- Vence el plazo: el recibo queda `pending` y se cosecha después.
+- Vence el plazo: el recibo queda `pending` y se cosecha después (desde la 2d, lo cosecha sin pagar el
+  «Regenerar» del editor; reanudar solo si la fase no terminó).
 - Sin saldo: pausa con el patrón de voz/imágenes antes de subir nada.
 
 ## Fuera de alcance
@@ -339,7 +340,7 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
 - **Frases, planificador y cortes** (tareas 2 a 4): `detectSentences` cierra la frase donde
   Deepgram marca `sentenceEnd` (`punctuate`, también con los terminadores de ja/zh) o, sin él, en
   una pausa de 0,35 s, y parte toda frase de más de 15 s en su pausa más larga. `planAvatarSpans`
-  ajusta cada aparición a frases enteras (de 7 a 60 s, con 10 s de imágenes entre una y otra) y lo
+  ajusta cada aparición a frases enteras (de 7 a 60 s —de 5 a 60 desde la 2d—, con 10 s de imágenes entre una y otra) y lo
   que no cabe va a `dropped` sin fallar. Un tramo libre de menos de 3 s lo absorbe el avatar, así
   que la última aparición puede pasar hasta 2,99 s del plan: el costo sale de los `avatarSpans` y
   no del plan. La cantidad confirmada se reparte entre los tramos libres por promedios mayores y,
@@ -399,7 +400,7 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
   título; un render que HeyGen rechazó para siempre (moderación o look no soportado) no se vuelve a
   pedir solo —la cabecera de la interfaz manda a renderizar desde el editor o cambiar el look,
   `avatarRejected`— salvo cuando lo pide la persona con `avatar-render-scenes`
-  (`retryFinalRejection`; su botón en el editor es de la entrega 3); el mp4 se marca desactualizado
+  (`retryFinalRejection`; su botón en el editor, «Regenerar», es de la entrega 2d); el mp4 se marca desactualizado
   solo cuando una escena recibe un clip nuevo; `requestedAvatarSceneIds` es la única validación de
   los `sceneIds` del comando; al entrar al carril se barren los temporales de un job matado.
 - **Ola final: look, render y editor**: un look generado con «Crear escenario» guarda la orientación
@@ -434,7 +435,7 @@ el mouse, §12.2), manda esta enmienda.
   silencio que sobra pasa a la escena de imagen siguiente (una escena sin palabras ya era un caso
   del corte). El tope no deja una cola corta ni pasa el máximo después del corte (rulings R10, R34 y
   R37): si el fin recortado queda a menos de `MIN_SECONDS_PER_SCENE` del fin del audio, el tramo
-  llega a su fin nominal, porque `pinnedTimeline` absorbería esa cola igual; el **mínimo** de 7 s se
+  llega a su fin nominal, porque `pinnedTimeline` absorbería esa cola igual; el **mínimo** de 7 s (5 s desde la 2d) se
   mide hasta el fin recortado (una última frase casi muda no es una aparición) y el **máximo** de 60
   s con lo que deja el corte: una aparición que terminaría a menos de 3 s del fin del audio se mide
   hasta el fin del audio, con tope de silencio o sin él, y si ni así entra se queda una frase antes
@@ -460,7 +461,7 @@ el mouse, §12.2), manda esta enmienda.
   imágenes, compacta y con la misma altura en su fila. Los looks se piden recién cuando el mouse
   queda quieto 250 ms sobre la tarjeta (`HOVER_FETCH_DELAY_MS`) o con el foco del teclado: cruzar
   una grilla no lanza un proceso del sidecar por tarjeta. Un clic en un look abre su reproductor
-  (`LookPlayerDialog`: sin autoplay, con sonido solo desde un clic, línea de tiempo, velocidad,
+  (`LookPlayerDialog`: sin autoplay —superado por la 2d: arranca solo—, con sonido solo desde un clic, línea de tiempo, velocidad,
   silencio y pantalla completa) con «Cargar a la biblioteca» en el stock y «Usar como principal» en
   el panel; las fichas de looks siguen del mismo tamaño aunque el look sea vertical.
 - **Crear (§9).** El look se elige en un desplegable con el principal de la biblioteca por defecto y
@@ -499,8 +500,9 @@ Pedidos del dueño tras la 2b (hechos y decisiones: §19 del diseño; rulings:
 nada cobra de más.
 
 - **Borrar de verdad (G1).** «Mis avatares» elimina el avatar en HeyGen
-  (`DELETE /v3/avatars/{group_id}`, con sus looks) tras una confirmación en dos pasos; solo los
-  propios (HeyGen no borra los públicos). HeyGen primero, el disco después, y un 404 cuenta como
+  (`DELETE /v3/avatars/{group_id}`, con sus looks) tras una confirmación en dos pasos (superada
+  por la 2d: un menú con dos opciones, en la enmienda de abajo); solo los propios (HeyGen no borra los
+  públicos). HeyGen primero, el disco después, y un 404 cuenta como
   borrado: un fallo de HeyGen nunca saca de la biblioteca un avatar que sigue existiendo.
 - **Formato de la ficha (G2).** Manda la orientación de HeyGen; sin ella, el formato más cercano a
   las medidas de la imagen; sin datos, sin chip.
@@ -517,3 +519,96 @@ nada cobra de más.
 **A confirmar en la QA del dueño:** cómo filtra `GET /v3/videos?title=` (la sonda gratis del
 2026-10-11 no encontró renders para probarlo), si HeyGen conserva el final del título (hasta unos
 170 caracteres) y en qué orden lista renders y copias. La ADR sigue en «Propuesta».
+
+## Enmienda 2026-10-11 (noche) — entrega 2d
+
+Pedidos del dueño tras la 2c, con una captura de la grilla «Look» de Crear (hechos y decisiones: §20
+del diseño; rulings: `docs/handoff/2026-10-09-avatar-heygen/execution-e2d/ledger.md`). Lo único
+nuevo que puede cobrar es el «Regenerar» del editor, que pide el mismo `POST /v3/videos` que la fase
+`avatar` —con el costo y el saldo a la vista antes de confirmar—; el `DELETE` de la 2c sigue siendo
+gratis. Donde el diseño o las enmiendas de arriba dicen otra cosa que esta, manda esta.
+
+- **Crear: el look se mira en el reproductor y se elige con «Usar» (R-2d-1).** Un clic en una ficha
+  de la grilla «Look» abre el `LookPlayerDialog` de Avatares, con la acción nueva `use` («Usar»), y
+  ya no elige. «Usar» elige el look, cierra el reproductor y la grilla y deja el foco en el botón
+  «Look»; el look que no sirve abre igual y dice por qué, con una frase propia por motivo
+  (`LOOK_PLAYER_REASON_KEYS`) y sin «Usar». La grilla deja de ser un `radiogroup` (un clic ya no
+  elige): es una lista de botones, con `aria-current` y «Elegido» en el look elegido. El reproductor
+  arranca solo al abrirse, en los tres lugares donde se usa (stock, panel y Crear): con sonido y, si
+  el navegador rechaza la reproducción automática, silenciado y con «Activar el sonido». Reemplaza
+  el «sin autoplay» de la 2b y el «elegir con el clic» de la 2c (J1).
+- **Eliminar con dos opciones (R-2d-2).** El botón de eliminar abre, en la misma tarjeta, «Eliminar
+  de la lista» (saca el avatar de la biblioteca de Vimo sin otro paso; sigue en HeyGen y se puede
+  volver a agregar) y, solo en un avatar propio (`ownership: 'own'`; el `'private'` es el del
+  listado de HeyGen), «Eliminar permanentemente de HeyGen», que se vuelve «Seguro» en su mismo lugar
+  y deja «Cancelar» en el de la lista: la revisión midió que, con «Seguro» donde estaba la lista, un
+  clic de corrección borraba de HeyGen para siempre. Va en la tarjeta y el panel de la biblioteca y
+  en «Mis avatares» (donde «de la lista» aparece solo si el avatar está en la biblioteca). Siguen
+  las guardas de la 2c (ni una tecla sostenida ni el segundo clic de un doble clic confirman, ni
+  abren lo que queda debajo), el foco entra a la primera opción sin desplazar la grilla, Escape
+  cierra solo el menú y hay un
+  borrado de HeyGen a la vez. Reemplaza la confirmación en dos pasos de la 2c (G1).
+- **Los textos de avatares sin HeyGen (R-2d-3).** Los mensajes de avatares, Crear, progreso, editor
+  y errores dejan de nombrar al proveedor («el servicio de avatares», «tu saldo de avatares», «la
+  clave del avatar presentador»). El nombre queda en Claves API, donde identifica la clave, en el
+  borrado en HeyGen y en las filas del aviso de saldo y de «Faltan claves», que dicen qué cuenta
+  recargar o qué clave cargar. Un guard permanente (`check-avatar-texts-without-provider.mjs`) falla
+  si el valor de una clave de los catálogos lo nombra fuera de cuatro claves permitidas.
+- **Una aparición que falla no frena el video (pregunta 6, R-2d-4 y R-P2).** La fase `avatar` deja
+  de lanzar `avatar_incomplete` por el fallo de una escena (render fallido, plazo vencido,
+  moderación, look no soportado, descarga, HeyGen caído): termina con un aviso en el log y el render
+  deja esa escena con la imagen fija del look (§10.1, ya existía). Los códigos de la cuenta
+  (`avatar_invalid_key`, `missing_api_key`, `avatar_insufficient_credits`) siguen lanzando el suyo y
+  pausando, y una pausa de la cuenta no completa la fase. Terminada, la fase no vuelve a correr al
+  reanudar: las apariciones con la imagen fija se regeneran desde el editor, que también cosecha sin
+  pagar un recibo `pending` vencido (antes lo hacía reanudar). Una sola regla, `isAvatarFallback`,
+  decide cuáles cuentan —las fallidas y la lista que perdió su clip; la desactualizada nunca; la
+  planeada solo en un proyecto ya hecho— para la fila del progreso, el aviso del final de Crear, el
+  del reproductor de la biblioteca y el del editor. `avatar_incomplete` queda solo en proyectos de
+  antes de la 2d.
+- **La desactualizada no se paga sola (R-2d-5).** Una escena lista y desactualizada no es pendiente
+  aunque le falte el clip (`isAvatarScenePending`, con `isAvatarClipStale`): reanudar no la paga y
+  el render la muestra estática con la vista previa del look. El costo de reanudar cuenta
+  exactamente lo que la fase va a pagar. La vista marca `stale` también en la que perdió su clip, y
+  el bloque y el panel del editor la muestran «desactualizada» antes que «fallida» (regenerarla paga
+  otro render; el texto de la descarga decía que ya estaba paga).
+- **Mínimo de 5 s (pregunta 4).** `AVATAR_MIN_APPEARANCE_SECONDS` baja de 7 a 5; el máximo (60 s),
+  el hueco (10 s) y las 10 apariciones no cambian. Las preguntas 1, 2, 3 y 5 del 2026-10-10 ya
+  regían como se recomendó.
+- **Regenerar desde el editor (R-2d-6, adelantado de la entrega 3).** Sin esto, las escenas quietas
+  de los dos puntos anteriores no tenían salida. El panel de una escena de avatar ofrece «Generar
+  avatar» (planeada), «Regenerar avatar» (fallida, desactualizada o lista sin clip) y «Regenerar
+  todos (N)» (todas las de avatar sin clip válido o desactualizadas), con una confirmación que
+  muestra la cantidad, el costo (el de Crear, por la duración real de cada tramo) y el saldo de
+  avatares, releído antes de pagar. Corre `avatar-render-scenes { projectId, sceneIds }` como una
+  tarea del editor, exclusiva (Crear espera: no lanza ni reanuda el pipeline de un proyecto con una
+  tarea del editor en curso) y cancelable, con el avance en el bloque del timeline; al terminar
+  relee el proyecto y el video exportado queda desactualizado como con cualquier cambio. Arriba del
+  editor, el aviso de lo que sale con la imagen fija regenera exactamente lo que cuenta
+  («Regenerarlas (N)»; el «Regenerar todos (N)» del panel cuenta además las desactualizadas).
+  «Cambiar avatar», «Avatar aquí», mover y estirar siguen en la entrega 3.
+- **Módulos (R-2d-7).** La práctica de la 2b (R33) pasa a una excepción escrita: `videos` puede
+  importar la `api/`, los hooks, los tipos, las constantes públicas, las utilidades puras y los
+  componentes de selección o vista previa de otros módulos (`CLAUDE.md` y la enmienda del 2026-10-11
+  de la ADR-0005); ningún otro módulo la tiene.
+- **Verificación.** Guards nuevos: `check-editor-avatar-regenerate-ui.mjs` (194 checks) y
+  `check-avatar-texts-without-provider.mjs` (12 tests). Ampliados o reescritos:
+  `check-create-avatar-ui.mjs` (181), `check-avatar-library-ui.mjs` (45), `check-avatar-stage.mjs`
+  (39), `check-avatar-planner.mjs` (27), `check-avatar-scene-model.mjs` (12),
+  `check-avatar-create-project.mjs` (62), `check-avatar-progress-ui.mjs` (134) y
+  `check-timeline-avatar-ui.mjs` (31). Todo con HeyGen simulado: la ejecución no gastó saldo.
+
+**A confirmar en la QA del dueño, con la app real:** el reproductor que arranca solo con sonido en
+la WKWebView y su respaldo silenciado (también cuando el listado de Crear llega después del clic);
+el anillo de foco en la primera opción del menú de eliminar al abrirlo con el mouse y la tarjeta de
+«Mis avatares» que queda «activa» al salir con el puntero; el aspecto del panel con las opciones en
+dos celdas iguales y los dos temas; un «Regenerar» con un render real. Y dos decisiones de producto:
+la confirmación del editor muestra el costo completo aunque recuperar un render ya pagado y sin
+cosechar sea gratis (la vista no expone los recibos), y una caída total de HeyGen deja el video sin
+avatar y reanudar no lo reintenta.
+
+Costo si estuviera mal: el arranque automático es una condición de `useLookPlayback`; el menú de
+eliminar, el texto y el efecto de un botón; que reanudar reintente las fallidas es quitar la línea
+del `skip` de la fase que mira `completedStages` y volver a contar el avatar en
+`estimateResumeCost`; «Regenerar» son botones sobre un comando que ya existía. La ADR sigue en
+«Propuesta»: pasa a Aceptada con la QA del dueño.

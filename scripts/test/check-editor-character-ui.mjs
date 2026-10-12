@@ -50,7 +50,7 @@ const animation = { busy: false, provider: 'kie', configuredProviders: new Set()
 function Editor() {
   const editor = useLibraryEditor('fixture')
   window.editor = editor
-  return <EditorScenePanel scene={editor.selectedScene} characters={editor.detail?.metadata.options.characters ?? []} imageChoice={editor.imageChoice} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={() => {}} busy={editor.savingChanges} regenerateLocked={false} userPromptPending={editor.userPromptPending} errorKey={undefined} onUserPromptChange={editor.patchSelectedUserPrompt} onUserPromptBlur={editor.commitSelectedUserPrompt} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={() => {}} onImageChoiceChange={editor.changeImageChoice} onCharactersChange={editor.changeCharacters} onRegenerate={editor.regenerateSelected} animation={animation} />
+  return <EditorScenePanel scene={editor.selectedScene} projectId="fixture" scenes={editor.workingScenes} characters={editor.detail?.metadata.options.characters ?? []} imageChoice={editor.imageChoice} videoFormat="16:9" credits={null} creditsLoading={false} creditsRefreshing={false} onRefreshCredits={() => {}} busy={editor.savingChanges} regenerateLocked={false} userPromptPending={editor.userPromptPending} errorKey={undefined} onUserPromptChange={editor.patchSelectedUserPrompt} onUserPromptBlur={editor.commitSelectedUserPrompt} canEditClipIn={false} canEditClipOut={false} onClipTimeChange={() => {}} onImageChoiceChange={editor.changeImageChoice} onCharactersChange={editor.changeCharacters} onRegenerate={editor.regenerateSelected} animation={animation} />
 }
 // Un error de render se reporta con su mensaje en vez de disfrazarse de
 // «panel cargado» (el árbol desmontado no tiene checkbox).
@@ -92,7 +92,7 @@ try {
   // Una escena de avatar no tiene imagen que regenerar: el panel no lo
   // ofrece y, si algún camino lo pidiera, ni el panel ni la galería encolan.
   window.editor.setSelectedSceneId(3)
-  await waitFor(() => window.editor.selectedScene?.id === 3 && document.body.textContent.includes(i18n.t('library.editor.panel.avatarScene')), 'escena de avatar elegida')
+  await waitFor(() => window.editor.selectedScene?.id === 3 && document.body.textContent.includes(i18n.t('library.editor.panel.avatarSceneHint')), 'escena de avatar elegida')
   check(!regenerate() && !checkbox(), 'el panel de la escena de avatar no ofrece regenerar ni personajes')
   const queued = window.regens.length
   await window.editor.regenerateSelected()

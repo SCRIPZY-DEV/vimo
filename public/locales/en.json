@@ -389,8 +389,8 @@
       "startingTitle": "Checking services and balance",
       "avatarCount": "{{ready}} of {{total}} appearances ready",
       "avatarItem": "Avatar {{index}}/{{total}}",
-      "avatarHint": "Each appearance takes a few minutes on HeyGen. Each timer keeps running: the generation isn't stuck.",
-      "avatarTroubleTitle": "HeyGen is having trouble; Vimo carries on with the rest of the video",
+      "avatarHint": "Each appearance takes a few minutes to generate. Each timer keeps running: the generation isn't stuck.",
+      "avatarTroubleTitle": "The avatar service is having trouble; Vimo carries on with the rest of the video",
       "avatarDropped_one": "{{count}} appearance didn't fit in the narration.",
       "avatarDropped_other": "{{count}} appearances didn't fit in the narration.",
       "avatarNoneFit_one": "No avatar appearance fit in the narration ({{count}} dropped): the video goes without the avatar.",
@@ -398,13 +398,16 @@
       "avatarQueued": "Waiting",
       "avatarReady": "Ready",
       "avatarFailed": "Couldn't complete: {{reason}}",
+      "avatarStale": "Outdated",
       "avatarPhase": {
         "audio": "Preparing the voice",
-        "upload": "Uploading the voice to HeyGen",
-        "render": "HeyGen is generating the avatar",
+        "upload": "Uploading the voice to the avatar service",
+        "render": "The avatar service is generating the avatar",
         "download": "Downloading the clip",
         "normalize": "Fitting the clip to the video"
-      }
+      },
+      "avatarFallback_one": "{{count}} avatar appearance wasn't generated: the video shows the look's still image there. You can regenerate it from the editor.",
+      "avatarFallback_other": "{{count}} avatar appearances weren't generated: the video shows the look's still image there. You can regenerate them from the editor."
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -416,7 +419,7 @@
       "confirm": "Confirm and continue",
       "avatarLine_one": "The avatar appears {{count}} time ({{ranges}})",
       "avatarLine_other": "The avatar appears {{count}} times ({{ranges}})",
-      "avatarCost": "HeyGen cost: ≈ {{amount}}",
+      "avatarCost": "Avatar cost: ≈ {{amount}}",
       "avatarDropped_one": "{{count}} appearance didn't fit.",
       "avatarDropped_other": "{{count}} appearances didn't fit.",
       "avatarNoneFits_one": "No avatar appearance fits in this narration ({{count}} dropped): you can cancel and shorten the appearances or make the narration longer.",
@@ -605,15 +608,15 @@
       "animationRequestChanged": "This scene has a pending animation. Recover it before ordering a different version.",
       "animationIncomplete": "The animation range still has pending clips. Retry to complete or recover the saved tasks.",
       "animationTimingLocked": "These scene timings are linked to saved animation clips or tasks and cannot be moved.",
-      "avatarRenderFailed": "HeyGen couldn't generate the avatar. Retry: a failed render isn't charged.",
-      "avatarTimeout": "HeyGen is still generating the avatar. Retry in a while: the request is saved and won't be charged again.",
+      "avatarRenderFailed": "The avatar service couldn't generate the avatar. Retry: a failed render isn't charged.",
+      "avatarTimeout": "The avatar service is still generating the avatar. Retry in a while: the request is saved and won't be charged again.",
       "avatarDownloadFailed": "The avatar was generated but couldn't be downloaded. Retry: it's already paid and won't be charged again.",
       "avatarIncomplete": "Some avatar appearances weren't generated. Resume to complete them: the finished ones aren't charged again.",
       "avatarRejected_one": "That appearance can't be generated with this look. The video shows its still image: render it from the editor or change the look.",
       "avatarRejected_other": "Those {{count}} appearances can't be generated with this look. The video shows their still image: render it from the editor or change the look.",
       "avatarSentencesUnavailable": "The transcription with the narration's sentences is missing. Transcribe the audio first.",
       "avatarRenderLookUnavailable": "The avatar appearance has no clip and no look preview. Choose the look again in the library or regenerate the avatar.",
-      "avatarTimingLocked": "This avatar scene's timings are linked to its clip or a HeyGen request and cannot be moved.",
+      "avatarTimingLocked": "This avatar scene's timings are linked to its clip or a request to the avatar service and cannot be moved.",
       "catalogSyncFailed": "The catalog couldn't be updated. You still see the last one downloaded.",
       "catalogUploadFailed": "The samples couldn't be uploaded to the catalog. Try again."
     },
@@ -1186,7 +1189,7 @@
     },
     "avatar": {
       "title": "Presenter avatar",
-      "hint": "A person generated with HeyGen appears several times in your video speaking your narration, exactly as in the look you choose. Vimo picks the moments.",
+      "hint": "A person generated with AI appears several times in your video speaking your narration, exactly as in the look you choose. Vimo picks the moments.",
       "avatarLabel": "Avatar",
       "chooseAvatar": "Choose the avatar that presents the video",
       "manageLibrary": "Manage avatars",
@@ -1215,16 +1218,21 @@
       "total_other": "{{seconds}} s of avatar in {{count}} appearances",
       "engine": "Avatar III engine",
       "pricePerMinute": "· {{price}} per minute",
-      "moderationHint": "HeyGen rejects political, violent or misleading content, and using real people without their permission.",
-      "noKey": "To add a presenter avatar, add your HeyGen key.",
+      "moderationHint": "Political, violent or misleading content isn't accepted, and neither is using real people without their permission.",
+      "noKey": "To add an avatar to your video, add the presenter avatar key in API Keys.",
       "goToApiKeys": "Go to API Keys",
-      "moderationTitle": "HeyGen content rules",
+      "moderationTitle": "Content rules",
       "looksToggleAria": "See {{name}}'s looks",
       "moreLooks_one": "+{{count}} look",
       "moreLooks_other": "+{{count}} looks",
       "otherFormat": "For {{format}} videos",
       "unknownOrientation": "Orientation not confirmed",
-      "mainLook": "Main"
+      "unknownOrientationHint": "This look's orientation couldn't be confirmed, so it can't be used in a video.",
+      "failedLookHint": "This look couldn't be generated, so it can't be used.",
+      "mainLook": "Main",
+      "lookOpenAria": "Watch the {{name}} look",
+      "selectedLook": "Selected",
+      "otherFormatHint": "This look doesn't match your video's format, so it can't be used."
     }
   },
   "createDemo": {
@@ -1347,7 +1355,6 @@
       },
       "panel": {
         "noSelection": "Pick a scene in the timeline to edit it.",
-        "avatarScene": "This is an avatar scene: its still image is the look's preview and HeyGen makes its video. It has no image or description to regenerate, and Kie doesn't animate it.",
         "sceneTitle": "Scene {{id}}",
         "userPrompt": "Your description for the image",
         "userPromptPlaceholder": "Describe what you want to see in this scene (optional)",
@@ -1412,7 +1419,8 @@
           "staticTailHint": "The last scene is shorter than 3 s and will remain a still image.",
           "staticTailUndoHint": "This clip includes the last scene, which is shorter than 3 s. Undo the animation before animating the earlier scenes again.",
           "staticTailPendingHint": "This attempt includes the last scene, which is shorter than 3 s. This group will not be resumed or charged for another animation."
-        }
+        },
+        "avatarSceneHint": "This is an avatar scene: the video shows the avatar in its look. If it wasn't generated or is out of date, it shows the look's still image until you regenerate it."
       },
       "render": {
         "render": "Export video",
@@ -1540,6 +1548,24 @@
         "undoHint_one": "To change the images, undo the animation first. Then you can regenerate them. This clip covers {{count}} scene.",
         "undoHint_other": "To change the images, undo the animation first. Then you can regenerate them. This clip covers {{count}} scenes.",
         "undoBeforeImages": "To change the images, undo the animation first. Then you can regenerate them."
+      },
+      "avatar": {
+        "generar": "Generate avatar",
+        "regenerar": "Regenerate avatar",
+        "regenerarTodos": "Regenerate all ({{count}})",
+        "regenerarAviso": "Regenerate them ({{count}})",
+        "costo": "≈ {{amount}} from your avatar balance",
+        "saldo": "Avatar balance: {{balance}}",
+        "saldoInsuficiente": "Your avatar balance isn't enough. Top it up and try again.",
+        "confirmarTitulo": "Generate the avatar?",
+        "confirmarTexto_one": "{{count}} appearance will be generated for ≈ {{amount}}. A failed render isn't charged.",
+        "confirmarTexto_other": "{{count}} appearances will be generated for ≈ {{amount}}. A failed render isn't charged.",
+        "confirmar": "Generate",
+        "cancelar": "Cancel",
+        "listo": "The avatar is ready. Export the video so it shows up in the final file.",
+        "fallo": "The avatar couldn't be generated: {{reason}}",
+        "fallbackNote_one": "{{count}} avatar appearance wasn't generated: the video shows the look's still image there.",
+        "fallbackNote_other": "{{count}} avatar appearances weren't generated: the video shows the look's still image there."
       }
     },
     "errors": {
@@ -1553,7 +1579,7 @@
       "animationAlreadyCovered": "That scene is already part of another animated clip.",
       "animationSlotOutOfRange": "That scene doesn't fit a clip's length, alone or together with its neighbours.",
       "animationImageLocked": "Undo the animation before regenerating its images. Recover any pending task first.",
-      "avatarSceneWithoutImage": "An avatar scene has no image to regenerate: HeyGen renders its video with the chosen look.",
+      "avatarSceneWithoutImage": "An avatar scene has no image to regenerate: the avatar service renders its video with the chosen look.",
       "avatarRenderLookUnavailable": "The avatar appearance has no clip and no look preview. Choose the look again in the library or regenerate the avatar.",
       "animationUndoPending": "These scenes have an animation awaiting recovery. Recover it before undoing the clip to preserve the submitted generation.",
       "animationSourceMissing": "An original image is missing. The animated clip is preserved to avoid leaving the scene empty."
@@ -1881,22 +1907,21 @@
     "pageTitle": "Avatars",
     "titulo": "Avatars",
     "tagline": "the person who presents your videos",
-    "intro": "A presenter avatar speaks your video's narration, full screen, at the moments you choose. Add one from HeyGen's stock or create your own from a photo; then pick it when creating a video.",
+    "intro": "A presenter avatar speaks your video's narration, full screen, at the moments you choose. Add one from stock or create your own from a photo; then pick it when creating a video.",
     "soloEscritorio": "Avatars are stored in your projects folder: this screen works in the desktop app.",
     "agregarStock": "Add from stock",
     "crearFoto": "Create from photo",
     "saldo": {
+      "etiqueta": "Balance",
       "refrescar": "Refresh balance",
-      "noDisponible": "balance unavailable",
+      "noDisponible": "unavailable",
       "creditos": "{{amount}} cr."
     },
     "vacio": {
       "titulo": "No avatars yet",
-      "texto": "Add one from HeyGen's stock or create your own from a photo. You need your HeyGen key in API Keys."
+      "texto": "Add one from stock or create your own from a photo. You need your presenter avatar key in API Keys."
     },
     "tarjeta": {
-      "eliminar": "Remove avatar",
-      "confirmar": "Sure",
       "noCompatible": "Not compatible with Vimo"
     },
     "types": {
@@ -1915,7 +1940,7 @@
       "failed": "The avatar couldn't be trained with that photo. Try another one, facing the camera and well lit."
     },
     "stock": {
-      "titulo": "HeyGen avatars",
+      "titulo": "Add an avatar",
       "descripcion": "Pick an avatar, browse its looks and add it with the one you like best. Adding is free; every video you make with it is billed per minute.",
       "origenAria": "Avatar source",
       "publicos": "Stock",
@@ -1952,21 +1977,16 @@
         "comunidad": "Community",
         "favoritos": "Favorites"
       },
-      "clasificando": "Sorting HeyGen’s avatars…",
+      "clasificando": "Sorting the stock avatars…",
       "clasificacionNoDisponible": "The avatars couldn’t be sorted: category filters aren’t available right now.",
       "favoritoAria": "Favorite: {{name}}",
       "vacioFavoritos": "No favorites yet: tap an avatar’s heart to keep it here.",
       "buscandoMas": "Looking for more avatars…",
-      "abrirLookAria": "View the look {{name}}",
-      "eliminarHeygen": "Delete from HeyGen",
-      "eliminarHeygenAria": "Delete {{name}} from HeyGen",
-      "eliminarConfirmar": "Delete for good?",
-      "eliminando": "Deleting…",
-      "eliminarHint": "It's removed from your HeyGen account with all its looks and can't be undone. If it's in your library, it's removed there too."
+      "abrirLookAria": "View the look {{name}}"
     },
     "detalle": {
       "origen": {
-        "stock": "From HeyGen's stock",
+        "stock": "From stock",
         "own": "Created by you"
       },
       "looks": "Looks of this avatar",
@@ -1994,7 +2014,9 @@
       "pantallaCompleta": "Full screen",
       "salirPantallaCompleta": "Exit full screen",
       "descripcion": "This is how the avatar appears in your videos: this outfit, this background and this framing.",
-      "errorVideo": "This look's video couldn't be loaded. Check your connection and open it again."
+      "errorVideo": "This look's video couldn't be loaded. Check your connection and open it again.",
+      "usar": "Use",
+      "usarHint": "It's used in every avatar appearance in this video."
     },
     "formato": {
       "r16x9": "16:9",
@@ -2031,9 +2053,9 @@
       "referenciasHint": "Use them to copy a garment, a background or a style. JPG or PNG up to 12 MB each.",
       "nombre": "Look name (optional)",
       "nombrePlaceholder": "Bright kitchen",
-      "normas": "HeyGen's content rules still apply: no recognizable people without permission and no prohibited content.",
-      "costoDetalle": "per look · deducted from your HeyGen balance",
-      "costoDesconocido": "It's deducted from your HeyGen balance when generating; the balance updates when it's done.",
+      "normas": "The content rules still apply: no recognizable people without permission and no prohibited content.",
+      "costoDetalle": "per look · deducted from your avatar balance",
+      "costoDesconocido": "It's deducted from your avatar balance when generating; the balance updates when it's done.",
       "cancelar": "Cancel",
       "generar": "Generate look"
     },
@@ -2059,7 +2081,7 @@
         "detalle": "It's my photo, or the person in it gave me permission to create an avatar with their image."
       },
       "precio": {
-        "detalle": "per avatar · deducted from your HeyGen balance"
+        "detalle": "per avatar · deducted from your avatar balance"
       },
       "cancelar": "Cancel",
       "crear": "Create avatar"
@@ -2067,23 +2089,23 @@
     "toasts": {
       "agregado": "Avatar added to your library.",
       "creado": "Your avatar is training. It'll be ready in a few minutes.",
-      "eliminado": "Avatar removed from your library.",
       "lookPrincipal": "Main look updated.",
       "lookGenerando": "Generating the look. It'll show up on your avatar in a few minutes.",
-      "eliminadoHeygen": "{{name}} was deleted from HeyGen."
+      "eliminadoHeygen": "{{name}} was deleted from your list and from HeyGen.",
+      "eliminadoLista": "{{name}} was removed from your list."
     },
     "errors": {
-      "invalidKey": "HeyGen rejected your key. Check it in API Keys.",
-      "insufficientCredits": "Your HeyGen account has no balance for this.",
-      "rateLimited": "HeyGen is getting too many requests. Wait a moment and try again.",
-      "moderationRejected": "HeyGen rejected the request under its moderation policy: real people without permission and prohibited content aren't allowed.",
-      "lookUnsupported": "That avatar or engine isn't available on your HeyGen account.",
+      "invalidKey": "The presenter avatar key isn't valid. Check it in API Keys.",
+      "insufficientCredits": "Your avatar balance isn't enough for this.",
+      "rateLimited": "The avatar service is getting too many requests. Wait a moment and try again.",
+      "moderationRejected": "The avatar service rejected the request under its moderation policy: real people without permission and prohibited content aren't allowed.",
+      "lookUnsupported": "That avatar or engine isn't available on your avatar service account.",
       "noCompatibleLook": "This avatar has no ready look compatible with Vimo (Avatar III).",
-      "groupMissing": "HeyGen no longer has this avatar. Remove it from your library.",
-      "lookNotListed": "HeyGen received the request, but the new look doesn't show up yet. Vimo will look for it again in a few seconds; if it doesn't appear, check your balance before trying another description.",
+      "groupMissing": "The avatar service no longer has this avatar. Remove it from your library.",
+      "lookNotListed": "The avatar service received the request, but the new look doesn't show up yet. Vimo will look for it again in a few seconds; if it doesn't appear, check your balance before trying another description.",
       "mainLookNotReady": "The avatar doesn't have a ready main look yet. Choose one and try again.",
-      "providerError": "HeyGen replied with something unexpected. Try again in a while.",
-      "network": "Couldn't reach HeyGen. Check your connection.",
+      "providerError": "The avatar service replied with something unexpected. Try again in a while.",
+      "network": "Couldn't reach the avatar service. Check your connection.",
       "photoInvalid": "That photo won't work: it must be a JPG or PNG up to 12 MB.",
       "referenceInvalid": "One of the reference images won't work: it must be a JPG or PNG up to 12 MB.",
       "notFound": "That avatar is no longer in your library.",
@@ -2093,11 +2115,22 @@
       "consentRequired": "Confirm you have the right to use the photo to continue.",
       "promptRequired": "Write a description.",
       "invalid": "The request isn't valid.",
-      "missingApiKey": "Your HeyGen key is missing in API Keys.",
+      "missingApiKey": "Your presenter avatar key is missing from API Keys.",
       "missingProjectsRoot": "Choose a projects folder in Settings.",
       "cancelled": "Cancelled.",
       "sidecar": "Vimo's engine couldn't start. Restart the app.",
       "unknown": "Something went wrong. Try again."
+    },
+    "eliminar": {
+      "boton": "Delete",
+      "botonAria": "Delete {{name}}",
+      "opcionesAria": "How to delete {{name}}",
+      "deLista": "Remove from the list",
+      "deHeygen": "Delete permanently from HeyGen",
+      "confirmarHeygen": "This avatar will also be deleted from HeyGen. Are you sure?",
+      "seguro": "Yes, delete",
+      "cancelar": "Cancel",
+      "eliminando": "Deleting…"
     }
   },
   "voices": {

@@ -62,6 +62,14 @@ public/locales/            catálogos de traducción es/en/pt (ver sección i18n
   público — cualquier módulo o layout puede importarlas para navegar hacia él.
   `src/router/` compone vistas y constantes de todos los módulos: es infraestructura,
   no un módulo.
+  Segunda excepción acotada (ADR-0005, enmienda del 2026-10-11): `videos` arma el
+  video con piezas de otros dominios —en Crear y en el editor elige voz, avatar,
+  personaje, claves y ajustes—, así que puede importar lo que esos módulos exponen
+  para elegir o mostrar algo: su `api/`, sus hooks, sus tipos, sus constantes públicas
+  (claves de query, límites, tiempos), sus utilidades puras y sus componentes de
+  selección o vista previa (`LookPreview`, `LookPlayerDialog`).
+  Solo `videos` tiene esta excepción, y solo en ese sentido: lo que comparten dos
+  módulos que no son `videos` sigue subiendo a `common`.
 - **Imports siempre con el alias `@/`** (`@/modules/videos/api`), configurado en
   [tsconfig.app.json](tsconfig.app.json) y [vite.config.ts](vite.config.ts). Nada de
   `../../..`.

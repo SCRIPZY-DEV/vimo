@@ -22,6 +22,7 @@ import { AudioMixDialog } from '@/modules/videos/components/AudioMixDialog'
 import { EditorBarTitle } from '@/modules/videos/components/EditorBarTitle'
 import { EditorCreditsIssue } from '@/modules/videos/components/EditorCreditsIssue'
 import { EditorAnimationRange } from '@/modules/videos/components/EditorAnimationRange'
+import { EditorAvatarFallbackNotice } from '@/modules/videos/components/EditorAvatarFallbackNotice'
 import { EditorTransitionToggle } from '@/modules/videos/components/EditorTransitionToggle'
 import { TRANSITION_POLICY_VERSION } from '@pipeline/animation/transitions.ts'
 import { EditorPreviewPlayer } from '@/modules/videos/components/EditorPreviewPlayer'
@@ -348,6 +349,15 @@ export function LibraryEditor() {
       <div className="flex flex-col gap-5 px-6 py-6 lg:h-full">
         <MissingImagesBanner sceneIds={missingImageSceneIds(workingScenes)} />
 
+        {/* Las apariciones del avatar con la imagen fija del look, con
+          «Regenerarlas (N)» (entrega 2d): Crear salta acá sin exportar. */}
+        <EditorAvatarFallbackNotice
+          projectId={projectId}
+          scenes={workingScenes}
+          busy={busy || editor.savingChanges}
+          locked={demoProject}
+        />
+
         {task?.errorKey && (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3">
             <p className="font-body text-sm text-destructive-text">
@@ -427,6 +437,8 @@ export function LibraryEditor() {
           <div className="lg:min-h-0 lg:w-[30%] lg:max-w-[420px] lg:shrink-0">
             <EditorScenePanel
               scene={selectedScene}
+              projectId={projectId}
+              scenes={workingScenes}
               characters={options?.characters ?? []}
               imageChoice={editor.imageChoice}
               videoFormat={videoFormat}
@@ -521,6 +533,7 @@ export function LibraryEditor() {
             sceneAnimationStatus={task?.sceneAnimationStatus ?? {}}
             sceneAnimationProgress={task?.sceneAnimationProgress ?? {}}
             sceneAnimationErrors={task?.sceneAnimationErrors ?? {}}
+            sceneAvatarRendering={task?.sceneAvatarRendering ?? {}}
             plannedSceneIds={plannedSceneIds}
             narrationSrc={narrationSrc}
             musicSrc={musicSrc}

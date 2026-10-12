@@ -6,6 +6,7 @@ import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { videosApi } from '@/modules/videos/api'
+import { AvatarFallbackNote } from '@/modules/videos/components/AvatarFallbackNote'
 import { LibraryVideoPlayer } from '@/modules/videos/components/LibraryVideoPlayer'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
 import { OutdatedVideoBanner } from '@/modules/videos/components/OutdatedVideoBanner'
@@ -21,6 +22,7 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
+import { avatarFallbackCount } from '@/modules/videos/utilities/avatarFallback'
 import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { failureMessageOf } from '@/modules/videos/utilities/failedStage'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
@@ -140,6 +142,13 @@ export function LibraryPlayer() {
 
       {detail.videoPath ? (
         <>
+          {/* Las apariciones del avatar que el video muestra con la imagen
+              fija del look (entrega 2d), de los datos del proyecto ya hecho
+              (una planeada también cuenta): el aviso sale cada vez que se
+              abre, hasta que se regeneran. */}
+          <AvatarFallbackNote
+            count={avatarFallbackCount(detail.scenes, 'project')}
+          />
           <LibraryVideoPlayer
             src={videosApi.videoSource(detail.videoPath, detail.videoMtimeMs)}
             videoFormat={metadata.options.videoFormat}

@@ -9,9 +9,11 @@ import { slotDurationSeconds } from '../animation/timing.ts'
 import { markVideoOutdated, readProjectMetadata } from '../project/metadata.ts'
 import { isValidFile, type ProjectPaths } from '../project/paths.ts'
 import {
+  isAvatarClipStale,
   readScenes,
   toSceneSummary,
   writeScenes,
+  type SceneViewProject,
 } from '../project/scenes-file.ts'
 import {
   createHeyGenClient,
@@ -85,7 +87,8 @@ export interface AvatarRenderOutcome {
   failed: number[]
   // El código de las que no quedaron listas que explica la corrida: uno de la
   // cuenta si alguna falló por ella (`isAccountFailureCode`); si no, el que más
-  // se repite. La fase lo lanza o lo pone en el mensaje de `avatar_incomplete`.
+  // se repite. La fase lanza el de la cuenta; cualquier otro lo deja en el log
+  // y termina (entrega 2d: el video sale con la imagen fija del look).
   dominantCode?: string
 }
 
@@ -103,17 +106,25 @@ export function isAccountFailureCode(code: string): boolean {
   return ACCOUNT_FAILURE_CODES.has(code)
 }
 
-// Una escena de avatar está pendiente si no quedó lista con su clip en disco.
-// Una lista pero desactualizada (otra narración, otro tramo) NO: regenerarla
-// cuesta y lo decide la persona desde el editor (§11.4).
+// Una escena de avatar está pendiente —la fase la trabaja sola— si no quedó
+// lista con su clip en disco. Una lista pero desactualizada (otra narración,
+// otro tramo, otro look) NO, tenga o no su clip (entrega 2d): regenerarla
+// cuesta y lo decide la persona desde el editor (§11.4), que la pide por id
+// (`avatar-render-scenes` no pasa por acá); hasta entonces el render la
+// muestra estática con la vista previa del look (§10.1). Una lista y al día
+// sin su clip sí: la fase cosecha su recibo, que no cobra. «Desactualizada»
+// es la regla de la vista (isAvatarClipStale), con la narración vigente.
 export async function isAvatarScenePending(
   paths: ProjectPaths,
   scene: Scene,
+  project: SceneViewProject,
 ): Promise<boolean> {
   const avatar = scene.avatar
   if (!avatar) return false
 
   if (avatar.status !== 'ready') return true
+
+  if (isAvatarClipStale(scene, avatar, project)) return false
 
   const clip = sceneAvatarClipFile(paths, avatar)
   if (!clip) return true
@@ -124,10 +135,11 @@ export async function isAvatarScenePending(
 export async function pendingAvatarScenes(
   paths: ProjectPaths,
   scenes: Scene[],
+  project: SceneViewProject,
 ): Promise<Scene[]> {
   const pending: Scene[] = []
   for (const scene of scenes)
-    if (await isAvatarScenePending(paths, scene)) pending.push(scene)
+    if (await isAvatarScenePending(paths, scene, project)) pending.push(scene)
   return pending
 }
 
@@ -163,15 +175,16 @@ function requestedAvatarSceneIds(
 }
 
 // Las escenas que trabaja una corrida: las pedidas (ya validadas por
-// `requestedAvatarSceneIds`) o, sin pedido, las pendientes (la fase). Se
-// vuelve a llamar con scenes.json releído bajo el lease: una pedida que ya no
-// es de avatar ahí (otro job la cambió) se saltea.
+// `requestedAvatarSceneIds`), también una desactualizada, o, sin pedido, las
+// pendientes (la fase). Se vuelve a llamar con scenes.json releído bajo el
+// lease: una pedida que ya no es de avatar ahí (otro job la cambió) se saltea.
 async function selectTargets(
   paths: ProjectPaths,
   scenes: Scene[],
   sceneIds: number[] | undefined,
+  project: SceneViewProject,
 ): Promise<Scene[]> {
-  if (!sceneIds) return pendingAvatarScenes(paths, scenes)
+  if (!sceneIds) return pendingAvatarScenes(paths, scenes, project)
 
   const byId = new Map(scenes.map((scene) => [scene.id, scene]))
   return sceneIds.flatMap((id) => {
@@ -367,7 +380,12 @@ export async function renderAvatarScenes(
     selection.sceneIds === undefined
       ? undefined
       : requestedAvatarSceneIds(scenes, selection.sceneIds)
-  const candidates = await selectTargets(paths, scenes, sceneIds)
+  const candidates = await selectTargets(
+    paths,
+    scenes,
+    sceneIds,
+    context.metadata,
+  )
   const outcome: AvatarRenderOutcome = { rendered: [], failed: [] }
   if (candidates.length === 0) return outcome
 
@@ -399,7 +417,12 @@ export async function renderAvatarScenes(
       // recibos entre la primera lectura y el lease, y un carril que arranca
       // de una copia vieja pagaría de nuevo y pisaría esos recibos.
       const targets = (
-        await selectTargets(paths, (await readScenes(paths)) ?? [], sceneIds)
+        await selectTargets(
+          paths,
+          (await readScenes(paths)) ?? [],
+          sceneIds,
+          context.metadata,
+        )
       ).filter((scene) => candidateIds.has(scene.id))
       if (targets.length === 0) return outcome
 

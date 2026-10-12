@@ -19,11 +19,13 @@ import type { DisplayedLook } from '@/modules/avatars/types/look'
 // Lo que ofrece el pie según desde dónde se abre el reproductor: en el stock,
 // cargar el avatar a la biblioteca con este look como principal (`load`) o, si
 // ya está, abrirlo (`open-library`); en el panel de un avatar, hacerlo su look
-// principal (`make-main`) o decir que ya lo es (`main`); un look que no sirve
-// dice por qué y no ofrece nada (`unusable`, con la clave del motivo).
+// principal (`make-main`) o decir que ya lo es (`main`); en Crear, usarlo en el
+// video (`use`, entrega 2d); un look que no sirve dice por qué y no ofrece
+// nada (`unusable`, con la clave del motivo).
 export type LookPlayerAction =
   | { kind: 'load'; busy: boolean; onLoad: () => void }
   | { kind: 'open-library'; onOpen: () => void }
+  | { kind: 'use'; onUse: () => void }
   | {
       kind: 'make-main'
       busy: boolean
@@ -113,6 +115,7 @@ export function LookPlayerDialog({
     if (action.kind === 'open-library')
       return t('avatars.reproductor.yaEnBiblioteca')
     if (action.kind === 'unusable') return t(action.reasonKey)
+    if (action.kind === 'use') return t('avatars.reproductor.usarHint')
 
     return null
   }
@@ -164,6 +167,17 @@ export function LookPlayerDialog({
         </Button>
       )
     }
+    if (action.kind === 'use') {
+      return (
+        <Button
+          ref={actionRef}
+          onClick={action.onUse}
+          className="shrink-0 rounded-xl font-display font-bold"
+        >
+          {t('avatars.reproductor.usar')}
+        </Button>
+      )
+    }
 
     return null
   }
@@ -175,7 +189,8 @@ export function LookPlayerDialog({
         <DialogPrimitive.Content
           ref={contentRef}
           // Al abrir, el foco va al escenario y no al botón del pie: Espacio
-          // reproduce y dos Enter seguidos no cargan nada.
+          // pausa o reproduce el video (que arranca solo, entrega 2d) y dos
+          // Enter seguidos no cargan nada.
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             stageRef.current?.focus()

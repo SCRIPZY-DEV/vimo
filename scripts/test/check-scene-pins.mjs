@@ -294,7 +294,7 @@ test('con pines el texto sale por punto medio: una palabra que empieza antes del
   )
 })
 
-test('foco 1 de punta a punta: sin puntuación y con una sola pausa larga, ningún avatar de menos de 7 s ni imagen de menos de 3 s', () => {
+test('foco 1 de punta a punta: sin puntuación y con una sola pausa larga, ningún avatar de menos del mínimo ni imagen de menos de 3 s', () => {
   const words = onePauseWords()
   for (const startWithAvatar of [true, false]) {
     const plan = planAvatarPins({ ...AVATAR, startWithAvatar }, words, 31.2)
@@ -426,10 +426,11 @@ test('tope de silencio al fin del audio: la última frase entra si llega al mín
     [0, 5, false, false],
     [5, 15, false, true],
   ])
-  // Con cuatro palabras menos habla hasta los 8,95 y recortada mide 5,96 s:
-  // es casi muda, no hay aparición y el video son solo imágenes.
-  const shorter = [...sentenceWords('a', 10, 0), ...sentenceWords('b', 8, 5)]
-  const none = planAvatarPins(avatar, shorter, 13)
+  // Con seis palabras habla hasta los 7,95 y recortada mide 4,96 s, menos que
+  // el mínimo de 5 s (entrega 2d), aunque hasta el fin del audio (12 s)
+  // mediría 7: es casi muda, no hay aparición y el video son solo imágenes.
+  const shorter = [...sentenceWords('a', 10, 0), ...sentenceWords('b', 6, 5)]
+  const none = planAvatarPins(avatar, shorter, 12)
   assert.deepEqual(none.pins, [])
   assert.equal(none.dropped, 1)
 })
@@ -1186,12 +1187,14 @@ test('fase: carril clásico con prefijo y avatar, cantidad pedida: confirmar la 
 })
 
 test('fase: con avatar automático pero sin ninguna aparición que entre, la pausa trae avatarSpans vacío, avatar-planned cuenta las descartadas y un corte previo con recibos se conserva', async (t) => {
-  // 6 s: menos que el mínimo de una aparición. El corte es el de siempre.
-  const six = narration(6)
+  // Un segundo menos que el mínimo de una aparición (4 s con el mínimo de
+  // 5 s de la entrega 2d). El corte es el de siempre.
+  const seconds = AVATAR_MIN_APPEARANCE_SECONDS - 1
+  const short = narration(seconds)
   const { paths, context, events } = await project(
     t,
     { avatar: AVATAR, confirmScenes: true },
-    { words: six, seconds: 6 },
+    { words: short, seconds },
   )
   assert.deepEqual(await sceneCutsStage.run(context), { pause: true })
   // La pausa ya lo dice: ninguna aparición entró y las tres pedidas quedan
@@ -1200,16 +1203,16 @@ test('fase: con avatar automático pero sin ninguna aparición que entre, la pau
     { type: 'avatar-planned', sceneIds: [], dropped: 3 },
     {
       type: 'awaiting-scene-confirmation',
-      suggestedScenes: 2,
-      audioDurationSeconds: 6,
-      wordCount: 6,
+      suggestedScenes: 1,
+      audioDurationSeconds: seconds,
+      wordCount: seconds,
       avatarSpans: [],
     },
   ])
-  await writeFile(paths.scenesConfirmedFile, JSON.stringify({ sceneCount: 2 }))
+  await writeFile(paths.scenesConfirmedFile, JSON.stringify({ sceneCount: 1 }))
   events.length = 0
   await sceneCutsStage.run(context)
-  assert.deepEqual(await readScenes(paths), cutScenesByTime(six, 2))
+  assert.deepEqual(await readScenes(paths), cutScenesByTime(short, 1))
   assert.deepEqual(events.at(-1), {
     type: 'avatar-planned',
     sceneIds: [],
@@ -1219,13 +1222,13 @@ test('fase: con avatar automático pero sin ninguna aparición que entre, la pau
   // La narración se reemplazó por una donde ya no entra ninguna aparición,
   // pero el corte previo tiene un recibo de HeyGen: se conserva aunque tenga
   // otra cantidad (rehacerlo perdería lo pagado).
-  const kept = await project(t, { avatar: AVATAR }, { words: six, seconds: 6 })
+  const kept = await project(t, { avatar: AVATAR }, { words: short, seconds })
   await writeScenes(kept.paths, [
     {
       id: 1,
-      text: text(0, 5),
+      text: text(0, seconds - 1),
       startSeconds: 0,
-      endSeconds: 6,
+      endSeconds: seconds,
       avatar: { ...SEED, status: 'planned', attempts: [RECEIPT] },
     },
   ])
@@ -1233,7 +1236,7 @@ test('fase: con avatar automático pero sin ninguna aparición que entre, la pau
   await sceneCutsStage.run(kept.context)
   assert.equal(await readFile(kept.paths.scenesFile, 'utf8'), before)
   // Las descartadas son las que le faltan a ESE corte (una de tres está en el
-  // video), no las del plan de hoy (ninguna entra en 6 s).
+  // video), no las del plan de hoy (ninguna entra en 4 s).
   assert.deepEqual(kept.events.at(-1), {
     type: 'avatar-planned',
     sceneIds: [1],
@@ -1304,11 +1307,15 @@ test('estado: la pausa con avatar trae avatarSpans y avatarDropped como los anun
   assert.equal(atPause.avatarDropped, announced['avatar-planned'].dropped)
   assert.equal(atPause.avatarDropped, 1)
 
-  // Ninguna aparición entra: tramos vacíos y las tres pedidas descartadas.
+  // Ninguna aparición entra (4 s, un segundo menos que el mínimo): tramos
+  // vacíos y las tres pedidas descartadas.
   const none = await project(
     t,
     { avatar: AVATAR, confirmScenes: true },
-    { words: narration(6), seconds: 6 },
+    {
+      words: narration(AVATAR_MIN_APPEARANCE_SECONDS - 1),
+      seconds: AVATAR_MIN_APPEARANCE_SECONDS - 1,
+    },
   )
   await sceneCutsStage.run(none.context)
   const noneStatus = await statusOf(none.context)

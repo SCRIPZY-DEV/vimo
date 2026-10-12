@@ -24,6 +24,7 @@ import {
 } from '@/modules/videos/utilities/avatarTaskEvents'
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
 import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
+import { isEditorProjectBusy } from '@/modules/videos/utilities/editorProjectBusy'
 import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
@@ -985,9 +986,17 @@ export function hasBusyCreateTask(): boolean {
   return status === 'creating' || status === 'generating'
 }
 
-// Otro job pesado está corriendo: se avisa acá, una vez, y no en cada vista.
-function rejectIfBusy(): boolean {
-  if (!hasBusyCreateTask()) return false
+// Otro job pesado está corriendo, o el editor tiene una tarea en ese mismo
+// proyecto (el avatar, que cobra en HeyGen; un render; una regeneración): se
+// avisa acá, una vez, y no en cada vista. Sin mirar al editor, el sidecar
+// rechazaba el pipeline con `animation_project_busy` y la tarea quedaba en
+// error en vez de esperar (entrega 2d, M3 de la revisión final).
+function rejectIfBusy(projectId?: string): boolean {
+  const busy =
+    hasBusyCreateTask() ||
+    (projectId !== undefined && isEditorProjectBusy(projectId))
+  if (!busy) return false
+
   toast({
     description: i18next.t('library.errors.projectBusy'),
     variant: 'destructive',
@@ -1003,7 +1012,7 @@ async function startPipelineForProject(
   projectName: string,
   options: ProjectRunOptions = {},
 ): Promise<boolean> {
-  if (rejectIfBusy()) return false
+  if (rejectIfBusy(projectId)) return false
 
   stopActiveJob()
   const taskId = newTaskId()
@@ -1020,7 +1029,7 @@ async function confirmScenesForProject(
   choice: SceneCutChoice,
   options: ProjectRunOptions = {},
 ): Promise<boolean> {
-  if (rejectIfBusy()) return false
+  if (rejectIfBusy(projectId)) return false
 
   stopActiveJob()
   const taskId = newTaskId()
@@ -1056,11 +1065,13 @@ async function confirmScenes(choice: SceneCutChoice): Promise<void> {
   await runPipeline(task.id, task.projectId)
 }
 
-// Reanuda tras un error o una cancelación: el proyecto sigue en disco.
+// Reanuda tras un error o una cancelación: el proyecto sigue en disco. Si
+// mientras tanto el editor arrancó una tarea en ese proyecto, espera.
 async function resume(): Promise<void> {
   const task = currentTask
   if (!task || !task.projectId) return
   if (task.status !== 'error' || activeJob || task.cancelRequested) return
+  if (rejectIfBusy(task.projectId)) return
   stopRetryTimer()
   patchTask(task.id, { retry: null })
   await runPipeline(task.id, task.projectId)

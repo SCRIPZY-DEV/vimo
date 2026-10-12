@@ -4,7 +4,6 @@ import { Skeleton } from '@/modules/common/ui/skeleton'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatCompact } from '@/modules/common/utilities/formatCompact'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
-import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
 import { useAvatarBalance } from '@/modules/avatars/hooks/useAvatarBalance'
 
 // Saldo de HeyGen en una píldora (el molde de CreditsBadge, a la altura de
@@ -12,7 +11,9 @@ import { useAvatarBalance } from '@/modules/avatars/hooks/useAvatarBalance'
 // relee. Se actualiza solo tras cada cobro; el botón es para los casos
 // especiales. Sin la app nativa o sin la clave de HeyGen no se muestra; si
 // HeyGen no da el saldo, dice «saldo no disponible» sin romper la vista. Es
-// dueño de su consulta: se monta tal cual donde haga falta ver el saldo.
+// dueño de su consulta: se monta tal cual donde haga falta ver el saldo. La
+// etiqueta dice «Saldo» y no el nombre del proveedor: los avisos de avatares
+// no mencionan a HeyGen (spec §20), salvo el borrado y Claves API.
 export function AvatarBalanceBadge() {
   const { t, i18n } = useTranslation()
   const { status, loading, refreshing, refresh } = useAvatarBalance()
@@ -67,7 +68,7 @@ export function AvatarBalanceBadge() {
     >
       <Wallet aria-hidden className="h-4 w-4 shrink-0 text-saffron" />
       <span className="font-bold text-muted-foreground">
-        {providerLabel('heygen')}
+        {t('avatars.saldo.etiqueta')}
       </span>
       <span aria-hidden className="text-muted-foreground/50">
         ·

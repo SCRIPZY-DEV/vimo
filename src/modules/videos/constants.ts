@@ -217,12 +217,16 @@ export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
   'render_missing_images',
 ])
 // Rechazos definitivos de HeyGen para una aparición (spec §14): con el mismo
-// look y la misma narración, pedirla de nuevo falla igual. Si dominan en un
-// `avatar_incomplete`, la cabecera del fallo dice la salida (el editor, o
-// cambiar el look) en vez de «Reanudá». De estos, la fase no vuelve a pedir
-// sola la moderación ni el look no soportado (`isFinalRejection`,
-// pipeline/avatar/lane.ts); `avatar_invalid_request` sí se vuelve a pedir en
-// cada reanudación.
+// look y la misma narración, pedirla de nuevo falla igual. Desde la entrega 2d
+// la fase ya no se detiene por ellos (la escena sale con la imagen fija del
+// look); solo si dominan en un `avatar_incomplete` —el código heredado de antes
+// de la 2d, que un proyecto viejo detenido con ese error trae del disco— la
+// cabecera del fallo dice la salida (el editor, o cambiar el look) en vez de
+// «Reanudá». De estos, el carril no vuelve a pedir solo la moderación ni el
+// look no soportado (`isFinalRejection`, pipeline/avatar/lane.ts);
+// `avatar_invalid_request` sí se vuelve a pedir cuando la fase vuelve a correr
+// (una pausa de la cuenta, o un proyecto de antes de la 2d), y desde el editor
+// se piden los tres.
 export const AVATAR_DEFINITIVE_REJECTION_CODES: ReadonlySet<string> = new Set([
   'avatar_moderation_rejected',
   'avatar_look_unsupported',
@@ -411,6 +415,11 @@ export const AVATAR_RENDER_PHASE_KEYS: Record<AvatarRenderPhase, string> = {
   download: 'create.progress.avatarPhase.download',
   normalize: 'create.progress.avatarPhase.normalize',
 }
+// El panel lateral de la escena del editor: adonde vuelve el foco cuando lo
+// que lo tenía desaparece al terminar la tarea del avatar (el avance de la
+// escena, o el aviso de arriba si todas quedaron listas) y el botón que la
+// abrió ya no está; nunca a `body` (entrega 2d, M2 de la revisión del WP-Q).
+export const EDITOR_SCENE_PANEL_ID = 'editor-scene-panel'
 
 // Timeline: un click a menos de esto del final lleva exactamente al cierre.
 export const TIMELINE_END_SNAP_SECONDS = 0.5
@@ -1099,6 +1108,23 @@ export const LOOK_UNFIT_REASON_KEYS: Record<LookUnfitReason, string> = {
   unknownOrientation: 'create.avatar.unknownOrientation',
   otherFormat: 'create.avatar.otherFormat',
 }
+// El pie del reproductor de un look que no sirve para el video (la acción
+// `unusable` de `LookPlayerDialog`), por el mismo motivo: siempre una frase
+// entera y no la etiqueta de la ficha de arriba, porque quien abre el look
+// tiene que leer por qué no hay «Usar», no deducirlo. El reproductor traduce
+// la clave SIN variables, así que `create.avatar.otherFormat` («Para videos
+// {{format}}») no sirve acá: el formato del look ya está en sus chips y la
+// frase de otro formato no lo repite. Un look que se genera o que no tiene
+// Avatar III usa las frases del reproductor de la biblioteca; los otros tres,
+// las propias de Crear.
+export const LOOK_PLAYER_REASON_KEYS: Record<LookUnfitReason, string> = {
+  processing: 'avatars.reproductor.noListoHint',
+  failed: 'create.avatar.failedLookHint',
+  engine: 'avatars.reproductor.noCompatibleHint',
+  rate: 'avatars.reproductor.noCompatibleHint',
+  unknownOrientation: 'create.avatar.unknownOrientationHint',
+  otherFormat: 'create.avatar.otherFormatHint',
+}
 // Fichas de esqueleto mientras se lee la biblioteca de avatares.
 export const AVATAR_PICKER_SKELETONS = 5
 // Cuánto vale la lectura de la biblioteca de avatares que hace Crear: quien
@@ -1254,6 +1280,9 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   avatar_render_failed: 'create.errors.avatarRenderFailed',
   avatar_timeout: 'create.errors.avatarTimeout',
   avatar_download_failed: 'create.errors.avatarDownloadFailed',
+  // Heredado de antes de la entrega 2d: la fase ya no lo lanza (una aparición
+  // que falla deja la imagen fija y el video sale), pero un proyecto que quedó
+  // detenido con él sigue en el disco y se muestra con su texto.
   avatar_incomplete: 'create.errors.avatarIncomplete',
   avatar_sentences_unavailable: 'create.errors.avatarSentencesUnavailable',
   // El render (auto-export al final del pipeline) no encontró ni el clip ni

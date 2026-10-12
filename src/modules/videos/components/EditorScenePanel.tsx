@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/modules/common/ui/tooltip'
+import { EditorAvatarSceneActions } from '@/modules/videos/components/EditorAvatarSceneActions'
 import { SceneAnimationSection } from '@/modules/videos/components/SceneAnimationSection'
 import { SceneClipTimes } from '@/modules/videos/components/SceneClipTimes'
 import { ScenePromptFailureNotice } from '@/modules/videos/components/ScenePromptFailureNotice'
@@ -24,7 +25,10 @@ import type {
   SceneImageChoice,
 } from '@/modules/videos/types/library'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
-import { MAX_USER_PROMPT_CHARS } from '@/modules/videos/constants'
+import {
+  EDITOR_SCENE_PANEL_ID,
+  MAX_USER_PROMPT_CHARS,
+} from '@/modules/videos/constants'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
 import { toggleIndex } from '@/modules/videos/utilities/toggleIndex'
@@ -36,6 +40,10 @@ import type {
 
 interface EditorScenePanelProps {
   scene: SceneDetail | null
+  // El proyecto y todas sus escenas: con ellos, una escena de avatar ofrece
+  // generar o regenerar su avatar (entrega 2d, EditorAvatarSceneActions).
+  projectId: string
+  scenes: SceneDetail[]
   characters: ProjectCharacter[]
   imageChoice: SceneImageChoice
   videoFormat: VideoFormat
@@ -68,10 +76,15 @@ interface EditorScenePanelProps {
   animation: SceneAnimationControls
 }
 
-// Panel lateral del editor para la escena seleccionada. Presentacional: el
-// commit y la cola de regeneración viven en la vista.
+// Panel lateral del editor para la escena seleccionada. El commit y la cola de
+// regeneración viven en la vista; el avatar de una escena de avatar lo maneja
+// su propio contenedor (EditorAvatarSceneActions). El panel recibe el foco
+// cuando lo que lo tenía desaparece al terminar la tarea del avatar
+// (EDITOR_SCENE_PANEL_ID).
 export function EditorScenePanel({
   scene,
+  projectId,
+  scenes,
   characters,
   imageChoice,
   videoFormat,
@@ -98,7 +111,11 @@ export function EditorScenePanel({
 
   if (!scene) {
     return (
-      <aside className="rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
+      <aside
+        id={EDITOR_SCENE_PANEL_ID}
+        tabIndex={-1}
+        className="rounded-2xl border-2 border-border bg-card p-4 outline-none lg:h-full lg:overflow-y-auto"
+      >
         <p className="font-body text-sm text-muted-foreground">
           {t('library.editor.panel.noSelection')}
         </p>
@@ -107,8 +124,9 @@ export function EditorScenePanel({
   }
 
   // Una escena de avatar no tiene imagen que regenerar ni describir, y Kie no
-  // la anima (ADR-0057, spec §6.2 y §7.4): en su lugar, una nota y sus
-  // tiempos, que se leen sin poder moverlos.
+  // la anima (ADR-0057, spec §6.2 y §7.4): en su lugar, una nota, sus tiempos
+  // (se leen sin poder moverlos) y su avatar, que se genera o regenera con el
+  // costo a la vista (entrega 2d, spec §11.1).
   const imageEditable = sceneImageEditable(scene)
   const charactersPresent = scene.charactersPresent ?? []
   const toggleCharacter = (index: number) => {
@@ -128,7 +146,11 @@ export function EditorScenePanel({
   )
 
   return (
-    <aside className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 lg:h-full lg:overflow-y-auto">
+    <aside
+      id={EDITOR_SCENE_PANEL_ID}
+      tabIndex={-1}
+      className="space-y-4 rounded-2xl border-2 border-border bg-card p-4 outline-none lg:h-full lg:overflow-y-auto"
+    >
       <div>
         <p className="font-display text-sm font-bold text-foreground">
           {t('library.editor.panel.sceneTitle', { id: scene.id })}
@@ -141,7 +163,7 @@ export function EditorScenePanel({
       {!imageEditable && (
         <div className="space-y-1.5">
           <p className="rounded-xl border border-amethyst/30 bg-amethyst/5 p-3 font-body text-xs leading-relaxed text-muted-foreground">
-            {t('library.editor.panel.avatarScene')}
+            {t('library.editor.panel.avatarSceneHint')}
           </p>
           {/* Sus fronteras no se mueven en la entrega 2 (avatarTimingLocked):
               se leen, sin el campo para tipearlas. */}
@@ -152,6 +174,16 @@ export function EditorScenePanel({
             onClipTimeChange={onClipTimeChange}
           />
         </div>
+      )}
+
+      {!imageEditable && (
+        <EditorAvatarSceneActions
+          projectId={projectId}
+          scene={scene}
+          scenes={scenes}
+          busy={busy}
+          locked={regenerateLocked}
+        />
       )}
 
       {imageEditable &&

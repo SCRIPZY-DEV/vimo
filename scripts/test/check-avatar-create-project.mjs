@@ -291,6 +291,31 @@ test('crear con avatar: los extremos de los rangos se aceptan y se guardan tal c
   }
 })
 
+// Pregunta 4 del dueño (entrega 2d, 2026-10-11): el mínimo por aparición baja
+// de 7 a 5 s; el máximo sigue en 60.
+test('crear con avatar (entrega 2d): 5 y 6 s por aparición se aceptan y se guardan (antes el mínimo era 7); 4, no', async (t) => {
+  assert.equal(AVATAR_MIN_APPEARANCE_SECONDS, 5)
+  for (const secondsPerAppearance of [5, 6]) {
+    const root = await session(t)
+    const avatar = { ...AVATAR, secondsPerAppearance }
+    const { projectDir } = await create(root, payload({ avatar })).promise
+
+    assert.deepEqual((await storedOptions(projectDir)).avatar, avatar)
+  }
+
+  const root = await session(t)
+  await assert.rejects(
+    create(root, payload({ avatar: { ...AVATAR, secondsPerAppearance: 4 } }))
+      .promise,
+    {
+      code: 'invalid_payload',
+      message:
+        'options.avatar.secondsPerAppearance must be an integer between 5 and 60',
+    },
+  )
+  assert.deepEqual(await projectFolders(root), [])
+})
+
 test('crear con avatar: «manual» es una ubicación válida y empezar sin el avatar también', async (t) => {
   const root = await session(t)
   const avatar = { ...AVATAR, placement: 'manual', startWithAvatar: false }

@@ -50,9 +50,11 @@ function avatarFailureCodes(scenes: FailedAvatarScene[]): string[] {
   })
 }
 
-// El código que más se repite entre las apariciones que fallaron, como el
-// dominante con que la fase arma `avatar_incomplete` (con empate, el de la
-// primera escena). undefined si ninguna falló con código.
+// El código que más se repite entre las apariciones que fallaron (con empate,
+// el de la primera escena). undefined si ninguna falló con código. Era el
+// dominante con que la fase armaba `avatar_incomplete`; desde la entrega 2d la
+// fase ya no lo lanza, y esto solo sirve para mostrar bien un proyecto de
+// antes que quedó detenido con ese error.
 export function dominantAvatarFailure(
   scenes: FailedAvatarScene[],
 ): string | undefined {
@@ -79,12 +81,18 @@ export function dominantAvatarFailure(
 // que el mensaje dice la salida: el video sale con la imagen fija del look,
 // renderizado desde el editor, o con otro look. Cuenta las apariciones con
 // ese rechazo.
+//
+// `avatar_incomplete` es un código heredado de antes de la entrega 2d: la fase
+// ya no lo lanza (una aparición que falla deja la imagen fija y el video
+// sale), pero un proyecto que quedó detenido con él (estado `error`) sigue en
+// el disco, así que se conserva para mostrarlo bien.
 export function failureMessageOf(
   task: Pick<CreateTask, 'errorCode' | 'errorKey'> & {
     scenes: FailedAvatarScene[]
   },
 ): FailureMessage {
   const fallback = { key: task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY }
+  // Solo el código heredado lleva la salida de un rechazo definitivo.
   if (task.errorCode !== 'avatar_incomplete') return fallback
 
   const dominant = dominantAvatarFailure(task.scenes)

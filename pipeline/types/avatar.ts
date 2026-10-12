@@ -307,8 +307,10 @@ export interface AvatarDeletePayload {
 // ─── El avatar dentro del video (entrega 2, diseño §3) ───
 
 // Límites de Crear y del planificador (§3.4). El mínimo por aparición es
-// decisión del dueño del 2026-10-07.
-export const AVATAR_MIN_APPEARANCE_SECONDS = 7
+// decisión del dueño: 7 s el 2026-10-07; 5 s desde la entrega 2d (pregunta 4,
+// 2026-10-11: «5 o 10 segundos, máximo 1 minuto»). El máximo, el hueco y la
+// cantidad no cambian.
+export const AVATAR_MIN_APPEARANCE_SECONDS = 5
 export const AVATAR_MAX_APPEARANCE_SECONDS = 60
 export const AVATAR_DEFAULT_APPEARANCE_SECONDS = 10
 export const AVATAR_MIN_APPEARANCES = 1
@@ -496,7 +498,9 @@ export type SceneAvatarSeed = Pick<
 // los eventos del proyecto): sin recibos, sin el nombre local del clip y sin
 // la huella; con la ruta absoluta del clip si existe y su mtime como
 // cache-buster, como SceneAnimationView. `stale` se deriva al leer
-// (toSceneAvatarView) y nunca se persiste.
+// (toSceneAvatarView) y nunca se persiste; desde la entrega 2d va en toda
+// escena lista desactualizada, también en la que perdió su clip y se muestra
+// `failed` (la fase no la paga sola: el costo de reanudar la deja afuera).
 export interface SceneAvatarView extends Omit<
   SceneAvatar,
   'attempts' | 'clipFile' | 'renderHash'

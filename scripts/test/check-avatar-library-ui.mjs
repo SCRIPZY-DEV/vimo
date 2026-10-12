@@ -1,6 +1,6 @@
-// La biblioteca de avatares de las entregas 2b y 2c (design.md §12.2, §18 y
-// §19; plan-e2b WP-C y plan-e2c WP-G) con sus componentes y hooks reales en
-// Chrome headless, y HeyGen
+// La biblioteca de avatares de las entregas 2b, 2c y 2d (design.md §12.2, §18,
+// §19 y §20; plan-e2b WP-C, plan-e2c WP-G y plan-e2d WP-N) con sus componentes
+// y hooks reales en Chrome headless, y HeyGen
 // simulado: `avatarsApi` es el real con las lecturas y escrituras del sidecar
 // y del store reemplazadas por un doble en memoria (grupos en dos páginas,
 // looks por grupo, la clasificación por tipo, favoritos, altas y cambios de
@@ -10,7 +10,10 @@
 // sonido generado con el ffmpeg del repo (el reproductor lo carga y lo
 // reproduce de verdad) y rutas que no existen para las vistas previas que no
 // hace falta decodificar. Las teclas y algunos clics son de verdad (CDP, desde
-// Node): la página los pide por una cola y espera. Fija:
+// Node): la página los pide por una cola y espera. Los escenarios corren sin
+// CSS, salvo el 11, el 11b, el 11c y el 12, que cargan el de la app (Tailwind,
+// compilado al armar el banco y sin la fuente remota) y fijan el tamaño de la
+// ventana. Fija:
 // - las categorías del stock público: Profesional, Estilo de vida y Comunidad
 //   filtran por la clasificación de `avatar-stock-types`; mientras llega, la
 //   grilla dice «Clasificando…» y no pide páginas; si falla o llega vacía, lo
@@ -41,13 +44,17 @@
 //   del DOM); uno con video de grupo no pide nada; en
 //   la tarjeta de la biblioteca, cada imagen reproduce el de su look (solo la
 //   que está bajo el mouse), el foco del teclado en el nombre el de la
-//   principal y el foco que vuelve tras un clic no activa nada; quitar va en la
-//   fila del nombre;
+//   principal y el foco que vuelve tras un clic no activa nada; el botón de
+//   eliminar va en la fila del nombre;
 // - el reproductor de un look (LookPlayerDialog): se abre con un clic en la
 //   ficha (el pie del segundo nivel ya no ofrece ningún botón para agregar),
-//   muestra el nombre y el `<video>` con su `src`, sin `autoplay` y con
-//   sonido; `play()` solo sale de un clic o de una tecla de la persona (nunca
-//   de un efecto) y las vistas previas al pasar el mouse siguen mudas;
+//   muestra el nombre y el `<video>` con su `src` y arranca solo (entrega 2d),
+//   en el stock y en el panel, también cuando el video llega después: con
+//   sonido o, si el navegador lo rechaza (la política de reproducción
+//   automática, simulada con un `NotAllowedError`), silenciado y con «Activar
+//   el sonido»; otro rechazo (un video que no carga, un `AbortError`) no lo
+//   silencia y, si tampoco arranca silenciado, queda en pausa con el sonido y
+//   el botón grande; las vistas previas al pasar el mouse siguen mudas;
 //   silenciar, la velocidad (1 → 1,5 → 2 → 0,5 → 1), la línea de tiempo, las
 //   flechas ±5 s y Enter sobre el escenario; sin video (o con una URL vacía),
 //   el aviso y ningún control; un video que no carga lo dice; si cambia el
@@ -62,24 +69,61 @@
 //   al llegar, el foco sigue en el escenario; «Usar como principal» llama a
 //   `setMainLook` y cierra el reproductor (si falla, sigue abierto y el foco
 //   vuelve al botón), y el principal lo dice sin botón;
-// - eliminar de HeyGen (entrega 2c): el tacho solo en «Mis avatares», arriba a
-//   la izquierda («Agregado» pasa a la derecha), con dos pasos y la
-//   explicación como descripción accesible (armado, su nombre es el texto que
-//   se ve y lo describen el avatar y la explicación; lo confirma el árbol de
-//   accesibilidad de Chrome, también en reposo y eliminando); salir de la tarjeta, sacarle el
-//   foco o tocarla cancela (el foco nunca rebota a la caja del diálogo); el
-//   segundo clic de un doble clic no confirma, ni Enter o Espacio sostenidos
-//   (sus repeticiones automáticas; las dos cosas, también en «Quitar» de la
-//   tarjeta y del panel de la biblioteca); con el borrado en vuelo el diálogo
-//   no se cierra (Escape, clic afuera ni la X); confirmar pide
+// - eliminar con dos opciones (entrega 2d, `AvatarDeleteMenu`, el mismo en la
+//   tarjeta y el panel de la biblioteca y en «Mis avatares»): el botón de
+//   eliminar despliega ahí mismo, con el foco en la primera opción (con el
+//   teclado o con el mouse: en WebKit un clic no enfoca el botón), «Eliminar de
+//   la lista», que elimina sin otro paso, y, en un avatar propio, «Eliminar
+//   permanentemente de HeyGen», que se vuelve «Seguro» (el mismo botón, en su
+//   lugar, con el foco, descripto por la advertencia) con «Cancelar» antes, en
+//   el de la lista (Mayús+Tab lo alcanza); con el CSS de la app, en la ventana
+//   de arranque y en la mínima, «Seguro» queda dentro del lugar de HeyGen y no
+//   toca el de la lista en las tres variantes, y ni un clic de corrección donde
+//   estaba la lista ni un doble clic sobre HeyGen (termine en «Seguro», en
+//   «Cancelar» o entre los dos) eliminan; en la tarjeta de la biblioteca, a
+//   450, 228 y 164 px, el velo cubre la imagen entera y las opciones quedan
+//   centradas en él, antes y después de pedir «Seguro», con la advertencia
+//   dentro del velo (escenario 11c; WebKit, la app de Tauri, lo cortaba si la
+//   capa no llevaba ancho explícito, algo que Chrome no deja ver); con la
+//   tarjeta cortada en un contenedor con scroll (escenario 11b, en «Mis
+//   avatares» y en la biblioteca), abrir trae a la vista la opción enfocada,
+//   también con Tab
+//   hasta la primera tarjeta de una fila y Enter, mientras que armar y cerrar
+//   no desplazan el contenedor y un clic de corrección donde estaba la lista no
+//   elimina; con el menú abierto, Escape lo cierra a él y no al diálogo del
+//   stock ni al panel, abierto con el teclado o con el mouse; un avatar de
+//   stock solo tiene la lista y, en «Mis avatares» (el único lugar del stock
+//   con el botón, arriba a la izquierda; «Agregado» pasa a la derecha), la
+//   lista solo si el avatar está en la biblioteca; los nombres y descripciones
+//   los confirma el árbol de accesibilidad de Chrome; salir de la tarjeta,
+//   sacarle el foco, tocarla (sin abrir los looks), Escape (sin cerrar el
+//   diálogo de atrás), «Cancelar» o tocar el velo lo cierran sin eliminar, con
+//   el foco de vuelta en el botón y nunca en la caja del diálogo; ni el segundo
+//   clic de un doble clic ni Enter o Espacio sostenidos confirman (ni
+//   despliegan y repliegan); en «Mis avatares», «Seguro» pide
 //   `deleteFromHeyGen` con el `groupId` y el nombre (solo para el log de
-//   soporte), apaga la tarjeta («Eliminando…», `aria-busy`) y no deja agregar
-//   ni arrancar otro borrado; al lograrlo,
-//   avisa, la tarjeta sale, se releen los avatares de la cuenta y se marca
-//   vieja la lista de la biblioteca, y el foco del teclado va al tacho vecino
-//   (el siguiente o el anterior) o a la pestaña «Mis avatares» (con el mouse
-//   no se mueve); si falla, avisa con el error y la tarjeta vuelve con el foco
-//   en su tacho;
+//   soporte), apaga la tarjeta («Eliminando…» en el botón, con el foco,
+//   `aria-busy`) y no deja agregar ni arrancar otro borrado, con el diálogo sin
+//   cerrarse (Escape, clic afuera ni la X); al lograrlo, avisa, la tarjeta
+//   sale, se releen los avatares de la cuenta y se marca vieja la lista de la
+//   biblioteca, y el foco del teclado va al botón vecino (el siguiente o el
+//   anterior) o a la pestaña «Mis avatares» (con el mouse no se mueve); si
+//   falla, avisa con el error y la tarjeta vuelve con el foco en su botón;
+//   «Eliminar de la lista» ahí saca la entrada de la biblioteca y la tarjeta se
+//   queda; en el panel, mientras elimina de HeyGen, el panel no se cierra y Tab
+//   no sale; y la biblioteca entera (escenarios 10 y 10b): HeyGen desde la
+//   tarjeta y desde el panel, la tarjeta que sale antes de la relectura, el
+//   foco del teclado en la tarjeta vecina también tras «Eliminar de la lista»
+//   desde la tarjeta (o, con la biblioteca vacía, en «Agregar de stock»), el
+//   aviso «{{name}} salió de tu lista.» y un borrado de HeyGen a la vez (con
+//   uno en vuelo, el botón de las demás tarjetas y del panel está apagado y no
+//   despliega); con el CSS de la app (escenario 12), el segundo clic de un
+//   doble clic sobre «Eliminar de la lista» no abre el panel de la tarjeta
+//   vecina ni los looks en «Mis avatares»; la grilla de la biblioteca termina
+//   su entrada antes de cada clic de verdad, así ningún escenario depende del
+//   orden; y cada texto del menú (las nueve `avatars.eliminar.*`) se compara
+//   solo si su clave existe en el catálogo (`deleteText`): un renombre no pasa
+//   en vacío;
 // - el formato de los looks: las fichas del segundo nivel del stock, las del
 //   panel de un avatar (con las medidas del listado de HeyGen cuando la
 //   biblioteca no guarda la orientación) y el reproductor dicen 16:9, 9:16,
@@ -94,7 +138,7 @@
 // de-foco-element-focus-no-dispara-los-eventos-focus).
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -108,6 +152,10 @@ const chrome =
   process.argv[2] ??
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const triple = targetTriple()
+// El CLI de Tailwind del repo, para compilar el CSS de la app.
+const tailwindCli = fileURLToPath(
+  new URL('../../node_modules/tailwindcss/lib/cli.js', import.meta.url),
+)
 // El mismo binario que Rust inyecta en `binaryPaths.ffmpeg` (ADR-0026).
 const ffmpeg = fileURLToPath(
   new URL(
@@ -119,7 +167,7 @@ const ffmpeg = fileURLToPath(
 const mocks = {
   '@/modules/avatars/api': [
     "import { avatarsApi as real } from './src/modules/avatars/api/index.ts'",
-    'export const avatarsApi = { ...real, isNative: () => true, list: () => window.api.list(), listStockGroups: (payload) => window.api.listStockGroups(payload), listStockLooks: (payload) => window.api.listStockLooks(payload), listStockTypes: (payload) => window.api.listStockTypes(payload), readStockFavorites: () => window.api.readStockFavorites(), writeStockFavorites: (ids) => window.api.writeStockFavorites(ids), addAvatar: (payload) => window.api.addAvatar(payload), setMainLook: (payload) => window.api.setMainLook(payload), refresh: (id) => window.api.refresh(id), balance: () => window.api.balance(), deleteFromHeyGen: (payload) => window.api.deleteFromHeyGen(payload), imageSource: (path) => "fixture-image:" + path }',
+    'export const avatarsApi = { ...real, isNative: () => true, list: () => window.api.list(), listStockGroups: (payload) => window.api.listStockGroups(payload), listStockLooks: (payload) => window.api.listStockLooks(payload), listStockTypes: (payload) => window.api.listStockTypes(payload), readStockFavorites: () => window.api.readStockFavorites(), writeStockFavorites: (ids) => window.api.writeStockFavorites(ids), addAvatar: (payload) => window.api.addAvatar(payload), setMainLook: (payload) => window.api.setMainLook(payload), refresh: (id) => window.api.refresh(id), balance: () => window.api.balance(), deleteFromHeyGen: (payload) => window.api.deleteFromHeyGen(payload), remove: (id) => window.api.remove(id), imageSource: (path) => "fixture-image:" + path }',
   ].join('\n'),
   '@/modules/api-keys/api': [
     "import { apiKeysApi as real } from './src/modules/api-keys/api/index.ts'",
@@ -140,6 +188,8 @@ import { AvatarCard } from '@/modules/avatars/components/AvatarCard'
 import { LookPlayerDialog } from '@/modules/avatars/components/LookPlayerDialog'
 import { StockGroupCard } from '@/modules/avatars/components/StockGroupCard'
 import { StockLooksDialog } from '@/modules/avatars/components/StockLooksDialog'
+import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
+import { AvatarLibrary } from '@/modules/avatars/views/AvatarLibrary'
 import { useToast } from '@/modules/common/hooks/useToast'
 
 await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolation: { escapeValue: false } })
@@ -180,11 +230,25 @@ function clickOn(element, clickCount = 1) {
   return input({ type: 'click', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, clickCount })
 }
 // Los medios: quién llamó a play() (y desde qué evento) y quién a pause().
+// La política de reproducción automática, simulada: con window.playBlock =
+// { name, muted } un play() con sonido se rechaza con el error que daría el
+// navegador («NotAllowedError»: hace falta un gesto de la persona;
+// «AbortError»: el pedido se cortó) y, con muted, también el silenciado del
+// reproductor (el único video con preload="metadata"; las vistas previas al
+// pasar el mouse van mudas y no se tocan); con until, el rechazo espera a esa
+// promesa (el escenario la suelta cuando quiere que llegue).
 const originalPlay = HTMLMediaElement.prototype.play
+window.playBlock = null
 HTMLMediaElement.prototype.play = function () {
+  const inPlayer = this.getAttribute('preload') === 'metadata'
   window.playElements.push(this)
-  window.playCalls.push({ src: this.getAttribute('src'), muted: this.muted, loop: this.loop, event: window.event ? window.event.type : null })
-  return originalPlay.call(this)
+  window.playCalls.push({ src: this.getAttribute('src'), muted: this.muted, loop: this.loop, event: window.event ? window.event.type : null, player: inPlayer })
+  const block = window.playBlock
+  if (!block || !inPlayer || (this.muted && !block.muted)) return originalPlay.call(this)
+
+  const error = new DOMException('rechazo simulado', block.name)
+  if (!block.until) return Promise.reject(error)
+  return block.until.then(() => Promise.reject(error))
 }
 const reactRoot = createRoot(document.getElementById('root'), { onUncaughtError: (error) => { renderError = error } })
 let revision = 0
@@ -253,7 +317,7 @@ const TYPES = { studioGroupIds: ['g-dante', 'g-luz', 'g-vic'], twinGroupIds: ['g
 const OWN = [group('g-mia', 'Mía', 'female', { previewVideoUrl: 'media/mia.mp4' }), group('g-leo', 'Leo', 'male', { previewVideoUrl: 'media/leo.mp4' }), group('g-sol', 'Sol', 'female', { previewVideoUrl: 'media/sol.mp4' })]
 
 function fakeApi(overrides = {}) {
-  const calls = { list: 0, groups: [], looks: [], types: 0, readFavorites: 0, writeFavorites: [], add: [], setMain: [], deleteHeyGen: [] }
+  const calls = { list: 0, groups: [], looks: [], types: 0, readFavorites: 0, writeFavorites: [], add: [], setMain: [], deleteHeyGen: [], remove: [] }
   const api = {
     calls,
     avatars: [],
@@ -267,11 +331,19 @@ function fakeApi(overrides = {}) {
       if (payload.token === 'page-2') return { groups: structuredClone(PAGE_2), nextToken: null }
       return { groups: structuredClone(PAGE_1), nextToken: 'page-2' }
     },
-    // Como HeyGen: el grupo borrado ya no sale en el listado de la cuenta.
+    // Como HeyGen: el grupo borrado ya no sale en el listado de la cuenta; y
+    // como el sidecar: quita de la biblioteca sus entradas y dice cuáles.
     async deleteFromHeyGen(payload) {
       calls.deleteHeyGen.push(payload)
       api.privateGroups = api.privateGroups.filter((item) => item.groupId !== payload.groupId)
-      return { groupId: payload.groupId, removedEntryIds: [] }
+      const removedEntryIds = api.avatars.filter((item) => item.groupId === payload.groupId).map((item) => item.id)
+      api.avatars = api.avatars.filter((item) => item.groupId !== payload.groupId)
+      return { groupId: payload.groupId, removedEntryIds }
+    },
+    // Quitar de la biblioteca: la entrada sale de la lista que lee la vista.
+    async remove(id) {
+      calls.remove.push(id)
+      api.avatars = api.avatars.filter((item) => item.id !== id)
     },
     async listStockLooks(payload) {
       calls.looks.push(payload)
@@ -300,7 +372,7 @@ async function openDanteLooks() {
   return waitFor(() => document.querySelector('[data-look-id="l-dante-cover"]'), 'los looks de Dante')
 }
 
-scenario('5a · reproductor del stock: abre, no arranca solo, suena con un clic y carga a la biblioteca', async () => {
+scenario('5a · reproductor del stock: abre y arranca solo, con sonido; Espacio pausa, el botón grande reproduce y carga a la biblioteca', async () => {
   const api = fakeApi()
   const opened = []
   let closed = 0
@@ -319,24 +391,29 @@ scenario('5a · reproductor del stock: abre, no arranca solo, suena con un clic 
   check(player.querySelector('h2')?.textContent === 'Dante oficina', 'el título es el nombre del look: ' + player.querySelector('h2')?.textContent)
   const video = playerVideo()
   check(video && video.getAttribute('src') === media('look.mp4'), 'el <video> lleva el video del look: ' + video?.getAttribute('src'))
-  check(!video.autoplay && !video.hasAttribute('autoplay') && !video.loop, 'sin autoplay y sin loop')
-  check(video.muted === false, 'el reproductor tiene sonido')
+  check(!video.hasAttribute('autoplay') && !video.loop, 'sin el atributo autoplay (lo arranca el reproductor) y sin loop')
   check(video.getAttribute('preload') === 'metadata', 'preload=metadata')
-  check(document.activeElement === byLabel(tr('avatars.stock.previewAria', { name: 'Dante oficina' }), player), 'al abrir, el foco va al escenario: ' + document.activeElement?.outerHTML.slice(0, 80))
-  await waitFor(() => video.readyState >= 1, 'el video carga su duración')
-  await delay(300)
-  check(window.playCalls.every((call) => call.src !== media('look.mp4')), 'abrir no reproduce: ' + JSON.stringify(window.playCalls))
-  check(player.textContent.includes('0:02'), 'la duración del video (0:02) en la barra')
+  const stage = byLabel(tr('avatars.stock.previewAria', { name: 'Dante oficina' }), player)
+  check(document.activeElement === stage, 'al abrir, el foco va al escenario: ' + document.activeElement?.outerHTML.slice(0, 80))
+  // Arranca solo, con sonido: un solo play(), sin silenciar.
+  await waitFor(() => !video.paused, 'al abrirse, el video arranca solo')
+  const autoCalls = window.playCalls.filter((call) => call.src === media('look.mp4'))
+  check(autoCalls.length === 1 && autoCalls[0].muted === false && !video.muted, 'un play() con sonido: ' + JSON.stringify(autoCalls))
+  await waitFor(() => byLabel(tr('common.player.pause'), player), 'la barra dice «Pausar»')
+  check(!byLabel(tr('common.player.play'), player) && byLabel(tr('avatars.reproductor.silenciar'), player), 'sin el botón grande y con el sonido activo («Silenciar»)')
+  check(document.activeElement === stage, 'el foco sigue en el escenario: ' + document.activeElement?.outerHTML.slice(0, 80))
+  await waitFor(() => player.textContent.includes('0:02'), 'la duración del video (0:02) en la barra')
   check(buttonNamed(tr('avatars.reproductor.cargar'), player), 'el botón dice «Cargar a la biblioteca»')
-  byLabel(tr('common.player.play'), player).click()
-  await waitFor(() => !video.paused, 'el botón grande reproduce')
-  const playerCalls = window.playCalls.filter((call) => call.src === media('look.mp4'))
-  check(playerCalls.length === 1 && playerCalls[0].event === 'click' && playerCalls[0].muted === false, 'play() con sonido y desde el clic: ' + JSON.stringify(playerCalls))
-  await waitFor(() => byLabel(tr('common.player.pause'), player), 'la barra pasa a «Pausar»')
-  check(document.activeElement === byLabel(tr('avatars.stock.previewAria', { name: 'Dante oficina' }), player), 'tras el botón grande, el foco queda en el escenario')
+  // Lo demás sigue igual: Espacio en el escenario pausa y el botón grande
+  // reproduce, con sonido y desde el clic.
   await pressKey(' ')
   await waitFor(() => video.paused, 'Espacio en el escenario pausa')
-  check(window.playCalls.every((call) => call.src !== media('look.mp4') || call.event === 'click' || call.event === 'keydown'), 'el reproductor nunca arranca fuera de un clic o una tecla: ' + JSON.stringify(window.playCalls))
+  window.playCalls = []
+  byLabel(tr('common.player.play'), player).click()
+  await waitFor(() => !video.paused, 'el botón grande reproduce')
+  check(window.playCalls.length === 1 && window.playCalls[0].event === 'click' && window.playCalls[0].muted === false, 'play() con sonido y desde el clic: ' + JSON.stringify(window.playCalls))
+  await waitFor(() => byLabel(tr('common.player.pause'), player), 'la barra pasa a «Pausar»')
+  check(document.activeElement === stage, 'tras el botón grande, el foco queda en el escenario')
 
   // Cargar: mientras trabaja no se cierra y el foco espera en el escenario.
   const pending = gate()
@@ -403,6 +480,14 @@ scenario('5c · reproductor del stock: con el avatar en la biblioteca, «Abrir e
   // ficha, pero no la activa: su video no arranca lejos del puntero.
   card.click()
   await waitFor(() => dialogs().length === 2, 'reabre el reproductor')
+  // El banco no carga CSS: el video ocupa su lugar cuando llegan sus medidas,
+  // y el botón grande y el spinner de carga entran y salen mientras anda (y al
+  // terminar sus 2 s), y lo de abajo se corre. Con el video cargado y en pausa,
+  // la X queda quieta para el clic de verdad.
+  await waitFor(() => playerVideo()?.readyState >= 1 && !playerVideo().paused, 'el video arranca')
+  byLabel(tr('common.player.pause'), topDialog()).click()
+  await waitFor(() => playerVideo().paused && byLabel(tr('common.player.play'), topDialog()), 'en pausa')
+  await delay(100)
   const cardVideo = card.closest('article').querySelector('video')
   window.playElements = []
   await clickOn(byLabel(tr('avatars.reproductor.cerrar'), topDialog()))
@@ -440,6 +525,10 @@ scenario('5d · reproductor: silenciar, velocidad, línea de tiempo, flechas y E
   const video = playerVideo()
   await waitFor(() => video.readyState >= 1 && video.duration > 1.9, 'el video carga su duración')
   const stage = byLabel(tr('avatars.stock.previewAria', { name: 'Dante oficina' }), player)
+  // Arranca solo: se pausa para medir la línea de tiempo con el video quieto.
+  await waitFor(() => !video.paused, 'arranca solo')
+  byLabel(tr('common.player.pause'), player).click()
+  await waitFor(() => video.paused, 'la barra lo pausa')
 
   // Silenciar y volver a activar el sonido.
   byLabel(tr('avatars.reproductor.silenciar'), player).click()
@@ -495,6 +584,8 @@ scenario('5e · reproductor: un look sin video lo dice y no ofrece controles; un
   player = topDialog()
   await waitFor(() => player.textContent.includes(tr('avatars.reproductor.errorVideo')), 'dice que el video no se pudo cargar')
   check(!byLabel(tr('common.player.play'), player) && !byLabel(tr('common.player.position'), player), 'y no deja un botón que no responde')
+  await delay(100)
+  check(!playerVideo().muted, 'el arranque que falla porque el video no carga no lo silencia (no es la política de reproducción)')
   await pressKey('Escape')
   await waitFor(() => dialogs().length === 1, 'cierra')
 
@@ -512,20 +603,90 @@ function SwapVideoHost({ initialUrl }) {
   return <LookPlayerDialog look={DANTE_LOOKS[1]} videoUrl={videoUrl} action={{ kind: 'main' }} onClose={() => {}} />
 }
 
-scenario('5f · reproductor: si cambia el video, empieza de cero (un video roto reemplazado por uno bueno ofrece sus controles) y el foco sigue en el escenario', async () => {
+scenario('5f · reproductor: si cambia el video, empieza de cero (un video roto reemplazado por uno bueno ofrece sus controles y arranca solo) y el foco sigue en el escenario', async () => {
   fakeApi()
   mount(<SwapVideoHost initialUrl={media('missing.mp4')} />)
   await waitFor(() => topDialog()?.textContent.includes(tr('avatars.reproductor.errorVideo')), 'el video roto lo dice')
   const stageLabel = tr('avatars.stock.previewAria', { name: 'Dante oficina' })
   check(document.activeElement === byLabel(stageLabel, topDialog()), 'el foco está en el escenario')
   window.swapVideo(media('look.mp4'))
-  await waitFor(() => playerVideo()?.getAttribute('src') === media('look.mp4') && byLabel(tr('common.player.play'), topDialog()), 'con el video nuevo, el botón de reproducir')
+  await waitFor(() => playerVideo()?.getAttribute('src') === media('look.mp4') && byLabel(tr('common.player.position'), topDialog()), 'con el video nuevo, sus controles')
   check(!topDialog().textContent.includes(tr('avatars.reproductor.errorVideo')), 'sin el aviso del video anterior')
   await waitFor(() => playerVideo().readyState >= 1, 'el video nuevo carga')
-  check(byLabel(tr('common.player.position'), topDialog()), 'y su línea de tiempo')
+  await waitFor(() => !playerVideo().paused && !playerVideo().muted, 'y arranca solo, con sonido')
   await waitFor(() => document.activeElement === byLabel(stageLabel, topDialog()), 'el foco sigue en el escenario (el nuevo), no en la caja del diálogo: ' + document.activeElement?.outerHTML.slice(0, 80))
 })
-scenario('6b · panel del avatar: mientras la lista de HeyGen llega, el reproductor espera (no dice «sin video»); al llegar, el video, con el foco en el escenario', async () => {
+// Abre el reproductor de la portada de Dante con la política simulada y espera
+// a que el reproductor termine de intentar arrancar.
+async function openCoverPlayer(block) {
+  window.playBlock = block
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  ;(await openDanteLooks()).click()
+  await waitFor(() => dialogs().length === 2 && playerVideo(), 'el reproductor abre')
+  await delay(300)
+  return { player: topDialog(), video: playerVideo(), calls: () => window.playCalls.filter((call) => call.src === media('look.mp4')) }
+}
+
+scenario('5g · reproductor: si el navegador no deja arrancar con sonido, arranca silenciado con «Activar el sonido»; otro rechazo no lo silencia; si tampoco arranca silenciado, queda en pausa con el sonido y el botón grande; un rechazo que llega con el reproductor cerrado no toca el video', async () => {
+  fakeApi()
+  try {
+    // La política lo rechaza con sonido: arranca silenciado.
+    let { player, video, calls } = await openCoverPlayer({ name: 'NotAllowedError', muted: false })
+    await waitFor(() => !video.paused, 'arranca igual, silenciado')
+    check(calls().length === 2 && calls()[0].muted === false && calls()[1].muted === true, 'primero con sonido y, rechazado, silenciado: ' + JSON.stringify(calls()))
+    check(video.muted && byLabel(tr('avatars.reproductor.activarSonido'), player), 'silenciado, con el botón de sonido en «Activar el sonido»')
+    check(!byLabel(tr('common.player.play'), player), 'sin el botón grande: está andando')
+    // Activar el sonido a mano: suena y sigue andando.
+    window.playBlock = null
+    byLabel(tr('avatars.reproductor.activarSonido'), player).click()
+    await waitFor(() => !video.muted && byLabel(tr('avatars.reproductor.silenciar'), player), 'vuelve el sonido')
+    check(!video.paused, 'y sigue andando')
+
+    // Otro rechazo (el pedido se cortó) no es la política: no lo silencia ni
+    // lo reintenta; queda en pausa con sonido y el botón grande.
+    await unmount()
+    fakeApi()
+    ;({ player, video, calls } = await openCoverPlayer({ name: 'AbortError', muted: false }))
+    check(calls().length === 1 && !video.muted && video.paused, 'un solo intento, sin silenciar: ' + JSON.stringify(calls()))
+    check(byLabel(tr('common.player.play'), player) && byLabel(tr('avatars.reproductor.silenciar'), player), 'en pausa, con el botón grande y el sonido activo')
+
+    // Ni silenciado: queda en pausa con el sonido de vuelta, y el botón grande
+    // reproduce con sonido.
+    await unmount()
+    fakeApi()
+    ;({ player, video, calls } = await openCoverPlayer({ name: 'NotAllowedError', muted: true }))
+    check(calls().length === 2 && calls()[1].muted === true, 'intentó con sonido y silenciado: ' + JSON.stringify(calls()))
+    await waitFor(() => !video.muted && byLabel(tr('avatars.reproductor.silenciar'), player), 'el sonido vuelve')
+    check(video.paused && byLabel(tr('common.player.play'), player), 'en pausa, con el botón grande')
+    window.playBlock = null
+    window.playCalls = []
+    byLabel(tr('common.player.play'), player).click()
+    await waitFor(() => !video.paused, 'el botón grande reproduce')
+    check(window.playCalls.length === 1 && window.playCalls[0].muted === false && window.playCalls[0].event === 'click', 'con sonido y desde el clic: ' + JSON.stringify(window.playCalls))
+
+    // El rechazo llega tarde, con el reproductor ya cerrado: no silencia ni
+    // vuelve a intentar sobre un video que salió del documento (lo haría andar
+    // igual).
+    await unmount()
+    fakeApi()
+    const late = gate()
+    window.playBlock = { name: 'NotAllowedError', muted: false, until: late.promise }
+    mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+    ;(await openDanteLooks()).click()
+    await waitFor(() => dialogs().length === 2 && playerVideo(), 'el reproductor abre')
+    const closedVideo = playerVideo()
+    await pressKey('Escape')
+    await waitFor(() => dialogs().length === 1, 'se cierra antes de que el navegador responda')
+    late.resolve()
+    await delay(300)
+    const playerCalls = window.playCalls.filter((call) => call.player)
+    check(playerCalls.length === 1 && !closedVideo.muted && closedVideo.paused, 'el rechazo tardío no silencia ni vuelve a intentar: ' + JSON.stringify(playerCalls))
+  } finally {
+    window.playBlock = null
+  }
+})
+
+scenario('6b · panel del avatar: mientras la lista de HeyGen llega, el reproductor espera (no dice «sin video»); al llegar, el video arranca solo, con el foco en el escenario', async () => {
   const api = fakeApi()
   api.avatars = [ANA]
   const remote = gate()
@@ -537,9 +698,15 @@ scenario('6b · panel del avatar: mientras la lista de HeyGen llega, el reproduc
   const waiting = [...topDialog().querySelectorAll('[role=status]')].find((element) => element.textContent === tr('avatars.reproductor.cargando'))
   check(waiting && !topDialog().textContent.includes(tr('avatars.reproductor.sinVideo')) && !playerVideo(), 'espera con un spinner y no afirma que no hay video')
   check(document.activeElement === byLabel(stageLabel, topDialog()), 'el foco está en el escenario')
+  check(window.playCalls.every((call) => call.src !== media('look.mp4')), 'sin video no reproduce nada: ' + JSON.stringify(window.playCalls))
   remote.resolve()
   await waitFor(() => playerVideo()?.getAttribute('src') === media('look.mp4'), 'al llegar la lista, el video del look')
   check(!topDialog().textContent.includes(tr('avatars.reproductor.sinVideo')), 'sin el aviso de «sin video»')
+  // Arranca solo aunque llegue después, sin un gesto de por medio (en el
+  // banco, la página ya tuvo un clic: Chrome lo deja sonar).
+  await waitFor(() => !playerVideo().paused, 'el video que llega después arranca solo')
+  const lateCalls = window.playCalls.filter((call) => call.src === media('look.mp4'))
+  check(lateCalls.length === 1 && lateCalls[0].muted === false && lateCalls[0].event === null, 'un play() con sonido, fuera de un evento: ' + JSON.stringify(lateCalls))
   await waitFor(() => document.activeElement === byLabel(stageLabel, topDialog()), 'el escenario nuevo tiene el foco, no la caja del diálogo: ' + document.activeElement?.outerHTML.slice(0, 80))
   check(byLabel(stageLabel, topDialog()).tabIndex === 0, 'y ya se maneja con el teclado')
 })
@@ -557,6 +724,7 @@ scenario('6 · panel del avatar: un look abre el reproductor con «Usar como pri
   await waitFor(() => dialogs().length === 2, 'el reproductor abre encima del panel')
   let player = topDialog()
   await waitFor(() => playerVideo()?.getAttribute('src') === media('look.mp4'), 'el video del listado remoto')
+  await waitFor(() => !playerVideo().paused && !playerVideo().muted, 'en el panel también arranca solo, con sonido')
   const makeMain = buttonNamed(tr('avatars.detalle.usarPrincipal'), player)
   check(makeMain && !makeMain.disabled, 'ofrece «Usar como principal»')
   makeMain.click()
@@ -700,7 +868,7 @@ scenario('4c · tarjeta del stock: salir con Tab de una tarjeta cuyos looks toda
   pending.resolve()
 })
 
-scenario('7 · tarjeta de la biblioteca: cada imagen reproduce el video de su look y el foco del teclado, el de la principal; quitar va en la fila del nombre', async () => {
+scenario('7 · tarjeta de la biblioteca: cada imagen reproduce el video de su look y el foco del teclado, el de la principal; eliminar va en la fila del nombre', async () => {
   const api = fakeApi()
   api.looksByGroup = { 'g-ana': ANA_TILES }
   // El botón de afuera hace de la X del panel: un clic del mouse y después el
@@ -730,8 +898,8 @@ scenario('7 · tarjeta de la biblioteca: cada imagen reproduce el video de su lo
   hoverOut(second)
 
   const name = card.querySelector('[data-avatar-id="ana-card"]')
-  const trash = byLabel(tr('avatars.tarjeta.eliminar'), card)
-  check(trash && trash.closest('div.flex') === name.parentElement.closest('div.flex') && name.parentElement.contains(trash), 'quitar está en la fila del nombre')
+  const trash = byLabel(deleteText('avatars.eliminar.botonAria', { name: 'Ana' }), card)
+  check(trash && trash.closest('div.flex') === name.parentElement.closest('div.flex') && name.parentElement.contains(trash), 'el botón de eliminar está en la fila del nombre')
 
   // El foco que vuelve al nombre tras un clic (el panel cerrado con el mouse)
   // no activa nada; el del teclado, la principal.
@@ -1094,30 +1262,87 @@ scenario('3 · auto-carga: un filtro con pocas tarjetas pide la página siguient
   check(document.querySelectorAll('[role=alert]').length === 1, 'el error a la vista, junto a lo cargado')
 })
 
-// ─── Entrega 2c: eliminar de HeyGen desde «Mis avatares» y el formato de los looks ───
-const cardOf = (groupId) => document.querySelector('[data-group-id="' + groupId + '"]')?.closest('article')
-const trashFor = (groupId) => cardOf(groupId)?.querySelector('[data-heygen-delete]')
-// Lo que describe al tacho (aria-describedby, en orden).
-const describedBy = (groupId) => (trashFor(groupId)?.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).map((id) => document.getElementById(id))
-const describedTexts = (groupId) => describedBy(groupId).map((element) => element?.textContent ?? null)
-// La explicación del borrado de una tarjeta: está entre lo que describe al tacho.
-const deleteHintOf = (groupId) => describedBy(groupId).find((element) => element?.textContent === tr('avatars.stock.eliminarHint')) ?? null
-// Armado: sin aria-label (su nombre es el texto que se ve, «¿Eliminar para
-// siempre?») y descripto por el nombre del avatar y la explicación.
-const isArmed = (groupId, name) => {
-  const trash = trashFor(groupId)
-  if (!trash || trash.hasAttribute('aria-label')) return false
-  return trash.textContent === tr('avatars.stock.eliminarConfirmar') && !trash.querySelector('span').classList.contains('hidden') && same(describedTexts(groupId), [name, tr('avatars.stock.eliminarHint')])
+// ─── Entrega 2d: el menú de eliminar (tarjeta y panel de la biblioteca, «Mis avatares») ───
+// Las claves de sus opciones.
+const LIST = 'avatars.eliminar.deLista'
+const HEYGEN = 'avatars.eliminar.deHeygen'
+const SURE = 'avatars.eliminar.seguro'
+const CANCEL = 'avatars.eliminar.cancelar'
+// El texto de una clave del menú (las nueve «avatars.eliminar.*»), comprobado:
+// la clave existe en el catálogo, no sale como su ruta cruda y no deja
+// variables sin resolver. Comparar con tr(clave) a secas pasa en vacío si la
+// clave se renombra en los tres catálogos: i18next la traduce como su ruta, y
+// el menú y el guard reciben lo mismo (ERRORES-CONOCIDOS: test-que-compara-el-
+// texto-con-i18n-t-de-la-misma-clave-pasa-en-vacio-si-la-clave-no-existe; M2
+// de la revisión final de la 2d).
+function deleteText(key, options) {
+  const sentence = tr(key, options)
+  check(i18n.exists(key) && sentence !== key && !sentence.includes('{{'), 'la clave ' + key + ' es una frase del catálogo, no su ruta cruda ni una variable sin resolver: ' + sentence)
+  return sentence
 }
-const isIdle = (groupId, name) => trashFor(groupId)?.getAttribute('aria-label') === tr('avatars.stock.eliminarHeygenAria', { name })
-// El nombre y la descripción que calcula Chrome para el tacho de una tarjeta
-// (su árbol de accesibilidad, por CDP desde Node): lo que anuncia un lector de
-// pantalla y lo que busca el control por voz.
-async function accessibleTrash(groupId) {
+const cardOf = (groupId) => document.querySelector('[data-group-id="' + groupId + '"]')?.closest('article')
+// El botón de eliminar de una tarjeta de «Mis avatares», o el de una raíz.
+const trashIn = (root) => root?.querySelector('[data-avatar-delete]') ?? null
+const trashFor = (groupId) => trashIn(cardOf(groupId))
+// Sus opciones: el grupo que nombra su «aria-controls».
+const optionsOf = (trigger) => (trigger ? document.getElementById(trigger.getAttribute('aria-controls')) : null)
+// A la vista: ni «hidden» ni «inert» en él o en un ancestro (el banco no carga
+// CSS; el menú marca así lo que no se ve, también en la app).
+const onScreen = (element) => Boolean(element) && !element.closest('[hidden], [inert]')
+const optionButtons = (trigger) => [...(optionsOf(trigger)?.querySelectorAll('button') ?? [])]
+const shownOptions = (trigger) => optionButtons(trigger).filter(onScreen).map((button) => button.textContent.trim())
+const optionOf = (trigger, key) => optionButtons(trigger).find((button) => onScreen(button) && button.textContent.trim() === deleteText(key)) ?? null
+const warningOf = (trigger) => [...(optionsOf(trigger)?.querySelectorAll('p') ?? [])].find((paragraph) => paragraph.textContent === deleteText('avatars.eliminar.confirmarHeygen')) ?? null
+// Cerrado: el ícono nombra al avatar, contraído y sin opciones a la vista.
+const isClosed = (trigger, name) => trigger?.getAttribute('aria-label') === deleteText('avatars.eliminar.botonAria', { name }) && trigger.getAttribute('aria-expanded') === 'false' && !onScreen(optionsOf(trigger))
+// Abierto, con estas opciones a la vista y en este orden.
+const isOpenWith = (trigger, keys) => trigger?.getAttribute('aria-expanded') === 'true' && onScreen(optionsOf(trigger)) && same(shownOptions(trigger), keys.map((key) => deleteText(key)))
+// Pide «Seguro»: la advertencia a la vista y describiendo a «Seguro», con
+// «Cancelar» antes (en el lugar de «Eliminar de la lista»).
+const isConfirming = (trigger) => isOpenWith(trigger, [CANCEL, SURE]) && onScreen(warningOf(trigger)) && optionOf(trigger, SURE)?.getAttribute('aria-describedby') === warningOf(trigger).id
+// Los lugares de la confirmación (C1 de la revisión): «Seguro» es el mismo
+// botón que era «Eliminar permanentemente de HeyGen» (no se mueve) y
+// «Cancelar» va antes, en el lugar de «Eliminar de la lista», que se oculta.
+// Es estructural: no depende del CSS (la geometría la mide el escenario 11).
+const keepsSlots = (trigger, heygenButton) => {
+  const cancel = optionOf(trigger, CANCEL)
+  const list = optionButtons(trigger).find((button) => button.textContent.trim() === deleteText(LIST))
+  return isConfirming(trigger) && optionOf(trigger, SURE) === heygenButton && Boolean(cancel.compareDocumentPosition(heygenButton) & Node.DOCUMENT_POSITION_FOLLOWING) && (!list || (!onScreen(list) && Boolean(cancel.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING)))
+}
+// Un doble clic de verdad: dos clics en el MISMO punto (el centro que tenía
+// el elemento al primer clic), el segundo con detail 2, aunque entre los dos
+// cambie lo que hay debajo.
+async function doubleClickAt(element) {
+  element.scrollIntoView({ block: 'center' })
+  const rect = element.getBoundingClientRect()
+  const point = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+  await input({ type: 'click', ...point, clickCount: 1 })
+  await input({ type: 'click', ...point, clickCount: 2 })
+}
+// Eliminando: su nombre es el texto que se ve («Eliminando…») y no hace nada.
+const isDeleting = (trigger) => {
+  const label = trigger?.querySelector('span')
+  return Boolean(trigger) && !trigger.hasAttribute('aria-label') && trigger.getAttribute('aria-disabled') === 'true' && onScreen(label) && label.textContent === deleteText('avatars.eliminar.eliminando')
+}
+// El nombre y la descripción que calcula Chrome para un elemento (su árbol de
+// accesibilidad, por CDP desde Node): lo que anuncia un lector de pantalla y
+// lo que busca el control por voz. Se marca un momento para encontrarlo.
+async function accessible(element) {
   const id = ++nextInput
-  window.inputQueue.push({ id, type: 'ax', selector: 'article:has([data-group-id="' + groupId + '"]) [data-heygen-delete]' })
-  await waitFor(() => window.inputDone.has(id), 'accesibilidad del tacho de ' + groupId, 300)
+  element.setAttribute('data-ax-probe', String(id))
+  window.inputQueue.push({ id, type: 'ax', selector: '[data-ax-probe="' + id + '"]' })
+  await waitFor(() => window.inputDone.has(id), 'accesibilidad de ' + element.tagName, 300)
+  element.removeAttribute('data-ax-probe')
   return window.axResults[id]
+}
+// Cuántas veces cambia «aria-expanded» de un botón: una tecla sostenida que lo
+// abriera y cerrara con cada repetición lo cambiaría de más.
+function watchExpanded(trigger) {
+  const changes = []
+  const record = (records) => { for (const item of records) changes.push(item.oldValue) }
+  const observer = new MutationObserver(record)
+  observer.observe(trigger, { attributes: true, attributeFilter: ['aria-expanded'], attributeOldValue: true })
+  return { changes, stop: () => { record(observer.takeRecords()); observer.disconnect() } }
 }
 const ownTab = () => buttonNamed(tr('avatars.stock.propios'))
 async function openOwnTab() {
@@ -1127,75 +1352,670 @@ async function openOwnTab() {
   await waitFor(() => same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), '«Mis avatares»: ' + visibleGroupIds())
 }
 const privateListings = (api) => api.calls.groups.filter((payload) => payload.ownership === 'private').length
+// Con el teclado, desde el botón de eliminar de una tarjeta de «Mis avatares»:
+// despliega (el foco pasa a la primera opción), va a «Eliminar
+// permanentemente de HeyGen», pide «Seguro» y lo confirma.
+async function deleteWithKeyboard(groupId) {
+  const trigger = trashFor(groupId)
+  trigger.focus()
+  await pressKey('Enter')
+  await waitFor(() => optionOf(trigger, HEYGEN), 'despliega el menú de ' + groupId)
+  if (optionOf(trigger, LIST)) await pressKey('Tab')
+  check(document.activeElement === optionOf(trigger, HEYGEN), 'Tab llega a «Eliminar permanentemente de HeyGen» de ' + groupId + ': ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Enter')
+  await waitFor(() => isConfirming(trigger), 'pide «Seguro» para ' + groupId)
+  await pressKey('Enter')
+}
+const hasAddedBadge = (groupId) => [...(cardOf(groupId)?.querySelectorAll('span') ?? [])].some((span) => span.textContent === tr('avatars.stock.agregado'))
 
-scenario('8 · «Mis avatares»: el tacho solo ahí, en dos pasos con la explicación; salir de la tarjeta, sacarle el foco o tocarla cancela, y el segundo clic de un doble clic no confirma', async () => {
+// Un avatar propio de la biblioteca: su menú ofrece también HeyGen.
+const PIA_OWN = { ...ANA, id: 'pia-own', name: 'Pía', groupId: 'g-pia', ownership: 'own' }
+
+// La tarjeta de la biblioteca como la monta la biblioteca: anota en
+// window.cardEvents lo que pide (abrir el panel, quitar de la lista, eliminar
+// de HeyGen) y deja el borrado en HeyGen en vuelo hasta que el escenario lo
+// termina sin lograrlo (window.finishHeyGenDelete). Con botones antes y
+// después, para el Tab. Sin «withHeyGen», como la monta la biblioteca de hoy.
+function LibraryCardHost({ avatar, withHeyGen = true }) {
+  const [deleting, setDeleting] = React.useState(false)
+  window.finishHeyGenDelete = () => setDeleting(false)
+  const deleteFromHeyGen = (item) => {
+    window.cardEvents.push('heygen:' + item.id)
+    setDeleting(true)
+  }
+  return (
+    <>
+      <button type="button" id="before">antes</button>
+      <AvatarCard avatar={avatar} disabled={false} deleting={deleting} onOpen={(item) => window.cardEvents.push('open:' + item.id)} onDelete={(item) => window.cardEvents.push('list:' + item.id)} onDeleteFromHeyGen={withHeyGen ? deleteFromHeyGen : undefined} />
+      <button type="button" id="after">después</button>
+    </>
+  )
+}
+
+// El panel como lo monta la biblioteca: anota en window.panelEvents y deja el
+// borrado en HeyGen en vuelo hasta window.finishHeyGenDelete.
+function PanelHost({ avatar }) {
+  const [deleting, setDeleting] = React.useState(false)
+  window.finishHeyGenDelete = () => setDeleting(false)
+  const deleteFromHeyGen = () => {
+    window.panelEvents.push('heygen')
+    setDeleting(true)
+  }
+  return <AvatarDetailDialog avatar={avatar} deleting={deleting} onClose={() => window.panelEvents.push('close')} onRemove={() => window.panelEvents.push('list')} onDeleteFromHeyGen={deleteFromHeyGen} />
+}
+
+// El stock como lo monta la biblioteca: «entries» sale de la lista de la
+// biblioteca (el doble), así «Eliminar de la lista» la cambia de verdad.
+function LibraryStockHost() {
+  const { entries } = useAvatars()
+  return <StockLooksDialog entries={entries} onOpenAvatar={() => {}} onClose={() => {}} />
+}
+
+const libraryCard = (id) => waitFor(() => document.querySelector('[data-avatar-id="' + id + '"]')?.closest('article'), 'la tarjeta ' + id)
+// La grilla de la biblioteca entra con una animación (motion.ul: opacidad e
+// y: 12): un clic de verdad durante la entrada cae corrido, en otra tarjeta.
+// Antes de los clics se espera a que termine, así el escenario no depende de
+// lo que corrió antes (M1 de la revisión).
+async function libraryGridSettled() {
+  await waitFor(() => {
+    const grid = document.querySelector('[data-avatar-id]')?.closest('ul')
+    if (!grid) return false
+
+    const { transform, opacity } = getComputedStyle(grid)
+    return (transform === 'none' || transform === 'matrix(1, 0, 0, 1, 0, 0)') && opacity === '1'
+  }, 'la grilla de la biblioteca terminó de entrar')
+}
+
+scenario('7b · tarjeta de la biblioteca: el botón de eliminar despliega ahí mismo «Eliminar de la lista», que elimina sin otro paso, y, en un avatar propio, «Eliminar permanentemente de HeyGen», que pide «Seguro» antes de eliminar; un avatar de stock solo tiene la lista', async () => {
+  fakeApi()
+  window.cardEvents = []
+  mount(<LibraryCardHost avatar={PIA_OWN} />)
+  const card = await libraryCard('pia-own')
+  const trigger = trashIn(card)
+  check(isClosed(trigger, 'Pía'), 'cerrado: el ícono «Eliminar Pía», contraído y sin opciones: ' + trigger?.outerHTML.slice(0, 160))
+  check(card.querySelector('[data-avatar-id]').parentElement.contains(trigger), 'el botón va en la fila del nombre')
+  check(card.contains(optionsOf(trigger)), 'las opciones están en la misma tarjeta')
+  const idle = await accessible(trigger)
+  check(idle.name === deleteText('avatars.eliminar.botonAria', { name: 'Pía' }), 'para Chrome se llama «Eliminar Pía»: ' + JSON.stringify(idle))
+
+  // El primer clic despliega las dos opciones, con el foco en la primera (como
+  // en WebKit, donde el clic no enfoca el botón), y no elimina nada.
+  await clickOn(trigger)
+  await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), 'el clic despliega las dos opciones: ' + JSON.stringify(shownOptions(trigger)))
+  check(document.activeElement === optionOf(trigger, LIST), 'el primer gesto enfoca la primera opción, «Eliminar de la lista»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  const options = await accessible(optionsOf(trigger))
+  check(options.name === deleteText('avatars.eliminar.opcionesAria', { name: 'Pía' }), 'el grupo de opciones se llama «Cómo eliminar Pía»: ' + JSON.stringify(options))
+  check(optionOf(trigger, HEYGEN).className.includes('bg-destructive'), '«Eliminar permanentemente de HeyGen» va en rojo')
+  check(window.cardEvents.length === 0, 'desplegar no elimina nada: ' + JSON.stringify(window.cardEvents))
+
+  // «Eliminar de la lista»: sin otro paso.
+  await clickOn(optionOf(trigger, LIST))
+  await waitFor(() => window.cardEvents.length === 1, '«Eliminar de la lista» quita')
+  check(same(window.cardEvents, ['list:pia-own']), 'una vez, sin pedir nada más: ' + JSON.stringify(window.cardEvents))
+  await waitFor(() => isClosed(trigger, 'Pía'), 'y el menú se cierra')
+  check(document.activeElement === trigger, 'con el foco de vuelta en el botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // HeyGen: el primer clic pide «Seguro» y le pasa el foco (la opción que lo
+  // tenía se oculta); recién «Seguro» elimina.
+  await clickOn(trigger)
+  await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), 'despliega otra vez')
+  const heygenButton = optionOf(trigger, HEYGEN)
+  await clickOn(heygenButton)
+  await waitFor(() => isConfirming(trigger), '«Eliminar permanentemente de HeyGen» pide «Seguro», con la advertencia y «Cancelar»')
+  check(keepsSlots(trigger, heygenButton), '«Seguro» es el mismo botón de HeyGen y «Cancelar» toma el lugar de la lista: ' + JSON.stringify(shownOptions(trigger)))
+  check(document.activeElement === optionOf(trigger, SURE), 'el foco pasa a «Seguro» (no queda en la opción oculta): ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(warningOf(trigger).textContent === deleteText('avatars.eliminar.confirmarHeygen'), 'la advertencia dice que se elimina también de HeyGen')
+  const sure = await accessible(optionOf(trigger, SURE))
+  check(sure.name === deleteText(SURE) && sure.description === deleteText('avatars.eliminar.confirmarHeygen'), 'para Chrome, «Seguro» y lo describe la advertencia: ' + JSON.stringify(sure))
+  check(same(window.cardEvents, ['list:pia-own']), 'pedir «Seguro» no elimina: ' + JSON.stringify(window.cardEvents))
+  await clickOn(optionOf(trigger, SURE))
+  await waitFor(() => window.cardEvents.length === 2, '«Seguro» elimina de HeyGen')
+  check(same(window.cardEvents, ['list:pia-own', 'heygen:pia-own']), 'una vez: ' + JSON.stringify(window.cardEvents))
+  await waitFor(() => isDeleting(trigger), 'mientras elimina, el botón dice «Eliminando…»')
+  const deleting = await accessible(trigger)
+  check(deleting.name === deleteText('avatars.eliminar.eliminando') && deleting.description === 'Pía', 'para Chrome, «Eliminando…», descripto por Pía: ' + JSON.stringify(deleting))
+  // En la fila del nombre el botón no crece (una pastilla ancha dejaba el
+  // nombre en cero): el texto es para el lector de pantalla y la tarjeta se
+  // apaga, como en «Mis avatares».
+  check(trigger.querySelector('span').classList.contains('sr-only') && trigger.className.includes('w-8'), 'el botón sigue del tamaño del ícono: ' + trigger.className)
+  check(card.getAttribute('aria-busy') === 'true' && card.className.includes('opacity-50'), 'la tarjeta se apaga mientras elimina')
+  await clickOn(trigger)
+  await delay(100)
+  check(trigger.getAttribute('aria-expanded') === 'false' && window.cardEvents.length === 2, 'mientras elimina, el botón no hace nada')
+  // Un error devuelve la tarjeta: el botón vuelve a reposo.
+  window.finishHeyGenDelete()
+  await waitFor(() => isClosed(trigger, 'Pía'), 'si falla, el botón vuelve a reposo')
+  check(card.getAttribute('aria-busy') === 'false' && !card.className.includes('opacity-50'), 'y la tarjeta vuelve')
+
+  // Un avatar de stock solo se quita de la lista; uno propio sin el borrado
+  // en HeyGen de quien lo monta, tampoco lo ofrece.
+  await unmount()
+  window.cardEvents = []
+  mount(<><LibraryCardHost avatar={ANA_CARD} /><LibraryCardHost avatar={{ ...PIA_OWN, id: 'pia-2' }} withHeyGen={false} /></>)
+  for (const [id, name] of [['ana-card', 'Ana'], ['pia-2', 'Pía']]) {
+    const other = trashIn(await libraryCard(id))
+    await clickOn(other)
+    await waitFor(() => isOpenWith(other, [LIST]), name + ': solo «Eliminar de la lista»: ' + JSON.stringify(shownOptions(other)))
+    check(!onScreen(warningOf(other)) && window.cardEvents.length === 0, 'sin la advertencia de HeyGen y sin eliminar nada')
+    await input({ type: 'move', x: 0, y: 0 })
+    await waitFor(() => isClosed(other, name), 'cierra el de ' + name)
+  }
+})
+
+scenario('7c · tarjeta de la biblioteca: salir de la tarjeta, sacarle el foco, Escape, «Cancelar» o tocar el velo cierran el menú sin eliminar; abrir el panel desde el nombre lo cierra', async () => {
+  fakeApi()
+  window.cardEvents = []
+  mount(<LibraryCardHost avatar={PIA_OWN} />)
+  const card = await libraryCard('pia-own')
+  const trigger = trashIn(card)
+  const opened = () => isOpenWith(trigger, [LIST, HEYGEN])
+
+  // Salir de la tarjeta.
+  await clickOn(trigger)
+  await waitFor(opened, 'el clic despliega')
+  await input({ type: 'move', x: 0, y: 0 })
+  await waitFor(() => isClosed(trigger, 'Pía'), 'salir de la tarjeta lo cierra')
+
+  // Con el teclado: Enter despliega con el foco en la primera opción; Tab
+  // recorre las opciones sin cerrarlo; salir con Tab lo cierra, con el foco
+  // en lo siguiente.
+  trigger.focus()
+  await pressKey('Enter')
+  await waitFor(opened, 'Enter despliega')
+  check(document.activeElement === optionOf(trigger, LIST), 'el primer gesto enfoca la primera opción, «Eliminar de la lista»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Tab')
+  check(document.activeElement === optionOf(trigger, HEYGEN) && opened(), 'Tab llega a «Eliminar permanentemente de HeyGen», sin cerrar el menú')
+  await pressKey('Tab')
+  await waitFor(() => isClosed(trigger, 'Pía'), 'salir con Tab lo cierra')
+  check(document.activeElement === document.getElementById('after'), 'con el foco en lo siguiente: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // Escape, con el foco en una opción: lo cierra y el foco vuelve al botón.
+  trigger.focus()
+  await pressKey('Enter')
+  await waitFor(opened, 'despliega otra vez')
+  await pressKey('Escape')
+  await waitFor(() => isClosed(trigger, 'Pía'), 'Escape lo cierra')
+  check(document.activeElement === trigger, 'y el foco vuelve al botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // «Cancelar»: «Seguro» es el mismo botón que «Eliminar permanentemente…»
+  // (el foco no se mueve al pedirlo) y «Cancelar» va antes: Mayús+Tab.
+  await pressKey('Enter')
+  await waitFor(opened, 'despliega otra vez')
+  await pressKey('Tab')
+  await pressKey('Enter')
+  await waitFor(() => isConfirming(trigger), 'pide «Seguro»')
+  check(document.activeElement === optionOf(trigger, SURE), 'el foco sigue en el mismo botón, ahora «Seguro»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Shift+Tab')
+  check(document.activeElement === optionOf(trigger, CANCEL), 'Mayús+Tab llega a «Cancelar»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Enter')
+  await waitFor(() => isClosed(trigger, 'Pía'), '«Cancelar» lo cierra')
+  check(document.activeElement === trigger, 'con el foco en el botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // Tocar el velo (fuera de las opciones): el mousedown no mueve el foco y
+  // el clic lo cierra.
+  await clickOn(trigger)
+  await waitFor(opened, 'despliega otra vez')
+  const veil = optionsOf(trigger)
+  const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+  veil.dispatchEvent(press)
+  check(press.defaultPrevented, 'el mousedown sobre el velo no mueve el foco')
+  veil.click()
+  await waitFor(() => isClosed(trigger, 'Pía'), 'tocar el velo lo cierra')
+  check(document.activeElement === trigger, 'con el foco de vuelta en el botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // El nombre abre el panel y cierra el menú (en WebKit el clic no le saca el
+  // foco al botón: el menú quedaría abierto detrás).
+  await clickOn(trigger)
+  await waitFor(opened, 'despliega otra vez')
+  card.querySelector('[data-avatar-id="pia-own"]').click()
+  await waitFor(() => isClosed(trigger, 'Pía'), 'abrir el panel desde el nombre cierra el menú')
+  check(same(window.cardEvents, ['open:pia-own']), 'abre el panel y ninguna vía eliminó nada: ' + JSON.stringify(window.cardEvents))
+})
+
+scenario('7d · tarjeta de la biblioteca: ni una tecla sostenida ni el segundo clic de un doble clic confirman: Enter sostenido despliega una vez y en «Eliminar permanentemente…» solo pide «Seguro»; soltar y volver a apretar, o un clic suelto, elimina', async () => {
+  fakeApi()
+  window.cardEvents = []
+  mount(<LibraryCardHost avatar={PIA_OWN} />)
+  const trigger = trashIn(await libraryCard('pia-own'))
+
+  // Enter sostenido en el botón: despliega una sola vez y el foco pasa a la
+  // primera opción, «Eliminar de la lista»; las repeticiones caen ahí y no la
+  // eliminan (ni repliegan el menú).
+  const expanded = watchExpanded(trigger)
+  trigger.focus()
+  await holdKey('Enter')
+  await delay(200)
+  expanded.stop()
+  check(expanded.changes.length === 1 && isOpenWith(trigger, [LIST, HEYGEN]), 'Enter sostenido despliega una sola vez: ' + JSON.stringify(expanded.changes))
+  check(document.activeElement === optionOf(trigger, LIST) && window.cardEvents.length === 0, 'el foco pasa a «Eliminar de la lista» y sus repeticiones no la eliminan: ' + JSON.stringify(window.cardEvents))
+  // Con el menú abierto y el foco de vuelta en el botón (Mayús+Tab), Enter
+  // sostenido lo cierra una sola vez: sus repeticiones no lo vuelven a abrir.
+  trigger.focus()
+  check(isOpenWith(trigger, [LIST, HEYGEN]), 'el foco en el botón no cierra el menú')
+  const closing = watchExpanded(trigger)
+  await holdKey('Enter')
+  await delay(200)
+  closing.stop()
+  check(closing.changes.length === 1 && isClosed(trigger, 'Pía') && document.activeElement === trigger, 'Enter sostenido en el botón lo cierra una sola vez: ' + JSON.stringify(closing.changes))
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]) && document.activeElement === optionOf(trigger, LIST), 'soltar y volver a apretar lo abre, con el foco en la primera opción')
+
+  // Enter sostenido en «Eliminar permanentemente de HeyGen»: solo pide
+  // «Seguro» (es el mismo botón: sus repeticiones no confirman).
+  await pressKey('Tab')
+  check(document.activeElement === optionOf(trigger, HEYGEN), 'Tab llega a «Eliminar permanentemente de HeyGen»')
+  await holdKey('Enter')
+  await delay(200)
+  check(isConfirming(trigger) && window.cardEvents.length === 0, 'Enter sostenido solo pide «Seguro»: ' + JSON.stringify(window.cardEvents))
+  await pressKey('Enter')
+  await waitFor(() => window.cardEvents.length === 1, 'soltar y volver a apretar Enter elimina')
+  check(same(window.cardEvents, ['heygen:pia-own']), 'una vez: ' + JSON.stringify(window.cardEvents))
+  check(document.activeElement === trigger && isDeleting(trigger), 'el foco espera en el botón, que dice «Eliminando…»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  window.finishHeyGenDelete()
+  await waitFor(() => isClosed(trigger, 'Pía'), 'si falla, vuelve a reposo')
+  check(document.activeElement === trigger, 'con el foco en el botón')
+
+  // El segundo clic de un doble clic: en el botón no cierra lo que el primero
+  // abrió; en «Eliminar permanentemente…», ya «Seguro», no elimina.
+  await clickOn(trigger)
+  await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), 'el primer clic despliega')
+  await clickOn(trigger, 2)
+  await delay(150)
+  check(isOpenWith(trigger, [LIST, HEYGEN]), 'el segundo clic del doble clic no lo cierra')
+  await clickOn(optionOf(trigger, HEYGEN))
+  await waitFor(() => isConfirming(trigger), 'pide «Seguro»')
+  await clickOn(optionOf(trigger, SURE), 2)
+  await delay(150)
+  check(isConfirming(trigger) && window.cardEvents.length === 1, 'el segundo clic del doble clic no elimina: ' + JSON.stringify(window.cardEvents))
+  await clickOn(optionOf(trigger, SURE))
+  await waitFor(() => window.cardEvents.length === 2, 'un clic suelto después, sí')
+  check(same(window.cardEvents, ['heygen:pia-own', 'heygen:pia-own']), 'una vez más: ' + JSON.stringify(window.cardEvents))
+  window.finishHeyGenDelete()
+  await waitFor(() => isClosed(trigger, 'Pía'), 'vuelve a reposo')
+
+  // Un doble clic de verdad sobre «Eliminar permanentemente…» (M2 de la
+  // revisión): el primero pide «Seguro» y el segundo, en el mismo punto, no
+  // elimina ni cierra la confirmación, caiga donde caiga.
+  await clickOn(trigger)
+  await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), 'despliega otra vez')
+  await doubleClickAt(optionOf(trigger, HEYGEN))
+  await delay(150)
+  check(isConfirming(trigger) && window.cardEvents.length === 2, 'el doble clic sobre HeyGen deja «Seguro» a la vista, sin eliminar: ' + JSON.stringify(window.cardEvents))
+})
+
+scenario('6d · panel del avatar: el botón de eliminar despliega las dos opciones en un avatar propio y solo la lista en uno de stock; Escape cierra el menú y no el panel; ni una tecla sostenida ni un doble clic confirman; mientras elimina de HeyGen, el panel no se cierra y el foco no sale', async () => {
   const api = fakeApi()
-  mount(<StockLooksDialog entries={[{ id: 'lib-sol', groupId: 'g-sol' }]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  api.looksByGroup = { 'g-pia': ANA_REMOTE }
+  window.panelEvents = []
+  mount(<PanelHost avatar={PIA_OWN} />)
+  const trigger = await waitFor(() => trashIn(topDialog()), 'el botón de eliminar del panel')
+  const opened = () => isOpenWith(trigger, [LIST, HEYGEN])
+  check(isClosed(trigger, 'Pía') && onScreen(trigger.querySelector('span')) && trigger.querySelector('span').textContent === deleteText('avatars.eliminar.boton'), 'cerrado, con su texto «Eliminar» a la vista')
+
+  // Enter sostenido: despliega una vez y el foco pasa a la primera opción, que
+  // ignora las repeticiones.
+  const expanded = watchExpanded(trigger)
+  trigger.focus()
+  await holdKey('Enter')
+  await delay(200)
+  expanded.stop()
+  check(expanded.changes.length === 1 && opened(), 'Enter sostenido despliega una sola vez: ' + JSON.stringify(expanded.changes))
+  check(topDialog().contains(optionsOf(trigger)), 'las opciones están en el panel')
+  check(document.activeElement === optionOf(trigger, LIST) && window.panelEvents.length === 0, 'el primer gesto enfoca «Eliminar de la lista» y las repeticiones no la eliminan: ' + JSON.stringify(window.panelEvents))
+
+  // Escape con el menú abierto: lo cierra, el panel sigue y el foco vuelve al
+  // botón.
+  await pressKey('Escape')
+  await waitFor(() => isClosed(trigger, 'Pía'), 'Escape cierra el menú')
+  await delay(100)
+  check(dialogs().length === 1 && window.panelEvents.length === 0, 'y no el panel: ' + JSON.stringify(window.panelEvents))
+  check(document.activeElement === trigger, 'el foco vuelve al botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+  // Abierto con el mouse (en WebKit el clic no enfoca el botón): el foco pasa
+  // igual a la primera opción y Escape cierra el menú, no el panel.
+  await clickOn(trigger)
+  await waitFor(opened, 'el clic despliega')
+  check(document.activeElement === optionOf(trigger, LIST), 'con el mouse, el foco también pasa a la primera opción: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Escape')
+  await waitFor(() => isClosed(trigger, 'Pía'), 'Escape cierra el menú abierto con el mouse')
+  await delay(100)
+  check(dialogs().length === 1 && window.panelEvents.length === 0 && document.activeElement === trigger, 'el panel sigue abierto y el foco vuelve al botón: ' + JSON.stringify(window.panelEvents))
+
+  // «Eliminar de la lista»: sin otro paso (lo hace la biblioteca).
+  await pressKey('Enter')
+  await waitFor(opened, 'despliega otra vez')
+  check(document.activeElement === optionOf(trigger, LIST), 'el foco en «Eliminar de la lista»')
+  await pressKey('Enter')
+  await waitFor(() => window.panelEvents.length === 1, 'quita de la lista')
+  check(same(window.panelEvents, ['list']), 'una vez: ' + JSON.stringify(window.panelEvents))
+  check(isClosed(trigger, 'Pía') && document.activeElement === trigger, 'el menú se cierra con el foco en el botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // Un doble clic de verdad sobre «Eliminar permanentemente…»: pide «Seguro»
+  // y el segundo clic no elimina ni cierra la confirmación.
+  await pressKey('Enter')
+  await waitFor(opened, 'despliega otra vez')
+  await doubleClickAt(optionOf(trigger, HEYGEN))
+  await delay(150)
+  check(isConfirming(trigger) && same(window.panelEvents, ['list']), 'el doble clic sobre HeyGen deja «Seguro» a la vista, sin eliminar: ' + JSON.stringify(window.panelEvents))
+  await pressKey('Escape')
+  await waitFor(() => isClosed(trigger, 'Pía'), 'Escape lo cierra')
+
+  // HeyGen con Enter sostenido: solo pide «Seguro», en el lugar de siempre.
+  await pressKey('Enter')
+  await waitFor(opened, 'despliega otra vez')
+  await pressKey('Tab')
+  const heygenButton = optionOf(trigger, HEYGEN)
+  check(document.activeElement === heygenButton, 'Tab llega a «Eliminar permanentemente de HeyGen»')
+  await holdKey('Enter')
+  await delay(200)
+  check(isConfirming(trigger) && same(window.panelEvents, ['list']), 'Enter sostenido solo pide «Seguro»: ' + JSON.stringify(window.panelEvents))
+  check(keepsSlots(trigger, heygenButton), '«Seguro» es el mismo botón de HeyGen y «Cancelar» toma el lugar de la lista: ' + JSON.stringify(shownOptions(trigger)))
+  // El segundo clic de un doble clic sobre «Seguro» no elimina; uno suelto, sí.
+  await clickOn(optionOf(trigger, SURE), 2)
+  await delay(150)
+  check(isConfirming(trigger) && same(window.panelEvents, ['list']), 'el segundo clic del doble clic no elimina: ' + JSON.stringify(window.panelEvents))
+  await clickOn(optionOf(trigger, SURE))
+  await waitFor(() => window.panelEvents.length === 2, '«Seguro» elimina de HeyGen')
+  check(same(window.panelEvents, ['list', 'heygen']), 'una vez: ' + JSON.stringify(window.panelEvents))
+  await waitFor(() => isDeleting(trigger), '«Eliminando…»')
+  check(document.activeElement === trigger, 'el foco espera en el botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // En vuelo: Escape no cierra el panel, la X está apagada y Tab no sale.
+  await pressKey('Escape')
+  await delay(100)
+  check(dialogs().length === 1 && !window.panelEvents.includes('close'), 'Escape no cierra el panel mientras elimina: ' + JSON.stringify(window.panelEvents))
+  check(byLabel(tr('avatars.detalle.cerrar'), topDialog()).disabled, 'la X está apagada')
+  for (let index = 0; index < 3; index++) {
+    await pressKey('Tab')
+    check(topDialog().contains(document.activeElement), 'Tab no sale del panel mientras elimina (vuelta ' + (index + 1) + '): ' + document.activeElement?.outerHTML.slice(0, 80))
+  }
+  window.finishHeyGenDelete()
+  await waitFor(() => isClosed(trigger, 'Pía'), 'si falla, el botón vuelve a reposo')
+  check(!byLabel(tr('avatars.detalle.cerrar'), topDialog()).disabled, 'y la X vuelve')
+  trigger.focus()
+  await pressKey('Escape')
+  await waitFor(() => window.panelEvents.includes('close'), 'al terminar, Escape cierra el panel')
+
+  // Un avatar de stock: solo «Eliminar de la lista».
+  await unmount()
+  fakeApi()
+  window.panelEvents = []
+  mount(<PanelHost avatar={ANA} />)
+  const stockTrigger = await waitFor(() => trashIn(topDialog()), 'el panel de Ana')
+  await clickOn(stockTrigger)
+  await waitFor(() => isOpenWith(stockTrigger, [LIST]), 'un avatar de stock solo se quita de la lista: ' + JSON.stringify(shownOptions(stockTrigger)))
+})
+
+scenario('10 · biblioteca entera: «Eliminar de la lista» y «Eliminar permanentemente de HeyGen» desde la tarjeta y el panel, con su aviso, «Eliminando…» y el foco del teclado en la tarjeta vecina (o, con la biblioteca vacía, en «Agregar de stock»)', async () => {
+  const api = fakeApi()
+  const LEA = { ...ANA, id: 'lea-own', name: 'Lea', groupId: 'g-lea', ownership: 'own' }
+  const TEO = { ...ANA, id: 'teo-1', name: 'Teo', groupId: 'g-teo' }
+  api.avatars = [structuredClone(TEO), structuredClone(PIA_OWN), structuredClone(ANA), structuredClone(LEA)]
+  api.looksByGroup = { 'g-teo': ANA_REMOTE, 'g-pia': ANA_REMOTE, 'g-ana': ANA_REMOTE, 'g-lea': ANA_REMOTE }
+  const pending = []
+  const instant = api.deleteFromHeyGen
+  api.deleteFromHeyGen = (payload) => {
+    const done = gate()
+    pending.push({ done, payload })
+    return done.promise.then(() => instant(payload))
+  }
+  // La relectura de la biblioteca tras un borrado espera a que el escenario
+  // la suelte: la tarjeta tiene que salir antes, sin esperarla.
+  const readList = api.list
+  let slowList = null
+  api.list = () => (slowList ? slowList.promise.then(() => readList()) : readList())
+  mount(<AvatarLibrary />)
+  const cardFor = (id) => document.querySelector('[data-avatar-id="' + id + '"]')?.closest('article')
+  await waitFor(() => cardFor('lea-own'), 'las cuatro tarjetas')
+  await libraryGridSettled()
+  check(same([...document.querySelectorAll('[data-avatar-id]')].map((button) => button.dataset.avatarId), ['teo-1', 'pia-own', 'ana-1', 'lea-own']), 'en orden')
+
+  // Ana (de stock): solo «Eliminar de la lista».
+  const anaTrigger = trashIn(cardFor('ana-1'))
+  await clickOn(anaTrigger)
+  await waitFor(() => isOpenWith(anaTrigger, [LIST]), 'Ana: solo la lista')
+  await input({ type: 'move', x: 0, y: 0 })
+  await waitFor(() => isClosed(anaTrigger, 'Ana'), 'cierra')
+
+  // Pía (propia), desde la tarjeta y con el teclado: HeyGen, «Seguro».
+  const piaTrigger = trashIn(cardFor('pia-own'))
+  piaTrigger.focus()
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(piaTrigger, [LIST, HEYGEN]), 'Pía: las dos opciones')
+  await pressKey('Tab')
+  await pressKey('Enter')
+  await waitFor(() => isConfirming(piaTrigger), 'pide «Seguro»')
+  await pressKey('Enter')
+  await waitFor(() => pending.length === 1, 'pide el borrado')
+  check(same(pending[0].payload, { groupId: 'g-pia', name: 'Pía' }), 'con el groupId y el nombre: ' + JSON.stringify(pending[0].payload))
+  await waitFor(() => isDeleting(trashIn(cardFor('pia-own'))), '«Eliminando…» en la tarjeta')
+  slowList = gate()
+  const readsBefore = api.calls.list
+  pending[0].done.resolve()
+  await waitFor(() => !cardFor('pia-own'), 'la tarjeta sale sin esperar la relectura')
+  check(api.calls.list === readsBefore, 'la relectura de la biblioteca sigue en vuelo: ' + api.calls.list)
+  slowList.resolve()
+  slowList = null
+  await waitFor(() => api.calls.list > readsBefore, 'relee la biblioteca')
+  await waitFor(() => window.toastLog.includes(tr('avatars.toasts.eliminadoHeygen', { name: 'Pía' })), 'el aviso: ' + JSON.stringify(window.toastLog))
+  await delay(100)
+  check(document.activeElement === document.querySelector('[data-avatar-id="ana-1"]'), 'el foco pasa al nombre de la tarjeta vecina, Ana: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // Lea (propia, la última), desde su panel: al lograrlo el panel se cierra
+  // y el foco va a la anterior, Ana.
+  document.querySelector('[data-avatar-id="lea-own"]').click()
+  const leaTrigger = await waitFor(() => trashIn(topDialog()), 'el panel de Lea')
+  leaTrigger.focus()
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(leaTrigger, [LIST, HEYGEN]), 'Lea: las dos opciones')
+  await pressKey('Tab')
+  await pressKey('Enter')
+  await waitFor(() => isConfirming(leaTrigger), 'pide «Seguro»')
+  await pressKey('Enter')
+  await waitFor(() => pending.length === 2, 'pide el borrado de Lea')
+  await waitFor(() => isDeleting(trashIn(topDialog())), '«Eliminando…» en el panel')
+  await pressKey('Escape')
+  await delay(100)
+  check(dialogs().length === 1, 'el panel no se cierra mientras elimina')
+  pending[1].done.resolve()
+  await waitFor(() => dialogs().length === 0 && !cardFor('lea-own'), 'el panel se cierra y la tarjeta sale')
+  await delay(100)
+  check(document.activeElement === document.querySelector('[data-avatar-id="ana-1"]'), 'el foco va a la tarjeta anterior, Ana: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // «Eliminar de la lista» desde la tarjeta, con el teclado: el aviso nombra
+  // al avatar y el foco pasa a la vecina (Ana es la última: la anterior,
+  // Teo), nunca a <body> (I1 de la revisión).
+  window.toastLog = []
+  anaTrigger.focus()
+  await pressKey('Enter')
+  await waitFor(() => document.activeElement === optionOf(anaTrigger, LIST), 'el foco en «Eliminar de la lista»')
+  await pressKey('Enter')
+  await waitFor(() => api.calls.remove.length === 1, 'quita a Ana de la lista')
+  check(same(api.calls.remove, ['ana-1']), 'su entrada: ' + JSON.stringify(api.calls.remove))
+  await waitFor(() => window.toastLog.includes(tr('avatars.toasts.eliminadoLista', { name: 'Ana' })), 'el aviso «Ana salió de tu lista.»: ' + JSON.stringify(window.toastLog))
+  await waitFor(() => !cardFor('ana-1'), 'la tarjeta sale')
+  await delay(100)
+  check(document.activeElement === document.querySelector('[data-avatar-id="teo-1"]'), 'el foco pasa al nombre de la vecina, Teo: ' + document.activeElement?.outerHTML.slice(0, 100))
+
+  // La última tarjeta: con la biblioteca vacía, el foco va a «Agregar de
+  // stock».
+  const teoTrigger = trashIn(cardFor('teo-1'))
+  teoTrigger.focus()
+  await pressKey('Enter')
+  await waitFor(() => document.activeElement === optionOf(teoTrigger, LIST), 'el foco en «Eliminar de la lista» de Teo')
+  await pressKey('Enter')
+  await waitFor(() => api.calls.remove.length === 2 && !cardFor('teo-1'), 'quita a Teo y la tarjeta sale')
+  await delay(100)
+  check(document.activeElement === buttonNamed(tr('avatars.agregarStock')), 'con la biblioteca vacía, el foco va a «Agregar de stock»: ' + document.activeElement?.outerHTML.slice(0, 100))
+})
+
+scenario('10b · biblioteca entera: un borrado de HeyGen a la vez, como en «Mis avatares»: con uno en vuelo, el botón de eliminar de otra tarjeta y del panel está apagado (sigue enfocable) y no despliega ni con Enter ni con un clic; al terminar, vuelve y elimina', async () => {
+  const api = fakeApi()
+  const LEA = { ...ANA, id: 'lea-own', name: 'Lea', groupId: 'g-lea', ownership: 'own' }
+  api.avatars = [structuredClone(PIA_OWN), structuredClone(LEA)]
+  api.looksByGroup = { 'g-pia': ANA_REMOTE, 'g-lea': ANA_REMOTE }
+  const pending = []
+  const instant = api.deleteFromHeyGen
+  api.deleteFromHeyGen = (payload) => {
+    const done = gate()
+    pending.push({ done, payload })
+    return done.promise.then(() => instant(payload))
+  }
+  mount(<AvatarLibrary />)
+  const cardFor = (id) => document.querySelector('[data-avatar-id="' + id + '"]')?.closest('article')
+  await waitFor(() => cardFor('lea-own'), 'las dos tarjetas')
+  await libraryGridSettled()
+
+  // Pía, con el mouse: HeyGen y «Seguro»; queda en vuelo.
+  const piaTrigger = trashIn(cardFor('pia-own'))
+  await clickOn(piaTrigger)
+  await waitFor(() => isOpenWith(piaTrigger, [LIST, HEYGEN]), 'Pía: las dos opciones')
+  await clickOn(optionOf(piaTrigger, HEYGEN))
+  await waitFor(() => isConfirming(piaTrigger), 'pide «Seguro»')
+  await clickOn(optionOf(piaTrigger, SURE))
+  await waitFor(() => pending.length === 1, 'pide el borrado de Pía')
+  await waitFor(() => isDeleting(trashIn(cardFor('pia-own'))), '«Eliminando…» en Pía')
+
+  // El botón de Lea, apagado: no despliega con Enter ni con un clic.
+  const leaTrigger = trashIn(cardFor('lea-own'))
+  check(leaTrigger.getAttribute('aria-disabled') === 'true', 'con Pía en vuelo, el botón de Lea está apagado: ' + leaTrigger.outerHTML.slice(0, 160))
+  leaTrigger.focus()
+  check(document.activeElement === leaTrigger, 'y sigue enfocable')
+  await pressKey('Enter')
+  await delay(150)
+  check(isClosed(leaTrigger, 'Lea'), 'Enter no despliega')
+  await clickOn(leaTrigger)
+  await delay(150)
+  check(isClosed(leaTrigger, 'Lea') && pending.length === 1, 'un clic tampoco, y no sale otro pedido')
+
+  // Su panel, igual.
+  document.querySelector('[data-avatar-id="lea-own"]').click()
+  const leaPanelTrigger = await waitFor(() => trashIn(topDialog()), 'el panel de Lea')
+  check(leaPanelTrigger.getAttribute('aria-disabled') === 'true', 'en su panel, el botón también está apagado')
+  leaPanelTrigger.focus()
+  await pressKey('Enter')
+  await delay(150)
+  check(isClosed(leaPanelTrigger, 'Lea') && pending.length === 1, 'Enter no despliega y no sale otro pedido')
+  await pressKey('Escape')
+  await waitFor(() => dialogs().length === 0, 'Escape cierra el panel')
+
+  // Al terminar el de Pía, el de Lea vuelve y elimina: de a uno, en orden.
+  pending[0].done.resolve()
+  await waitFor(() => !cardFor('pia-own'), 'Pía sale')
+  await waitFor(() => trashIn(cardFor('lea-own'))?.getAttribute('aria-disabled') === 'false', 'el botón de Lea vuelve')
+  const leaAgain = trashIn(cardFor('lea-own'))
+  await clickOn(leaAgain)
+  await waitFor(() => isOpenWith(leaAgain, [LIST, HEYGEN]), 'ahora despliega')
+  await clickOn(optionOf(leaAgain, HEYGEN))
+  await waitFor(() => isConfirming(leaAgain), 'pide «Seguro»')
+  await clickOn(optionOf(leaAgain, SURE))
+  await waitFor(() => pending.length === 2, 'sale el pedido de Lea')
+  check(same(pending.map((item) => item.payload.groupId), ['g-pia', 'g-lea']), 'de a uno, en orden: ' + JSON.stringify(pending.map((item) => item.payload)))
+  pending[1].done.resolve()
+  await waitFor(() => !cardFor('lea-own'), 'Lea sale')
+})
+
+scenario('8 · «Mis avatares»: el botón de eliminar solo ahí; despliega «Eliminar de la lista» si el avatar está en la biblioteca y siempre «Eliminar permanentemente de HeyGen», que pide «Seguro»; salir de la tarjeta, tocarla, Escape, «Cancelar» o sacarle el foco lo cierran (el diálogo sigue y el foco nunca rebota a su caja) y el segundo clic de un doble clic no confirma', async () => {
+  const api = fakeApi()
+  let closes = 0
+  mount(<StockLooksDialog entries={[{ id: 'lib-sol', groupId: 'g-sol' }]} onOpenAvatar={() => {}} onClose={() => { closes += 1 }} />)
   await waitFor(() => visibleGroupIds().length === 4, 'el stock público')
-  check(document.querySelectorAll('[data-heygen-delete]').length === 0, '«De stock» no tiene tacho')
+  check(document.querySelectorAll('[data-avatar-delete]').length === 0, '«De stock» no tiene botón de eliminar')
   check(ownTab()?.textContent === 'Mis avatares', 'la pestaña se llama «Mis avatares»: ' + ownTab()?.textContent)
   await openOwnTab()
   const dialogBox = dialogs()[0]
-  check(['g-mia', 'g-leo', 'g-sol'].every((id) => trashFor(id)), 'cada tarjeta de «Mis avatares» trae su tacho')
+  check(['g-mia', 'g-leo', 'g-sol'].every((id) => trashFor(id)), 'cada tarjeta de «Mis avatares» trae su botón de eliminar')
   check(!heartOf('Mía'), 'sin corazón')
   const trash = trashFor('g-mia')
-  check(isIdle('g-mia', 'Mía') && trash.title === tr('avatars.stock.eliminarHeygen'), 'nombra al avatar y dice qué hace: ' + trash.getAttribute('aria-label'))
-  check(trash.compareDocumentPosition(byLabel(tr('avatars.stock.verLooksAria', { name: 'Mía' }))) & Node.DOCUMENT_POSITION_FOLLOWING, 'el tacho va antes que «Ver looks» (arriba, en la imagen)')
+  check(isClosed(trash, 'Mía'), 'cerrado: «Eliminar Mía», contraído: ' + trash.outerHTML.slice(0, 160))
   check(trash.className.includes('left-2.5') && trash.className.includes('top-2.5'), 'arriba a la izquierda')
-  check(deleteHintOf('g-mia')?.textContent === tr('avatars.stock.eliminarHint') && deleteHintOf('g-mia').classList.contains('invisible'), 'la explicación es su descripción accesible, oculta en reposo')
-  const idleAccessible = await accessibleTrash('g-mia')
-  check(idleAccessible.name === tr('avatars.stock.eliminarHeygenAria', { name: 'Mía' }) && idleAccessible.description === tr('avatars.stock.eliminarHint'), 'para Chrome, en reposo se llama «Eliminar Mía de HeyGen» y la explicación lo describe: ' + JSON.stringify(idleAccessible))
+  check(trash.compareDocumentPosition(byLabel(tr('avatars.stock.verLooksAria', { name: 'Mía' }))) & Node.DOCUMENT_POSITION_FOLLOWING, 'antes que «Ver looks» (arriba, en la imagen)')
+  const idle = await accessible(trash)
+  check(idle.name === deleteText('avatars.eliminar.botonAria', { name: 'Mía' }), 'para Chrome, «Eliminar Mía»: ' + JSON.stringify(idle))
   const solBadge = [...cardOf('g-sol').querySelectorAll('span')].find((span) => span.textContent === tr('avatars.stock.agregado'))
-  check(solBadge?.className.includes('right-2.5'), 'con tacho, «Agregado» va arriba a la derecha')
+  check(solBadge?.className.includes('right-2.5'), 'con el botón de eliminar, «Agregado» va arriba a la derecha')
 
-  // Primer clic: pide la confirmación, sin borrar nada.
+  // Sol está en la biblioteca: las dos opciones, sobre su imagen; Mía no:
+  // solo HeyGen.
+  const sol = trashFor('g-sol')
+  await clickOn(sol)
+  await waitFor(() => isOpenWith(sol, [LIST, HEYGEN]), 'Sol (en la biblioteca): las dos opciones: ' + JSON.stringify(shownOptions(sol)))
+  check(document.activeElement === optionOf(sol, LIST), 'el primer gesto (un clic) enfoca la primera opción: ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(solBadge.className.includes('opacity-0') && cardOf('g-sol').querySelector('.invisible [data-group-id]'), 'con el menú abierto, «Agregado», «Ver looks» y «Agregar» se ocultan')
+  check(api.calls.deleteHeyGen.length === 0 && api.calls.looks.length === 0, 'desplegar no elimina ni abre los looks')
+  await input({ type: 'move', x: 0, y: 0 })
+  await waitFor(() => isClosed(sol, 'Sol'), 'salir de la tarjeta lo cierra')
+  check(document.activeElement === sol, 'con el foco de vuelta en su botón: ' + document.activeElement?.outerHTML.slice(0, 100))
   await clickOn(trash)
-  await waitFor(() => isArmed('g-mia', 'Mía'), 'el primer clic pide la confirmación')
-  check(trash.textContent === tr('avatars.stock.eliminarConfirmar') && !trash.querySelector('span').classList.contains('hidden') && !trash.hasAttribute('title'), '«¿Eliminar para siempre?» a la vista: ' + trash.textContent)
-  check(trash.className.includes('bg-destructive'), 'en rojo')
-  // Su nombre es el texto que se ve (WCAG 2.5.3: el control por voz lo
-  // encuentra por lo que dice); el avatar y la explicación lo describen.
-  check(!trash.hasAttribute('aria-label') && same(describedTexts('g-mia'), ['Mía', tr('avatars.stock.eliminarHint')]), 'armado, sin aria-label y descripto por el nombre y la explicación: ' + JSON.stringify(describedTexts('g-mia')))
-  const armedAccessible = await accessibleTrash('g-mia')
-  check(armedAccessible.name === tr('avatars.stock.eliminarConfirmar') && armedAccessible.description?.startsWith('Mía') && armedAccessible.description.includes(tr('avatars.stock.eliminarHint')), 'para Chrome, armado se llama «¿Eliminar para siempre?» y lo describen Mía y la explicación: ' + JSON.stringify(armedAccessible))
-  check(deleteHintOf('g-mia').classList.contains('visible') && !deleteHintOf('g-mia').classList.contains('invisible'), 'la explicación a la vista')
-  check(api.calls.deleteHeyGen.length === 0, 'el primer clic no borra')
-  // El segundo clic de un doble clic, en el mismo lugar, no confirma.
+  await waitFor(() => isOpenWith(trash, [HEYGEN]), 'Mía (fuera de la biblioteca): solo «Eliminar permanentemente de HeyGen»: ' + JSON.stringify(shownOptions(trash)))
+  // El segundo clic de un doble clic sobre el botón no lo cierra.
   await clickOn(trash, 2)
   await delay(150)
-  check(api.calls.deleteHeyGen.length === 0 && isArmed('g-mia', 'Mía'), 'el doble clic no borra y la confirmación sigue')
-  // Salir de la tarjeta la cancela.
-  await input({ type: 'move', x: 0, y: 0 })
-  await waitFor(() => isIdle('g-mia', 'Mía'), 'salir de la tarjeta cancela')
-  check(deleteHintOf('g-mia').classList.contains('invisible') && trash.querySelector('span').classList.contains('hidden'), 'y la explicación y el texto se ocultan (siguen montados)')
-
-  // Tocar otra parte de la tarjeta la cancela, sin abrir sus looks.
+  check(isOpenWith(trash, [HEYGEN]), 'el segundo clic del doble clic no lo cierra')
+  // Abierto con el mouse (en WebKit el clic no enfoca el botón): el foco pasa
+  // igual a la primera opción y Escape cierra el menú, no el diálogo.
+  check(document.activeElement === optionOf(trash, HEYGEN), 'el foco está en la primera opción: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Escape')
+  await waitFor(() => isClosed(trash, 'Mía'), 'Escape cierra el menú abierto con el mouse')
+  await delay(100)
+  check(closes === 0 && dialogs().length === 1 && document.activeElement === trash, 'el diálogo sigue abierto y el foco vuelve al botón: ' + closes)
   await clickOn(trash)
-  await waitFor(() => isArmed('g-mia', 'Mía'), 'pide la confirmación otra vez')
-  await clickOn(cardOf('g-mia').querySelector('h3'))
-  await waitFor(() => isIdle('g-mia', 'Mía'), 'tocar la tarjeta cancela')
+  await waitFor(() => isOpenWith(trash, [HEYGEN]), 'despliega otra vez')
+  // «Eliminar permanentemente…» pide «Seguro» en su mismo lugar; el segundo
+  // clic de un doble clic no elimina.
+  const miaHeygen = optionOf(trash, HEYGEN)
+  await clickOn(miaHeygen)
+  await waitFor(() => isConfirming(trash), 'pide «Seguro», con la advertencia y «Cancelar»')
+  check(keepsSlots(trash, miaHeygen), '«Seguro» es el mismo botón de HeyGen y «Cancelar» va antes: ' + JSON.stringify(shownOptions(trash)))
+  const sure = await accessible(optionOf(trash, SURE))
+  check(sure.name === deleteText(SURE) && sure.description === deleteText('avatars.eliminar.confirmarHeygen'), 'para Chrome, «Seguro» y lo describe la advertencia: ' + JSON.stringify(sure))
+  await clickOn(optionOf(trash, SURE), 2)
+  await delay(150)
+  check(isConfirming(trash) && api.calls.deleteHeyGen.length === 0, 'el segundo clic del doble clic no elimina')
+  // Tocar otra parte de la tarjeta lo cierra, sin abrir sus looks. Se toca la
+  // imagen, que en el banco (sin CSS) está arriba del menú: al cerrarse, las
+  // opciones dejan de ocupar lugar y lo de abajo (el nombre) sube entre el
+  // mousedown y el mouseup, y el clic caería en la grilla y no en la tarjeta.
+  await clickOn(cardOf('g-mia').firstElementChild.firstElementChild)
+  await waitFor(() => isClosed(trash, 'Mía'), 'tocar la tarjeta lo cierra')
   await delay(100)
   check(!buttonNamed(tr('avatars.stock.volver')) && api.calls.looks.length === 0, 'y no abre los looks')
   await input({ type: 'move', x: 0, y: 0 })
 
-  // Con el teclado: Enter pide la confirmación y el foco sigue en el tacho;
-  // Tab la cancela y el foco pasa al control siguiente, nunca a la caja del
-  // diálogo (en el blur nada sale del DOM). El banco no carga CSS: el
-  // siguiente es «Ver looks» de la misma tarjeta; en la app, con su barra
-  // oculta mientras confirma, es el tacho de la tarjeta siguiente.
+  // Con el teclado: Enter despliega con el foco en la primera opción; Escape
+  // lo cierra sin cerrar el diálogo.
   trash.focus()
   await pressKey('Enter')
-  await waitFor(() => isArmed('g-mia', 'Mía'), 'Enter pide la confirmación')
-  check(document.activeElement === trash, 'el foco sigue en el tacho, que ahora confirma')
-  check(cardOf('g-mia').querySelector('.invisible [data-group-id]'), 'mientras confirma, «Ver looks» queda oculto bajo la explicación')
+  await waitFor(() => isOpenWith(trash, [HEYGEN]), 'Enter despliega')
+  check(document.activeElement === optionOf(trash, HEYGEN), 'el primer gesto enfoca la primera opción, «Eliminar permanentemente de HeyGen»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Escape')
+  await waitFor(() => isClosed(trash, 'Mía'), 'Escape lo cierra')
+  await delay(100)
+  check(document.activeElement === trash && closes === 0 && dialogs().length === 1, 'el foco vuelve al botón y el diálogo sigue abierto: ' + closes)
+  // «Cancelar».
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(trash, [HEYGEN]), 'despliega otra vez')
+  await pressKey('Enter')
+  await waitFor(() => isConfirming(trash), 'pide «Seguro»')
+  check(document.activeElement === optionOf(trash, SURE), 'el foco sigue en el mismo botón, ahora «Seguro»')
+  await pressKey('Shift+Tab')
+  check(document.activeElement === optionOf(trash, CANCEL), 'Mayús+Tab llega a «Cancelar»')
+  await pressKey('Enter')
+  await waitFor(() => isClosed(trash, 'Mía'), '«Cancelar» lo cierra')
+  check(document.activeElement === trash, 'con el foco en el botón')
+  // Salir con Tab lo cierra y el foco pasa al control siguiente, nunca a la
+  // caja del diálogo (en el blur nada sale del DOM). El banco no carga CSS:
+  // el siguiente es «Ver looks» de la misma tarjeta; en la app, con su barra
+  // oculta mientras el menú está abierto, es el botón de la tarjeta siguiente.
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(trash, [HEYGEN]), 'despliega otra vez')
   await pressKey('Tab')
-  await waitFor(() => isIdle('g-mia', 'Mía'), 'Tab saca el foco y cancela')
+  await waitFor(() => isClosed(trash, 'Mía'), 'salir con Tab lo cierra')
   await delay(100)
   check(document.activeElement === byLabel(tr('avatars.stock.verLooksAria', { name: 'Mía' })), 'el foco llega al control siguiente, no a la caja del diálogo: ' + document.activeElement?.outerHTML.slice(0, 100))
-  check(document.activeElement !== dialogBox && api.calls.deleteHeyGen.length === 0, 'nada se borró')
+  check(document.activeElement !== dialogBox && api.calls.deleteHeyGen.length === 0, 'nada se eliminó')
 })
 
-scenario('8b · «Mis avatares»: eliminar pide el borrado con el groupId y apaga la tarjeta; al lograrlo avisa, la saca y relee la cuenta y la biblioteca; el foco del teclado va al tacho vecino o a la pestaña; con el mouse no se mueve', async () => {
+scenario('8b · «Mis avatares»: «Seguro» pide el borrado con el groupId y el nombre y apaga la tarjeta («Eliminando…» en el botón, con el foco); al lograrlo avisa, la saca y relee la cuenta y la biblioteca; el foco del teclado va al botón vecino o a la pestaña; con el mouse no se mueve', async () => {
   const api = fakeApi()
   const pending = []
   const instant = api.deleteFromHeyGen
@@ -1218,32 +2038,27 @@ scenario('8b · «Mis avatares»: eliminar pide el borrado con el groupId y apag
   const dialogBox = dialogs()[0]
   const listingsBefore = privateListings(api)
 
-  // Leo, en el medio, con el teclado: Enter pide la confirmación, Enter
-  // elimina.
-  trashFor('g-leo').focus()
-  await pressKey('Enter')
-  await waitFor(() => isArmed('g-leo', 'Leo'), 'pide la confirmación')
-  await pressKey('Enter')
+  // Leo, en el medio, con el teclado.
+  await deleteWithKeyboard('g-leo')
   await waitFor(() => pending.length === 1, 'pide el borrado')
-  await waitFor(() => trashFor('g-leo').textContent === tr('avatars.stock.eliminando'), '«Eliminando…» mientras tanto')
+  await waitFor(() => isDeleting(trashFor('g-leo')), '«Eliminando…» en el botón mientras tanto')
   check(api.calls.deleteHeyGen.length === 0, 'un solo pedido, en vuelo')
   const card = cardOf('g-leo')
   check(card.getAttribute('aria-busy') === 'true' && card.className.includes('opacity-50') && card.className.includes('pointer-events-none'), 'la tarjeta apagada')
-  check(trashFor('g-leo').getAttribute('aria-disabled') === 'true' && !trashFor('g-leo').hasAttribute('aria-label'), 'el tacho no hace nada más y se nombra «Eliminando…»')
-  const deletingAccessible = await accessibleTrash('g-leo')
-  check(deletingAccessible.name === tr('avatars.stock.eliminando') && deletingAccessible.description === 'Leo', 'para Chrome, se llama «Eliminando…» y lo describe Leo: ' + JSON.stringify(deletingAccessible))
-  check(document.activeElement === trashFor('g-leo'), 'el foco espera en el tacho (aria-disabled, sigue enfocable)')
+  const deletingAccessible = await accessible(trashFor('g-leo'))
+  check(deletingAccessible.name === deleteText('avatars.eliminar.eliminando') && deletingAccessible.description === 'Leo', 'para Chrome, se llama «Eliminando…» y lo describe Leo: ' + JSON.stringify(deletingAccessible))
+  check(document.activeElement === trashFor('g-leo'), 'el foco espera en el botón (aria-disabled, sigue enfocable): ' + document.activeElement?.outerHTML.slice(0, 100))
   check([...document.querySelectorAll('button')].filter((button) => button.textContent.trim() === tr('avatars.stock.agregar')).every((button) => button.disabled), 'mientras borra no se agrega nada')
   trashFor('g-mia').click()
   await delay(100)
-  check(isIdle('g-mia', 'Mía') && trashFor('g-mia').getAttribute('aria-disabled') === 'true' && pending.length === 1, 'otro tacho no arranca otro borrado')
+  check(isClosed(trashFor('g-mia'), 'Mía') && trashFor('g-mia').getAttribute('aria-disabled') === 'true' && pending.length === 1, 'otro botón no despliega ni arranca otro borrado')
   slowListing = gate()
   pending[0].resolve()
   await waitFor(() => same(visibleGroupIds(), ['g-mia', 'g-sol']), 'Leo sale de la grilla sin esperar la relectura: ' + visibleGroupIds())
   check(same(api.calls.deleteHeyGen, [{ groupId: 'g-leo', name: 'Leo' }]), 'el pedido lleva el groupId y, para el log de soporte, el nombre: ' + JSON.stringify(api.calls.deleteHeyGen))
   await waitFor(() => window.toastLog.includes(tr('avatars.toasts.eliminadoHeygen', { name: 'Leo' })), 'el aviso: ' + JSON.stringify(window.toastLog))
   await delay(100)
-  check(document.activeElement === trashFor('g-sol'), 'el foco pasa al tacho de la siguiente, Sol: ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(document.activeElement === trashFor('g-sol'), 'el foco pasa al botón de la siguiente, Sol: ' + document.activeElement?.outerHTML.slice(0, 100))
   check(client.getQueryState(['avatars', 'list'])?.isInvalidated, 'marca vieja la lista de la biblioteca')
   check(privateListings(api) === listingsBefore, 'la relectura de la cuenta sigue en vuelo')
   slowListing.resolve()
@@ -1252,19 +2067,16 @@ scenario('8b · «Mis avatares»: eliminar pide el borrado con el groupId y apag
   await delay(100)
   check(same(visibleGroupIds(), ['g-mia', 'g-sol']), 'la relectura coincide: Leo no vuelve')
 
-  // Sol, la última: el foco va al tacho de la anterior, Mía.
-  check(document.activeElement === trashFor('g-sol'), 'el foco sigue en el tacho de Sol')
-  await pressKey('Enter')
-  await pressKey('Enter')
+  // Sol, la última: el foco va al botón de la anterior, Mía.
+  await deleteWithKeyboard('g-sol')
   await waitFor(() => pending.length === 2, 'pide borrar a Sol')
   pending[1].resolve()
   await waitFor(() => same(visibleGroupIds(), ['g-mia']), 'Sol sale de la grilla')
   await delay(100)
-  check(document.activeElement === trashFor('g-mia'), 'el foco queda en el tacho de la anterior, Mía: ' + document.activeElement?.outerHTML.slice(0, 100))
+  check(document.activeElement === trashFor('g-mia'), 'el foco queda en el botón de la anterior, Mía: ' + document.activeElement?.outerHTML.slice(0, 100))
 
   // Mía, la única: el foco va a la pestaña «Mis avatares».
-  await pressKey('Enter')
-  await pressKey('Enter')
+  await deleteWithKeyboard('g-mia')
   await waitFor(() => pending.length === 3, 'pide borrar a Mía')
   pending[2].resolve()
   await waitFor(() => visibleGroupIds().length === 0 && text().includes(tr('avatars.stock.vacio')), 'sin avatares, lo dice')
@@ -1278,16 +2090,19 @@ scenario('8b · «Mis avatares»: eliminar pide el borrado con el groupId y apag
   const mouseApi = fakeApi()
   mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
   await openOwnTab()
-  await clickOn(trashFor('g-mia'))
-  await waitFor(() => isArmed('g-mia', 'Mía'), 'el clic pide la confirmación')
-  await clickOn(trashFor('g-mia'))
-  await waitFor(() => same(visibleGroupIds(), ['g-leo', 'g-sol']), 'el segundo clic la elimina')
+  const mia = trashFor('g-mia')
+  await clickOn(mia)
+  await waitFor(() => isOpenWith(mia, [HEYGEN]), 'el clic despliega')
+  await clickOn(optionOf(mia, HEYGEN))
+  await waitFor(() => isConfirming(mia), 'pide «Seguro»')
+  await clickOn(optionOf(mia, SURE))
+  await waitFor(() => same(visibleGroupIds(), ['g-leo', 'g-sol']), '«Seguro» la elimina')
   await delay(150)
   check(same(mouseApi.calls.deleteHeyGen, [{ groupId: 'g-mia', name: 'Mía' }]), 'con su groupId y su nombre: ' + JSON.stringify(mouseApi.calls.deleteHeyGen))
   check(document.activeElement !== trashFor('g-leo') && document.activeElement !== ownTab(), 'con el mouse el foco no salta: ' + document.activeElement?.outerHTML.slice(0, 100))
 })
 
-scenario('8c · «Mis avatares»: si eliminar falla, avisa con el error y la tarjeta vuelve, con el foco en su tacho; sin red el pedido sale igual y no se repite al volver', async () => {
+scenario('8c · «Mis avatares»: si eliminar falla, avisa con el error y la tarjeta vuelve, con el foco en su botón; sin red el pedido sale igual y no se repite al volver', async () => {
   const api = fakeApi()
   const answer = gate()
   api.deleteFromHeyGen = (payload) => {
@@ -1302,18 +2117,16 @@ scenario('8c · «Mis avatares»: si eliminar falla, avisa con el error y la tar
   // red (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online).
   window.dispatchEvent(new Event('offline'))
   try {
-    trashFor('g-mia').focus()
-    await pressKey('Enter')
-    await pressKey('Enter')
+    await deleteWithKeyboard('g-mia')
     await waitFor(() => api.calls.deleteHeyGen.length === 1, 'sin red, el pedido sale igual')
-    await waitFor(() => trashFor('g-mia')?.textContent === tr('avatars.stock.eliminando'), 'eliminando')
+    await waitFor(() => isDeleting(trashFor('g-mia')), 'eliminando')
     answer.resolve()
     await waitFor(() => window.toastLog.includes(tr('avatars.errors.invalidKey')), 'avisa con el error: ' + JSON.stringify(window.toastLog))
-    await waitFor(() => isIdle('g-mia', 'Mía'), 'el tacho vuelve a reposo')
+    await waitFor(() => isClosed(trashFor('g-mia'), 'Mía'), 'el botón vuelve a reposo')
     check(same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), 'la tarjeta sigue en la grilla')
     const card = cardOf('g-mia')
     check(card.getAttribute('aria-busy') === 'false' && !card.className.includes('opacity-50') && trashFor('g-mia').getAttribute('aria-disabled') === 'false', 'y vuelve a la normalidad')
-    check(document.activeElement === trashFor('g-mia'), 'el foco sigue en su tacho: ' + document.activeElement?.outerHTML.slice(0, 100))
+    check(document.activeElement === trashFor('g-mia'), 'el foco sigue en su botón: ' + document.activeElement?.outerHTML.slice(0, 100))
     check(!window.toastLog.includes(tr('avatars.toasts.eliminadoHeygen', { name: 'Mía' })), 'sin el aviso de éxito')
   } finally {
     window.dispatchEvent(new Event('online'))
@@ -1323,32 +2136,46 @@ scenario('8c · «Mis avatares»: si eliminar falla, avisa con el error y la tar
   check(privateListings(api) === listingsBefore, 'sin borrado, no relee la cuenta')
 })
 
-scenario('8d · «Mis avatares»: una tecla sostenida no confirma: Enter o Espacio sostenidos solo arman; soltar y volver a apretar elimina', async () => {
+scenario('8d · «Mis avatares»: una tecla sostenida no confirma: Enter o Espacio sostenidos en el botón solo despliegan y en «Eliminar permanentemente…» solo piden «Seguro»; soltar y volver a apretar elimina', async () => {
   const api = fakeApi()
   mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
   await openOwnTab()
-  // Enter sostenido: el primer keyDown arma; sus repeticiones automáticas no
-  // confirman (en un botón, cada Enter repetido sería otro clic).
-  trashFor('g-mia').focus()
+  // Enter sostenido: el primer keyDown despliega y el foco pasa a la primera
+  // opción («Eliminar permanentemente…»: Mía no está en la biblioteca); sus
+  // repeticiones caen ahí y no piden «Seguro» (en un botón, cada Enter
+  // repetido sería otro clic).
+  const mia = trashFor('g-mia')
+  const expanded = watchExpanded(mia)
+  mia.focus()
   await holdKey('Enter')
   await delay(300)
-  check(api.calls.deleteHeyGen.length === 0 && isArmed('g-mia', 'Mía'), 'Enter sostenido solo arma: ' + JSON.stringify(api.calls.deleteHeyGen))
+  expanded.stop()
+  check(expanded.changes.length === 1 && isOpenWith(mia, [HEYGEN]) && api.calls.deleteHeyGen.length === 0, 'Enter sostenido solo despliega: ' + JSON.stringify(expanded.changes))
+  check(document.activeElement === optionOf(mia, HEYGEN), 'con el foco en la primera opción, que no pidió «Seguro»: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await holdKey('Enter')
+  await delay(300)
+  check(isConfirming(mia) && api.calls.deleteHeyGen.length === 0, 'Enter sostenido en «Eliminar permanentemente…» solo pide «Seguro»: ' + JSON.stringify(api.calls.deleteHeyGen))
   await pressKey('Enter')
   await waitFor(() => api.calls.deleteHeyGen.length === 1, 'soltar y volver a apretar Enter elimina')
   check(api.calls.deleteHeyGen[0].groupId === 'g-mia', 'a Mía: ' + JSON.stringify(api.calls.deleteHeyGen))
   await waitFor(() => same(visibleGroupIds(), ['g-leo', 'g-sol']), 'Mía sale de la grilla')
 
-  // Espacio sostenido: también solo arma.
-  trashFor('g-leo').focus()
+  // Espacio sostenido: también solo despliega y solo pide «Seguro».
+  const leo = trashFor('g-leo')
+  leo.focus()
   await holdKey(' ')
   await delay(300)
-  check(api.calls.deleteHeyGen.length === 1 && isArmed('g-leo', 'Leo'), 'Espacio sostenido solo arma: ' + JSON.stringify(api.calls.deleteHeyGen))
+  check(isOpenWith(leo, [HEYGEN]) && api.calls.deleteHeyGen.length === 1, 'Espacio sostenido solo despliega')
+  check(document.activeElement === optionOf(leo, HEYGEN), 'con el foco en la primera opción: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await holdKey(' ')
+  await delay(300)
+  check(isConfirming(leo) && api.calls.deleteHeyGen.length === 1, 'Espacio sostenido en «Eliminar permanentemente…» solo pide «Seguro»: ' + JSON.stringify(api.calls.deleteHeyGen))
   await pressKey(' ')
   await waitFor(() => api.calls.deleteHeyGen.length === 2, 'soltar y volver a apretar Espacio elimina')
   check(api.calls.deleteHeyGen[1].groupId === 'g-leo', 'a Leo: ' + JSON.stringify(api.calls.deleteHeyGen))
 })
 
-scenario('8e · «Mis avatares»: mientras se agrega un avatar, ningún tacho arma ni borra; al terminar el alta, vuelven', async () => {
+scenario('8e · «Mis avatares»: mientras se agrega un avatar, ningún botón de eliminar despliega ni borra; al terminar el alta, vuelven', async () => {
   const api = fakeApi()
   const added = gate()
   api.addAvatar = (payload) => {
@@ -1359,89 +2186,23 @@ scenario('8e · «Mis avatares»: mientras se agrega un avatar, ningún tacho ar
   await openOwnTab()
   byLabel(tr('avatars.stock.agregarAria', { name: 'Mía' })).click()
   await waitFor(() => api.calls.add.length === 1, 'pide agregar a Mía')
-  // Con el alta en vuelo, ni el tacho de Mía (la misma tarjeta) ni el de Leo
-  // arman o borran, aunque se los apriete dos veces.
+  // Con el alta en vuelo, ni el botón de Mía (la misma tarjeta) ni el de Leo
+  // despliegan o borran, aunque se los apriete dos veces.
   for (const [groupId, name] of [['g-mia', 'Mía'], ['g-leo', 'Leo']]) {
-    check(trashFor(groupId).getAttribute('aria-disabled') === 'true', 'el tacho de ' + name + ' está apagado mientras se agrega')
+    check(trashFor(groupId).getAttribute('aria-disabled') === 'true', 'el botón de ' + name + ' está apagado mientras se agrega')
     trashFor(groupId).focus()
     await pressKey('Enter')
     await pressKey('Enter')
     await delay(100)
-    check(isIdle(groupId, name) && api.calls.deleteHeyGen.length === 0, 'Enter dos veces en el tacho de ' + name + ' no arma ni borra: ' + JSON.stringify(api.calls.deleteHeyGen))
+    check(isClosed(trashFor(groupId), name) && api.calls.deleteHeyGen.length === 0, 'Enter dos veces en el botón de ' + name + ' no despliega ni borra: ' + JSON.stringify(api.calls.deleteHeyGen))
   }
   check(same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), 'las tarjetas siguen igual')
   added.resolve()
-  await waitFor(() => trashFor('g-leo').getAttribute('aria-disabled') === 'false', 'al terminar el alta, el tacho vuelve')
+  await waitFor(() => trashFor('g-leo').getAttribute('aria-disabled') === 'false', 'al terminar el alta, el botón vuelve')
   trashFor('g-leo').focus()
   await pressKey('Enter')
-  await waitFor(() => isArmed('g-leo', 'Leo'), 'y arma otra vez')
+  await waitFor(() => isOpenWith(trashFor('g-leo'), [HEYGEN]), 'y despliega otra vez')
   check(api.calls.deleteHeyGen.length === 0, 'sin borrar nada')
-})
-
-scenario('7b · tarjeta de la biblioteca: una tecla sostenida no confirma «Quitar»: solo arma; soltar y volver a apretar quita', async () => {
-  fakeApi()
-  const removed = []
-  mount(<AvatarCard avatar={ANA_CARD} disabled={false} onOpen={() => {}} onDelete={(avatar) => removed.push(avatar.id)} />)
-  const card = await waitFor(() => document.querySelector('[data-avatar-id="ana-card"]')?.closest('article'), 'la tarjeta')
-  byLabel(tr('avatars.tarjeta.eliminar'), card).focus()
-  await holdKey('Enter')
-  await delay(200)
-  check(removed.length === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'Enter sostenido solo arma («Seguro» a la vista, sin quitar): ' + JSON.stringify(removed))
-  check(document.activeElement === buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'el foco está en «Seguro»: ' + document.activeElement?.outerHTML.slice(0, 100))
-  await pressKey('Enter')
-  await waitFor(() => removed.length === 1, 'soltar y volver a apretar Enter quita')
-  check(same(removed, ['ana-card']), 'una sola vez, a Ana: ' + JSON.stringify(removed))
-})
-
-scenario('6d · panel del avatar: una tecla sostenida no confirma «Quitar avatar»: solo arma; soltar y volver a apretar quita', async () => {
-  const api = fakeApi()
-  api.avatars = [ANA]
-  api.looksByGroup = { 'g-ana': ANA_REMOTE }
-  let removes = 0
-  mount(<AvatarDetailDialog avatar={ANA} onClose={() => {}} onRemove={() => { removes += 1 }} />)
-  const remove = await waitFor(() => buttonNamed(tr('avatars.tarjeta.eliminar'), topDialog()), '«Quitar avatar» en el panel')
-  remove.focus()
-  await holdKey('Enter')
-  await delay(200)
-  check(removes === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'Enter sostenido solo arma («Seguro» a la vista, sin quitar): ' + removes)
-  check(document.activeElement === buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'el foco está en «Seguro»: ' + document.activeElement?.outerHTML.slice(0, 100))
-  await pressKey('Enter')
-  await waitFor(() => removes === 1, 'soltar y volver a apretar Enter quita')
-  await delay(100)
-  check(removes === 1, 'una sola vez: ' + removes)
-})
-
-scenario('7c · tarjeta de la biblioteca: el segundo clic de un doble clic no confirma «Quitar»; un clic suelto después, sí', async () => {
-  fakeApi()
-  const removed = []
-  mount(<AvatarCard avatar={ANA_CARD} disabled={false} onOpen={() => {}} onDelete={(avatar) => removed.push(avatar.id)} />)
-  const card = await waitFor(() => document.querySelector('[data-avatar-id="ana-card"]')?.closest('article'), 'la tarjeta')
-  await clickOn(byLabel(tr('avatars.tarjeta.eliminar'), card))
-  const sure = await waitFor(() => buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'el primer clic arma «Seguro»')
-  await clickOn(sure, 2)
-  await delay(150)
-  check(removed.length === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), card), 'el segundo clic de un doble clic no quita: ' + JSON.stringify(removed))
-  await clickOn(buttonNamed(tr('avatars.tarjeta.confirmar'), card))
-  await waitFor(() => removed.length === 1, 'un clic suelto después quita')
-  check(same(removed, ['ana-card']), 'una sola vez, a Ana: ' + JSON.stringify(removed))
-})
-
-scenario('6e · panel del avatar: el segundo clic de un doble clic no confirma «Quitar avatar»; un clic suelto después, sí', async () => {
-  const api = fakeApi()
-  api.avatars = [ANA]
-  api.looksByGroup = { 'g-ana': ANA_REMOTE }
-  let removes = 0
-  mount(<AvatarDetailDialog avatar={ANA} onClose={() => {}} onRemove={() => { removes += 1 }} />)
-  const remove = await waitFor(() => buttonNamed(tr('avatars.tarjeta.eliminar'), topDialog()), '«Quitar avatar» en el panel')
-  await clickOn(remove)
-  const sure = await waitFor(() => buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'el primer clic arma «Seguro»')
-  await clickOn(sure, 2)
-  await delay(150)
-  check(removes === 0 && buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()), 'el segundo clic de un doble clic no quita: ' + removes)
-  await clickOn(buttonNamed(tr('avatars.tarjeta.confirmar'), topDialog()))
-  await waitFor(() => removes === 1, 'un clic suelto después quita')
-  await delay(100)
-  check(removes === 1, 'una sola vez: ' + removes)
 })
 
 scenario('8f · «Mis avatares»: con un borrado en HeyGen en vuelo el diálogo no se cierra (Escape, clic afuera, la X); al terminar, sí', async () => {
@@ -1452,10 +2213,8 @@ scenario('8f · «Mis avatares»: con un borrado en HeyGen en vuelo el diálogo 
   let closes = 0
   mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => { closes += 1 }} />)
   await openOwnTab()
-  trashFor('g-mia').focus()
-  await pressKey('Enter')
-  await pressKey('Enter')
-  await waitFor(() => trashFor('g-mia')?.textContent === tr('avatars.stock.eliminando'), 'eliminando a Mía')
+  await deleteWithKeyboard('g-mia')
+  await waitFor(() => isDeleting(trashFor('g-mia')), 'eliminando a Mía')
   await pressKey('Escape')
   await delay(100)
   check(closes === 0, 'Escape no cierra mientras borra: ' + closes)
@@ -1471,6 +2230,478 @@ scenario('8f · «Mis avatares»: con un borrado en HeyGen en vuelo el diálogo 
   await waitFor(() => closes === 1, 'al terminar el borrado, Escape cierra')
 })
 
+scenario('8g · «Mis avatares»: «Eliminar de la lista» saca de la biblioteca la entrada del avatar sin otro paso ni tocar HeyGen; la tarjeta se queda (sin «Agregado»), con el foco en su botón, y desde ahí solo queda HeyGen', async () => {
+  const api = fakeApi()
+  api.avatars = [{ id: 'lib-sol', groupId: 'g-sol', name: 'Sol' }]
+  mount(<LibraryStockHost />)
+  await openOwnTab()
+  await waitFor(() => hasAddedBadge('g-sol'), 'Sol está en la biblioteca')
+  const sol = trashFor('g-sol')
+  sol.focus()
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(sol, [LIST, HEYGEN]), 'despliega las dos opciones')
+  check(document.activeElement === optionOf(sol, LIST), 'el foco pasa a «Eliminar de la lista», la primera opción')
+  await pressKey('Enter')
+  await waitFor(() => api.calls.remove.length === 1, 'quita la entrada de la biblioteca')
+  check(same(api.calls.remove, ['lib-sol']) && api.calls.deleteHeyGen.length === 0, 'la entrada de Sol, sin tocar HeyGen: ' + JSON.stringify(api.calls.remove))
+  await waitFor(() => !hasAddedBadge('g-sol'), '«Agregado» se va')
+  check(same(visibleGroupIds(), ['g-mia', 'g-leo', 'g-sol']), 'la tarjeta sigue: el avatar sigue en HeyGen')
+  check(isClosed(sol, 'Sol') && document.activeElement === sol, 'el menú se cierra con el foco en su botón: ' + document.activeElement?.outerHTML.slice(0, 100))
+  await pressKey('Enter')
+  await waitFor(() => isOpenWith(sol, [HEYGEN]), 'fuera de la biblioteca, solo queda HeyGen: ' + JSON.stringify(shownOptions(sol)))
+})
+
+// ─── Con el CSS real: la geometría de la confirmación y el doble clic ───
+// Los demás escenarios corren sin CSS; el 11, el 11b, el 11c y el 12 cargan el
+// de la app (Tailwind, compilado al armar el banco; sin red, con la fuente de
+// respaldo) y miden en la ventana de arranque de la app (1280 × 800), en la
+// mínima (1024 × 640, tauri.conf.json) o, el 11b, con la tarjeta cortada en
+// un contenedor con scroll.
+const APP_WINDOWS = [{ width: 1280, height: 800 }, { width: 1024, height: 640 }]
+// El ancho de una tarjeta de la biblioteca en esa ventana: la barra lateral
+// (w-64) y la página (max-w-5xl, px-8) le dejan a la grilla 960 px a 1280 y
+// 704 px a 1024, en cuatro columnas (lg) con gap-4.
+const LIBRARY_CARD_WIDTH = { 1280: 228, 1024: 164 }
+const rectOf = (element) => {
+  const { left, top, right, bottom } = element.getBoundingClientRect()
+  return { left, top, right, bottom }
+}
+const centerOf = (rect) => ({ x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 })
+// Se tocan: comparten aunque sea un borde.
+const touches = (one, other) => one.left <= other.right && other.left <= one.right && one.top <= other.bottom && other.top <= one.bottom
+const within = (inner, outer) => inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5
+// Un clic de verdad en un punto, sin desplazar nada (clickOn centra el
+// elemento y movería lo que ya se midió).
+const clickAt = (point, clickCount = 1) => input({ type: 'click', x: point.x, y: point.y, clickCount })
+// En ese punto está ese elemento (o algo suyo): a la vista y sin nada encima.
+const hitsAt = (element, point) => element.contains(document.elementFromPoint(point.x, point.y))
+// Las animaciones y transiciones finitas en curso (la entrada de un diálogo,
+// el velo que aparece, el zoom de la imagen): medir en medio mide otra cosa.
+const settle = () => Promise.all(document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity).map((animation) => animation.finished.catch(() => null)))
+async function loadAppCss() {
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = './app.css'
+  const loaded = new Promise((done, fail) => {
+    link.onload = done
+    link.onerror = () => fail(new Error('no carga app.css'))
+  })
+  document.head.append(link)
+  await loaded
+  return link
+}
+
+// Un menú con las dos opciones, a la vista sin desplazar nada: despliega,
+// mide los lugares, pide «Seguro» con un clic de verdad y comprueba que
+// «Seguro» quedó dentro del lugar de «Eliminar permanentemente…», sin tocar
+// el de «Eliminar de la lista», y que «Cancelar» tomó el de la lista; un clic
+// de corrección donde estaba la lista no elimina. Después, un doble clic de
+// verdad sobre la opción de HeyGen en cada franja de ella que, con «Seguro» a
+// la vista, cae en otro lado («Seguro», «Cancelar» o entre los dos): ni
+// elimina ni cierra la confirmación. Devuelve las franjas que probó.
+async function checkConfirmSlots(trigger, label, deletions) {
+  const open = async () => {
+    await clickAt(centerOf(rectOf(trigger)))
+    await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), label + ': despliega las dos opciones: ' + JSON.stringify(shownOptions(trigger)))
+    await settle()
+  }
+  const closeMenu = async () => {
+    await pressKey('Escape')
+    await waitFor(() => trigger.getAttribute('aria-expanded') === 'false', label + ': Escape lo cierra')
+    await settle()
+  }
+
+  await open()
+  const listButton = optionOf(trigger, LIST)
+  const heygenButton = optionOf(trigger, HEYGEN)
+  const list = rectOf(listButton)
+  const heygen = rectOf(heygenButton)
+  check(hitsAt(listButton, centerOf(list)) && hitsAt(heygenButton, centerOf(heygen)), label + ': las dos opciones, a la vista: ' + JSON.stringify({ list, heygen }))
+  check([listButton, heygenButton].every((button) => button.scrollWidth <= button.clientWidth), label + ': los textos entran en sus botones')
+  await clickAt(centerOf(heygen))
+  await waitFor(() => isConfirming(trigger), label + ': pide «Seguro»')
+  await settle()
+  const sureButton = optionOf(trigger, SURE)
+  const sure = rectOf(sureButton)
+  const cancel = rectOf(optionOf(trigger, CANCEL))
+  const rects = JSON.stringify({ list, heygen, sure, cancel })
+  check(sureButton === heygenButton && within(sure, heygen), label + ': «Seguro» queda dentro del lugar de «Eliminar permanentemente…»: ' + rects)
+  check(!touches(sure, list), label + ': «Seguro» no toca el lugar de «Eliminar de la lista»: ' + rects)
+  check(touches(cancel, list), label + ': «Cancelar» toma el lugar de la lista: ' + rects)
+  check(!hitsAt(sureButton, centerOf(list)), label + ': donde estaba la lista no está «Seguro»')
+  await clickAt(centerOf(list))
+  await delay(150)
+  check(deletions() === 0, label + ': un clic de corrección donde estaba la lista no elimina')
+  if (trigger.getAttribute('aria-expanded') === 'true') await closeMenu()
+
+  const bands = [
+    ['«Seguro»', Math.max(sure.top, heygen.top), Math.min(sure.bottom, heygen.bottom)],
+    ['«Cancelar»', Math.max(cancel.top, heygen.top), Math.min(cancel.bottom, heygen.bottom)],
+    ['entre «Cancelar» y «Seguro»', Math.max(cancel.bottom, heygen.top), Math.min(sure.top, heygen.bottom)],
+  ].filter(([, top, bottom]) => bottom - top >= 4)
+  for (const [where, top, bottom] of bands) {
+    await open()
+    // El mismo punto de la opción, aunque algo se haya desplazado al abrir.
+    const shift = rectOf(optionOf(trigger, HEYGEN)).top - heygen.top
+    const point = { x: centerOf(heygen).x, y: (top + bottom) / 2 + shift }
+    await clickAt(point, 1)
+    await clickAt(point, 2)
+    await delay(150)
+    check(isConfirming(trigger) && deletions() === 0, label + ': un doble clic sobre HeyGen que termina en ' + where + ' deja «Seguro» a la vista, sin eliminar')
+    await closeMenu()
+  }
+  return bands.map(([where]) => where)
+}
+
+scenario('11 · con el CSS de la app, en la ventana de arranque y en la mínima: al pedir «Seguro», «Seguro» queda en el lugar de «Eliminar permanentemente de HeyGen» y «Cancelar» en el de la lista, en la tarjeta y el panel de la biblioteca y en «Mis avatares»; ni un clic de corrección donde estaba la lista ni un doble clic sobre HeyGen eliminan', async () => {
+  const link = await loadAppCss()
+  const covered = new Set()
+  try {
+    for (const appWindow of APP_WINDOWS) {
+      const size = appWindow.width + '×' + appWindow.height
+      await input({ type: 'viewport', ...appWindow })
+
+      // La tarjeta de la biblioteca.
+      fakeApi()
+      window.cardEvents = []
+      mount(<div style={{ width: LIBRARY_CARD_WIDTH[appWindow.width] }}><LibraryCardHost avatar={PIA_OWN} /></div>)
+      const card = await libraryCard('pia-own')
+      await settle()
+      for (const band of await checkConfirmSlots(trashIn(card), 'tarjeta de la biblioteca a ' + size, () => window.cardEvents.filter((event) => event.startsWith('heygen:')).length)) covered.add(band)
+      check(!window.cardEvents.some((event) => event.startsWith('list:')), 'la tarjeta a ' + size + ': nada salió de la lista: ' + JSON.stringify(window.cardEvents))
+      await unmount()
+
+      // El panel del avatar.
+      window.panelEvents = []
+      mount(<PanelHost avatar={PIA_OWN} />)
+      const panelTrigger = await waitFor(() => trashIn(topDialog()), 'el panel de Pía')
+      await settle()
+      for (const band of await checkConfirmSlots(panelTrigger, 'panel a ' + size, () => window.panelEvents.filter((event) => event === 'heygen').length)) covered.add(band)
+      check(!window.panelEvents.includes('list'), 'el panel a ' + size + ': nada salió de la lista: ' + JSON.stringify(window.panelEvents))
+      await unmount()
+
+      // «Mis avatares»: Sol está en la biblioteca, con las dos opciones.
+      const api = fakeApi()
+      mount(<StockLooksDialog entries={[{ id: 'lib-sol', groupId: 'g-sol' }]} onOpenAvatar={() => {}} onClose={() => {}} />)
+      await openOwnTab()
+      cardOf('g-sol').scrollIntoView({ block: 'center' })
+      await settle()
+      for (const band of await checkConfirmSlots(trashFor('g-sol'), '«Mis avatares» a ' + size, () => api.calls.deleteHeyGen.length)) covered.add(band)
+      check(api.calls.remove.length === 0 && api.calls.looks.length === 0, '«Mis avatares» a ' + size + ': nada salió de la lista ni se abrieron los looks: ' + JSON.stringify(api.calls.remove))
+      await unmount()
+    }
+    // Sobre la imagen, «Eliminar permanentemente…» ocupa dos líneas o más y
+    // «Seguro» una: algún doble clic tuvo que terminar fuera de «Seguro».
+    check(covered.has('«Seguro»') && covered.size > 1, 'los dobles clics terminaron en «Seguro» y fuera de él: ' + JSON.stringify([...covered]))
+  } finally {
+    link.remove()
+    await input({ type: 'clearViewport' })
+  }
+})
+
+// El ancho de la tarjeta de la biblioteca en el escenario del velo: 450 px es
+// una tarjeta más ancha que el contenido del velo, que es donde WebKit lo
+// cortaba (la persona la ve así en una ventana grande); 228 y 164 px son las
+// de la ventana de arranque y la mínima.
+const VEIL_CARD_WIDTHS = [450, 228, 164]
+// Dos cajas coinciden en sus cuatro bordes (medio píxel de margen).
+const sameBox = (one, other) => ['left', 'top', 'right', 'bottom'].every((side) => Math.abs(one[side] - other[side]) <= 0.5)
+// Lo que ocupan las opciones a la vista, de la primera a la última.
+const optionsBox = (trigger) => {
+  const boxes = optionButtons(trigger).filter(onScreen).map(rectOf)
+  return { left: Math.min(...boxes.map((box) => box.left)), top: Math.min(...boxes.map((box) => box.top)), right: Math.max(...boxes.map((box) => box.right)), bottom: Math.max(...boxes.map((box) => box.bottom)) }
+}
+// Lo que ocupa el texto de un elemento (no su caja, que la grilla puede
+// estirar): el borde de abajo de su última línea.
+const textBox = (element) => {
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  return rectOf(range)
+}
+// El centro de una caja es el de la otra (un píxel de margen en vertical: las
+// opciones son de alto entero y el velo tiene medios píxeles).
+const isCenteredIn = (inner, outer) => Math.abs(centerOf(inner).x - centerOf(outer).x) <= 0.5 && Math.abs(centerOf(inner).y - centerOf(outer).y) <= 1
+
+scenario('11c · con el CSS de la app, a 450, 228 y 164 px de ancho: el velo de eliminar de la tarjeta de la biblioteca cubre la imagen entera y sus opciones quedan centradas, antes y después de pedir «Seguro» (con la advertencia dentro del velo y «Seguro» en el lugar de HeyGen)', async () => {
+  const link = await loadAppCss()
+  try {
+    await input({ type: 'viewport', width: 1280, height: 800 })
+    for (const width of VEIL_CARD_WIDTHS) {
+      const label = 'la tarjeta de ' + width + ' px'
+      fakeApi()
+      window.cardEvents = []
+      mount(<div style={{ width }}><LibraryCardHost avatar={PIA_OWN} /></div>)
+      const card = await libraryCard('pia-own')
+      await settle()
+      const trigger = trashIn(card)
+      // La imagen de la tarjeta: su único botón oculto al lector de pantalla.
+      const image = card.querySelector('button[aria-hidden]')
+      const veil = optionsOf(trigger)
+
+      await clickAt(centerOf(rectOf(trigger)))
+      await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), label + ': despliega las dos opciones: ' + JSON.stringify(shownOptions(trigger)))
+      await settle()
+      const imageBox = rectOf(image)
+      check(sameBox(rectOf(veil), imageBox), label + ': el velo cubre la imagen entera: ' + JSON.stringify({ veil: rectOf(veil), image: imageBox }))
+      // Chrome estira bien una capa absoluta con inset-x-0 y aspect-ratio sin
+      // ancho; WebKit (la app de Tauri) le resta el relleno horizontal y la deja
+      // corta (medido en un WKWebView de macOS: 422 × 527,5 sobre una imagen de
+      // 446 × 557,5). Chrome no deja ver el error, así que se ata la causa: el
+      // velo lleva ancho explícito.
+      check(veil.classList.contains('w-full'), label + ': el velo lleva ancho explícito (w-full), para que WebKit no le reste el relleno: ' + veil.className)
+      check(isCenteredIn(optionsBox(trigger), rectOf(veil)), label + ': las dos opciones quedan centradas en el velo: ' + JSON.stringify({ options: optionsBox(trigger), veil: rectOf(veil) }))
+      const list = rectOf(optionOf(trigger, LIST))
+      const heygen = rectOf(optionOf(trigger, HEYGEN))
+
+      await clickAt(centerOf(heygen))
+      await waitFor(() => isConfirming(trigger), label + ': pide «Seguro»')
+      await settle()
+      const veilBox = rectOf(veil)
+      const warning = rectOf(warningOf(trigger))
+      const cancel = rectOf(optionOf(trigger, CANCEL))
+      const sure = rectOf(optionOf(trigger, SURE))
+      check(sameBox(veilBox, imageBox), label + ': pedir «Seguro» no cambia el velo: ' + JSON.stringify({ veil: veilBox, image: imageBox }))
+      check(isCenteredIn(optionsBox(trigger), veilBox), label + ': «Cancelar» y «Seguro» quedan centrados en el velo: ' + JSON.stringify({ options: optionsBox(trigger), veil: veilBox }))
+      // La advertencia crece hacia arriba: entera dentro del velo (sin cortarse
+      // por arriba), su caja termina donde empieza la de «Cancelar» y su texto
+      // queda pegado a ella (a lo sumo el aire de su relleno de abajo, 8 px, y el
+      // hueco de su última línea).
+      const warningText = textBox(warningOf(trigger))
+      check(within(warning, veilBox) && Math.abs(cancel.top - warning.bottom) <= 1, label + ': la advertencia queda dentro del velo, arriba de «Cancelar»: ' + JSON.stringify({ warning, cancel, veil: veilBox }))
+      check(cancel.top - warningText.bottom >= 0 && cancel.top - warningText.bottom <= 12, label + ': el texto de la advertencia queda pegado a «Cancelar», no arriba del velo: ' + JSON.stringify({ warningText, cancel }))
+      check(within(sure, heygen) && !touches(sure, list) && touches(cancel, list), label + ': «Seguro» queda en el lugar de HeyGen y «Cancelar» en el de la lista: ' + JSON.stringify({ list, heygen, cancel, sure }))
+      check(window.cardEvents.length === 0, label + ': nada se eliminó: ' + JSON.stringify(window.cardEvents))
+
+      await pressKey('Escape')
+      await waitFor(() => trigger.getAttribute('aria-expanded') === 'false', label + ': Escape lo cierra')
+      await settle()
+      await unmount()
+    }
+  } finally {
+    link.remove()
+    await input({ type: 'clearViewport' })
+  }
+})
+
+// Desplaza un contenedor con scroll hasta dejar «visible» px del borde de
+// arriba de un elemento a la vista, al pie del contenedor (o de la ventana).
+async function showTopEdgeAtBottom(scroller, element, visible, bottom) {
+  scroller.scrollTop += element.getBoundingClientRect().top - (bottom - visible)
+  await delay(80)
+  await settle()
+}
+
+// Con la opción de HeyGen apenas a la vista al pie de un contenedor con
+// scroll, la arma con un clic de verdad en su franja visible: el contenedor
+// no se mueve y un clic de corrección en el cuarto de abajo del lugar de la
+// lista no elimina (cae en «Cancelar», que cierra sin mover el contenedor
+// aunque el botón del menú esté fuera de la vista). Si el foco de la
+// confirmación desplazara el contenedor, el navegador traería la opción
+// entera calculando con su alto de dos o tres líneas, y «Seguro», de una y
+// apoyado al pie, caería sobre la lista.
+async function armAtTheEdge(trigger, scroller, bottom, label, deletions) {
+  const scrollTop = scroller.scrollTop
+  const list = rectOf(optionOf(trigger, LIST))
+  const heygenButton = optionOf(trigger, HEYGEN)
+  const heygen = rectOf(heygenButton)
+  const strip = { x: centerOf(heygen).x, y: (heygen.top + Math.min(heygen.bottom, bottom)) / 2 }
+  check(heygen.top < bottom && heygen.bottom > bottom && hitsAt(heygenButton, strip), label + ': HeyGen, a medias a la vista: ' + JSON.stringify({ heygen, bottom }))
+  await clickAt(strip)
+  await waitFor(() => isConfirming(trigger), label + ': pide «Seguro»')
+  await settle()
+  check(scroller.scrollTop === scrollTop, label + ': armar no desplaza el contenedor: ' + scrollTop + ' → ' + scroller.scrollTop)
+  check(!touches(rectOf(optionOf(trigger, SURE)), list), label + ': «Seguro» no toca el lugar de la lista')
+  await clickAt({ x: centerOf(list).x, y: list.top + (list.bottom - list.top) * 0.75 })
+  await delay(200)
+  check(deletions() === 0, label + ': el clic de corrección en el cuarto de abajo de la lista no elimina')
+  await waitFor(() => trigger.getAttribute('aria-expanded') === 'false', label + ': el clic de corrección cae en «Cancelar» y cierra')
+  await settle()
+  check(scroller.scrollTop === scrollTop, label + ': al cerrar, el foco vuelve al botón sin desplazar el contenedor: ' + scrollTop + ' → ' + scroller.scrollTop)
+}
+
+// Entero a la vista: dentro del contenedor con scroll y de la ventana.
+const fullyInside = (element, scroller) => {
+  const rect = element.getBoundingClientRect()
+  const box = scroller.getBoundingClientRect()
+  return rect.top >= Math.max(box.top, 0) - 0.5 && rect.bottom <= Math.min(box.bottom, window.innerHeight) + 0.5
+}
+
+scenario('11b · con el CSS de la app, con la tarjeta cortada en un contenedor con scroll: abrir trae a la vista la opción enfocada (también con Tab hasta la primera tarjeta de una fila y Enter), armar «Seguro» y cerrar no desplazan y un clic de corrección donde estaba la lista no elimina, en «Mis avatares» y en la biblioteca', async () => {
+  const link = await loadAppCss()
+  try {
+    // «Mis avatares» con ocho grupos: Mía y Sol quedan en la segunda fila.
+    const mountOwn = async (entries) => {
+      const api = fakeApi()
+      const extra = ['a', 'b', 'c', 'd', 'e'].map((id) => group('g-x' + id, 'X' + id, 'female', { previewVideoUrl: 'media/x' + id + '.mp4' }))
+      api.privateGroups = [...extra.slice(0, 4), ...structuredClone(OWN), extra[4]]
+      mount(<StockLooksDialog entries={entries} onOpenAvatar={() => {}} onClose={() => {}} />)
+      const tab = await waitFor(ownTab, 'la pestaña «Mis avatares»')
+      tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      tab.click()
+      await waitFor(() => visibleGroupIds().length === 8 && trashFor('g-sol'), '«Mis avatares» con ocho grupos')
+      await settle()
+      return api
+    }
+    const gridOf = (groupId) => cardOf(groupId).closest('.overflow-y-auto')
+
+    // Con el teclado: Tab hasta Mía, la primera de la segunda fila, y Enter.
+    // El Tab deja su botón cerca del pie de la grilla, con las opciones
+    // debajo: abrir las trae a la vista. En las dos ventanas, con Mía en la
+    // biblioteca (la lista primero) y fuera de ella (solo HeyGen).
+    for (const appWindow of APP_WINDOWS) {
+      for (const inLibrary of [true, false]) {
+        const label = '«Mis avatares» a ' + appWindow.width + '×' + appWindow.height + (inLibrary ? ', en la biblioteca' : ', fuera de la biblioteca')
+        await input({ type: 'viewport', ...appWindow })
+        await input({ type: 'move', x: 0, y: 0 })
+        await mountOwn(inLibrary ? [{ id: 'lib-mia', groupId: 'g-mia' }] : [])
+        const trigger = trashFor('g-mia')
+        trashFor('g-xa').focus()
+        for (let presses = 0; document.activeElement !== trigger && presses < 30; presses += 1) await pressKey('Tab')
+        check(document.activeElement === trigger, label + ': Tab llega al botón de Mía')
+        await settle()
+        await pressKey('Enter')
+        await waitFor(() => isOpenWith(trigger, inLibrary ? [LIST, HEYGEN] : [HEYGEN]), label + ': Enter despliega')
+        await settle()
+        const focused = optionOf(trigger, inLibrary ? LIST : HEYGEN)
+        check(document.activeElement === focused && fullyInside(focused, gridOf('g-mia')), label + ': la opción enfocada queda entera a la vista: ' + JSON.stringify({ option: rectOf(focused), grid: rectOf(gridOf('g-mia')) }))
+        await unmount()
+      }
+    }
+
+    // Armar con HeyGen a 8 px del pie, a 1024 × 640: se abre con el teclado
+    // (con el puntero lejos: salir de la tarjeta la cerraría) y después se
+    // desplaza la grilla hasta dejar HeyGen a medias; armar no la mueve.
+    await input({ type: 'viewport', width: 1024, height: 640 })
+    const api = await mountOwn([{ id: 'lib-sol', groupId: 'g-sol' }])
+    const trigger = trashFor('g-sol')
+    const grid = gridOf('g-sol')
+    const gridBottom = () => grid.getBoundingClientRect().bottom
+    trigger.focus()
+    await pressKey('Enter')
+    await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), '«Mis avatares»: Enter despliega')
+    await settle()
+    await showTopEdgeAtBottom(grid, optionOf(trigger, HEYGEN), 8, gridBottom())
+    check(isOpenWith(trigger, [LIST, HEYGEN]), '«Mis avatares»: el menú sigue abierto después de desplazar')
+    await armAtTheEdge(trigger, grid, gridBottom(), '«Mis avatares»', () => api.calls.deleteHeyGen.length)
+    await waitFor(() => isClosed(trigger, 'Sol'), '«Mis avatares»: cierra')
+
+    // Abrir con un clic, con la lista a 8 px del pie: abrir trae las opciones
+    // a la vista (la enfocada y la de HeyGen), antes de elegir nada.
+    const closedOption = (key) => optionButtons(trigger).find((button) => button.textContent.trim() === deleteText(key))
+    await showTopEdgeAtBottom(grid, closedOption(LIST), 8, gridBottom())
+    await clickAt(centerOf(rectOf(trigger)))
+    await waitFor(() => isOpenWith(trigger, [LIST, HEYGEN]), '«Mis avatares»: despliega con la lista a medias')
+    await settle()
+    check(document.activeElement === optionOf(trigger, LIST) && fullyInside(optionOf(trigger, LIST), grid) && fullyInside(optionOf(trigger, HEYGEN), grid), '«Mis avatares»: abrir con un clic deja enteras a la vista la opción enfocada y la de HeyGen: ' + JSON.stringify({ list: rectOf(optionOf(trigger, LIST)), heygen: rectOf(optionOf(trigger, HEYGEN)), grid: rectOf(grid) }))
+    await pressKey('Escape')
+    await waitFor(() => isClosed(trigger, 'Sol'), '«Mis avatares»: Escape cierra')
+    await unmount()
+
+    // La biblioteca a 1280 × 640, dentro de un contenedor con scroll como el
+    // main de la app, con cuatro filas: Pía es la primera de la segunda, y
+    // abajo hay lugar para desplazar su fila hasta arriba. Ahí el botón va
+    // debajo de la imagen y las opciones la cubren.
+    await input({ type: 'viewport', width: 1280, height: 640 })
+    await input({ type: 'move', x: 0, y: 0 })
+    const libraryApi = fakeApi()
+    const others = 'abcdefghijklmn'.split('').map((id) => ({ ...ANA, id: 'x-' + id, name: 'X' + id, groupId: 'g-x' + id }))
+    libraryApi.avatars = [...others.slice(0, 4), PIA_OWN, ANA, ...others.slice(4)].map((item) => structuredClone(item))
+    mount(<div id="library-scroller" style={{ height: '100vh', overflowY: 'auto' }}><AvatarLibrary /></div>)
+    const cardFor = (id) => document.querySelector('[data-avatar-id="' + id + '"]')?.closest('article')
+    await waitFor(() => cardFor('ana-1'), 'las tarjetas de la biblioteca')
+    await libraryGridSettled()
+    await settle()
+    const page = document.getElementById('library-scroller')
+    const piaTrigger = trashIn(cardFor('pia-own'))
+
+    // Con el teclado: con la fila de Pía pegada arriba (su imagen, y con ella
+    // las opciones, fuera de la vista), Mayús+Tab desde el nombre de Ana llega
+    // al botón de Pía sin desplazar, y Enter trae la opción enfocada a la vista.
+    page.scrollTop += piaTrigger.getBoundingClientRect().top - 8
+    await delay(80)
+    await settle()
+    document.querySelector('[data-avatar-id="ana-1"]').focus({ preventScroll: true })
+    await pressKey('Shift+Tab')
+    check(document.activeElement === piaTrigger && optionOf(piaTrigger, LIST) === null, 'biblioteca: Mayús+Tab llega al botón de Pía, con el menú cerrado')
+    check(!fullyInside(optionButtons(piaTrigger).find((button) => button.textContent.trim() === deleteText(LIST)), page), 'biblioteca: antes de abrir, la lista está fuera de la vista')
+    await pressKey('Enter')
+    await waitFor(() => isOpenWith(piaTrigger, [LIST, HEYGEN]), 'biblioteca: Enter despliega')
+    await settle()
+    check(document.activeElement === optionOf(piaTrigger, LIST) && fullyInside(optionOf(piaTrigger, LIST), page), 'biblioteca: la opción enfocada queda entera a la vista: ' + JSON.stringify({ option: rectOf(optionOf(piaTrigger, LIST)), page: rectOf(page) }))
+
+    // Armar con HeyGen a 8 px del pie: con el menú abierto, la página se
+    // desplaza hasta dejar HeyGen a medias (el botón queda abajo, fuera de la
+    // vista); armar no la mueve y, al cerrar con «Cancelar», el foco vuelve
+    // al botón sin desplazarla.
+    await showTopEdgeAtBottom(page, optionOf(piaTrigger, HEYGEN), 8, window.innerHeight)
+    check(isOpenWith(piaTrigger, [LIST, HEYGEN]), 'biblioteca: el menú sigue abierto después de desplazar')
+    await armAtTheEdge(piaTrigger, page, window.innerHeight, 'biblioteca', () => libraryApi.calls.deleteHeyGen.length)
+    await unmount()
+  } finally {
+    link.remove()
+    await input({ type: 'clearViewport' })
+  }
+})
+
+scenario('12 · con el CSS de la app: el segundo clic de un doble clic sobre «Eliminar de la lista» no abre lo que queda debajo, ni el panel de la tarjeta vecina en la biblioteca ni los looks en «Mis avatares»', async () => {
+  const link = await loadAppCss()
+  try {
+    await input({ type: 'viewport', width: 1280, height: 800 })
+
+    // La biblioteca: al salir Pía de la lista, Ana ocupa su lugar debajo del
+    // puntero; el segundo clic cae en su imagen.
+    const api = fakeApi()
+    api.avatars = [structuredClone(PIA_OWN), structuredClone(ANA)]
+    api.looksByGroup = { 'g-pia': ANA_REMOTE, 'g-ana': ANA_REMOTE }
+    mount(<AvatarLibrary />)
+    const cardFor = (id) => document.querySelector('[data-avatar-id="' + id + '"]')?.closest('article')
+    await waitFor(() => cardFor('ana-1'), 'las dos tarjetas')
+    await libraryGridSettled()
+    await settle()
+    const piaTrigger = trashIn(cardFor('pia-own'))
+    await clickAt(centerOf(rectOf(piaTrigger)))
+    await waitFor(() => isOpenWith(piaTrigger, [LIST, HEYGEN]), 'Pía: las dos opciones')
+    await settle()
+    const point = centerOf(rectOf(optionOf(piaTrigger, LIST)))
+    await clickAt(point, 1)
+    await waitFor(() => !cardFor('pia-own'), 'Pía sale de la lista')
+    await settle()
+    check(hitsAt(cardFor('ana-1'), point) && !document.elementFromPoint(point.x, point.y).closest('[data-avatar-id]'), 'debajo del puntero queda la imagen de Ana')
+    check(document.activeElement !== document.querySelector('[data-avatar-id="ana-1"]'), 'con el mouse, el foco no pasa a la vecina')
+    await clickAt(point, 2)
+    await delay(200)
+    check(dialogs().length === 0, 'el segundo clic no abre el panel de Ana')
+    await unmount()
+
+    // «Mis avatares»: al quitar a Sol de la lista, el menú se cierra y queda
+    // su imagen debajo del puntero.
+    const stockApi = fakeApi()
+    stockApi.avatars = [{ id: 'lib-sol', groupId: 'g-sol', name: 'Sol' }]
+    mount(<LibraryStockHost />)
+    await openOwnTab()
+    await waitFor(() => hasAddedBadge('g-sol'), 'Sol está en la biblioteca')
+    cardOf('g-sol').scrollIntoView({ block: 'center' })
+    await settle()
+    const sol = trashFor('g-sol')
+    await clickAt(centerOf(rectOf(sol)))
+    await waitFor(() => isOpenWith(sol, [LIST, HEYGEN]), 'Sol: las dos opciones')
+    await settle()
+    const solPoint = centerOf(rectOf(optionOf(sol, LIST)))
+    await clickAt(solPoint, 1)
+    await waitFor(() => stockApi.calls.remove.length === 1 && isClosed(sol, 'Sol'), 'quita a Sol de la lista y cierra el menú')
+    await settle()
+    check(hitsAt(cardOf('g-sol'), solPoint) && !document.elementFromPoint(solPoint.x, solPoint.y).closest('button'), 'debajo del puntero queda la imagen de Sol')
+    await clickAt(solPoint, 2)
+    await delay(200)
+    check(!buttonNamed(tr('avatars.stock.volver')) && stockApi.calls.looks.length === 0, 'el segundo clic no abre los looks de Sol')
+    await unmount()
+  } finally {
+    link.remove()
+    await input({ type: 'clearViewport' })
+  }
+})
+
+// ─── Entrega 2c: el formato de los looks ───
 // El chip de formato de una ficha o del reproductor: su etiqueta para el lector
 // de pantalla y el texto que se ve (fuera del lector), o null si no tiene.
 function formatChip(root) {
@@ -1563,9 +2794,23 @@ const keyCodes = {
   Enter: { code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 },
   Escape: { code: 'Escape', windowsVirtualKeyCode: 27 },
   Tab: { code: 'Tab', windowsVirtualKeyCode: 9 },
+  // Mayús (modificador 8 de CDP) + Tab: el foco va hacia atrás.
+  'Shift+Tab': {
+    name: 'Tab',
+    code: 'Tab',
+    windowsVirtualKeyCode: 9,
+    modifiers: 8,
+  },
   ArrowLeft: { code: 'ArrowLeft', windowsVirtualKeyCode: 37 },
   ArrowRight: { code: 'ArrowRight', windowsVirtualKeyCode: 39 },
 }
+
+// Cuánto espera runPage a que la página termine sus escenarios. Es un tiempo y
+// no un número de vueltas: el banco ya pasa del minuto (los escenarios con el
+// CSS de la app son los más lentos) y una máquina lenta, o un escenario más, no
+// tiene que hacerlo fallar sin que nada esté roto; una página colgada igual
+// termina en cuatro minutos.
+const PAGE_TIMEOUT_MS = 240_000
 
 async function runPage(call, root) {
   const { targetId } = await call('Target.createTarget', { url: 'about:blank' })
@@ -1586,7 +2831,8 @@ async function runPage(call, root) {
   const evaluate = async (expression) =>
     (await send('Runtime.evaluate', { expression, returnByValue: true })).result
       ?.value
-  for (let attempt = 0; attempt < 2400; attempt++) {
+  const deadline = Date.now() + PAGE_TIMEOUT_MS
+  while (Date.now() < deadline) {
     await new Promise((done) => setTimeout(done, 25))
     const requests = await evaluate(
       'JSON.stringify(window.inputQueue ? window.inputQueue.splice(0) : [])',
@@ -1631,12 +2877,24 @@ async function runPage(call, root) {
           `(window.axResults = window.axResults || {})[${request.id}] = ${JSON.stringify(value)}`,
         )
       }
+      // El tamaño de la ventana, solo para el escenario que carga el CSS de
+      // la app (los demás corren con el de siempre).
+      if (request.type === 'viewport') {
+        await send('Emulation.setDeviceMetricsOverride', {
+          width: request.width,
+          height: request.height,
+          deviceScaleFactor: 1,
+          mobile: false,
+        })
+      }
+      if (request.type === 'clearViewport')
+        await send('Emulation.clearDeviceMetricsOverride')
       if (request.type === 'key' || request.type === 'keyHold') {
-        const key = keyCodes[request.key]
-        const { text, ...rest } = key
+        const definition = keyCodes[request.key]
+        const { text, name = request.key, ...rest } = definition
         const down = {
           type: 'keyDown',
-          key: request.key,
+          key: name,
           ...rest,
           ...(text ? { text, unmodifiedText: text } : {}),
         }
@@ -1648,7 +2906,7 @@ async function runPage(call, root) {
             await send('Input.dispatchKeyEvent', { ...down, autoRepeat: true })
         await send('Input.dispatchKeyEvent', {
           type: 'keyUp',
-          key: request.key,
+          key: name,
           ...rest,
         })
       }
@@ -1761,6 +3019,26 @@ test('la biblioteca de avatares en Chrome', async (t) => {
       ],
     })
     await writeFile(join(root, 'app.js'), output.outputFiles[0].contents)
+    // El CSS real de la app (Tailwind), sin la fuente remota (sin red): lo
+    // carga solo el escenario que mide la geometría del menú.
+    execFileSync(
+      process.execPath,
+      [
+        tailwindCli,
+        '-c',
+        'tailwind.config.ts',
+        '-i',
+        'src/assets/css/main.css',
+        '-o',
+        join(root, 'app.css'),
+      ],
+      { stdio: 'ignore' },
+    )
+    const appCss = await readFile(join(root, 'app.css'), 'utf8')
+    await writeFile(
+      join(root, 'app.css'),
+      appCss.replace(/@import url\([^)]*\);/g, ''),
+    )
     await writeFile(
       join(root, 'index.html'),
       '<!doctype html><meta charset="utf-8"><div id="root"></div><script type="module" src="./app.js"></script>',

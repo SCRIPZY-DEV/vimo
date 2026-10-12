@@ -536,9 +536,10 @@ function avatarSceneIds(scenes: readonly Scene[]): number[] {
 // La red de seguridad del carril de segundos: una confirmación por cantidad
 // (la del video entero) se traduce a los segundos de cada imagen. Con avatar,
 // sobre el audio libre y las escenas libres: las apariciones no son imágenes
-// y duran de 7 a 60 s, así que dividir el audio entero por una cantidad que
-// las incluye no da los segundos de las imágenes. Sin pines, la cuenta de
-// siempre.
+// y duran de AVATAR_MIN_APPEARANCE_SECONDS a AVATAR_MAX_APPEARANCE_SECONDS
+// (pipeline/types/avatar.ts), así que dividir el audio entero por una
+// cantidad que las incluye no da los segundos de las imágenes. Sin pines, la
+// cuenta de siempre.
 function secondsForConfirmedCount(
   sceneCount: number,
   audioDurationSeconds: number,

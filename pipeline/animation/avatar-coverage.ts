@@ -25,8 +25,10 @@ export interface AvatarCoverageScene {
 // Las marcas sin las escenas de avatar. Pasar su tramo en `coveredIntervals`
 // no alcanza: el planificador rechaza por larga (más de 12 s) una escena
 // marcada ANTES de mirar si está cubierta (`planner.ts`, `slot_out_of_range`),
-// y una aparición dura de 7 a 60 s. Las dos defensas son independientes: sin
-// la cobertura, una marcada de 12 s o menos se compraría como clip.
+// y una aparición dura de AVATAR_MIN_APPEARANCE_SECONDS a
+// AVATAR_MAX_APPEARANCE_SECONDS (pipeline/types/avatar.ts). Las dos defensas
+// son independientes: sin la cobertura, una marcada de 12 s o menos se
+// compraría como clip.
 export function withoutAvatarSceneIds(
   sceneIds: Iterable<number>,
   scenes: readonly AvatarCoverageScene[],

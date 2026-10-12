@@ -43,10 +43,11 @@ interface CreateAvatarPickerProps {
 // este video (el elegido en el elegido, el de por defecto en los demás), con
 // el nombre del look y «+N looks» en blanco sobre la imagen; debajo, el botón
 // «Look» despliega las tarjetas de todos los looks del avatar que se mira para
-// elegir otro. Un avatar sin look para el formato lo dice y, si es propio,
-// lleva a «Crear escenario» abierto en ese formato (los de stock no admiten
-// escenarios nuevos). Sin avatares, lleva a crearlos. Qué avatar se mira es
-// estado de la vista; la elección del formulario solo existe con un look.
+// elegir otro: tocar una abre su reproductor y «Usar» la elige (entrega 2d).
+// Un avatar sin look para el formato lo dice y, si es propio, lleva a «Crear
+// escenario» abierto en ese formato (los de stock no admiten escenarios
+// nuevos). Sin avatares, lleva a crearlos. Qué avatar se mira es estado de la
+// vista; la elección del formulario solo existe con un look.
 export function CreateAvatarPicker({
   entries,
   loading,

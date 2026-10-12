@@ -28,16 +28,20 @@ export interface ReadyAvatarClip {
 // muestra como fallido, como los clips de Kie, y uno desactualizado (`stale`,
 // que el sidecar deriva al leer contra la narración y el tramo vigentes) no
 // se reproduce: el render lo deja estático con la vista previa del look
-// (§10.1).
+// (§10.1). Desactualizado manda sobre fallido (ruling del 2026-10-11, entrega
+// 2d): una lista desactualizada que además perdió su clip llega del sidecar
+// como fallida por la descarga (`avatar_download_failed`, «ya está pago»),
+// pero regenerarla paga un render nuevo; `stale` solo viene en escenas que
+// estuvieron listas, así que una fallida de verdad sigue fallida.
 export function avatarBlockState(
   avatar: SceneAvatarView,
   rendering: boolean,
 ): TimelineAvatarState {
   if (rendering) return 'generating'
+  if (avatar.stale) return 'stale'
   if (avatar.status === 'failed') return 'failed'
   if (avatar.status === 'planned') return 'planned'
   if (!avatar.clipPath) return 'failed'
-  if (avatar.stale) return 'stale'
 
   return 'ready'
 }

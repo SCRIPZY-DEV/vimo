@@ -251,7 +251,10 @@ export async function animationView(
 // Vimo) sale `failed`. `stale` se deriva acá y nunca se persiste: un clip
 // renderizado con otra versión de la narración está desactualizado. La otra
 // causa es la huella `renderHash` del carril de HeyGen: un clip de otro tramo,
-// otro look u otro motor (isAvatarClipStale).
+// otro look u otro motor (isAvatarClipStale). Desde la entrega 2d se marca en
+// TODA escena lista, también en la que perdió su archivo (que se sigue
+// mostrando fallida): la fase no la paga sola (isAvatarScenePending) y el
+// costo de reanudar la deja afuera por esta marca.
 export async function toSceneAvatarView(
   paths: ProjectPaths,
   scene: Scene,
@@ -277,6 +280,8 @@ export async function toSceneAvatarView(
 
   if (avatar.status !== 'ready') return view
 
+  if (isAvatarClipStale(scene, avatar, project)) view.stale = true
+
   const clipPath = sceneAvatarClipFile(paths, avatar)
   const clipMtimeMs = clipPath ? await validFileMtime(clipPath) : undefined
   if (!clipPath || clipMtimeMs === undefined) {
@@ -287,8 +292,6 @@ export async function toSceneAvatarView(
 
   view.clipPath = clipPath
   view.clipMtimeMs = clipMtimeMs
-  if (isAvatarClipStale(scene, avatar, project)) view.stale = true
-
   return view
 }
 
@@ -296,8 +299,10 @@ export async function toSceneAvatarView(
 // narración o si ya no corresponde al tramo, al look o al motor de la escena:
 // su `renderHash` (la huella del carril de HeyGen,
 // pipeline/avatar/fingerprint.ts) no es la de la escena de hoy. Un clip sin
-// huella también: no se sabe para qué tramo se hizo.
-function isAvatarClipStale(
+// huella también: no se sabe para qué tramo se hizo. La misma regla decide si
+// la fase `avatar` paga sola una escena lista (isAvatarScenePending,
+// pipeline/avatar/render-scenes.ts): una desactualizada, nunca.
+export function isAvatarClipStale(
   scene: Scene,
   avatar: SceneAvatar,
   project: SceneViewProject,

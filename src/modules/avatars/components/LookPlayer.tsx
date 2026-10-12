@@ -31,9 +31,11 @@ interface LookPlayerProps {
 
 // El escenario del reproductor de un look, como el modal de HeyGen: una caja
 // 16:9 oscura con la imagen del look desenfocada de fondo y, encima, el video
-// entero en su formato real (un look vertical queda al centro). No arranca
-// solo y tiene sonido: el botón grande del centro, el de la barra, un clic en
-// el video o Espacio/Enter con el foco en el escenario lo reproducen (las
+// entero en su formato real (un look vertical queda al centro). Arranca solo
+// al abrirse con video (entrega 2d, `useLookPlayback`): con sonido o, si el
+// navegador no lo deja sin un gesto, silenciado y con «Activar el sonido» en
+// la barra. El botón grande del centro, el de la barra, un clic en el video o
+// Espacio/Enter con el foco en el escenario lo pausan o lo reproducen (las
 // flechas saltan LOOK_PLAYER_SKIP_SECONDS). La barra, sobre un degradado,
 // lleva reproducir/pausar, la línea de tiempo con el progreso pintado, el
 // tiempo, silenciar, la velocidad y la pantalla completa si el navegador la

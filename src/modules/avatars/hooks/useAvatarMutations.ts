@@ -147,24 +147,28 @@ export function useAvatarMutations() {
     networkMode: 'always',
   })
 
+  // «Eliminar de la lista» (entrega 2d): saca el avatar de la biblioteca de
+  // Vimo; sigue en HeyGen. La tarjeta sale en el acto y, si falla, vuelve.
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => avatarsApi.remove(id),
+    mutationFn: (avatar: AvatarSummary) => avatarsApi.remove(avatar.id),
     networkMode: 'always',
-    async onMutate(id: string) {
+    async onMutate(avatar: AvatarSummary) {
       await queryClient.cancelQueries({ queryKey: avatarsQueryKeys.list })
       const previous = queryClient.getQueryData<AvatarSummary[]>(
         avatarsQueryKeys.list,
       )
       queryClient.setQueryData<AvatarSummary[]>(
         avatarsQueryKeys.list,
-        (entries) => (entries ?? []).filter((entry) => entry.id !== id),
+        (entries) => (entries ?? []).filter((entry) => entry.id !== avatar.id),
       )
       return { previous }
     },
-    onSuccess: () => {
-      toast({ description: t('avatars.toasts.eliminado') })
+    onSuccess: (_result, avatar) => {
+      toast({
+        description: t('avatars.toasts.eliminadoLista', { name: avatar.name }),
+      })
     },
-    onError: (error, _id, context) => {
+    onError: (error, _avatar, context) => {
       // La tarjeta vuelve: el avatar sigue en disco.
       if (context?.previous)
         queryClient.setQueryData(avatarsQueryKeys.list, context.previous)
@@ -173,26 +177,38 @@ export function useAvatarMutations() {
     onSettled: invalidate,
   })
 
-  // Eliminar un avatar propio de HeyGen, de verdad (entrega 2c): el grupo con
-  // todos sus looks y sus entradas de la biblioteca. No se deshace: la tarjeta
-  // lo confirma antes. Al lograrlo, la tarjeta sale de «Mis avatares» en el
-  // acto (HeyGen ya no lo tiene) y, sin esperar, se releen los avatares de la
-  // cuenta y la biblioteca: la mutación termina con la tarjeta afuera. Si
-  // falla, avisa y nada cambia: la tarjeta vuelve.
-  // El nombre solo viaja para la fila del log de soporte («Avatar: <nombre>»).
+  // Eliminar un avatar propio de HeyGen, de verdad (entregas 2c y 2d): el
+  // grupo con todos sus looks y sus entradas de la biblioteca, desde «Mis
+  // avatares» (un grupo de la cuenta) o desde la biblioteca (una entrada). No
+  // se deshace: el menú pide «Seguro» antes. Al lograrlo, su tarjeta sale en el
+  // acto de «Mis avatares» y de la biblioteca (el sidecar ya quitó sus
+  // entradas) y, sin esperar, se releen los avatares de la cuenta y la
+  // biblioteca: la mutación termina con la tarjeta afuera. Si falla, avisa y
+  // nada cambia: la tarjeta vuelve. El nombre solo viaja para la fila del log
+  // de soporte («Avatar: <nombre>»).
   const heygenDeleteMutation = useMutation({
-    mutationFn: (group: HeyGenAvatarGroup) =>
-      avatarsApi.deleteFromHeyGen({ groupId: group.groupId, name: group.name }),
+    mutationFn: (target: HeyGenAvatarGroup | AvatarSummary) =>
+      avatarsApi.deleteFromHeyGen({
+        groupId: target.groupId,
+        name: target.name,
+      }),
     networkMode: 'always',
-    onSuccess: (_result, group) => {
+    onSuccess: (result, target) => {
       // Los avatares de la cuenta: la misma clave que usa `useStockGroups`.
       const privateGroupsKey = avatarsQueryKeys.stockGroupsOf('private')
       queryClient.setQueryData<InfiniteData<AvatarStockGroupsResult, string>>(
         privateGroupsKey,
-        (data) => withoutGroup(data, group.groupId),
+        (data) => withoutGroup(data, target.groupId),
+      )
+      queryClient.setQueryData<AvatarSummary[]>(
+        avatarsQueryKeys.list,
+        (entries) =>
+          entries?.filter(
+            (entry) => !result.removedEntryIds.includes(entry.id),
+          ),
       )
       toast({
-        description: t('avatars.toasts.eliminadoHeygen', { name: group.name }),
+        description: t('avatars.toasts.eliminadoHeygen', { name: target.name }),
       })
       void queryClient.invalidateQueries({ queryKey: privateGroupsKey })
       void invalidate()
