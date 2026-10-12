@@ -491,6 +491,8 @@ export interface SetProjectMusicPayload {
 
 export interface ExportClipsPayload {
   projectId: string
+  // Omitido conserva el movimiento de la exportación anterior.
+  imageMotion?: boolean
 }
 
 export interface ExportClipsResult {

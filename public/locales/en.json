@@ -1317,7 +1317,13 @@
       "export": {
         "button": "Export for editing",
         "help": "Generates one clip per scene (with its exact duration) + the audio, so you can edit them in CapCut or Premiere without losing sync.",
-        "progress": "Exporting… {{percent}}%"
+        "progress": "Exporting… {{percent}}%",
+        "description": "Export an MP4 clip for each segment at its duration, with audio files separately. The folder opens when finished so you can use them in your editor.",
+        "imageMotion": "Export clips for editing with image motion",
+        "imageMotionHelpLabel": "About image motion",
+        "imageMotionHelp": "Applies Vimo’s zoom and pan (keyframe motion) to images, baked into each clip. When disabled, images stay still. Video clips keep their animation. This does not generate images or use AI credits.",
+        "confirm": "Confirm export",
+        "cancel": "Cancel"
       },
       "previewBadge": "Preview",
       "regenFailed": "Some scenes could not be regenerated: see the reason on each scene; their previous image is kept.",

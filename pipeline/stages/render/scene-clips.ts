@@ -19,6 +19,7 @@ export async function renderSceneClips(
   frame: FrameSize,
   options: {
     signal?: AbortSignal
+    imageMotion?: boolean
     onProgress?(fraction: number): void
   } = {},
 ): Promise<number> {
@@ -27,6 +28,7 @@ export async function renderSceneClips(
     const clipFile = join(outputDirectory, clipFileName(index + 1))
     await renderChunk(ffmpegPath, [scene], index, clipFile, frame, {
       previousScene: scenes[index - 1],
+      imageMotion: options.imageMotion,
       signal: options.signal,
       onProgress(fraction) {
         options.onProgress?.((index + fraction) / scenes.length)

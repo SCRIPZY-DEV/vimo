@@ -1317,7 +1317,13 @@
       "export": {
         "button": "Exportar para editar",
         "help": "Genera un clip por escena (con su duración exacta) + el audio, para editarlos en CapCut o Premiere sin que se desincronicen.",
-        "progress": "Exportando… {{percent}}%"
+        "progress": "Exportando… {{percent}}%",
+        "description": "Se exporta un clip MP4 por tramo, con su duración, y los audios por separado. Al terminar se abre la carpeta para llevarlos a tu editor.",
+        "imageMotion": "Exportar clips para editar con movimiento de imagen",
+        "imageMotionHelpLabel": "Acerca del movimiento de imagen",
+        "imageMotionHelp": "Aplica a las imágenes el zoom y paneo de Vimo (movimiento por keyframes), ya integrado en cada clip. Si lo desactivás, las imágenes quedan estáticas. Los clips de video conservan su animación. No genera imágenes ni usa créditos de IA.",
+        "confirm": "Confirmar exportación",
+        "cancel": "Cancelar"
       },
       "previewBadge": "Vista previa",
       "regenFailed": "No se pudo regenerar alguna escena: el motivo está en cada escena y su imagen anterior se conserva.",

@@ -48,6 +48,7 @@ interface ManifestAsset {
 }
 
 interface ChunkManifest {
+  imageMotion?: false
   v: number
   globalStartIndex: number
   width: number
@@ -86,8 +87,10 @@ export async function chunkManifestFor(
   globalStartIndex: number,
   frame: FrameSize,
   previousScene?: RenderScene,
+  imageMotion = true,
 ): Promise<ChunkManifest> {
   return {
+    ...(imageMotion ? {} : { imageMotion: false as const }),
     v: RENDER_CACHE_VERSION,
     globalStartIndex,
     width: frame.width,
@@ -165,6 +168,7 @@ export async function renderChunk(
     onProgress?(fraction: number): void
     signal?: AbortSignal
     previousScene?: RenderScene
+    imageMotion?: boolean
   } = {},
 ): Promise<void> {
   const activeScenes = scenes.filter(
@@ -196,7 +200,10 @@ export async function renderChunk(
       effect = `setpts=${1 / fit.rate}*(PTS-STARTPTS),fps=${FPS},tpad=stop_mode=clone:stop_duration=${ANIMATION_CLIP_PAD_SECONDS}`
     } else {
       inputs.push('-loop', '1', '-i', scene.imagePath)
-      effect = cameraEffect(cameraIndex, Math.max(frames, 1), frame)
+      effect =
+        options.imageMotion === false
+          ? `fps=${FPS}`
+          : cameraEffect(cameraIndex, Math.max(frames, 1), frame)
     }
     let filter =
       `[${index}:v:0]scale=${frame.width}:${frame.height}:force_original_aspect_ratio=increase,` +
@@ -294,6 +301,7 @@ export async function renderChunk(
           globalStartIndex,
           frame,
           options.previousScene,
+          options.imageMotion,
         ),
       ),
     )

@@ -34,6 +34,15 @@ export async function exportClips(
       'payload.projectId is required',
     )
 
+  if (
+    payload.imageMotion !== undefined &&
+    typeof payload.imageMotion !== 'boolean'
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'payload.imageMotion must be a boolean',
+    )
+
   const projectDir = resolveProjectDir(
     projectsRootOf(context),
     payload.projectId,
@@ -82,6 +91,7 @@ export async function exportClips(
     frame,
     {
       signal: context.signal,
+      imageMotion: payload.imageMotion !== false,
       onProgress(fraction) {
         const percent = Math.round(fraction * 100)
         if (percent <= lastPercent) return

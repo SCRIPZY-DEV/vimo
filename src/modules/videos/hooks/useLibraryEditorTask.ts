@@ -876,7 +876,10 @@ function handleRenderEvent(projectId: string, event: PipelineEventPayload) {
 
 // ── Export de clips ──
 
-async function startExport(projectId: string): Promise<boolean> {
+async function startExport(
+  projectId: string,
+  imageMotion = true,
+): Promise<boolean> {
   if (isProjectBusy(projectId)) return false
 
   patchTask(projectId, {
@@ -885,8 +888,9 @@ async function startExport(projectId: string): Promise<boolean> {
     errorCode: null,
   })
   try {
-    const job = await videosApi.startExportClips({ projectId }, (event) =>
-      handleExportEvent(projectId, event),
+    const job = await videosApi.startExportClips(
+      { projectId, imageMotion },
+      (event) => handleExportEvent(projectId, event),
     )
     const current = taskOf(projectId)
     if (current.export && current.export.jobId === null)

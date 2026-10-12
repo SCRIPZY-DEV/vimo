@@ -292,9 +292,12 @@ export function LibraryEditor() {
           </TooltipContent>
         </Tooltip>
         <ExportClipsButton
+          key={projectId}
           exportState={task?.export ?? null}
           busy={busy}
-          onExport={() => void editor.editorTask.startExport(projectId)}
+          onExport={(imageMotion) =>
+            void editor.editorTask.startExport(projectId, imageMotion)
+          }
         />
         <RenderVideoButton
           render={task?.render ?? null}

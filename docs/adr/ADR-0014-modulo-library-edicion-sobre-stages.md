@@ -306,3 +306,14 @@ con recibo pendiente o incierto mantiene sus fuentes bloqueadas hasta resolverse
 Se elimina el bloqueo global de la galería sin alterar las leases, el contrato del
 sidecar, la planificación de tiempos ni las cuotas. Ver
 [el fix de selección y cola](../../fixes/2026-09-29_gallery-selection-and-queue.md).
+
+### Enmienda 2026-10-11: movimiento opcional al exportar clips
+
+La UI confirma la exportación antes de iniciar `export-clips`. El payload admite
+`imageMotion?: boolean`: omitido/true mantiene el Ken Burns existente; false
+conserva el mismo encuadre fijo y reloj sin movimiento de cámara. Se valida antes
+de limpiar la carpeta regenerable. No cambia el proyecto ni el render final.
+Los videos ya animados y las transiciones mantienen su tratamiento anterior.
+El movimiento está integrado en el MP4, no son keyframes de un editor externo.
+Los tres idiomas, el foco y la exclusión de tareas conservan el contrato del editor.
+Validación y límites en `fixes/2026-10-11_exportar-clips-con-movimiento-opcional.md`.
