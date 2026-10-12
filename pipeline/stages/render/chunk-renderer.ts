@@ -195,8 +195,14 @@ export async function renderChunk(
       const fit = normalizeClipToSlot(scene.clipSeconds, duration)
       effect = `setpts=${1 / fit.rate}*(PTS-STARTPTS),fps=${FPS},tpad=stop_mode=clone:stop_duration=${ANIMATION_CLIP_PAD_SECONDS}`
     } else {
-      inputs.push('-loop', '1', '-i', scene.imagePath)
-      effect = cameraEffect(cameraIndex, Math.max(frames, 1), frame)
+      // La imagen entra como UN cuadro y `loop` repite ese cuadro ya escalado
+      // y recortado: con `-loop 1` el JPEG se decodificaba y reescalaba en
+      // cada cuadro de salida (la mitad del coste del chunk). Los cuadros que
+      // llegan al Ken Burns son los mismos, bit a bit.
+      inputs.push('-i', scene.imagePath)
+      effect =
+        `format=yuv420p,loop=loop=${Math.max(frames, 1)}:size=1:start=0,` +
+        `setpts=N/${FPS}/TB,${cameraEffect(cameraIndex, Math.max(frames, 1), frame)}`
     }
     let filter =
       `[${index}:v:0]scale=${frame.width}:${frame.height}:force_original_aspect_ratio=increase,` +
@@ -256,8 +262,6 @@ export async function renderChunk(
       ffmpegPath,
       [
         ...inputs,
-        '-filter_complex_threads',
-        '1',
         '-filter_complex',
         filters.join(';'),
         '-map',
