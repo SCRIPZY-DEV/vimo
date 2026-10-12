@@ -2,11 +2,7 @@ import { join } from 'node:path'
 
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
-import {
-  AVATAR_DEFAULT_ENGINE,
-  AVATAR_GENDERS,
-  AVATAR_NAME_LIMIT,
-} from '../../types/avatar.ts'
+import { AVATAR_GENDERS, AVATAR_NAME_LIMIT } from '../../types/avatar.ts'
 import type {
   AvatarAddPayload,
   AvatarAddResult,
@@ -40,7 +36,8 @@ function isText(value: unknown): value is string {
 }
 
 // El look principal al agregar: el que eligió la persona si está listo y
-// soporta el motor de Vimo; si no, el primero que cumpla.
+// admite algún motor con tarifa (isUsableLook, entrega 2e); si no, el primero
+// que cumpla.
 function chooseMainLook(
   looks: HeyGenLook[],
   requestedLookId: string | undefined,
@@ -87,7 +84,7 @@ export async function avatarAdd(
   if (!main)
     throw new PipelineFailure(
       'avatar_no_compatible_look',
-      `avatar group ${groupId} has no ready look that supports ${AVATAR_DEFAULT_ENGINE}`,
+      `avatar group ${groupId} has no ready look with an engine Vimo can use`,
     )
 
   // El nombre se valida ya recortado: uno de solo espacios dejaría una entrada

@@ -20,6 +20,8 @@
 // §5), el silencio que queda después de un pin sale como escenas de imagen
 // sin palabras (también la cola final de 3 s o más) y, con apariciones de
 // 60 s, la cola corta del final no lleva al avatar por encima del máximo.
+// Desde la entrega 2e, la semilla de cada aparición lleva el motor elegido y
+// `expressive: true` solo cuando la opción lo tiene.
 // Importa el código real (Node quita los tipos), con carpetas temporales: sin
 // red ni FFmpeg.
 import assert from 'node:assert/strict'
@@ -321,6 +323,36 @@ test('foco 1 de punta a punta: sin puntuación y con una sola pausa larga, ning�
     planAvatarPins({ ...AVATAR, placement: 'manual' }, words, 31.2),
     null,
   )
+})
+
+test('semilla (entrega 2e): cada aparición lleva el motor elegido y `expressive: true` solo cuando la opción lo tiene; sin él, la semilla de antes byte a byte', () => {
+  // Avatar III sin ajustes: la semilla de antes, con sus claves en su orden.
+  for (const span of planAvatarPins(AVATAR, SIXTY, 60).pins)
+    assert.equal(JSON.stringify(span.avatar), JSON.stringify(SEED))
+
+  const expressive = planAvatarPins(
+    { ...AVATAR, engine: 'avatar_iv', expressive: true },
+    SIXTY,
+    60,
+  )
+  assert.equal(expressive.pins.length, 3)
+  for (const span of expressive.pins)
+    assert.deepEqual(span.avatar, {
+      ...SEED,
+      engine: 'avatar_iv',
+      expressive: true,
+    })
+  // Cada escena con su copia: el carril de una no toca la semilla de otra.
+  assert.notEqual(expressive.pins[0].avatar, expressive.pins[1].avatar)
+
+  // Apagado (o un valor que no es true) no siembra nada.
+  for (const value of [false, 'true'])
+    for (const span of planAvatarPins(
+      { ...AVATAR, engine: 'avatar_v', expressive: value },
+      SIXTY,
+      60,
+    ).pins)
+      assert.deepEqual(span.avatar, { ...SEED, engine: 'avatar_v' })
 })
 
 // Una frase con puntuación: `count` palabras de 0,45 s cada 0,5 s desde

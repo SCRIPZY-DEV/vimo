@@ -12,9 +12,15 @@ import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Switch } from '@/modules/common/ui/switch'
 import { CreateAvatarCost } from '@/modules/videos/components/CreateAvatarCost'
+import { CreateAvatarEngine } from '@/modules/videos/components/CreateAvatarEngine'
+import { CreateAvatarExpressive } from '@/modules/videos/components/CreateAvatarExpressive'
 import { CreateAvatarPicker } from '@/modules/videos/components/CreateAvatarPicker'
 import { CREATE_AVATAR_LIBRARY_STALE_TIME_MS } from '@/modules/videos/constants'
-import { firstSelectableAvatar } from '@/modules/videos/utilities/selectableAvatar'
+import { createAvatarSeconds } from '@/modules/videos/utilities/avatarCostEstimate'
+import {
+  firstSelectableAvatar,
+  selectedAvatarEngine,
+} from '@/modules/videos/utilities/selectableAvatar'
 import {
   AVATAR_MAX_APPEARANCE_SECONDS,
   AVATAR_MAX_APPEARANCES,
@@ -31,9 +37,11 @@ interface CreateAvatarSectionProps {
 
 // La tarjeta «Avatar presentador» de Crear (spec §9), con el molde de
 // CreateAnimationSection: interruptor, el avatar de la biblioteca y su look
-// para el formato del video, cuántas veces y cuánto sale, si abre el video,
-// el costo con la tarifa de Avatar III, el saldo de HeyGen y, destacado, el
-// aviso de moderación. Sin clave de HeyGen avisa y lleva a Claves API, con el
+// para el formato del video, el motor y «Movimiento más expresivo» (entrega
+// 2e, §21.3: derivados del look elegido; elegir un look nunca toca el motor),
+// cuántas veces y cuánto sale, si abre el video, el costo con la tarifa del
+// motor, el saldo de HeyGen y, destacado, el aviso de moderación. Sin clave
+// de HeyGen avisa y lleva a Claves API, con el
 // interruptor apagado (Crear le pasa el formulario con el avatar apagado:
 // withAvatarKey). Es dueña de su lectura de la biblioteca —y, encendida, del
 // sondeo de lo que entrena o genera un look, para que un escenario pedido con
@@ -52,6 +60,8 @@ export function CreateAvatarSection({
     staleTime: CREATE_AVATAR_LIBRARY_STALE_TIME_MS,
   })
   const enabled = value.useAvatar && heygenConfigured
+  // El motor con el que sale el look elegido (el preferido si lo admite).
+  const engine = selectedAvatarEngine(value)
 
   useProcessingAvatarsRefresh(enabled ? library.entries : [])
 
@@ -114,6 +124,24 @@ export function CreateAvatarSection({
             disabled={disabled}
             onSelect={(avatar) => onChange({ avatar })}
           />
+          {value.avatar && (
+            <CreateAvatarEngine
+              avatar={value.avatar}
+              preferred={value.avatarEngine}
+              seconds={createAvatarSeconds(value)}
+              disabled={disabled}
+              onSelect={(avatarEngine) => onChange({ avatarEngine })}
+            />
+          )}
+          {value.avatar && engine && (
+            <CreateAvatarExpressive
+              engine={engine}
+              lookType={value.avatar.lookType}
+              checked={value.avatarExpressive}
+              disabled={disabled}
+              onChange={(avatarExpressive) => onChange({ avatarExpressive })}
+            />
+          )}
           <SliderRow
             id="create-avatar-appearances"
             label={t('create.avatar.appearances')}

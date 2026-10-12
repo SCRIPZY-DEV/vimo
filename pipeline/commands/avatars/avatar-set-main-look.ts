@@ -2,7 +2,6 @@ import { join } from 'node:path'
 
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
-import { AVATAR_DEFAULT_ENGINE } from '../../types/avatar.ts'
 import type {
   AvatarSetMainLookPayload,
   AvatarSetMainLookResult,
@@ -37,7 +36,8 @@ function isText(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
-// El principal tiene que ser un look del avatar, listo y con el motor de Vimo.
+// El principal tiene que ser un look del avatar, listo y con algún motor que
+// Vimo pueda usar (isUsableLook, entrega 2e).
 function assertUsableMainLook(
   metadata: StoredAvatarMetadata,
   lookId: string,
@@ -51,7 +51,7 @@ function assertUsableMainLook(
   if (!isUsableLook(look))
     throw new PipelineFailure(
       'avatar_no_compatible_look',
-      `look "${lookId}" is not ready or does not support ${AVATAR_DEFAULT_ENGINE}`,
+      `look "${lookId}" is not ready or has no engine Vimo can use`,
     )
 }
 

@@ -68,6 +68,16 @@ const MODERATION_PATTERN =
   /moderation|policy|prohibited|not allowed|consent|celebrit|public figure/i
 // Parámetros cuyo rechazo significa «este look o motor no sirve».
 const LOOK_PARAMS = new Set(['avatar_id', 'engine', 'avatar_group_id'])
+// Parámetros cuyo rechazo significa «este look no admite el movimiento pedido»
+// (entrega 2e, §21.2): `motion_prompt` con un look de foto cuyo grupo no tiene
+// referencia de animación, o `expressiveness` fuera de IV con foto. No es un
+// rechazo definitivo: el carril vuelve a pedir enseguida sin movimiento.
+const MOTION_PARAMS = new Set(['motion_prompt', 'expressiveness'])
+// El mismo rechazo sin `param` (medido el 2026-10-12 con un avatar de foto
+// propio y Avatar V: 400 `invalid_parameter`, «motion_prompt requires a
+// reference look to drive motion, and this avatar's group has no digital
+// twin…», sin `param`): el mensaje que nombra el campo también cuenta.
+const MOTION_FIELD_PATTERN = /\b(motion_prompt|expressiveness)\b/
 // Códigos que son moderación aunque el mensaje no lo diga (página de errores
 // de HeyGen, copia del 2026-10-07): llegan como `failure_code` de un render y
 // también como `error.code` del sobre de un rechazo.
@@ -129,6 +139,27 @@ export function heygenFailure(status: number, bodyText: string): HeyGenFailure {
       `HeyGen rejected the look or engine (${error.param}): ${error.message}`,
       details,
       error.param,
+    )
+  // El movimiento, también antes que la moderación y por la misma razón. Sin
+  // el texto de HeyGen: podría repetir el prompt, y un prompt nunca va al log
+  // de diagnóstico (el motivo viaja en `detail`).
+  if (status === 400 && error.param && MOTION_PARAMS.has(error.param))
+    return new HeyGenFailure(
+      'avatar_motion_unsupported',
+      `HeyGen rejected the motion settings for this look (${error.param}, ${error.code ?? 'no code'})`,
+      details,
+      error.param,
+    )
+  const motionField =
+    status === 400 && !error.param && error.isEnvelope
+      ? MOTION_FIELD_PATTERN.exec(error.message)?.[1]
+      : undefined
+  if (motionField)
+    return new HeyGenFailure(
+      'avatar_motion_unsupported',
+      `HeyGen rejected the motion settings for this look (${motionField} in the message, ${error.code ?? 'no code'})`,
+      details,
+      motionField,
     )
   // La moderación se lee solo del sobre JSON de un rechazo del cliente (status
   // < 500): el texto crudo de un proxy o de una página de error puede decir

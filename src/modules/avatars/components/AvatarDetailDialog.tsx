@@ -15,14 +15,12 @@ import { avatarsApi } from '@/modules/avatars/api'
 import { AvatarDeleteMenu } from '@/modules/avatars/components/AvatarDeleteMenu'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
 import { GenerateLookCard } from '@/modules/avatars/components/GenerateLookCard'
+import { LookEngineChips } from '@/modules/avatars/components/LookEngineChips'
 import { LookPlayerDialog } from '@/modules/avatars/components/LookPlayerDialog'
 import type { LookPlayerAction } from '@/modules/avatars/components/LookPlayerDialog'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
 import { StockLookCard } from '@/modules/avatars/components/StockLookCard'
-import {
-  STOCK_GRID_CLASS,
-  VIMO_AVATAR_ENGINE,
-} from '@/modules/avatars/constants'
+import { STOCK_GRID_CLASS } from '@/modules/avatars/constants'
 import { useAvatarDeleteMenu } from '@/modules/avatars/hooks/useAvatarDeleteMenu'
 import { useAvatarMutations } from '@/modules/avatars/hooks/useAvatarMutations'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
@@ -64,7 +62,8 @@ interface AvatarDetailDialogProps {
 
 // El panel de un avatar de la biblioteca, como en HeyGen: arriba, la vista
 // previa grande de su look principal (el video al pasar el mouse), el nombre,
-// sus chips, de dónde salió, el estado del entrenamiento y el botón de
+// sus chips (el tipo y los motores del look principal: `LookEngineChips`), de
+// dónde salió, el estado del entrenamiento y el botón de
 // eliminar (`AvatarDeleteMenu`, entrega 2d: «Eliminar de la lista» y, en un
 // avatar propio, «Eliminar permanentemente de HeyGen» con «Seguro»); abajo,
 // todos sus looks, con el principal marcado y «Usar como principal» en los
@@ -121,11 +120,9 @@ export function AvatarDetailDialog({
   const mainImage = avatar.previewPath
     ? avatarsApi.imageSource(avatar.previewPath)
     : remoteMain?.previewImageUrl
-  const supportsVimo =
-    mainLook?.supportedEngines.includes(VIMO_AVATAR_ENGINE) ?? false
   // Mientras entrena (o si falló) todavía no se saben sus motores: «No
   // compatible» solo se afirma de un avatar listo.
-  const unsupported = avatar.status === 'ready' && !supportsVimo
+  const ready = avatar.status === 'ready'
 
   const openedLook = avatar.looks.find((look) => look.lookId === openLookId)
 
@@ -236,16 +233,11 @@ export function AvatarDetailDialog({
                       {t(`avatars.types.${mainLook.lookType}`)}
                     </span>
                   )}
-                  {supportsVimo && (
-                    <span className="rounded bg-saffron/15 px-2 py-0.5 font-display text-[11px] font-bold text-foreground">
-                      {t(`avatars.engines.${VIMO_AVATAR_ENGINE}`)}
-                    </span>
-                  )}
-                  {unsupported && (
-                    <span className="rounded bg-destructive/15 px-2 py-0.5 font-display text-[11px] font-bold text-foreground">
-                      {t('avatars.tarjeta.noCompatible')}
-                    </span>
-                  )}
+                  <LookEngineChips
+                    look={mainLook}
+                    ready={ready}
+                    size="medium"
+                  />
                   <span className="rounded-full bg-muted px-2.5 py-0.5 font-display text-[11px] font-bold tabular-nums text-muted-foreground">
                     {t('avatars.stock.looksCount', {
                       count: avatar.looks.length,

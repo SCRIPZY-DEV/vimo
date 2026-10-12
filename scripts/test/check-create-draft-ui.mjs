@@ -99,7 +99,9 @@ await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolati
 
 const look = (lookId, name) => ({ lookId, name, lookType: 'photo_avatar', supportedEngines: ['avatar_iii'], preferredOrientation: 'landscape', status: 'ready', origin: 'heygen', previewPath: '/library/looks/' + lookId + '.png', createdAt: '2026-10-09T00:00:00Z' })
 const LIBRARY = [{ id: 'ana-1', name: 'Ana', groupId: 'group-ana-1', ownership: 'own', status: 'ready', mainLookId: 'look-ana', looks: [look('look-ana', 'Ana oficina')], previewPath: '/library/ana-1.jpg', createdAt: '2026-10-09T00:00:00Z' }]
-const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar' }
+// La elección lleva los motores de su look (entrega 2e): con ellos Crear
+// deriva el motor con el que sale.
+const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', supportedEngines: ['avatar_iii'] }
 const story = (id, name) => ({ id, suggestedName: name, script: 'Guion de ' + name, sceneCount: 6, audioDurationSeconds: 30, audioFile: '/pack/' + id + '.mp3' })
 const DEMO = { version: '3', voice: { provider: 'minimax', voiceId: 'v1', name: 'Lucía' }, stories: { '16:9': { styles: [story('normal', 'Historia demo')], customStyle: story('gema', 'Gema demo') } }, customStyleId: 'demo-gem' }
 const USD = (remaining) => ({ available: true, remaining, currency: 'usd' })

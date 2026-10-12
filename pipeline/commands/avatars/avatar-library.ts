@@ -8,13 +8,13 @@ import type { PipelineEmitter } from '../../runner/emitter.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import {
   AVATAR_CARD_LOOK_PREVIEWS,
-  AVATAR_DEFAULT_ENGINE,
   AVATAR_ENGINES,
   AVATAR_GENDERS,
   AVATAR_LIBRARY_STATUSES,
   AVATAR_LOOK_ORIGINS,
   AVATAR_LOOK_TYPES,
   AVATAR_OWNERSHIPS,
+  avatarEngineAvailable,
 } from '../../types/avatar.ts'
 import type {
   AvatarEngine,
@@ -559,13 +559,17 @@ export function storedLookOf(
   return stored
 }
 
-// Un look con el que Vimo puede generar: listo y con el motor que usa.
+// Un look con el que Vimo puede generar: listo y con al menos un motor que
+// admite y que Vimo sabe cobrar (entrega 2e, §21.3: antes, solo Avatar III).
+// El motor de cada video se elige en Crear (avatarEngineFor).
 export function isUsableLook(look: {
   status?: AvatarLibraryStatus
   supportedEngines: AvatarEngine[]
+  lookType: AvatarLookType
 }): boolean {
   if ((look.status ?? 'ready') !== 'ready') return false
-  return look.supportedEngines.includes(AVATAR_DEFAULT_ENGINE)
+
+  return AVATAR_ENGINES.some((engine) => avatarEngineAvailable(engine, look))
 }
 
 // El look principal tras releer el grupo: el que estaba si sigue; si

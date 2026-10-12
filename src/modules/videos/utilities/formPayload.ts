@@ -3,7 +3,8 @@ import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import { displayLaneOf, laneOf } from '@/modules/videos/utilities/formLane'
 import { projectCustomStyleFrom } from '@/modules/videos/utilities/projectCustomStyle'
 import { gemProjectStyleId } from '@/modules/videos/utilities/selectedCatalogStyle'
-import { AVATAR_DEFAULT_ENGINE } from '@pipeline/types/avatar.ts'
+import { selectedAvatarEngine } from '@/modules/videos/utilities/selectableAvatar'
+import { avatarExpressiveAvailable } from '@pipeline/types/avatar.ts'
 import type {
   CreateFormValue,
   CreateProjectPayloadOptions,
@@ -63,21 +64,35 @@ export function createProjectPayload(
   }
 
   // El avatar presentador (spec §3.4, §9 y §16): el avatar de la biblioteca,
-  // el look elegido (el escenario con el que sale) y el motor de Vimo;
-  // `placement: 'auto'` = Vimo elige los momentos al cortar (el manual llega
-  // con la entrega 3). La demo nunca lo lleva: el pack no tiene proveedores.
+  // el look elegido (el escenario con el que sale) y el motor con el que sale
+  // (entrega 2e, §21.3: el que prefiere la persona si el look lo admite; si
+  // no, el de reemplazo); `placement: 'auto'` = Vimo elige los momentos al
+  // cortar (el manual llega con la entrega 3). La demo nunca lo lleva: el
+  // pack no tiene proveedores.
   if (form.useAvatar && form.avatar && !demo) {
+    // Un look que no admite ningún motor (una elección vieja que CreateForm
+    // no llegó a frenar) viaja con la preferencia: create-video-project lo
+    // rechaza antes de pagar.
+    const engine = selectedAvatarEngine(form) ?? form.avatarEngine
+    // «Movimiento más expresivo» viaja solo prendido y si el motor y el look
+    // lo admiten, al final: con Avatar III y el interruptor apagado,
+    // options.avatar queda byte a byte como antes de la 2e (los recibos
+    // guardados se siguen cosechando con la misma huella).
+    const expressive =
+      form.avatarExpressive &&
+      avatarExpressiveAvailable(engine, form.avatar.lookType)
     options.avatar = {
       // El id de la biblioteca viaja como `avatarId` (ProjectAvatarOptions).
       avatarId: form.avatar.id,
       lookId: form.avatar.lookId,
       lookName: form.avatar.lookName,
       lookType: form.avatar.lookType,
-      engine: AVATAR_DEFAULT_ENGINE,
+      engine,
       appearances: form.avatarAppearances,
       secondsPerAppearance: form.avatarSecondsPerAppearance,
       startWithAvatar: form.avatarStartsVideo,
       placement: 'auto',
+      ...(expressive ? { expressive: true } : {}),
     }
   }
 

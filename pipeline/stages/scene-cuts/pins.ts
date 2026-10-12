@@ -115,12 +115,16 @@ export function planAvatarPins(
     secondsPerAppearance: avatar.secondsPerAppearance,
     startWithAvatar: avatar.startWithAvatar,
   })
+  // «Movimiento más expresivo» (entrega 2e) viaja solo cuando la opción lo
+  // tiene: create-video-project lo guarda únicamente en true y si el motor y el
+  // look lo admiten. Sin él, la semilla de antes.
   const seed: SceneAvatarSeed = {
     lookId: avatar.lookId,
     lookName: avatar.lookName,
     lookType: avatar.lookType,
     engine: avatar.engine,
     origin: 'auto',
+    ...(avatar.expressive === true ? { expressive: true } : {}),
   }
   const pins = plan.spans.map((span) => ({ ...span, avatar: { ...seed } }))
 

@@ -167,6 +167,13 @@ export function GenerationProgress({
   const rewritingScenes = rewriting
     ? task.scenes.filter((scene) => recovery.sceneIds.includes(scene.id))
     : task.scenes
+  // El conteo del título de la grilla es de imágenes: las apariciones del
+  // avatar tienen su propia tarjeta en la grilla y su panel con el avance.
+  const imageScenes = task.scenes.filter((scene) => !scene.avatar)
+  // Si una aparición cubre toda la narración no queda ninguna escena de
+  // imagen: el título no dice «Imágenes (0/0)» sobre una grilla de tarjetas
+  // del avatar. Sin escenas del todo (la grilla vacía de siempre), sí.
+  const onlyAvatarScenes = task.scenes.length > 0 && imageScenes.length === 0
   const showPromptsPanel =
     !paused &&
     (rewriting ||
@@ -515,16 +522,18 @@ export function GenerationProgress({
 
           {showImagesPanel && (
             <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-display text-base font-bold text-foreground">
-                  {t('create.progress.imagesCount', {
-                    ready: task.scenes.filter(
-                      (scene) => scene.imageStatus === 'ok',
-                    ).length,
-                    total: task.scenes.length,
-                  })}
-                </h2>
-              </div>
+              {!onlyAvatarScenes && (
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="font-display text-base font-bold text-foreground">
+                    {t('create.progress.imagesCount', {
+                      ready: imageScenes.filter(
+                        (scene) => scene.imageStatus === 'ok',
+                      ).length,
+                      total: imageScenes.length,
+                    })}
+                  </h2>
+                </div>
+              )}
               {retrying && (
                 <p
                   className={cn(

@@ -214,7 +214,8 @@ con sus looks**, con un **look principal**, que es el que usan los videos:
   `looks/<lookId>.<ext>` y se deriva al listar.
 - Al agregar un avatar y al elegir su principal, el look tiene que estar listo y soportar
   `avatar_iii` (`AVATAR_DEFAULT_ENGINE`): por decisión del dueño del 2026-10-09, Vimo usa solo ese
-  motor por ahora. Un refresco conserva el principal mientras HeyGen no confirme que desapareció y, si
+  motor por ahora (superado por la 2e: sirve un look que admita algún motor con tarifa y el motor se
+  elige en Crear). Un refresco conserva el principal mientras HeyGen no confirme que desapareció y, si
   desaparece sin otro compatible, puede dejar uno listo que no lo soporta: la entrega 2 mira los
   motores del principal, no deduce la compatibilidad de `status: 'ready'`.
 - La metadata la reescriben procesos distintos (el sondeo de 15 s, una generación, el principal): se
@@ -279,10 +280,11 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
   rechaza con `avatar_scene_without_image` antes de tocar el disco. Un proyecto sin avatar sale
   byte por byte igual (lo fijan las huellas de `check-gem-verbatim-lane`).
 - **Crear** (tarea 12): `create-video-project` valida `options.avatar` (forma, rangos con las
-  constantes, motor fijo y `placement`), rechaza la demo con avatar y, antes de crear la carpeta,
-  exige que el look elegido —el principal u otro del mismo avatar— sea del avatar, esté listo con
-  Avatar III (`isUsableLook`, nunca deducido de `status: 'ready'`) y tenga la orientación del
-  formato: 16:9 horizontal y 9:16 vertical, según `lookOrientationFit` sobre
+  constantes, motor fijo —desde la 2e, uno de los tres— y `placement`), rechaza la demo con avatar y,
+  antes de crear la carpeta, exige que el look elegido —el principal u otro del mismo avatar— sea del
+  avatar, esté listo con Avatar III (desde la 2e, con el motor elegido: `avatarEngineAvailable`;
+  `isUsableLook`, nunca deducido de `status: 'ready'`) y tenga la orientación del formato: 16:9
+  horizontal y 9:16 vertical, según `lookOrientationFit` sobre
   `AVATAR_LOOK_ORIENTATION_BY_FORMAT` (un look sin orientación conocida pasa con un aviso). La
   vista previa de ESE look se lee y se valida antes de crear nada y se copia a
   `<proyecto>/avatar/look.<ext>` con la extensión de sus bytes; si el look no tiene una legible se
@@ -577,10 +579,10 @@ gratis. Donde el diseño o las enmiendas de arriba dicen otra cosa que esta, man
   regían como se recomendó.
 - **Regenerar desde el editor (R-2d-6, adelantado de la entrega 3).** Sin esto, las escenas quietas
   de los dos puntos anteriores no tenían salida. El panel de una escena de avatar ofrece «Generar
-  avatar» (planeada), «Regenerar avatar» (fallida, desactualizada o lista sin clip) y «Regenerar
-  todos (N)» (todas las de avatar sin clip válido o desactualizadas), con una confirmación que
-  muestra la cantidad, el costo (el de Crear, por la duración real de cada tramo) y el saldo de
-  avatares, releído antes de pagar. Corre `avatar-render-scenes { projectId, sceneIds }` como una
+  avatar» (planeada), «Regenerar avatar» (fallida, desactualizada o lista sin clip; la 2e suma la
+  lista al día) y «Regenerar todos (N)» (todas las de avatar sin clip válido o desactualizadas), con
+  una confirmación que muestra la cantidad, el costo (el de Crear, por la duración real de cada
+  tramo y, desde la 2e, con el motor de cada escena) y el saldo de avatares, releído antes de pagar. Corre `avatar-render-scenes { projectId, sceneIds }` como una
   tarea del editor, exclusiva (Crear espera: no lanza ni reanuda el pipeline de un proyecto con una
   tarea del editor en curso) y cancelable, con el avance en el bloque del timeline; al terminar
   relee el proyecto y el video exportado queda desactualizado como con cualquier cambio. Arriba del
@@ -612,3 +614,178 @@ eliminar, el texto y el efecto de un botón; que reanudar reintente las fallidas
 del `skip` de la fase que mira `completedStages` y volver a contar el avatar en
 `estimateResumeCost`; «Regenerar» son botones sobre un comando que ya existía. La ADR sigue en
 «Propuesta»: pasa a Aceptada con la QA del dueño.
+
+## Enmienda 2026-10-12 — entrega 2e
+
+Pedidos del dueño tras la 2d, con tres capturas (la grilla «Imágenes» del progreso, el panel «Generando
+el avatar» y la guía de movimiento del proveedor); hechos y decisiones: §21 del diseño; rulings
+(`R-2e-N`, y `R-U-N`, `R-X-N` de cada paquete): `docs/handoff/2026-10-09-avatar-heygen/execution-e2e/`
+(`ledger.md` e informes). El dueño pidió construir todo sin preguntar («no preguntes nada y haz todo lo
+necesario»): donde un pedido admitía dos lecturas, la decisión dice cuál se tomó para que la corrija en
+la QA. Lo nuevo que puede cobrar: un video con Avatar IV o V (más caros por minuto que III) y el
+«Regenerar» de una escena lista, un render nuevo con el costo y el saldo a la vista antes de confirmar;
+el prompt de movimiento y «más expresivo» no suman costo en la tabla del proveedor (R-2e-3). Antes de
+empezar, el estado de la 2d quedó marcado con la etiqueta local `avatar-2d-funcional` (`550e7f14`, sin
+push). Donde el diseño o las enmiendas de arriba dicen otra cosa que esta, manda esta.
+
+- **El motor se elige en Crear (R-2e-5, §21.3).** Con un look elegido, la tarjeta ofrece Avatar V, IV y
+  III en el orden del dueño (`CreateAvatarEngine`: un `radiogroup` propio fuera de la grilla de looks),
+  cada uno con su nombre, la descripción que dictó el dueño y el costo de este video a su tarifa por
+  minuto; el que el look no admite queda apagado y dice por qué; por defecto, Avatar III (lo de hasta
+  ahora y lo más barato). El motor elegido es una **preferencia**: el que sale es `selectedAvatarEngine`
+  (`avatarEngineFor` sobre los `supportedEngines` que `SelectedAvatar` copia del look al elegirlo), el
+  preferido si el look lo admite y, si no, el primero en el orden III, IV, V, derivado en el render:
+  elegir otro look nunca parchea el motor. Ese es el `options.avatar.engine` que viaja y el que cobran la
+  tarjeta del costo, el chequeo de saldo, la pausa de confirmación de escenas y el costo de reanudar
+  (R-2e-12: `avatarEngine` llega a la tarea, a la pausa y a `AvatarSpansNote`, y la pausa rearmada desde
+  el disco lo lee de `options.avatar.engine`; una tarea guardada antes de la 2e no lo trae y cobra a la
+  tarifa de III, como antes). `create-video-project` lo revalida contra la biblioteca antes de pagar
+  (`avatarEngineAvailable`: el look lo admite y Vimo tiene tarifa para su tipo; si no,
+  `avatar_look_unavailable`), y la elección guardada deja de valer si el look ya no admite alguno de los
+  motores de su copia (el selector avisa y el envío se frena; al elegirla de nuevo la copia trae los motores
+  de hoy y la preferencia no se toca). Reemplaza el motor fijo de la enmienda del 2026-10-09 y lo que la
+  entrega 2 decía de él.
+- **Un look sirve con cualquier motor (§21.3, WP-Y).** Un look es compatible si está listo y admite al
+  menos un motor con tarifa (`lookEngines`, `isUsableLook` del sidecar): Crear, agregar un avatar, el look
+  principal y «Cargar a la biblioteca» ya no exigen Avatar III, y `VIMO_AVATAR_ENGINE` desaparece. Las
+  fichas de looks, el reproductor, la tarjeta de la biblioteca y el encabezado del panel muestran una
+  pastilla por motor admitido (V, IV, III) dentro de un grupo con nombre (`LookEngineChips`; las
+  pastillas van con `aria-hidden` para que el lector de pantalla diga cada motor una sola vez); «No
+  compatible con Vimo» solo si no admite ninguno y está listo. Los motores de la tarjeta y del encabezado
+  son los del look principal.
+- **Tarifas (R-2e-2, R-2e-3, §21.1).** Avatar V pasa a 7,20 USD por minuto con cualquier tipo de look: el
+  proveedor solo publica V con gemelo digital, y con looks de foto o de estudio se estima a esa tarifa
+  como **techo** (el plan web cobra V igual con looks de foto y de video) hasta medir el cobro real en la
+  QA; IV, 4,83 con gemelo o estudio y 2,31 con foto; III no cambia. El prompt de movimiento y
+  `expressiveness` no suman costo (la tabla del proveedor no los cobra): la interfaz dice «No suma
+  costo» y la QA lo mide. Un motor o un tipo de look fuera de la tabla no tiene tarifa (`null`, no
+  `undefined`) y no cuenta como disponible.
+- **Avatar III sale como siempre (R-2e-1).** El pedido lleva `engine: { type: 'avatar_iii' }` y nada
+  más: `AvatarIIIEngineConfig` solo acepta `type` y la API no tiene la opción «movimiento de cuerpo
+  entero» del estudio web (que la guía del proveedor marca como la opción por defecto de III). El
+  cuerpo, la huella, la clave, el título, `options.avatar` y los recibos guardados de un video con
+  Avatar III son byte a byte los de antes de la 2e (los recibos se siguen cosechando sin pagar): lo fijan
+  los guards, con huellas y un cuerpo crudo calculados con el código de antes del cambio, y la revisión de
+  WP-S lo comprobó contra el carril de `avatar-2d-funcional`.
+- **Movimiento automático con V e IV (R-2e-4, R-2e-9, R-2e-10, R-2e-13, §21.2).**
+  `pipeline/avatar/motion-prompt.ts` escribe el `motion_prompt` de cada aparición cuyo motor y look lo
+  admiten (V con cualquier look; IV con uno de foto: `avatarMotionSupport`) en un solo llamado antes del
+  primer pedido de la escena, en inglés y con la estructura de la guía del proveedor: parte del cuerpo,
+  acción e intensidad, hasta 160 caracteres, solo cara, manos, postura, mirada y quietud, y un porte
+  sostenido en una aparición de más de 10 s (el proveedor repite el movimiento propio). Usa el cliente de
+  texto de movimiento de las animaciones (`createAnimationLlm`, tier `balanced`); sin la clave de
+  DeepInfra, con el modelo caído o con una respuesta que no pasa la validación, la escena usa una
+  plantilla profesional por posición (abre, medio, cierra, larga), con o sin «más expresivo»: nunca frena
+  el render y lo único que propaga es la cancelación. La validación rechaza lo vacío, lo largo y los 47
+  términos de lo que el proveedor no controla (cámara, lugar, objetos, pararse o caminar, fondo y luz, con
+  sus flexiones; sin `tilt`, porque «head tilt» es postura). Se guarda en la escena (`autoMotionPrompt`,
+  `motionPrompt` con `motionSource: 'auto'`, `autoMotionTextHash`) y un prompt que escribió la persona
+  (`'user'`) nunca se toca. Se reescribe si cambia el texto de la escena o «más expresivo» (la huella del
+  automático incluye el tono, R-2e-10: con V es la única forma de que el interruptor cambie el pedido) y
+  **no** mientras el pedido actual de la escena tenga un recibo que el carril cosecharía, en vuelo o ya
+  pagado: cambiarlo cambiaría el pedido y pagaría otro render (R-U-1, R-U-2). Un `motionPrompt` vacío sin
+  automático no es una elección de la persona: Vimo escribe el suyo (R-2e-9). El prompt no llega al log de
+  soporte: los logs del sidecar dicen ids y conteos, y viaja solo dentro de la vista de la escena de
+  `avatar-scene-ready` (como ya viajaba `imagePrompt`), que el diagnóstico de Rust descarta entera.
+- **«Movimiento más expresivo» (R-2e-3, R-2e-10, R-2e-14).** Un interruptor con su ayuda en Crear y en el
+  editor, visible con V o IV y apagado, con el motivo, con IV y un look de video (donde no haría nada y
+  donde Crear tampoco dice «Vimo escribe el movimiento…», porque el proveedor no acepta `motion_prompt` y
+  la frase sería falsa); viaja como `options.avatar.expressive: true`, solo si el motor y el look lo
+  admiten. Con IV y un look de foto el pedido manda `expressiveness: 'high'`; V rechaza `expressiveness`,
+  así que ahí el interruptor cambia el prompt que escribe Vimo y, sobre un prompt de la persona, el pedido
+  le suma al final «More energy and clearer gestures.» —o la lleva sola si el prompt está vacío— (R-2e-14;
+  entra en la huella y en el recibo, y el prompt de la escena queda como lo escribió).
+- **El pedido lleva el movimiento y la huella lo sabe (WP-S, §7.1 y §7.2).** `createVideo` suma
+  `motion_prompt` y `expressiveness` al final del cuerpo y solo cuando vienen. `avatarRequestHash` suma al
+  final, solo cuando van, `['motion', prompt]`, `['expressiveness', 'high']` y `['take', n]` con n > 0;
+  `avatarRenderHash` no cambia (editar el movimiento no deja la escena desactualizada). El recibo guarda
+  el movimiento que salió y una repetición manda el mismo cuerpo bajo la misma clave.
+- **Un rechazo del movimiento no frena la escena (§14).** Un 400 con `param` `motion_prompt` o
+  `expressiveness` es `avatar_motion_unsupported` (después del saldo, antes que la moderación, sin copiar
+  el texto de HeyGen, que podría repetir el prompt, y sin ser un rechazo definitivo): el intento queda
+  `failed`, la escena `motionUnsupported` y el carril pide enseguida, en la misma corrida, el mismo pedido
+  sin movimiento (otra huella, otra clave); en la cosecha, que no tiene permiso para pagar, lo pide
+  después de leer el saldo (`needs-request`). Si ese también falla, sigue el camino de siempre, sin un
+  tercer pedido. Una escena `motionUnsupported` no vuelve a pedir movimiento con el mismo prompt y el
+  editor lo dice; desde la revisión final (`9021f835`, `009a1654`), un prompt distinto escrito en el
+  editor borra la marca y vuelve a intentarlo, porque el rechazo pudo ser del prompt (su largo) y no del
+  look.
+- **Regenerar una escena lista (R-U-1 a R-U-3, C1 de la revisión de WP-U, §21.4).** Toda escena de avatar
+  lista, al día y con su clip ofrece «Regenerar avatar» (`retake`), con su costo al motor de la escena
+  (hasta la 2d el editor cobraba todo a la tarifa de III). `avatar-render-scenes` acepta
+  `regenerateSceneIds` y `motion: [{ sceneId, motionPrompt, expressive }]`, validados antes de hablar con
+  HeyGen. Es un render nuevo pagado aunque nada cambie: la **toma** (`take`) sube en uno, y entra en la
+  huella, cuando el render cobrado del pedido actual de la escena **es el clip que se ve** (su clave es la
+  del nombre de `clipFile`), así el carril no lo cosecha gratis. Un recibo en vuelo de la toma actual se
+  cosecha sin pagar otro, y si el render nuevo se cobró pero no se pudo bajar (falló la descarga o la
+  normalización, o la persona canceló al bajar) la toma **no** sube: el próximo «Regenerar» lo baja sin
+  POST, sin audio y sin leer el saldo, como promete el aviso («ya está pago y no se vuelve a cobrar»);
+  efecto aceptado: si la persona vuelve a un prompt anterior cuyo render ya está pago y nunca se vio,
+  «Regenerar» se lo devuelve sin cobrar, y regenerar otra vez sí paga. Corta la misma parte de la
+  narración (la misma voz). **El clip anterior queda**
+  hasta que el nuevo esté listo: con `forceNewRender` el carril salta el atajo de «lista con el mismo
+  pedido», conserva el clip y el estimado en cada recibo intermedio y, si el nuevo falla (rechazo, render
+  `failed`, plazo, descarga) o la cuenta pausa, la escena vuelve a su estado listo con los recibos y los
+  ajustes nuevos; `avatar-scene-failed` sale igual y el editor dice «Quedó el clip anterior» (también si
+  el job cae entero con `job-failed`, no al cancelar). `regenerateSceneIds` solo regenera una lista con su
+  clip (R-U-3): una pedida que no lo está se trabaja como cualquiera, para cosechar lo ya pagado en vez
+  de subir la toma y pagar otro.
+- **Editor: la sección «Movimiento» (R-2e-8, R-2e-9, WP-X, §21.4).** Con V, o con IV y un look de foto,
+  el panel de la escena muestra antes del costo el motor con su descripción, el prompt en un campo de
+  una sola línea (hasta 300 caracteres, con contador y «Usar el automático»), el interruptor con su
+  tooltip y el desplegable «Qué podés pedir» con las dos listas de la guía (lo que se controla y lo que
+  no); con `motionUnsupported`, una nota arriba del campo, que sigue editable. El borrador vive por escena y los ajustes
+  viajan con «Generar» o «Regenerar» de esa escena —o con «Regenerar todos» si la incluye— **solo si la
+  persona cambió algo** (así una escena a la que Vimo todavía no le escribió el movimiento no queda como
+  «sin movimiento propio»); el sidecar los guarda antes de pedir (`auto` si es el de Vimo, `user` si no).
+  El editor no cambia el motor de una escena (no se pidió): regenera con el del proyecto.
+- **Progreso (R-2e-6, R-2e-7, §21.5).** Junto al tiempo de cada aparición que se genera, un spinner y el
+  porcentaje simulado con la curva del editor (`avatarActivityPercent`; nunca dice 100, sin barra; al
+  terminar, «Lista»); el spinner del paso pasa al lado del porcentaje, uno por fila. En la grilla
+  «Imágenes», cada escena del avatar es una tarjeta propia (`AvatarSceneCell`: borde y fondo morados, el
+  ícono del avatar, número y tramo como una imagen, su estado, sin imagen ni «Ampliar»), y el conteo
+  «Imágenes (n/m)», el encabezado y el visor de «Ampliar» cuentan solo imágenes. Cada tarjeta que se
+  genera corre su reloj, para no repintar la grilla ni quitarle el foco al visor.
+- **Estacionado (R-2e-15).** Cambiar el movimiento de una escena con un recibo en vuelo (`ambiguous`, o
+  el `pending` que deja un `avatar_timeout`) paga un render nuevo y deja el anterior sin cosechar,
+  porque el movimiento entra en la huella. Es raro (plazo vencido o un POST sin respuesta), lo pide la
+  persona con el costo completo a la vista y la alternativa —ignorar en silencio el prompt que editó— es
+  peor; avisarlo exige exponer los recibos en la vista y queda para la entrega 3. También quedan
+  estacionados el pedido sin movimiento que vuelve a subir el mismo audio (no paga un render), un
+  reintento sin movimiento que cae en un recibo `succeeded` viejo de la misma huella al «Regenerar» y un
+  render en vuelo que queda escondido tras una regeneración fallida o cancelada: la vista no expone los
+  recibos, otro «Regenerar» lo cosecha gratis, pero la confirmación anuncia el costo completo.
+- **Verificación.** Guard nuevo: `check-avatar-motion-prompt.mjs` (27 tests). Ampliados:
+  `check-heygen-client.mjs` (59), `check-avatar-lane.mjs` (88), `check-avatar-create-project.mjs` (70),
+  `check-avatar-library.mjs` (102), `check-scene-pins.mjs` (40), `check-avatar-scene-model.mjs` (14),
+  `check-avatar-stage.mjs` (57), `check-create-avatar-ui.mjs` (323 checks), `check-app-avatar-create.mjs`
+  (24), `check-create-draft-ui.mjs` (32; solo ajustó su fixture), `check-avatar-progress-ui.mjs` (209),
+  `check-editor-avatar-regenerate-ui.mjs` (297) y `check-avatar-library-ui.mjs` (51 pruebas). Cada paquete
+  corrió mutantes sobre una copia (S 26 de 27, T 56 de 59 —los tres restantes mueren con las pruebas que
+  sumó R-2e-13—, U 33 de 36 con 3 equivalentes y 10 más en su ronda, V 15 de 15 y 6 y 12 más en sus dos
+  rondas, W 41 de 41, X 28 de 28, Y 18 de 18 y 14 de 15 en su ronda —`size` queda vivo a propósito—) y la
+  suite de Node pasó en verde con el árbol de cada paquete (85 archivos, 1725 pruebas al cerrar WP-U,
+  antes de sus rondas). Todo con HeyGen y el modelo de texto simulados: la ejecución no gastó saldo.
+
+**A confirmar en la QA del dueño, con la app real** (lista: `execution-e2e/qa-2e.md`): cuánto cobra
+Avatar V con un look de foto o de estudio (Vimo estima 7,20 USD por minuto como techo) y si «más
+expresivo» suma costo, mirando el saldo antes y después (R-2e-2 y R-2e-3); si el cuerpo de Avatar III
+acompaña sin la opción «movimiento de cuerpo entero» (R-2e-1; si no, es un pedido al proveedor y no un
+campo que falte); el movimiento de verdad con V e IV (la cara y las manos acompañan lo que dice sin
+exagerar, y «más expresivo» se nota); cuánto texto acepta HeyGen en `motion_prompt` (con el sufijo de
+R-2e-14 viaja hasta con 334 caracteres, y un rechazo por largo se leería como «el look no admite
+movimiento»: se genera sin él); si el proveedor rechaza el movimiento con otro status que 400 (por
+ejemplo un 422), la escena queda fallida y no se reintenta sin movimiento; el Enter sostenido sobre «Usar
+el automático» y el pegado de texto con saltos de línea en la WKWebView; y un «Regenerar» de una lista con
+un render real (el clip nuevo cubre la misma parte con la misma voz y, si falla, queda el anterior con
+su aviso). La lista de la 2d sigue vigente.
+
+Costo si estuviera mal: V a 7,20 con cualquier look (R-2e-2) y «más expresivo» sin costo (R-2e-3) son una
+cifra de `AVATAR_USD_PER_MINUTE` y un sumando de los estimadores (si el cobro real es otro, se muestra
+más caro o más corto hasta corregirla); los prompts automáticos menos naturales (R-2e-4) se cambian en
+el editor y el prompt del sistema es una constante de `motion-prompt.ts`; el motor derivado (R-2e-5) es
+`avatarEngineFor`; el spinner junto al porcentaje (R-2e-6) vuelve a la línea del paso; la tarjeta propia
+y el conteo (R-2e-7) son `GenerationProgress` y `SceneImagesGrid`; la frase de V con un prompt propio
+(R-2e-14) es `AVATAR_EXPRESSIVE_PROMPT_SUFFIX` y la línea de `requestMotionPrompt` que la suma; R-2e-15 es
+un render de más en un caso raro; que Avatar III no mueva el cuerpo entero (R-2e-1) es un pedido al
+proveedor. La ADR sigue en «Propuesta»: pasa a Aceptada con la QA del dueño.

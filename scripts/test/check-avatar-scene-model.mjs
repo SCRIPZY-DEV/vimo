@@ -1,10 +1,12 @@
 // El modelo de la escena de avatar (ADR-0057, entrega 2, tarea 1): la tarifa
-// con la que se estima el costo (diseño §3.4), la carpeta `avatar/` del
+// con la que se estima el costo (diseño §3.4; desde la entrega 2e, Avatar V a
+// 7,20 por minuto con cualquier look, R-2e-2), la carpeta `avatar/` del
 // proyecto y los nombres de sus archivos (§3.2: el clip que se lee de
 // scenes.json se valida antes de usarse, como el de las animaciones), la vista
 // que la UI recibe de una escena de avatar (§3.3: sin recibos, con la ruta del
 // clip, «desactualizada» derivada al leer —desde la entrega 2d, también en una
-// lista que perdió su clip— y, como vista previa fija, la del
+// lista que perdió su clip—, desde la 2e con el movimiento que edita el
+// editor, y, como vista previa fija, la del
 // look: Vimo no genera imagen para una escena de avatar) y la versión de la
 // narración, que sube al reemplazarla sin tocar los recibos de HeyGen que
 // viven en las escenas. Importa el código real del sidecar (Node quita los
@@ -44,6 +46,7 @@ import {
   AVATAR_LOOK_ORIENTATION_BY_FORMAT,
   AVATAR_LOOK_TYPES,
   AVATAR_USD_PER_MINUTE,
+  avatarEngineAvailable,
   avatarUsdPerMinute,
   estimateAvatarUsd,
 } from '../../pipeline/types/avatar.ts'
@@ -123,15 +126,16 @@ async function projectFolder(t) {
   return { root, project }
 }
 
-test('tarifa: con Avatar III, tres apariciones de 10 s cuestan ≈ 0,50 USD con foto o estudio y ≈ 0,30 con gemelo digital', () => {
+test('tarifa: con Avatar III, tres apariciones de 10 s cuestan ≈ 0,50 USD con foto o estudio y ≈ 0,30 con gemelo digital; con V, 7,20 por minuto con cualquier look', () => {
   close(estimateAvatarUsd(3 * 10, 'avatar_iii', 'photo_avatar'), 0.495)
   close(estimateAvatarUsd(3 * 10, 'avatar_iii', 'studio_avatar'), 0.495)
   close(estimateAvatarUsd(3 * 10, 'avatar_iii', 'digital_twin'), 0.3)
   // Un minuto de Avatar IV con foto cuesta su tarifa entera.
   close(estimateAvatarUsd(60, 'avatar_iv', 'photo_avatar'), 2.31)
-  // Avatar V no aplica a foto ni a estudio: sin precio, nunca «gratis».
-  assert.equal(estimateAvatarUsd(30, 'avatar_v', 'studio_avatar'), null)
-  assert.equal(estimateAvatarUsd(30, 'avatar_v', 'photo_avatar'), null)
+  // Avatar V (entrega 2e, R-2e-2): el proveedor solo publica V con gemelo
+  // digital; con foto o estudio se estima a esa tarifa, como techo.
+  for (const lookType of ['digital_twin', 'studio_avatar', 'photo_avatar'])
+    close(estimateAvatarUsd(30, 'avatar_v', lookType), 3.6)
   // Nada que renderizar no cuesta nada, y un valor roto no da NaN.
   assert.equal(estimateAvatarUsd(0, 'avatar_iii', 'photo_avatar'), 0)
   assert.equal(estimateAvatarUsd(Number.NaN, 'avatar_iii', 'photo_avatar'), 0)
@@ -153,6 +157,27 @@ test('tarifa: una entrada por motor y tipo de look, y el motor de Vimo tiene pre
       'number',
       lookType,
     )
+})
+
+test('tarifa (entrega 2e): un tipo de look o un motor fuera de la tabla no tiene tarifa ni sirve, en vez de colarse como disponible', () => {
+  assert.equal(avatarUsdPerMinute('avatar_iii', 'hologram'), null)
+  assert.equal(avatarUsdPerMinute('avatar_vi', 'photo_avatar'), null)
+  assert.equal(estimateAvatarUsd(30, 'avatar_iii', 'hologram'), null)
+  assert.equal(
+    avatarEngineAvailable('avatar_iii', {
+      supportedEngines: ['avatar_iii'],
+      lookType: 'hologram',
+    }),
+    false,
+  )
+  // El control: el mismo look con un tipo de la tabla sí sirve.
+  assert.equal(
+    avatarEngineAvailable('avatar_iii', {
+      supportedEngines: ['avatar_iii'],
+      lookType: 'photo_avatar',
+    }),
+    true,
+  )
 })
 
 test('orientación del look por formato: horizontal para 16:9, vertical para 9:16, y la de cada formato coincide con su cuadro', () => {
@@ -478,6 +503,92 @@ test('vista (entrega 2d): «desactualizada» se marca en toda escena lista, tamb
     .avatar
   assert.equal(fresh.status, 'ready')
   assert.equal('stale' in fresh, false)
+})
+
+test('vista (entrega 2e): el movimiento de la escena viaja al editor —prompt, el automático, quién lo escribió, «más expresivo» y el rechazo del look—; la huella del texto y la toma no; editarlo no la deja desactualizada', async (t) => {
+  const { project } = await projectFolder(t)
+  await writeFile(avatarClipFile(project, 1, HASH), Buffer.from('mp4'))
+  const motion = {
+    engine: 'avatar_iv',
+    expressive: true,
+    motionPrompt: 'Smile at the camera.',
+    motionSource: 'user',
+    autoMotionPrompt: 'Warm smile at the camera with a gentle nod.',
+    autoMotionTextHash: 'b'.repeat(64),
+    motionUnsupported: true,
+    take: 2,
+  }
+  const scene = {
+    id: 1,
+    text: 'hola',
+    startSeconds: 0,
+    endSeconds: 10,
+    avatar: {
+      ...READY_AVATAR,
+      ...motion,
+      renderHash: avatarRenderHash({
+        lookId: 'look-1',
+        engine: 'avatar_iv',
+        startFrame: 0,
+        endFrame: 250,
+        narrationVersion: 0,
+      }),
+    },
+  }
+  const view = (await toSceneSummary(project, scene, {})).avatar
+  assert.equal(view.status, 'ready')
+  assert.equal('stale' in view, false)
+  assert.equal(view.engine, 'avatar_iv')
+  assert.equal(view.motionPrompt, 'Smile at the camera.')
+  assert.equal(view.motionSource, 'user')
+  assert.equal(
+    view.autoMotionPrompt,
+    'Warm smile at the camera with a gentle nod.',
+  )
+  assert.equal(view.expressive, true)
+  assert.equal(view.motionUnsupported, true)
+  for (const hidden of ['autoMotionTextHash', 'take', 'attempts'])
+    assert.equal(hidden in view, false, hidden)
+
+  // Un scenes.json editado no le pasa a la UI lo que no tiene su tipo; y una
+  // escena sin ajustes (Avatar III, como antes de la 2e) no gana ninguna clave.
+  const broken = (
+    await toSceneSummary(
+      project,
+      {
+        ...scene,
+        avatar: {
+          ...scene.avatar,
+          expressive: 'yes',
+          motionPrompt: 5,
+          motionSource: 'robot',
+          autoMotionPrompt: null,
+          motionUnsupported: 1,
+        },
+      },
+      {},
+    )
+  ).avatar
+  for (const key of [
+    'expressive',
+    'motionPrompt',
+    'motionSource',
+    'autoMotionPrompt',
+    'motionUnsupported',
+  ])
+    assert.equal(key in broken, false, key)
+  const plain = (
+    await toSceneSummary(
+      project,
+      {
+        ...scene,
+        avatar: { ...READY_AVATAR, renderHash: renderHashUntil(10) },
+      },
+      {},
+    )
+  ).avatar
+  for (const key of Object.keys(motion).filter((key) => key !== 'engine'))
+    assert.equal(key in plain, false, key)
 })
 
 test('reemplazar la narración sube narrationVersion y no toca el avatar de las escenas: sus recibos siguen y el clip queda desactualizado', async (t) => {

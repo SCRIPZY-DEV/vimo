@@ -2,7 +2,8 @@
 // 2b y 2c) contra una carpeta raíz temporal y un HeyGen simulado con `fetch` falso.
 // Desde la entrega 1b un avatar de la biblioteca es un grupo de HeyGen con sus
 // looks: el alta por grupo con el look principal elegido o por defecto (el
-// primero listo con Avatar III), sin duplicados, con las vistas previas de la
+// primero listo con un motor que Vimo use; desde la entrega 2e cualquiera con
+// tarifa, no solo Avatar III), sin duplicados, con las vistas previas de la
 // tarjeta; la creación desde foto (validar la foto antes de hablar con HeyGen,
 // clave de idempotencia determinista); el refresco que sigue el
 // entrenamiento, suma looks y recalcula el principal sin pisar lo que otro
@@ -134,9 +135,11 @@ const stockLook = (id, overrides = {}) => ({
   ...overrides,
 })
 
-// Dante: el primer look no tiene Avatar III, así que no puede ser principal.
+// Dante: el primer look no admite ningún motor que Vimo use (HeyGen nombra uno
+// que Vimo no conoce y el mapeo lo descarta), así que no puede ser principal.
+// Desde la entrega 2e uno solo-IV sí puede.
 const DANTE_LOOKS = [
-  stockLook('dante-1', { supported_api_engines: ['avatar_iv'] }),
+  stockLook('dante-1', { supported_api_engines: ['avatar_x'] }),
   stockLook('dante-2'),
   stockLook('dante-3'),
   stockLook('dante-4'),
@@ -841,13 +844,13 @@ test('avatar-add: guarda el avatar con todos sus looks y el principal elegido, y
   assert.equal('previewPath' in stored, false)
 })
 
-test('avatar-add: sin look elegido, o con uno que no sirve, el principal es el primero listo con Avatar III', async (t) => {
+test('avatar-add: sin look elegido, o con uno que no sirve, el principal es el primero listo con un motor que Vimo use', async (t) => {
   const ownLooks = [
     stockLook('own-1', { group_id: 'group-own', status: 'processing' }),
     stockLook('own-2', {
       group_id: 'group-own',
       status: 'completed',
-      supported_api_engines: ['avatar_iv'],
+      supported_api_engines: [],
     }),
     stockLook('own-3', { group_id: 'group-own', status: 'completed' }),
   ]
@@ -864,7 +867,8 @@ test('avatar-add: sin look elegido, o con uno que no sirve, el principal es el p
     },
     groupLooks: { 'group-dante': DANTE_LOOKS, 'group-own': ownLooks },
   })
-  // dante-1 no tiene Avatar III y `nope` no existe: el principal es dante-2.
+  // dante-1 no admite ningún motor de Vimo y `nope` no existe: el principal
+  // es dante-2.
   for (const mainLookId of [undefined, 'dante-1', 'nope']) {
     const { root } = await session(t)
     const { entry } = await avatarsSubcommands['avatar-add'](
@@ -874,7 +878,7 @@ test('avatar-add: sin look elegido, o con uno que no sirve, el principal es el p
   }
 
   // Un avatar propio: se piden sus looks privados; uno que entrena o sin
-  // Avatar III no puede ser el principal, y el género sale del grupo.
+  // ningún motor de Vimo no puede ser el principal, y el género sale del grupo.
   const { root } = await session(t)
   const { entry } = await avatarsSubcommands['avatar-add'](
     context(root, { groupId: 'group-own', ownership: 'own', gender: 'female' }),
@@ -894,12 +898,12 @@ test('avatar-add: sin look elegido, o con uno que no sirve, el principal es el p
   assert.equal(new URLSearchParams(ownQuery.search).get('ownership'), 'private')
 })
 
-test('avatar-add: un avatar sin ningún look listo con Avatar III no se agrega', async (t) => {
+test('avatar-add: un avatar sin ningún look listo con un motor que Vimo use no se agrega', async (t) => {
   const { root } = await session(t)
   const calls = fakeHeyGen(t, {
     groupLooks: {
       'group-dante': [
-        stockLook('dante-1', { supported_api_engines: ['avatar_iv'] }),
+        stockLook('dante-1', { supported_api_engines: [] }),
         stockLook('dante-2', { status: 'processing' }),
       ],
     },
@@ -916,6 +920,35 @@ test('avatar-add: un avatar sin ningún look listo con Avatar III no se agrega',
   assert.equal(error.code, 'avatar_no_compatible_look')
   assert.deepEqual(cdnCalls(calls), [])
   assert.equal(await exists(join(root, 'avatars')), false)
+})
+
+test('avatar-add (entrega 2e): un avatar cuyos looks son solo-IV (o solo-V) se agrega; el elegido es el principal y, sin elegir, el primero listo', async (t) => {
+  fakeHeyGen(t, {
+    groupLooks: {
+      'group-dante': [
+        stockLook('dante-1', { status: 'processing' }),
+        stockLook('dante-2', { supported_api_engines: ['avatar_iv'] }),
+        stockLook('dante-3', {
+          avatar_type: 'photo_avatar',
+          supported_api_engines: ['avatar_v'],
+        }),
+      ],
+    },
+  })
+  for (const [mainLookId, expected] of [
+    [undefined, 'dante-2'],
+    ['dante-2', 'dante-2'],
+    ['dante-3', 'dante-3'],
+    // Uno que entrena no sirve: el primero listo.
+    ['dante-1', 'dante-2'],
+  ]) {
+    const { root } = await session(t)
+    const { entry } = await avatarsSubcommands['avatar-add'](
+      context(root, { groupId: 'group-dante', ownership: 'stock', mainLookId }),
+    )
+    assert.equal(entry.mainLookId, expected, String(mainLookId))
+    assert.equal(entry.status, 'ready', String(mainLookId))
+  }
 })
 
 test('avatar-add: un avatar ya agregado devuelve la entrada existente sin hablar con HeyGen', async (t) => {
@@ -1812,11 +1845,11 @@ test('avatar-refresh: un look de Vimo listo sin vista previa en disco la busca p
   assert.deepEqual(lookups(calls.slice(before)), [])
 })
 
-test('avatar-refresh: si el look principal desaparece, el nuevo es el primero listo con Avatar III', async (t) => {
+test('avatar-refresh: si el look principal desaparece, el nuevo es el primero listo con un motor que Vimo use', async (t) => {
   const { root } = await session(t)
   const looks = [
     storedLook('dante-9'),
-    storedLook('dante-1', { supportedEngines: ['avatar_iv'] }),
+    storedLook('dante-1', { supportedEngines: [] }),
     storedLook('dante-2'),
   ]
   await writeStored(
@@ -1824,8 +1857,8 @@ test('avatar-refresh: si el look principal desaparece, el nuevo es el primero li
     'dante-aaaaaa',
     storedAvatar({ mainLookId: 'dante-9', looks }),
   )
-  // Otro avatar al que solo le queda un look sin Avatar III: ese pasa a ser
-  // el principal (la tarjeta lo marca «No compatible con Vimo»).
+  // Otro avatar al que solo le queda un look sin ningún motor de Vimo: ese
+  // pasa a ser el principal (la tarjeta lo marca «No compatible con Vimo»).
   await writeStored(
     root,
     'brody-bbbbbb',
@@ -1843,13 +1876,13 @@ test('avatar-refresh: si el look principal desaparece, el nuevo es el primero li
     },
     groupLooks: {
       'group-dante': [
-        stockLook('dante-1', { supported_api_engines: ['avatar_iv'] }),
+        stockLook('dante-1', { supported_api_engines: [] }),
         stockLook('dante-2'),
       ],
       'group-brody': [
         stockLook('brody-1', {
           group_id: 'group-brody',
-          supported_api_engines: ['avatar_iv'],
+          supported_api_engines: [],
         }),
       ],
     },
@@ -1866,6 +1899,27 @@ test('avatar-refresh: si el look principal desaparece, el nuevo es el primero li
   const brody = (await refresh(root, 'brody-bbbbbb')).entry
   assert.equal(brody.mainLookId, 'brody-1')
   assert.equal(brody.status, 'ready')
+})
+
+test('avatar-refresh (entrega 2e): si el look principal desaparece, un look solo-IV listo puede ser el nuevo principal', async (t) => {
+  const { root } = await session(t)
+  await writeStored(
+    root,
+    'dante-aaaaaa',
+    storedAvatar({ mainLookId: 'dante-9', looks: [storedLook('dante-9')] }),
+  )
+  fakeHeyGen(t, {
+    groupLooks: {
+      'group-dante': [
+        stockLook('dante-1', { status: 'processing' }),
+        stockLook('dante-2', { supported_api_engines: ['avatar_iv'] }),
+        stockLook('dante-3'),
+      ],
+    },
+  })
+  const { entry } = await refresh(root, 'dante-aaaaaa')
+  assert.equal(entry.mainLookId, 'dante-2')
+  assert.equal(entry.status, 'ready')
 })
 
 test('avatar-refresh: si HeyGen ya no tiene el grupo, el avatar queda fallido con su código y el refresco no falla', async (t) => {
@@ -2082,14 +2136,14 @@ test('avatar-set-main-look: sin clave o si HeyGen falla, el principal cambia igu
   assert.deepEqual(heygenCalls(calls), ['GET /v3/avatars/looks/dante-3'])
 })
 
-test('avatar-set-main-look: un look ajeno, que no está listo o sin Avatar III no puede ser el principal', async (t) => {
+test('avatar-set-main-look: un look ajeno, que no está listo o sin ningún motor que Vimo use no puede ser el principal', async (t) => {
   const { root } = await session(t)
   const metadata = storedAvatar({
     looks: [
       STORED_LOOK,
       storedLook('training', { status: 'processing' }),
       storedLook('failed', { status: 'failed' }),
-      storedLook('iv-only', { supportedEngines: ['avatar_iv'] }),
+      storedLook('no-engine', { supportedEngines: [] }),
     ],
   })
   await writeStored(root, 'dante-aaaaaa', metadata)
@@ -2098,7 +2152,7 @@ test('avatar-set-main-look: un look ajeno, que no está listo o sin Avatar III n
     [{ id: 'dante-aaaaaa', lookId: 'nope' }, 'invalid_payload'],
     [{ id: 'dante-aaaaaa', lookId: 'training' }, 'avatar_no_compatible_look'],
     [{ id: 'dante-aaaaaa', lookId: 'failed' }, 'avatar_no_compatible_look'],
-    [{ id: 'dante-aaaaaa', lookId: 'iv-only' }, 'avatar_no_compatible_look'],
+    [{ id: 'dante-aaaaaa', lookId: 'no-engine' }, 'avatar_no_compatible_look'],
     [{ id: 'dante-aaaaaa' }, 'invalid_payload'],
     [{ id: 'dante-aaaaaa', lookId: '' }, 'invalid_payload'],
     [{ id: '../x', lookId: 'dante-2' }, 'invalid_payload'],
@@ -2114,6 +2168,34 @@ test('avatar-set-main-look: un look ajeno, que no está listo o sin Avatar III n
   }
   assert.equal(calls.length, 0)
   assert.deepEqual(await readStored(root, 'dante-aaaaaa'), metadata)
+})
+
+test('avatar-set-main-look (entrega 2e): un look solo-IV listo puede ser el principal', async (t) => {
+  const { root } = await session(t)
+  const directory = await writeStored(
+    root,
+    'dante-aaaaaa',
+    storedAvatar({
+      looks: [
+        STORED_LOOK,
+        storedLook('iv-only', { supportedEngines: ['avatar_iv'] }),
+      ],
+    }),
+  )
+  await mkdir(join(directory, 'looks'))
+  await writeFile(
+    join(directory, 'looks', 'iv-only.png'),
+    cdnImage('/iv-only.png'),
+  )
+  const calls = fakeHeyGen(t)
+  const { entry } = await setMainLook(root, {
+    id: 'dante-aaaaaa',
+    lookId: 'iv-only',
+  })
+  assert.equal(entry.mainLookId, 'iv-only')
+  assert.equal(entry.status, 'ready')
+  assert.equal((await readStored(root, 'dante-aaaaaa')).mainLookId, 'iv-only')
+  assert.equal(calls.length, 0)
 })
 
 test('avatar-set-main-look: si el look desaparece mientras se baja su vista previa, no queda como principal ni cambia la cara del avatar', async (t) => {

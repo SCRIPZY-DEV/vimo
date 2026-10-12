@@ -277,6 +277,7 @@ export async function toSceneAvatarView(
     view.narrationVersion = avatar.narrationVersion
   if (avatar.usdEstimated !== undefined) view.usdEstimated = avatar.usdEstimated
   if (avatar.errorCode) view.errorCode = avatar.errorCode
+  copyMotionView(avatar, view)
 
   if (avatar.status !== 'ready') return view
 
@@ -293,6 +294,22 @@ export async function toSceneAvatarView(
   view.clipPath = clipPath
   view.clipMtimeMs = clipMtimeMs
   return view
+}
+
+// El movimiento de la escena para el editor (entrega 2e, §21.4): el prompt,
+// el último automático y quién lo escribió, «más expresivo» y si HeyGen
+// rechazó el movimiento con este look. Cada uno solo si está y con su tipo (un
+// scenes.json editado no le pasa a la UI un prompt que no es texto). La huella
+// del texto y la toma son del sidecar: no viajan.
+function copyMotionView(avatar: SceneAvatar, view: SceneAvatarView): void {
+  if (typeof avatar.motionPrompt === 'string')
+    view.motionPrompt = avatar.motionPrompt
+  if (avatar.motionSource === 'auto' || avatar.motionSource === 'user')
+    view.motionSource = avatar.motionSource
+  if (typeof avatar.autoMotionPrompt === 'string')
+    view.autoMotionPrompt = avatar.autoMotionPrompt
+  if (avatar.expressive === true) view.expressive = true
+  if (avatar.motionUnsupported === true) view.motionUnsupported = true
 }
 
 // Un clip listo está desactualizado si se renderizó con otra versión de la

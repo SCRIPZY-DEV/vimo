@@ -6,6 +6,7 @@ import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { Button } from '@/modules/common/ui/button'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
 import { EditorAvatarConfirmDialog } from '@/modules/videos/components/EditorAvatarConfirmDialog'
+import { EditorAvatarMotion } from '@/modules/videos/components/EditorAvatarMotion'
 import { EditorAvatarRenderProgress } from '@/modules/videos/components/EditorAvatarRenderProgress'
 import { useAvatarRenderPercent } from '@/modules/videos/hooks/useAvatarRenderPercent'
 import { useAvatarSceneRender } from '@/modules/videos/hooks/useAvatarSceneRender'
@@ -28,11 +29,16 @@ interface EditorAvatarSceneActionsProps {
 // El avatar de una escena de avatar desde el panel del editor (entrega 2d,
 // spec §11.1, §11.4 y §20): «Generar» si está planeada; «Regenerar» si falló,
 // quedó desactualizada o está lista sin clip; y, junto a ese botón, «Regenerar
-// todos (N)» cuando hay más de una así. Una lista y al día no ofrece nada. El
-// costo se ve antes y la confirmación muestra el saldo antes de pagar.
-// Mientras se genera, el avance y «Cancelar». Sin la clave del avatar
-// presentador, el aviso de siempre con su enlace. Dueño de su asunto: la
-// tarea, el saldo y la confirmación viven en useAvatarSceneRender.
+// todos (N)» cuando hay más de una así. Desde la entrega 2e (§21.4) una lista
+// y al día ofrece «Regenerar» (un render nuevo pagado, sin «Regenerar
+// todos»), el costo es el del motor de la escena y, con V o IV si el look
+// admite movimiento, la sección «Movimiento» va antes del costo
+// (EditorAvatarMotion). El costo se ve antes y la confirmación muestra el
+// saldo antes de pagar. Mientras se genera, el avance y «Cancelar». Sin la
+// clave del avatar presentador, el aviso de siempre con su enlace. Dueño de su
+// asunto: la tarea, el saldo, la confirmación y el borrador del movimiento
+// viven en useAvatarSceneRender; el panel lo monta con la `key` de la escena,
+// así nada de esto pasa de una escena a otra.
 export function EditorAvatarSceneActions({
   projectId,
   scene,
@@ -87,7 +93,11 @@ export function EditorAvatarSceneActions({
   const failureCode =
     avatarRender.state === 'failed' ? scene.avatar?.errorCode : undefined
   const pendingIds = avatarRender.pendingScenes.map((item) => item.id)
+  // «Regenerar todos» va junto al botón de una escena sin clip válido o
+  // desactualizada, nunca junto al de una lista (que no cuenta).
+  const offersAll = pendingIds.includes(scene.id) && pendingIds.length > 1
   const confirmation = avatarRender.confirmation
+  const motion = avatarRender.motion
 
   const openConfirmation = (opener: HTMLButtonElement, sceneIds: number[]) => {
     focus.rememberOpener(opener)
@@ -99,8 +109,8 @@ export function EditorAvatarSceneActions({
   }
 
   return (
-    // Sin nada que ofrecer (lista y al día) la sección no ocupa lugar: la
-    // confirmación se dibuja en un portal, fuera de ella.
+    // Sin nada que ofrecer (una escena sin tramo) la sección no ocupa lugar:
+    // la confirmación se dibuja en un portal, fuera de ella.
     <div
       ref={sectionRef}
       tabIndex={-1}
@@ -126,6 +136,14 @@ export function EditorAvatarSceneActions({
             <p className="rounded-lg border border-saffron/40 bg-saffron/10 p-2 font-body text-xs text-foreground">
               {t('library.editor.timeline.avatarStaleHint')}
             </p>
+          )}
+          {motion && scene.avatar && (
+            <EditorAvatarMotion
+              avatar={scene.avatar}
+              value={motion.value}
+              disabled={disabled}
+              onChange={motion.onChange}
+            />
           )}
           {avatarRender.action && avatarRender.sceneCost && (
             <p className="font-body text-xs text-muted-foreground">
@@ -157,7 +175,7 @@ export function EditorAvatarSceneActions({
               </span>
             </Button>
           )}
-          {avatarRender.action && pendingIds.length > 1 && (
+          {offersAll && (
             <Button
               type="button"
               variant="outline"

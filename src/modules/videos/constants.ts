@@ -23,10 +23,13 @@ import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 import type { GemSectionKey } from '@pipeline/types/styles.ts'
 import type { ScenePromptFailureSource } from '@pipeline/types/scenes.ts'
 import type { AvatarLookFormat } from '@pipeline/avatar/look-orientation.ts'
+import type { AvatarRowStatus } from '@/modules/videos/utilities/avatarTaskEvents'
 import {
   AVATAR_DEFAULT_APPEARANCE_SECONDS,
   AVATAR_DEFAULT_APPEARANCES,
+  AVATAR_DEFAULT_ENGINE,
 } from '@pipeline/types/avatar.ts'
+import type { AvatarEngine } from '@pipeline/types/avatar.ts'
 import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
@@ -1011,6 +1014,8 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   avatarAppearances: AVATAR_DEFAULT_APPEARANCES,
   avatarSecondsPerAppearance: AVATAR_DEFAULT_APPEARANCE_SECONDS,
   avatarStartsVideo: true,
+  avatarEngine: AVATAR_DEFAULT_ENGINE,
+  avatarExpressive: false,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
   voice: null,
@@ -1096,15 +1101,15 @@ export const AVATAR_LOOK_LETTERBOX_CLASS =
   'bg-[repeating-linear-gradient(135deg,hsl(var(--muted-foreground)/0.16)_0_1px,transparent_1px_7px)]'
 // Lo que dice una ficha de la grilla del botón «Look» que no se puede elegir,
 // por el motivo que da la regla (`lookUnfitReason`, selectableAvatar.ts). Un
-// look que se genera, que falló o sin el motor de Vimo usa el texto corto de
-// las tarjetas de la biblioteca; uno de otro formato dice para qué videos es
-// (`{{format}}`: el formato del look), y uno cuya orientación HeyGen no
-// informó lo dice tal cual, aunque su imagen tenga medidas.
+// look que se genera, que falló o que no admite ningún motor con tarifa usa
+// el texto corto de las tarjetas de la biblioteca; uno de otro formato dice
+// para qué videos es (`{{format}}`: el formato del look), y uno cuya
+// orientación HeyGen no informó lo dice tal cual, aunque su imagen tenga
+// medidas.
 export const LOOK_UNFIT_REASON_KEYS: Record<LookUnfitReason, string> = {
   processing: 'avatars.detalle.lookGenerando',
   failed: 'avatars.detalle.lookFallido',
   engine: 'avatars.tarjeta.noCompatible',
-  rate: 'avatars.tarjeta.noCompatible',
   unknownOrientation: 'create.avatar.unknownOrientation',
   otherFormat: 'create.avatar.otherFormat',
 }
@@ -1114,16 +1119,63 @@ export const LOOK_UNFIT_REASON_KEYS: Record<LookUnfitReason, string> = {
 // tiene que leer por qué no hay «Usar», no deducirlo. El reproductor traduce
 // la clave SIN variables, así que `create.avatar.otherFormat` («Para videos
 // {{format}}») no sirve acá: el formato del look ya está en sus chips y la
-// frase de otro formato no lo repite. Un look que se genera o que no tiene
-// Avatar III usa las frases del reproductor de la biblioteca; los otros tres,
-// las propias de Crear.
+// frase de otro formato no lo repite. Un look que se genera o que no admite
+// ningún motor usa las frases del reproductor de la biblioteca; los otros
+// tres, las propias de Crear.
 export const LOOK_PLAYER_REASON_KEYS: Record<LookUnfitReason, string> = {
   processing: 'avatars.reproductor.noListoHint',
   failed: 'create.avatar.failedLookHint',
   engine: 'avatars.reproductor.noCompatibleHint',
-  rate: 'avatars.reproductor.noCompatibleHint',
   unknownOrientation: 'create.avatar.unknownOrientationHint',
   otherFormat: 'create.avatar.otherFormatHint',
+}
+// El nombre de cada motor del avatar (el de la biblioteca) y la descripción
+// que dictó el dueño para elegirlo en Crear (entrega 2e, §21.3); el editor la
+// repite en la línea del motor. Un motor nuevo en AVATAR_ENGINES no compila
+// hasta tener sus textos.
+export const AVATAR_ENGINE_LABEL_KEYS: Record<AvatarEngine, string> = {
+  avatar_v: 'avatars.engines.avatar_v',
+  avatar_iv: 'avatars.engines.avatar_iv',
+  avatar_iii: 'avatars.engines.avatar_iii',
+}
+export const AVATAR_ENGINE_DESCRIPTION_KEYS: Record<AvatarEngine, string> = {
+  avatar_v: 'create.avatar.engineDescription.avatar_v',
+  avatar_iv: 'create.avatar.engineDescription.avatar_iv',
+  avatar_iii: 'create.avatar.engineDescription.avatar_iii',
+}
+// La guía «Qué podés pedir» de la sección «Movimiento» del editor (entrega 2e,
+// §21.4): lo que el motor del avatar controla y lo que no, en el orden de la
+// guía del proveedor (es también la regla del movimiento automático, §21.2).
+export const AVATAR_MOTION_GUIDE_ALLOWED_KEYS = [
+  'library.editor.avatar.guiaExpresiones',
+  'library.editor.avatar.guiaGestos',
+  'library.editor.avatar.guiaPostura',
+  'library.editor.avatar.guiaQuietud',
+  'library.editor.avatar.guiaMirada',
+] as const
+export const AVATAR_MOTION_GUIDE_FORBIDDEN_KEYS = [
+  'library.editor.avatar.guiaCamara',
+  'library.editor.avatar.guiaLugar',
+  'library.editor.avatar.guiaObjetos',
+  'library.editor.avatar.guiaCaminar',
+  'library.editor.avatar.guiaFondo',
+] as const
+// El prompt de movimiento es de una sola línea (entrega 2e): los saltos que
+// llegan pegados se vuelven espacios. Los separadores de línea y de párrafo de
+// Unicode van por propiedad, no por escape (ERRORES-CONOCIDOS,
+// harness-decodifica-escapes-unicode-en-parametros-de-herramientas).
+export const MOTION_PROMPT_LINE_BREAKS = /\r\n|[\r\n\p{Zl}\p{Zp}]/gu
+// El estado de la tarjeta de una aparición en la grilla «Imágenes» del
+// progreso (entrega 2e, §21.5), con la misma regla que su fila del panel
+// (avatarRowStatus); cambia el texto corto: «Con imagen fija» dice lo que pasa
+// en el video con una aparición que no se completó, y «Generando» no repite la
+// fase del render, que ya dice el panel de arriba.
+export const AVATAR_CARD_STATUS_KEYS: Record<AvatarRowStatus, string> = {
+  queued: 'create.progress.avatarQueued',
+  generating: 'create.progress.avatarCardGenerating',
+  ready: 'create.progress.avatarReady',
+  failed: 'create.progress.avatarCardFallback',
+  stale: 'create.progress.avatarStale',
 }
 // Fichas de esqueleto mientras se lee la biblioteca de avatares.
 export const AVATAR_PICKER_SKELETONS = 5
@@ -1280,6 +1332,9 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   avatar_render_failed: 'create.errors.avatarRenderFailed',
   avatar_timeout: 'create.errors.avatarTimeout',
   avatar_download_failed: 'create.errors.avatarDownloadFailed',
+  // Entrega 2e: el proveedor rechazó el movimiento propio con ese look; el
+  // carril vuelve a pedir enseguida sin él, así que casi nunca se ve.
+  avatar_motion_unsupported: 'create.errors.avatarMotionUnsupported',
   // Heredado de antes de la entrega 2d: la fase ya no lo lanza (una aparición
   // que falla deja la imagen fija y el video sale), pero un proyecto que quedó
   // detenido con él sigue en el disco y se muestra con su texto.

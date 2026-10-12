@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { AlertTriangle, Loader2, Search } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
+import { SceneCellOverlay } from '@/modules/videos/components/SceneCellOverlay'
 import { SceneThumbnail } from '@/modules/videos/components/SceneThumbnail'
 import { SUPPORT_NOTE_CLASS } from '@/modules/videos/constants'
-import { formatSceneSeconds } from '@/modules/videos/utilities/formatSceneSeconds'
 import { aspectClass } from '@/modules/videos/utilities/videoFormat'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type { SceneView } from '@/modules/videos/types/create'
@@ -19,7 +19,8 @@ interface SceneCellProps {
 // Una escena de la grilla de imágenes (port de CeldaEscena del origen): la
 // miniatura con la forma del video, el estado encima (spinner y porcentaje,
 // aviso de error o «?» a la espera), el número y los tiempos siempre
-// visibles, y el velo con «Ampliar» al pasar el mouse.
+// visibles (SceneCellOverlay), y el velo con «Ampliar» al pasar el mouse. Las
+// escenas del avatar no pasan por acá: tienen su tarjeta (AvatarSceneCell).
 export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
   const { t } = useTranslation()
   // Hover a mano además de group-hover: en el origen los eventos de puntero
@@ -113,16 +114,7 @@ export function SceneCell({ scene, videoFormat, onOpen }: SceneCellProps) {
         </span>
       </button>
 
-      <span className="pointer-events-none absolute left-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/70 font-display text-xs font-bold text-white backdrop-blur-sm">
-        {scene.id}
-      </span>
-
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-2">
-        <span className="font-display text-[10px] font-bold tabular-nums text-white/90">
-          {formatSceneSeconds(scene.startSeconds ?? 0)}–
-          {formatSceneSeconds(scene.endSeconds ?? 0)}
-        </span>
-      </div>
+      <SceneCellOverlay scene={scene} />
 
       {progress !== null && (
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 h-1 bg-black/30">

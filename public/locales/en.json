@@ -407,7 +407,13 @@
         "normalize": "Fitting the clip to the video"
       },
       "avatarFallback_one": "{{count}} avatar appearance wasn't generated: the video shows the look's still image there. You can regenerate it from the editor.",
-      "avatarFallback_other": "{{count}} avatar appearances weren't generated: the video shows the look's still image there. You can regenerate them from the editor."
+      "avatarFallback_other": "{{count}} avatar appearances weren't generated: the video shows the look's still image there. You can regenerate them from the editor.",
+      "avatarPercent": "{{percent}}%",
+      "avatarPercentAria": "Estimated progress: {{percent}}%",
+      "avatarCardLabel": "Avatar",
+      "avatarCardAria": "Scene {{index}}: avatar appearance, {{status}}",
+      "avatarCardGenerating": "Generating",
+      "avatarCardFallback": "Still image"
     },
     "confirmScenes": {
       "title": "Confirm the scene count",
@@ -502,7 +508,7 @@
       "projectNotFound": "That project is no longer in your folder.",
       "projectCorrupt": "The project data is damaged.",
       "projectExists": "There is already a project with that name.",
-      "avatarLookUnavailable": "The chosen look can't be used: it is no longer ready, isn't compatible with Vimo (Avatar III) or has no preview. Choose another look for this video.",
+      "avatarLookUnavailable": "The chosen look can't be used: it is no longer ready, doesn't support the chosen engine or has no preview. Choose another look or engine for this video.",
       "avatarLookOrientationMismatch": "The chosen look doesn't match the video's orientation: a 16:9 video needs a landscape look and a 9:16 video, a portrait one. Choose another one or create a scene in that format in Avatars.",
       "scriptMissing": "The project script is missing.",
       "narrationMissing": "We couldn't find your audio. Upload it again.",
@@ -618,7 +624,8 @@
       "avatarRenderLookUnavailable": "The avatar appearance has no clip and no look preview. Choose the look again in the library or regenerate the avatar.",
       "avatarTimingLocked": "This avatar scene's timings are linked to its clip or a request to the avatar service and cannot be moved.",
       "catalogSyncFailed": "The catalog couldn't be updated. You still see the last one downloaded.",
-      "catalogUploadFailed": "The samples couldn't be uploaded to the catalog. Try again."
+      "catalogUploadFailed": "The samples couldn't be uploaded to the catalog. Try again.",
+      "avatarMotionUnsupported": "This look does not support custom motion with this engine: it is generated with the engine motion."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -1216,7 +1223,6 @@
       "costPending": "Choose an avatar to see the cost",
       "total_one": "{{seconds}} s of avatar in {{count}} appearance",
       "total_other": "{{seconds}} s of avatar in {{count}} appearances",
-      "engine": "Avatar III engine",
       "pricePerMinute": "· {{price}} per minute",
       "moderationHint": "Political, violent or misleading content isn't accepted, and neither is using real people without their permission.",
       "noKey": "To add an avatar to your video, add the presenter avatar key in API Keys.",
@@ -1232,7 +1238,20 @@
       "mainLook": "Main",
       "lookOpenAria": "Watch the {{name}} look",
       "selectedLook": "Selected",
-      "otherFormatHint": "This look doesn't match your video's format, so it can't be used."
+      "otherFormatHint": "This look doesn't match your video's format, so it can't be used.",
+      "engineTitle": "Engine",
+      "engineGroupAria": "Avatar engine",
+      "engineDescription": {
+        "avatar_v": "Consistent character motion style that adapts to the script",
+        "avatar_iv": "Generic motion that adapts to the script",
+        "avatar_iii": "Applies lip sync"
+      },
+      "engineUnavailable": "This look doesn't support {{engine}}",
+      "expressive": "More expressive motion",
+      "expressiveHelpAria": "What “More expressive motion” does",
+      "expressiveTooltip": "More energy in each appearance's gestures and face, without overdoing it. No extra cost.",
+      "expressiveUnavailable": "With {{engine}}, this look doesn't support more expressive motion.",
+      "motionAuto": "Vimo writes each appearance's motion from what it says. You can change it in the editor."
     }
   },
   "createDemo": {
@@ -1565,7 +1584,39 @@
         "listo": "The avatar is ready. Export the video so it shows up in the final file.",
         "fallo": "The avatar couldn't be generated: {{reason}}",
         "fallbackNote_one": "{{count}} avatar appearance wasn't generated: the video shows the look's still image there.",
-        "fallbackNote_other": "{{count}} avatar appearances weren't generated: the video shows the look's still image there."
+        "fallbackNote_other": "{{count}} avatar appearances weren't generated: the video shows the look's still image there.",
+        "confirmarTituloRegenerar": "Regenerate the avatar?",
+        "confirmarRegenerar": "Regenerate",
+        "confirmarTextoRegenerar_one": "{{count}} appearance is generated again for ≈ {{amount}}, with the same part of the narration and the same voice. The current clip stays until the new one is ready.",
+        "confirmarTextoRegenerar_other": "{{count}} appearances are generated again for ≈ {{amount}}, with the same parts of the narration and the same voice. The current clips stay until the new ones are ready.",
+        "regenerarFalloConservado": "The avatar couldn't be regenerated: {{reason}} The previous clip was kept.",
+        "motor": "{{engine}} · {{description}}",
+        "movimientoTitulo": "Motion",
+        "movimientoLabel": "Motion prompt",
+        "movimientoHint": "Vimo wrote it from what this appearance says. If you change it, it is used when you generate or regenerate.",
+        "movimientoVacio": "Without a prompt, the avatar uses the engine's own motion.",
+        "movimientoPlaceholder": "E.g.: Smiles warmly and nods on the key point.",
+        "movimientoCaracteres": "{{used}}/{{max}}",
+        "movimientoAutomatico": "Use the automatic one",
+        "movimientoNoAdmitido": "Custom motion wasn't accepted with {{engine}} last time: it was generated with the engine's motion. You can try another prompt.",
+        "expresivo": "More expressive motion",
+        "expresivoAyudaAria": "What “More expressive motion” does",
+        "expresivoTooltip": "More energy in the gestures and face, without overdoing it. No extra cost.",
+        "guiaBoton": "What you can ask for",
+        "guiaPuedeTitulo": "What you can control",
+        "guiaExpresiones": "Facial expressions (calm, enthusiastic, sincere)",
+        "guiaGestos": "Hand gestures (wave, point, hand on heart)",
+        "guiaPostura": "Body posture (lean in, warm and open, composed)",
+        "guiaQuietud": "Stillness (no hand gestures, barely moves)",
+        "guiaMirada": "Gaze (look at the camera, look away)",
+        "guiaNoPuedeTitulo": "What you can't control",
+        "guiaCamara": "Camera movement (zoom, pan, dolly)",
+        "guiaLugar": "Location or scene (walk to the kitchen, go outside)",
+        "guiaObjetos": "Props or actions (drink coffee, pick up a phone)",
+        "guiaCaminar": "Standing up or walking around",
+        "guiaFondo": "Background or lighting changes",
+        "movimientoPendiente": "Vimo writes the motion from what this appearance says when it generates it.",
+        "movimientoPropio": "This prompt is used when you generate or regenerate this appearance."
       }
     },
     "errors": {
@@ -1922,7 +1973,8 @@
       "texto": "Add one from stock or create your own from a photo. You need your presenter avatar key in API Keys."
     },
     "tarjeta": {
-      "noCompatible": "Not compatible with Vimo"
+      "noCompatible": "Not compatible with Vimo",
+      "motoresAria": "Supported engines: {{engines}}"
     },
     "types": {
       "studio_avatar": "Studio",
@@ -2100,7 +2152,7 @@
       "rateLimited": "The avatar service is getting too many requests. Wait a moment and try again.",
       "moderationRejected": "The avatar service rejected the request under its moderation policy: real people without permission and prohibited content aren't allowed.",
       "lookUnsupported": "That avatar or engine isn't available on your avatar service account.",
-      "noCompatibleLook": "This avatar has no ready look compatible with Vimo (Avatar III).",
+      "noCompatibleLook": "This avatar has no ready look that supports a Vimo engine (Avatar V, IV or III).",
       "groupMissing": "The avatar service no longer has this avatar. Remove it from your library.",
       "lookNotListed": "The avatar service received the request, but the new look doesn't show up yet. Vimo will look for it again in a few seconds; if it doesn't appear, check your balance before trying another description.",
       "mainLookNotReady": "The avatar doesn't have a ready main look yet. Choose one and try again.",

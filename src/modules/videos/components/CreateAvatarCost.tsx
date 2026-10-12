@@ -1,11 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import { Coins } from 'lucide-react'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
+import { AVATAR_ENGINE_LABEL_KEYS } from '@/modules/videos/constants'
 import {
   avatarCostEstimate,
   avatarRatePerMinute,
   createAvatarSeconds,
 } from '@/modules/videos/utilities/avatarCostEstimate'
+import { selectedAvatarEngine } from '@/modules/videos/utilities/selectableAvatar'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 
 interface CreateAvatarCostProps {
@@ -13,17 +15,24 @@ interface CreateAvatarCostProps {
 }
 
 // Lo que va a cobrar HeyGen por las apariciones (spec §9): segundos totales
-// × la tarifa de Avatar III del tipo del look elegido. Es la misma cifra que
-// el pre-check compara con el saldo (estimateCreateCost); las escenas de
-// avatar no suman imágenes (§6.2). Presentacional.
+// × la tarifa del motor con el que sale el look elegido (entrega 2e, §21.3: el
+// que prefiere la persona si el look lo admite; si no, el de reemplazo), que
+// la tarjeta nombra junto a su precio por minuto. Es la misma cifra que el
+// pre-check compara con el saldo (estimateCreateCost); las escenas de avatar
+// no suman imágenes (§6.2). Presentacional.
 export function CreateAvatarCost({ value }: CreateAvatarCostProps) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'es'
   const seconds = createAvatarSeconds(value)
-  const line = value.avatar
-    ? avatarCostEstimate(value.avatar.lookType, seconds)
-    : null
-  const rate = value.avatar ? avatarRatePerMinute(value.avatar.lookType) : null
+  const engine = selectedAvatarEngine(value)
+  const line =
+    value.avatar && engine
+      ? avatarCostEstimate(value.avatar.lookType, seconds, engine)
+      : null
+  const rate =
+    value.avatar && engine
+      ? avatarRatePerMinute(value.avatar.lookType, engine)
+      : null
 
   return (
     <div
@@ -45,9 +54,11 @@ export function CreateAvatarCost({ value }: CreateAvatarCostProps) {
       <p className="mt-1 font-body text-xs text-muted-foreground">
         {t('create.avatar.total', { count: value.avatarAppearances, seconds })}
       </p>
-      {rate !== null && (
+      {engine && rate !== null && (
         <p className="mt-1 font-body text-xs text-muted-foreground">
-          <span className="font-semibold">{t('create.avatar.engine')}</span>{' '}
+          <span className="font-semibold">
+            {t(AVATAR_ENGINE_LABEL_KEYS[engine])}
+          </span>{' '}
           {t('create.avatar.pricePerMinute', {
             price: formatUsd(rate, language),
           })}

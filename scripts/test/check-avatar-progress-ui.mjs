@@ -22,7 +22,16 @@
 // y contando también una planeada (rondas 1 y 2 de WP-P); y la regla única
 // (`isAvatarFallback`) en sus dos contextos, la fila que dice «Desactualizada»
 // para una desactualizada en vez de «No se completó» y la API del aviso con
-// su acción. Solo `videosApi` se simula (el real importa el cliente
+// su acción. Y la entrega 2e (diseño §21.5): el porcentaje simulado de cada
+// aparición junto al tiempo de su fila (solo mientras se genera, un solo
+// spinner, sin barra, el <time> intacto); la tarjeta propia del avatar en la
+// grilla «Imágenes» de la pantalla completa (borde y fondo morados, ícono,
+// estado con la regla de la fila, mismo número, tramo y tamaño que una
+// imagen, también en un short, sin imagen ni «Ampliar»), con el conteo del
+// título y el visor solo de imágenes; y el costo de reanudar con el motor del
+// proyecto (`estimateResumeCost`: el de la escena, el de las opciones o el
+// de siempre) y las opciones de corrida que lo llevan (`avatarRunOptions`).
+// Solo `videosApi` se simula (el real importa el cliente
 // de Supabase), con las URLs de las miniaturas, la lectura del proyecto y el
 // canal de eventos del job; la tarjeta de saldo se reemplaza (su hook lee la
 // billetera de HeyGen del sidecar). La raíz guarda `onUncaughtError`.
@@ -56,7 +65,7 @@ const mocks = {
     '  async projectStatus(projectId) { return window.projectStatuses[projectId] },',
     '  async projectDetail(projectId) { return window.projectDetails[projectId] },',
     '  async listProjects() { return [] },',
-    '  imageSource: (path) => "fixture-image://" + path,',
+    '  imageSource: (path) => { window.imageSourceCalls = window.imageSourceCalls ?? {}; window.imageSourceCalls[path] = (window.imageSourceCalls[path] ?? 0) + 1; return "fixture-image://" + path },',
     '  videoSource: (path) => "fixture-media://" + path,',
     '  async createProject() { return { projectId: "pc" + (window.createdProjects = (window.createdProjects ?? 0) + 1) } },',
     '  async startPipeline(payload, onEvent) { window.emitPipelineEvent = onEvent; return { jobId: "job-" + payload.projectId, stop() {} } },',
@@ -116,6 +125,8 @@ import { LibraryEditor } from '@/modules/videos/views/LibraryEditor/LibraryEdito
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
 import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { formatSecondsShort } from '@/modules/videos/utilities/formatElapsed'
+import { estimateResumeCost } from '@/modules/videos/utilities/estimateResumeCost'
+import { formatSceneSeconds } from '@/modules/videos/utilities/formatSceneSeconds'
 
 let checks = 0
 let renderError
@@ -556,7 +567,7 @@ try {
   // tiene avatar y su tipo de look (avatarRunOptions): la fila desde el
   // arranque y el costo de la pausa. Y el reproductor dice la salida de un
   // rechazo definitivo, como la pantalla de progreso.
-  check(JSON.stringify(avatarRunOptions(avatarOptions)) === JSON.stringify({ hasAvatar: true, avatarLookType: 'photo_avatar' }) && JSON.stringify(avatarRunOptions(undefined)) === JSON.stringify({ hasAvatar: false }), 'avatarRunOptions: con y sin avatar')
+  check(JSON.stringify(avatarRunOptions(avatarOptions)) === JSON.stringify({ hasAvatar: true, avatarLookType: 'photo_avatar', avatarEngine: 'avatar_iii' }) && JSON.stringify(avatarRunOptions({ ...avatarOptions, engine: 'avatar_iv' })) === JSON.stringify({ hasAvatar: true, avatarLookType: 'photo_avatar', avatarEngine: 'avatar_iv' }) && JSON.stringify(avatarRunOptions(undefined)) === JSON.stringify({ hasAvatar: false }), 'avatarRunOptions: con el motor del proyecto (entrega 2e) y sin avatar')
   const rejectedOnDisk = [1, 2, 3].map((id) => avatarScene(id, id * 20, { avatar: { ...planned, status: 'failed', errorCode: 'avatar_moderation_rejected' } }))
   window.projectDetails = {
     px: { metadata: { id: 'px', name: 'Rechazado', state: 'error', errorCode: 'avatar_incomplete', completedStages: BEFORE_AVATAR, options: { videoFormat: '16:9', imageProvider: 'fal', avatar: avatarOptions } }, scenes: rejectedOnDisk, words: [], script: '' },
@@ -629,7 +640,7 @@ try {
   const fallbackShown = (count) => text().includes(i18n.t('create.progress.avatarFallback', { count }))
   const anyFallback = () => [1, 2, 3].some(fallbackShown)
   const savedAt = i18n.t('create.progress.savedAt')
-  const runToTheEnd = async (projectId, seedScenes, hasAvatar = true) => {
+  const runToTheEnd = async (projectId, seedScenes, hasAvatar = true, videoFormat = '16:9') => {
     probe.api.discardTask()
     await waitFor(() => probe.task === null, 'se descarta la tarea')
     render(
@@ -641,7 +652,7 @@ try {
       </QueryClientProvider>,
     )
     await waitFor(() => probe.api, 'el store monta')
-    await probe.api.startPipelineForProject(projectId, 'Final ' + projectId, { hasAvatar, seed: { scenes: seedScenes, completedStages: BEFORE_AVATAR, audioDurationSeconds: 150 } })
+    await probe.api.startPipelineForProject(projectId, 'Final ' + projectId, { hasAvatar, videoFormat, seed: { scenes: seedScenes, completedStages: BEFORE_AVATAR, audioDurationSeconds: 150 } })
     await waitFor(() => probe.task?.projectId === projectId && probe.task.status === 'generating', 'arranca ' + projectId)
   }
   // (a) Una lista y dos que fallaron en la corrida (render y plazo), con una
@@ -794,6 +805,209 @@ try {
   render(<AvatarFallbackNote count={0} action={<button type="button">Regenerar todos</button>} />)
   await waitFor(() => !anyFallback() && document.querySelectorAll('button').length === 0, 'sin ninguna, ni el aviso ni la acción')
   checks += 1
+  // 15. El porcentaje simulado de cada aparición (entrega 2e, diseño §21.5):
+  // junto al tiempo de la fila y solo mientras se genera, con la curva del
+  // editor desde el inicio que dan el tiempo y la hora de la última consulta
+  // (61 s de render = 46 %, lejos de un borde del redondeo para que una
+  // máquina cargada no lo mueva). El spinner del paso se mudó al lado del
+  // porcentaje: uno por fila. Sin barra, y el tiempo sigue solo en su <time>.
+  // Antes que nada, las claves nuevas tienen su texto: una ausente se traduce
+  // como su propia ruta y compararla con i18n.t pasaría en vacío.
+  for (const [key, options] of [
+    ['create.progress.avatarPercent', { percent: 45 }],
+    ['create.progress.avatarPercentAria', { percent: 45 }],
+    ['create.progress.avatarCardLabel'],
+    ['create.progress.avatarCardAria', { index: 3, status: 'X' }],
+    ['create.progress.avatarCardGenerating'],
+    ['create.progress.avatarCardFallback'],
+  ]) {
+    const phrase = i18n.t(key, options)
+    check(i18n.exists(key, options) && phrase !== key && !phrase.includes('{{'), 'la clave ' + key + ' tiene su texto')
+  }
+  const percentPattern = new RegExp('^' + i18n.t('create.progress.avatarPercentAria', { percent: '([0-9]+)' }) + '$')
+  const percentIn = (root) => root ? [...root.querySelectorAll('[aria-label]')].filter((node) => percentPattern.test(node.getAttribute('aria-label'))) : []
+  const percentValue = (node) => Number(percentPattern.exec(node.getAttribute('aria-label'))[1])
+  const percentOf = (root) => { const [node] = percentIn(root); return node ? percentValue(node) : null }
+  const spinnersIn = (root) => root ? [...root.querySelectorAll('.animate-spin')] : []
+  // Sin barra: ni el rol, ni un <progress> o <meter>, ni un elemento con estilo propio (una barra hecha con divs de ancho en %). El
+  // estilo en línea de la raíz de una tarjeta es de framer-motion: se mira lo de adentro (querySelector no mira la raíz).
+  const barIn = (root) => root.querySelector('[role="progressbar"], progress, meter, [style]')
+  const clockStart = Date.now()
+  const generatingScene = (id, elapsedSeconds, phase = 'render') => avatarScene(id, id * 60, { avatarActivity: { status: 'generating', phase, elapsedSeconds, receivedAt: clockStart } })
+  render(<PipelineAvatarPanel scenes={[
+    generatingScene(1, 61),
+    generatingScene(2, 0, 'audio'),
+    generatingScene(3, 7200),
+    avatarScene(4, 240, { avatar: readyView, avatarActivity: { status: 'ready', phase: 'normalize', elapsedSeconds: 49, receivedAt: clockStart - 30000 } }),
+    avatarScene(5, 300, { avatarActivity: { status: 'failed', phase: 'render', elapsedSeconds: 12, receivedAt: clockStart, code: 'avatar_moderation_rejected' } }),
+    avatarScene(6, 360),
+    avatarScene(7, 420, { avatar: { ...readyView, stale: true } }),
+  ]} dropped={0} active />)
+  await waitFor(() => rows().length === 7, 'siete filas con el porcentaje')
+  const [freshRow, startingRow, cappedRow, readyRow, failedRow, queuedRow, staleRow] = rows()
+  const freshPercent = percentIn(freshRow)
+  check(freshPercent.length === 1 && percentOf(freshRow) === 46 && freshPercent[0].textContent === i18n.t('create.progress.avatarPercent', { percent: 46 }), 'a los 61 s de render la fila dice 46 %, con la curva del editor desde el inicio de la aparición')
+  const freshTime = freshRow.querySelector('time')
+  check([freshRow, startingRow, cappedRow].every((row) => percentIn(row)[0]?.getAttribute('role') === 'img'), 'el porcentaje de cada fila es una imagen con nombre (role img): un aria-label sobre un span suelto no es ARIA válido')
+  check(freshPercent[0]?.parentElement === freshTime.parentElement && freshTime.textContent === formatSecondsShort(61) && !freshTime.textContent.includes('%'), 'el porcentaje va al lado del tiempo, que sigue solo en su <time>')
+  const freshSpinners = spinnersIn(freshRow)
+  const stepLine = [...freshRow.querySelectorAll('p')].find((paragraph) => paragraph.textContent.includes(i18n.t('create.progress.avatarPhase.render')))
+  check(freshSpinners.length === 1 && freshSpinners[0].parentElement === freshTime.parentElement && freshSpinners[0].classList.contains('text-amethyst'), 'un solo spinner por fila, morado y al lado del tiempo y del porcentaje')
+  check(stepLine && stepLine.querySelector('svg') === null, 'la línea del paso ya no lleva el spinner')
+  check(percentOf(startingRow) === 0 && percentIn(startingRow)[0].textContent === i18n.t('create.progress.avatarPercent', { percent: 0 }), 'una aparición recién empezada dice 0 %: no se esconde')
+  check(percentOf(cappedRow) === 99 && !text().includes('100%'), 'el porcentaje frena en 99 y nunca dice 100')
+  check([readyRow, failedRow, queuedRow, staleRow].every((row) => percentIn(row).length === 0 && spinnersIn(row).length === 0), 'ni la lista, ni la fallida, ni la que espera, ni la desactualizada llevan porcentaje ni spinner')
+  check(readyRow.querySelector('time').textContent === formatSecondsShort(49) && failedRow.querySelector('time').textContent === formatSecondsShort(12) && queuedRow.querySelector('time') === null, 'los tiempos de la lista y de la fallida siguen fijos, y la que espera no tiene')
+  check(document.querySelector('[role="progressbar"]') === null && rows().every((row) => barIn(row) === null), 'el porcentaje va sin barra: ni el rol, ni un progress, ni divs con ancho por estilo en ninguna fila')
+  await delay(1300)
+  check(percentOf(rows()[0]) > 46 && percentOf(rows()[1]) > 0, 'el porcentaje sube con el reloj, como el tiempo')
+
+  // 16. La grilla «Imágenes» con la tarjeta del avatar (entrega 2e, §21.5), en
+  // la pantalla de progreso completa y con el store real. Las escenas de avatar
+  // llegan del sidecar con la foto del look como imagen y imageStatus: 'ok'
+  // (así lo hace avatarScene): sin tarjeta propia se verían como imágenes.
+  // Cada una es una tarjeta morada con el número y el tramo de siempre, su
+  // estado con la regla de la fila (en espera, generando con el porcentaje,
+  // lista, con la imagen fija, desactualizada), sin imagen ni «Ampliar»; el
+  // conteo del título y el visor solo cuentan las imágenes.
+  const gridScenes = [
+    { id: 1, text: 'una imagen', imageStatus: 'ok', imagePath: '/p/scenes/scene_1.jpg', startSeconds: 0, endSeconds: 10 },
+    avatarScene(2, 10),
+    avatarScene(3, 20),
+    avatarScene(4, 30, { avatar: { ...readyView, clipPath: '/p/avatar/scene_4.mp4' } }),
+    avatarScene(5, 40, { avatar: failedView }),
+    avatarScene(6, 50, { avatar: { ...readyView, clipPath: '/p/avatar/scene_6.mp4', stale: true } }),
+    { id: 7, text: 'otra imagen', imageStatus: 'generating', startSeconds: 60, endSeconds: 70 },
+  ]
+  await runToTheEnd('pk', gridScenes)
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  emit({ type: 'avatar-scene-started', sceneId: 3 })
+  emit({ type: 'avatar-scene-progress', sceneId: 3, phase: 'render', elapsedSeconds: 60 })
+  const cardWith = (sceneId, statusKey) => document.querySelector('[aria-label="' + i18n.t('create.progress.avatarCardAria', { index: sceneId, status: i18n.t(statusKey) }) + '"]')
+  await waitFor(() => cardWith(3, 'create.progress.avatarCardGenerating'), 'la tarjeta de la aparición que se genera')
+  const cards = [
+    [2, 'create.progress.avatarQueued'],
+    [3, 'create.progress.avatarCardGenerating'],
+    [4, 'create.progress.avatarReady'],
+    [5, 'create.progress.avatarCardFallback'],
+    [6, 'create.progress.avatarStale'],
+  ].map(([sceneId, statusKey]) => ({ sceneId, statusKey, card: cardWith(sceneId, statusKey) }))
+  check(cards.every(({ card }) => card), 'cada aparición del avatar es una tarjeta propia con su número y su estado en el nombre; faltan: ' + cards.filter(({ card }) => !card).map(({ sceneId }) => sceneId))
+  const numberOf = (cell) => cell.querySelector('.left-2.top-2')?.textContent
+  const rangeOf = (cell) => cell.querySelector('.bottom-0 span')?.textContent
+  const imageCell = (sceneId) => document.querySelector('button[aria-label="' + i18n.t('create.progress.cell.enlargeAria', { id: sceneId }) + '"]')?.parentElement
+  for (const { sceneId, statusKey, card } of cards) {
+    if (!card) continue
+    const tag = 'tarjeta ' + sceneId + ': '
+    check(card.getAttribute('role') === 'group' && ['border-2', 'border-amethyst/60', 'bg-amethyst/10', 'aspect-video'].every((name) => card.classList.contains(name)), tag + 'un grupo con borde y fondo morados, con el tamaño de una imagen 16:9')
+    const icon = card.querySelector('svg.lucide-user-round')
+    check(icon && ['rounded-full', 'bg-amethyst/15', 'text-amethyst'].every((name) => icon.parentElement.classList.contains(name)), tag + 'el ícono del avatar en su círculo morado')
+    check(card.querySelector('img') === null && card.querySelector('button') === null && !card.textContent.includes(i18n.t('create.progress.cell.enlarge')), tag + 'sin imagen ni «Ampliar»')
+    check(card.textContent.includes(i18n.t('create.progress.avatarCardLabel')) && card.textContent.includes(i18n.t(statusKey)), tag + 'la etiqueta y el estado')
+    check(barIn(card) === null, tag + 'sin barra: ni el rol, ni un progress, ni divs con ancho por estilo')
+    const scene = gridScenes.find((candidate) => candidate.id === sceneId)
+    check(numberOf(card) === String(sceneId) && rangeOf(card) === formatSceneSeconds(scene.startSeconds) + '–' + formatSceneSeconds(scene.endSeconds), tag + 'el mismo número y tramo que una imagen')
+  }
+  check(imageCell(1) && imageCell(7) && imageCell(1).classList.contains('aspect-video') && numberOf(imageCell(1)) === '1' && rangeOf(imageCell(1)) === formatSceneSeconds(0) + '–' + formatSceneSeconds(10), 'las imágenes siguen con su «Ampliar», su número y su tramo')
+  check([2, 3, 4, 5, 6].every((sceneId) => !imageCell(sceneId)), 'ninguna aparición del avatar se puede ampliar')
+  check(cards[3].card && !cards[3].card.textContent.includes(notCompleted), 'la que salió con la imagen fija lo dice corto, sin el «No se completó» de la fila')
+  const generatingCard = cards[1].card
+  const cardPercent = percentIn(generatingCard)
+  check(spinnersIn(generatingCard).length === 1 && spinnersIn(generatingCard)[0].classList.contains('text-amethyst'), 'generando: un spinner morado')
+  check(cardPercent[0]?.getAttribute('role') === 'img', 'generando: el porcentaje es una imagen con nombre (role img)')
+  check(cardPercent.length === 1 && percentOf(generatingCard) !== null && cardPercent[0].textContent === i18n.t('create.progress.avatarPercent', { percent: percentOf(generatingCard) }), 'generando: el porcentaje simulado, con su texto y su nombre de acceso')
+  check(cards.every(({ card }) => card) && cards.filter(({ sceneId }) => sceneId !== 3).every(({ card }) => spinnersIn(card).length === 0 && percentIn(card).length === 0), 'solo la tarjeta que se genera lleva spinner y porcentaje')
+  check(text().includes(i18n.t('create.progress.imagesCount', { ready: 1, total: 2 })) && !text().includes(i18n.t('create.progress.imagesCount', { ready: 6, total: 7 })), 'el conteo del título cuenta solo las imágenes (1 de 2), no las apariciones del avatar')
+  await delay(1300)
+  // La tarjeta es dueña de su reloj y lo arranca cuando su aparición se
+  // genera: tras su primer tick, los 60 s que informó el sidecar más 1 s
+  // corrido son 61 s de render = 46 %.
+  check(percentOf(cardWith(3, 'create.progress.avatarCardGenerating')) === 46, 'tras el primer tick del reloj de la tarjeta, dice 46 % (60 s del sidecar y 1 s corrido)')
+  // El visor de «Ampliar» recorre solo las imágenes: la flecha salta de la 1 a
+  // la 7 sin detenerse en la foto fija de una aparición.
+  imageCell(1).querySelector('button').click()
+  const viewer = await waitFor(() => document.querySelector('[role="dialog"]'), 'el visor de la escena 1')
+  check(viewer.getAttribute('aria-label') === i18n.t('create.viewer.aria', { id: 1, index: 1, total: 2 }), 'el visor cuenta solo las imágenes: escena 1, 1 de 2')
+  // Con el visor abierto y una aparición generándose, el foco no se mueve y la
+  // grilla no se repinta: el reloj es de cada tarjeta, no de la grilla (una
+  // celda de imagen que se repinta le vuelve a pedir su fuente al simulacro).
+  // Un repintado de la grilla le daría al visor un onClose nuevo y su efecto
+  // le devolvería el foco al contenedor del diálogo. El porcentaje de la
+  // tarjeta tiene que seguir corriendo en esa ventana: si no, la quietud no
+  // prueba nada.
+  const viewerClose = [...viewer.querySelectorAll('button')].find((button) => button.textContent === i18n.t('create.viewer.close'))
+  const percentBeforeFocus = percentOf(cardWith(3, 'create.progress.avatarCardGenerating'))
+  const imageCalls = () => window.imageSourceCalls['/p/scenes/scene_1.jpg'] ?? 0
+  const imageCallsBefore = imageCalls()
+  viewerClose.focus()
+  check(document.activeElement === viewerClose, 'el foco se pone en un botón del visor')
+  await delay(3200)
+  check(document.activeElement === viewerClose, 'con el visor abierto y una aparición generándose, el foco sigue en su botón después de 3 s')
+  check(percentOf(cardWith(3, 'create.progress.avatarCardGenerating')) > percentBeforeFocus, 'y en esos 3 s el porcentaje de la tarjeta siguió corriendo')
+  check(imageCalls() === imageCallsBefore, 'y la grilla no se repintó en esos 3 s: el reloj es de la tarjeta, no de la grilla')
+  // Y un evento del store (el avance de la aparición repinta la pantalla entera)
+  // tampoco le quita el foco: el visor recibe un onClose estable y su efecto
+  // no vuelve a correr.
+  emit({ type: 'avatar-scene-progress', sceneId: 3, phase: 'render', elapsedSeconds: 70 })
+  await waitFor(() => probe.task.scenes.find((candidate) => candidate.id === 3)?.avatarActivity?.elapsedSeconds === 70, 'el evento del store llega a la escena')
+  await delay(400)
+  check(document.activeElement === viewerClose, 'un evento del store con el visor abierto tampoco le quita el foco')
+  ;[...document.querySelectorAll('button')].find((button) => button.getAttribute('aria-label') === i18n.t('create.viewer.next')).click()
+  await waitFor(() => document.querySelector('[role="dialog"]')?.getAttribute('aria-label') === i18n.t('create.viewer.aria', { id: 7, index: 2, total: 2 }), 'la flecha del visor salta de la escena 1 a la 7 sin pasar por el avatar')
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+  await waitFor(() => !document.querySelector('[role="dialog"]'), 'se cierra el visor')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pk.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina la grilla')
+  // En un short las celdas son verticales y la tarjeta también.
+  await runToTheEnd('pm', [gridScenes[0], avatarScene(2, 10)], true, '9:16')
+  const verticalCard = await waitFor(() => cardWith(2, 'create.progress.avatarQueued'), 'la tarjeta en un short')
+  check(verticalCard?.classList.contains('aspect-[9/16]') && imageCell(1).classList.contains('aspect-[9/16]'), 'en un short, la tarjeta del avatar es vertical como las imágenes')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pm.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina el short')
+  // Una aparición que cubre toda la narración no deja escenas de imagen: el
+  // título no dice «Imágenes (0/0)» sobre una grilla de puras tarjetas del
+  // avatar. Sin escenas y sin avatar (la grilla vacía de siempre), sí.
+  const imagesHeading = i18n.t('create.progress.imagesCount', { ready: '#', total: '#' }).split('#')[0]
+  await runToTheEnd('pn', [avatarScene(1, 0)])
+  await waitFor(() => cardWith(1, 'create.progress.avatarQueued'), 'la tarjeta de una aparición que cubre toda la narración')
+  check(!text().includes(imagesHeading), 'sin escenas de imagen, el título no cuenta imágenes: no dice «Imágenes (0/0)» sobre las tarjetas del avatar')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pn.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina la aparición sola')
+  await runToTheEnd('pq', [], false)
+  await waitFor(() => text().includes(i18n.t('create.progress.imagesEmpty')), 'la grilla vacía de un proyecto sin escenas')
+  check(text().includes(i18n.t('create.progress.imagesCount', { ready: 0, total: 0 })), 'sin escenas y sin avatar, el título es el de siempre: Imágenes (0/0)')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/final-pq.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina el proyecto sin escenas')
+
+  // 17. El costo de reanudar con el motor del proyecto (entrega 2e): la pausa
+  // por saldo estima lo que falta con la tarifa del motor de cada escena; si
+  // la escena no lo trae, el de las opciones del proyecto; si tampoco, Avatar
+  // III. Y las opciones de corrida que parten de options.avatar lo llevan.
+  const resumeStatus = (avatar, scenes, completedStages = BEFORE_AVATAR) => ({
+    metadata: { id: 'p', name: 'p', state: 'paused', completedStages, options: { styleId: 'normal', sceneCount: 0, narrationMode: 'tts', imageProvider: 'evolink', useBgm: false, useOverlay: false, confirmScenes: false, avatar } },
+    scenes,
+  })
+  const resumeLine = (status) => {
+    const lines = estimateResumeCost(status).filter((candidate) => candidate.domain === 'avatar')
+    return lines.length === 1 ? lines[0] : null
+  }
+  const withEngine = (engine) => ({ ...avatarOptions, engine })
+  const pendingScene = (id, startSeconds, endSeconds, engine) => ({ id, text: '', imageStatus: 'pending', startSeconds, endSeconds, avatar: { ...planned, engine } })
+  const beforeTheCut = ['voice', 'transcription']
+  // Antes del corte: lo que pidió Crear (3 × 10 s) con la tarifa del motor.
+  check(resumeLine(resumeStatus(withEngine('avatar_iii'), [], beforeTheCut))?.estimated === 0.495 && resumeLine(resumeStatus(withEngine('avatar_iv'), [], beforeTheCut))?.estimated === 1.155 && resumeLine(resumeStatus({ ...withEngine('avatar_v'), lookType: 'digital_twin' }, [], beforeTheCut))?.estimated === 3.6, 'antes del corte, reanudar cuenta lo pedido (30 s) con el motor del proyecto: III 0,495, IV 1,155 y V con un gemelo digital 3,6')
+  check(resumeLine(resumeStatus(withEngine('avatar_iv'), [], beforeTheCut)) !== null && !('upperBound' in resumeLine(resumeStatus(withEngine('avatar_iv'), [], beforeTheCut))), 'y sigue sin la marca de techo')
+  // Con escenas cortadas: el motor de la escena, el del proyecto o el de siempre.
+  const sceneLine = (avatar, ...scenes) => resumeLine(resumeStatus(avatar, scenes))
+  check(sceneLine(withEngine('avatar_iii'), pendingScene(1, 0, 10, 'avatar_iv'))?.estimated === 0.385, 'la escena manda: 10 s con Avatar IV en un proyecto de Avatar III cuestan 0,385')
+  check(sceneLine(withEngine('avatar_iv'), pendingScene(1, 0, 10, undefined))?.estimated === 0.385, 'sin motor en la escena, el del proyecto: Avatar IV, 0,385')
+  check(sceneLine(withEngine(undefined), pendingScene(1, 0, 10, undefined))?.estimated === 0.165 && sceneLine(withEngine('avatar_iii'), pendingScene(1, 0, 10, 'avatar_iii'))?.estimated === 0.165, 'sin motor en ninguno, Avatar III de siempre: 10 s cuestan 0,165, igual que con Avatar III declarado')
+  check(sceneLine(withEngine('avatar_iv'), pendingScene(1, 0, 10, 'avatar_iv'))?.upperBound === true, 'con escenas cortadas la cifra sigue siendo un techo')
+  const mixedLine = sceneLine(withEngine('avatar_iii'), pendingScene(1, 0, 10, 'avatar_iv'), pendingScene(2, 30, 42, 'avatar_iii'))
+  check(mixedLine !== null && Math.abs(mixedLine.estimated - 0.583) < 1e-9 && mixedLine.upperBound === true, 'dos motores en un mismo proyecto: cada escena con su tarifa, sumadas (0,385 + 0,198)')
+  const readyWithClip = { ...pendingScene(3, 60, 70, 'avatar_iv'), avatar: { ...planned, engine: 'avatar_iv', status: 'ready', clipPath: '/p/avatar/scene_3.mp4' } }
+  check(Math.abs(sceneLine(withEngine('avatar_iii'), readyWithClip, pendingScene(2, 30, 42, 'avatar_iii')).estimated - 0.198) < 1e-9, 'una escena que ya tiene su clip no suma, tenga el motor que tenga')
+  check(JSON.stringify(avatarRunOptions({ ...avatarOptions, engine: 'avatar_v' })) === JSON.stringify({ hasAvatar: true, avatarLookType: 'photo_avatar', avatarEngine: 'avatar_v' }), 'las opciones de corrida llevan el motor del proyecto, también Avatar V')
   document.getElementById('result').textContent = 'PASS: avatar progress (' + checks + ' checks)'
 } catch (error) {
   const reason = renderError && renderError !== error ? ' (render error: ' + renderError.message + ')' : ''

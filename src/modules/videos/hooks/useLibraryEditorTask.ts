@@ -17,9 +17,11 @@ import {
   hasBusyCreateTask,
   subscribeCreateTask,
 } from '@/modules/videos/hooks/useCreateTask'
+import { avatarRenderPayload } from '@/modules/videos/utilities/avatarRegeneration'
 import { setEditorProjectBusyCheck } from '@/modules/videos/utilities/editorProjectBusy'
 import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
 import type {
+  AvatarRenderRequestOptions,
   EditorAvatarRenderState,
   LibraryEditorTask,
   EditorAnimationRequest,
@@ -33,7 +35,10 @@ import type {
 } from '@/modules/videos/types/sceneImageReview'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { AnimateScenesResult } from '@pipeline/types/animation.ts'
-import type { AvatarRenderScenesResult } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarRenderScenesPayload,
+  AvatarRenderScenesResult,
+} from '@pipeline/types/avatar.ts'
 import type {
   ExportClipsResult,
   RegenerateSceneImagesResult,
@@ -840,43 +845,54 @@ function dismissAnimationFailure(projectId: string) {
 // ── Avatar de HeyGen (entrega 2d, spec §20) ──
 
 // «Generar», «Regenerar» o «Regenerar todos» del panel: corre
-// `avatar-render-scenes` con esas escenas. Cobra en HeyGen, así que el panel
-// muestra el costo y el saldo antes de llegar acá. Una tarea a la vez y
-// exclusiva con todas las del proyecto: no arranca si hay otra y, mientras
-// corre, no entra ninguna. Devuelve si la aceptó; el job sigue solo y sus
-// eventos llenan el bloque del timeline. Las escenas arrancan «en cola»: el
-// sidecar renderiza de a tres y cada una sale de la cola con su
+// `avatar-render-scenes` con esas escenas y, desde la entrega 2e (§21.4), con
+// las listas que se pidió regenerar y el movimiento de la escena elegida
+// (avatarRenderPayload: sin ellos, el pedido de siempre). Cobra en HeyGen, así
+// que el panel muestra el costo y el saldo antes de llegar acá. Una tarea a la
+// vez y exclusiva con todas las del proyecto: no arranca si hay otra y,
+// mientras corre, no entra ninguna. Devuelve si la aceptó; el job sigue solo y
+// sus eventos llenan el bloque del timeline. Las escenas arrancan «en cola»:
+// el sidecar renderiza de a tres y cada una sale de la cola con su
 // `avatar-scene-started`.
-function startAvatarRender(projectId: string, sceneIds: number[]): boolean {
-  const unique = [...new Set(sceneIds)].sort((left, right) => left - right)
-  if (unique.length === 0) return false
+function startAvatarRender(
+  projectId: string,
+  sceneIds: number[],
+  options: AvatarRenderRequestOptions = {},
+): boolean {
+  const payload = avatarRenderPayload(projectId, { ...options, sceneIds })
+  if (payload.sceneIds.length === 0) return false
   if (isProjectBusy(projectId)) return false
 
   const task = taskOf(projectId)
   const requestId = crypto.randomUUID()
   const queuedAt = Date.now()
   const sceneAvatarRendering = { ...task.sceneAvatarRendering }
-  for (const sceneId of unique)
+  for (const sceneId of payload.sceneIds)
     sceneAvatarRendering[sceneId] = { startedAt: queuedAt, queued: true }
   patchTask(projectId, {
-    avatarRender: { requestId, jobId: null, sceneIds: unique, failures: {} },
+    avatarRender: {
+      requestId,
+      jobId: null,
+      sceneIds: payload.sceneIds,
+      regenerateSceneIds: payload.regenerateSceneIds ?? [],
+      failures: {},
+    },
     sceneAvatarRendering,
     errorKey: null,
     errorCode: null,
   })
-  void submitAvatarRender(projectId, requestId, unique)
+  void submitAvatarRender(projectId, requestId, payload)
   return true
 }
 
 async function submitAvatarRender(
   projectId: string,
   requestId: string,
-  sceneIds: number[],
+  payload: AvatarRenderScenesPayload,
 ) {
   try {
-    const job = await videosApi.startAvatarRender(
-      { projectId, sceneIds },
-      (event) => handleAvatarRenderEvent(projectId, requestId, event),
+    const job = await videosApi.startAvatarRender(payload, (event) =>
+      handleAvatarRenderEvent(projectId, requestId, event),
     )
     const current = taskOf(projectId).avatarRender
     // Un job muy rápido pudo cerrar antes de que el invoke devolviera su id.
@@ -987,6 +1003,12 @@ function finishAvatarRender(
   const avatarRender = task.avatarRender
   if (avatarRender?.requestId !== requestId) return
 
+  // Las que no quedaron listas: las que fallaron y las que seguían en cola o
+  // generándose cuando el job cerró.
+  const unfinishedIds = avatarRender.sceneIds.filter((sceneId) => {
+    const failed = avatarRender.failures[sceneId] !== undefined
+    return failed || task.sceneAvatarRendering[sceneId] !== undefined
+  })
   const sceneAvatarRendering = { ...task.sceneAvatarRendering }
   for (const sceneId of avatarRender.sceneIds)
     delete sceneAvatarRendering[sceneId]
@@ -999,11 +1021,44 @@ function finishAvatarRender(
   })
   recheckAvatarBalance()
   if (result) announceAvatarRender(avatarRender, result)
+  if (!result && errorKey)
+    announceKeptAvatarClips(avatarRender, unfinishedIds, errorKey, errorCode)
   dispatchGenerations(projectId)
 }
 
+// Una regeneración de listas que cae entera con `job-failed` (la cuenta
+// pausa, la clave deja de servir…) o que ni arrancó (ronda 1 de WP-X, M6 de su
+// revisión): las que no quedaron listas conservan su clip anterior (el sidecar
+// las devuelve a su estado listo, §21.4) y el aviso lo dice con el motivo del
+// job, además del error del editor. Cancelar no avisa nada (lo dice el
+// editor, como en la 2d), y una que alcanzó a quedar lista tiene clip nuevo.
+function announceKeptAvatarClips(
+  avatarRender: EditorAvatarRenderState,
+  unfinishedIds: number[],
+  errorKey: string,
+  errorCode: string | null,
+) {
+  if (avatarRender.cancelled || errorCode === 'cancelled') return
+
+  if (unfinishedIds.length === 0) return
+
+  const allRetakes = unfinishedIds.every((sceneId) =>
+    avatarRender.regenerateSceneIds.includes(sceneId),
+  )
+  if (!allRetakes) return
+
+  toast({
+    description: i18next.t('library.editor.avatar.regenerarFalloConservado', {
+      reason: i18next.t(errorKey),
+    }),
+    variant: 'destructive',
+  })
+}
+
 // El aviso pasajero del final: «listo» si todas las pedidas quedaron listas;
-// si alguna falló, el motivo que más se repite (cada bloque dice el suyo).
+// si alguna falló, el motivo que más se repite (cada bloque dice el suyo). Si
+// las que fallaron son listas que se pidió regenerar (entrega 2e, §21.4), el
+// sidecar les dejó el clip anterior y el aviso lo dice.
 function announceAvatarRender(
   avatarRender: EditorAvatarRenderState,
   result: AvatarRenderScenesResult,
@@ -1020,8 +1075,16 @@ function announceAvatarRender(
   const reason = i18next.t(
     errorKeyOf(dominantAvatarFailure(avatarRender, result.failed)),
   )
+  const keptPrevious = result.failed.every((sceneId) =>
+    avatarRender.regenerateSceneIds.includes(sceneId),
+  )
   toast({
-    description: i18next.t('library.editor.avatar.fallo', { reason }),
+    description: i18next.t(
+      keptPrevious
+        ? 'library.editor.avatar.regenerarFalloConservado'
+        : 'library.editor.avatar.fallo',
+      { reason },
+    ),
     variant: 'destructive',
   })
 }

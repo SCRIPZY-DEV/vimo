@@ -49,7 +49,7 @@ import {
   MIN_SECONDS_PER_SCENE,
 } from '../../stages/scene-cuts/by-seconds.ts'
 import {
-  AVATAR_DEFAULT_ENGINE,
+  AVATAR_ENGINES,
   AVATAR_LOOK_ORIENTATION_BY_FORMAT,
   AVATAR_LOOK_TYPES,
   AVATAR_MAX_APPEARANCES,
@@ -57,6 +57,8 @@ import {
   AVATAR_MIN_APPEARANCES,
   AVATAR_MIN_APPEARANCE_SECONDS,
   AVATAR_PLACEMENTS,
+  avatarEngineAvailable,
+  avatarExpressiveAvailable,
   type ProjectAvatarOptions,
 } from '../../types/avatar.ts'
 import type { CharacterStyleId } from '../../types/characters.ts'
@@ -579,11 +581,20 @@ function assertProjectAvatar(avatar: unknown, demo: boolean | undefined): void {
       'invalid_payload',
       'options.avatar.lookType is unknown',
     )
-  // Motor fijo por decisión del dueño del 2026-10-09 (§9): sin selector.
-  if (value.engine !== AVATAR_DEFAULT_ENGINE)
+  // El motor que eligió la persona (entrega 2e, §21.3): cualquiera de los que
+  // Vimo conoce. Que el look lo admita se mira contra la biblioteca
+  // (resolveProjectAvatar).
+  if (!AVATAR_ENGINES.some((engine) => engine === value.engine))
     throw new PipelineFailure(
       'invalid_payload',
-      `options.avatar.engine must be ${AVATAR_DEFAULT_ENGINE}`,
+      `options.avatar.engine must be one of ${AVATAR_ENGINES.join(', ')}`,
+    )
+  // «Movimiento más expresivo» (entrega 2e): si viene, booleano. Se guarda
+  // solo si sirve (storedAvatarOptions).
+  if (value.expressive !== undefined && typeof value.expressive !== 'boolean')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.expressive must be a boolean',
     )
   if (
     !isIntegerBetween(
@@ -642,13 +653,13 @@ interface ResolvedProjectAvatar {
 // El look ELEGIDO tal como está en la biblioteca (ADR-0057, diseño §6.2 y §9,
 // cuidados 1 y 4 de §16): el avatar existe y HeyGen todavía tiene su grupo; el
 // look es uno de los suyos (Crear manda por defecto el principal, pero puede
-// ser otro); sirve —listo y con Avatar III, nunca deducido de
-// `status: 'ready'`—; tiene la orientación del video, porque HeyGen lo
-// renderiza tal cual; y tiene una vista previa legible, la suya o, si no, la
-// del avatar, porque es la imagen fija de sus escenas. Un look sin orientación
-// conocida pasa con un aviso. Al final, la clave de HeyGen tiene que servir
-// (`assertHeyGenAccount`). Nada se escribe: quien llama crea la carpeta recién
-// cuando esto no lanzó.
+// ser otro); sirve —listo y con el motor elegido, que el look tiene que admitir
+// con tarifa (entrega 2e), nunca deducido de `status: 'ready'`—; tiene la
+// orientación del video, porque HeyGen lo renderiza tal cual; y tiene una
+// vista previa legible, la suya o, si no, la del avatar, porque es la imagen
+// fija de sus escenas. Un look sin orientación conocida pasa con un aviso. Al
+// final, la clave de HeyGen tiene que servir (`assertHeyGenAccount`). Nada se
+// escribe: quien llama crea la carpeta recién cuando esto no lanzó.
 async function resolveProjectAvatar(
   context: PipelineContext,
   options: VideoProjectOptions,
@@ -679,10 +690,14 @@ async function resolveProjectAvatar(
   const look = metadata.looks.find(
     (candidate) => candidate.lookId === avatar.lookId,
   )
-  if (!look || !isUsableLook(look))
+  if (
+    !look ||
+    !isUsableLook(look) ||
+    !avatarEngineAvailable(avatar.engine, look)
+  )
     throw new PipelineFailure(
       'avatar_look_unavailable',
-      `look "${avatar.lookId}" of avatar "${avatar.avatarId}" is missing, not ready or without ${AVATAR_DEFAULT_ENGINE}`,
+      `look "${avatar.lookId}" of avatar "${avatar.avatarId}" is missing, not ready or without ${avatar.engine}`,
     )
   if (look.lookType !== avatar.lookType)
     throw new PipelineFailure(
@@ -765,11 +780,17 @@ async function assertHeyGenAccount(context: PipelineContext): Promise<void> {
 
 // Lo que se persiste: solo los campos del contrato (§3.4 + `avatarId`), con el
 // nombre del look tal como está en la biblioteca (el de HeyGen no tiene tope de
-// largo). Un campo de más en el payload no llega a project.json.
+// largo). Un campo de más en el payload no llega a project.json. `expressive`
+// (entrega 2e) va al final, solo en true y solo si el motor y el look lo
+// admiten: sin él, las opciones de antes, byte a byte.
 function storedAvatarOptions(
   avatar: ProjectAvatarOptions,
   look: StoredAvatarLook,
 ): ProjectAvatarOptions {
+  const expressive =
+    avatar.expressive === true &&
+    avatarExpressiveAvailable(avatar.engine, look.lookType)
+
   return {
     avatarId: avatar.avatarId,
     lookId: look.lookId,
@@ -780,6 +801,7 @@ function storedAvatarOptions(
     secondsPerAppearance: avatar.secondsPerAppearance,
     startWithAvatar: avatar.startWithAvatar,
     placement: avatar.placement,
+    ...(expressive ? { expressive: true } : {}),
   }
 }
 

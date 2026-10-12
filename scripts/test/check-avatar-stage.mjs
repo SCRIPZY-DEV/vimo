@@ -41,7 +41,18 @@
 // entre el POST y la recuperación no impide adoptar, sin pagar, el render con
 // el título que salió; un recibo de antes de la 2c se repite con la marca sola
 // y no gana título; y sin avatar la fase no habla con HeyGen ni toca
-// scenes.json.
+// scenes.json. Y la entrega 2e (diseño §21.2 y §21.4): `regenerateSceneIds` y
+// `motion` validados antes de hablar con HeyGen; regenerar una lista es un
+// render nuevo pagado (la toma siguiente, otra clave, el saldo mirado antes, el
+// clip nuevo y el mp4 desactualizado) y, si falla o la cuenta pausa, la escena
+// sigue lista con su clip; un recibo en vuelo de la toma se cosecha sin pagar;
+// los ajustes del editor se guardan antes de pedir y viajan en el cuerpo
+// (R-2e-9, R-2e-14); el movimiento automático, un solo llamado para las
+// escenas que lo necesitan (nunca con Avatar III, un prompt de la persona, un
+// recibo en vuelo o pagado de su pedido, ni una lista al día), reescrito si
+// cambió el texto o «más expresivo» (R-2e-10), con plantillas sin la clave de
+// DeepInfra y el cliente de las animaciones con ella; y la cancelación durante
+// la escritura, que no paga ni guarda nada.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
@@ -52,13 +63,20 @@ import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
 
+import { avatarClipFileName } from '../../pipeline/avatar/clip-path.ts'
 import {
   avatarAudioCutHash,
+  avatarIdempotencyKey,
   avatarRenderHash,
   avatarRequestHash,
   avatarRequestKey,
   avatarVideoTitle,
 } from '../../pipeline/avatar/fingerprint.ts'
+import { avatarSceneRequestHash } from '../../pipeline/avatar/lane.ts'
+import {
+  avatarMotionTextHash,
+  templateMotionPrompt,
+} from '../../pipeline/avatar/motion-prompt.ts'
 import {
   pendingAvatarScenes,
   renderAvatarScenes,
@@ -71,7 +89,10 @@ import { avatarStage } from '../../pipeline/stages/avatar/avatar.ts'
 import { buildCreateVideoContext } from '../../pipeline/stages/context.ts'
 import { CREATE_VIDEO_STAGES } from '../../pipeline/stages/registry.ts'
 import { collectRenderScenes } from '../../pipeline/stages/render/animated-scenes.ts'
-import { AVATAR_RENDER_DEADLINE_MS } from '../../pipeline/types/avatar.ts'
+import {
+  AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
+  AVATAR_RENDER_DEADLINE_MS,
+} from '../../pipeline/types/avatar.ts'
 import { isInsufficientCreditsCode } from '../../pipeline/utils/insufficient-credits.ts'
 import {
   FFMPEG,
@@ -2116,6 +2137,1310 @@ test('sin avatar, nada cambia: la fase no habla con HeyGen ni toca un byte de sc
   await avatarStage.run(context)
   assert.deepEqual(fake.calls, [])
   assert.deepEqual(await readFile(scenesFile), before)
+})
+
+// ─── Entrega 2e (diseño §21.2 y §21.4): regenerar una lista y el movimiento ───
+
+// La huella del pedido actual de una escena del proyecto, como el carril: con
+// su movimiento y su toma (avatarSceneRequestHash).
+async function requestHashOf(projectDir, scene, narrationVersion = 0) {
+  const narration = await readFile(join(projectDir, 'narration.mp3'))
+  return avatarSceneRequestHash(scene, {
+    format: '16:9',
+    narrationSha256: createHash('sha256').update(narration).digest('hex'),
+    narrationVersion,
+  })
+}
+// La Idempotency-Key del intento `retryIndex` de ese pedido de la escena.
+const sceneKey = (sceneId, hash, retryIndex = 0) =>
+  avatarIdempotencyKey(PROJECT_ID, sceneId, avatarRequestKey(hash, retryIndex))
+const sceneOfPost = (call) => Number(/:scene-(\d+):/.exec(call.body.title)[1])
+const postOf = (fake, sceneId) =>
+  fake.posts().find((call) => sceneOfPost(call) === sceneId)
+// La huella con la que Vimo escribe el movimiento automático (R-2e-10): el
+// tono de «más expresivo» y el texto de la escena.
+const autoMotionHash = (text, expressive = false) =>
+  avatarMotionTextHash(`${expressive ? 'expressive' : 'calm'}\n${text}`)
+// Lo que la 2e suma a una escena de avatar: Avatar III sin ajustes no lleva nada.
+const MOTION_KEYS = [
+  'expressive',
+  'motionPrompt',
+  'motionSource',
+  'autoMotionPrompt',
+  'autoMotionTextHash',
+  'motionUnsupported',
+  'take',
+]
+const motionKeysOf = (avatar) => MOTION_KEYS.filter((key) => key in avatar)
+const rejectedFor = (status, code, message) =>
+  json({ error: { code, message, param: null } }, status)
+
+// El escritor del movimiento con un modelo simulado: anota cada llamado y
+// responde un prompt válido por escena pedida.
+function fakeMotionLlm(
+  answer = (sceneId) =>
+    `Steady, warm smile at the camera for appearance ${sceneId}.`,
+) {
+  const calls = []
+  return {
+    calls,
+    answer,
+    // Las escenas que vio el modelo en el llamado `index`.
+    scenesOf: (index) => JSON.parse(calls[index].userPrompt).scenes,
+    async generate(request) {
+      calls.push(request)
+      const { scenes } = JSON.parse(request.userPrompt)
+      return JSON.stringify({
+        motions: scenes.map((scene) => ({
+          sceneId: scene.sceneId,
+          prompt: answer(scene.sceneId),
+        })),
+      })
+    },
+  }
+}
+
+// Saca la marca de video desactualizado de project.json, para ver si la
+// corrida siguiente la vuelve a poner.
+async function clearVideoOutdated(projectDir) {
+  const metadata = await readMetadata(projectDir)
+  delete metadata.videoOutdated
+  await writeFile(
+    join(projectDir, 'project.json'),
+    JSON.stringify(metadata, null, 2),
+  )
+}
+
+// Reescribe el avatar de esas escenas en scenes.json (`patch(avatar, scene)`).
+async function patchAvatars(projectDir, patches) {
+  const scenes = await readScenesJson(projectDir)
+  for (const scene of scenes) {
+    const patch = patches[scene.id]
+    if (patch) scene.avatar = { ...scene.avatar, ...(await patch(scene)) }
+  }
+  await writeFile(join(projectDir, 'scenes.json'), JSON.stringify(scenes))
+  return scenes
+}
+
+test('avatar-render-scenes (entrega 2e): `regenerateSceneIds` y `motion` que no sirven se rechazan sin hablar con HeyGen ni guardar nada; el tope del prompt cuenta recortado', async (t) => {
+  const project = await videoProject(t, [
+    plainScene(1, 0),
+    avatarScene(2, 1, { engine: 'avatar_v' }),
+    avatarScene(3, 2, { engine: 'avatar_v' }),
+  ])
+  const scenesFile = join(project.projectDir, 'scenes.json')
+  const before = await readFile(scenesFile, 'utf8')
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const valid = { sceneId: 2, motionPrompt: 'Smile.', expressive: false }
+  const payloads = [
+    ...[null, 2, '2', {}, [3], [1], [2, 2], [2.5], ['2'], [null]].map(
+      (regenerateSceneIds) => ({ regenerateSceneIds }),
+    ),
+    ...[
+      null,
+      {},
+      valid,
+      [null],
+      [[]],
+      [{ ...valid, sceneId: 3 }],
+      [{ ...valid, sceneId: 1 }],
+      [{ ...valid, sceneId: '2' }],
+      [{ ...valid, sceneId: 2.5 }],
+      [{ ...valid, motionPrompt: 5 }],
+      [{ ...valid, motionPrompt: null }],
+      [{ ...valid, expressive: 'yes' }],
+      [{ ...valid, expressive: 1 }],
+      [{ sceneId: 2, motionPrompt: 'Smile.' }],
+      [{ sceneId: 2, expressive: true }],
+      [{ ...valid, motionPrompt: 'a'.repeat(301) }],
+      [valid, { ...valid, expressive: true }],
+    ].map((motion) => ({ motion })),
+  ]
+  for (const extra of payloads)
+    await assert.rejects(
+      renderScenes(project.root, {
+        projectId: PROJECT_ID,
+        sceneIds: [2],
+        ...extra,
+      }),
+      { code: 'invalid_payload' },
+      JSON.stringify(extra),
+    )
+  // La fase no regenera ni recibe ajustes: solo el comando, con sus escenas.
+  for (const extra of [{ regenerateSceneIds: [2] }, { motion: [valid] }])
+    await assert.rejects(
+      renderAvatarScenes(await stageContext(project.root, []), extra),
+      { code: 'invalid_payload' },
+      JSON.stringify(extra),
+    )
+  assert.deepEqual(fake.calls, [])
+  assert.equal(await readFile(scenesFile, 'utf8'), before)
+
+  // 300 caracteres, con espacios en las puntas: entra recortado.
+  const longest = 'a'.repeat(300)
+  assert.deepEqual(
+    await renderScenes(project.root, {
+      projectId: PROJECT_ID,
+      sceneIds: [2],
+      regenerateSceneIds: [],
+      motion: [
+        { sceneId: 2, motionPrompt: `  ${longest}\n `, expressive: false },
+      ],
+    }),
+    { rendered: [2], failed: [] },
+  )
+  assert.equal(postOf(fake, 2).body.motion_prompt, longest)
+  const saved = (await readScenesJson(project.projectDir))[1].avatar
+  assert.equal(saved.motionPrompt, longest)
+  assert.equal(saved.motionSource, 'user')
+})
+
+test('regenerar una escena lista (entrega 2e): un render nuevo pagado aunque nada cambie —la toma siguiente, otra clave, el saldo mirado antes, el clip nuevo y el mp4 desactualizado—; sin pedirlo, la misma escena no paga ni mira el saldo', async (t) => {
+  const project = await videoProject(t, [avatarScene(1, 0)], { video: true })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const request = { projectId: PROJECT_ID, sceneIds: [1] }
+  assert.deepEqual(await renderScenes(project.root, request), {
+    rendered: [1],
+    failed: [],
+  })
+  const [first] = await readScenesJson(project.projectDir)
+  const firstHash = await requestHashOf(project.projectDir, first)
+  assert.equal(first.avatar.attempts[0].hash, firstHash)
+
+  // Sin `regenerateSceneIds`: lista con el mismo pedido, sin hablar con HeyGen.
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(await renderScenes(project.root, request), {
+    rendered: [1],
+    failed: [],
+  })
+  assert.deepEqual(fake.calls, [])
+  assert.deepEqual(await readScenesJson(project.projectDir), [first])
+
+  // Regenerar: la toma 1 es otro pedido, que se paga después de mirar el saldo.
+  await clearVideoOutdated(project.projectDir)
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  const events = []
+  assert.deepEqual(
+    await renderScenes(
+      project.root,
+      { ...request, regenerateSceneIds: [1] },
+      events,
+    ),
+    { rendered: [1], failed: [] },
+  )
+  const [retaken] = await readScenesJson(project.projectDir)
+  assert.equal(retaken.avatar.take, 1)
+  const takeHash = await requestHashOf(project.projectDir, retaken)
+  assert.notEqual(takeHash, firstHash)
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [sceneKey(1, takeHash)],
+  )
+  assert.ok(balanceReadsBefore(fake.calls, isRenderRequest)[0] >= 1)
+  assert.equal(retaken.avatar.status, 'ready')
+  assert.notEqual(retaken.avatar.clipFile, first.avatar.clipFile)
+  assert.deepEqual(
+    retaken.avatar.attempts.map((attempt) => [attempt.hash, attempt.state]),
+    [
+      [firstHash, 'succeeded'],
+      [takeHash, 'succeeded'],
+    ],
+  )
+  assert.equal((await readMetadata(project.projectDir)).videoOutdated, true)
+  assert.deepEqual(
+    ofType(events, 'avatar-scene-ready').map((event) => event.sceneId),
+    [1],
+  )
+
+  // Otra vez: la toma 2.
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  await renderScenes(project.root, { ...request, regenerateSceneIds: [1] })
+  const [again] = await readScenesJson(project.projectDir)
+  assert.equal(again.avatar.take, 2)
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [sceneKey(1, await requestHashOf(project.projectDir, again))],
+  )
+
+  // La regeneración cuenta para el saldo: si no alcanza, pausa sin pedir nada
+  // y la escena sigue lista con su clip. La toma ya quedó guardada antes de
+  // pedir (se guarda en la misma escritura que los ajustes).
+  fake.reset({ clip: project.clip, clipSeconds: 1, me: wallet(0.001) })
+  await assert.rejects(
+    renderScenes(project.root, { ...request, regenerateSceneIds: [1] }),
+    { code: 'avatar_insufficient_credits' },
+  )
+  assert.deepEqual(fake.posts(), [])
+  assert.deepEqual(fake.uploads(), [])
+  const [paused] = await readScenesJson(project.projectDir)
+  assert.equal(paused.avatar.status, 'ready')
+  assert.equal(paused.avatar.clipFile, again.avatar.clipFile)
+  assert.equal(paused.avatar.take, 3)
+})
+
+test('regenerar una lista que falla (entrega 2e): la escena sigue lista con el clip anterior y el recibo guardado, sin error y sin desactualizar el mp4, y `avatar-scene-failed` sale igual; reintentar usa la misma toma con la clave siguiente; si la cuenta pausa, el clip también queda', async (t) => {
+  const project = await videoProject(t, [avatarScene(1, 0)], { video: true })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const request = { projectId: PROJECT_ID, sceneIds: [1] }
+  await renderScenes(project.root, request)
+  const [first] = await readScenesJson(project.projectDir)
+  const firstHash = first.avatar.attempts[0].hash
+  await clearVideoOutdated(project.projectDir)
+
+  fake.reset({
+    clip: project.clip,
+    clipSeconds: 1,
+    poll: () => ({
+      status: 'failed',
+      extra: {
+        failure_code: 'rendering_failed',
+        failure_message: 'Avatar rendering timed out',
+      },
+    }),
+  })
+  const events = []
+  assert.deepEqual(
+    await renderScenes(
+      project.root,
+      { ...request, regenerateSceneIds: [1] },
+      events,
+    ),
+    { rendered: [], failed: [1] },
+  )
+  assert.equal(fake.posts().length, 1)
+  assert.deepEqual(ofType(events, 'avatar-scene-failed'), [
+    { type: 'avatar-scene-failed', sceneId: 1, code: 'avatar_render_failed' },
+  ])
+  const [kept] = await readScenesJson(project.projectDir)
+  for (const field of [
+    'status',
+    'clipFile',
+    'normalizedSeconds',
+    'renderHash',
+    'narrationVersion',
+    'usdEstimated',
+  ])
+    assert.deepEqual(kept.avatar[field], first.avatar[field], field)
+  assert.equal('errorCode' in kept.avatar, false)
+  assert.equal(kept.avatar.take, 1)
+  const takeHash = await requestHashOf(project.projectDir, kept)
+  assert.deepEqual(
+    kept.avatar.attempts.map((attempt) => [
+      attempt.hash,
+      attempt.state,
+      attempt.errorCode,
+    ]),
+    [
+      [firstHash, 'succeeded', undefined],
+      [takeHash, 'failed', 'avatar_render_failed'],
+    ],
+  )
+  assert.notEqual((await readMetadata(project.projectDir)).videoOutdated, true)
+  // La vista del editor la sigue mostrando lista, con su clip.
+  const { paths } = await stageContext(project.root, [])
+  const [view] = await toSceneSummaries(paths, [kept], { narrationVersion: 0 })
+  assert.equal(view.avatar.status, 'ready')
+  assert.ok(view.avatar.clipPath)
+
+  // Reintentar: la misma toma (su pedido no tiene un clip cobrado), con la
+  // clave siguiente; el clip nuevo reemplaza al anterior.
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await renderScenes(project.root, { ...request, regenerateSceneIds: [1] }),
+    { rendered: [1], failed: [] },
+  )
+  const [retried] = await readScenesJson(project.projectDir)
+  assert.equal(retried.avatar.take, 1)
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [sceneKey(1, takeHash, 1)],
+  )
+  assert.notEqual(retried.avatar.clipFile, first.avatar.clipFile)
+  assert.equal((await readMetadata(project.projectDir)).videoOutdated, true)
+
+  // La cuenta pausa (HeyGen dice que no hay saldo al pedir): lanza, y la
+  // escena queda lista con su clip y el estimado de antes.
+  fake.reset({
+    clip: project.clip,
+    clipSeconds: 1,
+    create: () => rejectedFor(402, 'insufficient_credit', 'Not enough credit'),
+  })
+  await assert.rejects(
+    renderScenes(project.root, { ...request, regenerateSceneIds: [1] }),
+    { code: 'avatar_insufficient_credits' },
+  )
+  const [paused] = await readScenesJson(project.projectDir)
+  assert.equal(paused.avatar.status, 'ready')
+  assert.equal(paused.avatar.clipFile, retried.avatar.clipFile)
+  assert.equal(paused.avatar.usdEstimated, retried.avatar.usdEstimated)
+  assert.equal('errorCode' in paused.avatar, false)
+  assert.deepEqual(
+    paused.avatar.attempts.at(-1).errorCode,
+    'avatar_insufficient_credits',
+  )
+})
+
+test('regenerar con un recibo en vuelo de la toma (entrega 2e): se cosecha sin pagar otro —ni POST, ni audio, ni saldo— y la toma no sube', async (t) => {
+  const project = await videoProject(t, [avatarScene(1, 0)])
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const request = {
+    projectId: PROJECT_ID,
+    sceneIds: [1],
+    regenerateSceneIds: [1],
+  }
+  await renderScenes(project.root, { projectId: PROJECT_ID, sceneIds: [1] })
+  const [first] = await readScenesJson(project.projectDir)
+
+  // El POST de la toma 1 se queda sin respuesta: el recibo queda sin resolver
+  // y la escena, lista con su clip.
+  fake.reset({ clip: project.clip, clipSeconds: 1, create: () => 'network' })
+  assert.deepEqual(await renderScenes(project.root, request), {
+    rendered: [],
+    failed: [1],
+  })
+  const [waiting] = await readScenesJson(project.projectDir)
+  assert.equal(waiting.avatar.status, 'ready')
+  assert.equal(waiting.avatar.clipFile, first.avatar.clipFile)
+  assert.equal(waiting.avatar.take, 1)
+  assert.deepEqual(
+    waiting.avatar.attempts.map((attempt) => attempt.state),
+    ['succeeded', 'ambiguous'],
+  )
+  const sent = fake.posts()[0]
+
+  // HeyGen sí lo había creado: aparece por su título y se adopta.
+  fake.reset({
+    clip: project.clip,
+    clipSeconds: 1,
+    listed: [
+      { id: 'video-de-la-toma', title: sent.body.title, status: 'completed' },
+    ],
+  })
+  assert.deepEqual(await renderScenes(project.root, request), {
+    rendered: [1],
+    failed: [],
+  })
+  assert.deepEqual(fake.posts(), [])
+  assert.deepEqual(fake.uploads(), [])
+  assert.equal(fake.calls.filter(isBalanceRead).length, 0)
+  const [harvested] = await readScenesJson(project.projectDir)
+  assert.equal(harvested.avatar.take, 1)
+  assert.deepEqual(
+    harvested.avatar.attempts.map((attempt) => [
+      attempt.state,
+      attempt.videoId,
+    ]),
+    [
+      ['succeeded', 'video-1-1'],
+      ['succeeded', 'video-de-la-toma'],
+    ],
+  )
+  assert.notEqual(harvested.avatar.clipFile, first.avatar.clipFile)
+})
+
+test('regenerar una escena que no está lista (entrega 2e): no hay clip que conservar ni toma que subir; se cosecha el render que ya está pago', async (t) => {
+  const scene = avatarScene(1, 0)
+  const project = await videoProject(t, [scene])
+  const hash = await requestHashOf(project.projectDir, scene)
+  await patchAvatars(project.projectDir, {
+    1: () => ({
+      status: 'failed',
+      errorCode: 'avatar_download_failed',
+      attempts: [paidReceipt(hash, 'video-pagado')],
+    }),
+  })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await renderScenes(project.root, {
+      projectId: PROJECT_ID,
+      sceneIds: [1],
+      regenerateSceneIds: [1],
+    }),
+    { rendered: [1], failed: [] },
+  )
+  assert.deepEqual(fake.posts(), [])
+  const [harvested] = await readScenesJson(project.projectDir)
+  assert.equal(harvested.avatar.status, 'ready')
+  assert.equal('take' in harvested.avatar, false)
+})
+
+test('los ajustes de movimiento del editor (entrega 2e): se guardan antes de pedir —recortados, de la persona o de Vimo, vacío borra, «más expresivo» solo si sirve— y viajan en el cuerpo; vacío sin automático deja que Vimo escriba el suyo (R-2e-9); con V y un prompt propio, «más expresivo» va al final del prompt (R-2e-14)', async (t) => {
+  const automatic2 = 'Calm smile at the camera with a nod.'
+  const automatic5 = 'Warm smile at the camera, nodding.'
+  const project = await videoProject(t, [
+    avatarScene(1, 0, { engine: 'avatar_iv' }),
+    avatarScene(2, 1, {
+      engine: 'avatar_v',
+      status: 'failed',
+      errorCode: 'avatar_render_failed',
+      expressive: true,
+      motionPrompt: automatic2,
+      motionSource: 'auto',
+      autoMotionPrompt: automatic2,
+      autoMotionTextHash: autoMotionHash('Escena 2', true),
+    }),
+    avatarScene(3, 2, { engine: 'avatar_v' }),
+    avatarScene(4, 3, { engine: 'avatar_iv', lookType: 'digital_twin' }),
+    // El automático guardado con espacios en las puntas (un scenes.json
+    // editado): sigue siendo el de Vimo, como dice la ayuda del editor.
+    avatarScene(5, 4, {
+      engine: 'avatar_v',
+      status: 'failed',
+      errorCode: 'avatar_render_failed',
+      motionPrompt: automatic5,
+      motionSource: 'auto',
+      autoMotionPrompt: `  ${automatic5} `,
+      autoMotionTextHash: autoMotionHash('Escena 5'),
+    }),
+    avatarScene(6, 5, { engine: 'avatar_v' }),
+  ])
+  const own = 'a'.repeat(300)
+  let savedAtFirstPost
+  const fake = fakeHeyGen(t, {
+    clip: project.clip,
+    clipSeconds: 1,
+    async onRequest(call) {
+      if (isRenderRequest(call))
+        savedAtFirstPost ??= await readScenesJson(project.projectDir)
+    },
+  })
+  assert.deepEqual(
+    await renderScenes(project.root, {
+      projectId: PROJECT_ID,
+      sceneIds: [1, 2, 3, 4, 5, 6],
+      motion: [
+        {
+          sceneId: 1,
+          motionPrompt: '  Lean in with an open palm.  ',
+          expressive: true,
+        },
+        { sceneId: 2, motionPrompt: '', expressive: false },
+        { sceneId: 3, motionPrompt: '', expressive: true },
+        { sceneId: 4, motionPrompt: 'Smile at the camera.', expressive: true },
+        { sceneId: 5, motionPrompt: automatic5, expressive: false },
+        { sceneId: 6, motionPrompt: ` ${own} `, expressive: true },
+      ],
+    }),
+    { rendered: [1, 2, 3, 4, 5, 6], failed: [] },
+  )
+  const scenes = await readScenesJson(project.projectDir)
+  const avatarOf = (id) => scenes.find((scene) => scene.id === id).avatar
+  // Guardados antes del primer POST, en la misma escritura.
+  assert.deepEqual(
+    savedAtFirstPost.map((scene) => [scene.id, scene.avatar.motionSource]),
+    [
+      [1, 'user'],
+      [2, 'user'],
+      [3, 'auto'],
+      [4, undefined],
+      [5, 'auto'],
+      [6, 'user'],
+    ],
+  )
+
+  // IV con foto: el de la persona, recortado, y `expressiveness: high`.
+  assert.equal(avatarOf(1).motionPrompt, 'Lean in with an open palm.')
+  assert.equal(avatarOf(1).motionSource, 'user')
+  assert.equal(avatarOf(1).expressive, true)
+  assert.equal(postOf(fake, 1).body.motion_prompt, 'Lean in with an open palm.')
+  assert.equal(postOf(fake, 1).body.expressiveness, 'high')
+  // Borrado a propósito con un automático escrito: de la persona, sin prompt;
+  // el automático queda para «Usar el automático»; «más expresivo» apagado se
+  // borra.
+  assert.equal(avatarOf(2).motionSource, 'user')
+  assert.equal('motionPrompt' in avatarOf(2), false)
+  assert.equal(avatarOf(2).autoMotionPrompt, automatic2)
+  assert.equal('expressive' in avatarOf(2), false)
+  assert.equal('motion_prompt' in postOf(fake, 2).body, false)
+  // Vacío sin automático (R-2e-9): Vimo escribe el suyo (sin clave de
+  // DeepInfra, la plantilla del medio, expresiva).
+  const template3 = templateMotionPrompt({
+    sceneId: 3,
+    text: 'Escena 3',
+    seconds: 1,
+    position: 'middle',
+    expressive: true,
+  })
+  assert.equal(avatarOf(3).motionSource, 'auto')
+  assert.equal(avatarOf(3).motionPrompt, template3)
+  assert.equal(avatarOf(3).autoMotionPrompt, template3)
+  assert.equal(avatarOf(3).autoMotionTextHash, autoMotionHash('Escena 3', true))
+  assert.equal(avatarOf(3).expressive, true)
+  assert.equal(postOf(fake, 3).body.motion_prompt, template3)
+  assert.equal('expressiveness' in postOf(fake, 3).body, false)
+  // IV con un gemelo digital no admite movimiento: no se guarda nada.
+  assert.deepEqual(motionKeysOf(avatarOf(4)), [])
+  assert.equal('motion_prompt' in postOf(fake, 4).body, false)
+  assert.equal('expressiveness' in postOf(fake, 4).body, false)
+  // El mismo que escribió Vimo: sigue siendo de Vimo.
+  assert.equal(avatarOf(5).motionSource, 'auto')
+  assert.equal(postOf(fake, 5).body.motion_prompt, automatic5)
+  // V con un prompt propio y «más expresivo» (R-2e-14): la escena guarda el
+  // suyo; el pedido lleva la frase al final.
+  assert.equal(avatarOf(6).motionPrompt, own)
+  assert.equal(avatarOf(6).motionSource, 'user')
+  assert.equal(
+    postOf(fake, 6).body.motion_prompt,
+    `${own} ${AVATAR_EXPRESSIVE_PROMPT_SUFFIX}`,
+  )
+  assert.equal(
+    avatarOf(6).attempts[0].motionPrompt,
+    postOf(fake, 6).body.motion_prompt,
+  )
+  assert.deepEqual(fake.unexpected, [])
+})
+
+test('un prompt distinto vuelve a intentar el movimiento rechazado (revisión final de la 2e): la marca se borra y el pedido lleva el prompt nuevo; el mismo prompt la conserva y el pedido va sin movimiento', async (t) => {
+  const rejected = {
+    engine: 'avatar_v',
+    status: 'failed',
+    errorCode: 'avatar_render_failed',
+    motionSource: 'user',
+    motionUnsupported: true,
+  }
+  const project = await videoProject(t, [
+    avatarScene(1, 0, { ...rejected, motionPrompt: 'Old prompt, too long.' }),
+    avatarScene(2, 1, {
+      ...rejected,
+      motionPrompt: 'Warm smile at the camera.',
+    }),
+  ])
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await renderScenes(project.root, {
+      projectId: PROJECT_ID,
+      sceneIds: [1, 2],
+      motion: [
+        {
+          sceneId: 1,
+          motionPrompt: 'Small nod with a calm smile.',
+          expressive: false,
+        },
+        {
+          sceneId: 2,
+          motionPrompt: ' Warm smile at the camera. ',
+          expressive: false,
+        },
+      ],
+    }),
+    { rendered: [1, 2], failed: [] },
+  )
+  const scenes = await readScenesJson(project.projectDir)
+  const avatarOf = (id) => scenes.find((scene) => scene.id === id).avatar
+  // Un prompt nuevo: sin la marca, y el pedido lo lleva.
+  assert.equal('motionUnsupported' in avatarOf(1), false)
+  assert.equal(
+    postOf(fake, 1).body.motion_prompt,
+    'Small nod with a calm smile.',
+  )
+  // El mismo prompt (con espacios de más): la marca sigue y va sin movimiento.
+  assert.equal(avatarOf(2).motionUnsupported, true)
+  assert.equal('motion_prompt' in postOf(fake, 2).body, false)
+  assert.deepEqual(fake.unexpected, [])
+})
+
+test('el movimiento automático (entrega 2e): un solo llamado al escritor para las escenas que lo necesitan, ubicadas entre todas las del video; nunca con Avatar III, con un prompt de la persona, con un recibo en vuelo de su pedido ni en una lista al día; se guarda, viaja en el cuerpo y no aparece en el log', async (t) => {
+  const project = await videoProject(t, [
+    avatarScene(1, 0),
+    avatarScene(2, 1, { engine: 'avatar_v' }),
+    avatarScene(3, 2, {
+      engine: 'avatar_iv',
+      motionPrompt: 'Own steady gaze at the camera.',
+      motionSource: 'user',
+    }),
+    avatarScene(4, 3, {
+      engine: 'avatar_v',
+      lookType: 'digital_twin',
+      status: 'failed',
+      errorCode: 'avatar_timeout',
+    }),
+    avatarScene(5, 4, {
+      engine: 'avatar_v',
+      motionPrompt: 'Old calm smile at the camera, nodding.',
+      motionSource: 'auto',
+      autoMotionPrompt: 'Old calm smile at the camera, nodding.',
+      autoMotionTextHash: autoMotionHash('Texto viejo'),
+    }),
+    avatarScene(6, 5, { engine: 'avatar_iv', expressive: true }),
+  ])
+  // La 4 tiene un render pagado en vuelo de su pedido actual; la 5 está lista,
+  // al día y con su clip (su automático se escribió para otro texto), y su clip
+  // salió de un pedido con otro prompt: lo único que frena al escritor es que
+  // el carril no va a pedir nada.
+  await mkdir(join(project.projectDir, 'avatar'), { recursive: true })
+  await writeFile(
+    join(project.projectDir, 'avatar', 'scene_5.ab12cd34.mp4'),
+    project.clip,
+  )
+  const scenes = await patchAvatars(project.projectDir, {
+    4: async (scene) => ({
+      attempts: [
+        {
+          hash: await requestHashOf(project.projectDir, scene),
+          state: 'pending',
+          engine: 'avatar_v',
+          lookId: 'look-1',
+          audioAssetId: 'asset-4',
+          videoId: 'video-4-en-vuelo',
+          createdAt: '2026-10-12T05:00:00.000Z',
+        },
+      ],
+    }),
+    5: async (scene) => ({
+      status: 'ready',
+      clipFile: 'scene_5.ab12cd34.mp4',
+      renderHash: renderHashOf(scene, 0),
+      narrationVersion: 0,
+      attempts: [
+        {
+          ...paidReceipt(
+            await requestHashOf(project.projectDir, {
+              ...scene,
+              avatar: {
+                ...scene.avatar,
+                motionPrompt: 'Earlier calm gaze at the camera.',
+              },
+            }),
+            'video-5',
+          ),
+          engine: 'avatar_v',
+        },
+      ],
+    }),
+  })
+  const events = []
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const llm = fakeMotionLlm()
+  const context = await stageContext(project.root, events)
+  assert.deepEqual(
+    await renderAvatarScenes(context, {
+      sceneIds: [1, 2, 3, 4, 5, 6],
+      motionLlm: llm,
+    }),
+    { rendered: [1, 2, 3, 4, 5, 6], failed: [] },
+  )
+
+  // Un llamado, con la 2 en el medio y la 6 cerrando (entre las seis).
+  assert.equal(llm.calls.length, 1)
+  assert.deepEqual(llm.scenesOf(0), [
+    {
+      sceneId: 2,
+      position: 'middle',
+      seconds: 1,
+      long: false,
+      expressive: false,
+      text: 'Escena 2',
+    },
+    {
+      sceneId: 6,
+      position: 'closing',
+      seconds: 1,
+      long: false,
+      expressive: true,
+      text: 'Escena 6',
+    },
+  ])
+  const after = await readScenesJson(project.projectDir)
+  const avatarOf = (id) => after.find((scene) => scene.id === id).avatar
+  for (const [id, expressive] of [
+    [2, false],
+    [6, true],
+  ]) {
+    const avatar = avatarOf(id)
+    assert.equal(avatar.autoMotionPrompt, llm.answer(id), `escena ${id}`)
+    assert.equal(avatar.motionPrompt, llm.answer(id), `escena ${id}`)
+    assert.equal(avatar.motionSource, 'auto', `escena ${id}`)
+    assert.equal(
+      avatar.autoMotionTextHash,
+      autoMotionHash(`Escena ${id}`, expressive),
+      `escena ${id}`,
+    )
+    assert.equal(postOf(fake, id).body.motion_prompt, llm.answer(id))
+  }
+  assert.equal(postOf(fake, 6).body.expressiveness, 'high')
+  assert.equal('expressiveness' in postOf(fake, 2).body, false)
+  // Avatar III: el cuerpo y la escena de siempre.
+  assert.deepEqual(motionKeysOf(avatarOf(1)), [])
+  assert.equal('motion_prompt' in postOf(fake, 1).body, false)
+  // El de la persona viaja tal cual.
+  assert.equal(
+    postOf(fake, 3).body.motion_prompt,
+    'Own steady gaze at the camera.',
+  )
+  assert.equal(avatarOf(3).motionSource, 'user')
+  // La 4 cosechó su render en vuelo sin pagar otro y sigue sin prompt.
+  assert.equal(postOf(fake, 4), undefined)
+  assert.equal('motionPrompt' in avatarOf(4), false)
+  assert.equal(avatarOf(4).attempts[0].state, 'succeeded')
+  // La 5, lista y al día: ni un byte distinto.
+  assert.equal(postOf(fake, 5), undefined)
+  assert.deepEqual(avatarOf(5), scenes[4].avatar)
+  assert.equal(fake.posts().length, 4)
+  // El log dice cuántas, nunca qué.
+  const logs = ofType(events, 'log').map((event) => event.message)
+  assert.ok(
+    logs.includes(
+      'Avatar motion written for scene(s) 2, 6: 0 from the templates',
+    ),
+    logs.join('\n'),
+  )
+  for (const id of [2, 6])
+    assert.ok(logs.every((message) => !message.includes(llm.answer(id))))
+})
+
+test('el movimiento automático se reescribe si cambió el texto o «más expresivo» (R-2e-10), pero no si el pedido actual ya tiene un render pagado que el carril cosecharía; un recibo en vuelo de un pedido viejo no lo frena', async (t) => {
+  const old = (id) => `Composed smile at the camera, scene ${id}.`
+  const project = await videoProject(
+    t,
+    [1, 2, 3, 4, 5].map((id) =>
+      avatarScene(id, id - 1, {
+        engine: 'avatar_v',
+        status: 'failed',
+        errorCode: 'avatar_render_failed',
+        motionPrompt: old(id),
+        motionSource: 'auto',
+        autoMotionPrompt: old(id),
+        autoMotionTextHash: autoMotionHash(`Escena ${id}`),
+      }),
+    ),
+    { metadata: { narrationVersion: 1 } },
+  )
+  await patchAvatars(project.projectDir, {
+    // 1: la descarga falló con el render pagado; el texto cambió después.
+    1: async (scene) => ({
+      autoMotionTextHash: autoMotionHash('Texto viejo'),
+      attempts: [
+        {
+          ...paidReceipt(
+            await requestHashOf(project.projectDir, scene, 1),
+            'video-1-pagado',
+          ),
+          engine: 'avatar_v',
+        },
+      ],
+    }),
+    // 2: el texto cambió.
+    2: () => ({ autoMotionTextHash: autoMotionHash('Texto viejo') }),
+    // 4: nada cambió.
+    // 5: el texto cambió y queda un recibo sin resolver de la narración vieja.
+    5: async (scene) => ({
+      autoMotionTextHash: autoMotionHash('Texto viejo'),
+      attempts: [
+        {
+          hash: await requestHashOf(project.projectDir, scene, 0),
+          state: 'ambiguous',
+          engine: 'avatar_v',
+          lookId: 'look-1',
+          audioAssetId: 'asset-viejo',
+          createdAt: '2026-10-10T15:00:00.000Z',
+        },
+      ],
+    }),
+  })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const llm = fakeMotionLlm()
+  const context = await stageContext(project.root, [])
+  assert.deepEqual(
+    await renderAvatarScenes(context, {
+      sceneIds: [1, 2, 3, 4, 5],
+      // 3: la persona prendió «más expresivo» sin tocar el automático.
+      motion: [{ sceneId: 3, motionPrompt: old(3), expressive: true }],
+      motionLlm: llm,
+    }),
+    { rendered: [1, 2, 3, 4, 5], failed: [] },
+  )
+  assert.equal(llm.calls.length, 1)
+  assert.deepEqual(
+    llm.scenesOf(0).map((scene) => [scene.sceneId, scene.expressive]),
+    [
+      [2, false],
+      [3, true],
+      [5, false],
+    ],
+  )
+  const after = await readScenesJson(project.projectDir)
+  const avatarOf = (id) => after.find((scene) => scene.id === id).avatar
+  // La 1 cosechó su render pagado: ni prompt nuevo ni POST.
+  assert.equal(postOf(fake, 1), undefined)
+  assert.equal(avatarOf(1).motionPrompt, old(1))
+  for (const id of [2, 3, 5]) {
+    assert.equal(avatarOf(id).motionPrompt, llm.answer(id), `escena ${id}`)
+    assert.equal(postOf(fake, id).body.motion_prompt, llm.answer(id))
+  }
+  assert.equal(avatarOf(3).autoMotionTextHash, autoMotionHash('Escena 3', true))
+  // La 4, igual que antes.
+  assert.equal(postOf(fake, 4).body.motion_prompt, old(4))
+  // El recibo viejo de la 5 no se busca ni se repite: queda como estaba.
+  assert.equal(fake.lists().length, 0)
+  assert.equal(fake.posts().length, 4)
+  assert.equal(avatarOf(5).attempts[0].state, 'ambiguous')
+})
+
+test('regenerar una lista de V con «más expresivo» recién prendido (entrega 2e): el automático se reescribe expresivo y es otro pedido (sin subir la toma); regenerarla otra vez sin cambios sube la toma', async (t) => {
+  const project = await videoProject(t, [
+    avatarScene(1, 0, { engine: 'avatar_v' }),
+  ])
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const calm = fakeMotionLlm(() => 'Calm, sincere smile at the camera.')
+  const lively = fakeMotionLlm(
+    () => 'Bright smile at the camera with open hands.',
+  )
+  const render = async (selection) =>
+    renderAvatarScenes(await stageContext(project.root, []), {
+      sceneIds: [1],
+      ...selection,
+    })
+  await render({ motionLlm: calm })
+  const [first] = await readScenesJson(project.projectDir)
+  assert.equal(first.avatar.motionPrompt, 'Calm, sincere smile at the camera.')
+
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await render({
+      regenerateSceneIds: [1],
+      motion: [
+        {
+          sceneId: 1,
+          motionPrompt: first.avatar.motionPrompt,
+          expressive: true,
+        },
+      ],
+      motionLlm: lively,
+    }),
+    { rendered: [1], failed: [] },
+  )
+  assert.equal(lively.calls.length, 1)
+  assert.equal(lively.scenesOf(0)[0].expressive, true)
+  const [rewritten] = await readScenesJson(project.projectDir)
+  assert.equal(
+    rewritten.avatar.motionPrompt,
+    'Bright smile at the camera with open hands.',
+  )
+  assert.equal('take' in rewritten.avatar, false)
+  const [post] = fake.posts()
+  assert.equal(
+    post.body.motion_prompt,
+    'Bright smile at the camera with open hands.',
+  )
+  assert.equal(
+    post.headers['Idempotency-Key'],
+    sceneKey(1, await requestHashOf(project.projectDir, rewritten)),
+  )
+
+  // Sin cambios: el escritor no corre y la toma sube.
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  const quiet = fakeMotionLlm()
+  await render({ regenerateSceneIds: [1], motionLlm: quiet })
+  assert.equal(quiet.calls.length, 0)
+  const [again] = await readScenesJson(project.projectDir)
+  assert.equal(again.avatar.take, 1)
+  assert.equal(
+    fake.posts()[0].headers['Idempotency-Key'],
+    sceneKey(1, await requestHashOf(project.projectDir, again)),
+  )
+})
+
+test('el movimiento automático sin clave de DeepInfra sale de las plantillas; con la clave, el escritor usa el cliente de texto de las animaciones (tier balanced) y, si falla, las plantillas', async (t) => {
+  const project = await videoProject(t, [
+    avatarScene(1, 0, { engine: 'avatar_v' }),
+    avatarScene(2, 1, { engine: 'avatar_v' }),
+  ])
+  const templates = [
+    [1, 'opening'],
+    [2, 'closing'],
+  ].map(([sceneId, position]) =>
+    templateMotionPrompt({
+      sceneId,
+      text: `Escena ${sceneId}`,
+      seconds: 1,
+      position,
+      expressive: false,
+    }),
+  )
+  const scenesFile = join(project.projectDir, 'scenes.json')
+  const before = await readFile(scenesFile, 'utf8')
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const events = []
+  await renderScenes(
+    project.root,
+    { projectId: PROJECT_ID, sceneIds: [1, 2] },
+    events,
+  )
+  assert.deepEqual(
+    fake
+      .posts()
+      .map((call) => call.body.motion_prompt)
+      .sort(),
+    [...templates].sort(),
+  )
+  assert.deepEqual(fake.unexpected, [])
+  assert.ok(
+    ofType(events, 'log').some(
+      (event) =>
+        event.message ===
+        'Avatar motion written for scene(s) 1, 2: 2 from the templates',
+    ),
+  )
+
+  // Con la clave: un pedido al modelo de las animaciones (el simulacro de
+  // HeyGen no lo conoce y responde 418) y, sin respuesta, las plantillas.
+  await writeFile(scenesFile, before)
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  await videosSubcommands['avatar-render-scenes'](
+    baseContext(project.root, [], {
+      apiKeys: { heygen: 'key-123', deepinfra: 'clave-de-prueba' },
+      payload: { projectId: PROJECT_ID, sceneIds: [1, 2] },
+    }),
+  )
+  assert.equal(fake.unexpected.length, 1)
+  const [model] = fake.unexpected
+  assert.equal(model.host, 'api.deepinfra.com')
+  assert.equal(model.path, '/v1/openai/chat/completions')
+  assert.equal(model.body.model, 'anthropic/claude-haiku-4-5')
+  assert.match(
+    model.body.messages[0].content,
+    /^You direct a professional video presenter/,
+  )
+  assert.deepEqual(
+    JSON.parse(model.body.messages[1].content).scenes.map(
+      (scene) => scene.sceneId,
+    ),
+    [1, 2],
+  )
+  assert.deepEqual(
+    fake
+      .posts()
+      .map((call) => call.body.motion_prompt)
+      .sort(),
+    [...templates].sort(),
+  )
+})
+
+test('cancelar mientras se escribe el movimiento (entrega 2e): sale como cancelación —con su motivo, también uno propio—, no paga nada ni guarda plantillas ni ajustes', async (t) => {
+  const project = await videoProject(t, [
+    avatarScene(1, 0, { engine: 'avatar_v' }),
+  ])
+  const scenesFile = join(project.projectDir, 'scenes.json')
+  const before = await readFile(scenesFile, 'utf8')
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  for (const reason of [undefined, new Error('la persona canceló')]) {
+    const controller = new AbortController()
+    const context = await stageContext(project.root, [])
+    context.signal = controller.signal
+    let calls = 0
+    // El modelo se corta con la cancelación y lanza un error suyo.
+    const llm = {
+      async generate() {
+        calls++
+        controller.abort(reason)
+        throw new TypeError('fetch failed')
+      },
+    }
+    await assert.rejects(
+      renderAvatarScenes(context, {
+        sceneIds: [1],
+        motion: [{ sceneId: 1, motionPrompt: '', expressive: true }],
+        motionLlm: llm,
+      }),
+      reason ? (error) => error === reason : { name: 'AbortError' },
+    )
+    assert.equal(calls, 1)
+    assert.deepEqual(fake.calls, [])
+    assert.equal(await readFile(scenesFile, 'utf8'), before)
+  }
+})
+
+// ─── Ronda 1 de WP-U (revisión de la entrega 2e) ───
+
+// El nombre del clip que deja el intento `retryIndex` del pedido actual de la
+// escena (como lo arma el carril).
+async function clipNameOf(projectDir, scene, retryIndex = 0) {
+  const hash = await requestHashOf(projectDir, scene)
+  return avatarClipFileName(scene.id, avatarRequestKey(hash, retryIndex))
+}
+
+test('regenerar después de un render nuevo cobrado que no se pudo bajar (C1 de la revisión): la escena sigue lista con el clip anterior y la próxima regeneración baja ese render —ni POST, ni audio, ni saldo, ni otra toma—; ya visto, la siguiente sí paga la toma 2', async (t) => {
+  const project = await videoProject(t, [avatarScene(1, 0)], { video: true })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const request = {
+    projectId: PROJECT_ID,
+    sceneIds: [1],
+    regenerateSceneIds: [1],
+  }
+  await renderScenes(project.root, { projectId: PROJECT_ID, sceneIds: [1] })
+  const [first] = await readScenesJson(project.projectDir)
+
+  // La toma 1: HeyGen termina (y cobra) el render, pero la CDN no lo entrega
+  // (los tres intentos de la descarga).
+  fake.reset({ clip: project.clip, clipSeconds: 1, cdnStatus: () => 500 })
+  assert.deepEqual(await renderScenes(project.root, request), {
+    rendered: [],
+    failed: [1],
+  })
+  assert.equal(fake.posts().length, 1)
+  const [kept] = await readScenesJson(project.projectDir)
+  assert.equal(kept.avatar.status, 'ready')
+  assert.equal(kept.avatar.clipFile, first.avatar.clipFile)
+  assert.equal(kept.avatar.take, 1)
+  assert.deepEqual(
+    kept.avatar.attempts.map((attempt) => attempt.state),
+    ['succeeded', 'succeeded'],
+  )
+  await clearVideoOutdated(project.projectDir)
+
+  // La próxima regeneración baja el render ya pagado de la toma 1.
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(await renderScenes(project.root, request), {
+    rendered: [1],
+    failed: [],
+  })
+  assert.deepEqual(fake.posts(), [])
+  assert.deepEqual(fake.uploads(), [])
+  assert.equal(fake.calls.filter(isBalanceRead).length, 0)
+  const [harvested] = await readScenesJson(project.projectDir)
+  assert.equal(harvested.avatar.take, 1)
+  assert.equal(
+    harvested.avatar.clipFile,
+    await clipNameOf(project.projectDir, harvested),
+  )
+  assert.notEqual(harvested.avatar.clipFile, first.avatar.clipFile)
+  assert.equal((await readMetadata(project.projectDir)).videoOutdated, true)
+
+  // Ahora es el clip que se ve: regenerar otra vez paga la toma 2.
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  await renderScenes(project.root, request)
+  const [again] = await readScenesJson(project.projectDir)
+  assert.equal(again.avatar.take, 2)
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [sceneKey(1, await requestHashOf(project.projectDir, again))],
+  )
+})
+
+test('regenerar y cancelar mientras se baja el render nuevo, ya cobrado (C1 de la revisión): sale como cancelación con la escena lista y su clip; la próxima regeneración baja ese render sin pagar otro', async (t) => {
+  const project = await videoProject(t, [avatarScene(1, 0)])
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  await renderScenes(project.root, { projectId: PROJECT_ID, sceneIds: [1] })
+  const [first] = await readScenesJson(project.projectDir)
+
+  const controller = new AbortController()
+  fake.reset({
+    clip: project.clip,
+    clipSeconds: 1,
+    onRequest(call) {
+      if (call.host === 'cdn.example') controller.abort()
+    },
+  })
+  const context = await stageContext(project.root, [])
+  context.signal = controller.signal
+  await assert.rejects(
+    renderAvatarScenes(context, { sceneIds: [1], regenerateSceneIds: [1] }),
+    { name: 'AbortError' },
+  )
+  assert.equal(fake.posts().length, 1)
+  const [cancelled] = await readScenesJson(project.projectDir)
+  assert.equal(cancelled.avatar.status, 'ready')
+  assert.equal(cancelled.avatar.clipFile, first.avatar.clipFile)
+  assert.equal(cancelled.avatar.take, 1)
+  assert.deepEqual(
+    cancelled.avatar.attempts.map((attempt) => attempt.state),
+    ['succeeded', 'succeeded'],
+  )
+
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await renderScenes(project.root, {
+      projectId: PROJECT_ID,
+      sceneIds: [1],
+      regenerateSceneIds: [1],
+    }),
+    { rendered: [1], failed: [] },
+  )
+  assert.deepEqual(fake.posts(), [])
+  assert.equal(fake.calls.filter(isBalanceRead).length, 0)
+  const [harvested] = await readScenesJson(project.projectDir)
+  assert.equal(harvested.avatar.take, 1)
+  assert.equal(
+    harvested.avatar.clipFile,
+    await clipNameOf(project.projectDir, harvested),
+  )
+})
+
+test('una toma vuelta atrás (scenes.json editado) no paga dos veces: la toma sube una sola vez y el render cobrado y nunca visto de la toma siguiente se baja sin POST', async (t) => {
+  const project = await videoProject(t, [avatarScene(1, 0)])
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  await renderScenes(project.root, { projectId: PROJECT_ID, sceneIds: [1] })
+  // El render de la toma 1 está cobrado y nunca se bajó, pero la escena dice
+  // que va por la toma 0.
+  await patchAvatars(project.projectDir, {
+    1: async (scene) => ({
+      attempts: [
+        ...scene.avatar.attempts,
+        paidReceipt(
+          await requestHashOf(project.projectDir, {
+            ...scene,
+            avatar: { ...scene.avatar, take: 1 },
+          }),
+          'video-toma-1',
+        ),
+      ],
+    }),
+  })
+  const [first] = await readScenesJson(project.projectDir)
+  assert.equal('take' in first.avatar, false)
+
+  fake.reset({ clip: project.clip, clipSeconds: 1 })
+  assert.deepEqual(
+    await renderScenes(project.root, {
+      projectId: PROJECT_ID,
+      sceneIds: [1],
+      regenerateSceneIds: [1],
+    }),
+    { rendered: [1], failed: [] },
+  )
+  assert.deepEqual(fake.posts(), [])
+  assert.ok(fake.calls.some((call) => call.path === '/v3/videos/video-toma-1'))
+  const [harvested] = await readScenesJson(project.projectDir)
+  assert.equal(harvested.avatar.take, 1)
+  assert.equal(
+    harvested.avatar.clipFile,
+    await clipNameOf(project.projectDir, harvested),
+  )
+})
+
+test('el escritor no reescribe el automático con un recibo `creating` o `ambiguous` del pedido actual (I1 de la revisión): el pedido se repite con su misma clave y el prompt de su recibo', async (t) => {
+  const old = 'Old calm smile at the camera, nodding.'
+  const waiting = (id) =>
+    avatarScene(id, id - 1, {
+      engine: 'avatar_v',
+      status: 'failed',
+      errorCode: 'avatar_network',
+      motionPrompt: old,
+      motionSource: 'auto',
+      autoMotionPrompt: old,
+      autoMotionTextHash: autoMotionHash('Texto viejo'),
+    })
+  const project = await videoProject(t, [waiting(1), waiting(2)])
+  const hashes = {}
+  const receipt = (state) => async (scene) => {
+    hashes[scene.id] = await requestHashOf(project.projectDir, scene)
+    return {
+      attempts: [
+        {
+          hash: hashes[scene.id],
+          state,
+          engine: 'avatar_v',
+          lookId: 'look-1',
+          audioAssetId: `asset-${scene.id}`,
+          motionPrompt: old,
+          createdAt: '2026-10-12T05:00:00.000Z',
+        },
+      ],
+    }
+  }
+  await patchAvatars(project.projectDir, {
+    1: receipt('ambiguous'),
+    2: receipt('creating'),
+  })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const llm = fakeMotionLlm()
+  assert.deepEqual(
+    await renderAvatarScenes(await stageContext(project.root, []), {
+      sceneIds: [1, 2],
+      motionLlm: llm,
+    }),
+    { rendered: [1, 2], failed: [] },
+  )
+  assert.equal(llm.calls.length, 0)
+  for (const id of [1, 2]) {
+    const post = postOf(fake, id)
+    assert.equal(post.body.motion_prompt, old, `escena ${id}`)
+    assert.equal(
+      post.headers['Idempotency-Key'],
+      sceneKey(id, hashes[id]),
+      `escena ${id}`,
+    )
+  }
+  assert.equal(fake.posts().length, 2)
+  assert.deepEqual(fake.uploads(), [])
+})
+
+test('una lista desactualizada pedida sin regenerar (m2 de la revisión): el carril va a pedir, así que Vimo le reescribe el automático escrito para el texto viejo', async (t) => {
+  const old = 'Old calm smile at the camera, nodding.'
+  const scene = avatarScene(1, 0, {
+    engine: 'avatar_v',
+    motionPrompt: old,
+    motionSource: 'auto',
+    autoMotionPrompt: old,
+    autoMotionTextHash: autoMotionHash('Texto viejo'),
+  })
+  const project = await videoProject(t, [scene], {
+    metadata: { narrationVersion: 1 },
+  })
+  await mkdir(join(project.projectDir, 'avatar'), { recursive: true })
+  await writeFile(
+    join(project.projectDir, 'avatar', 'scene_1.ab12cd34.mp4'),
+    project.clip,
+  )
+  await patchAvatars(project.projectDir, {
+    1: async (current) => ({
+      status: 'ready',
+      clipFile: 'scene_1.ab12cd34.mp4',
+      renderHash: renderHashOf(current, 0),
+      narrationVersion: 0,
+      attempts: [
+        {
+          ...paidReceipt(
+            await requestHashOf(project.projectDir, current, 0),
+            'video-v0',
+          ),
+          engine: 'avatar_v',
+        },
+      ],
+    }),
+  })
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const llm = fakeMotionLlm()
+  assert.deepEqual(
+    await renderAvatarScenes(await stageContext(project.root, []), {
+      sceneIds: [1],
+      motionLlm: llm,
+    }),
+    { rendered: [1], failed: [] },
+  )
+  assert.equal(llm.calls.length, 1)
+  assert.deepEqual(
+    llm.scenesOf(0).map((request) => request.sceneId),
+    [1],
+  )
+  assert.equal(postOf(fake, 1).body.motion_prompt, llm.answer(1))
+  const [after] = await readScenesJson(project.projectDir)
+  assert.equal(after.avatar.motionPrompt, llm.answer(1))
+  assert.equal('take' in after.avatar, false)
+})
+
+test('las posiciones del movimiento siguen el orden de inicio, no el de los ids (m3 de la revisión)', async (t) => {
+  // La 2 abre, la 3 va en el medio y la 1 cierra.
+  const project = await videoProject(t, [
+    avatarScene(1, 4, { engine: 'avatar_v' }),
+    avatarScene(2, 0, { engine: 'avatar_v' }),
+    avatarScene(3, 2, { engine: 'avatar_v' }),
+  ])
+  fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const llm = fakeMotionLlm()
+  await renderAvatarScenes(await stageContext(project.root, []), {
+    sceneIds: [1, 2, 3],
+    motionLlm: llm,
+  })
+  assert.equal(llm.calls.length, 1)
+  assert.deepEqual(
+    llm.scenesOf(0).map((request) => [request.sceneId, request.position]),
+    [
+      [1, 'closing'],
+      [2, 'opening'],
+      [3, 'middle'],
+    ],
+  )
 })
 
 // Centinela (registro `node-test-doble-mock-del-mismo-metodo-deja-el-global-sucio`):

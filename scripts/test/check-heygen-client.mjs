@@ -4,18 +4,21 @@
 // avatar_not_found), el género normalizado, la subida multipart, la clave de
 // idempotencia al crear un avatar desde foto, el saldo de la billetera (que
 // nunca lanza), el look nuevo desde un prompt, los renders de video (el cuerpo
-// de `createVideo` sin fondo ni `fit`, el 409 que se repite con la misma
-// clave y el mismo cuerpo a los 2, 4 y 8 s, el pedido que no sale sin look,
-// sin audio o con una clave inválida, la cancelación que nunca sale como un
-// fallo de HeyGen, el `param` del rechazo conservado, el rechazo marcado si
-// llegó después de un 409 del mismo pedido, el estado de un render, el 404
-// con su status, la búsqueda por título (que conserva un render con un estado
-// desconocido si trae id y título), el mapeo de `failure_code` y el código de
-// moderación del sobre de un rechazo) y la carpeta `avatars/`
+// de `createVideo` sin fondo ni `fit` —el de Avatar III byte a byte como antes
+// de la 2e y, desde la 2e, `motion_prompt` y `expressiveness` al final solo
+// cuando vienen, con su rechazo `avatar_motion_unsupported`—, el 409 que se
+// repite con la misma clave y el mismo cuerpo a los 2, 4 y 8 s, el pedido que
+// no sale sin look, sin audio o con una clave inválida, la cancelación que
+// nunca sale como un fallo de HeyGen, el `param` del rechazo conservado, el
+// rechazo marcado si llegó después de un 409 del mismo pedido, el estado de un
+// render, el 404 con su status, la búsqueda por título (que conserva un render
+// con un estado desconocido si trae id y título), el mapeo de `failure_code` y
+// el código de moderación del sobre de un rechazo) y la carpeta `avatars/`
 // (un avatar = un grupo con sus looks) con metadata tolerante, la de la
-// entrega 1 reconocida y las reglas del look principal y del estado. Importa
-// el código real del sidecar (Node quita los tipos) y simula HeyGen con
-// `fetch` falso: nada sale a la red.
+// entrega 1 reconocida y las reglas del look principal (desde la 2e, uno listo
+// con cualquier motor con tarifa) y del estado. Importa el código real del
+// sidecar (Node quita los tipos) y simula HeyGen con `fetch` falso: nada sale
+// a la red.
 import assert from 'node:assert/strict'
 import {
   chmod,
@@ -647,6 +650,60 @@ test('errores: la clasificación sigue el diseño §14', () => {
       '{"error":{"code":"avatar_consent_required","message":"Unavailable"}}',
       'avatar_network',
     ],
+    // Entrega 2e: un 400 por el movimiento es «este look no admite el
+    // movimiento», también antes que la moderación; con otro status, o con otro
+    // `param`, nada cambia.
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","message":"motion_prompt is not supported for this avatar","param":"motion_prompt"}}',
+      'avatar_motion_unsupported',
+    ],
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","message":"expressiveness is only supported by Avatar IV","param":"expressiveness"}}',
+      'avatar_motion_unsupported',
+    ],
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","message":"Motion not allowed by policy","param":"motion_prompt"}}',
+      'avatar_motion_unsupported',
+    ],
+    [
+      422,
+      '{"error":{"code":"unprocessable","message":"bad motion","param":"motion_prompt"}}',
+      'avatar_invalid_request',
+    ],
+    // El rechazo real de Avatar V con un avatar de foto propio sin gemelo
+    // digital (sonda gratis del 2026-10-12): 400 sin `param`, con el campo en
+    // el mensaje. También cuenta como «este look no admite el movimiento».
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","doc_url":"https://developers.heygen.com/docs/error-codes#invalid-parameter","message":"motion_prompt requires a reference look to drive motion, and this avatar\'s group has no digital twin. Remove motion_prompt, or create a digital twin in this group / pass reference_look_id."}}',
+      'avatar_motion_unsupported',
+    ],
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","message":"expressiveness is not supported with this engine"}}',
+      'avatar_motion_unsupported',
+    ],
+    // Sin el campo en el mensaje (el del audio de la misma sonda), sin sobre o
+    // con otro status, sigue siendo un pedido inválido.
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","message":"Voice audio asset not found: vimo-probe-invalid-asset"}}',
+      'avatar_invalid_request',
+    ],
+    [
+      400,
+      '{"error":{"code":"invalid_parameter","message":"motion_prompts are fine but resolution is not"}}',
+      'avatar_invalid_request',
+    ],
+    [400, 'motion_prompt rejected by the proxy', 'avatar_invalid_request'],
+    [
+      422,
+      '{"error":{"code":"unprocessable","message":"motion_prompt requires a reference look"}}',
+      'avatar_invalid_request',
+    ],
   ]
   for (const [status, body, code] of cases) {
     const error = heygenFailure(status, body)
@@ -655,6 +712,35 @@ test('errores: la clasificación sigue el diseño §14', () => {
     assert.equal(error.httpStatus, status)
   }
   assert.ok(INSUFFICIENT_CREDITS_CODES.has('avatar_insufficient_credits'))
+})
+
+test('errores (entrega 2e): el rechazo del movimiento conserva el campo y no copia el texto de HeyGen, que podría repetir el prompt', () => {
+  const prompt = 'Smile warmly at the camera with an open-palm gesture.'
+  const error = heygenFailure(
+    400,
+    JSON.stringify({
+      error: {
+        code: 'invalid_parameter',
+        message: `motion_prompt "${prompt}" needs an animation reference`,
+        param: 'motion_prompt',
+      },
+    }),
+  )
+  assert.ok(error instanceof HeyGenFailure)
+  assert.equal(error.code, 'avatar_motion_unsupported')
+  assert.equal(error.param, 'motion_prompt')
+  // El motivo viaja al log de diagnóstico (`detail`): sin el prompt.
+  assert.equal(error.message.includes(prompt), false, error.message)
+  assert.match(error.message, /motion_prompt/)
+  assert.match(error.message, /invalid_parameter/)
+  // El saldo se sigue mirando antes que el `param`.
+  assert.equal(
+    heygenFailure(
+      400,
+      '{"error":{"code":"insufficient_credits","message":"Insufficient credits","param":"motion_prompt"}}',
+    ).code,
+    'avatar_insufficient_credits',
+  )
 })
 
 test('request: ante 429 reintenta y después del tope falla con avatar_rate_limited', async (t) => {
@@ -1027,6 +1113,7 @@ test('createVideo: cuerpo exacto del render, sin fondo ni fit, con título e Ide
       url: String(url),
       method: init.method,
       headers: init.headers,
+      raw: init.body,
       body: JSON.parse(init.body),
     }
     return json({
@@ -1053,6 +1140,70 @@ test('createVideo: cuerpo exacto del render, sin fondo ni fit, con título e Ide
   })
   for (const key of ['background', 'remove_background', 'fit'])
     assert.equal(key in received.body, false, key)
+  // Avatar III sin ajustes nuevos (entrega 2e): el cuerpo de antes, byte a
+  // byte (mismas claves, mismo orden), sin movimiento.
+  assert.equal(
+    received.raw,
+    '{"type":"avatar","title":"vimo:mi-video:scene-3:ab12cd34","avatar_id":"look-1","audio_asset_id":"asset-audio","engine":{"type":"avatar_iii"},"aspect_ratio":"16:9","resolution":"1080p","output_format":"mp4"}',
+  )
+})
+
+test('createVideo (entrega 2e): el movimiento viaja al final y solo cuando viene; `engine` sigue siendo solo el tipo', async (t) => {
+  const raws = []
+  mockFetch(t, async (_url, init) => {
+    raws.push(init.body)
+    return json({
+      data: { video_id: `video-${raws.length}`, status: 'waiting' },
+    })
+  })
+  const prompt =
+    'Warm, confident smile at the camera with a small welcoming nod.'
+  // IV con un look de foto y «más expresivo»: los dos campos.
+  await client().createVideo({
+    ...VIDEO_INPUT,
+    engine: 'avatar_iv',
+    motionPrompt: prompt,
+    expressiveness: 'high',
+  })
+  // V: solo el prompt (el proveedor rechaza `expressiveness` con V).
+  await client().createVideo({
+    ...VIDEO_INPUT,
+    engine: 'avatar_v',
+    motionPrompt: prompt,
+  })
+  // Un prompt vacío no viaja: el cuerpo de siempre con el motor elegido.
+  await client().createVideo({
+    ...VIDEO_INPUT,
+    engine: 'avatar_iv',
+    motionPrompt: '',
+  })
+  const base = {
+    type: 'avatar',
+    title: VIDEO_INPUT.title,
+    avatar_id: 'look-1',
+    audio_asset_id: 'asset-audio',
+  }
+  const tail = {
+    aspect_ratio: '16:9',
+    resolution: '1080p',
+    output_format: 'mp4',
+  }
+  assert.deepEqual(raws, [
+    JSON.stringify({
+      ...base,
+      engine: { type: 'avatar_iv' },
+      ...tail,
+      motion_prompt: prompt,
+      expressiveness: 'high',
+    }),
+    JSON.stringify({
+      ...base,
+      engine: { type: 'avatar_v' },
+      ...tail,
+      motion_prompt: prompt,
+    }),
+    JSON.stringify({ ...base, engine: { type: 'avatar_iv' }, ...tail }),
+  ])
 })
 
 test('createVideo: el formato del proyecto viaja tal cual: un proyecto vertical pide 9:16', async (t) => {
@@ -1774,39 +1925,44 @@ test('biblioteca: la metadata de la entrega 1 se reconoce y una sin grupo o sin 
   }
 })
 
-test('biblioteca: el look principal sirve si está listo y soporta Avatar III', () => {
-  assert.equal(isUsableLook({ supportedEngines: ['avatar_iii'] }), true)
-  assert.equal(
-    isUsableLook({
-      status: 'ready',
-      supportedEngines: ['avatar_iv', 'avatar_iii'],
-    }),
-    true,
-  )
-  assert.equal(isUsableLook({ supportedEngines: ['avatar_iv'] }), false)
-  assert.equal(
-    isUsableLook({ status: 'processing', supportedEngines: ['avatar_iii'] }),
-    false,
-  )
-  assert.equal(
-    isUsableLook({ status: 'failed', supportedEngines: ['avatar_iii'] }),
-    false,
-  )
+test('biblioteca (entrega 2e): un look sirve si está listo y admite al menos un motor con tarifa, no solo Avatar III', () => {
+  const photo = (supportedEngines, status) => ({
+    lookType: 'photo_avatar',
+    supportedEngines,
+    ...(status ? { status } : {}),
+  })
+  assert.equal(isUsableLook(photo(['avatar_iii'])), true)
+  assert.equal(isUsableLook(photo(['avatar_iv', 'avatar_iii'], 'ready')), true)
+  // Solo IV, o solo V (estimado a la tarifa del gemelo digital, R-2e-2).
+  assert.equal(isUsableLook(photo(['avatar_iv'])), true)
+  assert.equal(isUsableLook(photo(['avatar_v'])), true)
+  for (const lookType of ['studio_avatar', 'digital_twin'])
+    assert.equal(
+      isUsableLook({ lookType, supportedEngines: ['avatar_iv'] }),
+      true,
+      lookType,
+    )
+  // Sin ningún motor que Vimo conozca (HeyGen nombra uno nuevo: el mapeo lo
+  // descarta), no sirve; tampoco uno que entrena o que falló.
+  assert.equal(isUsableLook(photo([])), false)
+  assert.equal(isUsableLook(photo(['avatar_iii'], 'processing')), false)
+  assert.equal(isUsableLook(photo(['avatar_iii'], 'failed')), false)
 
   const looks = [
-    look('iv-only', { supportedEngines: ['avatar_iv'] }),
+    look('none', { supportedEngines: [] }),
     look('training', { status: 'processing' }),
+    look('iv-only', { supportedEngines: ['avatar_iv'] }),
     look('usable'),
-    look('usable-2'),
   ]
   // El que estaba sigue siendo el principal mientras exista, aunque no sirva.
-  assert.equal(pickMainLookId(looks, 'usable-2'), 'usable-2')
+  assert.equal(pickMainLookId(looks, 'usable'), 'usable')
   assert.equal(pickMainLookId(looks, 'training'), 'training')
-  // Si desapareció (o no había), el primero listo y compatible.
-  assert.equal(pickMainLookId(looks, 'gone'), 'usable')
-  assert.equal(pickMainLookId(looks, null), 'usable')
+  // Si desapareció (o no había), el primero listo y compatible: uno solo-IV
+  // ya lo es.
+  assert.equal(pickMainLookId(looks, 'gone'), 'iv-only')
+  assert.equal(pickMainLookId(looks, null), 'iv-only')
   // Sin ninguno compatible, el primero listo; sin ninguno listo, ninguno.
-  assert.equal(pickMainLookId(looks.slice(0, 2), null), 'iv-only')
+  assert.equal(pickMainLookId(looks.slice(0, 2), null), 'none')
   assert.equal(pickMainLookId([looks[1]], null), null)
   assert.equal(pickMainLookId([], 'gone'), null)
 })

@@ -27,6 +27,22 @@
 // sostenido, la confirmación que reabre el aviso no se cierra sola (su
 // «Cancelar» ignora las repeticiones); y Crear, con su store real, no lanza
 // el pipeline sobre un proyecto con una tarea del editor en curso (caso 17).
+// Entrega 2e (§21.4, WP-X, caso 14b): toda escena lista ofrece «Regenerar
+// avatar» (un render nuevo pagado: `regenerateSceneIds`) con el costo de SU
+// motor; con V o IV, la sección «Movimiento» (el prompt editable con su
+// contador, «Usar el automático», «Movimiento más expresivo» con su tooltip y
+// la guía «Qué podés pedir»); lo que viaja con el pedido (el movimiento solo
+// si la persona lo cambió); la confirmación de regenerar una lista; el aviso
+// de una regeneración que falla (quedó el clip anterior); y el borrador, que
+// no pasa de una escena a otra y sigue a lo guardado. Ronda 1 de su revisión:
+// «más expresivo» solo, sin tocar el prompt (en una lista y en una planeada);
+// el campo de una sola línea y el Enter sostenido sobre «Usar el automático»;
+// la ayuda según de quién es el prompt; y el aviso «quedó el clip anterior»
+// también cuando la regeneración cae entera con job-failed. Ronda 2 (revisión
+// final de la 2e): con motionUnsupported la nota va arriba del campo, que
+// sigue editable; un prompt nuevo viaja como siempre (el sidecar borra la
+// marca y vuelve a probar) y, sin cambiarlo, solo «más expresivo» (si el
+// motor y el look lo admiten).
 // Nada habla con HeyGen ni con el sidecar: el fetcher del pipeline
 // entrega `avatar-render-scenes` a la prueba, que anota el subcomando y el
 // pedido y emite los eventos del job a mano.
@@ -137,7 +153,7 @@ import { EditorTimeline } from '@/modules/videos/components/EditorTimeline'
 import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
 import { LibraryEditor } from '@/modules/videos/views/LibraryEditor/LibraryEditor'
 import { avatarSpansCostEstimate } from '@/modules/videos/utilities/avatarCostEstimate'
-import { avatarSceneAction, avatarScenesCost, avatarSceneState, avatarScenesToRender, editorFallbackSceneIds } from '@/modules/videos/utilities/avatarRegeneration'
+import { avatarRenderPayload, avatarSceneAction, avatarScenesCost, avatarSceneState, avatarScenesToRender, editorFallbackSceneIds } from '@/modules/videos/utilities/avatarRegeneration'
 import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
 import { formatSlotSeconds } from '@/modules/videos/utilities/formatSlotSeconds'
 // El store REAL de Crear, por su ruta: el alias @/ lo reemplaza el simulacro
@@ -213,6 +229,34 @@ const CATALOG_PHRASES = [
   ['create.progress.avatarFallback', { count: 1 }],
   ['avatars.saldo.creditos', { amount: '1' }],
   ['avatars.saldo.noDisponible'],
+  // Entrega 2e (§21.4).
+  ['library.editor.avatar.confirmarTituloRegenerar'],
+  ['library.editor.avatar.confirmarRegenerar'],
+  ['library.editor.avatar.confirmarTextoRegenerar', { count: 1, amount: '1' }],
+  ['library.editor.avatar.confirmarTextoRegenerar', { count: 2, amount: '1' }],
+  ['library.editor.avatar.regenerarFalloConservado', { reason: 'x' }],
+  ['library.editor.avatar.motor', { engine: 'x', description: 'y' }],
+  ['library.editor.avatar.movimientoTitulo'],
+  ['library.editor.avatar.movimientoLabel'],
+  ['library.editor.avatar.movimientoHint'],
+  ['library.editor.avatar.movimientoVacio'],
+  ['library.editor.avatar.movimientoPlaceholder'],
+  ['library.editor.avatar.movimientoCaracteres', { used: 1, max: 2 }],
+  ['library.editor.avatar.movimientoAutomatico'],
+  ['library.editor.avatar.movimientoNoAdmitido', { engine: 'x' }],
+  ['library.editor.avatar.expresivo'],
+  ['library.editor.avatar.expresivoAyudaAria'],
+  ['library.editor.avatar.expresivoTooltip'],
+  ['library.editor.avatar.guiaBoton'],
+  ['library.editor.avatar.guiaPuedeTitulo'],
+  ['library.editor.avatar.guiaNoPuedeTitulo'],
+  ...['guiaExpresiones', 'guiaGestos', 'guiaPostura', 'guiaQuietud', 'guiaMirada', 'guiaCamara', 'guiaLugar', 'guiaObjetos', 'guiaCaminar', 'guiaFondo'].map((key) => ['library.editor.avatar.' + key]),
+  ['library.editor.avatar.movimientoPendiente'],
+  ['library.editor.avatar.movimientoPropio'],
+  ['create.avatar.engineDescription.avatar_v'],
+  ['create.avatar.engineDescription.avatar_iv'],
+  ['avatars.engines.avatar_v'],
+  ['avatars.engines.avatar_iv'],
 ]
 // Los códigos cuyo texto compara el guard: cada uno con el suyo.
 const ERROR_CODES = ['avatar_moderation_rejected', 'avatar_download_failed', 'avatar_timeout', 'avatar_insufficient_credits', 'cancelled']
@@ -352,6 +396,27 @@ const span = (startSeconds, endSeconds) => ({ startSeconds, endSeconds })
 // tiene que decir la confirmación.
 const createCost = (spans) => avatarSpansCostEstimate('photo_avatar', spans).estimated
 const forgetBalance = () => queryClient.removeQueries({ queryKey: ['avatars', 'balance'] })
+// Entrega 2e (§21.4): la sección «Movimiento» del panel es el grupo que se
+// llama como su título; sus controles se buscan adentro y por su etiqueta, así
+// el campo y el interruptor también prueban que están etiquetados.
+const motionGroup = () => [...(panel()?.querySelectorAll('[role="group"]') ?? [])].find((group) => document.getElementById(group.getAttribute('aria-labelledby') ?? '')?.textContent.trim() === t('library.editor.avatar.movimientoTitulo'))
+const labelledIn = (text) => { const label = [...(motionGroup()?.querySelectorAll('label') ?? [])].find((item) => item.textContent.trim() === text); return label?.htmlFor ? document.getElementById(label.htmlFor) : null }
+const motionField = () => labelledIn(t('library.editor.avatar.movimientoLabel'))
+const motionHint = () => document.getElementById(motionField()?.getAttribute('aria-describedby') ?? '')?.textContent.trim()
+const expressiveSwitch = () => labelledIn(t('library.editor.avatar.expresivo'))
+const motionButton = (label) => [...(motionGroup()?.querySelectorAll('button') ?? [])].find((button) => button.textContent.trim() === label || button.getAttribute('aria-label') === label)
+const useAutomatic = () => motionButton(t('library.editor.avatar.movimientoAutomatico'))
+const guideButton = () => motionButton(t('library.editor.avatar.guiaBoton'))
+const guideBlock = () => document.getElementById(guideButton()?.getAttribute('aria-controls') ?? '')
+const counterOf = (used) => [...(motionGroup()?.querySelectorAll('span') ?? [])].some((item) => item.textContent.trim() === t('library.editor.avatar.movimientoCaracteres', { used, max: 300 }))
+// Escribe en el campo controlado por React como lo haría el teclado.
+function typeMotion(value) {
+  const field = motionField()
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, value)
+  field.dispatchEvent(new Event('input', { bubbles: true }))
+}
+const anyAll = () => [...(panel()?.querySelectorAll('button') ?? [])].some((button) => [1, 2, 3, 4, 5, 6, 7, 8].some((count) => button.textContent.trim() === ALL(count)))
+const costLine = (amount) => [...(panel()?.querySelectorAll('p') ?? [])].find((paragraph) => paragraph.textContent.trim() === t('library.editor.avatar.costo', { amount: usd(amount) }))
 
 try {
   await waitFor(() => panel()?.textContent.includes(t('library.editor.panel.sceneTitle', { id: 1 })), 'el editor cargó con la escena 1')
@@ -368,7 +433,7 @@ try {
   // 1. Las reglas puras sobre el fixture: qué ofrece cada estado, qué pide
   //    «Regenerar todos» y lo que cuesta (lo mismo que Crear por esos tramos).
   const scenes = window.detail.scenes
-  check(JSON.stringify(scenes.map((item) => avatarSceneAction(item, {}))) === JSON.stringify([null, 'generate', null, 'regenerate', 'regenerate', null, 'regenerate', null]), 'la acción por estado: planeada genera; desactualizada, fallida y lista sin clip regeneran; lista y al día, nada')
+  check(JSON.stringify(scenes.map((item) => avatarSceneAction(item, {}))) === JSON.stringify([null, 'generate', null, 'regenerate', 'regenerate', 'retake', 'regenerate', null]), 'la acción por estado: planeada genera; desactualizada, fallida y lista sin clip regeneran; lista y al día, desde la entrega 2e, se vuelve a generar (retake)')
   check(avatarSceneAction(scenes[1], { 2: { startedAt: 1, queued: true } }) === null, 'una escena que se está generando no ofrece nada')
   check(avatarSceneAction({ ...scenes[1], endSeconds: 4.01 }, {}) === null, 'una escena de avatar sin un cuadro de tramo tampoco (no tiene bloque y el carril no la pide)')
   // Ruling del 2026-10-11: desactualizada manda sobre fallida. Una lista
@@ -377,7 +442,7 @@ try {
   const staleWithoutClip = { ...scenes[3], avatar: view({ status: 'failed', clipPath: undefined, clipMtimeMs: undefined, errorCode: 'avatar_download_failed', stale: true }) }
   check(avatarSceneState(staleWithoutClip, {}) === 'stale' && avatarSceneAction(staleWithoutClip, {}) === 'regenerate', 'una lista desactualizada sin su clip: desactualizada (no fallida) y «Regenerar»')
   check(avatarSceneState(scenes[4], {}) === 'failed' && avatarSceneState(scenes[6], {}) === 'failed' && avatarSceneState(scenes[3], {}) === 'stale', 'una fallida de verdad y una lista al día sin clip siguen fallidas; la desactualizada con clip, desactualizada')
-  check(JSON.stringify(avatarScenesToRender(scenes, {}).map((item) => item.id)) === '[2,4,5,7]', '«Regenerar todos» pide las cuatro sin clip válido o desactualizadas, en orden')
+  check(JSON.stringify(avatarScenesToRender(scenes, {}).map((item) => item.id)) === '[2,4,5,7]', '«Regenerar todos» pide las cuatro sin clip válido o desactualizadas, en orden (la lista y al día no: no cuenta las que se vuelven a generar)')
   check(createCost([span(4, 14)]) === 0.165 && avatarScenesCost([scenes[1]]).estimated === 0.165, 'una aparición de 10 s de un look de foto: 0,165 US$, el cálculo de Crear')
   check(avatarScenesCost(avatarScenesToRender(scenes, {})).estimated === createCost([span(4, 14), span(18, 28), span(28, 38), span(48, 58)]) && createCost([span(4, 14), span(18, 28), span(28, 38), span(48, 58)]) === 0.66, 'las cuatro: 40 s, 0,66 US$, el mismo cálculo')
   check(avatarScenesCost([{ ...scenes[1], avatar: { ...scenes[1].avatar, lookType: 'digital_twin' } }, scenes[3]]).estimated === avatarSpansCostEstimate('digital_twin', [span(4, 14)]).estimated + avatarSpansCostEstimate('photo_avatar', [span(18, 28)]).estimated, 'con dos tipos de look, cada uno con su tarifa')
@@ -403,9 +468,12 @@ try {
   await select(4)
   check(panel().textContent.includes(t('library.editor.timeline.avatarStaleHint')), 'la desactualizada dice «Desactualizado» con su explicación en el panel')
   await select(6)
-  check(!panelButton(GENERATE) && !panelButton(REGENERATE) && !panel().textContent.includes(t('library.editor.avatar.costo', { amount: usd(0.165) })), 'lista y al día: ni botón ni costo propio')
-  check(!panelButton(ALL(4)), 'lista y al día no ofrece nada: tampoco «Regenerar todos» (va junto al botón de una pendiente)')
-  check(panel().textContent.includes(t('library.editor.panel.avatarSceneHint')), 'pero sí la explica')
+  check(panelButton(REGENERATE) && !panelButton(GENERATE) && panel().textContent.includes(t('library.editor.avatar.costo', { amount: usd(0.165) })), 'lista y al día (entrega 2e): «Regenerar avatar» con su costo propio')
+  check(!panelButton(ALL(4)) && !anyAll(), 'una lista no ofrece «Regenerar todos» (va junto al botón de una pendiente y no cuenta las listas)')
+  check(!motionGroup(), 'con Avatar III, sin la sección «Movimiento» (el motor no acepta movimiento)')
+  check(panel().textContent.includes(t('library.editor.panel.avatarSceneHint')), 'y la explica')
+  await select(2)
+  check(panelButton(GENERATE) && !motionGroup(), 'una planeada de Avatar III tampoco tiene la sección')
   await select(1)
   check(!panelButton(GENERATE) && !panelButton(ALL(4)) && !panel().textContent.includes(t('library.editor.panel.avatarSceneHint')), 'una escena de imagen no ofrece nada del avatar')
   check(window.balanceCalls === 0, 'el saldo no se pide hasta abrir una confirmación: ' + window.balanceCalls)
@@ -567,7 +635,7 @@ try {
   await waitFor(() => window.toasts.some((item) => item.description === t('library.editor.avatar.listo')), 'el aviso «listo»')
   check(document.body.textContent.includes(t('library.editor.avatar.listo')), 'que se ve (Toaster)')
   check(queryClient.getQueryState(['avatars', 'balance'])?.isInvalidated, 'el saldo de avatares queda para releer')
-  check(!panelButton(GENERATE) && !panelButton(REGENERATE) && !panelButton(CANCEL), 'la escena lista ya no ofrece nada')
+  check(panelButton(REGENERATE) && !panelButton(GENERATE) && !panelButton(CANCEL), 'la escena lista ya no ofrece «Generar» ni «Cancelar»: ofrece «Regenerar avatar» (entrega 2e)')
 
   // 7. «Regenerar todos» con un fallo: el pedido con todas, en orden; cada una
   //    sale de la cola con su arranque; la fallida muestra su motivo en el
@@ -737,7 +805,7 @@ try {
   check([...panel().querySelectorAll('a')].some((link) => link.textContent.trim() === t('create.avatar.goToApiKeys')), 'con el enlace a Claves API')
   check(!panelButton(REGENERATE) && !panelButton(GENERATE), 'y sin botones que paguen')
   await select(6)
-  check(!panel().textContent.includes(t('create.avatar.noKey')), 'una lista y al día no ofrece nada: tampoco el aviso de la clave')
+  check(panel().textContent.includes(t('create.avatar.noKey')) && !panelButton(REGENERATE), 'una lista y al día también tendría «Regenerar avatar» (entrega 2e): sin la clave, el aviso en su lugar')
 
   // 13b. Mientras el llavero responde (Q5 de la revisión del WP-Q), el panel
   //      todavía no sabe: ni botones que paguen ni el aviso de la clave. Cuando
@@ -782,6 +850,363 @@ try {
   await waitFor(() => avatarBlock(2)?.title === t('library.editor.timeline.avatarFailed', { reason: downloadReason }), 'la lista al día sin clip sigue fallida, con el motivo de la descarga')
   await select(2)
   check(panel().textContent.includes(t('library.editor.avatar.fallo', { reason: downloadReason })) && !panel().textContent.includes(t('library.editor.timeline.avatarStaleHint')), 'y su panel lo dice, sin «Desactualizado»')
+
+  // 14b. Entrega 2e (§21.4, WP-X): un proyecto con motores y looks distintos.
+  //      La 2 es IV con un look de foto y planeada, sin prompt de movimiento
+  //      todavía (Vimo lo escribe antes de su primer pedido, §21.2); la 4, IV
+  //      con un look de foto, lista y con el prompt que escribió Vimo; la 5, V
+  //      con un gemelo digital, lista, con un prompt de la persona y «más
+  //      expresivo»; la 6, IV con un gemelo (el proveedor no le acepta
+  //      movimiento); la 7, IV con un look de foto y fallida, sin prompt.
+  const AUTO_2 = 'Warm, confident smile at the camera with a small welcoming nod.'
+  const AUTO_4 = 'Composed posture and sincere expression, with a subtle open-hand gesture on the key point.'
+  const AUTO_5 = 'Warm smile at the camera with a gentle, reassuring nod.'
+  const USER_5 = 'Leans in with a calm smile and counts on her fingers.'
+  const EDITED = 'Smiles warmly and nods on the key point.'
+  const READY_4 = view({ engine: 'avatar_iv', motionPrompt: AUTO_4, motionSource: 'auto', autoMotionPrompt: AUTO_4 })
+  const avatars2e = {
+    2: view({ ...PLANNED, engine: 'avatar_iv' }),
+    4: READY_4,
+    5: view({ engine: 'avatar_v', lookType: 'digital_twin', motionPrompt: USER_5, motionSource: 'user', autoMotionPrompt: AUTO_5, expressive: true }),
+    6: view({ engine: 'avatar_iv', lookType: 'digital_twin' }),
+    7: view({ engine: 'avatar_iv', status: 'failed', clipPath: undefined, clipMtimeMs: undefined, errorCode: 'avatar_timeout' }),
+  }
+  window.detail = { ...structuredClone(INITIAL_DETAIL), scenes: INITIAL_DETAIL.scenes.map((item) => (avatars2e[item.id] ? { ...item, avatar: avatars2e[item.id] } : item)) }
+  const scenes2e = window.detail.scenes
+  const engineCost = (lookType, engine, spans) => avatarSpansCostEstimate(lookType, spans, engine).estimated
+  const IV_PHOTO_10S = engineCost('photo_avatar', 'avatar_iv', [span(18, 28)])
+  // Las reglas puras: la acción de cada una, «Regenerar todos», el costo al
+  // motor de cada escena y el pedido que arma el store.
+  check(JSON.stringify(scenes2e.map((item) => avatarSceneAction(item, {}))) === JSON.stringify([null, 'generate', null, 'retake', 'retake', 'retake', 'regenerate', null]), 'las listas, de cualquier motor, se vuelven a generar: ' + JSON.stringify(scenes2e.map((item) => avatarSceneAction(item, {}))))
+  check(JSON.stringify(avatarScenesToRender(scenes2e, {}).map((item) => item.id)) === '[2,7]', '«Regenerar todos» sigue pidiendo solo las que no tienen un clip válido')
+  check(IV_PHOTO_10S === 0.385 && avatarScenesCost([scenes2e[3]]).estimated === 0.385, 'el costo al motor de la escena: IV con un look de foto, 2,31 US$/min, 0,385 por 10 s (hasta la 2e se cobraba todo a Avatar III)')
+  check(avatarScenesCost([scenes2e[4]]).estimated === 1.2 && avatarScenesCost([scenes2e[5]]).estimated === 0.805, 'V con un gemelo, 1,20; IV con un gemelo, 0,805')
+  check(avatarScenesCost([scenes[5], scenes2e[3]]).estimated === createCost([span(38, 48)]) + IV_PHOTO_10S, 'un mismo tipo de look con dos motores: cada escena con la tarifa del suyo')
+  check(JSON.stringify(avatarRenderPayload('p', { sceneIds: [7, 2, 7] })) === JSON.stringify({ projectId: 'p', sceneIds: [2, 7] }), 'sin nada más, el pedido de siempre: las escenas sin repetir y en orden')
+  check(JSON.stringify(avatarRenderPayload('p', { sceneIds: [2], regenerateSceneIds: [], motion: [] })) === JSON.stringify({ projectId: 'p', sceneIds: [2] }), 'lo que viaja además, vacío, no viaja')
+  check(JSON.stringify(avatarRenderPayload('p', { sceneIds: [4], regenerateSceneIds: [9, 4, 4], motion: [{ sceneId: 9, motionPrompt: 'x', expressive: false }, { sceneId: 4, motionPrompt: EDITED, expressive: true }] })) === JSON.stringify({ projectId: 'p', sceneIds: [4], regenerateSceneIds: [4], motion: [{ sceneId: 4, motionPrompt: EDITED, expressive: true }] }), 'regenerar y el movimiento, solo de las escenas pedidas y sin repetir')
+
+  // La lista de IV con un look de foto: «Regenerar avatar» con el costo de su
+  // motor y, antes del costo, la sección «Movimiento».
+  await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
+  await select(4)
+  await waitFor(() => motionGroup(), 'IV con un look de foto y lista: la sección «Movimiento»')
+  check(panelButton(REGENERATE) && !panelButton(GENERATE) && !anyAll(), 'la lista ofrece «Regenerar avatar», sin «Regenerar todos»')
+  check(costLine(0.385), 'con el costo de su motor: ' + t('library.editor.avatar.costo', { amount: usd(0.385) }))
+  check(motionGroup().compareDocumentPosition(costLine(0.385)) & Node.DOCUMENT_POSITION_FOLLOWING, 'la sección va antes del costo')
+  check(motionGroup().textContent.includes(t('library.editor.avatar.motor', { engine: t('avatars.engines.avatar_iv'), description: t('create.avatar.engineDescription.avatar_iv') })), 'con la línea del motor: ' + t('library.editor.avatar.motor', { engine: t('avatars.engines.avatar_iv'), description: t('create.avatar.engineDescription.avatar_iv') }))
+  const field4 = motionField()
+  check(field4?.tagName === 'TEXTAREA' && field4.value === AUTO_4 && field4.maxLength === 300 && field4.placeholder === t('library.editor.avatar.movimientoPlaceholder') && !field4.disabled, 'el prompt de la escena en un campo etiquetado, con su tope (300) y su ejemplo')
+  check(counterOf(AUTO_4.length), 'el contador: ' + AUTO_4.length + '/300')
+  check(motionHint() === t('library.editor.avatar.movimientoHint'), 'la ayuda, unida al campo: ' + motionHint())
+  check(!useAutomatic(), 'sin «Usar el automático»: es el de Vimo')
+  const switch4 = expressiveSwitch()
+  check(switch4?.getAttribute('role') === 'switch' && switch4.getAttribute('aria-checked') === 'false' && !switch4.disabled, '«Movimiento más expresivo», etiquetado y apagado')
+  check(!panel().querySelector('[role="region"]'), 'nada con role="region" en el panel quieto: la única región es la del avance')
+  // El tooltip de «más expresivo»: un botón con nombre que lo abre con el foco.
+  const help = motionButton(t('library.editor.avatar.expresivoAyudaAria'))
+  check(help?.tagName === 'BUTTON' && help.type === 'button', 'la ayuda de «más expresivo» es un botón con nombre')
+  help.focus()
+  await waitFor(() => [...document.querySelectorAll('[role="tooltip"]')].some((tip) => tip.textContent.trim() === t('library.editor.avatar.expresivoTooltip')), 'con el foco, el tooltip dice qué hace y que no suma costo')
+  help.blur()
+  await waitFor(() => !document.querySelector('[role="tooltip"]'), 'al salir, el tooltip se cierra')
+  // La guía «Qué podés pedir»: un desplegable hecho a mano con sus dos listas.
+  check(guideButton()?.getAttribute('aria-expanded') === 'false' && guideBlock()?.hidden === true && !guideBlock().hasAttribute('role'), '«Qué podés pedir», cerrado, con su bloque oculto y sin role="region"')
+  guideButton().click()
+  await waitFor(() => guideButton().getAttribute('aria-expanded') === 'true' && guideBlock()?.hidden === false, 'el clic lo abre')
+  const CAN = ['guiaExpresiones', 'guiaGestos', 'guiaPostura', 'guiaQuietud', 'guiaMirada'].map((key) => t('library.editor.avatar.' + key))
+  const CANNOT = ['guiaCamara', 'guiaLugar', 'guiaObjetos', 'guiaCaminar', 'guiaFondo'].map((key) => t('library.editor.avatar.' + key))
+  const guideLists = [...guideBlock().querySelectorAll('ul')]
+  const linesOf = (list) => [...(list?.querySelectorAll('li') ?? [])].map((item) => item.textContent.trim())
+  const nameOf = (list) => document.getElementById(list?.getAttribute('aria-labelledby') ?? '')?.textContent.trim()
+  check(guideLists.length === 2 && JSON.stringify(linesOf(guideLists[0])) === JSON.stringify(CAN) && JSON.stringify(linesOf(guideLists[1])) === JSON.stringify(CANNOT), 'las diez líneas de la guía en sus dos listas: ' + JSON.stringify(guideLists.map(linesOf)))
+  check(nameOf(guideLists[0]) === t('library.editor.avatar.guiaPuedeTitulo') && nameOf(guideLists[1]) === t('library.editor.avatar.guiaNoPuedeTitulo'), 'cada lista nombrada por su título')
+  check(guideLists[0].querySelectorAll('svg.lucide-check').length === 5 && guideLists[1].querySelectorAll('svg.lucide-x').length === 5, 'con el ícono de sí en lo que se controla y el de no en lo que no')
+  guideButton().click()
+  await waitFor(() => guideButton().getAttribute('aria-expanded') === 'false' && guideBlock().hidden, 'otro clic lo cierra')
+
+  // Editar: «Usar el automático» aparece y vuelve al de Vimo; la ayuda dice de
+  // quién es el prompt y, vacío, que se usa el movimiento propio del motor.
+  // Ronda 1 de la revisión: el campo es de una sola línea (Enter no agrega
+  // saltos y los pegados se vuelven espacios), un Enter sostenido sobre «Usar
+  // el automático» no escribe en el campo (M1), y el automático con espacios
+  // de más sigue siendo el automático (R3).
+  motionField().focus()
+  await press('Enter')
+  check(motionField().value === AUTO_4 && !useAutomatic(), 'Enter en el campo no agrega un salto de línea: ' + JSON.stringify(motionField().value))
+  typeMotion('Smiles warmly.\nNods on the key point.\r\nLooks at the camera.')
+  await waitFor(() => motionField()?.value === 'Smiles warmly. Nods on the key point. Looks at the camera.', 'los saltos pegados se vuelven espacios: ' + JSON.stringify(motionField()?.value))
+  typeMotion('  ' + AUTO_4 + '  ')
+  await waitFor(() => motionField()?.value === '  ' + AUTO_4 + '  ', 'el automático con espacios de más')
+  check(!useAutomatic() && motionHint() === t('library.editor.avatar.movimientoHint'), 'con espacios de más sigue siendo el automático: sin «Usar el automático» y con su ayuda: ' + motionHint())
+  typeMotion(EDITED)
+  await waitFor(() => useAutomatic(), 'tras editarlo, «Usar el automático»')
+  check(motionField().value === EDITED && counterOf(EDITED.length) && motionHint() === t('library.editor.avatar.movimientoPropio'), 'el campo, el contador y la ayuda de un prompt propio siguen al borrador: ' + motionHint())
+  useAutomatic().focus()
+  await press(ENTER_HELD)
+  await waitFor(() => !useAutomatic(), 'Enter sostenido sobre «Usar el automático»: el botón se va')
+  check(motionField()?.value === AUTO_4, 'vuelve al de Vimo, exacto: las repeticiones no escriben en el campo: ' + JSON.stringify(motionField()?.value))
+  check(document.activeElement === motionField(), 'el foco que estaba en el botón pasa al campo, no a body: ' + document.activeElement?.tagName)
+  typeMotion('')
+  await waitFor(() => motionHint() === t('library.editor.avatar.movimientoVacio'), 'vacío, con un automático: la ayuda dice que se usa el movimiento del motor')
+  check(useAutomatic() && counterOf(0), 'con «Usar el automático» y el contador en cero')
+
+  // El borrador vive en la escena elegida: no pasa a otra y se descarta al
+  // cambiar de escena.
+  typeMotion(EDITED)
+  await waitFor(() => motionField()?.value === EDITED, 'la 4 con un borrador')
+  await select(5)
+  await waitFor(() => motionField()?.value === USER_5, 'la 5 muestra su prompt, no el borrador de la 4')
+  check(useAutomatic() && expressiveSwitch().getAttribute('aria-checked') === 'true', 'V con un gemelo: el prompt de la persona (con «Usar el automático») y «más expresivo» prendido, como están guardados')
+  check(motionHint() === t('library.editor.avatar.movimientoPropio'), 'la ayuda de un prompt propio, no «Vimo lo escribió»: ' + motionHint())
+  check(motionGroup().textContent.includes(t('library.editor.avatar.motor', { engine: t('avatars.engines.avatar_v'), description: t('create.avatar.engineDescription.avatar_v') })) && costLine(1.2), 'con la línea de Avatar V y su costo, 1,20')
+  await select(4)
+  await waitFor(() => motionField()?.value === AUTO_4, 'al volver a la 4, el borrador ya no está: muestra lo guardado')
+  await select(6)
+  await waitFor(() => panelButton(REGENERATE) && costLine(0.805), 'IV con un gemelo: «Regenerar avatar» con su costo, 0,805')
+  check(!motionGroup(), 'y sin la sección: el proveedor no le acepta movimiento')
+  await select(2)
+  await waitFor(() => panelButton(GENERATE) && motionField(), 'la 2, planeada: «Generar avatar» y la sección')
+  check(motionField().value === '' && !useAutomatic() && motionHint() === t('library.editor.avatar.movimientoPendiente'), 'sin prompt todavía: el campo vacío y la ayuda dice que Vimo lo escribe al generarla (§21.2): ' + motionHint())
+  typeMotion(EDITED)
+  await select(7)
+  await waitFor(() => panelButton(REGENERATE) && motionField(), 'la 7, fallida, con la sección')
+  check(motionField().value === '' && !useAutomatic(), 'el borrador de la 2 no pasa a la 7, aunque las dos tengan lo mismo guardado (la key por escena)')
+
+  // Regenerar una lista sin tocar el movimiento: su confirmación, el pedido
+  // con «regenerateSceneIds» y sin «motion», y la lista que vuelve. Cada
+  // pedido se cuenta desde el que había antes de confirmarlo.
+  window.fixture.balance = USD(5)
+  forgetBalance()
+  const toastsBefore2e = window.toasts.length
+  const RETAKE = t('library.editor.avatar.confirmarRegenerar')
+  const BALANCE_5 = t('library.editor.avatar.saldo', { balance: usd(5) })
+  const keptNotice = (code) => t('library.editor.avatar.regenerarFalloConservado', { reason: t(errorKeyOf(code)) })
+  const idle = () => !window.editor.editorTask.isProjectBusy('fixture')
+  // Abre la confirmación con el botón de la escena, la confirma con el que
+  // corresponde y devuelve el pedido nuevo.
+  async function confirmRequest(sceneButton, confirmButton, message) {
+    const before = window.avatarJobs.length
+    panelButton(sceneButton).click()
+    await waitFor(() => dialogButton(confirmButton) && dialog().textContent.includes(BALANCE_5), 'la confirmación: ' + message)
+    dialogButton(confirmButton).click()
+    await waitFor(() => window.avatarJobs.length === before + 1, 'el pedido: ' + message)
+    return window.avatarJobs.at(-1)
+  }
+  await select(4)
+  await waitFor(() => motionField()?.value === AUTO_4, 'la 4')
+  panelButton(REGENERATE).click()
+  await waitFor(() => dialog()?.textContent.includes(BALANCE_5), 'la confirmación de regenerar una lista, con el saldo')
+  check(dialog().textContent.includes(t('library.editor.avatar.confirmarTituloRegenerar')) && !dialog().textContent.includes(t('library.editor.avatar.confirmarTitulo')), '«¿Regenerar el avatar?»: ' + dialog().textContent)
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarTextoRegenerar', { count: 1, amount: usd(0.385) })), 'con el costo de su motor y que el clip actual queda: ' + dialogDescription())
+  check(dialogButton(RETAKE) && !dialogButton(CONFIRM) && activeText() === CANCEL, 'el botón dice «Regenerar» y el foco abre en «Cancelar»')
+  const jobsBeforeRetake = window.avatarJobs.length
+  dialogButton(RETAKE).click()
+  await waitFor(() => window.avatarJobs.length === jobsBeforeRetake + 1, 'regenerar pide el avatar')
+  const retakeJob = window.avatarJobs.at(-1)
+  check(JSON.stringify(retakeJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4] }), 'regenerar una lista sin tocar el movimiento: la escena y «regenerateSceneIds», sin «motion»: ' + JSON.stringify(retakeJob.payload))
+  await waitFor(() => progressRegion(), 'el avance en el panel')
+  check(!motionGroup(), 'mientras se genera, el avance ocupa el lugar de la sección')
+  await select(5)
+  check(motionField()?.disabled && expressiveSwitch()?.disabled && useAutomatic()?.disabled && panelButton(REGENERATE)?.disabled, 'con el proyecto ocupado, el campo, el interruptor, «Usar el automático» y el botón de otra escena esperan (R2 de la revisión)')
+  await select(4)
+  retakeJob.onEvent({ type: 'avatar-scene-started', sceneId: 4 })
+  storeAvatar(4, { ...READY_4, take: 1 })
+  retakeJob.onEvent({ type: 'avatar-scene-ready', sceneId: 4, scene: { id: 4 } })
+  retakeJob.onEvent({ type: 'job-completed', result: { rendered: [4], failed: [] } })
+  await waitFor(() => idle() && window.toasts.at(-1)?.description === t('library.editor.avatar.listo'), 'la regeneración quedó lista: «listo»')
+  await waitFor(() => panelButton(REGENERATE) && motionField()?.value === AUTO_4, 'y la lista vuelve a ofrecer «Regenerar avatar» con su sección')
+
+  // Solo «Movimiento más expresivo», sin tocar el prompt (I1 de la revisión):
+  // viaja el prompt guardado con el interruptor prendido.
+  expressiveSwitch().click()
+  await waitFor(() => expressiveSwitch().getAttribute('aria-checked') === 'true' && motionField()?.value === AUTO_4, '«más expresivo» prendido y el prompt sin tocar')
+  const expressiveJob = await confirmRequest(REGENERATE, RETAKE, 'solo «más expresivo»')
+  check(JSON.stringify(expressiveJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4], motion: [{ sceneId: 4, motionPrompt: AUTO_4, expressive: true }] }), 'solo «más expresivo»: viaja con el prompt guardado: ' + JSON.stringify(expressiveJob.payload))
+  expressiveJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle() && expressiveSwitch()?.getAttribute('aria-checked') === 'true', 'cancelada: el borrador sigue con «más expresivo»')
+
+  // Regenerar con el movimiento editado y «más expresivo»; el render nuevo
+  // falla y la escena sigue lista con el clip anterior: el aviso lo dice.
+  typeMotion('  ' + EDITED + '  ')
+  await waitFor(() => motionField()?.value === '  ' + EDITED + '  ' && expressiveSwitch().getAttribute('aria-checked') === 'true', 'el prompt editado y «más expresivo» en el borrador')
+  const motionJob = await confirmRequest(REGENERATE, RETAKE, 'con el movimiento editado')
+  check(JSON.stringify(motionJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4], motion: [{ sceneId: 4, motionPrompt: EDITED, expressive: true }] }), 'con el prompt editado (recortado) y «más expresivo»: ' + JSON.stringify(motionJob.payload))
+  motionJob.onEvent({ type: 'avatar-scene-started', sceneId: 4 })
+  // El sidecar guardó los ajustes antes de pedir (WP-U); el render nuevo
+  // falló y la escena volvió a su estado listo con el clip anterior.
+  const EDITED_4 = { ...READY_4, motionPrompt: EDITED, motionSource: 'user', expressive: true, take: 2 }
+  storeAvatar(4, EDITED_4)
+  const timeout2e = t(errorKeyOf('avatar_timeout'))
+  motionJob.onEvent({ type: 'avatar-scene-failed', sceneId: 4, code: 'avatar_timeout' })
+  motionJob.onEvent({ type: 'job-completed', result: { rendered: [], failed: [4] } })
+  await waitFor(() => window.toasts.at(-1)?.description === keptNotice('avatar_timeout'), 'el aviso de la regeneración que falló: quedó el clip anterior: ' + JSON.stringify(window.toasts.at(-1)))
+  check(window.toasts.at(-1).variant === 'destructive' && !window.toasts.slice(toastsBefore2e).some((item) => item.description === t('library.editor.avatar.fallo', { reason: timeout2e })), 'destructivo, y no el aviso de fallo común')
+  await waitFor(() => panelButton(REGENERATE) && motionField()?.value === EDITED, 'la escena sigue lista y el campo muestra lo que quedó guardado')
+  check(!panel().textContent.includes(t('library.editor.avatar.fallo', { reason: timeout2e })) && useAutomatic() && expressiveSwitch().getAttribute('aria-checked') === 'true', 'sin el motivo de una fallida; el prompt de la persona y «más expresivo», como quedaron')
+
+  // La regeneración de una lista que cae entera con «job-failed» (M6 de la
+  // revisión): con la pausa de la cuenta (su escena falló antes) o sin que
+  // ninguna escena llegara a arrancar, el aviso también dice que quedó el
+  // clip anterior, con el motivo del job. Cancelarla no avisa nada (lo dice el
+  // editor, como en la 2d), y si la nueva ya había quedado lista, un cierre
+  // fallido no dice que quedó la anterior.
+  let toastsBefore = window.toasts.length
+  const pausedJob = await confirmRequest(REGENERATE, RETAKE, 'la pausa de la cuenta')
+  check(JSON.stringify(pausedJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4] }), 'sin cambios en el movimiento, sin «motion»: ' + JSON.stringify(pausedJob.payload))
+  pausedJob.onEvent({ type: 'avatar-scene-started', sceneId: 4 })
+  pausedJob.onEvent({ type: 'avatar-scene-failed', sceneId: 4, code: 'avatar_insufficient_credits' })
+  pausedJob.onEvent({ type: 'job-failed', code: 'avatar_insufficient_credits', message: 'no credits' })
+  await waitFor(() => window.toasts.length > toastsBefore && window.toasts.at(-1).description === keptNotice('avatar_insufficient_credits'), 'la pausa de la cuenta: quedó el clip anterior, con el motivo del job: ' + JSON.stringify(window.toasts.at(-1)))
+  check(window.toasts.at(-1).variant === 'destructive' && window.toasts.length === toastsBefore + 1 && document.getElementById('banner').textContent === t(errorKeyOf('avatar_insufficient_credits')), 'un solo aviso, destructivo, y el editor dice el motivo del job')
+  await waitFor(() => idle() && panelButton(REGENERATE) && motionField()?.value === EDITED, 'la escena sigue lista')
+  toastsBefore = window.toasts.length
+  const keyJob = await confirmRequest(REGENERATE, RETAKE, 'la clave que deja de servir')
+  keyJob.onEvent({ type: 'job-failed', code: 'avatar_invalid_key', message: 'invalid key' })
+  await waitFor(() => window.toasts.length > toastsBefore && window.toasts.at(-1).description === keptNotice('avatar_invalid_key'), 'sin que la escena arranque: también quedó el clip anterior: ' + JSON.stringify(window.toasts.at(-1)))
+  await waitFor(() => idle() && panelButton(REGENERATE), 'liberado')
+  toastsBefore = window.toasts.length
+  const cancelledJob = await confirmRequest(REGENERATE, RETAKE, 'una regeneración que se cancela')
+  await waitFor(() => panelButton(CANCEL) && window.editor.editorTask.task?.avatarRender?.jobId === cancelledJob.jobId, 'el avance con «Cancelar» y el id del job')
+  panelButton(CANCEL).click()
+  await waitFor(() => window.cancels.includes(cancelledJob.jobId), 'cancelar llama al sidecar')
+  cancelledJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle() && panelButton(REGENERATE), 'liberado')
+  await delay(100)
+  check(window.toasts.length === toastsBefore, 'cancelar una regeneración no avisa nada: ' + JSON.stringify(window.toasts.slice(toastsBefore)))
+  toastsBefore = window.toasts.length
+  const lateJob = await confirmRequest(REGENERATE, RETAKE, 'una regeneración lista que cierra con un fallo')
+  lateJob.onEvent({ type: 'avatar-scene-started', sceneId: 4 })
+  storeAvatar(4, { ...EDITED_4, take: 3 })
+  lateJob.onEvent({ type: 'avatar-scene-ready', sceneId: 4, scene: { id: 4 } })
+  lateJob.onEvent({ type: 'job-failed', code: 'avatar_provider_error', message: 'late' })
+  await waitFor(() => idle() && panelButton(REGENERATE), 'liberado')
+  await delay(100)
+  check(!window.toasts.slice(toastsBefore).some((item) => item.description === keptNotice('avatar_provider_error')), 'la nueva ya había quedado lista: el cierre fallido no dice que quedó la anterior: ' + JSON.stringify(window.toasts.slice(toastsBefore)))
+
+  // Una planeada: el movimiento que escribe la persona viaja con «Generar
+  // avatar» y con «Regenerar todos» (que la incluye); solo «más expresivo»
+  // viaja con el prompt vacío (I1 de la revisión; el sidecar igual le escribe
+  // el automático, R-2e-9); sin tocar nada no viaja y el sidecar escribe el
+  // automático, que el campo muestra al quedar lista.
+  await select(2)
+  await waitFor(() => panelButton(GENERATE) && motionField(), 'la 2, planeada')
+  typeMotion(EDITED)
+  await waitFor(() => panelButton(ALL(2)) && motionField().value === EDITED, '«Regenerar todos (2)»: la 2 y la 7')
+  panelButton(GENERATE).click()
+  await waitFor(() => dialogButton(CONFIRM) && dialog().textContent.includes(BALANCE_5), 'la confirmación de generar')
+  check(dialog().textContent.includes(t('library.editor.avatar.confirmarTitulo')) && dialogDescription().includes(t('library.editor.avatar.confirmarTexto', { count: 1, amount: usd(0.385) })) && !dialogButton(RETAKE), 'generar una planeada sigue con sus textos («¿Generar el avatar?», «Generar») y el costo de IV')
+  const jobsBeforePlanned = window.avatarJobs.length
+  dialogButton(CONFIRM).click()
+  await waitFor(() => window.avatarJobs.length === jobsBeforePlanned + 1, 'pide la planeada')
+  check(JSON.stringify(window.avatarJobs.at(-1).payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2], motion: [{ sceneId: 2, motionPrompt: EDITED, expressive: false }] }), 'una planeada con el movimiento que escribió la persona, sin «regenerateSceneIds»: ' + JSON.stringify(window.avatarJobs.at(-1).payload))
+  window.avatarJobs.at(-1).onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle() && motionField()?.value === EDITED, 'cancelada: el borrador sigue ahí (no se guardó nada)')
+  panelButton(ALL(2)).click()
+  await waitFor(() => dialog()?.textContent.includes(BALANCE_5), 'la confirmación de las dos')
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarTexto', { count: 2, amount: usd(engineCost('photo_avatar', 'avatar_iv', [span(4, 14), span(48, 58)])) })), 'las dos, de IV con un look de foto: ' + dialogDescription())
+  const jobsBeforeAll = window.avatarJobs.length
+  dialogButton(CONFIRM).click()
+  await waitFor(() => window.avatarJobs.length === jobsBeforeAll + 1, 'pide las dos')
+  check(JSON.stringify(window.avatarJobs.at(-1).payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2, 7], motion: [{ sceneId: 2, motionPrompt: EDITED, expressive: false }] }), '«Regenerar todos» lleva el movimiento editado de la escena elegida, que va en el pedido: ' + JSON.stringify(window.avatarJobs.at(-1).payload))
+  window.avatarJobs.at(-1).onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle() && motionField(), 'cancelada')
+  typeMotion('')
+  expressiveSwitch().click()
+  await waitFor(() => expressiveSwitch().getAttribute('aria-checked') === 'true' && motionField()?.value === '', 'solo «más expresivo» en la planeada, sin prompt')
+  const plannedExpressiveJob = await confirmRequest(GENERATE, CONFIRM, 'solo «más expresivo» en la planeada')
+  check(JSON.stringify(plannedExpressiveJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2], motion: [{ sceneId: 2, motionPrompt: '', expressive: true }] }), 'solo «más expresivo» en una planeada sin prompt: viaja con el prompt vacío: ' + JSON.stringify(plannedExpressiveJob.payload))
+  plannedExpressiveJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle() && expressiveSwitch()?.getAttribute('aria-checked') === 'true', 'cancelada')
+  expressiveSwitch().click()
+  await waitFor(() => expressiveSwitch().getAttribute('aria-checked') === 'false', 'de vuelta a lo guardado')
+  const autoJob = await confirmRequest(GENERATE, CONFIRM, 'la planeada sin tocar el movimiento')
+  check(JSON.stringify(autoJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2] }), 'sin tocarlo, sin «motion»: el sidecar escribe el automático antes de pedir (§21.2): ' + JSON.stringify(autoJob.payload))
+  autoJob.onEvent({ type: 'avatar-scene-started', sceneId: 2 })
+  storeAvatar(2, view({ engine: 'avatar_iv', motionPrompt: AUTO_2, motionSource: 'auto', autoMotionPrompt: AUTO_2 }))
+  autoJob.onEvent({ type: 'avatar-scene-ready', sceneId: 2, scene: { id: 2 } })
+  autoJob.onEvent({ type: 'job-completed', result: { rendered: [2], failed: [] } })
+  await waitFor(() => panelButton(REGENERATE) && motionField()?.value === AUTO_2, 'lista: el campo muestra el prompt que escribió Vimo')
+  check(motionHint() === t('library.editor.avatar.movimientoHint') && !useAutomatic(), 'con su ayuda y sin «Usar el automático»')
+
+  // El proveedor rechazó el movimiento (motionUnsupported). Ronda 2 (hallazgo
+  // 2 de la revisión final): el rechazo puede no ser del look (un prompt
+  // demasiado largo), así que la nota va ARRIBA del campo, que sigue a la
+  // vista y editable, con su guía; un prompt nuevo viaja como siempre (el
+  // sidecar borra la marca y vuelve a probar) y, sin cambiarlo, no viaja.
+  // «Más expresivo» sigue apagado.
+  storeAvatar(7, view({ engine: 'avatar_iv', motionUnsupported: true }))
+  await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
+  await select(7)
+  const unsupported = t('library.editor.avatar.movimientoNoAdmitido', { engine: t('avatars.engines.avatar_iv') })
+  const unsupportedNote = (text) => [...(motionGroup()?.querySelectorAll('p') ?? [])].find((paragraph) => paragraph.textContent.trim() === text)
+  await waitFor(() => unsupportedNote(unsupported) && motionField(), 'la nota y el campo: ' + unsupported)
+  check(unsupportedNote(unsupported).compareDocumentPosition(motionField()) & Node.DOCUMENT_POSITION_FOLLOWING, 'la nota va arriba del campo')
+  check(!motionField().disabled && guideButton() && expressiveSwitch()?.disabled, 'el campo editable y la guía a la vista; «más expresivo» apagado')
+  const unchangedJob = await confirmRequest(REGENERATE, RETAKE, 'una lista con motionUnsupported, sin cambiar el prompt')
+  check(JSON.stringify(unchangedJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [7], regenerateSceneIds: [7] }), 'sin cambiar el prompt, sin «motion»: ' + JSON.stringify(unchangedJob.payload))
+  unchangedJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+  const RETRY_7 = 'Calm smile at the camera.'
+  typeMotion(RETRY_7)
+  await waitFor(() => motionField()?.value === RETRY_7, 'otro prompt en la escena marcada')
+  const newPromptJob = await confirmRequest(REGENERATE, RETAKE, 'una lista con motionUnsupported y otro prompt')
+  check(JSON.stringify(newPromptJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [7], regenerateSceneIds: [7], motion: [{ sceneId: 7, motionPrompt: RETRY_7, expressive: false }] }), 'con otro prompt, «motion» viaja como siempre (el sidecar borra la marca y vuelve a probar): ' + JSON.stringify(newPromptJob.payload))
+  newPromptJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+
+  // Un borrador que quedó escrito cuando la escena pasa a motionUnsupported
+  // (M2 de la primera revisión): el campo sigue a la vista con el borrador,
+  // que viaja si cambió el prompt; sin cambiar el prompt solo viaja «más
+  // expresivo», con el prompt guardado, y solo si el motor y el look lo
+  // admiten (IV con un look de foto sí; V no).
+  await select(4)
+  await waitFor(() => motionField()?.value === EDITED, 'la 4, con el prompt de la persona')
+  typeMotion('Probe draft prompt.')
+  expressiveSwitch().click()
+  await waitFor(() => expressiveSwitch().getAttribute('aria-checked') === 'false' && motionField()?.value === 'Probe draft prompt.', 'un borrador con otro prompt y «más expresivo» apagado')
+  storeAvatar(4, { ...EDITED_4, take: 3, motionUnsupported: true })
+  await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
+  await waitFor(() => unsupportedNote(unsupported) && motionField()?.value === 'Probe draft prompt.', 'la escena pasa a motionUnsupported: la nota, y el campo con el borrador')
+  check(expressiveSwitch()?.disabled && expressiveSwitch().getAttribute('aria-checked') === 'false', 'el interruptor apagado, con el borrador')
+  const changedIvJob = await confirmRequest(REGENERATE, RETAKE, 'IV con motionUnsupported y otro prompt')
+  check(JSON.stringify(changedIvJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4], motion: [{ sceneId: 4, motionPrompt: 'Probe draft prompt.', expressive: false }] }), 'el prompt cambió: viaja el borrador: ' + JSON.stringify(changedIvJob.payload))
+  changedIvJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+  typeMotion(EDITED)
+  await waitFor(() => motionField()?.value === EDITED && expressiveSwitch().getAttribute('aria-checked') === 'false', 'el prompt de vuelta al guardado, «más expresivo» todavía apagado')
+  const staleIvJob = await confirmRequest(REGENERATE, RETAKE, 'IV con motionUnsupported sin cambiar el prompt')
+  check(JSON.stringify(staleIvJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4], motion: [{ sceneId: 4, motionPrompt: EDITED, expressive: false }] }), 'sin cambiar el prompt, solo «más expresivo» con el prompt guardado: IV con un look de foto lo admite: ' + JSON.stringify(staleIvJob.payload))
+  staleIvJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+  await select(5)
+  await waitFor(() => motionField()?.value === USER_5, 'la 5')
+  typeMotion('Probe V draft.')
+  expressiveSwitch().click()
+  await waitFor(() => expressiveSwitch().getAttribute('aria-checked') === 'false' && motionField()?.value === 'Probe V draft.', 'un borrador de V con otro prompt y «más expresivo» apagado')
+  storeAvatar(5, { ...avatars2e[5], motionUnsupported: true })
+  await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
+  await waitFor(() => unsupportedNote(t('library.editor.avatar.movimientoNoAdmitido', { engine: t('avatars.engines.avatar_v') })) && motionField()?.value === 'Probe V draft.', 'V pasa a motionUnsupported: la nota y el campo con el borrador')
+  const changedVJob = await confirmRequest(REGENERATE, RETAKE, 'V con motionUnsupported y otro prompt')
+  check(JSON.stringify(changedVJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [5], regenerateSceneIds: [5], motion: [{ sceneId: 5, motionPrompt: 'Probe V draft.', expressive: false }] }), 'con V, el prompt nuevo también viaja: ' + JSON.stringify(changedVJob.payload))
+  changedVJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+  typeMotion(USER_5)
+  await waitFor(() => motionField()?.value === USER_5, 'el prompt de V de vuelta al guardado')
+  const staleVJob = await confirmRequest(REGENERATE, RETAKE, 'V con motionUnsupported sin cambiar el prompt')
+  check(JSON.stringify(staleVJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [5], regenerateSceneIds: [5] }), 'con V y sin cambiar el prompt, «más expresivo» no viaja solo (el proveedor no lo admite): ' + JSON.stringify(staleVJob.payload))
+  staleVJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+  storeAvatar(4, EDITED_4)
+  storeAvatar(5, avatars2e[5])
+  await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
+
+  // En la demo, la sección también espera.
+  window.fixture.locked = true
+  await select(4)
+  await waitFor(() => motionField()?.disabled && expressiveSwitch()?.disabled && panelButton(REGENERATE)?.disabled, 'en la demo, el campo, el interruptor y el botón esperan')
+  window.fixture.locked = false
+  await select(2)
 
   // 15. La vista real (LibraryEditor) con su cableado (ronda 1): el panel
   //     recibe el proyecto de la ruta y las escenas, y la pista los renders del

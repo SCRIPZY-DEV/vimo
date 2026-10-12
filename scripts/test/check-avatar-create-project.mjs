@@ -2,7 +2,8 @@
 // §6.2 y §9, cuidados 1 y 4 de §16): forma, rangos y enumerados de
 // `options.avatar`; el avatar tiene que estar en la biblioteca y el look
 // elegido (por defecto el principal, pero puede ser cualquier otro del avatar)
-// tiene que ser suyo, estar listo con Avatar III (nunca deducido de
+// tiene que ser suyo, estar listo con el motor elegido —desde la entrega 2e,
+// cualquiera que el look admita con tarifa— (nunca deducido de
 // `status: 'ready'`) y tener la orientación del video, porque HeyGen lo
 // renderiza tal cual; un avatar cuyo grupo HeyGen ya no tiene se rechaza aunque
 // sus looks sigan «listos»; la vista previa de ESE look se lee y se valida ANTES
@@ -13,7 +14,10 @@
 // ausente, no hay proyecto; HeyGen caído, lento o con un 429 avisa y sigue,
 // con un plazo corto y sin reintentos; el saldo no frena); la
 // demo no lleva avatar; y un proyecto sin avatar sale igual que siempre, sin
-// hablar con HeyGen. También fija `lookOrientationFit`, la regla de
+// hablar con HeyGen. Desde la entrega 2e, `expressive` («Movimiento más
+// expresivo»), si viene, es booleano y se guarda solo en true y si el motor y
+// el look lo admiten; sin él, Avatar III guarda las opciones de antes byte a
+// byte. También fija `lookOrientationFit`, la regla de
 // orientación que Crear comparte con el sidecar, y que `types/avatar.ts` (la
 // app importa sus valores) sigue browser-safe por toda su cadena de imports.
 // Comando real con la biblioteca en una carpeta temporal y HeyGen simulado:
@@ -267,6 +271,93 @@ test('crear con avatar: el nombre del look sale de la biblioteca y un campo de m
   assert.deepEqual((await storedOptions(projectDir)).avatar, AVATAR)
 })
 
+test('crear con avatar (entrega 2e): Avatar III sin «más expresivo» guarda las opciones de antes byte a byte (mismas claves, mismo orden)', async (t) => {
+  const root = await session(t)
+  const { projectDir } = await create(root, payload()).promise
+  const raw = JSON.parse(
+    await readFile(join(projectDir, 'project.json'), 'utf8'),
+  )
+  assert.equal(JSON.stringify(raw.options.avatar), JSON.stringify(AVATAR))
+})
+
+test('crear con avatar (entrega 2e): el motor elegido se guarda si el look lo admite con tarifa —IV o V, también con un look solo-IV—', async (t) => {
+  for (const [label, looks, engine] of [
+    [
+      'IV con un look de los tres motores',
+      [
+        libraryLook({
+          supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'],
+        }),
+      ],
+      'avatar_iv',
+    ],
+    [
+      'V con un look de los tres motores',
+      [
+        libraryLook({
+          supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'],
+        }),
+      ],
+      'avatar_v',
+    ],
+    [
+      'IV con un look solo-IV',
+      [libraryLook({ supportedEngines: ['avatar_iv'] })],
+      'avatar_iv',
+    ],
+  ]) {
+    const root = await session(t, { looks })
+    const avatar = { ...AVATAR, engine }
+    const { projectDir } = await create(root, payload({ avatar })).promise
+    assert.deepEqual((await storedOptions(projectDir)).avatar, avatar, label)
+  }
+})
+
+test('crear con avatar (entrega 2e): «más expresivo» se guarda solo en true y solo si el motor y el look lo admiten', async (t) => {
+  const allEngines = ['avatar_iii', 'avatar_iv', 'avatar_v']
+  for (const [label, lookType, engine, expressive, stored] of [
+    ['IV con foto, prendido', 'photo_avatar', 'avatar_iv', true, true],
+    ['V con foto, prendido', 'photo_avatar', 'avatar_v', true, true],
+    [
+      'V con un gemelo digital, prendido',
+      'digital_twin',
+      'avatar_v',
+      true,
+      true,
+    ],
+    [
+      'IV con un gemelo digital: no lo admite',
+      'digital_twin',
+      'avatar_iv',
+      true,
+      false,
+    ],
+    [
+      'IV con un look de estudio: no lo admite',
+      'studio_avatar',
+      'avatar_iv',
+      true,
+      false,
+    ],
+    ['Avatar III: no lo admite', 'photo_avatar', 'avatar_iii', true, false],
+    ['IV con foto, apagado', 'photo_avatar', 'avatar_iv', false, false],
+  ]) {
+    const root = await session(t, {
+      looks: [libraryLook({ lookType, supportedEngines: allEngines })],
+    })
+    const chosen = { ...AVATAR, lookType, engine }
+    const { projectDir } = await create(
+      root,
+      payload({ avatar: { ...chosen, expressive } }),
+    ).promise
+    assert.deepEqual(
+      (await storedOptions(projectDir)).avatar,
+      stored ? { ...chosen, expressive: true } : chosen,
+      label,
+    )
+  }
+})
+
 test('crear con avatar: una vista previa WEBP del principal se copia como look.webp', async (t) => {
   const root = await session(t, { previews: { 'look-1.webp': WEBP } })
   const { projectDir } = await create(root, payload()).promise
@@ -434,8 +525,22 @@ for (const [label, setup, avatarOverrides, optionOverrides, code] of [
     'avatar_look_unavailable',
   ],
   [
-    'un look sin Avatar III',
+    'un motor que el look no admite (Avatar III con un look solo-IV)',
     { looks: [libraryLook({ supportedEngines: ['avatar_iv'] })] },
+    {},
+    {},
+    'avatar_look_unavailable',
+  ],
+  [
+    'un motor que el look no admite (Avatar V con un look solo-III)',
+    {},
+    { engine: 'avatar_v' },
+    {},
+    'avatar_look_unavailable',
+  ],
+  [
+    'un look sin ningún motor que Vimo use',
+    { looks: [libraryLook({ supportedEngines: [] })] },
     {},
     {},
     'avatar_look_unavailable',
@@ -576,7 +681,10 @@ for (const [label, avatar, optionOverrides = {}] of [
   ['un look vacío', { ...AVATAR, lookId: '  ' }],
   ['un nombre de look vacío', { ...AVATAR, lookName: ' ' }],
   ['un tipo de look desconocido', { ...AVATAR, lookType: 'avatar' }],
-  ['otro motor', { ...AVATAR, engine: 'avatar_iv' }],
+  ['un motor desconocido', { ...AVATAR, engine: 'avatar_x' }],
+  ['sin motor', { ...AVATAR, engine: undefined }],
+  ['un «más expresivo» que no es booleano', { ...AVATAR, expressive: 'yes' }],
+  ['un «más expresivo» nulo', { ...AVATAR, expressive: null }],
   [
     'menos apariciones que el mínimo',
     { ...AVATAR, appearances: AVATAR_MIN_APPEARANCES - 1 },

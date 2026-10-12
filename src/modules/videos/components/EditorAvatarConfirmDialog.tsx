@@ -30,8 +30,11 @@ interface EditorAvatarConfirmDialogProps {
 
 // Confirmación de «Generar» / «Regenerar» el avatar en el editor (entrega 2d):
 // cuántas apariciones, lo que cobra el servicio de avatares y el saldo, antes
-// de pagar. Con el saldo corto lo dice y no deja confirmar. El foco abre en
-// «Cancelar» (lo pone el AlertDialog de Radix): un Enter distraído no paga.
+// de pagar. Volver a generar una lista (entrega 2e, §21.4) tiene sus textos:
+// «¿Regenerar el avatar?», que el clip actual queda hasta que el nuevo esté
+// listo, y «Regenerar». Con el saldo corto lo dice y no deja confirmar. El
+// foco abre en «Cancelar» (lo pone el AlertDialog de Radix): un Enter
+// distraído no paga.
 // Mientras relee el saldo, los botones quedan con `aria-disabled` y no con
 // `disabled`: un botón deshabilitado con el foco lo suelta fuera del diálogo
 // (ERRORES-CONOCIDOS: dialogo-radix-con-controles-y-x-deshabilitados-deja-
@@ -61,6 +64,7 @@ export function EditorAvatarConfirmDialog({
     : '—'
   const checking = current?.checking ?? false
   const insufficient = current?.insufficient ?? false
+  const retake = current?.retake ?? false
 
   return (
     <AlertDialog
@@ -74,7 +78,11 @@ export function EditorAvatarConfirmDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 font-display">
             <UserRound aria-hidden className="h-5 w-5 text-amethyst" />
-            {t('library.editor.avatar.confirmarTitulo')}
+            {t(
+              retake
+                ? 'library.editor.avatar.confirmarTituloRegenerar'
+                : 'library.editor.avatar.confirmarTitulo',
+            )}
           </AlertDialogTitle>
         </AlertDialogHeader>
 
@@ -84,10 +92,12 @@ export function EditorAvatarConfirmDialog({
         <AlertDialogDescription asChild>
           <div className="space-y-3 font-body">
             <p>
-              {t('library.editor.avatar.confirmarTexto', {
-                count: current?.count ?? 0,
-                amount,
-              })}
+              {t(
+                retake
+                  ? 'library.editor.avatar.confirmarTextoRegenerar'
+                  : 'library.editor.avatar.confirmarTexto',
+                { count: current?.count ?? 0, amount },
+              )}
             </p>
             <p className="text-foreground">
               {t('library.editor.avatar.saldo', {
@@ -123,7 +133,11 @@ export function EditorAvatarConfirmDialog({
             className="rounded-xl font-display font-bold"
           >
             {checking && <Loader2 aria-hidden className="animate-spin" />}
-            {t('library.editor.avatar.confirmar')}
+            {t(
+              retake
+                ? 'library.editor.avatar.confirmarRegenerar'
+                : 'library.editor.avatar.confirmar',
+            )}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

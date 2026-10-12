@@ -14,6 +14,7 @@ import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import { estimateAnimationSeconds } from '@/modules/videos/utilities/estimateAnimationSeconds'
 import { laneOf } from '@/modules/videos/utilities/formLane'
+import { selectedAvatarEngine } from '@/modules/videos/utilities/selectableAvatar'
 import { planPrefixSceneWindows } from '@pipeline/animation/prefix-scenes.ts'
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
@@ -84,12 +85,21 @@ function estimateImagesLine(
   )
 }
 
-// La línea de HeyGen: segundos de avatar × la tarifa de Avatar III del tipo
-// del look elegido (spec §9). Sin avatar elegido no hay tarifa.
+// La línea de HeyGen: segundos de avatar × la tarifa del motor con el que sale
+// el look elegido (spec §9 y §21.3: el que prefiere la persona si el look lo
+// admite; si no, el de reemplazo). Sin avatar elegido, o con un look que no
+// admite ningún motor (una elección vieja: el envío se frena), no hay tarifa.
 function estimateAvatarLine(form: CreateFormValue): CostEstimateLine | null {
   if (!form.avatar) return null
 
-  return avatarCostEstimate(form.avatar.lookType, createAvatarSeconds(form))
+  const engine = selectedAvatarEngine(form)
+  if (!engine) return null
+
+  return avatarCostEstimate(
+    form.avatar.lookType,
+    createAvatarSeconds(form),
+    engine,
+  )
 }
 
 // Usa el mismo corte puro del sidecar: imágenes cada3s en el primer minuto

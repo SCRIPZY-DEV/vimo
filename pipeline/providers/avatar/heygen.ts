@@ -5,6 +5,7 @@ import {
 } from '../../runner/failure.ts'
 import { AVATAR_ENGINES, AVATAR_LOOK_TYPES } from '../../types/avatar.ts'
 import type {
+  AVATAR_EXPRESSIVE_LEVEL,
   AvatarAspectRatio,
   AvatarBalanceResult,
   AvatarEngine,
@@ -148,6 +149,11 @@ export interface HeyGenCreateVideoInput {
   title: string
   // Mismo pedido → misma clave: HeyGen repite la respuesta 24 h y no cobra dos veces.
   idempotencyKey: string
+  // El movimiento (entrega 2e, §21.2): viajan solo cuando vienen, y solo vienen
+  // si el motor y el look los admiten (`avatarRequestMotion`, lane.ts). Sin
+  // ellos el cuerpo es el de antes de la 2e, byte a byte.
+  motionPrompt?: string
+  expressiveness?: typeof AVATAR_EXPRESSIVE_LEVEL
 }
 
 export interface HeyGenListVideosParams {
@@ -530,7 +536,10 @@ function assertVideoInput(input: HeyGenCreateVideoInput) {
 // Cuerpo de `POST /v3/videos` (diseño §7.1 con el cambio del dueño del
 // 2026-10-10): el clip del avatar ES la escena, con el fondo propio del look,
 // así que no viajan `background`, `remove_background` ni `fit`: HeyGen
-// renderiza el look tal cual en el formato del proyecto.
+// renderiza el look tal cual en el formato del proyecto. `engine` va siempre y
+// solo con `type` (sin `engine` HeyGen usaría Avatar IV, y Avatar III no acepta
+// nada más, R-2e-1). Desde la entrega 2e, al final y solo cuando vienen,
+// `motion_prompt` y `expressiveness`: sin ellos, el cuerpo de antes.
 function createVideoBody(input: HeyGenCreateVideoInput) {
   return {
     type: 'avatar',
@@ -541,6 +550,8 @@ function createVideoBody(input: HeyGenCreateVideoInput) {
     aspect_ratio: input.aspectRatio,
     resolution: HEYGEN_VIDEO_RESOLUTION,
     output_format: HEYGEN_VIDEO_OUTPUT_FORMAT,
+    ...(input.motionPrompt ? { motion_prompt: input.motionPrompt } : {}),
+    ...(input.expressiveness ? { expressiveness: input.expressiveness } : {}),
   }
 }
 

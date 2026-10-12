@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import {
   AVATAR_VIDEO_TITLE_NAME_LIMIT,
+  type AVATAR_EXPRESSIVE_LEVEL,
   type AvatarAttempt,
   type AvatarEngine,
 } from '../types/avatar.ts'
@@ -13,9 +14,11 @@ import type { VideoFormat } from '../types/video-format.ts'
 //  - la del CORTE de audio (narración + tramo en cuadros) nombra el WAV y lo
 //    reusa entre corridas;
 //  - la del PEDIDO (look, motor, formato, resolución, corte y versión de la
-//    narración) es `attempt.hash`; con el número de reintento da la clave del
-//    intento, de la que salen la `Idempotency-Key` (con el proyecto y la
-//    escena), la marca del `title` y los nombres de los mp4;
+//    narración; desde la entrega 2e, al final y solo cuando van, el
+//    movimiento, «más expresivo» y la toma) es `attempt.hash`; con el número
+//    de reintento da la clave del intento, de la que salen la
+//    `Idempotency-Key` (con el proyecto y la escena), la marca del `title` y
+//    los nombres de los mp4;
 //  - la del RENDER (look, motor, tramo y versión de la narración) es
 //    `renderHash`: si ya no coincide con la escena, el clip está desactualizado.
 // Se hashea un arreglo JSON, no un objeto: el orden queda fijo. Usa node:crypto:
@@ -49,6 +52,13 @@ export interface AvatarRequestIdentity {
   resolution: string
   audioCutHash: string
   narrationVersion: number
+  // Entrega 2e (§21.2 y §21.4): lo que el pedido lleva además, solo cuando va.
+  // El prompt de movimiento y «más expresivo» cambian el cuerpo del POST; la
+  // toma, no: hace que regenerar una escena lista sea un pedido nuevo (otra
+  // clave) en vez de cosechar gratis el clip que ya está cobrado.
+  motionPrompt?: string
+  expressiveness?: typeof AVATAR_EXPRESSIVE_LEVEL
+  take?: number
 }
 
 export interface AvatarRenderIdentity {
@@ -78,8 +88,28 @@ export function avatarRequestHash(identity: AvatarRequestIdentity): string {
       identity.resolution,
       identity.audioCutHash,
       identity.narrationVersion,
+      ...requestExtras(identity),
     ]),
   )
+}
+
+// Lo que la entrega 2e suma al final de la huella del pedido, en este orden y
+// cada uno solo cuando va: `['motion', <prompt>]`, `['expressiveness',
+// 'high']` y `['take', <n>]` con n > 0. Sin ninguno, la huella es la de antes
+// de la 2e: los pedidos de Avatar III y los recibos guardados no cambian. Una
+// toma que no es un entero positivo (un scenes.json editado) cuenta como la
+// toma 0: a lo sumo cosecha el clip que ya está pagado, nunca paga otro.
+function requestExtras(identity: AvatarRequestIdentity): unknown[] {
+  const extras: unknown[] = []
+  if (identity.motionPrompt) extras.push(['motion', identity.motionPrompt])
+  if (identity.expressiveness)
+    extras.push(['expressiveness', identity.expressiveness])
+
+  const take = identity.take
+  if (take !== undefined && Number.isSafeInteger(take) && take > 0)
+    extras.push(['take', take])
+
+  return extras
 }
 
 // `startFrame`/`endFrame` = Math.round(segundos × 25) del tramo de la escena;

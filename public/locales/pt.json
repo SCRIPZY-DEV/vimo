@@ -407,7 +407,13 @@
         "normalize": "Ajustando o clipe ao vídeo"
       },
       "avatarFallback_one": "{{count}} aparição do avatar não foi gerada: o vídeo mostra a imagem fixa do look. Você pode regenerá-la no editor.",
-      "avatarFallback_other": "{{count}} aparições do avatar não foram geradas: o vídeo mostra a imagem fixa do look. Você pode regenerá-las no editor."
+      "avatarFallback_other": "{{count}} aparições do avatar não foram geradas: o vídeo mostra a imagem fixa do look. Você pode regenerá-las no editor.",
+      "avatarPercent": "{{percent}}%",
+      "avatarPercentAria": "Progresso estimado: {{percent}}%",
+      "avatarCardLabel": "Avatar",
+      "avatarCardAria": "Cena {{index}}: aparição do avatar, {{status}}",
+      "avatarCardGenerating": "Gerando",
+      "avatarCardFallback": "Com imagem fixa"
     },
     "confirmScenes": {
       "title": "Confirme a quantidade de cenas",
@@ -502,7 +508,7 @@
       "projectNotFound": "Esse projeto não está mais na sua pasta.",
       "projectCorrupt": "Os dados do projeto estão danificados.",
       "projectExists": "Já existe um projeto com esse nome.",
-      "avatarLookUnavailable": "O look escolhido não pode ser usado: não está mais pronto, não é compatível com o Vimo (Avatar III) ou não tem uma prévia. Escolha outro look para este vídeo.",
+      "avatarLookUnavailable": "O look escolhido não pode ser usado: não está mais pronto, não aceita o motor escolhido ou não tem uma prévia. Escolha outro look ou motor para este vídeo.",
       "avatarLookOrientationMismatch": "O look escolhido não tem a orientação do vídeo: um vídeo 16:9 precisa de um look horizontal e um 9:16, de um vertical. Escolha outro ou crie um cenário nesse formato em Avatares.",
       "scriptMissing": "Falta o roteiro do projeto.",
       "narrationMissing": "Não encontramos seu áudio. Envie de novo.",
@@ -618,7 +624,8 @@
       "avatarRenderLookUnavailable": "A aparição do avatar não tem clipe nem prévia do look. Escolha o look de novo na biblioteca ou gere o avatar outra vez.",
       "avatarTimingLocked": "Os tempos desta cena de avatar estão vinculados ao clipe ou a um pedido ao serviço de avatares e não podem ser movidos.",
       "catalogSyncFailed": "Não foi possível atualizar o catálogo. Você continua vendo o último baixado.",
-      "catalogUploadFailed": "Não foi possível enviar as amostras para o catálogo. Tente de novo."
+      "catalogUploadFailed": "Não foi possível enviar as amostras para o catálogo. Tente de novo.",
+      "avatarMotionUnsupported": "Este look não permite movimento próprio com este motor: ele é gerado com o movimento do motor."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -1216,7 +1223,6 @@
       "costPending": "Escolha um avatar para ver o custo",
       "total_one": "{{seconds}} s de avatar em {{count}} aparição",
       "total_other": "{{seconds}} s de avatar em {{count}} aparições",
-      "engine": "Motor Avatar III",
       "pricePerMinute": "· {{price}} por minuto",
       "moderationHint": "Não é aceito conteúdo político, violento ou enganoso, nem o uso de pessoas reais sem permissão.",
       "noKey": "Para adicionar um avatar ao seu vídeo, cadastre a chave do avatar apresentador em Chaves API.",
@@ -1232,7 +1238,20 @@
       "mainLook": "Principal",
       "lookOpenAria": "Ver o look {{name}}",
       "selectedLook": "Escolhido",
-      "otherFormatHint": "Este look não tem o formato do seu vídeo, então não pode ser usado."
+      "otherFormatHint": "Este look não tem o formato do seu vídeo, então não pode ser usado.",
+      "engineTitle": "Motor",
+      "engineGroupAria": "Motor do avatar",
+      "engineDescription": {
+        "avatar_v": "Estilo de movimento coerente do personagem que se adapta ao roteiro",
+        "avatar_iv": "Movimento genérico que se adapta ao roteiro",
+        "avatar_iii": "Aplica sincronização labial"
+      },
+      "engineUnavailable": "Este look não é compatível com {{engine}}",
+      "expressive": "Movimento mais expressivo",
+      "expressiveHelpAria": "O que faz “Movimento mais expressivo”",
+      "expressiveTooltip": "Mais energia nos gestos e no rosto de cada aparição, sem exagero. Não soma custo.",
+      "expressiveUnavailable": "Com {{engine}}, este look não permite um movimento mais expressivo.",
+      "motionAuto": "O Vimo escreve o movimento de cada aparição de acordo com o que ela diz. Você pode mudá-lo no editor."
     }
   },
   "createDemo": {
@@ -1565,7 +1584,39 @@
         "listo": "O avatar ficou pronto. Exporte o vídeo para que ele apareça no arquivo final.",
         "fallo": "Não foi possível gerar o avatar: {{reason}}",
         "fallbackNote_one": "{{count}} aparição do avatar não foi gerada: o vídeo mostra a imagem fixa do look.",
-        "fallbackNote_other": "{{count}} aparições do avatar não foram geradas: o vídeo mostra a imagem fixa do look."
+        "fallbackNote_other": "{{count}} aparições do avatar não foram geradas: o vídeo mostra a imagem fixa do look.",
+        "confirmarTituloRegenerar": "Regenerar o avatar?",
+        "confirmarRegenerar": "Regenerar",
+        "confirmarTextoRegenerar_one": "{{count}} aparição é gerada de novo por ≈ {{amount}}, com a mesma parte da narração e a mesma voz. O clipe atual fica até o novo estar pronto.",
+        "confirmarTextoRegenerar_other": "{{count}} aparições são geradas de novo por ≈ {{amount}}, com as mesmas partes da narração e a mesma voz. Os clipes atuais ficam até os novos estarem prontos.",
+        "regenerarFalloConservado": "Não foi possível regenerar o avatar: {{reason}} O clipe anterior foi mantido.",
+        "motor": "{{engine}} · {{description}}",
+        "movimientoTitulo": "Movimento",
+        "movimientoLabel": "Prompt de movimento",
+        "movimientoHint": "O Vimo escreveu de acordo com o que esta aparição diz. Se você mudar, ele é usado ao gerar ou regenerar.",
+        "movimientoVacio": "Sem prompt, o avatar usa o movimento próprio do motor.",
+        "movimientoPlaceholder": "Ex.: Sorri com simpatia e assente ao dizer o mais importante.",
+        "movimientoCaracteres": "{{used}}/{{max}}",
+        "movimientoAutomatico": "Usar o automático",
+        "movimientoNoAdmitido": "Da última vez o movimento próprio não foi aceito com {{engine}}: foi gerado com o movimento do motor. Você pode tentar outro prompt.",
+        "expresivo": "Movimento mais expressivo",
+        "expresivoAyudaAria": "O que faz “Movimento mais expressivo”",
+        "expresivoTooltip": "Mais energia nos gestos e no rosto, sem exagero. Não soma custo.",
+        "guiaBoton": "O que você pode pedir",
+        "guiaPuedeTitulo": "O que você pode controlar",
+        "guiaExpresiones": "Expressões faciais (calma, entusiasmada, sincera)",
+        "guiaGestos": "Gestos de mão (acenar, apontar, mão no coração)",
+        "guiaPostura": "Postura corporal (inclinar-se, caloroso e aberto, sereno)",
+        "guiaQuietud": "Imobilidade (sem gestos com as mãos, quase não se mexe)",
+        "guiaMirada": "Olhar (olhar para a câmera, desviar o olhar)",
+        "guiaNoPuedeTitulo": "O que você não pode controlar",
+        "guiaCamara": "Movimento de câmera (zoom, pan, travelling)",
+        "guiaLugar": "Local ou cena (ir até a cozinha, sair)",
+        "guiaObjetos": "Acessórios ou ações (tomar café, pegar um telefone)",
+        "guiaCaminar": "Levantar-se ou andar",
+        "guiaFondo": "Mudanças de fundo ou iluminação",
+        "movimientoPendiente": "O Vimo escreve o movimento de acordo com o que esta aparição diz quando a gera.",
+        "movimientoPropio": "Este prompt é usado ao gerar ou regenerar esta aparição."
       }
     },
     "errors": {
@@ -1922,7 +1973,8 @@
       "texto": "Adicione um do estoque ou crie o seu a partir de uma foto. Você precisa da sua chave do avatar apresentador em Chaves API."
     },
     "tarjeta": {
-      "noCompatible": "Não compatível com o Vimo"
+      "noCompatible": "Não compatível com o Vimo",
+      "motoresAria": "Motores compatíveis: {{engines}}"
     },
     "types": {
       "studio_avatar": "De estúdio",
@@ -2100,7 +2152,7 @@
       "rateLimited": "O serviço de avatares está recebendo pedidos demais. Espere um momento e tente de novo.",
       "moderationRejected": "O serviço de avatares rejeitou o pedido pela política de moderação: não é permitido usar pessoas reais sem permissão nem conteúdo proibido.",
       "lookUnsupported": "Esse avatar ou motor não está disponível na sua conta do serviço de avatares.",
-      "noCompatibleLook": "Este avatar não tem nenhum look pronto compatível com o Vimo (Avatar III).",
+      "noCompatibleLook": "Este avatar não tem nenhum look pronto que aceite um motor do Vimo (Avatar V, IV ou III).",
       "groupMissing": "O serviço de avatares não tem mais este avatar. Remova-o da sua biblioteca.",
       "lookNotListed": "O serviço de avatares recebeu o pedido, mas o look novo ainda não aparece. O Vimo vai procurá-lo de novo em alguns segundos; se não aparecer, confira seu saldo antes de tentar outra descrição.",
       "mainLookNotReady": "O avatar ainda não tem um look principal pronto. Escolha um e tente de novo.",

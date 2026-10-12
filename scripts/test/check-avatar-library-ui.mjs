@@ -1,6 +1,6 @@
-// La biblioteca de avatares de las entregas 2b, 2c y 2d (design.md §12.2, §18,
-// §19 y §20; plan-e2b WP-C, plan-e2c WP-G y plan-e2d WP-N) con sus componentes
-// y hooks reales en Chrome headless, y HeyGen
+// La biblioteca de avatares de las entregas 2b, 2c, 2d y 2e (design.md §12.2,
+// §18, §19, §20 y §21; plan-e2b WP-C, plan-e2c WP-G, plan-e2d WP-N y plan-e2e
+// WP-Y) con sus componentes y hooks reales en Chrome headless, y HeyGen
 // simulado: `avatarsApi` es el real con las lecturas y escrituras del sidecar
 // y del store reemplazadas por un doble en memoria (grupos en dos páginas,
 // looks por grupo, la clasificación por tipo, favoritos, altas y cambios de
@@ -62,8 +62,8 @@
 //   «Cargar a la biblioteca» agrega el avatar con ese look como principal y
 //   abre su panel (mientras carga no se cierra y el foco no sale del
 //   reproductor; si falla, sigue abierto y el foco vuelve al botón); con el
-//   avatar ya en la biblioteca, «Abrir en tu biblioteca»; un look sin Avatar
-//   III lo dice y no ofrece botón; Escape cierra solo el reproductor y el foco
+//   avatar ya en la biblioteca, «Abrir en tu biblioteca»; un look sin ningún
+//   motor lo dice y no ofrece botón; Escape cierra solo el reproductor y el foco
 //   vuelve a la ficha (con el mouse también, sin activarla); en el panel de un
 //   avatar, el reproductor espera la lista de HeyGen (no dice «sin video») y,
 //   al llegar, el foco sigue en el escenario; «Usar como principal» llama a
@@ -129,6 +129,20 @@
 //   biblioteca no guarda la orientación) y el reproductor dicen 16:9, 9:16,
 //   1:1, 4:5 o 5:4 («Formato …» para el lector de pantalla) en lugar de
 //   «Vertical»/«Horizontal»/«Cuadrado»; sin orientación ni medidas, sin chip;
+// - los motores de cada look (entrega 2e, plan-e2e WP-Y): un look sirve si
+//   admite al menos uno de III, IV o V con tarifa (antes, solo III); las fichas
+//   del stock y del panel, el encabezado del reproductor, la tarjeta de la
+//   biblioteca y el encabezado del panel muestran una pastilla por cada motor
+//   que admite (sin repetirlo), en el orden V, IV, III, dentro de un grupo con
+//   nombre («Motores que admite: …»); un lector de pantalla los lee UNA vez:
+//   las pastillas van con aria-hidden y el árbol de accesibilidad de Chrome
+//   (nombre del grupo y subárbol, por CDP) no deja nada legible dentro de él;
+//   «No compatible con Vimo» solo si no admite ninguno y solo de lo que ya está
+//   listo; el estado manda sobre los motores (un look que se genera o falló,
+//   con o sin motores, dice eso, no se hace principal y, si trae motores, sus
+//   pastillas se ven); un look solo-IV se carga desde el stock y se hace
+//   principal, y el motor sin tarifa no cuenta (la tabla de tarifas se muda en
+//   el escenario y se restaura);
 // - `coverLookVideoUrl` (pura, en Node): portada coincidente, sin
 //   coincidencia, sin videos y sin portada.
 // Los simulacros parten del real (ERRORES-CONOCIDOS: simulacro-de-hook-en-un-
@@ -189,8 +203,10 @@ import { LookPlayerDialog } from '@/modules/avatars/components/LookPlayerDialog'
 import { StockGroupCard } from '@/modules/avatars/components/StockGroupCard'
 import { StockLooksDialog } from '@/modules/avatars/components/StockLooksDialog'
 import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
+import { lookEngines, lookUnusableReasonKey } from '@/modules/avatars/utilities/lookUsability'
 import { AvatarLibrary } from '@/modules/avatars/views/AvatarLibrary'
 import { useToast } from '@/modules/common/hooks/useToast'
+import { AVATAR_USD_PER_MINUTE } from '@pipeline/types/avatar.ts'
 
 await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolation: { escapeValue: false } })
 const tr = (key, options) => i18n.t(key, options)
@@ -309,7 +325,7 @@ const PAGE_1 = [group('g-dante', 'Dante', 'male'), group('g-brody', 'Brody', 'ma
 const PAGE_2 = [group('g-teo', 'Teo', 'male', { previewVideoUrl: 'media/teo.mp4' }), group('g-vic', 'Vic', 'female', { previewVideoUrl: 'media/vic.mp4' }), group('g-zoe', 'Zoe', 'female', { previewVideoUrl: 'media/zoe.mp4' })]
 // Dante no trae video de grupo: su look de portada (misma imagen que el grupo)
 // tiene el mp4 de verdad.
-const DANTE_LOOKS = [look('l-dante-1', 'Dante cocina', { previewVideoUrl: 'media/l-dante-1.mp4' }), look('l-dante-cover', 'Dante oficina', { previewImageUrl: 'media/g-dante.png', previewVideoUrl: media('look.mp4') }), look('l-dante-iv', 'Dante sin motor', { supportedEngines: ['avatar_iv'], previewVideoUrl: media('look.mp4') }), look('l-dante-novideo', 'Dante sin video'), look('l-dante-broken', 'Dante video roto', { previewVideoUrl: media('missing.mp4') })]
+const DANTE_LOOKS = [look('l-dante-1', 'Dante cocina', { previewVideoUrl: 'media/l-dante-1.mp4' }), look('l-dante-cover', 'Dante oficina', { previewImageUrl: 'media/g-dante.png', previewVideoUrl: media('look.mp4') }), look('l-dante-iv', 'Dante solo IV', { supportedEngines: ['avatar_iv'], previewVideoUrl: media('look.mp4') }), look('l-dante-none', 'Dante sin motor', { supportedEngines: [], previewVideoUrl: media('look.mp4') }), look('l-dante-novideo', 'Dante sin video'), look('l-dante-broken', 'Dante video roto', { previewVideoUrl: media('missing.mp4') })]
 const TYPES = { studioGroupIds: ['g-dante', 'g-luz', 'g-vic'], twinGroupIds: ['g-brody', 'g-teo'], fetchedAt: '2026-10-11T00:00:00Z', fromCache: true, truncated: false }
 
 // Los avatares propios de la cuenta («Mis avatares», entrega 2c), con video de
@@ -456,7 +472,7 @@ scenario('5b · reproductor del stock: si cargar falla sigue abierto y el foco v
   check(document.activeElement === buttonNamed(tr('avatars.reproductor.cargar'), player), 'el foco vuelve a «Cargar a la biblioteca»: ' + document.activeElement?.outerHTML.slice(0, 80))
 })
 
-scenario('5c · reproductor del stock: con el avatar en la biblioteca, «Abrir en tu biblioteca»; sin Avatar III, el motivo y sin botón; Escape cierra solo el reproductor', async () => {
+scenario('5c · reproductor del stock: con el avatar en la biblioteca, «Abrir en tu biblioteca»; un look sin ningún motor, el motivo y sin botón; Escape cierra solo el reproductor', async () => {
   fakeApi()
   const opened = []
   let closed = 0
@@ -497,12 +513,12 @@ scenario('5c · reproductor del stock: con el avatar en la biblioteca, «Abrir e
   await delay(250)
   check(cardVideo && !window.playElements.includes(cardVideo), 'el foco que vuelve tras el mouse no activa la ficha')
 
-  // Un look sin el motor de Vimo.
+  // Un look que no admite ningún motor (ni III, ni IV, ni V).
   await unmount()
   fakeApi()
   mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
   await openDanteLooks()
-  document.querySelector('[data-look-id="l-dante-iv"]').click()
+  document.querySelector('[data-look-id="l-dante-none"]').click()
   await waitFor(() => dialogs().length === 2, 'el reproductor del look sin motor')
   player = topDialog()
   check(player.textContent.includes(tr('avatars.reproductor.noCompatibleHint')), 'dice que no es compatible')
@@ -512,8 +528,8 @@ scenario('5c · reproductor del stock: con el avatar en la biblioteca, «Abrir e
 })
 
 const avatarLook = (lookId, name, extra = {}) => ({ lookId, name, lookType: 'photo_avatar', supportedEngines: ['avatar_iii'], preferredOrientation: 'landscape', status: 'ready', origin: 'heygen', previewPath: '/library/' + lookId + '.png', createdAt: '2026-10-09T00:00:00Z', ...extra })
-const ANA = { id: 'ana-1', name: 'Ana', groupId: 'g-ana', ownership: 'stock', status: 'ready', mainLookId: 'la-main', looks: [avatarLook('la-main', 'Ana oficina'), avatarLook('la-cocina', 'Ana cocina'), avatarLook('la-iv', 'Ana sin motor', { supportedEngines: ['avatar_iv'] })], previewPath: '/library/ana.png', createdAt: '2026-10-09T00:00:00Z' }
-const ANA_REMOTE = [look('la-main', 'Ana oficina', { groupId: 'g-ana', previewVideoUrl: media('look.mp4') }), look('la-cocina', 'Ana cocina', { groupId: 'g-ana', previewVideoUrl: media('look.mp4') }), look('la-iv', 'Ana sin motor', { groupId: 'g-ana', previewVideoUrl: media('look.mp4') })]
+const ANA = { id: 'ana-1', name: 'Ana', groupId: 'g-ana', ownership: 'stock', status: 'ready', mainLookId: 'la-main', looks: [avatarLook('la-main', 'Ana oficina'), avatarLook('la-cocina', 'Ana cocina'), avatarLook('la-none', 'Ana sin motor', { supportedEngines: [] })], previewPath: '/library/ana.png', createdAt: '2026-10-09T00:00:00Z' }
+const ANA_REMOTE = [look('la-main', 'Ana oficina', { groupId: 'g-ana', previewVideoUrl: media('look.mp4') }), look('la-cocina', 'Ana cocina', { groupId: 'g-ana', previewVideoUrl: media('look.mp4') }), look('la-none', 'Ana sin motor', { groupId: 'g-ana', previewVideoUrl: media('look.mp4') })]
 
 
 scenario('5d · reproductor: silenciar, velocidad, línea de tiempo, flechas y Enter sobre el escenario', async () => {
@@ -743,7 +759,7 @@ scenario('6 · panel del avatar: un look abre el reproductor con «Usar como pri
   await pressKey('Escape')
   await waitFor(() => dialogs().length === 1, 'Escape cierra solo el reproductor')
 
-  document.querySelector('[data-look-id="la-iv"]').click()
+  document.querySelector('[data-look-id="la-none"]').click()
   await waitFor(() => dialogs().length === 2, 'el reproductor del look sin motor')
   check(topDialog().textContent.includes(tr('avatars.reproductor.noCompatibleHint')) && !buttonNamed(tr('avatars.detalle.usarPrincipal'), topDialog()), 'sin motor: el motivo y sin botón')
 })
@@ -794,7 +810,7 @@ scenario('4 · tarjeta del stock: sin video de grupo pide sus looks al pasar el 
 })
 
 const ANA_CARD = { ...ANA, id: 'ana-card' }
-const ANA_TILES = [look('la-main', 'Ana oficina', { groupId: 'g-ana', previewVideoUrl: 'media/la-main.mp4' }), look('la-cocina', 'Ana cocina', { groupId: 'g-ana', previewVideoUrl: 'media/la-cocina.mp4' }), look('la-iv', 'Ana sin motor', { groupId: 'g-ana', previewVideoUrl: 'media/la-iv.mp4' })]
+const ANA_TILES = [look('la-main', 'Ana oficina', { groupId: 'g-ana', previewVideoUrl: 'media/la-main.mp4' }), look('la-cocina', 'Ana cocina', { groupId: 'g-ana', previewVideoUrl: 'media/la-cocina.mp4' }), look('la-none', 'Ana sin motor', { groupId: 'g-ana', previewVideoUrl: 'media/la-none.mp4' })]
 
 // Cuatro grupos sin video de grupo (como los primeros del stock real): cada
 // uno tendría que pedir sus looks para su video de portada.
@@ -876,7 +892,7 @@ scenario('7 · tarjeta de la biblioteca: cada imagen reproduce el video de su lo
   mount(<><button type="button" id="outside">X</button><AvatarCard avatar={ANA_CARD} disabled={false} onOpen={() => {}} onDelete={() => {}} /></>)
   const card = await waitFor(() => document.querySelector('[data-avatar-id="ana-card"]')?.closest('article'), 'la tarjeta')
   const tiles = [...card.querySelectorAll('[data-look-id]')]
-  check(same(tiles.map((tile) => tile.dataset.lookId), ['la-main', 'la-cocina', 'la-iv']), 'el mosaico: la principal y las dos miniaturas: ' + tiles.map((tile) => tile.dataset.lookId))
+  check(same(tiles.map((tile) => tile.dataset.lookId), ['la-main', 'la-cocina', 'la-none']), 'el mosaico: la principal y las dos miniaturas: ' + tiles.map((tile) => tile.dataset.lookId))
   await delay(100)
   check(api.calls.looks.length === 0, 'sin mirarla no pide nada a HeyGen')
   // Cruzarla sin detenerse tampoco.
@@ -886,14 +902,14 @@ scenario('7 · tarjeta de la biblioteca: cada imagen reproduce el video de su lo
   hoverOut(mosaic)
   await delay(400)
   check(api.calls.looks.length === 0, 'cruzarla con el mouse sin detenerse no pide nada')
-  const second = card.querySelector('[data-look-id="la-iv"]')
+  const second = card.querySelector('[data-look-id="la-none"]')
   hoverIn(second)
   await waitFor(() => api.calls.looks.length === 1, 'al pasar el mouse pide los looks del avatar')
   check(same(api.calls.looks[0], { ownership: 'public', groupId: 'g-ana' }), 'los looks de su grupo (un avatar de stock, del listado público): ' + JSON.stringify(api.calls.looks[0]))
-  await waitFor(() => videoSrc(second) === 'media/la-iv.mp4', 'la segunda miniatura con el video de su look')
+  await waitFor(() => videoSrc(second) === 'media/la-none.mp4', 'la segunda miniatura con el video de su look')
   await waitFor(() => window.playCalls.length > 0, 'arranca un video')
   await delay(150)
-  check(window.playCalls.every((call) => call.src === 'media/la-iv.mp4' && call.muted), 'solo el video de la miniatura bajo el mouse, mudo: ' + JSON.stringify(window.playCalls))
+  check(window.playCalls.every((call) => call.src === 'media/la-none.mp4' && call.muted), 'solo el video de la miniatura bajo el mouse, mudo: ' + JSON.stringify(window.playCalls))
   check(videoSrc(card.querySelector('[data-look-id="la-main"]')) === 'media/la-main.mp4' && videoSrc(card.querySelector('[data-look-id="la-cocina"]')) === 'media/la-cocina.mp4', 'cada imagen tiene el video de su look')
   hoverOut(second)
 
@@ -2768,6 +2784,310 @@ scenario('9 · formato de los looks: las fichas del stock y del panel y el repro
   check(formatIs(topDialog(), '4:5'), 'el reproductor del panel también: ' + JSON.stringify(formatChip(topDialog())))
 })
 
+// ─── Entrega 2e: los motores de cada look ───
+// Desde la 2e un look sirve si admite al menos uno de los motores III, IV o V
+// con tarifa (antes, solo III), y sus fichas, la tarjeta y el panel dicen
+// cuáles: una pastilla por motor, en el orden V, IV, III, dentro de un grupo
+// con nombre; «No compatible con Vimo» solo si no admite ninguno. Las
+// expectativas van en literal (los nombres de los motores son de producto) y
+// la frase del catálogo se comprueba aparte (catalogText), para que un
+// renombre de clave no pase en vacío.
+const ENGINES_PREFIX = 'Motores que admite: '
+const NOT_COMPATIBLE = 'No compatible con Vimo'
+const ALL_THREE = ['Avatar V', 'Avatar IV', 'Avatar III']
+function catalogText(key, options) {
+  const sentence = tr(key, options)
+  check(i18n.exists(key) && sentence !== key && !sentence.includes('{{'), 'la clave ' + key + ' es una frase del catálogo, no su ruta cruda ni una variable sin resolver: ' + sentence)
+  return sentence
+}
+const engineGroups = (root) => [...root.querySelectorAll('[role=group]')].filter((group) => (group.getAttribute('aria-label') ?? '').startsWith(ENGINES_PREFIX))
+const engineGroupIn = (root) => engineGroups(root)[0] ?? null
+// El grupo de motores del encabezado del panel: el que no está en una ficha.
+const headerGroupOf = (root) => engineGroups(root).find((group) => !group.closest('article')) ?? null
+// Lo que dice un grupo de motores: su nombre y sus pastillas, en orden.
+const engineChips = (group) => group ? { label: group.getAttribute('aria-label'), pills: [...group.children].map((pill) => pill.textContent) } : null
+const enginesAre = (group, pills) => same(engineChips(group), { label: ENGINES_PREFIX + pills.join(', '), pills })
+// Un lector de pantalla lee los motores UNA sola vez: el nombre del grupo los
+// lista y adentro no queda nada legible (las pastillas van con aria-hidden; si
+// no, cada motor se diría dos veces, en el nombre y en el contenido). Lo
+// calcula el árbol de accesibilidad de Chrome (por CDP desde Node), no el DOM.
+async function checkReadsOnce(group, pills, where) {
+  const reading = await accessible(group)
+  check(reading.name === ENGINES_PREFIX + pills.join(', ') && same(reading.readable, []), where + ': el árbol accesible lee los motores una sola vez (el nombre del grupo, sin repetirlos adentro): ' + JSON.stringify(reading))
+}
+const notCompatibleChips = (root) => [...root.querySelectorAll('span')].filter((span) => span.children.length === 0 && span.textContent === NOT_COMPATIBLE)
+const makeMainButtonOf = (lookId, name) => byLabel(catalogText('avatars.detalle.usarPrincipalAria', { name }), lookCardOf(lookId))
+const libraryCardOf = (avatarId) => document.querySelector('[data-avatar-id="' + avatarId + '"]')?.closest('article')
+// Un avatar de la biblioteca con estos looks (el principal es el primero).
+const avatarOf = (looks, extra = {}) => ({ id: 'eva-1', name: 'Eva', groupId: 'g-eva', ownership: 'stock', status: 'ready', mainLookId: looks[0]?.lookId ?? null, looks, previewPath: '/library/eva.png', createdAt: '2026-10-09T00:00:00Z', ...extra })
+// Los looks de Eva: un gemelo con los tres motores (en el desorden con que los
+// puede dar el proveedor), uno solo de IV, uno solo de III, uno sin ningún
+// motor, uno que todavía se genera y uno que falló (sin motores), esos dos mismos
+// pero con motores (el estado manda sobre ellos) y uno con motores repetidos.
+const E_ALL = avatarLook('e-all', 'Eva gemelo', { lookType: 'digital_twin', supportedEngines: ['avatar_iii', 'avatar_v', 'avatar_iv'] })
+const E_IV = avatarLook('e-iv', 'Eva solo IV', { supportedEngines: ['avatar_iv'] })
+const E_III = avatarLook('e-iii', 'Eva solo III', { supportedEngines: ['avatar_iii'] })
+const E_NONE = avatarLook('e-none', 'Eva sin motor', { supportedEngines: [] })
+const E_WAIT = avatarLook('e-wait', 'Eva generando', { status: 'processing', supportedEngines: [], previewPath: undefined })
+const E_FAILED = avatarLook('e-failed', 'Eva fallida', { status: 'failed', supportedEngines: [], previewPath: undefined })
+const E_WAIT_IV = avatarLook('e-wait-iv', 'Eva generando con IV', { status: 'processing', supportedEngines: ['avatar_iv'], previewPath: undefined })
+const E_FAILED_III = avatarLook('e-failed-iii', 'Eva fallida con III', { status: 'failed', supportedEngines: ['avatar_iii'], previewPath: undefined })
+const E_DUP = avatarLook('e-dup', 'Eva repetidos', { supportedEngines: ['avatar_iv', 'avatar_iv', 'avatar_iii'] })
+const EVA_LOOKS = [E_ALL, E_IV, E_III, E_NONE, E_WAIT, E_FAILED, E_WAIT_IV, E_FAILED_III, E_DUP]
+const EVA_REMOTE = EVA_LOOKS.map((item) => look(item.lookId, item.name, { groupId: 'g-eva', lookType: item.lookType, supportedEngines: item.supportedEngines, previewVideoUrl: media('look.mp4') }))
+
+scenario('13 · motores de un look: sirve con cualquiera de III, IV o V con tarifa, los ordena V, IV, III y el motor sin tarifa no cuenta', async () => {
+  check(catalogText('avatars.tarjeta.motoresAria', { engines: 'X' }) === ENGINES_PREFIX + 'X', 'la frase del grupo de motores')
+  check(catalogText('avatars.tarjeta.noCompatible') === NOT_COMPATIBLE, 'la frase de «No compatible»')
+  check(same(['avatar_v', 'avatar_iv', 'avatar_iii'].map((engine) => catalogText('avatars.engines.' + engine)), ALL_THREE), 'los nombres de los motores')
+
+  // El orden en que el proveedor lista los motores no manda: V, IV, III.
+  const twin = (supportedEngines, status = 'ready') => ({ lookType: 'digital_twin', status, supportedEngines })
+  check(same(lookEngines(twin(['avatar_iii', 'avatar_v', 'avatar_iv'])), ['avatar_v', 'avatar_iv', 'avatar_iii']), 'los tres, en el orden V, IV, III: ' + lookEngines(twin(['avatar_iii', 'avatar_v', 'avatar_iv'])))
+  check(same(lookEngines(twin(['avatar_iv'])), ['avatar_iv']) && same(lookEngines(twin(['avatar_iii'])), ['avatar_iii']) && same(lookEngines(twin(['avatar_v'])), ['avatar_v']), 'uno solo: el que admite')
+  check(same(lookEngines(twin([])), []), 'ninguno: ninguno')
+
+  // Sirve con cualquiera de los tres; sin ninguno, el motivo; generándose o
+  // fallido, su propio motivo aunque admita motores.
+  check(lookUnusableReasonKey(twin(['avatar_iv'])) === null && lookUnusableReasonKey(twin(['avatar_iii'])) === null && lookUnusableReasonKey(twin(['avatar_v'])) === null, 'un look con un solo motor (IV, III o V) sirve')
+  check(lookUnusableReasonKey(twin([])) === 'avatars.reproductor.noCompatibleHint', 'sin ningún motor no sirve y dice que no es compatible')
+  check(lookUnusableReasonKey(twin(['avatar_iv'], 'processing')) === 'avatars.reproductor.noListoHint' && lookUnusableReasonKey(twin(['avatar_iv'], 'failed')) === 'avatars.detalle.lookFallido', 'generándose o fallido manda su propio motivo')
+  // El estado manda ANTES que los motores: un look que se genera (o falló) y
+  // todavía no trae motores dice que se genera (o que falló), no que no es
+  // compatible. Pasa de verdad: HeyGen puede mandar la lista vacía mientras genera.
+  check(lookUnusableReasonKey(twin([], 'processing')) === 'avatars.reproductor.noListoHint', 'un look que se genera y todavía no trae motores dice que se genera, no que no es compatible')
+  check(lookUnusableReasonKey(twin([], 'failed')) === 'avatars.detalle.lookFallido', 'un look que falló y no trae motores dice que falló, no que no es compatible')
+  // Los looks del stock público no traen estado: están listos.
+  check(lookUnusableReasonKey({ lookType: 'studio_avatar', supportedEngines: ['avatar_iv'] }) === null, 'un look del stock solo-IV sirve')
+  check(lookUnusableReasonKey({ lookType: 'studio_avatar', supportedEngines: [] }) === 'avatars.reproductor.noCompatibleHint', 'un look del stock sin motores no es compatible')
+
+  // Una pastilla por motor: los repetidos no se repiten y un motor que Vimo no
+  // conoce no cuenta.
+  check(same(lookEngines(twin(['avatar_iv', 'avatar_iv', 'avatar_iii', 'avatar_iii', 'avatar_v', 'avatar_v'])), ['avatar_v', 'avatar_iv', 'avatar_iii']), 'motores repetidos: uno por motor, en el orden V, IV, III')
+  check(same(lookEngines(twin(['avatar_zzz', 'avatar_iv'])), ['avatar_iv']), 'un motor desconocido no cuenta')
+  check(same(lookEngines(twin(['avatar_zzz'])), []) && lookUnusableReasonKey(twin(['avatar_zzz'])) === 'avatars.reproductor.noCompatibleHint', 'con solo un motor desconocido, no es compatible')
+
+  // El motor sin tarifa para ese tipo de look no cuenta, ni se muestra ni deja
+  // servir: se prueba con la tabla de tarifas, que se restaura al terminar
+  // (así el escenario no depende de qué tarifas trae V en esta rama).
+  const photo = (supportedEngines) => ({ lookType: 'photo_avatar', status: 'ready', supportedEngines })
+  const saved = AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar
+  try {
+    AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar = null
+    check(same(lookEngines(photo(['avatar_iii', 'avatar_iv', 'avatar_v'])), ['avatar_iv', 'avatar_iii']), 'V sin tarifa para fotos: no se cuenta')
+    check(lookUnusableReasonKey(photo(['avatar_v'])) === 'avatars.reproductor.noCompatibleHint', 'un look de foto solo-V sin tarifa no sirve')
+    AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar = 7.2
+    check(same(lookEngines(photo(['avatar_iii', 'avatar_iv', 'avatar_v'])), ['avatar_v', 'avatar_iv', 'avatar_iii']), 'V con tarifa para fotos: se cuenta, primero')
+    check(lookUnusableReasonKey(photo(['avatar_v'])) === null, 'un look de foto solo-V con tarifa sirve')
+  } finally {
+    AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar = saved
+  }
+})
+
+scenario('13b · panel del avatar: cada ficha y el encabezado dicen los motores de su look; un look solo-IV se hace principal y uno sin motor dice por qué', async () => {
+  const api = fakeApi()
+  const eva = avatarOf(EVA_LOOKS)
+  api.avatars = [eva]
+  api.looksByGroup = { 'g-eva': EVA_REMOTE }
+  mount(<AvatarDetailDialog avatar={eva} onClose={() => {}} onRemove={() => {}} />)
+  await waitFor(() => lookCardOf('e-wait'), 'las fichas de Eva')
+  const panel = topDialog()
+
+  // Las fichas del panel: una pastilla por motor, en el orden V, IV, III.
+  check(enginesAre(engineGroupIn(lookCardOf('e-all')), ALL_THREE), 'el gemelo con los tres: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('e-all')))))
+  check(enginesAre(engineGroupIn(lookCardOf('e-iv')), ['Avatar IV']), 'solo IV: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('e-iv')))))
+  check(enginesAre(engineGroupIn(lookCardOf('e-iii')), ['Avatar III']), 'solo III: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('e-iii')))))
+  for (const lookId of ['e-all', 'e-iv', 'e-iii'])
+    check(notCompatibleChips(lookCardOf(lookId)).length === 0, lookId + ' sirve: sin «No compatible con Vimo»')
+  check(engineGroupIn(lookCardOf('e-none')) === null && notCompatibleChips(lookCardOf('e-none')).length === 1, 'sin ningún motor: sin grupo y con «No compatible con Vimo»')
+  check(engineGroupIn(lookCardOf('e-wait')) === null && notCompatibleChips(lookCardOf('e-wait')).length === 0, 'mientras se genera no se saben sus motores: ni grupo ni «No compatible»')
+  check(engineGroupIn(lookCardOf('e-failed')) === null && notCompatibleChips(lookCardOf('e-failed')).length === 0, 'uno que falló tampoco afirma que no es compatible: ni grupo ni «No compatible»')
+  // Un look que todavía no está listo pero ya trae motores: sus pastillas se
+  // ven (dependen solo de los motores; «No compatible» sí exige estar listo).
+  check(enginesAre(engineGroupIn(lookCardOf('e-wait-iv')), ['Avatar IV']) && notCompatibleChips(lookCardOf('e-wait-iv')).length === 0, 'uno que se genera con motores los muestra: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('e-wait-iv')))))
+  check(enginesAre(engineGroupIn(lookCardOf('e-failed-iii')), ['Avatar III']) && notCompatibleChips(lookCardOf('e-failed-iii')).length === 0, 'uno que falló con motores los muestra: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('e-failed-iii')))))
+  // Una pastilla por motor: los repetidos no se repiten.
+  check(enginesAre(engineGroupIn(lookCardOf('e-dup')), ['Avatar IV', 'Avatar III']) && notCompatibleChips(lookCardOf('e-dup')).length === 0, 'motores repetidos: una pastilla por motor: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('e-dup')))))
+
+  // Chrome calcula el nombre del grupo y lo único que lee un lector de pantalla.
+  await checkReadsOnce(engineGroupIn(lookCardOf('e-all')), ALL_THREE, 'ficha del panel')
+
+  // El encabezado: los motores del look principal (el gemelo).
+  check(enginesAre(headerGroupOf(panel), ALL_THREE), 'el encabezado dice los motores del principal: ' + JSON.stringify(engineChips(headerGroupOf(panel))))
+  await checkReadsOnce(headerGroupOf(panel), ALL_THREE, 'encabezado del panel')
+
+  // «Usar como principal» sigue la misma regla.
+  check(makeMainButtonOf('e-iv', 'Eva solo IV') && makeMainButtonOf('e-iii', 'Eva solo III') && makeMainButtonOf('e-dup', 'Eva repetidos'), 'un look solo-IV, uno solo-III y uno con motores repetidos ofrecen «Usar como principal»')
+  check(!makeMainButtonOf('e-none', 'Eva sin motor') && !makeMainButtonOf('e-wait', 'Eva generando') && !makeMainButtonOf('e-all', 'Eva gemelo'), 'el que no admite ningún motor, el que se genera y el principal no lo ofrecen')
+  check(!makeMainButtonOf('e-wait-iv', 'Eva generando con IV') && !makeMainButtonOf('e-failed-iii', 'Eva fallida con III'), 'uno que se genera o falló no se hace principal aunque ya traiga motores')
+
+  // El reproductor del look solo-IV: sus motores en el encabezado y el botón.
+  lookCardOf('e-iv').querySelector('[data-look-id]').click()
+  await waitFor(() => dialogs().length === 2, 'el reproductor del look solo-IV')
+  let player = topDialog()
+  check(enginesAre(engineGroupIn(player), ['Avatar IV']) && notCompatibleChips(player).length === 0, 'el reproductor dice Avatar IV: ' + JSON.stringify(engineChips(engineGroupIn(player))))
+  await checkReadsOnce(engineGroupIn(player), ['Avatar IV'], 'reproductor')
+  const makeMain = buttonNamed(tr('avatars.detalle.usarPrincipal'), player)
+  check(makeMain && !makeMain.disabled && !player.textContent.includes(catalogText('avatars.reproductor.noCompatibleHint')), 'ofrece «Usar como principal» y no dice que no es compatible')
+  makeMain.click()
+  await waitFor(() => api.calls.setMain.length === 1, 'pide el cambio')
+  check(same(api.calls.setMain[0], { id: 'eva-1', lookId: 'e-iv' }), 'setMainLook con el look solo-IV: ' + JSON.stringify(api.calls.setMain[0]))
+  await waitFor(() => dialogs().length === 1, 'al lograrlo, el reproductor se cierra')
+
+  // El botón de la ficha de un look solo-III también cambia el principal.
+  makeMainButtonOf('e-iii', 'Eva solo III').click()
+  await waitFor(() => api.calls.setMain.length === 2, 'pide el cambio desde la ficha')
+  check(same(api.calls.setMain[1], { id: 'eva-1', lookId: 'e-iii' }), 'setMainLook con el look solo-III: ' + JSON.stringify(api.calls.setMain[1]))
+
+  // El reproductor del look sin motor: ningún grupo, el chip y el motivo.
+  lookCardOf('e-none').querySelector('[data-look-id]').click()
+  await waitFor(() => dialogs().length === 2, 'el reproductor del look sin motor')
+  player = topDialog()
+  check(engineGroupIn(player) === null && notCompatibleChips(player).length === 1, 'sin grupo y con el chip «No compatible con Vimo»')
+  check(player.textContent.includes(catalogText('avatars.reproductor.noCompatibleHint')) && !buttonNamed(tr('avatars.detalle.usarPrincipal'), player), 'dice por qué y no ofrece el botón')
+  await pressKey('Escape')
+  await waitFor(() => dialogs().length === 1, 'Escape cierra el reproductor del look sin motor')
+
+  // El estado manda sobre los motores en el reproductor: uno que se genera o
+  // falló dice eso (no «no es compatible»), con o sin motores, y no ofrece el
+  // botón; sus pastillas, si trae motores, se ven.
+  const notReady = [
+    { lookId: 'e-wait', hint: 'avatars.reproductor.noListoHint', pills: null, why: 'se genera, sin motores' },
+    { lookId: 'e-failed', hint: 'avatars.detalle.lookFallido', pills: null, why: 'falló, sin motores' },
+    { lookId: 'e-wait-iv', hint: 'avatars.reproductor.noListoHint', pills: ['Avatar IV'], why: 'se genera, con motores' },
+    { lookId: 'e-failed-iii', hint: 'avatars.detalle.lookFallido', pills: ['Avatar III'], why: 'falló, con motores' },
+  ]
+  for (const { lookId, hint, pills, why } of notReady) {
+    lookCardOf(lookId).querySelector('[data-look-id]').click()
+    await waitFor(() => dialogs().length === 2, 'el reproductor del look que ' + why)
+    const open = topDialog()
+    check(open.textContent.includes(catalogText(hint)) && !open.textContent.includes(catalogText('avatars.reproductor.noCompatibleHint')), why + ': el pie dice su estado y no que no es compatible')
+    check(notCompatibleChips(open).length === 0 && (pills ? enginesAre(engineGroupIn(open), pills) : engineGroupIn(open) === null), why + ': sin «No compatible» y con las pastillas que le tocan: ' + JSON.stringify(engineChips(engineGroupIn(open))))
+    check(!buttonNamed(tr('avatars.detalle.usarPrincipal'), open), why + ': sin «Usar como principal»')
+    await pressKey('Escape')
+    await waitFor(() => dialogs().length === 1, 'Escape cierra el reproductor del look que ' + why)
+  }
+})
+
+scenario('13f · encabezado del panel: los motores del look principal, también de uno solo-IV; uno sin motor dice «No compatible con Vimo» y un avatar que entrena no afirma nada', async () => {
+  const headerNotCompatible = (panel) => [...panel.querySelectorAll('span')].filter((span) => !span.closest('article') && span.children.length === 0 && span.textContent === NOT_COMPATIBLE)
+  const cases = [
+    { avatar: avatarOf(EVA_LOOKS, { mainLookId: 'e-iv' }), pills: ['Avatar IV'], notCompatible: 0, why: 'principal solo-IV' },
+    { avatar: avatarOf(EVA_LOOKS, { mainLookId: 'e-iii' }), pills: ['Avatar III'], notCompatible: 0, why: 'principal solo-III' },
+    { avatar: avatarOf(EVA_LOOKS, { mainLookId: 'e-none' }), pills: null, notCompatible: 1, why: 'principal sin motor' },
+    { avatar: avatarOf([E_WAIT], { status: 'processing', mainLookId: 'e-wait' }), pills: null, notCompatible: 0, why: 'avatar que entrena' },
+    { avatar: avatarOf([E_WAIT_IV], { status: 'processing', mainLookId: 'e-wait-iv' }), pills: ['Avatar IV'], notCompatible: 0, why: 'avatar que entrena con motores' },
+  ]
+  for (const { avatar, pills, notCompatible, why } of cases) {
+    const api = fakeApi()
+    api.avatars = [avatar]
+    api.looksByGroup = { 'g-eva': EVA_REMOTE }
+    mount(<AvatarDetailDialog avatar={avatar} onClose={() => {}} onRemove={() => {}} />)
+    await waitFor(() => topDialog(), 'el panel: ' + why)
+    const panel = topDialog()
+    check(pills ? enginesAre(headerGroupOf(panel), pills) : headerGroupOf(panel) === null, why + ': el encabezado dice ' + JSON.stringify(pills) + ' y dice ' + JSON.stringify(engineChips(headerGroupOf(panel))))
+    check(headerNotCompatible(panel).length === notCompatible, why + ': «No compatible con Vimo» en el encabezado ' + notCompatible + ' vez/veces, no ' + headerNotCompatible(panel).length)
+    if (pills) await checkReadsOnce(headerGroupOf(panel), pills, why + ' (encabezado)')
+    await unmount()
+  }
+})
+
+scenario('13c · tarjeta de la biblioteca: los motores del look principal; un principal solo-IV sirve, uno sin motor dice «No compatible con Vimo» y un avatar que entrena no afirma nada', async () => {
+  fakeApi()
+  const avatars = [
+    avatarOf(EVA_LOOKS, { id: 'c-all', mainLookId: 'e-all' }),
+    avatarOf(EVA_LOOKS, { id: 'c-iv', mainLookId: 'e-iv' }),
+    avatarOf(EVA_LOOKS, { id: 'c-iii', mainLookId: 'e-iii' }),
+    avatarOf(EVA_LOOKS, { id: 'c-none', mainLookId: 'e-none' }),
+    avatarOf([E_WAIT], { id: 'c-training', status: 'processing', mainLookId: 'e-wait' }),
+    avatarOf([E_WAIT_IV], { id: 'c-training-iv', status: 'processing', mainLookId: 'e-wait-iv' }),
+    avatarOf([], { id: 'c-empty' }),
+  ]
+  mount(<>{avatars.map((avatar) => <AvatarCard key={avatar.id} avatar={avatar} disabled={false} onOpen={() => {}} onDelete={() => {}} />)}</>)
+  await waitFor(() => libraryCardOf('c-empty'), 'las tarjetas')
+
+  check(enginesAre(engineGroupIn(libraryCardOf('c-all')), ALL_THREE), 'el gemelo con los tres: V, IV, III: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('c-all')))))
+  check(enginesAre(engineGroupIn(libraryCardOf('c-iv')), ['Avatar IV']), 'principal solo-IV: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('c-iv')))))
+  check(enginesAre(engineGroupIn(libraryCardOf('c-iii')), ['Avatar III']), 'principal solo-III: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('c-iii')))))
+  for (const id of ['c-all', 'c-iv', 'c-iii'])
+    check(notCompatibleChips(libraryCardOf(id)).length === 0, id + ' sirve: sin «No compatible con Vimo»')
+  check(engineGroupIn(libraryCardOf('c-none')) === null && notCompatibleChips(libraryCardOf('c-none')).length === 1, 'principal sin motor: sin grupo y con «No compatible con Vimo»')
+  check(engineGroupIn(libraryCardOf('c-training')) === null && notCompatibleChips(libraryCardOf('c-training')).length === 0, 'entrenando todavía no se saben sus motores: ni grupo ni «No compatible»')
+  check(enginesAre(engineGroupIn(libraryCardOf('c-training-iv')), ['Avatar IV']) && notCompatibleChips(libraryCardOf('c-training-iv')).length === 0, 'entrenando pero con motores a la vista: sus pastillas y ningún «No compatible»: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('c-training-iv')))))
+  check(engineGroupIn(libraryCardOf('c-empty')) === null && notCompatibleChips(libraryCardOf('c-empty')).length === 1, 'listo pero sin look principal: «No compatible con Vimo», como antes')
+
+  // El tipo del look principal sigue a la vista junto a las pastillas.
+  check(libraryCardOf('c-all').textContent.includes(tr('avatars.types.digital_twin')) && libraryCardOf('c-iv').textContent.includes(tr('avatars.types.photo_avatar')), 'el tipo del principal sigue en la tarjeta')
+  await checkReadsOnce(engineGroupIn(libraryCardOf('c-all')), ALL_THREE, 'tarjeta de la biblioteca')
+})
+
+scenario('13d · stock: las fichas dicen los motores de cada look, un look solo-IV se carga a la biblioteca y uno sin motor no', async () => {
+  const api = fakeApi()
+  api.looksByGroup = { 'g-dante': [
+    look('s-all', 'Dante gemelo', { lookType: 'digital_twin', supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'], previewVideoUrl: media('look.mp4') }),
+    look('s-iv', 'Dante solo IV', { supportedEngines: ['avatar_iv'], previewVideoUrl: media('look.mp4') }),
+    look('s-none', 'Dante sin motor', { supportedEngines: [], previewVideoUrl: media('look.mp4') }),
+  ] }
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  ;(await waitFor(() => document.querySelector('[data-group-id="g-dante"]'), 'la tarjeta de Dante')).click()
+  await waitFor(() => lookCardOf('s-none'), 'los looks de Dante')
+
+  check(enginesAre(engineGroupIn(lookCardOf('s-all')), ALL_THREE), 'el gemelo con los tres: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('s-all')))))
+  await checkReadsOnce(engineGroupIn(lookCardOf('s-all')), ALL_THREE, 'ficha del stock')
+  check(enginesAre(engineGroupIn(lookCardOf('s-iv')), ['Avatar IV']) && notCompatibleChips(lookCardOf('s-iv')).length === 0, 'solo IV: ' + JSON.stringify(engineChips(engineGroupIn(lookCardOf('s-iv')))))
+  check(engineGroupIn(lookCardOf('s-none')) === null && notCompatibleChips(lookCardOf('s-none')).length === 1, 'sin motor: sin grupo y con «No compatible con Vimo»')
+
+  // El look solo-IV se carga a la biblioteca como principal.
+  lookCardOf('s-iv').querySelector('[data-look-id]').click()
+  await waitFor(() => dialogs().length === 2, 'el reproductor del look solo-IV')
+  let player = topDialog()
+  check(enginesAre(engineGroupIn(player), ['Avatar IV']), 'el reproductor dice Avatar IV: ' + JSON.stringify(engineChips(engineGroupIn(player))))
+  await checkReadsOnce(engineGroupIn(player), ['Avatar IV'], 'reproductor del stock')
+  const load = buttonNamed(tr('avatars.reproductor.cargar'), player)
+  check(load && !load.disabled && !player.textContent.includes(catalogText('avatars.reproductor.noCompatibleHint')), 'ofrece «Cargar a la biblioteca» y no dice que no es compatible')
+  load.click()
+  await waitFor(() => api.calls.add.length === 1, 'pide el alta')
+  check(api.calls.add[0].groupId === 'g-dante' && api.calls.add[0].mainLookId === 's-iv', 'addAvatar con el look solo-IV como principal: ' + JSON.stringify(api.calls.add[0]))
+
+  // El que no admite ningún motor: el motivo y sin botón.
+  await unmount()
+  fakeApi()
+  mount(<StockLooksDialog entries={[]} onOpenAvatar={() => {}} onClose={() => {}} />)
+  await openDanteLooks()
+  document.querySelector('[data-look-id="l-dante-none"]').click()
+  await waitFor(() => dialogs().length === 2, 'el reproductor del look sin motor')
+  player = topDialog()
+  check(engineGroupIn(player) === null && notCompatibleChips(player).length === 1, 'sin grupo y con el chip «No compatible con Vimo»')
+  check(player.textContent.includes(catalogText('avatars.reproductor.noCompatibleHint')) && !buttonNamed(tr('avatars.reproductor.cargar'), player), 'dice por qué y no ofrece cargarlo')
+})
+
+scenario('13e · motores y tarifas: la pastilla de un motor sin tarifa para ese tipo de look no se muestra y, si era el único, el look no sirve', async () => {
+  fakeApi()
+  const both = avatarLook('t-both', 'Tara foto', { supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'] })
+  const onlyV = avatarLook('t-v', 'Tara solo V', { supportedEngines: ['avatar_v'] })
+  const avatars = [avatarOf([both], { id: 't-1' }), avatarOf([onlyV], { id: 't-2' })]
+  const saved = AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar
+  const cards = () => <>{avatars.map((avatar) => <AvatarCard key={avatar.id} avatar={avatar} disabled={false} onOpen={() => {}} onDelete={() => {}} />)}</>
+  try {
+    // V sin tarifa para fotos: la ficha con los tres muestra IV y III; la solo-V no sirve.
+    AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar = null
+    mount(cards())
+    await waitFor(() => libraryCardOf('t-2'), 'las tarjetas sin tarifa de V')
+    check(enginesAre(engineGroupIn(libraryCardOf('t-1')), ['Avatar IV', 'Avatar III']), 'sin tarifa de V: solo IV y III: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('t-1')))))
+    check(engineGroupIn(libraryCardOf('t-2')) === null && notCompatibleChips(libraryCardOf('t-2')).length === 1, 'un look de foto solo-V sin tarifa: «No compatible con Vimo»')
+
+    // Con tarifa: V vuelve, primero, y la solo-V sirve.
+    AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar = 7.2
+    await unmount()
+    mount(cards())
+    await waitFor(() => libraryCardOf('t-2'), 'las tarjetas con tarifa de V')
+    check(enginesAre(engineGroupIn(libraryCardOf('t-1')), ALL_THREE), 'con tarifa de V: V, IV y III: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('t-1')))))
+    check(enginesAre(engineGroupIn(libraryCardOf('t-2')), ['Avatar V']) && notCompatibleChips(libraryCardOf('t-2')).length === 0, 'un look de foto solo-V con tarifa sirve: ' + JSON.stringify(engineChips(engineGroupIn(libraryCardOf('t-2')))))
+  } finally {
+    AVATAR_USD_PER_MINUTE.avatar_v.photo_avatar = saved
+  }
+})
+
 // ─── Corrida ───
 window.results = []
 // Un clic de verdad en la página antes de empezar: el sonido del reproductor
@@ -2856,7 +3176,9 @@ async function runPage(call, root) {
         })
       }
       // El nombre y la descripción accesibles de un elemento, como los calcula
-      // Chrome (su árbol de accesibilidad), para la página.
+      // Chrome (su árbol de accesibilidad), para la página; y `readable`: lo que
+      // un lector de pantalla puede leer DENTRO del elemento (su subárbol, sin
+      // él y sin lo ignorado u oculto con aria-hidden).
       if (request.type === 'ax') {
         const { result } = await send('Runtime.evaluate', {
           expression: `document.querySelector(${JSON.stringify(request.selector)})`,
@@ -2869,9 +3191,24 @@ async function runPage(call, root) {
               })
             ).nodes[0]
           : undefined
+        const subtree = result?.objectId
+          ? (
+              await send('Accessibility.queryAXTree', {
+                objectId: result.objectId,
+              })
+            ).nodes
+          : []
         const value = {
           name: accessible?.name?.value ?? null,
           description: accessible?.description?.value ?? null,
+          readable: subtree
+            .filter(
+              (node) => node.nodeId !== accessible?.nodeId && !node.ignored,
+            )
+            .map((node) => ({
+              role: node.role?.value ?? null,
+              name: node.name?.value ?? null,
+            })),
         }
         await evaluate(
           `(window.axResults = window.axResults || {})[${request.id}] = ${JSON.stringify(value)}`,

@@ -50,11 +50,29 @@
 // y el intento sin resolver, sin seguir por la marca ni pagar; un renombre en
 // el medio que no cambia nada; y la repetición byte a byte: el título guardado
 // o, en un recibo de antes de la 2c, la marca sola, sin escribir nada antes
-// del POST. Un solo fetch simulado por test (con
+// del POST. Y el motor y el movimiento (entrega 2e, diseño §21.2): sin
+// movimiento ni toma, la huella, la clave y el cuerpo de antes (con huellas
+// fijas calculadas antes del cambio); el prompt recortado y `expressiveness`
+// solo cuando el motor y el look los admiten (IV con foto, los dos; V, el
+// prompt; IV con gemelo o estudio y Avatar III, ninguno), al final del cuerpo,
+// en el recibo y en la huella; la toma en la huella y no en el cuerpo; la
+// repetición con el movimiento del recibo; y el rechazo del movimiento, que
+// cierra el intento, marca la escena `motionUnsupported` y pide enseguida sin
+// movimiento con otra clave (en la cosecha, recién con el saldo mirado). Y
+// regenerar una lista (`forceNewRender`, diseño §21.4): sin el atajo de «lista
+// con el mismo pedido»; sin subir la toma, el render pagado se cosecha; con la
+// toma siguiente, un pedido nuevo con otra clave; hasta el clip nuevo, cada
+// recibo guardado conserva el clip y el estimado de hoy; si el render nuevo
+// falla (un 400, un render `failed`, el plazo) la escena vuelve a su estado
+// listo sin error y el resultado sale `failed`, y si la cuenta pausa el carril
+// lanza con el clip a salvo; y «más expresivo» con V sobre un prompt de la
+// persona (R-2e-14), que viaja con la frase al final en el cuerpo, la huella y
+// el recibo. Un solo fetch simulado por test (con
 // `reset` entre corridas) y un centinela al final. Los nombres de archivo y la
 // tarifa los fija `check-avatar-scene-model.mjs`.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   mkdir,
   mkdtemp,
@@ -86,7 +104,11 @@ import {
   avatarVideoTitle,
   endsWithAvatarVideoMarker,
 } from '../../pipeline/avatar/fingerprint.ts'
-import { renderAvatarScene } from '../../pipeline/avatar/lane.ts'
+import {
+  avatarRequestMotion,
+  avatarSceneRequestHash,
+  renderAvatarScene,
+} from '../../pipeline/avatar/lane.ts'
 import {
   AVATAR_DURATION_TOLERANCE_SECONDS,
   cutAvatarAudio,
@@ -97,6 +119,7 @@ import { toSceneAvatarView } from '../../pipeline/project/scenes-file.ts'
 import { createHeyGenClient } from '../../pipeline/providers/avatar/heygen.ts'
 import { PipelineFailure } from '../../pipeline/runner/failure.ts'
 import {
+  AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
   AVATAR_VIDEO_TITLE_NAME_LIMIT,
   avatarSceneSpan,
 } from '../../pipeline/types/avatar.ts'
@@ -2939,6 +2962,971 @@ test('si falla la consulta por el título guardado de un recibo de la 2c, el car
     assert.equal(fake.posts().length, 0, label)
     assert.equal(fake.uploads().length, 0, label)
   }
+})
+
+// ─── El motor y el movimiento en el pedido (entrega 2e, diseño §21.2) ───
+
+// Calculadas con el código de antes de la 2e (commit e3c7634d): un pedido sin
+// movimiento ni toma tiene que dar exactamente estas huellas, así los recibos
+// guardados se siguen cosechando sin pagar.
+const PRE_2E_IDENTITY_HASH =
+  '47b82575681aae7d9c714f359efd9551ba21681abb227e64a9201491a7d61a0f'
+const PRE_2E_REQUEST_HASH =
+  '0c73b05ddd9374ad04316d3c894e9476eabb4528c402daa103192142f2fafddb'
+const PRE_2E_KEY = 'vimo-avatar-video-d059e7a72c693e4fd7c6ae3364b3c2ca'
+const MOTION_PROMPT =
+  'Warm, confident smile at the camera with a small welcoming nod.'
+// La escena 3 con Avatar IV y un look de foto, el prompt (con espacios de más:
+// el carril lo recorta) y «más expresivo».
+const IV_SCENE = {
+  ...SCENE,
+  avatar: {
+    ...SCENE.avatar,
+    engine: 'avatar_iv',
+    motionPrompt: `  ${MOTION_PROMPT} `,
+    motionSource: 'auto',
+    expressive: true,
+  },
+}
+// Lo que la huella toma de la corrida (avatarSceneRequestHash).
+const RUN = {
+  format: '16:9',
+  narrationSha256: NARRATION_SHA,
+  narrationVersion: 0,
+}
+// La huella del pedido de la escena 3 con otro motor, movimiento o toma.
+const requestHashWith = (extra) =>
+  avatarRequestHash({
+    lookId: 'look-1',
+    engine: 'avatar_iii',
+    aspectRatio: '16:9',
+    resolution: '1080p',
+    audioCutHash: CUT_HASH,
+    narrationVersion: 0,
+    ...extra,
+  })
+const MOTION_HASH = requestHashWith({
+  engine: 'avatar_iv',
+  motionPrompt: MOTION_PROMPT,
+  expressiveness: 'high',
+})
+const PLAIN_IV_HASH = requestHashWith({ engine: 'avatar_iv' })
+const keyFor = (hash, retryIndex = 0) =>
+  avatarIdempotencyKey(PROJECT_ID, 3, avatarRequestKey(hash, retryIndex))
+// Las claves del cuerpo de antes de la 2e, en su orden.
+const BASE_BODY_KEYS = [
+  'type',
+  'title',
+  'avatar_id',
+  'audio_asset_id',
+  'engine',
+  'aspect_ratio',
+  'resolution',
+  'output_format',
+]
+const motionRejection = (param) =>
+  rejection(
+    400,
+    'invalid_parameter',
+    `${param} is not supported for this avatar`,
+    param,
+  )
+const sha256 = (text) => createHash('sha256').update(text).digest('hex')
+
+test('huellas (entrega 2e): sin movimiento ni toma la huella del pedido es la de antes; el prompt, «más expresivo» y la toma van al final, cada uno solo cuando va', () => {
+  const identity = {
+    lookId: 'look-1',
+    engine: 'avatar_iii',
+    aspectRatio: '16:9',
+    resolution: '1080p',
+    audioCutHash: 'a'.repeat(64),
+    narrationVersion: 0,
+  }
+  const base = avatarRequestHash(identity)
+  assert.equal(base, PRE_2E_IDENTITY_HASH)
+  assert.equal(REQUEST_HASH, PRE_2E_REQUEST_HASH)
+  assert.equal(idempotencyKey(0), PRE_2E_KEY)
+  // Lo que no va no cambia nada: ausente, vacío, la toma 0 o una toma que no
+  // es un entero positivo (un scenes.json editado: a lo sumo cosecha).
+  for (const extra of [
+    { motionPrompt: undefined, expressiveness: undefined, take: undefined },
+    { motionPrompt: '' },
+    { take: 0 },
+    { take: -1 },
+    { take: 1.5 },
+    { take: Number.NaN },
+    { take: '2' },
+  ])
+    assert.equal(
+      avatarRequestHash({ ...identity, ...extra }),
+      base,
+      JSON.stringify(extra),
+    )
+  // Cada uno cambia la huella, y cada combinación es otra.
+  const variants = [
+    { motionPrompt: 'Smile at the camera.' },
+    { motionPrompt: 'Smile at the camera, nodding.' },
+    { expressiveness: 'high' },
+    { take: 1 },
+    { take: 2 },
+    { motionPrompt: 'Smile at the camera.', expressiveness: 'high' },
+    { motionPrompt: 'Smile at the camera.', take: 1 },
+    { motionPrompt: 'Smile at the camera.', expressiveness: 'high', take: 1 },
+  ]
+  const hashes = new Set([
+    base,
+    ...variants.map((extra) => avatarRequestHash({ ...identity, ...extra })),
+  ])
+  assert.equal(hashes.size, variants.length + 1)
+  // El arreglo de antes y, al final y en este orden, los tres extras.
+  assert.equal(
+    avatarRequestHash({
+      ...identity,
+      take: 3,
+      expressiveness: 'high',
+      motionPrompt: 'Smile at the camera.',
+    }),
+    sha256(
+      JSON.stringify([
+        'look-1',
+        'avatar_iii',
+        '16:9',
+        '1080p',
+        'a'.repeat(64),
+        0,
+        ['motion', 'Smile at the camera.'],
+        ['expressiveness', 'high'],
+        ['take', 3],
+      ]),
+    ),
+  )
+})
+
+test('movimiento del pedido (entrega 2e): el prompt recortado solo si el motor y el look lo admiten y `expressiveness: high` solo con IV y foto; nada con Avatar III ni si HeyGen ya lo rechazó', () => {
+  const avatar = (engine, lookType, extra = {}) => ({
+    ...SCENE.avatar,
+    engine,
+    lookType,
+    motionPrompt: '  Smile at the camera.  ',
+    expressive: true,
+    ...extra,
+  })
+  const prompt = { motionPrompt: 'Smile at the camera.' }
+  for (const [engine, lookType, expected] of [
+    ['avatar_iii', 'photo_avatar', {}],
+    ['avatar_iii', 'studio_avatar', {}],
+    ['avatar_iii', 'digital_twin', {}],
+    ['avatar_iv', 'photo_avatar', { ...prompt, expressiveness: 'high' }],
+    ['avatar_iv', 'studio_avatar', {}],
+    ['avatar_iv', 'digital_twin', {}],
+    // Con V, «más expresivo» va en el prompt: el proveedor rechaza
+    // `expressiveness`.
+    ['avatar_v', 'photo_avatar', prompt],
+    ['avatar_v', 'studio_avatar', prompt],
+    ['avatar_v', 'digital_twin', prompt],
+  ])
+    assert.deepEqual(
+      avatarRequestMotion(avatar(engine, lookType)),
+      expected,
+      `${engine}/${lookType}`,
+    )
+  // Apagado no manda `expressiveness`; solo prendido, sin prompt, sí.
+  assert.deepEqual(
+    avatarRequestMotion(
+      avatar('avatar_iv', 'photo_avatar', { expressive: false }),
+    ),
+    prompt,
+  )
+  assert.deepEqual(
+    avatarRequestMotion(
+      avatar('avatar_iv', 'photo_avatar', { motionPrompt: undefined }),
+    ),
+    { expressiveness: 'high' },
+  )
+  // Un prompt de solo espacios no viaja.
+  assert.deepEqual(
+    avatarRequestMotion(
+      avatar('avatar_v', 'photo_avatar', { motionPrompt: ' \n ' }),
+    ),
+    {},
+  )
+  // HeyGen ya rechazó el movimiento con este look: nada.
+  assert.deepEqual(
+    avatarRequestMotion(
+      avatar('avatar_iv', 'photo_avatar', { motionUnsupported: true }),
+    ),
+    {},
+  )
+  // Un scenes.json editado: un prompt que no es texto o un `expressive` que no
+  // es true no viajan.
+  assert.deepEqual(
+    avatarRequestMotion(
+      avatar('avatar_iv', 'photo_avatar', {
+        motionPrompt: 5,
+        expressive: 'yes',
+      }),
+    ),
+    {},
+  )
+})
+
+test('carril (entrega 2e): IV con un look de foto manda el prompt recortado y `expressiveness: high` al final del cuerpo, los guarda en el recibo y los mete en la huella; el clip no depende de ellos', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const fake = fakeHeyGen(t, { clip })
+  const result = await renderAvatarScene(IV_SCENE, lane(paths).options)
+
+  assert.equal(result.outcome, 'ready')
+  assert.equal(avatarSceneRequestHash(IV_SCENE, RUN), MOTION_HASH)
+  const [attempt] = result.avatar.attempts
+  assert.equal(attempt.hash, MOTION_HASH)
+  assert.equal(attempt.engine, 'avatar_iv')
+  assert.equal(attempt.motionPrompt, MOTION_PROMPT)
+  assert.equal(attempt.expressiveness, 'high')
+  const [post] = fake.posts()
+  assert.equal(post.headers['Idempotency-Key'], keyFor(MOTION_HASH))
+  assert.deepEqual(Object.keys(post.body), [
+    ...BASE_BODY_KEYS,
+    'motion_prompt',
+    'expressiveness',
+  ])
+  assert.deepEqual(post.body.engine, { type: 'avatar_iv' })
+  assert.equal(post.body.motion_prompt, MOTION_PROMPT)
+  assert.equal(post.body.expressiveness, 'high')
+  // La huella del clip es la de siempre (look, motor, tramo y narración):
+  // editar el movimiento después no lo deja desactualizado.
+  assert.equal(
+    result.avatar.renderHash,
+    avatarRenderHash({
+      lookId: 'look-1',
+      engine: 'avatar_iv',
+      startFrame: 26,
+      endFrame: 201,
+      narrationVersion: 0,
+    }),
+  )
+  // La escena conserva lo que escribió quien escribió el prompt.
+  assert.equal(result.avatar.motionPrompt, IV_SCENE.avatar.motionPrompt)
+  assert.equal(result.avatar.motionSource, 'auto')
+  assert.deepEqual(fake.unexpected, [])
+})
+
+test('carril (entrega 2e): V manda el prompt sin `expressiveness`; IV con un gemelo digital o un look de estudio, y Avatar III, no mandan ninguno aunque la escena los tenga: el cuerpo y la huella de siempre', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const fake = fakeHeyGen(t, { clip })
+
+  const withV = await renderAvatarScene(
+    { ...IV_SCENE, avatar: { ...IV_SCENE.avatar, engine: 'avatar_v' } },
+    lane(paths).options,
+  )
+  assert.equal(withV.outcome, 'ready')
+  const vHash = requestHashWith({
+    engine: 'avatar_v',
+    motionPrompt: MOTION_PROMPT,
+  })
+  assert.equal(withV.avatar.attempts[0].hash, vHash)
+  assert.equal('expressiveness' in withV.avatar.attempts[0], false)
+  const [vPost] = fake.posts()
+  assert.deepEqual(Object.keys(vPost.body), [
+    ...BASE_BODY_KEYS,
+    'motion_prompt',
+  ])
+  assert.deepEqual(vPost.body.engine, { type: 'avatar_v' })
+  assert.equal(vPost.body.motion_prompt, MOTION_PROMPT)
+
+  for (const [engine, lookType, hash] of [
+    ['avatar_iv', 'digital_twin', requestHashWith({ engine: 'avatar_iv' })],
+    ['avatar_iv', 'studio_avatar', requestHashWith({ engine: 'avatar_iv' })],
+    ['avatar_iii', 'photo_avatar', PRE_2E_REQUEST_HASH],
+  ]) {
+    const label = `${engine}/${lookType}`
+    fake.reset({ clip })
+    const scene = {
+      ...IV_SCENE,
+      avatar: { ...IV_SCENE.avatar, engine, lookType },
+    }
+    const result = await renderAvatarScene(scene, lane(paths).options)
+    assert.equal(result.outcome, 'ready', label)
+    const [attempt] = result.avatar.attempts
+    assert.equal(attempt.hash, hash, label)
+    assert.equal(avatarSceneRequestHash(scene, RUN), hash, label)
+    for (const key of ['motionPrompt', 'expressiveness'])
+      assert.equal(key in attempt, false, `${label} ${key}`)
+    const [post] = fake.posts()
+    assert.equal(post.headers['Idempotency-Key'], keyFor(hash), label)
+    assert.deepEqual(Object.keys(post.body), BASE_BODY_KEYS, label)
+    assert.deepEqual(post.body.engine, { type: engine }, label)
+  }
+})
+
+test('carril (entrega 2e): la repetición de un recibo con movimiento manda el mismo cuerpo con la misma clave; y es el movimiento del recibo, no el de la escena', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  // El POST se queda sin respuesta: el recibo queda sin resolver.
+  const fake = fakeHeyGen(t, { create: () => 'network' })
+  const first = await renderAvatarScene(IV_SCENE, lane(paths).options)
+  assert.equal(first.errorCode, 'avatar_network')
+  assert.deepEqual(
+    first.avatar.attempts.map((attempt) => attempt.state),
+    ['ambiguous'],
+  )
+  const [original] = fake.posts()
+
+  // HeyGen no lo muestra por su título: se repite byte a byte.
+  fake.reset({ clip, listed: [] })
+  const second = await renderAvatarScene(
+    { ...IV_SCENE, avatar: first.avatar },
+    lane(paths).options,
+  )
+  assert.equal(second.outcome, 'ready')
+  const [repeat] = fake.posts()
+  assert.equal(
+    repeat.headers['Idempotency-Key'],
+    original.headers['Idempotency-Key'],
+  )
+  assert.deepEqual(repeat.body, original.body)
+  assert.equal(fake.uploads().length, 0)
+
+  // Un recibo cuyo movimiento guardado no es el de la escena de hoy (con la
+  // misma huella): la repetición manda el del recibo, que es lo que salió.
+  fake.reset({ clip, listed: [] })
+  const stored = {
+    hash: MOTION_HASH,
+    state: 'creating',
+    engine: 'avatar_iv',
+    lookId: 'look-1',
+    audioAssetId: 'asset-audio',
+    createdAt: '2026-10-12T05:00:00.000Z',
+    motionPrompt: 'Calm, sincere expression with open hands.',
+  }
+  const fromReceipt = await renderAvatarScene(
+    { ...IV_SCENE, avatar: { ...IV_SCENE.avatar, attempts: [stored] } },
+    lane(paths).options,
+  )
+  assert.equal(fromReceipt.outcome, 'ready')
+  const [resent] = fake.posts()
+  assert.equal(resent.headers['Idempotency-Key'], keyFor(MOTION_HASH))
+  assert.equal(resent.body.motion_prompt, stored.motionPrompt)
+  assert.equal('expressiveness' in resent.body, false)
+})
+
+test('carril (entrega 2e): un 400 por el movimiento (`motion_prompt` o `expressiveness`) cierra el intento `failed`, marca la escena `motionUnsupported`, lo guarda y pide enseguida sin movimiento con otra clave; la escena queda lista', async (t) => {
+  const fake = fakeHeyGen(t, {})
+  for (const param of ['motion_prompt', 'expressiveness']) {
+    const { paths } = await project(t)
+    const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+    const { options, checkpoints, events } = lane(paths)
+    const atPost = []
+    fake.reset({
+      clip,
+      create: (_call, n) => (n === 1 ? motionRejection(param) : undefined),
+      onRequest(call) {
+        if (call.method === 'POST' && call.path === '/v3/videos')
+          atPost.push(structuredClone(checkpoints.at(-1)))
+      },
+    })
+    const result = await renderAvatarScene(IV_SCENE, options)
+
+    assert.equal(result.outcome, 'ready', param)
+    assert.equal(result.avatar.status, 'ready', param)
+    assert.equal(result.avatar.motionUnsupported, true, param)
+    assert.equal('errorCode' in result.avatar, false, param)
+    // El prompt de la escena queda: lo que cambia es que no viaja.
+    assert.equal(result.avatar.motionPrompt, IV_SCENE.avatar.motionPrompt)
+    assert.deepEqual(
+      result.avatar.attempts.map((attempt) => [
+        attempt.hash,
+        attempt.state,
+        attempt.errorCode,
+        attempt.motionPrompt,
+        attempt.expressiveness,
+      ]),
+      [
+        [
+          MOTION_HASH,
+          'failed',
+          'avatar_motion_unsupported',
+          MOTION_PROMPT,
+          'high',
+        ],
+        [PLAIN_IV_HASH, 'succeeded', undefined, undefined, undefined],
+      ],
+      param,
+    )
+    const posts = fake.posts()
+    assert.equal(posts.length, 2, param)
+    assert.equal(posts[0].body.motion_prompt, MOTION_PROMPT, param)
+    assert.equal(posts[0].headers['Idempotency-Key'], keyFor(MOTION_HASH))
+    // Otra huella, otra clave, el cuerpo sin movimiento.
+    assert.equal(posts[1].headers['Idempotency-Key'], keyFor(PLAIN_IV_HASH))
+    assert.notEqual(
+      posts[1].headers['Idempotency-Key'],
+      posts[0].headers['Idempotency-Key'],
+    )
+    assert.deepEqual(Object.keys(posts[1].body), BASE_BODY_KEYS, param)
+    // Antes del segundo POST ya estaban en disco el intento cerrado y la
+    // escena sin movimiento, y la intención del pedido nuevo.
+    assert.deepEqual(
+      checkpoints.map((avatar) => [
+        avatar.motionUnsupported === true,
+        avatar.attempts.map((attempt) => attempt.state).join(','),
+      ]),
+      [
+        [false, 'creating'],
+        [true, 'failed'],
+        [true, 'failed,creating'],
+        [true, 'failed,pending'],
+        [true, 'failed,succeeded'],
+        [true, 'failed,succeeded'],
+      ],
+      param,
+    )
+    assert.equal(atPost[1].motionUnsupported, true, param)
+    assert.equal(atPost[1].attempts[1].hash, PLAIN_IV_HASH, param)
+    // El rechazo absorbido va al log de diagnóstico, una vez.
+    assert.deepEqual(
+      events.filter((event) => event.type === 'recovered'),
+      [{ type: 'recovered', sceneId: 3, code: 'avatar_motion_unsupported' }],
+      param,
+    )
+    assert.deepEqual(fake.unexpected, [], param)
+  }
+})
+
+test('carril (entrega 2e): si el pedido sin movimiento también falla, sigue el camino de siempre (un 400 por el look cierra ese intento y la escena falla), sin un tercer POST', async (t) => {
+  const { paths } = await project(t)
+  const fake = fakeHeyGen(t, {
+    create: (_call, n) =>
+      n === 1
+        ? motionRejection('motion_prompt')
+        : rejection(400, 'invalid_parameter', 'Engine not allowed', 'engine'),
+  })
+  const result = await renderAvatarScene(IV_SCENE, lane(paths).options)
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.errorCode, 'avatar_look_unsupported')
+  assert.equal(result.avatar.status, 'failed')
+  assert.equal(result.avatar.motionUnsupported, true)
+  assert.deepEqual(
+    result.avatar.attempts.map((attempt) => [attempt.hash, attempt.errorCode]),
+    [
+      [MOTION_HASH, 'avatar_motion_unsupported'],
+      [PLAIN_IV_HASH, 'avatar_look_unsupported'],
+    ],
+  )
+  assert.equal(fake.posts().length, 2)
+})
+
+test('carril (entrega 2e): una escena ya `motionUnsupported` pide sin movimiento aunque tenga prompt; el mismo rechazo a un pedido que no llevaba movimiento falla como cualquiera, sin repetirse', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const fake = fakeHeyGen(t, { clip })
+  const unsupported = {
+    ...IV_SCENE,
+    avatar: { ...IV_SCENE.avatar, motionUnsupported: true },
+  }
+  assert.equal(avatarSceneRequestHash(unsupported, RUN), PLAIN_IV_HASH)
+  const ready = await renderAvatarScene(unsupported, lane(paths).options)
+  assert.equal(ready.outcome, 'ready')
+  assert.deepEqual(Object.keys(fake.posts()[0].body), BASE_BODY_KEYS)
+  assert.equal(ready.avatar.attempts[0].hash, PLAIN_IV_HASH)
+
+  // Un gemelo digital con IV no lleva movimiento: si HeyGen igual dice que
+  // no lo admite, la escena falla con ese código y no hay un segundo POST.
+  fake.reset({ create: () => motionRejection('motion_prompt') })
+  const twin = {
+    ...IV_SCENE,
+    avatar: { ...IV_SCENE.avatar, lookType: 'digital_twin' },
+  }
+  const result = await renderAvatarScene(twin, lane(paths).options)
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.errorCode, 'avatar_motion_unsupported')
+  assert.equal('motionUnsupported' in result.avatar, false)
+  assert.equal(fake.posts().length, 1)
+})
+
+test('carril (entrega 2e): en la cosecha (sin permiso para pagar), la repetición de un recibo con movimiento que HeyGen rechaza por el movimiento marca la escena, pero el pedido sin movimiento espera al saldo (`needs-request`); con el saldo mirado sale sin movimiento', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const scene = {
+    ...IV_SCENE,
+    avatar: {
+      ...IV_SCENE.avatar,
+      attempts: [
+        {
+          hash: MOTION_HASH,
+          state: 'ambiguous',
+          engine: 'avatar_iv',
+          lookId: 'look-1',
+          audioAssetId: 'asset-audio',
+          createdAt: '2026-10-12T05:00:00.000Z',
+          motionPrompt: MOTION_PROMPT,
+          expressiveness: 'high',
+        },
+      ],
+    },
+  }
+  const fake = fakeHeyGen(t, {
+    listed: [],
+    create: () => motionRejection('motion_prompt'),
+  })
+  const harvested = await renderAvatarScene(
+    scene,
+    lane(paths, { allowNewRequest: false }).options,
+  )
+  assert.equal(harvested.outcome, 'needs-request')
+  assert.equal(harvested.avatar.motionUnsupported, true)
+  assert.deepEqual(
+    harvested.avatar.attempts.map((attempt) => [
+      attempt.state,
+      attempt.errorCode,
+    ]),
+    [['failed', 'avatar_motion_unsupported']],
+  )
+  // Solo la repetición, con su clave de siempre: ni subida ni otro POST.
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [keyFor(MOTION_HASH)],
+  )
+  assert.equal(fake.uploads().length, 0)
+
+  fake.reset({ clip })
+  const paid = await renderAvatarScene(
+    { ...scene, avatar: harvested.avatar },
+    lane(paths).options,
+  )
+  assert.equal(paid.outcome, 'ready')
+  const [post] = fake.posts()
+  assert.equal(post.headers['Idempotency-Key'], keyFor(PLAIN_IV_HASH))
+  assert.deepEqual(Object.keys(post.body), BASE_BODY_KEYS)
+})
+
+test('carril (entrega 2e): la toma entra en la huella: con `take` 1 un recibo `succeeded` de la toma 0 no se cosecha y sale un pedido nuevo con otra clave; la toma no viaja en el cuerpo', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const paidReceipt = {
+    hash: REQUEST_HASH,
+    state: 'succeeded',
+    engine: 'avatar_iii',
+    lookId: 'look-1',
+    audioAssetId: 'asset-audio',
+    videoId: 'video-viejo',
+    videoUrl: 'https://cdn.example/video-viejo.mp4',
+    createdAt: '2026-10-12T05:00:00.000Z',
+  }
+  const scene = {
+    ...SCENE,
+    avatar: { ...SCENE.avatar, status: 'failed', attempts: [paidReceipt] },
+  }
+  // Sin toma: el recibo pagado se cosecha sin POST.
+  const fake = fakeHeyGen(t, { clip })
+  const harvested = await renderAvatarScene(scene, lane(paths).options)
+  assert.equal(harvested.outcome, 'ready')
+  assert.equal(fake.posts().length, 0)
+
+  // Toma 1: otra huella; el recibo de la toma 0 no es de este pedido.
+  fake.reset({ clip })
+  const retake = { ...scene, avatar: { ...scene.avatar, take: 1 } }
+  const takeHash = requestHashWith({ take: 1 })
+  assert.equal(avatarSceneRequestHash(retake, RUN), takeHash)
+  const result = await renderAvatarScene(retake, lane(paths).options)
+  assert.equal(result.outcome, 'ready')
+  assert.equal(result.avatar.take, 1)
+  const [post] = fake.posts()
+  assert.equal(fake.posts().length, 1)
+  assert.equal(post.headers['Idempotency-Key'], keyFor(takeHash))
+  assert.notEqual(post.headers['Idempotency-Key'], idempotencyKey(0))
+  assert.deepEqual(Object.keys(post.body), BASE_BODY_KEYS)
+  assert.deepEqual(
+    result.avatar.attempts.map((attempt) => [attempt.hash, attempt.state]),
+    [
+      [REQUEST_HASH, 'succeeded'],
+      [takeHash, 'succeeded'],
+    ],
+  )
+  assert.equal(
+    result.avatar.clipFile,
+    avatarClipFileName(3, avatarRequestKey(takeHash, 0)),
+  )
+})
+
+// ─── Regenerar una lista (entrega 2e, §21.4, `forceNewRender`) ───
+
+// Lo que describe el clip de una escena lista: lo que vuelve si la
+// regeneración falla.
+const READY_FIELDS = [
+  'status',
+  'clipFile',
+  'normalizedSeconds',
+  'renderHash',
+  'narrationVersion',
+  'usdEstimated',
+]
+const readyFieldsOf = (avatar) =>
+  Object.fromEntries(READY_FIELDS.map((field) => [field, avatar[field]]))
+// El pedido de la escena 3 en su toma 1.
+const TAKE_HASH = requestHashWith({ take: 1 })
+
+// La escena 3 lista y al día, con su clip en disco y el recibo pagado de su
+// pedido (toma 0). Su estimado no es el de hoy (0,1155): así se ve si se
+// reemplaza antes de que el clip nuevo esté listo.
+async function readyScene(paths, extra = {}) {
+  const key = avatarRequestKey(REQUEST_HASH, 0)
+  await mkdir(paths.avatarDirectory, { recursive: true })
+  await writeFile(
+    join(paths.avatarDirectory, avatarClipFileName(3, key)),
+    Buffer.from('mp4'),
+  )
+  return {
+    ...SCENE,
+    avatar: {
+      ...SCENE.avatar,
+      status: 'ready',
+      clipFile: avatarClipFileName(3, key),
+      normalizedSeconds: 7,
+      renderHash: RENDER_HASH,
+      narrationVersion: 0,
+      usdEstimated: 0.5,
+      attempts: [
+        {
+          hash: REQUEST_HASH,
+          state: 'succeeded',
+          engine: 'avatar_iii',
+          lookId: 'look-1',
+          audioAssetId: 'asset-audio',
+          videoId: 'video-viejo',
+          videoUrl: 'https://cdn.example/video-viejo.mp4',
+          createdAt: '2026-10-12T05:00:00.000Z',
+        },
+      ],
+      ...extra,
+    },
+  }
+}
+
+test('regenerar (entrega 2e, `forceNewRender`): una lista al día no toma el atajo; sin subir la toma, el recibo pagado de su pedido se cosecha sin pagar; con la toma siguiente sale un pedido nuevo con otra clave y, hasta el clip nuevo, cada recibo guardado conserva el clip y el estimado de hoy', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const ready = await readyScene(paths)
+  const retake = { ...ready, avatar: { ...ready.avatar, take: 1 } }
+  const fake = fakeHeyGen(t, { clip })
+
+  // Sin `forceNewRender`: el atajo, sin hablar con HeyGen.
+  const shortcut = await renderAvatarScene(retake, lane(paths).options)
+  assert.equal(shortcut.outcome, 'ready')
+  assert.deepEqual(fake.calls, [])
+
+  // Con `forceNewRender` y la misma toma: el render pagado se vuelve a bajar,
+  // sin otro POST. Es la toma la que hace que el pedido sea nuevo.
+  const harvested = await renderAvatarScene(
+    ready,
+    lane(paths, { forceNewRender: true }).options,
+  )
+  assert.equal(harvested.outcome, 'ready')
+  assert.deepEqual(fake.posts(), [])
+  assert.deepEqual(fake.uploads(), [])
+
+  // La toma 1: otro pedido, otra clave, el cuerpo de siempre.
+  fake.reset({ clip })
+  const { options, checkpoints } = lane(paths, { forceNewRender: true })
+  const result = await renderAvatarScene(retake, options)
+  assert.equal(result.outcome, 'ready')
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [keyFor(TAKE_HASH)],
+  )
+  assert.deepEqual(Object.keys(fake.posts()[0].body), BASE_BODY_KEYS)
+  const newClip = avatarClipFileName(3, avatarRequestKey(TAKE_HASH, 0))
+  assert.equal(result.avatar.clipFile, newClip)
+  assert.equal(result.avatar.usdEstimated, 0.1155)
+  assert.equal(result.avatar.take, 1)
+  assert.equal(checkpoints.at(-1).clipFile, newClip)
+  const before = checkpoints.slice(0, -1)
+  assert.deepEqual(
+    before.map((avatar) =>
+      avatar.attempts.map((attempt) => attempt.state).join(','),
+    ),
+    ['succeeded,creating', 'succeeded,pending', 'succeeded,succeeded'],
+  )
+  for (const avatar of before)
+    assert.deepEqual(readyFieldsOf(avatar), readyFieldsOf(ready.avatar))
+})
+
+test('regenerar (entrega 2e): si el render nuevo falla —un 400, un render `failed` o el plazo—, la escena vuelve a su estado listo anterior sin error, con el recibo guardado, y el resultado sale `failed` con su código; sin `forceNewRender`, o en una escena que no estaba lista, falla como siempre', async (t) => {
+  const { paths } = await project(t)
+  // Una lista que arrastra un error viejo (un scenes.json editado): vuelve sin él.
+  const ready = await readyScene(paths, {
+    take: 1,
+    errorCode: 'avatar_timeout',
+  })
+  const lookRejection = () =>
+    rejection(400, 'invalid_parameter', 'Engine not allowed', 'engine')
+  const fake = fakeHeyGen(t, {})
+  for (const { label, options, code, state } of [
+    {
+      label: '400 del look',
+      options: { create: lookRejection },
+      code: 'avatar_look_unsupported',
+      state: 'failed',
+    },
+    {
+      label: 'render failed',
+      options: {
+        poll: () => ({
+          status: 'failed',
+          extra: {
+            failure_code: 'rendering_failed',
+            failure_message: 'Avatar rendering timed out',
+          },
+        }),
+      },
+      code: 'avatar_render_failed',
+      state: 'failed',
+    },
+    {
+      label: 'plazo vencido',
+      options: { poll: () => ({ status: 'processing' }) },
+      code: 'avatar_timeout',
+      state: 'pending',
+    },
+  ]) {
+    fake.reset(options)
+    const lanes = lane(paths, { forceNewRender: true })
+    const result = await renderAvatarScene(ready, lanes.options)
+    assert.equal(result.outcome, 'failed', label)
+    assert.equal(result.errorCode, code, label)
+    assert.deepEqual(
+      readyFieldsOf(result.avatar),
+      readyFieldsOf(ready.avatar),
+      label,
+    )
+    assert.equal('errorCode' in result.avatar, false, label)
+    assert.equal(result.avatar.take, 1, label)
+    assert.deepEqual(
+      result.avatar.attempts.map((attempt) => [attempt.hash, attempt.state]),
+      [
+        [REQUEST_HASH, 'succeeded'],
+        [TAKE_HASH, state],
+      ],
+      label,
+    )
+    // Ningún recibo guardado dejó a la escena sin su clip.
+    for (const avatar of lanes.checkpoints)
+      assert.deepEqual(
+        readyFieldsOf(avatar),
+        readyFieldsOf(ready.avatar),
+        label,
+      )
+  }
+
+  // Sin `forceNewRender` (una lista desactualizada que se vuelve a pedir) o
+  // en una escena planeada: falla como siempre.
+  for (const [label, scene, overrides] of [
+    [
+      'desactualizada',
+      {
+        ...ready,
+        avatar: { ...ready.avatar, renderHash: 'del-render-anterior' },
+      },
+      {},
+    ],
+    ['planeada', SCENE, { forceNewRender: true }],
+  ]) {
+    fake.reset({ create: lookRejection })
+    const result = await renderAvatarScene(
+      scene,
+      lane(paths, overrides).options,
+    )
+    assert.equal(result.avatar.status, 'failed', label)
+    assert.equal(result.avatar.errorCode, 'avatar_look_unsupported', label)
+  }
+})
+
+test('regenerar (entrega 2e): si la cuenta pausa —un 402 al pedir o un render que HeyGen corta por saldo—, el carril lanza y la escena guardada sigue lista con su clip y su estimado', async (t) => {
+  const { paths } = await project(t)
+  const ready = await readyScene(paths, { take: 1 })
+  const fake = fakeHeyGen(t, {})
+  for (const [label, options] of [
+    [
+      '402',
+      {
+        create: () =>
+          rejection(402, 'insufficient_credit', 'Not enough credit'),
+      },
+    ],
+    [
+      'render sin saldo',
+      {
+        poll: () => ({
+          status: 'failed',
+          extra: {
+            failure_code: 'insufficient_credit',
+            failure_message: 'Insufficient credit balance',
+          },
+        }),
+      },
+    ],
+  ]) {
+    fake.reset(options)
+    const lanes = lane(paths, { forceNewRender: true })
+    await assert.rejects(
+      renderAvatarScene(ready, lanes.options),
+      { code: 'avatar_insufficient_credits' },
+      label,
+    )
+    assert.equal(fake.posts().length, 1, label)
+    assert.ok(lanes.checkpoints.length >= 2, label)
+    for (const avatar of lanes.checkpoints) {
+      assert.deepEqual(
+        readyFieldsOf(avatar),
+        readyFieldsOf(ready.avatar),
+        label,
+      )
+      assert.equal('errorCode' in avatar, false, label)
+    }
+    assert.deepEqual(
+      lanes.checkpoints
+        .at(-1)
+        .attempts.map((attempt) => [attempt.state, attempt.errorCode]),
+      [
+        ['succeeded', undefined],
+        ['failed', 'avatar_insufficient_credits'],
+      ],
+      label,
+    )
+  }
+})
+
+test('«más expresivo» con V sobre un prompt de la persona (R-2e-14): el pedido lleva su prompt con la frase al final —en el cuerpo, la huella y el recibo—, y la escena guarda el suyo; vacío, la frase sola (m8 de la revisión); con el automático, con IV y foto o sin «más expresivo», no', async (t) => {
+  const own = 'Lean in with a confident nod.'
+  const sent = `${own} ${AVATAR_EXPRESSIVE_PROMPT_SUFFIX}`
+  const avatar = (extra = {}) => ({
+    ...SCENE.avatar,
+    engine: 'avatar_v',
+    motionPrompt: ` ${own} `,
+    motionSource: 'user',
+    expressive: true,
+    ...extra,
+  })
+  assert.equal(
+    AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
+    'More energy and clearer gestures.',
+  )
+  for (const lookType of ['photo_avatar', 'studio_avatar', 'digital_twin'])
+    assert.deepEqual(
+      avatarRequestMotion(avatar({ lookType })),
+      { motionPrompt: sent },
+      lookType,
+    )
+  for (const [label, extra, expected] of [
+    ['automático', { motionSource: 'auto' }, { motionPrompt: own }],
+    [
+      'sin quién lo escribió',
+      { motionSource: undefined },
+      { motionPrompt: own },
+    ],
+    ['sin «más expresivo»', { expressive: false }, { motionPrompt: own }],
+    // Vacío y «más expresivo»: la frase sola (m8); sin el interruptor, nada.
+    [
+      'sin prompt',
+      { motionPrompt: '  ' },
+      { motionPrompt: AVATAR_EXPRESSIVE_PROMPT_SUFFIX },
+    ],
+    [
+      'sin prompt guardado',
+      { motionPrompt: undefined },
+      { motionPrompt: AVATAR_EXPRESSIVE_PROMPT_SUFFIX },
+    ],
+    [
+      'sin prompt ni «más expresivo»',
+      { motionPrompt: '', expressive: false },
+      {},
+    ],
+    [
+      'sin prompt, el de Vimo todavía sin escribir',
+      { motionPrompt: '', motionSource: undefined },
+      {},
+    ],
+    [
+      'IV con foto',
+      { engine: 'avatar_iv' },
+      { motionPrompt: own, expressiveness: 'high' },
+    ],
+    [
+      'IV con foto, sin prompt',
+      { engine: 'avatar_iv', motionPrompt: '' },
+      { expressiveness: 'high' },
+    ],
+    ['movimiento rechazado', { motionUnsupported: true }, {}],
+  ])
+    assert.deepEqual(avatarRequestMotion(avatar(extra)), expected, label)
+
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const fake = fakeHeyGen(t, { clip })
+  const scene = { ...SCENE, avatar: avatar() }
+  const hash = requestHashWith({ engine: 'avatar_v', motionPrompt: sent })
+  assert.equal(avatarSceneRequestHash(scene, RUN), hash)
+  const result = await renderAvatarScene(scene, lane(paths).options)
+  assert.equal(result.outcome, 'ready')
+  const [post] = fake.posts()
+  assert.equal(post.body.motion_prompt, sent)
+  assert.equal('expressiveness' in post.body, false)
+  assert.equal(post.headers['Idempotency-Key'], keyFor(hash))
+  assert.equal(result.avatar.attempts[0].hash, hash)
+  assert.equal(result.avatar.attempts[0].motionPrompt, sent)
+  assert.equal(result.avatar.motionPrompt, ` ${own} `)
+
+  // La persona borró el prompt y dejó «más expresivo»: la frase sola, también
+  // en la huella y el recibo; la escena sigue sin prompt.
+  fake.reset({ clip })
+  const emptied = { ...SCENE, avatar: avatar() }
+  delete emptied.avatar.motionPrompt
+  const suffixHash = requestHashWith({
+    engine: 'avatar_v',
+    motionPrompt: AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
+  })
+  assert.equal(avatarSceneRequestHash(emptied, RUN), suffixHash)
+  const alone = await renderAvatarScene(emptied, lane(paths).options)
+  assert.equal(alone.outcome, 'ready')
+  const [suffixPost] = fake.posts()
+  assert.equal(suffixPost.body.motion_prompt, AVATAR_EXPRESSIVE_PROMPT_SUFFIX)
+  assert.equal(suffixPost.headers['Idempotency-Key'], keyFor(suffixHash))
+  assert.equal(
+    alone.avatar.attempts[0].motionPrompt,
+    AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
+  )
+  assert.equal('motionPrompt' in alone.avatar, false)
+})
+
+test('regenerar (entrega 2e): la restauración conserva lo que el carril aprendió en el camino (L1 de la revisión): si HeyGen rechaza el movimiento y después el pedido sin él, la escena vuelve lista con su clip y queda `motionUnsupported`', async (t) => {
+  const { paths } = await project(t)
+  const ready = await readyScene(paths, {
+    engine: 'avatar_iv',
+    motionPrompt: MOTION_PROMPT,
+    motionSource: 'auto',
+    take: 1,
+  })
+  const fake = fakeHeyGen(t, {
+    create: (_call, n) =>
+      n === 1
+        ? motionRejection('motion_prompt')
+        : rejection(400, 'invalid_parameter', 'Engine not allowed', 'engine'),
+  })
+  const { options, checkpoints } = lane(paths, { forceNewRender: true })
+  const result = await renderAvatarScene(ready, options)
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.errorCode, 'avatar_look_unsupported')
+  assert.equal(fake.posts().length, 2)
+  assert.deepEqual(readyFieldsOf(result.avatar), readyFieldsOf(ready.avatar))
+  assert.equal(result.avatar.motionUnsupported, true)
+  assert.equal(result.avatar.motionPrompt, MOTION_PROMPT)
+  assert.equal(result.avatar.take, 1)
+  assert.equal(checkpoints.at(-1).motionUnsupported, true)
+  assert.deepEqual(
+    result.avatar.attempts.slice(1).map((attempt) => attempt.errorCode),
+    ['avatar_motion_unsupported', 'avatar_look_unsupported'],
+  )
 })
 
 // Centinela (registro `node-test-doble-mock-del-mismo-metodo-deja-el-global-sucio`):

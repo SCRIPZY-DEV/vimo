@@ -592,12 +592,13 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
             : {}),
           // Con avatar, los tramos (vacíos si ninguna aparición entró: la
           // pausa lo dice), las descartadas que anunció `avatar-planned` y el
-          // tipo de look para el costo.
+          // tipo de look y el motor del proyecto para el costo (entrega 2e).
           ...(event.avatarSpans
             ? {
                 avatarSpans: event.avatarSpans,
                 avatarDropped: task.avatarDropped,
                 avatarLookType: task.avatarLookType,
+                avatarEngine: task.avatarEngine,
               }
             : {}),
         },
@@ -835,6 +836,7 @@ function makeTask(
       seed?.scenes.some((scene) => scene.avatar !== undefined),
     avatarDropped: options.avatarDropped,
     avatarLookType: options.avatarLookType,
+    avatarEngine: options.avatarEngine,
   }
 }
 

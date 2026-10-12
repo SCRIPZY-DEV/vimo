@@ -1,14 +1,24 @@
+import { MOTION_PROMPT_LINE_BREAKS } from '@/modules/videos/constants'
 import { avatarBlockState } from '@/modules/videos/utilities/avatarClips'
 import { isAvatarFallback } from '@/modules/videos/utilities/avatarFallback'
 import { avatarSpansCostEstimate } from '@/modules/videos/utilities/avatarCostEstimate'
-import { avatarSceneSpan } from '@pipeline/types/avatar.ts'
+import { avatarMotionSupport, avatarSceneSpan } from '@pipeline/types/avatar.ts'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
 import type {
+  AvatarMotionDraft,
+  AvatarRenderRequest,
   AvatarSceneAction,
   SceneAvatarRendering,
 } from '@/modules/videos/types/library'
 import type { TimelineAvatarState } from '@/modules/videos/utilities/avatarClips'
-import type { AvatarLookType, AvatarSceneSpan } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarEngine,
+  AvatarLookType,
+  AvatarRenderScenesPayload,
+  AvatarSceneMotionInput,
+  AvatarSceneSpan,
+  SceneAvatarView,
+} from '@pipeline/types/avatar.ts'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 
 // El estado que dibuja el bloque de la escena (spec §3.3, avatarBlockState):
@@ -27,9 +37,10 @@ export function avatarSceneState(
 // Qué ofrece el panel para una escena de avatar (spec §11.1, con los estados
 // de §3.3 que dibuja el bloque): «Generar» si está planeada; «Regenerar» si
 // falló, quedó desactualizada o está lista sin su clip (que el bloque ya
-// muestra como fallida). Una lista y al día, o una que se está generando, no
-// ofrece nada; tampoco una escena sin tramo (sin bloque en la pista: el carril
-// no la puede pedir) ni una que no es de avatar.
+// muestra como fallida); y, desde la entrega 2e (§21.4), «Regenerar» también
+// en una lista y al día (`retake`, un render nuevo pagado). Una que se está
+// generando no ofrece nada; tampoco una escena sin tramo (sin bloque en la
+// pista: el carril no la puede pedir) ni una que no es de avatar.
 export function avatarSceneAction(
   scene: SceneDetail,
   rendering: Record<number, SceneAvatarRendering>,
@@ -41,16 +52,22 @@ export function avatarSceneAction(
 
   if (state === 'failed' || state === 'stale') return 'regenerate'
 
+  if (state === 'ready') return 'retake'
+
   return null
 }
 
 // Las escenas que pide «Regenerar todos» (§11.4 y §20): todas las de avatar
-// sin un clip válido o desactualizadas, en el orden del video.
+// sin un clip válido o desactualizadas, en el orden del video. No cuenta las
+// listas y al día (entrega 2e: esas se vuelven a generar de a una).
 export function avatarScenesToRender(
   scenes: SceneDetail[],
   rendering: Record<number, SceneAvatarRendering>,
 ): SceneDetail[] {
-  return scenes.filter((scene) => avatarSceneAction(scene, rendering) !== null)
+  return scenes.filter((scene) => {
+    const action = avatarSceneAction(scene, rendering)
+    return action === 'generate' || action === 'regenerate'
+  })
 }
 
 // Las apariciones que cuenta y regenera el aviso de arriba del editor: las que
@@ -70,37 +87,137 @@ export function editorFallbackSceneIds(scenes: SceneDetail[]): number[] {
 
 // Lo que cobra HeyGen por esas escenas: el mismo cálculo que la confirmación
 // de Crear (avatarSpansCostEstimate: la duración REAL del tramo, contada en
-// cuadros como la cuenta la fase, × la tarifa de Avatar III del tipo de look).
-// Un video tiene un solo look, así que hay un solo tipo; si algún día una
-// escena cambia de look, cada tipo se cuenta con su tarifa y se suman. null si
-// no hay nada que cobrar o el motor no tiene tarifa para ese look.
+// cuadros como la cuenta la fase, × la tarifa del motor de la escena para su
+// tipo de look; hasta la entrega 2e se cobraba todo a Avatar III). Las escenas
+// se agrupan por motor y tipo de look, cada grupo con su tarifa, y se suman.
+// null si no hay nada que cobrar o el motor no tiene tarifa para ese look.
 export function avatarScenesCost(
   scenes: SceneDetail[],
 ): CostEstimateLine | null {
-  const spansByLookType = new Map<AvatarLookType, AvatarSceneSpan[]>()
+  const spansByEngine = new Map<
+    AvatarEngine,
+    Map<AvatarLookType, AvatarSceneSpan[]>
+  >()
   for (const scene of scenes) {
     const span = avatarSceneSpan(scene)
     if (!scene.avatar || !span) continue
 
-    const lookType = scene.avatar.lookType
+    const { engine, lookType } = scene.avatar
+    const spansByLookType =
+      spansByEngine.get(engine) ?? new Map<AvatarLookType, AvatarSceneSpan[]>()
     spansByLookType.set(lookType, [
       ...(spansByLookType.get(lookType) ?? []),
       span,
     ])
+    spansByEngine.set(engine, spansByLookType)
   }
 
-  const lines = [...spansByLookType].flatMap(([lookType, spans]) => {
-    const line = avatarSpansCostEstimate(lookType, spans)
-    return line ? [line] : []
+  const lines = [...spansByEngine].flatMap(([engine, spansByLookType]) => {
+    return [...spansByLookType].flatMap(([lookType, spans]) => {
+      const line = avatarSpansCostEstimate(lookType, spans, engine)
+      return line ? [line] : []
+    })
   })
   if (lines.length === 0) return null
 
   const [first, ...rest] = lines
-  return rest.reduce(
-    (total, line) => ({
-      ...total,
-      estimated: total.estimated + line.estimated,
-    }),
-    first,
+  return rest.reduce((total, line) => {
+    return { ...total, estimated: total.estimated + line.estimated }
+  }, first)
+}
+
+// El pedido de `avatar-render-scenes` desde el editor: las escenas sin repetir
+// y en orden; y, desde la entrega 2e (§21.4), las listas que se regeneran y el
+// movimiento, solo de esas escenas, sin repetir, y cada campo solo si no queda
+// vacío. Así una escena de Avatar III planeada sigue pidiendo exactamente
+// `{ projectId, sceneIds }`, como antes de la 2e.
+export function avatarRenderPayload(
+  projectId: string,
+  request: AvatarRenderRequest,
+): AvatarRenderScenesPayload {
+  const sceneIds = sortedUnique(request.sceneIds)
+  const payload: AvatarRenderScenesPayload = { projectId, sceneIds }
+
+  const regenerateSceneIds = sortedUnique(
+    request.regenerateSceneIds ?? [],
+  ).filter((sceneId) => sceneIds.includes(sceneId))
+  if (regenerateSceneIds.length > 0)
+    payload.regenerateSceneIds = regenerateSceneIds
+
+  const motionByScene = new Map(
+    (request.motion ?? [])
+      .filter((entry) => sceneIds.includes(entry.sceneId))
+      .map((entry) => [entry.sceneId, entry]),
   )
+  if (motionByScene.size > 0) payload.motion = [...motionByScene.values()]
+
+  return payload
+}
+
+function sortedUnique(ids: readonly number[]): number[] {
+  return [...new Set(ids)].sort((left, right) => left - right)
+}
+
+// El movimiento guardado en la escena tal como lo edita el panel (entrega 2e,
+// §21.4): sin prompt, vacío; «más expresivo» solo se guarda en true.
+export function storedAvatarMotion(
+  avatar: SceneAvatarView | undefined,
+): AvatarMotionDraft {
+  return {
+    motionPrompt: avatar?.motionPrompt ?? '',
+    expressive: avatar?.expressive === true,
+  }
+}
+
+export function sameAvatarMotion(
+  left: AvatarMotionDraft,
+  right: AvatarMotionDraft,
+): boolean {
+  return (
+    left.motionPrompt === right.motionPrompt &&
+    left.expressive === right.expressive
+  )
+}
+
+// Los ajustes de movimiento que viajan con el pedido de una escena (§21.4):
+// solo si la persona cambió algo (lo guardado ya está en la escena), con el
+// prompt recortado. «Más expresivo» solo, sin tocar el prompt, también viaja,
+// con el prompt guardado. Si el proveedor ya rechazó el movimiento
+// (`motionUnsupported`): un prompt nuevo viaja como siempre (el sidecar borra
+// la marca y vuelve a probar: el rechazo puede no ser del look, ronda 2); sin
+// cambiar el prompt, solo «más expresivo», con el prompt guardado, y solo si
+// el motor y el look lo admiten (`expressiveness`: IV con un look de foto).
+// null = no viaja nada.
+export function avatarMotionInput(
+  sceneId: number,
+  avatar: SceneAvatarView,
+  draft: AvatarMotionDraft,
+): AvatarSceneMotionInput | null {
+  const stored = storedAvatarMotion(avatar)
+  const motionPrompt = draft.motionPrompt.trim()
+  const promptChanged = motionPrompt !== stored.motionPrompt.trim()
+  const expressiveChanged = draft.expressive !== stored.expressive
+  if (avatar.motionUnsupported && !promptChanged) {
+    if (!expressiveChanged) return null
+
+    if (!avatarMotionSupport(avatar.engine, avatar.lookType).expressiveness)
+      return null
+
+    return {
+      sceneId,
+      motionPrompt: stored.motionPrompt,
+      expressive: draft.expressive,
+    }
+  }
+
+  if (!promptChanged && !expressiveChanged) return null
+
+  return { sceneId, motionPrompt, expressive: draft.expressive }
+}
+
+// El prompt de movimiento es de una sola línea (ronda 1 de WP-X): los saltos
+// que llegan pegados se vuelven espacios. Enter no los agrega (lo frena el
+// campo, EditorAvatarMotion).
+export function singleLineMotionPrompt(value: string): string {
+  return value.replace(MOTION_PROMPT_LINE_BREAKS, ' ')
 }

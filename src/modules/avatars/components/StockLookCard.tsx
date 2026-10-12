@@ -28,10 +28,11 @@ interface StockLookCardProps {
 }
 
 // Ficha de un look: vista previa vertical (video al pasar el mouse), nombre y
-// chips de tipo, formato (16:9, 9:16…) y motor («Avatar III» o «No compatible
-// con Vimo»). Un look que se está generando es un esqueleto con «Generando…»; uno
-// que falló lo dice. Un clic abre su reproductor; un look no listo o sin el
-// motor de Vimo no pasa a principal. El botón que abre es una capa que cubre
+// chips de tipo, formato (16:9, 9:16…) y los motores que admite («Avatar V»,
+// «Avatar IV», «Avatar III») o «No compatible con Vimo». Un look que se está
+// generando es un esqueleto con «Generando…»; uno que falló lo dice. Un clic
+// abre su reproductor; un look no listo o que no admite ningún motor no pasa a
+// principal (`lookUnusableReasonKey`). El botón que abre es una capa que cubre
 // toda la ficha, debajo del resto (que deja pasar el mouse): así convive con
 // «Usar como principal», que no puede ir adentro de otro botón. Presentacional.
 export function StockLookCard({

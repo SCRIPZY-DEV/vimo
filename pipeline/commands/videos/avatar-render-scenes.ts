@@ -17,6 +17,10 @@ import type {
 // renderAvatarScenes (una lista no vacía de escenas de avatar del proyecto)
 // antes de hablar con HeyGen. Sin `sceneIds` el pedido es una lista vacía,
 // nunca «todas las pendientes»: eso es la fase.
+// Desde la entrega 2e (§21.4) también viajan, tal como llegan, las listas que
+// la persona pidió regenerar (`regenerateSceneIds`, un render nuevo pagado) y
+// los ajustes de movimiento (`motion`): renderAvatarScenes los valida antes de
+// hablar con HeyGen y los guarda en la escena antes de pedir.
 export async function avatarRenderScenes(
   context: PipelineContext,
 ): Promise<AvatarRenderScenesResult> {
@@ -30,6 +34,8 @@ export async function avatarRenderScenes(
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
   const outcome = await renderAvatarScenes(videoContext, {
     sceneIds: payload.sceneIds ?? [],
+    regenerateSceneIds: payload.regenerateSceneIds,
+    motion: payload.motion,
   })
   return { rendered: outcome.rendered, failed: outcome.failed }
 }

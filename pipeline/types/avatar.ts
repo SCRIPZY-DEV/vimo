@@ -10,9 +10,25 @@ import type { VideoFormat } from './video-format.ts'
 export const AVATAR_ENGINES = ['avatar_iv', 'avatar_iii', 'avatar_v'] as const
 export type AvatarEngine = (typeof AVATAR_ENGINES)[number]
 
-// El único motor con el que Vimo usa los avatares por ahora (decisión del
-// dueño del 2026-10-09): el look principal de un avatar tiene que soportarlo.
+// El motor con el que arranca Crear (decisión del dueño del 2026-10-09: lo de
+// hasta la 2e y lo más barato). Desde la entrega 2e un look sirve si admite al
+// menos un motor con tarifa (avatarEngineAvailable), no solo este.
 export const AVATAR_DEFAULT_ENGINE: AvatarEngine = 'avatar_iii'
+
+// Desde la entrega 2e (pedido del dueño del 2026-10-12, diseño §21) la persona
+// elige el motor en Crear. Orden en que se ofrecen (el del dueño: V, IV, III) y
+// orden con el que se cae a otro cuando el look no admite el elegido (el más
+// barato primero).
+export const AVATAR_ENGINE_CHOICES: readonly AvatarEngine[] = [
+  'avatar_v',
+  'avatar_iv',
+  'avatar_iii',
+]
+export const AVATAR_ENGINE_FALLBACK_ORDER: readonly AvatarEngine[] = [
+  'avatar_iii',
+  'avatar_iv',
+  'avatar_v',
+]
 
 export const AVATAR_LOOK_TYPES = [
   'studio_avatar',
@@ -226,7 +242,8 @@ export interface AvatarAddPayload {
   groupId: string
   // stock → HeyGen ownership public; own → private.
   ownership: AvatarOwnership
-  // Si falta (o no sirve): el primer look listo compatible con AVATAR_DEFAULT_ENGINE.
+  // Si falta (o no sirve): el primer look listo que admite algún motor con
+  // tarifa (isUsableLook, entrega 2e).
   mainLookId?: string
   // Del listado de grupos: `GET /v3/avatars/{id}` de un grupo público no trae gender.
   gender?: AvatarGender
@@ -361,19 +378,24 @@ const SECONDS_PER_MINUTE = 60
 // USD por minuto de video (página de precios de HeyGen del 2026-09-16). null =
 // ese motor no aplica a ese tipo de look y no se ofrece. Es la única fuente
 // del estimador: si HeyGen cambia precios, se cambia acá.
+// Avatar V (entrega 2e, R-2e-2): el proveedor solo publica V con gemelo
+// digital; con looks de foto o de estudio se estima a esa tarifa como techo
+// hasta medir el cobro real en la QA.
 export const AVATAR_USD_PER_MINUTE: Readonly<
   Record<AvatarEngine, Readonly<Record<AvatarLookType, number | null>>>
 > = {
   avatar_iii: { digital_twin: 0.6, studio_avatar: 0.99, photo_avatar: 0.99 },
   avatar_iv: { digital_twin: 4.83, studio_avatar: 4.83, photo_avatar: 2.31 },
-  avatar_v: { digital_twin: 7.2, studio_avatar: null, photo_avatar: null },
+  avatar_v: { digital_twin: 7.2, studio_avatar: 7.2, photo_avatar: 7.2 },
 }
 
 export function avatarUsdPerMinute(
   engine: AvatarEngine,
   lookType: AvatarLookType,
 ): number | null {
-  return AVATAR_USD_PER_MINUTE[engine][lookType]
+  // Un motor o un tipo de look fuera de la tabla (un dato viejo o raro) no
+  // tiene tarifa: null, nunca undefined (revisión de WP-Y, entrega 2e).
+  return AVATAR_USD_PER_MINUTE[engine]?.[lookType] ?? null
 }
 
 // Estimación local de `seconds` de avatar (HeyGen no devuelve el cobro):
@@ -391,6 +413,87 @@ export function estimateAvatarUsd(
   return (seconds / SECONDS_PER_MINUTE) * rate
 }
 
+// ¿El look admite este motor y Vimo tiene tarifa para su tipo? (entrega 2e)
+export function avatarEngineAvailable(
+  engine: AvatarEngine,
+  look: Pick<AvatarLookSummary, 'supportedEngines' | 'lookType'>,
+): boolean {
+  if (!look.supportedEngines.includes(engine)) return false
+
+  return avatarUsdPerMinute(engine, look.lookType) !== null
+}
+
+// El motor con el que sale un look: el preferido si el look lo admite; si no,
+// el primero que admite en AVATAR_ENGINE_FALLBACK_ORDER; null si ninguno.
+export function avatarEngineFor(
+  preferred: AvatarEngine,
+  look: Pick<AvatarLookSummary, 'supportedEngines' | 'lookType'>,
+): AvatarEngine | null {
+  if (avatarEngineAvailable(preferred, look)) return preferred
+
+  const fallback = AVATAR_ENGINE_FALLBACK_ORDER.find((engine) =>
+    avatarEngineAvailable(engine, look),
+  )
+  return fallback ?? null
+}
+
+// ─── Movimiento (entrega 2e, diseño §21.1 y §21.2) ───
+
+// Qué acepta el proveedor con cada motor y tipo de look (OpenAPI v3 leída el
+// 2026-10-12): `motion_prompt` con looks de foto en IV y V, y con looks de video
+// (gemelo digital, estudio) solo en V; `expressiveness` solo con looks de foto
+// en IV. Avatar III no acepta ninguno de los dos.
+export interface AvatarMotionSupport {
+  motionPrompt: boolean
+  expressiveness: boolean
+}
+
+export function avatarMotionSupport(
+  engine: AvatarEngine,
+  lookType: AvatarLookType,
+): AvatarMotionSupport {
+  if (engine === 'avatar_iii')
+    return { motionPrompt: false, expressiveness: false }
+
+  if (engine === 'avatar_v')
+    return { motionPrompt: true, expressiveness: false }
+
+  const photo = lookType === 'photo_avatar'
+  return { motionPrompt: photo, expressiveness: photo }
+}
+
+// ¿El interruptor «Movimiento más expresivo» hace algo con este motor y este
+// look? Con V cambia el prompt de movimiento; con IV y un look de foto, además,
+// manda `expressiveness`.
+export function avatarExpressiveAvailable(
+  engine: AvatarEngine,
+  lookType: AvatarLookType,
+): boolean {
+  const support = avatarMotionSupport(engine, lookType)
+  return support.motionPrompt || support.expressiveness
+}
+
+// El nivel que manda «más expresivo» (IV con un look de foto). Apagado no se
+// manda nada y el proveedor usa `low`.
+export const AVATAR_EXPRESSIVE_LEVEL = 'high'
+
+// «Más expresivo» con Avatar V sobre un prompt que escribió la persona
+// (R-2e-14): V no acepta `expressiveness`, así que el pedido lleva su prompt
+// con esta frase al final, separada por un espacio (el prompt de la escena
+// queda como lo escribió). El automático no la lleva: Vimo ya lo escribe
+// expresivo (R-2e-10).
+export const AVATAR_EXPRESSIVE_PROMPT_SUFFIX =
+  'More energy and clearer gestures.'
+
+// Tope del prompt de movimiento que se puede escribir en el editor y que el
+// sidecar acepta; el que escribe Vimo apunta a AVATAR_MOTION_PROMPT_TARGET
+// (la guía del proveedor pide hasta dos cláusulas cortas).
+export const AVATAR_MOTION_PROMPT_LIMIT = 300
+export const AVATAR_MOTION_PROMPT_TARGET = 160
+// El proveedor repite (o deja quieto) el movimiento propio pasado este largo:
+// una aparición más larga lleva un porte sostenido, sin un gesto puntual.
+export const AVATAR_MOTION_LOOP_SECONDS = 10
+
 // Dónde va el avatar al crear el video: `auto` = Vimo elige los momentos
 // (entrega 2); `manual` = sin apariciones al crear, se agregan desde el
 // editor (entrega 3).
@@ -400,8 +503,8 @@ export type AvatarPlacement = (typeof AVATAR_PLACEMENTS)[number]
 // `options.avatar` del proyecto (§3.4), validado en create-video-project.
 // `avatarId` es el id del avatar en la biblioteca (`avatars/<id>/`, §16): con
 // él se valida el look y se copia su vista previa sin recorrer la biblioteca.
-// `engine` sale de AVATAR_DEFAULT_ENGINE mientras siga la decisión del dueño
-// (sin selector de motor).
+// `engine` es el motor que eligió la persona en Crear (entrega 2e, §21.3): uno
+// de AVATAR_ENGINES que el look admite con tarifa (avatarEngineAvailable).
 export interface ProjectAvatarOptions {
   avatarId: string
   lookId: string
@@ -415,6 +518,9 @@ export interface ProjectAvatarOptions {
   // La primera aparición abre el video.
   startWithAvatar: boolean
   placement: AvatarPlacement
+  // «Movimiento más expresivo» (entrega 2e, §21.3): viaja solo en true y solo
+  // si el motor y el look lo admiten (avatarExpressiveAvailable).
+  expressive?: boolean
 }
 
 // Solo tres estados persistidos y ninguno transitorio (misma lección que
@@ -455,6 +561,10 @@ export interface AvatarAttempt {
   // Nuestro avatar_* (diseño §14).
   errorCode?: string
   createdAt: string
+  // El movimiento que salió en el cuerpo de este intento (entrega 2e, §21.2):
+  // una repetición manda el mismo. Ausentes: el pedido no los llevaba.
+  motionPrompt?: string
+  expressiveness?: typeof AVATAR_EXPRESSIVE_LEVEL
 }
 
 // La escena de avatar (ADR-0057): la escena ES el tramo del avatar y su clip
@@ -486,12 +596,36 @@ export interface SceneAvatar {
   // Estimación local: segundos × tarifa (estimateAvatarUsd).
   usdEstimated?: number
   errorCode?: string
+  // ─── Movimiento (entrega 2e, §21.2 y §21.4) ───
+  // «Movimiento más expresivo» (Crear o el editor). Solo se guarda en true.
+  expressive?: boolean
+  // El prompt de movimiento que viaja en el pedido (V y IV, si el motor y el
+  // look lo admiten). Vacío o ausente: el movimiento propio del motor.
+  motionPrompt?: string
+  // Quién escribió `motionPrompt`: Vimo (`auto`, se reescribe si cambia el
+  // texto de la escena) o la persona en el editor (`user`, nunca se toca solo).
+  motionSource?: 'auto' | 'user'
+  // El último que escribió Vimo, para «Usar el automático».
+  autoMotionPrompt?: string
+  // Huella (avatarMotionTextHash) del tono y el texto de la escena con los que
+  // se escribió `autoMotionPrompt` (R-2e-10): `expressive` o `calm` según «más
+  // expresivo», un salto de línea y el texto. Si cambia el texto o se prende o
+  // apaga «más expresivo», Vimo lo reescribe (si la persona no escribió el
+  // suyo): con V es lo que hace que el interruptor cambie el pedido.
+  autoMotionTextHash?: string
+  // El proveedor rechazó el movimiento con este look: los pedidos siguientes
+  // van sin `motion_prompt` ni `expressiveness`.
+  motionUnsupported?: boolean
+  // Toma: sube cuando la persona regenera una escena cuyo pedido ya tiene un
+  // clip cobrado, para que el carril pida uno nuevo. Entra en la huella del
+  // pedido solo si es mayor que 0.
+  take?: number
 }
 
 // Lo que el corte siembra en una escena de avatar antes de generar nada.
 export type SceneAvatarSeed = Pick<
   SceneAvatar,
-  'lookId' | 'lookName' | 'lookType' | 'engine' | 'origin'
+  'lookId' | 'lookName' | 'lookType' | 'engine' | 'origin' | 'expressive'
 >
 
 // Vista de la escena de avatar para la UI (viaja en el status, el detalle y
@@ -501,9 +635,11 @@ export type SceneAvatarSeed = Pick<
 // (toSceneAvatarView) y nunca se persiste; desde la entrega 2d va en toda
 // escena lista desactualizada, también en la que perdió su clip y se muestra
 // `failed` (la fase no la paga sola: el costo de reanudar la deja afuera).
+// La toma y la huella del automático tampoco viajan (entrega 2e): son del
+// sidecar, como los recibos.
 export interface SceneAvatarView extends Omit<
   SceneAvatar,
-  'attempts' | 'clipFile' | 'renderHash'
+  'attempts' | 'clipFile' | 'renderHash' | 'take' | 'autoMotionTextHash'
 > {
   clipPath?: string
   clipMtimeMs?: number
@@ -553,6 +689,22 @@ export interface AvatarRenderScenesPayload {
   // pedido no se vuelve a pagar; una desactualizada pide un render nuevo, y una
   // cuyo último pedido HeyGen rechazó para siempre se vuelve a pedir.
   sceneIds: number[]
+  // Entrega 2e (§21.4): escenas listas que la persona pidió regenerar, un
+  // render nuevo pagado aunque nada cambie. Subconjunto de `sceneIds`; va solo
+  // si no está vacío.
+  regenerateSceneIds?: number[]
+  // Ajustes de movimiento de escenas de V o IV que se guardan en la escena
+  // antes de pedir. Va solo si no está vacío.
+  motion?: AvatarSceneMotionInput[]
+}
+
+// Los ajustes de movimiento de una escena desde el editor (entrega 2e, §21.4).
+export interface AvatarSceneMotionInput {
+  sceneId: number
+  // Como lo dejó la persona; el sidecar lo recorta. Vacío: sin movimiento
+  // propio (el del motor).
+  motionPrompt: string
+  expressive: boolean
 }
 
 export interface AvatarRenderScenesResult {

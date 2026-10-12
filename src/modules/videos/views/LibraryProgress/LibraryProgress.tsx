@@ -181,7 +181,7 @@ export function LibraryProgress() {
     // La pausa de un estilo propio con carril de segundos vuelve como el
     // paso inline también desde disco; el resto, con el diálogo de conteo.
     // Con avatar, el estado rearma sus tramos y descartadas (el plan es puro)
-    // y el tipo de look sale de las opciones.
+    // y el tipo de look y el motor (entrega 2e) salen de las opciones.
     const confirmation: SceneConfirmationView = {
       suggestedScenes: metadata.sceneCount ?? status.scenes.length,
       audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
@@ -199,6 +199,7 @@ export function LibraryProgress() {
             avatarSpans: status.avatarSpans,
             avatarDropped: status.avatarDropped,
             avatarLookType: metadata.options.avatar?.lookType,
+            avatarEngine: metadata.options.avatar?.engine,
           }
         : {}),
     }

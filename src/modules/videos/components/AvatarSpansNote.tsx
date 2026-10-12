@@ -4,7 +4,7 @@ import { cn } from '@/modules/common/utilities/cn'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
 import { avatarSpansCostEstimate } from '@/modules/videos/utilities/avatarCostEstimate'
 import { avatarSpansLabel } from '@/modules/videos/utilities/avatarSpansLabel'
-import type { AvatarLookType } from '@pipeline/types/avatar.ts'
+import type { AvatarEngine, AvatarLookType } from '@pipeline/types/avatar.ts'
 import type { AvatarSpanView } from '@/modules/videos/types/create'
 
 interface AvatarSpansNoteProps {
@@ -17,20 +17,26 @@ interface AvatarSpansNoteProps {
   // El tipo del look elegido: con su tarifa, la línea suma lo que cobra HeyGen
   // por estos tramos. Sin él (un proyecto reabierto sin ese dato) no se dice.
   lookType?: AvatarLookType
+  // El motor del proyecto (entrega 2e: lo elige la persona en Crear), cuya
+  // tarifa da el costo. Sin él (una pausa o un proyecto de antes de la 2e),
+  // el de siempre: AVATAR_DEFAULT_ENGINE.
+  engine?: AvatarEngine
   className?: string
 }
 
 // La línea de la pausa de escenas que dice dónde sale el avatar (spec §6.1),
 // lo que cuesta y cuántas apariciones no entraron: cambiar la cantidad o los
 // segundos solo reparte las escenas libres, así que estos tramos no se mueven
-// y su costo ya es el real (con la cola absorbida, a la tarifa de Crear y de
-// la fase). Si no entró ninguna, lo dice antes de que se paguen las imágenes,
-// con la salida (cancelar y acortar las apariciones, o alargar la narración).
-// Presentacional; sin avatar no dibuja nada.
+// y su costo ya es el real (con la cola absorbida, a la tarifa del motor del
+// proyecto, la de Crear y de la fase). Si no entró ninguna, lo dice antes de
+// que se paguen las imágenes, con la salida (cancelar y acortar las
+// apariciones, o alargar la narración). Presentacional; sin avatar no dibuja
+// nada.
 export function AvatarSpansNote({
   spans,
   dropped,
   lookType,
+  engine,
   className,
 }: AvatarSpansNoteProps) {
   const { t, i18n } = useTranslation()
@@ -59,7 +65,10 @@ export function AvatarSpansNote({
   }
 
   const language = i18n.resolvedLanguage ?? 'es'
-  const cost = lookType ? avatarSpansCostEstimate(lookType, spans) : null
+  // Sin motor, la utilidad usa AVATAR_DEFAULT_ENGINE (su valor por defecto).
+  const cost = lookType
+    ? avatarSpansCostEstimate(lookType, spans, engine)
+    : null
 
   return (
     <p className={cn(boxClass, 'border-amethyst/40 bg-amethyst/10')}>

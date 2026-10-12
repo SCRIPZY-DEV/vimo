@@ -2,7 +2,7 @@
 // §9, con el cambio de dirección del dueño del 2026-10-10: el look ES el
 // escenario): qué viaja en `options.avatar` (el look elegido, y con el
 // interruptor apagado el payload no cambia ni un byte), los bloqueos, el
-// costo exacto con la tarifa de Avatar III del tipo del look, que las escenas
+// costo exacto con la tarifa del motor del tipo del look, que las escenas
 // de avatar no sumen imágenes (ni al crear ni al reanudar), qué looks ofrece
 // cada avatar para el formato del video (orientación, el principal primero,
 // nunca por `status: 'ready'`), la elección por defecto y cuándo deja de
@@ -11,8 +11,16 @@
 // animación desconocido no lea el saldo de Kie, y lo que falta cobrar del
 // avatar al reanudar (un techo si las escenas ya están cortadas, que el aviso
 // dice «hasta»), también por tramos y en cuadros como lo cuenta la fase. Un
-// avatar que HeyGen ya no tiene no se ofrece. Empaqueta el código real de
-// `src/` con esbuild y los alias de tsconfig.app.json, como
+// avatar que HeyGen ya no tiene no se ofrece. Desde la entrega 2e (§21.3): la
+// elección lleva los motores de su look, viaja el motor efectivo (el que
+// prefiere la persona si el look lo admite; si no, el primero que admite en
+// III, IV, V) y con él se cobra; «Movimiento más expresivo» viaja solo
+// prendido y si el motor y el look lo admiten; con Avatar III y el interruptor
+// apagado `options.avatar` queda byte a byte como antes; y un look sirve con
+// cualquier motor que admita y tenga tarifa (uno solo-IV se ofrece; uno sin
+// motores, no). Las tarifas de Avatar V con looks de foto o de estudio se leen
+// de la tabla con la función (cambian en la 2e), nunca escritas acá. Empaqueta
+// el código real de `src/` con esbuild y los alias de tsconfig.app.json, como
 // check-app-catalog-payload.mjs: sin simulacros.
 import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -83,16 +91,19 @@ const withoutAvatarFields = (value) =>
   Object.fromEntries(
     Object.entries(value).filter(([key]) => !AVATAR_FIELDS.includes(key)),
   )
+// La elección del formulario lleva los motores de su look (entrega 2e): con
+// ellos se deriva el motor con el que sale, sin volver a leer la biblioteca.
 const ANA = {
   id: 'ana-1',
   name: 'Ana',
   lookId: 'look-ana',
   lookName: 'Ana oficina',
   lookType: 'photo_avatar',
+  supportedEngines: ['avatar_iii', 'avatar_iv'],
 }
 const ANA_KITCHEN = { ...ANA, lookId: 'look-cocina', lookName: 'Ana cocina' }
-// Un look de la biblioteca: listo, con Avatar III y horizontal, salvo que el
-// caso diga otra cosa.
+// Un look de la biblioteca: listo, con Avatar III y IV y horizontal, salvo que
+// el caso diga otra cosa.
 const look = (overrides = {}) => ({
   lookId: 'look-ana',
   name: 'Ana oficina',
@@ -131,29 +142,132 @@ test('con el interruptor apagado el payload no cambia ni un byte', () => {
   assert.equal(JSON.stringify(off), JSON.stringify(legacy))
 })
 
-test('encendido, options.avatar lleva el avatar, el look elegido, el motor de Vimo y placement auto', () => {
-  const on = app.createProjectPayload(
-    form({
-      useAvatar: true,
-      avatar: ANA_KITCHEN,
-      avatarAppearances: 4,
-      avatarSecondsPerAppearance: 12,
-      avatarStartsVideo: false,
-    }),
-  )
+// `options.avatar` de Avatar III tal como salía antes de la 2e: las mismas
+// nueve claves, en este orden (los recibos guardados se cosechan con la
+// huella de este cuerpo).
+const III_AVATAR_OPTIONS = {
+  avatarId: 'ana-1',
+  lookId: 'look-cocina',
+  lookName: 'Ana cocina',
+  lookType: 'photo_avatar',
+  engine: 'avatar_iii',
+  appearances: 4,
+  secondsPerAppearance: 12,
+  startWithAvatar: false,
+  placement: 'auto',
+}
+const kitchenForm = (overrides = {}) =>
+  form({
+    useAvatar: true,
+    avatar: ANA_KITCHEN,
+    avatarAppearances: 4,
+    avatarSecondsPerAppearance: 12,
+    avatarStartsVideo: false,
+    ...overrides,
+  })
+
+test('encendido, options.avatar lleva el avatar, el look elegido, el motor (Avatar III por defecto) y placement auto', () => {
+  const on = app.createProjectPayload(kitchenForm())
   // `avatarId` (ProjectAvatarOptions, tarea 1): create-video-project rechaza
   // un payload sin él.
-  assert.deepEqual(on.options.avatar, {
-    avatarId: 'ana-1',
-    lookId: 'look-cocina',
-    lookName: 'Ana cocina',
-    lookType: 'photo_avatar',
-    engine: 'avatar_iii',
-    appearances: 4,
-    secondsPerAppearance: 12,
-    startWithAvatar: false,
-    placement: 'auto',
+  assert.deepEqual(on.options.avatar, III_AVATAR_OPTIONS)
+  // Byte a byte (el orden de las claves también): con Avatar III y el
+  // interruptor apagado nada cambia desde la 2e. Y con el interruptor prendido
+  // tampoco: Avatar III no admite «Movimiento más expresivo».
+  assert.equal(
+    JSON.stringify(on.options.avatar),
+    JSON.stringify(III_AVATAR_OPTIONS),
+  )
+  assert.equal(
+    JSON.stringify(
+      app.createProjectPayload(kitchenForm({ avatarExpressive: true })).options
+        .avatar,
+    ),
+    JSON.stringify(III_AVATAR_OPTIONS),
+  )
+})
+
+test('viaja el motor efectivo: el que prefiere la persona si el look lo admite; si no, el primero que admite en III, IV, V', () => {
+  const engineOf = (overrides) =>
+    app.createProjectPayload(kitchenForm(overrides)).options.avatar.engine
+  // La cocina admite III y IV.
+  assert.equal(engineOf({ avatarEngine: 'avatar_iv' }), 'avatar_iv')
+  // Prefiere V y la cocina no lo admite: sale con III (el primero del orden de
+  // reemplazo), con el cuerpo de siempre, sin tocar la preferencia.
+  const fallback = kitchenForm({ avatarEngine: 'avatar_v' })
+  assert.equal(
+    JSON.stringify(app.createProjectPayload(fallback).options.avatar),
+    JSON.stringify(III_AVATAR_OPTIONS),
+  )
+  assert.equal(fallback.avatarEngine, 'avatar_v')
+  // Un look solo-IV sale con IV aunque la persona prefiera III.
+  assert.equal(
+    engineOf({
+      avatarEngine: 'avatar_iii',
+      avatar: { ...ANA_KITCHEN, supportedEngines: ['avatar_iv'] },
+    }),
+    'avatar_iv',
+  )
+  // Un gemelo digital con los tres motores sale con V si se lo prefiere.
+  assert.equal(
+    engineOf({
+      avatarEngine: 'avatar_v',
+      avatar: {
+        ...ANA_KITCHEN,
+        lookType: 'digital_twin',
+        supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'],
+      },
+    }),
+    'avatar_v',
+  )
+})
+
+test('«Movimiento más expresivo» viaja solo prendido y si el motor y el look lo admiten', () => {
+  const ALL = ['avatar_iii', 'avatar_iv', 'avatar_v']
+  const avatarOf = (overrides) =>
+    app.createProjectPayload(kitchenForm(overrides)).options.avatar
+  // IV con un look de foto: lo admite; va al final del objeto, solo en true.
+  const photoIv = avatarOf({
+    avatarEngine: 'avatar_iv',
+    avatarExpressive: true,
   })
+  assert.equal(photoIv.engine, 'avatar_iv')
+  assert.equal(photoIv.expressive, true)
+  assert.equal(Object.keys(photoIv).at(-1), 'expressive')
+  // Apagado no viaja la clave.
+  assert.equal(
+    'expressive' in
+      avatarOf({ avatarEngine: 'avatar_iv', avatarExpressive: false }),
+    false,
+  )
+  // IV con un gemelo digital o un look de estudio: no lo admite.
+  for (const lookType of ['digital_twin', 'studio_avatar']) {
+    const video = avatarOf({
+      avatarEngine: 'avatar_iv',
+      avatarExpressive: true,
+      avatar: { ...ANA_KITCHEN, lookType, supportedEngines: ALL },
+    })
+    assert.equal(video.engine, 'avatar_iv')
+    assert.equal('expressive' in video, false, lookType)
+  }
+  // V con un gemelo digital: lo admite (se traduce en el prompt).
+  const twinV = avatarOf({
+    avatarEngine: 'avatar_v',
+    avatarExpressive: true,
+    avatar: { ...ANA_KITCHEN, lookType: 'digital_twin', supportedEngines: ALL },
+  })
+  assert.equal(twinV.engine, 'avatar_v')
+  assert.equal(twinV.expressive, true)
+  // Prefiere IV pero el look solo admite III: sale con III y sin expresivo.
+  assert.equal(
+    'expressive' in
+      avatarOf({
+        avatarEngine: 'avatar_iv',
+        avatarExpressive: true,
+        avatar: { ...ANA_KITCHEN, supportedEngines: ['avatar_iii'] },
+      }),
+    false,
+  )
 })
 
 test('la demo nunca lleva avatar', () => {
@@ -287,6 +401,27 @@ test('el costo del avatar es exacto con la tarifa de Avatar III del tipo del loo
   assert.equal(avatarLine(form({ useAvatar: true, avatar: null })), undefined)
 })
 
+test('el costo total sale con el motor efectivo: IV y V a su tarifa, y el de reemplazo si el look no admite el preferido', () => {
+  const ALL = ['avatar_iii', 'avatar_iv', 'avatar_v']
+  const usd = (overrides) =>
+    app
+      .estimateCreateCost(form({ useAvatar: true, ...overrides }))
+      .find((line) => line.domain === 'avatar').estimated
+  // 3 × 10 s de foto con IV: 30 s a 2,31 US$/min = 1,155.
+  assert.equal(usd({ avatar: ANA, avatarEngine: 'avatar_iv' }), 1.155)
+  // Un gemelo digital con V: 30 s a 7,20 US$/min = 3,6; con IV, 4,83 → 2,415.
+  const twin = { ...ANA, lookType: 'digital_twin', supportedEngines: ALL }
+  assert.equal(usd({ avatar: twin, avatarEngine: 'avatar_v' }), 3.6)
+  assert.equal(usd({ avatar: twin, avatarEngine: 'avatar_iv' }), 2.415)
+  // Prefiere V y el look de Ana no lo admite: se cobra III, como sale.
+  assert.equal(usd({ avatar: ANA, avatarEngine: 'avatar_v' }), 0.495)
+  // V con un look de foto: 7,20 US$/min desde la tabla de la 2e (R-2e-2, el
+  // techo de la tarifa publicada del gemelo): 30 s son 3,6.
+  const photoV = { ...ANA, supportedEngines: ALL }
+  assert.equal(app.avatarUsd('photo_avatar', 30, 'avatar_v'), 3.6)
+  assert.equal(usd({ avatar: photoV, avatarEngine: 'avatar_v' }), 3.6)
+})
+
 test('las escenas de avatar no generan imagen: la línea de imágenes cuenta solo las libres', () => {
   const images = (value) =>
     app.estimateCreateCost(value).find((line) => line.domain === 'image')
@@ -311,17 +446,37 @@ test('los looks que ofrece un avatar: los de la orientación del formato, el pri
     app.avatarLooksFor(ana, videoFormat).map((item) => item.lookId)
   assert.deepEqual(ids('16:9'), ['look-ana', 'look-cocina'])
   assert.deepEqual(ids('9:16'), ['look-vertical'])
-  // Sin orientación conocida, cuadrado, entrenando o sin Avatar III: no se
+  // Sin orientación conocida, cuadrado, entrenando o sin ningún motor: no se
   // ofrece (el clip saldría recortado o fallaría, y el render ya estaría pago).
   const hidden = entry({}, [
     look({ preferredOrientation: undefined }),
     look({ lookId: 'cuadrado', preferredOrientation: 'square' }),
     look({ lookId: 'entrenando', status: 'processing' }),
-    look({ lookId: 'solo-iv', supportedEngines: ['avatar_iv'] }),
+    look({ lookId: 'sin-motor', supportedEngines: [] }),
   ])
   assert.deepEqual(app.avatarLooksFor(hidden, '16:9'), [])
   assert.equal(app.avatarUsability(hidden, '16:9'), 'noLook')
+  assert.equal(
+    app.lookUnfitReason(look({ supportedEngines: [] }), '16:9'),
+    'engine',
+  )
   assert.equal(app.avatarUsability(ana, '16:9'), 'usable')
+  // Desde la entrega 2e un look sirve con cualquier motor que admita y tenga
+  // tarifa (antes, solo con Avatar III): uno solo-IV se ofrece, y la elección
+  // lleva sus motores.
+  const soloIv = look({ lookId: 'solo-iv', supportedEngines: ['avatar_iv'] })
+  assert.equal(app.lookUnfitReason(soloIv, '16:9'), null)
+  const onlyIv = entry({ mainLookId: 'solo-iv' }, [soloIv])
+  assert.deepEqual(
+    app.avatarLooksFor(onlyIv, '16:9').map((item) => item.lookId),
+    ['solo-iv'],
+  )
+  assert.equal(app.avatarUsability(onlyIv, '16:9'), 'usable')
+  assert.deepEqual(app.defaultAvatarChoice(onlyIv, '16:9'), {
+    ...ANA,
+    lookId: 'solo-iv',
+    supportedEngines: ['avatar_iv'],
+  })
   assert.equal(
     app.avatarUsability(
       entry({ status: 'processing', mainLookId: null, looks: [] }),
@@ -365,6 +520,7 @@ test('la elección por defecto: el principal si sirve en el formato; si no, el p
     lookId: 'look-vic',
     lookName: 'Vic',
     lookType: 'studio_avatar',
+    supportedEngines: ['avatar_iii', 'avatar_iv'],
   })
   assert.equal(app.firstSelectableAvatar([], '16:9'), null)
 })
@@ -380,6 +536,38 @@ test('una elección vale mientras su look siga sirviendo para el formato del vid
     false,
   )
   assert.equal(app.isSelectedAvatarCurrent(ANA, [], '16:9'), false)
+})
+
+test('una elección cuyo look perdió un motor de su copia deja de valer, sin tocar el motor preferido; uno ganado no la invalida', () => {
+  // La biblioteca releída: la cocina admite III y IV.
+  const ana = entry({}, [look(), KITCHEN])
+  const library = { entries: [ana], isLoading: false, errorKey: null }
+  // La copia de la elección todavía ofrece V: deja de valer, el envío se
+  // frena con la misma regla y la preferencia de la persona sigue ahí.
+  const wide = {
+    ...ANA_KITCHEN,
+    supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'],
+  }
+  assert.equal(app.isSelectedAvatarCurrent(wide, [ana], '16:9'), false)
+  const chosen = form({
+    useAvatar: true,
+    avatar: wide,
+    avatarEngine: 'avatar_v',
+  })
+  assert.equal(app.selectedAvatarUnavailable(chosen, library), true)
+  assert.equal(chosen.avatarEngine, 'avatar_v')
+  // Elegirla de nuevo trae los motores de hoy y vuelve a valer.
+  const fresh = app.defaultAvatarChoice(
+    entry({ mainLookId: 'look-cocina' }, [look(), KITCHEN]),
+    '16:9',
+  )
+  assert.deepEqual(fresh.supportedEngines, ['avatar_iii', 'avatar_iv'])
+  assert.equal(app.isSelectedAvatarCurrent(fresh, [ana], '16:9'), true)
+  // Un motor que la biblioteca ganó no la invalida (la copia sigue incluida),
+  // y la misma copia, tampoco.
+  const narrow = { ...ANA_KITCHEN, supportedEngines: ['avatar_iii'] }
+  assert.equal(app.isSelectedAvatarCurrent(narrow, [ana], '16:9'), true)
+  assert.equal(app.isSelectedAvatarCurrent(ANA_KITCHEN, [ana], '16:9'), true)
 })
 
 test('un avatar que HeyGen ya no tiene no se ofrece aunque conserve looks listos', () => {

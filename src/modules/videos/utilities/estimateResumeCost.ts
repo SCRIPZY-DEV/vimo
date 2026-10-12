@@ -18,7 +18,10 @@ import {
 import { animationRangePlan } from '@/modules/videos/utilities/animationRangePlan'
 import { VOICE_COST_FACTORS } from '@/modules/voices/constants'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
+import { AVATAR_DEFAULT_ENGINE } from '@pipeline/types/avatar.ts'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
+import type { AvatarSpanWindow } from '@pipeline/runner/events.ts'
+import type { AvatarEngine } from '@pipeline/types/avatar.ts'
 import type { SceneSummary } from '@pipeline/types/scenes.ts'
 import type { VideoProjectStatusResult } from '@pipeline/types/video-project.ts'
 
@@ -165,23 +168,28 @@ function isAvatarScenePending(scene: SceneSummary): boolean {
 
 // Lo que falta cobrar del avatar (spec §8): los tramos de las escenas que la
 // fase va a trabajar (isAvatarScenePending), contados como los cuenta la
-// fase; antes del corte, lo que pidió Crear. Con escenas cortadas la cifra es
-// un techo (`upperBound`): la vista no expone los recibos, y una escena con un
-// pedido ya pagado se cosecha sin cobro nuevo, así que la fase puede pagar
-// menos de lo que suman todas las pendientes. Si el corte no ubicó ninguna
-// aparición (la narración no tenía frases donde entraran), la fase no tiene
-// nada que cobrar: no hay línea, ni un saldo de HeyGen que pueda frenar
-// «Reanudar».
+// fase; antes del corte, lo que pidió Crear. Cada uno con la tarifa del motor
+// con el que se cobra (entrega 2e): el de la escena si lo trae; si no, el de
+// las opciones del proyecto; si no, Avatar III, el de antes de la 2e. Con
+// escenas cortadas la cifra es un techo (`upperBound`): la vista no expone
+// los recibos, y una escena con un pedido ya pagado se cosecha sin cobro
+// nuevo, así que la fase puede pagar menos de lo que suman todas las
+// pendientes. Si el corte no ubicó ninguna aparición (la narración no tenía
+// frases donde entraran), la fase no tiene nada que cobrar: no hay línea, ni
+// un saldo de HeyGen que pueda frenar «Reanudar».
 function pendingAvatarLine(
   status: VideoProjectStatusResult,
 ): CostEstimateLine | null {
   const avatar = status.metadata.options.avatar
   if (!avatar) return null
 
+  const projectEngine = avatar.engine ?? AVATAR_DEFAULT_ENGINE
+
   if (status.scenes.length === 0)
     return avatarCostEstimate(
       avatar.lookType,
       avatar.appearances * avatar.secondsPerAppearance,
+      projectEngine,
     )
 
   const avatarScenes = status.scenes.filter(
@@ -189,14 +197,31 @@ function pendingAvatarLine(
   )
   if (avatarScenes.length === 0) return null
 
-  const pendingSpans = avatarScenes
-    .filter(isAvatarScenePending)
-    .map((scene) => ({
-      startSeconds: scene.startSeconds ?? 0,
-      endSeconds: scene.endSeconds ?? 0,
-    }))
-  const line = avatarSpansCostEstimate(avatar.lookType, pendingSpans)
-  if (!line) return null
+  // Un video tiene casi siempre un solo motor; si algún día dos escenas
+  // difieren, cada una se cuenta con su tarifa y se suman.
+  const spansByEngine = new Map<AvatarEngine, AvatarSpanWindow[]>()
+  for (const scene of avatarScenes.filter(isAvatarScenePending)) {
+    const engine = scene.avatar?.engine ?? projectEngine
+    spansByEngine.set(engine, [
+      ...(spansByEngine.get(engine) ?? []),
+      {
+        startSeconds: scene.startSeconds ?? 0,
+        endSeconds: scene.endSeconds ?? 0,
+      },
+    ])
+  }
 
-  return { ...line, upperBound: true }
+  const lines = [...spansByEngine].flatMap(([engine, spans]) => {
+    const line = avatarSpansCostEstimate(avatar.lookType, spans, engine)
+    return line ? [line] : []
+  })
+  if (lines.length === 0) return null
+
+  const [first, ...rest] = lines
+  const total = rest.reduce(
+    (sum, line) => ({ ...sum, estimated: sum.estimated + line.estimated }),
+    first,
+  )
+
+  return { ...total, upperBound: true }
 }

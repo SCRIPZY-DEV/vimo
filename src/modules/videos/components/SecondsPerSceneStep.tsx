@@ -136,6 +136,7 @@ export function SecondsPerSceneStep({
           spans={confirmation.avatarSpans}
           dropped={confirmation.avatarDropped}
           lookType={confirmation.avatarLookType}
+          engine={confirmation.avatarEngine}
         />
 
         {!animatesEntireDuration && (

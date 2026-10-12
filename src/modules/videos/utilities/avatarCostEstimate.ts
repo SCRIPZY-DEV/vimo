@@ -7,16 +7,20 @@ import {
 import type { CostEstimateLine } from '@/modules/common/types/credits'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { AvatarSpanWindow } from '@pipeline/runner/events.ts'
-import type { AvatarLookType } from '@pipeline/types/avatar.ts'
+import type { AvatarEngine, AvatarLookType } from '@pipeline/types/avatar.ts'
 
 // Decimales del estimado en la UI: solo sacan el ruido de la coma flotante.
 const AVATAR_USD_DECIMALS = 6
 
-// Tarifa de HeyGen en USD por minuto para un tipo de look con el motor de
-// Vimo. La tabla y la fórmula viven en pipeline/types/avatar.ts: acá solo se
-// fija el motor. null = el motor no aplica a ese tipo de look.
-export function avatarRatePerMinute(lookType: AvatarLookType): number | null {
-  return avatarUsdPerMinute(AVATAR_DEFAULT_ENGINE, lookType)
+// Tarifa de HeyGen en USD por minuto para un tipo de look y un motor (desde la
+// entrega 2e, el que eligió la persona; sin motor, AVATAR_DEFAULT_ENGINE). La
+// tabla y la fórmula viven en pipeline/types/avatar.ts. null = el motor no
+// aplica a ese tipo de look.
+export function avatarRatePerMinute(
+  lookType: AvatarLookType,
+  engine: AvatarEngine = AVATAR_DEFAULT_ENGINE,
+): number | null {
+  return avatarUsdPerMinute(engine, lookType)
 }
 
 // Dólares por `seconds` de avatar, exactos (spec §9: segundos / 60 × tarifa),
@@ -28,8 +32,9 @@ export function avatarRatePerMinute(lookType: AvatarLookType): number | null {
 export function avatarUsd(
   lookType: AvatarLookType,
   seconds: number,
+  engine: AvatarEngine = AVATAR_DEFAULT_ENGINE,
 ): number | null {
-  const usd = estimateAvatarUsd(seconds, AVATAR_DEFAULT_ENGINE, lookType)
+  const usd = estimateAvatarUsd(seconds, engine, lookType)
   if (usd === null) return null
 
   return Number(usd.toFixed(AVATAR_USD_DECIMALS))
@@ -47,10 +52,11 @@ export function createAvatarSeconds(form: CreateFormValue): number {
 export function avatarCostEstimate(
   lookType: AvatarLookType,
   seconds: number,
+  engine: AvatarEngine = AVATAR_DEFAULT_ENGINE,
 ): CostEstimateLine | null {
   if (seconds <= 0) return null
 
-  const usd = avatarUsd(lookType, seconds)
+  const usd = avatarUsd(lookType, seconds, engine)
   if (usd === null) return null
 
   return { domain: 'avatar', providerId: 'heygen', unit: 'usd', estimated: usd }
@@ -76,6 +82,7 @@ export function avatarSpansSeconds(spans: readonly AvatarSpanWindow[]): number {
 export function avatarSpansCostEstimate(
   lookType: AvatarLookType,
   spans: readonly AvatarSpanWindow[],
+  engine: AvatarEngine = AVATAR_DEFAULT_ENGINE,
 ): CostEstimateLine | null {
-  return avatarCostEstimate(lookType, avatarSpansSeconds(spans))
+  return avatarCostEstimate(lookType, avatarSpansSeconds(spans), engine)
 }

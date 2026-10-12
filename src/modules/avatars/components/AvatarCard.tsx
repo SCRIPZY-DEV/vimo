@@ -7,11 +7,9 @@ import { cn } from '@/modules/common/utilities/cn'
 import { avatarsApi } from '@/modules/avatars/api'
 import { AvatarDeleteMenu } from '@/modules/avatars/components/AvatarDeleteMenu'
 import { AvatarTrainingStatus } from '@/modules/avatars/components/AvatarTrainingStatus'
+import { LookEngineChips } from '@/modules/avatars/components/LookEngineChips'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
-import {
-  CARD_SIDE_LOOKS,
-  VIMO_AVATAR_ENGINE,
-} from '@/modules/avatars/constants'
+import { CARD_SIDE_LOOKS } from '@/modules/avatars/constants'
 import { useAvatarDeleteMenu } from '@/modules/avatars/hooks/useAvatarDeleteMenu'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { useHoverIntent } from '@/modules/avatars/hooks/useHoverIntent'
@@ -47,7 +45,8 @@ interface AvatarCardProps {
 // compacto: el nombre, cuántos looks tiene y el botón de eliminar
 // (`AvatarDeleteMenu`, entrega 2d), que despliega sobre la imagen «Eliminar de
 // la lista» y, en un avatar propio, «Eliminar permanentemente de HeyGen»; en
-// otra fila el tipo y solo el motor que Vimo usa (los del look principal);
+// otra fila el tipo y los motores que admite (los del look principal, una
+// pastilla por cada uno: `LookEngineChips`, entrega 2e);
 // mientras entrena, el estado del entrenamiento, y si falló, el motivo. La
 // tarjeta llena la fila de la grilla (`h-full`) con el contenido arriba y sin
 // empujar nada hacia abajo: solo junto a una tarjeta más alta de su fila queda
@@ -99,11 +98,9 @@ export function AvatarCard({
   const mainLook = avatar.looks.find(
     (look) => look.lookId === avatar.mainLookId,
   )
-  const supportsVimo =
-    mainLook?.supportedEngines.includes(VIMO_AVATAR_ENGINE) ?? false
   // Mientras entrena (o si falló) todavía no se saben sus motores: «No
   // compatible» solo se afirma de un avatar listo.
-  const unsupported = avatar.status === 'ready' && !supportsVimo
+  const ready = avatar.status === 'ready'
   // A la derecha, los primeros otros looks con vista previa en disco (el
   // sidecar baja la del principal y las de los dos siguientes) o que se están
   // generando; con uno solo, ocupa todo el alto, sin huecos.
@@ -276,23 +273,14 @@ export function AvatarCard({
           </div>
         </div>
 
-        {(mainLook || unsupported) && (
+        {(mainLook || ready) && (
           <div className="flex flex-wrap gap-1">
             {mainLook && (
               <span className="rounded bg-muted px-1.5 py-0.5 font-display text-[10px] font-bold text-muted-foreground">
                 {t(`avatars.types.${mainLook.lookType}`)}
               </span>
             )}
-            {supportsVimo && (
-              <span className="rounded bg-saffron/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-foreground">
-                {t(`avatars.engines.${VIMO_AVATAR_ENGINE}`)}
-              </span>
-            )}
-            {unsupported && (
-              <span className="rounded bg-destructive/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-foreground">
-                {t('avatars.tarjeta.noCompatible')}
-              </span>
-            )}
+            <LookEngineChips look={mainLook} ready={ready} />
           </div>
         )}
 

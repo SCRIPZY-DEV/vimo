@@ -13,7 +13,11 @@ import type {
   NarrationMode,
   ProbeTtsReason,
 } from '@pipeline/types/video-project.ts'
-import type { AvatarLookType, AvatarSummary } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarEngine,
+  AvatarLookType,
+  AvatarSummary,
+} from '@pipeline/types/avatar.ts'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -116,6 +120,9 @@ export interface SceneConfirmationView {
   // El tipo del look elegido: con su tarifa, la línea suma lo que cobra HeyGen
   // por esos tramos (la cifra real, no la de Crear).
   avatarLookType?: AvatarLookType
+  // El motor del proyecto (entrega 2e, R-2e-12): con el tipo de look da la
+  // tarifa. Ausente en una pausa de antes de la 2e: Avatar III.
+  avatarEngine?: AvatarEngine
 }
 
 // La cuenta del diálogo de cantidad con avatar (countStepSceneEstimate): las
@@ -220,6 +227,10 @@ export interface CreateTask {
   // Tipo del look del avatar pedido (options.avatar): la tarifa del costo real
   // en la pausa de escenas.
   avatarLookType?: AvatarLookType
+  // El motor del avatar pedido (options.avatar, entrega 2e): con el tipo de
+  // look, la tarifa del costo real en la pausa. Una tarea guardada antes de la
+  // 2e no lo trae y la pausa cobra a la tarifa de Avatar III.
+  avatarEngine?: AvatarEngine
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -253,6 +264,8 @@ export interface ProjectRunOptions {
   // El proyecto tiene avatar presentador (de project.json al reanudar).
   hasAvatar?: boolean
   avatarLookType?: AvatarLookType
+  // El motor del avatar (entrega 2e): su tarifa da el costo de la pausa.
+  avatarEngine?: AvatarEngine
   // Apariciones que no entraron, del estado rearmado desde el disco: la nota
   // del progreso aparece aunque la corrida no vuelva a cortar.
   avatarDropped?: number
@@ -319,7 +332,7 @@ export interface SelectedCharacter {
 // El avatar presentador elegido en el formulario (spec §9, con el cambio de
 // dirección del dueño del 2026-10-10): un avatar de la biblioteca y UNO de sus
 // looks —el escenario con el que sale, por defecto el principal—, ya
-// comprobado contra el motor de Vimo y la orientación del formato del video
+// comprobado contra los motores y la orientación del formato del video
 // (utilities/selectableAvatar.ts). Lo que viaja en `options.avatar` sale de
 // acá; `name` es solo para la persona.
 export interface SelectedAvatar {
@@ -330,11 +343,15 @@ export interface SelectedAvatar {
   lookId: string
   lookName: string
   lookType: AvatarLookType
+  // Los motores que admite el look (entrega 2e, §21.3), copiados al elegirlo:
+  // con ellos el formulario, el costo y el envío derivan el motor con el que
+  // sale (selectedAvatarEngine) sin volver a leer la biblioteca.
+  supportedEngines: AvatarEngine[]
 }
 
 // Si un avatar de la biblioteca sirve para un video en este formato y, si
-// no, por qué: entrena, falló o no tiene ningún look listo con Avatar III en
-// la orientación del formato.
+// no, por qué: entrena, falló o no tiene ningún look listo con algún motor
+// (desde la entrega 2e; antes, con Avatar III) en la orientación del formato.
 export type AvatarUsability = 'usable' | 'training' | 'failed' | 'noLook'
 
 // Lo que Crear lee de la biblioteca de avatares para validar la elección del
@@ -393,14 +410,18 @@ export interface CreateFormValue {
   // Avatar presentador (ADR-0057, spec §9): el interruptor de la tarjeta, el
   // avatar y el look elegidos (null = ninguno todavía) y cuántas veces y
   // cuánto sale. Con el interruptor apagado no viaja nada; la elección se
-  // conserva para volver a encenderlo. Sin selector de motor: es
-  // AVATAR_DEFAULT_ENGINE.
+  // conserva para volver a encenderlo.
   useAvatar: boolean
   avatar: SelectedAvatar | null
   avatarAppearances: number
   avatarSecondsPerAppearance: number
   // La primera aparición abre el video.
   avatarStartsVideo: boolean
+  // Entrega 2e (§21.3): el motor que prefiere la persona (si el look no lo
+  // admite, sale con el primero que admite: avatarEngineFor) y «Movimiento más
+  // expresivo», que solo viaja si el motor y el look lo admiten.
+  avatarEngine: AvatarEngine
+  avatarExpressive: boolean
   imageProvider: ImageProviderId
   imageQuality: string
   voice: SelectedVoice | null

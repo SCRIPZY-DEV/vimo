@@ -14,7 +14,11 @@ import type {
   VideoCreditsResult,
 } from '@pipeline/types/animation.ts'
 import type { AnimationUnit } from '@pipeline/animation/planner.ts'
-import type { AvatarBalanceResult } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarBalanceResult,
+  AvatarRenderScenesPayload,
+  AvatarSceneMotionInput,
+} from '@pipeline/types/avatar.ts'
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 
 // Tipos de las vistas de biblioteca (Library, Player, Progress, Editor).
@@ -151,10 +155,38 @@ export interface SceneAvatarRendering {
   queued?: boolean
 }
 
-// Qué ofrece el panel para una escena de avatar (spec §11.1 y §3.3): generarla
-// por primera vez (planeada) o regenerarla (fallida, desactualizada o lista
-// sin clip). Una lista y al día no ofrece nada.
-export type AvatarSceneAction = 'generate' | 'regenerate'
+// Qué ofrece el panel para una escena de avatar (spec §11.1, §3.3 y §21.4):
+// generarla por primera vez (planeada), regenerarla (fallida, desactualizada o
+// lista sin clip) o, desde la entrega 2e, volver a generar una lista y al día
+// (`retake`: un render nuevo pagado aunque nada cambie; el clip actual queda
+// hasta que el nuevo esté listo). «Regenerar todos» no cuenta `retake`.
+export type AvatarSceneAction = 'generate' | 'regenerate' | 'retake'
+
+// Lo que viaja con el pedido del avatar además de las escenas (entrega 2e,
+// §21.4): las listas que la persona pidió regenerar y los ajustes de
+// movimiento de la escena elegida. Mismos campos que el payload del sidecar.
+export type AvatarRenderRequestOptions = Pick<
+  AvatarRenderScenesPayload,
+  'regenerateSceneIds' | 'motion'
+>
+
+// Un pedido del avatar desde el editor: las escenas y lo que viaja con ellas.
+// Lo guarda la confirmación abierta hasta que se paga.
+export interface AvatarRenderRequest extends AvatarRenderRequestOptions {
+  sceneIds: number[]
+}
+
+// El movimiento de una escena de V o IV como lo edita su panel (entrega 2e,
+// §21.4): el prompt tal como lo dejó la persona y «más expresivo».
+export type AvatarMotionDraft = Omit<AvatarSceneMotionInput, 'sceneId'>
+
+// El borrador del movimiento junto con lo guardado en la escena cuando se
+// escribió: si lo guardado cambia (la escena se generó o se releyó), el
+// borrador ya no vale y el panel vuelve a mostrar lo guardado.
+export interface AvatarMotionEdit {
+  base: AvatarMotionDraft
+  draft: AvatarMotionDraft
+}
 
 // Cómo terminó un «Generar» de la confirmación del avatar (entrega 2d):
 // arrancó la tarea; el saldo releído no alcanzó y la confirmación sigue
@@ -166,22 +198,27 @@ export type AvatarConfirmOutcome = 'started' | 'blocked' | 'skipped'
 // La confirmación abierta de pagar el avatar de unas escenas desde el editor
 // (entrega 2d, useAvatarRenderConfirmation): cuántas, lo que cuestan (null si
 // el motor no tiene tarifa), el saldo de avatares leído (null mientras llega),
-// si no alcanza y si se está releyendo antes de pagar.
+// si no alcanza y si se está releyendo antes de pagar. `retake`: vuelve a
+// generar una lista (entrega 2e), con los textos de «Regenerar».
 export interface AvatarRenderConfirmationState {
   count: number
   cost: CostEstimateLine | null
   balance: AvatarBalanceResult | null
   insufficient: boolean
   checking: boolean
+  retake: boolean
 }
 
 // La tarea del editor que corre `avatar-render-scenes` (entrega 2d): una a la
 // vez y exclusiva con las demás del proyecto. `failures` guarda el código de
-// cada escena que falló en esta corrida, para el aviso del final.
+// cada escena que falló en esta corrida, para el aviso del final;
+// `regenerateSceneIds`, las listas que se pidió regenerar (entrega 2e): si una
+// falla, conserva su clip anterior y el aviso lo dice.
 export interface EditorAvatarRenderState {
   requestId: string
   jobId: string | null
   sceneIds: number[]
+  regenerateSceneIds: number[]
   failures: Record<number, string>
   cancelled?: boolean
 }

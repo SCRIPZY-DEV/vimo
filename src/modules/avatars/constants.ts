@@ -1,6 +1,6 @@
 import { Ban, UserCheck, UserX } from 'lucide-react'
 import type { AvatarLookFormat } from '@pipeline/avatar/look-orientation.ts'
-import type { AvatarAspectRatio, AvatarEngine } from '@pipeline/types/avatar.ts'
+import type { AvatarAspectRatio } from '@pipeline/types/avatar.ts'
 
 export const AvatarsRoutes = {
   avatars: '/avatars',
@@ -91,10 +91,15 @@ export const AVATAR_ASPECT_RATIO_FRAME_CLASSES: Record<
   '5:4': 'h-[22px] w-7',
 }
 
-// El único motor de HeyGen con el que Vimo genera por ahora: espejo de la
-// decisión del dueño del 2026-10-09 (la entrega 2 la lleva al sidecar). Las
-// tarjetas muestran solo esta etiqueta, o «No compatible con Vimo» si falta.
-export const VIMO_AVATAR_ENGINE = 'avatar_iii' satisfies AvatarEngine
+// Las dos medidas de las pastillas de motor (`LookEngineChips`, entrega 2e):
+// la de las fichas y la tarjeta, y la del encabezado del panel, un punto más
+// grande como su chip de tipo. Los motores que admite un look salen de
+// `AVATAR_ENGINE_CHOICES` (pipeline/types/avatar.ts), en el orden V, IV, III.
+export const ENGINE_CHIP_STYLES = {
+  small: { group: 'gap-1', chip: 'px-1.5 text-[10px]' },
+  medium: { group: 'gap-1.5', chip: 'px-2 text-[11px]' },
+} as const
+export type EngineChipSize = keyof typeof ENGINE_CHIP_STYLES
 
 // Los tres puntos de la tarjeta «Antes de crear tu avatar» del diálogo de la
 // foto (lo que el proveedor no permite), en el orden en que se leen.

@@ -20,12 +20,16 @@ import {
 import type { AvatarScenePhase } from '../runner/events.ts'
 import { PipelineFailure, toPipelineFailure } from '../runner/failure.ts'
 import {
+  AVATAR_EXPRESSIVE_LEVEL,
+  AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
   AVATAR_POLL_INITIAL_MS,
   AVATAR_POLL_MAX_MS,
   AVATAR_RENDER_DEADLINE_MS,
+  avatarMotionSupport,
   avatarSceneSpan,
   estimateAvatarUsd,
   type AvatarAttempt,
+  type AvatarMotionSupport,
   type SceneAvatar,
 } from '../types/avatar.ts'
 import type { Scene } from '../types/scenes.ts'
@@ -108,6 +112,22 @@ import {
 // así: nunca le gana al exacto, y una `failed` no se elige (cerraría el
 // intento y se pagaría otro render). Un renombre del video no cambia nada: se
 // busca y se repite el título guardado.
+// El movimiento (entrega 2e, diseño §21.2): un pedido nuevo lleva el de la
+// escena que el motor y el look admiten (`avatarRequestMotion`): el prompt
+// recortado y, con «más expresivo», `expressiveness: 'high'`. Los dos y la
+// toma entran en la huella del pedido solo cuando van (los pedidos de Avatar
+// III y los recibos de antes no cambian) y se guardan en el recibo, así cada
+// repetición manda el mismo cuerpo. Si HeyGen rechaza el movimiento para ese
+// look (`avatar_motion_unsupported`, un 400 que no se cobra), el intento se
+// cierra, la escena queda `motionUnsupported` y el carril pide enseguida el
+// pedido sin movimiento (otra huella, otra clave).
+// Regenerar una escena lista (`forceNewRender`, entrega 2e, diseño §21.4): el
+// carril no toma el atajo de «lista con el mismo pedido» y la escena conserva
+// su clip de hoy hasta que el nuevo está listo; si el render nuevo falla (o la
+// cuenta pausa), vuelve a su estado listo anterior con los recibos y los
+// ajustes nuevos. Que sea un render NUEVO lo decide la toma de la escena, que
+// la orquestación sube antes (render-scenes.ts): sin ella, un recibo
+// `succeeded` del mismo pedido se cosecharía gratis.
 
 // Cada consulta de estado espera un 50 % más que la anterior, hasta el tope.
 const POLL_GROWTH = 1.5
@@ -146,12 +166,185 @@ const FINAL_REJECTION_CODES: ReadonlySet<string> = new Set([
   'avatar_moderation_rejected',
   'avatar_look_unsupported',
 ])
+// Lo que describe el clip de una escena lista, además de `status`: lo que
+// vuelve a su lugar si la regeneración falla (`forceNewRender`).
+const READY_STATE_FIELDS = [
+  'clipFile',
+  'normalizedSeconds',
+  'renderHash',
+  'narrationVersion',
+  'usdEstimated',
+] as const
+type ReadyStateField = (typeof READY_STATE_FIELDS)[number]
 
 // Un intento cerrado por un rechazo que repetir no arregla.
 export function isFinalRejection(attempt: AvatarAttempt): boolean {
   if (attempt.state !== 'failed' || !attempt.errorCode) return false
 
   return FINAL_REJECTION_CODES.has(attempt.errorCode)
+}
+
+// Un campo del estado listo, tal como estaba en `previous` (o sin él, si no
+// estaba).
+function copyReadyField<K extends ReadyStateField>(
+  target: SceneAvatar,
+  previous: SceneAvatar,
+  field: K,
+): void {
+  if (previous[field] === undefined) {
+    delete target[field]
+    return
+  }
+
+  target[field] = previous[field]
+}
+
+// La escena que se regeneraba vuelve a su estado listo de antes (`previous`):
+// su clip y lo que lo describe, sin el error. Conserva lo demás de `avatar`:
+// los recibos, los ajustes del movimiento y la toma.
+function withPreviousReadyState(
+  avatar: SceneAvatar,
+  previous: SceneAvatar,
+): SceneAvatar {
+  const restored: SceneAvatar = { ...avatar, status: 'ready' }
+  delete restored.errorCode
+  for (const field of READY_STATE_FIELDS)
+    copyReadyField(restored, previous, field)
+
+  return restored
+}
+
+// El movimiento de un pedido a HeyGen (entrega 2e, §21.2): lo que va en el
+// cuerpo además del look, el audio y el motor. Vacío = el cuerpo de antes.
+export interface AvatarRequestMotion {
+  motionPrompt?: string
+  expressiveness?: typeof AVATAR_EXPRESSIVE_LEVEL
+}
+
+// El movimiento que lleva un pedido NUEVO de la escena: `motionPrompt`
+// recortado, si no queda vacío, solo si el motor y el look lo admiten
+// (avatarMotionSupport); `expressiveness: 'high'` solo con «más expresivo» y si
+// lo admiten (IV con un look de foto). Nada si HeyGen ya rechazó el movimiento
+// con este look (`motionUnsupported`). Avatar III: nada, siempre.
+// Con un motor que admite prompt pero no `expressiveness` (Avatar V), «más
+// expresivo» sobre un prompt de la persona viaja dentro del prompt
+// (R-2e-14): el suyo y, al final, AVATAR_EXPRESSIVE_PROMPT_SUFFIX; si la
+// persona lo dejó vacío, la frase sola (ronda 1 de WP-U, m8). Ese es el que
+// entra en la huella y queda en el recibo; el de la escena no cambia. El
+// automático ya lo escribe Vimo con el tono (R-2e-10): no la lleva.
+export function avatarRequestMotion(avatar: SceneAvatar): AvatarRequestMotion {
+  if (avatar.motionUnsupported === true) return {}
+
+  const support = avatarMotionSupport(avatar.engine, avatar.lookType)
+  const prompt = requestMotionPrompt(avatar, support)
+  const motion: AvatarRequestMotion = {}
+  if (support.motionPrompt && prompt) motion.motionPrompt = prompt
+  if (support.expressiveness && avatar.expressive === true)
+    motion.expressiveness = AVATAR_EXPRESSIVE_LEVEL
+
+  return motion
+}
+
+// El prompt que viaja: el de la escena, recortado (vacío, ninguno); con «más
+// expresivo», un prompt de la persona y un motor que no acepta
+// `expressiveness` (V), con AVATAR_EXPRESSIVE_PROMPT_SUFFIX al final, o la
+// frase sola si el suyo está vacío (R-2e-14).
+function requestMotionPrompt(
+  avatar: SceneAvatar,
+  support: AvatarMotionSupport,
+): string {
+  const prompt =
+    typeof avatar.motionPrompt === 'string' ? avatar.motionPrompt.trim() : ''
+  if (avatar.expressive !== true || support.expressiveness) return prompt
+  if (avatar.motionSource !== 'user') return prompt
+  if (!prompt) return AVATAR_EXPRESSIVE_PROMPT_SUFFIX
+
+  return `${prompt} ${AVATAR_EXPRESSIVE_PROMPT_SUFFIX}`
+}
+
+// El movimiento que salió (y vuelve a salir) en el POST de un intento: el
+// guardado en su recibo, aunque la escena haya cambiado después. Un recibo de
+// antes de la 2e, o uno de Avatar III, no tiene ninguno: su cuerpo, el de
+// siempre.
+function sentMotion(attempt: AvatarAttempt): AvatarRequestMotion {
+  const motion: AvatarRequestMotion = {}
+  if (typeof attempt.motionPrompt === 'string' && attempt.motionPrompt)
+    motion.motionPrompt = attempt.motionPrompt
+  if (attempt.expressiveness === AVATAR_EXPRESSIVE_LEVEL)
+    motion.expressiveness = AVATAR_EXPRESSIVE_LEVEL
+
+  return motion
+}
+
+// HeyGen rechazó el movimiento de un intento que lo llevaba: el pedido sin
+// movimiento es otro y puede salir. Uno que no llevaba movimiento y recibe el
+// mismo código falla como cualquier rechazo (repetirlo no cambiaría nada).
+function isMotionRejection(
+  failure: PipelineFailure,
+  attempt: AvatarAttempt,
+): boolean {
+  if (failure.code !== 'avatar_motion_unsupported') return false
+
+  const motion = sentMotion(attempt)
+  return Boolean(motion.motionPrompt || motion.expressiveness)
+}
+
+// Lo que la huella del pedido toma de la corrida y no de la escena.
+export interface AvatarRequestRun {
+  format: VideoFormat
+  narrationSha256: string
+  narrationVersion: number
+}
+
+// La huella del pedido de un avatar con su corte de audio ya calculado: look,
+// motor, formato, resolución, corte y narración, más el movimiento que
+// llevaría (avatarRequestMotion) y su toma.
+function requestHashOf(
+  avatar: SceneAvatar,
+  audioCutHash: string,
+  run: AvatarRequestRun,
+): string {
+  return avatarRequestHash({
+    lookId: avatar.lookId,
+    engine: avatar.engine,
+    aspectRatio: run.format,
+    resolution: HEYGEN_VIDEO_RESOLUTION,
+    audioCutHash,
+    narrationVersion: run.narrationVersion,
+    ...avatarRequestMotion(avatar),
+    take: avatar.take,
+  })
+}
+
+// El corte de audio del tramo de una escena, en cuadros de 25 fps.
+function audioCutHashOf(
+  span: { startSeconds: number; endSeconds: number },
+  narrationSha256: string,
+): string {
+  return avatarAudioCutHash({
+    narrationSha256,
+    startFrame: frameBoundary(span.startSeconds),
+    endFrame: frameBoundary(span.endSeconds),
+  })
+}
+
+// La huella del pedido ACTUAL de una escena de avatar —la misma con la que el
+// carril busca sus recibos y pide uno nuevo—, o undefined si la escena no se
+// puede pedir (sin tramo de un cuadro o sin look). Sirve para saber, antes de
+// correr el carril, si ese pedido ya tiene un recibo (por ejemplo, uno
+// `succeeded` antes de regenerar una escena lista).
+export function avatarSceneRequestHash(
+  scene: Scene,
+  run: AvatarRequestRun,
+): string | undefined {
+  const span = avatarSceneSpan(scene)
+  if (!span || !scene.avatar?.lookId) return undefined
+
+  return requestHashOf(
+    scene.avatar,
+    audioCutHashOf(span, run.narrationSha256),
+    run,
+  )
 }
 
 export interface AvatarLaneEvents {
@@ -200,6 +393,13 @@ export interface AvatarLaneOptions {
   // repetir no arregla (`isFinalRejection`). Sin él (la fase), ese pedido no
   // se repite solo: la escena queda fallida con ese código y se avisa.
   retryFinalRejection?: boolean
+  // true = la persona pidió regenerar esta escena lista (entrega 2e, §21.4):
+  // no se toma el atajo de «lista con el mismo pedido», y una escena lista
+  // conserva su clip hasta que el nuevo está listo; si el render nuevo falla
+  // (o la cuenta pausa), vuelve a su estado listo anterior con los recibos y
+  // los ajustes nuevos, y el resultado igual sale `failed` con su código. La
+  // toma que hace que el pedido sea nuevo la sube quien llama.
+  forceNewRender?: boolean
   signal: AbortSignal
   events: AvatarLaneEvents
   clock?: AvatarLaneClock
@@ -404,6 +604,12 @@ export async function renderAvatarScene(
 
   const attempts = copyAttempts(scene.avatar.attempts ?? [])
   let avatar: SceneAvatar = { ...scene.avatar, attempts }
+  // La escena lista que se regenera (forceNewRender): su estado de hoy, que
+  // sigue en disco hasta que el clip nuevo esté listo y vuelve si falla.
+  const previous =
+    options.forceNewRender && scene.avatar.status === 'ready'
+      ? scene.avatar
+      : undefined
   const snapshot = (): SceneAvatar => ({
     ...avatar,
     attempts: copyAttempts(attempts),
@@ -416,11 +622,16 @@ export async function renderAvatarScene(
       phase,
       Math.max(0, Math.round((clock.now() - startedAt) / 1000)),
     )
+  // La escena no quedó lista con un clip nuevo: falla con su código o, si se
+  // regeneraba una lista, vuelve a su clip de antes (el código sale igual en
+  // el resultado).
   const failed = async (
     code: string,
     failure?: PipelineFailure,
   ): Promise<AvatarLaneResult> => {
-    avatar = { ...avatar, status: 'failed', errorCode: code }
+    avatar = previous
+      ? withPreviousReadyState(avatar, previous)
+      : { ...avatar, status: 'failed', errorCode: code }
     await checkpoint()
     return {
       outcome: 'failed',
@@ -446,19 +657,14 @@ export async function renderAvatarScene(
   const endFrame = frameBoundary(span.endSeconds)
   const startSeconds = startFrame / ANIMATION_FPS
   const endSeconds = endFrame / ANIMATION_FPS
-  const audioCutHash = avatarAudioCutHash({
-    narrationSha256: options.narrationSha256,
-    startFrame,
-    endFrame,
-  })
-  const requestHash = avatarRequestHash({
-    lookId: avatar.lookId,
-    engine: avatar.engine,
-    aspectRatio: options.format,
-    resolution: HEYGEN_VIDEO_RESOLUTION,
-    audioCutHash,
-    narrationVersion: options.narrationVersion,
-  })
+  const audioCutHash = audioCutHashOf(span, options.narrationSha256)
+  // La huella del pedido actual (con el movimiento y la toma de la escena,
+  // entrega 2e). Cambia una sola vez, si HeyGen rechaza el movimiento: la
+  // escena queda `motionUnsupported` y el pedido actual pasa a ser el que va
+  // sin él (`post`).
+  let requestHash = requestHashOf(avatar, audioCutHash, options)
+  // El movimiento no entra en la huella del render: editarlo no deja el clip
+  // desactualizado (regenerar es decisión de la persona).
   const renderHash = avatarRenderHash({
     lookId: avatar.lookId,
     engine: avatar.engine,
@@ -503,9 +709,10 @@ export async function renderAvatarScene(
   }
 
   // 2. Ya está listo con este mismo tramo, look, motor y narración: nada que
-  //    pagar ni bajar.
+  //    pagar ni bajar. Salvo que la persona haya pedido regenerarlo.
   const currentClip = sceneAvatarClipFile(paths, avatar)
   if (
+    !options.forceNewRender &&
     avatar.status === 'ready' &&
     avatar.renderHash === renderHash &&
     currentClip &&
@@ -588,7 +795,7 @@ export async function renderAvatarScene(
     }
 
     // El mismo cuerpo que el POST original: nada se guarda antes y ni la
-    // clave ni el título cambian.
+    // clave, ni el título, ni el movimiento (el del recibo) cambian.
     const title = sentTitleOf(index)
     const key = keyOf(index)
     progress('render')
@@ -603,6 +810,7 @@ export async function renderAvatarScene(
         aspectRatio: options.format,
         title,
         idempotencyKey: avatarIdempotencyKey(options.projectId, sceneId, key),
+        ...sentMotion(attempt),
       })
     } catch (error) {
       if (signal.aborted) {
@@ -639,6 +847,19 @@ export async function renderAvatarScene(
       // deduplicación estándar, HeyGen habría devuelto la respuesta del
       // original (un supuesto a confirmar con HeyGen real, ADR-0057).
       closeRejectedAttempt(index, failure)
+      if (isMotionRejection(failure, attempt)) {
+        // HeyGen no admite el movimiento con este look (entrega 2e, §21.2) y
+        // no lo cobró: la escena queda sin movimiento y el pedido actual pasa
+        // a ser el que va sin él (otra huella, otra clave), que el bucle pide
+        // enseguida. El fallo absorbido va al log de diagnóstico, sin el
+        // prompt (heygenFailure no copia el texto de HeyGen).
+        avatar = { ...avatar, motionUnsupported: true }
+        requestHash = requestHashOf(avatar, audioCutHash, options)
+        await checkpoint()
+        events.onRecoveredFailure(sceneId, failure)
+        return undefined
+      }
+
       await checkpoint()
       // Por el código y no con isInsufficientCreditsFailure: ese predicado de
       // tipo dejaría `failure` como `never` después del guard. Con saldo, la
@@ -898,6 +1119,9 @@ export async function renderAvatarScene(
         return failed(failure.code, failure)
       }
     }
+    // El movimiento que lleva el POST queda en el recibo (sale del mismo
+    // avatar que `requestHash`): cada repetición manda ese, aunque la escena
+    // cambie después. Sin movimiento, el recibo de antes de la 2e.
     attempts.push({
       hash: requestHash,
       state: 'creating',
@@ -905,13 +1129,16 @@ export async function renderAvatarScene(
       lookId: avatar.lookId,
       audioAssetId,
       createdAt: new Date(clock.now()).toISOString(),
+      ...avatarRequestMotion(avatar),
     })
     // El título va en la intención, con el nombre del video de hoy: el POST
     // lleva este mismo. Se arma con el intento ya anotado porque su marca
     // sale de la clave, que cuenta los intentos fallidos anteriores.
     const intent = attempts.length - 1
     attempts[intent] = { ...attempts[intent], title: namedTitleOf(intent) }
-    if (usdEstimated !== null) avatar = { ...avatar, usdEstimated }
+    // Una lista que se regenera conserva el estimado de su clip de hoy: el del
+    // nuevo llega con él (finish).
+    if (usdEstimated !== null && !previous) avatar = { ...avatar, usdEstimated }
     // Si esta escritura falla, sale sin mandar nada: sin intención no hay POST.
     await checkpoint()
     const result = await post(intent)

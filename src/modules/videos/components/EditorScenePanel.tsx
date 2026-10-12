@@ -176,8 +176,11 @@ export function EditorScenePanel({
         </div>
       )}
 
+      {/* La `key` de la escena: el borrador del movimiento, la confirmación y
+          su foco son de ESTA escena y no pasan a la siguiente (entrega 2e). */}
       {!imageEditable && (
         <EditorAvatarSceneActions
+          key={scene.id}
           projectId={projectId}
           scene={scene}
           scenes={scenes}
