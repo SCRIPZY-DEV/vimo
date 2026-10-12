@@ -12,6 +12,15 @@ export { ZOOM_MAX, ZOOM_PAN } from '../../animation/timing.ts'
 // Escenas por chunk: evita el pthread_create EAGAIN de FFmpeg con >100 inputs.
 export const CHUNK_SIZE = 30
 
+// Chunks en paralelo según el equipo del usuario (render-concurrency.ts). Un
+// FFmpeg de chunk ya ocupa ~5 núcleos y llega a ~1,6 GB de RAM (medido en un
+// M4 con 30 escenas 1080p): un segundo proceso solo acelera si sobran núcleos,
+// y jamás debe dejar sin memoria a un equipo de gama baja.
+export const RENDER_CORES_PER_PROCESS = 6
+export const RENDER_MEMORY_PER_PROCESS_BYTES = 2 * 1024 ** 3
+export const RENDER_MEMORY_SHARE = 0.5
+export const RENDER_MAX_PARALLEL_CHUNKS = 3
+
 // Watchdog de ESTANCAMIENTO: FFmpeg sano escribe progreso cada ~500ms; si no
 // emite NINGÚN byte en este tiempo está muerto. No se mata al primer disparo:
 // un wake-up tras suspend congela los timers y parece un cuelgue — período de
@@ -20,10 +29,22 @@ export const STALL_TIMEOUT_MS = 20 * 60_000
 export const STALL_GRACE_MS = 90_000
 export const STALL_CHECK_MS = 60_000
 
-// Reparto del progreso global, reponderado con TIEMPOS MEDIDOS del origen
-// (con la mezcla final en veryfast, chunks y mezcla quedan parejos).
-export const CHUNKS_PROGRESS_SHARE = 0.45
-export const CONCAT_PROGRESS_SHARE = 0.05
+// Reparto de la barra entre chunks / concat / mezcla final (el resto), con
+// TIEMPOS MEDIDOS en la app (M4, 2026-10-12). Recodificando, la mezcla pesa
+// ~30 % (15 min de video: chunks 4 min 45 s, mezcla 2 min); copiando el video
+// pesa ~6 % (11 min: chunks 3 min 23 s, mezcla 14 s). El concat copia: segundos.
+export interface RenderProgressShares {
+  chunks: number
+  concat: number
+}
+export const REENCODE_PROGRESS_SHARES: RenderProgressShares = {
+  chunks: 0.7,
+  concat: 0.01,
+}
+export const VIDEO_COPY_PROGRESS_SHARES: RenderProgressShares = {
+  chunks: 0.93,
+  concat: 0.01,
+}
 
 // Subtítulos quemados: blanco con borde negro y sombra, centrados abajo
 // (Alignment=2). La fuente sale del lado CORTO del frame para que 16:9 y 9:16
@@ -35,6 +56,11 @@ export const SUBTITLE_MARGIN_VERTICAL_DIVISOR = 18
 export const SUBTITLE_MARGIN_HORIZONTAL_DIVISOR = 12
 export const SUBTITLE_OUTLINE = 3
 export const SUBTITLE_SHADOW = 1
+
+// Mezcla final sin recodificar el video cuando no hay nada que dibujar encima
+// (final-mix.ts). Interruptor para deshacerlo rápido: en `false` toda mezcla
+// vuelve a recodificar, exactamente como antes.
+export const FINAL_MIX_VIDEO_COPY = true
 
 // Colita visual tras el fin del audio: la última imagen no corta en seco.
 export const PAD_MARGIN_SECONDS = 0.2
