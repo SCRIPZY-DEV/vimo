@@ -7,6 +7,8 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
+mod location;
+
 // ID derivado de la clave PÚBLICA SPKI del paquete vimo-automate 0.2.8.
 // Nunca se confía en un origen porque se anuncie. No es una credencial.
 const TRUSTED_EXTENSION_ORIGINS: &[&str] = &["chrome-extension://bjpjjnjiikhccbjlkgmfpfhenbdpikbm"];
@@ -76,11 +78,12 @@ fn start_service(app: &AppHandle) -> Result<Value, String> {
     }
     running.take();
 
-    let directory = app
+    let app_data_dir = app
         .path()
         .app_local_data_dir()
-        .map_err(|_| "flow_unavailable")?
-        .join("flow");
+        .map_err(|_| "flow_unavailable")?;
+    let location = location::resolve_location(&app_data_dir)?;
+    let directory = location.data_dir;
     let executable = std::env::current_exe()
         .map_err(|_| "flow_unavailable")?
         .with_file_name(format!("vimo-pipeline{}", std::env::consts::EXE_SUFFIX));
@@ -101,6 +104,9 @@ fn start_service(app: &AppHandle) -> Result<Value, String> {
         runtime: Value::Null,
     };
     let mut init = json!({ "dataDir": directory, "trustedExtensionOrigins": TRUSTED_EXTENSION_ORIGINS });
+    if let Some(port) = location.bridge_port {
+        init["bridgePort"] = json!(port);
+    }
     // Import existing automatic intents after reopening, without API keys or
     // a generation job. Both paths are native configuration, never webview input.
     let binary_paths = crate::pipeline::binaries::resolve_binary_paths();

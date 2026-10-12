@@ -589,3 +589,49 @@ plan del recibo tras remonte y falla si no encuentra la intención; no crea otra
 Procedencia, pruebas y plan QA en el
 [port selectivo](../handoff/2026-10-07-flow-tools-contract/selective-port.md);
 [contrato previo](../handoff/2026-10-07-flow-tools-contract/integration.md).
+
+## Adenda 2026-10-11 — adoptar el coordinador existente
+
+Una compilación nueva con identidad habitual no descubre ni importa automáticamente
+el almacén de una app de pruebas. Para conservar los vínculos existentes se permite
+una selección nativa explícita: `flow-coordinator.json` bajo app-local-data contiene
+`version: 1`, `dataDir` absoluto de un almacén existente y `bridgePort` (1024–65535).
+No contiene credenciales. No existe selector de archivos/rutas en el webview.
+
+```mermaid
+flowchart LR
+    ui["Vimo habitual"]:::propio
+    config[("Selección local de coordinador")]:::datos
+    rust["Supervisor nativo"]:::propio
+    service["SEA · coordinador adoptado"]:::propio
+    store[("Mismos vínculos, recibos y archivos")]:::datos
+    profiles(["Cinco perfiles Chrome Beta"]):::externo
+    ui -->|"consulta cuentas · invoke"| rust
+    rust -->|"lee destino explícito · archivo local"| config
+    rust -.->|"inicia con directorio y puerto · stdin"| service
+    service -->|"adquiere lock y conserva registros · filesystem"| store
+    profiles -->|"reanuda vínculo existente · WebSocket autenticado"| service
+    classDef externo fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray:4
+    classDef propio fill:#e3f2fd,stroke:#1976d2
+    classDef datos fill:#f3e5f5,stroke:#7b1fa2
+```
+
+**Contratos:** mismo directorio, puerto, identidad de conexión, comprobantes y
+credencial de cada extensión; no se fusionan historiales, no se modifica Chrome y
+no se crean generaciones para probar la conexión. Sin config se mantiene el
+comportamiento predeterminado (`app-local-data/flow`, puerto43127). Una selección
+válida vuelve a usar el puerto existente, por ejemplo43137 en la aceptación local.
+La raíz de proyectos sigue siendo la configurada en el Vimo habitual.
+
+**Fallo:** config ilegible, excesiva, relativa, de otra versión, symlink o destino
+sin ledger falla cerrado; jamás abre otro almacén como recuperación silenciosa.
+El lock del coordinador y el bind exclusivos rechazan un segundo dueño activo.
+Cerrar la app anterior antes de adoptar; mantenerla cerrada mientras la nueva
+controle su coordinador. La antigua puede volver a usarlo después de cerrar la
+nueva, conservando el mismo historial. El almacén habitual anterior permanece
+intacto, separado y respaldado.
+
+**Por qué:** copiar credenciales o revincular extensiones con trabajos históricos
+rompería su identidad. Reutilizar el mismo coordinador preserva esos contratos sin
+intervenir en el contenido del ledger. No amplía permisos de Chrome ni la confianza
+del WebSocket ni agrega un API externo.
