@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0052](ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)                   | Exportación rápida sin temblor, según el equipo del usuario                       | Aceptada                   | pipeline                      |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adaptar el personaje del usuario al lenguaje del estilo                           | Propuesta                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | Creador de estilo con IA: clonar un estilo desde un video o desde imágenes        | Aceptada                   | pipeline / app / servidor     |
 | [ADR-0049](ADR-0049-catalogo-remoto-administrado.md)                                     | El catálogo vive en el servidor y lo administra el admin desde la app (Entrega 3) | Propuesta                  | pipeline / app / servidor     |

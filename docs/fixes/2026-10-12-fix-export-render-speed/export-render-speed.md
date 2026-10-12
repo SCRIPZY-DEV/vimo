@@ -2,6 +2,7 @@
 
 - **Fecha:** 2026-10-12
 - **Rama:** fix/time-to-export
+- **ADR:** [ADR-0052](../../adr/ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)
 
 ## Síntoma
 
@@ -74,11 +75,49 @@ Video de 10 minutos (120 escenas × 5 s, 1080p, 4 chunks) por la cola real en el
 mismo M4: la fase de chunks pasa de **7,20 min a 3,02 min** (2,4×). La cola eligió
 1 chunk a la vez para este equipo.
 
+## Mezcla final sin recodificar el video
+
+La mezcla final recodificaba SIEMPRE todo el video, también antes de v0.9.0, aunque
+no hubiera nada que dibujar encima. Ahora, sin overlay, sin subtítulos y con un
+estilo sin filtro de color, el video unido de los chunks se copia tal cual y solo se
+codifica el audio (voz y música, igual que antes).
+
+- La música no cambia nada: es audio y se mezcla como siempre; el video se copia.
+- Las escenas animadas ya viven dentro de los chunks: se copian igual.
+- Subtítulos, overlay, un estilo con color o un video más largo que la voz (recortar
+  una copia no es exacto al cuadro) siguen por la mezcla de siempre.
+- Si la voz dura más que las imágenes, el último cuadro congelado (lo que hacía
+  `tpad`) se codifica aparte con los mismos argumentos que los chunks
+  (`CHUNK_VIDEO_ENCODING_ARGS`) y se suma por el demuxer concat.
+- **Interruptor `FINAL_MIX_VIDEO_COPY`** en `constants.ts`: en `false` toda mezcla
+  vuelve a recodificar, exactamente como antes. Verificado: con el interruptor
+  apagado, los tests de copia fallan y el resto sigue en verde.
+
+Verificado sobre un proyecto real de 15:17 (306 escenas, 11 chunks), que necesitaba
+4 cuadros de relleno: mezcla de **67 s a 12,4 s**, 0 cuadros distintos frente a los
+11 chunks decodificados por separado, tiempo parejo en las 10 uniones, sin avisos
+del decodificador, misma duración que la mezcla anterior (22.943 cuadros) y relleno
+igual al último cuadro (PSNR 50 dB). El archivo pesa ~20 % más (166 contra 139 MB):
+los chunks van en crf 20 y la mezcla recodificada en crf 23.
+
+En la app, ese mismo video tardó 6 min 46 s en total con los cambios anteriores
+(chunks 4 min 45 s, mezcla 2 min 01 s). Con la copia, la mezcla debería quedar en
+unos 15–20 s, falta medirlo en la app.
+
+## Barra de progreso
+
+El reparto fijo de la barra (chunks 0–45 %, concat 45–50 %, mezcla 50–100 %) se
+calibró cuando la mezcla tardaba casi lo mismo que los chunks. Con la mezcla copiando
+(14 s), la barra se quedaba en 45 % durante 3 min 23 s y saltaba al 100 %. Ahora el
+reparto depende de la mezcla que va a correr, con los tiempos medidos en la app:
+recodificando, chunks 70 % / concat 1 % / mezcla 29 %; copiando, 93 % / 1 % / 6 %.
+
 ## Límites
 
 - `perspective` sigue siendo más caro que el `zoompan` de antes de v0.9.0. Volver a
   esa velocidad sin temblor no es posible con los filtros de este FFmpeg.
-- La mezcla final (audio, overlay, subtítulos) no cambia.
+- La mezcla final solo deja de recodificar sin overlay, subtítulos ni color; con
+  ellos sigue igual que antes.
 - Los umbrales de paralelismo se calibraron en un M4. En equipos de 12 o más hilos
   es una extrapolación: falta medir en un escritorio Windows/Intel o AMD.
 - «Exportar para editar» (`scene-clips.ts`) hereda la decodificación única y los
@@ -94,8 +133,10 @@ mismo M4: la fase de chunks pasa de **7,20 min a 3,02 min** (2,4×). La cola eli
   equipo.
 - `pipeline/stages/render/constants.ts`: umbrales de núcleos, RAM y tope.
 - `pipeline/stages/render/render.ts`: usa la cola y registra la concurrencia.
-- `scripts/test/check-render-chunks.mjs` (nuevo) y su fila en
-  `scripts/test/README.md`.
+- `pipeline/stages/render/final-mix.ts`: camino sin recodificar y tramo final
+  congelado; `chunk-renderer.ts` exporta `CHUNK_VIDEO_ENCODING_ARGS`.
+- `scripts/test/check-render-chunks.mjs` y `scripts/test/check-final-mix-copy.mjs`
+  (nuevos) y sus filas en `scripts/test/README.md`.
 
 ## Validación
 
@@ -105,6 +146,7 @@ pnpm lint
 pnpm build
 pnpm exec tsc -p tsconfig.pipeline.json
 node scripts/test/check-render-chunks.mjs
+node scripts/test/check-final-mix-copy.mjs
 ```
 
 El guard (5 casos, FFmpeg real, ~3 s) cubre la concurrencia por equipo, los
