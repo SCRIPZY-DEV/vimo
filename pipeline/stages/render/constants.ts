@@ -29,10 +29,22 @@ export const STALL_TIMEOUT_MS = 20 * 60_000
 export const STALL_GRACE_MS = 90_000
 export const STALL_CHECK_MS = 60_000
 
-// Reparto del progreso global, reponderado con TIEMPOS MEDIDOS del origen
-// (con la mezcla final en veryfast, chunks y mezcla quedan parejos).
-export const CHUNKS_PROGRESS_SHARE = 0.45
-export const CONCAT_PROGRESS_SHARE = 0.05
+// Reparto de la barra entre chunks / concat / mezcla final (el resto), con
+// TIEMPOS MEDIDOS en la app (M4, 2026-10-12). Recodificando, la mezcla pesa
+// ~30 % (15 min de video: chunks 4 min 45 s, mezcla 2 min); copiando el video
+// pesa ~6 % (11 min: chunks 3 min 23 s, mezcla 14 s). El concat copia: segundos.
+export interface RenderProgressShares {
+  chunks: number
+  concat: number
+}
+export const REENCODE_PROGRESS_SHARES: RenderProgressShares = {
+  chunks: 0.7,
+  concat: 0.01,
+}
+export const VIDEO_COPY_PROGRESS_SHARES: RenderProgressShares = {
+  chunks: 0.93,
+  concat: 0.01,
+}
 
 // Subtítulos quemados: blanco con borde negro y sombra, centrados abajo
 // (Alignment=2). La fuente sale del lado CORTO del frame para que 16:9 y 9:16
