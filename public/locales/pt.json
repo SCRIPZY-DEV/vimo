@@ -1486,7 +1486,8 @@
       "export": {
         "button": "Exportar para editar",
         "help": "Gera um clipe por cena (com sua duração exata) + o áudio, para editá-los no CapCut ou Premiere sem perder a sincronia.",
-        "progress": "Exportando… {{percent}}%"
+        "progress": "Exportando… {{percent}}%",
+        "cancel": "Cancelar exportação"
       },
       "previewBadge": "Prévia",
       "previewBadgeMuted": "Simulação: há uma faixa silenciada",

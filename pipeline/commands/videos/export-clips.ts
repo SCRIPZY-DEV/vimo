@@ -100,7 +100,15 @@ export async function exportClips(
         context.emitter.emit({ type: 'progress', percent })
       },
     },
-  )
+  ).catch(async (error) => {
+    // Cancelada (la persona tocó «Cancelar») o caída a mitad de camino: la
+    // carpeta tiene solo una parte de los clips. Se borra para que nadie la
+    // tome por una exportación entera; la próxima la arma de cero.
+    await rm(paths.clipsDirectory, { recursive: true, force: true }).catch(
+      () => undefined,
+    )
+    throw error
+  })
 
   await copyFile(
     paths.narrationFile,

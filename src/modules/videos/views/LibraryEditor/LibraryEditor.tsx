@@ -336,6 +336,7 @@ export function LibraryEditor() {
           exportState={task?.export ?? null}
           busy={busy}
           onExport={() => void editor.editorTask.startExport(projectId)}
+          onCancel={() => editor.editorTask.cancelActiveJob(projectId)}
         />
         <RenderVideoButton
           render={task?.render ?? null}

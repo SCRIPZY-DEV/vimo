@@ -1486,7 +1486,8 @@
       "export": {
         "button": "Export for editing",
         "help": "Generates one clip per scene (with its exact duration) + the audio, so you can edit them in CapCut or Premiere without losing sync.",
-        "progress": "Exporting… {{percent}}%"
+        "progress": "Exporting… {{percent}}%",
+        "cancel": "Cancel export"
       },
       "previewBadge": "Preview",
       "previewBadgeMuted": "Simulation: a track is muted",

@@ -1486,7 +1486,8 @@
       "export": {
         "button": "Exportar para editar",
         "help": "Genera un clip por escena (con su duración exacta) + el audio, para editarlos en CapCut o Premiere sin que se desincronicen.",
-        "progress": "Exportando… {{percent}}%"
+        "progress": "Exportando… {{percent}}%",
+        "cancel": "Cancelar exportación"
       },
       "previewBadge": "Vista previa",
       "previewBadgeMuted": "Simulación: hay una pista silenciada",

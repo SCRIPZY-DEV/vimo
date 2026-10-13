@@ -903,7 +903,7 @@ async function submitAvatarRender(
     }
 
     patchTask(projectId, { avatarRender: { ...current, jobId: job.jobId } })
-    if (current.cancelled) cancelAvatarJob(job.jobId)
+    if (current.cancelled) cancelJobQuietly(job.jobId)
   } catch (error) {
     finishAvatarRender(
       projectId,
@@ -1193,7 +1193,7 @@ async function startExport(projectId: string): Promise<boolean> {
   if (isProjectBusy(projectId)) return false
 
   patchTask(projectId, {
-    export: { jobId: null, percent: 0 },
+    export: { jobId: null, percent: 0, cancelled: false },
     errorKey: null,
     errorCode: null,
   })
@@ -1202,9 +1202,14 @@ async function startExport(projectId: string): Promise<boolean> {
       handleExportEvent(projectId, event),
     )
     const current = taskOf(projectId)
-    if (current.export && current.export.jobId === null)
-      patchTask(projectId, { export: { ...current.export, jobId: job.jobId } })
-    else job.stop()
+    if (!current.export || current.export.jobId !== null) {
+      job.stop()
+      return true
+    }
+
+    patchTask(projectId, { export: { ...current.export, jobId: job.jobId } })
+    // «Cancelar» llegó antes que el id: el job se corta apenas se conoce.
+    if (current.export.cancelled) cancelJobQuietly(job.jobId)
   } catch (error) {
     patchTask(projectId, {
       export: null,
@@ -1229,13 +1234,23 @@ function handleExportEvent(projectId: string, event: PipelineEventPayload) {
     case 'job-completed': {
       patchTask(projectId, { export: null, revision: task.revision + 1 })
       const result = event.result as unknown as ExportClipsResult | null
-      // Como el origen: la carpeta exportada se abre sola.
-      if (result?.directory) void videosApi.openFolder(result.directory)
+      // Como el origen: la carpeta exportada se abre sola, salvo que la persona
+      // haya pedido cancelar y el job terminara antes de cortarse.
+      if (result?.directory && !task.export?.cancelled)
+        void videosApi.openFolder(result.directory)
       dispatchGenerations(projectId)
       return
     }
 
     case 'job-failed':
+      // Cancelar no es un error: el botón vuelve, sin aviso (el de «Generación
+      // cancelada» habla de reanudar, y una exportación vuelve a empezar).
+      if (event.code === 'cancelled') {
+        patchTask(projectId, { export: null })
+        dispatchGenerations(projectId)
+        return
+      }
+
       patchTask(projectId, {
         export: null,
         errorKey: videosApi.errorMessageKey({ code: event.code }),
@@ -1303,9 +1318,10 @@ function cancelActiveJob(projectId: string) {
       ? { ...task.activeRegen, cancelled: true }
       : null,
   })
-  const jobId =
-    task.activeRegen?.jobId ?? task.render?.jobId ?? task.export?.jobId
+  const jobId = task.activeRegen?.jobId ?? task.render?.jobId
   if (jobId) void videosApi.cancelJob(jobId)
+
+  cancelExport(projectId)
 
   // El avatar: el job se corta y su cierre llega como `job-failed`. Lo que
   // HeyGen ya cobró queda en sus recibos y la próxima vez se cosecha sin
@@ -1317,12 +1333,23 @@ function cancelActiveJob(projectId: string) {
   if (!avatarRender || avatarRender.cancelled) return
 
   patchTask(projectId, { avatarRender: { ...avatarRender, cancelled: true } })
-  if (avatarRender.jobId) cancelAvatarJob(avatarRender.jobId)
+  if (avatarRender.jobId) cancelJobQuietly(avatarRender.jobId)
+}
+
+// La exportación «para editar», como el avatar: se pide una sola vez y, si el
+// invoke todavía no devolvió el id, startExport la corta al llegar. Su cierre
+// llega como `job-failed` con `cancelled` y el botón vuelve sin aviso.
+function cancelExport(projectId: string) {
+  const exportState = taskOf(projectId).export
+  if (!exportState || exportState.cancelled) return
+
+  patchTask(projectId, { export: { ...exportState, cancelled: true } })
+  if (exportState.jobId) cancelJobQuietly(exportState.jobId)
 }
 
 // Cancelar un job que ya terminó responde `JobNotFound`: no hay nada que
 // cortar y la promesa no queda rechazada sin atender.
-function cancelAvatarJob(jobId: string) {
+function cancelJobQuietly(jobId: string) {
   videosApi.cancelJob(jobId).catch(() => undefined)
 }
 

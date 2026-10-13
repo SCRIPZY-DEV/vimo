@@ -1828,3 +1828,36 @@ test('export de clips con ffmpeg real: la escena de avatar sale con su clip a ve
     code: 'avatar_render_look_unavailable',
   })
 })
+
+test('export de clips cancelado a mitad (entrega 2h): la carpeta no queda con una parte de los clips', async (t) => {
+  const project = await stageProject(t)
+  const payload = { projectId: 'fixture' }
+  // Una exportación entera antes: la nueva la vacía al empezar, así que la
+  // cortada no puede dejar ni la vieja ni una a medias.
+  await exportClips({
+    ...project.context,
+    job: { ...project.context.job, payload },
+  })
+  const controller = new AbortController()
+  const progress = []
+  const cancelled = exportClips({
+    ...project.context,
+    job: { ...project.context.job, payload },
+    signal: controller.signal,
+    emitter: {
+      emit(event) {
+        if (event.type !== 'progress') return
+        progress.push(event.percent)
+        // Ya salió una parte: la persona toca «Cancelar».
+        if (event.percent > 0) controller.abort()
+      },
+    },
+  })
+
+  await assert.rejects(cancelled)
+  assert.ok(
+    progress.some((percent) => percent > 0 && percent < 100),
+    `se corta a mitad, no al principio ni al final: ${progress.join(', ')}`,
+  )
+  await assert.rejects(stat(project.paths.clipsDirectory), { code: 'ENOENT' })
+})

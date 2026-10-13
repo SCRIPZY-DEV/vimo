@@ -64,9 +64,9 @@ let revision = 0
 let cases = 0
 try {
   for (const format of ['9:16', '16:9']) {
-    for (const state of ['draft', 'current', 'outdated', 'busy', 'rendering']) {
+    for (const state of ['draft', 'current', 'outdated', 'busy', 'rendering', 'exporting']) {
       const scene = { id: 1, text: 'Fixture', startSeconds: 0, endSeconds: 4, imagePath: 'fixture.jpg' }
-      const busy = state === 'busy' || state === 'rendering'
+      const busy = state === 'busy' || state === 'rendering' || state === 'exporting'
       // Lo que el editor de hoy lee de useLibraryEditor al renderizar (sin
       // escena elegida, sin claves de animación); la versión de transiciones
       // vigente hace que «current» sea un render al día.
@@ -77,7 +77,10 @@ try {
         canEditClipIn: false, canEditClipOut: false, selectedAnimationSceneCount: 0, selectedAnimationUndoPending: false, undoingSceneId: null,
         setSelectedSceneId() {},
         editorTask: {
-          task: { render: state === 'rendering' ? { phase: 'chunks', percent: 45 } : null },
+          task: {
+            render: state === 'rendering' ? { phase: 'chunks', percent: 45 } : null,
+            export: state === 'exporting' ? { jobId: 'export-job', percent: 30, cancelled: false } : null,
+          },
           isProjectBusy: () => busy,
           canStartAnimation: () => false,
           startRender: projectId => calls.push(['render', projectId]),
@@ -115,7 +118,19 @@ try {
       }
       check(!document.querySelector('.fixed.bottom-6.right-6'), 'sin flotante superpuesto al timeline')
       const clips = buttons.filter(button => button.textContent.trim() === i18n.t('library.editor.export.button'))
-      check(clips.length === 1 && header.contains(clips[0]), 'exportar clips sigue separado en header')
+      const clipsCancel = buttons.filter(button => button.getAttribute('aria-label') === i18n.t('library.editor.export.cancel'))
+      if (state === 'exporting') {
+        // Entrega 2h: mientras exporta para editar, el botón es una píldora con
+        // el progreso y su «Cancelar», como la del render.
+        check(clips.length === 0, 'no duplica «Exportar para editar» mientras exporta: ' + format)
+        check(header.textContent.includes(i18n.t('library.editor.export.progress', { percent: 30 })), 'progreso de la exportación en header: ' + format)
+        check(clipsCancel.length === 1 && header.contains(clipsCancel[0]) && !clipsCancel[0].disabled, 'cancelar la exportación, único y en header: ' + format)
+        clipsCancel[0].click()
+        check(calls.at(-1)[0] === 'cancel' && calls.at(-1)[1] === 'fixture', 'cancelar la exportación usa el cancelar del store')
+      } else {
+        check(clips.length === 1 && header.contains(clips[0]), 'exportar clips sigue separado en header')
+        check(clipsCancel.length === 0, 'sin «Cancelar exportación» si no exporta: ' + state)
+      }
       cases++
     }
   }

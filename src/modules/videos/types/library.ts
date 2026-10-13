@@ -112,6 +112,9 @@ export interface EditorRenderState {
 export interface EditorExportState {
   jobId: string | null
   percent: number
+  // La persona pidió cancelar: se pide una sola vez y, si el invoke todavía no
+  // devolvió el id, se cancela al llegar.
+  cancelled: boolean
 }
 
 // Estado transitorio de la animación de una escena mientras corre el job

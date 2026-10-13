@@ -117,3 +117,17 @@ router
 - ADR-0005 (layouts explícitos), ADR-0014 (módulo library).
 - [docs/handoff/2026-10-07-ai-editor/design.md](../handoff/2026-10-07-ai-editor/design.md) y
   [library-research.md](../handoff/2026-10-07-ai-editor/library-research.md).
+
+## Enmienda 2026-10-13 — «Exportar para editar» se puede cancelar
+
+Pedido del dueño: «exportar para editar tiene que salir la opción de cancelar». En la barra, mientras
+exporta, «Exportar para editar» es una píldora con el progreso y una X («Cancelar exportación»), igual
+que la del render. La X usa el `cancelActiveJob` del store (`useLibraryEditorTask`). Como con el avatar,
+la cancelación se pide una sola vez: un segundo clic no vuelve a llamar al sidecar. Si el clic llega
+antes que el id del job, el job se corta apenas el id llega. Cancelar no es un error: el cierre con
+`cancelled` devuelve el botón sin aviso. El aviso del render, «Generación cancelada. Podés reanudarla…»,
+habla de reanudar, y una exportación siempre empieza de cero. Tampoco se abre la carpeta si el job
+terminó antes de cortarse. En el sidecar, `export-clips` borra `clips/` cuando se corta o falla a mitad,
+para que nadie tome una parte de los clips por una exportación entera; ya la vaciaba al empezar. Guards:
+`check-export-header-ui.mjs` (12 casos), `check-editor-export-cancel.mjs` (nuevo, store real, 7 casos)
+y `check-avatar-blocks.mjs` (la exportación cortada a mitad).
