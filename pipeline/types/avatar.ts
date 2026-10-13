@@ -86,8 +86,13 @@ export const AVATAR_REFERENCE_IMAGES_MAX = 3
 // Previews de looks que se bajan a disco por avatar (principal + los de la tarjeta).
 export const AVATAR_CARD_LOOK_PREVIEWS = 3
 
-// HeyGen no publica el precio por look generado (2026-10-09): null = la UI no promete cifra.
-export const AVATAR_LOOK_GENERATION_USD: number | null = null
+// Lo que cuesta «Crear escenario» (un look nuevo generado desde un prompt), en
+// dólares: 1 (entrega 2h). El proveedor no publica este precio (2026-10-09).
+// La 2g lo estimó en 0,93 desde un saldo inicial que el dueño recordaba a
+// medias (10,60 → 9,67 US$, R-2g-1); el 2026-10-13 el dueño confirmó en su
+// cuenta que cada escenario descuenta 1 US$. `null` = la UI no promete cifra y
+// dice que se descuenta del saldo. Espejo en src/modules/avatars/constants.ts.
+export const AVATAR_LOOK_GENERATION_USD: number | null = 1
 
 // De dónde salió un look de la biblioteca: `vimo` = generado desde Vimo con un
 // prompt; `heygen` = venía del grupo (el stock, la foto o la app de HeyGen).
@@ -340,31 +345,60 @@ export const AVATAR_MIN_GAP_SECONDS = 10
 // los primeros AVATAR_EARLY_WINDOW_SECONDS, contando la apertura; cada una de
 // ellas apunta a lo sumo a AVATAR_EARLY_MAX_SECONDS y no lo pasa, para que las
 // tres entren con los huecos mínimos (R-2f-3). El dueño las pide
-// «obligatoriamente»: era 45 s, la ronda 1 lo bajó a 40 y la ronda 2 a 35
-// (R-2f-8). Porcentaje de casos en que las tres arrancan dentro de la ventana,
-// sin apertura / con apertura, en 10 000 narraciones simuladas tipo TTS por
-// corpus (el de frases de 2 a 12 s, y uno de frases más largas, de 2 a 15 s):
+// «obligatoriamente». Era 45 s; la 2f lo bajó a 40 y a 35 (R-2f-8) cuando cada
+// aparición eran frases enteras y salía más corta que el tope, y la 2g a 32
+// (R-2g-10): con el corte exacto (§23.2) las tres duran justo el tope y, con
+// 35, la tercera entraba en el 95,7 % de los casos con frases largas.
+// Porcentaje de casos en que las tres arrancan dentro de la ventana, sin
+// apertura / con apertura, con el corte exacto (y las pausas largas que lo
+// cortan, R-2g-11) y 60 s elegidos, en 10 000 narraciones simuladas tipo TTS
+// por corpus (frases de 2 a 12 s y de 2 a 15 s):
 //
 //   tope   frases de 2 a 12 s   frases de 2 a 15 s
-//   45 s   86,8 % / 99,1 %      74,8 % / 96,3 %
-//   40 s   99,7 % / 100 %       96,9 % / 99,97 %
-//   35 s   100 % / 100 %        99,95 % / 100 %
+//   30 s   100 % / 100 %        99,98 % / 100 %
+//   32 s   100 % / 100 %        99,74 % / 100 %
+//   33 s   99,99 % / 100 %      99,15 % / 100 %
+//   34 s   99,86 % / 100 %      97,80 % / 100 %
+//   35 s   99,39 % / 100 %      95,72 % / 100 %
 export const AVATAR_EARLY_WINDOW_SECONDS = 120
 export const AVATAR_EARLY_APPEARANCES = 3
-export const AVATAR_EARLY_MAX_SECONDS = 35
-// Silencio máximo que una aparición carga después de la última palabra de una
-// frase (entrega 2b, decisión del dueño del 2026-10-11, diseño §5): una frase
-// que es una palabra y un silencio largo no se vuelve un avatar mudo que HeyGen
-// cobra. Por encima, la frase cierra la aparición en `lastWordEndSeconds` más
-// este tope, al cuadro.
+export const AVATAR_EARLY_MAX_SECONDS = 32
+// Silencio máximo que una aparición carga de una vez (entrega 2b, decisión del
+// dueño del 2026-10-11, diseño §5; desde la 2g, R-2g-11, entre dos palabras
+// cualesquiera o después de la última del audio): una palabra y un silencio
+// largo no se vuelven un avatar mudo que HeyGen cobra. Una pausa más larga
+// corta la aparición en la última palabra antes de ella más este tope, al
+// cuadro (`avatarCutLimit`).
 export const AVATAR_MAX_PAUSE_SECONDS = 2
-// Silencio máximo que la apertura carga después de la última palabra de cada
-// una de sus frases cuando se vuelve a probar sin el tope de arriba (entrega
-// 2f, R-2f-4, ronda 1 del 2026-10-12): una primera frase corta seguida de unos
-// segundos de silencio igual abre el video, pero si hace falta cargar más que
-// esto no hay apertura (va a `dropped`, como antes de la 2f), así una palabra
-// y 19 s de silencio no son una apertura muda que HeyGen cobra.
+// Silencio máximo que carga la apertura cuando, cortada en las pausas de más
+// del tope de arriba (R-2g-11), no llega al mínimo (entrega 2f, R-2f-4 y
+// R-2f-6; entrega 2g, R-2g-17): carga las pausas de hasta esto, entre dos
+// palabras o después de la última del audio, así una primera frase corta
+// seguida de unos segundos de silencio igual abre el video («Hola.» y 5,2 s).
+// Una pausa más larga la corta como en el primer intento, en la última palabra
+// antes de ella más AVATAR_MAX_PAUSE_SECONDS, al cuadro (`avatarCutLimit` con
+// esa cola): si así no llega al mínimo, no hay apertura y va a `dropped`, como
+// en la 2f. Así una palabra y 19 s de silencio no son una apertura muda que
+// HeyGen cobra.
 export const AVATAR_OPENING_MAX_PAUSE_SECONDS = 6
+// Dónde termina una aparición (entrega 2g, diseño §23.2; `avatarCutEnd`, en
+// pipeline/avatar/appearance-cut.ts): en el fin de frase o la pausa de
+// AVATAR_CUT_NATURAL_PAUSE_SECONDS o más entre dos palabras más cercana a
+// inicio + segundos elegidos, si está a AVATAR_CUT_PAUSE_WINDOW_SECONDS o
+// menos; si no, en el hueco entre dos palabras más cercano. Medido sobre las
+// dos narraciones del dueño (2026-10-12): 0,1 s de diferencia con lo elegido
+// de mediana, 0,3 s o menos en el 90 % y nunca más de 0,5 s. Una palabra con
+// su pausa de más de 1 s junto al objetivo puede correrlo algo más (en
+// narraciones simuladas tipo TTS, hasta 0,6 s en el 0,3 %).
+export const AVATAR_CUT_PAUSE_WINDOW_SECONDS = 0.5
+export const AVATAR_CUT_NATURAL_PAUSE_SECONDS = 0.25
+// El piso de una aparición: lo mínimo que se puede elegir menos lo que el corte
+// puede dejarla más corta (§23.2: «hasta medio segundo»), 4,5 s, medido hasta
+// el corte. Lo comparten el planificador (un inicio que daría menos no sirve)
+// y el cambio de duración desde el editor (un plan que daría menos se rechaza
+// con `avatar_resize_out_of_range` antes de recortar o pagar, R-2g-21).
+export const AVATAR_SHORTEST_APPEARANCE_SECONDS =
+  AVATAR_MIN_APPEARANCE_SECONDS - AVATAR_CUT_PAUSE_WINDOW_SECONDS
 // Frases de la narración (pipeline/narration/sentences.ts): una pausa así
 // cierra una frase sin puntuación, y una frase más larga que el máximo se
 // parte en su pausa interna más larga.
@@ -609,9 +643,10 @@ export interface AvatarAttempt {
 
 // La escena de avatar (ADR-0057): la escena ES el tramo del avatar y su clip
 // ES la escena, con el fondo propio del look (dirección del dueño del
-// 2026-10-10). Su texto son las frases que dice; Vimo no le genera prompt ni
-// imagen: su vista previa fija es la del look (`avatar/look.<ext>`) y su clip
-// vive en `avatar/` (pipeline/avatar/clip-path.ts).
+// 2026-10-10). Su texto son las palabras que dice (desde la 2g el corte puede
+// caer a mitad de frase, §23.2); Vimo no le genera prompt ni imagen: su vista
+// previa fija es la del look (`avatar/look.<ext>`) y su clip vive en `avatar/`
+// (pipeline/avatar/clip-path.ts).
 export interface SceneAvatar {
   lookId: string
   lookName: string
@@ -736,6 +771,56 @@ export interface AvatarRenderScenesPayload {
   // Ajustes de movimiento de escenas de V o IV que se guardan en la escena
   // antes de pedir. Va solo si no está vacío.
   motion?: AvatarSceneMotionInput[]
+  // Entrega 2g (§23.3): la duración nueva de escenas de `sceneIds`, sin
+  // repetidas. Su tramo nuevo (`avatarCutEnd` desde el mismo inicio) se aplica
+  // cuando el clip nuevo está listo; si el render falla o se cancela, la escena
+  // no cambia. Va solo si no está vacío.
+  durations?: AvatarSceneDurationInput[]
+}
+
+// La duración que eligió la persona para una escena de avatar (entrega 2g,
+// §23.3): segundos enteros de AVATAR_MIN_APPEARANCE_SECONDS a
+// AVATAR_MAX_APPEARANCE_SECONDS, dentro de `avatarResizeLimits`.
+export interface AvatarSceneDurationInput {
+  sceneId: number
+  seconds: number
+}
+
+// Payload del subcomando `avatar-trim-scene` (entrega 2g, §23.3): acorta una
+// escena de avatar lista recortando el clip que ya tiene, gratis y sin hablar
+// con el proveedor. `seconds`: entero, desde AVATAR_MIN_APPEARANCE_SECONDS y
+// menos que la duración actual.
+export interface AvatarTrimScenePayload {
+  projectId: string
+  sceneId: number
+  seconds: number
+}
+
+// El tramo con el que quedó la escena recortada.
+export interface AvatarTrimSceneResult {
+  sceneId: number
+  startSeconds: number
+  endSeconds: number
+}
+
+// Lo que `avatarResizeLimits` necesita de cada escena del proyecto (entrega
+// 2g, §23.3): la UI lo arma con SceneDetail y el sidecar con Scene.
+export interface AvatarResizeScene {
+  id: number
+  startSeconds: number
+  endSeconds: number
+  isAvatar: boolean
+  // Sus tiempos no se pueden mover: una animación o un recibo de animación
+  // dependen de ellos (el candado de update-scenes).
+  timingLocked: boolean
+}
+
+// De cuántos a cuántos segundos enteros puede durar una escena de avatar en su
+// lugar (el inicio no se mueve), y cuánto dura ahora.
+export interface AvatarResizeLimits {
+  currentSeconds: number
+  minSeconds: number
+  maxSeconds: number
 }
 
 // Los ajustes de movimiento de una escena desde el editor (entrega 2e, §21.4).

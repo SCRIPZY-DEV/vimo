@@ -189,7 +189,7 @@ pipeline/
 ├── runner/                contrato: PipelineJob, PipelineEvent, Stage, contexto y emitter
 ├── commands/              subcomandos por dominio: <dominio>/ con sus handlers y su mapa subcommands.ts (music/, voices/, characters/, avatars/, videos/)
 ├── stages/                las 8 fases de Create + su registro: voice/, transcription/, scene-cuts/, scene-prompts/, images/, avatar/, animation/, render/ (ADR-0013, ADR-0057), y shared/ con lo que usan varias fases
-├── avatar/                el avatar dentro del video (ADR-0057): nombres de los archivos de una escena de avatar, el planificador de apariciones, la orientación del look (la comparten Crear y el sidecar), el carril de una escena con HeyGen (huellas del pedido, corte del audio, recibos `creating`/`pending` con `Idempotency-Key`, descarga y ajuste del clip al tramo sin retimar) y la operación que comparten la fase `avatar` y el comando del editor (cosecha antes que pago, el saldo antes de cada escena, de a tres), y desde la 2e el escritor del movimiento de las apariciones con Avatar V e IV (`motion-prompt.ts`: un `motion_prompt` en inglés por escena, en un solo llamado al modelo de texto de las animaciones y con plantillas por posición como respaldo; nunca frena el render, solo propaga la cancelación)
+├── avatar/                el avatar dentro del video (ADR-0057): nombres de los archivos de una escena de avatar, el planificador de apariciones y, desde la 2g, dónde termina cada una y cuánto puede durar (`appearance-cut.ts`, `resize-limits.ts` y `resize-plan.ts`, puros y browser-safe: la interfaz y el sidecar hacen la misma cuenta; `resize-words.ts` lee las palabras para el plan), la orientación del look (la comparten Crear y el sidecar), el carril de una escena con HeyGen (huellas del pedido, corte del audio, recibos `creating`/`pending` con `Idempotency-Key`, descarga y ajuste del clip al tramo sin retimar) y la operación que comparten la fase `avatar` y el comando del editor (cosecha antes que pago, el saldo antes de cada escena, de a tres), y desde la 2e el escritor del movimiento de las apariciones con Avatar V e IV (`motion-prompt.ts`: un `motion_prompt` en inglés por escena, en un solo llamado al modelo de texto de las animaciones y con plantillas por posición como respaldo; nunca frena el render, solo propaga la cancelación)
 ├── narration/             frases de la narración, la unidad de continuidad del avatar (ADR-0057)
 ├── project/               la carpeta de un proyecto en disco: rutas tipadas, metadata, scenes.json y referencias de personajes (ADR-0009)
 ├── providers/             estrategia por servicio externo: llm/ (DeepInfra), music/ (Evolink), tts/ (DubVoice: Minimax · ElevenLabs · Edge; ElevenLabs directo — ADR-0024), image/ (Fal · Evolink), transcription/ (Deepgram), ytdlp/ (BGM, overlay y la ficha de un video para clonar su estilo), avatar/ (HeyGen: avatares y sus looks, assets, creación desde foto, looks desde un prompt, saldo, el borrado de un avatar propio y los renders de las escenas de avatar —crear, consultar y buscar por la marca del título— — ADR-0057)
@@ -296,7 +296,7 @@ Los binarios de `binaries/` **deben llevar el sufijo del target triple** en el n
 instalador incluye únicamente los binarios de su plataforma.
 
 Del lado del bundle, Tauri empaqueta `dist/` (la clave `frontendDist`), los iconos y los
-`externalBin`. Nada de `docs/` (interno) viaja dentro de la aplicación.
+`externalBin`. Nada de `docs/` viaja dentro de la aplicación.
 
 #### Tests de Rust
 
@@ -552,17 +552,22 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    V, IV y III en el orden de `AVATAR_ENGINE_CHOICES`, cada uno con su descripción y el
    costo de este video a su tarifa por minuto; el que el look no admite
    —`avatarEngineAvailable`— queda apagado y dice por qué; una sola parada de Tab y las
-   flechas eligen) y, con V o IV, «Movimiento más expresivo» (`CreateAvatarExpressive`: un
-   `Switch` con su ayuda en un tooltip; con IV y un look de video se ve apagado y dice por
-   qué, y no sale la línea «Vimo escribe el movimiento de cada aparición…», porque ahí el
-   proveedor no acepta `motion_prompt` y la frase sería falsa). `avatarEngine` es una
-   preferencia: el motor que sale es `selectedAvatarEngine` (`avatarEngineFor` sobre los
+   flechas eligen) y el movimiento (`CreateAvatarExpressive`): «Movimiento más expresivo»,
+   un `Switch` con su ayuda en un tooltip, solo con IV, el único motor donde el proveedor
+   tiene `expressiveness` (diseño §23.1: con V y con III no se ve, ni apagado); con IV y un
+   look de video se ve apagado y dice por qué, y no sale la línea «Vimo escribe el
+   movimiento de cada aparición…», porque ahí el proveedor no acepta `motion_prompt` y la
+   frase sería falsa. Esa línea sale con IV y un look de foto, dentro de la caja del
+   interruptor, y con V suelta, solo si su avatar tiene con qué moverse (abajo).
+   `avatarEngine` es una preferencia: el motor que sale es `selectedAvatarEngine` (`avatarEngineFor` sobre los
    `supportedEngines` que `SelectedAvatar` copia del look al elegirlo: el preferido si el
    look lo admite; si no, el primero en III, IV, V), derivado en el render, así que elegir
    otro look nunca parchea el motor. Ese es el motor que viaja en `options.avatar.engine`
    y el que cobran la tarjeta del costo y el pre-check; `expressive: true` viaja solo
-   prendido y si `avatarExpressiveAvailable` (con Avatar III y apagado, `options.avatar`
-   es byte a byte el de antes de la 2e). Un look sirve si admite al menos un motor con
+   prendido y si `selectedAvatarExpressiveAvailable` (`avatarMotionSupport(…).expressiveness`:
+   IV con un look de foto; con V nunca, aunque la persona lo haya prendido antes con IV: su
+   preferencia queda en el formulario); con Avatar III y apagado, `options.avatar`
+   es byte a byte el de antes de la 2e. Un look sirve si admite al menos un motor con
    tarifa (`lookUnfitReason`), y la elección guardada deja de valer si el look ya no admite
    alguno de los motores de su copia (`isSelectedAvatarCurrent`: el selector avisa y el
    envío se frena; al elegirla de nuevo la copia trae los motores de hoy y la preferencia
@@ -580,7 +585,7 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    solo prendida, al final del objeto). Prendida avisa el mínimo (con menos de
    `AVATAR_EARLY_APPEARANCES` apariciones salen 3) y el tope (con más de
    `AVATAR_EARLY_MAX_SECONDS` s por aparición, las tres primeras duran hasta ese tope,
-   hoy 35 s), y esos avisos son la descripción de la casilla (`CheckboxRow` acepta
+   hoy 32 s), y esos avisos son la descripción de la casilla (`CheckboxRow` acepta
    `describedBy`, que va a `aria-describedby` del `input`: solo los ids de los avisos que
    se ven). El costo cuenta lo que sale: `avatarRequestedAppearances` y
    `avatarRequestedSeconds` (`max(n, 3)` apariciones y las tres primeras a
@@ -591,10 +596,12 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    reanudar no divergen. Además `SelectedAvatar` copia `motionReference`
    (`avatarHasMotionReference`: un avatar de stock o con un gemelo digital la tiene) y,
    con Avatar V y un look de foto de un avatar propio sin gemelo digital (R-2f-1,
-   `avatarMotionReferenceMissing`), «Movimiento más expresivo» queda apagado con el
-   motivo y sin la línea «Vimo escribe el movimiento…», y `expressive` no viaja
-   (`selectedAvatarExpressiveAvailable`, la regla que comparten el interruptor y
-   `createProjectPayload`); un borrador sin el campo cuenta como que sí. El formulario
+   `avatarMotionReferenceMissing`), no sale la línea «Vimo escribe el movimiento…»: el
+   render sale con el movimiento propio de V y la frase sería falsa. Desde la 2g (diseño
+   §23.1) `motionReference` ya no decide «más expresivo», que con V no existe:
+   `selectedAvatarExpressiveAvailable`, la regla que comparten el interruptor y
+   `createProjectPayload`, solo mira el motor y el tipo de look. Un borrador sin el campo
+   cuenta como que sí. El formulario
    sobrevive a la navegación dentro de la sesión: `CreateView` se siembra del
    borrador en memoria del módulo (`utilities/createDraft.ts`, nunca en disco), salvo lo
    que ninguna pantalla de Crear edita y solo siembra Ajustes (la duración de escena de
@@ -639,10 +646,10 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    clave muerta con la voz y las imágenes ya pagadas, porque la fase `avatar` corre
    después de ellas.
 
-**Biblioteca de avatares (ADR-0057, entregas 1b, 2b, 2c y 2d).** La vista `AvatarLibrary`
+**Biblioteca de avatares (ADR-0057, entregas 1b, 2b, 2c, 2d y 2g).** La vista `AvatarLibrary`
 muestra una `AvatarCard` por avatar en una grilla donde cada fila mide lo que su tarjeta
 más alta y las tarjetas de una fila miden lo mismo: un mosaico sin huecos con la cara
-del look principal y hasta dos miniaturas, donde cada imagen reproduce, muda, el video
+del escenario principal y hasta dos miniaturas, donde cada imagen reproduce, muda, el video
 de su look al pasar el mouse (el foco visible del teclado en el nombre, el de la
 principal). Los videos salen del listado de HeyGen del avatar (`useStockLooks`, gratis,
 con la caché de 5 min que comparte con el panel), pedido recién cuando la persona se
@@ -674,7 +681,7 @@ velocidad, silencio y pantalla completa; en el panel espera la lista de HeyGen a
 decir «sin video» y el video que llega después también arranca solo— y una acción al pie
 según de dónde se abre (`LookPlayerAction`): «Cargar a la biblioteca» (agrega el avatar
 con ese look como principal y abre su panel) o «Abrir en tu biblioteca» en el stock;
-«Usar como principal» o «Es el look principal» en el panel; «Usar» en Crear; el motivo
+«Usar como principal» o «Es el escenario principal de este avatar» en el panel; «Usar» en Crear; el motivo
 (`lookUnusableReasonKey`) si el look no sirve. Mientras carga, el reproductor no se
 cierra y el foco espera en el escenario. Eliminar un avatar (entrega 2d) es
 `AvatarDeleteMenu`, con su estado en `useAvatarDeleteMenu`, el mismo en la tarjeta y el
@@ -689,10 +696,18 @@ caería sobre la lista), «Eliminar
 de la lista», que saca el avatar de la biblioteca sin otro paso (`avatar-delete`; sigue
 en HeyGen), y, en
 un avatar propio (`ownership: 'own'`), «Eliminar permanentemente de HeyGen», en rojo,
-que se vuelve «Seguro» en su mismo lugar, con «Cancelar» en el de la lista: sobre la
-imagen la columna se apoya abajo y en el panel las opciones son dos celdas iguales, así
-un clic de corrección nunca confirma («Seguro» queda descripto por la advertencia); en
-«Mis avatares», la lista solo aparece si el avatar está en la biblioteca. Cada botón del
+que se vuelve «Seguro» en su mismo lugar, con «Cancelar» en el de la lista: en «Mis
+avatares» la columna se apoya abajo; en la biblioteca (desde la entrega 2g, diseño §23.5)
+el velo cubre la imagen entera, con ancho explícito (`w-full`: WebKit, el motor de la app,
+le resta el relleno horizontal a una capa absoluta con `inset-x-0` y `aspect-ratio` y sin
+ancho, y la dejaba más angosta y más baja que la imagen; Chrome la estira bien y no deja
+ver el error), y es una grilla de tres filas que centra las opciones, con la advertencia de
+«Seguro» (11 px) en la de arriba, pegada a ellas y creciendo hacia arriba sin moverlas, de
+modo que «Seguro» (una línea) queda centrado dentro del lugar de «Eliminar permanentemente
+de HeyGen» y «Cancelar» sobre el de la lista; en el panel, las opciones son dos celdas
+iguales. Así un clic de corrección nunca confirma («Seguro» queda descripto por la
+advertencia); en «Mis avatares», la lista solo aparece si el avatar está en la
+biblioteca. Cada botón del
 menú ignora el segundo clic de un doble clic (`isSecondClickOfDoubleClick`) y las
 repeticiones de una tecla sostenida (`ignoreHeldKey`), y ese segundo clic tampoco abre
 lo que queda debajo: la imagen y el nombre de la tarjeta de la biblioteca y la tarjeta
@@ -718,7 +733,8 @@ borrado está en vuelo, y nunca hay un borrado junto a un alta. El foco del tecl
 tras borrar, al botón vecino o a la pestaña en «Mis avatares» y a la tarjeta vecina en
 la biblioteca (con la biblioteca vacía, a «Agregar de stock»), también con «Eliminar de
 la lista» desde la tarjeta. El guard de la biblioteca mide la geometría con el CSS
-compilado de la app en tres escenarios (11, 11b y 12); los demás corren sin CSS. Las
+compilado de la app en cuatro escenarios (11, 11b, 11c y 12: el 11c, el velo a todo el
+ancho de la imagen y las opciones centradas a 450, 228 y 164 px); los demás corren sin CSS. Las
 fichas de
 looks (`LookChips`) dicen
 su formato (`lookFormatOf`: 16:9, 9:16, 1:1, 4:5 o 5:4, con medidas finitas) en lugar de
@@ -738,6 +754,19 @@ principal); «No compatible con Vimo» solo si no admite ninguno y el look o el 
 listo. El velo que late sobre una vista previa mientras llega su video (`LookPreview`)
 está siempre montado y se apaga con la opacidad: sacarlo del DOM en el blur de una tarjeta
 devolvía el foco a la caja del diálogo.
+
+**«Crear escenario» y el escenario principal (entrega 2g, diseño §23.5).** Todo texto que
+decía «look principal» dice «escenario principal»; la pastilla «N looks» y los demás «look»
+quedan como estaban. «Crear escenario» (`GenerateLookDialog`, y la ficha `GenerateLookCard` del
+panel de un avatar propio) dice lo que cuesta: `AVATAR_LOOK_GENERATION_USD`, 1 US$ por
+escenario (`pipeline/types/avatar.ts`, con su espejo en `src/modules/avatars/constants.ts`). El
+proveedor no publica ese precio: la 2g lo estimó en 0,93 US$ desde el saldo del dueño (R-2g-1) y
+el 2026-10-13 el dueño confirmó en su cuenta que cada escenario descuenta 1 US$. La cifra se
+ve en una insignia con el formato de «Crear desde foto» (`LookPriceBadge`: moneda y monto con el
+idioma activo, «por escenario · se descuenta de tu saldo de avatares») en el pie del diálogo y
+entre el título y la ayuda de la ficha; la ficha apagada (un avatar del stock, uno que no está
+listo, sin clave, o mientras responde el llavero) no promete una cifra, y con la constante en
+`null` el diálogo vuelve a decir que se descuenta del saldo, sin monto.
 
 **Subcomandos de avatares (`pipeline/commands/avatars/`, ADR-0057).** Doce, todos con
 «avatar» en el nombre para que el diagnóstico los agrupe en su familia: `avatars-list`
@@ -810,7 +839,7 @@ en disco es válido, `skip()` la saltea.
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `voice`         | Narración (TTS con cascada de carriles y troceo), música de fondo y overlay **en paralelo**                                                                                                                                                                                                                                                                                                                                                          | `voice-progress`, `bgm-progress`                                                                                                                                                                                                                                                           |
 | `transcription` | Deepgram palabra a palabra, con puntuación (`sentenceEnd` en la palabra que cierra frase, ADR-0057), + duración real del audio medida decodificando                                                                                                                                                                                                                                                                                                  | fase en curso                                                                                                                                                                                                                                                                              |
-| `scene-cuts`    | Corta la duración en N escenas por tiempo; con avatar, fija antes sus apariciones en fronteras de frase y corta solo lo libre (ADR-0057); con `confirmScenes`, **pausa** acá                                                                                                                                                                                                                                                                         | `scenes-planned` (y `avatar-planned` con avatar, que con la pausa sale antes de ella) o el diálogo                                                                                                                                                                                         |
+| `scene-cuts`    | Corta la duración en N escenas por tiempo; con avatar, fija antes sus apariciones —arrancan en un inicio de frase y terminan entre dos palabras, cerca de los segundos elegidos— y corta solo lo libre (ADR-0057); con `confirmScenes`, **pausa** acá                                                                                                                                                                                                | `scenes-planned` (y `avatar-planned` con avatar, que con la pausa sale antes de ella) o el diálogo                                                                                                                                                                                         |
 | `scene-prompts` | Biblia visual, director de escenas y redactor por escena (4 capas de garantía); toda escena con timestamps recibe prompt — la muda (texto vacío del corte clásico) se ilustra como pausa desde la narración vecina ([fix](fixes/2026-09-22-fix-silent-scene-images/silent-scene-images.md)); una escena de avatar no lleva prompt: los dos carriles la saltean (ADR-0057)                                                                            | `scene-prompt-ready` por escena; `scene-prompts-progress` (avance del stream, carril verbatim); `prompt-model-trouble` (el modelo elegido falló: se bloquea 1 h, ADR-0028); `job-failed` con `llm_prompt_language` si la gema pide otro idioma: se corrige la gema, sin bloquear el modelo |
 | `images`        | Una imagen por escena (carril normal y carril de personaje en paralelo), con recuperación de las rechazadas; al primer rechazo por saldo aborta la fase entera (ADR-0031); una escena de avatar no lleva imagen: su imagen fija es la vista previa del look elegido, `avatar/look.<ext>` (ADR-0057)                                                                                                                                                  | `scene-image-*` sobre la grilla; `images-recovery-pass` (`rewrite` devuelve la fila de prompts a «en curso» y reemite `scene-prompt-ready`; `retry` anota el reintento)                                                                                                                    |
 | `avatar`        | Opcional (ADR-0057): sube a HeyGen el audio de cada escena de avatar y pide el look con su propio fondo, en el formato del video; guarda el intento antes del POST, sondea el render (plazo de 30 min, no una espera fija) y ajusta el clip al tramo sin retimar. Cosecha recibos y mira el saldo antes de cada pago, y no vuelve a pedir sola una aparición que HeyGen rechazó para siempre (moderación o look no soportado). Sin avatar se saltea. | `avatar-scene-*` con el paso y el tiempo transcurrido; `avatar-provider-trouble` (aviso pasajero)                                                                                                                                                                                          |
@@ -1037,12 +1066,12 @@ un completado**. La interfaz muestra el diálogo; al confirmar llama a
 `confirm-scenes` (que escribe `scenes-confirmed.json`) y **relanza** el job: voz
 y transcripción son cache-hit.
 
-Con avatar, el evento trae `avatarSpans` (dónde aparece, ya ajustado a frases y con
+Con avatar, el evento trae `avatarSpans` (dónde aparece, ya cortado entre dos palabras y con
 los tramos libres de menos de 3 s absorbidos, la cola incluida) y `suggestedScenes`
 cuenta sus escenas (las imágenes a generar son `suggestedScenes − avatarSpans.length`);
 confirmar otra cantidad o duración solo reparte las escenas libres (ADR-0057).
 `countScenesAroundSpans` (`pipeline/stages/scene-cuts/pins.ts`, puro) cuenta igual que
-la fase sin las palabras.
+la fase a partir de los tramos, sin las palabras.
 
 Antes de la pausa la fase emite `avatar-planned { sceneIds, dropped }` (los ids del corte
 sugerido y las apariciones que el plan no pudo ubicar), también cuando ninguna entró
@@ -1079,79 +1108,98 @@ apariciones del avatar no llevan)» con la misma cuenta que corta
 (`countStepSceneEstimate`): una cantidad menor que la mínima —una escena por tramo libre
 más las apariciones— se acota y se dice.
 
-**Planificador de apariciones (ADR-0057; entrega 2b, decisiones del dueño y rulings del
-2026-10-11):** `planAvatarSpans` (`pipeline/avatar/planner.ts`, puro y determinista)
-arma cada aparición con frases enteras de `detectSentences`. Cada aparición del reparto
-arranca en la frase más cercana a su ancla **desde la que cabe**, antes o después de él
-(`nearestFittingSpan`): una frase desde la que la aparición pasaría los 60 s o no
-llegaría al mínimo (`AVATAR_MIN_APPEARANCE_SECONDS`, 5 s desde la entrega 2d; antes 7)
-se saltea, y la aparición va a `dropped` solo si ninguna frase de la zona
-sirve; la apertura arranca en 0 o se descarta (desde la entrega 2f, si con el tope no
-cabe, vuelve a probar sin él: abajo). **Tope de silencio:** una aparición no carga más de
-`AVATAR_MAX_PAUSE_SECONDS` (2 s) después de la última palabra de una frase. Cada `NarrationSentence` trae `lastWordEndSeconds` (el fin
-de su última palabra en `words.json`, sin llevar al cuadro) y su fin recortado es
-`min(endSeconds, cuadro(lastWordEndSeconds + 2 s))`, nunca antes de su inicio; una frase
-recortada cierra la aparición (la siguiente no se suma, ni para llegar al mínimo), y el
-hueco de 10 s hasta la siguiente se cuenta desde ahí. El tope nunca deja una cola corta:
-si el fin recortado queda a menos de 3 s (`MIN_SECONDS_PER_SCENE`) del fin del audio, el
-tramo llega al fin de la frase, porque `pinnedTimeline` absorbería esa cola en el
-avatar, y el mínimo se sigue midiendo hasta el fin recortado, así una última frase casi
-muda no se vuelve aparición. **El máximo** (60 s, regla del dueño) se mide con lo que le
-deja el corte: una aparición que terminaría a menos de 3 s del fin del audio se mide
-hasta el fin del audio, haya o no tope de silencio; si ni así entra, se queda una frase
-antes o, sin otra frase desde la que quepa, va a `dropped`. El silencio inicial de la
-primera frase no se recorta, y una pausa larga ADENTRO de una frase de 15 s o menos la
-aparición la carga entera (el tope mira solo la pausa después de la última palabra). En
-los **subtítulos** de una escena de avatar (`sceneCues`), cada frase cuenta por el punto
-medio de su parte hablada (de su inicio a `lastWordEndSeconds`): la frase recortada
-termina después de la escena y, medida entera, sus palabras no se subtitularían en
-ningún lado. El tope no cambia el plan cuando todas las pausas son de 2 s o menos; la
-regla de la frase más cercana desde la que cabe y la del máximo sí pueden cambiarlo sin
-pausas. Sin avatar nada cambia (el planificador y las frases solo corren con
-`options.avatar`; las escenas de imagen subtitulan como siempre).
+**Planificador de apariciones (ADR-0057; entrega 2g, diseño §23.2):** `planAvatarSpans`
+(`pipeline/avatar/planner.ts`, puro y determinista; recibe las frases y las palabras)
+decide dónde arranca y dónde termina cada aparición.
 
-**«3 veces en 2 minutos» y la apertura que siempre abre (entrega 2f, diseño §22.2 y
-§22.3; rulings R-2f-2 a R-2f-8):** con «Empieza con el avatar», la apertura siempre abre
-(R-2f-4): si el ajuste desde la frase 0 no cabe por el tope de silencio, `openingSpan` lo
-vuelve a probar sin él (`pauseRule: 'carried'`, cada frase medida hasta su fin), así que
-la apertura carga ese silencio y suma frases hasta el mínimo sin pasar el máximo; pero no
-carga más de `AVATAR_OPENING_MAX_PAUSE_SECONDS` (6 s) después de la última palabra de cada
-frase (R-2f-6), y si hace falta más no hay apertura: una palabra con 19 s de silencio no
-es una apertura muda que HeyGen cobra. Solo la dejan afuera un audio de menos de 5 s, una
-apertura que no llega al mínimo sin pasar el máximo después del corte o más silencio del
-que carga. Esto no depende de la casilla nueva: es el único cambio para un video con «3
-veces en 2 minutos» apagada, y alcanza solo a los videos cuya apertura antes se descartaba
-por el tope. «3 veces en 2 minutos» (`options.avatar.threeInFirstTwoMinutes`, que
-`create-video-project` valida como booleano y guarda solo en `true`, y
+- **Dónde arranca** (como desde la 2b): en un inicio de frase de `detectSentences`; la
+  apertura, en 0; las del reparto parejo, en la frase más cercana a su ancla **desde la que
+  sirve** (antes o después de ella; con empate, la primera), con 10 s de imágenes entre una
+  aparición y la siguiente y, sin apertura, nunca antes de 3 s (`MIN_SECONDS_PER_SCENE`: el
+  corte pegaría ese tramo corto al inicio). La que no entra va a `dropped`, nunca a otro
+  lugar.
+- **Dónde termina:** en `avatarCutEnd` (`pipeline/avatar/appearance-cut.ts`, puro y
+  browser-safe), con inicio + los segundos elegidos como objetivo. Corta en el fin de frase
+  o la pausa de `AVATAR_CUT_NATURAL_PAUSE_SECONDS` (0,25 s) o más que esté más cerca del
+  objetivo, si está a `AVATAR_CUT_PAUSE_WINDOW_SECONDS` (0,5 s) o menos y, si no, en el hueco
+  entre dos palabras más cercano; con empate gana el natural (R-2g-12) y, en cualquier otro,
+  el primero. Siempre cae en el inicio de la palabra que sigue, llevado al cuadro de 25 fps
+  (la pausa corta queda con el avatar), y nunca adentro de una palabra. Una narración TTS da
+  así lo elegido ±0,5 s salvo al fin del audio (hasta la 2f cada aparición decía frases
+  enteras y 5 s daban de 6 a 13). Se fueron la suma de frases, el mínimo por frases, el fin
+  recortado de cada frase y el reintento de la apertura que cargaba el silencio frase por
+  frase (`pauseRule`).
+- **Las pausas largas** (R-2g-11): `avatarCutLimit` arma el límite que recibe
+  `avatarCutEnd`: la última palabra antes de la primera pausa de más de
+  `AVATAR_MAX_PAUSE_SECONDS` (2 s) entre dos palabras, o el silencio después de la última
+  del audio, más esos 2 s, al cuadro hacia abajo, o el máximo si llega antes. El límite es un
+  corte natural si no cae adentro de una palabra. Una pausa larga corta la aparición ahí en
+  vez de descartar su inicio, y lo que queda afuera es una escena de imagen. El silencio
+  inicial (de 0 a la primera palabra) no cuenta: con «Empieza con el avatar» el video abre
+  con el avatar.
+- **Un inicio no sirve** si la aparición pasaría `AVATAR_MAX_APPEARANCE_SECONDS` (60 s) con
+  lo que le pega el corte de escenas (`lengthAfterCut`: `pinnedTimeline` le suma el tramo de
+  menos de 3 s que quede antes del fin del audio), si duraría menos de 4,5 s (el mínimo
+  elegible menos el medio segundo del corte, medido hasta el corte y sin esa cola, así una
+  última frase casi muda no se vuelve aparición por el silencio que le pegan) o si dejaría
+  menos de 3 s antes del fin del audio. Si ningún inicio sirve, se acepta la cola corta
+  (`acceptShortTail`): el corte de escenas la pega y, si así pasaría el máximo, el corte
+  deja esos 3 s antes del fin (61 s con 60 elegidos: 0–58).
+- **Los subtítulos** de una escena de avatar siguen yendo por frases enteras (`sceneCues`,
+  §23.6): cada frase cuenta por el punto medio de su parte hablada (de su inicio a
+  `lastWordEndSeconds`), así que si la aparición termina a mitad de frase pueden repetir o
+  saltear palabras de esa frase (queda para después, a pedido del dueño).
+
+Sin avatar nada cambia (el planificador y las frases solo corren con `options.avatar`; las
+escenas de imagen subtitulan como siempre), y los proyectos que ya existen conservan su
+corte: el planificador corre solo al cortar las escenas.
+
+**«3 veces en 2 minutos» y la apertura que siempre abre (entregas 2f y 2g, diseño §22.2,
+§22.3 y §23.2; rulings R-2f-2 a R-2f-8, R-2g-10, R-2g-16 y R-2g-17):** con «Empieza con el
+avatar», la apertura arranca siempre en 0 (R-2f-4). `openingSpan` prueba primero cortando en
+las pausas de más de 2 s, como cualquier aparición; si así no llega a 4,5 s, vuelve a probar
+cargando las pausas de hasta `AVATAR_OPENING_MAX_PAUSE_SECONDS` (6 s, R-2f-6), y una pausa
+más larga la corta igual, 2 s después de la palabra que la precede (R-2g-17): la apertura no
+depende de los segundos elegidos. Si ni así llega a 4,5 s no hay apertura y va a `dropped`:
+«Hola.» con 5,2 s de silencio y una frase después abre de 0 a 10; con 19,2 s, no (la pausa la
+corta a los 2,8 s), porque una palabra y un silencio largo no son una apertura muda que
+HeyGen cobra. También la dejan afuera un audio de menos de 4,5 s o una apertura que pasaría
+el máximo después del corte. Esto rige también con «3 veces en 2 minutos» apagada (es el
+arreglo de «Empieza con el avatar»), y el cambio de duración de la apertura desde el editor
+prueba igual (R-2g-21, abajo). «3 veces en 2 minutos» (`options.avatar.threeInFirstTwoMinutes`,
+que `create-video-project` valida como booleano y guarda solo en `true`, y
 `AvatarPlanOptions.threeInFirstTwoMinutes`) pide al menos `AVATAR_EARLY_APPEARANCES` (3)
 apariciones (R-2f-2). Las tres primeras, contando la apertura, arrancan antes de
 `min(AVATAR_EARLY_WINDOW_SECONDS, fin del audio)` (120 s; arrancar justo a los 120 ya no
 cuenta), repartidas con la regla de anclas dentro de esa ventana y con el hueco mínimo,
-apuntando a `min(s, AVATAR_EARLY_MAX_SECONDS)` y sin pasar `AVATAR_EARLY_MAX_SECONDS`
-(35 s: era 45 y bajó a 40 y a 35 con la simulación de las narraciones, R-2f-5 y R-2f-8),
-salvo que desde ninguna frase de su zona quepa una así: `targetsToTry` prueba entonces con
-60 s. Si la apertura no cupo, no ocupa lugar y la ventana intenta las tres (R-2f-7). Las
-demás, con los segundos elegidos, se reparten (`spreadAppearances`) en la zona que queda
-después de la tercera. Lo que no entra va a `dropped`, nunca a otro lugar. Apagada
-(ausente, `false` o un valor que no es `true`), el plan es el de la 2e salvo esa apertura.
-La estimación de Crear y la de reanudar cuentan lo mismo (`avatarRequestedAppearances` y
-`avatarRequestedSeconds`).
+apuntando a `min(s, AVATAR_EARLY_MAX_SECONDS)` y sin pasar `AVATAR_EARLY_MAX_SECONDS`: 32 s
+(era 45 y bajó a 40, a 35 y a 32 con la simulación de las narraciones, R-2f-5, R-2f-8 y
+R-2g-10: con el corte exacto las tres duran justo el tope y, con 35, la tercera entraba en el
+95,7 % de los casos con frases de hasta 15 s; con 32, en el 99,7 %). El corte nunca pasa
+inicio + el tope, así que el respaldo a 60 s de la 2f (`targetsToTry`) se fue. Si la
+apertura no cupo, no ocupa lugar y la ventana intenta las tres (R-2f-7). Las demás, con los
+segundos elegidos, se reparten (`spreadAppearances`) en la zona que queda después de la
+tercera. Lo que no entra va a `dropped`, nunca a otro lugar. Apagada (ausente, `false` o un
+valor que no es `true`), solo hay apertura y reparto. La estimación de Crear y la de
+reanudar cuentan lo mismo (`avatarRequestedAppearances` y `avatarRequestedSeconds`).
 
-**El tope de silencio en el corte** (`check-scene-pins.mjs`): el silencio que el tope
-deja fuera de un pin es el comienzo del tramo libre siguiente y el carril lo corta como
-siempre, así que las ventanas que caen enteras en el silencio salen como escenas de
-imagen sin palabras, con el prompt de sus vecinas (frases 0–5, una palabra a los 5 s con
-silencio hasta los 15 y 15–25: avatar 0–7,44 e imágenes mudas 7,44–10,44 y 10,44–13,44
-con el carril de 3 s), también la cola final de 3 s o más (avatar 0–9,96 e imagen muda
-9,96–15). Una última frase cuyo fin recortado queda a menos de 3 s del fin del audio
-entra si llega al mínimo con ese fin recortado y su escena termina en el fin del audio
-(5–15 cuando habla hasta los 10,95); casi muda (recortada, 5,96 s) no hay aparición y el
-video son solo imágenes. Ninguna aparición pasa los 60 s después de que el corte le
-pegue la cola final: con la última frase 55–61 que habla hasta los 57,95 queda 0–55 y la
-imagen 55–61, y sin pausas, con una frase final de 0,75 a 2,75 s, 0–55 en vez de 0–59,6.
+**El silencio en el corte** (`check-scene-pins.mjs`): lo que el avatar no carga (una pausa
+de más de 2 s o el silencio del final) es el comienzo del tramo libre siguiente y el carril
+lo corta como siempre, así que las ventanas que caen enteras en el silencio salen como
+escenas de imagen sin palabras, con el prompt de sus vecinas (frases 0–5, una palabra de 5 a
+5,45 s con silencio hasta los 15 y 15–25: avatar 0–7,44, con 10, 11 o 12 s elegidos, e
+imágenes mudas 7,44–10,44 y 10,44–13,44 con el carril de 3 s), también la cola final de 3 s
+o más (la última frase habla hasta los 7,95 de un audio de 15: avatar 0–9,92 e imagen muda
+9,92–15). Una cola de menos de 3 s que ninguna otra frase evita la pega el corte de escenas
+(la única frase desde la que puede arrancar habla hasta los 10,95: el plan es 5–12,92 y la
+escena queda en 5–15); una última frase de cinco palabras, que habla hasta los 7,45 y con
+sus 2 s de silencio mide 4,44 s, no es aparición y el video son solo imágenes. Ninguna
+aparición pasa los 60 s después de que el corte le pegue la cola final: con 60 s elegidos y la
+última frase de 55 a 61 s, que habla hasta los 57,95, queda 0–58 y la imagen muda 58–61.
 
 **Cortes alrededor del avatar (ADR-0057):** la fase planifica las apariciones sobre las
-frases de la narración (`planAvatarSpans`) y las fija como _pines_
+frases y las palabras de la narración (`planAvatarSpans`; `planAvatarPins` le pasa las
+palabras desde la 2g) y las fija como _pines_
 (`pipeline/stages/scene-cuts/pins.ts`); lo libre entre pines lo corta el carril elegido
 —segundos, cantidad o prefijo animado— acotado a cada tramo, con ids contiguos y el
 texto de cada escena por su punto medio. Un tramo libre de menos de 3 s lo absorbe el
@@ -1237,8 +1285,8 @@ rehidratar, la UI refetchea el disco.
 El comando `avatar-render-scenes { projectId, sceneIds }` (ADR-0057) genera o
 regenera el avatar de escenas puntuales con el mismo carril y los mismos
 recibos que la fase `avatar`; como `animate-scenes`, toma el lease compartido
-de animación: las lecturas siguen disponibles y una escritura exclusiva falla
-con `animation_project_busy` hasta que termine. Una escena lista con el mismo
+de animación (salvo con `durations`, abajo): las lecturas siguen disponibles y una
+escritura exclusiva falla con `animation_project_busy` hasta que termine. Una escena lista con el mismo
 pedido no se vuelve a pagar; una desactualizada pide un render nuevo. Sus
 `sceneIds` se validan en un solo lugar (`requestedAvatarSceneIds`: una lista no
 vacía de enteros, cada uno de una escena de avatar; sin lista o con un id que no
@@ -1272,6 +1320,60 @@ nuevos (el resultado y `avatar-scene-failed` igual dicen el fallo). Con V, «má
 sobre un prompt de la persona viaja como ese prompt más `AVATAR_EXPRESSIVE_PROMPT_SUFFIX`,
 o como la frase sola si el prompt está vacío (R-2e-14). Una de `regenerateSceneIds` que no
 está lista con su clip se trabaja como cualquier pedida (se cosecha lo ya pagado).
+
+Desde la entrega 2g (diseño §23.3) acepta además `durations: [{ sceneId, seconds }]` (la
+duración elegida en el editor: un entero de 5 a 60 por escena pedida, sin repetidas),
+validada en el mismo lugar. Su plan (`avatarResizePlan`, `pipeline/avatar/resize-plan.ts`,
+puro y browser-safe) deja el inicio de la escena y corta con `avatarCutEnd`, con el límite de
+`avatarCutLimit` sobre el máximo de `avatarResizeLimits` (`resize-limits.ts`): lo primero que
+llegue entre 60 s, la próxima escena de avatar menos 3 s, el inicio de la primera escena
+bloqueada que la sigue y el fin del audio; con la escena que sigue bloqueada, o si es la
+última del video (R-2g-18), no hay rango: el mínimo y el máximo son lo que dura, redondeado.
+Como el planificador, el plan nunca deja la aparición por debajo de 4,5 s
+(`AVATAR_SHORTEST_APPEARANCE_SECONDS`, R-2g-21): si con la regla de 2 s queda más corta, la
+apertura (la escena de avatar que arranca en 0) prueba otra vez como el segundo intento de
+`openingSpan` —carga las pausas de hasta 6 s y una más larga la corta igual, con la cola de
+2 s—, y si así tampoco, o si es otra escena, sale `avatar_resize_out_of_range` antes de
+recortar o pagar (con la regla fija de 2 s, una apertura que cargaba una pausa de 3 s se
+recortaba a 2,88 s y ninguna duración la recuperaba).
+Al crecer, las escenas de imagen que tapa enteras salen de `scenes.json` (sus imágenes quedan
+en disco y los ids quedan con huecos, R-2g-3: ningún consumidor supone ids contiguos, y la
+interfaz rotula cada escena por su id, así que tras alargar un avatar la galería dice
+«Escena 2», «Escena 4»…) y la que tiene el fin empieza ahí —o sale, si le quedarían menos de
+3 s, y la de imagen que sigue empieza en el fin; sin una que pueda empezar antes, el avatar se
+queda con ese resto, como el corte, sin pasar 60 s ni quedar a menos de 3 s de la próxima
+aparición—; al achicar, la que sigue empieza en el fin. Una escena bloqueada (el candado de
+`update-scenes`: una animación, hecha o pendiente, la incluye) o de avatar no se mueve
+(`avatar_resize_locked`); fuera de los límites, o con un corte que no se mueve hacia lo
+pedido, `avatar_resize_out_of_range`; los textos tocados se rehacen con la regla de
+`cutScenesAtBoundaries`. Se planea antes de hablar con HeyGen (y antes que la clave) y otra
+vez bajo el lease. **Con `durations` no vacío el comando toma el lease exclusivo del
+proyecto** en vez del compartido de animación (`changesSceneTimes`, `subcommands.ts`,
+R-2g-19): la duración nueva saca y mueve escenas de imagen, como los cortes, y otro generador
+con el lease compartido podría comprar ese mismo tramo o pagar por una escena que salió;
+mientras renderiza no corre ningún otro generador del proyecto (las lecturas siguen, y la
+app ya serializa las tareas del editor). El carril trabaja una copia de la escena con el
+tramo y el texto nuevos (su corte de audio, su huella, su costo, su movimiento automático)
+mientras la escena real conserva su tramo y su clip (con `forceNewRender`; la toma no sube,
+porque el tramo nuevo ya es otro pedido); con el clip nuevo, en ESA escritura, se replanea
+sobre lo que hay en disco y, si da el mismo tramo, se aplican el avatar listo, el tramo, los
+textos y las escenas de imagen, y el mp4 queda desactualizado; si ya no entra, el clip queda
+en disco, la escena no cambia (con sus recibos) y sale fallida con el código del plan. Si el
+render falla, se cancela o vence el plazo, nada cambia (la lista conserva su clip) y pedir la
+misma duración otra vez cosecha el render pago sin pagar otro; la duración de hoy no pide
+nada. El comando **`avatar-trim-scene { projectId, sceneId, seconds }`** acorta una
+aparición lista y al día sin hablar con el proveedor ni leer su clave, gratis y al instante:
+los segundos tienen que ser menos que los de hoy y, con el mismo plan, el fin nuevo tiene que
+quedar al menos un cuadro antes del de hoy (si no, `avatar_resize_out_of_range`, como el
+render; sin un clip listo y al día, `avatar_trim_unavailable`); ajusta al tramo nuevo el crudo
+del clip actual (`.raw.mp4`; si no está, el clip) con `normalizeAvatarClip`, en un archivo
+nuevo con la huella del tramo nuevo (el anterior queda en disco), y guarda en una escritura,
+bajo el lease de los recibos, el tramo, el clip, `renderHash`, `normalizedSeconds` y la
+escena que sigue; el mp4 queda desactualizado. Si ahí la escena ya no tiene el clip que se
+ajustó, o el plan releído no da el mismo tramo, se rechaza y borra el clip nuevo, que ninguna
+escena nombra. Corre con el lease exclusivo del proyecto, como cualquier escritura de
+escenas, y toma las palabras y el plan de `resize-words.ts`, así no depende de la
+orquestación de los renders.
 Los recibos de HeyGen viven en `scene.avatar` de `scenes.json`: se escriben solo
 bajo `withAnimationCheckpointLease` releyendo antes, y lo que reescribe
 `scenes.json` entero (los cortes, el reemplazo de narración) corre bajo el lease
@@ -1281,7 +1383,8 @@ vez de repartirlo uniforme. Una escena de avatar no tiene imagen que regenerar
 (`avatar_scene_without_image`: `update-scenes` rechaza además cualquier edición de
 su prompt, descripción, personajes, modelo o calidad de imagen con el mismo código,
 sin aplicar el resto del lote) y, con clip o recibos, sus dos fronteras no se mueven
-(`avatar_timing_locked`). En el editor, el panel de una escena de avatar muestra su
+(`avatar_timing_locked`; desde la 2g se cambian con la duración: `durations` o
+`avatar-trim-scene`, arriba). En el editor, el panel de una escena de avatar muestra su
 In/Out de solo lectura y no la sección de animación (Kie nunca la anima), y la
 selección de la galería, el aviso de imágenes faltantes y las dos vías de «Regenerar
 imagen» no la cuentan (`sceneImageEditable`; desde la entrega 2f la galería igual la
@@ -1327,10 +1430,14 @@ falla, el sidecar le deja el clip anterior y el aviso lo dice (`regenerarFalloCo
 también cuando la regeneración cae entera con `job-failed`, la pausa de la cuenta, y no al
 cancelar). El costo es el del motor de cada escena (`avatarScenesCost` agrupa por motor y
 tipo de look). Con V, o IV con un look de foto (`avatarExpressiveAvailable`), el panel muestra
-antes del costo la sección «Movimiento» (`EditorAvatarMotion`): el motor, el prompt editable
-de una sola línea con su contador y «Usar el automático», «Movimiento más expresivo» con su
-tooltip y la guía «Qué podés pedir» (`EditorAvatarMotionGuide`, con sus claves en
-`AVATAR_MOTION_GUIDE_ALLOWED_KEYS` y `AVATAR_MOTION_GUIDE_FORBIDDEN_KEYS`); con
+antes del costo la sección «Movimiento» (`EditorAvatarMotion`), compacta desde la 2g (diseño
+§23.4): el nombre del motor, con su descripción en un tooltip (`motorAyudaAria`), el prompt
+editable de una sola línea y tres renglones de alto con su contador, «Usar el automático»
+como un enlace, «Movimiento más expresivo» en una línea —solo con IV y un look de foto
+(`avatarMotionSupport(…).expressiveness`; con V la sección sigue sin el interruptor, §23.1)—
+y la guía «Qué podés pedir» (`EditorAvatarMotionGuide`, con sus claves en
+`AVATAR_MOTION_GUIDE_ALLOWED_KEYS` y `AVATAR_MOTION_GUIDE_FORBIDDEN_KEYS`) como un botón que
+abre un globo (un `Popover` de Radix: Escape lo cierra y el foco vuelve al botón); con
 `motionUnsupported`, una nota en lugar del campo. El borrador vive en `useAvatarSceneRender`
 (las acciones se montan con la `key` de la escena) y vale mientras lo guardado en la escena
 no cambie; viaja como `motion: [{ sceneId, motionPrompt, expressive }]` solo si la persona
@@ -1338,10 +1445,43 @@ cambió algo (`avatarMotionInput`; «más expresivo» solo también viaja, con e
 guardado; con `motionUnsupported` nunca viaja el borrador del prompt, solo «más expresivo» y
 solo con IV y un look de foto), con el botón de la escena o con «Regenerar todos» si la
 incluye: así una escena a la que Vimo todavía no le escribió el movimiento no queda como
-«sin movimiento propio» y el sidecar le escribe el automático. El pedido lo arma
-`avatarRenderPayload`: sin nada más, el `{ projectId, sceneIds }` de siempre. El export
+«sin movimiento propio» y el sidecar le escribe el automático. Una escena de V que traía
+`expressive: true` guardado (videos de la 2e y la 2f) lo conserva (R-2g-20): no tiene el
+interruptor, así que sin cambios no viaja `motion` —tampoco con «Regenerar todos» ni con
+«Regenerarlas (N)»— y, con el prompt editado, la entrada lleva la marca como estaba. Apagarla
+cambiaría la huella del pedido (el prompt de la persona perdería la frase de
+`AVATAR_EXPRESSIVE_PROMPT_SUFFIX`) y un render ya pedido o pagado de esa escena se pagaría de
+nuevo; el sidecar honra lo guardado. El pedido lo arma `avatarRenderPayload`: sin nada más, el
+`{ projectId, sceneIds }` de siempre (y, desde la 2g, `durations` de las escenas cuya
+duración cambió, abajo). El export
 para editar saca la escena de avatar como su clip o como el look, igual que el video
 final, y falla con `avatar_render_look_unavailable` si no tiene ninguno.
+
+Desde la entrega 2g (diseño §23.1, §23.3 y §23.4) la escena de avatar elige su «Duración»
+(`EditorAvatarDuration`, con el borrador y la acción en `useAvatarSceneRender`; el «?» con su
+tooltip lo comparte con «Movimiento», `EditorAvatarHelpTooltip`):
+`utilities/avatarDuration.ts` arma el lugar de la escena —hasta dónde puede crecer, cuántas
+escenas de imagen taparía y por qué no se puede cambiar— con `avatarResizeLimits` y
+`avatarResizeCoveredScenes` del pipeline y el candado de tiempos de las animaciones
+(`animationTimingLocked`), la misma cuenta que valida el sidecar antes de pagar. «−» y «+» de a
+un segundo entre el mínimo y el máximo que entra; arranca en lo que dura hoy redondeado y
+acotado, y queda quieto, con su motivo (`AVATAR_DURATION_LOCK_KEYS`), si la escena que sigue
+está animada o si es la última del video (R-2g-18); con un valor mayor dice a qué hora
+terminaría, aproximada (inicio + segundos). La acción principal es una sola a la vez
+(`avatarDurationAction`): con la misma duración, la de siempre; más corta, con el clip listo
+y al día y sin cambios en el movimiento, «Recortar a N s» (`useAvatarSceneTrim` →
+`videosApi.trimAvatarScene`, `avatar-trim-scene`: gratis, sin confirmación, relee el proyecto
+y avisa con un `toast` lo que dura ahora); y en los demás casos un render nuevo con
+`durations: [{ sceneId, seconds }]` en `avatar-render-scenes` —sin `regenerateSceneIds`: es un
+trozo nuevo de la narración, así que la confirmación dice «¿Generar el avatar?» aunque el
+botón de una lista diga «Regenerar avatar», y pedir lo mismo otra vez cosecha el render
+pago—, con el costo de los segundos nuevos (`avatarScenesCost(scenes, durations)`) y la
+confirmación sumando la duración nueva y las escenas de imagen que tapa (aproximadas, por los
+segundos elegidos). Los códigos del sidecar `avatar_resize_out_of_range`,
+`avatar_resize_locked` y `avatar_trim_unavailable` tienen su propio texto
+(`create.errors.avatarResize*` y `avatarTrimUnavailable`). Los botones del selector y el de
+recortar se apagan con `aria-disabled`, nunca con `disabled`, porque el foco puede estar en
+ellos dentro del diálogo de la galería.
 
 Desde la entrega 2f (diseño §22.4) la galería «Vista ampliada de imágenes»
 (`EditorImageGallery`) muestra, en el orden del video, una tarjeta por escena de avatar
@@ -1350,9 +1490,9 @@ Desde la entrega 2f (diseño §22.4) la galería «Vista ampliada de imágenes»
 sin clip, la imagen del look; su número y su tramo; su estado con la regla del bloque de
 la pista (`avatarBlockState`) y una etiqueta corta que nunca se corta («Lista»,
 «Desactualizado» como la caja de las acciones, «Generando el avatar…» con el porcentaje,
-«Con imagen fija» en una planeada o una fallida), con el título del bloque de tooltip; y
-debajo, `EditorAvatarSceneActions` de esa escena con las mismas acciones, costo,
-confirmación y «Movimiento» que el panel. La tarjeta no tiene botón para elegirla:
+«Con imagen fija» en una planeada o una fallida), con el título del bloque de tooltip; y,
+desplegada (abajo), `EditorAvatarSceneActions` de esa escena con las mismas acciones, costo,
+confirmación, duración y «Movimiento» que el panel. La tarjeta no tiene botón para elegirla:
 «Regenerar imágenes» y «Animar» en lote siguen siendo de escenas de imagen
 (`imageScenes`), y la descripción de la galería cuenta todas las tarjetas y solo dice que
 también se regenera el avatar si el proyecto tiene alguna (`descriptionWithAvatar`). Las
@@ -1361,6 +1501,29 @@ acciones esperan con el mismo `busy` que el panel (`busy || savingChanges`, que
 `focusFallback` es la tarjeta: cuando el avance desaparece con el foco adentro, el foco
 vuelve a ella, porque el panel queda detrás del modal y el foco mandado ahí se escapa del
 diálogo.
+
+Desde la entrega 2g (diseño §23.4) la tarjeta abre **plegada**, como una de imagen: el mismo
+borde (el morado la hacía parecer elegida), su clip o la imagen del look con la pastilla de
+estado (`EditorAvatarStatePill`) y «Reproducir», su número, su tramo y su texto, y sin
+acciones; solo «Ajustar avatar» (`aria-expanded`, con el número de la escena en su
+`aria-label`), y un clic en la tarjeta —menos en sus botones— también la despliega. La
+galería abre siempre con todas plegadas. **Desplegada** ocupa la fila entera de la grilla
+(`col-span-full`): a la izquierda el clip, con su número, su tramo y su texto debajo (18 rem
+de ancho; 8 rem en un video vertical, `AVATAR_CARD_EXPANDED_GRID_CLASSES`), y a la derecha
+«Cerrar» (`aria-label` con el número de la escena) y las acciones del panel
+(`EditorAvatarSceneActions` con `layout="columns"`: la duración y el movimiento en una
+columna y las notas de estado, sin caja y enteras, el costo y las acciones en la otra). Una
+sola desplegada a la vez (`EditorImageGallery`); el clip y su pastilla son los mismos nodos
+plegada o desplegada, así que el clip que se reproduce no se corta. Los borradores de la
+duración y del movimiento se descartan al plegarla. Foco (`useAvatarCardFocus`, un efecto de
+layout para que el `FocusScope` de Radix no se lleve el foco a la caja del diálogo): al
+desplegar, al primer control (el «−» de la duración, que lleva `data-first-control` porque el
+botón de ayuda que va junto a su título viene antes en el documento; la región del avance si
+se está generando); al plegar con «Cerrar», a «Ajustar avatar» (si otra tarjeta la pliega al
+desplegarse, no le roba el foco); al terminar un render, a la tarjeta. Medida con el CSS real
+(Tailwind compilado) en Chrome y en un `WKWebView`, el motor de la app, a 1024 × 640 y a
+1280 × 800, en es, en y pt, con videos de 16:9 y de 9:16: sin scroll propio (el peor caso, la
+escena que toma más narración con el texto más largo, mide 410 px en un área de 410).
 
 ### Contrato con el sidecar
 
@@ -1399,7 +1562,7 @@ Este documento describe el destino. El código todavía no llegó ahí:
 | Módulo `music` (AI Music)                          | listo — ADR-0010 paso 2: pantalla completa (formulario Suno, sugerir prompt vía LLM, generación con progreso y cancelación, chooser de variaciones, historial en `<carpeta raíz>/_history/music/` con audio/cover/metadata, saldo de créditos); primeros jobs reales del sidecar (6 subcomandos en `pipeline/commands/`); asset protocol habilitado (scope `$HOME/**` + carpeta de proyectos en runtime, ADR-0037) para reproducir el audio local con `convertFileSrc`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Módulo `voices` (Voces TTS)                        | listo — ADR-0010 paso 3: explorador de voces de DubVoice (Minimax · ElevenLabs · Edge) y, desde ADR-0024, de ElevenLabs directo («Mis voces» + «Biblioteca», cuota de caracteres) según el proveedor elegido; filtros, favoritos e historial en `<carpeta raíz>/_history/voices/`; probador con progreso y cancelación; saldo de créditos. Las muestras suenan desde la URL del proveedor: los previews precomputados del origen (81 MB) y su síntesis con créditos no se portaron, y Edge queda sin muestra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Módulo `characters` (Personajes)                   | listo — ADR-0010 paso 4: biblioteca de identidades en `<carpeta raíz>/characters/` (una carpeta por personaje con `metadata.json` y un preview por estilo); el "experto" redacta la identidad neutra de estilo con el LLM en tier premium, y los previews estrenan los providers de imagen (Fal · Evolink) con la regla de oro de los proveedores pagos. El selector de hasta 2 personajes ya vive en Create (ADR-0013); desde ADR-0033 un personaje también se crea CON foto («cara idéntica»: la imagen subida es su identidad y viaja como referencia en todos los estilos, sin previews)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Módulo `avatars` (Avatares)                        | en construcción — ADR-0057 entrega 1 (y ajustes de la 1b): biblioteca de avatares de HeyGen en `<carpeta raíz>/avatars/`, donde un avatar es un grupo con sus looks y un look principal (una carpeta con `metadata.json`, `preview.<ext>` y `looks/`): stock de HeyGen, creación desde una foto (1,32 USD, con aviso de moderación), look principal elegible, looks nuevos desde un prompt, saldo y borrado; la clave `heygen` (categoría `avatar`) se valida en Rust contra `GET /v3/users/me`. Entrega 2: el avatar dentro del video —sección «Avatar presentador» en Crear, escenas de avatar que HeyGen renderiza con el look tal cual sobre la narración (fase `avatar`) y su bloque morado en el timeline—; 2b (2026-10-11): el stock se filtra por categoría (`avatar-stock-types`) y por favoritos, cada look abre en un reproductor, Crear conserva el formulario y el planificador no carga más de 2 s de silencio ni pasa los 60 s; 2c: eliminar de HeyGen, el formato de cada look y el botón «Look»; 2d: «Usar» en Crear, borrar de la lista o de HeyGen y regenerar desde el editor (ver §5); 2e (2026-10-12): el motor se elige en Crear (V, IV o III con su costo; un look sirve con cualquiera), movimiento automático con «más expresivo» y «Regenerar» en una escena lista; el resto de la entrega 3 está pendiente.      |
+| Módulo `avatars` (Avatares)                        | en construcción — ADR-0057 entrega 1 (y ajustes de la 1b): biblioteca de avatares de HeyGen en `<carpeta raíz>/avatars/`, donde un avatar es un grupo con sus looks y un escenario principal: stock de HeyGen, creación desde una foto (1,32 USD), escenario principal elegible, looks nuevos desde un prompt, saldo y borrado; la clave `heygen` se valida en Rust. Entrega 2: el avatar dentro del video —sección «Avatar presentador» en Crear, escenas de avatar que HeyGen renderiza sobre la narración (fase `avatar`) y su bloque morado en el timeline—; 2b (2026-10-11): el stock se filtra por categoría y por favoritos, cada look abre en un reproductor y Crear conserva el formulario; 2c: eliminar de HeyGen y el botón «Look»; 2d: «Usar» en Crear, borrar de la lista o de HeyGen y regenerar desde el editor (ver §5); 2e (2026-10-12): el motor se elige en Crear (V, IV o III con su costo), movimiento automático con «más expresivo» y «Regenerar» en una escena lista; 2f y 2g (2026-10-12): «3 veces en 2 minutos», la apertura que siempre abre, cada aparición dura lo elegido (termina en la pausa más cercana) y su duración se cambia desde el editor (recorte gratis o render nuevo), la tarjeta plegada de la vista ampliada y «más expresivo» solo con IV; el resto de la entrega 3 está pendiente.          |
 | FFmpeg y yt-dlp empaquetados                       | listos para **macOS arm64, macOS x64 y Windows x64** — ADR-0013 / ADR-0026 / ADR-0034: `scripts/fetch-binaries.mjs` los descarga con URL y SHA-256 pineados por target triple (firma ad-hoc en macOS en desarrollo; en CI Tauri los re-firma con Developer ID y notariza el DMG) y los deja como `externalBin`; Rust los resuelve junto a `current_exe` con el sufijo de la plataforma y los inyecta en `PipelineJob.binaryPaths`. Los instaladores (NSIS de Windows y DMG de macOS arm64 e Intel) salen del workflow `.github/workflows/build-desktop.yml`, con los targets declarados en `scripts/release-targets.mjs`; un tag `v*` además firma los artefactos y publica `latest.json` para el updater de la app (ADR-0027, módulo `settings`). Pendientes: Linux, firma Authenticode y la revisión GPL→LGPL de ffmpeg                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Módulo `videos` (Create)                           | listo — ADR-0013: pantalla completa de creación (formulario con guion o audio propio, estilo, escenas, proveedor de imagen, selector de voz y de hasta 2 personajes, música y overlay), progreso en vivo por fases con grilla de escenas, pausa de confirmación de escenas, cancelar y reanudar, y panel del video terminado. La tarea vive en un store con `localStorage` y sobrevive a navegación y reload. Desde 2026-09-03 la pantalla de progreso calca la del origen (rama 7 de ADR-0016, port visual de `vimo-ui-pipeline`): página entera con cronómetro que descuenta la pausa, fases a la izquierda y un panel por fase, grilla de imágenes con visor a pantalla completa, paso de segundos por escena inline y el error dentro de la pantalla. Entrega 1 de gemas por secciones (ADR-0048), tras `features.gemTemplate`: modal de Mi estilo por secciones, migración de gemas viejas, `vimoServerFetch` y `useAccessFeature` en `common`. Entrega 2 (ADR-0039 Aceptada), tras `features.newCatalog`: pestaña Catálogo nueva con las 38 gemas de `pipeline/prompts/catalog-gems/` como tarjetas del carril de Mi estilo, «Ver» (muestras, etiquetas, modo de personaje recordado por estilo) y «Pasar a mi estilo» (`catalog-styles-list`, `catalog-style-copy`); el catálogo viejo sigue con el interruptor apagado y en la demo. |
 | Runner de stages y las 8 fases                     | listos — ADR-0013: `pipeline/runner/run-stages.ts` + `pipeline/stages/` (voice, transcription, scene-cuts, scene-prompts, images, avatar, animation, render; ADR-0045, ADR-0057) con el registro declarativo en `stages/registry.ts`. Toda fase es retomable por `skip()`; los guards de gasto del origen se conservan textualmente (anti-doble-gasto del TTS, concat con re-encode, cosecha de tarea Evolink ya pagada, `-t` explícito en el render)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |

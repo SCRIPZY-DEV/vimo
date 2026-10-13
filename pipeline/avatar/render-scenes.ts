@@ -7,7 +7,7 @@ import {
   withAnimationSceneLease,
 } from '../animation/coordination.ts'
 import { createAnimationLlm } from '../animation/llm.ts'
-import { slotDurationSeconds } from '../animation/timing.ts'
+import { frameBoundary, slotDurationSeconds } from '../animation/timing.ts'
 import { markVideoOutdated, readProjectMetadata } from '../project/metadata.ts'
 import { isValidFile, type ProjectPaths } from '../project/paths.ts'
 import {
@@ -27,6 +27,8 @@ import { PipelineFailure } from '../runner/failure.ts'
 import type { CreateVideoContext } from '../stages/context.ts'
 import type { SceneLlm } from '../stages/shared/llm.ts'
 import {
+  AVATAR_MAX_APPEARANCE_SECONDS,
+  AVATAR_MIN_APPEARANCE_SECONDS,
   AVATAR_MOTION_PROMPT_LIMIT,
   AVATAR_RENDER_CONCURRENCY,
   avatarExpressiveAvailable,
@@ -34,10 +36,11 @@ import {
   avatarSceneSpan,
   estimateAvatarUsd,
   type AvatarAttempt,
+  type AvatarSceneDurationInput,
   type AvatarSceneMotionInput,
   type SceneAvatar,
 } from '../types/avatar.ts'
-import type { Scene } from '../types/scenes.ts'
+import type { Scene, TranscriptWord } from '../types/scenes.ts'
 import { frameSizeFor, videoFormatOf } from '../types/video-format.ts'
 import { limitConcurrency } from '../utils/concurrency.ts'
 import { requireFfmpegPath } from '../utils/ffmpeg.ts'
@@ -68,6 +71,21 @@ import {
   type AvatarMotionPosition,
   type AvatarMotionRequest,
 } from './motion-prompt.ts'
+import {
+  applyAvatarResizePlan,
+  AVATAR_RESIZE_ERROR_CODES,
+  avatarResizeAudioEnd,
+  avatarResizePlan,
+  avatarResizeScenesOf,
+  isAvatarAppearanceSeconds,
+  sameSpanFrames,
+  withAvatarResizeSpan,
+  type AvatarResizePlan,
+} from './resize-plan.ts'
+import {
+  avatarResizePlanOrFail,
+  readAvatarResizeWords,
+} from './resize-words.ts'
 
 // Operación compartida por la fase `avatar` y el comando del editor
 // `avatar-render-scenes` (diseño §8), como generate.ts lo es de la animación:
@@ -75,7 +93,10 @@ import {
 // cada render nuevo y corre el carril de a AVATAR_RENDER_CONCURRENCY. Las
 // escrituras de scenes.json se serializan con el lease de checkpoints de la
 // animación: el comando del editor convive con `animate-scenes` y los dos
-// guardan recibos en el mismo archivo.
+// guardan recibos en el mismo archivo. Salvo con `durations` (abajo): ese
+// pedido saca y mueve escenas de imagen, así que el comando toma el lease
+// exclusivo del proyecto y no convive con ningún otro generador
+// (`changesSceneTimes`, commands/videos/subcommands.ts, R-2g-19).
 // Desde la entrega 2e (diseño §21.2 y §21.4), antes de correr los carriles y
 // en una sola escritura (la misma de los recibos), cada escena que se trabaja
 // recibe los ajustes de movimiento que mandó el editor, el movimiento
@@ -85,6 +106,15 @@ import {
 // así el carril pide un render nuevo y pagado en vez de cosechar el que ya está
 // a la vista (uno cobrado que no se llegó a bajar se baja sin pagar otro), y
 // la escena conserva su clip si el nuevo falla (`forceNewRender`, lane.ts).
+// Desde la entrega 2g (diseño §23.3) el editor puede pedir además la duración
+// nueva de una escena (`durations`): su plan (resize-plan.ts) se valida antes
+// de hablar con HeyGen, y el carril trabaja una COPIA de la escena con el
+// tramo y el texto nuevos (su corte de audio, su huella, su movimiento
+// automático) mientras la escena real conserva su tramo y su clip. El tramo
+// nuevo se aplica recién con el clip nuevo, en la misma escritura de
+// scenes.json (`withResizedClip`); si el render falla o se cancela, la escena
+// no cambia y sus recibos quedan: pedir la misma duración otra vez cosecha el
+// render pago.
 
 // Fallos que dicen «HeyGen anda mal», no «el pedido está mal»: se avisan una
 // vez por código y corrida con `avatar-provider-trouble`.
@@ -124,6 +154,10 @@ export interface AvatarRenderSelection {
   // cambie) y los ajustes de movimiento que se guardan antes de pedir.
   regenerateSceneIds?: number[]
   motion?: AvatarSceneMotionInput[]
+  // Entrega 2g (§23.3), solo con `sceneIds` y validada acá antes de hablar con
+  // HeyGen (`requestedDurations` y su plan): la duración nueva de escenas
+  // pedidas, que se aplica con el clip nuevo.
+  durations?: AvatarSceneDurationInput[]
   // Reloj de las esperas del carril (los guards lo adelantan).
   clock?: AvatarLaneClock
   // El cliente de texto que escribe el movimiento automático (los guards lo
@@ -312,6 +346,160 @@ function requestedMotionInputs(
   return inputs
 }
 
+// Una entrada de `durations` como llega del editor, o undefined si no es una:
+// `sceneId` entero y `seconds` entero de AVATAR_MIN_APPEARANCE_SECONDS a
+// AVATAR_MAX_APPEARANCE_SECONDS.
+function durationInputOf(value: unknown): AvatarSceneDurationInput | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+
+  const sceneId = 'sceneId' in value ? value.sceneId : undefined
+  const seconds = 'seconds' in value ? value.seconds : undefined
+  if (typeof sceneId !== 'number' || !Number.isSafeInteger(sceneId))
+    return undefined
+
+  if (!isAvatarAppearanceSeconds(seconds)) return undefined
+
+  return { sceneId, seconds }
+}
+
+// La duración nueva que pidió el editor (entrega 2g, §23.3) por escena: una
+// entrada por escena pedida, sin repetir. Cualquier otra cosa no deja pagar
+// nada. Sin pedido (la fase), ninguna.
+function requestedDurations(
+  sceneIds: readonly number[] | undefined,
+  durations: unknown,
+): Map<number, number> {
+  const inputs = new Map<number, number>()
+  if (durations === undefined) return inputs
+
+  if (!sceneIds || !Array.isArray(durations))
+    throw new PipelineFailure(
+      'invalid_payload',
+      'durations must be a list of lengths of requested scenes',
+    )
+
+  for (const entry of durations) {
+    const input = durationInputOf(entry)
+    if (
+      !input ||
+      inputs.has(input.sceneId) ||
+      !sceneIds.includes(input.sceneId)
+    )
+      throw new PipelineFailure(
+        'invalid_payload',
+        `durations must hold one whole number of seconds from ${AVATAR_MIN_APPEARANCE_SECONDS} to ${AVATAR_MAX_APPEARANCE_SECONDS} per requested scene`,
+      )
+
+    inputs.set(input.sceneId, input.seconds)
+  }
+  return inputs
+}
+
+// Una escena que cambia de duración en esta corrida: los segundos pedidos, el
+// plan con el tramo que renderiza el carril y las palabras con que se vuelve a
+// planear al aplicarlo.
+interface AvatarResizeRequest {
+  seconds: number
+  plan: AvatarResizePlan
+  words: readonly TranscriptWord[]
+}
+
+// El plan de cada duración pedida, sobre `scenes`. Además de los fallos del
+// plan, uno que no mueve el fin hacia donde se pidió —más larga y el corte
+// cae en el mismo cuadro o antes, más corta y cae en el mismo o después—
+// tampoco sirve (`avatar_resize_out_of_range`): esa duración no se logra en
+// ese lugar, y pagar un render del mismo tramo, o uno más corto que lo que se
+// recortaría gratis, no es lo que pidió la persona. Los segundos que
+// redondean a la duración de hoy no piden nada: su plan no cambia el tramo.
+function plannedDurations(
+  scenes: readonly Scene[],
+  words: readonly TranscriptWord[],
+  durations: ReadonlyMap<number, number>,
+): Map<number, AvatarResizeRequest> {
+  const requests = new Map<number, AvatarResizeRequest>()
+  for (const [sceneId, seconds] of durations) {
+    const plan = avatarResizePlanOrFail(scenes, words, sceneId, seconds)
+    const scene = scenes.find((candidate) => candidate.id === sceneId)
+    if (scene && !movesAsAsked(scene, seconds, plan))
+      throw new PipelineFailure(
+        AVATAR_RESIZE_ERROR_CODES.outOfRange,
+        `avatar scene ${sceneId} cannot get to ${seconds} s in its place`,
+      )
+
+    requests.set(sceneId, { seconds, plan, words })
+  }
+  return requests
+}
+
+// ¿El fin del plan se mueve hacia donde se pidió? En cuadros, como la huella.
+function movesAsAsked(
+  scene: Scene,
+  seconds: number,
+  plan: AvatarResizePlan,
+): boolean {
+  const startSeconds = scene.startSeconds ?? 0
+  const currentEndSeconds = scene.endSeconds ?? 0
+  const asked = Math.sign(
+    seconds - Math.round(currentEndSeconds - startSeconds),
+  )
+  if (asked === 0) return true
+
+  const moved = Math.sign(
+    frameBoundary(plan.endSeconds) - frameBoundary(currentEndSeconds),
+  )
+  return moved === asked
+}
+
+// La lista con el clip nuevo de una escena que cambia de duración (entrega
+// 2g, §23.3), para la MISMA escritura de scenes.json: el plan se recalcula
+// sobre lo que hay en disco y, si sigue dando el tramo que se renderizó (en
+// cuadros), se aplica entero —el avatar listo con su clip, su tramo y su
+// texto, las escenas de imagen que cambian y las que salen—. Si ya no entra
+// (por ejemplo, otra escena se bloqueó mientras tanto), la escena no cambia:
+// conserva su tramo, su texto y su estado, con los recibos nuevos (el render
+// pago queda para cosecharlo si se pide otra vez), y vuelve el código. El clip
+// queda en disco igual.
+function withResizedClip(
+  scenes: readonly Scene[],
+  sceneId: number,
+  avatar: SceneAvatar,
+  resize: AvatarResizeRequest,
+): { scenes: Scene[]; errorCode?: string } {
+  const resizeScenes = avatarResizeScenesOf(scenes)
+  const replanned = avatarResizePlan(
+    resizeScenes,
+    resize.words,
+    sceneId,
+    resize.seconds,
+    avatarResizeAudioEnd(resizeScenes),
+  )
+  if ('plan' in replanned && sameSpanFrames(replanned.plan, resize.plan))
+    return {
+      scenes: applyAvatarResizePlan(scenes, sceneId, replanned.plan, avatar),
+    }
+
+  return {
+    scenes: scenes.map((scene) => {
+      if (scene.id !== sceneId || !scene.avatar) return scene
+
+      return { ...scene, avatar: withoutNewClip(avatar, scene.avatar) }
+    }),
+    errorCode:
+      'errorCode' in replanned
+        ? replanned.errorCode
+        : AVATAR_RESIZE_ERROR_CODES.outOfRange,
+  }
+}
+
+// El avatar como estaba en disco antes del clip nuevo, con los recibos del
+// carril: su estado, su clip y lo que lo describe no cambian.
+function withoutNewClip(
+  laneAvatar: SceneAvatar,
+  onDisk: SceneAvatar,
+): SceneAvatar {
+  return { ...onDisk, attempts: laneAvatar.attempts }
+}
+
 // Las escenas que trabaja una corrida: las pedidas (ya validadas por
 // `requestedAvatarSceneIds`), también una desactualizada, o, sin pedido, las
 // pendientes (la fase). Se vuelve a llamar con scenes.json releído bajo el
@@ -426,11 +614,14 @@ function autoMotionHashOf(scene: Scene): string {
 }
 
 // Lo que el carril sabe de una escena antes de correr: si está lista, al día
-// y con su clip (el carril no pide nada salvo que se regenere) y si es una
-// lista que la persona pidió regenerar.
+// y con su clip (el carril no pide nada salvo que se regenere), si es una
+// lista que la persona pidió regenerar y si es una lista con su clip que
+// vuelve a él si el render nuevo falla (`forceNewRender`): la que se regenera
+// y, desde la entrega 2g, la que cambia de duración.
 interface SceneLaneFacts {
   upToDate: boolean
   retake: boolean
+  keepsClip: boolean
 }
 
 // ¿Vimo le escribe (o reescribe) el movimiento automático antes de pedir?
@@ -591,15 +782,18 @@ function withNextTake(scene: Scene, run: AvatarRequestRun): Scene {
 }
 
 // Qué se sabe del clip de cada escena que se trabaja: las listas, al día y con
-// su clip (el carril toma el atajo y no pide nada) y las listas con clip que
-// la persona pidió regenerar. Una pedida que no está lista no tiene clip que
-// conservar ni que reemplazar: se trabaja como cualquiera (se cosecha lo que
-// ya está pago).
+// su clip (el carril toma el atajo y no pide nada), las listas con clip que
+// la persona pidió regenerar y las que cambian de tramo (`resizedIds`, entrega
+// 2g): su copia con el tramo nuevo no está al día con el clip de hoy, que se
+// conserva si el render nuevo falla. Una pedida que no está lista no tiene
+// clip que conservar ni que reemplazar: se trabaja como cualquiera (se cosecha
+// lo que ya está pago).
 async function sceneLaneFacts(
   paths: ProjectPaths,
   scenes: Scene[],
   project: SceneViewProject,
   regenerateIds: ReadonlySet<number>,
+  resizedIds: ReadonlySet<number>,
 ): Promise<Map<number, SceneLaneFacts>> {
   const facts = new Map<number, SceneLaneFacts>()
   for (const scene of scenes) {
@@ -609,9 +803,11 @@ async function sceneLaneFacts(
       avatar?.status === 'ready' &&
       clip !== undefined &&
       (await isValidFile(clip))
+    const retake = ready && regenerateIds.has(scene.id)
     facts.set(scene.id, {
       upToDate: ready && !isAvatarClipStale(scene, avatar, project),
-      retake: ready && regenerateIds.has(scene.id),
+      retake,
+      keepsClip: retake || (ready && resizedIds.has(scene.id)),
     })
   }
   return facts
@@ -639,7 +835,13 @@ async function prepareAvatarScenes(
 ): Promise<Scene[]> {
   const { context, motionInputs, facts, run } = preparation
   const factsOf = (scene: Scene): SceneLaneFacts => {
-    return facts.get(scene.id) ?? { upToDate: false, retake: false }
+    return (
+      facts.get(scene.id) ?? {
+        upToDate: false,
+        retake: false,
+        keepsClip: false,
+      }
+    )
   }
 
   const configured = preparation.targets.map((scene) => {
@@ -879,6 +1081,13 @@ export async function renderAvatarScenes(
     selection.regenerateSceneIds,
   )
   const motionInputs = requestedMotionInputs(sceneIds, selection.motion)
+  const durations = requestedDurations(sceneIds, selection.durations)
+  // La duración nueva (entrega 2g): su plan, antes de hablar con HeyGen; uno
+  // que no se puede frena la corrida con su código sin cobrar nada. Bajo el
+  // lease se vuelve a planear con scenes.json releído.
+  const words =
+    durations.size > 0 ? await readAvatarResizeWords(paths) : undefined
+  if (words) plannedDurations(scenes, words, durations)
   const candidates = await selectTargets(
     paths,
     scenes,
@@ -916,17 +1125,41 @@ export async function renderAvatarScenes(
       // recibos entre la primera lectura y el lease, y un carril que arranca
       // de una copia vieja pagaría de nuevo y pisaría esos recibos.
       const allScenes = (await readScenes(paths)) ?? []
+      // Las duraciones nuevas sobre lo que hay ahora, todavía sin pagar nada:
+      // la que ya no se puede frena la corrida con su código.
+      const planned = words
+        ? plannedDurations(allScenes, words, durations)
+        : new Map<number, AvatarResizeRequest>()
       const selected = (
         await selectTargets(paths, allScenes, sceneIds, context.metadata)
       ).filter((scene) => candidateIds.has(scene.id))
       if (selected.length === 0) return outcome
+
+      // Lo que cambia de tramo: el carril trabaja su copia con el tramo y el
+      // texto nuevos (`withAvatarResizeSpan`), y la escena real conserva lo
+      // suyo hasta que el clip nuevo está listo (`withResizedClip`). Una
+      // duración que redondea a la de hoy no cambia nada.
+      const resizes = new Map<number, AvatarResizeRequest>()
+      const laneScenes = selected.map((scene) => {
+        const resize = planned.get(scene.id)
+        if (!resize || sameSpanFrames(scene, resize.plan)) return scene
+
+        resizes.set(scene.id, resize)
+        return withAvatarResizeSpan(scene, resize.plan)
+      })
+      // Las que terminaron listas pero cuyo tramo nuevo ya no entraba al
+      // aplicarlo: el carril dice `ready` y la corrida las cuenta fallidas con
+      // este código.
+      const resizeRefusals = new Map<number, string>()
 
       // Guardar un recibo es obligatorio aunque la persona cancele: la
       // escritura usa su propia señal, nunca la del job.
       const checkpointSignal = new AbortController().signal
       let writeQueue: Promise<unknown> = Promise.resolve()
       // Guarda el avatar de esas escenas en una sola escritura de
-      // scenes.json, releído justo antes.
+      // scenes.json, releído justo antes. Con el clip nuevo de una escena que
+      // cambia de duración, en esa misma escritura va su tramo nuevo con las
+      // escenas de imagen del plan (`withResizedClip`).
       const persistAvatars = (
         avatars: ReadonlyMap<number, SceneAvatar>,
         details: AvatarCheckpointDetails | undefined,
@@ -943,18 +1176,36 @@ export async function renderAvatarScenes(
                   'Scenes disappeared while saving an avatar',
                 )
 
-              await writeScenes(
-                paths,
-                current.map((scene) => {
-                  const avatar = avatars.get(scene.id)
-                  return avatar ? { ...scene, avatar } : scene
-                }),
-              )
+              let next = current
+              const refused = new Set<number>()
+              for (const [sceneId, avatar] of avatars) {
+                const resize = details?.newClip
+                  ? resizes.get(sceneId)
+                  : undefined
+                if (!resize) {
+                  next = next.map((scene) =>
+                    scene.id === sceneId ? { ...scene, avatar } : scene,
+                  )
+                  continue
+                }
+
+                const resized = withResizedClip(next, sceneId, avatar, resize)
+                next = resized.scenes
+                if (resized.errorCode === undefined) continue
+
+                refused.add(sceneId)
+                resizeRefusals.set(sceneId, resized.errorCode)
+              }
+              await writeScenes(paths, next)
               // Un clip nuevo cambia el video: el mp4 que haya quedó atrás.
               // Solo entonces: los recibos intermedios de una escena que ya
               // estaba lista (y se regenera) todavía no cambiaron nada, y la
-              // regeneración puede fallar.
+              // regeneración puede fallar. Tampoco con un clip cuyo tramo
+              // nuevo ya no entraba: la escena quedó como estaba.
               if (!details?.newClip) return
+
+              if ([...avatars.keys()].every((sceneId) => refused.has(sceneId)))
+                return
 
               const latest = await readProjectMetadata(paths)
               await markVideoOutdated(paths, latest)
@@ -983,15 +1234,16 @@ export async function renderAvatarScenes(
       }
       const facts = await sceneLaneFacts(
         paths,
-        selected,
+        laneScenes,
         context.metadata,
         regenerateIds,
+        new Set(resizes.keys()),
       )
       const targets = await prepareAvatarScenes({
         context,
         selection,
         scenes: allScenes,
-        targets: selected,
+        targets: laneScenes,
         motionInputs,
         facts,
         run,
@@ -1022,9 +1274,10 @@ export async function renderAvatarScenes(
           narrationVersion,
           allowNewRequest,
           retryFinalRejection: sceneIds !== undefined,
-          // Una lista que la persona pidió regenerar: render nuevo, y su clip
-          // de hoy a salvo si el nuevo falla.
-          forceNewRender: facts.get(scene.id)?.retake === true,
+          // Una lista que la persona pidió regenerar o que cambia de
+          // duración: render nuevo, y su clip de hoy a salvo si el nuevo
+          // falla.
+          forceNewRender: facts.get(scene.id)?.keepsClip === true,
           signal,
           clock: selection.clock,
           events: {
@@ -1060,8 +1313,13 @@ export async function renderAvatarScenes(
           onCheckpoint: (avatar, details) => persist(scene.id, avatar, details),
         })
 
+      // `scene` es la que corrió el carril: con una duración nueva, la copia
+      // con su tramo y su texto, que es como quedó en disco si salió lista.
       const settle = async (scene: Scene, result: AvatarLaneResult) => {
-        if (result.outcome === 'ready') {
+        // Lista, pero su tramo nuevo ya no entraba al aplicarlo: la escena
+        // quedó como estaba y se cuenta fallida con ese código.
+        const refusal = resizeRefusals.get(scene.id)
+        if (result.outcome === 'ready' && refusal === undefined) {
           outcome.rendered.push(scene.id)
           emitter.emit({
             type: 'avatar-scene-ready',
@@ -1077,7 +1335,7 @@ export async function renderAvatarScenes(
           return
         }
 
-        const code = result.errorCode ?? 'avatar_render_failed'
+        const code = refusal ?? result.errorCode ?? 'avatar_render_failed'
         outcome.failed.push(scene.id)
         codes.push(code)
         emitter.emit({ type: 'avatar-scene-failed', sceneId: scene.id, code })

@@ -18,9 +18,12 @@ import {
 
 // Pines del avatar en el corte de escenas (ADR-0057, diseño §6.1). La fase
 // `scene-cuts` planifica el avatar ANTES de cortar: cada aparición es un pin
-// (un tramo fijo, en fronteras de frase) y el carril de siempre corta solo los
-// tramos libres que quedan entre pines. Puro y sin E/S: lo usan la fase, la
-// vista previa del corte y, para contar sin las palabras, la UI.
+// (un tramo fijo que arranca en una frontera de frase y, desde la entrega 2g,
+// termina entre dos palabras cerca de los segundos elegidos: `avatarCutEnd`) y
+// el carril de siempre corta solo los tramos libres que quedan entre pines.
+// Puro, browser-safe y sin E/S: lo usan la fase, la vista previa del corte, el
+// estado del proyecto y, para contar sin las palabras (`countScenesAroundSpans`
+// con los tramos que trae la pausa), la UI.
 
 // Un tramo del video, en segundos.
 export interface SpanWindow {
@@ -112,7 +115,9 @@ export function planAvatarPins(
 
   // «3 veces en 2 minutos» (entrega 2f) llega solo cuando la opción lo tiene en
   // true (create-video-project lo guarda solo así); sin él, el plan de antes.
-  const plan = planAvatarSpans(detectSentences(words, audioEndSeconds), {
+  // Las palabras van también al planificador: cada aparición termina entre dos
+  // de ellas (entrega 2g, §23.2).
+  const plan = planAvatarSpans(detectSentences(words, audioEndSeconds), words, {
     appearances: avatar.appearances,
     secondsPerAppearance: avatar.secondsPerAppearance,
     startWithAvatar: avatar.startWithAvatar,

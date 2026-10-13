@@ -71,10 +71,11 @@
 // marcada van en foreground al 80 % y una apagada atenúa su nombre y su
 // descripción pero no su motivo (con el formulario deshabilitado se atenúa
 // entera); una elección cuyo look perdió un motor deja de valer sin tocar el
-// motor preferido. Con V o IV aparece «Movimiento más expresivo»,
-// con su ayuda en un tooltip y la línea del movimiento automático; manda solo
-// `{ avatarExpressive }`, con IV y un gemelo digital queda apagado y dice por
-// qué, y con III no está. La tarjeta del costo nombra el motor efectivo, la
+// motor preferido. Con IV y un look de foto aparece «Movimiento más
+// expresivo», con su ayuda en un tooltip y la línea del movimiento automático;
+// manda solo `{ avatarExpressive }`, con IV y un gemelo digital queda apagado y
+// dice por qué, y con V y con III no está (entrega 2g, §23.1). La tarjeta del
+// costo nombra el motor efectivo, la
 // nota de los tramos cobra con el motor del proyecto, un look solo-IV ya se
 // puede usar y uno sin motores no. Y la pausa de escenas, con el store real de
 // Crear y la pantalla de progreso de la biblioteca, cobra los tramos con el
@@ -91,14 +92,21 @@
 // que no están) y la tarjeta del costo, el total y el costo de cada motor
 // cuentan lo que sale de verdad (3 × 10 s con una sola aparición; tres al tope
 // + 2 × 60 s con cinco de 60 s). El tope es AVATAR_EARLY_MAX_SECONDS y se lee
-// de la constante: lo fija el planificador y ya cambió (45, 40, 35 s), así que
-// nada acá lo escribe como número. Y con Avatar V y un look de foto de un avatar
-// propio sin gemelo digital, «Movimiento más expresivo» queda apagado con el
-// motivo y sin la línea del movimiento automático (la elección que arma la
-// biblioteca trae `motionReference`); con uno del stock, con un gemelo digital
-// en su grupo, con un look de estudio, con IV o en un borrador sin el campo,
-// no. Las teclas son de verdad (CDP, con la emulación de foco), así el foco
-// del teclado queda «visible».
+// de la constante: lo fija el planificador y cambió (45, 40, 35, 32 s), así que
+// nada acá lo escribe como número. Con Avatar V no hay interruptor «Movimiento
+// más expresivo» ni aviso alguno (entrega 2g, §23.1; la 2f lo mostraba apagado
+// con un motivo), tenga o no el avatar un gemelo digital; la línea «Vimo
+// escribe el movimiento…» sale suelta, sin la caja del interruptor, solo si el
+// avatar tiene con qué moverse (la elección que arma la biblioteca trae
+// `motionReference`: sí con uno del stock, con un gemelo digital en su grupo,
+// con un look de estudio o en un borrador sin el campo; no con un look de foto
+// de un avatar propio sin gemelo digital). Desde la entrega 2g (§23.5), el
+// precio de «Crear escenario» (AVATAR_LOOK_GENERATION_USD: un número, el mismo
+// en el sidecar y en su espejo de la UI) está a la vista en el diálogo, como
+// insignia con su detalle, y en la ficha del panel de un avatar propio, debajo
+// del título y antes de su ayuda; la ficha de uno de stock, apagada, no
+// promete cifra. Las teclas son de verdad (CDP, con la emulación de foco), así
+// el foco del teclado queda «visible».
 // Los simulacros parten del real (ERRORES-CONOCIDOS: simulacro-de-hook-en-un-
 // guard-queda-viejo-en-silencio-cuando-el-hook-suma-un-miembro): `avatarsApi`,
 // `apiKeysApi` y `videosApi` son los reales con solo las lecturas del sidecar
@@ -156,7 +164,7 @@ const mocks = {
     'export const supabase = { auth: { getSession: async () => ({ data: { session: null } }) } }',
   '@/modules/api-keys/api': [
     "import { apiKeysApi as real } from './src/modules/api-keys/api/index.ts'",
-    'export const apiKeysApi = { ...real, isNative: () => true, async getStatus() { return window.fixture.keys.map((providerId) => ({ providerId, configured: true, source: "manual", maskedKey: "••••", savedAt: 0, lastValidatedAt: null })) } }',
+    'export const apiKeysApi = { ...real, isNative: () => true, async getStatus() { if (window.holdKeys) await window.holdKeys; return window.fixture.keys.map((providerId) => ({ providerId, configured: true, source: "manual", maskedKey: "••••", savedAt: 0, lastValidatedAt: null })) } }',
   ].join('\n'),
 }
 const entry = String.raw`
@@ -167,7 +175,8 @@ import i18n from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import es from './public/locales/es.json'
-import { avatarScenarioPath } from '@/modules/avatars/constants'
+import { AVATAR_LOOK_GENERATION_USD, avatarScenarioPath } from '@/modules/avatars/constants'
+import { GenerateLookCard } from '@/modules/avatars/components/GenerateLookCard'
 import { AvatarLibrary } from '@/modules/avatars/views/AvatarLibrary'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { CreditsBadge } from '@/modules/common/components/CreditsBadge'
@@ -192,6 +201,7 @@ import {
   AVATAR_DEFAULT_APPEARANCES,
   AVATAR_EARLY_APPEARANCES,
   AVATAR_EARLY_MAX_SECONDS,
+  AVATAR_LOOK_GENERATION_USD as PIPELINE_LOOK_GENERATION_USD,
   AVATAR_MAX_APPEARANCE_SECONDS,
   AVATAR_MAX_APPEARANCES,
   AVATAR_MIN_APPEARANCE_SECONDS,
@@ -944,6 +954,15 @@ try {
   await waitFor(() => text().includes(scenarioTitle), 'el diálogo «Crear escenario» de Vic abre solo')
   const ratio = [...document.querySelectorAll('button[aria-pressed]')].find((button) => button.textContent.includes(i18n.t('avatars.generar.ratios.r9x16')))
   check(ratio?.getAttribute('aria-pressed') === 'true', 'el formato del video ya viene elegido')
+  // 10a. El precio de «Crear escenario» (entrega 2g, §23.5): un número, el mismo
+  // en el sidecar y en el espejo de la UI, que el diálogo muestra como insignia
+  // con su detalle («por escenario · se descuenta de tu saldo de avatares») en
+  // lugar de decir que el costo se desconoce.
+  check(typeof AVATAR_LOOK_GENERATION_USD === 'number' && AVATAR_LOOK_GENERATION_USD > 0 && AVATAR_LOOK_GENERATION_USD === PIPELINE_LOOK_GENERATION_USD, 'el precio del escenario es un número y el espejo de la UI coincide con el del sidecar: ' + AVATAR_LOOK_GENERATION_USD + ' / ' + PIPELINE_LOOK_GENERATION_USD)
+  const priceSays = formatUsd(AVATAR_LOOK_GENERATION_USD, 'es')
+  const priceBadgeIn = (root) => [...(root?.querySelectorAll('span') ?? [])].find((span) => span.textContent === priceSays) ?? null
+  const scenarioDialog = dialogSaying(scenarioTitle)
+  check(priceBadgeIn(scenarioDialog) && scenarioDialog.textContent.includes(phrase('avatars.generar.costoDetalle')) && !scenarioDialog.textContent.includes(phrase('avatars.generar.costoDesconocido')), 'el diálogo muestra ' + priceSays + ' con su detalle y no dice que el costo se desconoce')
   buttonIn(dialogSaying(scenarioTitle), i18n.t('avatars.generar.cancelar')).click()
   await waitFor(() => !text().includes(scenarioTitle), 'cancelar cierra el diálogo')
   check(window.search.includes('scenario='), 'mientras el panel sigue abierto, el enlace sigue en la URL')
@@ -954,6 +973,42 @@ try {
   await waitFor(() => text().includes(i18n.t('avatars.detalle.looks')), 'reabrir el panel de Vic')
   await delay(300)
   check(!text().includes(scenarioTitle), 'reabrir el panel no vuelve a abrir el diálogo: el enlace vale una vez')
+  // 10b. La ficha «Crear escenario» del panel de Vic (propio, listo) dice el
+  // precio debajo de su título, con la misma insignia, y la describe antes que
+  // su ayuda. La de Teo (de stock) no se puede usar: dice por qué y no promete
+  // una cifra.
+  const scenarioCardIn = () => [...document.querySelectorAll('button[aria-labelledby]')].find((button) => document.getElementById(button.getAttribute('aria-labelledby'))?.textContent === phrase('avatars.generar.tarjeta')) ?? null
+  const vicCard = scenarioCardIn()
+  const vicBadge = priceBadgeIn(vicCard)
+  const vicTitle = document.getElementById(vicCard?.getAttribute('aria-labelledby') ?? '')
+  const vicHint = [...(vicCard?.querySelectorAll('span') ?? [])].find((span) => span.textContent === phrase('avatars.generar.tarjetaHint'))
+  check(vicCard && vicBadge && vicTitle && vicHint && follows(vicTitle, vicBadge) && follows(vicBadge, vicHint), 'la ficha «Crear escenario» de Vic dice ' + priceSays + ' debajo de su título y antes de su ayuda')
+  check(vicCard.getAttribute('aria-disabled') === 'false' && vicCard.getAttribute('aria-describedby').split(' ')[0] === vicBadge.id && document.getElementById(vicCard.getAttribute('aria-describedby').split(' ')[1]) === vicHint, 'el precio describe la ficha antes que su ayuda')
+  ;[...document.querySelectorAll('[aria-label]')].find((element) => element.getAttribute('aria-label') === i18n.t('avatars.detalle.cerrar')).click()
+  await waitFor(() => !text().includes(i18n.t('avatars.detalle.looks')), 'cerrar el panel de Vic')
+  document.querySelector('[data-avatar-id="teo-2"]').click()
+  await waitFor(() => text().includes(i18n.t('avatars.detalle.looks')) && scenarioCardIn(), 'abrir el panel de Teo')
+  const teoCard = scenarioCardIn()
+  check(teoCard.getAttribute('aria-disabled') === 'true' && teoCard.textContent.includes(phrase('avatars.generar.soloPropios')) && !priceBadgeIn(teoCard), 'la ficha de un avatar de stock está apagada, dice por qué y no muestra el precio')
+  check(!teoCard.getAttribute('aria-describedby').split(' ').some((id) => document.getElementById(id) === null), 'y su descripción no apunta a un id que no está')
+  // 10c. Mientras el llavero responde (la clave quizás está), la ficha de Vic
+  // espera apagada sin acusar ningún motivo, y tampoco muestra el precio: no
+  // promete una cifra de algo que todavía no se puede pedir (observación de la
+  // revisión final de la 2g). Con la clave, se puede usar y lo dice. La ficha
+  // va sola, con sus hooks reales y el llavero simulado en espera, dentro de un
+  // contenedor propio: render no es inmediato, y la ficha de Teo del árbol
+  // anterior (apagada y sin precio) haría pasar el caso en vacío.
+  let releaseKeys
+  window.holdKeys = new Promise((done) => { releaseKeys = done })
+  reactRoot.render(<QueryClientProvider key={++revision} client={freshClient()}><I18nextProvider i18n={i18n}><div data-probe="vic-card"><GenerateLookCard avatar={LIBRARY.find((item) => item.id === 'vic-3')} /></div></I18nextProvider></QueryClientProvider>)
+  const vicCardAlone = () => document.querySelector('[data-probe="vic-card"] button[aria-labelledby]')
+  const waitingCard = await waitFor(vicCardAlone, 'la ficha de Vic sola, con el llavero respondiendo')
+  check(document.getElementById(waitingCard.getAttribute('aria-labelledby'))?.textContent === phrase('avatars.generar.tarjeta'), 'es la ficha «Crear escenario»')
+  check(waitingCard.getAttribute('aria-disabled') === 'true' && !priceBadgeIn(waitingCard) && !waitingCard.textContent.includes(phrase('avatars.errors.missingApiKey')), 'mientras el llavero responde, la ficha espera apagada, sin precio y sin acusar la clave: ' + waitingCard.textContent)
+  check(!waitingCard.getAttribute('aria-describedby').split(' ').some((id) => document.getElementById(id) === null), 'y su descripción no apunta a un id que no está')
+  releaseKeys()
+  window.holdKeys = null
+  await waitFor(() => vicCardAlone()?.getAttribute('aria-disabled') === 'false' && priceBadgeIn(vicCardAlone()), 'con la clave, la ficha se puede usar y dice el precio')
 
   // 11. Una clave de HeyGen rechazada se lee «Sin configurar» (NOT_CONFIGURED_CREDITS_CODES).
   reactRoot.render(<I18nextProvider key={++revision} i18n={i18n}><CreditsBadge provider="HeyGen" status={{ available: false, errorCode: 'avatar_invalid_key' }} loading={false} active={false} formatBalance={(remaining) => String(remaining)} /></I18nextProvider>)
@@ -1070,6 +1125,7 @@ try {
     return engineDescription(engine) + ' | ' + usdSays(amount) + ' ' + perMinuteSays(avatarRatePerMinute(lookType, engine))
   }
   for (const key of ['create.avatar.engineTitle', 'create.avatar.engineGroupAria', 'create.avatar.expressive', 'create.avatar.expressiveHelpAria', 'create.avatar.expressiveTooltip', 'create.avatar.motionAuto']) phrase(key)
+  const motionAutoLine = phrase('create.avatar.motionAuto')
 
   // 16a. Con un look de foto con los tres motores: el grupo, en el orden del
   // dueño, con la descripción y el costo de cada uno; Avatar III por defecto,
@@ -1160,9 +1216,14 @@ try {
     // la página (revisión de WP-V, hallazgo 4a).
     check(window.lastKeydown?.key === key && window.lastKeydown.prevented === true, key + ' frena el resto de la tecla (preventDefault)')
   }
-  // Con V el gemelo admite «más expresivo»: vuelve prendido, como lo dejó la
-  // persona, con la línea del movimiento automático.
-  check(expressiveSwitch() && !expressiveSwitch().disabled && expressiveSwitch().getAttribute('aria-checked') === 'true' && text().includes(phrase('create.avatar.motionAuto')) && !text().includes(unavailableExpressive), 'con V y un gemelo, «más expresivo» prendido y habilitado, con la línea del movimiento automático')
+  // Con V no hay «más expresivo» (entrega 2g, §23.1), aunque la persona lo haya
+  // dejado prendido con IV: ni el interruptor, ni su ayuda, ni un motivo. El
+  // gemelo se mueve con el prompt, así que la línea del movimiento automático
+  // sale suelta, fuera de la caja del interruptor, y la preferencia sigue en el
+  // formulario.
+  const unavailableExpressiveV = phrase('create.avatar.expressiveUnavailable', { engine: engineLabel('avatar_v') })
+  check(!expressiveSwitch() && !expressiveHelp() && !text().includes(unavailableExpressive) && !text().includes(unavailableExpressiveV), 'con V y un gemelo no hay interruptor, ni ayuda, ni motivo de apagado')
+  check(paragraphSays(motionAutoLine) && !paragraphNamed(motionAutoLine).closest('[class~="border-amethyst/30"]') && window.value.avatarExpressive === true, 'con V y un gemelo la línea del movimiento automático sale suelta y la preferencia de la persona sigue prendida en el formulario')
   check(costCard().textContent.includes(usdSays(3.6)) && costCard().textContent.includes(engineLabel('avatar_v') + ' ' + perMinuteSays(7.2)), 'la tarjeta del costo con V: ' + costCard().textContent)
   // Con Alt, Ctrl o Meta la flecha es de otro (el historial, el sistema): no
   // mueve el motor ni la frena (revisión de WP-V, hallazgo 2). Alt va como
@@ -1185,7 +1246,7 @@ try {
   await waitFor(() => isChecked(engineRadio('avatar_iv')), 'el mismo evento sin modificador mueve a IV')
   check(plain.defaultPrevented && window.patches.length === beforeModified + 1 && same(window.patches.at(-1), { avatarEngine: 'avatar_iv' }), 'sin modificador, el evento del DOM mueve el motor y lo frena')
   await pressKey('End')
-  await waitFor(() => isChecked(engineRadio('avatar_iii')) && !expressiveSwitch(), 'con III el interruptor se va')
+  await waitFor(() => isChecked(engineRadio('avatar_iii')) && !expressiveSwitch() && !text().includes(motionAutoLine), 'con III se va también la línea del movimiento automático')
   await pressKey('Tab')
   check(document.activeElement?.id === 'create-avatar-appearances', 'Tab sale del grupo al control siguiente: una sola parada (' + (document.activeElement?.id || document.activeElement?.tagName) + ')')
 
@@ -1308,8 +1369,8 @@ try {
   // avisos son la descripción de la casilla y el costo cuenta lo que sale de
   // verdad. Mia es un look de foto con los tres motores, con III por defecto:
   // 0,99 US$/min. El tope de las tres primeras sale de la constante
-  // AVATAR_EARLY_MAX_SECONDS (era 45 s; el planificador lo bajó a 40 y
-  // después a 35): nada de este caso lo escribe como número, y los totales se
+  // AVATAR_EARLY_MAX_SECONDS (era 45 s; el planificador lo bajó a 40, a 35 y
+  // después a 32): nada de este caso lo escribe como número, y los totales se
   // arman a mano a partir de él.
   const earlyCap = AVATAR_EARLY_MAX_SECONDS
   const earlyAtCap = AVATAR_EARLY_APPEARANCES * earlyCap
@@ -1454,14 +1515,16 @@ try {
   check(!plainBox.hasAttribute('aria-describedby') && !emptyBox.hasAttribute('aria-describedby'), 'sin describedBy, o con uno vacío, la casilla no pone aria-describedby')
   check(describedBox.getAttribute('aria-describedby') === 'uno dos' && !describedBox.closest('label').hasAttribute('aria-describedby') && describedBox.closest('label').textContent === 'Con ids', 'con describedBy lo pasa tal cual al input, no a la etiqueta, y el nombre sigue siendo solo la etiqueta')
 
-  // 16l. Avatar V sin gemelo digital (entrega 2f, R-2f-1). La elección que arma
-  // la biblioteca trae motionReference: un avatar propio de foto sin ningún look
-  // de gemelo digital no tiene con qué moverse con V (el proveedor rechaza el
-  // prompt): «Movimiento más expresivo» queda apagado con el motivo, sin la línea
-  // del movimiento automático, y la preferencia de la persona no se toca. Nia
-  // (propia, de foto, con un gemelo digital en su grupo) y Dante (de stock) sí
-  // tienen con qué; Zoe es propia con un look de estudio, que se referencia a
-  // sí mismo.
+  // 16l. Avatar V no tiene «Movimiento más expresivo» (entrega 2g, §23.1; la 2f
+  // lo mostraba apagado con un motivo cuando el avatar no tenía un gemelo
+  // digital, R-2f-1): con V no hay interruptor, ni ayuda, ni motivo, con ningún
+  // look, y la preferencia de la persona no se toca. La línea «Vimo escribe el
+  // movimiento…» sale suelta (fuera de la caja del interruptor) solo si el
+  // avatar tiene con qué moverse: la elección que arma la biblioteca trae
+  // motionReference. Mia (propia, de foto, sin gemelo digital) no la tiene y
+  // V deja su look con el movimiento propio de V; Nia (propia, de foto, con un
+  // gemelo digital en su grupo) y Dante (de stock) sí; Zoe es propia con un
+  // look de estudio, que se referencia a sí mismo.
   const NIA = avatar('nia-8', 'Nia', 'own', 'look-nia', [look('look-nia', 'Nia foto', 'photo_avatar', 'landscape', ALL_ENGINES), look('look-nia-gemelo', 'Nia gemelo', 'digital_twin', 'landscape', ALL_ENGINES)])
   const DANTE = avatar('dante-9', 'Dante', 'stock', 'look-dante', [look('look-dante', 'Dante foto', 'photo_avatar', 'landscape', ALL_ENGINES)])
   const ZOE = avatar('zoe-10', 'Zoe', 'own', 'look-zoe', [look('look-zoe', 'Zoe estudio', 'studio_avatar', 'landscape', ALL_ENGINES)])
@@ -1469,53 +1532,57 @@ try {
   const DANTE_CHOICE = { id: 'dante-9', name: 'Dante', lookId: 'look-dante', lookName: 'Dante foto', lookType: 'photo_avatar', supportedEngines: ALL_ENGINES, motionReference: true }
   const ZOE_CHOICE = { id: 'zoe-10', name: 'Zoe', lookId: 'look-zoe', lookName: 'Zoe estudio', lookType: 'studio_avatar', supportedEngines: ALL_ENGINES, motionReference: false }
   const referenceFixture = { avatars: [MIA, NIA, DANTE, ZOE], balance: USD, keys: ['heygen'] }
-  const noReference = phrase('create.avatar.expressiveNoReference')
-  const motionAutoLine = phrase('create.avatar.motionAuto')
-  const unavailableForV = phrase('create.avatar.expressiveUnavailable', { engine: engineLabel('avatar_v') })
-  check(noReference !== unavailableForV && !/hey[\s-]*gen/i.test(noReference), 'el motivo es su propia frase y no nombra al proveedor: ' + noReference)
+  // El aviso de la 2f ya no existe: si el catálogo todavía trae su frase, tampoco
+  // se ve (el guard no depende de que la clave siga o no).
+  const retiredNoReference = es.create.avatar.expressiveNoReference
+  // Con V, sin interruptor ni ayuda ni ningún motivo de apagado.
+  const withoutSwitch = () => !expressiveSwitch() && !expressiveHelp() && !text().includes(unavailableExpressiveV) && (!retiredNoReference || !text().includes(retiredNoReference))
+  // Con V y con referencia, la línea sola; sin ella, ni la línea ni nada.
+  const lineAlone = () => withoutSwitch() && paragraphSays(motionAutoLine) && !paragraphNamed(motionAutoLine).closest('[class~="border-amethyst/30"]')
+  const nothingAtAll = () => withoutSwitch() && !text().includes(motionAutoLine)
   // El interruptor ofrecido y prendido (la línea del movimiento automático a la
-  // vista), o apagado con el motivo de V sin gemelo (y sin esa línea).
-  const expressiveOffered = () => expressiveSwitch() && !expressiveSwitch().disabled && expressiveSwitch().getAttribute('aria-checked') === 'true' && text().includes(motionAutoLine) && !paragraphSays(noReference)
-  const expressiveBlocked = () => expressiveSwitch()?.disabled && expressiveSwitch().getAttribute('aria-checked') === 'false' && paragraphSays(noReference) && descriptionOf(expressiveSwitch()) === noReference && !text().includes(motionAutoLine) && !text().includes(unavailableForV)
+  // vista, dentro de su caja) con IV y un look de foto.
+  const expressiveOffered = () => expressiveSwitch() && !expressiveSwitch().disabled && expressiveSwitch().getAttribute('aria-checked') === 'true' && paragraphSays(motionAutoLine) && Boolean(paragraphNamed(motionAutoLine).closest('[class~="border-amethyst/30"]'))
 
   // 16l-a. Mia (propia, de foto, sin gemelo) con V y «más expresivo» prendido en
-  // el formulario: apagado con el motivo; nada se parchea ni se pierde.
+  // el formulario: sin interruptor, sin motivo y sin la línea; nada se parchea
+  // ni se pierde.
   mount(referenceFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: MIA_CHOICE, avatarEngine: 'avatar_v', avatarExpressive: true })
-  await waitFor(() => named(avatarRadios(), 'Mia') && isChecked(engineRadio('avatar_v')) && expressiveSwitch(), 'Mia con V: el interruptor de «más expresivo»')
-  check(expressiveBlocked(), 'Mia con V: «más expresivo» apagado y deshabilitado, con el motivo de que su avatar no tiene un gemelo digital como descripción y sin la línea del movimiento automático')
-  check(follows(engineGroup(), expressiveSwitch()), 'el interruptor sigue yendo después del grupo «Motor»')
-  expressiveSwitch().click()
+  await waitFor(() => named(avatarRadios(), 'Mia') && isChecked(engineRadio('avatar_v')), 'Mia con V')
   await delay(100)
-  check(window.patches.length === 0 && window.value.avatarExpressive === true && window.value.avatarEngine === 'avatar_v', 'tocarlo no parchea nada y el formulario conserva lo que eligió la persona (V y «más expresivo» prendido)')
+  check(nothingAtAll(), 'Mia con V: ni interruptor, ni ayuda, ni motivo, ni la línea del movimiento automático (V deja su look con su movimiento propio)')
+  check(window.patches.length === 0 && window.value.avatarExpressive === true && window.value.avatarEngine === 'avatar_v', 'nada se parchea ni se pierde: el formulario conserva lo que eligió la persona (V y «más expresivo» prendido)')
 
   // 16l-b. Con IV el mismo look sí se mueve: el interruptor vuelve prendido y
-  // con la línea; con V, otra vez el motivo (se deriva al dibujar).
+  // con la línea; con V, otra vez nada (se deriva al dibujar).
   engineRadio('avatar_iv').click()
   await waitFor(() => isChecked(engineRadio('avatar_iv')) && expressiveOffered(), 'con IV, el look de Mia admite «más expresivo»')
   engineRadio('avatar_v').click()
-  await waitFor(() => isChecked(engineRadio('avatar_v')) && expressiveBlocked(), 'de vuelta en V, otra vez el motivo')
+  await waitFor(() => isChecked(engineRadio('avatar_v')) && nothingAtAll(), 'de vuelta en V, otra vez sin nada')
   check(same(window.patches, [{ avatarEngine: 'avatar_iv' }, { avatarEngine: 'avatar_v' }]), 'solo se parchearon los dos cambios de motor: ' + JSON.stringify(window.patches))
 
   // 16l-c. Elegir otro avatar desde la fila trae motionReference de la
-  // biblioteca (selectedAvatarFrom): Nia y Dante la tienen, Zoe no la tiene
-  // pero su look de estudio se mueve igual, y volver a Mia lo apaga de nuevo.
+  // biblioteca (selectedAvatarFrom): Nia y Dante la tienen y Zoe no la tiene,
+  // pero su look de estudio se mueve igual: con V, solo la línea; y volver a
+  // Mia la quita. En ningún caso aparece el interruptor.
   const motionAfter = async (name, choice, expectation, description) => {
     named(avatarRadios(), name).click()
     await waitFor(() => same(window.patches.at(-1), { avatar: choice }), 'elegir a ' + name)
     await waitFor(() => expectation(), description)
   }
-  await motionAfter('Nia', NIA_CHOICE, expressiveOffered, 'Nia (propia, de foto, con un gemelo digital en su grupo) con V: «más expresivo» disponible y prendido')
-  await motionAfter('Dante', DANTE_CHOICE, expressiveOffered, 'Dante (de stock) con V: «más expresivo» disponible, sin aviso')
-  await motionAfter('Zoe', ZOE_CHOICE, expressiveOffered, 'Zoe (propia, con un look de estudio y sin gemelo) con V: disponible, porque un look de video se referencia a sí mismo')
-  await motionAfter('Mia', MIA_CHOICE, expressiveBlocked, 'volver a Mia con V: apagado con el motivo')
+  await motionAfter('Nia', NIA_CHOICE, lineAlone, 'Nia (propia, de foto, con un gemelo digital en su grupo) con V: solo la línea del movimiento automático')
+  await motionAfter('Dante', DANTE_CHOICE, lineAlone, 'Dante (de stock) con V: solo la línea, sin interruptor')
+  await motionAfter('Zoe', ZOE_CHOICE, lineAlone, 'Zoe (propia, con un look de estudio y sin gemelo) con V: solo la línea, porque un look de video se referencia a sí mismo')
+  await motionAfter('Mia', MIA_CHOICE, nothingAtAll, 'volver a Mia con V: nada')
   check(window.value.avatarExpressive === true && window.value.avatarEngine === 'avatar_v', 'cambiar de avatar no tocó el motor ni «más expresivo»')
 
-  // 16l-d. Un borrador de antes de la 2f no trae el campo: cuenta como que sí.
+  // 16l-d. Un borrador de antes de la 2f no trae el campo: cuenta como que sí
+  // tiene con qué moverse, así que sale la línea (y nada más).
   const MIA_DRAFT = { ...MIA_CHOICE }
   delete MIA_DRAFT.motionReference
   mount(referenceFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: MIA_DRAFT, avatarEngine: 'avatar_v', avatarExpressive: true })
-  await waitFor(() => named(avatarRadios(), 'Mia') && isChecked(engineRadio('avatar_v')) && expressiveSwitch(), 'Mia sin el campo, con V')
-  await waitFor(() => expressiveOffered(), 'sin motionReference el interruptor se ofrece, prendido y sin aviso')
+  await waitFor(() => named(avatarRadios(), 'Mia') && isChecked(engineRadio('avatar_v')), 'Mia sin el campo, con V')
+  await waitFor(() => lineAlone(), 'sin motionReference sale la línea del movimiento automático, sin interruptor')
 
   // 17. La pausa de escenas cobra con el motor del proyecto (entrega 2e,
   // R-2e-12): el store real de Crear copia el motor de las opciones de corrida

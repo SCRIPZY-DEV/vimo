@@ -24,7 +24,12 @@
 // `expressive: true` solo cuando la opción lo tiene. Desde la 2f,
 // «3 veces en 2 minutos» llega al planificador solo en true (la fase la
 // anuncia en la pausa) y una primera frase corta seguida de un silencio
-// largo ya no deja al video sin la apertura.
+// largo ya no deja al video sin la apertura. Desde la 2g (diseño §23.2) el
+// planificador recibe las palabras y cada pin termina entre dos de ellas,
+// cerca de los segundos elegidos: el silencio que el avatar no carga (más de
+// 2 s entre dos palabras, o después de la última del audio) sale como escenas
+// de imagen, una cola de menos de 3 s antes del fin del audio solo se pega si
+// ninguna otra frase sirve, y el máximo de 60 s se cumple después del corte.
 // Importa el código real (Node quita los tipos), con carpetas temporales: sin
 // red ni FFmpeg.
 import assert from 'node:assert/strict'
@@ -65,6 +70,7 @@ import {
   sceneCutsStage,
 } from '../../pipeline/stages/scene-cuts/scene-cuts.ts'
 import {
+  AVATAR_CUT_PAUSE_WINDOW_SECONDS,
   AVATAR_MAX_APPEARANCE_SECONDS,
   AVATAR_MIN_APPEARANCE_SECONDS,
 } from '../../pipeline/types/avatar.ts'
@@ -94,15 +100,20 @@ const AVATAR = {
 }
 
 // `seconds` de narración: una palabra por segundo (w0, w1, …, de i a i + 0,5)
-// y frases de 5 s (cada quinta palabra cierra frase). Con 60 s, el
-// planificador pone al avatar en 0–10, 25–35 y 45–55.
-function narration(seconds) {
-  return Array.from({ length: seconds }, (_, index) => ({
-    word: `w${index}`,
-    start: index,
-    end: index + 0.5,
-    ...(index % 5 === 4 ? { sentenceEnd: true } : {}),
-  }))
+// y frases de 5 s (cada quinta palabra cierra frase), o las que digan `ends`
+// (los índices de las palabras que cierran frase). Los huecos de 0,5 s son
+// pausas naturales, así que cada aparición corta en un segundo entero. Con
+// 60 s, el planificador pone al avatar en 0–10, 25–35 y 45–55.
+function narration(seconds, ends) {
+  return Array.from({ length: seconds }, (_, index) => {
+    const closes = ends ? ends.includes(index) : index % 5 === 4
+    return {
+      word: `w${index}`,
+      start: index,
+      end: index + 0.5,
+      ...(closes ? { sentenceEnd: true } : {}),
+    }
+  })
 }
 const SIXTY = narration(60)
 
@@ -132,6 +143,8 @@ const pin = (startSeconds, endSeconds) => ({
   avatar: SEED,
 })
 const ends = (scenes) => scenes.map((scene) => scene.endSeconds)
+const pinWindows = (plan) =>
+  plan.pins.map((span) => [span.startSeconds, span.endSeconds])
 const avatarIds = (scenes) =>
   scenes.filter((scene) => scene.avatar).map((scene) => scene.id)
 const text = (from, to) =>
@@ -302,11 +315,18 @@ test('con pines el texto sale por punto medio: una palabra que empieza antes del
 
 test('foco 1 de punta a punta: sin puntuación y con una sola pausa larga, ningún avatar de menos del mínimo ni imagen de menos de 3 s', () => {
   const words = onePauseWords()
-  for (const startWithAvatar of [true, false]) {
+  // Con apertura, 0–10 (hasta la 2g, la frase 0–8 entera); sin ella, desde la
+  // frase de los 8 s hasta el hueco de los 18,2. Las otras dos no entran.
+  for (const [startWithAvatar, windows] of [
+    [true, [[0, 10]]],
+    [false, [[8, 18.2]]],
+  ]) {
     const plan = planAvatarPins({ ...AVATAR, startWithAvatar }, words, 31.2)
+    assert.deepEqual(pinWindows(plan), windows, String(startWithAvatar))
     assert.equal(plan.dropped, 2, String(startWithAvatar))
     for (const span of plan.pins) {
-      // Los pines caen en frontera de frase, al cuadro de 25 fps.
+      // Los pines arrancan en una frontera de frase y cortan en el inicio de
+      // una palabra, los dos al cuadro de 25 fps.
       assert.ok(onFrame(span.startSeconds) && onFrame(span.endSeconds))
       assert.deepEqual(span.avatar, SEED)
     }
@@ -315,8 +335,9 @@ test('foco 1 de punta a punta: sin puntuación y con una sola pausa larga, ning�
     })
     for (const scene of scenes) {
       const length = scene.endSeconds - scene.startSeconds
+      // El avatar, hasta medio segundo menos que el mínimo elegible (§23.2).
       const minimum = scene.avatar
-        ? AVATAR_MIN_APPEARANCE_SECONDS
+        ? AVATAR_MIN_APPEARANCE_SECONDS - AVATAR_CUT_PAUSE_WINDOW_SECONDS
         : MIN_SECONDS_PER_SCENE
       assert.ok(length >= minimum - 1e-9, `${scene.id}: ${length}`)
     }
@@ -369,8 +390,6 @@ function sentenceWords(prefix, count, from) {
     ...(index === count - 1 ? { sentenceEnd: true } : {}),
   }))
 }
-const pinWindows = (plan) =>
-  plan.pins.map((span) => [span.startSeconds, span.endSeconds])
 // Cada escena del corte: inicio, fin, si no tiene palabras y si es del avatar.
 const sceneWindows = (scenes) =>
   scenes.map((scene) => [
@@ -380,19 +399,31 @@ const sceneWindows = (scenes) =>
     Boolean(scene.avatar),
   ])
 
-// Tope de silencio (entrega 2b, diseño §5): una aparición no carga más de 2 s
-// de silencio después de la última palabra de una frase, y el silencio que
-// queda afuera lo corta el carril como escenas de imagen sin palabras.
-test('tope de silencio: el silencio después de un pin sale como escenas de imagen sin palabras', () => {
-  // Frases 0–5, «solo0» (5–5,45 s) con silencio hasta los 15 y 15–25: el
-  // avatar termina a los 7,44 (la palabra más 2 s, al cuadro).
+// El silencio que el avatar no carga (entrega 2b; desde la 2g, §23.2: ninguna
+// pausa de más de 2 s entre dos palabras adentro de la aparición) lo corta el
+// carril como escenas de imagen sin palabras.
+test('el silencio después de un pin sale como escenas de imagen sin palabras', () => {
+  // Frases 0–5, «solo0» (5–5,45 s) con silencio hasta los 15 y 15–25: la
+  // pausa de 9,55 s corta al avatar a los 7,44 (la palabra más 2 s, al cuadro
+  // hacia abajo; R-2g-11), como en la 2f.
   const words = [
     ...sentenceWords('a', 10, 0),
     ...sentenceWords('solo', 1, 5),
     ...sentenceWords('c', 20, 15),
   ]
+  for (const secondsPerAppearance of [10, 11, 12])
+    assert.deepEqual(
+      pinWindows(
+        planAvatarPins(
+          { ...AVATAR, appearances: 1, secondsPerAppearance },
+          words,
+          25,
+        ),
+      ),
+      [[0, 7.44]],
+      String(secondsPerAppearance),
+    )
   const plan = planAvatarPins({ ...AVATAR, appearances: 1 }, words, 25)
-  assert.deepEqual(pinWindows(plan), [[0, 7.44]])
   const scenes = cutLaneAroundPins(words, 25, plan.pins, { secondsPerScene: 3 })
   assert.deepEqual(sceneWindows(scenes), [
     [0, 7.44, false, true],
@@ -406,23 +437,25 @@ test('tope de silencio: el silencio después de un pin sale como escenas de imag
   assert.ok(scenes[0].text.endsWith('a9 solo0'), scenes[0].text)
 })
 
-test('tope de silencio al fin del audio: una cola de 3 s o más sale como escena de imagen sin palabras', () => {
+test('silencio al fin del audio: la aparición no carga más de 2 s después de la última palabra, y una cola de 3 s o más sale como escena de imagen sin palabras', () => {
   // La última frase (5–15 s) termina de hablar a los 7,95: el avatar llega a
-  // los 9,96 y los 5,04 s que quedan son una imagen muda.
+  // los 9,92 (la palabra más 2 s, al cuadro hacia abajo) y los 5,08 s que
+  // quedan son una imagen muda.
   const words = [...sentenceWords('a', 10, 0), ...sentenceWords('b', 6, 5)]
   const plan = planAvatarPins({ ...AVATAR, appearances: 1 }, words, 15)
-  assert.deepEqual(pinWindows(plan), [[0, 9.96]])
+  assert.deepEqual(pinWindows(plan), [[0, 9.92]])
   const scenes = cutLaneAroundPins(words, 15, plan.pins, { secondsPerScene: 3 })
   assert.deepEqual(sceneWindows(scenes), [
-    [0, 9.96, false, true],
-    [9.96, 15, true, false],
+    [0, 9.92, false, true],
+    [9.92, 15, true, false],
   ])
 })
 
-test('tope de silencio con apariciones de 60 s: la cola corta del final no lleva al avatar por encima del máximo', () => {
+test('apariciones de 60 s: si la cola corta del final llevara al avatar por encima del máximo, el corte deja 3 s de imagen', () => {
   // Once frases de 5 s y la última, 55–61 s, que termina de hablar a los
-  // 57,95. Recortada, la aparición mediría 59,96 s y el corte le pegaría la
-  // cola de 1,04 (61 s); el planificador la mide hasta su fin: 0–55.
+  // 57,95. El corte más cercano a los 60 dejaría 1 s que el corte de escenas
+  // le pegaría (61 s): aceptando la cola corta, corta a los 58 y la imagen
+  // 58–61 queda muda. Hasta la 2f, 0–55 (una frase menos).
   const words = [
     ...Array.from({ length: 11 }, (_, index) =>
       sentenceWords(`s${index}w`, 10, index * 5),
@@ -434,7 +467,7 @@ test('tope de silencio con apariciones de 60 s: la cola corta del final no lleva
     words,
     61,
   )
-  assert.deepEqual(pinWindows(plan), [[0, 55]])
+  assert.deepEqual(pinWindows(plan), [[0, 58]])
   assert.equal(plan.dropped, 0)
   const scenes = cutLaneAroundPins(words, 61, plan.pins, { secondsPerScene: 3 })
   for (const scene of scenes.filter((candidate) => candidate.avatar))
@@ -444,28 +477,34 @@ test('tope de silencio con apariciones de 60 s: la cola corta del final no lleva
       `${scene.id}: ${scene.startSeconds}–${scene.endSeconds}`,
     )
   assert.deepEqual(sceneWindows(scenes), [
-    [0, 55, false, true],
-    [55, 58, false, false],
+    [0, 58, false, true],
     [58, 61, true, false],
   ])
 })
 
-test('tope de silencio al fin del audio: la última frase entra si llega al mínimo con su fin recortado, y el corte la deja en su fin', () => {
-  // La última frase (5–15 s) termina de hablar a los 10,95: recortada mide
-  // 7,96 s, llega al mínimo, y el tramo va hasta su fin, el del audio.
+test('cola corta al fin del audio: si ninguna otra frase sirve se acepta y el corte la deja en el fin; casi muda, no hay aparición', () => {
+  // La única frase desde la que puede arrancar (5–15 s) habla hasta los
+  // 10,95: el corte cae a los 12,92 (2 s de silencio, al cuadro) y deja 2,08 s
+  // que el corte de escenas le pega, así la escena termina en el fin del
+  // audio, como hasta la 2f.
   const avatar = { ...AVATAR, appearances: 1, startWithAvatar: false }
   const words = [...sentenceWords('a', 10, 0), ...sentenceWords('b', 12, 5)]
   const plan = planAvatarPins(avatar, words, 15)
-  assert.deepEqual(pinWindows(plan), [[5, 15]])
+  assert.deepEqual(pinWindows(plan), [[5, 12.92]])
   const scenes = cutLaneAroundPins(words, 15, plan.pins, { secondsPerScene: 3 })
   assert.deepEqual(sceneWindows(scenes), [
     [0, 5, false, false],
     [5, 15, false, true],
   ])
-  // Con seis palabras habla hasta los 7,95 y recortada mide 4,96 s, menos que
-  // el mínimo de 5 s (entrega 2d), aunque hasta el fin del audio (12 s)
-  // mediría 7: es casi muda, no hay aparición y el video son solo imágenes.
-  const shorter = [...sentenceWords('a', 10, 0), ...sentenceWords('b', 6, 5)]
+  // Con cinco palabras habla hasta los 7,45 y con sus 2 s de silencio mide
+  // 4,44 s, menos que el mínimo menos el medio segundo del corte (4,5), aunque
+  // con la cola que el corte le pegaría mediría 7: es casi muda, no hay
+  // aparición y el video son solo imágenes.
+  assert.equal(
+    AVATAR_MIN_APPEARANCE_SECONDS - AVATAR_CUT_PAUSE_WINDOW_SECONDS,
+    4.5,
+  )
+  const shorter = [...sentenceWords('a', 10, 0), ...sentenceWords('b', 5, 5)]
   const none = planAvatarPins(avatar, shorter, 12)
   assert.deepEqual(none.pins, [])
   assert.equal(none.dropped, 1)
@@ -477,8 +516,9 @@ test('tope de silencio al fin del audio: la última frase entra si llega al mín
 test('la última aparición nunca pasa el máximo después de que el corte le pegue la cola final, haya o no pausas', () => {
   // Once frases de 5 s, la 11 de 55 a 59,6 y una final corta, sin pausas de
   // más de 2 s: según sus palabras, el audio termina entre 0,75 y 2,75 s
-  // después de los 59,6. Con objetivo 60 la aparición sumaba la 11 y el corte
-  // la llevaba al fin del audio (de 60,35 a 62,35 s); ahora queda en 0–55.
+  // después de los 59,6. El corte más cercano a los 60 dejaría esa cola y el
+  // corte de escenas la llevaría al fin del audio (de 60,35 a 62,35 s): la
+  // aparición corta en el último hueco que deja 3 s (hasta la 2f, 0–55).
   const avatar = { ...AVATAR, appearances: 1, secondsPerAppearance: 60 }
   const leading = [
     ...Array.from({ length: 11 }, (_, index) =>
@@ -486,11 +526,18 @@ test('la última aparición nunca pasa el máximo después de que el corte le pe
     ).flat(),
     ...sentenceWords('x', 9, 55),
   ]
-  for (const count of [1, 2, 3, 4, 5]) {
+  for (const [count, end] of [
+    [1, 57],
+    [2, 57.52],
+    [3, 58],
+    [4, 58.52],
+    [5, 59],
+  ]) {
     const words = [...leading, ...sentenceWords('fin', count, 59.6)]
     const audioEnd = words.at(-1).end + 0.3
     const plan = planAvatarPins(avatar, words, audioEnd)
-    assert.deepEqual(pinWindows(plan), [[0, 55]], String(audioEnd))
+    assert.deepEqual(pinWindows(plan), [[0, end]], String(audioEnd))
+    assert.ok(audioEnd - end >= MIN_SECONDS_PER_SCENE, String(audioEnd))
     for (const pin of pinnedTimeline(plan.pins, audioEnd).pins)
       assert.ok(
         pin.endSeconds - pin.startSeconds <=
@@ -568,13 +615,14 @@ test('fase (2f): con «3 veces en 2 minutos» la pausa anuncia las tres aparicio
 })
 
 // La apertura siempre abre (entrega 2f, R-2f-4, diseño §22.3): una primera
-// frase corta seguida de un silencio largo ya no deja al video sin la
-// apertura; un audio de menos de 5 s, sí.
-test('apertura con un silencio después de la primera frase (2f, R-2f-4): el video abre con el avatar, que carga ese silencio si es de 6 s o menos; con 19 s o con menos de 5 s de audio, no hay apertura', () => {
+// frase corta seguida de un silencio de hasta 6 s ya no deja al video sin la
+// apertura. Un silencio más largo (R-2f-6 y R-2g-17) o un audio de menos de
+// 4,5 s (el mínimo menos el medio segundo del corte, 2g), sí.
+test('apertura con un silencio después de la primera frase (2f, R-2f-4 y R-2f-6; 2g, R-2g-17): el video abre con el avatar, que carga ese silencio si es de 6 s o menos; con 19,2 s o con menos de 4,5 s de audio, no hay apertura', () => {
   // «Hola.» de 0,2 a 0,8 s, 5,2 s de silencio y frases de 5 s desde los 6.
-  // Con el tope de silencio la apertura terminaría a los 2,8 s (no llega al
-  // mínimo); sin él, 0–6 y la frase siguiente: 0–11. Hasta la 2e no había
-  // apertura y la aparición se contaba como descartada.
+  // Cargando 2 s como mucho no sirve; con hasta 6 s, sí, y con 10 s elegidos
+  // corta en el hueco de los 10 (hasta la 2f, 0–11: la frase siguiente
+  // entera). Hasta la 2e no había apertura.
   const words = [
     { word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true },
     ...['a', 'b', 'c', 'd', 'e'].flatMap((prefix, index) =>
@@ -582,15 +630,15 @@ test('apertura con un silencio después de la primera frase (2f, R-2f-4): el vid
     ),
   ]
   const plan = planAvatarPins({ ...AVATAR, appearances: 1 }, words, 31)
-  assert.deepEqual(pinWindows(plan), [[0, 11]])
+  assert.deepEqual(pinWindows(plan), [[0, 10]])
   assert.equal(plan.dropped, 0)
   const scenes = cutLaneAroundPins(words, 31, plan.pins, { secondsPerScene: 3 })
-  assert.deepEqual(sceneWindows(scenes)[0], [0, 11, false, true])
+  assert.deepEqual(sceneWindows(scenes)[0], [0, 10, false, true])
   assert.ok(scenes[0].text.startsWith('hola a0'), scenes[0].text)
 
-  // Con 19,2 s de silencio después de «Hola.» la apertura tendría que cargar
-  // más de 6 s (ronda 1): no hay apertura y la aparición se cuenta como
-  // descartada; el video abre con imágenes.
+  // Con 19,2 s de silencio después de «Hola.» la pausa corta la apertura a los
+  // 2,8 s (la palabra más 2, R-2g-17): no llega a 4,5, no hay apertura, como en
+  // la 2f, y el video abre con imágenes.
   const longSilence = [
     { word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true },
     ...['a', 'b', 'c', 'd', 'e'].flatMap((prefix, index) =>
@@ -601,13 +649,16 @@ test('apertura con un silencio después de la primera frase (2f, R-2f-4): el vid
   assert.deepEqual(muted.pins, [])
   assert.equal(muted.dropped, 1)
 
-  const tooShort = planAvatarPins(
-    { ...AVATAR, appearances: 1 },
-    [{ word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true }],
-    4.9,
-  )
+  // Un audio de 4,4 s no llega a los 4,5; uno de 4,9 sí (hasta la 2f el
+  // mínimo era 5 s), cargando 4,1 s de silencio después de «Hola.».
+  const hello = [{ word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true }]
+  const tooShort = planAvatarPins({ ...AVATAR, appearances: 1 }, hello, 4.4)
   assert.deepEqual(tooShort.pins, [])
   assert.equal(tooShort.dropped, 1)
+  assert.deepEqual(
+    pinWindows(planAvatarPins({ ...AVATAR, appearances: 1 }, hello, 4.9)),
+    [[0, 4.9]],
+  )
 })
 
 test('prefijo animado: planPrefixSceneWindows da lo mismo que antes y la versión en segundos arranca donde se le pide', () => {
@@ -895,17 +946,23 @@ test('reemplazar la narración con avatar escala el corte entero; sin avatar, el
 // ─── La cola absorbida en la pausa, la caché, el desempate, el prefijo con
 // avatar, los carriles sin avatar y los tramos que se pisan ───
 
+// 17 s con dos frases, 0–5 y 5–17: sin apertura, la única frase desde la que
+// puede arrancar el avatar es la de los 5 s, y su corte (15) deja una cola de
+// 2 s. Con frases de 5 s (una que arrancara a los 10 llegaría al fin del
+// audio) el planificador no la usaría (entrega 2g, §23.2).
+const SEVENTEEN = narration(17, [4, 16])
+
 test('fase: la pausa y el corte traen la aparición como queda, con la cola corta ya absorbida; dropped cuenta la que no entró', async (t) => {
-  // 17 s en frases de 5 s (la última, de 2). El plan pone la aparición en
-  // 5–15 y la segunda no entra; la cola de 2 s la dice el avatar, así que la
-  // escena dura 12 s y la pausa la anuncia así, no como el plan.
+  // El plan pone la aparición en 5–15 y la segunda no entra; la cola de 2 s
+  // la dice el avatar, así que la escena dura 12 s y la pausa la anuncia así,
+  // no como el plan.
   const { paths, context, events } = await project(
     t,
     {
       avatar: { ...AVATAR, appearances: 2, startWithAvatar: false },
       confirmScenes: true,
     },
-    { words: narration(17), seconds: 17 },
+    { words: SEVENTEEN, seconds: 17 },
   )
   assert.deepEqual(await sceneCutsStage.run(context), { pause: true })
   // Una aparición más una imagen para los 5 s libres (no entran dos de 3 s);
@@ -1436,7 +1493,7 @@ test('estado: la pausa con avatar trae avatarSpans y avatarDropped como los anun
       avatar: { ...AVATAR, appearances: 2, startWithAvatar: false },
       confirmScenes: true,
     },
-    { words: narration(17), seconds: 17 },
+    { words: SEVENTEEN, seconds: 17 },
   )
   await sceneCutsStage.run(paused.context)
   const announced = Object.fromEntries(

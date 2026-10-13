@@ -25,10 +25,10 @@ import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
-import { formatUsd } from '@/modules/common/utilities/formatUsd'
 import { avatarsApi } from '@/modules/avatars/api'
 import { AvatarBalanceBadge } from '@/modules/avatars/components/AvatarBalanceBadge'
 import { LookPreview } from '@/modules/avatars/components/LookPreview'
+import { LookPriceBadge } from '@/modules/avatars/components/LookPriceBadge'
 import {
   AVATAR_ASPECT_RATIO_FRAME_CLASSES,
   AVATAR_ASPECT_RATIO_LABEL_KEYS,
@@ -60,8 +60,10 @@ interface GenerateLookDialogProps {
 // avatar descripto con palabras (ropa, lugar, luz), en el formato elegido y
 // con hasta AVATAR_REFERENCE_IMAGES_MAX imágenes de referencia. Vimo lo genera
 // a partir del look principal y lo suma a los looks del avatar; el sondeo de
-// la biblioteca lo ve terminar. Al pie, lo que cuesta y el saldo actual, para
-// decidir con el número a la vista. Repetir la misma descripción, formato y
+// la biblioteca lo ve terminar. Al pie, lo que cuesta (la insignia con
+// AVATAR_LOOK_GENERATION_USD, 1 US$ desde la entrega 2h; sin precio, el
+// aviso de que se descuenta del saldo) y el saldo actual, para decidir con el
+// número a la vista. Repetir la misma descripción, formato y
 // referencias devuelve el mismo look sin cobrar (idempotencia del sidecar):
 // el consejo bajo la descripción lo dice. No se cierra mientras genera (ni
 // con la X, que se apaga), y el foco no sale de él. Se monta solo mientras
@@ -72,7 +74,7 @@ export function GenerateLookDialog({
   returnFocusRef,
   onClose,
 }: GenerateLookDialogProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { generateLook, saving } = useAvatarMutations()
   const [prompt, setPrompt] = useState('')
   const [aspectRatio, setAspectRatio] = useState<AvatarAspectRatio>(
@@ -123,11 +125,6 @@ export function GenerateLookDialog({
   const cover = avatar.previewPath
     ? avatarsApi.imageSource(avatar.previewPath)
     : undefined
-  // HeyGen no publica el precio por look (null): no se promete una cifra.
-  const price =
-    AVATAR_LOOK_GENERATION_USD === null
-      ? null
-      : formatUsd(AVATAR_LOOK_GENERATION_USD, i18n.resolvedLanguage ?? 'es')
 
   const changePrompt = (value: string) => {
     setPrompt(value)
@@ -357,7 +354,7 @@ export function GenerateLookDialog({
         <div className="space-y-4 border-t border-border px-6 pb-6 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-1 basis-56 items-center gap-2.5">
-              {price === null ? (
+              {AVATAR_LOOK_GENERATION_USD === null ? (
                 <>
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-saffron/50 bg-saffron/15 text-foreground">
                     <Coins aria-hidden className="h-4 w-4" />
@@ -368,10 +365,7 @@ export function GenerateLookDialog({
                 </>
               ) : (
                 <>
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border-2 border-saffron/50 bg-saffron/15 px-3 py-1 font-display text-sm font-extrabold tabular-nums text-foreground">
-                    <Coins aria-hidden className="h-4 w-4" />
-                    {price}
-                  </span>
+                  <LookPriceBadge amount={AVATAR_LOOK_GENERATION_USD} />
                   <span className="font-body text-xs text-muted-foreground">
                     {t('avatars.generar.costoDetalle')}
                   </span>

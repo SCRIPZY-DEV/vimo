@@ -3,6 +3,7 @@ import { useAvatarBalance } from '@/modules/avatars/hooks/useAvatarBalance'
 import { useCostCheck } from '@/modules/videos/hooks/useCostCheck'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { avatarScenesCost } from '@/modules/videos/utilities/avatarRegeneration'
+import { avatarDurationChange } from '@/modules/videos/utilities/avatarDuration'
 import type {
   AvatarRenderRequest,
   AvatarRenderRequestOptions,
@@ -22,9 +23,16 @@ interface UseAvatarRenderConfirmationOptions {
 // de avatares con el mismo pre-check (useCostCheck); al confirmar se relee la
 // billetera (`verify`) y, si ya no alcanza, no se pide nada. Desde la entrega
 // 2e el pedido lleva además lo que el panel le sume (las listas que se
-// regeneran y el movimiento, §21.4): se guarda con la confirmación abierta y
-// viaja tal cual al pagar. La tarea corre en el store del editor
-// (useLibraryEditorTask.startAvatarRender).
+// regeneran y el movimiento, §21.4) y, desde la 2g, la duración nueva de las
+// escenas que la cambiaron (§23.3): se guarda con la confirmación abierta y
+// viaja tal cual al pagar. Con una duración nueva el costo es el de esos
+// segundos y la confirmación dice la duración y cuántas escenas de imagen tapa
+// (`duration`). El pedido viaja tal como lo armó quien abrió la confirmación:
+// una escena de V con «más expresivo» guardado de la 2e o la 2f lo conserva
+// (R-2g-20), también en «Regenerar todos» y en el aviso de las apariciones con
+// la imagen fija. La tarea corre en el store del editor
+// (useLibraryEditorTask.startAvatarRender): `durations` viaja en su `options`,
+// que lo nombra (AvatarRenderRequestOptions), y lo arma avatarRenderPayload.
 export function useAvatarRenderConfirmation({
   projectId,
   scenes,
@@ -40,7 +48,9 @@ export function useAvatarRenderConfirmation({
   const confirmingScenes = request
     ? scenes.filter((item) => request.sceneIds.includes(item.id))
     : []
-  const cost = request ? avatarScenesCost(confirmingScenes) : null
+  const cost = request
+    ? avatarScenesCost(confirmingScenes, request.durations)
+    : null
   // Solo con la confirmación abierta se pide el saldo (cada lectura levanta
   // un proceso): sin la línea del avatar, useCostCheck no consulta nada.
   const check = useCostCheck({
@@ -88,6 +98,9 @@ export function useAvatarRenderConfirmation({
     }
   }
 
+  // Una confirmación pide la duración de una escena a lo sumo (la del panel o
+  // la tarjeta que la abrió).
+  const durationInput = request?.durations?.[0]
   const confirmation = request
     ? {
         count: request.sceneIds.length,
@@ -96,6 +109,9 @@ export function useAvatarRenderConfirmation({
         insufficient: check.result.blocking,
         checking,
         retake: (request.regenerateSceneIds ?? []).length > 0,
+        duration: durationInput
+          ? avatarDurationChange(scenes, durationInput)
+          : null,
       }
     : null
 

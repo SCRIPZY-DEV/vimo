@@ -98,7 +98,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 ## A note on distribution
 
-This folder — and all of `docs/` (interno) — **never ships inside the app**: Tauri bundles only
+This folder — and all of `docs/` — **never ships inside the app**: Tauri bundles only
 `dist/` (`frontendDist` in [src-tauri/tauri.conf.json](/src-tauri/tauri.conf.json)) plus
 the icons. The only way documentation ends up in the binary is by putting it in `public/`,
 which Vite copies into `dist/`. Don't.

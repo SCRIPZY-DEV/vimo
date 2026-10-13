@@ -23,6 +23,9 @@ import type { ImageExtension } from '../types/image-provider.ts'
 
 const HASH_PREFIX_LENGTH = 8
 const HASH_PREFIX_PATTERN = /^[0-9a-f]{8}$/
+// El clip normalizado y el crudo del proveedor llevan la misma raíz.
+const CLIP_EXTENSION = '.mp4'
+const RAW_CLIP_EXTENSION = '.raw.mp4'
 // Lo único que vale como `clipFile`: el nombre que arma avatarClipFileName.
 // Ni rutas, ni el crudo de HeyGen, ni mayúsculas.
 const CLIP_FILE_PATTERN = /^scene_[1-9][0-9]*\.[0-9a-f]{8}\.mp4$/
@@ -52,7 +55,7 @@ function fileStem(sceneId: number, hash: string): string {
 
 // El nombre del clip normalizado: lo que se persiste en `SceneAvatar.clipFile`.
 export function avatarClipFileName(sceneId: number, hash: string): string {
-  return `${fileStem(sceneId, hash)}.mp4`
+  return `${fileStem(sceneId, hash)}${CLIP_EXTENSION}`
 }
 
 export function avatarClipFile(
@@ -76,7 +79,10 @@ export function avatarRawClipFile(
   sceneId: number,
   hash: string,
 ): string {
-  return join(paths.avatarDirectory, `${fileStem(sceneId, hash)}.raw.mp4`)
+  return join(
+    paths.avatarDirectory,
+    `${fileStem(sceneId, hash)}${RAW_CLIP_EXTENSION}`,
+  )
 }
 
 // El clip normalizado que la escena dice tener, o undefined si no tiene o si
@@ -91,6 +97,20 @@ export function sceneAvatarClipFile(
   if (!CLIP_FILE_PATTERN.test(avatar.clipFile)) return undefined
 
   return join(paths.avatarDirectory, avatar.clipFile)
+}
+
+// El crudo del proveedor del clip que la escena dice tener: el mismo nombre con
+// `.raw.mp4`, como los arma el carril (avatarRawClipFile), o undefined si no
+// tiene clip o si el nombre no es uno de los de Vimo (ni rutas, ni la escena
+// 0). El recorte (`avatar-trim-scene`) lo vuelve a ajustar al tramo nuevo.
+export function sceneAvatarRawClipFile(
+  paths: ProjectPaths,
+  avatar: Pick<SceneAvatar, 'clipFile'>,
+): string | undefined {
+  const clip = sceneAvatarClipFile(paths, avatar)
+  if (!clip) return undefined
+
+  return `${clip.slice(0, -CLIP_EXTENSION.length)}${RAW_CLIP_EXTENSION}`
 }
 
 // La copia de la vista previa del look elegido en el proyecto, con la

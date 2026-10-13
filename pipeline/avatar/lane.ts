@@ -121,13 +121,16 @@ import {
 // look (`avatar_motion_unsupported`, un 400 que no se cobra), el intento se
 // cierra, la escena queda `motionUnsupported` y el carril pide enseguida el
 // pedido sin movimiento (otra huella, otra clave).
-// Regenerar una escena lista (`forceNewRender`, entrega 2e, diseño §21.4): el
-// carril no toma el atajo de «lista con el mismo pedido» y la escena conserva
-// su clip de hoy hasta que el nuevo está listo; si el render nuevo falla (o la
-// cuenta pausa), vuelve a su estado listo anterior con los recibos y los
-// ajustes nuevos. Que sea un render NUEVO lo decide la toma de la escena, que
-// la orquestación sube antes (render-scenes.ts): sin ella, un recibo
-// `succeeded` del mismo pedido se cosecharía gratis.
+// Regenerar una escena lista o cambiarle la duración (`forceNewRender`,
+// entregas 2e y 2g, diseño §21.4 y §23.3): el carril no toma el atajo de «lista
+// con el mismo pedido» y la escena conserva su clip de hoy hasta que el nuevo
+// está listo; si el render nuevo falla (o la cuenta pausa), vuelve a su estado
+// listo anterior con los recibos y los ajustes nuevos. Que sea un render NUEVO
+// lo decide quien llama (render-scenes.ts): al regenerar, la toma de la escena,
+// que la orquestación sube antes (sin ella, un recibo `succeeded` del mismo
+// pedido se cosecharía gratis); con una duración nueva, el tramo de la copia de
+// la escena que recibe el carril (otro corte de audio, otra huella), y la toma
+// no sube.
 
 // Cada consulta de estado espera un 50 % más que la anterior, hasta el tope.
 const POLL_GROWTH = 1.5
@@ -393,12 +396,14 @@ export interface AvatarLaneOptions {
   // repetir no arregla (`isFinalRejection`). Sin él (la fase), ese pedido no
   // se repite solo: la escena queda fallida con ese código y se avisa.
   retryFinalRejection?: boolean
-  // true = la persona pidió regenerar esta escena lista (entrega 2e, §21.4):
-  // no se toma el atajo de «lista con el mismo pedido», y una escena lista
-  // conserva su clip hasta que el nuevo está listo; si el render nuevo falla
-  // (o la cuenta pausa), vuelve a su estado listo anterior con los recibos y
-  // los ajustes nuevos, y el resultado igual sale `failed` con su código. La
-  // toma que hace que el pedido sea nuevo la sube quien llama.
+  // true = la persona pidió regenerar esta escena lista (entrega 2e, §21.4) o
+  // cambiarle la duración (entrega 2g, §23.3): no se toma el atajo de «lista
+  // con el mismo pedido», y una escena lista conserva su clip hasta que el
+  // nuevo está listo; si el render nuevo falla (o la cuenta pausa), vuelve a
+  // su estado listo anterior con los recibos y los ajustes nuevos, y el
+  // resultado igual sale `failed` con su código. Lo que hace nuevo al pedido lo
+  // pone quien llama: la toma, al regenerar; el tramo nuevo de la copia de la
+  // escena, con una duración nueva (la toma no sube).
   forceNewRender?: boolean
   signal: AbortSignal
   events: AvatarLaneEvents
@@ -604,8 +609,9 @@ export async function renderAvatarScene(
 
   const attempts = copyAttempts(scene.avatar.attempts ?? [])
   let avatar: SceneAvatar = { ...scene.avatar, attempts }
-  // La escena lista que se regenera (forceNewRender): su estado de hoy, que
-  // sigue en disco hasta que el clip nuevo esté listo y vuelve si falla.
+  // La escena lista que se regenera o cambia de duración (forceNewRender): su
+  // estado de hoy, que sigue en disco hasta que el clip nuevo esté listo y
+  // vuelve si falla.
   const previous =
     options.forceNewRender && scene.avatar.status === 'ready'
       ? scene.avatar

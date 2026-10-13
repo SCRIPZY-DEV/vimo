@@ -24,6 +24,7 @@ export function triggerVariant(variant: AvatarDeleteMenuVariant) {
 
 export function triggerSize(variant: AvatarDeleteMenuVariant) {
   if (variant === 'stock') return null
+
   if (variant === 'library') return 'icon'
 
   return 'sm'
@@ -108,6 +109,7 @@ export function panelClassName(
 export function warningClassName(variant: AvatarDeleteMenuVariant) {
   if (variant === 'panel')
     return 'font-body text-sm leading-snug text-foreground'
+
   if (variant === 'stock') return 'font-body text-xs leading-snug text-white'
 
   return 'row-start-1 self-end pb-2 font-body text-[11px] leading-snug text-white'
@@ -126,6 +128,7 @@ export function warningClassName(variant: AvatarDeleteMenuVariant) {
 // advertencia puede mover la fila entera, nunca cruzarlas).
 export function optionsClassName(variant: AvatarDeleteMenuVariant) {
   if (variant === 'panel') return 'grid grid-cols-2 gap-2'
+
   if (variant === 'stock') return 'flex flex-col gap-2'
 
   return 'row-start-2 flex flex-col gap-2'

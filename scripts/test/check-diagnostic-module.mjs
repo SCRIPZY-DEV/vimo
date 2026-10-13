@@ -8,7 +8,7 @@
 // claves de cada tabla de pipeline/commands/*/subcommands.ts (se importan las
 // tablas, no se copian los nombres) más `ping`, que main.ts declara en línea
 // (importar main.ts arrancaría el sidecar). Con esa lista se mide qué cambia
-// de módulo al existir la palabra `scene`. Hoy es un solo subcomando; los que
+// de módulo al existir la palabra `scene`. Hoy son dos subcomandos; los que
 // las entregas siguientes sumen a la lista real quedan bajo las mismas
 // pruebas sin nombrarlos acá, y si alguno mezcla `scene` con otra familia el
 // guard obliga a decidirlo (ver el comentario del tercer test).
@@ -117,10 +117,12 @@ test('el resolutor del guard coincide con el real en todos los subcomandos', () 
 
 // Tripwire a propósito: la palabra `scene` solo cambia de módulo a un
 // subcomando que la mezcla con el nombre de otra familia (`avatar-…-scenes` cae
-// en `videos` en vez de `avatars`). Hoy es uno. Un subcomando nuevo con esa
-// mezcla hace fallar este test; si el cambio de módulo es el querido (un job
-// de escenas es del proyecto), se suma a la lista esperada, a mano.
-test('la palabra scene mueve de módulo a avatar-render-scenes y a ningún otro subcomando', () => {
+// en `videos` en vez de `avatars`). Hoy son dos: `avatar-render-scenes` y, desde
+// la entrega 2g, `avatar-trim-scene` (el recorte de una aparición, que lleva
+// `projectId`). Un subcomando nuevo con esa mezcla hace fallar este test; si el
+// cambio de módulo es el querido (un job de escenas es del proyecto), se suma a
+// la lista esperada, a mano.
+test('la palabra scene mueve de módulo a avatar-render-scenes y avatar-trim-scene, y a ningún otro subcomando', () => {
   const withoutScene = diagnostics.SUBCOMMAND_MODULE_KEYWORDS.filter(
     ([keyword]) => keyword !== SCENE_KEYWORD,
   )
@@ -140,6 +142,7 @@ test('la palabra scene mueve de módulo a avatar-render-scenes y a ningún otro 
 
   assert.deepEqual(moved, [
     { subcommand: 'avatar-render-scenes', before: 'avatars', after: 'videos' },
+    { subcommand: 'avatar-trim-scene', before: 'avatars', after: 'videos' },
   ])
 })
 

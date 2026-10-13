@@ -1,27 +1,28 @@
 import { useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Check,
-  History,
-  Image as ImageIcon,
   ImageOff,
-  Loader2,
+  Image as ImageIcon,
   Pause,
   Play,
+  SlidersHorizontal,
   UserRound,
+  X,
 } from 'lucide-react'
+import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { videosApi } from '@/modules/videos/api'
 import { EditorAvatarSceneActions } from '@/modules/videos/components/EditorAvatarSceneActions'
+import { EditorAvatarStatePill } from '@/modules/videos/components/EditorAvatarStatePill'
+import { AVATAR_CARD_EXPANDED_GRID_CLASSES } from '@/modules/videos/constants'
+import { useAvatarCardFocus } from '@/modules/videos/hooks/useAvatarCardFocus'
 import { useAvatarRenderPercent } from '@/modules/videos/hooks/useAvatarRenderPercent'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { avatarSceneState } from '@/modules/videos/utilities/avatarRegeneration'
-import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
-import { formatSlotSeconds } from '@/modules/videos/utilities/formatSlotSeconds'
 import { sceneImageSource } from '@/modules/videos/utilities/sceneImageSource'
 import { aspectClass } from '@/modules/videos/utilities/videoFormat'
-import { avatarSceneSpan } from '@pipeline/types/avatar.ts'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
@@ -40,6 +41,10 @@ interface EditorAvatarGalleryCardProps {
   busy: boolean
   // Proyecto demo: no se genera nada.
   locked: boolean
+  // Está desplegada (entrega 2g, §23.4): la galería deja una sola a la vez.
+  expanded: boolean
+  onExpand(): void
+  onCollapse(): void
   // El clip de esta tarjeta va a reproducirse (o arrancó por otro camino): la
   // galería pausa el que se estaba reproduciendo, así nunca andan dos a la vez.
   onClipPlay(video: HTMLVideoElement): void
@@ -47,22 +52,33 @@ interface EditorAvatarGalleryCardProps {
 
 // Una aparición del avatar en la vista ampliada del editor (entrega 2f, spec
 // §22.4): su clip con «Reproducir» / «Pausar» o, sin clip, la imagen del look;
-// su número y su tramo, como las tarjetas de imagen; su estado con la regla y
-// los textos del bloque de la pista (avatarBlockState y TimelineAvatarItem:
-// lista, desactualizada, con la imagen fija —planeada o fallida— o generando,
-// con el porcentaje cuando su render arrancó); y debajo, las mismas acciones
-// del panel de la escena
-// (EditorAvatarSceneActions: «Generar», «Regenerar» o «Regenerar avatar» con
-// su costo y la confirmación y, con V o IV, la sección «Movimiento»). No tiene
-// botón para elegirla: no entra en la selección de imágenes ni en sus acciones
-// en lote. Con el foco en su avance cuando la tarea termina, el foco vuelve a
-// la tarjeta: el panel de la escena queda detrás del modal de la galería y el
-// foco mandado ahí se escapa del diálogo (medido en Chrome). El clip queda
+// su número y su tramo, como las tarjetas de imagen; y su estado con la regla
+// y los textos del bloque de la pista (EditorAvatarStatePill: lista,
+// desactualizada, con la imagen fija —planeada o fallida— o generando, con el
+// porcentaje cuando su render arrancó). No tiene botón para elegirla: no entra
+// en la selección de imágenes ni en sus acciones en lote. El clip queda
 // montado mientras haya uno (se pausa, no se desmonta): sacar un nodo dentro
 // del diálogo de Radix con el foco en el aire lo devuelve al diálogo
 // (ERRORES-CONOCIDOS: radix-focusscope-devuelve-el-foco-al-dialogo-si-se-
 // desmonta-un-nodo-durante-el-blur). El clip es el normalizado, que no trae
 // audio: se ve mudo (en el visor del editor la voz la pone la narración).
+//
+// Desde la entrega 2g (§23.4) la tarjeta está plegada por defecto: se ve como
+// una de imagen, con su mismo borde (el morado la hacía parecer elegida) y sin
+// acciones, solo «Ajustar avatar»; un clic en la tarjeta también la despliega.
+// Desplegada ocupa la fila entera de la grilla: a la izquierda el clip, con su
+// número, su tramo y su texto debajo; a la derecha «Cerrar», arriba, y las
+// mismas acciones del panel de la escena (EditorAvatarSceneActions con
+// `layout="columns"`: en una columna la duración y el movimiento, y en la otra
+// las notas, el costo y las acciones). El medio y su pastilla son los mismos
+// nodos en los dos estados, así el clip que se reproduce no se corta al plegar
+// ni desplegar. Foco (useAvatarCardFocus): al desplegar va al primer control (el
+// «−» de la duración, o el avance si la escena se está generando; a «Cerrar» si
+// no hay ninguno) y la tarjeta entra entera en la vista; al plegar con
+// «Cerrar», a «Ajustar avatar» (si otra tarjeta la pliega al desplegarse, no le
+// roba el foco); y con el foco en el avance cuando la tarea termina, vuelve a
+// la tarjeta: el panel de la escena queda detrás del modal y el foco mandado
+// ahí se escapa del diálogo (medido en Chrome).
 export function EditorAvatarGalleryCard({
   projectId,
   scene,
@@ -71,9 +87,12 @@ export function EditorAvatarGalleryCard({
   version,
   busy,
   locked,
+  expanded,
+  onExpand,
+  onCollapse,
   onClipPlay,
 }: EditorAvatarGalleryCardProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const editorTask = useLibraryEditorTask(projectId)
   const rendering = editorTask.task?.sceneAvatarRendering ?? {}
   const sceneRendering = rendering[scene.id]
@@ -81,8 +100,9 @@ export function EditorAvatarGalleryCard({
   const percent = useAvatarRenderPercent(
     sceneRendering && !sceneRendering.queued ? sceneRendering : undefined,
   )
-  const cardRef = useRef<HTMLElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const { cardRef, actionsRef, expandRef, closeRef, markClosedByPerson } =
+    useAvatarCardFocus(expanded)
   const [playing, setPlaying] = useState(false)
   const [failedClip, setFailedClip] = useState<string | null>(null)
   const [failedLook, setFailedLook] = useState<string | null>(null)
@@ -115,73 +135,18 @@ export function EditorAvatarGalleryCard({
     void video.play().catch(() => setPlaying(false))
   }
 
-  // El título del bloque de la pista (TimelineAvatarItem) para cada estado: va
-  // de tooltip en la pastilla, como al pasar sobre el bloque.
-  const span = avatarSceneSpan(scene)
-  const seconds = formatSlotSeconds(
-    span ? span.endSeconds - span.startSeconds : 0,
-    i18n.resolvedLanguage ?? 'es',
-  )
-
-  const blockTitle = () => {
-    if (state === 'generating')
-      return t('library.editor.timeline.avatarRendering')
-
-    if (state === 'failed') {
-      return t('library.editor.timeline.avatarFailed', {
-        reason: t(errorKeyOf(avatar.errorCode)),
-      })
-    }
-
-    if (state === 'stale') return t('library.editor.timeline.avatarStaleHint')
-
-    if (state === 'planned') return t('library.editor.timeline.avatarPlanned')
-
-    return t('library.editor.timeline.avatarTitle', {
-      name: avatar.lookName,
-      seconds,
-    })
+  const closeByPerson = () => {
+    markClosedByPerson()
+    onCollapse()
   }
 
-  // La etiqueta visible, siempre corta (rondas 2 y 3 de WP-C): la del bloque
-  // donde tiene una («Desactualizado», igual que la caja de las acciones, y
-  // «Generando el avatar…» con su porcentaje); «Lista»; y «Con imagen fija»
-  // en una planeada o una fallida: en el editor nada la genera sola y así sale
-  // en el video, como dicen el aviso de arriba y el bloque de la pista.
-  const stateLabel = () => {
-    if (state === 'generating')
-      return t('library.editor.timeline.avatarRendering')
+  // Un clic en la tarjeta plegada la despliega, salvo el que cae en uno de sus
+  // botones («Reproducir» o «Ajustar avatar», que ya tienen lo suyo).
+  const unfoldFromCard = (event: MouseEvent<HTMLElement>) => {
+    if (event.target instanceof Element && event.target.closest('button'))
+      return
 
-    if (state === 'stale') return t('library.editor.timeline.avatarStale')
-
-    if (state === 'ready') return t('create.progress.avatarReady')
-
-    return t('create.progress.avatarCardFallback')
-  }
-
-  const stateTone = () => {
-    if (state === 'generating' || state === 'ready')
-      return 'bg-amethyst text-white'
-
-    if (state === 'stale') return 'bg-saffron text-charcoal'
-
-    return 'bg-charcoal/80 text-white'
-  }
-
-  const stateIcon = () => {
-    if (state === 'generating') {
-      return (
-        <Loader2 aria-hidden className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
-      )
-    }
-
-    if (state === 'ready')
-      return <Check aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-
-    if (state === 'stale')
-      return <History aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-
-    return <ImageIcon aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
+    onExpand()
   }
 
   // El clip si hay uno (con la imagen del look de póster); si no, la imagen
@@ -234,51 +199,45 @@ export function EditorAvatarGalleryCard({
       aria-label={t('library.editor.imageGallery.avatarCardAria', {
         index: scene.id,
       })}
+      onClick={expanded ? undefined : unfoldFromCard}
       className={cn(
-        'flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 bg-card outline-none transition-colors',
-        state === 'generating' ? 'border-amethyst' : 'border-amethyst/40',
+        'min-w-0 overflow-hidden rounded-2xl border-2 bg-card outline-none transition-colors',
+        expanded
+          ? cn(
+              'col-span-full grid grid-cols-1 border-amethyst/50 sm:grid-rows-[auto_1fr] sm:gap-x-4',
+              AVATAR_CARD_EXPANDED_GRID_CLASSES[videoFormat],
+            )
+          : 'flex cursor-pointer flex-col border-border',
       )}
     >
       <div
         className={cn(
-          'relative flex w-full shrink-0 items-center justify-center overflow-hidden bg-amethyst/10',
+          'relative flex w-full shrink-0 items-center justify-center overflow-hidden bg-amethyst/10 sm:col-start-1 sm:row-start-1',
           aspectClass(videoFormat),
         )}
       >
         {media()}
 
         {/* La ficha del tipo, como en el bloque de la pista: el busto sobre
-            morado. */}
+            morado. Desplegada, abajo a la derecha: arriba la pastilla del
+            estado necesita todo el ancho del clip angosto de un video
+            vertical («Desactualizado» no entra al lado de la ficha). */}
         <span
           aria-hidden
-          className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-md bg-amethyst text-white"
+          className={cn(
+            'absolute flex h-6 w-6 items-center justify-center rounded-md bg-amethyst text-white',
+            expanded ? 'bottom-2 right-2' : 'left-2 top-2',
+          )}
         >
           <UserRound className="h-3.5 w-3.5" />
         </span>
 
-        <span
-          data-avatar-state={state}
-          title={blockTitle()}
-          className={cn(
-            'absolute right-2 top-2 flex max-w-[calc(100%-3rem)] items-start gap-1 rounded-xl px-2 py-0.5 font-display text-[10px] font-bold leading-4',
-            stateTone(),
-          )}
-        >
-          {stateIcon()}
-          {/* Nunca se corta: en una tarjeta angosta (cinco columnas con la
-              ventana mínima de 1024 px) «Generando el avatar…» con su
-              porcentaje no entra en una línea y sigue en la siguiente. */}
-          <span className="min-w-0">
-            {stateLabel()}
-            {percent !== undefined && (
-              <span className="ml-1 whitespace-nowrap font-mono tabular-nums">
-                {t('library.editor.timeline.avatarRenderingPercent', {
-                  percent,
-                })}
-              </span>
-            )}
-          </span>
-        </span>
+        <EditorAvatarStatePill
+          scene={scene}
+          state={state}
+          percent={percent}
+          fullWidth={expanded}
+        />
 
         {clipPlayable && (
           <button
@@ -300,7 +259,12 @@ export function EditorAvatarGalleryCard({
         )}
       </div>
 
-      <div className="space-y-3 p-3">
+      <div
+        className={cn(
+          'sm:col-start-1 sm:row-start-2',
+          expanded ? 'space-y-2 p-3' : 'space-y-3 p-3',
+        )}
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-sm font-bold">
             {t('library.editor.panel.sceneTitle', { id: scene.id })}
@@ -320,23 +284,77 @@ export function EditorAvatarGalleryCard({
           {scene.text}
         </p>
         {!clipPlayable && (
-          <p className="flex items-start gap-1.5 font-body text-[11px] leading-relaxed text-muted-foreground">
+          <p
+            title={
+              expanded
+                ? t('library.editor.imageGallery.avatarNoClip')
+                : undefined
+            }
+            className={cn(
+              'flex items-start gap-1.5 font-body text-[11px] text-muted-foreground',
+              expanded ? 'leading-snug' : 'leading-relaxed',
+            )}
+          >
             <ImageIcon aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            {t('library.editor.imageGallery.avatarNoClip')}
+            <span className={cn(expanded && 'line-clamp-2')}>
+              {t('library.editor.imageGallery.avatarNoClip')}
+            </span>
           </p>
         )}
-
-        {/* Las del panel de la escena, con su costo, su confirmación y su
-            avance; al terminar, el foco que estaba en el avance vuelve acá. */}
-        <EditorAvatarSceneActions
-          projectId={projectId}
-          scene={scene}
-          scenes={scenes}
-          busy={busy}
-          locked={locked}
-          focusFallback={() => cardRef.current}
-        />
+        {!expanded && (
+          <Button
+            ref={expandRef}
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-expanded={false}
+            aria-label={t('library.editor.imageGallery.avatarExpand', {
+              index: scene.id,
+            })}
+            onClick={onExpand}
+            className="w-full rounded-xl font-display text-xs font-bold"
+          >
+            <SlidersHorizontal aria-hidden className="h-4 w-4" />
+            {t('library.editor.avatar.ajustar')}
+          </Button>
+        )}
       </div>
+
+      {/* Desplegada: «Cerrar» arriba a la derecha y, debajo, las mismas
+          acciones del panel de la escena, con su costo, su confirmación y su
+          avance; al terminar, el foco que estaba en el avance vuelve a la
+          tarjeta. */}
+      {expanded && (
+        <div className="flex min-w-0 flex-col gap-2 p-3 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:pl-0">
+          <div className="flex justify-end">
+            <Button
+              ref={closeRef}
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={t('library.editor.imageGallery.avatarCollapse', {
+                index: scene.id,
+              })}
+              onClick={closeByPerson}
+              className="h-8 rounded-lg px-3 font-display text-xs font-bold"
+            >
+              <X aria-hidden className="h-3.5 w-3.5" />
+              {t('library.editor.avatar.cerrarAjustes')}
+            </Button>
+          </div>
+          <div ref={actionsRef}>
+            <EditorAvatarSceneActions
+              projectId={projectId}
+              scene={scene}
+              scenes={scenes}
+              busy={busy}
+              locked={locked}
+              layout="columns"
+              focusFallback={() => cardRef.current}
+            />
+          </div>
+        </div>
+      )}
     </article>
   )
 }

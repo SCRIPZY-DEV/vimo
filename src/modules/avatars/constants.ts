@@ -51,8 +51,7 @@ export const AVATAR_PHOTO_CREATION_USD = 1.32
 
 // Espejos de pipeline/types/avatar.ts para el look generado desde un prompt
 // (la UI importa del sidecar solo tipos; `satisfies` ata cada formato al
-// contrato). HeyGen no publica el precio por look (2026-10-09): null = la UI
-// no promete una cifra y muestra el saldo actualizado.
+// contrato).
 export const AVATAR_ASPECT_RATIOS = [
   'auto',
   '16:9',
@@ -63,7 +62,12 @@ export const AVATAR_ASPECT_RATIOS = [
 ] as const satisfies readonly AvatarAspectRatio[]
 export const AVATAR_PROMPT_LIMIT = 1000
 export const AVATAR_REFERENCE_IMAGES_MAX = 3
-export const AVATAR_LOOK_GENERATION_USD: number | null = null
+// Espejo de AVATAR_LOOK_GENERATION_USD: lo que cuesta «Crear escenario»,
+// 1 US$ (entrega 2h). El proveedor no publica este precio: el dueño confirmó
+// en su cuenta el 2026-10-13 que cada escenario descuenta 1 US$ (la 2g lo
+// había estimado en 0,93). `null` = la UI no promete una cifra y muestra el
+// saldo actualizado.
+export const AVATAR_LOOK_GENERATION_USD: number | null = 1
 
 // Selector de formato de «Crear escenario»: la etiqueta de cada formato (la
 // clave no lleva «:», que i18next lee como separador de namespace) y el

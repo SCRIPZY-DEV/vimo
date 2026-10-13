@@ -21,6 +21,12 @@ import type {
 // la persona pidió regenerar (`regenerateSceneIds`, un render nuevo pagado) y
 // los ajustes de movimiento (`motion`): renderAvatarScenes los valida antes de
 // hablar con HeyGen y los guarda en la escena antes de pedir.
+// Desde la entrega 2g (§23.3) viaja también la duración nueva de una escena
+// (`durations`): renderAvatarScenes la valida y la planea antes de hablar con
+// HeyGen, y la aplica recién con el clip nuevo (resize-plan.ts). Ese pedido
+// saca y mueve escenas de imagen: con `durations` no vacío el comando toma el
+// lease exclusivo del proyecto en vez del de animación (subcommands.ts,
+// R-2g-19), y mientras renderiza no corre ningún otro generador del proyecto.
 export async function avatarRenderScenes(
   context: PipelineContext,
 ): Promise<AvatarRenderScenesResult> {
@@ -36,6 +42,7 @@ export async function avatarRenderScenes(
     sceneIds: payload.sceneIds ?? [],
     regenerateSceneIds: payload.regenerateSceneIds,
     motion: payload.motion,
+    durations: payload.durations,
   })
   return { rendered: outcome.rendered, failed: outcome.failed }
 }

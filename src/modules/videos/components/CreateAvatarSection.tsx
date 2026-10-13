@@ -38,8 +38,9 @@ interface CreateAvatarSectionProps {
 
 // La tarjeta «Avatar presentador» de Crear (spec §9), con el molde de
 // CreateAnimationSection: interruptor, el avatar de la biblioteca y su look
-// para el formato del video, el motor y «Movimiento más expresivo» (entrega
-// 2e, §21.3: derivados del look elegido; elegir un look nunca toca el motor),
+// para el formato del video, el motor y el movimiento (entrega 2e, §21.3:
+// derivados del look elegido; elegir un look nunca toca el motor; desde la 2g,
+// §23.1, «Movimiento más expresivo» solo existe con IV y un look de foto),
 // cuántas veces y cuánto sale, si abre el video y si sale al menos 3 veces en
 // los primeros 2 minutos (entrega 2f, §22.2), el costo con la tarifa del
 // motor, el saldo de HeyGen y, destacado, el aviso de moderación. Sin clave

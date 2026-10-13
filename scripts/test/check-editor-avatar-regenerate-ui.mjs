@@ -43,6 +43,33 @@
 // sigue editable; un prompt nuevo viaja como siempre (el sidecar borra la
 // marca y vuelve a probar) y, sin cambiarlo, solo «más expresivo» (si el
 // motor y el look lo admiten).
+// Entrega 2g (§23.1, §23.3 y §23.4, WP-C): «Movimiento más expresivo» solo con
+// IV y un look de foto (V no tiene el interruptor y, si traía «más expresivo»
+// guardado de la 2e o la 2f, lo conserva, R-2g-20: sin cambios el pedido no
+// lleva `motion` —con el botón de la escena, con «Regenerar todos» y con el
+// aviso de las apariciones con la imagen fija— y con el prompt editado la
+// entrada lleva `expressive: true`, así ningún pedido del editor cambia la
+// huella de un recibo vivo o pago); la sección «Movimiento» compacta (el motor
+// con su tooltip, el campo de tres renglones, «Usar el automático» como enlace
+// y «Qué podés pedir» en un globo que Escape cierra con el foco de vuelta al
+// botón); y la
+// «Duración» (caso 14c): el valor inicial redondeado y acotado, los límites
+// con sus avisos, el costo y la hora que toma, las tres acciones (la misma
+// duración: la de siempre; más corta con el clip listo y sin tocar el
+// movimiento: «Recortar a N s», gratis y sin confirmación, con el aviso
+// pasajero y el motivo si falla; el resto, un render nuevo con `durations` en
+// el pedido, sin `regenerateSceneIds`), la confirmación con la duración nueva
+// y las escenas de imagen que tapa, los códigos de error del sidecar, la
+// vecina animada y el final del video (R-2g-18: el selector queda quieto y
+// dice por qué), y los botones apagados con aria-disabled (nunca con
+// disabled: el foco no se pierde). Ronda 1 de su revisión: el recorte sigue
+// pendiente mientras la relectura del proyecto está en vuelo (la API ya
+// contestó: el botón espera y un clic o un Enter no piden otro), invalida la
+// lista de proyectos, un Enter sostenido sobre «Recortar a N s» no activa el
+// «Regenerar avatar» en que se convierte el mismo botón, la confirmación que
+// achica no dice «Tapa 0 escenas», y el foco queda en el botón del panel (no
+// en body); el globo de la guía es un diálogo con nombre y el botón que recorta
+// se declara ocupado (aria-busy) mientras trabaja.
 // Nada habla con HeyGen ni con el sidecar: el fetcher del pipeline
 // entrega `avatar-render-scenes` a la prueba, que anota el subcomando y el
 // pedido y emite los eventos del job a mano.
@@ -93,9 +120,11 @@ const mocks = {
   // `run-video-pipeline` (window.startRunPipeline), el pipeline que lanza el
   // store real de Crear en el caso 17. Con `cancelFails`, cancelar responde
   // como un job que ya terminó (`JobNotFound`); confirmar el corte se anota.
+  // Con `holdDetail`, la relectura del proyecto no responde hasta que la
+  // prueba la suelta (el recorte la espera: ronda 1, m1).
   '@/modules/videos/api': [
     "import { videosApi as real } from './src/modules/videos/api/index.ts'",
-    'export const videosApi = { ...real, isNative: () => true, async projectDetail() { window.detailCalls += 1; return structuredClone(window.detail) }, async cancelJob(jobId) { window.cancels.push(jobId); if (window.cancelFails) throw new Error("JobNotFound") }, async confirmScenes(payload) { window.confirmCalls.push(structuredClone(payload)) }, imageSource: (path, version) => "fixture-image://" + path + "?v=" + version, videoSource: (path, version) => "fixture-media://" + path + "?v=" + version }',
+    'export const videosApi = { ...real, isNative: () => true, async projectDetail() { window.detailCalls += 1; if (window.holdDetail) await window.holdDetail; return structuredClone(window.detail) }, async cancelJob(jobId) { window.cancels.push(jobId); if (window.cancelFails) throw new Error("JobNotFound") }, async confirmScenes(payload) { window.confirmCalls.push(structuredClone(payload)) }, async trimAvatarScene(payload) { window.trimCalls.push(structuredClone(payload)); if (window.holdTrim) await window.holdTrim; if (window.trimFails) throw Object.assign(new Error(window.trimFails), { code: window.trimFails }); return structuredClone(window.trimResult) }, imageSource: (path, version) => "fixture-image://" + path + "?v=" + version, videoSource: (path, version) => "fixture-media://" + path + "?v=" + version }',
   ].join('\n'),
   '@/modules/common/fetcher/pipeline': [
     "export * from './src/modules/common/fetcher/pipeline.ts'",
@@ -147,7 +176,7 @@ import { queryClient } from '@/modules/common/queryClient'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
 import { Toaster } from '@/modules/common/ui/toaster'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
-import { DEFAULT_TIMELINE_LAYOUT, EDITOR_SCENE_PANEL_ID } from '@/modules/videos/constants'
+import { DEFAULT_TIMELINE_LAYOUT, EDITOR_SCENE_PANEL_ID, videosQueryKeys } from '@/modules/videos/constants'
 import { EditorScenePanel } from '@/modules/videos/components/EditorScenePanel'
 import { EditorTimeline } from '@/modules/videos/components/EditorTimeline'
 import { useLibraryEditor } from '@/modules/videos/hooks/useLibraryEditor'
@@ -235,7 +264,6 @@ const CATALOG_PHRASES = [
   ['library.editor.avatar.confirmarTextoRegenerar', { count: 1, amount: '1' }],
   ['library.editor.avatar.confirmarTextoRegenerar', { count: 2, amount: '1' }],
   ['library.editor.avatar.regenerarFalloConservado', { reason: 'x' }],
-  ['library.editor.avatar.motor', { engine: 'x', description: 'y' }],
   ['library.editor.avatar.movimientoTitulo'],
   ['library.editor.avatar.movimientoLabel'],
   ['library.editor.avatar.movimientoHint'],
@@ -257,9 +285,29 @@ const CATALOG_PHRASES = [
   ['create.avatar.engineDescription.avatar_iv'],
   ['avatars.engines.avatar_v'],
   ['avatars.engines.avatar_iv'],
+  // Entrega 2g (§23.3 y §23.4).
+  ['library.editor.avatar.duracion'],
+  ['library.editor.avatar.duracionValor', { seconds: 7 }],
+  ['library.editor.avatar.duracionMenos'],
+  ['library.editor.avatar.duracionMas'],
+  ['library.editor.avatar.duracionActual', { seconds: '10' }],
+  ['library.editor.avatar.duracionAyuda'],
+  ['library.editor.avatar.duracionLimite', { min: 5, max: 7 }],
+  ['library.editor.avatar.duracionBloqueada'],
+  ['library.editor.avatar.duracionFinal'],
+  ['library.editor.avatar.duracionMasLarga', { time: '0:36' }],
+  ['library.editor.avatar.duracionTapa', { count: 0 }],
+  ['library.editor.avatar.duracionTapa', { count: 1 }],
+  ['library.editor.avatar.duracionTapa', { count: 2 }],
+  ['library.editor.avatar.recortar', { seconds: 7 }],
+  ['library.editor.avatar.recortarGratis'],
+  ['library.editor.avatar.recortado', { seconds: '7' }],
+  ['library.editor.avatar.recortarFallo', { reason: 'x' }],
+  ['library.editor.avatar.confirmarDuracion', { seconds: 14, current: '10' }],
+  ['library.editor.avatar.motorAyudaAria', { engine: 'x' }],
 ]
 // Los códigos cuyo texto compara el guard: cada uno con el suyo.
-const ERROR_CODES = ['avatar_moderation_rejected', 'avatar_download_failed', 'avatar_timeout', 'avatar_insufficient_credits', 'cancelled']
+const ERROR_CODES = ['avatar_moderation_rejected', 'avatar_download_failed', 'avatar_timeout', 'avatar_insufficient_credits', 'cancelled', 'avatar_trim_unavailable', 'avatar_resize_out_of_range', 'avatar_resize_locked']
 
 // El proyecto en disco: dos escenas de imagen en las puntas y escenas de
 // avatar en cada estado, todas de 10 s (250 cuadros) con un look de foto.
@@ -307,6 +355,14 @@ window.holdInvoke = false
 // canal de eventos, sin hablar con el sidecar. Y el corte confirmado.
 window.pipelineRuns = []
 window.confirmCalls = []
+// El recorte (entrega 2g): cada pedido anotado; con trimFails, la API falla con
+// ese código; con holdTrim, no responde hasta que la prueba lo suelta; y con
+// holdDetail la relectura del proyecto que le sigue tampoco.
+window.trimCalls = []
+window.trimResult = { sceneId: 0, startSeconds: 0, endSeconds: 0 }
+window.trimFails = null
+window.holdTrim = null
+window.holdDetail = null
 window.startRunPipeline = (subcommand, payload, onEvent) => {
   const run = { subcommand, payload: structuredClone(payload), onEvent, jobId: 'pipeline-job-' + (window.pipelineRuns.length + 1) }
   window.pipelineRuns.push(run)
@@ -406,8 +462,27 @@ const motionHint = () => document.getElementById(motionField()?.getAttribute('ar
 const expressiveSwitch = () => labelledIn(t('library.editor.avatar.expresivo'))
 const motionButton = (label) => [...(motionGroup()?.querySelectorAll('button') ?? [])].find((button) => button.textContent.trim() === label || button.getAttribute('aria-label') === label)
 const useAutomatic = () => motionButton(t('library.editor.avatar.movimientoAutomatico'))
+// La duración (entrega 2g, §23.3): el grupo que se llama como su título, con
+// «−», el valor y «+» (los límites los apagan con aria-disabled, nunca con
+// disabled: el foco no se pierde).
+const durationGroup = () => [...(panel()?.querySelectorAll('[role="group"]') ?? [])].find((group) => document.getElementById(group.getAttribute('aria-labelledby') ?? '')?.textContent.trim() === t('library.editor.avatar.duracion'))
+const durationButton = (key) => [...(durationGroup()?.querySelectorAll('button') ?? [])].find((button) => button.getAttribute('aria-label') === t(key))
+const lessButton = () => durationButton('library.editor.avatar.duracionMenos')
+const moreButton = () => durationButton('library.editor.avatar.duracionMas')
+const durationValue = () => durationGroup()?.querySelector('output')?.textContent.trim()
+const durationText = (text) => [...(durationGroup()?.querySelectorAll('p') ?? [])].some((paragraph) => paragraph.textContent.trim() === text)
+const stepButtonOff = (button) => button?.getAttribute('aria-disabled') === 'true' && !button.disabled
+// Varios clics seguidos como los de una persona: cada uno en su tarea, con el
+// cuadro dibujado entre uno y otro (tres click() en la misma tarea ven el mismo
+// valor, porque React dibuja entre eventos).
+async function clickTimes(find, times) {
+  for (let index = 0; index < times; index++) { find().click(); await delay(40) }
+}
 const guideButton = () => motionButton(t('library.editor.avatar.guiaBoton'))
+// La guía es un globo de Radix (Popover): existe solo abierto, fuera del panel
+// (en un portal), con role dialog y el id que nombra el botón.
 const guideBlock = () => document.getElementById(guideButton()?.getAttribute('aria-controls') ?? '')
+const engineButton = (engine) => motionButton(t('library.editor.avatar.motorAyudaAria', { engine: t('avatars.engines.' + engine) }))
 const counterOf = (used) => [...(motionGroup()?.querySelectorAll('span') ?? [])].some((item) => item.textContent.trim() === t('library.editor.avatar.movimientoCaracteres', { used, max: 300 }))
 // Escribe en el campo controlado por React como lo haría el teclado.
 function typeMotion(value) {
@@ -894,7 +969,14 @@ try {
   check(panelButton(REGENERATE) && !panelButton(GENERATE) && !anyAll(), 'la lista ofrece «Regenerar avatar», sin «Regenerar todos»')
   check(costLine(0.385), 'con el costo de su motor: ' + t('library.editor.avatar.costo', { amount: usd(0.385) }))
   check(motionGroup().compareDocumentPosition(costLine(0.385)) & Node.DOCUMENT_POSITION_FOLLOWING, 'la sección va antes del costo')
-  check(motionGroup().textContent.includes(t('library.editor.avatar.motor', { engine: t('avatars.engines.avatar_iv'), description: t('create.avatar.engineDescription.avatar_iv') })), 'con la línea del motor: ' + t('library.editor.avatar.motor', { engine: t('avatars.engines.avatar_iv'), description: t('create.avatar.engineDescription.avatar_iv') }))
+  // El motor, sin caja ni párrafo (2g): su nombre es un botón con nombre
+  // accesible y la descripción va en su tooltip.
+  check(engineButton('avatar_iv')?.tagName === 'BUTTON' && engineButton('avatar_iv').textContent.trim() === t('avatars.engines.avatar_iv'), 'el motor, un botón con su nombre y su ayuda accesible: ' + engineButton('avatar_iv')?.outerHTML)
+  check(!motionGroup().textContent.includes(t('create.avatar.engineDescription.avatar_iv')), 'la descripción del motor no ocupa un párrafo en la sección')
+  engineButton('avatar_iv').focus()
+  await waitFor(() => [...document.querySelectorAll('[role="tooltip"]')].some((tip) => tip.textContent.trim() === t('create.avatar.engineDescription.avatar_iv')), 'con el foco en el motor, el tooltip dice la descripción')
+  engineButton('avatar_iv').blur()
+  await waitFor(() => !document.querySelector('[role="tooltip"]'), 'al salir, el tooltip se cierra')
   const field4 = motionField()
   check(field4?.tagName === 'TEXTAREA' && field4.value === AUTO_4 && field4.maxLength === 300 && field4.placeholder === t('library.editor.avatar.movimientoPlaceholder') && !field4.disabled, 'el prompt de la escena en un campo etiquetado, con su tope (300) y su ejemplo')
   check(counterOf(AUTO_4.length), 'el contador: ' + AUTO_4.length + '/300')
@@ -910,10 +992,13 @@ try {
   await waitFor(() => [...document.querySelectorAll('[role="tooltip"]')].some((tip) => tip.textContent.trim() === t('library.editor.avatar.expresivoTooltip')), 'con el foco, el tooltip dice qué hace y que no suma costo')
   help.blur()
   await waitFor(() => !document.querySelector('[role="tooltip"]'), 'al salir, el tooltip se cierra')
-  // La guía «Qué podés pedir»: un desplegable hecho a mano con sus dos listas.
-  check(guideButton()?.getAttribute('aria-expanded') === 'false' && guideBlock()?.hidden === true && !guideBlock().hasAttribute('role'), '«Qué podés pedir», cerrado, con su bloque oculto y sin role="region"')
-  guideButton().click()
-  await waitFor(() => guideButton().getAttribute('aria-expanded') === 'true' && guideBlock()?.hidden === false, 'el clic lo abre')
+  // La guía «Qué podés pedir»: un botón que abre un globo (Popover de Radix)
+  // con sus dos listas, que se cierra con Escape devolviendo el foco al botón.
+  check(guideButton()?.getAttribute('aria-expanded') === 'false' && !guideBlock(), '«Qué podés pedir», cerrado: el globo no existe y el panel no suma un role="region"')
+  guideButton().focus()
+  await press('Enter')
+  await waitFor(() => guideButton().getAttribute('aria-expanded') === 'true' && guideBlock(), 'Enter abre el globo')
+  check(guideBlock().getAttribute('role') === 'dialog' && guideBlock().getAttribute('aria-label') === t('library.editor.avatar.guiaBoton'), 'el globo es un diálogo con nombre, el del botón que lo abre (si no, un lector de pantalla anuncia un diálogo sin nombre)')
   const CAN = ['guiaExpresiones', 'guiaGestos', 'guiaPostura', 'guiaQuietud', 'guiaMirada'].map((key) => t('library.editor.avatar.' + key))
   const CANNOT = ['guiaCamara', 'guiaLugar', 'guiaObjetos', 'guiaCaminar', 'guiaFondo'].map((key) => t('library.editor.avatar.' + key))
   const guideLists = [...guideBlock().querySelectorAll('ul')]
@@ -922,8 +1007,14 @@ try {
   check(guideLists.length === 2 && JSON.stringify(linesOf(guideLists[0])) === JSON.stringify(CAN) && JSON.stringify(linesOf(guideLists[1])) === JSON.stringify(CANNOT), 'las diez líneas de la guía en sus dos listas: ' + JSON.stringify(guideLists.map(linesOf)))
   check(nameOf(guideLists[0]) === t('library.editor.avatar.guiaPuedeTitulo') && nameOf(guideLists[1]) === t('library.editor.avatar.guiaNoPuedeTitulo'), 'cada lista nombrada por su título')
   check(guideLists[0].querySelectorAll('svg.lucide-check').length === 5 && guideLists[1].querySelectorAll('svg.lucide-x').length === 5, 'con el ícono de sí en lo que se controla y el de no en lo que no')
+  check(!panel().contains(guideBlock()) && !panel().querySelector('[role="region"]'), 'el globo vive en un portal, fuera del panel, y no es una región')
+  await press('Escape')
+  await waitFor(() => guideButton().getAttribute('aria-expanded') === 'false' && !guideBlock(), 'Escape cierra el globo')
+  check(document.activeElement === guideButton(), 'y el foco vuelve al botón, nunca a body: ' + document.activeElement?.tagName)
   guideButton().click()
-  await waitFor(() => guideButton().getAttribute('aria-expanded') === 'false' && guideBlock().hidden, 'otro clic lo cierra')
+  await waitFor(() => guideBlock(), 'el clic también lo abre')
+  guideButton().click()
+  await waitFor(() => !guideBlock(), 'otro clic lo cierra')
 
   // Editar: «Usar el automático» aparece y vuelve al de Vimo; la ayuda dice de
   // quién es el prompt y, vacío, que se usa el movimiento propio del motor.
@@ -957,9 +1048,10 @@ try {
   await waitFor(() => motionField()?.value === EDITED, 'la 4 con un borrador')
   await select(5)
   await waitFor(() => motionField()?.value === USER_5, 'la 5 muestra su prompt, no el borrador de la 4')
-  check(useAutomatic() && expressiveSwitch().getAttribute('aria-checked') === 'true', 'V con un gemelo: el prompt de la persona (con «Usar el automático») y «más expresivo» prendido, como están guardados')
+  check(useAutomatic() && !expressiveSwitch(), 'V con un gemelo: el prompt de la persona (con «Usar el automático») y sin «Movimiento más expresivo»: con V no hay interruptor (entrega 2g, §23.1), aunque la escena lo traiga guardado')
+  check(!motionGroup().textContent.includes(t('library.editor.avatar.expresivo')) && !motionButton(t('library.editor.avatar.expresivoAyudaAria')), 'ni su etiqueta ni su ayuda')
   check(motionHint() === t('library.editor.avatar.movimientoPropio'), 'la ayuda de un prompt propio, no «Vimo lo escribió»: ' + motionHint())
-  check(motionGroup().textContent.includes(t('library.editor.avatar.motor', { engine: t('avatars.engines.avatar_v'), description: t('create.avatar.engineDescription.avatar_v') })) && costLine(1.2), 'con la línea de Avatar V y su costo, 1,20')
+  check(engineButton('avatar_v')?.textContent.trim() === t('avatars.engines.avatar_v') && costLine(1.2), 'con el motor Avatar V y su costo, 1,20')
   await select(4)
   await waitFor(() => motionField()?.value === AUTO_4, 'al volver a la 4, el borrador ya no está: muestra lo guardado')
   await select(6)
@@ -1008,7 +1100,8 @@ try {
   await waitFor(() => progressRegion(), 'el avance en el panel')
   check(!motionGroup(), 'mientras se genera, el avance ocupa el lugar de la sección')
   await select(5)
-  check(motionField()?.disabled && expressiveSwitch()?.disabled && useAutomatic()?.disabled && panelButton(REGENERATE)?.disabled, 'con el proyecto ocupado, el campo, el interruptor, «Usar el automático» y el botón de otra escena esperan (R2 de la revisión)')
+  check(motionField()?.disabled && !expressiveSwitch() && useAutomatic()?.disabled && panelButton(REGENERATE)?.disabled, 'con el proyecto ocupado, el campo, «Usar el automático» y el botón de otra escena esperan (R2 de la revisión; V no tiene interruptor)')
+  check(stepButtonOff(lessButton()) && stepButtonOff(moreButton()), 'y los dos botones de la duración también, con aria-disabled y sin disabled: apagarlos con disabled le sacaría el foco al que lo tiene')
   await select(4)
   retakeJob.onEvent({ type: 'avatar-scene-started', sceneId: 4 })
   storeAvatar(4, { ...READY_4, take: 1 })
@@ -1182,19 +1275,18 @@ try {
   await select(5)
   await waitFor(() => motionField()?.value === USER_5, 'la 5')
   typeMotion('Probe V draft.')
-  expressiveSwitch().click()
-  await waitFor(() => expressiveSwitch().getAttribute('aria-checked') === 'false' && motionField()?.value === 'Probe V draft.', 'un borrador de V con otro prompt y «más expresivo» apagado')
+  await waitFor(() => motionField()?.value === 'Probe V draft.' && !expressiveSwitch(), 'un borrador de V con otro prompt, sin interruptor de «más expresivo»')
   storeAvatar(5, { ...avatars2e[5], motionUnsupported: true })
   await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
   await waitFor(() => unsupportedNote(t('library.editor.avatar.movimientoNoAdmitido', { engine: t('avatars.engines.avatar_v') })) && motionField()?.value === 'Probe V draft.', 'V pasa a motionUnsupported: la nota y el campo con el borrador')
   const changedVJob = await confirmRequest(REGENERATE, RETAKE, 'V con motionUnsupported y otro prompt')
-  check(JSON.stringify(changedVJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [5], regenerateSceneIds: [5], motion: [{ sceneId: 5, motionPrompt: 'Probe V draft.', expressive: false }] }), 'con V, el prompt nuevo también viaja: ' + JSON.stringify(changedVJob.payload))
+  check(JSON.stringify(changedVJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [5], regenerateSceneIds: [5], motion: [{ sceneId: 5, motionPrompt: 'Probe V draft.', expressive: true }] }), 'con V, el prompt nuevo también viaja, con el «más expresivo» que traía guardado (R-2g-20): ' + JSON.stringify(changedVJob.payload))
   changedVJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
   await waitFor(() => idle(), 'liberado')
   typeMotion(USER_5)
   await waitFor(() => motionField()?.value === USER_5, 'el prompt de V de vuelta al guardado')
   const staleVJob = await confirmRequest(REGENERATE, RETAKE, 'V con motionUnsupported sin cambiar el prompt')
-  check(JSON.stringify(staleVJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [5], regenerateSceneIds: [5] }), 'con V y sin cambiar el prompt, «más expresivo» no viaja solo (el proveedor no lo admite): ' + JSON.stringify(staleVJob.payload))
+  check(JSON.stringify(staleVJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [5], regenerateSceneIds: [5] }), 'con V y sin cambiar el prompt, no viaja «motion»: V no tiene el interruptor y el «más expresivo» que traía guardado se conserva (R-2g-20): ' + JSON.stringify(staleVJob.payload))
   staleVJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
   await waitFor(() => idle(), 'liberado')
   storeAvatar(4, EDITED_4)
@@ -1206,6 +1298,361 @@ try {
   await select(4)
   await waitFor(() => motionField()?.disabled && expressiveSwitch()?.disabled && panelButton(REGENERATE)?.disabled, 'en la demo, el campo, el interruptor y el botón esperan')
   window.fixture.locked = false
+  await select(2)
+
+  // 14c. Entrega 2g (§23.3): la duración de una aparición desde el panel. Un
+  //      proyecto con imágenes entre las apariciones (el planificador siempre
+  //      deja al menos 3 s): la 2, IV con un look de foto y planeada (4 a
+  //      14 s); la 4, IV con un look de foto y lista (22 a 32 s); la 8, V con
+  //      un gemelo digital, lista, con un prompt de la persona y «más
+  //      expresivo» guardado de la 2e (50 a 60 s); la 10, III y lista (72 a
+  //      82 s). Entre la 4 y la 8 hay tres escenas de imagen (32 a 38, 38 a 42
+  //      y 42 a 50), así alargar la 4 tapa una o dos.
+  const GAP_SCENES = () => [
+    scene(1, 0, 4),
+    scene(2, 4, 14, { imagePath: LOOK, avatar: view({ ...PLANNED, engine: 'avatar_iv' }) }),
+    scene(3, 14, 22),
+    scene(4, 22, 32, { imagePath: LOOK, avatar: READY_4 }),
+    scene(5, 32, 38),
+    scene(6, 38, 42),
+    scene(7, 42, 50),
+    scene(8, 50, 60, { imagePath: LOOK, avatar: avatars2e[5] }),
+    scene(9, 60, 72),
+    scene(10, 72, 82, { imagePath: LOOK, avatar: view() }),
+    scene(11, 82, 96),
+  ]
+  // Abre la confirmación de la escena y espera el saldo; y, con los textos ya
+  // mirados, la confirma y devuelve el pedido.
+  async function openConfirmation(sceneButton, message) {
+    panelButton(sceneButton).click()
+    await waitFor(() => dialog()?.textContent.includes(BALANCE_5), 'la confirmación: ' + message)
+  }
+  async function confirmOpen(confirmButton, message) {
+    const before = window.avatarJobs.length
+    dialogButton(confirmButton).click()
+    await waitFor(() => window.avatarJobs.length === before + 1, 'el pedido: ' + message)
+    return window.avatarJobs.at(-1)
+  }
+  async function loadScenes(scenes) {
+    window.detail = { ...structuredClone(INITIAL_DETAIL), scenes }
+    await queryClient.invalidateQueries({ queryKey: ['videos', 'project', 'fixture', 'detail'] })
+    await delay(60)
+  }
+  const costOf = (lookType, engine, startSeconds, endSeconds) => avatarSpansCostEstimate(lookType, [span(startSeconds, endSeconds)], engine).estimated
+  const IV = (seconds) => costOf('photo_avatar', 'avatar_iv', 22, 22 + seconds)
+  const TRIM = (seconds) => t('library.editor.avatar.recortar', { seconds })
+  const VALUE = (seconds) => t('library.editor.avatar.duracionValor', { seconds })
+  const NOW = (seconds) => t('library.editor.avatar.duracionActual', { seconds })
+  const scissors = () => panelButton(TRIM(7))?.querySelector('svg.lucide-scissors')
+  // Una confirmación que no tapa escenas de imagen no lo dice, tampoco con
+  // «Tapa 0 escenas de imagen.» (ronda 1, m1): se miran las tres frases.
+  const COVERS = (count) => t('library.editor.avatar.duracionTapa', { count })
+  const coversNothing = () => [0, 1, 2].every((count) => !dialogDescription().includes(COVERS(count)))
+  // Las reglas puras: lo que viaja y lo que cuesta.
+  check(JSON.stringify(avatarRenderPayload('p', { sceneIds: [4], durations: [{ sceneId: 9, seconds: 7 }, { sceneId: 4, seconds: 14 }, { sceneId: 4, seconds: 12 }] })) === JSON.stringify({ projectId: 'p', sceneIds: [4], durations: [{ sceneId: 4, seconds: 12 }] }), 'la duración viaja solo de las escenas pedidas y sin repetir')
+  check(JSON.stringify(avatarRenderPayload('p', { sceneIds: [2, 10], durations: [{ sceneId: 10, seconds: 9 }, { sceneId: 2, seconds: 8 }] })) === JSON.stringify({ projectId: 'p', sceneIds: [2, 10], durations: [{ sceneId: 2, seconds: 8 }, { sceneId: 10, seconds: 9 }] }), 'y en orden de escena')
+  check(JSON.stringify(avatarRenderPayload('p', { sceneIds: [2], durations: [] })) === JSON.stringify({ projectId: 'p', sceneIds: [2] }), 'sin duraciones, el pedido de siempre')
+  const gapScenes = GAP_SCENES()
+  check(avatarScenesCost([gapScenes[3]], [{ sceneId: 4, seconds: 14 }]).estimated === IV(14) && avatarScenesCost([gapScenes[3]]).estimated === IV(10), 'el costo con una duración nueva es el de esos segundos desde el inicio de la escena, no el de su tramo de hoy')
+  await loadScenes(GAP_SCENES())
+
+  // La 4: valor inicial, límites y ayuda.
+  await select(4)
+  await waitFor(() => durationGroup() && motionField(), 'la 4, con su duración y su movimiento')
+  check(durationValue() === VALUE(10) && durationText(NOW('10')), 'arranca en lo que dura hoy, redondeado, y debajo dice cuánto dura de verdad: ' + durationValue())
+  check(!stepButtonOff(lessButton()) && !stepButtonOff(moreButton()) && lessButton().type === 'button' && moreButton().type === 'button', '«−» y «+» de un segundo, a la vista y sin apagar (el máximo de la 4 es 25 s: la próxima aparición, la 8, empieza 28 s después de su inicio, menos 3)')
+  check(!durationText(t('library.editor.avatar.duracionBloqueada')) && !durationText(t('library.editor.avatar.duracionLimite', { min: 5, max: 25 })) && !durationText(t('library.editor.avatar.duracionMasLarga', { time: '0:32' })), 'sin avisos de límite ni de «más larga» con la misma duración')
+  const durationHelp = [...durationGroup().querySelectorAll('button')].find((button) => button.getAttribute('aria-label') === t('library.editor.avatar.duracionAyuda'))
+  check(durationHelp?.type === 'button' && !durationGroup().textContent.includes(t('library.editor.avatar.duracionAyuda')), 'la ayuda va en un tooltip con un botón con nombre, no en un párrafo')
+  durationHelp.focus()
+  await waitFor(() => [...document.querySelectorAll('[role="tooltip"]')].some((tip) => tip.textContent.trim() === t('library.editor.avatar.duracionAyuda')), 'con el foco, el tooltip dice dónde termina la aparición')
+  durationHelp.blur()
+  await waitFor(() => !document.querySelector('[role="tooltip"]'), 'al salir, el tooltip se cierra')
+  check(panelButton(REGENERATE) && !panelButton(TRIM(10)) && costLine(IV(10)), 'misma duración: la acción de siempre, «Regenerar avatar», con el costo de 10 s')
+  check(durationGroup().compareDocumentPosition(motionGroup()) & Node.DOCUMENT_POSITION_FOLLOWING && motionGroup().compareDocumentPosition(costLine(IV(10))) & Node.DOCUMENT_POSITION_FOLLOWING, 'el orden del panel: la duración, el movimiento y, al final, el costo y la acción')
+
+  // Más larga: con el teclado, el foco se queda en «+»; el costo y la hora siguen.
+  moreButton().focus()
+  await press('Enter')
+  await waitFor(() => durationValue() === VALUE(11), 'Enter sobre «+» sube un segundo')
+  check(document.activeElement === moreButton(), 'el foco se queda en «+»: ' + document.activeElement?.tagName)
+  check(durationText(t('library.editor.avatar.duracionMasLarga', { time: '0:33' })) && costLine(IV(11)) && panelButton(REGENERATE), '11 s: la hora donde termina más o menos (22 + 11 = 0:33), el costo de 11 s y «Regenerar avatar»')
+  await clickTimes(moreButton, 3)
+  await waitFor(() => durationValue() === VALUE(14), 'tres clics más: 14 s')
+  check(costLine(IV(14)), 'el costo es el de 14 s: ' + usd(IV(14)))
+  await openConfirmation(REGENERATE, 'una aparición más larga')
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarTexto', { count: 1, amount: usd(IV(14)) })) && !dialog().textContent.includes(t('library.editor.avatar.confirmarTituloRegenerar')) && dialog().textContent.includes(t('library.editor.avatar.confirmarTitulo')), 'la confirmación dice «Generar» (no «Regenerar»: es un trozo nuevo de la narración, no la misma parte) con el costo de 14 s: ' + dialogDescription())
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarDuracion', { seconds: 14, current: '10' })) && dialogDescription().includes(t('library.editor.avatar.duracionTapa', { count: 1 })) && !dialogDescription().includes(t('library.editor.avatar.duracionTapa', { count: 2 })), 'y la duración nueva y las escenas de imagen que tapa: ' + dialogDescription())
+  check(dialogButton(CONFIRM) && !dialogButton(RETAKE), 'con el botón «Generar»')
+  const lengthenJob = await confirmOpen(CONFIRM, 'una aparición más larga')
+  check(JSON.stringify(lengthenJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], durations: [{ sceneId: 4, seconds: 14 }] }), 'viaja solo la duración (sin «regenerateSceneIds»: la huella del pedido ya es otra, y pedir lo mismo otra vez cosecha el render pago): ' + JSON.stringify(lengthenJob.payload))
+  // El proyecto cambió y esa duración ya no entra: el job cae entero con el
+  // código del sidecar y el editor dice su texto (el de siempre, errorKeyOf).
+  lengthenJob.onEvent({ type: 'job-failed', code: 'avatar_resize_out_of_range', message: 'out of range' })
+  await waitFor(() => idle() && document.getElementById('banner').textContent === t(errorKeyOf('avatar_resize_out_of_range')), 'avatar_resize_out_of_range: el editor dice «' + t(errorKeyOf('avatar_resize_out_of_range')) + '»: ' + document.getElementById('banner').textContent)
+  check(durationValue() === VALUE(14) && window.toasts.every((item) => item.description !== t('library.editor.avatar.regenerarFalloConservado', { reason: t(errorKeyOf('avatar_resize_out_of_range')) })), 'nada cambió, el selector sigue en lo elegido y no dice «quedó el clip anterior» (no era una regeneración de la misma parte)')
+  const lockedJob = await confirmRequest(REGENERATE, CONFIRM, 'la misma, con la vecina animada de golpe')
+  lockedJob.onEvent({ type: 'job-failed', code: 'avatar_resize_locked', message: 'locked' })
+  await waitFor(() => idle() && document.getElementById('banner').textContent === t(errorKeyOf('avatar_resize_locked')), 'avatar_resize_locked: el editor dice «' + t(errorKeyOf('avatar_resize_locked')) + '»: ' + document.getElementById('banner').textContent)
+  await clickTimes(moreButton, 4)
+  await waitFor(() => durationValue() === VALUE(18), '18 s')
+  panelButton(REGENERATE).click()
+  await waitFor(() => dialog()?.textContent.includes(BALANCE_5), 'la confirmación de 18 s')
+  check(dialogDescription().includes(t('library.editor.avatar.duracionTapa', { count: 2 })) && dialogDescription().includes(t('library.editor.avatar.confirmarDuracion', { seconds: 18, current: '10' })), 'con 18 s tapa dos escenas de imagen (la de 32 a 38 y la de 38 a 42, que quedaría con menos de 3 s): ' + dialogDescription())
+  dialogButton(CANCEL).click()
+  await waitFor(() => !dialog(), 'cerrada')
+
+  // El máximo: 25 s (la próxima aparición menos 3 s de imágenes); en el
+  // límite, «+» sigue con el foco y lo dice.
+  await clickTimes(moreButton, 6)
+  await waitFor(() => durationValue() === VALUE(24) && !stepButtonOff(moreButton()), '24 s, todavía con margen')
+  moreButton().focus()
+  await press('Enter')
+  await waitFor(() => durationValue() === VALUE(25) && stepButtonOff(moreButton()), 'el máximo de la 4: 25 s y «+» apagado')
+  check(durationText(t('library.editor.avatar.duracionLimite', { min: 5, max: 25 })) && document.activeElement === moreButton(), 'dice entre qué valores se puede elegir y el foco sigue en «+», apagado con aria-disabled y no con disabled: ' + document.activeElement?.tagName)
+  await press('Enter')
+  check(durationValue() === VALUE(25), '«+» apagado no sube más')
+
+  // Más corta con un clip listo y sin tocar el movimiento: recortar, gratis y
+  // sin confirmación.
+  await clickTimes(lessButton, 18)
+  await waitFor(() => durationValue() === VALUE(7), '7 s')
+  await waitFor(() => panelButton(TRIM(7)), 'la acción pasa a «Recortar a 7 s»')
+  check(scissors() && !panelButton(REGENERATE), 'con la tijera, y «Regenerar avatar» ya no está: una sola acción principal a la vez')
+  check([...panel().querySelectorAll('p')].some((paragraph) => paragraph.textContent.trim() === t('library.editor.avatar.recortarGratis')) && !costLine(IV(7)) && ![...panel().querySelectorAll('p')].some((paragraph) => paragraph.textContent.startsWith('≈')), 'dice «Gratis…» en vez del costo')
+  check(window.trimCalls.length === 0 && panelButton(TRIM(7)).getAttribute('aria-busy') === 'false', 'todavía no recortó nada y el botón no dice que trabaja')
+  const balanceCallsBeforeTrim = window.balanceCalls
+  const jobsBeforeTrim = window.avatarJobs.length
+  // La lista de proyectos no tiene quien la mire en este banco: se siembra al
+  // día y se comprueba, al final, que el recorte la invalidó (ronda 1, m1: sin
+  // esa línea del hook, nada fallaba).
+  queryClient.setQueryData(videosQueryKeys.projects, [])
+  check(queryClient.getQueryState(videosQueryKeys.projects)?.isInvalidated === false, 'la lista de proyectos arranca sembrada y al día')
+  let releaseTrim
+  window.holdTrim = new Promise((done) => { releaseTrim = done })
+  window.trimResult = { sceneId: 4, startSeconds: 22, endSeconds: 29.4 }
+  panelButton(TRIM(7)).focus()
+  await press('Enter')
+  await waitFor(() => window.trimCalls.length === 1, 'Enter sobre «Recortar a 7 s» recorta')
+  check(JSON.stringify(window.trimCalls[0]) === JSON.stringify({ projectId: 'fixture', sceneId: 4, seconds: 7 }), 'llama a la API con el proyecto, la escena y los segundos: ' + JSON.stringify(window.trimCalls[0]))
+  check(!dialog() && window.avatarJobs.length === jobsBeforeTrim && window.balanceCalls === balanceCallsBeforeTrim, 'sin confirmación, sin pedirle nada al proveedor y sin leer el saldo')
+  await waitFor(() => panelButton(TRIM(7))?.getAttribute('aria-disabled') === 'true', 'mientras recorta, el botón espera con aria-disabled')
+  check(!panelButton(TRIM(7)).disabled && document.activeElement === panelButton(TRIM(7)) && panelButton(TRIM(7)).querySelector('svg.animate-spin') && stepButtonOff(lessButton()) && stepButtonOff(moreButton()), 'conserva el foco, muestra que trabaja y el selector espera')
+  check(panelButton(TRIM(7)).getAttribute('aria-busy') === 'true', 'y se lo dice a un lector de pantalla con aria-busy (el ícono que gira es aria-hidden)')
+  panelButton(TRIM(7)).click()
+  await press('Enter')
+  await delay(100)
+  check(window.trimCalls.length === 1, 'un segundo clic o Enter mientras recorta no vuelve a pedir')
+  window.detail = { ...window.detail, scenes: window.detail.scenes.map((item) => (item.id === 4 ? { ...item, endSeconds: 29.4 } : item.id === 5 ? { ...item, startSeconds: 29.4 } : item)) }
+  const detailCallsBeforeTrim = window.detailCalls
+  const toastsBeforeTrim = window.toasts.length
+  // La API contesta pero la relectura del proyecto queda en vuelo (ronda 1,
+  // m1): la mutación sigue pendiente hasta que termina, así que el botón
+  // espera y un clic o un Enter no piden otro recorte sobre una escena que
+  // todavía muestra la duración vieja.
+  let releaseDetail
+  window.holdDetail = new Promise((done) => { releaseDetail = done })
+  releaseTrim()
+  window.holdTrim = null
+  await waitFor(() => window.toasts.length > toastsBeforeTrim && window.toasts.at(-1).description === t('library.editor.avatar.recortado', { seconds: '7,4' }), 'el aviso pasajero: «El avatar ahora dura 7,4 s.»: ' + JSON.stringify(window.toasts.at(-1)))
+  check(window.toasts.at(-1).variant === undefined && document.body.textContent.includes(t('library.editor.avatar.recortado', { seconds: '7,4' })), 'sin diálogos de más, y se ve (Toaster)')
+  await waitFor(() => window.detailCalls > detailCallsBeforeTrim, 'la API contestó: se pide releer el proyecto')
+  await delay(100)
+  check(panelButton(TRIM(7))?.getAttribute('aria-disabled') === 'true' && panelButton(TRIM(7)).getAttribute('aria-busy') === 'true' && !panelButton(TRIM(7)).disabled && document.activeElement === panelButton(TRIM(7)) && durationText(NOW('10')), 'con la API contestada y la relectura en vuelo, el botón sigue esperando con aria-disabled y aria-busy, conserva el foco y la escena todavía dice 10 s')
+  panelButton(TRIM(7)).click()
+  await press('Enter')
+  await delay(100)
+  check(window.trimCalls.length === 1 && !dialog() && window.avatarJobs.length === jobsBeforeTrim, 'un clic o un Enter con la relectura en vuelo no piden otro recorte ni abren nada')
+  releaseDetail()
+  window.holdDetail = null
+  await waitFor(() => durationText(NOW('7,4')), 'relee el proyecto: ahora dura 7,4 s')
+  check(durationValue() === VALUE(7) && panelButton(REGENERATE) && !panelButton(TRIM(7)) && costLine(costOf('photo_avatar', 'avatar_iv', 22, 29.4)), 'el selector vuelve a arrancar en la duración nueva y la acción es la de siempre, con el costo del tramo nuevo (7,4 s)')
+  check(document.activeElement === panelButton(REGENERATE) && panelButton(REGENERATE).getAttribute('aria-busy') === 'false', 'el foco queda en el botón del panel, que ahora dice «Regenerar avatar» y ya no está ocupado; nunca en body: ' + document.activeElement?.tagName)
+  check(queryClient.getQueryState(videosQueryKeys.projects)?.isInvalidated === true, 'el recorte invalida la lista de proyectos: la biblioteca ve el video desactualizado')
+
+  // El recorte que falla: el aviso lleva el motivo y la escena no cambia.
+  await clickTimes(lessButton, 3)
+  await waitFor(() => durationValue() === VALUE(5) && panelButton(TRIM(5)), 'a 5 s: «Recortar a 5 s»')
+  window.trimFails = 'avatar_trim_unavailable'
+  const toastsBeforeFail = window.toasts.length
+  const detailCallsBeforeFail = window.detailCalls
+  panelButton(TRIM(5)).click()
+  await waitFor(() => window.trimCalls.length === 2 && window.toasts.length > toastsBeforeFail, 'el recorte falla')
+  check(window.toasts.at(-1).description === t('library.editor.avatar.recortarFallo', { reason: t(errorKeyOf('avatar_trim_unavailable')) }) && window.toasts.at(-1).variant === 'destructive', 'el aviso dice el motivo: ' + JSON.stringify(window.toasts.at(-1)))
+  await waitFor(() => panelButton(TRIM(5))?.getAttribute('aria-disabled') === 'false' && panelButton(TRIM(5)).getAttribute('aria-busy') === 'false', 'el botón vuelve')
+  check(window.detailCalls === detailCallsBeforeFail && durationValue() === VALUE(5), 'la escena no cambia ni se relee el proyecto, y el selector sigue donde estaba')
+  window.trimFails = null
+
+  // Más corta con el movimiento cambiado: es un render nuevo, no un recorte.
+  typeMotion(EDITED)
+  await waitFor(() => motionField()?.value === EDITED && panelButton(REGENERATE) && !panelButton(TRIM(5)), 'cambiar el movimiento deja «Regenerar avatar» (un render nuevo) en vez de recortar')
+  check(costLine(costOf('photo_avatar', 'avatar_iv', 22, 27)), 'con el costo de 5 s: ' + usd(costOf('photo_avatar', 'avatar_iv', 22, 27)))
+  await openConfirmation(REGENERATE, 'más corta con otro movimiento')
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarDuracion', { seconds: 5, current: '7,4' })) && coversNothing(), 'la confirmación dice la duración y, al achicar, no tapa nada (ni «' + COVERS(0) + '»): ' + dialogDescription())
+  const shorterRenderJob = await confirmOpen(CONFIRM, 'más corta con otro movimiento')
+  check(JSON.stringify(shorterRenderJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], motion: [{ sceneId: 4, motionPrompt: EDITED, expressive: false }], durations: [{ sceneId: 4, seconds: 5 }] }), 'viaja el movimiento y la duración: ' + JSON.stringify(shorterRenderJob.payload))
+  shorterRenderJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+
+  // El borrador de la duración es de la escena: no pasa a otra y se descarta.
+  await select(2)
+  await waitFor(() => durationValue() === VALUE(10) && durationGroup(), 'la 2, con su propia duración')
+  await select(4)
+  await waitFor(() => durationValue() === VALUE(7) && durationText(NOW('7,4')) && motionField()?.value === AUTO_4, 'al volver a la 4, los borradores de la duración y del movimiento ya no están')
+
+  // La 2, planeada: más corta es siempre un render nuevo (no hay clip que
+  // recortar), con «Generar avatar».
+  await select(2)
+  await waitFor(() => panelButton(GENERATE) && durationGroup(), 'la 2, planeada')
+  const IV_2 = (seconds) => costOf('photo_avatar', 'avatar_iv', 4, 4 + seconds)
+  await clickTimes(lessButton, 2)
+  await waitFor(() => durationValue() === VALUE(8), '8 s')
+  check(panelButton(GENERATE) && !panelButton(TRIM(8)) && costLine(IV_2(8)), 'una planeada no recorta: «Generar avatar» con el costo de 8 s')
+  await openConfirmation(GENERATE, 'una planeada más corta')
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarDuracion', { seconds: 8, current: '10' })) && coversNothing(), 'la confirmación dice la duración y, al achicar, no tapa nada: ' + dialogDescription())
+  const plannedJob = await confirmOpen(CONFIRM, 'una planeada más corta')
+  check(JSON.stringify(plannedJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2], durations: [{ sceneId: 2, seconds: 8 }] }), 'viaja la duración elegida: ' + JSON.stringify(plannedJob.payload))
+  plannedJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+
+  // «Regenerar todos (2)» con la duración de la elegida: solo ella lleva la suya.
+  const FAILED_10 = view({ status: 'failed', clipPath: undefined, clipMtimeMs: undefined, errorCode: 'avatar_timeout' })
+  await loadScenes(GAP_SCENES().map((item) => (item.id === 10 ? { ...item, avatar: FAILED_10 } : item)))
+  await select(4)
+  await select(2)
+  await waitFor(() => panelButton(ALL(2)) && durationValue() === VALUE(10), '«Regenerar todos (2)» con la 2 y la 10 pendientes')
+  await clickTimes(lessButton, 2)
+  await waitFor(() => durationValue() === VALUE(8), '8 s en la 2')
+  panelButton(ALL(2)).click()
+  await waitFor(() => dialog()?.textContent.includes(BALANCE_5), 'la confirmación de las dos')
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarTexto', { count: 2, amount: usd(IV_2(8) + costOf('photo_avatar', 'avatar_iii', 72, 82)) })), 'el costo suma la 2 con 8 s y la 10 con su tramo: ' + dialogDescription())
+  const allJobs = window.avatarJobs.length
+  dialogButton(CONFIRM).click()
+  await waitFor(() => window.avatarJobs.length === allJobs + 1, 'pide las dos')
+  check(JSON.stringify(window.avatarJobs.at(-1).payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2, 10], durations: [{ sceneId: 2, seconds: 8 }] }), 'solo la elegida lleva su duración: ' + JSON.stringify(window.avatarJobs.at(-1).payload))
+  window.avatarJobs.at(-1).onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+
+  // R-2g-20 en «Regenerar todos»: las V desactualizadas que traían «más
+  // expresivo» guardado lo conservan. La 4, que no es la elegida y no cambió
+  // nada, no lleva entrada en «motion» (si la llevara con la marca apagada, la
+  // huella de su pedido cambiaría y un recibo vivo o pago no se cosecharía); la
+  // 8, la elegida, lleva su prompt editado con «más expresivo» como estaba.
+  const STALE_V = { ...avatars2e[5], stale: true }
+  await loadScenes(GAP_SCENES().map((item) => (item.id === 4 || item.id === 8 ? { ...item, avatar: STALE_V } : item)))
+  await select(4)
+  await select(8)
+  await waitFor(() => panelButton(ALL(3)) && motionField()?.value === USER_5, '«Regenerar todos (3)» con la 2 (planeada) y las dos V desactualizadas, la 4 y la 8')
+  typeMotion(EDITED)
+  await waitFor(() => motionField()?.value === EDITED, 'el movimiento editado de la 8')
+  panelButton(ALL(3)).click()
+  await waitFor(() => dialog()?.textContent.includes(BALANCE_5), 'la confirmación de las tres')
+  const batchJobs = window.avatarJobs.length
+  dialogButton(CONFIRM).click()
+  await waitFor(() => window.avatarJobs.length === batchJobs + 1, 'pide la 2, la 4 y la 8')
+  check(JSON.stringify(window.avatarJobs.at(-1).payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2, 4, 8], motion: [{ sceneId: 8, motionPrompt: EDITED, expressive: true }] }), 'las dos V conservan «más expresivo»: la 4 sin entrada y la 8 con su prompt editado y la marca como estaba: ' + JSON.stringify(window.avatarJobs.at(-1).payload))
+  window.avatarJobs.at(-1).onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+
+  // La 8, V con un gemelo digital: sin «Movimiento más expresivo» (solo IV con
+  // un look de foto lo tiene), aunque traiga «más expresivo» guardado de la 2e;
+  // al regenerarla sin cambios el pedido no lleva «motion» y la marca guardada
+  // queda (R-2g-20). Y recorta como las demás.
+  await loadScenes(GAP_SCENES())
+  await select(2)
+  await select(8)
+  await waitFor(() => motionField()?.value === USER_5 && durationValue() === VALUE(10), 'la 8, V con su prompt y su duración')
+  check(!expressiveSwitch() && !motionButton(t('library.editor.avatar.expresivoAyudaAria')) && useAutomatic(), 'V no tiene el interruptor, tiene su prompt y «Usar el automático»')
+  const vRetakeJob = await confirmRequest(REGENERATE, RETAKE, 'regenerar una V con «más expresivo» guardado')
+  check(JSON.stringify(vRetakeJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [8], regenerateSceneIds: [8] }), 'sin «motion»: conserva «más expresivo» y su prompt guardados (R-2g-20): ' + JSON.stringify(vRetakeJob.payload))
+  vRetakeJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+  await clickTimes(lessButton, 3)
+  await waitFor(() => durationValue() === VALUE(7) && panelButton(TRIM(7)), 'V más corta, sin tocar el movimiento: «Recortar a 7 s»')
+  // Con la tecla Enter sostenida de verdad (ronda 1, m1): la primera pulsación
+  // recorta; al terminar, la escena queda en 7 s y el mismo botón pasa a
+  // «Regenerar avatar» con el foco puesto. Las repeticiones que llegan ya con
+  // la etiqueta nueva se ignoran (ignoreHeldKey, en el botón principal): si no,
+  // un Enter que se alarga abriría la confirmación de un render pago.
+  window.trimResult = { sceneId: 8, startSeconds: 50, endSeconds: 57 }
+  window.detail = { ...window.detail, scenes: window.detail.scenes.map((item) => (item.id === 8 ? { ...item, endSeconds: 57 } : item.id === 9 ? { ...item, startSeconds: 57 } : item)) }
+  const balanceCallsBeforeHeldTrim = window.balanceCalls
+  const jobsBeforeHeldTrim = window.avatarJobs.length
+  window.heldOn.clear()
+  panelButton(TRIM(7)).focus()
+  await press(ENTER_HELD)
+  await waitFor(() => window.trimCalls.length === 3 && JSON.stringify(window.trimCalls[2]) === JSON.stringify({ projectId: 'fixture', sceneId: 8, seconds: 7 }), 'recorta la 8: ' + JSON.stringify(window.trimCalls[2]))
+  await waitFor(() => durationText(NOW('7')) && panelButton(REGENERATE) && !panelButton(TRIM(7)), 'terminó: la 8 dura 7 s y el botón dice «Regenerar avatar»')
+  const heldOnRegenerate = window.heldOn.get(REGENERATE)
+  check(heldOnRegenerate?.repeats > 0, 'parte de las repeticiones del Enter cayeron en el botón ya con la etiqueta «Regenerar avatar»: ' + JSON.stringify([...window.heldOn]))
+  check([...window.heldOn.values()].every((seen) => seen.ignored === seen.repeats), 'el botón principal ignora cada repetición, con la etiqueta de recortar y con la de regenerar: ' + JSON.stringify([...window.heldOn]))
+  check(window.trimCalls.length === 3 && !dialog() && window.balanceCalls === balanceCallsBeforeHeldTrim && window.avatarJobs.length === jobsBeforeHeldTrim, 'un Enter sostenido recorta una sola vez: ni otro recorte ni la confirmación de «Regenerar avatar» (no pidió el saldo ni el render)')
+  check(document.activeElement === panelButton(REGENERATE), 'y el foco sigue en el botón: ' + document.activeElement?.tagName)
+
+  // La 10, III: sin movimiento. Hasta el fin del audio (la 11 termina a 96 s:
+  // 24 s desde su inicio).
+  await select(10)
+  await waitFor(() => durationValue() === VALUE(10) && !motionGroup(), 'la 10, III: duración y sin sección de movimiento')
+  await clickTimes(moreButton, 20)
+  await waitFor(() => durationValue() === VALUE(24) && stepButtonOff(moreButton()), 'el máximo de la 10 es el fin del audio: 24 s')
+  check(durationText(t('library.editor.avatar.duracionLimite', { min: 5, max: 24 })), 'con su aviso de límite')
+  await openConfirmation(REGENERATE, 'III más larga')
+  check(dialogDescription().includes(t('library.editor.avatar.confirmarTexto', { count: 1, amount: usd(costOf('photo_avatar', 'avatar_iii', 72, 96)) })) && dialogDescription().includes(t('library.editor.avatar.duracionTapa', { count: 1 })), 'con el costo de 24 s a la tarifa de III y la escena de imagen que tapa: ' + dialogDescription())
+  const iiiJob = await confirmOpen(CONFIRM, 'III más larga')
+  check(JSON.stringify(iiiJob.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [10], durations: [{ sceneId: 10, seconds: 24 }] }), 'viaja solo la duración: ' + JSON.stringify(iiiJob.payload))
+  iiiJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => idle(), 'liberado')
+
+  // Una escena que dura 9,6 s arranca en 10 s (redondeado) y dice 9,6 s.
+  await loadScenes(GAP_SCENES().map((item) => (item.id === 10 ? { ...item, endSeconds: 81.6 } : item.id === 11 ? { ...item, startSeconds: 81.6 } : item)))
+  await select(10)
+  await waitFor(() => durationValue() === VALUE(10) && durationText(NOW('9,6')), 'dura 9,6 s: el selector arranca en 10 s y debajo dice 9,6 s')
+  check(panelButton(REGENERATE) && !panelButton(TRIM(10)), 'con el valor de arranque, la acción de siempre')
+
+  // La última escena del video (R-2g-18): no se achica (lo que soltaría no
+  // tendría una escena de imagen que lo tome) ni se alarga (termina en el fin
+  // del audio). El selector queda quieto en lo que dura hoy y dice por qué, con
+  // un texto que no es el de la vecina animada.
+  await loadScenes(GAP_SCENES().filter((item) => item.id !== 11))
+  await select(10)
+  await waitFor(() => durationValue() === VALUE(10) && stepButtonOff(lessButton()) && stepButtonOff(moreButton()), 'si la 10 es lo último, el selector queda quieto en 10 s con los dos botones apagados')
+  check(durationText(t('library.editor.avatar.duracionFinal')) && !durationText(t('library.editor.avatar.duracionBloqueada')) && !durationText(t('library.editor.avatar.duracionLimite', { min: 10, max: 10 })) && !durationText(t('library.editor.avatar.duracionLimite', { min: 5, max: 10 })), 'y dice que es el final del video (ni «la escena que sigue está animada» ni un aviso de límite)')
+  check(panelButton(REGENERATE) && !panelButton(TRIM(10)) && costLine(costOf('photo_avatar', 'avatar_iii', 72, 82)), 'la acción es la de siempre, «Regenerar avatar», con el costo de lo que dura')
+  moreButton().focus()
+  await press('Enter')
+  lessButton().focus()
+  await press('Enter')
+  check(durationValue() === VALUE(10) && document.activeElement === lessButton(), 'apretar un botón apagado no cambia nada y no suelta el foco: ' + document.activeElement?.tagName)
+  // Con un tramo que no es de segundos enteros (9,6 s), el selector queda en lo
+  // que dura redondeado y debajo dice lo que dura de verdad.
+  await loadScenes(GAP_SCENES().filter((item) => item.id !== 11).map((item) => (item.id === 10 ? { ...item, endSeconds: 81.6 } : item)))
+  await select(4)
+  await select(10)
+  await waitFor(() => durationValue() === VALUE(10) && durationText(NOW('9,6')) && stepButtonOff(lessButton()) && stepButtonOff(moreButton()), 'la última de 9,6 s: quieta en 10 s y dice que dura 9,6 s')
+  check(durationText(t('library.editor.avatar.duracionFinal')), 'con el mismo texto del final del video')
+
+  // La escena que sigue, animada: su duración no se puede cambiar. Con una
+  // animación lista y con un recibo de animación pendiente.
+  const ANIMATED = { id: 'a5', sceneIds: [5], provider: 'kie', status: 'ready', slotSeconds: 6 }
+  await loadScenes(GAP_SCENES().map((item) => (item.id === 5 ? { ...item, animations: [ANIMATED] } : item)))
+  await select(4)
+  await waitFor(() => durationGroup() && durationText(t('library.editor.avatar.duracionBloqueada')), 'la 4 con la 5 animada: la duración no se puede cambiar')
+  check(stepButtonOff(lessButton()) && stepButtonOff(moreButton()) && durationValue() === VALUE(10) && !durationText(t('library.editor.avatar.duracionLimite', { min: 10, max: 10 })) && !durationText(t('library.editor.avatar.duracionFinal')), 'los dos botones apagados en 10 s y solo el aviso de que está animada (no el del final del video)')
+  check(panelButton(REGENERATE) && !panelButton(TRIM(10)), 'y la acción de siempre')
+  lessButton().focus()
+  await press('Enter')
+  check(durationValue() === VALUE(10) && document.activeElement === lessButton(), 'apretar un botón apagado no cambia nada y no suelta el foco')
+  await loadScenes(GAP_SCENES().map((item) => (item.id === 5 ? { ...item, animationPending: [{ ...ANIMATED, status: 'error' }] } : item)))
+  await waitFor(() => durationGroup() && durationText(t('library.editor.avatar.duracionBloqueada')), 'un recibo de animación pendiente también la bloquea')
+  await loadScenes(GAP_SCENES())
+
+  // La demo: nada se genera ni se recorta.
+  window.fixture.locked = true
+  await select(2)
+  await select(4)
+  await waitFor(() => stepButtonOff(lessButton()) && stepButtonOff(moreButton()) && motionField()?.disabled, 'en la demo, la duración y el movimiento esperan')
+  window.fixture.locked = false
+  await waitFor(() => !stepButtonOff(lessButton()) && !stepButtonOff(moreButton()), 'y al salir de la demo, vuelven')
   await select(2)
 
   // 15. La vista real (LibraryEditor) con su cableado (ronda 1): el panel
@@ -1318,6 +1765,21 @@ try {
   check(panel().textContent.includes(t('library.editor.timeline.avatarStaleHint')) && !anyAllButton(), 'con «Desactualizado» y sola, sin «Regenerar todos»')
   avatarBlock(2).click()
   await waitFor(() => panel()?.textContent.includes(t('library.editor.panel.sceneTitle', { id: 2 })), 'de vuelta a la 2')
+  // R-2g-20 en el aviso: una aparición de V que traía «más expresivo» guardado
+  // y salió con la imagen fija porque su render venció (avatar_timeout: el
+  // recibo queda y la interfaz promete no volver a cobrarlo) se pide con
+  // «Regenerarlas» sin «motion», así el carril la cosecha en vez de pagar otro
+  // render (I-2 de la revisión final; el aviso no tiene sección de movimiento).
+  const V_FAILED = view({ engine: 'avatar_v', lookType: 'digital_twin', status: 'failed', clipPath: undefined, clipMtimeMs: undefined, errorCode: 'avatar_timeout', motionPrompt: USER_5, motionSource: 'user', expressive: true })
+  await project({ 5: V_FAILED }, () => avatarBlock(5)?.title === failedTitle('avatar_timeout') && notice(1))
+  const jobsBeforeVNotice = window.avatarJobs.length
+  noticeButton(1).click()
+  await waitFor(() => dialog()?.textContent.includes(t('library.editor.avatar.saldo', { balance: usd(5) })), 'la confirmación del aviso con la V')
+  dialogButton(CONFIRM).click()
+  await waitFor(() => window.avatarJobs.length === jobsBeforeVNotice + 1, 'el aviso pide la V')
+  check(JSON.stringify(window.avatarJobs.at(-1).payload) === JSON.stringify({ projectId: 'fixture-view', sceneIds: [5] }), 'con V y «más expresivo» guardado, el aviso la pide como siempre, sin «motion»: ' + JSON.stringify(window.avatarJobs.at(-1).payload))
+  window.avatarJobs.at(-1).onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
+  await waitFor(() => !window.editor.editorTask.isProjectBusy('fixture-view'), 'liberado')
   // Una escena de avatar sin un cuadro de tramo no tiene bloque y el panel no
   // la puede pedir: el aviso tampoco la cuenta ni la pide (M6).
   await project({ 2: view(PLANNED), 5: FAILED, 7: LOST }, () => notice(2), { 7: { endSeconds: 48.01 }, 8: { startSeconds: 48.01 } })

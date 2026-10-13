@@ -99,7 +99,7 @@ agrega ruido.
 
 ## Nota sobre distribución
 
-Esta carpeta —y todo `docs/` (interno)— **nunca viaja dentro de la app**: Tauri empaqueta
+Esta carpeta —y todo `docs/`— **nunca viaja dentro de la app**: Tauri empaqueta
 únicamente `dist/` (`frontendDist` en [src-tauri/tauri.conf.json](/src-tauri/tauri.conf.json))
 más los iconos. La única forma de que documentación termine en el binario es ponerla en
 `public/`, que Vite copia a `dist/`. No lo hagas.

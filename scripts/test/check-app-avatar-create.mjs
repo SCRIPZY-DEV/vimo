@@ -15,12 +15,13 @@
 // elección lleva los motores de su look, viaja el motor efectivo (el que
 // prefiere la persona si el look lo admite; si no, el primero que admite en
 // III, IV, V) y con él se cobra; «Movimiento más expresivo» viaja solo
-// prendido y si el motor y el look lo admiten; con Avatar III y el interruptor
-// apagado `options.avatar` queda byte a byte como antes; y un look sirve con
-// cualquier motor que admita y tenga tarifa (uno solo-IV se ofrece; uno sin
-// motores, no). Las tarifas de Avatar V con looks de foto o de estudio se leen
-// de la tabla con la función (cambian en la 2e), nunca escritas acá. Desde la
-// entrega 2f (diseño §22): «3 veces en 2 minutos» viaja como
+// prendido y, desde la entrega 2g (§23.1), solo con IV y un look de foto; con
+// Avatar III y el interruptor apagado `options.avatar` queda byte a byte como
+// antes; y un look sirve con cualquier motor que admita y tenga tarifa (uno
+// solo-IV se ofrece; uno sin motores, no). Las tarifas de Avatar V con looks de
+// foto o de estudio se leen de la tabla con la función (cambian en la 2e),
+// nunca escritas acá. Desde la entrega 2f (diseño §22): «3 veces en 2 minutos»
+// viaja como
 // `threeInFirstTwoMinutes: true` solo prendida y cierra `options.avatar` (apagada
 // o en un borrador sin el campo, el cuerpo es el de siempre, byte a byte); sus
 // apariciones y su costo cuentan lo que sale de verdad (al menos 3, las tres
@@ -31,11 +32,13 @@
 // (`avatarRequestedAppearances` y `avatarRequestedSeconds`, a partir de
 // `ProjectAvatarOptions`), y una prueba de paridad las compara en todas las
 // combinaciones; y la elección copia si Avatar V puede mover al avatar con un
-// prompt (`motionReference`): con V y un look de foto de un avatar propio sin
-// gemelo digital «más expresivo» no se ofrece ni viaja (un borrador sin el
-// campo cuenta como que sí puede). Empaqueta el código real de `src/` con
-// esbuild y los alias de tsconfig.app.json, como check-app-catalog-payload.mjs:
-// sin simulacros.
+// prompt (`motionReference`: con V y un look de foto de un avatar propio sin
+// gemelo digital la línea que dice que Vimo escribe el movimiento no sale; un
+// borrador sin el campo cuenta como que sí puede). Desde la entrega 2g
+// (§23.1), con V «más expresivo» ni se ofrece ni viaja, tenga o no el avatar
+// un gemelo digital y aunque la persona lo haya prendido antes con IV.
+// Empaqueta el código real de `src/` con esbuild y los alias de
+// tsconfig.app.json, como check-app-catalog-payload.mjs: sin simulacros.
 import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -241,7 +244,7 @@ test('viaja el motor efectivo: el que prefiere la persona si el look lo admite; 
   )
 })
 
-test('«Movimiento más expresivo» viaja solo prendido y si el motor y el look lo admiten', () => {
+test('«Movimiento más expresivo» viaja solo prendido y solo con Avatar IV y un look de foto', () => {
   const ALL = ['avatar_iii', 'avatar_iv', 'avatar_v']
   const avatarOf = (overrides) =>
     app.createProjectPayload(kitchenForm(overrides)).options.avatar
@@ -269,14 +272,45 @@ test('«Movimiento más expresivo» viaja solo prendido y si el motor y el look 
     assert.equal(video.engine, 'avatar_iv')
     assert.equal('expressive' in video, false, lookType)
   }
-  // V con un gemelo digital: lo admite (se traduce en el prompt).
-  const twinV = avatarOf({
-    avatarEngine: 'avatar_v',
+  // V no lo tiene (entrega 2g, §23.1): con ningún tipo de look, con o sin
+  // referencia de animación, aunque la persona lo haya dejado prendido.
+  for (const lookType of ['photo_avatar', 'digital_twin', 'studio_avatar']) {
+    for (const motionReference of [true, false]) {
+      const video = avatarOf({
+        avatarEngine: 'avatar_v',
+        avatarExpressive: true,
+        avatar: {
+          ...ANA_KITCHEN,
+          lookType,
+          supportedEngines: ALL,
+          motionReference,
+        },
+      })
+      assert.equal(video.engine, 'avatar_v')
+      assert.equal(
+        'expressive' in video,
+        false,
+        lookType + ' con referencia ' + motionReference,
+      )
+    }
+  }
+  // La preferencia queda en el formulario: la misma persona que lo prendió con
+  // IV lo manda con IV, y al pasar a V no viaja (sin que nada lo apague).
+  const prepared = kitchenForm({
+    avatarEngine: 'avatar_iv',
     avatarExpressive: true,
-    avatar: { ...ANA_KITCHEN, lookType: 'digital_twin', supportedEngines: ALL },
+    avatar: { ...ANA_KITCHEN, supportedEngines: ALL },
   })
-  assert.equal(twinV.engine, 'avatar_v')
-  assert.equal(twinV.expressive, true)
+  assert.equal(
+    app.createProjectPayload(prepared).options.avatar.expressive,
+    true,
+  )
+  const switched = { ...prepared, avatarEngine: 'avatar_v' }
+  assert.equal(
+    'expressive' in app.createProjectPayload(switched).options.avatar,
+    false,
+  )
+  assert.equal(switched.avatarExpressive, true)
   // Prefiere IV pero el look solo admite III: sale con III y sin expresivo.
   assert.equal(
     'expressive' in
@@ -412,12 +446,14 @@ test('la elección copia si Avatar V puede mover al avatar con un prompt: uno de
   ])
 })
 
-test('Avatar V sin gemelo digital: «más expresivo» no se ofrece ni viaja con un look de foto sin referencia de animación; un borrador sin el campo cuenta como que sí', () => {
+test('con Avatar V «más expresivo» no se ofrece ni viaja, tenga o no el avatar un gemelo digital; la referencia de animación solo decide la línea del movimiento automático', () => {
   const missing = (avatar, engine) =>
     app.avatarMotionReferenceMissing(avatar, engine)
   const available = (avatar, engine) =>
     app.selectedAvatarExpressiveAvailable(avatar, engine)
-  // La regla: solo con V y un look de foto, y solo si el avatar no la tiene.
+  // La referencia: solo cuenta con V y un look de foto, y solo si el avatar no
+  // la tiene. Decide la línea «Vimo escribe el movimiento…» de la tarjeta (con
+  // V sin referencia el render sale con el movimiento propio de V).
   assert.equal(missing(photoChoice(false), 'avatar_v'), true)
   assert.equal(missing(photoChoice(true), 'avatar_v'), false)
   assert.equal(missing(draftChoice(), 'avatar_v'), false)
@@ -432,35 +468,48 @@ test('Avatar V sin gemelo digital: «más expresivo» no se ofrece ni viaja con 
       lookType,
     )
   }
-  // «Más expresivo» hace algo con V solo si V puede mover el look; con IV y un
-  // look de foto, siempre; con IV y un gemelo digital, nunca; con III, nunca.
-  assert.equal(available(photoChoice(false), 'avatar_v'), false)
-  assert.equal(available(photoChoice(true), 'avatar_v'), true)
-  assert.equal(available(draftChoice(), 'avatar_v'), true)
-  assert.equal(available(photoChoice(false), 'avatar_iv'), true)
-  assert.equal(
-    available({ ...photoChoice(false), lookType: 'digital_twin' }, 'avatar_iv'),
-    false,
-  )
-  assert.equal(available(photoChoice(true), 'avatar_iii'), false)
-  // El payload: prendido en el formulario, con V y sin referencia no viaja
-  // (el motor sigue siendo V); con la referencia, sin el campo o con IV, sí.
+  // «Más expresivo» (entrega 2g, §23.1): solo donde el proveedor tiene
+  // `expressiveness`, o sea Avatar IV con un look de foto. Con V nunca, con
+  // ningún tipo de look y con o sin referencia (un borrador sin el campo
+  // incluido); con IV y un gemelo digital o uno de estudio, nunca; con III,
+  // nunca.
+  for (const lookType of ['photo_avatar', 'digital_twin', 'studio_avatar']) {
+    for (const choice of [
+      { ...photoChoice(true), lookType },
+      { ...photoChoice(false), lookType },
+      { ...draftChoice(), lookType },
+    ]) {
+      assert.equal(available(choice, 'avatar_v'), false, 'V ' + lookType)
+      assert.equal(available(choice, 'avatar_iii'), false, 'III ' + lookType)
+      assert.equal(
+        available(choice, 'avatar_iv'),
+        lookType === 'photo_avatar',
+        'IV ' + lookType,
+      )
+    }
+  }
+  // El payload: prendido en el formulario, con V no viaja (el motor sigue
+  // siendo V) tenga o no el avatar con qué moverse; con IV y una foto, sí, con
+  // o sin referencia.
   const avatarOf = (avatar, avatarEngine) =>
     app.createProjectPayload(
       kitchenForm({ avatar, avatarEngine, avatarExpressive: true }),
     ).options.avatar
-  const withoutReference = avatarOf(photoChoice(false), 'avatar_v')
-  assert.equal(withoutReference.engine, 'avatar_v')
-  assert.equal('expressive' in withoutReference, false)
-  assert.equal(avatarOf(photoChoice(true), 'avatar_v').expressive, true)
-  assert.equal(avatarOf(draftChoice(), 'avatar_v').expressive, true)
-  assert.equal(avatarOf(photoChoice(false), 'avatar_iv').expressive, true)
-  // Un gemelo digital de un avatar propio con V: lo mueve, con la referencia.
+  for (const choice of [photoChoice(false), photoChoice(true), draftChoice()]) {
+    const withV = avatarOf(choice, 'avatar_v')
+    assert.equal(withV.engine, 'avatar_v')
+    assert.equal('expressive' in withV, false)
+  }
+  // Un gemelo digital de un avatar propio con V: lo mueve, pero sin el
+  // interruptor.
   const twinV = {
     ...photoChoice(true),
     lookType: 'digital_twin',
   }
-  assert.equal(avatarOf(twinV, 'avatar_v').expressive, true)
+  assert.equal('expressive' in avatarOf(twinV, 'avatar_v'), false)
+  assert.equal(avatarOf(photoChoice(false), 'avatar_iv').expressive, true)
+  assert.equal(avatarOf(photoChoice(true), 'avatar_iv').expressive, true)
+  assert.equal(avatarOf(draftChoice(), 'avatar_iv').expressive, true)
 })
 
 test('la demo nunca lleva avatar', () => {

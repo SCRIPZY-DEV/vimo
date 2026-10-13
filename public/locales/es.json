@@ -623,6 +623,9 @@
       "avatarSentencesUnavailable": "Falta la transcripción con las frases de la narración. Transcribí el audio primero.",
       "avatarRenderLookUnavailable": "La aparición del avatar no tiene clip ni vista previa del look. Volvé a elegir el look en la biblioteca o regenerá el avatar.",
       "avatarTimingLocked": "Los tiempos de esta escena de avatar están vinculados a su clip o a un pedido al servicio de avatares y no se pueden mover.",
+      "avatarResizeOutOfRange": "Esa duración ya no entra en este lugar del video. Elegí otra.",
+      "avatarResizeLocked": "La duración no se puede cambiar: la escena que sigue está animada.",
+      "avatarTrimUnavailable": "Esta aparición no tiene un clip listo para recortar: generala con la duración nueva.",
       "catalogSyncFailed": "No se pudo actualizar el catálogo. Seguís viendo el último que se descargó.",
       "catalogUploadFailed": "No se pudieron subir las muestras al catálogo. Probá de nuevo.",
       "avatarMotionUnsupported": "Este look no admite un movimiento propio con este motor: se genera con el movimiento del motor."
@@ -1256,8 +1259,7 @@
       "threeInTwoHelpAria": "Qué hace «3 veces en 2 minutos»",
       "threeInTwoTooltip": "El avatar sale al menos 3 veces en los primeros 2 minutos del video, contando la del inicio si empieza con el avatar. Las demás apariciones se reparten en el resto del video.",
       "threeInTwoMinimum": "Con «3 veces en 2 minutos» salen al menos 3 apariciones.",
-      "threeInTwoCapped": "Las tres primeras duran hasta {{seconds}} s para entrar en los 2 minutos.",
-      "expressiveNoReference": "Con Avatar V, este look usa su propio movimiento: su avatar no tiene un gemelo digital."
+      "threeInTwoCapped": "Las tres primeras duran hasta {{seconds}} s para entrar en los 2 minutos."
     }
   },
   "createDemo": {
@@ -1578,7 +1580,9 @@
         "avatarPause": "Pausar el clip del avatar",
         "avatarNoClip": "Sin clip todavía: se ve la imagen del look.",
         "descriptionWithAvatar_one": "{{count}} escena. Regenera imágenes, anima clips o regenera el avatar sin salir de esta galería.",
-        "descriptionWithAvatar_other": "{{count}} escenas. Regenera imágenes, anima clips o regenera el avatar sin salir de esta galería."
+        "descriptionWithAvatar_other": "{{count}} escenas. Regenera imágenes, anima clips o regenera el avatar sin salir de esta galería.",
+        "avatarExpand": "Ajustar avatar de la escena {{index}}",
+        "avatarCollapse": "Cerrar los ajustes del avatar de la escena {{index}}"
       },
       "avatar": {
         "generar": "Generar avatar",
@@ -1602,7 +1606,6 @@
         "confirmarTextoRegenerar_one": "Se vuelve a generar {{count}} aparición por ≈ {{amount}}, con la misma parte de la narración y la misma voz. El clip actual queda hasta que el nuevo esté listo.",
         "confirmarTextoRegenerar_other": "Se vuelven a generar {{count}} apariciones por ≈ {{amount}}, con las mismas partes de la narración y la misma voz. Los clips actuales quedan hasta que los nuevos estén listos.",
         "regenerarFalloConservado": "No se pudo regenerar el avatar: {{reason}} Quedó el clip anterior.",
-        "motor": "{{engine}} · {{description}}",
         "movimientoTitulo": "Movimiento",
         "movimientoLabel": "Prompt de movimiento",
         "movimientoHint": "Vimo lo escribió según lo que dice esta aparición. Si lo cambiás, se usa al generar o regenerar.",
@@ -1628,7 +1631,27 @@
         "guiaCaminar": "Pararse o caminar",
         "guiaFondo": "Cambios de fondo o iluminación",
         "movimientoPendiente": "Vimo escribe el movimiento según lo que dice esta aparición cuando la genera.",
-        "movimientoPropio": "Este prompt se usa al generar o regenerar esta aparición."
+        "movimientoPropio": "Este prompt se usa al generar o regenerar esta aparición.",
+        "duracion": "Duración",
+        "duracionValor": "{{seconds}} s",
+        "duracionMenos": "Un segundo menos",
+        "duracionMas": "Un segundo más",
+        "duracionActual": "Ahora dura {{seconds}} s.",
+        "duracionAyuda": "Termina en la pausa más cercana a ese largo, sin cortar una palabra.",
+        "duracionLimite": "Acá puede durar de {{min}} a {{max}} s.",
+        "duracionBloqueada": "La duración no se puede cambiar: la escena que sigue está animada.",
+        "duracionFinal": "Es el final del video: su duración no puede cambiar.",
+        "duracionMasLarga": "Toma más narración, hasta {{time}}, y se genera de nuevo.",
+        "duracionTapa_one": "Tapa {{count}} escena de imagen.",
+        "duracionTapa_other": "Tapa {{count}} escenas de imagen.",
+        "recortar": "Recortar a {{seconds}} s",
+        "recortarGratis": "Gratis: se recorta el clip que ya tenés.",
+        "recortado": "El avatar ahora dura {{seconds}} s.",
+        "recortarFallo": "No se pudo recortar el avatar: {{reason}}",
+        "confirmarDuracion": "Duración nueva: {{seconds}} s (ahora dura {{current}} s).",
+        "ajustar": "Ajustar avatar",
+        "cerrarAjustes": "Cerrar",
+        "motorAyudaAria": "Qué hace {{engine}}"
       }
     },
     "errors": {
@@ -2029,7 +2052,7 @@
       "cargandoLooks": "Cargando looks…",
       "volver": "Volver a los avatares",
       "elegirLook": "Hacé clic en un look para verlo en movimiento y cargarlo a tu biblioteca.",
-      "yaEnBiblioteca": "Este avatar ya está en tu biblioteca: elegí su look principal desde la biblioteca.",
+      "yaEnBiblioteca": "Este avatar ya está en tu biblioteca: elegí su escenario principal desde la biblioteca.",
       "abrirEnBiblioteca": "Abrir en tu biblioteca",
       "vacioLooks": "Este avatar todavía no tiene looks listos.",
       "previewAria": "Vista previa de {{name}}",
@@ -2056,7 +2079,7 @@
       "looks": "Looks de este avatar",
       "looksHint": "Un look es el mismo avatar con otra ropa, otro fondo u otro encuadre, y en tus videos sale tal cual. El principal es el que Vimo propone primero al crear un video.",
       "entrenando": "Los looks aparecen cuando termina el entrenamiento.",
-      "principal": "Look principal",
+      "principal": "Escenario principal",
       "usarPrincipal": "Usar como principal",
       "usarPrincipalAria": "Usar como principal: {{name}}",
       "lookGenerando": "Generando…",
@@ -2066,7 +2089,7 @@
     "reproductor": {
       "cargar": "Cargar a la biblioteca",
       "cargando": "Cargando…",
-      "esPrincipal": "Es el look principal de este avatar.",
+      "esPrincipal": "Es el escenario principal de este avatar.",
       "noCompatibleHint": "Este look no es compatible con Vimo: no se puede usar en un video.",
       "noListoHint": "Este look todavía se está generando.",
       "yaEnBiblioteca": "Este avatar ya está en tu biblioteca.",
@@ -2096,7 +2119,7 @@
       "necesitaPrincipal": "Esperá a que el avatar esté listo.",
       "soloPropios": "Los escenarios se generan sobre tus propios avatares.",
       "titulo": "Crear un escenario para {{name}}",
-      "descripcion": "Describí el escenario: la ropa, el lugar, la luz. Vimo lo genera a partir del look principal y lo suma a los looks de este avatar.",
+      "descripcion": "Describí el escenario: la ropa, el lugar, la luz. Vimo lo genera a partir del escenario principal y lo suma a este avatar.",
       "prompt": "Descripción",
       "promptPlaceholder": "Hacelo en una cocina luminosa, con delantal, luz de mañana…",
       "contador": "{{count}}/{{max}}",
@@ -2118,7 +2141,7 @@
       "nombre": "Nombre del look (opcional)",
       "nombrePlaceholder": "Cocina luminosa",
       "normas": "Se aplican las normas de contenido: nada de personas reconocibles sin permiso ni contenido prohibido.",
-      "costoDetalle": "por look · se descuenta de tu saldo de avatares",
+      "costoDetalle": "por escenario · se descuenta de tu saldo de avatares",
       "costoDesconocido": "Se descuenta de tu saldo de avatares al generar; el saldo se actualiza al terminar.",
       "cancelar": "Cancelar",
       "generar": "Generar look"
@@ -2153,7 +2176,7 @@
     "toasts": {
       "agregado": "Avatar agregado a tu biblioteca.",
       "creado": "Tu avatar está en entrenamiento. En unos minutos queda listo.",
-      "lookPrincipal": "Look principal actualizado.",
+      "lookPrincipal": "Escenario principal actualizado.",
       "lookGenerando": "Generando el look. En unos minutos aparece en tu avatar.",
       "eliminadoHeygen": "{{name}} se eliminó de tu lista y de HeyGen.",
       "eliminadoLista": "{{name}} salió de tu lista."
@@ -2167,7 +2190,7 @@
       "noCompatibleLook": "Este avatar no tiene ningún look listo que admita un motor de Vimo (Avatar V, IV o III).",
       "groupMissing": "El servicio de avatares ya no tiene este avatar. Quitalo de tu biblioteca.",
       "lookNotListed": "El servicio de avatares recibió el pedido, pero el look nuevo todavía no aparece. Vimo lo vuelve a buscar en unos segundos; si no aparece, mirá tu saldo antes de probar con otra descripción.",
-      "mainLookNotReady": "El avatar todavía no tiene un look principal listo. Elegí uno y probá de nuevo.",
+      "mainLookNotReady": "El avatar todavía no tiene un escenario principal listo. Elegí uno y probá de nuevo.",
       "providerError": "El servicio de avatares respondió algo inesperado. Probá de nuevo en un rato.",
       "network": "No se pudo hablar con el servicio de avatares. Revisá tu conexión.",
       "photoInvalid": "Esa foto no sirve: tiene que ser JPG o PNG de hasta 12 MB.",

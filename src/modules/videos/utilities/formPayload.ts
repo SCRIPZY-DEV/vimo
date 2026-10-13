@@ -76,12 +76,12 @@ export function createProjectPayload(
     // no llegó a frenar) viaja con la preferencia: create-video-project lo
     // rechaza antes de pagar.
     const engine = selectedAvatarEngine(form) ?? form.avatarEngine
-    // «Movimiento más expresivo» viaja solo prendido y si el motor y el look
-    // lo admiten (con Avatar V, además, que el avatar tenga con qué moverse:
-    // R-2f-1), al final: con Avatar III y el interruptor apagado,
-    // options.avatar queda byte a byte como antes de la 2e (los recibos
-    // guardados se siguen cosechando con la misma huella). «3 veces en 2
-    // minutos» (entrega 2f, §22.2) cierra el objeto, también solo en true.
+    // «Movimiento más expresivo» viaja solo prendido y solo con Avatar IV y un
+    // look de foto (entrega 2g, §23.1: con V no existe, aunque la persona lo
+    // haya prendido antes con IV), al final: con Avatar III y el interruptor
+    // apagado, options.avatar queda byte a byte como antes de la 2e (los
+    // recibos guardados se siguen cosechando con la misma huella). «3 veces en
+    // 2 minutos» (entrega 2f, §22.2) cierra el objeto, también solo en true.
     const expressive =
       form.avatarExpressive &&
       selectedAvatarExpressiveAvailable(form.avatar, engine)

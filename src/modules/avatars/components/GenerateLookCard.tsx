@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Info, Sparkles } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { GenerateLookDialog } from '@/modules/avatars/components/GenerateLookDialog'
+import { LookPriceBadge } from '@/modules/avatars/components/LookPriceBadge'
+import { AVATAR_LOOK_GENERATION_USD } from '@/modules/avatars/constants'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import type {
   AvatarAspectRatio,
@@ -22,9 +24,12 @@ interface GenerateLookCardProps {
 // grupo público no está verificado: se revisa con la sonda paga) y con el
 // look principal listo; si no, queda a la vista pero apagada, con el motivo.
 // Apagada sigue enfocable (`aria-disabled`, no `disabled`) para que el lector
-// de pantalla llegue al motivo. Es dueña de su diálogo. Desde un enlace, el
-// diálogo abre solo en el formato pedido apenas la ficha se puede usar (el
-// llavero responde después del primer render), una sola vez.
+// de pantalla llegue al motivo. Si se puede usar y hay precio, lo dice debajo
+// del título con la misma insignia del diálogo (entrega 2g, §23.5): apagada, la
+// ficha no promete una cifra de algo que no se puede pedir. Es dueña de su
+// diálogo. Desde un enlace, el diálogo abre solo en el formato pedido apenas
+// la ficha se puede usar (el llavero responde después del primer render), una
+// sola vez.
 export function GenerateLookCard({
   avatar,
   openWithAspectRatio,
@@ -35,6 +40,7 @@ export function GenerateLookCard({
   const [linkConsumed, setLinkConsumed] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
+  const priceId = useId()
   const hintId = useId()
   const reasonId = useId()
 
@@ -42,8 +48,18 @@ export function GenerateLookCard({
   // Mientras el llavero responde (sin acceso pero sin clave faltante) la
   // ficha espera apagada, sin acusar una clave que quizás está.
   const blocked = reasonKey !== null || !canUseHeyGen
+  // El precio solo se muestra mientras la ficha se puede usar: apagada por
+  // cualquier motivo, también mientras responde el llavero, no promete una
+  // cifra. Sin cifra conocida (`null`), tampoco.
+  const price = blocked ? null : AVATAR_LOOK_GENERATION_USD
   const linkOpen =
     openWithAspectRatio !== undefined && !linkConsumed && !blocked
+
+  // Lo que describe a la ficha, en el orden en que se lee: el precio (si se
+  // ve), la ayuda y el motivo (si lo hay).
+  const describedBy = [price !== null && priceId, hintId, reasonKey && reasonId]
+    .filter(Boolean)
+    .join(' ')
 
   const openDialog = () => {
     if (blocked) return
@@ -63,10 +79,10 @@ export function GenerateLookCard({
         ref={buttonRef}
         type="button"
         aria-disabled={blocked}
-        // El nombre es solo el título; la ayuda y el motivo van como
-        // descripción (si no, el lector de pantalla los lee dos veces).
+        // El nombre es solo el título; el precio, la ayuda y el motivo van
+        // como descripción (si no, el lector de pantalla los lee dos veces).
         aria-labelledby={titleId}
-        aria-describedby={reasonKey ? `${hintId} ${reasonId}` : hintId}
+        aria-describedby={describedBy}
         onClick={openDialog}
         className={cn(
           'group flex aspect-[4/5] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed px-4 text-center transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron focus-visible:ring-offset-2 focus-visible:ring-offset-background',
@@ -94,6 +110,7 @@ export function GenerateLookCard({
         >
           {t('avatars.generar.tarjeta')}
         </span>
+        {price !== null && <LookPriceBadge id={priceId} amount={price} />}
         <span
           id={hintId}
           className="font-body text-xs leading-relaxed text-muted-foreground"

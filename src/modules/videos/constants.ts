@@ -41,6 +41,7 @@ import type {
   SelectedCharacter,
   StageToneClasses,
 } from './types/create'
+import type { AvatarDurationLock } from './types/avatarDuration'
 import type { LookUnfitReason } from './utilities/selectableAvatar'
 import type {
   AudioMixValue,
@@ -1166,6 +1167,34 @@ export const AVATAR_MOTION_GUIDE_FORBIDDEN_KEYS = [
 // Unicode van por propiedad, no por escape (ERRORES-CONOCIDOS,
 // harness-decodifica-escapes-unicode-en-parametros-de-herramientas).
 export const MOTION_PROMPT_LINE_BREAKS = /\r\n|[\r\n\p{Zl}\p{Zp}]/gu
+// De a cuántos segundos sube o baja el selector «Duración» de una aparición
+// del avatar en el editor (entrega 2g, diseño §23.3).
+export const AVATAR_DURATION_STEP_SECONDS = 1
+// Lo que dice el selector cuando la duración está quieta (diseño §23.3 y
+// R-2g-18): la escena que sigue está animada, o es el final del video.
+export const AVATAR_DURATION_LOCK_KEYS: Record<AvatarDurationLock, string> = {
+  neighbor: 'library.editor.avatar.duracionBloqueada',
+  videoEnd: 'library.editor.avatar.duracionFinal',
+}
+// Dónde cae el foco al desplegar una tarjeta del avatar en la vista ampliada
+// (entrega 2g, §23.4), en este orden: el «−» de la duración (lleva
+// `data-first-control`: el botón de ayuda que va junto a su título viene antes
+// en el documento y no es el primer control con sentido) y, si la escena no
+// ofrece duración, el primer botón, campo o interruptor que no esté apagado
+// con `disabled`. Los botones del selector que llegaron a un límite se apagan
+// con `aria-disabled` y pueden tener el foco.
+export const AVATAR_CARD_FIRST_CONTROL_SELECTORS = [
+  '[data-first-control]',
+  'button:not(:disabled), textarea:not(:disabled), [role="switch"]:not(:disabled)',
+] as const
+// Las columnas de la tarjeta del avatar desplegada, según el formato del
+// video: el clip a la izquierda (más angosto si es vertical, para que no
+// quede altísimo) y los controles a la derecha. Desde `sm`; debajo, una
+// columna.
+export const AVATAR_CARD_EXPANDED_GRID_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]',
+  '9:16': 'sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)]',
+}
 // El estado de la tarjeta de una aparición en la grilla «Imágenes» del
 // progreso (entrega 2e, §21.5), con la misma regla que su fila del panel
 // (avatarRowStatus); cambia el texto corto: «Con imagen fija» dice lo que pasa
@@ -1347,6 +1376,10 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Escena de avatar (ADR-0057): sus fronteras con clip o recibos de HeyGen no
   // se mueven en la entrega 2.
   avatar_timing_locked: 'create.errors.avatarTimingLocked',
+  // La duración de una escena de avatar desde el editor (entrega 2g, §23.3).
+  avatar_resize_out_of_range: 'create.errors.avatarResizeOutOfRange',
+  avatar_resize_locked: 'create.errors.avatarResizeLocked',
+  avatar_trim_unavailable: 'create.errors.avatarTrimUnavailable',
   // Transversales
   missing_api_key: 'create.errors.missingApiKey',
   missing_projects_root: 'create.errors.missingProjectsRoot',

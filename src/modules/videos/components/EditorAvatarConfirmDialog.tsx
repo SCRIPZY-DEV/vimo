@@ -14,14 +14,15 @@ import { ignoreHeldKey } from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import { Button } from '@/modules/common/ui/button'
 import { formatCompact } from '@/modules/common/utilities/formatCompact'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
+import { formatSlotSeconds } from '@/modules/videos/utilities/formatSlotSeconds'
 import type { Ref } from 'react'
 import type { TFunction } from 'i18next'
-import type { AvatarRenderConfirmationState } from '@/modules/videos/types/library'
+import type { AvatarDurationConfirmationState } from '@/modules/videos/types/avatarDuration'
 import type { AvatarBalanceResult } from '@pipeline/types/avatar.ts'
 
 interface EditorAvatarConfirmDialogProps {
   // La confirmación abierta (useAvatarRenderConfirmation); null = cerrada.
-  confirmation: AvatarRenderConfirmationState | null
+  confirmation: AvatarDurationConfirmationState | null
   cancelRef: Ref<HTMLButtonElement>
   onConfirm(): void
   onCancel(): void
@@ -32,9 +33,11 @@ interface EditorAvatarConfirmDialogProps {
 // cuántas apariciones, lo que cobra el servicio de avatares y el saldo, antes
 // de pagar. Volver a generar una lista (entrega 2e, §21.4) tiene sus textos:
 // «¿Regenerar el avatar?», que el clip actual queda hasta que el nuevo esté
-// listo, y «Regenerar». Con el saldo corto lo dice y no deja confirmar. El
-// foco abre en «Cancelar» (lo pone el AlertDialog de Radix): un Enter
-// distraído no paga.
+// listo, y «Regenerar». Con una duración nueva (entrega 2g, §23.3) suma la
+// duración que se pide, la que tiene hoy y, si el trozo nuevo tapa escenas de
+// imagen, cuántas. Con el saldo corto lo dice y no deja confirmar. El foco
+// abre en «Cancelar» (lo pone el AlertDialog de Radix): un Enter distraído no
+// paga.
 // Mientras relee el saldo, los botones quedan con `aria-disabled` y no con
 // `disabled`: un botón deshabilitado con el foco lo suelta fuera del diálogo
 // (ERRORES-CONOCIDOS: dialogo-radix-con-controles-y-x-deshabilitados-deja-
@@ -65,6 +68,7 @@ export function EditorAvatarConfirmDialog({
   const checking = current?.checking ?? false
   const insufficient = current?.insufficient ?? false
   const retake = current?.retake ?? false
+  const duration = current?.duration ?? null
 
   return (
     <AlertDialog
@@ -99,6 +103,21 @@ export function EditorAvatarConfirmDialog({
                 { count: current?.count ?? 0, amount },
               )}
             </p>
+            {duration && (
+              <p>
+                {t('library.editor.avatar.confirmarDuracion', {
+                  seconds: duration.seconds,
+                  current: formatSlotSeconds(duration.currentSeconds, language),
+                })}
+              </p>
+            )}
+            {duration && duration.coveredScenes > 0 && (
+              <p>
+                {t('library.editor.avatar.duracionTapa', {
+                  count: duration.coveredScenes,
+                })}
+              </p>
+            )}
             <p className="text-foreground">
               {t('library.editor.avatar.saldo', {
                 balance: balanceText(current?.balance ?? null, t, language),

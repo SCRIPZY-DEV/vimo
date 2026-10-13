@@ -3,8 +3,8 @@ import {
   AVATAR_ENGINES,
   avatarEngineAvailable,
   avatarEngineFor,
-  avatarExpressiveAvailable,
   avatarHasMotionReference,
+  avatarMotionSupport,
 } from '@pipeline/types/avatar.ts'
 import type {
   AvatarLibraryRead,
@@ -115,7 +115,9 @@ export function selectedAvatarFrom(
 // tiene un gemelo digital (`avatarHasMotionReference`, copiado al elegirlo).
 // Los looks de video se referencian a sí mismos y IV mueve los de foto sin
 // referencia, así que solo cuenta con V y un look de foto. Un borrador de antes
-// de la 2f no trae el campo y cuenta como que la tiene.
+// de la 2f no trae el campo y cuenta como que la tiene. Desde la 2g (§23.1) ya
+// no decide el interruptor «más expresivo» (con V no existe): solo la línea
+// que dice que Vimo escribe el movimiento, que con V sin referencia sería falsa.
 export function avatarMotionReferenceMissing(
   avatar: Pick<SelectedAvatar, 'lookType' | 'motionReference'>,
   engine: AvatarEngine,
@@ -127,18 +129,19 @@ export function avatarMotionReferenceMissing(
   return avatar.motionReference === false
 }
 
-// ¿«Movimiento más expresivo» hace algo con esta elección y este motor? Lo que
-// admiten el motor y el tipo de look (`avatarExpressiveAvailable`), salvo V sin
-// referencia de animación: ahí el look sale con el movimiento propio de V y no
-// hay prompt que volver más expresivo. Es LA regla: el interruptor de Crear y
-// el payload la comparten, sin espejos que puedan divergir.
+// ¿«Movimiento más expresivo» hace algo con esta elección y este motor? Solo
+// donde el proveedor tiene `expressiveness`: Avatar IV con un look de foto
+// (`avatarMotionSupport`, entrega 2g, §23.1). Con V no existe: era una frase
+// que Vimo sumaba al prompt y, con una foto propia sin gemelo digital, V ni
+// siquiera acepta el prompt (§22.1); con III no hay movimiento que pedir. Es
+// LA regla: el interruptor de Crear y el payload la comparten, sin espejos
+// que puedan divergir. No es `avatarExpressiveAvailable`: esa dice si el
+// editor muestra la sección «Movimiento» (el prompt, que V sí tiene).
 export function selectedAvatarExpressiveAvailable(
-  avatar: Pick<SelectedAvatar, 'lookType' | 'motionReference'>,
+  avatar: Pick<SelectedAvatar, 'lookType'>,
   engine: AvatarEngine,
 ): boolean {
-  if (avatarMotionReferenceMissing(avatar, engine)) return false
-
-  return avatarExpressiveAvailable(engine, avatar.lookType)
+  return avatarMotionSupport(engine, avatar.lookType).expressiveness
 }
 
 // El motor con el que sale la elección del formulario (entrega 2e, §21.3): el

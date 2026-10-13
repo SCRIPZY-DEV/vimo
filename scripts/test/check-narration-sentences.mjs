@@ -9,8 +9,8 @@
 // cuadro de 25 fps y sin frases vacías, tampoco de 0 cuadros cuando el audio
 // no termina en la grilla. Cada frase lleva el fin de su última palabra tal
 // cual en words.json, sin llevar al cuadro (`lastWordEndSeconds`, entrega 2b:
-// con él el planificador mide el silencio que carga el avatar), también al
-// unir y al partir frases.
+// con él los subtítulos de una escena de avatar miden la parte hablada de cada
+// frase), también al unir y al partir frases.
 // La marca llega a words.json por la fase de transcripción real, también en la
 // palabra que la fase recorta al fin del audio.
 // Importa el código real (Node quita los tipos) y simula Deepgram con `fetch`

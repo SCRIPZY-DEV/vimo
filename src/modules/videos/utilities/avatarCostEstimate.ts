@@ -31,10 +31,13 @@ export function avatarRatePerMinute(
 
 // Dólares por `seconds` de avatar, exactos (spec §9: segundos / 60 × tarifa),
 // con el estimador de pipeline/types/avatar.ts (el mismo que usa la fase).
-// Sin factor de seguridad (spec §8, saldo antes de cada escena): el tramo
-// real queda a unos segundos por frases enteras y la fase vuelve a comparar
-// con el saldo antes de pagar. El redondeo a 6 decimales solo saca el ruido
-// de la coma flotante: 10 s a 0,99 US$/min son 0,165, no 0,16499999…
+// Sin factor de seguridad (spec §8, saldo antes de cada escena): desde la
+// entrega 2g cada aparición termina en la pausa más cercana a lo elegido, así
+// que el tramo real queda a ±0,5 s (diseño §23.2; salvo las tres primeras de
+// «3 veces en 2 minutos» en su tope, que pueden quedar hasta ~1 s más cortas)
+// y la fase vuelve a comparar con el saldo antes de pagar. El redondeo a 6
+// decimales solo saca el ruido de la coma flotante: 10 s a 0,99 US$/min son
+// 0,165, no 0,16499999…
 export function avatarUsd(
   lookType: AvatarLookType,
   seconds: number,

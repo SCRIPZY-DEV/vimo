@@ -183,8 +183,10 @@ export const sceneCutsStage: Stage<CreateVideoContext> = {
       context.options.secondsPerScene ?? DEFAULT_SECONDS_PER_SCENE,
     )
     // El avatar se planifica ANTES de cortar (ADR-0057): sus apariciones son
-    // pines fijos en fronteras de frase y cada carril corta solo los tramos
-    // libres. Sin avatar es null y el corte sigue byte-idéntico.
+    // pines fijos —arrancan en un inicio de frase y, desde la entrega 2g,
+    // terminan entre dos palabras, cerca de los segundos elegidos (§23.2)— y
+    // cada carril corta solo los tramos libres. Sin avatar es null y el corte
+    // sigue byte-idéntico.
     const avatarPlan = planAvatarPins(
       context.options.avatar,
       words,

@@ -39,6 +39,9 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   // avatar: un proyecto sin avatar sigue con el texto de antes de la 2f.
   const hasAvatarScenes = imageScenes.length < scenes.length
   const [open, setOpen] = useState(false)
+  // La tarjeta del avatar desplegada (entrega 2g, §23.4): una sola a la vez, y
+  // la galería siempre abre con todas plegadas.
+  const [expandedAvatarId, setExpandedAvatarId] = useState<number | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -187,6 +190,11 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
     }
   }
 
+  function changeOpen(next: boolean) {
+    setOpen(next)
+    if (!next) setExpandedAvatarId(null)
+  }
+
   function playClipAlone(video: HTMLVideoElement) {
     const previous = playingClipRef.current
     playingClipRef.current = video
@@ -194,14 +202,14 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={changeOpen}>
       <label className="ml-auto flex cursor-pointer items-center gap-2 rounded-xl border border-saffron/40 bg-saffron/5 px-3 py-2 font-body text-xs transition-colors hover:bg-saffron/10">
         <input
           ref={triggerRef}
           type="checkbox"
           checked={open}
           disabled={scenes.length === 0}
-          onChange={(event) => setOpen(event.target.checked)}
+          onChange={(event) => changeOpen(event.target.checked)}
           aria-haspopup="dialog"
           className="h-4 w-4 accent-saffron"
         />
@@ -334,6 +342,9 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                       version={actions.task?.sceneVersions[scene.id]}
                       busy={busy || actions.submitting}
                       locked={locked}
+                      expanded={expandedAvatarId === scene.id}
+                      onExpand={() => setExpandedAvatarId(scene.id)}
+                      onCollapse={() => setExpandedAvatarId(null)}
                       onClipPlay={playClipAlone}
                     />
                   )

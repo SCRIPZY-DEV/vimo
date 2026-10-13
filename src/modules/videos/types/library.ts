@@ -164,10 +164,11 @@ export type AvatarSceneAction = 'generate' | 'regenerate' | 'retake'
 
 // Lo que viaja con el pedido del avatar además de las escenas (entrega 2e,
 // §21.4): las listas que la persona pidió regenerar y los ajustes de
-// movimiento de la escena elegida. Mismos campos que el payload del sidecar.
+// movimiento de la escena elegida; y, desde la 2g (§23.3), la duración nueva de
+// las escenas que la cambiaron. Mismos campos que el payload del sidecar.
 export type AvatarRenderRequestOptions = Pick<
   AvatarRenderScenesPayload,
-  'regenerateSceneIds' | 'motion'
+  'regenerateSceneIds' | 'motion' | 'durations'
 >
 
 // Un pedido del avatar desde el editor: las escenas y lo que viaja con ellas.

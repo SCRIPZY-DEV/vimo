@@ -19,8 +19,9 @@ import type { TranscriptWord } from '../types/scenes.ts'
 // la frase anterior y cada frontera es el inicio de la primera palabra de la
 // frase que sigue, llevado al cuadro más cercano (25 fps, el reloj visual).
 // Cada frase lleva además el fin de su última palabra, sin llevar al cuadro
-// (`lastWordEndSeconds`, entrega 2b): con él el planificador del avatar no
-// carga entera una pausa larga.
+// (`lastWordEndSeconds`, entrega 2b): con él los subtítulos de una escena de
+// avatar miden la parte hablada de cada frase (render/subtitles.ts); hasta la
+// 2f lo leía también el planificador del avatar; desde la 2g mira las palabras.
 
 export interface NarrationSentence {
   index: number
@@ -29,8 +30,8 @@ export interface NarrationSentence {
   startSeconds: number
   endSeconds: number
   // Fin de la última palabra de la frase, tal cual en words.json: la pausa que
-  // sigue, hasta `endSeconds`, pertenece a la frase pero el avatar no la carga
-  // entera (planner.ts).
+  // sigue, hasta `endSeconds`, pertenece a la frase pero no se dice
+  // (render/subtitles.ts).
   lastWordEndSeconds: number
   // Índices en words.json, los dos inclusive.
   wordFrom: number

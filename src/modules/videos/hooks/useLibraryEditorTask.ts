@@ -846,7 +846,8 @@ function dismissAnimationFailure(projectId: string) {
 
 // «Generar», «Regenerar» o «Regenerar todos» del panel: corre
 // `avatar-render-scenes` con esas escenas y, desde la entrega 2e (§21.4), con
-// las listas que se pidió regenerar y el movimiento de la escena elegida
+// las listas que se pidió regenerar y el movimiento de la escena elegida y,
+// desde la 2g (§23.3), la duración nueva de las que la cambiaron
 // (avatarRenderPayload: sin ellos, el pedido de siempre). Cobra en HeyGen, así
 // que el panel muestra el costo y el saldo antes de llegar acá. Una tarea a la
 // vez y exclusiva con todas las del proyecto: no arranca si hay otra y,

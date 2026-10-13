@@ -15,6 +15,7 @@ import type {
   AvatarEngine,
   AvatarLookType,
   AvatarRenderScenesPayload,
+  AvatarSceneDurationInput,
   AvatarSceneMotionInput,
   AvatarSceneSpan,
   SceneAvatarView,
@@ -90,10 +91,17 @@ export function editorFallbackSceneIds(scenes: SceneDetail[]): number[] {
 // cuadros como la cuenta la fase, × la tarifa del motor de la escena para su
 // tipo de look; hasta la entrega 2e se cobraba todo a Avatar III). Las escenas
 // se agrupan por motor y tipo de look, cada grupo con su tarifa, y se suman.
-// null si no hay nada que cobrar o el motor no tiene tarifa para ese look.
+// Las escenas con una duración nueva (entrega 2g, §23.3) cuestan lo de esos
+// segundos desde su inicio, no lo del tramo que tienen hoy: es el render del
+// trozo nuevo. null si no hay nada que cobrar o el motor no tiene tarifa para
+// ese look.
 export function avatarScenesCost(
   scenes: SceneDetail[],
+  durations: readonly AvatarSceneDurationInput[] = [],
 ): CostEstimateLine | null {
+  const secondsByScene = new Map(
+    durations.map((duration) => [duration.sceneId, duration.seconds]),
+  )
   const spansByEngine = new Map<
     AvatarEngine,
     Map<AvatarLookType, AvatarSceneSpan[]>
@@ -103,11 +111,19 @@ export function avatarScenesCost(
     if (!scene.avatar || !span) continue
 
     const { engine, lookType } = scene.avatar
+    const seconds = secondsByScene.get(scene.id)
+    const costedSpan =
+      seconds === undefined
+        ? span
+        : {
+            startSeconds: span.startSeconds,
+            endSeconds: span.startSeconds + seconds,
+          }
     const spansByLookType =
       spansByEngine.get(engine) ?? new Map<AvatarLookType, AvatarSceneSpan[]>()
     spansByLookType.set(lookType, [
       ...(spansByLookType.get(lookType) ?? []),
-      span,
+      costedSpan,
     ])
     spansByEngine.set(engine, spansByLookType)
   }
@@ -129,8 +145,10 @@ export function avatarScenesCost(
 // El pedido de `avatar-render-scenes` desde el editor: las escenas sin repetir
 // y en orden; y, desde la entrega 2e (§21.4), las listas que se regeneran y el
 // movimiento, solo de esas escenas, sin repetir, y cada campo solo si no queda
-// vacío. Así una escena de Avatar III planeada sigue pidiendo exactamente
-// `{ projectId, sceneIds }`, como antes de la 2e.
+// vacío. Desde la entrega 2g (§23.3) también la duración nueva de las escenas
+// que la cambiaron (`durations`, en orden de escena). Así una escena de Avatar
+// III planeada sigue pidiendo exactamente `{ projectId, sceneIds }`, como antes
+// de la 2e.
 export function avatarRenderPayload(
   projectId: string,
   request: AvatarRenderRequest,
@@ -149,7 +167,22 @@ export function avatarRenderPayload(
       .filter((entry) => sceneIds.includes(entry.sceneId))
       .map((entry) => [entry.sceneId, entry]),
   )
-  if (motionByScene.size > 0) payload.motion = [...motionByScene.values()]
+  if (motionByScene.size > 0) {
+    payload.motion = [...motionByScene.values()].sort(
+      (left, right) => left.sceneId - right.sceneId,
+    )
+  }
+
+  const durationByScene = new Map(
+    (request.durations ?? [])
+      .filter((entry) => sceneIds.includes(entry.sceneId))
+      .map((entry) => [entry.sceneId, entry]),
+  )
+  if (durationByScene.size > 0) {
+    payload.durations = [...durationByScene.values()].sort(
+      (left, right) => left.sceneId - right.sceneId,
+    )
+  }
 
   return payload
 }
@@ -187,6 +220,11 @@ export function sameAvatarMotion(
 // la marca y vuelve a probar: el rechazo puede no ser del look, ronda 2); sin
 // cambiar el prompt, solo «más expresivo», con el prompt guardado, y solo si
 // el motor y el look lo admiten (`expressiveness`: IV con un look de foto).
+// Una escena de V no tiene el interruptor desde la entrega 2g (§23.1), y la que
+// guardó `expressive: true` en la 2e o la 2f lo conserva (R-2g-20): sin cambios
+// no viaja nada y, con el prompt editado, viaja con la marca como estaba. Así
+// ningún pedido del editor cambia la huella de un render ya pedido o pagado de
+// esa escena, y el carril lo cosecha en vez de cobrar otro.
 // null = no viaja nada.
 export function avatarMotionInput(
   sceneId: number,

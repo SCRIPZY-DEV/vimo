@@ -29,9 +29,13 @@
   `execution-e2e/` (interno)). **Entrega 2f implementada en la rama el 2026-10-12** (plan en
   `plan-e2f.md` (interno): el rechazo de Avatar V sin `param` y su aviso en Crear, la casilla «3 veces en
   2 minutos», «Empieza con el avatar» que siempre abre el video y el avatar en la vista ampliada del editor;
-  §22; evidencia en `execution-e2f/` (interno)). Pendiente: la QA del dueño de la 2d, la 2e y la 2f,
-  con los puntos que gastan saldo de HeyGen. Lo que falta de la entrega 3 (cambiar de avatar, «Avatar aquí»,
-  mover y estirar, quitar) no tiene plan todavía.
+  §22; evidencia en `execution-e2f/` (interno)). **Entrega 2g implementada en la rama el 2026-10-12/13**
+  (plan en `plan-e2g.md` (interno): la aparición que dura lo elegido y termina en la pausa más cercana, su
+  duración elegida desde el editor con un render nuevo o un recorte gratis, la tarjeta del avatar plegada en la
+  vista ampliada, Avatar V sin «Movimiento más expresivo», el precio de «Crear escenario» y el velo de
+  «Eliminar» sin cortes; §23; evidencia en `execution-e2g/` (interno)). Pendiente: la QA del dueño de la
+  2d, la 2e, la 2f y la 2g, con los puntos que gastan saldo de HeyGen. Lo que falta de la entrega 3 (cambiar de
+  avatar, «Avatar aquí», mover, estirar con las asas y quitar) no tiene plan todavía.
 - **ADR:** [ADR-0057](../../adr/ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md).
 - **Relacionadas:** ADR-0013 (confirmación de escenas), ADR-0014 (edición sobre stages), ADR-0033
   (personajes con foto), ADR-0041/0042/0047 (clips animados como bloque), ADR-0046 (recuperación de
@@ -292,9 +296,16 @@ proveedor repite).
 
 Constantes de la 2f (en el mismo archivo, §22): `AVATAR_EARLY_WINDOW_SECONDS` (120) y
 `AVATAR_EARLY_APPEARANCES` (3), la ventana y el mínimo de «3 veces en 2 minutos»; `AVATAR_EARLY_MAX_SECONDS`
-(35, el tope de las tres primeras, con la tabla de la simulación que lo fijó); `AVATAR_OPENING_MAX_PAUSE_SECONDS`
+(35 en la 2f y 32 desde la 2g, el tope de las tres primeras, con la tabla de la simulación que lo fijó); `AVATAR_OPENING_MAX_PAUSE_SECONDS`
 (6, el silencio que carga una apertura que con el tope de 2 s no cabe) y `avatarHasMotionReference(entry)` (si
 Avatar V puede mover a ese avatar con un prompt).
+
+Constantes de la 2g (en el mismo archivo, §23): `AVATAR_CUT_PAUSE_WINDOW_SECONDS` (0,5) y
+`AVATAR_CUT_NATURAL_PAUSE_SECONDS` (0,25), la regla del corte de una aparición; `AVATAR_EARLY_MAX_SECONDS` baja
+de 35 a 32 (R-2g-10); `AVATAR_LOOK_GENERATION_USD` pasa de `null` a 0,93 (el precio de «Crear escenario»,
+R-2g-1); y los tipos de la duración desde el editor: `AvatarSceneDurationInput` (y `durations?` en
+`AvatarRenderScenesPayload`), `AvatarTrimScenePayload`, `AvatarTrimSceneResult`, `AvatarResizeScene` y
+`AvatarResizeLimits`.
 
 Crear un avatar desde una foto: 1,32 USD (si un entrenamiento que termina `failed` se cobra o no es
 la sonda 4 de §17; la interfaz no promete reembolso). Los renders fallidos no se cobran. La tabla vive en
@@ -414,15 +425,23 @@ export function planAvatarSpans(
   después de la última palabra (límite deliberado).
 - **Desde la entrega 2f (§22).** `AvatarPlanOptions` suma `threeInFirstTwoMinutes` («3 veces en 2 minutos»,
   §22.2): al menos tres apariciones, y las tres primeras arrancan antes de los 120 s con un tope de 35 s cada
-  una. Y la apertura de «Empieza con el avatar» se vuelve a probar sin el tope de silencio de arriba, cargando a
+  una (32 s desde la 2g, R-2g-10). Y la apertura de «Empieza con el avatar» se vuelve a probar sin el tope de silencio de arriba, cargando a
   lo sumo 6 s por frase, si con él no cabe (R-2f-4, §22.3): lo que este apartado dice de que la apertura se
   descarta vale solo cuando tampoco así cabe. Con la casilla apagada y el ajuste normal cabiendo, el plan es el
   de este apartado.
+- **Desde la entrega 2g (§23.2).** Cada aparición ya no dice frases enteras: arranca donde arrancaba (un
+  inicio de frase; la apertura, en 0) y termina donde corta `avatarCutEnd` (`pipeline/avatar/appearance-cut.ts`),
+  en el fin de frase o la pausa de 0,25 s o más más cercana a inicio + segundos elegidos si está a 0,5 s o
+  menos y, si no, en el hueco entre dos palabras más cercano. `planAvatarSpans` recibe además las palabras.
+  Se van la suma de frases, el mínimo por frases y el fin recortado de cada frase del tope de silencio de
+  arriba: una pausa de más de 2 s corta la aparición 2 s después de la palabra que la precede
+  (`avatarCutLimit`, R-2g-11), y el tope de las tres primeras baja a 32 s (R-2g-10). Lo que este apartado dice
+  de frases enteras y del tope de silencio por frase vale hasta la 2f.
 - Determinista: mismas frases y opciones, mismo plan. Los que no caben se cuentan en `dropped` y se
   informan (evento `avatar-planned`), no fallan.
 
-El costo real queda a unos segundos del estimado (frases enteras); la fase lo vuelve a comparar con
-el saldo antes de pagar (§8).
+El costo real queda a unos segundos del estimado (frases enteras hasta la 2f; desde la 2g, a ±0,5 s de lo
+elegido); la fase lo vuelve a comparar con el saldo antes de pagar (§8).
 
 ## 6. Cortes con pines y el look como escenario
 
@@ -730,15 +749,16 @@ aviso de clave):
   video queda apagado y dice por qué (ahí no hace nada). Debajo, una línea: Vimo escribe el movimiento de
   cada aparición según lo que dice (`create.avatar.motionAuto`; solo si el motor y el look admiten un
   prompt de movimiento: con IV y un look de video no sale, porque el proveedor no lo acepta y la frase
-  sería falsa). Con III no se muestra.
+  sería falsa). Con III no se muestra. **Desde la entrega 2g (§23.1)** el interruptor solo existe con Avatar
+  IV: con V tampoco se muestra, ni apagado.
 - **Apariciones:** 1–10, por defecto 3. **Segundos por aparición:** 5–60 (7–60 hasta la 2c), por defecto 10.
 - **Empieza con el avatar:** casilla, por defecto activa. Desde la entrega 2f abre siempre el video (§22.3).
 - **«3 veces en 2 minutos» (desde la entrega 2f, §22.2):** debajo de «Empieza con el avatar», una casilla con un
   ícono de ayuda (tooltip), apagada por defecto (`CreateAvatarThreeInTwo`; manda solo
   `{ avatarThreeInTwoMinutes }`). Prendida, el avatar sale al menos 3 veces y las tres primeras arrancan en los
-  primeros 120 s; la tarjeta avisa el mínimo y el tope de las tres primeras (35 s), y el total y el costo
-  cuentan lo que sale. Y con Avatar V y un avatar propio sin gemelo digital, «Movimiento más expresivo» queda
-  apagado con su motivo (§22.1).
+  primeros 120 s; la tarjeta avisa el mínimo y el tope de las tres primeras (32 s desde la 2g), y el total y
+  el costo cuentan lo que sale. Y con Avatar V y un avatar propio sin gemelo digital no sale la línea «Vimo
+  escribe el movimiento…» (§22.1; desde la 2g, con V tampoco hay interruptor).
 - **Total y costo:** con Avatar III, «30 s de avatar ≈ 0,50 USD» para un avatar de foto o de estudio
   (0,99 USD por minuto) y ≈ 0,30 USD para un gemelo digital (0,60 por minuto), con la fórmula
   `apariciones × segundos / 60 × tarifa`; desde la 2e la tarifa es la del **motor efectivo**: con un look de
@@ -975,6 +995,16 @@ expresivo», y solo si el motor lo admite). Si la regeneración de una lista fal
 clip anterior» (`regenerarFalloConservado`), también cuando el job cae entero con `job-failed` y no al
 cancelar. El editor no cambia el motor de una escena (R-2e-8): regenera con el que la escena ya tiene, el
 del proyecto.
+
+**Desde la entrega 2g (§23.1, §23.3 y §23.4)** el panel y la tarjeta desplegada de la vista ampliada suman
+**«Duración»** (`EditorAvatarDuration`): «−» y «+» de a un segundo entre el mínimo y el máximo que entra
+(`avatarResizeLimits`, con el candado de tiempos de las animaciones), que arranca en lo que dura hoy
+redondeado. La acción principal es una sola a la vez: con la misma duración, la de siempre; más corta, con el
+clip listo y al día y sin cambios en el movimiento, **«Recortar a N s»** (gratis, sin confirmación,
+`avatar-trim-scene`, con un aviso pasajero); y en los demás casos un render nuevo con `durations` y la
+confirmación «¿Generar el avatar?», con la duración nueva y las escenas de imagen que tapa. La escena que
+sigue animada, o la última del video, no cambia de duración (R-2g-18). La sección «Movimiento» es compacta y
+sin «más expresivo» con V, y la tarjeta de la galería abre plegada.
 
 ### 11.2 Agregar, mover y estirar
 
@@ -1424,6 +1454,12 @@ con una sonda gratis. El `param` del error sale de ese campo y el texto de HeyGe
 habla de otra cosa (el del audio de la misma sonda), una palabra parecida (`motion_prompts`), un texto sin sobre
 o un 422 siguen siendo `avatar_invalid_request`.
 
+Desde la entrega 2g (§23.3) suman tres códigos: `avatar_resize_out_of_range` (esa duración ya no entra en ese
+lugar del video: el proyecto cambió, el corte no se mueve hacia lo pedido —también en el recorte, o si el
+pedido no achica— o la aparición quedaría de menos de 4,5 s), `avatar_resize_locked` (la escena que sigue está
+animada, o son dos avatares pegados) y `avatar_trim_unavailable` (no hay un clip listo y al día para recortar).
+Sus textos son `create.errors.avatarResizeOutOfRange`, `avatarResizeLocked` y `avatarTrimUnavailable`.
+
 ## 15. Pruebas y QA
 
 **Guards provisorios** (`scripts/test/`, node:test + esbuild, como `check-timeline-layout.mjs`):
@@ -1477,6 +1513,15 @@ o un 422 siguen siendo `avatar_invalid_request`.
   `check-timeline-avatar-ui.mjs` (la galería lista todas las escenas). Los guards de Crear leen el tope de
   `AVATAR_EARLY_MAX_SECONDS` en vez de fijar un número. La lista de la QA del dueño de la 2f:
   `execution-e2f/qa-2f.md`.
+- **Desde la entrega 2g:** `check-avatar-appearance-cut.mjs` (el corte exacto, su límite, los límites de la
+  duración y las escenas que tapa) y `check-avatar-resize.mjs` (el plan, `avatar-render-scenes` con
+  `durations` y `avatar-trim-scene`, con HeyGen simulado y ffmpeg real), `check-avatar-planner.mjs` reescrito
+  (el corte, las pausas largas, la apertura y el piso) y ampliados `check-scene-pins.mjs`,
+  `check-diagnostic-module.mjs` (el subcomando nuevo), `check-app-avatar-create.mjs` y
+  `check-create-avatar-ui.mjs` (V sin interruptor, el precio de «Crear escenario»),
+  `check-avatar-library-ui.mjs` (el velo, escenario 11c), `check-editor-avatar-regenerate-ui.mjs` (la
+  duración, el recorte y los controles compactos) y `check-editor-avatar-gallery-ui.mjs` (la tarjeta plegada
+  y desplegada). La lista de la QA del dueño de la 2g: `execution-e2g/qa-2g.md`.
 
 **Rust:** `src-tauri/src/api_keys/tests/validation.rs` para la rama de HeyGen.
 
@@ -1541,6 +1586,12 @@ La entrega 2f (pedidos del dueño del 2026-10-12, tarde: el rechazo de Avatar V 
 Crear en §9, la casilla «3 veces en 2 minutos» y la apertura que siempre abre en §5 y §9, y el avatar en la
 vista ampliada del editor en §11.1; hechos y rulings en §22) va después de la 2e y antes de la 3, con su plan
 `plan-e2f.md` (interno). Suma a la galería del editor las apariciones del avatar con las acciones del panel.
+
+La entrega 2g (pedidos del dueño del 2026-10-12, noche: el corte exacto de cada aparición en §5, la duración
+desde el editor en §11.1, la tarjeta plegada del avatar en la vista ampliada, Avatar V sin «Movimiento más
+expresivo» en §9, y en la biblioteca el «escenario principal», el precio de «Crear escenario» y el velo de
+«Eliminar» en §12; hechos y rulings en §23) va después de la 2f y antes de la 3, con su plan `plan-e2g.md` (interno).
+Suma al editor la duración de cada aparición (las fronteras siguen sin arrastrarse en la pista).
 
 Cada entrega tiene su plan, su ejecución con subagentes y su QA del dueño; el push y el PR siguen
 pidiendo su aprobación cada vez.
@@ -2067,7 +2118,7 @@ ayuda (tooltip), apagada por defecto. Prendida (`options.avatar.threeInFirstTwoM
   `min(segundos elegidos, AVATAR_EARLY_MAX_SECONDS)` y no lo pasa; las del resto del video usan los segundos
   elegidos. Crear lo dice cuando aplica («Las tres primeras duran hasta 35 s para entrar en los 2 minutos») y
   cuenta el costo con esas duraciones. El tope era de 45 s al planificar y quedó en **35 s** (R-2f-5 y
-  R-2f-8, abajo en «Lo que la ejecución ajustó»).
+  R-2f-8, abajo en «Lo que la ejecución ajustó»); la 2g lo bajó a **32 s** (R-2g-10, §23).
 - Si alguna no entra (un video corto o frases que no caben), va a `dropped` como hoy, sin frenar nada.
 - Apagada, el plan es byte a byte el de hoy (salvo la apertura de §22.3).
 
@@ -2114,7 +2165,7 @@ ellos):
   sería un aviso de «tu elección ya no sirve» por algo benigno); y el editor no avisa nada de V (R-2f-1 es de
   Crear): el panel y la tarjeta de la galería siguen ofreciendo el interruptor y el primer pedido recibe el 400
   gratis.
-- **El tope de las tres primeras: 45, 40 y 35 s (R-2f-3, R-2f-5, R-2f-8).** R-2f-3 decía «apuntan a lo sumo a
+- **El tope de las tres primeras: 45, 40 y 35 s (R-2f-3, R-2f-5, R-2f-8; la 2g lo bajó a 32 s, §23).** R-2f-3 decía «apuntan a lo sumo a
   45 s». En la ejecución el tope pasó a ser un **máximo** y no solo el objetivo (Crear dice que las tres «duran
   hasta» ese tope): con solo el objetivo y frases de 8 s, el ajuste elegía el largo más cercano a 45 y daba
   48 s, y la tercera quedaba afuera (`[[0, 48], [64, 112]]` y 1 descartada; con el máximo,
@@ -2233,3 +2284,332 @@ ellos):
   narración real (la simulación usó narraciones sintéticas tipo TTS, no un `words.json` de Deepgram); que
   «Empieza con el avatar» abra siempre el video, también con una primera frase corta y unos segundos de
   silencio; y la galería en la app real (el clip mudo, las pastillas con la ventana mínima, el foco).
+
+## 23. Entrega 2g — los pedidos del dueño del 2026-10-12 (noche)
+
+Pedidos del dueño después de probar la 2f, y lo decidido. La medición que fijó la regla del corte está en el
+log de sesiones del vault (2026-10-12, 20:25): tres scripts de solo lectura sobre los dos videos de
+«Jardineria», fuera del repo.
+
+| Pedido del dueño                                                                                                                                                   | Decisión |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| Con Avatar V, que desaparezca «Movimiento más expresivo» (la mayoría sube una foto propia); con IV se queda y se usa                                               | §23.1    |
+| Que la aparición dure lo elegido, lo más exacto posible y natural: la opción que termina en la pausa más cercana («…durante una hora.» a los 4,7 s en vez de 13 s) | §23.2    |
+| En el editor, al regenerar el clip del avatar, elegir su duración; si es más larga, tomar otro trozo de la narración y generarlo desde cero                        | §23.3    |
+| En la vista ampliada, la tarjeta del avatar no se ve elegida hasta tocarla; al tocarla se despliega simple, sin tanto scroll, con la duración y el movimiento      | §23.4    |
+| «Look principal» pasa a «Escenario principal»; «Crear escenario» muestra cuánto cuesta (el saldo bajó de 10,60 a 9,67 US$); el velo de «Eliminar» sale cortado     | §23.5    |
+| Los subtítulos de las escenas de avatar por palabras: «en el momento no lo toques»                                                                                 | §23.6    |
+
+### 23.1 Avatar V sin «Movimiento más expresivo»
+
+El interruptor se ofrece solo donde el proveedor tiene `expressiveness`: **Avatar IV con un look de foto**
+(`avatarMotionSupport(engine, lookType).expressiveness`). Con V (cualquier look) y con III no se ve, ni en
+Crear ni en el editor. Con V, «más expresivo» era una frase que Vimo sumaba al prompt (R-2e-14), y con una
+foto propia sin gemelo digital V ni siquiera acepta el prompt (§22.1): no hacía nada.
+
+- **Crear.** Sin el interruptor con V, el aviso `expressiveNoReference` de la 2f sobra (era la razón del
+  interruptor apagado) y se borra. La línea «Vimo escribe el movimiento de cada aparición…» (`motionAuto`) sigue
+  con V y una referencia de animación (stock o gemelo digital) y con IV y una foto; con V sin referencia no se
+  ve, como en la 2f. `expressive` viaja solo con IV, un look de foto y el interruptor prendido: con V no viaja
+  nunca, aunque la persona lo hubiera prendido antes con IV (su preferencia queda en el formulario).
+- **Editor.** La sección «Movimiento» de una escena V sigue con su prompt, sin el interruptor. Una escena V que
+  ya guardó `expressive: true` (videos de la 2e y la 2f) lo conserva (R-2g-20, abajo en «Lo que la ejecución
+  ajustó»): el editor no tiene con qué cambiarlo y no lo manda apagado, así ningún pedido cambia la huella de
+  un render ya pedido o pagado de esa escena. Esas escenas siguen sumando la frase a su prompt. El sidecar no
+  cambia: honra lo guardado, así ningún clip listo pasa a desactualizado por esto.
+
+### 23.2 La aparición dura lo elegido
+
+Hasta la 2f cada aparición decía frases enteras (§4) y, con frases de 7 s de mediana, 5 s elegidos salían de 6
+a 13 s. Desde la 2g **la aparición arranca donde arrancaba (un inicio de frase; la apertura, en 0) y termina
+cerca de inicio + segundos elegidos**, con esta regla (`avatarCutEnd`, `pipeline/avatar/appearance-cut.ts`):
+
+1. Si a `AVATAR_CUT_PAUSE_WINDOW_SECONDS` (0,5 s) o menos de ese punto hay un fin de frase o una pausa de
+   `AVATAR_CUT_NATURAL_PAUSE_SECONDS` (0,25 s) o más entre dos palabras, corta en la más cercana de esas.
+2. Si no, corta en el hueco entre dos palabras más cercano a ese punto.
+
+El corte cae en el inicio de la palabra que sigue, llevado al cuadro de 25 fps (como las fronteras de frase:
+la pausa corta queda con el avatar). Nunca corta una palabra, y la voz sigue sobre la imagen siguiente, como ya
+pasa con las imágenes (se cortan por segundos, a mitad de frase). Medido sobre las dos narraciones del dueño,
+con 5 y con 10 s: la diferencia con lo elegido es de 0,1 s de mediana, 0,3 s o menos en el 90 % y nunca más de
+0,5 s. La apertura de «Video-3-avatar» queda en 0–4,72 s, justo en «…durante una hora.».
+
+Lo demás del planificador (§5, §18 a §22) sigue, con estos ajustes:
+
+- **Inicios.** Las anclas, el reparto parejo, el hueco de 10 s, los 3 s de imágenes antes de la primera sin
+  apertura y la ventana de «3 veces en 2 minutos» no cambian: cada aparición prueba los inicios de frase más
+  cercanos a su ancla, como hoy. Las tres primeras de «3 veces en 2 minutos» apuntan a `min(elegidos, 32)`
+  (R-2g-10, abajo en «Lo que la ejecución ajustó»).
+- **El largo.** Lo elegido va de 5 a 60 s; la aparición puede quedar hasta medio segundo más corta o más larga.
+  Ya no se suman frases para llegar al mínimo.
+- **El silencio.** Una pausa de más de `AVATAR_MAX_PAUSE_SECONDS` (2 s) entre dos palabras, o el silencio
+  después de la última, corta la aparición 2 s después de la palabra que la precede (R-2g-11, abajo en «Lo que
+  la ejecución ajustó»): el avatar no se queda mudo. La apertura puede cargar hasta 6 s (R-2f-6 y R-2g-17).
+- **El final del video.** Un corte que deja menos de `MIN_SECONDS_PER_SCENE` (3 s) de narración antes del fin
+  del audio no se usa (se prueba otro inicio): el corte de escenas se la pegaría y la aparición pasaría lo
+  elegido. Si ningún inicio sirve, se acepta como hoy. Si inicio + elegidos pasa el fin del audio, la aparición
+  termina en el fin del audio.
+- **Los subtítulos** de una escena de avatar siguen yendo por frases enteras (§23.6).
+- Los proyectos que ya existen conservan su corte: el planificador corre solo al cortar las escenas.
+
+### 23.3 La duración de una aparición en el editor
+
+El panel de la escena de avatar y su tarjeta desplegada en la vista ampliada (§23.4) suman **«Duración»**: un
+selector con «−» y «+» de a un segundo, de 5 s al máximo que entra en ese lugar, que arranca en la duración
+actual redondeada; debajo, cuánto dura ahora. El inicio de la aparición no se mueve; el fin se calcula con la
+regla de §23.2 desde ese inicio.
+
+- **Hasta dónde puede crecer** (`avatarResizeLimits`, puro, lo comparten la UI y el sidecar): hasta lo primero
+  que llegue entre inicio + 60 s, el inicio de la próxima escena de avatar menos 3 s (queda al menos una escena
+  de imagen entre las dos), el inicio de la primera escena que la sigue con una animación o un recibo de
+  animación (sus tiempos están bloqueados) y el fin del audio. Si la escena que la sigue está bloqueada, la
+  duración tampoco puede bajar. La última escena del video no cambia de duración (R-2g-18).
+- **Más larga, o una escena sin clip listo** (planeada, fallida o desactualizada): «Generar» o «Regenerar
+  avatar», con el costo de la duración nueva y la confirmación de siempre, que además dice la duración nueva y
+  cuántas escenas de imagen tapa. Es un render nuevo y pago del trozo nuevo de la narración, con la misma voz.
+  **Se aplica cuando el clip nuevo está listo:** hasta entonces la escena conserva su tramo y su clip, y si el
+  render falla o se cancela no cambia nada (la regla de la 2e). Al aplicarse, las escenas de imagen que tapa
+  entero salen del video (sus imágenes quedan en disco) y la escena donde cae el fin empieza ahí; si le quedan
+  menos de 3 s, también sale y la escena de imagen que sigue empieza en el fin del avatar. El texto de cada
+  escena tocada se rehace con las palabras de su tramo (la regla de `cutScenesAtBoundaries`).
+- **Más corta, con un clip listo y sin cambios en el movimiento:** «Recortar a N s», **gratis y al
+  instante**, sin confirmación y sin hablar con el proveedor: Vimo corta el final del clip que ya tiene (con el
+  crudo del proveedor, como al normalizarlo) y la escena de imagen que sigue empieza antes y suma las palabras
+  que el avatar ya no dice. Un aviso pasajero lo confirma. Más corta con el movimiento cambiado, o sin clip
+  listo, es un render nuevo como el punto anterior.
+- **La misma duración:** las acciones de siempre.
+- Las fronteras de una escena de avatar siguen sin poder arrastrarse en la pista (§10.3): la duración es la
+  forma de cambiarlas. El video queda desactualizado (hay que exportarlo de nuevo), como con cualquier cambio
+  de tiempos.
+- **Errores nuevos:** `avatar_resize_out_of_range` (esa duración ya no entra ahí: el proyecto cambió),
+  `avatar_resize_locked` (la escena que sigue está animada) y `avatar_trim_unavailable` (no hay clip listo para
+  recortar).
+
+### 23.4 El avatar en la vista ampliada, plegado y desplegado
+
+- **Plegada** (como se abre la galería): la tarjeta del avatar se ve como una de imagen, con el mismo borde
+  (sin el morado que la hacía parecer elegida), su clip o la imagen del look con la ficha del avatar, la
+  pastilla de estado y «Reproducir», su número, su tramo y su texto. Sin acciones. «Ajustar avatar» (o un clic
+  en la tarjeta) la despliega.
+- **Desplegada:** ocupa la fila entera de la grilla y se ordena a lo ancho: a la izquierda el clip; a la
+  derecha, en dos columnas, (1) «Duración» y, con V o IV, «Movimiento» compacto (el prompt de tres renglones
+  con su contador y «Usar el automático» como enlace; «Más expresivo» en la misma línea, solo con IV y una foto;
+  «Qué podés pedir» como un botón que abre la guía en un globo; la descripción del motor, en el tooltip del
+  nombre del motor) y (2) las notas de estado (sin caja y enteras, abajo en «Lo que la ejecución ajustó»), el
+  costo, la acción principal, «Regenerar todos
+  (N)» si corresponde y el avance mientras genera. «Cerrar» la pliega. Una sola desplegada a la vez. A 1024 px
+  entra sin scroll propio.
+- **El panel de la escena** usa los mismos controles compactos en una columna.
+- **Foco:** al desplegar, al primer control; al plegar, a «Ajustar avatar»; al terminar un render, la regla
+  R-C-4 de la 2f (a la tarjeta).
+
+### 23.5 La biblioteca de avatares
+
+- **«Escenario principal».** Todo texto que decía «look principal» (y sus pares «main look» y «look
+  principal» en inglés y portugués) dice «escenario principal» («main scene», «cenário principal»), también en
+  las frases. La pastilla «N looks» y los demás «look» quedan como están (no lo pidió; se ofrece en el informe).
+- **El precio de «Crear escenario»: 0,93 US$** (`AVATAR_LOOK_GENERATION_USD`, en `pipeline/types/avatar.ts` y
+  su espejo de `src/modules/avatars/constants.ts`). El proveedor no lo publica. El dueño vio bajar su saldo de
+  10,60 a 9,67 US$ al crear «BOSQUE» sobre «Jardineria» (20:19); 9,67 se confirmó con una consulta gratis del
+  saldo a las 20:5x, y los últimos renders habían sido a las 20:01. El diálogo lo muestra como insignia, como
+  «Crear desde foto»: «0,93 US$ por escenario · se descuenta de tu saldo de avatares».
+- **El velo de «Eliminar»** de la tarjeta de la biblioteca cubre la imagen entera y las opciones quedan
+  centradas. Salía cortado porque una capa absoluta con `inset-x-0` y `aspect-[4/5]` tomaba en WebKit el ancho
+  de su contenido: la capa lleva ancho explícito. «Seguro» sigue apareciendo en el lugar de «Eliminar
+  permanentemente de HeyGen», sin mover el botón.
+
+### 23.6 Fuera de la 2g
+
+- Los subtítulos de una escena de avatar que termina a mitad de frase van por frases enteras: pueden repetir o
+  saltear las palabras de esa frase (el dueño: «luego lo cuadraremos»).
+- Cambiar «looks» por «escenarios» en el resto de la app.
+- Medir el precio de un escenario en cada creación.
+
+**Lo que la ejecución ajustó** (rulings del 2026-10-12 y 2026-10-13 de `execution-e2g/ledger.md` (interno) y desvíos de
+cada paquete, con su detalle en los informes y las revisiones de esa carpeta; donde dicen otra cosa que lo de
+arriba, mandan ellos):
+
+- **El tope de las tres primeras baja a 32 s (R-2g-10).** Con frases enteras las tres primeras salían más
+  cortas que el tope. Con el corte exacto duran justo el tope, y con 35 s la tercera entraba en el 95,7 % de
+  los casos con frases largas, por debajo del criterio de R-2f-8 (al menos 99 % con frases largas). Se midió
+  otra vez con el código final: 10 000 narraciones simuladas tipo TTS por corpus (3 a 10 min), 60 s
+  elegidos. Cada celda es el porcentaje de casos en que las tres arrancan dentro de los 120 s, sin apertura /
+  con apertura:
+
+  | Tope | Frases de 2 a 12 s | Frases de 2 a 15 s |
+  | ---- | ------------------ | ------------------ |
+  | 30 s | 100 % / 100 %      | 99,98 % / 100 %    |
+  | 32 s | 100 % / 100 %      | 99,74 % / 100 %    |
+  | 33 s | 99,99 % / 100 %    | 99,15 % / 100 %    |
+  | 34 s | 99,86 % / 100 %    | 97,80 % / 100 %    |
+  | 35 s | 99,39 % / 100 %    | 95,72 % / 100 %    |
+
+  Se tomó el valor más alto que cumple: 32 s. Con el 5 % de las frases seguidas de 2 a 5 s de silencio da
+  100 % (frases de 2 a 12 s) y 99,78 % (de 2 a 15 s) sin apertura, y 100 % con ella. Costo si el dueño las quiere más largas: subir
+  `AVATAR_EARLY_MAX_SECONDS` (Crear, reanudar y los guards la leen), a cambio de que las tres entren menos
+  veces. El respaldo a 60 s de la 2f (`targetsToTry`) se fue: el corte entre palabras no depende del largo de
+  las frases, y el límite inicio + 32 es duro.
+
+- **Una pausa larga corta la aparición (R-2g-11).** §23.2 decía que un inicio con una pausa de más de 2 s
+  adentro no se usa y se prueba otro. Aplicado así, «3 veces en 2 minutos» caía al 64–83 % en narraciones con
+  pausas de 2 a 5 s, y una pausa de más de 6 s al final de la apertura la perdía. La 2f cerraba la aparición
+  en la pausa; ahora también. `avatarCutLimit` (`appearance-cut.ts`; recibe las palabras, el inicio, el
+  máximo, la pausa que corta y la cola) da el menor entre el máximo, la última palabra antes de la primera
+  pausa de más de 2 s más 2 s (al cuadro hacia abajo) y la última palabra del audio más 2 s. `avatarCutEnd` toma
+  ese límite como un corte natural si no cae adentro de una palabra. El silencio inicial (de 0 a la primera
+  palabra) y la pausa que cierra la frase anterior no cuentan. Lo que queda afuera es una escena de imagen.
+  El planificador y el cambio de duración desde el editor usan la misma función. Precio aceptado: con pausas largas una
+  aparición queda más corta que lo elegido (en esas narraciones simuladas, el 4 % de las de 10 s y el 15 % de
+  las del tope; nunca menos de 4,5 s) y Crear estima de más. Con las narraciones TTS del dueño la pausa más
+  larga es de 1,34 s, y no pasa.
+- **La apertura (R-2g-16 y R-2g-17 revisado).** Prueba primero cortando en las pausas de más de 2 s, como
+  cualquier aparición. Si así no llega a 4,5 s, vuelve a probar cargando las pausas de hasta 6 s
+  (`AVATAR_OPENING_MAX_PAUSE_SECONDS`, R-2f-6), y una pausa más larga la corta igual: la última palabra antes
+  de ella más 2 s. «Hola.» con 5,2 s de silencio y una frase después abre de 0 a 10, y con 6 s justos
+  también; con 6,04, 19 o 19,2 s no hay apertura. La primera lectura de R-2g-16 (no hay apertura si el corte
+  del segundo intento cae adentro de una pausa de más de 6 s) hacía depender la apertura de los segundos
+  elegidos: «Hola», 3 s de pausa, tres palabras y 8 s de pausa abría con 5 y con 6 s, y se perdía con 10, el
+  valor por defecto. Ahora la regla es la de cualquier aparición. Probar 2 s antes que 6 evita que un audio de
+  9 s que habla hasta los 4,9 abra de 0 a 9, con 4,1 s mudos que HeyGen cobra. «Una palabra y 19 s de
+  silencio» sigue sin apertura.
+- **Con empate gana el natural (R-2g-12).** En la regla 2 de §23.2, si el hueco antes de la última palabra de
+  una frase y el fin de esa frase están a la misma distancia del objetivo, gana el fin de frase. En cualquier
+  otro empate, el primero. Cuesta hasta 0,6 s más en el 0,3 % de las apariciones.
+- **El piso de 4,5 s y el «como hoy» (D1 y D3 de WP-A).** §23.2 no decía qué impide un avatar de 2 s cuando
+  el audio se acaba. Una aparición dura al menos 4,5 s (el mínimo elegible menos el medio segundo del corte),
+  medido hasta el corte y sin la cola que el corte de escenas le pega: una última frase casi muda no se
+  vuelve aparición por el silencio que le pegan. Cambia dos casos a propósito: un audio de 4,96 s ahora abre
+  (0–4,96; hasta la 2f, no) y uno de 4,4 s no. Un corte que deja menos de 3 s antes del fin del audio no
+  sirve. Si ningún inicio sirve, se acepta «como hoy»: el corte de escenas le pega la cola corta. Si pegarla
+  haría pasar los 60 s, el corte deja esos 3 s antes del fin en vez de perder la aparición: 61 s con 60
+  elegidos dan 0–58 (hasta la 2f, 0–55). El piso es `AVATAR_SHORTEST_APPEARANCE_SECONDS` y desde R-2g-21
+  vale también para la duración elegida en el editor (abajo).
+- **La última escena del video no cambia de duración (R-2g-18).** Lo que soltara no tendría una escena de
+  imagen que lo tome, y alargarla pasaría el fin del audio. `avatarResizeLimits` da, sin ninguna escena
+  después, un mínimo y un máximo iguales a lo que dura, redondeado (igual que con la escena que sigue
+  bloqueada), y el selector lo explica con `duracionFinal` en vez de `duracionBloqueada`.
+- **El render con `durations` toma el lease exclusivo (R-2g-19).** La duración nueva saca y mueve escenas de
+  imagen, que es lo que solo hacen los comandos exclusivos (los cortes, el reemplazo de narración). Con el
+  lease compartido de animación, otro generador podía comprar el mismo tramo o pagar por una escena que
+  acababa de salir. El registro de `videos` elige el lease también por el pedido (`changesSceneTimes`, en
+  `subcommands.ts`): `avatar-render-scenes` con `durations` no vacío va con el exclusivo; sin el campo, o con la
+  lista vacía, con el compartido de siempre. Desde la app no se llega a esa carrera, porque el editor corre
+  una tarea a la vez por proyecto. Mientras una duración nueva renderiza no se puede animar nada en ese
+  proyecto. `avatar-trim-scene` también toma el exclusivo (D8 de WP-B).
+- **El plan del sidecar (D1 a D9 de WP-B).** `avatarResizePlan` (`pipeline/avatar/resize-plan.ts`, puro y
+  browser-safe) devuelve `{ startSeconds, endSeconds, changes, removedIds }` o el código del error. Lo que la
+  spec no decía:
+  - Al alargar, si nada puede empezar antes (la escena del fin era la última del video o la que sigue está
+    bloqueada), el avatar se queda con el resto de esa escena, como hace el corte con los tramos libres
+    cortos, sin pasar 60 s ni quedar a menos de 3 s de la próxima aparición. Si no, el corte se busca de
+    nuevo dejándole 3 s a esa escena (D1). Cerca del fin del audio, la aparición puede durar hasta casi 3 s
+    más que lo elegido y cargar más de 2 s de silencio final.
+  - Dos avatares pegados (el planificador no los arma): achicar el primero da `avatar_resize_locked` (D3).
+  - Un corte que no se mueve hacia lo pedido no paga: `avatar_resize_out_of_range` en el render y en el
+    recorte, que además pide menos segundos que los de hoy (con los de hoy o más, el mismo código). En el
+    recorte salía `avatar_trim_unavailable`, cuyo texto dice que no hay un clip listo, y el clip sí lo estaba:
+    ese código queda para «sin clip listo y al día» (D4; m-1 de la revisión final).
+  - Toda lista que cambia de duración conserva su clip si el render nuevo falla (`forceNewRender`), la pida
+    la interfaz con `regenerateSceneIds` o sin él. La toma no sube: el tramo nuevo ya es otro pedido (D5).
+  - Si al terminar el render el plan ya no entra, el código es el del plan recalculado (`avatar_resize_locked`
+    si la que sigue se bloqueó, `avatar_resize_out_of_range` si se volvió imposible o daría otro tramo). La
+    escena se cuenta fallida y las demás de la corrida siguen (D6).
+  - El clip recortado se nombra por la huella del tramo nuevo: recortar dos veces al mismo tramo desde clips
+    distintos pisa un recorte que nadie usa, y el clip que la escena mostraba nunca se pisa (D7). Si al
+    guardar, bajo el lease de los recibos, la escena ya no tiene el clip que se ajustó o el plan ya no da el
+    mismo tramo, el recorte se rechaza y borra el clip nuevo, que ninguna escena nombra (m-3 de la revisión
+    final).
+  - `metadata.sceneCount` no se actualiza al sacar escenas: nadie la muestra después del corte (D9).
+- **El piso y la apertura también en el editor (R-2g-21, I-1 de la revisión final).** El plan de una
+  duración nueva cortaba siempre con la regla de 2 s. Una apertura que el planificador armó cargando una
+  pausa de 2 a 6 s (R-2g-17) se recortaba muy por debajo de lo pedido: con «Hola.», 3 s de silencio y una
+  frase cada 2 s, la apertura de 0 a 9,92 quedaba en 2,88 s con «Recortar a 8 s», y después ninguna
+  duración la recuperaba. Ahora `avatarResizePlan` hace lo mismo que el planificador. Si con 2 s el plan
+  deja la apertura (la escena de avatar que arranca en 0) por debajo del piso, prueba otra vez como el
+  segundo intento de `openingSpan`: carga las pausas de hasta 6 s, y una más larga la corta igual, 2 s
+  después de la palabra que la precede. Y ningún plan deja una aparición de menos de 4,5 s
+  (`AVATAR_SHORTEST_APPEARANCE_SECONDS`, la misma constante del planificador): un plan así sale
+  `avatar_resize_out_of_range` antes de recortar o pagar nada. Con esa narración, la apertura se recorta a
+  7,92 s con 8 y se alarga a 11,92 y a 15,12 s con 12 y 15. Una que ya quedó en 2,88 s vuelve a 5 o a 10.
+  Aceptado: una escena que no abre el video con una pausa de 2 a 6 s adentro (el planificador no las arma;
+  solo a mano) no cambia de duración, aunque el selector le ofrezca su rango.
+- **«¿Generar el avatar?» con una duración nueva (D6 de WP-C).** Un cambio de duración que pide render no manda
+  `regenerateSceneIds`: es otro trozo de la narración, y «con la misma parte» sería falso. La confirmación
+  dice «¿Generar el avatar?» y «Generar» (el botón de una lista dice «Regenerar avatar»), y suma la duración
+  nueva y cuántas escenas de imagen tapa. Pedir la misma duración otra vez cosecha el render pago en vez de
+  sumar una toma. En «Regenerar todos» con una duración nueva la confirmación no nombra de qué escena es: es la
+  que tenía el panel o la tarjeta abierta (D13).
+- **Una escena de V conserva su «más expresivo» guardado (R-2g-20; revierte R-2g-6 y su extensión, D7 de
+  WP-C).** La ejecución la apagaba en cualquier pedido del editor, también en «Regenerar todos» y en el aviso
+  de las apariciones con la imagen fija (`motionWithoutExpressive`, en la confirmación). Eso cambiaba la huella
+  del pedido de una escena V con prompt propio: sin la marca, su prompt deja de llevar la frase de
+  `AVATAR_EXPRESSIVE_PROMPT_SUFFIX`. Un render ya pedido o pagado que no llegó a clip (vencido, bajado con error
+  o cancelado mientras HeyGen renderizaba) dejaba de cosecharse y se pagaba de nuevo, contra lo que la
+  interfaz promete («no se vuelve a cobrar»; I-2 de la revisión final). Desde R-2g-20 el editor ya no manda
+  `expressive: false` para escenas V: sin cambios no viaja `motion` y, con el prompt editado, la entrada lleva
+  la marca como estaba. `motionWithoutExpressive` se fue, y el sidecar no cambia (la revisión proponía una
+  excepción ahí; es más simple no mandar el cambio). Precio aceptado: esas escenas siguen sumando la frase
+  «More energy and clearer gestures.» a su prompt, que no se ve (con una foto propia sin gemelo digital, V ni
+  acepta el prompt).
+- **Ids con huecos y su efecto visible (R-2g-3).** Al alargar, las escenas de imagen que la aparición tapa
+  salen de `scenes.json`: sus imágenes quedan en disco y los ids quedan con huecos. Se buscó en `pipeline/` y
+  en `src/` un consumidor que suponga ids contiguos y no hay: los mapas de la interfaz son por id, el visor
+  y el editor navegan por posición y exportar clips numera por posición. La excepción es `verbatim-writer.ts`
+  (`wardrobes.get(id - 1)`), que solo corre al escribir prompts en lote: con un hueco, la escena que sigue no
+  hereda el vestuario de la anterior. Lo que se ve: la interfaz rotula cada escena por su id, así que tras
+  alargar un avatar la galería y el visor dicen «Escena 2», «Escena 4»… No es un error.
+- **IV con un look de video en Crear (R-2g-14).** §23.1 nombra a V y a III, y dice poco de IV con un gemelo
+  digital o un look de estudio. Crear sigue mostrando el interruptor apagado con su motivo (2e), y el editor no
+  muestra la sección. El motivo informa; esconderlo también en Crear son dos líneas en
+  `CreateAvatarExpressive.tsx`. Con V, la línea «Vimo escribe el movimiento…» sale suelta, y solo si el avatar
+  tiene con qué moverse. `create.avatar.expressiveNoReference` y `library.editor.avatar.motor` se borraron de
+  los catálogos por falta de uso (2155 claves).
+- **El velo de WebKit (§23.5).** La causa está medida en un `WKWebView` real, el motor de la app. A 450 px de
+  tarjeta, el velo de la biblioteca medía 422 × 527,5 sobre una imagen de 446 × 557,5: WebKit le resta el
+  relleno horizontal (los 24 px del `p-3`) al ancho de una capa absoluta con `inset-x-0` y `aspect-ratio`, y
+  saca el alto del 4:5 de ese ancho. Con otro relleno, el ancho cambiaba justo lo que cambiaba el relleno.
+  Chrome la estira bien y no deja ver el error, y por eso los guards en Chrome pasaban. El arreglo es el ancho
+  explícito (`w-full`) y una grilla de tres filas que centra las opciones: la advertencia de «Seguro» va en la
+  de arriba, pegada a ellas y creciendo hacia arriba, y «Seguro» queda centrado dentro del lugar de
+  «Eliminar permanentemente de HeyGen» (antes quedaba al pie). La advertencia pasa a 11 px en la biblioteca:
+  con las opciones centradas, en la tarjeta de 164 px de la ventana mínima solo hay lugar para tres líneas
+  encima de ellas. «Mis avatares» y el panel conservan sus clases. Un guard en Chrome no puede ver el error,
+  así que el escenario 11c ata el `w-full` por su nombre de clase y la medición real en WebKit es manual.
+- **El precio de «Crear escenario» (R-2g-1).** 0,93 US$ sale de la lectura del dueño (10,60 a 9,67 US$) y de
+  una consulta gratis del saldo (9,67 exactos). Los últimos renders habían sido a las 20:01 y el escenario se
+  creó a las 20:19, sin nada después. Si el saldo anterior no era 10,60, la insignia muestra otro precio: es
+  una constante en dos archivos. La insignia es un componente propio (`LookPriceBadge`, con el formato de
+  «Crear desde foto»). La ficha «Crear escenario» la muestra entre el título y la ayuda solo cuando se puede
+  usar: apagada por cualquier motivo (un avatar del stock, uno sin escenario principal listo, sin la clave o
+  mientras el llavero todavía responde, observación de la revisión final), no promete una cifra.
+- **La tarjeta plegada y los controles compactos (D1 a D5, D9 y D10 de WP-C).** La ayuda de «Duración» va en
+  un tooltip con su botón, y el mismo texto es su nombre accesible (D1). El «−» de la duración lleva
+  `data-first-control`: es donde cae el foco al desplegar (D2). Las notas de estado de la tarjeta desplegada
+  van sin caja y enteras, no «en una línea» (D3): una línea cortaría el motivo de un fallo. «Cerrar» va arriba
+  a la derecha de los controles (D4) y el clip vertical desplegado mide 8 rem (D5). Los borradores de la
+  duración y del movimiento se descartan al plegar la tarjeta (D9). El valor inicial del selector se acota a
+  los límites (D10); en un proyecto raro con avatares pegados arranca en el máximo. Los botones del selector
+  y el de recortar se apagan con `aria-disabled`, nunca con `disabled`: el foco puede estar en ellos dentro
+  del diálogo de la galería. La tarjeta se midió con el CSS real a 1024 × 640 y a 1280 × 800, en es, en y pt,
+  con videos de 16:9 y de 9:16, en Chrome y en un `WKWebView`: sin scroll propio en ningún caso, y el peor
+  (la escena que toma más narración, con el texto más largo) mide 410 px en un área de 410.
+- **Aceptado y estacionado.** Los subtítulos de una aparición que termina a mitad de frase siguen yendo por
+  frases enteras y pueden repetir o saltear palabras de esa frase (§23.6). La hora que dice «Toma más
+  narración, hasta…» es aproximada (inicio + segundos), y la confirmación cuenta las escenas que tapa por los
+  segundos elegidos, no por el corte entre dos palabras; el saldo sí se mira con el costo real. El movimiento
+  automático escrito para el tramo nuevo queda guardado aunque el render falle: pedir lo mismo lo reusa y
+  cosecha. Mientras recorta, el store del editor no marca el proyecto ocupado, así que otra tarea que arranque
+  recibe `animation_project_busy` del sidecar. Sin la clave de HeyGen el editor muestra solo el aviso de la
+  clave, y tampoco se puede recortar aunque sea gratis. Un render con `durations` cuyo plan ya no entra cae por
+  el `job-failed` del store, y el selector queda en lo elegido. `create-video-project` sigue guardando
+  `expressive: true` si le llega con V (ningún camino lo manda desde la 2g), y `CreatePhotoAvatarDialog` todavía
+  repite el markup de la insignia del precio. `AvatarSpan.sentenceFrom` y `sentenceTo` no los lee ningún
+  consumidor de producción: solo los guards.
+- **Se mide en la QA (`execution-e2g/qa-2g.md`).** Cuánto cobra HeyGen por el trozo nuevo de una aparición
+  alargada y que el clip nuevo siga la narración con la misma voz; que las escenas de imagen que tapa salgan
+  y la que sigue empiece donde termina el avatar; que recortar sea gratis, inmediato y termine en una pausa; las
+  apariciones de la narración real del dueño, con 5 y con 10 s, a ±0,5 s de lo elegido, y «3 veces en 2
+  minutos» con las tres primeras de hasta 32 s; la tarjeta plegada y desplegada en la app real, con las
+  fuentes reales (el peor caso mide 410 px en 410, el foco con el teclado, el globo de «Qué podés pedir»); el
+  precio de «Crear escenario» con el saldo antes y después; el velo de «Eliminar» a todo el ancho de la imagen
+  en la ventana grande y en la mínima; y los subtítulos de una aparición que termina a mitad de frase.
