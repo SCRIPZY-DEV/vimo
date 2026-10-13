@@ -19,7 +19,10 @@ import {
   openVoiceRequest,
   voiceRequestFile,
   clearVoiceRequest,
+  type SubmittedTaskFinder,
+  type VoiceRequestReceipt,
 } from './request-checkpoint.ts'
+import { sleep } from '../../utils/sleep.ts'
 
 // ─── Síntesis por partes (ADR-0025) ───
 //
@@ -37,6 +40,17 @@ const HEURISTIC_PERCENT_CAP = 95
 const PART_FILE_SUFFIX = '.part_'
 const PART_FILE_EXTENSION = '.mp3'
 const MANIFEST_SUFFIX = '.parts.json'
+// Rechazos del POST que confirman que no hubo tarea: liberan el carril.
+const CONFIRMED_REJECTION_CODES = new Set([
+  'voice_invalid_api_key',
+  'voice_insufficient_credits',
+  'voice_quota_exceeded',
+  'voice_rate_limited',
+  'voice_account_restricted',
+])
+// Margen para que una tarea enviada sin respuesta aparezca en el listado
+// del proveedor antes de buscarla.
+const LOST_SUBMISSION_SETTLE_MS = 3000
 
 export interface PartsProgress {
   // Agregado de todas las partes (0-100).
@@ -206,21 +220,27 @@ async function synthesizePart(
       nextText: chunks[index + 1],
     }),
   )
+  const finder = provider.findSubmittedTask
+  const findSubmittedTask = finder
+    ? (receipt: VoiceRequestReceipt) =>
+        finder({ apiKey, receipt, text: chunk, signal })
+    : undefined
   const checkpoint = await openVoiceRequest(
     voiceRequestFile(input.outputFile, index),
     fingerprint,
     provider.id,
+    findSubmittedTask,
   )
   const stopHeuristic = provider.reportsProgress
     ? null
     : reporter.startHeuristic(index, chunk.length)
 
-  try {
+  const synthesize = () => {
     if (!provider.supportsTaskResume && checkpoint.receipt.resultUrl)
-      return {
-        audio: await downloadAudioFromUrl(checkpoint.receipt.resultUrl, signal),
-      }
-    return await provider.synthesize({
+      return downloadAudioFromUrl(checkpoint.receipt.resultUrl, signal).then(
+        (audio) => ({ audio }),
+      )
+    return provider.synthesize({
       payload,
       text: chunk,
       apiKey,
@@ -238,6 +258,41 @@ async function synthesizePart(
           progress.elapsedSeconds,
         ),
     })
+  }
+
+  try {
+    try {
+      return await synthesize()
+    } catch (error) {
+      // Envío cortado antes del task_id en un motor que puede buscarlo: si
+      // la tarea existe se sigue consultando; si no, el carril falla limpio.
+      if (
+        signal.aborted ||
+        !findSubmittedTask ||
+        !(error instanceof PipelineFailure) ||
+        checkpoint.receipt.taskId ||
+        checkpoint.receipt.resultUrl ||
+        checkpoint.receipt.state === 'failed' ||
+        CONFIRMED_REJECTION_CODES.has(error.code)
+      )
+        throw error
+      const taskId = await findLostSubmission(
+        findSubmittedTask,
+        checkpoint.receipt,
+        signal,
+      )
+      if (taskId === undefined) throw error
+      if (taskId === null) {
+        await checkpoint.update({ state: 'failed' })
+        throw new PipelineFailure(
+          'voice_submission_failed',
+          `voice submission failed and the provider confirmed no task was created: ${error.message}`,
+          { provider: provider.id, ...failureDetails(error) },
+        )
+      }
+      await checkpoint.update({ taskId, state: 'pending' })
+      return await synthesize()
+    }
   } catch (error) {
     if (signal.aborted) throw error
     const receipt = checkpoint.receipt
@@ -247,13 +302,7 @@ async function synthesizePart(
       error instanceof PipelineFailure &&
       !receipt.taskId &&
       !receipt.resultUrl &&
-      [
-        'voice_invalid_api_key',
-        'voice_insufficient_credits',
-        'voice_quota_exceeded',
-        'voice_rate_limited',
-        'voice_account_restricted',
-      ].includes(error.code)
+      CONFIRMED_REJECTION_CODES.has(error.code)
     ) {
       await checkpoint.update({ state: 'failed' })
       throw error
@@ -271,6 +320,22 @@ async function synthesizePart(
     )
   } finally {
     stopHeuristic?.()
+  }
+}
+
+// Espera a que el proveedor registre un envío cortado y lo busca. undefined:
+// no se pudo saber (el recibo queda sin resolver, sin pagar otra vez).
+async function findLostSubmission(
+  findSubmittedTask: SubmittedTaskFinder,
+  receipt: VoiceRequestReceipt,
+  signal: AbortSignal,
+): Promise<string | null | undefined> {
+  await sleep(LOST_SUBMISSION_SETTLE_MS, signal)
+  signal.throwIfAborted()
+  try {
+    return await findSubmittedTask(receipt)
+  } catch {
+    return undefined
   }
 }
 
@@ -399,6 +464,32 @@ async function concatMp3Parts(
   } finally {
     await rm(listFile, { force: true })
   }
+}
+
+/**
+ * Descarta TODO lo que una síntesis a medias dejó junto a la narración:
+ * partes ya pagadas, manifest, recibos de pedidos (también los pendientes) y
+ * temporales de la unión. Solo para cuando el usuario cambia de voz: lo
+ * descartado no se puede retomar, aunque el proveedor lo haya cobrado.
+ */
+export async function discardNarrationProgress(
+  outputFile: string,
+): Promise<void> {
+  const directory = dirname(outputFile)
+  const requestPrefix = `${basename(outputFile)}.request-`
+  let names: string[]
+  try {
+    names = await readdir(directory)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (!name.startsWith(requestPrefix) || !name.endsWith('.json')) continue
+    await rm(join(directory, name), { force: true })
+  }
+  await removePartFiles(outputFile)
+  await rm(`${outputFile}.concat_list.txt`, { force: true })
+  await rm(`${outputFile}.assembling.mp3`, { force: true })
 }
 
 async function removePartFiles(outputFile: string): Promise<void> {

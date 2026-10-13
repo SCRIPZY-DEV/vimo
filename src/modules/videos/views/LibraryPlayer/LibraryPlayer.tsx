@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
@@ -11,9 +12,11 @@ import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader
 import { OutdatedVideoBanner } from '@/modules/videos/components/OutdatedVideoBanner'
 import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
+import { VoiceSwitchDialog } from '@/modules/videos/components/VoiceSwitchDialog'
 import {
   EDITOR_RESCUE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
+  VOICE_MAYBE_PAID_ERROR_CODES,
   VideosRoutes,
   libraryEditorPath,
   libraryProgressPath,
@@ -23,6 +26,8 @@ import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjec
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { projectBadge } from '@/modules/videos/utilities/projectBadge'
+import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
+import type { SelectedVoice } from '@/modules/videos/types/create'
 
 // Detalle/reproductor de un proyecto: video final con velocidades, aviso de
 // desactualizado, reintento tras error y acciones (editar, abrir, eliminar).
@@ -32,7 +37,10 @@ export function LibraryPlayer() {
   const { projectId = '' } = useParams()
   const { detail, isLoading, errorKey } = useLibraryProjectDetail(projectId)
   const { deleteProjects, deleting } = useLibraryProjects()
-  const { task, startPipelineForProject } = useCreateTask()
+  const { task, startPipelineForProject, switchVoiceForProject } =
+    useCreateTask()
+  // Aviso + selector de «Cambiar voz» tras un fallo de la narración.
+  const [switchingVoice, setSwitchingVoice] = useState(false)
 
   usePageTitle(detail?.metadata.name ?? t('library.pageTitle'))
 
@@ -70,6 +78,24 @@ export function LibraryPlayer() {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
     })
+    if (started) void navigate(libraryProgressPath(projectId))
+  }
+
+  // La narración sintetizada no llegó a completarse: se puede cambiar de voz.
+  const voiceFailed =
+    metadata.state === 'error' &&
+    metadata.options.narrationMode === 'tts' &&
+    !metadata.completedStages.includes('voice')
+  const voiceProvider = metadata.options.voiceProvider
+
+  const switchVoice = async (voice: SelectedVoice) => {
+    setSwitchingVoice(false)
+    const started = await switchVoiceForProject(
+      projectId,
+      metadata.name,
+      voice,
+      { videoFormat: metadata.options.videoFormat },
+    )
     if (started) void navigate(libraryProgressPath(projectId))
   }
 
@@ -125,6 +151,21 @@ export function LibraryPlayer() {
               ? () => void navigate(libraryEditorPath(projectId))
               : undefined
           }
+          onSwitchVoice={
+            voiceFailed ? () => setSwitchingVoice(true) : undefined
+          }
+        />
+      )}
+
+      {switchingVoice && (
+        <VoiceSwitchDialog
+          vendor={voiceProvider ? vendorOfProvider(voiceProvider) : null}
+          maybePaid={
+            !metadata.errorCode ||
+            VOICE_MAYBE_PAID_ERROR_CODES.has(metadata.errorCode)
+          }
+          onSelect={(voice) => void switchVoice(voice)}
+          onClose={() => setSwitchingVoice(false)}
         />
       )}
 

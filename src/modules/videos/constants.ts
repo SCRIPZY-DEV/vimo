@@ -914,6 +914,13 @@ export const DEFAULT_IMAGE_CHOICE: SceneImageChoice = {
   quality: CREATE_FORM_INITIAL_VALUE.imageQuality,
 }
 
+// Fallos de voz con una generación que el proveedor pudo haber aceptado (y
+// cobrado): el aviso previo a «Cambiar voz» lo dice explícitamente.
+export const VOICE_MAYBE_PAID_ERROR_CODES: ReadonlySet<string> = new Set([
+  'voice_request_pending',
+  'voice_request_unresolved',
+])
+
 // Código de error del sidecar/Rust → clave i18n del mensaje.
 export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Proyecto y entradas
@@ -949,6 +956,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_insufficient_credits: 'create.errors.voiceInsufficientCredits',
   voice_account_restricted: 'create.errors.voiceAccountRestricted',
   voice_library_add_failed: 'create.errors.voiceLibraryAddFailed',
+  voice_submission_failed: 'create.errors.voiceProviderError',
   // Música y overlay
   music_generation_failed: 'create.errors.musicGenerationFailed',
   music_download_failed: 'create.errors.musicDownloadFailed',

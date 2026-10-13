@@ -49,6 +49,7 @@ export function LibraryProgress() {
     reportPromptModelIssue,
     snoozePromptModelIssue,
     switchPromptModel,
+    switchVoice,
   } = useCreateTask()
   const { models, defaultId } = usePromptModels()
 
@@ -148,6 +149,7 @@ export function LibraryProgress() {
         onPromptModelStall={() => reportPromptModelIssue(ownTask.id, 'stalled')}
         onSnoozePromptModelIssue={snoozePromptModelIssue}
         onSwitchPromptModel={(modelId) => void switchPromptModel(modelId)}
+        onSwitchVoice={(voice) => void switchVoice(voice)}
       />
     )
   }

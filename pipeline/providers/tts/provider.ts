@@ -7,7 +7,10 @@ import type {
   VoiceVendorId,
 } from '../../types/voices.ts'
 import type { AudioDownload } from './dubvoice.ts'
-import type { VoiceRequestCheckpoint } from './request-checkpoint.ts'
+import type {
+  VoiceRequestCheckpoint,
+  VoiceRequestReceipt,
+} from './request-checkpoint.ts'
 
 // Contrato de un motor de voz: lo que los commands (listar, generar, probe) y
 // la stage de narración necesitan saber, sin ramificar por proveedor.
@@ -40,6 +43,15 @@ export interface SynthesizeInput {
   onProgress?(progress: SynthesisProgress): void
 }
 
+export interface FindSubmittedTaskInput {
+  apiKey: string
+  receipt: VoiceRequestReceipt
+  // Texto de la parte: identifica la tarea si el proveedor no devuelve la
+  // marca del envío.
+  text: string
+  signal?: AbortSignal
+}
+
 export interface TtsProvider {
   id: VoiceProviderId
   // Quién factura y con qué clave: DubVoice (agregador) o ElevenLabs directo.
@@ -69,4 +81,9 @@ export interface TtsProvider {
   // solo tiene sentido entre motores que comparten catálogo (ElevenLabs vía
   // DubVoice ↔ ElevenLabs directo).
   fallbackProviderIds?: VoiceProviderId[]
+  // Solo motores que marcan cada envío (ai33): busca la tarea de un envío
+  // cuya respuesta se perdió. Devuelve su id, null si confirma que no existe
+  // (el carril pasa a fallido y la cascada sigue), o lanza si no puede
+  // saberlo (el recibo queda sin resolver, sin pagar otra vez).
+  findSubmittedTask?(input: FindSubmittedTaskInput): Promise<string | null>
 }

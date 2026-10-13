@@ -124,7 +124,8 @@ function normalizePromptModel(value: string | null): string | null {
 // null = automático. Un valor que no es un vendor (store editado a mano,
 // versión vieja) se trata como «no elegido», nunca rompe la vista.
 function normalizeVoiceVendor(value: unknown): VoiceVendorId | null {
-  if (value === 'dubvoice' || value === 'elevenlabs') return value
+  if (value === 'ai33' || value === 'dubvoice' || value === 'elevenlabs')
+    return value
   return null
 }
 

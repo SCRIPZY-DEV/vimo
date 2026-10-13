@@ -7,6 +7,7 @@ export type ApiKeyProviderId =
   | 'deepgram'
   | 'kie'
   | 'poyo'
+  | 'ai33'
 
 export type ApiKeyCategory =
   'llm' | 'image' | 'voice' | 'transcription' | 'animation'
