@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { PenLine, RotateCcw } from 'lucide-react'
+import { Mic, PenLine, RotateCcw } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 
 interface TaskErrorCardProps {
@@ -11,6 +11,8 @@ interface TaskErrorCardProps {
   // Rescate del origen (v1.32.0): con las escenas ya persistidas, el fallo
   // no bloquea — se sigue en el editor y se regenera desde ahí.
   onContinueInEditor?(): void
+  // La narración falló (ADR-0053): elegir otro proveedor y otra voz.
+  onSwitchVoice?(): void
 }
 
 // Tarjeta de un job que falló, con reintento y (opcional) descarte.
@@ -20,6 +22,7 @@ export function TaskErrorCard({
   retryLabel,
   onDiscard,
   onContinueInEditor,
+  onSwitchVoice,
 }: TaskErrorCardProps) {
   const { t } = useTranslation()
 
@@ -35,6 +38,17 @@ export function TaskErrorCard({
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
           {retryLabel ?? t('common.resume')}
         </Button>
+        {onSwitchVoice && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSwitchVoice}
+            className="rounded-lg font-display"
+          >
+            <Mic className="mr-1.5 h-3.5 w-3.5" />
+            {t('create.progress.error.switchVoice')}
+          </Button>
+        )}
         {onContinueInEditor && (
           <Button
             variant="outline"

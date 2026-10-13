@@ -8,6 +8,7 @@ export type ApiKeyProviderId =
   | 'kie'
   | 'poyo'
   | 'heygen'
+  | 'ai33'
 
 export type ApiKeyCategory =
   'llm' | 'image' | 'voice' | 'transcription' | 'animation' | 'avatar'

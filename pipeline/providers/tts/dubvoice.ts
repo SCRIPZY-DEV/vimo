@@ -173,10 +173,13 @@ export async function readAudioResponse(
   }
 }
 
-// Descarga desde el CDN externo (sin auth ni rate limit de DubVoice).
+// Descarga desde el CDN externo (sin auth ni rate limit de DubVoice). La usan
+// también otros vendors con resultado por URL (ai33): `provider` es el id que
+// llevan sus fallos (ADR-0038).
 export async function downloadAudioFromUrl(
   url: string,
   signal?: AbortSignal,
+  provider: string = FAILURE_PROVIDER,
 ): Promise<Buffer> {
   const response = await fetch(url, {
     signal: requestSignal(DOWNLOAD_TIMEOUT_MS, signal),
@@ -185,7 +188,7 @@ export async function downloadAudioFromUrl(
     throw new PipelineFailure(
       'voice_download_failed',
       'Voice audio download request failed',
-      { provider: FAILURE_PROVIDER },
+      { provider },
     )
   })
 
@@ -193,7 +196,7 @@ export async function downloadAudioFromUrl(
     throw new PipelineFailure(
       'voice_download_failed',
       `Voice audio download failed (status=${response.status})`,
-      { provider: FAILURE_PROVIDER, httpStatus: response.status },
+      { provider, httpStatus: response.status },
     )
 
   const audio = Buffer.from(await response.arrayBuffer())
@@ -201,7 +204,7 @@ export async function downloadAudioFromUrl(
     throw new PipelineFailure(
       'voice_download_failed',
       'Voice audio download returned 0 bytes',
-      { provider: FAILURE_PROVIDER, httpStatus: response.status },
+      { provider, httpStatus: response.status },
     )
 
   return audio

@@ -26,13 +26,15 @@ export const voicesQueryKeys = {
   },
 } as const
 
-// ─── Dos proveedores de voces (ADR-0024) ───
+// ─── Tres proveedores de voces (ADR-0024, ADR-0053) ───
 // El vendor se deriva del id de motor: DubVoice agrupa cinco motores con una
-// clave; ElevenLabs directo es uno solo con la clave del usuario.
+// clave; ElevenLabs directo es uno solo con la clave del usuario; ai33 es un
+// solo motor que lleva el motor real como prefijo del voice_id.
 export const VOICE_PROVIDERS_BY_VENDOR: Record<
   VoiceVendorId,
   VoiceProviderId[]
 > = {
+  ai33: ['ai33'],
   dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'edge'],
   elevenlabs: ['elevenlabs-direct'],
 }
@@ -40,13 +42,30 @@ export const VOICE_PROVIDERS_BY_VENDOR: Record<
 // Pestañas de la página Voces según el vendor activo. Edge queda fuera del
 // catálogo visible (sin muestras del proveedor).
 export const VOICE_TABS_BY_VENDOR: Record<VoiceVendorId, VoiceTab[]> = {
+  ai33: [
+    'ai33-elevenlabs',
+    'ai33-minimax',
+    'ai33-vbee',
+    'ai33-fishaudio',
+    'ai33-clone',
+    'favorites',
+  ],
   dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'favorites'],
   elevenlabs: ['elevenlabs-account', 'elevenlabs-library', 'favorites'],
 }
 
 // Pestañas del picker de voz de Crear/Library: las de la página Voces más
-// Edge en DubVoice (sin muestras, pero gratis); Favoritos al final, como allá.
+// Edge (sin muestras, pero barato); Favoritos al final, como allá.
 export const VOICE_PICKER_TABS_BY_VENDOR: Record<VoiceVendorId, VoiceTab[]> = {
+  ai33: [
+    'ai33-elevenlabs',
+    'ai33-minimax',
+    'ai33-vbee',
+    'ai33-fishaudio',
+    'ai33-edge',
+    'ai33-clone',
+    'favorites',
+  ],
   dubvoice: ['minimax', 'elevenlabs', 'vbee', 'fishaudio', 'edge', 'favorites'],
   elevenlabs: ['elevenlabs-account', 'elevenlabs-library', 'favorites'],
 }
@@ -65,6 +84,13 @@ export const VOICE_TAB_CATALOGS: Record<
   'elevenlabs-direct': { provider: 'elevenlabs-direct', source: 'account' },
   'elevenlabs-account': { provider: 'elevenlabs-direct', source: 'account' },
   'elevenlabs-library': { provider: 'elevenlabs-direct', source: 'library' },
+  ai33: { provider: 'ai33', catalog: 'elevenlabs' },
+  'ai33-elevenlabs': { provider: 'ai33', catalog: 'elevenlabs' },
+  'ai33-minimax': { provider: 'ai33', catalog: 'minimax' },
+  'ai33-vbee': { provider: 'ai33', catalog: 'vbee' },
+  'ai33-fishaudio': { provider: 'ai33', catalog: 'fishaudio' },
+  'ai33-edge': { provider: 'ai33', catalog: 'edge' },
+  'ai33-clone': { provider: 'ai33', catalog: 'clone' },
 }
 
 /** Etiquetas de marca por motor (historial, Crear): no se traducen. */
@@ -75,6 +101,7 @@ export const VOICE_PROVIDER_LABELS: Record<VoiceProviderId, string> = {
   fishaudio: 'Fish Audio · DubVoice',
   edge: 'Edge TTS',
   'elevenlabs-direct': 'ElevenLabs',
+  ai33: 'ai33',
 }
 
 /** Catálogos completos que se guardan como snapshot en localStorage. */
@@ -136,6 +163,7 @@ export const VOICE_COST_FACTORS: Record<VoiceProviderId, number> = {
   fishaudio: 1,
   edge: 0.5,
   'elevenlabs-direct': 1,
+  ai33: 1,
 }
 
 /** Mismos modelos en los dos carriles ElevenLabs (DubVoice los reenvía tal cual). */
@@ -183,6 +211,8 @@ export const VOICE_MODELS: Record<VoiceProviderId, VoiceModelOption[]> = {
   fishaudio: [{ id: 'default', label: 'Fish Audio' }],
   edge: [{ id: 'default', label: 'Microsoft Edge' }],
   'elevenlabs-direct': ELEVENLABS_MODELS,
+  // ai33 no elige modelo: la API v3 solo recibe la voz y la velocidad.
+  ai33: [{ id: 'default', label: 'ai33' }],
 }
 
 export const DEFAULT_VOICE_MODELS: Record<VoiceProviderId, string> = {
@@ -192,6 +222,7 @@ export const DEFAULT_VOICE_MODELS: Record<VoiceProviderId, string> = {
   fishaudio: 'default',
   edge: 'default',
   'elevenlabs-direct': 'eleven_multilingual_v2',
+  ai33: 'default',
 }
 
 /** Chips de emoción de Minimax ('' = sin emoción explícita). */
@@ -261,6 +292,7 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_insufficient_credits: 'voices.errores.insufficientCredits',
   voice_account_restricted: 'voices.errores.accountRestricted',
   voice_library_add_failed: 'voices.errores.libraryAddFailed',
+  voice_submission_failed: 'voices.errores.providerError',
   invalid_payload: 'voices.errores.invalido',
   missing_api_key: 'voices.errores.missingApiKey',
   missing_projects_root: 'voices.errores.missingProjectsRoot',
@@ -275,9 +307,22 @@ export const INTERRUPTED_ERROR_KEY = 'voices.errores.interrumpida'
 
 export const DUBVOICE_DASHBOARD_URL = 'https://www.dubvoice.ai/'
 export const ELEVENLABS_VOICE_LAB_URL = 'https://elevenlabs.io/app/voice-lab'
+export const AI33_DASHBOARD_URL = 'https://ai33.pro/app'
+
+/**
+ * Panel de cada vendor donde el usuario revisa su historial de generaciones
+ * y su saldo: antes de cambiar una voz que falló, para ver si la generación
+ * se cobró (ADR-0053).
+ */
+export const VOICE_HISTORY_URLS: Record<VoiceVendorId, string> = {
+  ai33: AI33_DASHBOARD_URL,
+  dubvoice: DUBVOICE_DASHBOARD_URL,
+  elevenlabs: 'https://elevenlabs.io/app',
+}
 
 /** Dónde clona voces cada vendor. */
 export const VOICE_CLONING_URLS: Record<VoiceVendorId, string> = {
+  ai33: AI33_DASHBOARD_URL,
   dubvoice: DUBVOICE_DASHBOARD_URL,
   elevenlabs: ELEVENLABS_VOICE_LAB_URL,
 }

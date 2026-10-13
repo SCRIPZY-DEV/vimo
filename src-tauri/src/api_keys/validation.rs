@@ -17,8 +17,8 @@ pub struct ValidationResult {
     /// Código de error para i18n (`apiKeys.errores.*`); ausente si ok.
     pub code: Option<&'static str>,
     /// Saldo leído en la misma comprobación, cuando el endpoint con el que se
-    /// valida lo trae (Kie.ai, PoYo y HeyGen). La unidad depende del
-    /// proveedor: créditos en Kie.ai y PoYo, dólares en HeyGen (la UI lo
+    /// valida lo trae (Kie.ai, PoYo, ai33 y HeyGen). La unidad depende del
+    /// proveedor: créditos en Kie.ai, PoYo y ai33, dólares en HeyGen (la UI lo
     /// formatea según el `balanceUnit` del proveedor). La UI lo muestra junto
     /// al «Conectado»: ver el saldo es la prueba de que la clave sirve de verdad.
     pub credits: Option<f64>,
@@ -167,6 +167,25 @@ fn validate_heygen_response(
     Ok(balance)
 }
 
+/// Saldo de ai33 (GET /v1/credits). La doc no fija el campo: se acepta el
+/// número (o string numérico) en las claves conocidas, en la raíz o en `data`.
+/// Sin saldo legible la clave igual sirve (el 200 ya lo probó): no se inventa
+/// un cero que bloquearía el pre-check.
+fn ai33_credits(body: &serde_json::Value) -> Option<f64> {
+    const KEYS: [&str; 4] = ["credits", "credit", "balance", "ec_remain_credits"];
+    let number = |value: &serde_json::Value| {
+        value
+            .as_f64()
+            .or_else(|| value.as_str().and_then(|text| text.trim().parse::<f64>().ok()))
+            .filter(|credits| credits.is_finite() && *credits >= 0.0)
+    };
+    [Some(body), body.get("data")]
+        .into_iter()
+        .flatten()
+        .flat_map(|scope| KEYS.iter().filter_map(move |key| scope.get(*key)))
+        .find_map(number)
+}
+
 /// Check especial de Fal: la clave DEBE ser tipo Admin (sin eso la generación
 /// de imágenes y el saldo no funcionan — bug histórico del proyecto origen).
 /// 403 = la key existe pero no es Admin.
@@ -296,6 +315,22 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
             )
             .await?;
             validate_heygen_response(status, &body)
+        }
+        // ai33 también se valida contra su saldo, con su header xi-api-key.
+        Provider::Ai33 => {
+            let (status, body) = probe_json(
+                "https://api.ai33.pro/v1/credits",
+                "xi-api-key",
+                key.to_string(),
+            )
+            .await?;
+            if status == reqwest::StatusCode::FORBIDDEN {
+                return Err(ApiKeyError::InvalidKey);
+            }
+            if status != reqwest::StatusCode::OK {
+                return Err(status_to_error(status));
+            }
+            Ok(ai33_credits(&body))
         }
     }
 }

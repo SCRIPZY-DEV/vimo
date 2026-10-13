@@ -1,6 +1,6 @@
 // Smoke sobre el sidecar SEA REAL; fixtures locales y ninguna clave de proveedor.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -14,9 +14,36 @@ const binary = resolve(
 const root = await mkdtemp(join(tmpdir(), 'vimo-sea-regression-'))
 const projectId = 'resume-smoke'
 const project = join(root, projectId)
-function run(command, payload, apiKeys = {}) {
-  const execution = spawnSync(binary, [command], {
-    input:
+// Lanza el sidecar y devuelve sus eventos NDJSON. Mantiene stdin abierto hasta
+// que el sidecar emitió su evento terminal y salió: con el job en marcha, el
+// sidecar toma un stdin cerrado por «la app se cerró» y cancela el job (PR #98
+// de dev, `readJob` en pipeline/main.ts). Por eso no sirve `spawnSync` con
+// `input`, que cierra stdin apenas escribe la línea del job.
+async function run(command, payload, apiKeys = {}) {
+  const child = spawn(binary, [command], { stdio: ['pipe', 'pipe', 'pipe'] })
+  child.stdout.setEncoding('utf8')
+  child.stderr.setEncoding('utf8')
+  let stdout = ''
+  let stderr = ''
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk
+  })
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+  // El mismo plazo que tenía el spawnSync (timeout: 10000): un sidecar
+  // colgado es un fallo del guard, no una salida a medias.
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    child.kill()
+  }, 10000)
+  try {
+    const closed = new Promise((resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', resolve)
+    })
+    child.stdin.write(
       JSON.stringify({
         jobId: 'smoke',
         projectsRoot: root,
@@ -24,20 +51,27 @@ function run(command, payload, apiKeys = {}) {
         binaryPaths: {},
         payload,
       }) + '\n',
-    encoding: 'utf8',
-    timeout: 10000,
-  })
-  assert.ifError(execution.error)
-  const events = execution.stdout
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => JSON.parse(line))
-  assert.ok(events.length > 0, execution.stderr)
-  return events
+    )
+    await closed
+    assert.equal(
+      timedOut,
+      false,
+      `the sidecar did not finish within 10 s\n${stderr}`,
+    )
+    const events = stdout
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+    assert.ok(events.length > 0, stderr)
+    return events
+  } finally {
+    clearTimeout(timer)
+    child.stdin.destroy()
+  }
 }
 try {
-  const ping = run('ping', { fixture: true })
+  const ping = await run('ping', { fixture: true })
   assert.ok(
     ping.some(
       (event) =>
@@ -82,7 +116,7 @@ try {
       state: 'submitting',
     }),
   )
-  const failed = run(
+  const failed = await run(
     'run-video-pipeline',
     { projectId, untilStage: 'voice' },
     { dubvoice: 'fixture-not-a-real-key' },
@@ -104,7 +138,10 @@ try {
     join(project, 'narration.mp3'),
     Buffer.from('ID3 cached fixture audio'),
   )
-  const cached = run('run-video-pipeline', { projectId, untilStage: 'voice' })
+  const cached = await run('run-video-pipeline', {
+    projectId,
+    untilStage: 'voice',
+  })
   assert.ok(
     cached.some((event) => event.type === 'job-completed'),
     JSON.stringify(cached),

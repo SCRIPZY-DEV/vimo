@@ -158,6 +158,7 @@ function CreateView({
     reportPromptModelIssue,
     snoozePromptModelIssue,
     switchPromptModel,
+    switchVoice,
   } = useCreateTask()
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
@@ -385,6 +386,7 @@ function CreateView({
         onPromptModelStall={() => reportPromptModelIssue(task.id, 'stalled')}
         onSnoozePromptModelIssue={snoozePromptModelIssue}
         onSwitchPromptModel={(modelId) => void switchPromptModel(modelId)}
+        onSwitchVoice={(voice) => void switchVoice(voice)}
       />
     )
   }

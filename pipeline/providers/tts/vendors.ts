@@ -1,10 +1,11 @@
 import type { ApiKeys } from '../../config/api-keys.ts'
 import type { VoiceCreditsResult, VoiceVendorId } from '../../types/voices.ts'
+import { getAi33Credits } from './ai33.ts'
 import { getDubvoiceAccount } from './dubvoice.ts'
 import { getElevenLabsSubscription } from './elevenlabs-direct.ts'
 
 // Lo que es del VENDOR y no del motor: la clave y el saldo. DubVoice comparte
-// una cuenta entre sus tres motores; ElevenLabs directo tiene la suya.
+// una cuenta entre sus motores; ElevenLabs directo y ai33 tienen la suya.
 export interface TtsVendor {
   id: VoiceVendorId
   apiKeyOf(apiKeys: ApiKeys): string | undefined
@@ -28,6 +29,15 @@ export const TTS_VENDORS: Record<VoiceVendorId, TtsVendor> = {
     },
     getCredits(apiKey, signal) {
       return getElevenLabsSubscription(apiKey, signal)
+    },
+  },
+  ai33: {
+    id: 'ai33',
+    apiKeyOf(apiKeys) {
+      return apiKeys.ai33
+    },
+    getCredits(apiKey, signal) {
+      return getAi33Credits(apiKey, signal)
     },
   },
 }

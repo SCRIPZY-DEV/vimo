@@ -325,6 +325,8 @@ export interface JobFailedEvent {
   // registra; la UI no los usa.
   provider?: string
   httpStatus?: number
+  // Id de la tarea asíncrona del proveedor (DubVoice), cuando el fallo lo trae.
+  taskId?: string
 }
 
 // Fallo de un proveedor externo en el camino: se emite en cada reintento o
@@ -340,6 +342,8 @@ export interface ProviderFailureEvent {
   recovered: boolean
   stageId?: StageId
   sceneId?: number
+  // Id de la tarea asíncrona del proveedor (DubVoice), para reclamarle.
+  taskId?: string
   // Motivo técnico, ≤ 300 caracteres; Rust lo redacta antes de subirlo.
   detail?: string
 }

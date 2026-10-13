@@ -131,6 +131,7 @@ import type {
 } from '@pipeline/types/music.ts'
 import type {
   ConfirmScenesPayload,
+  SetProjectVoicePayload,
   SetPromptModelPayload,
   PreviewSceneCutsPayload,
   PreviewSceneCutsResult,
@@ -202,6 +203,9 @@ export const videosApi = {
   },
   async setPromptModel(payload: SetPromptModelPayload): Promise<void> {
     await runPipelineJob('set-prompt-model', payload)
+  },
+  async setProjectVoice(payload: SetProjectVoicePayload): Promise<void> {
+    await runPipelineJob('set-project-voice', payload)
   },
   async previewSceneCuts(
     payload: PreviewSceneCutsPayload,

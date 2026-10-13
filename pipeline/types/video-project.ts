@@ -298,6 +298,13 @@ export interface SetPromptModelPayload {
   promptModel: string | null
 }
 
+// Cambia la voz de un proyecto cuya narración falló, antes de relanzar
+// run-video-pipeline (ADR-0053).
+export interface SetProjectVoicePayload {
+  projectId: string
+  voice: ReplaceNarrationVoice
+}
+
 export interface PreviewSceneCutsPayload {
   projectId: string
   secondsPerScene: number

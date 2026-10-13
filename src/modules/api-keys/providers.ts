@@ -38,6 +38,16 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     recommended: false,
   },
   {
+    id: 'ai33',
+    category: 'voice',
+    label: 'ai33',
+    getKeyUrl: 'https://ai33.pro/app/api-document',
+    billingUrl: 'https://ai33.pro/app',
+    keyFormatHint: 'xi-api-key',
+    descriptionKey: 'apiKeys.descripcion.ai33',
+    recommended: true,
+  },
+  {
     id: 'dubvoice',
     category: 'voice',
     label: 'DubVoice',

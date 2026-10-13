@@ -57,17 +57,17 @@ Sube el webview porque la sesión de Supabase (JWT) vive ahí.
 
 ### Qué se guarda y qué no
 
-| Pieza                | Regla                                                                                                                                                                                                                                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allowlist de claves  | De cada evento solo sobreviven las claves de `ALLOWED_EVENT_KEYS` (`type`, `stageId`, `level`, `code`, `message`, `detail`, `percent`, `phase`, `sceneId`, `modelId`, `provider`, `httpStatus`, `attempt`, `maxAttempts`, `recovered`, conteos…), y solo si son escalares o listas de números. Rust no redeclara tipos |
-| Descartado           | `scene`, `scenes`, `imagePath`, `result`, cualquier objeto anidado, y los eventos `scene-image-progress` / `scene-image-started`                                                                                                                                                                                       |
-| Muestreo de progreso | De `progress` y `*-progress`, una entrada cada 10 % por tipo de evento y etapa (cada 30 s si no trae porcentaje)                                                                                                                                                                                                       |
-| Redacción de strings | Clave API exacta → `[REDACTED_KEY]`; `Bearer …` / `key=…` → redactado; carpeta de proyectos → `<projects>`; home → `~`; otra carpeta de usuario → `<user>`; tope de 2000 caracteres                                                                                                                                    |
-| Tope de entradas     | 2000; si se excede quedan las primeras 500 y las últimas 1500, con `events_truncated`                                                                                                                                                                                                                                  |
-| Eventos sintéticos   | `sidecar-stderr`, `sidecar-stdout-invalid` (longitud + 200 caracteres redactados), `process-exited { exitCode, signal }`                                                                                                                                                                                               |
-| Estado final         | `completed`, `failed`, `cancelled`, `paused` o `crashed` (el proceso terminó sin `job-completed` ni `job-failed`; lleva `error_code = process_crashed` con el código de salida y la señal en `error_message`)                                                                                                          |
-| Spool                | Máximo 100 archivos o 7 días; lo más viejo se descarta                                                                                                                                                                                                                                                                 |
-| `context`            | Solo opciones no sensibles del proyecto (proveedor y calidad de imagen, formato, proveedor TTS, modelo de prompts, conteos, `demo`, `completedStages`) más `subject { kind, id }`: qué identifica al job (ver «Identidad de la fila»)                                                                                  |
+| Pieza                | Regla                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Allowlist de claves  | De cada evento solo sobreviven las claves de `ALLOWED_EVENT_KEYS` (`type`, `stageId`, `level`, `code`, `message`, `detail`, `percent`, `phase`, `sceneId`, `modelId`, `provider`, `httpStatus`, `attempt`, `maxAttempts`, `recovered`, `taskId`, conteos…), y solo si son escalares o listas de números. Rust no redeclara tipos |
+| Descartado           | `scene`, `scenes`, `imagePath`, `result`, cualquier objeto anidado, y los eventos `scene-image-progress` / `scene-image-started`                                                                                                                                                                                                 |
+| Muestreo de progreso | De `progress` y `*-progress`, una entrada cada 10 % por tipo de evento y etapa (cada 30 s si no trae porcentaje)                                                                                                                                                                                                                 |
+| Redacción de strings | Clave API exacta → `[REDACTED_KEY]`; `Bearer …` / `key=…` → redactado; carpeta de proyectos → `<projects>`; home → `~`; otra carpeta de usuario → `<user>`; tope de 2000 caracteres                                                                                                                                              |
+| Tope de entradas     | 2000; si se excede quedan las primeras 500 y las últimas 1500, con `events_truncated`                                                                                                                                                                                                                                            |
+| Eventos sintéticos   | `sidecar-stderr`, `sidecar-stdout-invalid` (longitud + 200 caracteres redactados), `process-exited { exitCode, signal }`                                                                                                                                                                                                         |
+| Estado final         | `completed`, `failed`, `cancelled`, `paused` o `crashed` (el proceso terminó sin `job-completed` ni `job-failed`; lleva `error_code = process_crashed` con el código de salida y la señal en `error_message`)                                                                                                                    |
+| Spool                | Máximo 100 archivos o 7 días; lo más viejo se descarta                                                                                                                                                                                                                                                                           |
+| `context`            | Solo opciones no sensibles del proyecto (proveedor y calidad de imagen, formato, proveedor TTS, `voiceId` y los ajustes escalares de `voiceSettings`, modelo de prompts, conteos, `demo`, `completedStages`) más `subject { kind, id }`: qué identifica al job (ver «Identidad de la fila»)                                      |
 
 ### Piezas
 
@@ -193,10 +193,17 @@ quién rechazó y con qué status. El `job-failed` los reenvía y quedan en las 
 Los fallos que el pipeline **recupera** (reintento de Fal/Evolink por 429 o 5xx,
 backoff y degradación de tier del LLM, cascada de carriles TTS) emiten el evento
 `provider-failure { provider, code, httpStatus?, attempt?, maxAttempts?, recovered,
-stageId?, sceneId?, detail? }` (`pipeline/utils/provider-failure.ts`). Entra a `events`
+stageId?, sceneId?, taskId?, detail? }` (`pipeline/utils/provider-failure.ts`). Entra a `events`
 por la allowlist y permite ver que un proveedor falló aunque la fila sea `completed`.
 Regla: **todo reintento o fallback de proveedor emite `provider-failure`**; el fallo
 terminal sigue viajando solo en `job-failed`.
+
+Enmienda (2026-10-12): cuando DubVoice marca una tarea como `failed`, el fallo lleva
+`taskId` (id de la tarea, para reclamarle al proveedor) y su `detail` incluye la
+respuesta JSON entera, no solo el `error` genérico. El `context` del job suma
+`voiceId` (id opaco del catálogo; el nombre de la voz sigue fuera) y los ajustes
+escalares de `voiceSettings`: sin ellos no había forma de reproducir un rechazo
+determinista del proveedor de voz.
 
 ### Runbook de soporte
 
@@ -414,3 +421,21 @@ El SQL (columnas, índice y retención) está en el spec
 (`docs/handoff/2026-09-30-catalog-on-custom-style-lane/design.md`, §6.5) y en
 `SETUP_RECONSTRUCTOR_GEMAS.md` de vimo-landing, y lo aplica el dueño. La ADR-0048 documenta el
 registro (L1), el cupo y los modos de falla.
+
+## Enmienda 2026-10-13 — un subcomando silencioso con advertencia sí se registra
+
+Usuarios reportaron estilos y personajes que «desaparecen». Los listados (`styles-list`,
+`characters-list`) saltean en silencio una entrada ilegible, y como son subcomandos silenciosos
+que terminan bien, no quedaba ninguna fila en `diagnostic_logs`.
+
+- **Regla nueva:** un subcomando silencioso que termina bien se registra si dejó al menos un
+  `log` de nivel `warn` o `error` (`has_warning` en `report.rs`). Sin advertencias, sigue
+  sin registrarse como hasta ahora.
+- **Qué deja un listado:** `skipped style "<id>": <motivo>` o `skipped character "<id>": <motivo>`,
+  donde el motivo es el código del sistema (`ENOENT`, `EACCES`…), `invalid_json`,
+  `invalid_content` o `photo_missing`. Nunca el contenido del archivo. El id de un personaje
+  empieza con el slug de su nombre (`ana-x1y2z3`), igual que la identidad de la fila.
+- **Carpeta de proyectos ilegible:** los dos listados fallan con `projects_root_unavailable`
+  (fila `failed`, sin la ruta en el mensaje) en vez de devolver una lista vacía.
+
+Informe: [library-disappearing](../fixes/2026-10-13-fix-library-disappearing/library-disappearing.md).

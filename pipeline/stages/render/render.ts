@@ -18,35 +18,38 @@ import { ensureDirectory, readTextWithRetry } from '../../utils/atomic-fs.ts'
 import { requireFfmpegPath } from '../../utils/ffmpeg.ts'
 import type { CreateVideoContext } from '../context.ts'
 import { collectRenderScenes } from './animated-scenes.ts'
+import { renderAllChunks } from './chunk-queue.ts'
 import {
   CHUNK_SIZE,
   chunkDurationSeconds,
-  chunkFileFor,
-  chunkManifestFor,
-  isChunkCacheValid,
-  renderChunk,
   type RenderScene,
 } from './chunk-renderer.ts'
-import { CHUNKS_PROGRESS_SHARE, CONCAT_PROGRESS_SHARE } from './constants.ts'
-import { concatChunks, mixFinalVideo } from './final-mix.ts'
+import {
+  REENCODE_PROGRESS_SHARES,
+  VIDEO_COPY_PROGRESS_SHARES,
+  type RenderProgressShares,
+} from './constants.ts'
+import { concatChunks, mixCopiesVideo, mixFinalVideo } from './final-mix.ts'
 import { exportPromptsMarkdown } from './prompts-export.ts'
+import { parallelChunksFor } from './render-concurrency.ts'
 import { subtitlesFilter, writeSubtitlesFile } from './subtitles.ts'
 
 // Fase 6: ensamblado final (port de ensamblarVideo + rendereoFinal).
 // Etapas: chunks mudos con ken burns (cache por manifest) → concat sin
 // re-encode → mezcla final (audio + overlay + color del estilo). El progreso
-// global se reparte chunks 0-45% / concat 45-50% / final 50-100% (tiempos
-// medidos del origen).
+// global se reparte según la mezcla que va a correr (constants.ts): copiando
+// el video la mezcla dura segundos y casi toda la barra es de los chunks.
 
-function globalFraction(phase: RenderPhase, localFraction: number): number {
+function globalFraction(
+  shares: RenderProgressShares,
+  phase: RenderPhase,
+  localFraction: number,
+): number {
   const local = Math.max(0, Math.min(1, localFraction))
-  if (phase === 'chunks') return local * CHUNKS_PROGRESS_SHARE
-  if (phase === 'concat')
-    return CHUNKS_PROGRESS_SHARE + local * CONCAT_PROGRESS_SHARE
+  if (phase === 'chunks') return local * shares.chunks
+  if (phase === 'concat') return shares.chunks + local * shares.concat
   return (
-    CHUNKS_PROGRESS_SHARE +
-    CONCAT_PROGRESS_SHARE +
-    local * (1 - CHUNKS_PROGRESS_SHARE - CONCAT_PROGRESS_SHARE)
+    shares.chunks + shares.concat + local * (1 - shares.chunks - shares.concat)
   )
 }
 
@@ -76,75 +79,8 @@ export const renderStage: Stage<CreateVideoContext> = {
     const chunksDirectory = context.paths.chunksCacheDirectory
     await ensureDirectory(chunksDirectory)
 
-    // Duración de referencia para el %: el último timestamp de words.json si
-    // existe; fallback a la suma de duraciones de las escenas.
-    const totalSeconds = await referenceDurationSeconds(context, renderScenes)
-
-    // Throttle de eventos: emitir solo si el % entero sube o cambia la fase.
-    let lastPercent = -1
-    let lastPhase: RenderPhase | null = null
-    const emitProgress = (phase: RenderPhase, localFraction: number) => {
-      const percent = Math.round(globalFraction(phase, localFraction) * 100)
-      if (phase === lastPhase && percent <= lastPercent) return
-      lastPercent = percent
-      lastPhase = phase
-      context.emitter.emit({ type: 'render-progress', percent, phase })
-    }
-
-    // 1. Chunks mudos (con cache por manifest). El progreso de cada chunk se
-    // reescala por su duración para que el % sea monotónico.
-    const chunkFiles: string[] = []
-    const totalChunks = Math.ceil(renderScenes.length / CHUNK_SIZE)
-    let renderedSeconds = 0
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      context.signal.throwIfAborted()
-
-      const start = chunkIndex * CHUNK_SIZE
-      const chunkScenes = renderScenes.slice(start, start + CHUNK_SIZE)
-      const chunkSeconds = chunkDurationSeconds(chunkScenes)
-      const chunkFile = chunkFileFor(chunksDirectory, chunkIndex + 1)
-
-      const previousScene = start > 0 ? renderScenes[start - 1] : undefined
-      const expectedManifest = await chunkManifestFor(
-        chunkScenes,
-        start,
-        frame,
-        previousScene,
-      )
-      if (await isChunkCacheValid(chunkFile, expectedManifest)) {
-        renderedSeconds += chunkSeconds
-        if (totalSeconds > 0)
-          emitProgress('chunks', renderedSeconds / totalSeconds)
-      } else {
-        const secondsBeforeChunk = renderedSeconds
-        await renderChunk(ffmpegPath, chunkScenes, start, chunkFile, frame, {
-          previousScene,
-          signal: context.signal,
-          onProgress(fraction) {
-            if (totalSeconds <= 0) return
-            emitProgress(
-              'chunks',
-              (secondsBeforeChunk + fraction * chunkSeconds) / totalSeconds,
-            )
-          },
-        })
-        renderedSeconds += chunkSeconds
-      }
-      chunkFiles.push(chunkFile)
-    }
-
-    // Limpieza best-effort de chunks huérfanos de corridas con más escenas.
-    await cleanupOrphanChunks(chunksDirectory, totalChunks)
-
-    // 2. Concat sin re-encode.
-    const silentVideoFile = join(chunksDirectory, 'video_concat_silent.mp4')
-    await concatChunks(ffmpegPath, chunkFiles, silentVideoFile, {
-      totalSeconds,
-      signal: context.signal,
-      onProgress: (fraction) => emitProgress('concat', fraction),
-    })
-
-    // 3. Mezcla final: audio + (overlay) + color del estilo.
+    // Lo que entra en la mezcla final se resuelve ANTES de los chunks: decide
+    // si el video se copia y, con eso, cómo se reparte la barra.
     const options = context.options
     const style = resolveProjectStyle(options)
     const musicFile =
@@ -166,7 +102,70 @@ export const renderStage: Stage<CreateVideoContext> = {
           await avatarSentences(context, scenes),
         )
       : undefined
+    const mixVideo = {
+      overlayFile,
+      colorFilter: style.filterFinal,
+      subtitlesFilter: subtitlesFile
+        ? subtitlesFilter(subtitlesFile)
+        : undefined,
+    }
+    const progressShares = mixCopiesVideo(mixVideo)
+      ? VIDEO_COPY_PROGRESS_SHARES
+      : REENCODE_PROGRESS_SHARES
 
+    // Duración de referencia para el %: el último timestamp de words.json si
+    // existe; fallback a la suma de duraciones de las escenas.
+    const totalSeconds = await referenceDurationSeconds(context, renderScenes)
+
+    // Throttle de eventos: emitir solo si el % entero sube o cambia la fase.
+    let lastPercent = -1
+    let lastPhase: RenderPhase | null = null
+    const emitProgress = (phase: RenderPhase, localFraction: number) => {
+      const percent = Math.round(
+        globalFraction(progressShares, phase, localFraction) * 100,
+      )
+      if (phase === lastPhase && percent <= lastPercent) return
+      lastPercent = percent
+      lastPhase = phase
+      context.emitter.emit({ type: 'render-progress', percent, phase })
+    }
+
+    // 1. Chunks mudos (con cache por manifest), tantos a la vez como aguante
+    // el equipo del usuario (1 en equipos modestos: el render de siempre).
+    const totalChunks = Math.ceil(renderScenes.length / CHUNK_SIZE)
+    const parallelChunks = parallelChunksFor(totalChunks)
+    context.emitter.emit({
+      type: 'log',
+      level: 'info',
+      message: `render: ${totalChunks} chunks, ${parallelChunks} at a time`,
+    })
+    const chunkFiles = await renderAllChunks(
+      ffmpegPath,
+      renderScenes,
+      chunksDirectory,
+      frame,
+      {
+        parallelChunks,
+        signal: context.signal,
+        onRenderedSeconds(renderedSeconds) {
+          if (totalSeconds <= 0) return
+          emitProgress('chunks', renderedSeconds / totalSeconds)
+        },
+      },
+    )
+
+    // Limpieza best-effort de chunks huérfanos de corridas con más escenas.
+    await cleanupOrphanChunks(chunksDirectory, totalChunks)
+
+    // 2. Concat sin re-encode.
+    const silentVideoFile = join(chunksDirectory, 'video_concat_silent.mp4')
+    await concatChunks(ffmpegPath, chunkFiles, silentVideoFile, {
+      totalSeconds,
+      signal: context.signal,
+      onProgress: (fraction) => emitProgress('concat', fraction),
+    })
+
+    // 3. Mezcla final: audio + (overlay) + color del estilo.
     await mixFinalVideo(
       ffmpegPath,
       {
@@ -174,11 +173,7 @@ export const renderStage: Stage<CreateVideoContext> = {
         narrationFile: context.paths.narrationFile,
         frame,
         musicFile,
-        overlayFile,
-        colorFilter: style.filterFinal,
-        subtitlesFilter: subtitlesFile
-          ? subtitlesFilter(subtitlesFile)
-          : undefined,
+        ...mixVideo,
         voiceVolume: options.voiceVolume,
         musicVolume: options.musicVolume,
         musicOffsetSeconds: options.bgmOffsetSeconds,

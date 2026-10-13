@@ -21,6 +21,7 @@ import { renderVideo } from './render-video.ts'
 import { replaceNarration } from './replace-narration.ts'
 import { runVideoPipeline } from './run-video-pipeline.ts'
 import { setProjectMusic } from './set-project-music.ts'
+import { setProjectVoice } from './set-project-voice.ts'
 import { setPromptModel } from './set-prompt-model.ts'
 import { updateAudioMix } from './update-audio-mix.ts'
 import { updateScenes } from './update-scenes.ts'
@@ -36,6 +37,7 @@ const handlers: Record<string, SubcommandHandler> = {
   'video-project-status': videoProjectStatus,
   'confirm-scenes': confirmScenes,
   'set-prompt-model': setPromptModel,
+  'set-project-voice': setProjectVoice,
   'preview-scene-cuts': previewSceneCuts,
   'probe-tts': probeTts,
   'list-video-projects': listVideoProjects,

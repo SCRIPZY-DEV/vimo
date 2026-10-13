@@ -32,12 +32,14 @@ import { PipelineAvatarPanel } from '@/modules/videos/components/PipelineAvatarP
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
+import { VoiceSwitchDialog } from '@/modules/videos/components/VoiceSwitchDialog'
 import {
   CANCEL_CONFIRM_WINDOW_MS,
   EDITOR_RESCUE_ERROR_CODES,
   STYLE_GEM_ERROR_CODES,
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
+  VOICE_MAYBE_PAID_ERROR_CODES,
 } from '@/modules/videos/constants'
 import { avatarFallbackCount } from '@/modules/videos/utilities/avatarFallback'
 import { taskHasAvatar } from '@/modules/videos/utilities/avatarTaskEvents'
@@ -51,6 +53,7 @@ import { voiceProgressPercent } from '@/modules/videos/utilities/voiceProgressPe
 import type {
   CreateTask,
   SceneCutChoice,
+  SelectedVoice,
   VoiceProgressView,
 } from '@/modules/videos/types/create'
 
@@ -71,6 +74,8 @@ interface GenerationProgressProps {
   onPromptModelStall: () => void
   onSnoozePromptModelIssue: () => void
   onSwitchPromptModel: (modelId: string) => void
+  // La narración falló: relanzar el proyecto con otro proveedor y voz.
+  onSwitchVoice: (voice: SelectedVoice) => void
 }
 
 // Pista bajo la barra de voz: en qué parte va si la narración se troceó; si
@@ -98,11 +103,14 @@ export function GenerationProgress({
   onPromptModelStall,
   onSnoozePromptModelIssue,
   onSwitchPromptModel,
+  onSwitchVoice,
 }: GenerationProgressProps) {
   const { t } = useTranslation()
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   // Diálogo de cambio de modelo abierto a mano desde la tarjeta de error.
   const [switchingFromError, setSwitchingFromError] = useState(false)
+  // Aviso + selector de «Cambiar voz», abierto desde la tarjeta de error.
+  const [switchingVoice, setSwitchingVoice] = useState(false)
 
   // Cancelar pide un segundo clic dentro de la ventana (origen v0.35.0).
   useEffect(() => {
@@ -209,6 +217,9 @@ export function GenerationProgress({
     task.errorCode !== null && STYLE_GEM_ERROR_CODES.has(task.errorCode)
   const promptModelSwitchable =
     task.usesCustomStyle && failedStage === 'scene-prompts' && !gemAtFault
+  // Cambiar de voz solo cuando cayó la narración sintetizada (con voz propia
+  // no hay proveedor que cambiar).
+  const voiceSwitchable = failedStage === 'voice' && task.voiceVendor !== null
   const promptModelStalled =
     generating && task.promptModelIssue?.reason === 'stalled'
 
@@ -483,6 +494,24 @@ export function GenerationProgress({
                   ? () => setSwitchingFromError(true)
                   : undefined
               }
+              onSwitchVoice={
+                voiceSwitchable ? () => setSwitchingVoice(true) : undefined
+              }
+            />
+          )}
+
+          {switchingVoice && (
+            <VoiceSwitchDialog
+              vendor={task.voiceVendor}
+              maybePaid={
+                task.errorCode === null ||
+                VOICE_MAYBE_PAID_ERROR_CODES.has(task.errorCode)
+              }
+              onSelect={(voice) => {
+                setSwitchingVoice(false)
+                onSwitchVoice(voice)
+              }}
+              onClose={() => setSwitchingVoice(false)}
             />
           )}
 

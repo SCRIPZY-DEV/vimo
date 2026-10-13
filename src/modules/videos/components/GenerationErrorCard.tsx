@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Pencil, RefreshCw, Shuffle } from 'lucide-react'
+import { Mic, Pencil, RefreshCw, Shuffle } from 'lucide-react'
 import DoodleSadFace from '@/modules/common/doodles/DoodleSadFace'
 import { Button } from '@/modules/common/ui/button'
 import { EDITOR_RESCUE_ERROR_CODES } from '@/modules/videos/constants'
@@ -23,6 +23,9 @@ interface GenerationErrorCardProps {
   // El modelo de prompts falló (carril verbatim, ADR-0028): relanzar el
   // mismo proyecto con otro en vez de insistir con el que se cayó.
   onSwitchPromptModel?: () => void
+  // La narración falló (ADR-0053): elegir otro proveedor y otra voz en vez
+  // de reintentar con la misma.
+  onSwitchVoice?: () => void
 }
 
 // Bloque de error dentro de la pantalla de progreso (port del origen): las
@@ -34,6 +37,7 @@ export function GenerationErrorCard({
   onRetry,
   onContinueInEditor,
   onSwitchPromptModel,
+  onSwitchVoice,
 }: GenerationErrorCardProps) {
   const { t } = useTranslation()
   const missingImages =
@@ -89,6 +93,23 @@ export function GenerationErrorCard({
           </Button>
           <p className="text-center font-body text-xs text-foreground/65">
             {t('create.progress.error.switchModelHint')}
+          </p>
+        </div>
+      )}
+
+      {onSwitchVoice && (
+        <div className="space-y-2">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={onSwitchVoice}
+            className="w-full rounded-xl font-display font-bold"
+          >
+            <Mic className="mr-2 h-4 w-4" />
+            {t('create.progress.error.switchVoice')}
+          </Button>
+          <p className="text-center font-body text-xs text-muted-foreground">
+            {t('create.progress.error.switchVoiceHint')}
           </p>
         </div>
       )}

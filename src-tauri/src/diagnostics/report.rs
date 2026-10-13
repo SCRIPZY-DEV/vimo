@@ -23,12 +23,15 @@ const UPDATE_INSTALL_FAILED_CODE: &str = "update_install_failed";
 const UPDATE_SUBCOMMAND: &str = "install-update";
 
 /// Opciones del proyecto que sirven para diagnosticar y no son contenido:
-/// nada de voces, URLs, personajes ni el estilo propio (lleva su system prompt).
-const CONTEXT_OPTION_KEYS: [&str; 16] = [
+/// nada de nombres de voz, URLs, personajes ni el estilo propio (lleva su
+/// system prompt). El `voiceId` sí: es un id opaco del catálogo y permite
+/// reproducir un fallo del proveedor con la misma voz.
+const CONTEXT_OPTION_KEYS: [&str; 17] = [
     "styleId",
     "sceneCount",
     "narrationMode",
     "voiceProvider",
+    "voiceId",
     "imageProvider",
     "imageQuality",
     "videoFormat",
@@ -41,6 +44,19 @@ const CONTEXT_OPTION_KEYS: [&str; 16] = [
     "subtitles",
     "autoRender",
     "demo",
+];
+/// Ajustes de síntesis (`options.voiceSettings`, solo escalares): un ajuste
+/// fuera del rango del motor es una causa posible de rechazo del proveedor.
+const VOICE_SETTINGS_KEYS: [&str; 9] = [
+    "speed",
+    "pitch",
+    "volume",
+    "volumeEdge",
+    "emotion",
+    "stability",
+    "similarityBoost",
+    "style",
+    "useSpeakerBoost",
 ];
 const CONTEXT_METADATA_KEYS: [&str; 6] = [
     "state",
@@ -69,8 +85,20 @@ fn is_quiet_subcommand(subcommand: &str) -> bool {
         || QUIET_SUFFIXES.iter().any(|suffix| subcommand.ends_with(suffix))
 }
 
-fn is_worth_recording(subcommand: &str, status: RunStatus) -> bool {
-    status != RunStatus::Completed || !is_quiet_subcommand(subcommand)
+/// Un `log` warn/error del sidecar: algo salió mal aunque el job terminó bien
+/// (p. ej. un listado que saltea un estilo o personaje ilegible).
+fn has_warning(events: &[Value]) -> bool {
+    events.iter().any(|event| {
+        event.get("type").and_then(Value::as_str) == Some("log")
+            && matches!(event.get("level").and_then(Value::as_str), Some("warn" | "error"))
+    })
+}
+
+/// Un subcomando silencioso que termina bien se registra solo si dejó una
+/// advertencia: sin ella inundaría la tabla; con ella es justo lo que soporte
+/// necesita ver.
+fn is_worth_recording(subcommand: &str, status: RunStatus, events: &[Value]) -> bool {
+    status != RunStatus::Completed || !is_quiet_subcommand(subcommand) || has_warning(events)
 }
 
 fn copy_keys(source: Option<&Value>, keys: &[&str], target: &mut Map<String, Value>) {
@@ -89,8 +117,19 @@ fn copy_keys(source: Option<&Value>, keys: &[&str], target: &mut Map<String, Val
 
 fn project_context(metadata: &Value) -> Value {
     let mut context = Map::new();
-    copy_keys(metadata.get("options"), &CONTEXT_OPTION_KEYS, &mut context);
+    let options = metadata.get("options");
+    copy_keys(options, &CONTEXT_OPTION_KEYS, &mut context);
     copy_keys(Some(metadata), &CONTEXT_METADATA_KEYS, &mut context);
+
+    let mut voice_settings = Map::new();
+    copy_keys(
+        options.and_then(|options| options.get("voiceSettings")),
+        &VOICE_SETTINGS_KEYS,
+        &mut voice_settings,
+    );
+    if !voice_settings.is_empty() {
+        context.insert("voiceSettings".into(), Value::Object(voice_settings));
+    }
 
     let model_used = metadata
         .get("promptModelUsed")
@@ -171,7 +210,7 @@ fn store_and_notify(app: &AppHandle, record: &DiagnosticRecord) {
 
 /// Cierra el registro de un job del sidecar y lo deja en el spool.
 pub fn store_job_record(app: &AppHandle, job_id: &str, subcommand: &str, outcome: RecorderOutcome) {
-    if !is_worth_recording(subcommand, outcome.status) {
+    if !is_worth_recording(subcommand, outcome.status, &outcome.events) {
         return;
     }
 

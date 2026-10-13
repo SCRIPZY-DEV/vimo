@@ -45,6 +45,7 @@ export function reportFromFailure(
     ...(failure.httpStatus !== undefined
       ? { httpStatus: failure.httpStatus }
       : {}),
+    ...(failure.taskId !== undefined ? { taskId: failure.taskId } : {}),
     detail: failure.message,
     ...extra,
   }

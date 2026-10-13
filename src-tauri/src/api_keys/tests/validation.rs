@@ -143,6 +143,17 @@ fn heygen_reads_the_wallet_balance() {
 }
 
 #[test]
+fn ai33_reads_the_balance_from_known_fields_numbers_or_strings() {
+    for body in [
+        json!({ "credits": 9500 }),
+        json!({ "ec_remain_credits": "9500" }),
+        json!({ "success": true, "data": { "balance": 9500.0 } }),
+    ] {
+        assert_eq!(ai33_credits(&body), Some(9500.0), "{body}");
+    }
+}
+
+#[test]
 fn heygen_without_wallet_is_valid_without_balance() {
     for data in [
         json!({ "username": "sebas" }),
@@ -312,4 +323,16 @@ fn heygen_round_trips_through_provider_ids() {
     assert_eq!(Provider::HeyGen.id(), "heygen");
     assert_eq!(Provider::from_id("heygen").unwrap(), Provider::HeyGen);
     assert!(ALL_PROVIDERS.contains(&Provider::HeyGen));
+}
+
+#[test]
+fn ai33_without_a_readable_balance_reports_none_instead_of_zero() {
+    for body in [
+        serde_json::Value::Null,
+        json!({ "success": true }),
+        json!({ "credits": "unlimited" }),
+        json!({ "credits": -1 }),
+    ] {
+        assert_eq!(ai33_credits(&body), None, "{body}");
+    }
 }

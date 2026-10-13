@@ -38,6 +38,8 @@ const FALLBACK_REJECTION_CODES = new Set([
   'voice_quota_exceeded',
   'voice_rate_limited',
   'voice_account_restricted',
+  // El envío se cortó y el proveedor confirmó que no creó la tarea.
+  'voice_submission_failed',
 ])
 
 interface NarrationAttempt {
@@ -66,6 +68,17 @@ export async function synthesizeNarration(
       `${provider.vendor} API key is missing`,
     )
 
+  // Números a palabras ANTES de mandar al proveedor (si no, «41» se
+  // pronuncia «cuatro uno»); el idioma detectado también viaja al proveedor.
+  const { text, language } = prepareNarrationText(script)
+  const payload: GenerateVoicePayload = {
+    provider: provider.id,
+    voiceId: options.voiceId,
+    text: '',
+    language,
+    settings: options.voiceSettings,
+  }
+
   const pendingProviderId = await pendingVoiceProvider(
     context.paths.narrationFile,
   )
@@ -83,17 +96,6 @@ export async function synthesizeNarration(
       'the pending voice lane is not available for this project',
     )
   const progressProvider = pendingProvider ?? provider
-
-  // Números a palabras ANTES de mandar al proveedor (si no, «41» se
-  // pronuncia «cuatro uno»); el idioma detectado también viaja al proveedor.
-  const { text, language } = prepareNarrationText(script)
-  const payload: GenerateVoicePayload = {
-    provider: provider.id,
-    voiceId: options.voiceId,
-    text: '',
-    language,
-    settings: options.voiceSettings,
-  }
 
   // Timer de progreso: `percent` viaja cuando es real (motor con polling) o
   // cuando hay varias partes (agregado); con una sola parte de Minimax/Edge

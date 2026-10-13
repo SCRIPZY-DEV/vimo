@@ -26,6 +26,7 @@ import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
 import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { isEditorProjectBusy } from '@/modules/videos/utilities/editorProjectBusy'
 import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
+import { projectVoiceOf } from '@/modules/videos/utilities/projectVoiceOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import { hasAutomaticAnimation } from '@pipeline/animation/scope.ts'
@@ -41,6 +42,7 @@ import type {
   CreateTask,
   ProjectRunOptions,
   SceneCutChoice,
+  SelectedVoice,
 } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
@@ -1023,6 +1025,32 @@ async function startPipelineForProject(
   return true
 }
 
+// «Cambiar voz» desde Library, sobre un proyecto con error y SIN tarea viva
+// (ADR-0053): guarda la voz nueva y lo relanza como un reintento.
+async function switchVoiceForProject(
+  projectId: string,
+  projectName: string,
+  voice: SelectedVoice,
+  options: ProjectRunOptions = {},
+): Promise<boolean> {
+  if (rejectIfBusy()) return false
+
+  try {
+    await videosApi.setProjectVoice({ projectId, voice: projectVoiceOf(voice) })
+  } catch (error) {
+    toast({
+      description: i18next.t(videosApi.errorMessageKey(error)),
+      variant: 'destructive',
+    })
+    return false
+  }
+
+  return startPipelineForProject(projectId, projectName, {
+    ...options,
+    voiceVendor: vendorOfProvider(voice.provider),
+  })
+}
+
 // Confirma el corte de un proyecto SIN tarea viva (la pausa sobrevivió a un
 // reinicio: el estado quedó en disco) y relanza.
 async function confirmScenesForProject(
@@ -1225,6 +1253,34 @@ async function switchPromptModel(modelId: string): Promise<void> {
   await runPipeline(taskId, task.projectId)
 }
 
+// «Cambiar voz» tras un fallo de la narración (ADR-0053): guarda la voz
+// nueva en el proyecto (descartando lo que la anterior dejó a medias) y
+// relanza la MISMA tarea. Solo con la tarea detenida por error.
+async function switchVoice(voice: SelectedVoice): Promise<void> {
+  const task = currentTask
+  if (!task || !task.projectId) return
+  if (task.status !== 'error' || activeJob || task.cancelRequested) return
+  const taskId = task.id
+  stopRetryTimer()
+  patchTask(taskId, { retry: null })
+
+  try {
+    await videosApi.setProjectVoice({
+      projectId: task.projectId,
+      voice: projectVoiceOf(voice),
+    })
+  } catch (error) {
+    patchTask(taskId, {
+      errorKey: videosApi.errorMessageKey(error),
+      errorCode: null,
+    })
+    return
+  }
+
+  patchTask(taskId, { voiceVendor: vendorOfProvider(voice.provider) })
+  await runPipeline(taskId, task.projectId)
+}
+
 // Cierra la cancelación: suelta el job y borra la tarea. Idempotente — la
 // llaman el cierre del job, el fallo del aviso y la red de seguridad.
 function finishCancel(taskId: string) {
@@ -1298,5 +1354,7 @@ export function useCreateTask() {
     reportPromptModelIssue,
     snoozePromptModelIssue,
     switchPromptModel,
+    switchVoice,
+    switchVoiceForProject,
   }
 }

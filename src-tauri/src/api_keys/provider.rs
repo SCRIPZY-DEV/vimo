@@ -14,9 +14,10 @@ pub enum Provider {
     Kie,
     Poyo,
     HeyGen,
+    Ai33,
 }
 
-pub const ALL_PROVIDERS: [Provider; 9] = [
+pub const ALL_PROVIDERS: [Provider; 10] = [
     Provider::DeepInfra,
     Provider::Fal,
     Provider::Evolink,
@@ -26,6 +27,7 @@ pub const ALL_PROVIDERS: [Provider; 9] = [
     Provider::Kie,
     Provider::Poyo,
     Provider::HeyGen,
+    Provider::Ai33,
 ];
 
 impl Provider {
@@ -41,6 +43,7 @@ impl Provider {
             Provider::Kie => "kie",
             Provider::Poyo => "poyo",
             Provider::HeyGen => "heygen",
+            Provider::Ai33 => "ai33",
         }
     }
 
@@ -55,6 +58,7 @@ impl Provider {
             "kie" => Ok(Provider::Kie),
             "poyo" => Ok(Provider::Poyo),
             "heygen" => Ok(Provider::HeyGen),
+            "ai33" => Ok(Provider::Ai33),
             _ => Err(ApiKeyError::UnknownProvider),
         }
     }

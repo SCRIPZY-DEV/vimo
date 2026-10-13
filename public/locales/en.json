@@ -195,7 +195,13 @@
         "edge": "Edge",
         "elevenlabs-account": "My voices",
         "elevenlabs-library": "Library",
-        "favorites": "Favorites"
+        "favorites": "Favorites",
+        "ai33-elevenlabs": "ElevenLabs",
+        "ai33-minimax": "Minimax",
+        "ai33-vbee": "Vbee",
+        "ai33-fishaudio": "Fish Audio",
+        "ai33-edge": "Edge",
+        "ai33-clone": "My clones"
       },
       "hint": "This voice narrates your whole video — pick one before generating.",
       "libraryNote": "Library voices are added to your ElevenLabs account when you use them.",
@@ -356,7 +362,9 @@
         "retryRenderHint": "Your images and everything else are ready — only the video assembly is redone. Nothing is lost and no credits are spent.",
         "continueHint": "In the editor you can regenerate the scenes left without an image one by one — with or without narration — or give them a description of your own, and then generate your video.",
         "switchModel": "Switch model and relaunch",
-        "switchModelHint": "The model writing the prompts failed. With another model everything done is kept and only the missing prompts get written."
+        "switchModelHint": "The model writing the prompts failed. With another model everything done is kept and only the missing prompts get written.",
+        "switchVoice": "Change voice",
+        "switchVoiceHint": "Pick another provider and voice, and the video continues from the narration."
       },
       "savedAt": "Done! Your video was saved to",
       "imagesCount": "Images ({{ready}}/{{total}})",
@@ -572,6 +580,7 @@
       "renderStalled": "The video assembly stopped making progress and we stopped it.",
       "missingApiKey": "An API key is missing for this action.",
       "missingProjectsRoot": "No projects folder is configured. Check Settings.",
+      "projectsRootUnavailable": "Your projects folder couldn't be read, so your styles aren't showing. Nothing was deleted: check in Settings that the folder exists and its drive is connected.",
       "cancelled": "Generation cancelled. You can resume it whenever you want.",
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
       "interrupted": "The generation was interrupted when the app closed. Resume: everything done is kept.",
@@ -1260,6 +1269,17 @@
       "threeInTwoTooltip": "The avatar appears at least 3 times in the first 2 minutes of the video, counting the opening one if it starts with the avatar. The other appearances are spread over the rest of the video.",
       "threeInTwoMinimum": "With “3 times in 2 minutes”, there are at least 3 appearances.",
       "threeInTwoCapped": "The first three last up to {{seconds}} s to fit in the 2 minutes."
+    },
+    "voiceSwitch": {
+      "title": "Before changing the voice",
+      "checkHistory": "Check your history on {{provider}}: if the narration was generated there, changing the voice discards it and generates a new one.",
+      "checkHistoryUnknown": "Check your voice provider’s history: if the narration was generated there, changing the voice discards it and generates a new one.",
+      "maybePaid": "This generation may already have been charged on {{provider}}. Check your history and balance before continuing.",
+      "maybePaidUnknown": "This generation may already have been charged. Check your provider’s history and balance before continuing.",
+      "discardHint": "If you’d rather wait, close this notice and use “Retry from the last step”: it resumes the same generation without paying again.",
+      "openHistory": "Open {{provider}}",
+      "continue": "Pick another voice",
+      "cancel": "Cancel"
     }
   },
   "createDemo": {
@@ -1981,6 +2001,7 @@
       "llmProviderError": "The AI service returned an error.",
       "missingApiKey": "The provider key is not configured.",
       "missingProjectsRoot": "Choose a projects folder in Settings.",
+      "projectsRootUnavailable": "Your projects folder couldn't be read, so your characters aren't showing. Nothing was deleted: check in Settings that the folder exists and its drive is connected.",
       "cancelled": "Preview cancelled.",
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
       "interrupted": "The preview was interrupted.",
@@ -2236,7 +2257,12 @@
       "fishaudio": "Fish Audio",
       "favorites": "Favorites",
       "elevenlabs-account": "My voices",
-      "elevenlabs-library": "Library"
+      "elevenlabs-library": "Library",
+      "ai33-elevenlabs": "ElevenLabs",
+      "ai33-minimax": "Minimax",
+      "ai33-vbee": "Vbee",
+      "ai33-fishaudio": "Fish Audio",
+      "ai33-clone": "My clones"
     },
     "favoritos": {
       "vacio": "You haven't starred any voices yet. Tap a voice's heart to keep it here."
@@ -2340,11 +2366,13 @@
       "titulo": "Voice cloning",
       "descripcion": {
         "dubvoice": "Clone your voice from the DubVoice dashboard; it then shows up in the Minimax tab with the “Clones only” filter.",
-        "elevenlabs": "Clone your voice from ElevenLabs Voice Lab; it then shows up in the “My voices” tab."
+        "elevenlabs": "Clone your voice from ElevenLabs Voice Lab; it then shows up in the “My voices” tab.",
+        "ai33": "Clone your voice from the ai33 dashboard; it then shows up in the “My clones” tab."
       },
       "abrirDashboard": {
         "dubvoice": "Open DubVoice",
-        "elevenlabs": "Open ElevenLabs"
+        "elevenlabs": "Open ElevenLabs",
+        "ai33": "Open ai33"
       }
     },
     "historial": {
@@ -2431,7 +2459,7 @@
     "categoria": {
       "llm": "script AI (DeepInfra)",
       "image": "images (Fal.ai or Evolink)",
-      "voice": "voice (DubVoice or ElevenLabs)",
+      "voice": "voice (ai33, DubVoice or ElevenLabs)",
       "transcription": "transcription (Deepgram)",
       "animation": "scene animation (Kie.ai)",
       "avatar": "presenter avatar (HeyGen)"
@@ -2445,7 +2473,8 @@
       "deepgram": "Word-by-word audio transcription.",
       "kie": "Automatic scene animation from images, paid with account credits.",
       "poyo": "Animates a scene with Veo. Optional, only if you want animated scenes.",
-      "heygen": "Presenter avatar: an AI-generated person who speaks your video's narration. Billed per minute, in dollars."
+      "heygen": "Presenter avatar: an AI-generated person who speaks your video's narration. Billed per minute, in dollars.",
+      "ai33": "Narrated voice with ElevenLabs, Minimax, Vbee, Fish Audio and Edge behind one key."
     },
     "badge": {
       "falAdmin": "⚠ Admin type"
@@ -2504,8 +2533,8 @@
     "promptModelSaved": "Preference saved.",
     "promptModelError": "Couldn't save the preference.",
     "voiceVendorTitle": "Your voice provider",
-    "voiceVendorTagline": "Which service lists and generates voices in Voices and Create. DubVoice bundles Minimax, ElevenLabs, Vbee and Fish Audio behind one key; ElevenLabs uses your own account.",
-    "voiceVendorAutomaticHint": "Not chosen yet: DubVoice is used, or ElevenLabs if it is the only voice key saved.",
+    "voiceVendorTagline": "Which service lists and generates voices in Voices and Create. ai33 and DubVoice bundle ElevenLabs, Minimax, Vbee and Fish Audio behind one key; ElevenLabs uses your own account.",
+    "voiceVendorAutomaticHint": "Not chosen yet: ai33 is used if it has a key; otherwise DubVoice, or ElevenLabs if it is the only voice key saved.",
     "voiceVendorResetAutomatic": "Back to automatic",
     "voiceVendorSaved": "Preference saved.",
     "voiceVendorError": "The preference could not be saved.",
