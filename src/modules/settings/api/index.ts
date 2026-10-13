@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { documentDir, join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove, writeTextFile } from '@tauri-apps/plugin-fs'
-import { openPath, openUrl } from '@tauri-apps/plugin-opener'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { LazyStore } from '@tauri-apps/plugin-store'
 import { check } from '@tauri-apps/plugin-updater'
@@ -166,7 +166,9 @@ export const settingsApi = {
   async openProjectsRoot(): Promise<void> {
     const path = await this.getProjectsRoot()
     await ensureWritableDirectory(path)
-    return openPath(path)
+    // Se abre desde Rust: el scope de opener solo cubre $HOME y la carpeta
+    // puede estar en otro disco.
+    return invoke('open_projects_root')
   },
   async getDefaultSceneCount(): Promise<number> {
     const stored = await store.get<number>(DEFAULT_SCENE_COUNT_STORE_KEY)

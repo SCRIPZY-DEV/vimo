@@ -416,3 +416,21 @@ El SQL (columnas, índice y retención) está en el spec
 (`docs/handoff/2026-09-30-catalog-on-custom-style-lane/design.md`, §6.5) y en
 `SETUP_RECONSTRUCTOR_GEMAS.md` de vimo-landing, y lo aplica el dueño. La ADR-0048 documenta el
 registro (L1), el cupo y los modos de falla.
+
+## Enmienda 2026-10-13 — un subcomando silencioso con advertencia sí se registra
+
+Usuarios reportaron estilos y personajes que «desaparecen». Los listados (`styles-list`,
+`characters-list`) saltean en silencio una entrada ilegible, y como son subcomandos silenciosos
+que terminan bien, no quedaba ninguna fila en `diagnostic_logs`.
+
+- **Regla nueva:** un subcomando silencioso que termina bien se registra si dejó al menos un
+  `log` de nivel `warn` o `error` (`has_warning` en `report.rs`). Sin advertencias, sigue
+  sin registrarse como hasta ahora.
+- **Qué deja un listado:** `skipped style "<id>": <motivo>` o `skipped character "<id>": <motivo>`,
+  donde el motivo es el código del sistema (`ENOENT`, `EACCES`…), `invalid_json`,
+  `invalid_content` o `photo_missing`. Nunca el contenido del archivo. El id de un personaje
+  empieza con el slug de su nombre (`ana-x1y2z3`), igual que la identidad de la fila.
+- **Carpeta de proyectos ilegible:** los dos listados fallan con `projects_root_unavailable`
+  (fila `failed`, sin la ruta en el mensaje) en vez de devolver una lista vacía.
+
+Informe: [library-disappearing](../fixes/2026-10-13-fix-library-disappearing/library-disappearing.md).

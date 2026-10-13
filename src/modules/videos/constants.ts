@@ -1039,6 +1039,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   // Transversales
   missing_api_key: 'create.errors.missingApiKey',
   missing_projects_root: 'create.errors.missingProjectsRoot',
+  projects_root_unavailable: 'create.errors.projectsRootUnavailable',
   // Estilos propios
   style_not_found: 'create.errors.styleNotFound',
   style_save_failed: 'create.errors.styleSaveFailed',

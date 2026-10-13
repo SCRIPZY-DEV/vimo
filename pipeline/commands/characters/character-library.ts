@@ -1,6 +1,7 @@
-import { readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { projectsRootOf } from '../../project/paths.ts'
 import {
   decodeImageDataUri,
   validateImageBytes,
@@ -13,6 +14,12 @@ import type {
   NewCharacterPreview,
 } from '../../types/characters.ts'
 import type { DecodedImage } from '../../types/images.ts'
+import { writeFileAtomic } from '../../utils/atomic-fs.ts'
+import {
+  jsonFileProblem,
+  readLibraryDirectory,
+  warnSkippedLibraryEntry,
+} from '../../utils/library-directory.ts'
 import { sanitizeFileName } from '../../utils/sanitize-file-name.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
@@ -86,11 +93,14 @@ export interface StoredCharacterMetadata {
   photoFile?: string
 }
 
+// Atómica, como el style.json de los estilos: un cierre de la app o un
+// apagado a mitad de escritura dejaba el JSON truncado y el personaje
+// desaparecía del listado aunque su carpeta siguiera en disco.
 export async function writeCharacterMetadata(
   entryDirectory: string,
   metadata: StoredCharacterMetadata,
 ): Promise<void> {
-  await writeFile(
+  await writeFileAtomic(
     join(entryDirectory, CHARACTER_METADATA_FILE),
     `${JSON.stringify(metadata, null, 2)}\n`,
   )
@@ -166,22 +176,42 @@ export async function readCharacterEntry(
   return entry
 }
 
+// Por qué readCharacterEntry descartó una carpeta, para el log de
+// diagnóstico: la metadata ilegible, sin nombre, o la foto que falta.
+async function skippedCharacterProblem(
+  entryDirectory: string,
+): Promise<string> {
+  const metadata = await readCharacterMetadata(entryDirectory)
+  if (!metadata)
+    return jsonFileProblem(join(entryDirectory, CHARACTER_METADATA_FILE))
+  if (!metadata.name) return 'invalid_content'
+  return 'photo_missing'
+}
+
+// Sin `characters/` todavía la biblioteca está vacía (primer uso); sin
+// carpeta de proyectos legible, falla con `projects_root_unavailable`.
 export async function listCharacterEntries(
-  charactersDirectory: string,
+  context: PipelineContext,
 ): Promise<CharacterSummary[]> {
-  let ids: string[]
-  try {
-    ids = await readdir(charactersDirectory)
-  } catch {
-    // La biblioteca todavía no existe: lista vacía, no error.
-    return []
-  }
+  const items = await readLibraryDirectory(
+    projectsRootOf(context),
+    CHARACTERS_SUBDIRECTORY,
+  )
+  const charactersDirectory = charactersRoot(context)
 
   const entries: CharacterSummary[] = []
-  for (const id of ids) {
+  for (const item of items) {
+    if (!item.isDirectory()) continue
+    const id = item.name
     if (!CHARACTER_ID_PATTERN.test(id)) continue
     const entry = await readCharacterEntry(charactersDirectory, id)
-    if (entry) entries.push(entry)
+    if (entry) {
+      entries.push(entry)
+      continue
+    }
+
+    const problem = await skippedCharacterProblem(join(charactersDirectory, id))
+    warnSkippedLibraryEntry(context, 'character', id, problem)
   }
 
   return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
