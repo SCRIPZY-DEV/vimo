@@ -222,7 +222,7 @@ export async function synthesizeDubvoiceTask({
       throw new PipelineFailure(
         'voice_invalid_api_key',
         `DubVoice rejected the API key (status=${response.status})`,
-        { provider: FAILURE_PROVIDER, httpStatus: response.status },
+        { provider: FAILURE_PROVIDER, httpStatus: response.status, taskId },
       )
     // Cualquier otro error del poll es transitorio: se sigue esperando.
     if (!response.ok) continue
@@ -248,10 +248,13 @@ export async function synthesizeDubvoiceTask({
     }
     if (data.status === 'failed') {
       await checkpoint?.update({ state: 'failed' })
+      // La respuesta entera, no solo `error`: DubVoice suele devolver un
+      // genérico («Audio generation failed») y cualquier otro campo que mande
+      // es la única pista que queda en el log de diagnóstico (ADR-0038).
       throw new PipelineFailure(
         'voice_generation_failed',
-        data.error ?? `${laneName} task failed`,
-        { provider: FAILURE_PROVIDER, httpStatus: response.status },
+        `${laneName} task failed: ${JSON.stringify(data)}`,
+        { provider: FAILURE_PROVIDER, httpStatus: response.status, taskId },
       )
     }
   }
@@ -259,6 +262,6 @@ export async function synthesizeDubvoiceTask({
   throw new PipelineFailure(
     'voice_timeout',
     `${laneName} task did not complete within 20 minutes`,
-    { provider: FAILURE_PROVIDER },
+    { provider: FAILURE_PROVIDER, taskId },
   )
 }
