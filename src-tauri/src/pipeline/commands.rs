@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde_json::Value;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -85,6 +87,9 @@ pub async fn start_pipeline_job(
                 CommandEvent::Stdout(line) => match serde_json::from_slice::<Value>(&line) {
                     Ok(value) => {
                         recorder.record_event(&value);
+                        if is_terminal_event(&value) {
+                            kill_if_lingering(app_for_events.clone(), job_id_for_events.clone());
+                        }
                         let _ = on_event.send(value);
                     }
                     Err(_) => {
@@ -123,6 +128,38 @@ pub async fn start_pipeline_job(
     Ok(job_id)
 }
 
+/// Margen entre el evento terminal de un job y la salida de su proceso. El
+/// sidecar sale solo apenas vacía stdout; pasado este margen se lo mata.
+const TERMINAL_EXIT_GRACE: Duration = Duration::from_secs(10);
+
+fn is_terminal_event(event: &Value) -> bool {
+    matches!(
+        event.get("type").and_then(Value::as_str),
+        Some("job-completed" | "job-failed")
+    )
+}
+
+/// Red de seguridad: un sidecar que ya emitió job-completed / job-failed no
+/// tiene nada más que guardar. Si sigue vivo, su entrada en RunningJobs deja
+/// el proyecto «con una generación en curso» (project_busy) hasta reiniciar
+/// la app. Nunca se usa para la cancelación: matar a mitad de un encargo de
+/// voz deja el recibo sin taskId y bloquea el siguiente intento.
+fn kill_if_lingering(app: AppHandle, job_id: String) {
+    std::thread::spawn(move || {
+        std::thread::sleep(TERMINAL_EXIT_GRACE);
+        let jobs = app.state::<RunningJobs>();
+        let lingering = jobs
+            .0
+            .lock()
+            .expect("running jobs mutex poisoned")
+            .remove(&job_id);
+        if let Some(job) = lingering {
+            log::warn!("sidecar {job_id} seguía vivo tras su evento terminal: se mata");
+            let _ = job.child.kill();
+        }
+    });
+}
+
 /// Cancelación cooperativa (ADR-0010): se avisa por stdin y el sidecar aborta
 /// con su AbortController; si stdin ya no acepta escrituras, se mata el
 /// proceso como fallback.
@@ -144,3 +181,7 @@ pub fn cancel_pipeline_job(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/commands.rs"]
+mod tests;
