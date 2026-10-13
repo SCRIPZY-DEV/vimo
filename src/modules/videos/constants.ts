@@ -1133,5 +1133,5 @@ export const FLOW_PIPELINE_RECOVERY_ERROR_KEYS: ReadonlySet<string> = new Set([
   'extension.resultObsolete',
 ])
 
-// Límite de procesos locales; Flow mantiene además los cupos reales por cuenta.
-export const EDITOR_IMAGE_CONCURRENCY = 5
+// Sólo trabajos pagos: los cupos de Flow se administran por cuenta en el coordinador.
+export const EDITOR_PAID_IMAGE_CONCURRENCY = 5

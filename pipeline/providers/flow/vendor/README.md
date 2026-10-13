@@ -1,6 +1,20 @@
 # Coordinador local Flow incorporado en Vimo
 
-## Política 0.2.32 vigente (2026-10-12)
+## Continuidad 0.2.34 (2026-10-13)
+
+Port selectivo de capacidad y elegibilidad: `configuredProfiles` separa el conjunto mínimo de cinco cuentas válidas de su disponibilidad temporal. Para nuevos lotes automáticos se puede reservar en las sanas cuando otra espera; la política histórica conserva cinco disponibles. `bridge.status` expone el conteo adicional. El preflight de Tauri transmite la misma versión de recuperación que el envío.
+
+`SCHEDULE_CANCELED` admite sustitución sólo con auditoría de no envío; `PROFILE_TEMPORARILY_UNAVAILABLE` sólo cuando nunca inició generación. El worker actualizado terminaliza y persiste esos casos antes de notificar. No se copian su UI/SDK ni se reemplazan los comandos privados de Vimo. Se conservan todos los recibos, la pausa global/manual y los límites físicos.
+
+| Archivo                          | SHA-256 tras formato nativo                                        |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `bridge/capacity.js`             | `a2dee4f367baefd6204243b8b0c26fe6a876ad5d4feb82d770943ab0863edc81` |
+| `bridge/server.js`               | `88ca3eb3f9042e8015e33506743a0c882c89c4c79dc8c8ca8f022d113c77ee64` |
+| `extension/generation-errors.js` | `7e25f0fcc789ccadbdaf78e5a8e302674c25a9b2db758f78757b430915a606fd` |
+
+Trece escenarios de admisión pasaron tanto en fuente de extensión como en vendor, incluidos veinte resultados simulados con una cuenta pausada o comprobando. Véase `fixes/2026-10-13_recuperacion-cola-y-pool-flow.md` y su evidencia externa. Las versiones/hashes anteriores son históricos; los límites diarios/modelos de 0.2.32 siguen vigentes salvo el mínimo temporal que sustituye esta enmienda.
+
+## Política 0.2.32 (2026-10-12; complementada por 0.2.34)
 
 Port selectivo del commit de extensión `d1a80c7`. Reemplaza el cupo diario local y el máximo de dos sustituciones de la sección 2026-10-11 **sólo para nuevos trabajos**: política explícita ilimitada, cuatro sustituciones en cinco cuentas distintas, presupuesto durable histórico preservado y reconciliación de snapshots paginada. Todos los modelos agotados termina la espera conservando resultados. No copia worker/UI ni reemplaza los comandos privados de Vimo.
 

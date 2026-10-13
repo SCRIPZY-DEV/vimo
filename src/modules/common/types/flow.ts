@@ -61,6 +61,7 @@ export interface FlowStatus {
   manualPaused: boolean
   minimumProfiles: number
   readyProfiles: number
+  configuredProfiles?: number
   maxConnections: number
   linkedCount: number
   connections: FlowConnection[]
@@ -116,6 +117,7 @@ export interface FlowCapacity {
   requiredAdditionalProfiles: number
   profiles?: FlowCapacityProfile[]
   readyProfiles: number
+  configuredProfiles?: number
   minimumProfiles: number
 }
 

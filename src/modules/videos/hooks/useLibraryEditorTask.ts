@@ -10,7 +10,7 @@ import { syncProjectImage } from '@/modules/videos/utilities/syncProjectImage'
 import {
   INSUFFICIENT_CREDITS_CODES,
   NON_RETRYABLE_ANIMATION_CODES,
-  EDITOR_IMAGE_CONCURRENCY,
+  EDITOR_PAID_IMAGE_CONCURRENCY,
 } from '@/modules/videos/constants'
 import {
   hasBusyCreateTask,
@@ -44,9 +44,9 @@ import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 // localStorage — un job muere con la app y al volver el detail refetchea el
 // disco.
 //
-// Concurrencia (ADR-0055): escenas independientes comparten hasta cinco
-// jobs de imágenes; cada escena tiene un dueño. Las imágenes conservan
-// exclusión con render, exportación, animación, audio y pipeline completo.
+// Concurrencia (ADR-0055): Flow delega sus cupos al coordinador; los jobs
+// pagos tienen su propio límite. Cada escena tiene un dueño. Las imágenes
+// conservan exclusión con render, exportación, animación, audio y pipeline completo.
 const tasks = new Map<string, LibraryEditorTask>()
 const animationRequests = new Map<string, EditorAnimationRequest[]>()
 const subscribers = new Set<() => void>()
@@ -224,17 +224,21 @@ function dispatchGenerations(projectId: string) {
   if (nextImage && (!nextAnimation || nextImage.order < nextAnimation.order)) {
     if (requests.some((request) => request.started)) return
     // Reservar sincronamente antes del primer await: otro clic ve los IDs ocupados.
-    while (
-      taskOf(projectId).activeRegenerations.length < EDITOR_IMAGE_CONCURRENCY
-    ) {
+    while (taskOf(projectId).regenQueue.length > 0) {
       const current = taskOf(projectId)
-      const candidate = current.regenQueue[0]
-      if (
-        !candidate ||
-        (nextAnimation && candidate.order > nextAnimation.order)
-      )
-        break
-      void dispatchRegen(projectId)
+      const activePaid = current.activeRegenerations.filter(
+        (request) => request.imageProvider !== 'flow',
+      ).length
+      // Un pago sin cupo no frena Flow. Ninguno adelanta una animación previa.
+      const candidateIndex = current.regenQueue.findIndex((entry) => {
+        return (
+          (!nextAnimation || entry.order < nextAnimation.order) &&
+          (entry.imageProvider === 'flow' ||
+            activePaid < EDITOR_PAID_IMAGE_CONCURRENCY)
+        )
+      })
+      if (candidateIndex === -1) break
+      void dispatchRegen(projectId, candidateIndex)
     }
     return
   }
@@ -257,15 +261,18 @@ function setPendingImageProvider(
   patchTask(projectId, { pendingImageProvider: provider })
 }
 
-async function dispatchRegen(projectId: string): Promise<void> {
+async function dispatchRegen(
+  projectId: string,
+  queueIndex: number,
+): Promise<void> {
   const task = taskOf(projectId)
-  const first = task.regenQueue[0]
+  const first = task.regenQueue[queueIndex]
   if (!first) return
   const nextAnimation = (animationRequests.get(projectId) ?? []).find(
     (request) => !request.started,
   )
   const batch: QueuedRegenEntry[] = []
-  for (const entry of task.regenQueue) {
+  for (const entry of task.regenQueue.slice(queueIndex)) {
     if (
       entry.imageProvider !== first.imageProvider ||
       entry.flowRegenerationRequestId !== first.flowRegenerationRequestId ||
@@ -284,7 +291,10 @@ async function dispatchRegen(projectId: string): Promise<void> {
   const sceneIds = batch.map((entry) => entry.id)
   const requestId = crypto.randomUUID()
   patchTask(projectId, {
-    regenQueue: task.regenQueue.slice(batch.length),
+    regenQueue: [
+      ...task.regenQueue.slice(0, queueIndex),
+      ...task.regenQueue.slice(queueIndex + batch.length),
+    ],
     activeRegenerations: [
       ...task.activeRegenerations,
       {

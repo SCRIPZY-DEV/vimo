@@ -103,7 +103,8 @@ fn start_service(app: &AppHandle) -> Result<Value, String> {
         child,
         runtime: Value::Null,
     };
-    let mut init = json!({ "dataDir": directory, "trustedExtensionOrigins": TRUSTED_EXTENSION_ORIGINS });
+    let mut init =
+        json!({ "dataDir": directory, "trustedExtensionOrigins": TRUSTED_EXTENSION_ORIGINS });
     if let Some(port) = location.bridge_port {
         init["bridgePort"] = json!(port);
     }
@@ -268,7 +269,13 @@ fn public_command(command: &Value) -> Result<Value, String> {
         "discovery.link" => &["type", "discoveryId"],
         "revoke" => &["type", "connectionId"],
         "pause" => &["type", "paused"],
-        "capacity.check" => &["type", "requestedCount", "connectionIds", "executionPlan"],
+        "capacity.check" => &[
+            "type",
+            "requestedCount",
+            "connectionIds",
+            "executionPlan",
+            "autoRecoveryVersion",
+        ],
         // Estas acciones conservan la confirmación explícita en la UI y las
         // comprobaciones de intento/propietario/elegibilidad del coordinador.
         "generation.retry" => &[
@@ -284,6 +291,11 @@ fn public_command(command: &Value) -> Result<Value, String> {
     };
     if object.keys().any(|key| !fields.contains(&key.as_str())) {
         return Err("flow_command_invalid".into());
+    }
+    if let Some(version) = object.get("autoRecoveryVersion") {
+        if version.as_u64() != Some(1) {
+            return Err("flow_command_invalid".into());
+        }
     }
     if let Some(plan) = object.get("executionPlan") {
         if !valid_flow_tools_plan(plan) {
@@ -360,3 +372,7 @@ pub async fn flow_command(app: AppHandle, command: Value) -> Result<Value, Strin
 pub fn shutdown(app: &AppHandle) {
     app.state::<FlowService>().stop();
 }
+
+#[cfg(test)]
+#[path = "flow/tests/commands.rs"]
+mod tests;

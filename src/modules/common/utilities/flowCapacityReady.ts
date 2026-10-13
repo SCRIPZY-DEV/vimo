@@ -23,9 +23,15 @@ export function flowCapacityReady(
     status.minimumProfiles,
     capacity.minimumProfiles,
   )
-  return (
-    status.readyProfiles >= minimum &&
-    capacity.canPrepare &&
-    capacity.readyProfiles >= minimum
-  )
+  if (capacity.canPrepare !== true) return false
+  // El coordinador distingue configuración de cupos transitorios. Su informe
+  // del plan decide la admisión, aunque otra cuenta esté comprobando un envío.
+  if (capacity.configuredProfiles !== undefined)
+    return (
+      Number.isSafeInteger(capacity.configuredProfiles) &&
+      capacity.configuredProfiles >= minimum
+    )
+
+  // Un puente anterior conserva el contrato de cinco disponibles.
+  return status.readyProfiles >= minimum && capacity.readyProfiles >= minimum
 }

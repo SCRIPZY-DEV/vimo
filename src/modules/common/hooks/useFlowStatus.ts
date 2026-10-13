@@ -25,7 +25,11 @@ export function useFlowStatus(enabled = true) {
     !status?.paused &&
     !status?.manualPaused &&
     !!status &&
-    status.readyProfiles >= minimumProfiles
+    (status.configuredProfiles === undefined
+      ? status.readyProfiles >= minimumProfiles
+      : Number.isSafeInteger(status.configuredProfiles) &&
+        status.configuredProfiles >= minimumProfiles &&
+        status.readyProfiles > 0)
   const hasPausedProfiles =
     status?.connections.some(
       (connection) =>

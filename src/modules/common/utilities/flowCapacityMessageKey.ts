@@ -34,13 +34,16 @@ export function flowCapacityMessageKey({
     capacity.minimumProfiles,
     status.minimumProfiles,
   )
-  if (countKnown && ready && capacity.readyProfiles >= minimum)
-    return 'extension.capacityPrepared'
+  if (countKnown && ready) return 'extension.capacityPrepared'
   if (linked < minimum) return 'extension.capacityMissingLinks'
-  if (capacity.readyProfiles < minimum)
-    return 'extension.capacityExistingUnavailable'
+  const configured = capacity.configuredProfiles ?? capacity.readyProfiles
+  if (configured < minimum) return 'extension.capacityExistingUnavailable'
   if (!countKnown) {
-    if (status.readyProfiles < minimum) return 'extension.capacitySyncPending'
+    if (
+      capacity.configuredProfiles === undefined &&
+      status.readyProfiles < minimum
+    )
+      return 'extension.capacitySyncPending'
     return 'extension.capacityCountPending'
   }
   if (capacity.deficit > 0) return 'extension.capacityImageDeficit'

@@ -153,6 +153,8 @@ const automaticNotSentCodes = new Set([
   'TOOLS_PREPARATION_FAILED',
   'TOOLS_FRAME_UNAVAILABLE',
   'TOOLS_PORT_UNAVAILABLE',
+  'SCHEDULE_CANCELED',
+  'PROFILE_TEMPORARILY_UNAVAILABLE',
 ])
 
 export function automaticRecoveryEligible(error, attemptStats) {
@@ -183,6 +185,11 @@ export function automaticRecoveryEligible(error, attemptStats) {
     error.responseKind !== undefined ||
     error.scope !== undefined
   )
+    return false
+  // Cancellation can move only a proven unsent invocation. A profile hold can
+  // move a queued job only when its complete audit has never started generation.
+  if (error.code === 'SCHEDULE_CANCELED' && stats.notSent === 0) return false
+  if (error.code === 'PROFILE_TEMPORARILY_UNAVAILABLE' && stats.starts !== 0)
     return false
   for (const key of ['retryAfterMs', 'retryAfter']) {
     if (error[key] !== undefined && error[key] !== 0) return false

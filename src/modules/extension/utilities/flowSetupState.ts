@@ -74,6 +74,11 @@ export function flowSetupState({
     return { ...result, action: 'link', messageKey: 'extension.setupNeedLinks' }
   if (status.paused || status.manualPaused)
     return { ...result, action: 'guide', messageKey: 'extension.setupPaused' }
+  if (
+    capacity.configuredProfiles !== undefined &&
+    flowCapacityReady(status, capacity, FLOW_TOOLS_EXECUTION_PLAN)
+  )
+    return { ...result, action: 'create', messageKey: 'extension.setupReady' }
   if (prepared === null)
     return {
       ...result,

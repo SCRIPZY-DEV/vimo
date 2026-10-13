@@ -19,6 +19,7 @@ export function flowRefreshSnapshot(
           manualPaused: status.manualPaused,
           minimumProfiles: status.minimumProfiles,
           readyProfiles: status.readyProfiles,
+          configuredProfiles: status.configuredProfiles ?? null,
           linkedCount: status.linkedCount,
           maxConnections: status.maxConnections,
           connections: status.connections

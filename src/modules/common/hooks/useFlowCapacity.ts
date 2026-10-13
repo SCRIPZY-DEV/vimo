@@ -85,7 +85,9 @@ export function useFlowCapacity(
   )
   return {
     ready:
-      flow.ready &&
+      enabled &&
+      flow.native &&
+      !flow.isError &&
       query.isSuccess &&
       flowCapacityReady(flow.status, query.data, executionPlan),
     // Un fallo invalida la autorización, no desmonta la última información.

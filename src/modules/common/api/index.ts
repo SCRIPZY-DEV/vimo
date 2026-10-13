@@ -64,7 +64,7 @@ export const commonApi = {
       command: {
         type: 'capacity.check',
         requestedCount,
-        ...(plan ? { executionPlan: plan } : {}),
+        ...(plan ? { executionPlan: plan, autoRecoveryVersion: 1 } : {}),
       },
     })
     if (!flowExecutionPlansEqual(result.executionPlan, plan))

@@ -1359,6 +1359,8 @@ export async function createBridge({
         providerHolds: publicHolds(),
         generationNotBefore: state.generationNotBefore,
         minimumProfiles: MIN_LINKED_PROFILES,
+        configuredProfiles: reportCapacity(1, null, undefined, 1)
+          .configuredProfiles,
         readyProfiles: Object.values(state.connections).filter(
           (connection) =>
             sockets.has(connection.connectionId) &&

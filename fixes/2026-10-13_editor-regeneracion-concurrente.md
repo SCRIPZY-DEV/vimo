@@ -11,7 +11,7 @@ Habilitar varios escritores sin cambios adicionales perdería actualizaciones de
 
 ## Corrección
 
-Cinco solicitudes locales simultáneas como máximo, propietario exacto por request/escena, proveedor y configuración capturados. Estado `preparing` separado de cola; selección múltiple incluye imágenes existentes. Scope estable por escena para Flow nuevo, con prioridad a pendientes históricos y veto de duplicación desde el pipeline global.
+La política inicial de cinco solicitudes locales queda superada por [la corrección de cupos del 2026-10-13](2026-10-13_regeneraciones-flow-sin-tope-local.md): Flow delega su concurrencia al coordinador y los jobs pagos conservan cinco carriles separados. Se mantiene propietario exacto por request/escena, proveedor y configuración capturados. Estado `preparing` separado de cola; selección múltiple incluye imágenes existentes. Scope estable por escena para Flow nuevo, con prioridad a pendientes históricos y veto de duplicación desde el pipeline global.
 
 Leases nativos de proyecto/escena, preparación global serializada, checkpoint de escenas y metadata fresca bajo mutex separado. El importador participa en las mismas reservas y preserva una imagen posterior. Los borradores de descripción, calidad y personajes sobreviven al refetch de otra escena y viajan también desde galería.
 
@@ -19,7 +19,7 @@ Arquitectura y contratos: [ADR-0055](../docs/adr/ADR-0055-regeneracion-concurren
 
 ## Límites deliberados
 
-No se migran ni se eliminan recibos históricos. Un lote histórico pendiente con varios destinos no se sustituye por una nueva intención individual; se conserva para su recuperación. Se mantiene la exclusión con render, audio, exportación, animaciones y modificaciones estructurales. Cinco es el máximo de jobs locales del editor, no una cuota diaria de Google. La preparación de contexto compartido es secuencial; la generación remota de distintas escenas es paralela.
+No se migran ni se eliminan recibos históricos. Un lote histórico pendiente con varios destinos no se sustituye por una nueva intención individual; se conserva para su recuperación. Se mantiene la exclusión con render, audio, exportación, animaciones y modificaciones estructurales. Cinco es únicamente el máximo de jobs pagos locales del editor; Flow no comparte ese tope y respeta los cupos remotos por cuenta. La preparación de contexto compartido es secuencial; la generación remota de distintas escenas es paralela.
 
 ## Validación reproducible
 

@@ -36,9 +36,10 @@ export function flowGenerationState(status: FlowStatus | null) {
   const checkingStates = connections.map(
     (connection) => flowConnectionReadiness(connection, status).availabilityKey,
   )
-  const hasLimitedProfiles = checkingStates.includes(
-    'extension.availability_checkingLimited',
-  )
+  const hasLimitedProfiles =
+    checkingStates.includes('extension.availability_checkingLimited') ||
+    (status?.configuredProfiles !== undefined &&
+      status.readyProfiles < status.configuredProfiles)
   const hasRunningChecks = checkingStates.includes(
     'extension.availability_checking',
   )

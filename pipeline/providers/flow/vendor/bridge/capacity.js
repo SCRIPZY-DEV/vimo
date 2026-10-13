@@ -221,7 +221,25 @@ export function capacityReport({
   const readyProfiles = profiles.filter(
     (profile) => profile.available > 0,
   ).length
-  const missingProfiles = Math.max(0, MIN_LINKED_PROFILES - readyProfiles)
+  // Five distinct configured profiles form the pool. Temporary availability
+  // determines allocations, not whether healthy peers may accept new work.
+  const temporaryReasons = new Set([
+    'profile_unavailable',
+    'profile_cooldown',
+    'offline',
+    'reconciling',
+    'paused',
+    'status_stale',
+    'recovery_permit_unavailable',
+    'in_flight_full',
+    'history_full',
+    'budget_reserved',
+  ])
+  const configuredProfiles = profiles.filter((profile) =>
+    profile.reasons.every((reason) => temporaryReasons.has(reason)),
+  ).length
+  const admissionProfiles = recoveryVersion ? configuredProfiles : readyProfiles
+  const missingProfiles = Math.max(0, MIN_LINKED_PROFILES - admissionProfiles)
   const requiredAdditionalProfiles = Math.max(
     missingProfiles,
     deficit > 0 ? 1 : 0,
@@ -233,6 +251,7 @@ export function capacityReport({
     deficit,
     requiredAdditionalProfiles,
     readyProfiles,
+    configuredProfiles,
     minimumProfiles: MIN_LINKED_PROFILES,
     missingProfiles,
     minimumProfilesAtFullCapacity: MIN_LINKED_PROFILES,
