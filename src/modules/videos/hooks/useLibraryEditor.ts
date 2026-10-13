@@ -82,9 +82,10 @@ export function useLibraryEditor(projectId: string) {
   const selectedFlowSceneIds =
     flowSelection.projectId === projectId
       ? flowSelection.sceneIds.filter((id) =>
-          workingScenes.some((scene) => scene.id === id && !scene.imagePath),
+          workingScenes.some((scene) => scene.id === id),
         )
       : []
+  const [syncedProjectId, setSyncedProjectId] = useState(projectId)
   const [syncedScenes, setSyncedScenes] = useState<SceneDetail[] | undefined>(
     undefined,
   )
@@ -99,17 +100,23 @@ export function useLibraryEditor(projectId: string) {
   // usuario (incluida la deselección con Esc).
   const detailScenes = detail?.scenes
   if (detailScenes && detailScenes !== syncedScenes) {
-    const isFirstLoad = syncedScenes === undefined
+    const isFirstLoad =
+      syncedScenes === undefined || syncedProjectId !== projectId
+    setSyncedProjectId(projectId)
     setSyncedScenes(detailScenes)
     if (flowSelection.projectId === projectId) {
       const missingSelection = flowSelection.sceneIds.filter((id) =>
-        detailScenes.some((scene) => scene.id === id && !scene.imagePath),
+        detailScenes.some((scene) => scene.id === id),
       )
       if (missingSelection.length !== flowSelection.sceneIds.length)
         setFlowSelection({ projectId, sceneIds: missingSelection })
     }
     setWorkingScenes(
-      keepUserPromptDrafts(syncedScenes, workingScenes, detailScenes),
+      keepSceneDrafts(
+        isFirstLoad ? undefined : syncedScenes,
+        workingScenes,
+        detailScenes,
+      ),
     )
     if (isFirstLoad) setSelectedSceneId(detailScenes[0]?.id ?? null)
   }
@@ -341,10 +348,7 @@ export function useLibraryEditor(projectId: string) {
     const latest = queryClient.getQueryData<VideoProjectDetailResult>(
       videosQueryKeys.projectDetail(projectId),
     )
-    if (
-      !latest?.scenes.some((scene) => scene.id === sceneId && !scene.imagePath)
-    )
-      return
+    if (!latest?.scenes.some((scene) => scene.id === sceneId)) return
     setFlowSelection({
       projectId,
       sceneIds: selectedFlowSceneIds.includes(sceneId)
@@ -357,8 +361,9 @@ export function useLibraryEditor(projectId: string) {
   const flowIntentFor = (
     sceneIds: number[],
     executionPlan?: FlowToolsExecutionPlan,
+    imageProvider = imageChoice.provider,
   ): FlowRegenerationIntent => {
-    if (imageChoice.provider !== 'flow') return {}
+    if (imageProvider !== 'flow') return {}
     const scope = JSON.stringify([
       projectId,
       ...sceneIds.slice().sort((left, right) => left - right),
@@ -401,7 +406,7 @@ export function useLibraryEditor(projectId: string) {
     const requestedSceneIds =
       imageChoice.provider === 'flow' && selectedFlowSceneIds.length > 0
         ? selectedFlowSceneIds.filter((id) =>
-            latest?.scenes.some((scene) => scene.id === id && !scene.imagePath),
+            latest?.scenes.some((scene) => scene.id === id),
           )
         : regenerationSceneIds
     if (
@@ -424,6 +429,8 @@ export function useLibraryEditor(projectId: string) {
             promptRewrites[`${projectId}:${scene.id}`] !== undefined ||
             stored?.userPromptPending === true,
           imageProvider: imageChoice.provider,
+          imageQuality: imageChoice.quality,
+          charactersPresent: scene.charactersPresent,
           ...flowIntent,
           ...(dirty ? { userPrompt: userPromptOf(scene) } : {}),
         }
@@ -446,6 +453,7 @@ export function useLibraryEditor(projectId: string) {
   const regenerateGalleryImages = async (
     requests: GalleryImageRequest[],
     executionPlan?: FlowToolsExecutionPlan,
+    imageProvider = imageChoice.provider,
   ) => {
     if (
       gallerySubmission.current ||
@@ -472,14 +480,25 @@ export function useLibraryEditor(projectId: string) {
     const flowIntent = flowIntentFor(
       unique.map((entry) => entry.id),
       executionPlan,
+      imageProvider,
     )
     const accepted = editorTask.enqueueRegen(
       projectId,
       unique.map((entry) => {
         const description = entry.description.trim()
+        const scene = workingScenes.find(
+          (candidate) => candidate.id === entry.id,
+        )!
         return {
           id: entry.id,
-          imageProvider: imageChoice.provider,
+          imageProvider,
+          imageQuality: resolveImageQuality(
+            imageProvider,
+            detail?.metadata.options.videoFormat ?? '16:9',
+            detail?.metadata.options,
+            scene,
+          ),
+          charactersPresent: scene.charactersPresent,
           ...flowIntent,
           rewritePrompt: description.length > 0,
           ...(description ? { userPrompt: description } : {}),
@@ -721,10 +740,10 @@ function userPromptOf(scene: SceneDetail | undefined): string {
   return scene?.userPrompt ?? ''
 }
 
-// Conserva los borradores de `userPrompt`: una escena cuyo texto local
-// difiere del último sync tiene una edición sin guardar, y esa gana sobre lo
-// que trajo el disco.
-function keepUserPromptDrafts(
+// Un refetch de otra escena no descarta la descripción, calidad o personajes
+// elegidos mientras el proyecto tenía trabajos activos. Cuando disco confirma
+// esos mismos valores dejan de diferir del baseline y la siguiente lectura manda.
+function keepSceneDrafts(
   previousSynced: SceneDetail[] | undefined,
   previousWorking: SceneDetail[],
   next: SceneDetail[],
@@ -734,11 +753,19 @@ function keepUserPromptDrafts(
     const synced = previousSynced.find((item) => item.id === scene.id)
     const working = previousWorking.find((item) => item.id === scene.id)
     if (!synced || !working) return scene
+    const merged = { ...scene }
     const draft = userPromptOf(working)
-    if (draft === userPromptOf(synced)) return scene
-    if (draft.length > 0) return { ...scene, userPrompt: draft }
-    const cleared = { ...scene }
-    delete cleared.userPrompt
-    return cleared
+    if (draft !== userPromptOf(synced)) {
+      if (draft.length > 0) merged.userPrompt = draft
+      else delete merged.userPrompt
+    }
+    if (working.imageQuality !== synced.imageQuality)
+      merged.imageQuality = working.imageQuality
+    if (
+      JSON.stringify(working.charactersPresent ?? []) !==
+      JSON.stringify(synced.charactersPresent ?? [])
+    )
+      merged.charactersPresent = working.charactersPresent
+    return merged
   })
 }

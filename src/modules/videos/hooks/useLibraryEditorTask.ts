@@ -10,6 +10,7 @@ import { syncProjectImage } from '@/modules/videos/utilities/syncProjectImage'
 import {
   INSUFFICIENT_CREDITS_CODES,
   NON_RETRYABLE_ANIMATION_CODES,
+  EDITOR_IMAGE_CONCURRENCY,
 } from '@/modules/videos/constants'
 import {
   hasBusyCreateTask,
@@ -19,6 +20,7 @@ import type {
   LibraryEditorTask,
   EditorAnimationRequest,
   RegenQueueEntry,
+  QueuedRegenEntry,
   SceneAnimationFailure,
   SceneAnimationProgress,
 } from '@/modules/videos/types/library'
@@ -42,9 +44,9 @@ import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 // localStorage — un job muere con la app y al volver el detail refetchea el
 // disco.
 //
-// Concurrencia (ADR-0014): la cola de regen se coalesce en UN job por
-// proyecto; regen ⊻ render ⊻ export ⊻ conjunto de animaciones ⊻ audio, y todo ⊻ el
-// pipeline completo de useCreateTask. El store es el único despachador.
+// Concurrencia (ADR-0055): escenas independientes comparten hasta cinco
+// jobs de imágenes; cada escena tiene un dueño. Las imágenes conservan
+// exclusión con render, exportación, animación, audio y pipeline completo.
 const tasks = new Map<string, LibraryEditorTask>()
 const animationRequests = new Map<string, EditorAnimationRequest[]>()
 const subscribers = new Set<() => void>()
@@ -60,6 +62,7 @@ function emptyTask(projectId: string): LibraryEditorTask {
     savingScenes: false,
     regenQueue: [],
     activeRegen: null,
+    activeRegenerations: [],
     sceneRegenDrafts: {},
     pendingImageProvider: null,
     sceneStatus: {},
@@ -86,7 +89,17 @@ function taskOf(projectId: string): LibraryEditorTask {
 }
 
 function patchTask(projectId: string, patch: Partial<LibraryEditorTask>) {
-  tasks.set(projectId, { ...taskOf(projectId), ...patch })
+  const next = { ...taskOf(projectId), ...patch }
+  const first = next.activeRegenerations[0]
+  next.activeRegen = first
+    ? {
+        ...first,
+        sceneIds: next.activeRegenerations.flatMap(
+          (request) => request.sceneIds,
+        ),
+      }
+    : null
+  tasks.set(projectId, next)
   notify()
 }
 
@@ -199,7 +212,6 @@ function dispatchGenerations(projectId: string) {
   const task = taskOf(projectId)
   if (
     task.savingScenes ||
-    task.activeRegen ||
     task.render ||
     task.export ||
     task.audioBusy ||
@@ -211,10 +223,22 @@ function dispatchGenerations(projectId: string) {
   const nextAnimation = requests.find((request) => !request.started)
   if (nextImage && (!nextAnimation || nextImage.order < nextAnimation.order)) {
     if (requests.some((request) => request.started)) return
-    void dispatchRegen(projectId)
+    // Reservar sincronamente antes del primer await: otro clic ve los IDs ocupados.
+    while (
+      taskOf(projectId).activeRegenerations.length < EDITOR_IMAGE_CONCURRENCY
+    ) {
+      const current = taskOf(projectId)
+      const candidate = current.regenQueue[0]
+      if (
+        !candidate ||
+        (nextAnimation && candidate.order > nextAnimation.order)
+      )
+        break
+      void dispatchRegen(projectId)
+    }
     return
   }
-  dispatchAnimation(projectId)
+  if (task.activeRegenerations.length === 0) dispatchAnimation(projectId)
 }
 
 // La exclusión con el pipeline completo no tiene callback: cuando ese store
@@ -240,7 +264,7 @@ async function dispatchRegen(projectId: string): Promise<void> {
   const nextAnimation = (animationRequests.get(projectId) ?? []).find(
     (request) => !request.started,
   )
-  const batch = []
+  const batch: QueuedRegenEntry[] = []
   for (const entry of task.regenQueue) {
     if (
       entry.imageProvider !== first.imageProvider ||
@@ -253,22 +277,35 @@ async function dispatchRegen(projectId: string): Promise<void> {
     )
       break
     batch.push(entry)
+    // Un scope durable por escena permite Flow concurrente sin reutilizar el
+    // recibo de otro clic ni bloquear una selección independiente.
+    if (first.imageProvider === 'flow') break
   }
   const sceneIds = batch.map((entry) => entry.id)
   const requestId = crypto.randomUUID()
   patchTask(projectId, {
     regenQueue: task.regenQueue.slice(batch.length),
-    activeRegen: { requestId, jobId: null, sceneIds },
+    activeRegenerations: [
+      ...task.activeRegenerations,
+      {
+        requestId,
+        jobId: null,
+        sceneIds,
+        imageProvider: first.imageProvider,
+      },
+    ],
+    sceneStatus: {
+      ...task.sceneStatus,
+      ...Object.fromEntries(sceneIds.map((id) => [id, 'preparing' as const])),
+    },
   })
 
   try {
-    const changes = batch.flatMap((entry) =>
-      entry.userPrompt !== undefined
-        ? [{ id: entry.id, userPrompt: entry.userPrompt }]
-        : [],
-    )
-    if (changes.length > 0) await videosApi.updateScenes(projectId, changes)
-    if (taskOf(projectId).activeRegen?.cancelled) {
+    if (
+      taskOf(projectId).activeRegenerations.find(
+        (request) => request.requestId === requestId,
+      )?.cancelled
+    ) {
       finishRegen(
         projectId,
         requestId,
@@ -281,7 +318,21 @@ async function dispatchRegen(projectId: string): Promise<void> {
     const job = await videosApi.startRegeneration(
       {
         projectId,
-        scenes: batch.map(({ id, rewritePrompt }) => ({ id, rewritePrompt })),
+        scenes: batch.map(
+          ({
+            id,
+            rewritePrompt,
+            userPrompt,
+            imageQuality,
+            charactersPresent,
+          }) => ({
+            id,
+            rewritePrompt,
+            ...(userPrompt !== undefined ? { userPrompt } : {}),
+            ...(imageQuality !== undefined ? { imageQuality } : {}),
+            ...(charactersPresent !== undefined ? { charactersPresent } : {}),
+          }),
+        ),
         ...(first.imageProvider ? { imageProvider: first.imageProvider } : {}),
         ...(first.imageProvider === 'flow'
           ? {
@@ -297,14 +348,18 @@ async function dispatchRegen(projectId: string): Promise<void> {
       (event) => handleRegenEvent(projectId, requestId, sceneIds, event),
     )
     const current = taskOf(projectId)
-    if (
-      current.activeRegen?.requestId === requestId &&
-      current.activeRegen.jobId === null
-    ) {
+    const active = current.activeRegenerations.find(
+      (request) => request.requestId === requestId,
+    )
+    if (active && active.jobId === null) {
       patchTask(projectId, {
-        activeRegen: { ...current.activeRegen, jobId: job.jobId },
+        activeRegenerations: current.activeRegenerations.map((request) =>
+          request.requestId === requestId
+            ? { ...request, jobId: job.jobId }
+            : request,
+        ),
       })
-      if (current.activeRegen.cancelled) void videosApi.cancelJob(job.jobId)
+      if (active.cancelled) void videosApi.cancelJob(job.jobId)
     } else job.stop()
   } catch (error) {
     finishRegen(
@@ -324,7 +379,10 @@ function handleRegenEvent(
   event: PipelineEventPayload,
 ) {
   const task = taskOf(projectId)
-  if (task.activeRegen?.requestId !== requestId) return
+  const active = task.activeRegenerations.find(
+    (request) => request.requestId === requestId,
+  )
+  if (!active) return
 
   switch (event.type) {
     case 'scene-image-progress':
@@ -336,7 +394,11 @@ function handleRegenEvent(
           sceneStatus: {
             ...task.sceneStatus,
             [event.sceneId]:
-              event.status === 'awaiting_sync' ? 'awaiting_sync' : 'pending',
+              event.status === 'awaiting_sync'
+                ? 'awaiting_sync'
+                : active.imageProvider === 'flow'
+                  ? 'pending'
+                  : 'generating',
           },
           sceneErrors,
         })
@@ -417,7 +479,10 @@ function finishRegen(
   confirmed = false,
 ) {
   const task = taskOf(projectId)
-  if (task.activeRegen?.requestId !== requestId) return
+  if (
+    !task.activeRegenerations.some((request) => request.requestId === requestId)
+  )
+    return
 
   const failed =
     failedIds ??
@@ -446,7 +511,9 @@ function finishRegen(
     } else sceneErrors[sceneId] ??= errorKey ?? 'create.errors.unknown'
   }
   patchTask(projectId, {
-    activeRegen: null,
+    activeRegenerations: task.activeRegenerations.filter(
+      (request) => request.requestId !== requestId,
+    ),
     sceneStatus,
     sceneErrors,
     sceneCompletionVersions,
@@ -1060,12 +1127,15 @@ function cancelActiveJob(projectId: string) {
   patchTask(projectId, {
     regenQueue: [],
     sceneStatus,
-    activeRegen: task.activeRegen
-      ? { ...task.activeRegen, cancelled: true }
-      : null,
+    activeRegenerations: task.activeRegenerations.map((request) => ({
+      ...request,
+      cancelled: true,
+    })),
   })
-  const jobId =
-    task.activeRegen?.jobId ?? task.render?.jobId ?? task.export?.jobId
+  for (const request of task.activeRegenerations) {
+    if (request.jobId) void videosApi.cancelJob(request.jobId)
+  }
+  const jobId = task.render?.jobId ?? task.export?.jobId
   if (jobId) void videosApi.cancelJob(jobId)
 }
 

@@ -53,9 +53,11 @@ export function ImageProviderPicker({
           onRefresh={credits.refresh}
         />
       </div>
-      <p className="mt-1.5 font-body text-xs text-muted-foreground">
-        {t('create.customStyles.providerHint')}
-      </p>
+      {provider !== 'flow' && (
+        <p className="mt-1.5 font-body text-xs text-muted-foreground">
+          {t('create.customStyles.providerHint')}
+        </p>
+      )}
     </div>
   )
 }

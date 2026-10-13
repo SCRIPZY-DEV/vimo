@@ -69,8 +69,8 @@ export interface EditorPlayerHandle {
   seekWithPlay(seconds: number): void
 }
 
-// Una escena esperando regeneración. La cola se coalesce: UN job de regen
-// por proyecto a la vez; lo encolado durante un job sale en el siguiente.
+// Una escena esperando regeneración. El store captura su configuración y
+// reserva sus IDs al despachar uno de los trabajos concurrentes.
 export interface FlowRegenerationIntent {
   flowRecoverOnly?: boolean
   flowRegenerationRequestId?: string
@@ -84,6 +84,8 @@ export interface RegenQueueEntry extends FlowRegenerationIntent {
   // Instantánea de la intención; se guarda al adquirir el turno de escritura.
   userPrompt?: string
   imageProvider?: ImageProviderId
+  imageQuality?: string
+  charactersPresent?: number[]
 }
 
 export interface QueuedRegenEntry extends RegenQueueEntry {
@@ -206,19 +208,25 @@ export interface EditorAnimationState {
 // navegar) y NO se persiste — un job muere con la app y el detail refetchea
 // la verdad del disco al volver.
 // Estado local de observación, nunca se persiste en scenes.json.
-export type EditorSceneImageStatus = SceneImageStatus | 'awaiting_sync'
+export type EditorSceneImageStatus =
+  SceneImageStatus | 'awaiting_sync' | 'preparing'
+
+export interface EditorRegenerationRequest {
+  requestId: string
+  jobId: string | null
+  sceneIds: number[]
+  imageProvider?: ImageProviderId
+  cancelled?: boolean
+}
 
 export interface LibraryEditorTask {
   projectId: string
   // Reserva breve durante el guardado de descripciones anterior al encolado.
   savingScenes: boolean
   regenQueue: QueuedRegenEntry[]
-  activeRegen: {
-    requestId: string
-    jobId: string | null
-    sceneIds: number[]
-    cancelled?: boolean
-  } | null
+  // Resumen compatible para las vistas; la autoría vive en cada solicitud.
+  activeRegen: EditorRegenerationRequest | null
+  activeRegenerations: EditorRegenerationRequest[]
   // Descripciones aceptadas que deben seguir disponibles ante fallo de guardado.
   sceneRegenDrafts: Record<number, string>
   // Override transitorio del proveedor para el próximo lote de regen.

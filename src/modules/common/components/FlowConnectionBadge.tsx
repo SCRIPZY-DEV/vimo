@@ -2,6 +2,8 @@ import { flowGenerationState } from '@/modules/common/utilities/flowGenerationSt
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, PlugZap } from 'lucide-react'
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useFlowStatus } from '@/modules/common/hooks/useFlowStatus'
 import { FlowConnectionDetails } from '@/modules/common/components/FlowConnectionDetails'
 import { FlowRefreshButton } from '@/modules/common/components/FlowRefreshButton'
@@ -9,11 +11,15 @@ import { cn } from '@/modules/common/utilities/cn'
 import type { FlowConnectionControlsProps } from '@/modules/common/types/flowConnectionControls'
 
 export function FlowConnectionBadge({
+  compact = false,
   showGenerationControls = true,
   progress,
 }: FlowConnectionControlsProps) {
   const { t } = useTranslation()
   const flow = useFlowStatus()
+  const toolsCapacity = useFlowCapacity(1, compact, {
+    executionPlan: FLOW_TOOLS_EXECUTION_PLAN,
+  })
   const { hasLimitedProfiles } = flowGenerationState(flow.status)
   const [expanded, setExpanded] = useState(false)
   const detailsId = useId()
@@ -27,6 +33,41 @@ export function FlowConnectionBadge({
     if (flow.ready) return 'extension.ready'
     if (flow.status?.linkedCount) return 'extension.linkedNotReady'
     return 'extension.disconnected'
+  }
+
+  if (compact) {
+    let label = 'extension.connectionOfflineShort'
+    if (toolsCapacity.isLoading) label = 'extension.connectionCheckingShort'
+    else if (toolsCapacity.ready) label = 'extension.connectionReadyShort'
+    else if (
+      flow.status?.connections.some(
+        (connection) => connection.connected && !connection.revoked,
+      )
+    )
+      label = 'extension.connectionPendingShort'
+
+    return (
+      <span
+        role="status"
+        title={t(
+          toolsCapacity.errorKey ??
+            (toolsCapacity.ready
+              ? 'extension.ready'
+              : flow.ready
+                ? 'extension.linkedNotReady'
+                : statusLabel()),
+        )}
+        className={cn(
+          'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
+          toolsCapacity.ready
+            ? 'border-ocean/30 bg-ocean/10 text-ocean'
+            : 'border-saffron/40 bg-saffron/10 text-foreground',
+        )}
+      >
+        <PlugZap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {t(label)}
+      </span>
+    )
   }
 
   return (

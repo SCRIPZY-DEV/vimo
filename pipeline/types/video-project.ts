@@ -446,7 +446,13 @@ export interface RegenerateSceneImagesPayload extends FlowRestartRequest {
   // reescriba (priorizando el userPrompt persistido); false = re-roll de la
   // imagen con el mismo prompt, SALVO que la escena tenga una descripción
   // pendiente de aplicar: ahí el sidecar reescribe igual.
-  scenes: { id: number; rewritePrompt: boolean }[]
+  scenes: {
+    id: number
+    rewritePrompt: boolean
+    userPrompt?: string
+    imageQuality?: string
+    charactersPresent?: number[]
+  }[]
   // Override transitorio del proveedor SOLO para este job; no se persiste.
   imageProvider?: ImageProviderId
   executionPlan?: FlowToolsExecutionPlan

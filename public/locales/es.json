@@ -660,7 +660,7 @@
       "sampleCounter": "{{current}} / {{total}}",
       "providerQuestion": "¿Con qué proveedor generamos las muestras?",
       "providerHint": "Las muestras salen con el mismo modelo que después genera tu video, así ves exactamente cómo va a quedar.",
-      "providerRequired": "Elegí el proveedor de arriba para poder generar.",
+      "providerRequired": "Elige un proveedor para generar las muestras.",
       "regenerateSamples": "Generar muestras de nuevo",
       "generating": "Generando… (alrededor de un minuto)",
       "samplesNote": "Son siempre las mismas 4 situaciones para cualquier estilo, así lo único que cambia entre una muestra y otra es el estilo. Si el estilo tiene un personaje predeterminado, las muestras salen con él; si lo cambiás, volvé a generarlas.",
@@ -1302,13 +1302,13 @@
           "staticTailUndoHint": "Este clip incluye la última escena de menos de 3 s. Deshacé la animación antes de volver a animar las escenas anteriores.",
           "staticTailPendingHint": "Este intento incluye la última escena de menos de 3 s. No se reanudará ni se cobrará otra animación para este grupo."
         },
-        "multipleScenes": "Escenas sin imagen · {{count}} seleccionadas",
-        "multipleScenesHint": "Selecciona las escenas sin imagen que quieres recuperar juntas. Cada escena desaparece de esta lista cuando su imagen queda guardada en el proyecto.",
+        "multipleScenes": "Regenerar varias · {{count}} seleccionadas",
+        "multipleScenesHint": "Elige las escenas que quieres regenerar juntas. Las que ya se están generando no se pueden volver a enviar.",
         "alreadyQueued": "En cola o generando",
         "clearSelection": "Limpiar selección",
         "queuedScenes": "Escenas en cola: {{count}}",
-        "regenerateFlowCount_one": "Regenerar con Flow",
-        "regenerateFlowCount_other": "Regenerar {{count}} escenas con Flow",
+        "regenerateFlowCount_one": "Regenerar con Vimo",
+        "regenerateFlowCount_other": "Regenerar {{count}} escenas con Vimo",
         "regenerationIncomplete": "La imagen no se completó. Puedes volver a intentarlo con Regenerar."
       },
       "render": {
@@ -1442,7 +1442,8 @@
         "undoHint_one": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas. Este clip cubre {{count}} escena.",
         "undoHint_other": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas. Este clip cubre {{count}} escenas.",
         "undoBeforeImages": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas."
-      }
+      },
+      "preparingImage": "Preparando imagen…"
     },
     "errors": {
       "projectBusy": "Ya hay una generación en curso. Esperá a que termine para lanzar otra.",
@@ -2173,8 +2174,8 @@
     "revealCode": "Mostrar código",
     "dismissCode": "Cerrar código",
     "securityHint": "Vimo no solicita tu contraseña de Google. Las credenciales permanentes no se muestran ni se guardan en la interfaz. Desvincular revoca el acceso de esa instalación.",
-    "engineEvolink": "GPT Image 2 · Evolink (pago)",
-    "engineFal": "GPT Image 2 · Fal (pago)",
+    "engineEvolink": "Evolink (pago)",
+    "engineFal": "Fal (pago)",
     "engineFlow": "Vimo (gratis)",
     "engineHint": "Las imágenes se generan con Nano Banana 2 Lite en Flow, en 16:9 o 9:16. Se mantienen tus prompts, personajes, voz y edición. Los otros servicios del video conservan sus costos.",
     "manage": "Ver cuentas y disponibilidad",
@@ -2498,6 +2499,10 @@
     "paidEstimateUsd": "Estimación con margen: US$ {{amount}}.",
     "paidConfirm": "Confirmar y generar pendientes",
     "accountsExhausted": "Tus cuentas no tienen disponibilidad para continuar. Conservamos las imágenes listas. Puedes probar dentro de unas 3 horas; el restablecimiento depende de Flow, o finalizar las pendientes con IA paga.",
-    "paidConsentRequired": "Cambió el conjunto de imágenes pendientes. Revisa las escenas antes de confirmar otra generación paga."
+    "paidConsentRequired": "Cambió el conjunto de imágenes pendientes. Revisa las escenas antes de confirmar otra generación paga.",
+    "connectionReadyShort": "Conectada y lista",
+    "connectionPendingShort": "Preparación pendiente",
+    "connectionCheckingShort": "Comprobando conexión",
+    "connectionOfflineShort": "Extensión desconectada"
   }
 }

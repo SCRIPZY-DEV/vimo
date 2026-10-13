@@ -1,9 +1,7 @@
 import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
-import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
-import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -548,14 +546,6 @@ export function CustomStyleModal({
                 credits={credits}
                 onChoose={chooseProvider}
               />
-
-              {provider === 'flow' && !recoveringFlow && <FlowExecutionMode />}
-              {provider === 'flow' && !recoveringFlow && (
-                <FlowCapacityNotice
-                  count={CUSTOM_STYLE_SAMPLE_COUNT}
-                  executionPlan={executionPlan}
-                />
-              )}
               {provider === 'flow' &&
                 samplesJob.errorKey === 'extension.restartRequired' && (
                   <FlowRestartInline

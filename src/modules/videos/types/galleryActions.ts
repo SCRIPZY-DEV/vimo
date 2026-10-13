@@ -24,6 +24,7 @@ export interface GalleryActionsOptions {
   onRegenerateImages(
     requests: GalleryImageRequest[],
     executionPlan?: FlowToolsExecutionPlan,
+    imageProvider?: ImageProviderId,
   ): Promise<boolean>
   onUndoAnimation(sceneId: number): Promise<boolean>
   undoingSceneId: number | null

@@ -1,9 +1,26 @@
 import { stat } from 'node:fs/promises'
+import { readTextWithRetry } from '../../utils/atomic-fs.ts'
+import {
+  withAnimationSceneLease,
+  withImagePreparationLease,
+  withProjectMetadataLease,
+} from '../../animation/coordination.ts'
+import { flowRegenerationScope } from '../../providers/flow/regeneration-scope.ts'
+import { updateScenes, MAX_USER_PROMPT_CHARS } from './update-scenes.ts'
+import {
+  projectsRootOf,
+  resolveProjectDir,
+  isValidFile,
+} from '../../project/paths.ts'
 
 import { sceneAnimationBlocks } from '../../animation/scene-blocks.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
 
-import { markVideoOutdated } from '../../project/metadata.ts'
+import {
+  markVideoOutdated,
+  readProjectMetadata,
+  writeProjectMetadata,
+} from '../../project/metadata.ts'
 import { sceneImageFile, type ProjectPaths } from '../../project/paths.ts'
 import {
   mergeScenesById,
@@ -29,6 +46,7 @@ import { PipelineFailure } from '../../runner/failure.ts'
 import { runStages } from '../../runner/run-stages.ts'
 import { buildCreateVideoContext } from '../../stages/context.ts'
 import { imagesStage } from '../../stages/images/images.ts'
+import { loadOrGenerateVisualBible } from '../../stages/shared/visual-bible.ts'
 import { scenePromptsStage } from '../../stages/scene-prompts/scene-prompts.ts'
 import type { Scene } from '../../types/scenes.ts'
 import type {
@@ -44,6 +62,32 @@ import type {
 // persistido; si no, es un re-roll del mismo prompt. No toca `metadata.state` — es cirugía de editor, un job
 // muerto no deja un `generating` huérfano.
 export async function regenerateSceneImages(
+  context: PipelineContext,
+): Promise<RegenerateSceneImagesResult> {
+  const payload = context.job.payload as
+    RegenerateSceneImagesPayload | undefined
+  if (
+    !payload?.projectId ||
+    !Array.isArray(payload.scenes) ||
+    payload.scenes.length === 0 ||
+    payload.scenes.some(
+      (scene) => !Number.isSafeInteger(scene?.id) || scene.id < 1,
+    )
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'Regeneration requires valid scene IDs',
+    )
+  const root = resolveProjectDir(projectsRootOf(context), payload.projectId)
+  return withAnimationSceneLease(
+    root,
+    payload.scenes.map((scene) => scene.id),
+    context.signal,
+    () => regenerateReservedScenes(context),
+  )
+}
+
+async function regenerateReservedScenes(
   context: PipelineContext,
 ): Promise<RegenerateSceneImagesResult> {
   const payload = context.job.payload as
@@ -90,7 +134,42 @@ export async function regenerateSceneImages(
       throw new PipelineFailure('invalid_payload', 'every scene needs an id')
   }
 
+  for (const request of requests) {
+    if (
+      (request.userPrompt !== undefined &&
+        (typeof request.userPrompt !== 'string' ||
+          request.userPrompt.length > MAX_USER_PROMPT_CHARS)) ||
+      (request.imageQuality !== undefined &&
+        typeof request.imageQuality !== 'string') ||
+      (request.charactersPresent !== undefined &&
+        (!Array.isArray(request.charactersPresent) ||
+          request.charactersPresent.some(
+            (index) => !Number.isSafeInteger(index) || index < 0,
+          )))
+    )
+      throw new PipelineFailure(
+        'invalid_payload',
+        'Invalid regeneration scene snapshot',
+      )
+  }
+
   const videoContext = await buildCreateVideoContext(context, payload.projectId)
+  // Las stages de regeneración sólo guardan estos diagnósticos compartidos.
+  // Nunca vuelcan un snapshot viejo de las opciones o el estado del proyecto.
+  videoContext.saveMetadata = async () => {
+    await withProjectMetadataLease(
+      videoContext.paths.root,
+      context.signal,
+      async () => {
+        const latest = await readProjectMetadata(videoContext.paths)
+        if (videoContext.metadata.promptModelUsed)
+          latest.promptModelUsed = videoContext.metadata.promptModelUsed
+        if (videoContext.metadata.styleProtagonist)
+          latest.styleProtagonist = videoContext.metadata.styleProtagonist
+        await writeProjectMetadata(videoContext.paths, latest)
+      },
+    )
+  }
 
   // Modo demo (ADR-0029): las imágenes vienen del pack; no hay proveedor que
   // regenere y nada se gasta. La UI ya deshabilita el botón; esto es la
@@ -124,7 +203,33 @@ export async function regenerateSceneImages(
     videoContext.flowRegenerationRequestId = payload.flowRegenerationRequestId
   }
 
-  const scenes = await readScenes(videoContext.paths)
+  const selectedScope =
+    videoContext.options.imageProvider === 'flow'
+      ? await flowRegenerationScope(
+          context,
+          videoContext.paths.root,
+          requests.map((request) => request.id),
+          payload.flowRegenerationRequestId,
+        )
+      : undefined
+  videoContext.flowRegenerationScope = selectedScope
+
+  const changes = requests.flatMap(
+    ({ id, userPrompt, imageQuality, charactersPresent }) =>
+      userPrompt !== undefined ||
+      imageQuality !== undefined ||
+      charactersPresent !== undefined
+        ? [
+            {
+              id,
+              ...(userPrompt !== undefined ? { userPrompt } : {}),
+              ...(imageQuality !== undefined ? { imageQuality } : {}),
+              ...(charactersPresent !== undefined ? { charactersPresent } : {}),
+            },
+          ]
+        : [],
+  )
+  let scenes = await readScenes(videoContext.paths)
   if (!scenes)
     throw new PipelineFailure('scenes_missing', 'the project has no scenes')
 
@@ -161,11 +266,29 @@ export async function regenerateSceneImages(
       'Undo the animation or recover its pending task before regenerating source images',
     )
 
+  if (changes.length > 0 && !payload.flowRecoverOnly)
+    await updateScenes({
+      ...context,
+      job: {
+        ...context.job,
+        payload: { projectId: payload.projectId, changes },
+      },
+    })
+
+  if (changes.length > 0 && !payload.flowRecoverOnly) {
+    scenes = await readScenes(videoContext.paths)
+    if (!scenes)
+      throw new PipelineFailure(
+        'scenes_missing',
+        'The saved scenes disappeared',
+      )
+  }
+
   const scenesById = new Map(scenes.map((scene) => [scene.id, scene]))
   const recoveringFlowRequest = payload.flowRegenerationRequestId
     ? await recoverPendingFlowRegeneration(
         context,
-        `scenes:${videoContext.paths.root}`,
+        selectedScope ?? `scenes:${videoContext.paths.root}`,
         payload.flowRegenerationRequestId,
         async (batch) => {
           const recoveryPlan = payload.flowRecoverOnly
@@ -253,7 +376,29 @@ export async function regenerateSceneImages(
   const before = await imageMtimes(videoContext.paths, targetIds)
 
   videoContext.regenerateSceneIds = targetIds
-  await runStages([scenePromptsStage, imagesStage], videoContext)
+  await withImagePreparationLease(
+    videoContext.paths.root,
+    context.signal,
+    async () => {
+      Object.assign(
+        videoContext.metadata,
+        await readProjectMetadata(videoContext.paths),
+      )
+      if (!videoContext.options.customStyle)
+        videoContext.visualBible = Promise.resolve(
+          await loadOrGenerateVisualBible(
+            videoContext,
+            (await isValidFile(videoContext.paths.scriptFile))
+              ? await readTextWithRetry(videoContext.paths.scriptFile)
+              : ((await readScenes(videoContext.paths)) ?? [])
+                  .map((scene) => scene.text)
+                  .join(' '),
+          ),
+        )
+      await runStages([scenePromptsStage], videoContext)
+    },
+  )
+  await runStages([imagesStage], videoContext)
 
   if (appliedPromptIds.size > 0)
     await markAppliedUserPrompts(videoContext.paths, appliedPromptIds)

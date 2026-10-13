@@ -1,5 +1,7 @@
 # ADR-0054: recuperación de Multimagen y completado pago explícito
 
+> **Enmienda 2026-10-13:** [ADR-0055](ADR-0055-regeneracion-concurrente-por-escena.md) reemplaza sólo la exclusión de regeneraciones de imágenes y el ámbito de nuevas peticiones individuales del editor. Permite trabajos de escenas distintas en paralelo con leases nativos; los recibos previos y las demás exclusiones se conservan. El texto previo queda como antecedente.
+
 - Fecha: 2026-10-12.
 - Estado: implementado localmente; aceptación de proveedor/GUI pendiente.
 - Rama: `feat/flow-export-motion`.

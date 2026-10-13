@@ -660,7 +660,7 @@
       "sampleCounter": "{{current}} / {{total}}",
       "providerQuestion": "Com qual provedor geramos as amostras?",
       "providerHint": "As amostras saem com o mesmo modelo que depois gera seu vídeo, assim você vê exatamente como vai ficar.",
-      "providerRequired": "Escolha o provedor acima para poder gerar.",
+      "providerRequired": "Escolha um provedor para gerar as amostras.",
       "regenerateSamples": "Gerar amostras de novo",
       "generating": "Gerando… (cerca de um minuto)",
       "samplesNote": "São sempre as mesmas 4 situações para qualquer estilo, assim a única coisa que muda entre uma amostra e outra é o estilo. Se o estilo tiver um personagem predeterminado, as amostras saem com ele; se você trocá-lo, gere-as de novo.",
@@ -1302,13 +1302,13 @@
           "staticTailUndoHint": "Este clipe inclui a última cena, com menos de 3 s. Desfaça a animação antes de animar novamente as cenas anteriores.",
           "staticTailPendingHint": "Esta tentativa inclui a última cena, com menos de 3 s. Este grupo não será retomado nem cobrado por outra animação."
         },
-        "multipleScenes": "Cenas sem imagem · {{count}} selecionadas",
-        "multipleScenesHint": "Selecione as cenas sem imagem que deseja recuperar juntas. Cada cena desaparece desta lista quando sua imagem é salva no projeto.",
+        "multipleScenes": "Regenerar várias · {{count}} selecionadas",
+        "multipleScenesHint": "Escolha as cenas para regenerar juntas. Cenas em geração não podem ser enviadas novamente.",
         "alreadyQueued": "Na fila ou gerando",
         "clearSelection": "Limpar seleção",
         "queuedScenes": "Cenas na fila: {{count}}",
-        "regenerateFlowCount_one": "Regenerar com Flow",
-        "regenerateFlowCount_other": "Regenerar {{count}} cenas com Flow",
+        "regenerateFlowCount_one": "Regenerar com Vimo",
+        "regenerateFlowCount_other": "Regenerar {{count}} cenas com Vimo",
         "regenerationIncomplete": "A imagem não foi concluída. Você pode tentar novamente com Regenerar."
       },
       "render": {
@@ -1442,7 +1442,8 @@
         "undoHint_one": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente. Este clipe abrange {{count}} cena.",
         "undoHint_other": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente. Este clipe abrange {{count}} cenas.",
         "undoBeforeImages": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente."
-      }
+      },
+      "preparingImage": "Preparando imagem…"
     },
     "errors": {
       "projectBusy": "Já há uma geração em andamento. Espere terminar antes de iniciar outra.",
@@ -2173,8 +2174,8 @@
     "revealCode": "Mostrar código",
     "dismissCode": "Fechar código",
     "securityHint": "O Vimo não solicita sua senha do Google. Credenciais permanentes não são exibidas nem armazenadas na interface. Desvincular revoga o acesso desta instalação.",
-    "engineEvolink": "GPT Image 2 · Evolink (pago)",
-    "engineFal": "GPT Image 2 · Fal (pago)",
+    "engineEvolink": "Evolink (pago)",
+    "engineFal": "Fal (pago)",
     "engineFlow": "Vimo (grátis)",
     "engineHint": "As imagens são geradas com Nano Banana 2 Lite no Flow, em 16:9 ou 9:16. Seus prompts, personagens, voz e edição são mantidos. Os outros serviços do vídeo mantêm seus custos.",
     "manage": "Ver contas e disponibilidade",
@@ -2498,6 +2499,10 @@
     "paidEstimateUsd": "Estimativa com margem: US$ {{amount}}.",
     "paidConfirm": "Confirmar e gerar pendentes",
     "accountsExhausted": "Suas contas estão indisponíveis. As imagens prontas estão salvas. Tente novamente em cerca de 3 horas; a disponibilidade depende do Flow, ou finalize as pendentes com IA paga.",
-    "paidConsentRequired": "O conjunto de imagens pendentes mudou. Revise as cenas antes de confirmar outra geração paga."
+    "paidConsentRequired": "O conjunto de imagens pendentes mudou. Revise as cenas antes de confirmar outra geração paga.",
+    "connectionReadyShort": "Conectada e pronta",
+    "connectionPendingShort": "Preparação pendente",
+    "connectionCheckingShort": "Verificando conexão",
+    "connectionOfflineShort": "Extensão desconectada"
   }
 }

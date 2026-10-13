@@ -401,7 +401,20 @@ export function LibraryEditor() {
             creditsLoading={creditsLoading}
             creditsRefreshing={creditsRefreshing}
             onRefreshCredits={refreshCredits}
-            busy={busy || editor.savingChanges}
+            busy={
+              Boolean(
+                task?.savingScenes ||
+                task?.render ||
+                task?.export ||
+                task?.audioBusy,
+              ) ||
+              creatingHere ||
+              audio.audioBusy ||
+              editor.savingChanges ||
+              Boolean(
+                selectedScene && editor.occupiedSceneIds.has(selectedScene.id),
+              )
+            }
             savingScenes={task?.savingScenes === true}
             regenerationBusy={
               Boolean(

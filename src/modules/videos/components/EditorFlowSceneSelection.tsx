@@ -20,12 +20,11 @@ export function EditorFlowSceneSelection({
   onClear,
 }: EditorFlowSceneSelectionProps) {
   const { t } = useTranslation()
-  const missingScenes = scenes.filter((scene) => !scene.imagePath)
-  const selectedCount = missingScenes.filter((scene) =>
+  const selectedCount = scenes.filter((scene) =>
     selectedIds.includes(scene.id),
   ).length
 
-  if (missingScenes.length === 0) return null
+  if (scenes.length === 0) return null
 
   return (
     <details className="rounded-xl border border-border p-3">
@@ -38,7 +37,7 @@ export function EditorFlowSceneSelection({
         {t('library.editor.panel.multipleScenesHint')}
       </p>
       <div className="max-h-48 space-y-2 overflow-y-auto">
-        {missingScenes.map((scene) => (
+        {scenes.map((scene) => (
           <label
             key={scene.id}
             className="flex items-start gap-2 font-body text-xs"

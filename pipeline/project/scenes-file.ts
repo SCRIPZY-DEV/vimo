@@ -1,4 +1,5 @@
 import { stat } from 'node:fs/promises'
+import { withAnimationCheckpointLease } from '../animation/coordination.ts'
 
 import type { SceneAnimation, SceneAnimationView } from '../types/animation.ts'
 import { sceneAnimationBlocks } from '../animation/scene-blocks.ts'
@@ -50,9 +51,8 @@ export async function writeScenes(
 }
 
 // Merge por id: re-lee el disco y reemplaza SOLO las escenas de `ownedIds`
-// por su versión de `changes`. El read-modify-write pegado al write achica
-// la ventana de carrera con otras escrituras (la UI garantiza un solo job
-// de regen por proyecto; esto cubre las ediciones del usuario en paralelo).
+// por su versión de `changes`. El mutex corto cubre toda la lectura y el
+// rename: los sidecars de escenas disjuntas no pierden cambios entre sí.
 export async function mergeScenesById(
   paths: ProjectPaths,
   ownedIds: Set<number>,
@@ -63,10 +63,16 @@ export async function mergeScenesById(
     if (ownedIds.has(scene.id)) changesById.set(scene.id, scene)
   }
 
-  const onDisk = (await readScenes(paths)) ?? []
-  const merged = onDisk.map((scene) => changesById.get(scene.id) ?? scene)
-  await writeScenes(paths, merged)
-  return merged
+  return withAnimationCheckpointLease(
+    paths.root,
+    new AbortController().signal,
+    async () => {
+      const onDisk = (await readScenes(paths)) ?? []
+      const merged = onDisk.map((scene) => changesById.get(scene.id) ?? scene)
+      await writeScenes(paths, merged)
+      return merged
+    },
+  )
 }
 
 // La escritura de las stages: sin `ownedIds` (pipeline completo) escribe el

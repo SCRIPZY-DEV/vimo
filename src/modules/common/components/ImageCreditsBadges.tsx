@@ -21,6 +21,7 @@ export function ImageCreditsBadges({
   if (active === 'flow')
     return (
       <FlowConnectionBadge
+        compact
         showGenerationControls={showFlowGenerationControls}
       />
     )

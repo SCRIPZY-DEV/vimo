@@ -1,9 +1,7 @@
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FLOW_PHASE_KEYS } from '@/modules/common/constants'
-import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -67,7 +65,6 @@ export function CharacterPreviewPanel({
   styles,
   styleId,
   provider,
-  executionPlan,
   recoveringFlow,
   generating,
   phase,
@@ -190,11 +187,6 @@ export function CharacterPreviewPanel({
           onRefresh={onRefreshCredits}
         />
       </div>
-
-      {provider === 'flow' && !recoveringFlow && <FlowExecutionMode />}
-      {provider === 'flow' && !recoveringFlow && (
-        <FlowCapacityNotice count={1} executionPlan={executionPlan} />
-      )}
       {recoveringFlow && (
         <p className="text-xs text-muted-foreground">
           {t('extension.recoverHint')}

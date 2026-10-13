@@ -37,7 +37,11 @@ export function SceneQualityPicker({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div
+      className={
+        value.provider === 'flow' ? 'grid gap-2' : 'grid grid-cols-2 gap-2'
+      }
+    >
       <LabeledSelect
         label={t('library.editor.panel.provider')}
         value={value.provider}

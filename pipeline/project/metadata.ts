@@ -1,4 +1,5 @@
 import { flowVideoIsOutdated } from './flow-video-outdated.ts'
+import { withProjectMetadataLease } from '../animation/coordination.ts'
 import { PipelineFailure } from '../runner/failure.ts'
 import type { VideoProjectMetadata } from '../types/video-project.ts'
 import { readTextWithRetry, writeFileAtomicStrict } from '../utils/atomic-fs.ts'
@@ -55,8 +56,17 @@ export async function markVideoOutdated(
   if (metadata.videoOutdated) return
   if (!(await isValidFile(paths.videoFile))) return
 
-  const next = { ...metadata, videoOutdated: true }
-  await writeProjectMetadata(paths, next)
-  metadata.videoOutdated = true
-  metadata.updatedAt = next.updatedAt
+  await withProjectMetadataLease(
+    paths.root,
+    new AbortController().signal,
+    async () => {
+      const current = await readProjectMetadata(paths)
+      if (!current.videoOutdated) {
+        current.videoOutdated = true
+        await writeProjectMetadata(paths, current)
+      }
+      metadata.videoOutdated = true
+      metadata.updatedAt = current.updatedAt
+    },
+  )
 }

@@ -1,8 +1,6 @@
 import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
-import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
-import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
 import { useRef, useState } from 'react'
@@ -500,14 +498,6 @@ export function CatalogAdminModal({
                 credits={credits}
                 onChoose={chooseProvider}
               />
-
-              {provider === 'flow' && !recoveringFlow && <FlowExecutionMode />}
-              {provider === 'flow' && !recoveringFlow && (
-                <FlowCapacityNotice
-                  count={CATALOG_DRAFT_SAMPLE_COUNT}
-                  executionPlan={executionPlan}
-                />
-              )}
               {provider === 'flow' &&
                 samplesJob.errorKey === 'extension.restartRequired' && (
                   <FlowRestartInline

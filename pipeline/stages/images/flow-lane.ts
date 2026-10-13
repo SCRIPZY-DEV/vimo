@@ -1,3 +1,4 @@
+import { assertNoPendingSceneFlow } from '../../providers/flow/regeneration-scope.ts'
 import {
   buildCustomStyleReferencePrompt,
   buildReferenceIdentityLineMulti,
@@ -137,9 +138,9 @@ export async function generateFlowScenes(
         'The saved character reference is missing or invalid',
       )
   }
-  // Una sola intención pendiente por proyecto: pasar de Crear al editor o
-  // cambiar la selección no puede ocultar un intento remoto incierto.
-  const scope = `scenes:${context.paths.root}`
+  // Crear conserva la intención del proyecto. El editor reserva una escena y
+  // recupera su scope durable antes de permitir una nueva generación.
+  const scope = context.flowRegenerationScope ?? `scenes:${context.paths.root}`
   const legacyRevision = flowHash(
     JSON.stringify(
       [...targets].map(([target, scene]) => [
@@ -217,6 +218,12 @@ export async function generateFlowScenes(
     })
   }
   if (requests.length === 0) return scenes
+  if (scope === `scenes:${context.paths.root}`)
+    await assertNoPendingSceneFlow(
+      context,
+      context.paths.root,
+      requests.map((request) => Number(request.key)),
+    )
   const observed = new Set<number>()
   const started = new Set<number>()
   const succeeded = new Set<number>()

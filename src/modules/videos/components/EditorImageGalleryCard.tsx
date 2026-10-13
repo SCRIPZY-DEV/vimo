@@ -9,6 +9,8 @@ import {
   Clapperboard,
   Undo2,
 } from 'lucide-react'
+import { GalleryProviderPicker } from '@/modules/videos/components/GalleryProviderPicker'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import { Button } from '@/modules/common/ui/button'
 import { Textarea } from '@/modules/common/ui/textarea'
 import { cn } from '@/modules/common/utilities/cn'
@@ -33,6 +35,8 @@ import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 interface EditorImageGalleryCardProps {
   scene: SceneDetail
+  imageProvider: ImageProviderId
+  onImageProviderChange(provider: ImageProviderId): void
   videoFormat: VideoFormat
   version?: number
   status?: EditorSceneImageStatus
@@ -63,6 +67,8 @@ interface EditorImageGalleryCardProps {
 
 export function EditorImageGalleryCard({
   scene,
+  imageProvider,
+  onImageProviderChange,
   videoFormat,
   version,
   status,
@@ -95,10 +101,14 @@ export function EditorImageGalleryCard({
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const unavailable = !source || source === failedSource
   const imageStatus = status ?? scene.imageStatus
+  const preparing = imageStatus === 'preparing'
   const generating = imageStatus === 'generating'
   const waiting = imageStatus === 'pending' || imageStatus === 'awaiting_sync'
   const failed =
-    !generating && !waiting && (imageStatus === 'error' || Boolean(imageError))
+    !preparing &&
+    !generating &&
+    !waiting &&
+    (imageStatus === 'error' || Boolean(imageError))
   const animating = animationActivity === 'generating'
   const percent = useAnimationProgress(
     animating ? animationProgress : undefined,
@@ -233,7 +243,7 @@ export function EditorImageGalleryCard({
         >
           {scene.text}
         </p>
-        {(generating || waiting || failed) && (
+        {(preparing || generating || waiting || failed) && (
           <p
             role="status"
             className={cn(
@@ -241,20 +251,22 @@ export function EditorImageGalleryCard({
               failed ? 'text-destructive' : 'text-muted-foreground',
             )}
           >
-            {generating && (
+            {(preparing || generating) && (
               <Loader2
                 aria-hidden
                 className="h-3.5 w-3.5 shrink-0 animate-spin"
               />
             )}
             {t(
-              waiting
-                ? imageStatus === 'awaiting_sync'
-                  ? 'extension.awaitingSync'
-                  : 'extension.queued'
-                : generating
-                  ? 'library.editor.imageGallery.generating'
-                  : (imageError ?? 'library.editor.imageGallery.failed'),
+              preparing
+                ? 'library.editor.preparingImage'
+                : waiting
+                  ? imageStatus === 'awaiting_sync'
+                    ? 'extension.awaitingSync'
+                    : 'extension.queued'
+                  : generating
+                    ? 'library.editor.imageGallery.generating'
+                    : (imageError ?? 'library.editor.imageGallery.failed'),
             )}
           </p>
         )}
@@ -304,6 +316,13 @@ export function EditorImageGalleryCard({
           <div className="space-y-2">
             {editing && (
               <div className="space-y-2" data-gallery-description>
+                {!selecting && (
+                  <GalleryProviderPicker
+                    value={imageProvider}
+                    disabled={submitting}
+                    onChange={onImageProviderChange}
+                  />
+                )}
                 <label
                   htmlFor={promptId}
                   className="font-body text-xs font-semibold"
@@ -347,7 +366,9 @@ export function EditorImageGalleryCard({
                   <Button
                     type="button"
                     onClick={editing ? onRegenerate : onEdit}
-                    disabled={submitting || imageAvailability.disabled}
+                    disabled={
+                      submitting || (editing && imageAvailability.disabled)
+                    }
                     title={
                       imageAvailability.reason
                         ? t(imageAvailability.reason)

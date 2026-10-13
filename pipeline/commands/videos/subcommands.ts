@@ -2,6 +2,7 @@ import type { SubcommandHandler } from '../../runner/subcommand.ts'
 import {
   withProjectWriteLease,
   withProjectAnimationLease,
+  withProjectImageLease,
 } from '../../animation/coordination.ts'
 import { projectsRootOf, resolveProjectDir } from '../../project/paths.ts'
 import { animateScenes } from './animate-scenes.ts'
@@ -83,7 +84,9 @@ export const videosSubcommands: Record<string, SubcommandHandler> =
           const lease =
             name === 'animate-scenes'
               ? withProjectAnimationLease
-              : withProjectWriteLease
+              : name === 'regenerate-scene-images'
+                ? withProjectImageLease
+                : withProjectWriteLease
           return lease(paths[index], context.signal, () => invokeAt(index + 1))
         }
         return invokeAt(0)

@@ -249,7 +249,7 @@ export function useGalleryActions({
         return false
       }
       editorTask.setPendingImageProvider(projectId, imageProvider)
-      const accepted = await onRegenerateImages(unique, plan)
+      const accepted = await onRegenerateImages(unique, plan, imageProvider)
       if (!accepted) setErrorKey('library.editor.imageGallery.submitFailed')
       return accepted
     } catch {

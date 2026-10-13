@@ -1,11 +1,9 @@
 import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { useRef, useState } from 'react'
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
-import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
 import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
 import { EditorFlowSceneSelection } from '@/modules/videos/components/EditorFlowSceneSelection'
 import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
-import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
@@ -261,15 +259,6 @@ export function EditorScenePanel({
               disabled={regenerationBusy && occupiedSceneIds.size === 0}
               onToggle={onToggleFlowScene}
               onClear={onClearFlowSelection}
-            />
-          )}
-          {imageChoice.provider === 'flow' &&
-            !regenerateLocked &&
-            !recoveringFlow && <FlowExecutionMode />}
-          {imageChoice.provider === 'flow' && !recoveringFlow && (
-            <FlowCapacityNotice
-              count={regenerationCount}
-              executionPlan={executionPlan}
             />
           )}
           {awaitingSync && (

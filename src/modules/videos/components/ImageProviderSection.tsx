@@ -1,7 +1,4 @@
 import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
-import { FlowExecutionMode } from '@/modules/common/components/FlowExecutionMode'
-import { estimatedSceneCount } from '@/modules/videos/utilities/estimateCreateCost'
-import { FlowCapacityNotice } from '@/modules/common/components/FlowCapacityNotice'
 import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
@@ -74,7 +71,9 @@ export function ImageProviderSection({
         />
       </div>
 
-      <p className="font-body text-xs text-muted-foreground">{t(hintKey)}</p>
+      {value.imageProvider !== 'flow' && (
+        <p className="font-body text-xs text-muted-foreground">{t(hintKey)}</p>
+      )}
 
       {/* Mismo control segmentado que el modal de estilo: track con borde y
           botones a tamaño de texto normal, para que se lean como botones. */}
@@ -97,15 +96,7 @@ export function ImageProviderSection({
         ))}
       </div>
 
-      {value.imageProvider === 'flow' ? (
-        <>
-          {!demo && <FlowExecutionMode />}
-          <FlowCapacityNotice
-            count={estimatedSceneCount(value, value.script.trim()) || null}
-            executionPlan={demo ? undefined : value.executionPlan}
-          />
-        </>
-      ) : (
+      {value.imageProvider !== 'flow' && (
         <LabeledSelect
           label={t('create.image.reasoningLevel')}
           help={t('create.reasoningLevel.help')}

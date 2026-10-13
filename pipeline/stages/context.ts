@@ -33,6 +33,7 @@ export interface CreateVideoContext extends PipelineContext {
   // stages a estas escenas (merge por id).
   regenerateSceneIds?: Set<number>
   // Solo lo establece el subcomando de regeneración explícita del editor.
+  flowRegenerationScope?: string
   flowRegenerationRequestId?: string
   // Importaciones Flow verificadas, incluido replay que no cambia el mtime.
   flowReadySceneIds?: Set<number>

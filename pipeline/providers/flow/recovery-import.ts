@@ -1,3 +1,8 @@
+import {
+  withProjectImageLease,
+  withAnimationSceneLease,
+} from '../../animation/coordination.ts'
+import { flowScopeProject, flowSceneScopeTarget } from './regeneration-scope.ts'
 import { randomUUID } from 'node:crypto'
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
@@ -99,8 +104,9 @@ async function safeProject(
   options: FlowRecoveryImportOptions,
   scope: unknown,
 ): Promise<ProjectPaths | null> {
-  if (typeof scope !== 'string' || !scope.startsWith('scenes:')) return null
-  const project = scope.slice('scenes:'.length)
+  if (typeof scope !== 'string') return null
+  const project = flowScopeProject(scope)
+  if (!project) return null
   const root = resolve(options.projectsRoot)
   const id = basename(project)
   if (
@@ -308,6 +314,14 @@ export async function recoverFlowImports(
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
           }
           const batch = await readFlowBatch(context, scope)
+          const scopeTarget = flowSceneScopeTarget(scope)
+          if (
+            batch &&
+            scopeTarget !== undefined &&
+            (batch.requests.length !== 1 ||
+              batch.requests[0].key !== String(scopeTarget))
+          )
+            fail('flow_intent_conflict')
           if (
             !batch ||
             batch.autoRecoveryVersion !== 1 ||
@@ -343,40 +357,56 @@ export async function recoverFlowImports(
               continue
             }
             try {
-              if (!(await currentRequest(options, paths, request)))
-                fail('flow_result_obsolete')
-              if (
-                request.imported === true &&
-                typeof request.importedHash === 'string' &&
-                HASH.test(request.importedHash) &&
-                (await imageFileHash(request.destination!)) ===
-                  request.importedHash
-              ) {
-                confirmed.add(request.imageJobId)
-                continue
-              }
-              const bytes = resultBytes(
-                request,
-                await options.readResult(request),
+              await withProjectImageLease(paths.root, signal, () =>
+                withAnimationSceneLease(
+                  paths.root,
+                  [Number(request.key)],
+                  signal,
+                  async () => {
+                    if (!(await currentRequest(options, paths, request)))
+                      fail('flow_result_obsolete')
+                    if (
+                      request.imported === true &&
+                      typeof request.importedHash === 'string' &&
+                      HASH.test(request.importedHash) &&
+                      (await imageFileHash(request.destination!)) ===
+                        request.importedHash
+                    ) {
+                      confirmed.add(request.imageJobId)
+                      return
+                    }
+                    const bytes = resultBytes(
+                      request,
+                      await options.readResult(request),
+                    )
+                    signal.throwIfAborted()
+                    const importedHash = await importFlowImage(context, {
+                      destination: request.destination!,
+                      bytes,
+                      previousHash: request.previousHash ?? null,
+                      isCurrent: () => currentRequest(options, paths, request),
+                    })
+                    signal.throwIfAborted()
+                    if (!(await currentRequest(options, paths, request)))
+                      fail('flow_result_obsolete')
+                    await markFlowVideoOutdated(paths)
+                    request.imported = true
+                    request.importedHash = importedHash
+                    await persistBatch(intent, batch)
+                    confirmed.add(request.imageJobId)
+                    summary.imported++
+                  },
+                ),
               )
-              signal.throwIfAborted()
-              const importedHash = await importFlowImage(context, {
-                destination: request.destination!,
-                bytes,
-                previousHash: request.previousHash ?? null,
-                isCurrent: () => currentRequest(options, paths, request),
-              })
-              signal.throwIfAborted()
-              if (!(await currentRequest(options, paths, request)))
-                fail('flow_result_obsolete')
-              await markFlowVideoOutdated(paths)
-              request.imported = true
-              request.importedHash = importedHash
-              await persistBatch(intent, batch)
-              confirmed.add(request.imageJobId)
-              summary.imported++
             } catch (error) {
               signal.throwIfAborted()
+              if (
+                error instanceof PipelineFailure &&
+                error.code === 'animation_project_busy'
+              ) {
+                summary.pending++
+                continue
+              }
               summary.failed++
               summary.lastErrorCode = safeCode(error)
             }
@@ -392,6 +422,8 @@ export async function recoverFlowImports(
       signal.throwIfAborted()
       // A live normal observer is expected, not an import failure. A malformed
       // receipt/error after acquiring ownership remains visible in the summary.
+      if (!ownsLock && (error as NodeJS.ErrnoException).code === 'ENOENT')
+        continue
       if (
         !ownsLock &&
         error instanceof PipelineFailure &&
