@@ -24,6 +24,23 @@ import {
 import { cameraEffect } from './ken-burns.ts'
 import { runRenderFfmpeg } from './render-ffmpeg.ts'
 
+// Codificación de los chunks. La mezcla final copia el video sin recodificar
+// cuando no hay nada que dibujar encima (final-mix.ts), y el demuxer concat
+// solo une archivos con la MISMA codificación: el tramo congelado del final
+// sale con estos mismos argumentos.
+export const CHUNK_VIDEO_ENCODING_ARGS = [
+  '-c:v',
+  'libx264',
+  '-preset',
+  'veryfast',
+  '-crf',
+  '20',
+  '-pix_fmt',
+  'yuv420p',
+  '-movflags',
+  '+faststart',
+]
+
 export interface RenderScene {
   id: number
   imagePath: string
@@ -199,11 +216,15 @@ export async function renderChunk(
       const fit = normalizeClipToSlot(scene.clipSeconds, duration)
       effect = `setpts=${1 / fit.rate}*(PTS-STARTPTS),fps=${FPS},tpad=stop_mode=clone:stop_duration=${ANIMATION_CLIP_PAD_SECONDS}`
     } else {
-      inputs.push('-loop', '1', '-i', scene.imagePath)
-      effect =
+      // Decodificar y escalar una vez; repetir el cuadro antes del movimiento.
+      inputs.push('-i', scene.imagePath)
+      const motion =
         options.imageMotion === false
           ? `fps=${FPS}`
           : cameraEffect(cameraIndex, Math.max(frames, 1), frame)
+      effect =
+        `format=yuv420p,loop=loop=${Math.max(frames, 1)}:size=1:start=0,` +
+        `setpts=N/${FPS}/TB,${motion}`
     }
     let filter =
       `[${index}:v:0]scale=${frame.width}:${frame.height}:force_original_aspect_ratio=increase,` +
@@ -263,8 +284,6 @@ export async function renderChunk(
       ffmpegPath,
       [
         ...inputs,
-        '-filter_complex_threads',
-        '1',
         '-filter_complex',
         filters.join(';'),
         '-map',
@@ -272,16 +291,7 @@ export async function renderChunk(
         '-an',
         '-frames:v',
         String(totalFrames),
-        '-c:v',
-        'libx264',
-        '-preset',
-        'veryfast',
-        '-crf',
-        '20',
-        '-pix_fmt',
-        'yuv420p',
-        '-movflags',
-        '+faststart',
+        ...CHUNK_VIDEO_ENCODING_ARGS,
         '-y',
         temporaryFile,
       ],

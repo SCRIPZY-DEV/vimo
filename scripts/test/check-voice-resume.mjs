@@ -153,8 +153,13 @@ test('confirmed failed task permits a new submission', async (t) => {
       error: 'provider confirmed failure',
     })
   })
-  await assert.rejects(synthesizeInParts(input), {
-    code: 'voice_generation_failed',
+  // El log de diagnóstico necesita el id de la tarea y la respuesta cruda
+  // del proveedor para poder reclamarle por el fallo.
+  await assert.rejects(synthesizeInParts(input), (error) => {
+    assert.equal(error.code, 'voice_generation_failed')
+    assert.equal(error.taskId, 'failed-task')
+    assert.match(error.message, /"error":"provider confirmed failure"/)
+    return true
   })
   const counts = { posts, polls: 0 }
   mockCompleted(t, counts)

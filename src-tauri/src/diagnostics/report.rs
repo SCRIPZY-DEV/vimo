@@ -23,12 +23,15 @@ const UPDATE_INSTALL_FAILED_CODE: &str = "update_install_failed";
 const UPDATE_SUBCOMMAND: &str = "install-update";
 
 /// Opciones del proyecto que sirven para diagnosticar y no son contenido:
-/// nada de voces, URLs, personajes ni el estilo propio (lleva su system prompt).
-const CONTEXT_OPTION_KEYS: [&str; 16] = [
+/// nada de nombres de voz, URLs, personajes ni el estilo propio (lleva su
+/// system prompt). El `voiceId` sí: es un id opaco del catálogo y permite
+/// reproducir un fallo del proveedor con la misma voz.
+const CONTEXT_OPTION_KEYS: [&str; 17] = [
     "styleId",
     "sceneCount",
     "narrationMode",
     "voiceProvider",
+    "voiceId",
     "imageProvider",
     "imageQuality",
     "videoFormat",
@@ -41,6 +44,19 @@ const CONTEXT_OPTION_KEYS: [&str; 16] = [
     "subtitles",
     "autoRender",
     "demo",
+];
+/// Ajustes de síntesis (`options.voiceSettings`, solo escalares): un ajuste
+/// fuera del rango del motor es una causa posible de rechazo del proveedor.
+const VOICE_SETTINGS_KEYS: [&str; 9] = [
+    "speed",
+    "pitch",
+    "volume",
+    "volumeEdge",
+    "emotion",
+    "stability",
+    "similarityBoost",
+    "style",
+    "useSpeakerBoost",
 ];
 const CONTEXT_METADATA_KEYS: [&str; 6] = [
     "state",
@@ -89,8 +105,19 @@ fn copy_keys(source: Option<&Value>, keys: &[&str], target: &mut Map<String, Val
 
 fn project_context(metadata: &Value) -> Value {
     let mut context = Map::new();
-    copy_keys(metadata.get("options"), &CONTEXT_OPTION_KEYS, &mut context);
+    let options = metadata.get("options");
+    copy_keys(options, &CONTEXT_OPTION_KEYS, &mut context);
     copy_keys(Some(metadata), &CONTEXT_METADATA_KEYS, &mut context);
+
+    let mut voice_settings = Map::new();
+    copy_keys(
+        options.and_then(|options| options.get("voiceSettings")),
+        &VOICE_SETTINGS_KEYS,
+        &mut voice_settings,
+    );
+    if !voice_settings.is_empty() {
+        context.insert("voiceSettings".into(), Value::Object(voice_settings));
+    }
 
     let model_used = metadata
         .get("promptModelUsed")

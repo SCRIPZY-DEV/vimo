@@ -79,13 +79,17 @@ function readJob(
     })
 
     lines.on('close', () => {
-      if (!job)
-        reject(
-          new PipelineFailure(
-            'invalid_job',
-            'stdin closed before a job arrived',
-          ),
-        )
+      // stdin cerrado con el job en marcha: la app se cerró o se cayó. Sin
+      // nadie que lea los eventos, el job se cancela en vez de seguir como
+      // proceso huérfano (Rust no mata al sidecar al salir). Es la misma
+      // cancelación cooperativa: un encargo de voz ya enviado espera su recibo.
+      if (job) {
+        abortController.abort()
+        return
+      }
+      reject(
+        new PipelineFailure('invalid_job', 'stdin closed before a job arrived'),
+      )
     })
   })
 }
@@ -164,7 +168,20 @@ async function main(): Promise<number> {
   }
 }
 
+// Resuelve cuando todo lo escrito antes en el stream ya salió por el pipe.
+function flushStream(stream: NodeJS.WriteStream): Promise<void> {
+  return new Promise((resolve) => {
+    stream.write('', () => resolve())
+  })
+}
+
 // Sin top-level await: el bundle del sidecar (Node SEA) es CommonJS.
-void main().then((code) => {
-  process.exitCode = code
+// Salida forzada: el job ya emitió su evento terminal, así que lo que siga
+// vivo es trabajo huérfano (las escenas en cola de un Promise.all que ya
+// rechazó, un fetch sin señal, un timer). Antes el proceso esperaba a que
+// eso drenara; Rust no recibía Terminated y el proyecto quedaba «con una
+// generación en curso» hasta reiniciar la app.
+void main().then(async (code) => {
+  await Promise.all([flushStream(process.stdout), flushStream(process.stderr)])
+  process.exit(code)
 })

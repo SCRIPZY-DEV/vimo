@@ -5,15 +5,19 @@
 // Qué proveedor externo falló y con qué status HTTP, cuando se sabe: el log
 // de diagnóstico (ADR-0038) los registra junto al código. `httpStatus` solo
 // viaja cuando hubo una respuesta HTTP real (nunca un status inventado).
+// `taskId` es el id de la tarea asíncrona del proveedor (DubVoice): con él se
+// le puede reclamar al proveedor por un fallo concreto.
 export interface PipelineFailureDetails {
   provider?: string
   httpStatus?: number
+  taskId?: string
 }
 
 export class PipelineFailure extends Error {
   readonly code: string
   readonly provider?: string
   readonly httpStatus?: number
+  readonly taskId?: string
 
   constructor(
     code: string,
@@ -25,6 +29,7 @@ export class PipelineFailure extends Error {
     this.code = code
     if (details.provider !== undefined) this.provider = details.provider
     if (details.httpStatus !== undefined) this.httpStatus = details.httpStatus
+    if (details.taskId !== undefined) this.taskId = details.taskId
   }
 }
 
@@ -47,5 +52,6 @@ export function failureDetails(
     ...(failure.httpStatus !== undefined
       ? { httpStatus: failure.httpStatus }
       : {}),
+    ...(failure.taskId !== undefined ? { taskId: failure.taskId } : {}),
   }
 }

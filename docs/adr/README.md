@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0052](ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)                   | Fast export without jitter, sized to the user's machine                             | Accepted                  | pipeline                      |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adapting the user's character to the style's language                               | Proposed                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | AI style creator: cloning a style from a video or from images                       | Accepted                  | pipeline / app / server       |
 | [ADR-0049](ADR-0049-catalogo-remoto-administrado.md)                                     | The catalog lives on the server and admins manage it from the app (delivery 3)      | Proposed                  | pipeline / app / server       |
