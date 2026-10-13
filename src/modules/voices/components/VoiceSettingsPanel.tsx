@@ -8,7 +8,7 @@ import {
   MINIMAX_EMOTIONS,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
-import { isDubvoiceCatalogEngine } from '@/modules/voices/utilities/isDubvoiceCatalogEngine'
+import { isSpeedOnlyEngine } from '@/modules/voices/utilities/isSpeedOnlyEngine'
 import { isElevenLabsEngine } from '@/modules/voices/utilities/isElevenLabsEngine'
 import type { VoiceProviderId } from '@pipeline/types/voices.ts'
 import type { VoiceSettingsFormValue } from '@/modules/voices/types/voices'
@@ -170,7 +170,7 @@ export function VoiceSettingsPanel({
         </>
       )}
 
-      {isDubvoiceCatalogEngine(provider) && (
+      {isSpeedOnlyEngine(provider) && (
         <SliderRow
           id="voice-speed"
           label={t('voices.ajustes.velocidad')}

@@ -46,17 +46,20 @@ interface VoicePickerModalProps {
 }
 
 // Pestaña que muestra la voz ya elegida, si existe en el vendor activo.
-// Favoritos no es un catálogo: no cuenta.
-function tabForProvider(
+// Favoritos no es un catálogo: no cuenta. En ai33 el catálogo sale del
+// prefijo del voice_id ("minimax_…" → pestaña Minimax).
+function tabForVoice(
   tabs: VoiceTab[],
-  provider: SelectedVoice['provider'] | undefined,
+  voice: SelectedVoice | null,
 ): VoiceTab | null {
-  if (!provider) return null
+  if (!voice) return null
   return (
-    tabs.find(
-      (tab) =>
-        tab !== 'favorites' && VOICE_TAB_CATALOGS[tab].provider === provider,
-    ) ?? null
+    tabs.find((tab) => {
+      if (tab === 'favorites') return false
+      const catalog = VOICE_TAB_CATALOGS[tab]
+      if (catalog.provider !== voice.provider) return false
+      return !catalog.catalog || voice.voiceId.startsWith(`${catalog.catalog}_`)
+    }) ?? null
   )
 }
 
@@ -113,7 +116,7 @@ export function VoicePickerModal({
   const tab =
     chosenTab && tabs.includes(chosenTab)
       ? chosenTab
-      : (tabForProvider(tabs, current?.provider) ?? tabs[0])
+      : (tabForVoice(tabs, current) ?? tabs[0])
   const {
     provider,
     source,
@@ -193,7 +196,7 @@ export function VoicePickerModal({
   const canConfirm =
     !adding &&
     (selected !== null ||
-      (current !== null && tabForProvider(tabs, current.provider) !== null))
+      (current !== null && tabForVoice(tabs, current) !== null))
 
   return (
     <Dialog open onOpenChange={(open) => !open && !adding && close()}>

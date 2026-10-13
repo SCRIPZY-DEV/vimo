@@ -10,6 +10,7 @@ export type ProviderId =
   | 'deepgram'
   | 'kie'
   | 'poyo'
+  | 'ai33'
 
 // Claves BYO del usuario, inyectadas por Rust desde la fuente de claves
 // (ADR-0011). Solo viajan dentro del PipelineJob por stdin; nada en pipeline/

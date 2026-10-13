@@ -61,9 +61,11 @@ export const NOT_CONFIGURED_CREDITS_CODES: ReadonlySet<string> = new Set([
   'animation_invalid_api_key',
 ])
 
-// Proveedores de voces (ADR-0024). Etiquetas de marca: no se traducen.
-export const VOICE_VENDOR_IDS = ['dubvoice', 'elevenlabs'] as const
+// Proveedores de voces (ADR-0024, ADR-0053). Etiquetas de marca: no se
+// traducen. ai33 va primero: es el principal y DubVoice su respaldo.
+export const VOICE_VENDOR_IDS = ['ai33', 'dubvoice', 'elevenlabs'] as const
 export const VOICE_VENDOR_LABELS: Record<VoiceVendorId, string> = {
+  ai33: 'ai33',
   dubvoice: 'DubVoice',
   elevenlabs: 'ElevenLabs',
 }

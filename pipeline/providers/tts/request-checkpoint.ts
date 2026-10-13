@@ -24,10 +24,17 @@ export function voiceRequestFile(outputFile: string, index: number): string {
   return `${outputFile}.request-${index}.json`
 }
 
+// Busca en el proveedor la tarea de un envío cuya respuesta se perdió: su id,
+// null si confirma que no existe, o lanza si no puede saberlo.
+export type SubmittedTaskFinder = (
+  receipt: VoiceRequestReceipt,
+) => Promise<string | null>
+
 export async function openVoiceRequest(
   path: string,
   fingerprint: string,
   providerId: string,
+  findSubmittedTask?: SubmittedTaskFinder,
 ): Promise<VoiceRequestCheckpoint> {
   let receipt: VoiceRequestReceipt | null = null
   try {
@@ -64,6 +71,21 @@ export async function openVoiceRequest(
       )
   }
 
+  if (
+    receipt &&
+    receipt.state !== 'failed' &&
+    receipt.fingerprint === fingerprint &&
+    !receipt.taskId &&
+    !receipt.resultUrl &&
+    findSubmittedTask
+  )
+    receipt = await reconcileReceipt(
+      path,
+      receipt,
+      providerId,
+      findSubmittedTask,
+    )
+
   if (receipt && receipt.state !== 'failed') {
     if (
       receipt.fingerprint !== fingerprint ||
@@ -96,6 +118,33 @@ export async function openVoiceRequest(
       current = next
     },
   }
+}
+
+// Envío previo sin task_id (se cortó antes de la respuesta): si el
+// proveedor encuentra la tarea, el recibo la adopta; si confirma que no
+// existe, el recibo vale como fallido y se puede volver a enviar.
+async function reconcileReceipt(
+  path: string,
+  receipt: VoiceRequestReceipt,
+  providerId: string,
+  findSubmittedTask: SubmittedTaskFinder,
+): Promise<VoiceRequestReceipt> {
+  let taskId: string | null
+  try {
+    taskId = await findSubmittedTask(receipt)
+  } catch {
+    throw new PipelineFailure(
+      'voice_request_unresolved',
+      'previous voice submission could not be looked up at the provider',
+      { provider: providerId },
+    )
+  }
+
+  const next: VoiceRequestReceipt = taskId
+    ? { ...receipt, taskId, state: 'pending' }
+    : { ...receipt, state: 'failed' }
+  await writeFileAtomic(path, JSON.stringify(next))
+  return next
 }
 
 // Localiza el carril que aceptó el encargo ANTES de empezar el troceo:

@@ -1,4 +1,5 @@
 import type {
+  Ai33Catalog,
   GenerateVoicePayload,
   VoiceHistoryEntry,
   VoiceProviderId,
@@ -7,13 +8,25 @@ import type {
 } from '@pipeline/types/voices.ts'
 
 // Pestañas del catálogo. Las dos de ElevenLabs directo comparten provider y
-// se distinguen por `source` (ver VOICE_TAB_CATALOGS).
+// se distinguen por `source`; las de ai33 son un solo motor y se distinguen
+// por `catalog` (ver VOICE_TAB_CATALOGS).
 export type VoiceTab =
-  VoiceProviderId | 'elevenlabs-account' | 'elevenlabs-library' | 'favorites'
+  | VoiceProviderId
+  | 'elevenlabs-account'
+  | 'elevenlabs-library'
+  | 'ai33-elevenlabs'
+  | 'ai33-minimax'
+  | 'ai33-vbee'
+  | 'ai33-fishaudio'
+  | 'ai33-edge'
+  | 'ai33-clone'
+  | 'favorites'
 
 export interface VoiceTabCatalog {
   provider: VoiceProviderId
   source?: VoiceSource
+  // Solo ai33: qué catálogo de su Voice Library lista la pestaña.
+  catalog?: Ai33Catalog
 }
 
 export type VoiceTaskStatus = 'generating' | 'completed' | 'error'
