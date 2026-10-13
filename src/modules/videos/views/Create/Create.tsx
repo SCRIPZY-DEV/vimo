@@ -148,6 +148,7 @@ function CreateView({
     confirmScenes,
     resume,
     cancel,
+    completeWithPaid,
     discardTask,
     reportPromptModelIssue,
     snoozePromptModelIssue,
@@ -331,6 +332,7 @@ function CreateView({
           cancel()
           void navigate(VideosRoutes.library)
         }}
+        onCompleteWithPaid={(provider) => void completeWithPaid(provider)}
         onRetryPipeline={() => void resume()}
         onRestartFlow={(request) => void resume(request)}
         onContinueInEditor={() => {

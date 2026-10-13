@@ -42,6 +42,7 @@ export function LibraryProgress() {
   const {
     task,
     cancel,
+    completeWithPaid,
     confirmScenes,
     confirmScenesForProject,
     discardTask,
@@ -127,7 +128,10 @@ export function LibraryProgress() {
               defaultId,
             )
           : null,
-        imageProvider: status?.metadata.options.imageProvider ?? null,
+        imageProvider:
+          status?.metadata.flowPaidCompletion?.provider ??
+          status?.metadata.options.imageProvider ??
+          null,
         executionPlan: status?.metadata.options.executionPlan,
         voiceVendor: status?.metadata.options.voiceProvider
           ? vendorOfProvider(status.metadata.options.voiceProvider)
@@ -157,6 +161,7 @@ export function LibraryProgress() {
           onClick: backToLibrary,
         }}
         onCancel={cancelToLibrary}
+        onCompleteWithPaid={(provider) => void completeWithPaid(provider)}
         onRetryPipeline={resume}
         onRestartFlow={(request) =>
           void startPipelineForProject(

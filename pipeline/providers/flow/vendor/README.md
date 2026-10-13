@@ -1,5 +1,20 @@
 # Coordinador local Flow incorporado en Vimo
 
+## Política 0.2.32 vigente (2026-10-12)
+
+Port selectivo del commit de extensión `d1a80c7`. Reemplaza el cupo diario local y el máximo de dos sustituciones de la sección 2026-10-11 **sólo para nuevos trabajos**: política explícita ilimitada, cuatro sustituciones en cinco cuentas distintas, presupuesto durable histórico preservado y reconciliación de snapshots paginada. Todos los modelos agotados termina la espera conservando resultados. No copia worker/UI ni reemplaza los comandos privados de Vimo.
+
+`safePolicy`, `dispatchCapacityReady`, `planAutomaticRecovery` y `recoverAutomatically` se portaron por función; se adaptaron validación de arranque y snapshots sin retirar cambios nativos previos. Se conservan identidad, media refresh, biblioteca, importador y arranque sin CLI. 33/33 escenarios sobre este vendor y 8+6 controles sobre el SEA real; fuentes documentadas en el fix 2026-10-12. La extensión debe actualizarse por separado.
+
+| Archivo                          | SHA-256                                                            |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `bridge/server.js`               | `c60080ed4a80cae24177004dc9bb10dbb8ad54cd03cf15c5b716db54bf72f68d` |
+| `bridge/capacity.js`             | `9af8801e6b993fa87ed543df39a21f1383648965716bf5aa771d8577683cd01a` |
+| `bridge/automatic-recovery.js`   | `9374fd85342dad004ec144017509fad234c97c61b06ed329467b03bba7d093c3` |
+| `extension/generation-errors.js` | `5e5b180ff0049500d62d7425e003a76b48b2b76e7097e9a7eaf920a42f9fb667` |
+
+[Validación y límites](../../../../fixes/2026-10-12_multimagen-libre-y-completado-pago.md). Las secciones siguientes conservan antecedentes; sus hashes y aceptación de Google corresponden a esos artefactos, no a 0.2.32.
+
 ## Recuperación automática opt-in (2026-10-11)
 
 Port selectivo de la extensión0.2.30, commit local `39166e7`. Sólo los nuevos

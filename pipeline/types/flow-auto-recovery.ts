@@ -1,6 +1,6 @@
 export interface FlowAutoRecoveryCapability {
   version: 1
-  maxReplacements: 2
+  maxReplacements: 2 | 4
 }
 
 export interface FlowAutoRecovery {
@@ -12,6 +12,7 @@ export interface FlowAutoRecovery {
     | 'exhausted'
     | 'completed'
     | 'canceled'
+  maxReplacements?: 2 | 4
   replacementCount: number
   attemptCount: number
   nextAttemptAt: number | null
@@ -33,10 +34,10 @@ export function flowAutoRecoveryPending(job: {
     ['pending', 'reconciling', 'backoff'].includes(recovery.status) &&
     Number.isInteger(recovery.replacementCount) &&
     recovery.replacementCount >= 0 &&
-    recovery.replacementCount <= 2 &&
+    recovery.replacementCount <= (recovery.maxReplacements ?? 2) &&
     Number.isInteger(recovery.attemptCount) &&
     recovery.attemptCount >= 0 &&
-    recovery.attemptCount <= 3 &&
+    recovery.attemptCount <= (recovery.maxReplacements ?? 2) + 1 &&
     (recovery.nextAttemptAt === null ||
       (Number.isFinite(recovery.nextAttemptAt) && recovery.nextAttemptAt >= 0))
   )

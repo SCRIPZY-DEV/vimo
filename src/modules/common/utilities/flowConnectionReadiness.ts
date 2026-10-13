@@ -101,7 +101,8 @@ export function flowConnectionReadiness(
 
   if (
     availability?.state !== 'ready' ||
-    connection.accountPolicy?.remaining == null
+    (connection.accountPolicy?.remaining == null &&
+      connection.accountPolicy?.unlimited !== true)
   ) {
     return {
       availabilityKey: 'extension.availability_unconfirmed',
@@ -109,7 +110,11 @@ export function flowConnectionReadiness(
     }
   }
 
-  if (connection.accountPolicy.remaining <= 0) {
+  if (
+    connection.accountPolicy?.remaining !== null &&
+    connection.accountPolicy?.remaining !== undefined &&
+    connection.accountPolicy.remaining <= 0
+  ) {
     return {
       availabilityKey: 'extension.availability_capacity',
       helpKey: 'extension.helpCapacity',

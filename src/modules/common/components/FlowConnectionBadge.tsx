@@ -10,6 +10,7 @@ import type { FlowConnectionControlsProps } from '@/modules/common/types/flowCon
 
 export function FlowConnectionBadge({
   showGenerationControls = true,
+  progress,
 }: FlowConnectionControlsProps) {
   const { t } = useTranslation()
   const flow = useFlowStatus()
@@ -65,6 +66,7 @@ export function FlowConnectionBadge({
         {expanded && (
           <FlowConnectionDetails
             showGenerationControls={showGenerationControls}
+            progress={progress}
           />
         )}
       </div>

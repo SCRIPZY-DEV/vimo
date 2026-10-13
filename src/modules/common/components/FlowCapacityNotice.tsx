@@ -148,11 +148,16 @@ export function FlowCapacityNotice({
                       reference={profile.connectionId}
                     />
                     <p>
-                      {t('extension.capacityProfile', {
-                        available: profile.available,
-                        remaining: profile.quotaRemaining,
-                        history: profile.historySlots,
-                      })}
+                      {t(
+                        profile.unlimited
+                          ? 'extension.capacityProfileUnlimited'
+                          : 'extension.capacityProfile',
+                        {
+                          available: profile.available,
+                          remaining: profile.quotaRemaining,
+                          history: profile.historySlots,
+                        },
+                      )}
                     </p>
                     {(profile.localReserved ?? 0) +
                       (profile.bridgeReserved ?? 0) +

@@ -1,3 +1,7 @@
+import type {
+  FlowPaidCompletion,
+  FlowPaidCompletionRequest,
+} from './flow-paid-completion.ts'
 import type { FlowToolsExecutionPlan } from './flow-execution-plan.ts'
 import type { CharacterStyleId } from './characters.ts'
 import type { ColorFilterId, GemSections, StyleCharacter } from './styles.ts'
@@ -161,6 +165,7 @@ export type PauseReason = 'cancelled' | 'insufficient-credits'
 // Metadata persistida en project.json. `completedStages` es lo que permite
 // retomar: una stage cuyo artefacto es válido se saltea al relanzar.
 export interface VideoProjectMetadata {
+  flowPaidCompletion?: FlowPaidCompletion
   id: string
   name: string
   createdAt: string
@@ -260,6 +265,7 @@ export interface UploadNarrationPayload {
 }
 
 export interface RunVideoPipelinePayload extends FlowRestartRequest {
+  flowPaidCompletion?: FlowPaidCompletionRequest
   projectId: string
   // Corta el recorrido tras esta stage (harness de verificación de
   // ADR-0010; Library lo reusará para regenerar por partes).

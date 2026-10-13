@@ -1004,6 +1004,8 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   image_account_rejected: 'create.errors.imageAccountRejected',
   flow_not_connected: 'extension.notReady',
   flow_capacity_required: 'extension.notReady',
+  flow_accounts_exhausted: 'extension.accountsExhausted',
+  flow_paid_consent_required: 'extension.paidConsentRequired',
   flow_transport_unknown: 'extension.reviewRequired',
   flow_review_required: 'extension.reviewRequired',
   flow_account_review_required: 'extension.accountReviewRequired',

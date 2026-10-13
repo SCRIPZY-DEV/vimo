@@ -2481,6 +2481,23 @@
     "setupPreparation_pending": "Multi-image setup pending",
     "setupPreparation_unconfirmed": "Setup unconfirmed",
     "setupGuidePrepare": "Prepare. Return to the extension panel and click Prepare Multi-image.",
-    "setupGuideReady": "Done. When the extension says Prepared, return to Vimo and click Refresh connection."
+    "setupGuideReady": "Done. When the extension says Prepared, return to Vimo and click Refresh connection.",
+    "runImages": {
+      "total": "Video images",
+      "ready": "Images ready",
+      "generating": "Generating",
+      "pending": "Images remaining"
+    },
+    "capacityProfileUnlimited": "No local cap. Availability depends on Flow.",
+    "paidComplete": "Finish images with paid AI",
+    "paidCompleteDescription": "Generate up to {{count}} remaining images with GPT Image 2. Completed images are preserved.",
+    "paidCompleteHint": "This uses your AI provider balance. Free results arriving later remain in the Vimo gallery.",
+    "paidProvider": "GPT Image 2 provider",
+    "paidProviderRequired": "Configure an Evolink or Fal key in API Keys to continue.",
+    "paidEstimateCredits": "Estimate with margin: {{amount}} provider credits.",
+    "paidEstimateUsd": "Estimate with margin: US$ {{amount}}.",
+    "paidConfirm": "Confirm and generate remaining images",
+    "accountsExhausted": "Your accounts are currently unavailable. Completed images are saved. Try again in about 3 hours; availability resets depend on Flow, or finish the remaining images with paid AI.",
+    "paidConsentRequired": "The pending image set changed. Review the scenes before confirming another paid generation."
   }
 }

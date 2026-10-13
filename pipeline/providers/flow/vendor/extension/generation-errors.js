@@ -1,4 +1,5 @@
 import { safeAttemptStats } from './attempt-audit.js'
+
 // A completed RPC error is not proof that Google created no image. Only this
 // narrow case releases a local execution slot; the result remains unknown.
 export function isSettledInternalGenerationError(error) {
@@ -144,7 +145,7 @@ export function prepareExplicitGenerationRetry(
 // Opt-in applies only to jobs admitted by a compatible coordinator. A SDK error
 // after invocation is never evidence that another generation is safe.
 export const AUTO_RETRY_VERSION = 1
-export const MAX_AUTOMATIC_RETRIES = 2
+export const MAX_AUTOMATIC_RETRIES = 4
 const automaticNotSentCodes = new Set([
   'TOKEN_PREPARATION_FAILED',
   'NETWORK_ERROR',
@@ -156,6 +157,18 @@ const automaticNotSentCodes = new Set([
 
 export function automaticRecoveryEligible(error, attemptStats) {
   const stats = safeAttemptStats(attemptStats)
+  if (
+    stats &&
+    ['TOOLS_MODELS_EXHAUSTED', 'TOOLS_MODELS_UNAVAILABLE'].includes(
+      error?.code,
+    ) &&
+    error.submission === 'rejected' &&
+    error.operation === 'generate' &&
+    error.scope === 'account' &&
+    error.phase === undefined &&
+    error.operationSubmission === undefined
+  )
+    return true
   if (
     !stats ||
     stats.confirmedSubmissions !== 0 ||

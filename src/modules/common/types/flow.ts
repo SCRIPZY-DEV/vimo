@@ -35,6 +35,7 @@ export interface FlowConnection {
     checkingJobId?: string | null
   }
   accountPolicy: {
+    unlimited?: boolean
     limit: number | null
     used: number | null
     remaining: number | null
@@ -95,7 +96,8 @@ export interface FlowCapacityProfile {
   alias: string
   identity?: Partial<FlowIdentity> | null
   profileAvailability: FlowConnection['profileAvailability'] | null
-  quotaRemaining: number
+  unlimited?: boolean
+  quotaRemaining: number | null
   historySlots: number
   available: number
   reasons?: string[]

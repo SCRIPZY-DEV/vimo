@@ -316,6 +316,8 @@ export async function recoverFlowImports(
             !normalizeFlowExecutionPlan(batch.executionPlan)
           )
             return
+          const metadata = await readProjectMetadata(paths)
+          if (metadata.flowPaidCompletion?.batchId === batch.batchId) return
           const confirmed = new Set<string>()
           const snapshot = await options.status()
           if (

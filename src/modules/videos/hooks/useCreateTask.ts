@@ -1,3 +1,4 @@
+import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { useSyncExternalStore } from 'react'
 import i18next from 'i18next'
@@ -873,7 +874,13 @@ async function runPipeline(
     const restart =
       currentTask?.id === taskId ? currentTask.flowRestartRequest : undefined
     const job = await videosApi.startPipeline(
-      { projectId, ...restart },
+      {
+        projectId,
+        ...restart,
+        ...(currentTask?.flowPaidCompletionRequest
+          ? { flowPaidCompletion: currentTask.flowPaidCompletionRequest }
+          : {}),
+      },
       (event) => handleEvent(taskId, event),
     )
     // El job pudo terminar con eventos encolados antes de llegar acá.
@@ -1062,6 +1069,32 @@ async function resume(flowRestartRequest?: FlowRestartRequest): Promise<void> {
   stopRetryTimer()
   patchTask(task.id, { retry: null })
   await runPipeline(task.id, task.projectId, flowRestartRequest)
+}
+
+async function completeWithPaid(provider: PaidImageProviderId): Promise<void> {
+  const task = currentTask
+  if (
+    !task ||
+    task.status !== 'error' ||
+    task.imageProvider !== 'flow' ||
+    activeJob ||
+    task.cancelRequested
+  )
+    return
+  if (!['evolink', 'fal'].includes(provider)) return
+  stopRetryTimer()
+  const request = task.flowPaidCompletionRequest ?? {
+    requestId: crypto.randomUUID(),
+    provider,
+  }
+  patchTask(task.id, {
+    flowPaidCompletionRequest: request,
+    imageProvider: request.provider,
+    executionPlan: undefined,
+    flowRestartRequest: undefined,
+    retry: null,
+  })
+  await runPipeline(task.id, task.projectId)
 }
 
 // ── Modelo de prompts trabado o con errores (ADR-0028) ──
@@ -1278,6 +1311,7 @@ export function useCreateTask() {
     confirmScenes,
     confirmScenesForProject,
     resume,
+    completeWithPaid,
     cancel,
     discardTask,
     reportPromptModelIssue,

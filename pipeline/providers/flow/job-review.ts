@@ -4,6 +4,14 @@ export function flowJobReviewCode(job: FlowJobStatus): string | null {
   // Diagnóstico, nunca permiso para reemplazar o reenviar un intento.
   if (!['failed', 'unknown'].includes(job.state) || job.result) return null
 
+  if (
+    job.autoRecovery?.reason === 'all_accounts_exhausted' ||
+    ['TOOLS_MODELS_EXHAUSTED', 'TOOLS_MODELS_UNAVAILABLE'].includes(
+      job.error?.code ?? '',
+    )
+  )
+    return 'flow_accounts_exhausted'
+
   const error = job.error
   if (
     job.state === 'unknown' ||

@@ -1,11 +1,8 @@
 import { FlowConnectionBadge } from '@/modules/common/components/FlowConnectionBadge'
-import { FlowGenerationControls } from '@/modules/common/components/FlowGenerationControls'
+import type { FlowRunControlsProps } from '@/modules/common/types/flowRunProgress'
 
-export function FlowRunControls() {
+export function FlowRunControls({ progress }: FlowRunControlsProps) {
   return (
-    <div className="space-y-3">
-      <FlowConnectionBadge showGenerationControls={false} />
-      <FlowGenerationControls size="sm" />
-    </div>
+    <FlowConnectionBadge showGenerationControls={false} progress={progress} />
   )
 }

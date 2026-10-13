@@ -132,6 +132,8 @@ export const FLOW_ERROR_KEYS: Readonly<Record<string, string>> = {
   flow_discovery_expired: 'extension.discoveryExpired',
   flow_not_connected: 'extension.notReady',
   flow_capacity_required: 'extension.notReady',
+  flow_accounts_exhausted: 'extension.accountsExhausted',
+  flow_paid_consent_required: 'extension.paidConsentRequired',
   flow_command_invalid: 'extension.actionFailed',
   flow_cancel_incomplete: 'extension.cancelIncomplete',
 }

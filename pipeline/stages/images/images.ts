@@ -145,6 +145,26 @@ export const imagesStage: Stage<CreateVideoContext> = {
     if (!storedScenes)
       throw new PipelineFailure('scenes_missing', 'images needs scenes.json')
 
+    const paidCompletion = context.metadata?.flowPaidCompletion
+    if (
+      paidCompletion &&
+      context.metadata.options.imageProvider === 'flow' &&
+      context.options.imageProvider !== 'flow'
+    ) {
+      const existing = await idsWithValidImage(context, storedScenes)
+      if (
+        storedScenes.some(
+          (scene) =>
+            !existing.has(scene.id) &&
+            !paidCompletion.sceneIds.includes(scene.id),
+        )
+      )
+        throw new PipelineFailure(
+          'flow_paid_consent_required',
+          'The pending scene set changed after paid confirmation',
+        )
+    }
+
     const script = (await isValidFile(context.paths.scriptFile))
       ? await readTextWithRetry(context.paths.scriptFile)
       : ''

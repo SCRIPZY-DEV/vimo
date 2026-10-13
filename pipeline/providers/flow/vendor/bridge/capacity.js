@@ -20,9 +20,7 @@ import {
   recoveryInFlightCount,
 } from '../extension/recovery-permit.js'
 // Local admission policy; identity matching does not verify Google quota or a single web session.
-export const PROFILE_LIMIT = 500
-// Compatibilidad explícita: cada worker conserva su presupuesto y consumo.
-const SUPPORTED_PROFILE_LIMITS = new Set([400, PROFILE_LIMIT])
+export const PROFILE_LIMIT = 500 // Only the legacy extension protocol uses this cap.
 export const CAPACITY_FRESH_MS = 90_000
 export const MAX_BATCH_IMAGES = 10_000
 const PENDING = new Set([
@@ -41,7 +39,7 @@ export function safeCapacity(input) {
     input.localReserved < 0 ||
     !Number.isSafeInteger(input.historySlots) ||
     input.historySlots < 0 ||
-    input.historySlots > 500
+    input.historySlots > MAX_BATCH_IMAGES
   )
     return null
   return {
@@ -51,13 +49,21 @@ export function safeCapacity(input) {
 }
 
 export function validPolicy(policy) {
+  if (policy?.unlimited === true)
+    return (
+      policy.limit === null &&
+      policy.remaining === null &&
+      policy.windowMs === 86_400_000 &&
+      Number.isSafeInteger(policy.used) &&
+      policy.used >= 0
+    )
   return (
-    SUPPORTED_PROFILE_LIMITS.has(policy?.limit) &&
+    policy?.limit === PROFILE_LIMIT &&
     policy.windowMs === 86_400_000 &&
     Number.isSafeInteger(policy.used) &&
     policy.used >= 0 &&
     Number.isSafeInteger(policy.remaining) &&
-    policy.remaining === Math.max(0, policy.limit - policy.used)
+    policy.remaining === Math.max(0, PROFILE_LIMIT - policy.used)
   )
 }
 
@@ -145,10 +151,10 @@ export function capacityReport({
       const bridgeReserved =
         (pending.get(connection.connectionId) ?? 0) +
         (reserved.get(connection.connectionId) ?? 0)
-      const quotaRemaining = Math.max(
-        0,
-        Math.min(PROFILE_LIMIT, policy?.limit ?? 0, policy?.remaining ?? 0),
-      )
+      const unlimited = validPolicy(policy) && policy.unlimited === true
+      const quotaRemaining = unlimited
+        ? null
+        : Math.max(0, Math.min(PROFILE_LIMIT, policy?.remaining ?? 0))
       const localReserved = connection.capacity?.localReserved ?? 0
       const historySlots = connection.capacity?.historySlots ?? 0
       let available = reasons.length
@@ -156,7 +162,9 @@ export function capacityReport({
         : Math.max(
             0,
             Math.min(
-              quotaRemaining - localReserved - bridgeReserved,
+              (quotaRemaining ?? MAX_BATCH_IMAGES) -
+                localReserved -
+                bridgeReserved,
               historySlots - bridgeReserved,
             ),
           )
@@ -192,6 +200,7 @@ export function capacityReport({
         alias: connection.alias,
         projectId: connection.binding?.projectId ?? null,
         flowTools: safeFlowToolsCapability(connection.flowTools),
+        unlimited,
         quotaRemaining,
         localReserved,
         bridgeReserved,
@@ -215,7 +224,7 @@ export function capacityReport({
   const missingProfiles = Math.max(0, MIN_LINKED_PROFILES - readyProfiles)
   const requiredAdditionalProfiles = Math.max(
     missingProfiles,
-    Math.ceil(deficit / PROFILE_LIMIT),
+    deficit > 0 ? 1 : 0,
   )
   return {
     requestedCount,
@@ -226,12 +235,9 @@ export function capacityReport({
     readyProfiles,
     minimumProfiles: MIN_LINKED_PROFILES,
     missingProfiles,
-    minimumProfilesAtFullCapacity: Math.max(
-      MIN_LINKED_PROFILES,
-      Math.ceil(requestedCount / PROFILE_LIMIT),
-    ),
+    minimumProfilesAtFullCapacity: MIN_LINKED_PROFILES,
     canPrepare: deficit === 0 && missingProfiles === 0,
-    capacityBasis: 'local-profile-policy',
+    capacityBasis: 'local-admission-capacity',
     googleAccountsVerified:
       profiles.some((profile) => profile.available > 0) &&
       profiles
@@ -263,7 +269,7 @@ export function allocateCapacity(report) {
     }))
   let remaining = report.requestedCount
   // Round robin reservations distribute even small batches across distinct
-  // accounts instead of filling one full account before the next.
+  // accounts instead of filling one 500-image account before the next.
   while (remaining > 0) {
     let progressed = false
     for (const item of allocations) {

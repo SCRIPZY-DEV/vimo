@@ -2,11 +2,13 @@
 // jobs without the explicit version are deliberately outside this policy.
 export const AUTO_RECOVERY_CAPABILITY = Object.freeze({
   version: 1,
-  maxReplacements: 2,
+  maxReplacements: 4,
 })
 export const UNKNOWN_RECONCILE_MS = 120_000
 export const STALLED_ATTEMPT_MS = 600_000
-export const RECOVERY_BACKOFF_MS = Object.freeze([5_000, 30_000])
+export const RECOVERY_BACKOFF_MS = Object.freeze([
+  5_000, 15_000, 30_000, 60_000,
+])
 export const DOWNLOAD_BACKOFF_MS = Object.freeze([5_000, 15_000, 60_000])
 
 export function normalizeAutoRecoveryVersion(value) {
@@ -18,6 +20,7 @@ export function normalizeAutoRecoveryVersion(value) {
 export function newAutoRecovery() {
   return {
     version: 1,
+    maxReplacements: 4,
     status: 'pending',
     replacementCount: 0,
     attempts: [],
@@ -74,6 +77,7 @@ export function recoverySummary(job) {
         : job.cancelRequested
           ? 'canceled'
           : recovery.status,
+    maxReplacements: recovery.maxReplacements ?? 2,
     replacementCount: recovery.replacementCount,
     attemptCount: recovery.attempts.length + (job.attemptId ? 1 : 0),
     nextAttemptAt: recovery.nextAttemptAt,

@@ -17,6 +17,18 @@ export function flowCapacityMessageKey({
   if (status.paused || capacity.blockedReason === 'provider_hold')
     return 'extension.capacityProviderHold'
   if (capacity.blockedReason) return 'extension.capacityReviewRequired'
+  const connections = status.connections.filter(
+    (connection) => !connection.revoked,
+  )
+  if (
+    connections.length &&
+    connections.every((connection) =>
+      ['TOOLS_MODELS_EXHAUSTED', 'TOOLS_MODELS_UNAVAILABLE'].includes(
+        connection.profileAvailability?.reason ?? '',
+      ),
+    )
+  )
+    return 'extension.accountsExhausted'
   const linked = capacity.linkedCount ?? status.linkedCount
   const minimum = flowMinimumProfiles(
     capacity.minimumProfiles,

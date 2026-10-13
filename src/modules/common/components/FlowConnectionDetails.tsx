@@ -9,6 +9,7 @@ import { FlowConnectionAvailability } from '@/modules/common/components/FlowConn
 
 export function FlowConnectionDetails({
   showGenerationControls = true,
+  progress,
 }: FlowConnectionControlsProps) {
   const { t } = useTranslation()
   const flow = useFlowStatus()
@@ -34,6 +35,18 @@ export function FlowConnectionDetails({
         linked={flow.status?.linkedCount}
         minimum={flow.minimumProfiles}
       />
+      {progress && (
+        <dl className="space-y-1 border-t border-border pt-3">
+          {(['total', 'ready', 'generating', 'pending'] as const).map((key) => (
+            <div key={key} className="flex justify-between gap-3">
+              <dt>{t(`extension.runImages.${key}`)}</dt>
+              <dd className="font-semibold tabular-nums">
+                {progress[key] ?? '—'}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <p>{t(guidanceKey(), { minimum: flow.minimumProfiles })}</p>
       {showGenerationControls && <FlowGenerationControls size="sm" />}
       {(!flow.ready || hasLimitedProfiles) && connections.length > 0 && (

@@ -348,6 +348,12 @@ function safePolicy(input) {
     result[key] =
       Number.isSafeInteger(input[key]) && input[key] >= 0 ? input[key] : null
   }
+  if (
+    input.unlimited === true &&
+    input.limit === null &&
+    input.remaining === null
+  )
+    result.unlimited = true
   result.pauseReason = ['budget', 'activity', 'activity_manual'].includes(
     input.pauseReason,
   )
@@ -621,14 +627,16 @@ export async function createBridge({
       if (!job.autoRecoveryVersion) continue
       const recovery = job.autoRecovery
       if (
+        (recovery?.maxReplacements !== undefined &&
+          ![2, 4].includes(recovery.maxReplacements)) ||
         !automaticJob(job) ||
         state.batches[job.batchId]?.autoRecoveryVersion !== 1 ||
         !Number.isInteger(job.automaticRetryCount) ||
         job.automaticRetryCount < 0 ||
-        job.automaticRetryCount > 2 ||
+        job.automaticRetryCount > (recovery.maxReplacements ?? 2) ||
         !Number.isInteger(recovery.replacementCount) ||
         recovery.replacementCount < 0 ||
-        recovery.replacementCount > 2 ||
+        recovery.replacementCount > (recovery.maxReplacements ?? 2) ||
         !Array.isArray(recovery.attempts) ||
         recovery.attempts.length !== recovery.replacementCount ||
         ![
@@ -643,9 +651,11 @@ export async function createBridge({
         recovery.downloadAttempts < 0 ||
         recovery.downloadAttempts > 3 ||
         (recovery.stoppedReason !== undefined &&
-          !['project_changed', 'reference_file_unavailable'].includes(
-            recovery.stoppedReason,
-          )) ||
+          ![
+            'project_changed',
+            'reference_file_unavailable',
+            'all_accounts_exhausted',
+          ].includes(recovery.stoppedReason)) ||
         ['nextAttemptAt', 'lastProgressAt', 'unknownSince'].some(
           (key) =>
             recovery[key] !== null &&
@@ -655,7 +665,7 @@ export async function createBridge({
           (attempt) =>
             !Number.isInteger(attempt.automaticRetryCount) ||
             attempt.automaticRetryCount < 0 ||
-            attempt.automaticRetryCount > 2 ||
+            attempt.automaticRetryCount > (recovery.maxReplacements ?? 2) ||
             (attempt.automaticRetryCount > 0 &&
               (!RETRY_ID.test(attempt.retryRequestId ?? '') ||
                 !RETRY_ID.test(attempt.previousAttemptId ?? '') ||
@@ -1580,8 +1590,9 @@ export async function createBridge({
         connection.capacity &&
         validPolicy(connection.accountPolicy) &&
         connection.providerNotBefore <= Date.now() &&
-        connection.accountPolicy.remaining >
-          connection.capacity.localReserved &&
+        (connection.accountPolicy.unlimited === true ||
+          connection.accountPolicy.remaining >
+            connection.capacity.localReserved) &&
         connection.capacity.historySlots > 0 &&
         connection.sessionObservedAt <= Date.now() &&
         Date.now() - connection.sessionObservedAt <= CAPACITY_FRESH_MS
@@ -1753,9 +1764,7 @@ export async function createBridge({
             : null
         return
       }
-      if (
-        recovery.replacementCount >= AUTO_RECOVERY_CAPABILITY.maxReplacements
-      ) {
+      if (recovery.replacementCount >= (recovery.maxReplacements ?? 2)) {
         recovery.status = 'exhausted'
         recovery.nextAttemptAt = null
         recovery.reason = 'replacement_limit'
@@ -1875,6 +1884,32 @@ export async function createBridge({
       for (const job of Object.values(state.jobs)) {
         if (!automaticJob(job) || job.deletedAt) continue
         const recovery = job.autoRecovery
+        const batch = state.batches[job.batchId]
+        const selectedProfiles = Object.keys(
+          batch?.connectionProjects ?? {},
+        ).map((id) => state.connections[id])
+        if (
+          !job.result &&
+          job.state === 'queued' &&
+          !job.attemptId &&
+          selectedProfiles.length &&
+          selectedProfiles.every(
+            (profile) =>
+              profile &&
+              ['TOOLS_MODELS_EXHAUSTED', 'TOOLS_MODELS_UNAVAILABLE'].includes(
+                profile.profileAvailability?.reason,
+              ),
+          )
+        ) {
+          job.state = 'failed'
+          job.error = { code: 'TOOLS_MODELS_EXHAUSTED', submission: 'not-sent' }
+          recovery.status = 'exhausted'
+          recovery.reason = recovery.stoppedReason = 'all_accounts_exhausted'
+          recovery.nextAttemptAt = null
+          await persist()
+          emit({ type: 'job.state', ...jobSummary(job) })
+          continue
+        }
         if (job.result) {
           // The durable receipt survives a crash, but the in-memory request/timer
           // does not. Recover only this exact medium; never restart generation.
@@ -1994,6 +2029,27 @@ export async function createBridge({
               (left.lastAssignedAt ?? 0) - (right.lastAssignedAt ?? 0),
           )[0]
         if (!owner) {
+          const profiles = Object.keys(
+            state.batches[job.batchId].connectionProjects ?? {},
+          ).map((id) => state.connections[id])
+          if (
+            profiles.length &&
+            profiles.every(
+              (profile) =>
+                profile &&
+                ['TOOLS_MODELS_EXHAUSTED', 'TOOLS_MODELS_UNAVAILABLE'].includes(
+                  profile.profileAvailability?.reason,
+                ),
+            )
+          ) {
+            recovery.status = 'exhausted'
+            recovery.reason = 'all_accounts_exhausted'
+            recovery.nextAttemptAt = null
+            recovery.stoppedReason = 'all_accounts_exhausted'
+            await persist()
+            emit({ type: 'job.state', ...jobSummary(job) })
+            continue
+          }
           recovery.reason = 'healthy_owner_unavailable'
           recovery.nextAttemptAt = now + 20_000
           await persist()
@@ -3108,6 +3164,8 @@ export async function createBridge({
           return
         }
         case 'jobs.snapshot': {
+          if (frame.more !== undefined && typeof frame.more !== 'boolean')
+            throw new Error('snapshot_invalid')
           if (!Array.isArray(frame.jobs) || frame.jobs.length > 5000)
             throw new Error('snapshot_invalid')
           const internalMigrations = []
@@ -3213,6 +3271,10 @@ export async function createBridge({
                 ...planFields(job),
               })
             }
+          }
+          if (frame.more === true) {
+            await persist()
+            return
           }
           connection.reconciled = true
           await persist()

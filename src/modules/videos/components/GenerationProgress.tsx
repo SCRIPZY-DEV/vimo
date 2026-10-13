@@ -1,3 +1,5 @@
+import { FlowPaidCompletionButton } from '@/modules/videos/components/FlowPaidCompletionButton'
+import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
 import { FlowRestartButton } from '@/modules/common/components/FlowRestartButton'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import { FlowRunControls } from '@/modules/common/components/FlowRunControls'
@@ -58,6 +60,7 @@ interface GenerationProgressProps {
   onCancel: () => void
   // Reintentar desde el último checkpoint cuando el job falló.
   onRetryPipeline: () => void
+  onCompleteWithPaid?: (provider: PaidImageProviderId) => void
   onRestartFlow?: (request: FlowRestartRequest) => void
   // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
   // imágenes no bloquea — se sigue en el editor y se regenera desde ahí.
@@ -90,6 +93,7 @@ export function GenerationProgress({
   onCancel,
   onRetryPipeline,
   onRestartFlow,
+  onCompleteWithPaid,
   onContinueInEditor,
   onConfirmScenes,
   onDismissConfirmation,
@@ -257,7 +261,21 @@ export function GenerationProgress({
           <h2 className="font-display text-base font-bold text-foreground">
             {t('create.progress.phasesTitle')}
           </h2>
-          {task.imageProvider === 'flow' && <FlowRunControls />}
+          {task.imageProvider === 'flow' && (
+            <FlowRunControls
+              progress={{
+                total: task.scenes.length || null,
+                ready: task.scenes.filter((scene) => scene.imageStatus === 'ok')
+                  .length,
+                generating: task.scenes.filter(
+                  (scene) => scene.imageStatus === 'generating',
+                ).length,
+                pending: task.scenes.filter(
+                  (scene) => !['ok', 'generating'].includes(scene.imageStatus),
+                ).length,
+              }}
+            />
+          )}
           <StageBar
             flowImages={task.imageProvider === 'flow'}
             currentStage={task.stage}
@@ -430,6 +448,20 @@ export function GenerationProgress({
               onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
             />
           )}
+
+          {failed &&
+            task.imageProvider === 'flow' &&
+            failedStage === 'images' &&
+            onCompleteWithPaid && (
+              <FlowPaidCompletionButton
+                count={
+                  task.scenes.filter((scene) => scene.imageStatus !== 'ok')
+                    .length
+                }
+                format={task.videoFormat}
+                onConfirm={onCompleteWithPaid}
+              />
+            )}
 
           {failed && !task.creditsIssue && (
             <GenerationErrorCard

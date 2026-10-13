@@ -2481,6 +2481,23 @@
     "setupPreparation_pending": "Preparação da Multi-imagem pendente",
     "setupPreparation_unconfirmed": "Preparação não confirmada",
     "setupGuidePrepare": "Preparar. Volte ao painel da extensão e clique em Preparar Multi-imagem.",
-    "setupGuideReady": "Pronto. Quando a extensão indicar Preparada, volte ao Vimo e clique em Atualizar conexão."
+    "setupGuideReady": "Pronto. Quando a extensão indicar Preparada, volte ao Vimo e clique em Atualizar conexão.",
+    "runImages": {
+      "total": "Imagens do vídeo",
+      "ready": "Imagens prontas",
+      "generating": "Gerando",
+      "pending": "Imagens pendentes"
+    },
+    "capacityProfileUnlimited": "Sem limite local. A disponibilidade depende do Flow.",
+    "paidComplete": "Finalizar imagens com IA paga",
+    "paidCompleteDescription": "Gerar até {{count}} imagens pendentes com GPT Image 2. As imagens prontas são preservadas.",
+    "paidCompleteHint": "Isso utiliza o saldo do seu provedor de IA. Resultados gratuitos que chegarem depois permanecerão na galeria do Vimo.",
+    "paidProvider": "Provedor do GPT Image 2",
+    "paidProviderRequired": "Configure uma chave Evolink ou Fal em Chaves API para continuar.",
+    "paidEstimateCredits": "Estimativa com margem: {{amount}} créditos do provedor.",
+    "paidEstimateUsd": "Estimativa com margem: US$ {{amount}}.",
+    "paidConfirm": "Confirmar e gerar pendentes",
+    "accountsExhausted": "Suas contas estão indisponíveis. As imagens prontas estão salvas. Tente novamente em cerca de 3 horas; a disponibilidade depende do Flow, ou finalize as pendentes com IA paga.",
+    "paidConsentRequired": "O conjunto de imagens pendentes mudou. Revise as cenas antes de confirmar outra geração paga."
   }
 }

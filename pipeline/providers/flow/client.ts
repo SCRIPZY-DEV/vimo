@@ -393,7 +393,10 @@ function assertMatchingExecutionPlan(left: unknown, right: unknown): void {
   )
 }
 
-function assertReceipt(request: FlowSavedRequest, status: FlowJobStatus): void {
+export function assertReceipt(
+  request: FlowSavedRequest,
+  status: FlowJobStatus,
+): void {
   assertMatchingExecutionPlan(status.executionPlan, request.executionPlan)
   if (
     status.imageJobId !== request.imageJobId ||
@@ -408,7 +411,7 @@ function assertReceipt(request: FlowSavedRequest, status: FlowJobStatus): void {
     )
 }
 
-async function readReadyBytes(
+export async function readReadyBytes(
   context: PipelineContext,
   request: FlowSavedRequest,
 ): Promise<Buffer> {
@@ -1077,7 +1080,9 @@ export async function generateFlowBatch(
           if (
             batch.autoRecoveryVersion === 1 &&
             (snapshot.capabilities?.autoRecovery?.version !== 1 ||
-              snapshot.capabilities.autoRecovery.maxReplacements !== 2)
+              ![2, 4].includes(
+                snapshot.capabilities.autoRecovery.maxReplacements,
+              ))
           )
             throw new PipelineFailure(
               'flow_tools_coordinator_upgrade_required',

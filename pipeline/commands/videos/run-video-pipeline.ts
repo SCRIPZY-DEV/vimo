@@ -1,3 +1,4 @@
+import { prepareFlowPaidCompletion } from '../../providers/flow/paid-completion.ts'
 import { runDemoPipeline } from '../demo/run-demo-pipeline.ts'
 import { isValidFile } from '../../project/paths.ts'
 import { assertFlowPlanProvider } from '../../providers/flow/execution-plan.ts'
@@ -44,6 +45,8 @@ export async function runVideoPipeline(
   // hay proveedores que llamar — se simulan las fases con el pack pre-hecho.
   // `untilStage` no aplica: la demo siempre corre entera.
   if (videoContext.options.demo === true) return runDemoPipeline(videoContext)
+
+  await prepareFlowPaidCompletion(videoContext, payload.flowPaidCompletion)
 
   // autoRender false (ADR-0016): el run completo genera todo MENOS el render
   // y el proyecto queda en borrador para el editor. Un untilStage explícito

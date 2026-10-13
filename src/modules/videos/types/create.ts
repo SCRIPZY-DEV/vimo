@@ -1,3 +1,4 @@
+import type { FlowPaidCompletionRequest } from '@pipeline/types/flow-paid-completion.ts'
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type {
@@ -128,6 +129,7 @@ export type SceneView = SceneSummary & {
 // corriendo; se persiste en localStorage porque el proyecto queda en disco y
 // la pausa de confirmación puede resolverse tras reabrir la app.
 export interface CreateTask {
+  flowPaidCompletionRequest?: FlowPaidCompletionRequest
   executionPlan?: FlowToolsExecutionPlan
   // Decisión explícita de reemplazo; el mismo ID sobrevive a una respuesta perdida.
   flowRestartRequest?: FlowRestartRequest
