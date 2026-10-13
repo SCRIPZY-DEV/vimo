@@ -33,8 +33,8 @@ interface TimelineSceneItemProps {
 // Bloque de una escena en la pista de video. El padre lo posiciona en
 // absoluto según la duración de la escena. Una escena animada (la que
 // encabeza el clip o una absorbida por él) lleva borde celeste SIEMPRE, con
-// selección o sin ella, y se ilumina un poco más al pasar el cursor o al
-// seleccionarla: es lo que la distingue de un vistazo de las estáticas.
+// selección o sin ella. El hover y la selección usan un borde blanco; el
+// icono de animación conserva la diferencia con las escenas estáticas.
 export function TimelineSceneItem({
   scene,
   selected,
@@ -49,6 +49,7 @@ export function TimelineSceneItem({
 }: TimelineSceneItemProps) {
   const { t, i18n } = useTranslation()
 
+  const preparing = transientStatus === 'preparing'
   const regenerating = transientStatus === 'generating'
   const awaitingSync = transientStatus === 'awaiting_sync'
   const queued = transientStatus === 'pending' || awaitingSync
@@ -63,7 +64,11 @@ export function TimelineSceneItem({
     animationActivity === 'error' || animationErrorKey !== undefined
   // Regenerando gana sobre el error: el velo rojo espera a que termine.
   const showErrorVeil =
-    (failed || animationFailed) && !regenerating && !queued && !animating
+    (failed || animationFailed) &&
+    !preparing &&
+    !regenerating &&
+    !queued &&
+    !animating
   const leadsClip = scene.animation?.status === 'ready'
   const absorbed = scene.absorbedBy !== undefined
   const animated = leadsClip || absorbed
@@ -91,13 +96,11 @@ export function TimelineSceneItem({
           : undefined
 
   const borderClass = () => {
-    if (clipBorder && selected)
-      return 'border-sky shadow-[0_0_0_3px_hsl(var(--sky)/0.7)] brightness-110'
-    if (clipBorder)
-      return 'border-sky shadow-[0_0_0_1px_hsl(var(--sky)/0.4)] hover:shadow-[0_0_0_3px_hsl(var(--sky)/0.55)] hover:brightness-110'
     if (selected)
-      return 'border-saffron shadow-[0_0_0_2px_hsl(var(--saffron)/0.3)]'
-    return 'border-border/60 hover:border-saffron/40'
+      return 'border-white shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
+    if (clipBorder)
+      return 'border-sky/70 hover:border-white hover:brightness-110'
+    return 'border-border/60 hover:border-white'
   }
 
   return (
@@ -107,7 +110,7 @@ export function TimelineSceneItem({
       title={title}
       onClick={onSelect}
       className={cn(
-        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-2 transition-[box-shadow,filter]',
+        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-[3px] outline-none transition-[border-color,box-shadow,filter] duration-150 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-blue-500',
         borderClass(),
       )}
     >
@@ -161,6 +164,12 @@ export function TimelineSceneItem({
       {queued && !animating && (
         <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-[10px] font-semibold text-white">
           {t(awaitingSync ? 'extension.awaitingSync' : 'extension.queued')}
+        </span>
+      )}
+      {preparing && (
+        <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/60 text-[10px] font-semibold text-white">
+          <Loader2 aria-hidden className="h-3 w-3 animate-spin" />
+          {t('library.editor.preparingImage')}
         </span>
       )}
       {regenerating && (

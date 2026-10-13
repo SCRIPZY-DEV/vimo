@@ -20,8 +20,7 @@ interface TimelineClipItemProps {
 
 // Un clip en la pista de escenas (ADR-0041): UNA tarjeta del largo del hueco
 // entero, con la miniatura de cada escena que cubre en proporción a su
-// duración, borde celeste siempre y más luz al pasar el cursor o al
-// seleccionarla. Así se ve de un vistazo que el clip ocupa las dos escenas
+// duración y un borde blanco al pasar el cursor o seleccionarlo. Así se ve de un vistazo que el clip ocupa las dos escenas
 // que fusiona. Clic: selecciona la escena que encabeza (donde vive el panel).
 export function TimelineClipItem({
   block,
@@ -61,10 +60,10 @@ export function TimelineClipItem({
       title={title}
       onClick={onSelect}
       className={cn(
-        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-2 border-sky transition-[box-shadow,filter]',
+        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-[3px] outline-none transition-[border-color,box-shadow,filter] duration-150 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-blue-500',
         selected
-          ? 'shadow-[0_0_0_3px_hsl(var(--sky)/0.7)] brightness-110'
-          : 'shadow-[0_0_0_1px_hsl(var(--sky)/0.4)] hover:shadow-[0_0_0_3px_hsl(var(--sky)/0.55)] hover:brightness-110',
+          ? 'border-white shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
+          : 'border-sky/70 hover:border-white hover:brightness-110',
       )}
     >
       {/* Las miniaturas se reparten el ancho según lo que dura cada escena. */}

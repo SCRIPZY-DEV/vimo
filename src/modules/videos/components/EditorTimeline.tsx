@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeftRight, Film, Mic, Minus, Music2, Plus } from 'lucide-react'
+import { Film, Mic, Minus, Music2, Plus, Shuffle } from 'lucide-react'
+import { cn } from '@/modules/common/utilities/cn'
+import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { TimelineClipItem } from '@/modules/videos/components/TimelineClipItem'
@@ -10,6 +12,7 @@ import { timelineTransitionFrames } from '@/modules/videos/utilities/timelineTra
 import {
   AUTOSCROLL_EDGE_PX,
   AUTOSCROLL_MANUAL_PAUSE_MS,
+  MIN_SCENE_SECONDS,
   NO_SEEK_PROPS,
   NO_SEEK_SELECTOR,
   PLAYHEAD_EDGE_DRAG_MAX_SPEED,
@@ -119,6 +122,9 @@ export function EditorTimeline({
   const contentRef = useRef<HTMLDivElement>(null)
   const [viewportWidth, setViewportWidth] = useState(800)
   const [scrollLeft, setScrollLeft] = useState(0)
+  const [hoverSeconds, setHoverSeconds] = useState<number | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [activeBoundary, setActiveBoundary] = useState<string | null>(null)
 
   // Última interacción manual: pausa el follow-playhead un rato para no
   // pelearle el scroll al usuario.
@@ -235,6 +241,8 @@ export function EditorTimeline({
     event.stopPropagation()
     markManualInteraction()
     onScrubStart()
+    setDragging(true)
+    setHoverSeconds(null)
     suppressClickRef.current = true
 
     let lastClientX = event.clientX
@@ -290,6 +298,7 @@ export function EditorTimeline({
       if (edgeFrame !== null) cancelAnimationFrame(edgeFrame)
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
+      setDragging(false)
       onScrubEnd()
     }
     window.addEventListener('mousemove', handleMove)
@@ -309,6 +318,10 @@ export function EditorTimeline({
     markManualInteraction()
     suppressClickRef.current = true
 
+    setDragging(true)
+    setHoverSeconds(null)
+    setActiveBoundary(`${left.id}-${right.id}`)
+
     const startX = event.clientX
     const initialBoundary = left.endSeconds ?? 0
     // La frontera vigente vive en esta variable y no en estado de React: el
@@ -327,6 +340,8 @@ export function EditorTimeline({
     const handleUp = () => {
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
+      setDragging(false)
+      setActiveBoundary(null)
       // Un clic sin movimiento no guarda nada (y no marca el video como
       // desactualizado).
       if (boundary !== initialBoundary)
@@ -334,6 +349,43 @@ export function EditorTimeline({
     }
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
+  }
+
+  const handleBoundaryKey = (
+    event: React.KeyboardEvent,
+    left: SceneDetail,
+    right: SceneDetail,
+  ) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    if (timingBusy || animationTimingLocked(scenes, [left.id, right.id])) return
+    event.preventDefault()
+    event.stopPropagation()
+    markManualInteraction()
+    const step = event.shiftKey ? 1 : 0.1
+    const initial = left.endSeconds ?? 0
+    const boundary = clampBoundarySeconds(
+      left,
+      right,
+      initial + (event.key === 'ArrowRight' ? step : -step),
+    )
+    if (boundary === initial) return
+    onBoundaryDrag(left.id, right.id, boundary)
+    onBoundaryCommit(left.id, right.id, boundary)
+  }
+
+  const seekSecondsAtClientX = (clientX: number) => {
+    const seconds = secondsAtClientX(clientX)
+    if (duration - seconds < TIMELINE_END_SNAP_SECONDS) return duration
+    return seconds
+  }
+
+  const handleTrackHover = (event: React.MouseEvent) => {
+    const target = event.target as HTMLElement
+    if (dragging || event.buttons !== 0 || target.closest(NO_SEEK_SELECTOR)) {
+      setHoverSeconds(null)
+      return
+    }
+    setHoverSeconds(seekSecondsAtClientX(event.clientX))
   }
 
   // ── Click en zona vacía del carril: seek con play ──
@@ -348,10 +400,7 @@ export function EditorTimeline({
     if (target.closest(NO_SEEK_SELECTOR)) return
     if (wasSuppressed) return
 
-    let seconds = secondsAtClientX(event.clientX)
-    // Snap al final: clickear la cola lleva exactamente al cierre.
-    if (duration - seconds < TIMELINE_END_SNAP_SECONDS) seconds = duration
-    onSeek(seconds)
+    onSeek(seekSecondsAtClientX(event.clientX))
   }
 
   // ── Regla adaptativa ──
@@ -453,7 +502,10 @@ export function EditorTimeline({
         {/* Carril scrolleable */}
         <div
           ref={scrollRef}
-          onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
+          onScroll={(event) => {
+            setScrollLeft(event.currentTarget.scrollLeft)
+            setHoverSeconds(null)
+          }}
           onMouseDown={markManualInteraction}
           onTouchStart={markManualInteraction}
           className="cursor-crosshair overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -461,6 +513,8 @@ export function EditorTimeline({
           <div
             ref={contentRef}
             onClick={handleTrackClick}
+            onMouseMove={handleTrackHover}
+            onMouseLeave={() => setHoverSeconds(null)}
             style={{ width: totalWidth, height: tracksHeight }}
             className="relative"
           >
@@ -514,7 +568,16 @@ export function EditorTimeline({
               {blocks.map((block, index) => {
                 const left = xOfSeconds(block.startSeconds)
                 const width = Math.max(xOfSeconds(block.endSeconds) - left, 4)
+                const previous = blocks[index - 1]
                 const next = blocks[index + 1]
+                const selected =
+                  block.kind === 'clip'
+                    ? block.scenes.some((scene) => scene.id === selectedSceneId)
+                    : block.scene.id === selectedSceneId
+                const boundaries = [
+                  { edge: 'left', before: previous, after: block },
+                  { edge: 'right', before: block, after: next },
+                ] as const
                 const key =
                   block.kind === 'clip'
                     ? `clip-${block.id}`
@@ -523,7 +586,7 @@ export function EditorTimeline({
                   <div
                     key={key}
                     style={{ left, width }}
-                    className="absolute top-0 h-full"
+                    className="group/timeline-block absolute top-0 h-full"
                   >
                     {block.kind === 'clip' ? (
                       <TimelineClipItem
@@ -554,58 +617,104 @@ export function EditorTimeline({
                         onSelect={() => onSelectScene(block.scene.id)}
                       />
                     )}
-                    {next &&
-                      !timingBusy &&
-                      lastSceneOf(block).id !== firstSceneOf(next).id &&
-                      !animationTimingLocked(scenes, [
-                        lastSceneOf(block).id,
-                        firstSceneOf(next).id,
-                      ]) && (
-                        <div
+                    {boundaries.map(({ edge, before, after }) => {
+                      if (!before || !after || timingBusy) return null
+                      const leftScene = lastSceneOf(before)
+                      const rightScene = firstSceneOf(after)
+                      if (
+                        leftScene.id === rightScene.id ||
+                        animationTimingLocked(scenes, [
+                          leftScene.id,
+                          rightScene.id,
+                        ])
+                      )
+                        return null
+                      const boundaryId = `${leftScene.id}-${rightScene.id}`
+                      return (
+                        <button
+                          key={edge}
+                          type="button"
                           role="separator"
+                          aria-orientation="vertical"
+                          aria-valuenow={leftScene.endSeconds}
+                          aria-valuemin={
+                            (leftScene.startSeconds ?? 0) + MIN_SCENE_SECONDS
+                          }
+                          aria-valuemax={
+                            (rightScene.endSeconds ?? 0) - MIN_SCENE_SECONDS
+                          }
+                          aria-valuetext={formatTime(leftScene.endSeconds ?? 0)}
                           aria-label={t('library.editor.timeline.boundary')}
+                          title={t('library.editor.timeline.boundary')}
                           {...NO_SEEK_PROPS}
                           onMouseDown={(event) =>
-                            startBoundaryDrag(
-                              event,
-                              lastSceneOf(block),
-                              firstSceneOf(next),
-                            )
+                            startBoundaryDrag(event, leftScene, rightScene)
                           }
-                          className="absolute -right-1.5 top-0 z-30 h-full w-3 cursor-ew-resize hover:bg-saffron/50"
-                        />
-                      )}
+                          onKeyDown={(event) =>
+                            handleBoundaryKey(event, leftScene, rightScene)
+                          }
+                          className={cn(
+                            'absolute top-1/2 z-40 flex h-7 w-2.5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-[3px] bg-white text-slate-700 shadow-sm outline-none transition-opacity duration-150 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500 group-hover/timeline-block:opacity-100 group-focus-within/timeline-block:opacity-100',
+                            edge === 'left' ? 'left-0.5' : 'right-0.5',
+                            selected || activeBoundary === boundaryId
+                              ? 'opacity-100'
+                              : 'opacity-0',
+                          )}
+                        >
+                          <span
+                            aria-hidden
+                            className="h-3 w-0.5 rounded-full bg-current"
+                          />
+                        </button>
+                      )
+                    })}
                   </div>
                 )
               })}
             </div>
 
-            {/* Marcadores de fundido: no interceptan selección ni fronteras. */}
+            {/* El marcador de fundido selecciona su escena. El recorte sigue
+                perteneciendo a las asas blancas de los clips. */}
             {timelineBlocks(timedScenes, {}).map(
               (block, index, visualBlocks) => {
                 const previous = visualBlocks[index - 1]
-                if (
-                  !previous ||
-                  timelineTransitionFrames(previous, block) === 0
+                const frames = timelineTransitionFrames(previous, block)
+                if (!previous || frames === 0) return null
+                const leftScene = lastSceneOf(previous)
+                const rightScene = firstSceneOf(block)
+                const width = Math.max(
+                  24,
+                  (frames / ANIMATION_FPS) * pxPerSecond,
                 )
-                  return null
                 return (
-                  <span
+                  <div
                     key={'transition-' + block.startSeconds}
-                    role="img"
-                    aria-label={t('library.editor.transitions.marker', {
-                      from: lastSceneOf(previous).id,
-                      to: firstSceneOf(block).id,
-                    })}
                     data-transition-start={block.startSeconds}
                     style={{
-                      left: xOfSeconds(block.startSeconds) - 9,
-                      top: trackTop(0) + TIMELINE_TRACK_HEIGHT / 2 - 10,
+                      left: xOfSeconds(block.startSeconds) - width / 2,
+                      width,
+                      top: trackTop(0) + 4,
+                      height: TIMELINE_TRACK_HEIGHT - 8,
                     }}
-                    className="pointer-events-none absolute z-20 flex h-5 w-[18px] items-center justify-center rounded border border-violet-200 bg-violet-600 text-[11px] font-bold text-white shadow-sm"
+                    className="group/timeline-transition pointer-events-none absolute z-30 rounded-md border-[3px] border-transparent bg-white/80 shadow-sm backdrop-blur-sm transition-colors duration-150 hover:border-blue-300 hover:bg-white/70 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                   >
-                    <ArrowLeftRight aria-hidden className="h-3 w-3" />
-                  </span>
+                    <button
+                      type="button"
+                      {...NO_SEEK_PROPS}
+                      aria-label={t('library.editor.transitions.marker', {
+                        from: leftScene.id,
+                        to: rightScene.id,
+                      })}
+                      title={t('library.editor.transitions.marker', {
+                        from: leftScene.id,
+                        to: rightScene.id,
+                      })}
+                      onClick={() => onSelectScene(rightScene.id)}
+                      className="pointer-events-auto flex h-full w-full items-center justify-center rounded-sm text-slate-800 outline-none"
+                    >
+                      <Shuffle aria-hidden className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )
               },
             )}
@@ -678,15 +787,43 @@ export function EditorTimeline({
               )}
             </div>
 
-            {/* Playhead: línea coral con cabezal rombo, arrastrable */}
+            {/* Azul: anticipa el seek de una zona navegable sin alterar el reloj. */}
+            {hoverSeconds !== null && !dragging && (
+              <div
+                aria-hidden
+                data-timeline-hover-seconds={hoverSeconds}
+                style={{ left: xOfSeconds(hoverSeconds) }}
+                className="pointer-events-none absolute top-1 bottom-0 z-40 w-0 text-blue-500"
+              >
+                <svg
+                  viewBox="0 0 18 16"
+                  className="absolute -left-[9px] top-0 h-4 w-[18px] fill-current"
+                >
+                  <path d="M2 0h14a2 2 0 0 1 1.72 3L10.72 15a2 2 0 0 1-3.44 0L.28 3A2 2 0 0 1 2 0Z" />
+                </svg>
+                <span className="absolute -left-px top-5 bottom-0 w-0.5 rounded-t bg-blue-500/60" />
+              </div>
+            )}
+
+            {/* Rojo: posición de reproducción y arrastre real del playhead. */}
             <div
               {...NO_SEEK_PROPS}
+              data-timeline-playhead-seconds={playheadSeconds}
               onMouseDown={startPlayheadDrag}
-              style={{ left: xOfSeconds(playheadSeconds) - 6 }}
-              className="absolute top-0 z-40 h-full w-3 cursor-ew-resize"
+              style={{ left: xOfSeconds(playheadSeconds) - 9 }}
+              className="absolute top-1 bottom-0 z-50 w-[18px] cursor-ew-resize text-red-500"
             >
-              <span className="absolute left-[4.5px] top-0 h-full w-[3px] bg-coral" />
-              <span className="absolute -left-0.5 top-0 h-4 w-4 rotate-45 rounded-[2px] bg-coral" />
+              <svg
+                aria-hidden
+                viewBox="0 0 18 16"
+                className="absolute left-0 top-0 h-4 w-[18px] fill-current"
+              >
+                <path d="M2 0h14a2 2 0 0 1 1.72 3L10.72 15a2 2 0 0 1-3.44 0L.28 3A2 2 0 0 1 2 0Z" />
+              </svg>
+              <span
+                aria-hidden
+                className="absolute left-2 top-5 bottom-0 w-0.5 rounded-t bg-red-500"
+              />
             </div>
           </div>
         </div>
