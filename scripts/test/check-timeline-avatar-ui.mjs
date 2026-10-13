@@ -10,6 +10,10 @@
 // D4): sobre una escena de avatar no ofrece «Regenerar imagen» ni la
 // descripción (spec §6.2) y la explica con `avatarSceneHint` (entrega 2d; sus
 // botones de generar el avatar los prueba check-editor-avatar-regenerate-ui.mjs).
+// Y la galería «Vista ampliada de imágenes»: desde la entrega 2f (§22.4) lista
+// también las escenas de avatar, en el orden del video, sin dejarlas elegir
+// para las acciones de imágenes (su tarjeta la prueba
+// check-editor-avatar-gallery-ui.mjs).
 // Monta el EditorTimeline real en Chrome headless; solo `videosApi` se simula
 // (el real importa el cliente de Supabase, que exige variables de entorno al
 // cargarse) con lo único que la pista le pide: las URLs de las imágenes. La
@@ -196,17 +200,57 @@ try {
   // (la 5 del proyecto, planeada y sin la copia del look).
   check(missingImageSceneIds(scenes).length === 0 && JSON.stringify(missingImageSceneIds([{ id: 1 }, { id: 2, avatar: view() }, { id: 3, imagePath: LOOK }])) === '[1]', 'las imágenes faltantes no cuentan las escenas de avatar')
 
-  // La galería: ni lista ni deja seleccionar las escenas de avatar.
+  // La galería (entrega 2f, §22.4, cambiado a propósito: hasta la 2e no
+  // listaba las escenas de avatar): en el orden del video, una tarjeta por
+  // escena. Las de imagen, con su botón para elegirlas; las de avatar, con su
+  // propia tarjeta («Escena N: aparición del avatar») y SIN botón para
+  // elegirlas, ni al navegar ni con «Seleccionar»: no entran en la selección
+  // de imágenes ni en sus acciones en lote. La descripción cuenta todas. Sus
+  // acciones las prueba check-editor-avatar-gallery-ui.mjs.
   const galleryHost = document.createElement('div')
   document.body.append(galleryHost)
   const galleryRoot = createRoot(galleryHost, { onUncaughtError: (error) => { renderError = error } })
-  galleryRoot.render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorImageGallery projectId="fixture" scenes={scenes} videoFormat="16:9" durationSeconds={72} locked={false} imageProvider="fal" onRegenerateImages={async () => true} onUndoAnimation={async () => true} undoingSceneId={null} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
+  const galleryQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  galleryRoot.render(<QueryClientProvider client={galleryQueryClient}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorImageGallery projectId="fixture" scenes={scenes} videoFormat="16:9" durationSeconds={72} locked={false} busy={false} imageProvider="fal" onRegenerateImages={async () => true} onUndoAnimation={async () => true} undoingSceneId={null} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
   const galleryTrigger = await waitFor(() => galleryHost.querySelector('input[aria-haspopup="dialog"]'), 'el interruptor de la galería')
   galleryTrigger.click()
   const imageScenes = scenes.filter((item) => !item.avatar).map((item) => item.id)
-  const galleryCards = () => [...document.querySelectorAll('button[aria-label]')].map((button) => button.getAttribute('aria-label')).filter((label) => scenes.some((item) => label === i18n.t('library.editor.imageGallery.select', { id: item.id })))
-  await waitFor(() => galleryCards().length > 0, 'la galería abierta con sus tarjetas')
-  check(JSON.stringify(galleryCards()) === JSON.stringify(imageScenes.map((id) => i18n.t('library.editor.imageGallery.select', { id }))) && document.body.textContent.includes(i18n.t('library.editor.imageGallery.description', { count: imageScenes.length })), 'la galería lista solo las escenas de imagen: ' + galleryCards().join(', '))
+  const avatarScenes = scenes.filter((item) => item.avatar).map((item) => item.id)
+  const galleryDialog = () => document.querySelector('[role="dialog"]')
+  const galleryCards = () => [...(galleryDialog()?.querySelectorAll('[data-gallery-scene]') ?? [])]
+  const cardId = (card) => Number(card.getAttribute('data-gallery-scene'))
+  const avatarCardName = (id) => i18n.t('library.editor.imageGallery.avatarCardAria', { index: id })
+  await waitFor(() => galleryCards().length === scenes.length, 'la galería abierta con una tarjeta por escena: ' + galleryCards().length)
+  check(JSON.stringify(galleryCards().map(cardId)) === JSON.stringify(scenes.map((item) => item.id)), 'todas las escenas, las de avatar también, en el orden del video: ' + galleryCards().map(cardId).join(', '))
+  check(i18n.exists('library.editor.imageGallery.avatarCardAria') && !avatarCardName(2).includes('{{') && avatarCardName(2) !== 'library.editor.imageGallery.avatarCardAria', 'el nombre de la tarjeta del avatar es una frase del catálogo: ' + avatarCardName(2))
+  const avatarCards = galleryCards().filter((card) => card.getAttribute('aria-label') === avatarCardName(cardId(card)))
+  check(JSON.stringify(avatarCards.map(cardId)) === JSON.stringify(avatarScenes), 'cada escena de avatar con su tarjeta nombrada «' + avatarCardName(2) + '»: ' + avatarCards.map(cardId).join(', '))
+  const pickers = () => [...galleryDialog().querySelectorAll('[data-gallery-scene] button[aria-pressed]')]
+  const pickerLabels = (key) => imageScenes.map((id) => i18n.t(key, { id }))
+  check(JSON.stringify(pickers().map((button) => button.getAttribute('aria-label'))) === JSON.stringify(pickerLabels('library.editor.imageGallery.select')), 'solo las de imagen se eligen: ' + pickers().map((button) => button.getAttribute('aria-label')).join(', '))
+  check(avatarCards.every((card) => !card.querySelector('button[aria-pressed]')), 'ninguna tarjeta de avatar tiene botón para elegirla')
+  // Con escenas de avatar, la descripción con el avatar; sin ninguna, la de
+  // antes de la 2f (ronda 3 de WP-C: las dos son frases distintas del
+  // catálogo, y las dos cuentan todas las tarjetas).
+  const describe = (key, count) => {
+    const sentence = i18n.t(key, { count })
+    check(i18n.exists(key, { count }) && sentence !== key && !sentence.includes('{{'), 'la clave ' + key + ' es una frase del catálogo: ' + sentence)
+    return sentence
+  }
+  const withAvatar = describe('library.editor.imageGallery.descriptionWithAvatar', scenes.length)
+  const plain = describe('library.editor.imageGallery.description', imageScenes.length)
+  check(withAvatar !== describe('library.editor.imageGallery.description', scenes.length), 'la descripción con el avatar no es la de siempre')
+  check(galleryDialog().textContent.includes(withAvatar), 'con escenas de avatar, la descripción con el avatar cuenta todas las tarjetas (' + scenes.length + '): ' + withAvatar)
+  const selectMultiple = [...galleryDialog().querySelectorAll('button')].find((button) => button.textContent.trim() === i18n.t('library.editor.imageGallery.selectMultiple'))
+  selectMultiple.click()
+  await waitFor(() => JSON.stringify(pickers().map((button) => button.getAttribute('aria-label'))) === JSON.stringify(pickerLabels('library.editor.imageGallery.toggleScene')), 'con «Seleccionar», solo las de imagen se pueden marcar: ' + pickers().map((button) => button.getAttribute('aria-label')).join(', '))
+  for (const picker of pickers()) picker.click()
+  await waitFor(() => galleryDialog().textContent.includes(i18n.t('library.editor.imageGallery.selectedCount', { count: imageScenes.length })), 'marcar todo lo que se puede marcar elige las ' + imageScenes.length + ' de imagen y ninguna de avatar')
+  check(galleryCards().filter((card) => avatarScenes.includes(cardId(card))).every((card) => !card.querySelector('button[aria-pressed]')), 'y las tarjetas de avatar siguen sin botón para elegirlas')
+  // El mismo proyecto sin escenas de avatar: la descripción de antes de la 2f.
+  galleryRoot.render(<QueryClientProvider client={galleryQueryClient}><I18nextProvider i18n={i18n}><MemoryRouter><TooltipProvider><EditorImageGallery projectId="fixture" scenes={scenes.filter((item) => !item.avatar)} videoFormat="16:9" durationSeconds={72} locked={false} busy={false} imageProvider="fal" onRegenerateImages={async () => true} onUndoAnimation={async () => true} undoingSceneId={null} /></TooltipProvider></MemoryRouter></I18nextProvider></QueryClientProvider>)
+  await waitFor(() => galleryCards().length === imageScenes.length && galleryDialog().textContent.includes(plain), 'sin escenas de avatar, la descripción de siempre (' + imageScenes.length + '): ' + galleryDialog()?.querySelector('p')?.textContent)
+  check(!galleryDialog().textContent.includes(describe('library.editor.imageGallery.descriptionWithAvatar', imageScenes.length)), 'sin avatar no promete regenerar el avatar')
   document.getElementById('result').textContent = 'PASS: avatar timeline blocks (' + checks + ' checks)'
 } catch (error) {
   const reason = renderError && renderError !== error ? ' (render error: ' + renderError.message + ')' : ''

@@ -572,7 +572,29 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
    `useCreateTask` a `CreateTask` y a la pausa de confirmación; `LibraryProgress` lo lee de
    `options.avatar.engine` al rearmar la pausa desde el disco): la línea del avatar del
    diálogo de cantidad y del paso de segundos cobra a la tarifa del motor del proyecto, y
-   una tarea guardada antes de la 2e, que no lo trae, a la de Avatar III. El formulario
+   una tarea guardada antes de la 2e, que no lo trae, a la de Avatar III.
+   Desde la entrega 2f (diseño §22) la tarjeta suma, debajo de «Empieza con el avatar»,
+   «3 veces en 2 minutos» (`CreateAvatarThreeInTwo`: la `CheckboxRow` de siempre con su
+   ayuda en un tooltip fuera de la etiqueta; apagada por defecto, manda solo
+   `{ avatarThreeInTwoMinutes }`, y `options.avatar.threeInFirstTwoMinutes: true` viaja
+   solo prendida, al final del objeto). Prendida avisa el mínimo (con menos de
+   `AVATAR_EARLY_APPEARANCES` apariciones salen 3) y el tope (con más de
+   `AVATAR_EARLY_MAX_SECONDS` s por aparición, las tres primeras duran hasta ese tope,
+   hoy 35 s), y esos avisos son la descripción de la casilla (`CheckboxRow` acepta
+   `describedBy`, que va a `aria-describedby` del `input`: solo los ids de los avisos que
+   se ven). El costo cuenta lo que sale: `avatarRequestedAppearances` y
+   `avatarRequestedSeconds` (`max(n, 3)` apariciones y las tres primeras a
+   `min(s, tope)`, a partir de la forma de `ProjectAvatarOptions`) alimentan, por
+   `createAvatarAppearances` y `createAvatarSeconds`, el total de la tarjeta, el costo de
+   cada motor, el pre-check y las imágenes libres de `estimateCreateCost`, y por
+   `estimateResumeCost`, lo que falta cobrar al reanudar antes del corte; así Crear y
+   reanudar no divergen. Además `SelectedAvatar` copia `motionReference`
+   (`avatarHasMotionReference`: un avatar de stock o con un gemelo digital la tiene) y,
+   con Avatar V y un look de foto de un avatar propio sin gemelo digital (R-2f-1,
+   `avatarMotionReferenceMissing`), «Movimiento más expresivo» queda apagado con el
+   motivo y sin la línea «Vimo escribe el movimiento…», y `expressive` no viaja
+   (`selectedAvatarExpressiveAvailable`, la regla que comparten el interruptor y
+   `createProjectPayload`); un borrador sin el campo cuenta como que sí. El formulario
    sobrevive a la navegación dentro de la sesión: `CreateView` se siembra del
    borrador en memoria del módulo (`utilities/createDraft.ts`, nunca en disco), salvo lo
    que ninguna pantalla de Crear edita y solo siembra Ajustes (la duración de escena de
@@ -595,7 +617,8 @@ UI <──────── Channel (NDJSON: stage-*, scene-*, *-progress) ─�
 4. **Pre-check de saldo** (ADR-0031): `useCreateCostCheck` estima el gasto
    por proveedor (voz por caracteres × `VOICE_COST_FACTORS`, imágenes por
    escenas × precio de la calidad —sin las escenas de avatar, que no llevan
-   imagen—, el avatar presentador por segundos × la tarifa del motor con el que
+   imagen—, el avatar presentador por los segundos que salen (con «3 veces en 2
+   minutos», `createAvatarSeconds`) × la tarifa del motor con el que
    sale el look (`selectedAvatarEngine`) —en dólares de HeyGen, comparados solo
    con una billetera en `usd`—, música de
    fondo informativa) y lo cruza con los saldos leídos
@@ -870,8 +893,11 @@ que viaja (si el prompt está vacío, viaja la frase sola). La huella del pedido
 `['expressiveness', 'high']` y `['take', n]` con n > 0; los dos primeros quedan en el
 recibo y una repetición manda los del recibo, no los de la escena. La huella del render
 (`avatarRenderHash`) no cambia: editar el movimiento no deja el clip desactualizado.
-**Fallo:** un 400 con `param` `motion_prompt` o `expressiveness` es
-`avatar_motion_unsupported` (después del saldo, antes que la moderación y sin copiar el
+**Fallo:** un 400 con `param` `motion_prompt` o `expressiveness` —o, desde la entrega 2f
+(diseño §22.1), uno sin `param` de sobre JSON cuyo mensaje nombra uno de los dos por
+palabra completa (`MOTION_FIELD_PATTERN`: así rechaza Avatar V el `motion_prompt` de un
+avatar de foto propio sin gemelo digital, medido con una sonda gratis del 2026-10-12)—
+es `avatar_motion_unsupported` (después del saldo, antes que la moderación y sin copiar el
 texto de HeyGen, que podría repetir el prompt): el intento queda `failed`, la escena
 `motionUnsupported` (se guarda antes de volver a pedir) y el carril pide enseguida, en la
 misma corrida, el mismo pedido sin movimiento con otra huella y otra clave; en la cosecha,
@@ -887,7 +913,7 @@ escena a la persona ni se pague dos veces el mismo pedido.
 
 **Render con avatar (ADR-0057):** `collectRenderScenes` arma primero la candidata de cada escena de avatar con la misma vista que ya usan el timeline y el visor (`toSceneAvatarView`: clip listo, en disco y vigente por narración y por tramo) y la declara con el hueco cuantizado al cuadro, así el chunk la corre a velocidad 1 y nunca la retima. El tramo de toda escena de avatar, en cualquier estado, es suyo: un clip de Kie heredado que lo pise se descarta con un aviso. **Fallo:** sin clip que sirva (planeada, fallida, sin archivo, desactualizada, ilegible o más corta que su tramo menos 1 s —`ANIMATION_CLIP_PAD_SECONDS`, lo único que el chunk rellena con el último cuadro—) la escena sale estática con la vista previa del look (`avatar/look.<ext>`) y un `warn` (`avatar clip is too short` en el último caso); sin esa vista previa, el render y el export de clips fallan con `avatar_render_look_unavailable` (no con `render_missing_images`, ni con `avatar_look_unavailable`, que es el código de Crear: acá el proyecto ya existe y su look no se elige de nuevo), y si además faltan imágenes de escenas comunes gana `render_missing_images` (`clips_no_images` en el export), el camino de siempre. **Subtítulos:** los de una escena de avatar se parten por frase (`detectSentences` sobre `words.json`, recortadas al tramo) porque una aparición habla hasta 60 s; los de las demás escenas salen de su `scene.text`. Reemplazar la narración conserva `scene.text`: después de reemplazarla, los subtítulos de una escena de avatar salen de la transcripción nueva y los de sus vecinas del texto viejo, así que en el borde del avatar puede repetirse una palabra o faltar un subtítulo (la regla del punto medio lo amortigua). **Motivo:** la narración manda y el video no puede quedar con un hueco.
 
-**El avatar en la pantalla de progreso (ADR-0057):** la fase `avatar` (entre imágenes y animación, en morado) se muestra solo con avatar y **por datos** (`hasAvatar` del proyecto, la fase en curso o escenas de avatar), porque una fase saltada nunca queda en `completedStages`: sin eso un proyecto sin avatar reanudado desde disco la mostraría pendiente y la culparía de un fallo. `PipelineAvatarPanel` muestra «Avatar n/m» con la fase del render y su reloj (el tiempo que informa el sidecar más el reloj local; vuelve a 0 entre la cosecha y el pedido nuevo). Los `avatar-scene-*` quedan en `SceneView.avatarActivity` (memoria; no sobrevive al reinicio) y, al terminar el job, un render anunciado que no se cerró (saldo, clave o cancelación) vuelve a «En espera». Cuatro cosas más que la persona tiene que poder ver y que las filas no dicen: las apariciones que no entraron (`avatarDropped`, que `avatar-planned` anuncia y la interfaz toma como un valor, no suma) salen en una nota siempre que sean más de cero: debajo de las fases cuando el panel del avatar no está a la vista y no hay pausa; si no, lo dice el propio panel o el diálogo de la pausa, también cuando no entró ninguna y la fase se saltea («Ninguna aparición del avatar entró en la narración (N descartadas): el video sale sin avatar»); HeyGen caído o degradado (`avatar-provider-trouble`, una vez por código y corrida) sale como un aviso pasajero traducido, uno a la vez, además del log; cuántas apariciones salen con la imagen fija del look (entrega 2d, abajo); y si un proyecto de antes de la 2d quedó en `avatar_incomplete` con un rechazo que reanudar no arregla como código dominante (moderación, look no soportado o pedido inválido), la cabecera no manda a «Reanudar» sino a renderizar desde el editor —sale con la imagen fija— o cambiar el look (`failureMessageOf`, `create.errors.avatarRejected`; con un código de la cuenta dominando, el texto de ese código). El reproductor de la biblioteca usa la misma cabecera para el mismo proyecto. Qué apariciones salen con la imagen fija del look (entrega 2d) lo decide una sola regla, `isAvatarFallback` (`utilities/avatarFallback.ts`), que comparten la fila de cada aparición, el aviso del final de Crear (`GenerationProgress`, contexto `progress`), el del reproductor de la biblioteca (`LibraryPlayer`, contexto `project`, solo con video) y el del editor (`project`): manda lo que pasó en la corrida y, si no, la vista; cuentan las fallidas y la lista que perdió su clip; una desactualizada no cuenta nunca y su fila dice «Desactualizada» (`create.progress.avatarStale`) y no «No se completó»; una planeada cuenta solo en el proyecto ya hecho. `AvatarFallbackNote` recibe la cifra y una acción opcional («Regenerarlas (N)» en el editor) y un `messageKey`: el texto es `create.progress.avatarFallback_*` en Crear y en el reproductor, y `library.editor.avatar.fallbackNote_*` en el editor, donde «podés regenerarlas desde el editor» sería circular. Desde la entrega 2e (diseño §21.5) cada fila muestra, junto al tiempo y solo mientras la aparición se genera, un spinner y un porcentaje simulado (`avatarActivityPercent`: la curva del editor, `avatarRenderPercent`, desde el inicio que dan `receivedAt` y `elapsedSeconds` de la actividad; nunca dice 100, no hay barra y el porcentaje es un `role="img"` con su nombre), y en la grilla «Imágenes» cada escena del avatar es una tarjeta propia (`AvatarSceneCell`: borde y fondo morados, ícono, estado con la regla de la fila, el mismo número y tramo que una imagen por `SceneCellOverlay`, sin imagen ni «Ampliar»), porque el sidecar les deja la foto del look como `imagePath` con `imageStatus: 'ok'` y sin tarjeta propia se verían como imágenes. Cada tarjeta que se genera corre su propio reloj (la grilla no corre ninguno, para no repintar las imágenes ni el visor cada segundo) y la grilla le pasa al visor de «Ampliar» un `onClose` estable —su efecto enfoca su contenedor cada vez que cambia— y solo las escenas sin avatar. El conteo «Imágenes (n/m)» cuenta solo las escenas sin avatar y, si todas las escenas son apariciones, el encabezado no se muestra. `avatarRunOptions` lleva también el motor del proyecto (`avatarEngine`) y `estimateResumeCost` cuenta lo que falta del avatar con la tarifa del motor de cada escena (el de la escena; si no, el de las opciones; si no, Avatar III).
+**El avatar en la pantalla de progreso (ADR-0057):** la fase `avatar` (entre imágenes y animación, en morado) se muestra solo con avatar y **por datos** (`hasAvatar` del proyecto, la fase en curso o escenas de avatar), porque una fase saltada nunca queda en `completedStages`: sin eso un proyecto sin avatar reanudado desde disco la mostraría pendiente y la culparía de un fallo. `PipelineAvatarPanel` muestra «Avatar n/m» con la fase del render y su reloj (el tiempo que informa el sidecar más el reloj local; vuelve a 0 entre la cosecha y el pedido nuevo). Los `avatar-scene-*` quedan en `SceneView.avatarActivity` (memoria; no sobrevive al reinicio) y, al terminar el job, un render anunciado que no se cerró (saldo, clave o cancelación) vuelve a «En espera». Cuatro cosas más que la persona tiene que poder ver y que las filas no dicen: las apariciones que no entraron (`avatarDropped`, que `avatar-planned` anuncia y la interfaz toma como un valor, no suma) salen en una nota siempre que sean más de cero: debajo de las fases cuando el panel del avatar no está a la vista y no hay pausa; si no, lo dice el propio panel o el diálogo de la pausa, también cuando no entró ninguna y la fase se saltea («Ninguna aparición del avatar entró en la narración (N descartadas): el video sale sin avatar»); HeyGen caído o degradado (`avatar-provider-trouble`, una vez por código y corrida) sale como un aviso pasajero traducido, uno a la vez, además del log; cuántas apariciones salen con la imagen fija del look (entrega 2d, abajo); y si un proyecto de antes de la 2d quedó en `avatar_incomplete` con un rechazo que reanudar no arregla como código dominante (moderación, look no soportado o pedido inválido), la cabecera no manda a «Reanudar» sino a renderizar desde el editor —sale con la imagen fija— o cambiar el look (`failureMessageOf`, `create.errors.avatarRejected`; con un código de la cuenta dominando, el texto de ese código). El reproductor de la biblioteca usa la misma cabecera para el mismo proyecto. Qué apariciones salen con la imagen fija del look (entrega 2d) lo decide una sola regla, `isAvatarFallback` (`utilities/avatarFallback.ts`), que comparten la fila de cada aparición, el aviso del final de Crear (`GenerationProgress`, contexto `progress`), el del reproductor de la biblioteca (`LibraryPlayer`, contexto `project`, solo con video) y el del editor (`project`): manda lo que pasó en la corrida y, si no, la vista; cuentan las fallidas y la lista que perdió su clip; una desactualizada no cuenta nunca y su fila dice «Desactualizada» (`create.progress.avatarStale`) y no «No se completó»; una planeada cuenta solo en el proyecto ya hecho. `AvatarFallbackNote` recibe la cifra y una acción opcional («Regenerarlas (N)» en el editor) y un `messageKey`: el texto es `create.progress.avatarFallback_*` en Crear y en el reproductor, y `library.editor.avatar.fallbackNote_*` en el editor, donde «podés regenerarlas desde el editor» sería circular. Desde la entrega 2e (diseño §21.5) cada fila muestra, junto al tiempo y solo mientras la aparición se genera, un spinner y un porcentaje simulado (`avatarActivityPercent`: la curva del editor, `avatarRenderPercent`, desde el inicio que dan `receivedAt` y `elapsedSeconds` de la actividad; nunca dice 100, no hay barra y el porcentaje es un `role="img"` con su nombre), y en la grilla «Imágenes» cada escena del avatar es una tarjeta propia (`AvatarSceneCell`: borde y fondo morados, ícono, estado con la regla de la fila, el mismo número y tramo que una imagen por `SceneCellOverlay`, sin imagen ni «Ampliar»), porque el sidecar les deja la foto del look como `imagePath` con `imageStatus: 'ok'` y sin tarjeta propia se verían como imágenes. Cada tarjeta que se genera corre su propio reloj (la grilla no corre ninguno, para no repintar las imágenes ni el visor cada segundo) y la grilla le pasa al visor de «Ampliar» un `onClose` estable —su efecto enfoca su contenedor cada vez que cambia— y solo las escenas sin avatar. El conteo «Imágenes (n/m)» cuenta solo las escenas sin avatar y, si todas las escenas son apariciones, el encabezado no se muestra. `avatarRunOptions` lleva también el motor del proyecto (`avatarEngine`) y `estimateResumeCost` cuenta lo que falta del avatar con la tarifa del motor de cada escena (el de la escena; si no, el de las opciones; si no, Avatar III) y, antes del corte, lo que sale con la misma cuenta que Crear (`avatarRequestedSeconds`, también con «3 veces en 2 minutos», entrega 2f).
 
 La narración es **esencial** (si falla, el job muere); música y overlay son
 **opcionales**: si fallan, el video sale sin ese asset y la UI recibe un `log`.
@@ -1060,9 +1086,9 @@ arranca en la frase más cercana a su ancla **desde la que cabe**, antes o despu
 (`nearestFittingSpan`): una frase desde la que la aparición pasaría los 60 s o no
 llegaría al mínimo (`AVATAR_MIN_APPEARANCE_SECONDS`, 5 s desde la entrega 2d; antes 7)
 se saltea, y la aparición va a `dropped` solo si ninguna frase de la zona
-sirve; la apertura no tiene alternativa (arranca en 0 o se descarta). **Tope de
-silencio:** una aparición no carga más de `AVATAR_MAX_PAUSE_SECONDS` (2 s) después de la
-última palabra de una frase. Cada `NarrationSentence` trae `lastWordEndSeconds` (el fin
+sirve; la apertura arranca en 0 o se descarta (desde la entrega 2f, si con el tope no
+cabe, vuelve a probar sin él: abajo). **Tope de silencio:** una aparición no carga más de
+`AVATAR_MAX_PAUSE_SECONDS` (2 s) después de la última palabra de una frase. Cada `NarrationSentence` trae `lastWordEndSeconds` (el fin
 de su última palabra en `words.json`, sin llevar al cuadro) y su fin recortado es
 `min(endSeconds, cuadro(lastWordEndSeconds + 2 s))`, nunca antes de su inicio; una frase
 recortada cierra la aparición (la siguiente no se suma, ni para llegar al mínimo), y el
@@ -1083,6 +1109,33 @@ ningún lado. El tope no cambia el plan cuando todas las pausas son de 2 s o men
 regla de la frase más cercana desde la que cabe y la del máximo sí pueden cambiarlo sin
 pausas. Sin avatar nada cambia (el planificador y las frases solo corren con
 `options.avatar`; las escenas de imagen subtitulan como siempre).
+
+**«3 veces en 2 minutos» y la apertura que siempre abre (entrega 2f, diseño §22.2 y
+§22.3; rulings R-2f-2 a R-2f-8):** con «Empieza con el avatar», la apertura siempre abre
+(R-2f-4): si el ajuste desde la frase 0 no cabe por el tope de silencio, `openingSpan` lo
+vuelve a probar sin él (`pauseRule: 'carried'`, cada frase medida hasta su fin), así que
+la apertura carga ese silencio y suma frases hasta el mínimo sin pasar el máximo; pero no
+carga más de `AVATAR_OPENING_MAX_PAUSE_SECONDS` (6 s) después de la última palabra de cada
+frase (R-2f-6), y si hace falta más no hay apertura: una palabra con 19 s de silencio no
+es una apertura muda que HeyGen cobra. Solo la dejan afuera un audio de menos de 5 s, una
+apertura que no llega al mínimo sin pasar el máximo después del corte o más silencio del
+que carga. Esto no depende de la casilla nueva: es el único cambio para un video con «3
+veces en 2 minutos» apagada, y alcanza solo a los videos cuya apertura antes se descartaba
+por el tope. «3 veces en 2 minutos» (`options.avatar.threeInFirstTwoMinutes`, que
+`create-video-project` valida como booleano y guarda solo en `true`, y
+`AvatarPlanOptions.threeInFirstTwoMinutes`) pide al menos `AVATAR_EARLY_APPEARANCES` (3)
+apariciones (R-2f-2). Las tres primeras, contando la apertura, arrancan antes de
+`min(AVATAR_EARLY_WINDOW_SECONDS, fin del audio)` (120 s; arrancar justo a los 120 ya no
+cuenta), repartidas con la regla de anclas dentro de esa ventana y con el hueco mínimo,
+apuntando a `min(s, AVATAR_EARLY_MAX_SECONDS)` y sin pasar `AVATAR_EARLY_MAX_SECONDS`
+(35 s: era 45 y bajó a 40 y a 35 con la simulación de las narraciones, R-2f-5 y R-2f-8),
+salvo que desde ninguna frase de su zona quepa una así: `targetsToTry` prueba entonces con
+60 s. Si la apertura no cupo, no ocupa lugar y la ventana intenta las tres (R-2f-7). Las
+demás, con los segundos elegidos, se reparten (`spreadAppearances`) en la zona que queda
+después de la tercera. Lo que no entra va a `dropped`, nunca a otro lugar. Apagada
+(ausente, `false` o un valor que no es `true`), el plan es el de la 2e salvo esa apertura.
+La estimación de Crear y la de reanudar cuentan lo mismo (`avatarRequestedAppearances` y
+`avatarRequestedSeconds`).
 
 **El tope de silencio en el corte** (`check-scene-pins.mjs`): el silencio que el tope
 deja fuera de un pin es el comienzo del tramo libre siguiente y el carril lo corta como
@@ -1230,8 +1283,9 @@ su prompt, descripción, personajes, modelo o calidad de imagen con el mismo có
 sin aplicar el resto del lote) y, con clip o recibos, sus dos fronteras no se mueven
 (`avatar_timing_locked`). En el editor, el panel de una escena de avatar muestra su
 In/Out de solo lectura y no la sección de animación (Kie nunca la anima), y la
-galería, el aviso de imágenes faltantes y las dos vías de «Regenerar imagen» no la
-cuentan (`sceneImageEditable`). El panel explica la escena con
+selección de la galería, el aviso de imágenes faltantes y las dos vías de «Regenerar
+imagen» no la cuentan (`sceneImageEditable`; desde la entrega 2f la galería igual la
+muestra, con su propia tarjeta: abajo). El panel explica la escena con
 `library.editor.panel.avatarSceneHint`. Desde la entrega 2d genera o regenera su avatar
 (`EditorAvatarSceneActions`, con `useAvatarSceneRender`): «Generar avatar» en una
 planeada, «Regenerar avatar» en una fallida, desactualizada —con o sin clip:
@@ -1288,6 +1342,25 @@ incluye: así una escena a la que Vimo todavía no le escribió el movimiento no
 `avatarRenderPayload`: sin nada más, el `{ projectId, sceneIds }` de siempre. El export
 para editar saca la escena de avatar como su clip o como el look, igual que el video
 final, y falla con `avatar_render_look_unavailable` si no tiene ninguno.
+
+Desde la entrega 2f (diseño §22.4) la galería «Vista ampliada de imágenes»
+(`EditorImageGallery`) muestra, en el orden del video, una tarjeta por escena de avatar
+(`EditorAvatarGalleryCard`): su clip mudo (el normalizado no trae audio) con «Reproducir»
+/ «Pausar» —la galería pausa el que andaba antes de arrancar otro: nunca dos a la vez— o,
+sin clip, la imagen del look; su número y su tramo; su estado con la regla del bloque de
+la pista (`avatarBlockState`) y una etiqueta corta que nunca se corta («Lista»,
+«Desactualizado» como la caja de las acciones, «Generando el avatar…» con el porcentaje,
+«Con imagen fija» en una planeada o una fallida), con el título del bloque de tooltip; y
+debajo, `EditorAvatarSceneActions` de esa escena con las mismas acciones, costo,
+confirmación y «Movimiento» que el panel. La tarjeta no tiene botón para elegirla:
+«Regenerar imágenes» y «Animar» en lote siguen siendo de escenas de imagen
+(`imageScenes`), y la descripción de la galería cuenta todas las tarjetas y solo dice que
+también se regenera el avatar si el proyecto tiene alguna (`descriptionWithAvatar`). Las
+acciones esperan con el mismo `busy` que el panel (`busy || savingChanges`, que
+`LibraryEditor` le pasa a la galería) y al envío de un lote de la galería, y su
+`focusFallback` es la tarjeta: cuando el avance desaparece con el foco adentro, el foco
+vuelve a ella, porque el panel queda detrás del modal y el foco mandado ahí se escapa del
+diálogo.
 
 ### Contrato con el sidecar
 

@@ -1251,7 +1251,13 @@
       "expressiveHelpAria": "Qué hace «Movimiento más expresivo»",
       "expressiveTooltip": "Más energía en los gestos y en la cara de cada aparición, sin exagerar. No suma costo.",
       "expressiveUnavailable": "Con {{engine}}, este look no admite un movimiento más expresivo.",
-      "motionAuto": "Vimo escribe el movimiento de cada aparición según lo que dice. Podés cambiarlo en el editor."
+      "motionAuto": "Vimo escribe el movimiento de cada aparición según lo que dice. Podés cambiarlo en el editor.",
+      "threeInTwo": "3 veces en 2 minutos",
+      "threeInTwoHelpAria": "Qué hace «3 veces en 2 minutos»",
+      "threeInTwoTooltip": "El avatar sale al menos 3 veces en los primeros 2 minutos del video, contando la del inicio si empieza con el avatar. Las demás apariciones se reparten en el resto del video.",
+      "threeInTwoMinimum": "Con «3 veces en 2 minutos» salen al menos 3 apariciones.",
+      "threeInTwoCapped": "Las tres primeras duran hasta {{seconds}} s para entrar en los 2 minutos.",
+      "expressiveNoReference": "Con Avatar V, este look usa su propio movimiento: su avatar no tiene un gemelo digital."
     }
   },
   "createDemo": {
@@ -1566,7 +1572,13 @@
         "shortPairHint": "Escenas de 3 s: al animar una, se incluye la siguiente compatible para crear un clip de 6 s. Las parejas se indican aquí antes de empezar. Sin pareja, se ajusta solo ese clip a su duración.",
         "undoHint_one": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas. Este clip cubre {{count}} escena.",
         "undoHint_other": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas. Este clip cubre {{count}} escenas.",
-        "undoBeforeImages": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas."
+        "undoBeforeImages": "Para cambiar las imágenes, deshacé primero la animación. Después podrás regenerarlas.",
+        "avatarCardAria": "Escena {{index}}: aparición del avatar",
+        "avatarPlay": "Reproducir el clip del avatar",
+        "avatarPause": "Pausar el clip del avatar",
+        "avatarNoClip": "Sin clip todavía: se ve la imagen del look.",
+        "descriptionWithAvatar_one": "{{count}} escena. Regenera imágenes, anima clips o regenera el avatar sin salir de esta galería.",
+        "descriptionWithAvatar_other": "{{count}} escenas. Regenera imágenes, anima clips o regenera el avatar sin salir de esta galería."
       },
       "avatar": {
         "generar": "Generar avatar",

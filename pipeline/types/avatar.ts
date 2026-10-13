@@ -335,12 +335,36 @@ export const AVATAR_MAX_APPEARANCES = 10
 export const AVATAR_DEFAULT_APPEARANCES = 3
 // Mínimo de imágenes entre dos apariciones.
 export const AVATAR_MIN_GAP_SECONDS = 10
+// «3 veces en 2 minutos» (entrega 2f, pedido del dueño del 2026-10-12, diseño
+// §22.2): al menos AVATAR_EARLY_APPEARANCES apariciones que ARRANCAN dentro de
+// los primeros AVATAR_EARLY_WINDOW_SECONDS, contando la apertura; cada una de
+// ellas apunta a lo sumo a AVATAR_EARLY_MAX_SECONDS y no lo pasa, para que las
+// tres entren con los huecos mínimos (R-2f-3). El dueño las pide
+// «obligatoriamente»: era 45 s, la ronda 1 lo bajó a 40 y la ronda 2 a 35
+// (R-2f-8). Porcentaje de casos en que las tres arrancan dentro de la ventana,
+// sin apertura / con apertura, en 10 000 narraciones simuladas tipo TTS por
+// corpus (el de frases de 2 a 12 s, y uno de frases más largas, de 2 a 15 s):
+//
+//   tope   frases de 2 a 12 s   frases de 2 a 15 s
+//   45 s   86,8 % / 99,1 %      74,8 % / 96,3 %
+//   40 s   99,7 % / 100 %       96,9 % / 99,97 %
+//   35 s   100 % / 100 %        99,95 % / 100 %
+export const AVATAR_EARLY_WINDOW_SECONDS = 120
+export const AVATAR_EARLY_APPEARANCES = 3
+export const AVATAR_EARLY_MAX_SECONDS = 35
 // Silencio máximo que una aparición carga después de la última palabra de una
 // frase (entrega 2b, decisión del dueño del 2026-10-11, diseño §5): una frase
 // que es una palabra y un silencio largo no se vuelve un avatar mudo que HeyGen
 // cobra. Por encima, la frase cierra la aparición en `lastWordEndSeconds` más
 // este tope, al cuadro.
 export const AVATAR_MAX_PAUSE_SECONDS = 2
+// Silencio máximo que la apertura carga después de la última palabra de cada
+// una de sus frases cuando se vuelve a probar sin el tope de arriba (entrega
+// 2f, R-2f-4, ronda 1 del 2026-10-12): una primera frase corta seguida de unos
+// segundos de silencio igual abre el video, pero si hace falta cargar más que
+// esto no hay apertura (va a `dropped`, como antes de la 2f), así una palabra
+// y 19 s de silencio no son una apertura muda que HeyGen cobra.
+export const AVATAR_OPENING_MAX_PAUSE_SECONDS = 6
 // Frases de la narración (pipeline/narration/sentences.ts): una pausa así
 // cierra una frase sin puntuación, y una frase más larga que el máximo se
 // parte en su pausa interna más larga.
@@ -473,6 +497,20 @@ export function avatarExpressiveAvailable(
   return support.motionPrompt || support.expressiveness
 }
 
+// ¿Avatar V puede mover a este avatar con un `motion_prompt`? (entrega 2f,
+// §22.1, medido con una sonda gratis del 2026-10-12): con un look de foto, V
+// necesita una referencia de animación en su grupo —un gemelo digital, o las
+// curadas del stock—; un avatar de foto propio sin ningún gemelo digital no la
+// tiene y el proveedor rechaza el prompt. Los looks de video se referencian a
+// sí mismos.
+export function avatarHasMotionReference(
+  entry: Pick<AvatarSummary, 'ownership' | 'looks'>,
+): boolean {
+  if (entry.ownership === 'stock') return true
+
+  return entry.looks.some((look) => look.lookType === 'digital_twin')
+}
+
 // El nivel que manda «más expresivo» (IV con un look de foto). Apagado no se
 // manda nada y el proveedor usa `low`.
 export const AVATAR_EXPRESSIVE_LEVEL = 'high'
@@ -521,6 +559,8 @@ export interface ProjectAvatarOptions {
   // «Movimiento más expresivo» (entrega 2e, §21.3): viaja solo en true y solo
   // si el motor y el look lo admiten (avatarExpressiveAvailable).
   expressive?: boolean
+  // «3 veces en 2 minutos» (entrega 2f, §22.2): viaja solo en true.
+  threeInFirstTwoMinutes?: boolean
 }
 
 // Solo tres estados persistidos y ninguno transitorio (misma lección que

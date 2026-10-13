@@ -347,6 +347,10 @@ export interface SelectedAvatar {
   // con ellos el formulario, el costo y el envío derivan el motor con el que
   // sale (selectedAvatarEngine) sin volver a leer la biblioteca.
   supportedEngines: AvatarEngine[]
+  // ¿Avatar V lo puede mover con un prompt? (entrega 2f, §22.1,
+  // avatarHasMotionReference), copiado al elegirlo. Ausente en un borrador de
+  // antes de la 2f: cuenta como true.
+  motionReference?: boolean
 }
 
 // Si un avatar de la biblioteca sirve para un video en este formato y, si
@@ -417,6 +421,8 @@ export interface CreateFormValue {
   avatarSecondsPerAppearance: number
   // La primera aparición abre el video.
   avatarStartsVideo: boolean
+  // «3 veces en 2 minutos» (entrega 2f, §22.2).
+  avatarThreeInTwoMinutes: boolean
   // Entrega 2e (§21.3): el motor que prefiere la persona (si el look no lo
   // admite, sale con el primero que admite: avatarEngineFor) y «Movimiento más
   // expresivo», que solo viaja si el motor y el look lo admiten.

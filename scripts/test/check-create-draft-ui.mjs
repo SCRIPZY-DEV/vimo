@@ -4,10 +4,11 @@
 // un formulario intacto no se guarda (así Crear sigue tomando las
 // preferencias del momento); la selección de la otra pestaña también es
 // borrador y, una vez escrito, el borrador refleja todo (también una vuelta
-// a los valores de la semilla); cambiar el nombre y el avatar, salir y volver
-// los conserva; si un pre-chequeo frena (el saldo de HeyGen releído no
-// alcanza) o se cancela mientras corren, no se crea el proyecto y el borrador
-// sigue; si createProject falla (una clave o un avatar rechazados) el
+// a los valores de la semilla); cambiar el nombre, el avatar y la casilla «3
+// veces en 2 minutos» (entrega 2f), salir y volver los conserva; si un
+// pre-chequeo frena (el saldo de HeyGen releído no alcanza) o se cancela
+// mientras corren, no se crea el proyecto y el borrador sigue; si
+// createProject falla (una clave o un avatar rechazados) el
 // borrador también sigue, así salir por el menú sin «Crear otro» y volver no
 // pierde el formulario; recién con el proyecto creado se descarta; «Crear
 // otro» vuelve al formulario tal como estaba y lo guarda de nuevo, así salir
@@ -179,11 +180,12 @@ try {
   // 2. Cambiar el nombre y el avatar: se escriben; salir y volver los conserva.
   await change({ name: 'Video A' })
   await waitFor(() => readCreateDraft()?.form.name === 'Video A', 'el nombre llega al borrador')
-  await change({ useAvatar: true, avatar: ANA })
+  await change({ useAvatar: true, avatar: ANA, avatarThreeInTwoMinutes: true })
   await waitFor(() => readCreateDraft()?.form.avatar?.id === 'ana-1', 'el avatar llega al borrador')
   await leaveCreate()
   await goToCreate()
   check(form().name === 'Video A' && form().useAvatar === true && form().avatar?.lookId === 'look-ana', 'al volver, el nombre y el avatar siguen: ' + JSON.stringify({ name: form().name, avatar: form().avatar }))
+  check(form().avatarThreeInTwoMinutes === true && readCreateDraft()?.form.avatarThreeInTwoMinutes === true, 'la casilla «3 veces en 2 minutos» (entrega 2f) viaja con el borrador: al volver sigue marcada')
 
   // 3. Un pre-chequeo frena (el saldo de HeyGen releído no alcanza): el borrador sigue.
   await delay(300)

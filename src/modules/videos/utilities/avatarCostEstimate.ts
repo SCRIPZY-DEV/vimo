@@ -1,13 +1,19 @@
 import { slotDurationSeconds } from '@pipeline/animation/timing.ts'
 import {
   AVATAR_DEFAULT_ENGINE,
+  AVATAR_EARLY_APPEARANCES,
+  AVATAR_EARLY_MAX_SECONDS,
   avatarUsdPerMinute,
   estimateAvatarUsd,
 } from '@pipeline/types/avatar.ts'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { AvatarSpanWindow } from '@pipeline/runner/events.ts'
-import type { AvatarEngine, AvatarLookType } from '@pipeline/types/avatar.ts'
+import type {
+  AvatarEngine,
+  AvatarLookType,
+  ProjectAvatarOptions,
+} from '@pipeline/types/avatar.ts'
 
 // Decimales del estimado en la UI: solo sacan el ruido de la coma flotante.
 const AVATAR_USD_DECIMALS = 6
@@ -40,11 +46,69 @@ export function avatarUsd(
   return Number(usd.toFixed(AVATAR_USD_DECIMALS))
 }
 
-// Segundos de avatar que pide el formulario; 0 con el avatar apagado.
+// Lo que decide cuántas apariciones y cuántos segundos de avatar salen, con la
+// forma de las opciones del proyecto (ProjectAvatarOptions): Crear lo arma del
+// formulario (createAvatarAppearances y createAvatarSeconds) y reanudar lo lee
+// de project.json (estimateResumeCost). Es UNA cuenta para los dos (entrega
+// 2f): así el costo que ve la persona al crear y al reanudar no diverge.
+export type AvatarAppearancesChoice = Pick<
+  ProjectAvatarOptions,
+  'appearances' | 'secondsPerAppearance' | 'threeInFirstTwoMinutes'
+>
+
+// Apariciones que salen. Con «3 veces en 2 minutos» (entrega 2f, diseño §22.2,
+// R-2f-2) al menos AVATAR_EARLY_APPEARANCES aunque se hayan pedido menos: el
+// planificador del sidecar (pipeline/avatar/planner.ts) las sube a ese mínimo
+// y lee la opción igual que acá (solo `true` la prende).
+export function avatarRequestedAppearances(
+  choice: AvatarAppearancesChoice,
+): number {
+  if (choice.threeInFirstTwoMinutes !== true) return choice.appearances
+
+  return Math.max(choice.appearances, AVATAR_EARLY_APPEARANCES)
+}
+
+// Segundos de avatar que salen. Con «3 veces en 2 minutos» cuenta lo que sale
+// de verdad (R-2f-3): las tres primeras apuntan a lo sumo a
+// AVATAR_EARLY_MAX_SECONDS para entrar en los 2 minutos y las demás usan los
+// segundos elegidos. Apagada, apariciones × segundos, como siempre.
+export function avatarRequestedSeconds(
+  choice: AvatarAppearancesChoice,
+): number {
+  const seconds = choice.secondsPerAppearance
+  if (choice.threeInFirstTwoMinutes !== true)
+    return choice.appearances * seconds
+
+  const earlySeconds =
+    AVATAR_EARLY_APPEARANCES * Math.min(seconds, AVATAR_EARLY_MAX_SECONDS)
+  const laterAppearances =
+    avatarRequestedAppearances(choice) - AVATAR_EARLY_APPEARANCES
+
+  return earlySeconds + laterAppearances * seconds
+}
+
+// Apariciones del avatar que va a pedir el formulario; 0 con el avatar
+// apagado.
+export function createAvatarAppearances(form: CreateFormValue): number {
+  if (!form.useAvatar) return 0
+
+  return avatarRequestedAppearances(formChoice(form))
+}
+
+// Segundos de avatar que va a pedir el formulario; 0 con el avatar apagado.
 export function createAvatarSeconds(form: CreateFormValue): number {
   if (!form.useAvatar) return 0
 
-  return form.avatarAppearances * form.avatarSecondsPerAppearance
+  return avatarRequestedSeconds(formChoice(form))
+}
+
+// La elección del formulario con la forma de las opciones del proyecto.
+function formChoice(form: CreateFormValue): AvatarAppearancesChoice {
+  return {
+    appearances: form.avatarAppearances,
+    secondsPerAppearance: form.avatarSecondsPerAppearance,
+    threeInFirstTwoMinutes: form.avatarThreeInTwoMinutes,
+  }
 }
 
 // La línea de HeyGen del pre-check (ADR-0031, spec §9): dólares contra el

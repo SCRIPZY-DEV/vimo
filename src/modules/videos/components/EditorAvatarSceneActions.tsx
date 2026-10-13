@@ -24,6 +24,15 @@ interface EditorAvatarSceneActionsProps {
   busy: boolean
   // Proyecto demo: no se genera nada.
   locked: boolean
+  // Adonde va el foco cuando el avance desaparece con el foco adentro y el
+  // botón que abrió la confirmación ya no está: el panel de la escena (por
+  // omisión) o, en la vista ampliada, la tarjeta de la escena (entrega 2f).
+  focusFallback?(): HTMLElement | null
+}
+
+// El panel de la escena: adonde vuelve el foco si nadie dice otro lugar.
+function scenePanelElement() {
+  return document.getElementById(EDITOR_SCENE_PANEL_ID)
 }
 
 // El avatar de una escena de avatar desde el panel del editor (entrega 2d,
@@ -37,7 +46,8 @@ interface EditorAvatarSceneActionsProps {
 // saldo antes de pagar. Mientras se genera, el avance y «Cancelar». Sin la
 // clave del avatar presentador, el aviso de siempre con su enlace. Dueño de su
 // asunto: la tarea, el saldo, la confirmación y el borrador del movimiento
-// viven en useAvatarSceneRender; el panel lo monta con la `key` de la escena,
+// viven en useAvatarSceneRender; el panel y, desde la entrega 2f (§22.4), cada
+// tarjeta de avatar de la vista ampliada lo montan con la `key` de la escena,
 // así nada de esto pasa de una escena a otra.
 export function EditorAvatarSceneActions({
   projectId,
@@ -45,6 +55,7 @@ export function EditorAvatarSceneActions({
   scenes,
   busy,
   locked,
+  focusFallback = scenePanelElement,
 }: EditorAvatarSceneActionsProps) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'es'
@@ -60,10 +71,11 @@ export function EditorAvatarSceneActions({
   // Al arrancar va a la región del avance (la escena elegida siempre entra en
   // lo que pide), nunca a su «Cancelar», o a la sección si el job ya cerró.
   // Cuando el avance desaparece con el foco adentro, vuelve al botón que la
-  // abrió si sigue montado o al panel (M1 y M2 de la revisión del WP-Q).
+  // abrió si sigue montado o al panel (M1 y M2 de la revisión del WP-Q); en la
+  // vista ampliada, a la tarjeta: el panel queda detrás de su modal y el foco
+  // mandado ahí se escapa del diálogo (medido en Chrome, entrega 2f).
   const focus = useConfirmationFocus()
-  const focusAfterRender = () =>
-    focus.mountedOpener() ?? document.getElementById(EDITOR_SCENE_PANEL_ID)
+  const focusAfterRender = () => focus.mountedOpener() ?? focusFallback()
 
   // Sin la clave, el aviso ocupa el lugar del botón: solo donde habría uno.
   if (avatarRender.missingKey) {
@@ -152,6 +164,9 @@ export function EditorAvatarSceneActions({
               })}
             </p>
           )}
+          {/* Las etiquetas se parten en dos líneas en vez de cortarse: en la
+              tarjeta angosta de la vista ampliada (entrega 2f) «Regenerar
+              avatar» quedaba «Regenerar a…»; en el panel entran en una. */}
           {avatarRender.action && (
             <Button
               type="button"
@@ -159,14 +174,14 @@ export function EditorAvatarSceneActions({
                 openConfirmation(event.currentTarget, [scene.id])
               }
               disabled={disabled}
-              className="w-full min-w-0 rounded-xl font-display font-bold"
+              className="h-auto min-h-10 w-full min-w-0 whitespace-normal rounded-xl font-display font-bold"
             >
               {avatarRender.action === 'generate' ? (
                 <UserRound aria-hidden className="h-4 w-4" />
               ) : (
                 <RefreshCw aria-hidden className="h-4 w-4" />
               )}
-              <span className="min-w-0 truncate">
+              <span className="min-w-0">
                 {t(
                   avatarRender.action === 'generate'
                     ? 'library.editor.avatar.generar'
@@ -183,10 +198,10 @@ export function EditorAvatarSceneActions({
                 openConfirmation(event.currentTarget, pendingIds)
               }
               disabled={disabled}
-              className="w-full min-w-0 rounded-xl border-amethyst/40 font-display font-bold"
+              className="h-auto min-h-10 w-full min-w-0 whitespace-normal rounded-xl border-amethyst/40 font-display font-bold"
             >
               <RefreshCw aria-hidden className="h-4 w-4" />
-              <span className="min-w-0 truncate">
+              <span className="min-w-0">
                 {t('library.editor.avatar.regenerarTodos', {
                   count: pendingIds.length,
                 })}

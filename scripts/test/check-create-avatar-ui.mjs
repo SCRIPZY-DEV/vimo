@@ -81,8 +81,24 @@
 // motor del proyecto: en vivo (el diálogo de cantidad y el paso de segundos)
 // y rearmada desde el disco; sin motor, con el de Avatar III. Las tarifas de V
 // con looks de foto salen de la tabla con la función (cambian en la 2e), nunca
-// escritas acá. Las teclas son de verdad (CDP, con la emulación de foco), así
-// el foco del teclado queda «visible».
+// escritas acá. Desde la entrega 2f (§22): debajo de «Empieza con el avatar»,
+// con la misma casilla, «3 veces en 2 minutos» (apagada por defecto, con el
+// botón de ayuda y su tooltip fuera de la etiqueta; manda solo
+// `{ avatarThreeInTwoMinutes }`; prendida y con menos de 3 apariciones dice
+// que salen al menos 3, y con más del tope por aparición que las tres
+// primeras duran hasta el tope; los avisos que se ven son la descripción de la
+// casilla, `aria-describedby` en el orden en que se ven y sin ids de avisos
+// que no están) y la tarjeta del costo, el total y el costo de cada motor
+// cuentan lo que sale de verdad (3 × 10 s con una sola aparición; tres al tope
+// + 2 × 60 s con cinco de 60 s). El tope es AVATAR_EARLY_MAX_SECONDS y se lee
+// de la constante: lo fija el planificador y ya cambió (45, 40, 35 s), así que
+// nada acá lo escribe como número. Y con Avatar V y un look de foto de un avatar
+// propio sin gemelo digital, «Movimiento más expresivo» queda apagado con el
+// motivo y sin la línea del movimiento automático (la elección que arma la
+// biblioteca trae `motionReference`); con uno del stock, con un gemelo digital
+// en su grupo, con un look de estudio, con IV o en un borrador sin el campo,
+// no. Las teclas son de verdad (CDP, con la emulación de foco), así el foco
+// del teclado queda «visible».
 // Los simulacros parten del real (ERRORES-CONOCIDOS: simulacro-de-hook-en-un-
 // guard-queda-viejo-en-silencio-cuando-el-hook-suma-un-miembro): `avatarsApi`,
 // `apiKeysApi` y `videosApi` son los reales con solo las lecturas del sidecar
@@ -153,6 +169,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import es from './public/locales/es.json'
 import { avatarScenarioPath } from '@/modules/avatars/constants'
 import { AvatarLibrary } from '@/modules/avatars/views/AvatarLibrary'
+import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { CreditsBadge } from '@/modules/common/components/CreditsBadge'
 import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
@@ -173,6 +190,8 @@ import { LibraryProgress } from '@/modules/videos/views/LibraryProgress/LibraryP
 import {
   AVATAR_DEFAULT_APPEARANCE_SECONDS,
   AVATAR_DEFAULT_APPEARANCES,
+  AVATAR_EARLY_APPEARANCES,
+  AVATAR_EARLY_MAX_SECONDS,
   AVATAR_MAX_APPEARANCE_SECONDS,
   AVATAR_MAX_APPEARANCES,
   AVATAR_MIN_APPEARANCE_SECONDS,
@@ -231,11 +250,14 @@ const remoteImage = (lookId) => svgImage('heygen:' + lookId)
 const remoteVideo = (lookId) => 'https://cdn.heygen.test/looks/' + lookId + '.mp4'
 const stockLook = (item) => ({ lookId: item.lookId, name: item.name, lookType: item.lookType, supportedEngines: item.supportedEngines, preferredOrientation: item.preferredOrientation, previewImageUrl: remoteImage(item.lookId), previewVideoUrl: remoteVideo(item.lookId) })
 const STOCK_LOOKS = Object.fromEntries(LIBRARY.map((item) => [item.groupId, item.looks.map(stockLook)]))
-// La elección del formulario lleva los motores de su look (entrega 2e).
-const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', supportedEngines: ['avatar_iii', 'avatar_iv'] }
+// La elección del formulario lleva los motores de su look (entrega 2e) y, desde
+// la 2f, si Avatar V puede mover a su avatar con un prompt (motionReference,
+// siempre la última clave): Ana es propia, de foto y sin gemelo digital, así
+// que no; Teo es de stock, así que sí.
+const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', supportedEngines: ['avatar_iii', 'avatar_iv'], motionReference: false }
 const ANA_KITCHEN = { ...ANA, lookId: 'look-ana-cocina', lookName: 'Ana cocina', supportedEngines: ['avatar_iii'] }
 const ANA_VERTICAL = { ...ANA, lookId: 'look-ana-vertical', lookName: 'Ana vertical', supportedEngines: ['avatar_iii'] }
-const TEO = { id: 'teo-2', name: 'Teo', lookId: 'look-teo', lookName: 'Teo estudio', lookType: 'digital_twin', supportedEngines: ['avatar_iii'] }
+const TEO = { id: 'teo-2', name: 'Teo', lookId: 'look-teo', lookName: 'Teo estudio', lookType: 'digital_twin', supportedEngines: ['avatar_iii'], motionReference: true }
 const USD = { available: true, remaining: 2.87, currency: 'usd' }
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right)
 
@@ -402,6 +424,16 @@ const engineRadio = (engine) => engineRadios().find((radio) => nameOf(radio) ===
 const expressiveSwitch = () => document.getElementById('create-avatar-expressive')
 const expressiveHelp = () => document.querySelector('button[aria-label="' + i18n.t('create.avatar.expressiveHelpAria') + '"]')
 const costCard = () => [...document.querySelectorAll('[role=note]')].find((element) => element.getAttribute('aria-label') === i18n.t('create.avatar.costTitle')) ?? null
+// Las casillas de la tarjeta (entrega 2f): se buscan por el texto exacto de su
+// etiqueta; el botón de ayuda de «3 veces en 2 minutos»; y si un párrafo de la
+// página dice exactamente una frase (los avisos de la casilla son párrafos).
+const checkboxNamed = (label) => [...document.querySelectorAll('input[type=checkbox]')].find((input) => input.closest('label')?.textContent === label) ?? null
+const startBox = () => checkboxNamed(i18n.t('create.avatar.startWithAvatar'))
+const threeBox = () => checkboxNamed(i18n.t('create.avatar.threeInTwo'))
+const threeHelp = () => document.querySelector('button[aria-label="' + i18n.t('create.avatar.threeInTwoHelpAria') + '"]')
+const paragraphNamed = (sentence) => [...document.querySelectorAll('p')].find((paragraph) => paragraph.textContent === sentence) ?? null
+const paragraphSays = (sentence) => paragraphNamed(sentence) !== null
+const follows = (first, second) => Boolean(first && second && (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING))
 const usdSays = (amount) => i18n.t('create.avatar.cost', { amount: formatUsd(amount, 'es') })
 const perMinuteSays = (rate) => i18n.t('create.avatar.pricePerMinute', { price: formatUsd(rate, 'es') })
 // Las partes de una opción del motor: su nombre (aria-labelledby) y su
@@ -1021,9 +1053,9 @@ try {
   const ALL_ENGINES = ['avatar_iii', 'avatar_iv', 'avatar_v']
   const MIA = avatar('mia-6', 'Mia', 'own', 'look-mia', [look('look-mia', 'Mia estudio', 'photo_avatar', 'landscape', ALL_ENGINES), look('look-mia-iv', 'Mia IV', 'photo_avatar', 'landscape', ['avatar_iv'])])
   const LEO = avatar('leo-7', 'Leo', 'stock', 'look-leo', [look('look-leo', 'Leo gemelo', 'digital_twin', 'landscape', ALL_ENGINES)])
-  const MIA_CHOICE = { id: 'mia-6', name: 'Mia', lookId: 'look-mia', lookName: 'Mia estudio', lookType: 'photo_avatar', supportedEngines: ALL_ENGINES }
+  const MIA_CHOICE = { id: 'mia-6', name: 'Mia', lookId: 'look-mia', lookName: 'Mia estudio', lookType: 'photo_avatar', supportedEngines: ALL_ENGINES, motionReference: false }
   const MIA_IV = { ...MIA_CHOICE, lookId: 'look-mia-iv', lookName: 'Mia IV', supportedEngines: ['avatar_iv'] }
-  const LEO_CHOICE = { id: 'leo-7', name: 'Leo', lookId: 'look-leo', lookName: 'Leo gemelo', lookType: 'digital_twin', supportedEngines: ALL_ENGINES }
+  const LEO_CHOICE = { id: 'leo-7', name: 'Leo', lookId: 'look-leo', lookName: 'Leo gemelo', lookType: 'digital_twin', supportedEngines: ALL_ENGINES, motionReference: true }
   const engineFixture = { avatars: [MIA, LEO], balance: USD, keys: ['heygen'], stockLooks: { ...STOCK_LOOKS, [MIA.groupId]: MIA.looks.map(stockLook), [LEO.groupId]: LEO.looks.map(stockLook) } }
   const engineLabel = (engine) => phrase('avatars.engines.' + engine)
   const engineDescription = (engine) => phrase('create.avatar.engineDescription.' + engine)
@@ -1268,6 +1300,222 @@ try {
   await waitFor(() => document.getElementById('spans-iv')?.textContent && document.getElementById('spans-default')?.textContent, 'las notas de los tramos')
   const spansCost = (amount) => phrase('create.confirmScenes.avatarCost', { amount: formatUsd(amount, 'es') })
   check(document.getElementById('spans-iv').textContent.includes(spansCost(1.155)) && document.getElementById('spans-default').textContent.includes(spansCost(0.495)), 'los tramos cobran con el motor del proyecto (IV: 1,16) y, sin él, con Avatar III (0,50): ' + document.getElementById('spans-iv').textContent + ' / ' + document.getElementById('spans-default').textContent)
+
+  // 16k. «3 veces en 2 minutos» (entrega 2f, diseño §22.2): debajo de «Empieza
+  // con el avatar», con la misma casilla y una ayuda con tooltip. Apagada por
+  // defecto; manda solo { avatarThreeInTwoMinutes }; prendida avisa lo que
+  // cambia (al menos 3 apariciones; las tres primeras hasta el tope), esos
+  // avisos son la descripción de la casilla y el costo cuenta lo que sale de
+  // verdad. Mia es un look de foto con los tres motores, con III por defecto:
+  // 0,99 US$/min. El tope de las tres primeras sale de la constante
+  // AVATAR_EARLY_MAX_SECONDS (era 45 s; el planificador lo bajó a 40 y
+  // después a 35): nada de este caso lo escribe como número, y los totales se
+  // arman a mano a partir de él.
+  const earlyCap = AVATAR_EARLY_MAX_SECONDS
+  const earlyAtCap = AVATAR_EARLY_APPEARANCES * earlyCap
+  const fiveCapped = earlyAtCap + 2 * AVATAR_MAX_APPEARANCE_SECONDS
+  const fiveUncapped = 5 * AVATAR_MAX_APPEARANCE_SECONDS
+  const threeSays = {
+    label: phrase('create.avatar.threeInTwo'),
+    helpAria: phrase('create.avatar.threeInTwoHelpAria'),
+    tooltip: phrase('create.avatar.threeInTwoTooltip'),
+    minimum: phrase('create.avatar.threeInTwoMinimum'),
+    capped: phrase('create.avatar.threeInTwoCapped', { seconds: earlyCap }),
+    startLabel: phrase('create.avatar.startWithAvatar'),
+  }
+  // La línea del total tiene plural (total_one y total_other): se comprueba una
+  // vez que existen y que la frase sale resuelta; después se arma sin contar
+  // checks, porque se usa dentro de las esperas.
+  const totalSays = (count, seconds) => i18n.t('create.avatar.total', { count, seconds })
+  check(i18n.exists('create.avatar.total_one') && i18n.exists('create.avatar.total_other') && totalSays(5, fiveCapped).includes(String(fiveCapped)) && !totalSays(5, fiveCapped).includes('{{') && totalSays(1, 10) !== totalSays(5, 10), 'la línea del total existe en singular y plural y sale resuelta: ' + totalSays(5, fiveCapped))
+  const threeCostSays = (seconds) => usdSays(avatarUsd('photo_avatar', seconds))
+  check(AVATAR_EARLY_APPEARANCES === 3, 'son «3 veces»: AVATAR_EARLY_APPEARANCES vale 3')
+  check(earlyCap > AVATAR_DEFAULT_APPEARANCE_SECONDS && earlyCap >= AVATAR_MIN_APPEARANCE_SECONDS && earlyCap + 1 <= AVATAR_MAX_APPEARANCE_SECONDS, 'el tope de las tres primeras (' + earlyCap + ' s) cabe en los controles: por encima de los segundos por defecto y con un valor más arriba que el control puede elegir')
+  check(avatarUsd('photo_avatar', fiveCapped) !== avatarUsd('photo_avatar', fiveUncapped), 'con 5 apariciones de ' + AVATAR_MAX_APPEARANCE_SECONDS + ' s el tope cambia la cuenta (' + fiveCapped + ' s, no ' + fiveUncapped + ' s)')
+  check(threeSays.capped.includes(String(earlyCap)), 'el aviso de las tres primeras dice el tope: ' + threeSays.capped)
+
+  // 16k-a. La casilla: dónde está, cómo se ve y qué manda.
+  mount(engineFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: MIA_CHOICE })
+  await waitFor(() => named(avatarRadios(), 'Mia') && threeBox() && startBox() && costCard(), 'la tarjeta con las dos casillas')
+  check(threeBox().checked === false && !threeBox().disabled && CREATE_FORM_INITIAL_VALUE.avatarThreeInTwoMinutes === false, 'la casilla está apagada y habilitada por defecto')
+  check(follows(startBox(), threeBox()) && follows(threeBox(), costCard()), 'va debajo de «Empieza con el avatar» y antes del costo')
+  check(threeBox().className === startBox().className && threeBox().closest('label').className === startBox().closest('label').className, 'con el mismo estilo que «Empieza con el avatar»: ' + threeBox().closest('label').className)
+  check(window.patches.length === 0 && !paragraphSays(threeSays.minimum) && !paragraphSays(threeSays.capped), 'apagada no hay avisos y montarla no parchea nada')
+  check(!threeBox().hasAttribute('aria-describedby') && !startBox().hasAttribute('aria-describedby'), 'sin avisos la casilla no apunta a ninguna descripción (ni la de «Empieza con el avatar», que no pasa ids)')
+  check(costCard().textContent.includes(totalSays(3, 30)) && costCard().textContent.includes(threeCostSays(30)), 'apagada, la tarjeta cuenta lo elegido (3 × 10 s): ' + costCard().textContent)
+
+  // La ayuda: un botón fuera de la etiqueta, en la fila de la casilla, que el
+  // teclado alcanza justo después y cuyo foco abre el tooltip; tocarla no marca.
+  const help = threeHelp()
+  check(help && help.tagName === 'BUTTON' && help.type === 'button' && !help.closest('label') && help.parentElement === threeBox().closest('label').parentElement && follows(threeBox(), help), 'la ayuda es un botón fuera de la etiqueta, en la fila de la casilla y después de ella')
+  threeBox().scrollIntoView({ block: 'center' })
+  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+  await delay(100)
+  threeBox().focus()
+  await pressKey('Tab')
+  check(document.activeElement === help, 'Tab sale de la casilla al botón de ayuda')
+  const threeTooltip = await waitFor(() => document.querySelector('[role=tooltip]'), 'el foco abre el tooltip de la ayuda')
+  check(threeTooltip.textContent === threeSays.tooltip, 'el tooltip explica qué hace: ' + threeTooltip.textContent)
+  await pressKey('Escape')
+  await waitFor(() => !document.querySelector('[role=tooltip]'), 'Escape cierra el tooltip')
+  help.click()
+  await delay(100)
+  check(window.patches.length === 0 && threeBox().checked === false, 'tocar la ayuda no marca la casilla ni parchea nada')
+
+  // Marcarla manda solo { avatarThreeInTwoMinutes: true }; con 3 apariciones de
+  // 10 s no hay nada que avisar.
+  threeBox().click()
+  await waitFor(() => threeBox().checked, 'marcar «3 veces en 2 minutos»')
+  check(window.patches.length === 1 && same(window.patches.at(-1), { avatarThreeInTwoMinutes: true }), 'marcarla manda solo { avatarThreeInTwoMinutes: true }: ' + JSON.stringify(window.patches))
+  check(!paragraphSays(threeSays.minimum) && !paragraphSays(threeSays.capped) && !threeBox().hasAttribute('aria-describedby'), 'con 3 apariciones de 10 s no hay nada que avisar ni nada que describa a la casilla')
+
+  // 16k-b. Con menos de 3 apariciones sale el aviso del mínimo, que describe a
+  // la casilla, y la tarjeta cuenta las 3 que salen sin tocar el control de la
+  // persona.
+  setRange('create-avatar-appearances', 1)
+  await waitFor(() => same(window.patches.at(-1), { avatarAppearances: 1 }), 'una aparición')
+  await waitFor(() => paragraphSays(threeSays.minimum), 'con 1 aparición sale el aviso de que salen al menos 3')
+  const minimumNote = paragraphNamed(threeSays.minimum)
+  check(follows(threeBox(), minimumNote) && !paragraphSays(threeSays.capped), 'el aviso va debajo de la casilla, sin el del tope')
+  check(minimumNote.id !== '' && threeBox().getAttribute('aria-describedby') === minimumNote.id && descriptionOf(threeBox()) === threeSays.minimum, 'el aviso del mínimo es la descripción de la casilla: ' + descriptionOf(threeBox()))
+  check(document.getElementById('create-avatar-appearances').value === '1', 'el control sigue en lo que eligió la persona')
+  check(costCard().textContent.includes(totalSays(3, 30)) && costCard().textContent.includes(threeCostSays(30)) && !costCard().textContent.includes(totalSays(1, 10)), 'la tarjeta cuenta las 3 apariciones que salen (30 s), no la que se eligió: ' + costCard().textContent)
+  setRange('create-avatar-appearances', 2)
+  await waitFor(() => same(window.patches.at(-1), { avatarAppearances: 2 }), 'dos apariciones')
+  check(paragraphSays(threeSays.minimum) && descriptionOf(threeBox()) === threeSays.minimum && costCard().textContent.includes(totalSays(3, 30)), 'con 2 apariciones sigue el aviso, describe a la casilla y salen 3')
+  setRange('create-avatar-appearances', AVATAR_EARLY_APPEARANCES)
+  await waitFor(() => same(window.patches.at(-1), { avatarAppearances: AVATAR_EARLY_APPEARANCES }) && !paragraphSays(threeSays.minimum), 'con 3 apariciones el aviso se va')
+  check(!threeBox().hasAttribute('aria-describedby'), 'y con él se va la descripción: la casilla no apunta a un id que ya no está')
+
+  // 16k-c. Con más del tope por aparición, el aviso del tope; con el tope, no.
+  setRange('create-avatar-seconds', earlyCap)
+  await waitFor(() => same(window.patches.at(-1), { avatarSecondsPerAppearance: earlyCap }), earlyCap + ' segundos por aparición')
+  check(!paragraphSays(threeSays.capped) && !threeBox().hasAttribute('aria-describedby') && costCard().textContent.includes(totalSays(3, earlyAtCap)), 'con ' + earlyCap + ' s no hay tope que avisar (3 × ' + earlyCap + ' s = ' + earlyAtCap + ' s)')
+  setRange('create-avatar-seconds', earlyCap + 1)
+  await waitFor(() => paragraphSays(threeSays.capped), 'con ' + (earlyCap + 1) + ' s por aparición sale el aviso del tope de las tres primeras')
+  const cappedNote = paragraphNamed(threeSays.capped)
+  check(follows(threeBox(), cappedNote) && !paragraphSays(threeSays.minimum) && costCard().textContent.includes(totalSays(3, earlyAtCap)), 'va debajo de la casilla y las tres primeras cuentan ' + earlyCap + ' s (' + earlyAtCap + ' s), no ' + (earlyCap + 1))
+  check(cappedNote.id !== '' && threeBox().getAttribute('aria-describedby') === cappedNote.id && descriptionOf(threeBox()) === threeSays.capped, 'el aviso del tope es la descripción de la casilla: ' + descriptionOf(threeBox()))
+
+  // 16k-d. 5 apariciones de 60 s: las tres primeras al tope y las otras dos a
+  // 60 s; ni el mínimo ni lo elegido: lo que sale. La tarjeta y cada opción del
+  // motor dicen la misma cifra, y el aviso del tope sigue.
+  setRange('create-avatar-appearances', 5)
+  await waitFor(() => same(window.patches.at(-1), { avatarAppearances: 5 }), 'cinco apariciones')
+  setRange('create-avatar-seconds', AVATAR_MAX_APPEARANCE_SECONDS)
+  await waitFor(() => same(window.patches.at(-1), { avatarSecondsPerAppearance: AVATAR_MAX_APPEARANCE_SECONDS }) && costCard().textContent.includes(totalSays(5, fiveCapped)), 'cinco apariciones de ' + AVATAR_MAX_APPEARANCE_SECONDS + ' s: ' + fiveCapped + ' s')
+  check(costCard().textContent.includes(threeCostSays(fiveCapped)) && !costCard().textContent.includes(totalSays(5, fiveUncapped)), 'la tarjeta cobra ' + fiveCapped + ' s, no los ' + fiveUncapped + ' s de 5 × ' + AVATAR_MAX_APPEARANCE_SECONDS + ': ' + costCard().textContent)
+  check(paragraphSays(threeSays.capped) && !paragraphSays(threeSays.minimum) && descriptionOf(threeBox()) === threeSays.capped, 'con 5 apariciones de ' + AVATAR_MAX_APPEARANCE_SECONDS + ' s sigue el aviso del tope y no el del mínimo')
+  const expectedByEngine = Object.fromEntries(['avatar_v', 'avatar_iv', 'avatar_iii'].map((engine) => [engine, optionSays(engine, 'photo_avatar', fiveCapped)]))
+  await waitFor(() => engineRadios().every((radio) => descriptionOf(radio) === expectedByEngine[radio.dataset.engine]), 'cada opción del motor dice el costo de los ' + fiveCapped + ' s')
+  check(engineRadios().length === 3, 'las tres opciones del motor siguen la misma cuenta')
+
+  // 1 aparición de 60 s: tres al tope. Salen los dos avisos y la casilla se
+  // describe con los dos, en el orden en que se ven.
+  setRange('create-avatar-appearances', 1)
+  await waitFor(() => same(window.patches.at(-1), { avatarAppearances: 1 }) && costCard().textContent.includes(totalSays(3, earlyAtCap)), 'una aparición de ' + AVATAR_MAX_APPEARANCE_SECONDS + ' s: salen 3 y son ' + earlyAtCap + ' s')
+  check(paragraphSays(threeSays.minimum) && paragraphSays(threeSays.capped) && costCard().textContent.includes(threeCostSays(earlyAtCap)), 'con 1 aparición de ' + AVATAR_MAX_APPEARANCE_SECONDS + ' s salen los dos avisos y el costo de ' + earlyAtCap + ' s')
+  const bothIds = (threeBox().getAttribute('aria-describedby') ?? '').split(' ')
+  check(bothIds.length === 2 && follows(document.getElementById(bothIds[0]), document.getElementById(bothIds[1])) && bothIds[0] === paragraphNamed(threeSays.minimum).id && bothIds[1] === paragraphNamed(threeSays.capped).id && descriptionOf(threeBox()) === threeSays.minimum + ' | ' + threeSays.capped, 'los dos avisos describen a la casilla, en el orden en que se ven: ' + descriptionOf(threeBox()))
+
+  // 16k-e. Desmarcarla manda { avatarThreeInTwoMinutes: false }, apaga los dos
+  // avisos y su descripción aunque el control siga en 1 × 60 s, y la tarjeta
+  // vuelve a contar lo elegido (60 s en 1 aparición).
+  threeBox().click()
+  await waitFor(() => !threeBox().checked, 'desmarcar la casilla')
+  check(same(window.patches.at(-1), { avatarThreeInTwoMinutes: false }), 'desmarcarla manda { avatarThreeInTwoMinutes: false }: ' + JSON.stringify(window.patches.at(-1)))
+  check(!paragraphSays(threeSays.minimum) && !paragraphSays(threeSays.capped) && !threeBox().hasAttribute('aria-describedby') && costCard().textContent.includes(totalSays(1, AVATAR_MAX_APPEARANCE_SECONDS)) && costCard().textContent.includes(threeCostSays(AVATAR_MAX_APPEARANCE_SECONDS)), 'apagada otra vez no hay avisos ni descripción y la tarjeta cuenta lo elegido: ' + costCard().textContent)
+
+  // 16k-f. Deshabilitada (la demo): se ve marcada, no responde y sigue diciendo
+  // lo que cambia; con el avatar apagado la casilla no está.
+  mount(engineFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: MIA_CHOICE, avatarAppearances: 1, avatarThreeInTwoMinutes: true }, true)
+  await waitFor(() => toggle()?.disabled && named(avatarRadios(), 'Mia') && threeBox(), 'deshabilitada con la casilla marcada')
+  check(threeBox().disabled && threeBox().checked && paragraphSays(threeSays.minimum) && descriptionOf(threeBox()) === threeSays.minimum, 'deshabilitada: la casilla se ve marcada y no responde, y sigue diciendo lo que cambia, también como su descripción')
+  threeBox().click()
+  await delay(100)
+  check(window.patches.length === 0 && threeBox().checked, 'deshabilitada no parchea nada')
+  mount(engineFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: false })
+  await waitFor(() => toggle() && !toggle().disabled && window.listCalls > 0, 'la tarjeta con el avatar apagado')
+  await delay(100)
+  check(!threeBox() && !startBox() && !threeHelp(), 'con el avatar apagado no está ninguna de las casillas ni la ayuda')
+  // Encendida pero sin un avatar elegido (el que se mira no tiene look para el
+  // formato) las casillas siguen ahí, las dos juntas, como «Empieza con el
+  // avatar» de siempre.
+  mount(engineFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: null })
+  await waitFor(() => startBox() && threeBox() && threeHelp(), 'sin un avatar elegido siguen las dos casillas y la ayuda')
+  check(follows(startBox(), threeBox()) && engineRadios().length === 0, 'sin avatar elegido no hay grupo «Motor», pero la casilla va debajo de «Empieza con el avatar»')
+
+  // 16k-g. CheckboxRow solo (los demás usos —personajes presentes, música
+  // instrumental— no pasan ids): sin describedBy, o con uno vacío, no pone el
+  // atributo; con ids los pasa tal cual al input y no a la etiqueta.
+  reactRoot.render(<div id="checkbox-rows"><CheckboxRow label="Sin ids" checked={false} onChange={() => {}} /><CheckboxRow label="Ids vacíos" checked={false} describedBy="" onChange={() => {}} /><CheckboxRow label="Con ids" checked describedBy="uno dos" onChange={() => {}} /></div>)
+  await waitFor(() => document.querySelectorAll('#checkbox-rows input').length === 3, 'tres casillas sueltas')
+  const [plainBox, emptyBox, describedBox] = [...document.querySelectorAll('#checkbox-rows input')]
+  check(!plainBox.hasAttribute('aria-describedby') && !emptyBox.hasAttribute('aria-describedby'), 'sin describedBy, o con uno vacío, la casilla no pone aria-describedby')
+  check(describedBox.getAttribute('aria-describedby') === 'uno dos' && !describedBox.closest('label').hasAttribute('aria-describedby') && describedBox.closest('label').textContent === 'Con ids', 'con describedBy lo pasa tal cual al input, no a la etiqueta, y el nombre sigue siendo solo la etiqueta')
+
+  // 16l. Avatar V sin gemelo digital (entrega 2f, R-2f-1). La elección que arma
+  // la biblioteca trae motionReference: un avatar propio de foto sin ningún look
+  // de gemelo digital no tiene con qué moverse con V (el proveedor rechaza el
+  // prompt): «Movimiento más expresivo» queda apagado con el motivo, sin la línea
+  // del movimiento automático, y la preferencia de la persona no se toca. Nia
+  // (propia, de foto, con un gemelo digital en su grupo) y Dante (de stock) sí
+  // tienen con qué; Zoe es propia con un look de estudio, que se referencia a
+  // sí mismo.
+  const NIA = avatar('nia-8', 'Nia', 'own', 'look-nia', [look('look-nia', 'Nia foto', 'photo_avatar', 'landscape', ALL_ENGINES), look('look-nia-gemelo', 'Nia gemelo', 'digital_twin', 'landscape', ALL_ENGINES)])
+  const DANTE = avatar('dante-9', 'Dante', 'stock', 'look-dante', [look('look-dante', 'Dante foto', 'photo_avatar', 'landscape', ALL_ENGINES)])
+  const ZOE = avatar('zoe-10', 'Zoe', 'own', 'look-zoe', [look('look-zoe', 'Zoe estudio', 'studio_avatar', 'landscape', ALL_ENGINES)])
+  const NIA_CHOICE = { id: 'nia-8', name: 'Nia', lookId: 'look-nia', lookName: 'Nia foto', lookType: 'photo_avatar', supportedEngines: ALL_ENGINES, motionReference: true }
+  const DANTE_CHOICE = { id: 'dante-9', name: 'Dante', lookId: 'look-dante', lookName: 'Dante foto', lookType: 'photo_avatar', supportedEngines: ALL_ENGINES, motionReference: true }
+  const ZOE_CHOICE = { id: 'zoe-10', name: 'Zoe', lookId: 'look-zoe', lookName: 'Zoe estudio', lookType: 'studio_avatar', supportedEngines: ALL_ENGINES, motionReference: false }
+  const referenceFixture = { avatars: [MIA, NIA, DANTE, ZOE], balance: USD, keys: ['heygen'] }
+  const noReference = phrase('create.avatar.expressiveNoReference')
+  const motionAutoLine = phrase('create.avatar.motionAuto')
+  const unavailableForV = phrase('create.avatar.expressiveUnavailable', { engine: engineLabel('avatar_v') })
+  check(noReference !== unavailableForV && !/hey[\s-]*gen/i.test(noReference), 'el motivo es su propia frase y no nombra al proveedor: ' + noReference)
+  // El interruptor ofrecido y prendido (la línea del movimiento automático a la
+  // vista), o apagado con el motivo de V sin gemelo (y sin esa línea).
+  const expressiveOffered = () => expressiveSwitch() && !expressiveSwitch().disabled && expressiveSwitch().getAttribute('aria-checked') === 'true' && text().includes(motionAutoLine) && !paragraphSays(noReference)
+  const expressiveBlocked = () => expressiveSwitch()?.disabled && expressiveSwitch().getAttribute('aria-checked') === 'false' && paragraphSays(noReference) && descriptionOf(expressiveSwitch()) === noReference && !text().includes(motionAutoLine) && !text().includes(unavailableForV)
+
+  // 16l-a. Mia (propia, de foto, sin gemelo) con V y «más expresivo» prendido en
+  // el formulario: apagado con el motivo; nada se parchea ni se pierde.
+  mount(referenceFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: MIA_CHOICE, avatarEngine: 'avatar_v', avatarExpressive: true })
+  await waitFor(() => named(avatarRadios(), 'Mia') && isChecked(engineRadio('avatar_v')) && expressiveSwitch(), 'Mia con V: el interruptor de «más expresivo»')
+  check(expressiveBlocked(), 'Mia con V: «más expresivo» apagado y deshabilitado, con el motivo de que su avatar no tiene un gemelo digital como descripción y sin la línea del movimiento automático')
+  check(follows(engineGroup(), expressiveSwitch()), 'el interruptor sigue yendo después del grupo «Motor»')
+  expressiveSwitch().click()
+  await delay(100)
+  check(window.patches.length === 0 && window.value.avatarExpressive === true && window.value.avatarEngine === 'avatar_v', 'tocarlo no parchea nada y el formulario conserva lo que eligió la persona (V y «más expresivo» prendido)')
+
+  // 16l-b. Con IV el mismo look sí se mueve: el interruptor vuelve prendido y
+  // con la línea; con V, otra vez el motivo (se deriva al dibujar).
+  engineRadio('avatar_iv').click()
+  await waitFor(() => isChecked(engineRadio('avatar_iv')) && expressiveOffered(), 'con IV, el look de Mia admite «más expresivo»')
+  engineRadio('avatar_v').click()
+  await waitFor(() => isChecked(engineRadio('avatar_v')) && expressiveBlocked(), 'de vuelta en V, otra vez el motivo')
+  check(same(window.patches, [{ avatarEngine: 'avatar_iv' }, { avatarEngine: 'avatar_v' }]), 'solo se parchearon los dos cambios de motor: ' + JSON.stringify(window.patches))
+
+  // 16l-c. Elegir otro avatar desde la fila trae motionReference de la
+  // biblioteca (selectedAvatarFrom): Nia y Dante la tienen, Zoe no la tiene
+  // pero su look de estudio se mueve igual, y volver a Mia lo apaga de nuevo.
+  const motionAfter = async (name, choice, expectation, description) => {
+    named(avatarRadios(), name).click()
+    await waitFor(() => same(window.patches.at(-1), { avatar: choice }), 'elegir a ' + name)
+    await waitFor(() => expectation(), description)
+  }
+  await motionAfter('Nia', NIA_CHOICE, expressiveOffered, 'Nia (propia, de foto, con un gemelo digital en su grupo) con V: «más expresivo» disponible y prendido')
+  await motionAfter('Dante', DANTE_CHOICE, expressiveOffered, 'Dante (de stock) con V: «más expresivo» disponible, sin aviso')
+  await motionAfter('Zoe', ZOE_CHOICE, expressiveOffered, 'Zoe (propia, con un look de estudio y sin gemelo) con V: disponible, porque un look de video se referencia a sí mismo')
+  await motionAfter('Mia', MIA_CHOICE, expressiveBlocked, 'volver a Mia con V: apagado con el motivo')
+  check(window.value.avatarExpressive === true && window.value.avatarEngine === 'avatar_v', 'cambiar de avatar no tocó el motor ni «más expresivo»')
+
+  // 16l-d. Un borrador de antes de la 2f no trae el campo: cuenta como que sí.
+  const MIA_DRAFT = { ...MIA_CHOICE }
+  delete MIA_DRAFT.motionReference
+  mount(referenceFixture, { ...CREATE_FORM_INITIAL_VALUE, useAvatar: true, avatar: MIA_DRAFT, avatarEngine: 'avatar_v', avatarExpressive: true })
+  await waitFor(() => named(avatarRadios(), 'Mia') && isChecked(engineRadio('avatar_v')) && expressiveSwitch(), 'Mia sin el campo, con V')
+  await waitFor(() => expressiveOffered(), 'sin motionReference el interruptor se ofrece, prendido y sin aviso')
 
   // 17. La pausa de escenas cobra con el motor del proyecto (entrega 2e,
   // R-2e-12): el store real de Crear copia el motor de las opciones de corrida

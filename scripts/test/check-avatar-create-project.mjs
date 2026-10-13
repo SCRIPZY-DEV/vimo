@@ -17,7 +17,10 @@
 // hablar con HeyGen. Desde la entrega 2e, `expressive` («Movimiento más
 // expresivo»), si viene, es booleano y se guarda solo en true y si el motor y
 // el look lo admiten; sin él, Avatar III guarda las opciones de antes byte a
-// byte. También fija `lookOrientationFit`, la regla de
+// byte. Desde la entrega 2f, `threeInFirstTwoMinutes` («3 veces en 2
+// minutos»), si viene, es booleano y se guarda solo en true, al final (detrás
+// de `expressive`); apagado, las opciones de antes. También fija
+// `lookOrientationFit`, la regla de
 // orientación que Crear comparte con el sidecar, y que `types/avatar.ts` (la
 // app importa sus valores) sigue browser-safe por toda su cadena de imports.
 // Comando real con la biblioteca en una carpeta temporal y HeyGen simulado:
@@ -358,6 +361,63 @@ test('crear con avatar (entrega 2e): «más expresivo» se guarda solo en true y
   }
 })
 
+// Entrega 2f (diseño §22.2): «3 veces en 2 minutos» viaja solo prendida y se
+// guarda solo en true, al final de `options.avatar` (detrás de «más
+// expresivo»). Apagada, las opciones de antes byte a byte.
+test('crear con avatar (entrega 2f): «3 veces en 2 minutos» se guarda solo en true, al final y detrás de «más expresivo»; apagado o ausente, las opciones de antes byte a byte', async (t) => {
+  const stored = async (avatar, looks) => {
+    const root = await session(t, looks ? { looks } : {})
+    const { projectDir } = await create(root, payload({ avatar })).promise
+    const raw = JSON.parse(
+      await readFile(join(projectDir, 'project.json'), 'utf8'),
+    )
+    return JSON.stringify(raw.options.avatar)
+  }
+
+  assert.equal(
+    await stored({ ...AVATAR, threeInFirstTwoMinutes: true }),
+    JSON.stringify({ ...AVATAR, threeInFirstTwoMinutes: true }),
+  )
+  for (const threeInFirstTwoMinutes of [false, undefined])
+    assert.equal(
+      await stored({ ...AVATAR, threeInFirstTwoMinutes }),
+      JSON.stringify(AVATAR),
+      String(threeInFirstTwoMinutes),
+    )
+
+  // Con «más expresivo» (IV con un look de foto), las dos al final, en orden.
+  const expressiveLook = [
+    libraryLook({ supportedEngines: ['avatar_iii', 'avatar_iv', 'avatar_v'] }),
+  ]
+  const chosen = { ...AVATAR, engine: 'avatar_iv' }
+  assert.equal(
+    await stored(
+      { ...chosen, threeInFirstTwoMinutes: true, expressive: true },
+      expressiveLook,
+    ),
+    JSON.stringify({
+      ...chosen,
+      expressive: true,
+      threeInFirstTwoMinutes: true,
+    }),
+  )
+})
+
+test('crear con avatar (entrega 2f): un «3 veces en 2 minutos» que no es booleano es invalid_payload con su mensaje', async (t) => {
+  const root = await session(t)
+  await assert.rejects(
+    create(
+      root,
+      payload({ avatar: { ...AVATAR, threeInFirstTwoMinutes: 'true' } }),
+    ).promise,
+    {
+      code: 'invalid_payload',
+      message: 'options.avatar.threeInFirstTwoMinutes must be a boolean',
+    },
+  )
+  assert.deepEqual(await projectFolders(root), [])
+})
+
 test('crear con avatar: una vista previa WEBP del principal se copia como look.webp', async (t) => {
   const root = await session(t, { previews: { 'look-1.webp': WEBP } })
   const { projectDir } = await create(root, payload()).promise
@@ -685,6 +745,18 @@ for (const [label, avatar, optionOverrides = {}] of [
   ['sin motor', { ...AVATAR, engine: undefined }],
   ['un «más expresivo» que no es booleano', { ...AVATAR, expressive: 'yes' }],
   ['un «más expresivo» nulo', { ...AVATAR, expressive: null }],
+  [
+    'un «3 veces en 2 minutos» que no es booleano',
+    { ...AVATAR, threeInFirstTwoMinutes: 'yes' },
+  ],
+  [
+    'un «3 veces en 2 minutos» nulo',
+    { ...AVATAR, threeInFirstTwoMinutes: null },
+  ],
+  [
+    'un «3 veces en 2 minutos» numérico',
+    { ...AVATAR, threeInFirstTwoMinutes: 1 },
+  ],
   [
     'menos apariciones que el mínimo',
     { ...AVATAR, appearances: AVATAR_MIN_APPEARANCES - 1 },

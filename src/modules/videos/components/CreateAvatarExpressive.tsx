@@ -10,17 +10,23 @@ import {
 } from '@/modules/common/ui/tooltip'
 import { AVATAR_ENGINE_LABEL_KEYS } from '@/modules/videos/constants'
 import {
+  avatarMotionReferenceMissing,
+  selectedAvatarExpressiveAvailable,
+} from '@/modules/videos/utilities/selectableAvatar'
+import {
   AVATAR_LOOK_TYPES,
   avatarExpressiveAvailable,
   avatarMotionSupport,
 } from '@pipeline/types/avatar.ts'
-import type { AvatarEngine, AvatarLookType } from '@pipeline/types/avatar.ts'
+import type { SelectedAvatar } from '@/modules/videos/types/create'
+import type { AvatarEngine } from '@pipeline/types/avatar.ts'
 
 interface CreateAvatarExpressiveProps {
-  // El motor con el que sale el look elegido y el tipo del look: deciden si
-  // el interruptor se ve y si hace algo.
+  // La elección del formulario (el tipo de su look y si su avatar tiene con
+  // qué moverse) y el motor con el que sale: deciden si el interruptor se ve
+  // y si hace algo.
+  avatar: SelectedAvatar
   engine: AvatarEngine
-  lookType: AvatarLookType
   // Lo que eligió la persona (CreateFormValue.avatarExpressive).
   checked: boolean
   disabled: boolean
@@ -33,13 +39,16 @@ interface CreateAvatarExpressiveProps {
 // con Avatar III no se muestra). Con un motor y un look que no lo admiten (IV
 // con un gemelo digital o un look de estudio) se ve apagado y dice por qué,
 // aunque la persona lo haya prendido: la elección queda en el formulario y no
-// viaja (formPayload). Debajo, si el motor y el look admiten el prompt de
-// movimiento, la línea que dice que Vimo lo escribe para cada aparición
-// (§21.2). La ayuda va fuera de la etiqueta: tocarla no prende el
-// interruptor. Presentacional.
+// viaja (formPayload). Lo mismo con Avatar V y un look de foto de un avatar
+// propio sin gemelo digital (entrega 2f, R-2f-1): V no puede moverlo con un
+// prompt, su look sale con el movimiento propio de V y el motivo lo dice.
+// Debajo, si el motor y el look admiten el prompt de movimiento, la línea que
+// dice que Vimo lo escribe para cada aparición (§21.2); sin ese prompt, no
+// sale. La ayuda va fuera de la etiqueta: tocarla no prende el interruptor.
+// Presentacional.
 export function CreateAvatarExpressive({
+  avatar,
   engine,
-  lookType,
   checked,
   disabled,
   onChange,
@@ -49,8 +58,11 @@ export function CreateAvatarExpressive({
 
   if (!engineMoves(engine)) return null
 
-  const available = avatarExpressiveAvailable(engine, lookType)
-  const writesMotion = avatarMotionSupport(engine, lookType).motionPrompt
+  const referenceMissing = avatarMotionReferenceMissing(avatar, engine)
+  const available = selectedAvatarExpressiveAvailable(avatar, engine)
+  const writesMotion =
+    avatarMotionSupport(engine, avatar.lookType).motionPrompt &&
+    !referenceMissing
 
   return (
     <div className="space-y-1.5 rounded-lg border border-amethyst/30 bg-card/60 px-3 py-2.5">
@@ -88,9 +100,11 @@ export function CreateAvatarExpressive({
       </div>
       {!available && (
         <p id={reasonId} className="font-body text-xs text-muted-foreground">
-          {t('create.avatar.expressiveUnavailable', {
-            engine: t(AVATAR_ENGINE_LABEL_KEYS[engine]),
-          })}
+          {referenceMissing
+            ? t('create.avatar.expressiveNoReference')
+            : t('create.avatar.expressiveUnavailable', {
+                engine: t(AVATAR_ENGINE_LABEL_KEYS[engine]),
+              })}
         </p>
       )}
       {writesMotion && (

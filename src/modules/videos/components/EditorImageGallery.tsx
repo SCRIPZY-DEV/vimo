@@ -12,6 +12,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
+import { EditorAvatarGalleryCard } from '@/modules/videos/components/EditorAvatarGalleryCard'
 import { EditorImageGalleryCard } from '@/modules/videos/components/EditorImageGalleryCard'
 import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
@@ -22,14 +23,21 @@ import type { GalleryActionsOptions } from '@/modules/videos/types/galleryAction
 // La galería conserva sus borradores; las generaciones pertenecen al almacén del
 // editor y siguen su curso cuando se cierra esta ventana.
 export function EditorImageGallery(options: GalleryActionsOptions) {
-  const { scenes, videoFormat, durationSeconds } = options
+  const { projectId, scenes, videoFormat, durationSeconds, locked, busy } =
+    options
   const { t } = useTranslation()
   const actions = useGalleryActions(options)
   // Las escenas de avatar no tienen imagen que regenerar (ADR-0057, spec
-  // §6.2): la galería no las lista ni las deja seleccionar, así un
-  // «Regenerar imágenes» múltiple nunca las incluye. Los planes de animación
+  // §6.2): solo se eligen escenas de imagen, así «Regenerar imágenes» y
+  // «Animar» en lote nunca incluyen una de avatar. Desde la entrega 2f
+  // (§22.4) la galería igual las muestra, en el orden del video, con su
+  // propia tarjeta (EditorAvatarGalleryCard: su clip, su estado y las
+  // acciones de su panel) y sin botón para elegirlas. Los planes de animación
   // siguen mirando todas las escenas (Kie las saltea, spec §7.4).
-  const galleryScenes = scenes.filter(sceneImageEditable)
+  const imageScenes = scenes.filter(sceneImageEditable)
+  // Solo con escenas de avatar la descripción dice que también se regenera el
+  // avatar: un proyecto sin avatar sigue con el texto de antes de la 2f.
+  const hasAvatarScenes = imageScenes.length < scenes.length
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selecting, setSelecting] = useState(false)
@@ -39,8 +47,11 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const [descriptions, setDescriptions] = useState<Record<number, string>>({})
   const triggerRef = useRef<HTMLInputElement>(null)
   const submissionRef = useRef(false)
+  // El clip de avatar que se está reproduciendo: al arrancar otro, este se
+  // pausa, así nunca andan dos a la vez.
+  const playingClipRef = useRef<HTMLVideoElement | null>(null)
 
-  const selection = galleryScenes
+  const selection = imageScenes
     .filter((scene) => selectedIds.includes(scene.id))
     .map((scene) => scene.id)
   const imageAvailability = actions.imageAvailability(selection)
@@ -176,6 +187,12 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
     }
   }
 
+  function playClipAlone(video: HTMLVideoElement) {
+    const previous = playingClipRef.current
+    playingClipRef.current = video
+    if (previous && previous !== video) previous.pause()
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <label className="ml-auto flex cursor-pointer items-center gap-2 rounded-xl border border-saffron/40 bg-saffron/5 px-3 py-2 font-body text-xs transition-colors hover:bg-saffron/10">
@@ -183,7 +200,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           ref={triggerRef}
           type="checkbox"
           checked={open}
-          disabled={galleryScenes.length === 0}
+          disabled={scenes.length === 0}
           onChange={(event) => setOpen(event.target.checked)}
           aria-haspopup="dialog"
           className="h-4 w-4 accent-saffron"
@@ -210,10 +227,14 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
               <Dialog.Title className="font-display text-lg font-extrabold">
                 {t('library.editor.imageGallery.label')}
               </Dialog.Title>
+              {/* Cuenta todas las tarjetas: las de imagen y las de avatar. */}
               <Dialog.Description className="font-body text-sm text-muted-foreground">
-                {t('library.editor.imageGallery.description', {
-                  count: galleryScenes.length,
-                })}
+                {t(
+                  hasAvatarScenes
+                    ? 'library.editor.imageGallery.descriptionWithAvatar'
+                    : 'library.editor.imageGallery.description',
+                  { count: scenes.length },
+                )}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -300,7 +321,24 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                   : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5',
               )}
             >
-              {galleryScenes.map((scene) => {
+              {scenes.map((scene) => {
+                // Una aparición del avatar: su tarjeta, sin selección.
+                if (!sceneImageEditable(scene)) {
+                  return (
+                    <EditorAvatarGalleryCard
+                      key={scene.id}
+                      projectId={projectId}
+                      scene={scene}
+                      scenes={scenes}
+                      videoFormat={videoFormat}
+                      version={actions.task?.sceneVersions[scene.id]}
+                      busy={busy || actions.submitting}
+                      locked={locked}
+                      onClipPlay={playClipAlone}
+                    />
+                  )
+                }
+
                 const selected = selecting
                   ? selection.includes(scene.id)
                   : selectedId === scene.id

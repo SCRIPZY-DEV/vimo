@@ -1016,6 +1016,7 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   avatarStartsVideo: true,
   avatarEngine: AVATAR_DEFAULT_ENGINE,
   avatarExpressive: false,
+  avatarThreeInTwoMinutes: false,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
   voice: null,

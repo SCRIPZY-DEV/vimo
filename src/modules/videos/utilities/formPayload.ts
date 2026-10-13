@@ -3,8 +3,10 @@ import { settingsForProvider } from '@/modules/voices/utilities/settingsToWire'
 import { displayLaneOf, laneOf } from '@/modules/videos/utilities/formLane'
 import { projectCustomStyleFrom } from '@/modules/videos/utilities/projectCustomStyle'
 import { gemProjectStyleId } from '@/modules/videos/utilities/selectedCatalogStyle'
-import { selectedAvatarEngine } from '@/modules/videos/utilities/selectableAvatar'
-import { avatarExpressiveAvailable } from '@pipeline/types/avatar.ts'
+import {
+  selectedAvatarEngine,
+  selectedAvatarExpressiveAvailable,
+} from '@/modules/videos/utilities/selectableAvatar'
 import type {
   CreateFormValue,
   CreateProjectPayloadOptions,
@@ -75,12 +77,14 @@ export function createProjectPayload(
     // rechaza antes de pagar.
     const engine = selectedAvatarEngine(form) ?? form.avatarEngine
     // «Movimiento más expresivo» viaja solo prendido y si el motor y el look
-    // lo admiten, al final: con Avatar III y el interruptor apagado,
+    // lo admiten (con Avatar V, además, que el avatar tenga con qué moverse:
+    // R-2f-1), al final: con Avatar III y el interruptor apagado,
     // options.avatar queda byte a byte como antes de la 2e (los recibos
-    // guardados se siguen cosechando con la misma huella).
+    // guardados se siguen cosechando con la misma huella). «3 veces en 2
+    // minutos» (entrega 2f, §22.2) cierra el objeto, también solo en true.
     const expressive =
       form.avatarExpressive &&
-      avatarExpressiveAvailable(engine, form.avatar.lookType)
+      selectedAvatarExpressiveAvailable(form.avatar, engine)
     options.avatar = {
       // El id de la biblioteca viaja como `avatarId` (ProjectAvatarOptions).
       avatarId: form.avatar.id,
@@ -93,6 +97,7 @@ export function createProjectPayload(
       startWithAvatar: form.avatarStartsVideo,
       placement: 'auto',
       ...(expressive ? { expressive: true } : {}),
+      ...(form.avatarThreeInTwoMinutes ? { threeInFirstTwoMinutes: true } : {}),
     }
   }
 

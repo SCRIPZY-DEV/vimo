@@ -596,6 +596,16 @@ function assertProjectAvatar(avatar: unknown, demo: boolean | undefined): void {
       'invalid_payload',
       'options.avatar.expressive must be a boolean',
     )
+  // «3 veces en 2 minutos» (entrega 2f, §22.2): si viene, booleano. Se guarda
+  // solo en true (storedAvatarOptions).
+  if (
+    value.threeInFirstTwoMinutes !== undefined &&
+    typeof value.threeInFirstTwoMinutes !== 'boolean'
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.threeInFirstTwoMinutes must be a boolean',
+    )
   if (
     !isIntegerBetween(
       value.appearances,
@@ -782,7 +792,8 @@ async function assertHeyGenAccount(context: PipelineContext): Promise<void> {
 // nombre del look tal como está en la biblioteca (el de HeyGen no tiene tope de
 // largo). Un campo de más en el payload no llega a project.json. `expressive`
 // (entrega 2e) va al final, solo en true y solo si el motor y el look lo
-// admiten: sin él, las opciones de antes, byte a byte.
+// admiten; detrás, `threeInFirstTwoMinutes` (entrega 2f), solo en true: sin
+// ellos, las opciones de antes, byte a byte.
 function storedAvatarOptions(
   avatar: ProjectAvatarOptions,
   look: StoredAvatarLook,
@@ -802,6 +813,9 @@ function storedAvatarOptions(
     startWithAvatar: avatar.startWithAvatar,
     placement: avatar.placement,
     ...(expressive ? { expressive: true } : {}),
+    ...(avatar.threeInFirstTwoMinutes === true
+      ? { threeInFirstTwoMinutes: true }
+      : {}),
   }
 }
 

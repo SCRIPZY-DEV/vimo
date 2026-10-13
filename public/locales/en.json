@@ -1251,7 +1251,13 @@
       "expressiveHelpAria": "What “More expressive motion” does",
       "expressiveTooltip": "More energy in each appearance's gestures and face, without overdoing it. No extra cost.",
       "expressiveUnavailable": "With {{engine}}, this look doesn't support more expressive motion.",
-      "motionAuto": "Vimo writes each appearance's motion from what it says. You can change it in the editor."
+      "motionAuto": "Vimo writes each appearance's motion from what it says. You can change it in the editor.",
+      "threeInTwo": "3 times in 2 minutes",
+      "threeInTwoHelpAria": "What “3 times in 2 minutes” does",
+      "threeInTwoTooltip": "The avatar appears at least 3 times in the first 2 minutes of the video, counting the opening one if it starts with the avatar. The other appearances are spread over the rest of the video.",
+      "threeInTwoMinimum": "With “3 times in 2 minutes”, there are at least 3 appearances.",
+      "threeInTwoCapped": "The first three last up to {{seconds}} s to fit in the 2 minutes.",
+      "expressiveNoReference": "With Avatar V, this look uses its own motion: its avatar has no digital twin."
     }
   },
   "createDemo": {
@@ -1566,7 +1572,13 @@
         "shortPairHint": "3-second scenes: animating one includes the next compatible scene to create a 6-second clip. Pairs are shown here before you start. Without a pair, only that clip is adjusted to its duration.",
         "undoHint_one": "To change the images, undo the animation first. Then you can regenerate them. This clip covers {{count}} scene.",
         "undoHint_other": "To change the images, undo the animation first. Then you can regenerate them. This clip covers {{count}} scenes.",
-        "undoBeforeImages": "To change the images, undo the animation first. Then you can regenerate them."
+        "undoBeforeImages": "To change the images, undo the animation first. Then you can regenerate them.",
+        "avatarCardAria": "Scene {{index}}: avatar appearance",
+        "avatarPlay": "Play the avatar clip",
+        "avatarPause": "Pause the avatar clip",
+        "avatarNoClip": "No clip yet: the look image is shown.",
+        "descriptionWithAvatar_one": "{{count}} scene. Regenerate images, animate clips or regenerate the avatar without leaving this gallery.",
+        "descriptionWithAvatar_other": "{{count}} scenes. Regenerate images, animate clips or regenerate the avatar without leaving this gallery."
       },
       "avatar": {
         "generar": "Generate avatar",

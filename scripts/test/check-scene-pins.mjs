@@ -21,7 +21,10 @@
 // sin palabras (también la cola final de 3 s o más) y, con apariciones de
 // 60 s, la cola corta del final no lleva al avatar por encima del máximo.
 // Desde la entrega 2e, la semilla de cada aparición lleva el motor elegido y
-// `expressive: true` solo cuando la opción lo tiene.
+// `expressive: true` solo cuando la opción lo tiene. Desde la 2f,
+// «3 veces en 2 minutos» llega al planificador solo en true (la fase la
+// anuncia en la pausa) y una primera frase corta seguida de un silencio
+// largo ya no deja al video sin la apertura.
 // Importa el código real (Node quita los tipos), con carpetas temporales: sin
 // red ni FFmpeg.
 import assert from 'node:assert/strict'
@@ -51,6 +54,7 @@ import {
   countScenesAroundSpans,
   cutLaneAroundPins,
   cutScenesAroundPins,
+  droppedAppearances,
   pinnedTimeline,
   planAvatarPins,
   prefixFreeCutter,
@@ -494,6 +498,116 @@ test('la última aparición nunca pasa el máximo después de que el corte le pe
         `${audioEnd}: ${pin.startSeconds}–${pin.endSeconds}`,
       )
   }
+})
+
+// Entrega 2f (diseño §22.2): «3 veces en 2 minutos» llega al planificador
+// desde `options.avatar`, solo en true. En 300 s de frases de 5 s, apagada da
+// 0–10, 85–95 y 225–235; prendida, las tres arrancan antes de los 120 s.
+test('planAvatarPins (2f): «3 veces en 2 minutos» llega al planificador solo en true, con la semilla de siempre; las pedidas que le faltan a un corte cuentan las tres', () => {
+  const fiveMinutes = narration(300)
+  for (const value of [undefined, false, 'true'])
+    assert.deepEqual(
+      pinWindows(
+        planAvatarPins(
+          { ...AVATAR, threeInFirstTwoMinutes: value },
+          fiveMinutes,
+          300,
+        ),
+      ),
+      [
+        [0, 10],
+        [85, 95],
+        [225, 235],
+      ],
+      String(value),
+    )
+
+  const early = planAvatarPins(
+    { ...AVATAR, threeInFirstTwoMinutes: true },
+    fiveMinutes,
+    300,
+  )
+  assert.deepEqual(pinWindows(early), [
+    [0, 10],
+    [40, 50],
+    [90, 100],
+  ])
+  assert.equal(early.dropped, 0)
+  for (const span of early.pins)
+    assert.equal(JSON.stringify(span.avatar), JSON.stringify(SEED))
+
+  // Con una sola elegida salen tres; a un corte con dos escenas de avatar le
+  // falta una.
+  const one = planAvatarPins(
+    { ...AVATAR, appearances: 1, threeInFirstTwoMinutes: true },
+    fiveMinutes,
+    300,
+  )
+  assert.deepEqual(pinWindows(one), pinWindows(early))
+  assert.equal(droppedAppearances(one, 2), 1)
+})
+
+test('fase (2f): con «3 veces en 2 minutos» la pausa anuncia las tres apariciones dentro de los primeros 2 minutos', async (t) => {
+  const { context, events } = await project(
+    t,
+    {
+      avatar: { ...AVATAR, appearances: 1, threeInFirstTwoMinutes: true },
+      confirmScenes: true,
+    },
+    { words: narration(300), seconds: 300 },
+  )
+  assert.deepEqual(await sceneCutsStage.run(context), { pause: true })
+  assert.equal(events[0].type, 'avatar-planned')
+  assert.equal(events[0].dropped, 0)
+  assert.equal(events[0].sceneIds.length, 3)
+  assert.deepEqual(events[1].avatarSpans, [
+    { startSeconds: 0, endSeconds: 10 },
+    { startSeconds: 40, endSeconds: 50 },
+    { startSeconds: 90, endSeconds: 100 },
+  ])
+})
+
+// La apertura siempre abre (entrega 2f, R-2f-4, diseño §22.3): una primera
+// frase corta seguida de un silencio largo ya no deja al video sin la
+// apertura; un audio de menos de 5 s, sí.
+test('apertura con un silencio después de la primera frase (2f, R-2f-4): el video abre con el avatar, que carga ese silencio si es de 6 s o menos; con 19 s o con menos de 5 s de audio, no hay apertura', () => {
+  // «Hola.» de 0,2 a 0,8 s, 5,2 s de silencio y frases de 5 s desde los 6.
+  // Con el tope de silencio la apertura terminaría a los 2,8 s (no llega al
+  // mínimo); sin él, 0–6 y la frase siguiente: 0–11. Hasta la 2e no había
+  // apertura y la aparición se contaba como descartada.
+  const words = [
+    { word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true },
+    ...['a', 'b', 'c', 'd', 'e'].flatMap((prefix, index) =>
+      sentenceWords(prefix, 10, 6 + index * 5),
+    ),
+  ]
+  const plan = planAvatarPins({ ...AVATAR, appearances: 1 }, words, 31)
+  assert.deepEqual(pinWindows(plan), [[0, 11]])
+  assert.equal(plan.dropped, 0)
+  const scenes = cutLaneAroundPins(words, 31, plan.pins, { secondsPerScene: 3 })
+  assert.deepEqual(sceneWindows(scenes)[0], [0, 11, false, true])
+  assert.ok(scenes[0].text.startsWith('hola a0'), scenes[0].text)
+
+  // Con 19,2 s de silencio después de «Hola.» la apertura tendría que cargar
+  // más de 6 s (ronda 1): no hay apertura y la aparición se cuenta como
+  // descartada; el video abre con imágenes.
+  const longSilence = [
+    { word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true },
+    ...['a', 'b', 'c', 'd', 'e'].flatMap((prefix, index) =>
+      sentenceWords(prefix, 10, 20 + index * 5),
+    ),
+  ]
+  const muted = planAvatarPins({ ...AVATAR, appearances: 1 }, longSilence, 45)
+  assert.deepEqual(muted.pins, [])
+  assert.equal(muted.dropped, 1)
+
+  const tooShort = planAvatarPins(
+    { ...AVATAR, appearances: 1 },
+    [{ word: 'hola', start: 0.2, end: 0.8, sentenceEnd: true }],
+    4.9,
+  )
+  assert.deepEqual(tooShort.pins, [])
+  assert.equal(tooShort.dropped, 1)
 })
 
 test('prefijo animado: planPrefixSceneWindows da lo mismo que antes y la versión en segundos arranca donde se le pide', () => {

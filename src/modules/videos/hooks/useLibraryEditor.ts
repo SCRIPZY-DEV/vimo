@@ -347,8 +347,9 @@ export function useLibraryEditor(projectId: string) {
 
   // La galería entrega la intención al store: persiste las descripciones cuando
   // obtiene turno, incluso si el modal se cierra o cambia la ruta del editor.
-  // Una escena de avatar no entra (la galería no la lista; si llegara, el lote
-  // se rechaza entero, como uno con una escena que no existe).
+  // Una escena de avatar no entra (la galería la muestra con su tarjeta pero no
+  // deja elegirla; si llegara, el lote se rechaza entero, como uno con una
+  // escena que no existe).
   const regenerateGalleryImages = async (requests: GalleryImageRequest[]) => {
     if (
       gallerySubmission.current ||

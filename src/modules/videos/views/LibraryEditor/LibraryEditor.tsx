@@ -407,6 +407,7 @@ export function LibraryEditor() {
             durationSeconds={durationSeconds}
             imageProvider={editor.imageChoice.provider}
             locked={demoProject}
+            busy={busy || editor.savingChanges}
             onRegenerateImages={editor.regenerateGalleryImages}
             onUndoAnimation={editor.undoAnimation}
             undoingSceneId={editor.undoingSceneId}

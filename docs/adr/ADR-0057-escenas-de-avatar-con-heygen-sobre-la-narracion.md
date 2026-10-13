@@ -39,7 +39,8 @@ al cuadro del render, mudo, sobre la narración de siempre.
 1. **Frases como unidad** (`pipeline/narration/sentences.ts`): `words.json` gana un `sentenceEnd?`
    opcional por palabra (Deepgram con `punctuate=true`, `word` sigue limpio); sin él, pausas ≥ 0,35 s.
 2. **Planificador propio** (`pipeline/avatar/planner.ts`): apariciones × segundos del usuario, ajuste
-   a frases enteras, mínimo 7 s (5 s desde la 2d), reparto parejo con hueco mínimo de 10 s, determinista.
+   a frases enteras, mínimo 7 s (5 s desde la 2d), reparto parejo con hueco mínimo de 10 s, determinista;
+   desde la 2f, «3 veces en 2 minutos» y una apertura que siempre abre.
 3. **Pines en el corte** (`pipeline/stages/scene-cuts/pins.ts`): la fase `scene-cuts` planifica el
    avatar antes de cortar y corta el resto alrededor; las escenas siguen contiguas y con una imagen
    cada una. El diálogo de confirmación muestra las apariciones.
@@ -411,7 +412,9 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
   texto propio) y un clip más corto que su tramo menos 1 s sale estático con el aviso
   `avatar clip is too short`; `update-scenes` rechaza también `imageModel` e `imageQuality` en una
   escena de avatar; el panel muestra su In/Out de solo lectura sin la sección de animación, y la
-  galería, el aviso de imágenes faltantes y «Regenerar imagen» no la cuentan.
+  galería, el aviso de imágenes faltantes y «Regenerar imagen» no la cuentan (la galería, desde la
+  entrega 2f, igual la muestra con su propia tarjeta, sin dejarla elegir para las acciones de
+  imágenes).
 - **Ola final: cortes y frases**: en el carril de segundos, la cantidad confirmada se traduce a
   segundos sobre el audio libre y las escenas libres, no sobre los pines; ninguna frase dura 0
   cuadros (la palabra recortada al fin del audio se une a la anterior); `TIME_EPSILON`
@@ -701,7 +704,8 @@ push). Donde el diseño o las enmiendas de arriba dicen otra cosa que esta, mand
   `avatarRenderHash` no cambia (editar el movimiento no deja la escena desactualizada). El recibo guarda
   el movimiento que salió y una repetición manda el mismo cuerpo bajo la misma clave.
 - **Un rechazo del movimiento no frena la escena (§14).** Un 400 con `param` `motion_prompt` o
-  `expressiveness` es `avatar_motion_unsupported` (después del saldo, antes que la moderación, sin copiar
+  `expressiveness` (la 2f lo amplía al 400 sin `param` cuyo mensaje nombra el campo, abajo) es
+  `avatar_motion_unsupported` (después del saldo, antes que la moderación, sin copiar
   el texto de HeyGen, que podría repetir el prompt, y sin ser un rechazo definitivo): el intento queda
   `failed`, la escena `motionUnsupported` y el carril pide enseguida, en la misma corrida, el mismo pedido
   sin movimiento (otra huella, otra clave); en la cosecha, que no tiene permiso para pagar, lo pide
@@ -789,3 +793,172 @@ y el conteo (R-2e-7) son `GenerationProgress` y `SceneImagesGrid`; la frase de V
 (R-2e-14) es `AVATAR_EXPRESSIVE_PROMPT_SUFFIX` y la línea de `requestMotionPrompt` que la suma; R-2e-15 es
 un render de más en un caso raro; que Avatar III no mueva el cuerpo entero (R-2e-1) es un pedido al
 proveedor. La ADR sigue en «Propuesta»: pasa a Aceptada con la QA del dueño.
+
+## Enmienda 2026-10-12 (tarde) — entrega 2f
+
+Pedidos del dueño después de probar la 2e con Avatar V (hechos y decisiones: §22 del diseño; rulings `R-2f-N`
+en `docs/handoff/2026-10-09-avatar-heygen/execution-e2f/ledger.md`, y los de cada paquete —WP-A el
+planificador, WP-B Crear, WP-C la galería del editor— en sus informes de esa carpeta). Donde un pedido admitía
+dos lecturas, la decisión dice cuál se tomó para que el dueño la corrija en la QA. Lo que puede cobrar más que
+antes: «3 veces en 2 minutos», que sube a 3 las apariciones si la persona eligió menos (más renders, con el
+costo a la vista en Crear y la fase comparándolo con el saldo antes de pagar), y una apertura que antes se
+descartaba por el tope de silencio y ahora se genera (Crear ya la contaba entre las pedidas); no hay
+endpoints, tarifas ni cobros nuevos. En la ejecución, la única llamada real a HeyGen fue una sonda gratis (un
+audio inválido a propósito, que el proveedor rechaza sin crear video ni cobrar). Donde el diseño o las
+enmiendas de arriba dicen otra cosa que esta, manda esta.
+
+- **El rechazo de Avatar V sin `param` (§22.1, `067d00a4`).** El dueño generó un video con Avatar V, «más
+  expresivo» y un avatar de foto propio, y las cuatro apariciones fallaron con «El servicio de avatares
+  respondió algo inesperado» (`avatar_invalid_request`). La sonda gratis del 2026-10-12 mostró el rechazo
+  exacto: con un avatar de foto propio cuyo grupo no tiene gemelo digital, V más `motion_prompt` da un 400
+  `invalid_parameter` («motion_prompt requires a reference look to drive motion, and this avatar's group has no
+  digital twin…») **sin `param`**; V sin `motion_prompt`, IV con `motion_prompt` y `expressiveness`, y V con
+  `motion_prompt` en los looks del stock (Dante, Hayes) pasan la validación. El carril solo reconocía el
+  rechazo del movimiento con `param` (enmienda de la 2e), así que tomaba este por un pedido inválido y no
+  reintentaba sin movimiento. `heygenFailure` clasifica ahora como `avatar_motion_unsupported` también un 400
+  de sobre JSON sin `param` cuyo mensaje nombra `motion_prompt` o `expressiveness` por palabra completa, con
+  ese campo como `param` y sin copiar el texto de HeyGen; un 400 que habla de otra cosa (el del audio de la
+  misma sonda), una palabra parecida, un texto sin sobre o un 422 siguen siendo `avatar_invalid_request`. El
+  resto del camino no cambia: la escena queda `motionUnsupported`, el carril pide enseguida sin movimiento
+  (otra clave) y el render sale con el movimiento propio de V; el 400 no se cobra.
+- **Crear avisa antes que V no puede mover a un avatar propio sin gemelo digital (R-2f-1, §22.1).**
+  `SelectedAvatar` copia al elegirlo `motionReference` (`avatarHasMotionReference`: un avatar del stock, o uno
+  propio con algún look de gemelo digital, la tiene; un borrador de antes de la 2f no trae el campo y cuenta
+  como que sí). Con Avatar V, un look de foto y `motionReference === false` (`avatarMotionReferenceMissing`,
+  en `selectableAvatar.ts`), «Movimiento más expresivo» se ve apagado y deshabilitado con el motivo
+  (`expressiveNoReference`: «Con Avatar V, este look usa su propio movimiento: su avatar no tiene un gemelo
+  digital»), sin la línea «Vimo escribe el movimiento de cada aparición…» (el render sale con el movimiento
+  propio de V, y la frase sería falsa) y `expressive` no viaja. Es una sola regla
+  (`selectedAvatarExpressiveAvailable`) que comparten el interruptor y `createProjectPayload`; la preferencia
+  de la persona queda en el formulario y con IV el interruptor vuelve prendido. Es un aviso y no un bloqueo: el
+  primer pedido de cada escena todavía puede llevar el prompt automático y recibir el 400 gratis antes del
+  reintento, porque evitarlo exigiría pasar la biblioteca al carril. `motionReference` es una copia hecha al
+  elegir, como `supportedEngines`: si el avatar gana un gemelo mientras Crear guarda la elección, el
+  interruptor sigue apagado con V hasta volver a elegirlo (`isSelectedAvatarCurrent` no la invalida por eso).
+  El editor no avisa nada de esto (R-2f-1 es de Crear): el panel y la tarjeta de la galería siguen ofreciendo
+  «Movimiento más expresivo» con V y un avatar propio sin gemelo, y el 400 gratis con su reintento lo cubren.
+- **«3 veces en 2 minutos» (R-2f-2, R-2f-7, §22.2).** Una casilla en la tarjeta del avatar de Crear, debajo de
+  «Empieza con el avatar», apagada por defecto y con su ayuda en un tooltip (`CreateAvatarThreeInTwo`, sobre la
+  `CheckboxRow` de siempre; manda solo `{ avatarThreeInTwoMinutes }`). Prendida viaja como
+  `options.avatar.threeInFirstTwoMinutes: true`: `create-video-project` valida que sea booleano (si no,
+  `invalid_payload`) y la guarda solo en `true`, al final y detrás de `expressive`, así que apagada o ausente las
+  opciones son byte a byte las de la 2e y el plan también, salvo la apertura (abajo). Pide **al menos 3 apariciones** aunque la persona haya elegido menos
+  (`max(elegidas, AVATAR_EARLY_APPEARANCES)`) y que **las tres primeras, contando la apertura, arranquen dentro
+  de los primeros 120 s** (`AVATAR_EARLY_WINDOW_SECONDS`, o del fin del audio si es más corto; arrancar justo a
+  los 120 s ya no cuenta y un cuadro antes sí), repartidas con la regla de anclas de siempre dentro de esa
+  ventana y con el hueco mínimo de 10 s. Si la apertura no cupo, no ocupa lugar y la ventana intenta las tres
+  (R-2f-7; con la casilla apagada, la apertura que no cupo sigue contando como una de las pedidas y como
+  descartada). Las demás usan los segundos elegidos y se reparten parejas en la zona que queda después de la
+  tercera. Lo que no entra va a `dropped` y no se corre a otro lugar: con 5 elegidas y la tercera de las
+  primeras afuera salen 4 y 1 descartada. Con `placement: 'manual'` la casilla se guarda y no tiene efecto (el
+  planificador no corre; Crear siempre manda `'auto'`). Crear avisa lo que cambia (`threeInTwoMinimum` con menos
+  de 3 elegidas, `threeInTwoCapped` con más segundos que el tope) y esos avisos son la descripción de la casilla
+  (`aria-describedby`; `CheckboxRow` acepta `describedBy`).
+- **El tope de las tres primeras: de 45 a 40 y a 35 s (R-2f-3, R-2f-5, R-2f-8).** R-2f-3 decía que las tres
+  primeras apuntan a lo sumo a 45 s para entrar en la ventana. El planificador lo toma como máximo y no solo
+  como objetivo (Crear dice que «duran hasta» ese tope): con solo el objetivo y frases de 8 s el ajuste elegía
+  48 s y la tercera quedaba afuera. El dueño pidió que las tres salgan «obligatoriamente», así que se midió con
+  10 000 narraciones simuladas tipo TTS por corpus (la tabla vive en el comentario de la constante
+  `AVATAR_EARLY_MAX_SECONDS` y en el §22 del diseño): con 45 s las tres arrancaban dentro de la ventana en el
+  86,8 % de los casos sin apertura y en el 99,1 % con ella (74,8 % y 96,3 % con frases más largas); con 40 s,
+  en el 99,7 % y el 100 % (96,9 % y 99,97 %); con 35 s, en el 100 % y el 100 % (99,95 % y 100 %). R-2f-5 bajó
+  el tope a 40 s, el valor más alto que daba al menos 98 % sin apertura y 99 % con ella en el primer corpus, y
+  R-2f-8 a **35 s** porque con frases largas 40 s no llegaba al 98 %. **El respaldo a 60 s queda**
+  (`targetsToTry`): solo si desde ninguna frase de su zona cabe una aparición de 35 s o menos se prueba con el
+  máximo de siempre —mejor una de 48 s que perderla—; en las narraciones simuladas tipo TTS no se usó nunca, y
+  en un corpus con frases de hasta 65 s sumó una aparición dentro de la ventana en el 5,6 % de los casos y
+  nunca restó. La revisión de la 2f midió que solo corre con frases de más de 30 s, que `detectSentences` no
+  produce (parte toda frase de más de 15 s): con narraciones reales no corre. Precio, si alguna vez corre: una
+  de las tres primeras pasa el tope y la estimación de Crear la da corta unos segundos.
+- **«Empieza con el avatar» abre siempre el video (R-2f-4, R-2f-6, §22.3).** Había un caso real en que no
+  abría: una primera frase corta seguida de un silencio largo, que el tope de silencio de 2 s cerraba antes del
+  mínimo de 5 s y descartaba la apertura. Con la casilla prendida, si el ajuste desde la frase 0 no cabe,
+  `openingSpan` lo vuelve a probar sin el tope (`pauseRule: 'carried'`: cada frase se mide hasta su fin, así la
+  apertura carga ese silencio y suma frases hasta el mínimo, sin pasar el máximo después del corte), pero
+  **cargando a lo sumo 6 s de silencio después de la última palabra de cada frase**
+  (`AVATAR_OPENING_MAX_PAUSE_SECONDS`, R-2f-6): sin ese límite, una palabra y 19 s de silencio daban una
+  apertura de 20 s que HeyGen cobra entera. «Hola» con 5,2 s de silencio abre de 0 a 11 s; justo 6 s se cargan
+  y 6,04 no. Solo la dejan afuera un audio de menos de 5 s, una apertura que no llega al mínimo sin pasar el
+  máximo después del corte (una primera frase de más de 60 s, una corta seguida de una que lo pasa, o una de
+  59 s con una cola de 2 s) o más silencio del que carga; si el ajuste normal cabe, la apertura es la de
+  siempre. **Rige también con «3 veces en 2 minutos» apagada** (aceptado): es el arreglo de «Empieza con el
+  avatar» y la única excepción a «apagada, el plan es el de la 2e»; solo cambia los videos cuya apertura antes
+  se descartaba por el tope de silencio (diferencial de WP-A contra el planificador de `2eb974b0`: 120 000
+  casos aleatorios, 0 diferencias fuera de ese caso).
+- **Una cuenta para Crear y para reanudar (WP-B).** `avatarRequestedAppearances` y `avatarRequestedSeconds`
+  (`avatarCostEstimate.ts`), a partir de la forma de `ProjectAvatarOptions`, dan lo que de verdad sale: con la
+  casilla, `max(n, 3)` apariciones y las tres primeras a `min(s, AVATAR_EARLY_MAX_SECONDS)`; sin ella, `n × s`
+  como siempre; solo `true` la prende, igual que el planificador. `createAvatarAppearances` y
+  `createAvatarSeconds` las arman desde el formulario y alimentan el total de la tarjeta (que cuenta las
+  apariciones que salen: con 1 elegida dice 3), el costo de cada motor, el pre-check y las imágenes libres de
+  `estimateCreateCost`; `estimateResumeCost` las usa antes del corte (la línea del avatar y las imágenes
+  libres), así que reanudar no subestima el avatar ni sobrestima las imágenes. Una prueba de paridad de 180
+  combinaciones fija que el mismo pedido cuesta lo mismo por las dos vías, y los guards de Crear leen el tope
+  de la constante en vez de escribirlo.
+- **El avatar en la vista ampliada del editor (§22.4; R-C-1 a R-C-6 de WP-C).** La galería «Vista ampliada de
+  imágenes» (`EditorImageGallery`) lista también las escenas de avatar, en el orden del video, con una tarjeta
+  propia (`EditorAvatarGalleryCard`): su clip (un `<video>` mudo con «Reproducir» / «Pausar»; la galería pausa
+  el que andaba antes de arrancar otro, así que nunca andan dos a la vez, R-C-3) o, sin clip, la imagen del
+  look con «Sin clip todavía»; su número y su tramo como las de imagen; su estado en una pastilla con etiquetas
+  cortas que no se cortan —«Lista», «Desactualizado» (el texto del bloque de la pista, igual que la caja de las
+  acciones), «Generando el avatar…» con el porcentaje cuando su render arrancó y «Con imagen fija» en una
+  planeada o una fallida—, con el título largo del bloque de tooltip; y debajo, `EditorAvatarSceneActions` de
+  esa escena: las mismas acciones del panel, con el costo al motor de la escena, la confirmación y, con V o IV,
+  «Movimiento». El clip se muestra si la escena tiene uno, también en una desactualizada (R-C-2); las acciones
+  se ven con «Seleccionar» activo (R-C-5); y las etiquetas de los botones compartidos se parten en dos líneas
+  en vez de cortarse (R-C-6). No tiene botón para elegirla: «Regenerar imágenes» y «Animar» en lote siguen
+  siendo de escenas de imagen (la selección sale de `imageScenes`). La descripción de la galería cuenta todas
+  las tarjetas y solo dice que también se regenera el avatar si el proyecto tiene alguna
+  (`descriptionWithAvatar`; un proyecto sin avatar conserva el texto de antes). Las acciones esperan con el
+  mismo `busy` que el panel (`busy || savingChanges`, que `LibraryEditor` le pasa a la galería) y al envío de
+  un lote de la galería; al terminar una regeneración el foco vuelve a la tarjeta (R-C-4, `focusFallback` de
+  `EditorAvatarSceneActions`), porque el panel queda detrás del modal y el foco mandado ahí se escapa del
+  diálogo (medido en Chrome).
+- **Aceptado y estacionado.** El clip de la tarjeta se ve mudo: el normalizado no trae audio (`-an`) y la voz la
+  pone la narración; oírla pediría un `<audio>` sincronizado con el clip y pausar el visor del editor al abrir
+  la galería (hoy, si estaba sonando, sigue detrás del modal: ya pasaba). La pastilla de una planeada y la de
+  una fallida dicen lo mismo («Con imagen fija»); el motivo de una fallida lo dice la caja de las acciones. Con
+  la galería abierta sobre la escena que tiene el panel hay dos avances de esa escena (el de la tarjeta y el
+  del panel, detrás del modal): es lo esperado, y el foco va siempre al de la tarjeta. El editor no avisa lo de
+  V sin gemelo digital (arriba).
+- **Verificación.** Guard nuevo: `check-editor-avatar-gallery-ui.mjs` (112 checks). Ampliados:
+  `check-avatar-planner.mjs` (37 tests; antes 27), `check-scene-pins.mjs` (43; 40),
+  `check-avatar-create-project.mjs` (75; 70), `check-heygen-client.mjs` (59: los rechazos sin `param` y sus
+  bordes caben en su test de clasificación), `check-app-avatar-create.mjs` (34; 24), `check-create-avatar-ui.mjs`
+  (381 checks; 323), `check-create-draft-ui.mjs` (33; 32) y `check-timeline-avatar-ui.mjs` (43 checks;
+  31, con la aserción de que la galería lista solo escenas de imagen cambiada a propósito). Los guards de Crear
+  leen el tope de `AVATAR_EARLY_MAX_SECONDS` en vez de fijar un número y corrieron con la constante en 30, 35,
+  40, 45, 50 y 55 s. Cada paquete corrió mutantes sobre una copia (WP-A 27 de 27, WP-B 41 de 41 y 25 de 25 en
+  su ronda, WP-C 30 de 30); WP-A, un diferencial de 120 000 casos aleatorios contra el planificador de la 2e
+  (con la casilla apagada, 0 diferencias fuera de la apertura de R-2f-4; prendida, 0 fallas de invariantes), y
+  WP-B, un cruce del planificador con la cuenta de Crear en 240 combinaciones (las apariciones planeadas más
+  las descartadas son las pedidas; un chequeo que no entra al repo). La revisión de toda la 2f corrió, sobre
+  `cb3857e1`, `pnpm lint`, `pnpm build`, el `tsc` del pipeline y la suite de Node completa (86 archivos,
+  1764/1764), y `pnpm check:locales` cuenta 2132 claves desde `fd0aca8a`. Todo con HeyGen simulado: la
+  ejecución no gastó saldo (la sonda del §22.1 fue gratis).
+
+**A confirmar en la QA del dueño, con la app real** (lista: `execution-e2f/qa-2f.md`): (1) Avatar V con un
+avatar de foto propio sin gemelo digital: que Crear apague «Movimiento más expresivo» con su motivo, que el
+video salga con el movimiento propio de V (el primer pedido de cada aparición recibe el 400 gratis y se
+reintenta sin movimiento) y cuánto cobra V en ese caso, mirando el saldo antes y después (R-2e-2 sigue
+abierto); (2) «3 veces en 2 minutos» con una narración real, con y sin «Empieza con el avatar»: que las tres
+primeras arranquen dentro de los 2 minutos y duren hasta 35 s (las simulaciones usaron narraciones sintéticas,
+no un `words.json` de Deepgram real), que el total y el costo de Crear coincidan con lo que cobra HeyGen y que
+reanudar antes del corte muestre el mismo costo; (3) que «Empieza con el avatar» abra siempre el video, también
+con una primera frase corta y unos segundos de silencio (hasta 6 s), y que con más silencio siga sin apertura;
+(4) la vista ampliada del editor con la app real: el clip mudo (¿alcanza o se quiere oír la voz?), «Reproducir»
+/ «Pausar», que ninguna pastilla de estado se corte con la ventana mínima de 1024 px, regenerar desde la
+tarjeta con su costo y su confirmación, el foco al terminar y que «Seleccionar» no marque la tarjeta del
+avatar; (5) si hace falta que el panel y la tarjeta del editor avisen lo de V sin gemelo digital (hoy solo
+avisa Crear).
+
+Costo si estuviera mal: el tope de 35 s (R-2f-8) es la constante `AVATAR_EARLY_MAX_SECONDS` —si se quieren
+tramos más largos se sube, y Crear, reanudar y los guards la leen— y el precio es que las tres entren menos
+veces (con 40 s y frases largas, el 96,9 % sin apertura); el respaldo a 60 s es `targetsToTry` y sin él una de
+las tres se pierde en narraciones raras; el límite de 6 s de la apertura (R-2f-6) es
+`AVATAR_OPENING_MAX_PAUSE_SECONDS` (sin él, una apertura casi muda se cobra entera); que R-2f-4 rija con la
+casilla apagada es el reintento sin tope de `openingSpan`, que se puede atar a la casilla; el mínimo de 3
+(R-2f-2) es `AVATAR_EARLY_APPEARANCES`; el aviso de V sin gemelo (R-2f-1) es `avatarMotionReferenceMissing`
+(quitarlo devuelve el interruptor, y el 400 gratis con su reintento ya cubre el caso); la tarjeta de la galería
+es un componente que `EditorImageGallery` monta en vez de saltear la escena (volver a `imageScenes` la quita); y
+el clip mudo es un `<video muted>`. La ADR sigue en «Propuesta»: pasa a Aceptada con la QA del dueño.

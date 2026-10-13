@@ -7,6 +7,7 @@ import {
 } from '@/modules/videos/constants'
 import {
   avatarCostEstimate,
+  createAvatarAppearances,
   createAvatarSeconds,
 } from '@/modules/videos/utilities/avatarCostEstimate'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
@@ -109,11 +110,12 @@ function estimateAvatarLine(form: CreateFormValue): CostEstimateLine | null {
 // sin cantidad fija (plan E2 §5.4).
 // Las escenas de avatar no generan imagen (spec §6.2: el look es el
 // escenario): se cuenta solo el tiempo libre y, con cantidad fija, la
-// confirmada menos las apariciones (la cantidad incluye los pines, §6.1).
+// confirmada menos las apariciones (la cantidad incluye los pines, §6.1), que
+// con «3 veces en 2 minutos» son las que de verdad salen.
 function estimatedSceneCount(form: CreateFormValue, script: string): number {
   const usesGemLane = laneOf(form) !== 'legacy-catalog'
   const hasFixedCount = !usesGemLane && form.sceneCount > 0
-  const avatarScenes = form.useAvatar ? form.avatarAppearances : 0
+  const avatarScenes = createAvatarAppearances(form)
   const freeCount = Math.max(1, form.sceneCount - avatarScenes)
   if (form.narrationMode !== 'tts' || !script)
     return hasFixedCount ? freeCount : 0

@@ -110,10 +110,13 @@ export function planAvatarPins(
 ): AvatarPinsPlan | null {
   if (!avatar || avatar.placement !== 'auto') return null
 
+  // «3 veces en 2 minutos» (entrega 2f) llega solo cuando la opción lo tiene en
+  // true (create-video-project lo guarda solo así); sin él, el plan de antes.
   const plan = planAvatarSpans(detectSentences(words, audioEndSeconds), {
     appearances: avatar.appearances,
     secondsPerAppearance: avatar.secondsPerAppearance,
     startWithAvatar: avatar.startWithAvatar,
+    threeInFirstTwoMinutes: avatar.threeInFirstTwoMinutes === true,
   })
   // «Movimiento más expresivo» (entrega 2e) viaja solo cuando la opción lo
   // tiene: create-video-project lo guarda únicamente en true y si el motor y el

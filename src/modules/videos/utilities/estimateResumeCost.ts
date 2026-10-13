@@ -6,6 +6,8 @@ import {
 } from '@/modules/videos/constants'
 import {
   avatarCostEstimate,
+  avatarRequestedAppearances,
+  avatarRequestedSeconds,
   avatarSpansCostEstimate,
 } from '@/modules/videos/utilities/avatarCostEstimate'
 import { estimateSceneCount } from '@/modules/videos/utilities/estimateSceneCount'
@@ -121,16 +123,20 @@ function pendingImagesLine(
 // sin texto: igual lleva imagen), salvo las de avatar, que no llevan imagen
 // propia (ADR-0057 §6.2: el look es el escenario); antes del corte se
 // aproxima como en Crear (cantidad fija, o duración real del audio si ya se
-// transcribió, o el guion), sin las apariciones del avatar.
+// transcribió, o el guion), sin las apariciones del avatar: las que salen de
+// verdad, también con «3 veces en 2 minutos» (la misma cuenta que Crear:
+// avatarRequestedAppearances y avatarRequestedSeconds).
 function pendingImageCount(status: VideoProjectStatusResult): number {
   const { metadata, scenes } = status
   const options = metadata.options
   if (scenes.length > 0)
     return scenes.filter((scene) => !scene.avatar && !scene.imagePath).length
 
-  const avatarScenes = options.avatar?.appearances ?? 0
+  const avatarScenes = options.avatar
+    ? avatarRequestedAppearances(options.avatar)
+    : 0
   const avatarSeconds = options.avatar
-    ? options.avatar.appearances * options.avatar.secondsPerAppearance
+    ? avatarRequestedSeconds(options.avatar)
     : 0
   const usesCustomStyle = options.customStyle !== undefined
   if (!usesCustomStyle && options.sceneCount > 0)
@@ -168,15 +174,16 @@ function isAvatarScenePending(scene: SceneSummary): boolean {
 
 // Lo que falta cobrar del avatar (spec §8): los tramos de las escenas que la
 // fase va a trabajar (isAvatarScenePending), contados como los cuenta la
-// fase; antes del corte, lo que pidió Crear. Cada uno con la tarifa del motor
-// con el que se cobra (entrega 2e): el de la escena si lo trae; si no, el de
-// las opciones del proyecto; si no, Avatar III, el de antes de la 2e. Con
-// escenas cortadas la cifra es un techo (`upperBound`): la vista no expone
-// los recibos, y una escena con un pedido ya pagado se cosecha sin cobro
-// nuevo, así que la fase puede pagar menos de lo que suman todas las
-// pendientes. Si el corte no ubicó ninguna aparición (la narración no tenía
-// frases donde entraran), la fase no tiene nada que cobrar: no hay línea, ni
-// un saldo de HeyGen que pueda frenar «Reanudar».
+// fase; antes del corte, lo que pidió Crear (con «3 veces en 2 minutos», lo
+// que sale de verdad: avatarRequestedSeconds, la misma cuenta que usa Crear).
+// Cada uno con la tarifa del motor con el que se cobra (entrega 2e): el de la
+// escena si lo trae; si no, el de las opciones del proyecto; si no, Avatar
+// III, el de antes de la 2e. Con escenas cortadas la cifra es un techo
+// (`upperBound`): la vista no expone los recibos, y una escena con un pedido
+// ya pagado se cosecha sin cobro nuevo, así que la fase puede pagar menos de
+// lo que suman todas las pendientes. Si el corte no ubicó ninguna aparición
+// (la narración no tenía frases donde entraran), la fase no tiene nada que
+// cobrar: no hay línea, ni un saldo de HeyGen que pueda frenar «Reanudar».
 function pendingAvatarLine(
   status: VideoProjectStatusResult,
 ): CostEstimateLine | null {
@@ -188,7 +195,7 @@ function pendingAvatarLine(
   if (status.scenes.length === 0)
     return avatarCostEstimate(
       avatar.lookType,
-      avatar.appearances * avatar.secondsPerAppearance,
+      avatarRequestedSeconds(avatar),
       projectEngine,
     )
 

@@ -15,7 +15,18 @@
 // recorta; el hueco y la zona libre se miden desde el fin útil). Rulings del
 // mismo día: el tope nunca deja una cola de menos de 3 s antes del fin del
 // audio (esa frase se mide hasta su fin para el máximo y hasta el recortado
-// para el mínimo). Puro: importa el código real, sin disco ni red.
+// para el mínimo). Entrega 2f (pedidos del dueño del 2026-10-12, diseño §22.2
+// y §22.3): la apertura siempre abre —si con el tope de silencio no cabe, se
+// vuelve a probar cargando a lo sumo 6 s de silencio por frase, y solo un
+// audio de menos del mínimo, una apertura que pasa el máximo o un silencio
+// más largo la dejan afuera (R-2f-4, R-2f-6)—, y «3 veces en 2 minutos»: al
+// menos tres apariciones, las tres primeras (la apertura cuenta; si no entra,
+// la ventana intenta las tres) arrancan antes de los 120 s —o del fin de un
+// video más corto— con un tope de 35 s cada una (respaldo a 60 s si ninguna
+// frase de su zona cabe así; R-2f-3, R-2f-5, R-2f-8), las demás se reparten
+// después de la tercera con los segundos elegidos, lo que no entra va a
+// `dropped` y, apagada, el plan es el de antes salvo la apertura. Puro:
+// importa el código real, sin disco ni red.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
@@ -29,12 +40,16 @@ import { MIN_SECONDS_PER_SCENE } from '../../pipeline/stages/scene-cuts/by-secon
 import {
   AVATAR_DEFAULT_APPEARANCE_SECONDS,
   AVATAR_DEFAULT_APPEARANCES,
+  AVATAR_EARLY_APPEARANCES,
+  AVATAR_EARLY_MAX_SECONDS,
+  AVATAR_EARLY_WINDOW_SECONDS,
   AVATAR_MAX_APPEARANCE_SECONDS,
   AVATAR_MAX_APPEARANCES,
   AVATAR_MAX_PAUSE_SECONDS,
   AVATAR_MIN_APPEARANCE_SECONDS,
   AVATAR_MIN_APPEARANCES,
   AVATAR_MIN_GAP_SECONDS,
+  AVATAR_OPENING_MAX_PAUSE_SECONDS,
 } from '../../pipeline/types/avatar.ts'
 
 // Frases contiguas desde 0 con estos largos (en segundos). Sin `pauses`, la
@@ -740,7 +755,14 @@ test('una frase casi muda (una palabra y 19 s de silencio) nunca es una aparici�
   assert.equal(result.dropped, 2)
 })
 
-test('apertura casi muda: la apertura no cabe (fin útil a los 3 s), cuenta como una descartada y la otra se reparte desde la frase 1', () => {
+// La apertura casi muda no cabe: con el fin útil a los 3 s no llega al
+// mínimo, y sin el tope tendría que cargar los 19 s de silencio de la frase 0,
+// más que AVATAR_OPENING_MAX_PAUSE_SECONDS (R-2f-4, ronda 1 de la 2f). Se
+// cuenta como una descartada y la otra se reparte desde la frase 1. Entre el
+// primer commit de la 2f y la ronda 1 abría en 0–20 y cargaba el silencio
+// entero.
+test('apertura casi muda (2f, R-2f-4, ronda 1): con 19 s de silencio no hay apertura (carga a lo sumo 6 s), se cuenta como descartada y la otra se reparte desde la frase 1', () => {
+  assert.equal(AVATAR_OPENING_MAX_PAUSE_SECONDS, 6)
   const result = planOf(sentencesOf([20, 5, 5, 5], { pauses: { 0: 19 } }), {
     appearances: 2,
   })
@@ -750,25 +772,41 @@ test('apertura casi muda: la apertura no cabe (fin útil a los 3 s), cuenta como
 
 // El mínimo se mide hasta el fin recortado también en la frase que el ajuste
 // SUMA (no solo en la primera): el silencio de después de su última palabra
-// no completa una aparición que HeyGen cobraría. Contra la constante.
+// no completa una aparición que HeyGen cobraría. Contra la constante. Desde
+// la 2f una apertura que así no cabe se vuelve a probar sin el tope (R-2f-4),
+// así que la regla se mira en el reparto, sin apertura.
 test('el mínimo se mide hasta el fin recortado también en una frase sumada: una aparición que solo llegaría al mínimo con el silencio de su última frase no cabe', () => {
   const minimum = AVATAR_MIN_APPEARANCE_SECONDS
-  // Frases 0–2, 2–12 y 12–22. La 0 sola no llega al mínimo y suma la 1.
+  // Frases 0–3, 3–5 y 5–15. La 0 arranca antes de los 3 s y no compite; la 1
+  // sola no llega al mínimo y suma la 2.
   const withLastWordAt = (seconds) => {
-    const sentences = sentencesOf([2, 10, 10])
-    sentences[1].lastWordEndSeconds = seconds
+    const sentences = sentencesOf([3, 2, 10])
+    sentences[2].lastWordEndSeconds = seconds
     return sentences
   }
-  // Con el mínimo de 5 s: la 1 habla hasta los 2,48; recortada termina a los
-  // 4,48 y la aparición (0–4,48) no llega; hasta el fin de la frase mediría 12.
-  assert.deepEqual(planOf(withLastWordAt(minimum - 2.52)), {
+  const spread = { startWithAvatar: false }
+  // Con el mínimo de 5 s: la 2 habla hasta los 5,48; recortada termina a los
+  // 7,48 y la aparición (3–7,48) no llega; hasta el fin de la frase mediría
+  // 12. Desde la 2 sola, tampoco.
+  assert.deepEqual(planOf(withLastWordAt(minimum + 0.48), spread), {
     spans: [],
     dropped: 1,
   })
-  // Si habla hasta los 5, recortada termina a los 7 y llega: 0–7.
-  assert.deepEqual(spansOf(planOf(withLastWordAt(minimum))), [
-    [0, minimum + 2, 0, 1],
+  // Si habla hasta los 8, recortada termina a los 10 y llega: 3–10.
+  assert.deepEqual(spansOf(planOf(withLastWordAt(minimum + 3), spread)), [
+    [3, minimum + 5, 1, 2],
   ])
+  // La apertura con frases 0–2 y 2–12 (la 1 habla hasta los 2,48): con el
+  // tope no llega (0–4,48), y sin él tendría que cargar 9,52 s de silencio
+  // (más de 6): no hay apertura, como hasta la 2e. Con la frase 1 de 2 a 8
+  // (5,52 s de silencio) la carga: 0–8.
+  const opening = (end) => {
+    const sentences = sentencesOf([2, end - 2, 10])
+    sentences[1].lastWordEndSeconds = minimum - 2.52
+    return sentences
+  }
+  assert.deepEqual(planOf(opening(12)), { spans: [], dropped: 1 })
+  assert.deepEqual(spansOf(planOf(opening(8))), [[0, 8, 0, 1]])
 })
 
 // El hueco de AVATAR_MIN_GAP_SECONDS y la zona libre del reparto se miden
@@ -869,4 +907,461 @@ test('un words.json roto: sin el fin de la última palabra la frase no se recort
   const backwards = sentencesOf([12, 18])
   backwards[1].lastWordEndSeconds = 9
   assert.deepEqual(spansOf(planOf(backwards)), [[0, 12, 0, 0]])
+})
+
+// La apertura siempre abre (entrega 2f, R-2f-4, diseño §22.3): si con el tope
+// de silencio no cabe, se vuelve a probar sin él, cargando hasta
+// AVATAR_OPENING_MAX_PAUSE_SECONDS (6 s) de silencio después de la última
+// palabra de cada frase (ronda 1). Hasta la 2e esa apertura se descartaba.
+test('la apertura siempre abre (2f, R-2f-4): una primera frase corta seguida de unos segundos de silencio abre en 0 cargando ese silencio; si el ajuste normal cabe, nada cambia; un audio de menos de 5 s, una apertura de más del máximo o más de 6 s de silencio la dejan afuera', () => {
+  // «Hola» y 5,2 s de silencio: la frase 0 (0–6 s) habla hasta los 0,8. Con
+  // el tope termina a los 2,8 y no llega al mínimo; sin él mide 6 s y, con
+  // 10 s de objetivo, suma la siguiente: 0–11. Hasta la 2e, sin apertura y 1
+  // descartada.
+  const hello = sentencesOf([6, ...repeat(5, 11)], { pauses: { 0: 5.2 } })
+  assert.deepEqual(planOf(hello), {
+    spans: [
+      { startSeconds: 0, endSeconds: 11, sentenceFrom: 0, sentenceTo: 1 },
+    ],
+    dropped: 0,
+  })
+  // Con 5 s de objetivo, la frase 0 sola, con su silencio.
+  assert.deepEqual(spansOf(planOf(hello, { secondsPerAppearance: 5 })), [
+    [0, 6, 0, 0],
+  ])
+  // Con tres apariciones, las otras dos se reparten después de la apertura
+  // (hasta la 2e: 11–21 y 41–51, y 1 descartada).
+  const three = planOf(hello, { appearances: 3 })
+  assert.deepEqual(spansOf(three), [
+    [0, 11, 0, 1],
+    [26, 36, 5, 6],
+    [46, 56, 9, 10],
+  ])
+  assert.equal(three.dropped, 0)
+  // Ni con su silencio la frase 0 llega al mínimo (0–4 s, habla hasta los
+  // 1,5): la apertura lo carga y suma la frase siguiente, 0–9.
+  assert.deepEqual(
+    spansOf(planOf(sentencesOf([4, ...repeat(5, 11)], { pauses: { 0: 2.5 } }))),
+    [[0, 9, 0, 1]],
+  )
+  // Si el ajuste normal cabe, la apertura es la de siempre: la frase 0 (0–12
+  // s, habla hasta los 5) termina a los 7 por el tope, no a los 12.
+  assert.deepEqual(
+    spansOf(planOf(sentencesOf([12, 5, 10, 10], { pauses: { 0: 7 } }))),
+    [[0, 7, 0, 0]],
+  )
+  // Solo la deja afuera un audio de menos del mínimo, también con silencio…
+  assert.deepEqual(planOf(sentencesOf([4.9], { pauses: { 0: 4 } })), {
+    spans: [],
+    dropped: 1,
+  })
+  assert.deepEqual(planOf(sentencesOf([2, 2.96], { pauses: { 0: 1.5 } })), {
+    spans: [],
+    dropped: 1,
+  })
+  // …o una apertura que no llega al mínimo sin pasar el máximo: una primera
+  // frase de más del máximo, o una corta (y casi muda) seguida de una que lo
+  // pasa. Cuentan como una descartada y la otra se reparte como sin apertura.
+  const overMaximum = AVATAR_MAX_APPEARANCE_SECONDS + 5
+  const longFirst = planOf(sentencesOf([overMaximum, ...repeat(5, 10)]), {
+    appearances: 2,
+  })
+  assert.deepEqual(spansOf(longFirst), [[overMaximum, overMaximum + 10, 1, 2]])
+  assert.equal(longFirst.dropped, 1)
+  const shortThenLong = planOf(
+    sentencesOf([3, overMaximum, ...repeat(5, 10)], { pauses: { 0: 2.5 } }),
+    { appearances: 2 },
+  )
+  assert.deepEqual(spansOf(shortThenLong), [
+    [overMaximum + 3, overMaximum + 13, 2, 3],
+  ])
+  assert.equal(shortThenLong.dropped, 1)
+  // …o más de 6 s de silencio que cargar (ronda 1). Justo 6 s se cargan (la
+  // frase 0 de 7 s habla 1: 0–12); un cuadro más (6,04 s) ya no, y no hay
+  // apertura (la otra arranca en la frase 1). El caso de la palabra y 19 s de
+  // silencio está en «apertura casi muda».
+  const pausedFor = (pause) =>
+    sentencesOf([pause + 1, 5, 5, 5], { pauses: { 0: pause } })
+  assert.deepEqual(
+    spansOf(planOf(pausedFor(AVATAR_OPENING_MAX_PAUSE_SECONDS))),
+    [[0, 12, 0, 1]],
+  )
+  assert.deepEqual(planOf(pausedFor(6.04)), { spans: [], dropped: 1 })
+  assert.deepEqual(spansOf(planOf(pausedFor(6.04), { appearances: 2 })), [
+    [7.04, 17.04, 1, 2],
+  ])
+  // El límite vale para cada frase que la apertura suma: la frase 0 (0–3 s,
+  // habla hasta los 0,5) no llega y la 1 tiene 15 s de silencio: no hay
+  // apertura.
+  assert.deepEqual(
+    planOf(sentencesOf([3, 20, 5, 5], { pauses: { 0: 2.5, 1: 15 } })),
+    { spans: [], dropped: 1 },
+  )
+})
+
+// «3 veces en 2 minutos» (entrega 2f, diseño §22.2). Cinco minutos de frases
+// de 5 s: el reparto cae en múltiplos de 5 y los largos son exactos.
+const FIVE_MINUTES = sentencesOf(repeat(5, 60))
+const threeInTwo = (sentences, options = {}) =>
+  planOf(sentences, { threeInFirstTwoMinutes: true, ...options })
+
+test('3 veces en 2 minutos (2f): con 1, 3 y 5 apariciones elegidas, con y sin apertura y con 10, 45 y 60 s, las tres primeras arrancan antes de los 120 s y apuntan a lo sumo al tope de 35 s; las demás, a los segundos elegidos', () => {
+  // El tope era 45 s; la ronda 1 lo bajó a 40 y la ronda 2 a 35 (R-2f-8) para
+  // que las tres entren siempre (ver la constante).
+  assert.deepEqual(
+    [
+      AVATAR_EARLY_WINDOW_SECONDS,
+      AVATAR_EARLY_APPEARANCES,
+      AVATAR_EARLY_MAX_SECONDS,
+    ],
+    [120, 3, 35],
+  )
+  for (const appearances of [1, 3, 5])
+    for (const startWithAvatar of [true, false])
+      for (const secondsPerAppearance of [10, 45, 60]) {
+        const label = `${appearances} elegidas, apertura ${startWithAvatar}, ${secondsPerAppearance} s`
+        const result = threeInTwo(FIVE_MINUTES, {
+          appearances,
+          startWithAvatar,
+          secondsPerAppearance,
+        })
+        // Al menos tres (R-2f-2); en cinco minutos entran todas.
+        assert.equal(
+          result.spans.length,
+          Math.max(appearances, AVATAR_EARLY_APPEARANCES),
+          label,
+        )
+        assert.equal(result.dropped, 0, label)
+        // La apertura es una de las tres; sin ella, nunca antes de 3 s.
+        if (startWithAvatar)
+          assert.equal(result.spans[0].startSeconds, 0, label)
+        else
+          assert.ok(
+            result.spans[0].startSeconds >= MIN_SECONDS_PER_SCENE,
+            label,
+          )
+        // Con frases de 5 s el ajuste llega justo al objetivo (R-2f-3).
+        const earlySeconds = Math.min(
+          secondsPerAppearance,
+          AVATAR_EARLY_MAX_SECONDS,
+        )
+        for (const span of result.spans.slice(0, AVATAR_EARLY_APPEARANCES)) {
+          assert.ok(span.startSeconds < AVATAR_EARLY_WINDOW_SECONDS, label)
+          assert.equal(span.endSeconds - span.startSeconds, earlySeconds, label)
+        }
+        for (const span of result.spans.slice(AVATAR_EARLY_APPEARANCES))
+          assert.equal(
+            span.endSeconds - span.startSeconds,
+            secondsPerAppearance,
+            label,
+          )
+        for (let index = 1; index < result.spans.length; index++)
+          assert.ok(
+            result.spans[index].startSeconds -
+              result.spans[index - 1].endSeconds >=
+              AVATAR_MIN_GAP_SECONDS,
+            label,
+          )
+      }
+})
+
+test('3 veces en 2 minutos (2f): las tres primeras se reparten con la regla de anclas dentro de la ventana y las demás, parejas en la zona que queda después de la tercera', () => {
+  // Con apertura y 10 s: dos más en la zona libre de la ventana (20–120 s,
+  // anclas a los 45 y 95). Apagada caían a los 85 y 225 s.
+  assert.deepEqual(spansOf(threeInTwo(FIVE_MINUTES, { appearances: 3 })), [
+    [0, 10, 0, 1],
+    [40, 50, 8, 9],
+    [90, 100, 18, 19],
+  ])
+  // Sin apertura: tres en 0–120 s, anclas a los 20, 60 y 100.
+  assert.deepEqual(
+    spansOf(
+      threeInTwo(FIVE_MINUTES, { appearances: 3, startWithAvatar: false }),
+    ),
+    [
+      [15, 25, 3, 4],
+      [55, 65, 11, 12],
+      [95, 105, 19, 20],
+    ],
+  )
+  // Una elegida de 60 s: salen tres de 35 s con el hueco mínimo entre ellas;
+  // la tercera arranca a los 90 o a los 95.
+  assert.deepEqual(
+    spansOf(threeInTwo(FIVE_MINUTES, { secondsPerAppearance: 60 })),
+    [
+      [0, 35, 0, 6],
+      [45, 80, 9, 15],
+      [90, 125, 18, 24],
+    ],
+  )
+  assert.deepEqual(
+    spansOf(
+      threeInTwo(FIVE_MINUTES, {
+        secondsPerAppearance: 60,
+        startWithAvatar: false,
+      }),
+    ),
+    [
+      [5, 40, 1, 7],
+      [50, 85, 10, 16],
+      [95, 130, 19, 25],
+    ],
+  )
+  // Cinco de 60 s: las dos que siguen, con sus 60 s, en la zona libre después
+  // de la tercera (135–300 s, anclas a los 176,25 y 258,75).
+  assert.deepEqual(
+    spansOf(
+      threeInTwo(FIVE_MINUTES, { appearances: 5, secondsPerAppearance: 60 }),
+    ),
+    [
+      [0, 35, 0, 6],
+      [45, 80, 9, 15],
+      [90, 125, 18, 24],
+      [145, 205, 29, 40],
+      [230, 290, 46, 57],
+    ],
+  )
+  // Cinco de 10 s: las dos que siguen, en 110–300 s (anclas a los 157,5 y
+  // 252,5; con empate, la primera frase).
+  assert.deepEqual(spansOf(threeInTwo(FIVE_MINUTES, { appearances: 5 })), [
+    [0, 10, 0, 1],
+    [40, 50, 8, 9],
+    [90, 100, 18, 19],
+    [150, 160, 30, 31],
+    [245, 255, 49, 50],
+  ])
+})
+
+// R-2f-3: Crear dice que las tres primeras «duran hasta 35 s», así que el
+// tope es un máximo y no solo el objetivo. Con el tope en 45 y frases de 8 s,
+// apuntar a 45 sin ese máximo daba 0–48 y 64–112 y dejaba a la tercera afuera.
+test('3 veces en 2 minutos (2f): las tres primeras no pasan el tope aunque una frase más las acerque al objetivo; las demás, hasta 60', () => {
+  // Frases de 6 s: 36 s quedan más cerca de 35 que 30, pero pasan el tope.
+  const six = sentencesOf(repeat(6, 50))
+  const result = threeInTwo(six, { appearances: 5, secondsPerAppearance: 60 })
+  assert.deepEqual(spansOf(result), [
+    [0, 30, 0, 4],
+    [42, 72, 7, 11],
+    [84, 114, 14, 18],
+    [138, 198, 23, 32],
+    [228, 288, 38, 47],
+  ])
+  assert.equal(result.dropped, 0)
+  for (const span of result.spans.slice(0, AVATAR_EARLY_APPEARANCES))
+    assert.ok(span.endSeconds - span.startSeconds <= AVATAR_EARLY_MAX_SECONDS)
+  // El tope puede dejar una de las primeras más corta que el objetivo: con
+  // una frase de 40 s detrás, la segunda es 45–55 (sin el tope sería 45–95,
+  // de 50 s) y la tercera entra (95–130).
+  const longAfter = sentencesOf([...repeat(5, 11), 40, ...repeat(5, 40)])
+  assert.deepEqual(
+    spansOf(threeInTwo(longAfter, { secondsPerAppearance: 60 })),
+    [
+      [0, 35, 0, 6],
+      [45, 55, 9, 10],
+      [95, 130, 12, 18],
+    ],
+  )
+})
+
+// Una de las tres primeras que con el tope no cabe desde ninguna frase de su
+// zona no se pierde si cabe con el máximo de siempre: mejor una de 50 s que
+// ninguna, y la apertura manda (R-2f-4).
+test('3 veces en 2 minutos (2f): si desde ninguna frase de su zona cabe una del tope o menos, se prueba con el máximo de siempre', () => {
+  // Una primera frase de 50 s: la apertura la toma entera; las otras dos, a
+  // lo sumo 35.
+  const longFirst = threeInTwo(sentencesOf([50, ...repeat(5, 50)]), {
+    secondsPerAppearance: 60,
+  })
+  assert.deepEqual(spansOf(longFirst), [
+    [0, 50, 0, 0],
+    [60, 95, 3, 9],
+    [105, 140, 12, 18],
+  ])
+  assert.equal(longFirst.dropped, 0)
+  // Sin apertura y con frases de 50 s en la ventana: 3–53 y 103–153; la
+  // tercera no arranca antes de los 120 s.
+  const longSentences = threeInTwo(
+    sentencesOf([3, 50, 50, 50, ...repeat(5, 30)]),
+    { startWithAvatar: false, secondsPerAppearance: 60 },
+  )
+  assert.deepEqual(spansOf(longSentences), [
+    [3, 53, 1, 1],
+    [103, 153, 3, 3],
+  ])
+  assert.equal(longSentences.dropped, 1)
+})
+
+// Ronda 1 de la 2f (D5): con «3 veces en 2 minutos», una apertura que no cupo
+// no ocupa lugar y la ventana intenta las tres. Apagada sigue contando como
+// una de las pedidas, descartada.
+test('3 veces en 2 minutos (2f, ronda 1): si la apertura no cabe, la ventana intenta las tres', () => {
+  // La frase 0 es una palabra y 19 s de silencio: no hay apertura.
+  const muteFirst = sentencesOf([20, ...repeat(5, 56)], { pauses: { 0: 19 } })
+  const result = threeInTwo(muteFirst, { appearances: 3 })
+  assert.deepEqual(spansOf(result), [
+    [20, 30, 1, 2],
+    [55, 65, 8, 9],
+    [95, 105, 16, 17],
+  ])
+  assert.equal(result.dropped, 0)
+  const off = planOf(muteFirst, { appearances: 3 })
+  assert.deepEqual(spansOf(off), [
+    [70, 80, 11, 12],
+    [220, 230, 41, 42],
+  ])
+  assert.equal(off.dropped, 1)
+  // Con una primera frase de más del máximo, también: anclas a los 20, 60 y
+  // 100, y la primera frase desde la que cabe es la 1.
+  const overMaximum = AVATAR_MAX_APPEARANCE_SECONDS + 5
+  const longFirst = threeInTwo(sentencesOf([overMaximum, ...repeat(5, 47)]), {
+    appearances: 3,
+  })
+  assert.deepEqual(spansOf(longFirst), [
+    [overMaximum, overMaximum + 10, 1, 2],
+    [overMaximum + 20, overMaximum + 30, 5, 6],
+    [overMaximum + 40, overMaximum + 50, 9, 10],
+  ])
+  assert.equal(longFirst.dropped, 0)
+})
+
+test('3 veces en 2 minutos (2f): con un video de menos de 2 minutos la ventana es el video, y lo que no entra va a dropped', () => {
+  const ninety = sentencesOf(repeat(5, 18))
+  // Sin apertura, anclas a los 15, 45 y 75 s: los centros de los tercios de
+  // 90 s (con la ventana de 120 serían 20, 60 y 100).
+  const spread = threeInTwo(ninety, { startWithAvatar: false })
+  assert.deepEqual(spansOf(spread), [
+    [10, 20, 2, 3],
+    [40, 50, 8, 9],
+    [70, 80, 14, 15],
+  ])
+  // Con tres elegidas y la apertura, la ventana es el video y el plan es el
+  // mismo que apagada.
+  assert.deepEqual(
+    threeInTwo(ninety, { appearances: 3 }),
+    planOf(ninety, { appearances: 3 }),
+  )
+  // Cinco elegidas: después de la tercera no queda lugar; dos a dropped, sin
+  // mover ninguna a otro lado.
+  const five = threeInTwo(ninety, { appearances: 5, startWithAvatar: false })
+  assert.deepEqual(five.spans, spread.spans)
+  assert.equal(five.dropped, 2)
+  // 40 s con apertura: la segunda entra (20–30 s) y la tercera no.
+  const forty = threeInTwo(sentencesOf(repeat(5, 8)))
+  assert.deepEqual(spansOf(forty), [
+    [0, 10, 0, 1],
+    [20, 30, 4, 5],
+  ])
+  assert.equal(forty.dropped, 1)
+})
+
+test('3 veces en 2 minutos (2f): arrancar justo a los 120 s ya no es «en los primeros 2 minutos»; un cuadro antes, sí', () => {
+  // Frases de 5 s hasta los 90 s, una casi muda de 90 s a `third` (habla
+  // hasta los 90,5: no cabe) y frases de 5 s desde `third`, al cuadro. Una
+  // de 60 s con apertura: 0–35, 45–80 y la tercera, desde los 90 s.
+  const withThirdAt = (third) =>
+    sentencesAt(
+      [
+        ...Array.from({ length: 19 }, (_, index) => index * 5),
+        ...Array.from(
+          { length: 37 },
+          (_, index) => frameBoundary(third + index * 5) / ANIMATION_FPS,
+        ),
+      ],
+      { pauses: { 18: third - 90.5 } },
+    )
+  const atLimit = threeInTwo(withThirdAt(AVATAR_EARLY_WINDOW_SECONDS), {
+    secondsPerAppearance: 60,
+  })
+  assert.deepEqual(spansOf(atLimit), [
+    [0, 35, 0, 6],
+    [45, 80, 9, 15],
+  ])
+  assert.equal(atLimit.dropped, 1)
+  const frameBefore = threeInTwo(withThirdAt(119.96), {
+    secondsPerAppearance: 60,
+  })
+  assert.deepEqual(spansOf(frameBefore), [
+    [0, 35, 0, 6],
+    [45, 80, 9, 15],
+    [119.96, 154.96, 19, 25],
+  ])
+  assert.equal(frameBefore.dropped, 0)
+})
+
+// Apagada (ausente, false o cualquier valor que no sea true) el plan es el de
+// antes de la 2f: estos son los planes que daba el planificador de la 2e.
+test('3 veces en 2 minutos apagada (2f): el plan de antes, también con false o con un valor que no es true', () => {
+  for (const [options, before] of [
+    [
+      { appearances: 3 },
+      [
+        [0, 10, 0, 1],
+        [85, 95, 17, 18],
+        [225, 235, 45, 46],
+      ],
+    ],
+    [
+      { appearances: 3, startWithAvatar: false },
+      [
+        [45, 55, 9, 10],
+        [145, 155, 29, 30],
+        [245, 255, 49, 50],
+      ],
+    ],
+    [{ secondsPerAppearance: 60 }, [[0, 60, 0, 11]]],
+    [
+      { appearances: 5, secondsPerAppearance: 60 },
+      [
+        [0, 60, 0, 11],
+        [70, 130, 14, 25],
+        [140, 200, 28, 39],
+        [210, 270, 42, 53],
+        [280, 300, 56, 59],
+      ],
+    ],
+    [
+      { appearances: 5, startWithAvatar: false, secondsPerAppearance: 45 },
+      [
+        [5, 50, 1, 9],
+        [65, 110, 13, 21],
+        [125, 170, 25, 33],
+        [185, 230, 37, 45],
+        [245, 290, 49, 57],
+      ],
+    ],
+  ])
+    for (const threeInFirstTwoMinutes of [undefined, false, 'true', 1]) {
+      const label = JSON.stringify({ ...options, threeInFirstTwoMinutes })
+      const result = planOf(FIVE_MINUTES, {
+        ...options,
+        threeInFirstTwoMinutes,
+      })
+      assert.deepEqual(spansOf(result), before, label)
+      assert.equal(result.dropped, 0, label)
+    }
+  // Una sola aparición en 90 s queda una sola.
+  assert.deepEqual(spansOf(planOf(sentencesOf(repeat(5, 18)))), [[0, 10, 0, 1]])
+})
+
+test('3 veces en 2 minutos (2f): determinista y sin tocar las frases; sin frases, las tres pedidas van a dropped', () => {
+  const sentences = sentencesOf(repeat(7, 40))
+  const before = structuredClone(sentences)
+  const options = {
+    appearances: 4,
+    secondsPerAppearance: 30,
+    startWithAvatar: true,
+    threeInFirstTwoMinutes: true,
+  }
+  const first = planAvatarSpans(sentences, options)
+  assert.deepEqual(planAvatarSpans(sentences, options), first)
+  assert.deepEqual(sentences, before)
+  assert.deepEqual(
+    planAvatarSpans([], {
+      appearances: 1,
+      secondsPerAppearance: 10,
+      startWithAvatar: true,
+      threeInFirstTwoMinutes: true,
+    }),
+    { spans: [], dropped: AVATAR_EARLY_APPEARANCES },
+  )
 })

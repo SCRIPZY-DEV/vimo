@@ -3,6 +3,8 @@ import {
   AVATAR_ENGINES,
   avatarEngineAvailable,
   avatarEngineFor,
+  avatarExpressiveAvailable,
+  avatarHasMotionReference,
 } from '@pipeline/types/avatar.ts'
 import type {
   AvatarLibraryRead,
@@ -90,7 +92,8 @@ export function avatarUsability(
 }
 
 // La elección del formulario: un avatar y uno de sus looks, con los motores
-// que el look admite (entrega 2e).
+// que el look admite (entrega 2e) y si Avatar V puede moverlo con un prompt
+// (entrega 2f, R-2f-1: `motionReference` es del avatar entero, no del look).
 export function selectedAvatarFrom(
   entry: AvatarSummary,
   look: AvatarLookSummary,
@@ -102,7 +105,40 @@ export function selectedAvatarFrom(
     lookName: look.name,
     lookType: look.lookType,
     supportedEngines: look.supportedEngines,
+    motionReference: avatarHasMotionReference(entry),
   }
+}
+
+// ¿Falta la referencia de animación para que Avatar V mueva esta elección con
+// un prompt? (entrega 2f, R-2f-1, medido con una sonda gratis del 2026-10-12):
+// con un look de foto, V rechaza el `motion_prompt` si el grupo del avatar no
+// tiene un gemelo digital (`avatarHasMotionReference`, copiado al elegirlo).
+// Los looks de video se referencian a sí mismos y IV mueve los de foto sin
+// referencia, así que solo cuenta con V y un look de foto. Un borrador de antes
+// de la 2f no trae el campo y cuenta como que la tiene.
+export function avatarMotionReferenceMissing(
+  avatar: Pick<SelectedAvatar, 'lookType' | 'motionReference'>,
+  engine: AvatarEngine,
+): boolean {
+  if (engine !== 'avatar_v') return false
+
+  if (avatar.lookType !== 'photo_avatar') return false
+
+  return avatar.motionReference === false
+}
+
+// ¿«Movimiento más expresivo» hace algo con esta elección y este motor? Lo que
+// admiten el motor y el tipo de look (`avatarExpressiveAvailable`), salvo V sin
+// referencia de animación: ahí el look sale con el movimiento propio de V y no
+// hay prompt que volver más expresivo. Es LA regla: el interruptor de Crear y
+// el payload la comparten, sin espejos que puedan divergir.
+export function selectedAvatarExpressiveAvailable(
+  avatar: Pick<SelectedAvatar, 'lookType' | 'motionReference'>,
+  engine: AvatarEngine,
+): boolean {
+  if (avatarMotionReferenceMissing(avatar, engine)) return false
+
+  return avatarExpressiveAvailable(engine, avatar.lookType)
 }
 
 // El motor con el que sale la elección del formulario (entrega 2e, §21.3): el

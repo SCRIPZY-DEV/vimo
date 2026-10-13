@@ -26,9 +26,12 @@
   2026-10-12** (plan en `plan-e2e.md` (interno): elegir Avatar V, IV o III con su costo, el movimiento
   automático por escena y «más expresivo», regenerar una escena lista desde el editor con el prompt de
   movimiento, el porcentaje en el progreso y la tarjeta del avatar en la grilla; §21; evidencia en
-  `execution-e2e/` (interno)). Pendiente: la QA del dueño de la 2d y la 2e, con los puntos que gastan
-  saldo de HeyGen. Lo que falta de la entrega 3 (cambiar de avatar, «Avatar aquí», mover y estirar, quitar)
-  no tiene plan todavía.
+  `execution-e2e/` (interno)). **Entrega 2f implementada en la rama el 2026-10-12** (plan en
+  `plan-e2f.md` (interno): el rechazo de Avatar V sin `param` y su aviso en Crear, la casilla «3 veces en
+  2 minutos», «Empieza con el avatar» que siempre abre el video y el avatar en la vista ampliada del editor;
+  §22; evidencia en `execution-e2f/` (interno)). Pendiente: la QA del dueño de la 2d, la 2e y la 2f,
+  con los puntos que gastan saldo de HeyGen. Lo que falta de la entrega 3 (cambiar de avatar, «Avatar aquí»,
+  mover y estirar, quitar) no tiene plan todavía.
 - **ADR:** [ADR-0057](../../adr/ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md).
 - **Relacionadas:** ADR-0013 (confirmación de escenas), ADR-0014 (edición sobre stages), ADR-0033
   (personajes con foto), ADR-0041/0042/0047 (clips animados como bloque), ADR-0046 (recuperación de
@@ -228,6 +231,7 @@ avatar?: {
   startWithAvatar: boolean // la primera aparición abre el video
   placement: 'auto' | 'manual' // manual = sin cortes al crear; se agregan desde el editor (entrega 3)
   expressive?: boolean // «Movimiento más expresivo» (2e): solo en true, y solo si el motor y el look lo admiten
+  threeInFirstTwoMinutes?: boolean // «3 veces en 2 minutos» (2f, §22.2): solo en true
 }
 ```
 
@@ -286,6 +290,12 @@ Constantes de la 2e (en el mismo archivo): `AVATAR_ENGINE_CHOICES` (el orden en 
 (160, a lo que apunta el que escribe Vimo) y `AVATAR_MOTION_LOOP_SECONDS` (10, el movimiento propio que el
 proveedor repite).
 
+Constantes de la 2f (en el mismo archivo, §22): `AVATAR_EARLY_WINDOW_SECONDS` (120) y
+`AVATAR_EARLY_APPEARANCES` (3), la ventana y el mínimo de «3 veces en 2 minutos»; `AVATAR_EARLY_MAX_SECONDS`
+(35, el tope de las tres primeras, con la tabla de la simulación que lo fijó); `AVATAR_OPENING_MAX_PAUSE_SECONDS`
+(6, el silencio que carga una apertura que con el tope de 2 s no cabe) y `avatarHasMotionReference(entry)` (si
+Avatar V puede mover a ese avatar con un prompt).
+
 Crear un avatar desde una foto: 1,32 USD (si un entrenamiento que termina `failed` se cobra o no es
 la sonda 4 de §17; la interfaz no promete reembolso). Los renders fallidos no se cobran. La tabla vive en
 `AVATAR_USD_PER_MINUTE` y es la única fuente del estimador; si HeyGen cambia precios, se cambia ahí.
@@ -329,6 +339,7 @@ export interface AvatarPlanOptions {
   appearances: number
   secondsPerAppearance: number
   startWithAvatar: boolean
+  threeInFirstTwoMinutes?: boolean // 2f (§22.2): solo `true` la prende
 }
 export interface AvatarSpan {
   startSeconds: number
@@ -401,6 +412,12 @@ export function planAvatarSpans(
   seguida de una final de 2 s). Una pausa larga ADENTRO de una frase de 15 s o menos (después de una
   coma o de un punto que Deepgram no marcó) la aparición la carga entera: el tope mira solo la pausa
   después de la última palabra (límite deliberado).
+- **Desde la entrega 2f (§22).** `AvatarPlanOptions` suma `threeInFirstTwoMinutes` («3 veces en 2 minutos»,
+  §22.2): al menos tres apariciones, y las tres primeras arrancan antes de los 120 s con un tope de 35 s cada
+  una. Y la apertura de «Empieza con el avatar» se vuelve a probar sin el tope de silencio de arriba, cargando a
+  lo sumo 6 s por frase, si con él no cabe (R-2f-4, §22.3): lo que este apartado dice de que la apertura se
+  descarta vale solo cuando tampoco así cabe. Con la casilla apagada y el ajuste normal cabiendo, el plan es el
+  de este apartado.
 - Determinista: mismas frases y opciones, mismo plan. Los que no caben se cuentan en `dropped` y se
   informan (evento `avatar-planned`), no fallan.
 
@@ -715,7 +732,13 @@ aviso de clave):
   prompt de movimiento: con IV y un look de video no sale, porque el proveedor no lo acepta y la frase
   sería falsa). Con III no se muestra.
 - **Apariciones:** 1–10, por defecto 3. **Segundos por aparición:** 5–60 (7–60 hasta la 2c), por defecto 10.
-- **Empieza con el avatar:** casilla, por defecto activa.
+- **Empieza con el avatar:** casilla, por defecto activa. Desde la entrega 2f abre siempre el video (§22.3).
+- **«3 veces en 2 minutos» (desde la entrega 2f, §22.2):** debajo de «Empieza con el avatar», una casilla con un
+  ícono de ayuda (tooltip), apagada por defecto (`CreateAvatarThreeInTwo`; manda solo
+  `{ avatarThreeInTwoMinutes }`). Prendida, el avatar sale al menos 3 veces y las tres primeras arrancan en los
+  primeros 120 s; la tarjeta avisa el mínimo y el tope de las tres primeras (35 s), y el total y el costo
+  cuentan lo que sale. Y con Avatar V y un avatar propio sin gemelo digital, «Movimiento más expresivo» queda
+  apagado con su motivo (§22.1).
 - **Total y costo:** con Avatar III, «30 s de avatar ≈ 0,50 USD» para un avatar de foto o de estudio
   (0,99 USD por minuto) y ≈ 0,30 USD para un gemelo digital (0,60 por minuto), con la fórmula
   `apariciones × segundos / 60 × tarifa`; desde la 2e la tarifa es la del **motor efectivo**: con un look de
@@ -744,9 +767,11 @@ aviso de clave):
 
 Estado del formulario (`CreateFormValue`): `avatar: SelectedAvatar | null` (desde la 2e con los
 `supportedEngines` del look, copiados al elegirlo), `avatarEngine` (la preferencia), `avatarExpressive`,
-`avatarAppearances`, `avatarSecondsPerAppearance`, `avatarStartsVideo`. Payload: `options.avatar`
-(§3.4) con `placement: 'auto'`, `engine` = el motor efectivo y `expressive: true` solo si está prendido y
-sirve (con Avatar III y el interruptor apagado, `options.avatar` es byte a byte el de antes de la 2e);
+`avatarAppearances`, `avatarSecondsPerAppearance`, `avatarStartsVideo` y, desde la 2f,
+`avatarThreeInTwoMinutes` (y `motionReference` en `SelectedAvatar`, copiado como los motores). Payload:
+`options.avatar` (§3.4) con `placement: 'auto'`, `engine` = el motor efectivo y `expressive: true` solo si está
+prendido y sirve (con Avatar III y el interruptor apagado, `options.avatar` es byte a byte el de antes de la
+2e) y, desde la 2f, `threeInFirstTwoMinutes: true` al final, solo prendida (§22.2);
 `create-video-project` valida rangos y enumerados, copia la vista previa del look elegido a
 `<proyecto>/avatar/look.<ext>` y rechaza un look que no sea del avatar, no esté listo con el motor elegido
 o no tenga la orientación del formato.
@@ -1342,7 +1367,7 @@ nombra al proveedor):
 | `avatar_insufficient_credits`      | saldo < estimado (pre-chequeo) o rechazo por saldo                                                                | Pausa con recarga (patrón de voz/imágenes)                                                                                        |
 | `avatar_rate_limited`              | 429, o 409 `request_in_progress`                                                                                  | Espera y reintento (3 veces); el 409, sin cambiar el pedido                                                                       |
 | `avatar_look_unsupported`          | 400 por motor/look (`param: engine` o `avatar_id`)                                                                | Elegir otro motor o avatar                                                                                                        |
-| `avatar_motion_unsupported`        | 400 con `param` `motion_prompt` o `expressiveness` (el look no admite ese movimiento)                             | El intento queda `failed`, la escena `motionUnsupported` y se pide enseguida sin movimiento (otra clave); `create.errors.*`       |
+| `avatar_motion_unsupported`        | 400 con `param` `motion_prompt` o `expressiveness`, o sin `param` y con el campo en el mensaje (2f)               | El intento queda `failed`, la escena `motionUnsupported` y se pide enseguida sin movimiento (otra clave); `create.errors.*`       |
 | `avatar_moderation_rejected`       | `failure_code` de moderación                                                                                      | Explica la política; no se cobra                                                                                                  |
 | `avatar_render_failed`             | otro `failure_code`                                                                                               | Reintentar; no se cobra                                                                                                           |
 | `avatar_timeout`                   | plazo vencido                                                                                                     | El recibo queda pendiente; lo cosecha sin pagar el «Regenerar» del editor (reanudar, solo si la fase no terminó)                  |
@@ -1392,6 +1417,13 @@ HeyGen (podría repetir el prompt) y no es un rechazo definitivo (§7.2); con ot
 ejemplo) sigue el camino de siempre y la escena queda fallida, sin reintento sin movimiento. Un look sin
 ningún motor con tarifa (`avatar_no_compatible_look`, `avatar_look_unavailable`) ya no nombra a Avatar III.
 
+Desde la entrega 2f (§22.1) también lo es un 400 de sobre JSON **sin** `param` cuyo mensaje nombra
+`motion_prompt` o `expressiveness` por palabra completa (`MOTION_FIELD_PATTERN`): es el rechazo de Avatar V a un
+avatar de foto propio sin gemelo digital («motion_prompt requires a reference look to drive motion…»), medido
+con una sonda gratis. El `param` del error sale de ese campo y el texto de HeyGen tampoco se copia. Un 400 que
+habla de otra cosa (el del audio de la misma sonda), una palabra parecida (`motion_prompts`), un texto sin sobre
+o un 422 siguen siendo `avatar_invalid_request`.
+
 ## 15. Pruebas y QA
 
 **Guards provisorios** (`scripts/test/`, node:test + esbuild, como `check-timeline-layout.mjs`):
@@ -1435,6 +1467,16 @@ ningún motor con tarifa (`avatar_no_compatible_look`, `avatar_look_unavailable`
   `check-editor-avatar-regenerate-ui.mjs` (regenerar una lista y la sección «Movimiento») y
   `check-avatar-library-ui.mjs` (las pastillas de motor). La lista de la QA del dueño de la 2e:
   `execution-e2e/qa-2e.md`.
+- **Desde la entrega 2f:** `check-editor-avatar-gallery-ui.mjs` (el avatar en la vista ampliada del editor con
+  la vista real, un clip y una imagen de verdad y teclas reales: las tarjetas, el clip mudo, el estado, las
+  acciones con costo y confirmación, el foco, la selección y la demo) y ampliados `check-avatar-planner.mjs` (la
+  apertura que siempre abre y «3 veces en 2 minutos»: la ventana, el tope, el respaldo y los bordes),
+  `check-scene-pins.mjs`, `check-avatar-create-project.mjs`, `check-heygen-client.mjs` (el rechazo de Avatar V
+  sin `param`), `check-app-avatar-create.mjs` y `check-create-avatar-ui.mjs` (la casilla, el costo que cuenta lo
+  que sale con la misma cuenta al crear y al reanudar, V sin gemelo digital), `check-create-draft-ui.mjs` y
+  `check-timeline-avatar-ui.mjs` (la galería lista todas las escenas). Los guards de Crear leen el tope de
+  `AVATAR_EARLY_MAX_SECONDS` en vez de fijar un número. La lista de la QA del dueño de la 2f:
+  `execution-e2f/qa-2f.md`.
 
 **Rust:** `src-tauri/src/api_keys/tests/validation.rs` para la rama de HeyGen.
 
@@ -1494,6 +1536,11 @@ y la huella con movimiento en §7.1 y §7.2, el movimiento automático en §8, r
 sección «Movimiento» del editor en §11.1, las pastillas de motor en §12.2, el porcentaje y la tarjeta del
 avatar en el progreso; hechos y rulings en §21) va después de la 2d y antes de la 3, con su plan
 `plan-e2e.md` (interno). Suma al «Regenerar» de la 2d el de una escena que salió bien.
+
+La entrega 2f (pedidos del dueño del 2026-10-12, tarde: el rechazo de Avatar V sin `param` en §14 y su aviso en
+Crear en §9, la casilla «3 veces en 2 minutos» y la apertura que siempre abre en §5 y §9, y el avatar en la
+vista ampliada del editor en §11.1; hechos y rulings en §22) va después de la 2e y antes de la 3, con su plan
+`plan-e2f.md` (interno). Suma a la galería del editor las apariciones del avatar con las acciones del panel.
 
 Cada entrega tiene su plan, su ejecución con subagentes y su QA del dueño; el push y el PR siguen
 pidiendo su aprobación cada vez.
@@ -1972,3 +2019,217 @@ arriba, mandan ellos):
   R-2e-14 viaja hasta con 334 caracteres, y un rechazo por largo se leería como «el look no admite
   movimiento»), el Enter sostenido y el pegado con saltos en la WKWebView, y un «Regenerar» con un render
   real.
+
+## 22. Entrega 2f — los pedidos del dueño del 2026-10-12 (tarde)
+
+Pedidos del dueño después de probar la 2e con Avatar V, y lo decidido. Donde un pedido admitía dos
+lecturas, la decisión dice cuál se tomó (ruling `R-2f-N`).
+
+| Pedido del dueño                                                                                                                                                                                                 | Decisión                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Revisar la generación con Avatar V y IV: falló con «El servicio de avatares respondió algo inesperado» (V, «más expresivo»)                                                                                      | §22.1 (arreglado en `067d00a4`) |
+| Un checkbox «3 veces en 2 minutos»: el avatar sale al menos 3 veces en los primeros 2 minutos, contando la aparición inicial, sin importar las apariciones ni la duración elegidas; el resto se reparte como hoy | §22.2                           |
+| «Empieza con el avatar», seleccionado por defecto, tiene que poner el avatar al inicio del video                                                                                                                 | §22.3                           |
+| En la vista ampliada del editor, también los clips del avatar, para regenerarlos o controlarlos desde ahí                                                                                                        | §22.4                           |
+
+### 22.1 El rechazo de Avatar V
+
+Sonda gratis del 2026-10-12 (pedidos con un audio inválido a propósito: HeyGen los rechaza sin crear video
+ni cobrar): con un avatar de foto **propio** cuyo grupo no tiene gemelo digital, V + `motion_prompt` da 400
+`invalid_parameter` con «motion_prompt requires a reference look to drive motion, and this avatar's group
+has no digital twin. Remove motion_prompt, or create a digital twin in this group / pass reference_look_id.»
+**sin `param`**. V sin `motion_prompt`, IV con `motion_prompt` y `expressiveness`, y V con `motion_prompt`
+en los looks de stock (Dante, Hayes) pasan la validación. Vimo solo reconocía el rechazo del movimiento con
+`param`, así que lo tomaba como pedido inválido y no reintentaba sin movimiento. Arreglo (`067d00a4`): un 400
+sin `param` cuyo mensaje nombra `motion_prompt` o `expressiveness` también es `avatar_motion_unsupported`, y
+el carril pide enseguida sin movimiento (el render sale con el movimiento propio de V).
+
+**R-2f-1:** Crear avisa antes. Con V y un look de foto de un avatar propio sin ningún look de gemelo digital
+en la biblioteca (`avatarHasMotionReference`: un avatar del stock o uno con un gemelo digital la tienen), el
+interruptor «Movimiento más expresivo» queda apagado con el motivo («Con Avatar V, este look usa su propio
+movimiento: su avatar no tiene un gemelo digital») y `expressive` no viaja. El primer pedido de cada escena
+igual puede llevar el prompt automático y recibir ese 400 (gratis) antes del reintento: evitarlo exigiría
+pasar la biblioteca al carril, y no vale el riesgo.
+
+### 22.2 «3 veces en 2 minutos»
+
+Una casilla nueva en la tarjeta del avatar de Crear, debajo de «Empieza con el avatar», con un ícono de
+ayuda (tooltip), apagada por defecto. Prendida (`options.avatar.threeInFirstTwoMinutes: true`):
+
+- **Al menos 3 apariciones (R-2f-2).** Si la persona eligió menos de 3, salen 3; si eligió más, las demás
+  se reparten en el resto del video como hoy.
+- **Las tres primeras ARRANCAN dentro de los primeros 120 s** (`AVATAR_EARLY_WINDOW_SECONDS`), contando la
+  apertura si «Empieza con el avatar» está prendido. Se reparten parejo dentro de la ventana con la misma
+  regla de anclas del planificador (el centro de cada tercio libre) y el hueco mínimo de 10 s entre
+  apariciones. Con un video más corto que 2 minutos, la ventana es el video entero. Si la apertura no entra,
+  no ocupa lugar y la ventana intenta las tres (R-2f-7).
+- **R-2f-3:** para que las tres entren, cada una de ellas apunta a
+  `min(segundos elegidos, AVATAR_EARLY_MAX_SECONDS)` y no lo pasa; las del resto del video usan los segundos
+  elegidos. Crear lo dice cuando aplica («Las tres primeras duran hasta 35 s para entrar en los 2 minutos») y
+  cuenta el costo con esas duraciones. El tope era de 45 s al planificar y quedó en **35 s** (R-2f-5 y
+  R-2f-8, abajo en «Lo que la ejecución ajustó»).
+- Si alguna no entra (un video corto o frases que no caben), va a `dropped` como hoy, sin frenar nada.
+- Apagada, el plan es byte a byte el de hoy (salvo la apertura de §22.3).
+
+### 22.3 «Empieza con el avatar»
+
+Ya abría con el avatar cuando estaba prendida (el proyecto de V del dueño llegó con la casilla apagada).
+Pero había un caso real en que no: si la primera frase es corta y la sigue un silencio largo, el tope de
+silencio la cerraba antes del mínimo de 5 s y la apertura se descartaba. **R-2f-4:** con la casilla
+prendida, la apertura arranca siempre en 0; si el ajuste normal no llega al mínimo, se vuelve a probar sin
+el tope de silencio (la apertura carga ese silencio y suma la frase siguiente). Solo un audio de menos de
+5 s, una apertura que no llega al mínimo sin pasar el máximo (una primera frase de más de 60 s, o una corta
+seguida de una que lo pasa) o más silencio del que carga (6 s por frase, R-2f-6; abajo en «Lo que la
+ejecución ajustó») la dejan afuera.
+
+### 22.4 El avatar en la vista ampliada del editor
+
+La galería «Vista ampliada de imágenes» (`EditorImageGallery`) suma, en el orden del video, una tarjeta por
+cada escena de avatar: el clip del avatar (reproducible, o la imagen del look si todavía no hay clip), su
+número y tramo, su estado (lista, desactualizada, con la imagen fija, generando con el porcentaje) y las
+mismas acciones del panel de la escena (`EditorAvatarSceneActions`: «Generar», «Regenerar» o «Regenerar
+avatar» con su costo y la confirmación, y con V o IV la sección «Movimiento»). La tarjeta no entra en la
+selección de imágenes (regenerar o animar en lote): esas acciones son de imágenes. La descripción de la
+galería cuenta todas las tarjetas y, si el proyecto tiene escenas de avatar, dice que también se regenera el
+avatar (`descriptionWithAvatar`); sin ellas conserva el texto de antes.
+
+**Lo que la ejecución ajustó** (rulings del 2026-10-12 de `execution-e2f/ledger.md` (interno) y desvíos de cada paquete,
+con su detalle en los informes y la revisión de esa carpeta; donde dicen otra cosa que lo de arriba, mandan
+ellos):
+
+- **El rechazo de Avatar V y el aviso de Crear (R-2f-1, §22.1; D3 de WP-B).** `heygenFailure` busca
+  `motion_prompt` o `expressiveness` por palabra completa (`MOTION_FIELD_PATTERN`) en el mensaje de un 400 de
+  sobre JSON sin `param`, y deja ese campo como `param` del error sin copiar el texto de HeyGen; un 400 sobre otra
+  cosa (el audio de la sonda), una palabra parecida (`motion_prompts`), un texto sin sobre o un 422 siguen siendo
+  `avatar_invalid_request`. En Crear, `SelectedAvatar.motionReference` (`avatarHasMotionReference`) se copia al
+  elegir el avatar, como `supportedEngines`: un avatar del stock, o con algún look de gemelo digital, la tiene; un
+  borrador de antes de la 2f no trae el campo y cuenta como que sí. La regla vive en `selectableAvatar.ts`
+  (`avatarMotionReferenceMissing`: V, look de foto y `motionReference === false`;
+  `selectedAvatarExpressiveAvailable`) y la comparten el interruptor y `createProjectPayload`. Con V sin
+  referencia el interruptor se ve apagado y deshabilitado (la preferencia de la persona queda en el formulario;
+  con IV vuelve prendido) con `expressiveNoReference` como texto y como `aria-describedby`, **sin** la línea
+  `motionAuto` (el render sale con el movimiento propio de V y la frase sería falsa), y `expressive` no viaja.
+  Aceptado: `motionReference` es una copia al elegir, así que un avatar que gana un gemelo digital mientras el
+  borrador guarda la elección sigue apagado hasta volver a elegirlo (`isSelectedAvatarCurrent` no la invalida:
+  sería un aviso de «tu elección ya no sirve» por algo benigno); y el editor no avisa nada de V (R-2f-1 es de
+  Crear): el panel y la tarjeta de la galería siguen ofreciendo el interruptor y el primer pedido recibe el 400
+  gratis.
+- **El tope de las tres primeras: 45, 40 y 35 s (R-2f-3, R-2f-5, R-2f-8).** R-2f-3 decía «apuntan a lo sumo a
+  45 s». En la ejecución el tope pasó a ser un **máximo** y no solo el objetivo (Crear dice que las tres «duran
+  hasta» ese tope): con solo el objetivo y frases de 8 s, el ajuste elegía el largo más cercano a 45 y daba
+  48 s, y la tercera quedaba afuera (`[[0, 48], [64, 112]]` y 1 descartada; con el máximo,
+  `[[0, 40], [56, 96], [112, 152]]`). El dueño pidió que las tres salgan «obligatoriamente», así que el valor se
+  eligió midiendo: 10 000 narraciones simuladas tipo TTS por corpus (3 a 10 min, el 5 % con 2 a 5 s de silencio
+  después de la última palabra, con la apertura de R-2f-4 y R-2f-7 ya incluida). Cada celda es el porcentaje de
+  casos en que las tres arrancan dentro de los 120 s, sin apertura / con apertura:
+
+  | Tope | Frases de 2 a 12 s | Frases de 2 a 15 s |
+  | ---- | ------------------ | ------------------ |
+  | 45 s | 86,8 % / 99,1 %    | 74,8 % / 96,3 %    |
+  | 40 s | 99,7 % / 100 %     | 96,9 % / 99,97 %   |
+  | 35 s | 100 % / 100 %      | 99,95 % / 100 %    |
+
+  (Con 30 s da 100 % en los dos corpus; con 10, 20 y 30 s elegidos el tope no muerde.) R-2f-5 bajó el tope al
+  valor más alto que diera al menos 98 % sin apertura y 99 % con ella en el primer corpus: **40 s**. R-2f-8 lo
+  bajó a **35 s** porque, con frases más largas, 40 s da 96,9 % sin apertura. Costo si el dueño lo prefiere más
+  largo: subir `AVATAR_EARLY_MAX_SECONDS` (Crear, reanudar y los guards la leen), a cambio de que las tres entren
+  menos veces. **El respaldo a 60 s queda** (`targetsToTry`): solo si desde ninguna frase de su zona cabe una de
+  35 s o menos se prueba con el máximo de siempre (mejor una de 48 s que perderla). No se usó nunca en los
+  corpus TTS; en uno con frases de hasta 65 s sumó una aparición dentro de la ventana en el 5,6 % de los casos y
+  nunca restó. La revisión de la 2f midió que solo corre con frases de más de 30 s, que `detectSentences` no
+  produce (parte toda frase de más de 15 s): con narraciones reales no corre. Si alguna vez corre, una de las
+  tres primeras pasa el tope y Crear la estima corta unos segundos.
+
+- **«3 veces en 2 minutos»: la ventana y sus bordes (R-2f-2, R-2f-7; D4, D6 y D7 de WP-A).** El total es
+  `max(elegidas, AVATAR_EARLY_APPEARANCES)`. Las tres primeras arrancan antes de
+  `min(AVATAR_EARLY_WINDOW_SECONDS, fin del audio)` con un borde estricto: arrancar a los 120 s ya no cuenta, a
+  los 119,96 s (un cuadro antes) sí. La apertura cuenta entre las tres si cupo; si no, la ventana intenta las
+  tres (R-2f-7; con la casilla apagada, la apertura que no cupo sigue contando como una de las pedidas y como
+  descartada, como en la 2e). Una de las tres primeras que no entra va a `dropped` y no se corre a después de la
+  ventana: las demás se reparten desde el fin de la última de las primeras que sí entró (con 5 elegidas y la
+  tercera afuera salen 4 y 1 descartada). Con `placement: 'manual'` la casilla se guarda y no tiene efecto (el
+  planificador no corre; Crear siempre manda `'auto'`). Prendida con menos de 3 elegidas, la tarjeta dice 3
+  apariciones y el aviso `threeInTwoMinimum`; con más segundos que el tope, `threeInTwoCapped` con
+  `{{seconds}}` igual al tope (dice «35 s» sin tocar los catálogos).
+- **La apertura siempre abre (R-2f-4, R-2f-6, §22.3; D2 y D3 de WP-A).** R-2f-4 se lee literal («sin la regla
+  del tope de silencio»): `openingSpan` prueba primero el ajuste de siempre y, si no cabe, el mismo con
+  `pauseRule: 'carried'`, que mide cada frase hasta su fin para el mínimo, el tramo y el acercamiento y no deja
+  que ninguna cierre la aparición; el máximo se sigue midiendo con lo que deja el corte. R-2f-6 le pone un
+  límite: una frase con más de `AVATAR_OPENING_MAX_PAUSE_SECONDS` (6 s) de silencio después de su última
+  palabra no entra en la apertura (si es la frase 0, no hay apertura y va a `dropped`; si es una que la apertura
+  sumaría, el ajuste para antes de ella y, si así no llega al mínimo, tampoco hay apertura); sin ese límite, una
+  palabra y 19 s de silencio daban una apertura de 20 s que HeyGen cobra entera. «Hola» con 5,2 s de silencio
+  abre de 0 a 11 s; justo 6 s se cargan (0–12) y 6,04 no. Un `lastWordEndSeconds` roto (NaN) no frena, igual que
+  el tope de 2 s. Lo que §22.3 dice de lo que la deja afuera se completa: un audio de menos de 5 s, una
+  apertura que no llega al mínimo sin pasar el máximo después del corte (una primera frase de más de 60 s, una
+  corta seguida de una que lo pasa, o una de 59 s con una cola de 2 s: la regla del «máx. 1 min») o más
+  silencio del que carga. **R-2f-4 rige también con la casilla de «3 veces en 2 minutos» apagada** (aceptado):
+  es el arreglo de «Empieza con el avatar» y la única excepción a «apagada, el plan es byte a byte el de hoy»;
+  cambia solo los videos cuya apertura se descartaba por el tope de silencio. El diferencial de WP-A (120 000
+  casos aleatorios en 4 semillas, de 4 a 700 s) y el de la revisión (5 × 40 000 narraciones) lo confirman: 0
+  diferencias fuera de ese caso (3 022 casos de R-2f-4 con el límite de 6 s; 4 711 sin él).
+- **Crear: la casilla, el costo y reanudar (WP-B, rondas 0 y 1).** El componente es nuevo
+  (`CreateAvatarThreeInTwo.tsx`, no estaba en la lista de archivos del plan): espeja `CreateAvatarEngine` y
+  `CreateAvatarExpressive` y deja la fila y sus avisos juntos; la ayuda va fuera de la etiqueta (tocarla no marca
+  la casilla) y el teclado la alcanza. Los controles de apariciones y segundos siguen mostrando lo que eligió la
+  persona; el payload manda `appearances` y `secondsPerAppearance` como los eligió y el planificador sube a 3 y
+  acorta las tres primeras. El total de la tarjeta cuenta las apariciones que salen (con 1 elegida dice «30 s de
+  avatar en 3 apariciones», que es lo que se cobra y coincide con el aviso del mínimo). Los avisos son la
+  descripción de la casilla (`CheckboxRow` acepta `describedBy`, que va a `aria-describedby` del `input`; solo
+  los ids de los avisos que se ven). **Una cuenta para Crear y para reanudar:** `avatarRequestedAppearances` y
+  `avatarRequestedSeconds`, a partir de la forma de `ProjectAvatarOptions` (`max(n, 3)` y las tres primeras a
+  `min(s, AVATAR_EARLY_MAX_SECONDS)`; solo `true` prende la casilla, como en el planificador), alimentan por
+  `createAvatarAppearances` y `createAvatarSeconds` el total, el costo de cada motor, el pre-check y las
+  imágenes libres, y por `estimateResumeCost` lo que falta cobrar al reanudar antes del corte (que antes
+  subestimaba el avatar: con 1 aparición de 60 s y la casilla estimaba 60 s y el planificador pedía 3 al tope).
+  Una prueba de paridad de 180 combinaciones fija que cuestan lo mismo, y los guards de Crear leen el tope de la
+  constante (corrieron con 30, 35, 40, 45, 50 y 55 s).
+- **La galería (WP-C, §22.4; R-C-1 a R-C-6 y tres rondas).** `EditorAvatarGalleryCard` es el contenedor de la
+  tarjeta; `EditorImageGallery` recorre todas las escenas en el orden del video y monta la de avatar donde
+  `!sceneImageEditable(scene)`. La selección y las acciones en lote salen de `imageScenes`, y el interruptor de
+  la galería se habilita con cualquier escena. La galería guarda el clip que se está reproduciendo
+  (`playingClipRef`) y lo pausa cuando arranca otro (**R-C-3:** «nunca dos a la vez» son dos clips andando; se
+  pausa el anterior ANTES de arrancar el nuevo desde el botón y también cuando uno arranca por otro camino,
+  evento `play`); el `<video>` no se desmonta al pausar (sacar un nodo del diálogo de Radix con el foco en el
+  aire lo devuelve al diálogo). **R-C-2:** el clip se muestra si la escena tiene uno (`clipPath`): también en
+  una desactualizada y, mientras se regenera una lista, el anterior hasta que llega el nuevo (§21.4); el visor y
+  el render no usan un clip desactualizado (§10.1 y §10.2), pero la galería sirve para decidir si regenerar. El
+  clip es el normalizado y no tiene audio (`-an`): se ve mudo, como el visor sin la narración. **R-C-4:** al terminar una regeneración el foco vuelve a la tarjeta
+  (`focusFallback` de `EditorAvatarSceneActions`, que por omisión sigue siendo el panel de la escena), porque el
+  botón que abrió la confirmación se desmonta mientras corre el avance y el panel queda detrás del modal: con el
+  panel como destino, el foco quedaba fuera del diálogo (medido). **R-C-5:** las acciones del avatar se ven
+  también con «Seleccionar» activo. **R-C-6:** las etiquetas de los botones de `EditorAvatarSceneActions`
+  («Generar» / «Regenerar avatar», «Regenerar todos (N)») se parten en dos líneas en vez de truncarse: con la
+  ventana mínima de 1024 px la galería tiene cinco columnas de unos 170 px y «Regenerar avatar» salía «Regenerar
+  a…»; en el panel (≥ 290 px) entran en una línea. Ronda 1: `LibraryEditor` le pasa a la galería el mismo `busy`
+  que al panel (`busy || editor.savingChanges`) y la tarjeta le suma el envío de un lote de la propia galería,
+  así que se apaga exactamente cuando el panel (por ejemplo, mientras el editor guarda la copia de trabajo).
+  Rondas 2 y 3: el estado es una pastilla con etiquetas cortas que no se cortan (medido con el CSS real a 1024 y
+  1280 px en es, en y pt; solo «Generando el avatar…» pasa a dos líneas a 1024 px) y el título largo del bloque
+  de la pista va de tooltip:
+
+  | Estado         | Etiqueta                                                                         | Tooltip                                  |
+  | -------------- | -------------------------------------------------------------------------------- | ---------------------------------------- |
+  | lista          | «Lista» (`create.progress.avatarReady`), con visto                               | `timeline.avatarTitle` (look y duración) |
+  | generando      | «Generando el avatar…» y el porcentaje (`timeline.avatarRendering*`)             | `timeline.avatarRendering`               |
+  | desactualizada | «Desactualizado» (`timeline.avatarStale`), como la caja de las acciones          | `timeline.avatarStaleHint`               |
+  | planeada       | «Con imagen fija» (`create.progress.avatarCardFallback`), con el ícono de imagen | `timeline.avatarPlanned`                 |
+  | fallida        | «Con imagen fija»                                                                | `timeline.avatarFailed` (con el motivo)  |
+
+  En cola, «Generando el avatar…» va sin porcentaje, como el bloque. La planeada dice «Con imagen fija» (ronda 3,
+  revisión de la 2f) y no «En espera»: en el editor nada la genera sola y así la nombran el aviso de arriba y el
+  bloque de la pista; «En espera» es del progreso, donde la aparición sí espera su turno. La descripción de la
+  galería cuenta todas las tarjetas y solo habla del avatar (`descriptionWithAvatar`) si el proyecto tiene
+  escenas de avatar; un proyecto sin avatar, que son la mayoría, conserva el texto de antes de la 2f.
+
+- **Aceptado y estacionado.** El clip de la tarjeta se ve mudo: oír la voz pediría un `<audio>` de la narración
+  sincronizado con el clip desde el inicio del tramo (como `ClipPreviewVideo` con el reloj) y pausar el visor
+  del editor al abrir la galería (hoy, si estaba sonando, sigue detrás del modal: ya pasaba antes). La pastilla
+  de una planeada y la de una fallida dicen lo mismo; el motivo de una fallida lo dice la caja de las acciones.
+  Con la galería abierta sobre la escena que tiene el panel hay dos avances de esa escena (el de la tarjeta y el
+  del panel, detrás del modal): es lo esperado, y el foco va siempre al de la tarjeta.
+- **Se mide en la QA (`execution-e2f/qa-2f.md`).** Cuánto cobra Avatar V con un look de foto propio sin gemelo y
+  que el video salga con el movimiento propio de V tras el 400 gratis; el reparto de las tres primeras con una
+  narración real (la simulación usó narraciones sintéticas tipo TTS, no un `words.json` de Deepgram); que
+  «Empieza con el avatar» abra siempre el video, también con una primera frase corta y unos segundos de
+  silencio; y la galería en la app real (el clip mudo, las pastillas con la ventana mínima, el foco).

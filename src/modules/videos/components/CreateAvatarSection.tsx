@@ -15,6 +15,7 @@ import { CreateAvatarCost } from '@/modules/videos/components/CreateAvatarCost'
 import { CreateAvatarEngine } from '@/modules/videos/components/CreateAvatarEngine'
 import { CreateAvatarExpressive } from '@/modules/videos/components/CreateAvatarExpressive'
 import { CreateAvatarPicker } from '@/modules/videos/components/CreateAvatarPicker'
+import { CreateAvatarThreeInTwo } from '@/modules/videos/components/CreateAvatarThreeInTwo'
 import { CREATE_AVATAR_LIBRARY_STALE_TIME_MS } from '@/modules/videos/constants'
 import { createAvatarSeconds } from '@/modules/videos/utilities/avatarCostEstimate'
 import {
@@ -39,7 +40,8 @@ interface CreateAvatarSectionProps {
 // CreateAnimationSection: interruptor, el avatar de la biblioteca y su look
 // para el formato del video, el motor y «Movimiento más expresivo» (entrega
 // 2e, §21.3: derivados del look elegido; elegir un look nunca toca el motor),
-// cuántas veces y cuánto sale, si abre el video, el costo con la tarifa del
+// cuántas veces y cuánto sale, si abre el video y si sale al menos 3 veces en
+// los primeros 2 minutos (entrega 2f, §22.2), el costo con la tarifa del
 // motor, el saldo de HeyGen y, destacado, el aviso de moderación. Sin clave
 // de HeyGen avisa y lleva a Claves API, con el
 // interruptor apagado (Crear le pasa el formulario con el avatar apagado:
@@ -135,8 +137,8 @@ export function CreateAvatarSection({
           )}
           {value.avatar && engine && (
             <CreateAvatarExpressive
+              avatar={value.avatar}
               engine={engine}
-              lookType={value.avatar.lookType}
               checked={value.avatarExpressive}
               disabled={disabled}
               onChange={(avatarExpressive) => onChange({ avatarExpressive })}
@@ -172,6 +174,15 @@ export function CreateAvatarSection({
             checked={value.avatarStartsVideo}
             disabled={disabled}
             onChange={(avatarStartsVideo) => onChange({ avatarStartsVideo })}
+          />
+          <CreateAvatarThreeInTwo
+            checked={value.avatarThreeInTwoMinutes}
+            appearances={value.avatarAppearances}
+            secondsPerAppearance={value.avatarSecondsPerAppearance}
+            disabled={disabled}
+            onChange={(avatarThreeInTwoMinutes) =>
+              onChange({ avatarThreeInTwoMinutes })
+            }
           />
           <CreateAvatarCost value={value} />
           <AvatarBalanceBadge />

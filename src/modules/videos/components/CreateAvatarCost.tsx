@@ -5,6 +5,7 @@ import { AVATAR_ENGINE_LABEL_KEYS } from '@/modules/videos/constants'
 import {
   avatarCostEstimate,
   avatarRatePerMinute,
+  createAvatarAppearances,
   createAvatarSeconds,
 } from '@/modules/videos/utilities/avatarCostEstimate'
 import { selectedAvatarEngine } from '@/modules/videos/utilities/selectableAvatar'
@@ -19,10 +20,13 @@ interface CreateAvatarCostProps {
 // que prefiere la persona si el look lo admite; si no, el de reemplazo), que
 // la tarjeta nombra junto a su precio por minuto. Es la misma cifra que el
 // pre-check compara con el saldo (estimateCreateCost); las escenas de avatar
-// no suman imágenes (§6.2). Presentacional.
+// no suman imágenes (§6.2). Con «3 veces en 2 minutos» (entrega 2f) cuenta las
+// apariciones y los segundos que salen de verdad, no solo lo que mueven los
+// controles. Presentacional.
 export function CreateAvatarCost({ value }: CreateAvatarCostProps) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'es'
+  const appearances = createAvatarAppearances(value)
   const seconds = createAvatarSeconds(value)
   const engine = selectedAvatarEngine(value)
   const line =
@@ -52,7 +56,7 @@ export function CreateAvatarCost({ value }: CreateAvatarCostProps) {
           : t('create.avatar.costPending')}
       </p>
       <p className="mt-1 font-body text-xs text-muted-foreground">
-        {t('create.avatar.total', { count: value.avatarAppearances, seconds })}
+        {t('create.avatar.total', { count: appearances, seconds })}
       </p>
       {engine && rate !== null && (
         <p className="mt-1 font-body text-xs text-muted-foreground">
