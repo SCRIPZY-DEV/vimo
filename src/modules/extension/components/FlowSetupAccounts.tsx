@@ -1,3 +1,5 @@
+import { FlowAccountRecoveryHelp } from '@/modules/common/components/FlowAccountRecoveryHelp'
+import { flowAccountRecoveryGuide } from '@/modules/common/utilities/flowAccountRecoveryGuide'
 import { flowSetupPreparation } from '@/modules/extension/utilities/flowSetupPreparation'
 import { useTranslation } from 'react-i18next'
 import { Unplug } from 'lucide-react'
@@ -45,6 +47,10 @@ export function FlowSetupAccounts({
           profile,
           confirmed && preparation !== 'unconfirmed',
         )
+        const recovery = flowAccountRecoveryGuide(
+          connection.profileAvailability,
+        )
+        const showRecovery = recovery?.titleKey === stateKey
         return (
           <article
             key={connection.connectionId}
@@ -65,9 +71,15 @@ export function FlowSetupAccounts({
                 <p className="text-muted-foreground">{t(stateKey)}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {t(flowSetupAccountHelpKey(stateKey))}
-            </p>
+            {showRecovery ? (
+              <FlowAccountRecoveryHelp
+                availability={connection.profileAvailability}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t(flowSetupAccountHelpKey(stateKey))}
+              </p>
+            )}
             <details className="text-sm">
               <summary className="cursor-pointer text-muted-foreground">
                 {t('extension.setupAccountDetails')}
@@ -109,10 +121,12 @@ export function FlowSetupAccounts({
                     </dd>
                   </div>
                 </dl>
-                <FlowConnectionAvailability
-                  connection={connection}
-                  status={status}
-                />
+                {!showRecovery && (
+                  <FlowConnectionAvailability
+                    connection={connection}
+                    status={status}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">
                   {t('extension.setupPreparationOnly')}
                 </p>

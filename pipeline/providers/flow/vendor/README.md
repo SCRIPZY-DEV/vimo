@@ -1,6 +1,19 @@
 # Coordinador local Flow incorporado en Vimo
 
-## Continuidad 0.2.34 (2026-10-13)
+## Recuperación automática 0.2.35 (2026-10-13)
+
+Port selectivo de `EXTENSION-RPC-FLOW` commit `96056f398866a11760f8e066ac86710f99dfe406` en `feat/flow-extension`, verificado contra el fuente de esta entrega. Se mantienen los comandos privados, identidad y almacenamiento propios de Vimo. La UI/worker/SDK no se copian al coordinador: la extensión se actualiza por separado.
+
+El planificador asigna permisos automáticos de cuentas en comprobación a trabajos reales, conserva intentos anteriores y admite una cola lógica de 25 o más con cinco cuentas comprobando. Sólo el primer trabajo por perfil lleva permiso; las demás imágenes esperan confirmación. Cancelar un plan vacío libera su reserva sin consumo. Un titular cancelado/fallido antes de cualquier envío puede ceder reserva al siguiente del mismo lote; recibos físicos e incertidumbre nunca la liberan.
+
+| Archivo              | SHA-256 después del formato nativo                                 |
+| -------------------- | ------------------------------------------------------------------ |
+| `bridge/server.js`   | `691918662e2640835ac6b181a1140dbcd40902551f6f293683cf94296c1efd46` |
+| `bridge/capacity.js` | `b51c0e87e72fc25961c6edc57e3ac912e8b36f8aa8732f74c66632047060422c` |
+
+Dieciocho escenarios de coordinación y veinticinco controles de capacidad pasan sobre este vendor con trabajadores simulados; no acreditan disponibilidad de Google. Conserva los límites deliberados de recibos y permisos descritos en `fixes/2026-10-13_recuperacion-automatica-y-comprobacion-flow.md`. Los hashes inferiores son históricos.
+
+## Continuidad 0.2.34 (2026-10-13; complementada por 0.2.35)
 
 Port selectivo de capacidad y elegibilidad: `configuredProfiles` separa el conjunto mínimo de cinco cuentas válidas de su disponibilidad temporal. Para nuevos lotes automáticos se puede reservar en las sanas cuando otra espera; la política histórica conserva cinco disponibles. `bridge.status` expone el conteo adicional. El preflight de Tauri transmite la misma versión de recuperación que el envío.
 

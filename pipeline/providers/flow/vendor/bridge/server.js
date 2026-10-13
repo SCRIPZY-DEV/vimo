@@ -1558,9 +1558,17 @@ export async function createBridge({
       const claims = batch.allocations
         .filter((item) => item.recoveryPermitId)
         .map((item) => {
-          if (item.count !== 1)
-            throw new Error('recovery_permit_capacity_invalid')
           const owner = state.connections[item.connectionId]
+          if (
+            !Number.isSafeInteger(item.count) ||
+            item.count < 1 ||
+            (item.count !== 1 &&
+              (batch.autoRecoveryVersion !== 1 ||
+                owner?.autoRecoveryVersion !== 1 ||
+                owner.scheduling?.recoveryPermitVersion !== 1))
+          ) {
+            throw new Error('recovery_permit_capacity_invalid')
+          }
           if (
             owner?.recoveryPermit?.id === item.recoveryPermitId &&
             owner.recoveryPermit.reservedBatchId === batch.batchId
@@ -1643,6 +1651,71 @@ export async function createBridge({
         recoveryDispatchAllowed(connection, job)
       )
     }
+    function automaticCheckingDispatch(owner, job) {
+      if (
+        !automaticJob(job) ||
+        owner?.profileAvailability?.state !== 'checking' ||
+        owner.autoRecoveryVersion !== 1 ||
+        !connectionReady(owner, job.executionPlan)
+      )
+        return null
+      let available = freeRecoveryPermit(owner)
+      if (!available) {
+        const reserved = currentRecoveryPermit(owner)
+        // The first staged intention may be canceled or fail locally before any
+        // dispatch. Its same-batch, unspent reservation can authorize the next
+        // queued intention; never take authority from a live or physical holder.
+        if (
+          job.state !== 'queued' ||
+          job.connectionId ||
+          job.dispatchedAt ||
+          job.attemptId ||
+          job.generationRetry ||
+          !reserved ||
+          reserved.reservedBatchId !== job.batchId ||
+          reserved.consumedJobId !== null
+        )
+          return null
+        const holders = Object.values(state.jobs).filter(
+          (other) => other.recoveryPermitId === reserved.id,
+        )
+        if (
+          !holders.length ||
+          holders.some(
+            (other) =>
+              other.batchId !== job.batchId ||
+              !automaticJob(other) ||
+              !['failed', 'canceled'].includes(
+                other.state === 'deleted' ? other.previousState : other.state,
+              ) ||
+              other.connectionId ||
+              other.dispatchedAt ||
+              other.attemptId ||
+              other.generationRetry ||
+              other.result ||
+              archivedAttempts(other).length,
+          )
+        )
+          return null
+        available = reserved
+      }
+      // This is a private reservation preview. Only the eventual dispatch commits
+      // and consumes it with that attempt; capacity reads never create authority.
+      const permit = reserveRecoveryPermit(owner, available.id, job.batchId)
+      const dispatchJob = { ...job, recoveryPermitId: available.id }
+      if (!hasDispatchSlot({ ...owner, recoveryPermit: permit }, dispatchJob))
+        return null
+      return { permit, recoveryPermitId: available.id }
+    }
+    function dispatchWithClaimAllowed(owner, job, claim) {
+      return (
+        connectionReady(owner, job.executionPlan) &&
+        hasDispatchSlot(
+          claim ? { ...owner, recoveryPermit: claim.permit } : owner,
+          claim ? { ...job, recoveryPermitId: claim.recoveryPermitId } : job,
+        )
+      )
+    }
     function acknowledgeRetry(
       job,
       retryRequestId = job.generationRetry?.retryRequestId,
@@ -1697,10 +1770,15 @@ export async function createBridge({
       retrySentAt.set(retry.retryRequestId, Date.now())
       return true
     }
-    function moveUnsentReservation(job, target) {
+    function moveUnsentReservation(
+      job,
+      target,
+      recoveryClaim = null,
+      retireAuthority = false,
+    ) {
       if (
-        job.recoveryPermitId ||
-        target.profileAvailability?.state === 'checking'
+        (job.recoveryPermitId && !retireAuthority) ||
+        (target.profileAvailability?.state === 'checking' && !recoveryClaim)
       )
         return false
       if (
@@ -1835,6 +1913,14 @@ export async function createBridge({
       }
     }
     async function replaceAutomaticAttempt(job, owner, references) {
+      const claim = automaticCheckingDispatch(owner, job)
+      if (
+        owner.profileAvailability?.state === 'checking'
+          ? !claim
+          : !connectionReady(owner, job.executionPlan) ||
+            !hasDispatchSlot(owner)
+      )
+        return false
       const recovery = job.autoRecovery
       recovery.attempts.push(attemptSnapshot(job))
       recovery.replacementCount++
@@ -1853,6 +1939,13 @@ export async function createBridge({
       recovery.lastProgressAt = Date.now()
       recovery.retryEligible = false
       delete job.recoveryPermitId // Never repurpose a permission spent by an earlier attempt.
+      if (claim) {
+        job.recoveryPermitId = claim.recoveryPermitId
+        owner.recoveryPermit = consumeRecoveryPermit(
+          { ...owner, recoveryPermit: claim.permit },
+          job,
+        )
+      }
       job.previousPreferredConnectionId = job.preferredConnectionId
       job.preferredConnectionId = owner.connectionId
       job.connectionId = owner.connectionId
@@ -2020,9 +2113,10 @@ export async function createBridge({
                 state.batches[job.batchId].connectionProjects[
                   candidate.connectionId
                 ] &&
-              candidate.profileAvailability?.state === 'ready' &&
-              connectionReady(candidate, job.executionPlan) &&
-              hasDispatchSlot(candidate),
+              (candidate.profileAvailability?.state === 'checking'
+                ? Boolean(automaticCheckingDispatch(candidate, job))
+                : connectionReady(candidate, job.executionPlan) &&
+                  hasDispatchSlot(candidate)),
           )
           .sort(
             (left, right) =>
@@ -2292,10 +2386,22 @@ export async function createBridge({
           continue
         }
         let moveReservation = false
+        // The queue guards above prove no physical attempt exists. A document
+        // repair may rotate its unused admission permit; only an opted-in unsent
+        // job can acquire the new authority, never a dispatched/unknown receipt.
+        const retireAuthority =
+          automaticJob(job) &&
+          Boolean(job.recoveryPermitId) &&
+          currentRecoveryPermit(owner)?.id !== job.recoveryPermitId
+        const dispatchJob = retireAuthority
+          ? { ...job, recoveryPermitId: undefined }
+          : job
+        let recoveryClaim = !dispatchJob.recoveryPermitId
+          ? automaticCheckingDispatch(owner, dispatchJob)
+          : null
         if (
-          (!connectionReady(owner, job.executionPlan) ||
-            !hasDispatchSlot(owner, job)) &&
-          !job.recoveryPermitId &&
+          !dispatchWithClaimAllowed(owner, dispatchJob, recoveryClaim) &&
+          !dispatchJob.recoveryPermitId &&
           !job.connectionId &&
           !job.dispatchedAt &&
           !job.attemptId &&
@@ -2314,29 +2420,37 @@ export async function createBridge({
                 profile.available > 0 &&
                 profile.connectionId !== job.preferredConnectionId,
             )
-            .map((profile) => state.connections[profile.connectionId])
+            .map((profile) => {
+              const connection = state.connections[profile.connectionId]
+              return {
+                connection,
+                claim: automaticCheckingDispatch(connection, dispatchJob),
+              }
+            })
             .filter(
-              (connection) =>
+              ({ connection, claim }) =>
                 (!automaticJob(job) ||
                   connection.binding?.projectId ===
                     batch.connectionProjects[connection.connectionId]) &&
-                connection.profileAvailability?.state !== 'checking' &&
-                connectionReady(connection, job.executionPlan) &&
-                hasDispatchSlot(connection, job),
+                (connection.profileAvailability?.state !== 'checking' ||
+                  Boolean(claim)) &&
+                dispatchWithClaimAllowed(connection, dispatchJob, claim),
             )
             .sort(
               (a, b) =>
-                remoteCount(a.connectionId) - remoteCount(b.connectionId) ||
-                (a.lastAssignedAt ?? 0) - (b.lastAssignedAt ?? 0),
+                remoteCount(a.connection.connectionId) -
+                  remoteCount(b.connection.connectionId) ||
+                (a.connection.lastAssignedAt ?? 0) -
+                  (b.connection.lastAssignedAt ?? 0),
             )
           if (alternatives[0]) {
-            owner = alternatives[0]
+            owner = alternatives[0].connection
+            recoveryClaim = alternatives[0].claim
             moveReservation = true
           }
         }
         if (
-          !connectionReady(owner, job.executionPlan) ||
-          !hasDispatchSlot(owner, job) ||
+          !dispatchWithClaimAllowed(owner, dispatchJob, recoveryClaim) ||
           (automaticJob(job) && owner.autoRecoveryVersion !== 1)
         )
           continue
@@ -2362,7 +2476,19 @@ export async function createBridge({
         }
         // Transfer only a never-dispatched reservation, together with the actual
         // dispatch below. Full profiles must not absorb an entire pending queue.
-        if (moveReservation && !moveUnsentReservation(job, owner)) continue
+        if (
+          moveReservation &&
+          !moveUnsentReservation(job, owner, recoveryClaim, retireAuthority)
+        )
+          continue
+        if (retireAuthority) {
+          job.previousRecoveryPermitId = job.recoveryPermitId
+          delete job.recoveryPermitId
+        }
+        if (recoveryClaim) {
+          owner.recoveryPermit = recoveryClaim.permit
+          job.recoveryPermitId = recoveryClaim.recoveryPermitId
+        }
         owner.recoveryPermit = consumeRecoveryPermit(owner, job)
         job.connectionId = owner.connectionId
         job.binding = { ...owner.binding }
@@ -3373,6 +3499,27 @@ export async function createBridge({
           if (!batch) throw new Error('batch_not_found')
           if (batch.deletedAt) throw new Error('batch_deleted')
           batch.status = 'canceled'
+          // Canceling a plan before any job exists must not strand its checking
+          // authority. Never release a claim once an intent/receipt was stored,
+          // even if that job is now canceled, deleted, failed or unknown.
+          if (
+            !Object.values(state.jobs).some(
+              (job) => job.batchId === batch.batchId,
+            )
+          ) {
+            for (const allocation of batch.allocations) {
+              const owner = state.connections[allocation.connectionId]
+              const permit = owner?.recoveryPermit
+              if (
+                allocation.recoveryPermitId &&
+                permit?.id === allocation.recoveryPermitId &&
+                permit.reservedBatchId === batch.batchId &&
+                permit.consumedJobId === null
+              ) {
+                owner.recoveryPermit = { ...permit, reservedBatchId: null }
+              }
+            }
+          }
           await persist()
           const event = { type: 'batch.canceled', batch: batchSummary(batch) }
           emit(event)
@@ -3599,7 +3746,8 @@ export async function createBridge({
                       autoRecovery: newAutoRecovery(),
                     }
                   : {}),
-                ...(allocation.recoveryPermitId
+                ...(allocation.recoveryPermitId &&
+                (autoRecoveryVersion !== 1 || allocation.submitted === 0)
                   ? { recoveryPermitId: allocation.recoveryPermitId }
                   : {}),
                 promptIndex,

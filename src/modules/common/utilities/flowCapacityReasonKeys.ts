@@ -1,3 +1,4 @@
+import { flowAccountRecoveryGuide } from '@/modules/common/utilities/flowAccountRecoveryGuide'
 import { flowCheckingState } from '@/modules/common/utilities/flowCheckingState'
 import type { FlowCapacityProfile } from '@/modules/common/types/flow'
 
@@ -19,8 +20,14 @@ function reasonKey(reason: string, profile: FlowCapacityProfile) {
     case 'duplicate_profile':
       return 'extension.capacityReasonDuplicate'
     case 'profile_cooldown':
-      return 'extension.capacityReasonCooldown'
     case 'profile_unavailable':
+    case 'paused': {
+      const recovery = flowAccountRecoveryGuide(profile.profileAvailability)
+      if (recovery) return recovery.titleKey
+      if (reason === 'profile_cooldown')
+        return 'extension.capacityReasonCooldown'
+      if (reason === 'paused') return 'extension.capacityReasonPaused'
+
       if (
         flowCheckingState(profile.profileAvailability) === 'unconfirmed' ||
         flowCheckingState(profile.profileAvailability) === 'limited'
@@ -33,8 +40,7 @@ function reasonKey(reason: string, profile: FlowCapacityProfile) {
       if (profile.profileAvailability?.reason === 'MANUAL_PAUSE')
         return 'extension.capacityReasonPaused'
       return 'extension.capacityReasonReview'
-    case 'paused':
-      return 'extension.capacityReasonPaused'
+    }
     case 'capacity_unavailable':
       return 'extension.capacityReasonUnconfirmed'
     case 'extension_update_required':

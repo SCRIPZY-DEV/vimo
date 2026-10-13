@@ -1,4 +1,4 @@
-import { flowCheckingState } from '@/modules/common/utilities/flowCheckingState'
+import { flowAccountRecoveryGuide } from '@/modules/common/utilities/flowAccountRecoveryGuide'
 import type { FlowConnection, FlowStatus } from '@/modules/common/types/flow'
 
 // Estado visual: una conexión de socket o disponibilidad antigua no acredita
@@ -12,6 +12,11 @@ export function flowConnectionReadiness(
       availabilityKey: 'extension.availability_disconnected',
       helpKey: 'extension.helpDisconnected',
     }
+  }
+
+  const recovery = flowAccountRecoveryGuide(connection.profileAvailability)
+  if (recovery?.identityReview) {
+    return { availabilityKey: recovery.titleKey, helpKey: recovery.helpKey }
   }
 
   if (connection.identityConflict) {
@@ -42,32 +47,10 @@ export function flowConnectionReadiness(
     }
   }
 
-  if (availability?.state === 'cooldown') {
+  if (recovery) {
     return {
-      availabilityKey: 'extension.availability_cooldown',
-      helpKey: 'extension.helpCooldown',
-    }
-  }
-
-  const checking = flowCheckingState(availability)
-  if (checking === 'limited') {
-    return {
-      availabilityKey: 'extension.availability_checkingLimited',
-      helpKey: 'extension.helpAccountCheckingLimited',
-    }
-  }
-
-  if (checking === 'running') {
-    return {
-      availabilityKey: 'extension.availability_checking',
-      helpKey: 'extension.helpAccountChecking',
-    }
-  }
-
-  if (checking === 'unconfirmed') {
-    return {
-      availabilityKey: 'extension.availability_checkingUnconfirmed',
-      helpKey: 'extension.helpAccountCheckingUnconfirmed',
+      availabilityKey: recovery.titleKey,
+      helpKey: recovery.helpKey,
     }
   }
 

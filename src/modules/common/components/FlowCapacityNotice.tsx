@@ -1,4 +1,4 @@
-import { flowCheckingHelpKey } from '@/modules/common/utilities/flowCheckingHelpKey'
+import { FlowAccountRecoveryHelp } from '@/modules/common/components/FlowAccountRecoveryHelp'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { FlowAccountCounts } from '@/modules/common/components/FlowAccountCounts'
@@ -118,6 +118,9 @@ export function FlowCapacityNotice({
                     {flowCapacityReasonKeys(profile).map((key) => (
                       <p key={key}>{t(key)}</p>
                     ))}
+                    <FlowAccountRecoveryHelp
+                      availability={profile.profileAvailability}
+                    />
                   </li>
                 )
               })}
@@ -171,13 +174,10 @@ export function FlowCapacityNotice({
                         })}
                       </p>
                     )}
-                    {profile.profileAvailability?.state === 'checking' && (
-                      <p className="text-muted-foreground">
-                        {t(
-                          flowCheckingHelpKey(profile.profileAvailability) ??
-                            'extension.helpAccountCheckingUnconfirmed',
-                        )}
-                      </p>
+                    {profile.available > 0 && (
+                      <FlowAccountRecoveryHelp
+                        availability={profile.profileAvailability}
+                      />
                     )}
                   </li>
                 )

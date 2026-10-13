@@ -170,17 +170,25 @@ export function capacityReport({
           )
       const permit = checking ? freeRecoveryPermit(connection) : null
       if (checking && connection.announcedRecoveryPermitId) {
-        // Quota/history above still reserve every unknown. The explicit permit is
-        // only one new intention; it never erases physical concurrency reservations.
+        // Quota/history above reserve every unknown. Modern automatic batches may
+        // reserve their whole logical queue, but the permit still authorizes only
+        // the first physical job; later jobs wait for success or a fresh permit.
         const remote = recoveryInFlightCount(connection, capacityJobs)
         const physical = connection.scheduling?.maxInFlight
         if (!currentRecoveryPermit(connection) || !permit)
           reasons.push('recovery_permit_unavailable')
         else if (!Number.isInteger(physical) || remote >= physical)
           reasons.push('in_flight_full')
+        const stagedAutomaticQueue =
+          recoveryVersion === 1 &&
+          connection.autoRecoveryVersion === 1 &&
+          connection.scheduling?.recoveryPermitVersion === 1 &&
+          localReserved === 0
         available = reasons.length
           ? 0
-          : Math.min(available, Math.max(0, 1 - localReserved))
+          : stagedAutomaticQueue
+            ? available
+            : Math.min(available, Math.max(0, 1 - localReserved))
       } else if (checking)
         available = Math.min(
           available,

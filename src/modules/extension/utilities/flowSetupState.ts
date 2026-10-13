@@ -1,3 +1,4 @@
+import { flowAccountRecoveryGuide } from '@/modules/common/utilities/flowAccountRecoveryGuide'
 import { flowAutoRecoveryPending } from '@pipeline/types/flow-auto-recovery.ts'
 import { flowSetupPreparation } from '@/modules/extension/utilities/flowSetupPreparation'
 import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
@@ -108,11 +109,14 @@ export function flowSetupAccountKey(
   if (!confirmed) return 'extension.setupAccountUnconfirmed'
   if (!connection.connected || connection.revoked)
     return 'extension.availability_disconnected'
+  const recovery = flowAccountRecoveryGuide(connection.profileAvailability)
+  if (recovery?.identityReview) return recovery.titleKey
   if (connection.identityConflict) return 'extension.identityConflict'
   if (!connection.identity?.verified)
     return 'extension.availability_identityPending'
   if (!connection.binding?.ready) return 'extension.availability_projectPending'
   // Una preparación pendiente no debe tapar un bloqueo o revisión de Flow.
+  if (recovery) return recovery.titleKey
   if (connection.profileAvailability?.state === 'cooldown')
     return 'extension.availability_cooldown'
   if (
