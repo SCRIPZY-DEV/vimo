@@ -710,7 +710,7 @@
       "characterCatalogHint": "In a catalog gem the replicated character becomes its fixed character: it travels as a prompt identity (text), shows up in the samples, and users can use it or create their own in the style.",
       "providerQuestion": "Which provider draws the tests?",
       "costNote": "Vimo covers the analysis. The test images are paid with your {{provider}} balance.",
-      "providerRequired": "Set up an Evolink or Fal key to draw the tests.",
+      "providerRequired": "Choose a provider to generate the test images.",
       "analyze": "Analyze style",
       "workingTitle": "Cloning the style",
       "workingHint": "You can close this window: the clone keeps going and tells you when it needs an answer.",

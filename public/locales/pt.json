@@ -710,7 +710,7 @@
       "characterCatalogHint": "Em uma gema do catálogo o personagem replicado vira seu personagem fixo: viaja como identidade de prompt (texto), aparece nas amostras e o usuário pode usá-lo ou criar o seu no estilo.",
       "providerQuestion": "Com qual provedor os testes são desenhados?",
       "costNote": "A análise é coberta pelo Vimo. As imagens de teste são pagas com o seu saldo de {{provider}}.",
-      "providerRequired": "Configure uma chave do Evolink ou do Fal para desenhar os testes.",
+      "providerRequired": "Escolha um provedor para gerar as imagens de teste.",
       "analyze": "Analisar estilo",
       "workingTitle": "Clonando o estilo",
       "workingHint": "Você pode fechar esta janela: a clonagem continua e avisa quando precisar de uma resposta.",

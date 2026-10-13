@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImagePlus, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { ImagePlus, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { apiKeysApi } from '@/modules/api-keys/api'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
 import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { SegmentedTabs } from '@/modules/common/components/SegmentedTabs'
@@ -14,7 +16,7 @@ import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
 import { videosApi } from '@/modules/videos/api'
 import {
   CUSTOM_STYLE_FIELD_CLASS,
-  PAID_IMAGE_PROVIDERS,
+  IMAGE_PROVIDERS,
   STYLE_CLONE_IMAGE_LIMIT,
 } from '@/modules/videos/constants'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
@@ -29,7 +31,7 @@ import type {
   StyleCloneStartInput,
   StyleCloneTarget,
 } from '@/modules/videos/types/styleClone'
-import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 
 interface StyleCloneSourceStepProps {
   // Adónde va el estilo. Con destino catálogo el personaje replicado queda
@@ -51,15 +53,14 @@ const DESIGN_TESTS = 3
 
 // El primer paso del creador de estilo con IA (ADR-0050): de dónde se clona
 // (el link de un video o hasta 10 imágenes), si se replica al personaje y con
-// qué proveedor se dibujan las pruebas. El análisis lo paga Vimo; las pruebas,
-// el saldo de la persona, así que se chequea antes de empezar.
+// qué proveedor se dibujan las pruebas. El análisis conserva su servicio;
+// las imágenes validan saldo pago o capacidad Multimagen antes de empezar.
 export function StyleCloneSourceStep({
   target,
   rejected,
   onStart,
 }: StyleCloneSourceStepProps) {
   const { t } = useTranslation()
-  const credits = useImageCredits()
   const { configuredProviders } = useRequiredApiKeys()
 
   const [kind, setKind] = useState<SourceKind>(
@@ -84,9 +85,18 @@ export function StyleCloneSourceStep({
   const [replicate, setReplicate] = useState<boolean | null>(
     rejected ? rejected.replicateCharacter : null,
   )
-  const [chosenProvider, setChosenProvider] =
-    useState<PaidImageProviderId | null>(rejected?.imageProvider ?? null)
+  const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
+    rejected?.imageProvider ?? null,
+  )
   const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
+  const credits = useImageCredits({ enabled: provider !== 'flow' })
+  const [starting, setStarting] = useState(false)
+  const submission = useRef(false)
+  const flowCapacity = useFlowCapacity(
+    replicate ? DESIGN_TESTS : SCENE_TESTS,
+    provider === 'flow',
+    { executionPlan: FLOW_TOOLS_EXECUTION_PLAN },
+  )
 
   const linkTyped = url.trim().length > 0
   const linkValid = isYouTubeVideoLink(url)
@@ -107,6 +117,10 @@ export function StyleCloneSourceStep({
     sourceReady &&
     replicate !== null &&
     provider !== null &&
+    (provider === 'flow'
+      ? flowCapacity.ready
+      : configuredProviders.has(provider)) &&
+    !starting &&
     !creditsCheck.blocking
 
   const pickImages = async () => {
@@ -123,17 +137,34 @@ export function StyleCloneSourceStep({
     setDropped(0)
   }
 
-  const start = () => {
-    if (!canStart || replicate === null || provider === null) return
-    onStart({
-      source:
-        kind === 'youtube'
-          ? { kind: 'youtube', url: url.trim() }
-          : { kind: 'images', paths },
-      replicateCharacter: replicate,
-      imageProvider: provider,
-      fallbackName: t('create.styleClone.fallbackName'),
-    })
+  const start = async () => {
+    if (
+      !canStart ||
+      replicate === null ||
+      provider === null ||
+      submission.current
+    )
+      return
+    submission.current = true
+    setStarting(true)
+    try {
+      if (provider === 'flow' && !(await flowCapacity.verify())) return
+      onStart({
+        source:
+          kind === 'youtube'
+            ? { kind: 'youtube', url: url.trim() }
+            : { kind: 'images', paths },
+        replicateCharacter: replicate,
+        imageProvider: provider,
+        ...(provider === 'flow'
+          ? { executionPlan: { ...FLOW_TOOLS_EXECUTION_PLAN } }
+          : {}),
+        fallbackName: t('create.styleClone.fallbackName'),
+      })
+    } finally {
+      submission.current = false
+      setStarting(false)
+    }
   }
 
   return (
@@ -324,8 +355,8 @@ export function StyleCloneSourceStep({
           {t('create.styleClone.providerQuestion')}
         </p>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
-            {PAID_IMAGE_PROVIDERS.map((imageProvider) => (
+          <div className="inline-flex flex-wrap items-center rounded-2xl border border-border bg-muted p-0.5">
+            {IMAGE_PROVIDERS.map((imageProvider) => (
               <button
                 key={imageProvider.id}
                 type="button"
@@ -349,13 +380,15 @@ export function StyleCloneSourceStep({
             onRefresh={credits.refresh}
           />
         </div>
-        <p className="font-body text-xs text-muted-foreground">
-          {provider
-            ? t('create.styleClone.costNote', {
-                provider: providerLabel(provider),
-              })
-            : t('create.styleClone.providerRequired')}
-        </p>
+        {provider !== 'flow' && (
+          <p className="font-body text-xs text-muted-foreground">
+            {provider
+              ? t('create.styleClone.costNote', {
+                  provider: providerLabel(provider),
+                })
+              : t('create.customStyles.providerRequired')}
+          </p>
+        )}
       </div>
 
       {creditsCheck.blocking && (
@@ -370,7 +403,11 @@ export function StyleCloneSourceStep({
 
       <div className="flex justify-end">
         <Button type="button" disabled={!canStart} onClick={start}>
-          <Sparkles className="mr-2 h-4 w-4" />
+          {starting ? (
+            <Loader2 aria-hidden className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
           {t('create.styleClone.analyze')}
         </Button>
       </div>

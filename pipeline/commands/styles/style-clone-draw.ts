@@ -1,6 +1,24 @@
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import {
+  canRestartFlowBatch,
+  flowCommand,
+  flowReference,
+  generateFlowBatch,
+} from '../../providers/flow/client.ts'
+import { assertFlowPlanProvider } from '../../providers/flow/execution-plan.ts'
+import {
+  imageFileHash,
+  importFlowImage,
+} from '../../providers/flow/import-image.ts'
+import { flowHash, readFlowBatch } from '../../providers/flow/storage.ts'
+import type {
+  FlowBatchOptions,
+  FlowImageRequest,
+  FlowStatus,
+} from '../../providers/flow/types.ts'
+
 import { readImageAsDataUri } from '../../project/characters.ts'
 import { buildCustomStyleReferencePrompt } from '../../prompts/character-reference.ts'
 import {
@@ -72,14 +90,25 @@ export async function styleCloneDraw(
   context: PipelineContext,
 ): Promise<StyleCloneDrawResult> {
   const payload = readPayload(context.job.payload)
-  const apiKey = context.job.apiKeys[payload.imageProvider]
-  if (!apiKey)
+  const apiKey =
+    payload.imageProvider === 'flow'
+      ? undefined
+      : context.job.apiKeys[payload.imageProvider]
+  if (payload.imageProvider !== 'flow' && !apiKey)
     throw new PipelineFailure(
       'missing_api_key',
       `${payload.imageProvider} API key is missing`,
     )
 
   const directory = cloneSessionDirectory(context, payload.sessionId)
+  if (
+    payload.imageProvider === 'flow' &&
+    !(await stat(directory).catch(() => null))?.isDirectory()
+  )
+    throw new PipelineFailure(
+      'style_clone_file_missing',
+      'The style clone session no longer exists',
+    )
   const designDataUri = payload.character
     ? await readDesign(directory, payload.character)
     : undefined
@@ -90,12 +119,15 @@ export async function styleCloneDraw(
   for (const item of payload.items)
     report(context, { index: item.index, status: 'processing' })
 
-  const references = await referenceUrls(
-    context,
-    payload.imageProvider,
-    apiKey,
-    designDataUri,
-  )
+  const references =
+    payload.imageProvider === 'flow'
+      ? []
+      : await referenceUrls(
+          context,
+          payload.imageProvider,
+          apiKey!,
+          designDataUri,
+        )
   const prefix = payload.kind === 'designs' ? 'design' : 'scene'
 
   const results = await Promise.allSettled(
@@ -109,10 +141,27 @@ export async function styleCloneDraw(
       }
 
       try {
-        const image = await drawItem(context, payload, apiKey, item, references)
         const file = `${prefix}-r${payload.round}-${item.index}.jpg`
         const path = join(directory, file)
-        await writeFileAtomic(path, image.bytes)
+        if (payload.imageProvider === 'flow')
+          await drawFlowItem(
+            context,
+            payload,
+            item,
+            directory,
+            path,
+            designDataUri,
+          )
+        else {
+          const image = await drawItem(
+            context,
+            payload,
+            apiKey!,
+            item,
+            references,
+          )
+          await writeFileAtomic(path, image.bytes)
+        }
         const { mtimeMs } = await stat(path)
         Object.assign(drawn, { file, path, mtimeMs: Math.round(mtimeMs) })
         report(context, { ...drawn, status: 'completed' })
@@ -177,8 +226,21 @@ function readPayload(value: unknown): StyleCloneDrawPayload {
     invalid(`payload.round must be an integer between 1 and ${MAX_ROUND}`)
   if (kind !== 'designs' && kind !== 'scenes')
     invalid('payload.kind must be designs or scenes')
-  if (imageProvider !== 'fal' && imageProvider !== 'evolink')
-    invalid('payload.imageProvider must be fal or evolink')
+  if (
+    imageProvider !== 'fal' &&
+    imageProvider !== 'evolink' &&
+    imageProvider !== 'flow'
+  )
+    invalid('payload.imageProvider must be fal, evolink, or flow')
+  const executionPlan = assertFlowPlanProvider(
+    payload.executionPlan,
+    imageProvider,
+  )
+  if (imageProvider === 'flow' && !executionPlan)
+    throw new PipelineFailure(
+      'execution_plan_invalid',
+      'Style clone Flow drawings require Multimagen',
+    )
   if (
     !Array.isArray(items) ||
     items.length === 0 ||
@@ -218,6 +280,7 @@ function readPayload(value: unknown): StyleCloneDrawPayload {
     round: round!,
     kind,
     imageProvider,
+    ...(executionPlan ? { executionPlan } : {}),
     items: items.map((item) => ({ ...item, prompt: item.prompt.trim() })),
     ...(character ? { character } : {}),
   }
@@ -293,6 +356,127 @@ async function referenceUrls(
       'the chosen design could not be uploaded: the scenes carry the character as text',
   })
   return []
+}
+
+// Cada tarjeta tiene su recibo: reintentar una de cuatro no cambia la lista
+// del lote anterior. La ronda es la intención explícita de dibujar de nuevo;
+// reabrir la misma sesión/tarjeta recupera incluso un resultado completado.
+async function drawFlowItem(
+  context: PipelineContext,
+  payload: StyleCloneDrawPayload,
+  item: StyleCloneDrawItem,
+  directory: string,
+  destination: string,
+  designDataUri: string | undefined,
+): Promise<void> {
+  const character = payload.character
+  const request: FlowImageRequest = {
+    key: String(item.index),
+    prompt: item.prompt,
+    aspectRatio: '16:9',
+    destination,
+    previousHash: await imageFileHash(destination),
+  }
+  if (payload.kind === 'scenes') {
+    if (!character) request.prompt = neutralizeSampleSubject(item.prompt)
+    else if (character.travel === 'photo' && designDataUri) {
+      request.prompt = buildCustomStyleReferencePrompt(
+        character.name,
+        pointSampleToReference(item.prompt, character.name),
+      )
+      request.references = [
+        flowReference('character', character.name, designDataUri),
+      ]
+    } else
+      request.prompt = weaveSampleIdentity(
+        item.prompt,
+        character.description,
+        character.name,
+      )
+  }
+  const scope = `style-clone:${payload.kind}:${payload.round}:${item.index}:${directory}`
+  const existing = await readFlowBatch(context, scope)
+  const requestId =
+    existing?.regenerationRequestIds?.[0] ?? cloneRequestId(scope)
+  const revision = flowHash(
+    JSON.stringify([
+      request.prompt,
+      request.references?.map(({ id, name, sha256 }) => [id, name, sha256]),
+      payload.character,
+      payload.executionPlan,
+    ]),
+  )
+  const isCurrent = async () => {
+    if (!(await stat(directory).catch(() => null))?.isDirectory()) return false
+    if (!character || character.travel !== 'photo') return true
+    return (await readDesign(directory, character)) === designDataUri
+  }
+  const options: FlowBatchOptions = {
+    scope,
+    revision,
+    requests: [request],
+    executionPlan: payload.executionPlan,
+    explicitRegenerationRequestId: requestId,
+    onState(_request, status) {
+      report(context, { index: item.index, status })
+    },
+    async restoreImported(saved) {
+      return (
+        saved.destination === destination &&
+        !!saved.importedHash &&
+        (await isCurrent()) &&
+        (await imageFileHash(destination)) === saved.importedHash
+      )
+    },
+    async onReady(saved, bytes) {
+      if (saved.key !== request.key || saved.destination !== destination)
+        throw new PipelineFailure(
+          'flow_result_invalid',
+          'Unexpected style clone destination',
+        )
+      return importFlowImage(context, {
+        destination,
+        bytes,
+        previousHash: saved.previousHash ?? null,
+        isCurrent,
+      })
+    },
+  }
+  try {
+    await generateFlowBatch(context, options)
+  } catch (error) {
+    // Sólo un reintento de una tarjeta anterior con rechazo confirmado puede
+    // abrir otro intento. Un envío incierto conserva IDs, foto y prompt. El
+    // cliente revalida terminalidad bajo su lock antes de admitir el nuevo.
+    if (
+      !existing ||
+      ![
+        'flow_restart_required',
+        'flow_accounts_exhausted',
+        'flow_account_review_required',
+      ].includes(toPipelineFailure(error).code)
+    )
+      throw error
+    const snapshot = await flowCommand<FlowStatus>(context, { type: 'status' })
+    if (
+      snapshot.type !== 'bridge.status' ||
+      !Array.isArray(snapshot.jobs) ||
+      !canRestartFlowBatch(existing, snapshot)
+    )
+      throw error
+    await generateFlowBatch(context, {
+      ...options,
+      terminalRetry: true,
+      explicitRegenerationRequestId: cloneRequestId(
+        `${scope}:${existing.batchId}`,
+      ),
+    })
+  }
+}
+
+function cloneRequestId(identity: string): string {
+  const hash = flowHash(identity)
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`
 }
 
 // ── Una prueba ──

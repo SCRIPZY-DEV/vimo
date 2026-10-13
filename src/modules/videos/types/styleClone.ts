@@ -1,4 +1,4 @@
-import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type {
   StyleCloneCharacterMode,
   StyleCloneCharacterTravel,
@@ -13,6 +13,7 @@ import type {
   StyleCloneSaveResult,
   StyleCloneSource,
 } from '@pipeline/types/style-clone.ts'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
 import type { GemSections } from '@pipeline/types/styles.ts'
 
 // Creador de estilo con IA en la app (ADR-0050): una SESIÓN es una clonación en
@@ -93,7 +94,8 @@ export interface StyleCloneSession {
   // catálogo, el personaje viaja solo como identidad de prompt y queda como el
   // personaje fijo de la gema).
   replicateCharacter: boolean
-  imageProvider: PaidImageProviderId
+  imageProvider: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
   status: StyleCloneStatus
   // null hasta que llega el primer análisis.
   step: StyleCloneStep | null
@@ -133,7 +135,8 @@ export interface StyleCloneStartInput {
   target: StyleCloneTarget
   source: StyleCloneSource
   replicateCharacter: boolean
-  imageProvider: PaidImageProviderId
+  imageProvider: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
   // El nombre del estilo si la IA no propone uno (lo traduce quien empieza).
   fallbackName: string
 }

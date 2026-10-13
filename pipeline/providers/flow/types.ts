@@ -97,8 +97,11 @@ export interface FlowStatus {
 
 export interface FlowBatchOptions {
   executionPlan?: FlowToolsExecutionPlan
-  // Solo el editor puede autorizar una intención nueva con un clic explícito.
+  // Identidad del pedido explícito: el editor usa el clic y el clonador la
+  // tarjeta/ronda. Un reintento incierto recupera siempre el recibo anterior.
   explicitRegenerationRequestId?: string
+  // Reintento de rechazo confirmado: si pasó a incierto, no crear un alias.
+  terminalRetry?: boolean
   scope: string
   revision: string
   requests: FlowImageRequest[]

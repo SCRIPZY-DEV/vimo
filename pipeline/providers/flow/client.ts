@@ -515,7 +515,10 @@ function safeTerminal(job: FlowJobStatus): boolean {
   return job.state === 'canceled' && !job.attemptId
 }
 
-function canRestart(batch: FlowBatch, snapshot: FlowStatus): boolean {
+export function canRestartFlowBatch(
+  batch: FlowBatch,
+  snapshot: FlowStatus,
+): boolean {
   const remote = new Map(snapshot.jobs.map((job) => [job.imageJobId, job]))
   return batch.requests.every((request) => {
     const job = remote.get(request.imageJobId)
@@ -540,7 +543,7 @@ async function prepareRestart(
   if (
     snapshot.type !== 'bridge.status' ||
     !Array.isArray(snapshot.jobs) ||
-    !canRestart(existing, snapshot)
+    !canRestartFlowBatch(existing, snapshot)
   )
     throw new PipelineFailure(
       'flow_review_required',
@@ -647,7 +650,7 @@ export async function recoverPendingFlowRegeneration(
         'Invalid Flow status response',
       )
     if (
-      canRestart(existing, snapshot) &&
+      canRestartFlowBatch(existing, snapshot) &&
       !hasPendingReadyImport(existing, snapshot)
     )
       return false
@@ -695,7 +698,7 @@ async function resolveExplicitRegeneration(
       'flow_result_invalid',
       'Invalid Flow status response',
     )
-  const terminal = canRestart(existing, snapshot)
+  const terminal = canRestartFlowBatch(existing, snapshot)
   const pendingImport = hasPendingReadyImport(existing, snapshot)
   if (
     !terminal ||
@@ -703,6 +706,13 @@ async function resolveExplicitRegeneration(
       existing.revision === options.revision &&
       pendingImport)
   ) {
+    // Un reintento terminal no debe registrar un alias si el estado cambió
+    // a incierto después del preflight; ese alias impediría reintentar luego.
+    if (options.terminalRetry)
+      throw new PipelineFailure(
+        'flow_review_required',
+        'The confirmed retry is no longer terminal; the original receipt was preserved',
+      )
     if (
       existing.completed ||
       existing.revision !== options.revision ||
@@ -795,7 +805,7 @@ export async function generateFlowBatch(
               'Invalid Flow status response',
             )
           throw new PipelineFailure(
-            canRestart(existing, snapshot)
+            canRestartFlowBatch(existing, snapshot)
               ? 'flow_restart_required'
               : 'flow_review_required',
             'The unfinished Flow intent belongs to another selection or revision; it was not replaced',
@@ -849,7 +859,7 @@ export async function generateFlowBatch(
           )
         )
           throw new PipelineFailure(
-            canRestart(batch, snapshot)
+            canRestartFlowBatch(batch, snapshot)
               ? 'flow_restart_required'
               : 'flow_review_required',
             'The saved Flow batch was explicitly deleted',
@@ -1065,7 +1075,7 @@ export async function generateFlowBatch(
             failures.values().next().value
           if (
             failure?.code === 'flow_restart_required' &&
-            !canRestart(batch, snapshot)
+            !canRestartFlowBatch(batch, snapshot)
           )
             throw new PipelineFailure(
               'flow_review_required',

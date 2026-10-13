@@ -145,9 +145,10 @@ export function StyleCloneModal({ target }: StyleCloneModalProps) {
             session={session}
             onRetry={() => retryStyleClone(session.id)}
             onDiscard={discard}
-            onReload={() =>
+            onReload={() => {
+              if (session.imageProvider === 'flow') return
               void apiKeysApi.openBillingPage(session.imageProvider)
-            }
+            }}
           />
         )}
 

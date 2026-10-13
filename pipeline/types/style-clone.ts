@@ -1,5 +1,6 @@
 import type { CharacterSummary } from './characters.ts'
-import type { PaidImageProviderId } from './image-provider.ts'
+import type { FlowToolsExecutionPlan } from './flow-execution-plan.ts'
+import type { ImageProviderId } from './image-provider.ts'
 import type {
   CustomStyleSummary,
   GemSections,
@@ -87,7 +88,8 @@ export interface StyleCloneDrawPayload {
   round: number
   kind: StyleCloneDrawKind
   items: StyleCloneDrawItem[]
-  imageProvider: PaidImageProviderId
+  imageProvider: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
   // Solo en las escenas de un estilo que replica al personaje.
   character?: StyleCloneCharacter
 }

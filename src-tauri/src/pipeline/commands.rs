@@ -51,6 +51,7 @@ pub async fn start_pipeline_job(
             | "regenerate-scene-images"
             | "generate-character-preview"
             | "generate-style-samples"
+            | "style-clone-draw"
     ) {
         crate::flow::ensure_runtime(&app).await.ok()
     } else {
