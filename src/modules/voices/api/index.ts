@@ -9,6 +9,7 @@ import { isNative } from '@/modules/common/utilities/isNative'
 import {
   UNKNOWN_VOICE_ERROR_KEY,
   VOICE_CLONING_URLS,
+  VOICE_HISTORY_URLS,
   VOICE_ERROR_MESSAGE_KEYS,
 } from '@/modules/voices/constants'
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
@@ -54,6 +55,9 @@ export const voicesApi = {
   },
   async openCloningDashboard(vendor: VoiceVendorId): Promise<void> {
     return openUrl(VOICE_CLONING_URLS[vendor])
+  },
+  async openHistoryPage(vendor: VoiceVendorId): Promise<void> {
+    return openUrl(VOICE_HISTORY_URLS[vendor])
   },
   audioSource(path: string): string {
     return convertFileSrc(path)

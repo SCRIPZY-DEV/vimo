@@ -17,7 +17,7 @@ pub struct ValidationResult {
     /// Código de error para i18n (`apiKeys.errores.*`); ausente si ok.
     pub code: Option<&'static str>,
     /// Saldo leído en la misma comprobación, cuando el endpoint con el que se
-    /// valida es el de saldo (Kie.ai y PoYo). La UI lo muestra junto al
+    /// valida es el de saldo (Kie.ai, PoYo y ai33). La UI lo muestra junto al
     /// «Conectado»: ver el saldo es la prueba de que la clave sirve de verdad.
     pub credits: Option<f64>,
 }
@@ -65,11 +65,12 @@ async fn probe(
 /// cuerpo que no es JSON se trata como vacío, nunca como fallo de red.
 async fn probe_json(
     url: &str,
+    header_name: &str,
     header_value: String,
 ) -> Result<(reqwest::StatusCode, serde_json::Value), ApiKeyError> {
     let response = client()?
         .get(url)
-        .header("Authorization", header_value)
+        .header(header_name, header_value)
         .send()
         .await
         .map_err(|_| ApiKeyError::Network)?;
@@ -102,6 +103,25 @@ fn validate_kie_response(
         .filter(|credits| credits.is_finite() && *credits >= 0.0)
         .ok_or(ApiKeyError::ProviderError)?;
     Ok(Some(credits))
+}
+
+/// Saldo de ai33 (GET /v1/credits). La doc no fija el campo: se acepta el
+/// número (o string numérico) en las claves conocidas, en la raíz o en `data`.
+/// Sin saldo legible la clave igual sirve (el 200 ya lo probó): no se inventa
+/// un cero que bloquearía el pre-check.
+fn ai33_credits(body: &serde_json::Value) -> Option<f64> {
+    const KEYS: [&str; 4] = ["credits", "credit", "balance", "ec_remain_credits"];
+    let number = |value: &serde_json::Value| {
+        value
+            .as_f64()
+            .or_else(|| value.as_str().and_then(|text| text.trim().parse::<f64>().ok()))
+            .filter(|credits| credits.is_finite() && *credits >= 0.0)
+    };
+    [Some(body), body.get("data")]
+        .into_iter()
+        .flatten()
+        .flat_map(|scope| KEYS.iter().filter_map(move |key| scope.get(*key)))
+        .find_map(number)
 }
 
 /// Check especial de Fal: la clave DEBE ser tipo Admin (sin eso la generación
@@ -201,6 +221,7 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
         Provider::Kie => {
             let (status, body) = probe_json(
                 "https://api.kie.ai/api/v1/chat/credit",
+                "Authorization",
                 format!("Bearer {key}"),
             )
             .await?;
@@ -209,6 +230,7 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
         Provider::Poyo => {
             let (status, body) = probe_json(
                 "https://api.poyo.ai/api/user/balance",
+                "Authorization",
                 format!("Bearer {key}"),
             )
             .await?;
@@ -219,6 +241,22 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
                 .get("data")
                 .and_then(|data| data.get("credits_amount"))
                 .and_then(|credits| credits.as_f64()))
+        }
+        // ai33 también se valida contra su saldo, con su header xi-api-key.
+        Provider::Ai33 => {
+            let (status, body) = probe_json(
+                "https://api.ai33.pro/v1/credits",
+                "xi-api-key",
+                key.to_string(),
+            )
+            .await?;
+            if status == reqwest::StatusCode::FORBIDDEN {
+                return Err(ApiKeyError::InvalidKey);
+            }
+            if status != reqwest::StatusCode::OK {
+                return Err(status_to_error(status));
+            }
+            Ok(ai33_credits(&body))
         }
     }
 }

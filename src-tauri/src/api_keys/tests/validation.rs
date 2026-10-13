@@ -102,3 +102,26 @@ fn kie_malformed_response_cannot_produce_success_feedback() {
     assert_eq!(result.code, Some("provider_error"));
     assert_eq!(result.credits, None);
 }
+
+#[test]
+fn ai33_reads_the_balance_from_known_fields_numbers_or_strings() {
+    for body in [
+        json!({ "credits": 9500 }),
+        json!({ "ec_remain_credits": "9500" }),
+        json!({ "success": true, "data": { "balance": 9500.0 } }),
+    ] {
+        assert_eq!(ai33_credits(&body), Some(9500.0), "{body}");
+    }
+}
+
+#[test]
+fn ai33_without_a_readable_balance_reports_none_instead_of_zero() {
+    for body in [
+        serde_json::Value::Null,
+        json!({ "success": true }),
+        json!({ "credits": "unlimited" }),
+        json!({ "credits": -1 }),
+    ] {
+        assert_eq!(ai33_credits(&body), None, "{body}");
+    }
+}

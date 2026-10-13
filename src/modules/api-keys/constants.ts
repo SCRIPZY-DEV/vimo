@@ -39,11 +39,11 @@ export const MODULE_API_KEY_REQUIREMENTS = {
   videos: [
     ['deepinfra'],
     ['fal', 'evolink'],
-    ['dubvoice', 'elevenlabs'],
+    ['ai33', 'dubvoice', 'elevenlabs'],
     ['deepgram'],
   ],
   music: [['evolink']],
-  voices: [['dubvoice', 'elevenlabs']],
+  voices: [['ai33', 'dubvoice', 'elevenlabs']],
   characters: [['fal', 'evolink'], ['deepinfra']],
 } satisfies Record<string, ApiKeyRequirement[]>
 
@@ -55,6 +55,7 @@ export const VOICE_VENDOR_API_KEY_REQUIREMENTS: Record<
 > = {
   dubvoice: [['dubvoice']],
   elevenlabs: [['elevenlabs']],
+  ai33: [['ai33']],
 }
 
 /** Código de error de Rust → clave i18n del mensaje. */

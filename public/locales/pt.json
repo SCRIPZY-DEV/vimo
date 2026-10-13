@@ -188,7 +188,13 @@
         "edge": "Edge",
         "elevenlabs-account": "Minhas vozes",
         "elevenlabs-library": "Biblioteca",
-        "favorites": "Favoritas"
+        "favorites": "Favoritas",
+        "ai33-elevenlabs": "ElevenLabs",
+        "ai33-minimax": "Minimax",
+        "ai33-vbee": "Vbee",
+        "ai33-fishaudio": "Fish Audio",
+        "ai33-edge": "Edge",
+        "ai33-clone": "Minhas clonadas"
       },
       "hint": "Essa voz narra o seu vídeo inteiro — escolha uma antes de gerar.",
       "libraryNote": "As vozes da biblioteca são adicionadas à sua conta do ElevenLabs ao usá-las.",
@@ -348,7 +354,9 @@
         "retryRenderHint": "Suas imagens e todo o resto já estão prontos — só a montagem do vídeo é refeita. Nada se perde e não se gastam créditos.",
         "continueHint": "No editor você pode regenerar uma a uma as cenas que ficaram sem imagem — com ou sem narração — ou dar a elas uma descrição própria, e depois gerar seu vídeo.",
         "switchModel": "Trocar de modelo e relançar",
-        "switchModelHint": "O modelo que escrevia os prompts falhou. Com outro modelo tudo o que foi feito é mantido e só os prompts que faltam são escritos."
+        "switchModelHint": "O modelo que escrevia os prompts falhou. Com outro modelo tudo o que foi feito é mantido e só os prompts que faltam são escritos.",
+        "switchVoice": "Trocar voz",
+        "switchVoiceHint": "Escolha outro provedor e outra voz, e o vídeo continua a partir da narração."
       },
       "savedAt": "Pronto! Seu vídeo foi salvo em",
       "imagesCount": "Imagens ({{ready}}/{{total}})",
@@ -1131,6 +1139,17 @@
       "wholeVideoHint": "O short é animado sem som. Se a última cena tiver menos de 3 s, ficará como imagem estática.",
       "durationPending": "Os créditos serão calculados quando a duração do áudio for conhecida.",
       "firstMinuteEstimateHint": "Estimativa para um minuto completo. Se o áudio for mais curto, serão gerados apenas os clipes necessários."
+    },
+    "voiceSwitch": {
+      "title": "Antes de trocar a voz",
+      "checkHistory": "Confira seu histórico no {{provider}}: se a narração foi gerada lá, ao trocar de voz ela se perde e outra é gerada.",
+      "checkHistoryUnknown": "Confira o histórico do seu provedor de vozes: se a narração foi gerada lá, ao trocar de voz ela se perde e outra é gerada.",
+      "maybePaid": "É possível que esta geração já tenha sido cobrada no {{provider}}. Confira seu histórico e seu saldo antes de continuar.",
+      "maybePaidUnknown": "É possível que esta geração já tenha sido cobrada. Confira o histórico e o saldo do seu provedor antes de continuar.",
+      "discardHint": "Se preferir esperar, feche este aviso e use «Tentar de novo a partir do último passo»: retoma a mesma geração sem pagar outra.",
+      "openHistory": "Abrir {{provider}}",
+      "continue": "Escolher outra voz",
+      "cancel": "Cancelar"
     }
   },
   "createDemo": {
@@ -1776,7 +1795,12 @@
       "fishaudio": "Fish Audio",
       "favorites": "Favoritas",
       "elevenlabs-account": "Minhas vozes",
-      "elevenlabs-library": "Biblioteca"
+      "elevenlabs-library": "Biblioteca",
+      "ai33-elevenlabs": "ElevenLabs",
+      "ai33-minimax": "Minimax",
+      "ai33-vbee": "Vbee",
+      "ai33-fishaudio": "Fish Audio",
+      "ai33-clone": "Minhas clonadas"
     },
     "favoritos": {
       "vacio": "Você ainda não marcou vozes favoritas. Toque no coração de uma voz para guardá-la aqui."
@@ -1880,11 +1904,13 @@
       "titulo": "Clonagem de vozes",
       "descripcion": {
         "dubvoice": "Clone sua voz no painel do DubVoice; depois ela aparece na aba Minimax com o filtro «Somente clonadas».",
-        "elevenlabs": "Clone sua voz no Voice Lab do ElevenLabs; depois ela aparece na aba «Minhas vozes»."
+        "elevenlabs": "Clone sua voz no Voice Lab do ElevenLabs; depois ela aparece na aba «Minhas vozes».",
+        "ai33": "Clone sua voz no painel do ai33; depois ela aparece na aba «Minhas clonadas»."
       },
       "abrirDashboard": {
         "dubvoice": "Abrir DubVoice",
-        "elevenlabs": "Abrir ElevenLabs"
+        "elevenlabs": "Abrir ElevenLabs",
+        "ai33": "Abrir ai33"
       }
     },
     "historial": {
@@ -1970,7 +1996,7 @@
     "categoria": {
       "llm": "IA de roteiros (DeepInfra)",
       "image": "imagens (Fal.ai ou Evolink)",
-      "voice": "voz (DubVoice ou ElevenLabs)",
+      "voice": "voz (ai33, DubVoice ou ElevenLabs)",
       "transcription": "transcrição (Deepgram)",
       "animation": "animação de cenas (Kie.ai)"
     },
@@ -1982,7 +2008,8 @@
       "elevenlabs": "Voz premium direto da ElevenLabs.",
       "deepgram": "Transcrição palavra por palavra do áudio.",
       "kie": "Animação automática de cenas a partir das imagens, com saldo em créditos.",
-      "poyo": "Anima uma cena com Veo. Opcional, só se você quiser cenas animadas."
+      "poyo": "Anima uma cena com Veo. Opcional, só se você quiser cenas animadas.",
+      "ai33": "Voz narrada com ElevenLabs, Minimax, Vbee, Fish Audio e Edge com uma única chave."
     },
     "badge": {
       "falAdmin": "⚠ Tipo Admin"
@@ -2041,8 +2068,8 @@
     "promptModelSaved": "Preferência salva.",
     "promptModelError": "Não foi possível salvar a preferência.",
     "voiceVendorTitle": "Seu provedor de vozes",
-    "voiceVendorTagline": "Com qual serviço as vozes são listadas e geradas em Vozes e em Criar. O DubVoice reúne Minimax, ElevenLabs, Vbee e Fish Audio com uma única chave; o ElevenLabs usa a sua própria conta.",
-    "voiceVendorAutomaticHint": "Ainda não escolhido: usa-se o DubVoice, ou o ElevenLabs se for a única chave de voz salva.",
+    "voiceVendorTagline": "Com qual serviço as vozes são listadas e geradas em Vozes e em Criar. O ai33 e o DubVoice reúnem ElevenLabs, Minimax, Vbee e Fish Audio com uma única chave; o ElevenLabs usa a sua própria conta.",
+    "voiceVendorAutomaticHint": "Ainda não escolhido: usa-se o ai33 se tiver chave; senão o DubVoice, ou o ElevenLabs se for a única chave de voz salva.",
     "voiceVendorResetAutomatic": "Voltar ao automático",
     "voiceVendorSaved": "Preferência salva.",
     "voiceVendorError": "Não foi possível salvar a preferência.",

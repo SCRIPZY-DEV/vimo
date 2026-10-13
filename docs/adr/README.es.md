@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0053](ADR-0053-ai33-proveedor-de-voz-y-cambio-de-voz-tras-un-fallo.md)              | ai33 como proveedor de voz, y cambio de voz tras un fallo                         | Propuesta                  | providers / pipeline / app    |
 | [ADR-0052](ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)                   | Exportación rápida sin temblor, según el equipo del usuario                       | Aceptada                   | pipeline                      |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adaptar el personaje del usuario al lenguaje del estilo                           | Propuesta                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | Creador de estilo con IA: clonar un estilo desde un video o desde imágenes        | Aceptada                   | pipeline / app / servidor     |
