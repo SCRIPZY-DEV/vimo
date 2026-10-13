@@ -87,6 +87,7 @@ pub fn run() {
       // La carpeta de proyectos puede estar fuera de $HOME (otro disco, o
       // «Documentos» movida en Windows): se le da permiso en cada arranque para
       // que las imágenes locales se vean y Ajustes pueda validarla (ADR-0037).
+      settings::projects_root::ensure_default_projects_root(app.handle());
       settings::projects_root::allow_projects_root(app.handle());
       // En Windows/Linux el scheme vimo:// se registra en runtime para que el
       // deep link funcione también en dev; en macOS solo lo registra el bundle

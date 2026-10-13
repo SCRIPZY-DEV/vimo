@@ -3,16 +3,34 @@ use super::*;
 #[test]
 fn quiet_subcommands_are_recorded_only_when_they_fail() {
     for subcommand in ["list-video-projects", "video-project-status", "get-image-credits", "update-audio-mix"] {
-        assert!(!is_worth_recording(subcommand, RunStatus::Completed));
-        assert!(is_worth_recording(subcommand, RunStatus::Failed));
-        assert!(is_worth_recording(subcommand, RunStatus::Crashed));
+        assert!(!is_worth_recording(subcommand, RunStatus::Completed, &[]));
+        assert!(is_worth_recording(subcommand, RunStatus::Failed, &[]));
+        assert!(is_worth_recording(subcommand, RunStatus::Crashed, &[]));
     }
+}
+
+#[test]
+fn quiet_subcommands_with_a_warning_are_recorded() {
+    let skipped = json!({ "type": "log", "level": "warn", "message": "skipped style \"st-a\": invalid_json" });
+    let failed = json!({ "type": "log", "level": "error", "message": "boom" });
+    for event in [skipped, failed] {
+        assert!(is_worth_recording("styles-list", RunStatus::Completed, &[event]));
+    }
+}
+
+#[test]
+fn quiet_subcommands_with_only_info_logs_stay_unrecorded() {
+    let events = [
+        json!({ "type": "log", "level": "info", "message": "ok" }),
+        json!({ "type": "progress", "level": "warn" }),
+    ];
+    assert!(!is_worth_recording("characters-list", RunStatus::Completed, &events));
 }
 
 #[test]
 fn generating_subcommands_are_always_recorded() {
     for subcommand in ["run-video-pipeline", "generate-voice", "character-create", "render-video", "demo-prepare"] {
-        assert!(is_worth_recording(subcommand, RunStatus::Completed));
+        assert!(is_worth_recording(subcommand, RunStatus::Completed, &[]));
     }
 }
 

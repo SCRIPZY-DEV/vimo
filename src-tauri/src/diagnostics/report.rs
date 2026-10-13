@@ -85,8 +85,20 @@ fn is_quiet_subcommand(subcommand: &str) -> bool {
         || QUIET_SUFFIXES.iter().any(|suffix| subcommand.ends_with(suffix))
 }
 
-fn is_worth_recording(subcommand: &str, status: RunStatus) -> bool {
-    status != RunStatus::Completed || !is_quiet_subcommand(subcommand)
+/// Un `log` warn/error del sidecar: algo salió mal aunque el job terminó bien
+/// (p. ej. un listado que saltea un estilo o personaje ilegible).
+fn has_warning(events: &[Value]) -> bool {
+    events.iter().any(|event| {
+        event.get("type").and_then(Value::as_str) == Some("log")
+            && matches!(event.get("level").and_then(Value::as_str), Some("warn" | "error"))
+    })
+}
+
+/// Un subcomando silencioso que termina bien se registra solo si dejó una
+/// advertencia: sin ella inundaría la tabla; con ella es justo lo que soporte
+/// necesita ver.
+fn is_worth_recording(subcommand: &str, status: RunStatus, events: &[Value]) -> bool {
+    status != RunStatus::Completed || !is_quiet_subcommand(subcommand) || has_warning(events)
 }
 
 fn copy_keys(source: Option<&Value>, keys: &[&str], target: &mut Map<String, Value>) {
@@ -198,7 +210,7 @@ fn store_and_notify(app: &AppHandle, record: &DiagnosticRecord) {
 
 /// Cierra el registro de un job del sidecar y lo deja en el spool.
 pub fn store_job_record(app: &AppHandle, job_id: &str, subcommand: &str, outcome: RecorderOutcome) {
-    if !is_worth_recording(subcommand, outcome.status) {
+    if !is_worth_recording(subcommand, outcome.status, &outcome.events) {
         return;
     }
 
