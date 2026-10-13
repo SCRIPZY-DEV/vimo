@@ -61,6 +61,7 @@ pub fn run() {
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
       settings::commands::sync_projects_root_scope,
+      settings::commands::open_projects_root,
       updates::commands::get_update_install_location,
       updates::commands::has_running_pipeline_jobs,
       updates::commands::report_update_install_failure,
