@@ -1,6 +1,8 @@
+import { AVATAR_CHARGED_PHASES } from '@/modules/videos/constants'
 import { isAvatarFallback } from '@/modules/videos/utilities/avatarFallback'
 import type {
   AvatarSceneActivity,
+  ChargedCancelWarning,
   CreateTask,
   SceneView,
 } from '@/modules/videos/types/create'
@@ -105,6 +107,65 @@ export function scenesWithAvatarEvent(
   })
 }
 
+// Las apariciones cobradas de la corrida con un evento más (entrega 2h, spec
+// §24.3): entra la que llegó a una fase cobrada (AVATAR_CHARGED_PHASES:
+// HeyGen ya aceptó su render) o quedó lista; sale la que falló, porque un
+// render que HeyGen falló no se cobra y la tarjeta del fallo promete que lo
+// que cuenta está pagado y se usa sin pagar de nuevo. Pura: la misma lista si
+// el evento no la cambia.
+export function chargedSceneIdsWithAvatarEvent(
+  sceneIds: number[],
+  event: AvatarSceneEvent,
+): number[] {
+  const listed = sceneIds.includes(event.sceneId)
+  if (event.type === 'avatar-scene-failed') {
+    if (!listed) return sceneIds
+
+    return sceneIds.filter((sceneId) => sceneId !== event.sceneId)
+  }
+
+  const charged =
+    event.type === 'avatar-scene-ready' ||
+    (event.type === 'avatar-scene-progress' &&
+      AVATAR_CHARGED_PHASES.has(event.phase))
+  if (!charged || listed) return sceneIds
+
+  return [...sceneIds, event.sceneId]
+}
+
+// Cuántas apariciones cobradas en esta corrida siguen generándose (entrega 2h,
+// spec §24.4): cancelar ahora no devuelve lo que ya se mandó a generar.
+export function chargedAvatarScenesInFlight(
+  task: Pick<CreateTask, 'scenes' | 'avatarChargedSceneIds'>,
+): number {
+  return task.scenes.filter(
+    (scene) =>
+      task.avatarChargedSceneIds.includes(scene.id) &&
+      scene.avatarActivity?.status === 'generating',
+  ).length
+}
+
+// El aviso de «Cancelar» con apariciones cobradas, render a render (ruling de
+// unificación del 2026-10-13, 19:59, el mismo del editor): se cierra solo si
+// ya no hay un job vivo que cortar (la corrida terminó o quedó esperando el
+// reintento automático); abierto, su cuenta sube si las cobradas y sin
+// terminar pasan a ser más, y nunca baja (un número que baja mientras se lee,
+// o un aviso que desaparece bajo el puntero, confunden). Pura: el mismo aviso
+// si no cambia.
+export function chargedWarningAfterRender(
+  warning: ChargedCancelWarning | null,
+  inFlight: number,
+  runEnded: boolean,
+): ChargedCancelWarning | null {
+  if (warning === null) return null
+
+  if (runEnded) return null
+
+  if (inFlight <= warning.count) return warning
+
+  return { ...warning, count: inFlight }
+}
+
 // El job terminó (éxito, fallo o pausa). Un render anunciado con
 // `avatar-scene-started` puede quedar sin `ready` ni `failed` cuando la corrida
 // se frena por saldo, clave o cancelación (la escena que dispara la pausa por
@@ -150,7 +211,7 @@ export function avatarRowStatus(
 export function taskHasAvatar(task: CreateTask): boolean {
   if (task.hasAvatar) return true
 
-  if (task.stage === 'avatar') return true
+  if (task.activeStages.includes('avatar')) return true
 
   return task.scenes.some((scene) => scene.avatar !== undefined)
 }

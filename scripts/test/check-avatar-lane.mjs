@@ -67,7 +67,13 @@
 // listo sin error y el resultado sale `failed`, y si la cuenta pausa el carril
 // lanza con el clip a salvo; y «más expresivo» con V sobre un prompt de la
 // persona (R-2e-14), que viaja con la frase al final en el cuerpo, la huella y
-// el recibo. Un solo fetch simulado por test (con
+// el recibo. Y la entrega 2h (diseño §24.3): la fase `render` sale recién
+// cuando HeyGen aceptó el pedido (también al repetir uno sin respuesta; al
+// retomar uno ya pedido, como siempre); un 429 de la cuenta llena espera el
+// `Retry-After` y repite con la misma clave y el mismo cuerpo sin cerrar el
+// intento, hasta 10 min (agotados, `ambiguous` como siempre) y cancelable; y
+// el corte y la normalización pasan por el límite del trabajo local. Un solo
+// fetch simulado por test (con
 // `reset` entre corridas) y un centinela al final. Los nombres de archivo y la
 // tarifa los fija `check-avatar-scene-model.mjs`.
 import assert from 'node:assert/strict'
@@ -1350,7 +1356,11 @@ test('una repetición sin rastro que recibe 429 hasta agotarse deja el recibo `a
 
 test('un 409 `request_in_progress` y después 429 hasta agotarse, en el mismo pedido, dejan el recibo `ambiguous` (sonda P2)', async (t) => {
   const { paths } = await project(t)
-  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+  const waits = []
+  t.mock.method(globalThis, 'setTimeout', (callback, ms) => {
+    waits.push(ms)
+    return setImmediate(callback)
+  })
   const fake = fakeHeyGen(t, {
     create: (_call, n) =>
       n === 1
@@ -1365,11 +1375,328 @@ test('un 409 `request_in_progress` y después 429 hasta agotarse, en el mismo pe
     result.avatar.attempts.map((attempt) => attempt.state),
     ['ambiguous'],
   )
-  // El original (409), la repetición tras la espera y tres más por el 429,
-  // todos con la misma clave.
+  // El original (409), la repetición tras la espera (2 s) y, ante el 429, la
+  // espera creciente mientras entra en los 10 min de paciencia (entrega 2h):
+  // nueve más, todas con la misma clave.
+  assert.deepEqual(
+    waits,
+    [2000, 3000, 5000, 9000, 17_000, 33_000, 65_000, 120_000, 120_000, 120_000],
+  )
   const keys = fake.posts().map((call) => call.headers['Idempotency-Key'])
-  assert.equal(keys.length, 5)
+  assert.equal(keys.length, 11)
   assert.deepEqual([...new Set(keys)], [idempotencyKey(0)])
+})
+
+// ─── Entrega 2h (diseño §24.3): la fase `render` y la cuenta llena ───
+
+// Un 429 de la cuenta llena, con su `Retry-After` (segundos).
+const accountFull = (retryAfter = 30) =>
+  new Response(
+    JSON.stringify({
+      error: {
+        code: 'rate_limit_exceeded',
+        message:
+          'Too many requests. Retry after the duration specified in the Retry-After header.',
+        param: null,
+      },
+    }),
+    {
+      status: 429,
+      headers: {
+        'content-type': 'application/json',
+        'retry-after': String(retryAfter),
+      },
+    },
+  )
+const progressPhases = (events) =>
+  events
+    .filter((event) => event.type === 'progress')
+    .map((event) => event.phase)
+
+test('2h: la fase `render` sale recién cuando HeyGen aceptó el pedido; mientras sale el POST la aparición sigue en `upload`', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const { options, events } = lane(paths)
+  const phasesAtPost = []
+  fakeHeyGen(t, {
+    clip,
+    onRequest(call) {
+      if (call.method === 'POST' && call.path === '/v3/videos')
+        phasesAtPost.push(progressPhases(events))
+    },
+  })
+  const result = await renderAvatarScene(SCENE, options)
+
+  assert.equal(result.outcome, 'ready')
+  assert.deepEqual(phasesAtPost, [['audio', 'upload']])
+  const phases = progressPhases(events)
+  assert.deepEqual(phases.slice(0, 3), ['audio', 'upload', 'render'])
+})
+
+test('2h: `render` sale apenas HeyGen acepta, antes de guardar el recibo: si guardar el `pending` falla, la aparición igual figura cobrada', async (t) => {
+  const { paths } = await project(t)
+  let writes = 0
+  fakeHeyGen(t, { listed: [] })
+  const { options, events } = lane(paths, {
+    // La segunda escritura (el `pending`, después del POST aceptado) falla.
+    onCheckpoint: async () => {
+      writes += 1
+      if (writes === 2)
+        throw new PipelineFailure('scenes_missing', 'scenes.json disappeared')
+    },
+  })
+  await assert.rejects(renderAvatarScene(SCENE, options), {
+    code: 'scenes_missing',
+  })
+  assert.deepEqual(progressPhases(events), ['audio', 'upload', 'render'])
+})
+
+test('2h: al repetir un pedido sin respuesta (la misma clave) el pedido va en `upload` y `render` sale después del POST, una sola vez; al retomar un render ya pedido, `render` como siempre', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const phasesAtPost = []
+  const repeated = lane(paths)
+  const fake = fakeHeyGen(t, {
+    clip,
+    listed: [],
+    onRequest(call) {
+      if (call.method === 'POST' && call.path === '/v3/videos')
+        phasesAtPost.push(progressPhases(repeated.events))
+    },
+  })
+  const repeat = await renderAvatarScene(
+    withAttempts([{ ...creatingAttempt(), state: 'ambiguous' }]),
+    repeated.options,
+  )
+  assert.equal(repeat.outcome, 'ready')
+  assert.equal(fake.posts().length, 1)
+  // Sin subida en esta corrida, igual sale `upload` antes del POST (ronda 1):
+  // la app no lo muestra como «Preparando la voz» mientras espera a HeyGen.
+  assert.deepEqual(phasesAtPost, [['upload']])
+  assert.deepEqual(progressPhases(repeated.events), [
+    'upload',
+    'render',
+    'download',
+    'normalize',
+  ])
+
+  // Un recibo `pending` (el render ya pedido en otra corrida): sin POST.
+  fake.reset({ clip })
+  const resumed = lane(paths)
+  const pending = await renderAvatarScene(
+    withAttempts([
+      { ...creatingAttempt(), state: 'pending', videoId: 'video-3-1' },
+    ]),
+    resumed.options,
+  )
+  assert.equal(pending.outcome, 'ready')
+  assert.deepEqual(fake.posts(), [])
+  assert.deepEqual(progressPhases(resumed.events), [
+    'render',
+    'download',
+    'normalize',
+  ])
+})
+
+test('2h (ronda 1): con el audio reusado de un intento anterior del mismo pedido (sin subida en esta corrida), el pedido va en `upload` antes del POST', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const { options, events } = lane(paths)
+  const phasesAtPost = []
+  const fake = fakeHeyGen(t, {
+    clip,
+    onRequest(call) {
+      if (call.method === 'POST' && call.path === '/v3/videos')
+        phasesAtPost.push(progressPhases(events))
+    },
+  })
+  // Un render anterior del MISMO pedido falló (no para siempre): el intento
+  // siguiente presta su audio ya subido.
+  const result = await renderAvatarScene(
+    withAttempts([
+      {
+        ...creatingAttempt(),
+        state: 'failed',
+        errorCode: 'avatar_render_failed',
+        videoId: 'video-3-0',
+      },
+    ]),
+    options,
+  )
+
+  assert.equal(result.outcome, 'ready')
+  assert.deepEqual(fake.uploads(), [])
+  assert.equal(fake.posts()[0].body.audio_asset_id, 'asset-audio')
+  assert.deepEqual(phasesAtPost, [['upload']])
+  assert.deepEqual(progressPhases(events), [
+    'upload',
+    'render',
+    'download',
+    'normalize',
+  ])
+})
+
+test('2h (ronda 1): ninguna fase se avisa dos veces seguidas: ni `upload` antes del POST de un pedido nuevo, ni `render` al aceptar y en cada consulta del render', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const { options, events } = lane(paths)
+  const fake = fakeHeyGen(t, {
+    clip,
+    // Tres consultas antes de que termine.
+    poll: (_videoId, n) => ({
+      status: ['waiting', 'processing', 'processing', 'completed'][
+        Math.min(n, 3)
+      ],
+    }),
+  })
+  const result = await renderAvatarScene(SCENE, options)
+
+  assert.equal(result.outcome, 'ready')
+  assert.equal(
+    fake.calls.filter((call) => call.path === '/v3/videos/video-3-1').length,
+    4,
+  )
+  assert.deepEqual(progressPhases(events), [
+    'audio',
+    'upload',
+    'render',
+    'download',
+    'normalize',
+  ])
+})
+
+test('2h: un 429 al pedir (la cuenta llena) espera el Retry-After y repite con la MISMA clave y el mismo cuerpo, sin cerrar el intento como fallido ni pasar a `render`; cuando HeyGen acepta, la escena sale lista', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const waits = []
+  t.mock.method(globalThis, 'setTimeout', (callback, ms) => {
+    waits.push(ms)
+    return setImmediate(callback)
+  })
+  const { options, checkpoints, events } = lane(paths)
+  const phasesAtPosts = []
+  const fake = fakeHeyGen(t, {
+    clip,
+    create: (_call, n) => (n <= 3 ? accountFull(30) : undefined),
+    onRequest(call) {
+      if (call.method === 'POST' && call.path === '/v3/videos')
+        phasesAtPosts.push(progressPhases(events).at(-1))
+    },
+  })
+  const result = await renderAvatarScene(SCENE, options)
+
+  assert.equal(result.outcome, 'ready')
+  const posts = fake.posts()
+  assert.equal(posts.length, 4)
+  assert.deepEqual(
+    [...new Set(posts.map((call) => call.headers['Idempotency-Key']))],
+    [idempotencyKey(0)],
+  )
+  assert.equal(new Set(posts.map((call) => JSON.stringify(call.body))).size, 1)
+  assert.deepEqual(waits.slice(0, 3), [31_000, 31_000, 31_000])
+  // Un solo intento, que nunca pasó por `failed` ni `ambiguous`.
+  assert.deepEqual(
+    checkpoints.map((avatar) =>
+      avatar.attempts.map((attempt) => attempt.state),
+    ),
+    [['creating'], ['pending'], ['succeeded'], ['succeeded']],
+  )
+  // Durante las esperas seguía en `upload`, avisado una sola vez.
+  assert.deepEqual(phasesAtPosts, ['upload', 'upload', 'upload', 'upload'])
+  assert.deepEqual(progressPhases(events), [
+    'audio',
+    'upload',
+    'render',
+    'download',
+    'normalize',
+  ])
+})
+
+test('2h: con la cuenta llena más allá de la paciencia (10 min), el intento queda `ambiguous` como un 429 agotado de siempre, sin `render`; la corrida siguiente repite la MISMA clave', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  const waits = []
+  t.mock.method(globalThis, 'setTimeout', (callback, ms) => {
+    waits.push(ms)
+    return setImmediate(callback)
+  })
+  const { options, events } = lane(paths)
+  const fake = fakeHeyGen(t, { create: () => accountFull(120) })
+  const result = await renderAvatarScene(SCENE, options)
+
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.errorCode, 'avatar_rate_limited')
+  assert.equal(result.failure.httpStatus, 429)
+  assert.deepEqual(
+    result.avatar.attempts.map((attempt) => attempt.state),
+    ['ambiguous'],
+  )
+  // Cinco esperas de 2 min (los 10 min justos) y seis pedidos.
+  assert.deepEqual(waits, [120_000, 120_000, 120_000, 120_000, 120_000])
+  assert.equal(fake.posts().length, 6)
+  assert.ok(!progressPhases(events).includes('render'))
+
+  fake.reset({ clip, listed: [] })
+  const next = await renderAvatarScene(
+    { ...SCENE, avatar: result.avatar },
+    lane(paths).options,
+  )
+  assert.equal(next.outcome, 'ready')
+  assert.deepEqual(
+    fake.posts().map((call) => call.headers['Idempotency-Key']),
+    [idempotencyKey(0)],
+  )
+})
+
+test('2h: cancelar mientras se espera a la cuenta llena sale como cancelación y deja el intento `ambiguous` guardado, sin repetir el POST', async (t) => {
+  const { paths } = await project(t)
+  const controller = new AbortController()
+  t.mock.method(globalThis, 'setTimeout', (callback) => {
+    controller.abort()
+    return setImmediate(callback)
+  })
+  const client = createHeyGenClient('key-123', controller.signal)
+  const { options, checkpoints } = lane(paths, {
+    client,
+    signal: controller.signal,
+  })
+  const fake = fakeHeyGen(t, { create: () => accountFull(30) })
+  await assert.rejects(renderAvatarScene(SCENE, options), {
+    name: 'AbortError',
+  })
+
+  assert.equal(fake.posts().length, 1)
+  assert.deepEqual(
+    checkpoints.at(-1).attempts.map((attempt) => attempt.state),
+    ['ambiguous'],
+  )
+})
+
+test('2h: el corte del audio y la normalización del clip pasan por el límite del trabajo local de la corrida', async (t) => {
+  const { paths } = await project(t)
+  const clip = await heygenClip(paths, { seconds: 7, switchSeconds: 3 })
+  fakeHeyGen(t, { clip })
+  // Un límite que anota qué archivos hay en avatar/ al terminar cada tarea:
+  // la primera deja el WAV del corte; la segunda, el clip normalizado.
+  const produced = []
+  const localWork = async (task) => {
+    const result = await task()
+    produced.push(
+      (await readdir(paths.avatarDirectory)).filter(
+        (name) =>
+          name.endsWith('.wav') || /^scene_3\.[0-9a-f]+\.mp4$/.test(name),
+      ),
+    )
+    return result
+  }
+  const { options } = lane(paths, { localWork })
+  const result = await renderAvatarScene(SCENE, options)
+
+  assert.equal(result.outcome, 'ready')
+  assert.equal(produced.length, 2)
+  assert.ok(produced[0].some((name) => name.endsWith('.wav')))
+  assert.ok(!produced[0].some((name) => name.endsWith('.mp4')))
+  assert.ok(produced[1].includes(result.avatar.clipFile))
 })
 
 test('un 409 con el cuerpo cortado (sale `avatar_invalid_request` 409) deja el recibo `ambiguous` (sonda P3)', async (t) => {

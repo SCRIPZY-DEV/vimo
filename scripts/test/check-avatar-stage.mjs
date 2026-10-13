@@ -14,7 +14,8 @@
 // mitad de corrida, las que faltan no se piden y las pedidas se cosechan; solo
 // en dólares y en millonésimas, así un saldo igual al estimado alcanza; uno
 // ilegible avisa una vez y deja seguir; una clave rechazada o ausente corta),
-// la concurrencia de 3, la cosecha de recibos antes del saldo (`pending`,
+// la concurrencia (diez a la vez desde la entrega 2h, con el ffmpeg local en
+// su propio límite), la cosecha de recibos antes del saldo (`pending`,
 // `creating` y `ambiguous`), la relectura de scenes.json bajo el lease de
 // escena, una escena anunciada una sola vez
 // aunque el carril entre dos veces, una aparición que falla que no frena la
@@ -52,12 +53,22 @@
 // recibo en vuelo o pagado de su pedido, ni una lista al día), reescrito si
 // cambió el texto o «más expresivo» (R-2e-10), con plantillas sin la clave de
 // DeepInfra y el cliente de las animaciones con ella; y la cancelación durante
-// la escritura, que no paga ni guarda nada.
+// la escritura, que no paga ni guarda nada. Y la entrega 2h (diseño §24.1): el
+// avatar es la única fase que acompaña a otra (a las imágenes) sin cambiar el
+// orden del registro, y `untilStage: images` no lo corre (las reglas del
+// grupo, en check-stage-runner-alongside.mjs).
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
+import { availableParallelism, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -91,8 +102,12 @@ import { CREATE_VIDEO_STAGES } from '../../pipeline/stages/registry.ts'
 import { collectRenderScenes } from '../../pipeline/stages/render/animated-scenes.ts'
 import {
   AVATAR_EXPRESSIVE_PROMPT_SUFFIX,
+  AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS,
+  AVATAR_RENDER_CONCURRENCY,
   AVATAR_RENDER_DEADLINE_MS,
+  avatarLocalWorkConcurrency,
 } from '../../pipeline/types/avatar.ts'
+import { limitConcurrency } from '../../pipeline/utils/concurrency.ts'
 import { isInsufficientCreditsCode } from '../../pipeline/utils/insufficient-credits.ts'
 import {
   FFMPEG,
@@ -313,6 +328,53 @@ async function pipelineProject(t, scenes) {
 
 const readMetadata = async (projectDir) =>
   JSON.parse(await readFile(join(projectDir, 'project.json'), 'utf8'))
+
+// Un proyecto con una aparición más que los renders a la vez (entrega 2h: 11):
+// la última espera turno. Escenas de 1 s y una narración que las cubre.
+async function oneMoreThanTheSlots(t) {
+  const count = AVATAR_RENDER_CONCURRENCY + 1
+  const project = await videoProject(
+    t,
+    Array.from({ length: count }, (_, index) => avatarScene(index + 1, index)),
+  )
+  writeNarration(join(project.projectDir, 'narration.mp3'), count + 1)
+  return project
+}
+
+// Un ffmpeg que cuenta cuántos corren a la vez: cada corrida anota cuántas
+// había en curso al arrancar (ella incluida), tarda un poco más (así se
+// pisan) y llama al ffmpeg del repo con los mismos argumentos.
+async function countingFfmpeg(t) {
+  const directory = await mkdtemp(join(tmpdir(), 'vimo-ffmpeg-count-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'running'))
+  const path = join(directory, 'ffmpeg')
+  await writeFile(
+    path,
+    [
+      '#!/bin/sh',
+      `mkdir "${directory}/running/$$"`,
+      `ls "${directory}/running" | wc -l >> "${directory}/counts"`,
+      'sleep 0.15',
+      `"${FFMPEG}" "$@"`,
+      'status=$?',
+      `rmdir "${directory}/running/$$"`,
+      'exit $status',
+      '',
+    ].join('\n'),
+  )
+  await chmod(path, 0o755)
+  return {
+    path,
+    async running() {
+      const text = await readFile(join(directory, 'counts'), 'utf8')
+      return text
+        .split('\n')
+        .filter((line) => line.trim())
+        .map(Number)
+    },
+  }
+}
 const BEFORE_AVATAR = [
   'voice',
   'transcription',
@@ -339,6 +401,47 @@ test('registro: la fase avatar va entre images y animation', () => {
     CREATE_VIDEO_STAGES.map((stage) => stage.id),
     [...STAGE_IDS],
   )
+  // Entrega 2h (diseño §24.1): el avatar corre junto con las imágenes; el
+  // orden del registro no cambia y ninguna otra fase acompaña a otra.
+  assert.deepEqual(
+    CREATE_VIDEO_STAGES.flatMap((stage) =>
+      stage.runsAlongside ? [[stage.id, stage.runsAlongside]] : [],
+    ),
+    [['avatar', 'images']],
+  )
+})
+
+test('`untilStage: images` no corre el avatar (ni habla con HeyGen ni lo anota); con `avatar`, sí (entrega 2h)', async (t) => {
+  const project = await pipelineProject(t, [avatarScene(1, 0)])
+  const fake = fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
+  const events = []
+  assert.deepEqual(
+    await videosSubcommands['run-video-pipeline'](
+      baseContext(project.root, events, {
+        payload: { projectId: PROJECT_ID, untilStage: 'images' },
+      }),
+    ),
+    { status: 'completed' },
+  )
+  assert.deepEqual(fake.calls, [])
+  assert.ok(!events.some((event) => event.stageId === 'avatar'))
+  assert.deepEqual(
+    (await readMetadata(project.projectDir)).completedStages,
+    BEFORE_AVATAR,
+  )
+  assert.equal(
+    (await readScenesJson(project.projectDir))[0].avatar.status,
+    'planned',
+  )
+
+  assert.deepEqual(await runPipelineToAvatar(project.root, events), {
+    status: 'completed',
+  })
+  assert.equal(fake.posts().length, 1)
+  assert.deepEqual((await readMetadata(project.projectDir)).completedStages, [
+    ...BEFORE_AVATAR,
+    'avatar',
+  ])
 })
 
 test('skip: sin escenas de avatar, con todo listo (aunque desactualizado, también sin su clip: entrega 2d), en la demo y al regenerar imágenes no hay nada que pagar; una lista y al día sin su clip, sí', async (t) => {
@@ -575,12 +678,8 @@ test('saldo: se vuelve a mirar antes de pagar cada escena; si deja de alcanzar a
 })
 
 test('saldo: un 402 de HeyGen al pedir corta los pagos que faltan; las que ya estaban en vuelo terminan y la fase pausa', async (t) => {
-  const project = await videoProject(t, [
-    avatarScene(1, 0),
-    avatarScene(2, 1),
-    avatarScene(3, 2),
-    avatarScene(4, 3),
-  ])
+  const project = await oneMoreThanTheSlots(t)
+  const waiting = AVATAR_RENDER_CONCURRENCY + 1
   // La billetera dice que alcanza, pero HeyGen rechaza cada pedido por saldo.
   const fake = fakeHeyGen(t, {
     clip: project.clip,
@@ -595,24 +694,27 @@ test('saldo: un 402 de HeyGen al pedir corta los pagos que faltan; las que ya es
   await assert.rejects(avatarStage.run(await stageContext(project.root, [])), {
     code: 'avatar_insufficient_credits',
   })
-  // Las tres primeras ya habían pasado el saldo; la cuarta ni lo mira. Qué
-  // deja el carril en los recibos de las rechazadas lo fija su guard
-  // (check-avatar-lane.mjs): acá se cuenta lo que se pagó.
-  assert.equal(fake.posts().length, 3)
-  assert.equal(fake.calls.filter(isBalanceRead).length, 3)
-  assert.ok(fake.posts().every((call) => !/:scene-4:/.test(call.body.title)))
+  // Las de los diez lugares ya habían pasado el saldo; la que esperaba turno
+  // ni lo mira. Qué deja el carril en los recibos de las rechazadas lo fija su
+  // guard (check-avatar-lane.mjs): acá se cuenta lo que se pagó.
+  assert.equal(fake.posts().length, AVATAR_RENDER_CONCURRENCY)
+  assert.equal(
+    fake.calls.filter(isBalanceRead).length,
+    AVATAR_RENDER_CONCURRENCY,
+  )
+  assert.ok(
+    fake
+      .posts()
+      .every((call) => !call.body.title.includes(`:scene-${waiting}:`)),
+  )
   const scenes = await readScenesJson(project.projectDir)
-  assert.equal('attempts' in scenes[3].avatar, false)
+  assert.equal('attempts' in scenes.at(-1).avatar, false)
   assert.ok(scenes.every((scene) => scene.avatar.status !== 'ready'))
 })
 
 test('saldo: un 5xx de HeyGen que habla del saldo vuelve del carril como escena fallida y pausa igual que un 402', async (t) => {
-  const project = await videoProject(t, [
-    avatarScene(1, 0),
-    avatarScene(2, 1),
-    avatarScene(3, 2),
-    avatarScene(4, 3),
-  ])
+  const project = await oneMoreThanTheSlots(t)
+  const waiting = AVATAR_RENDER_CONCURRENCY + 1
   const events = []
   const fake = fakeHeyGen(t, {
     clip: project.clip,
@@ -633,8 +735,12 @@ test('saldo: un 5xx de HeyGen que habla del saldo vuelve del carril como escena 
   )
   // La que esperaba turno no paga, y ninguna queda como «fallida» para
   // reintentar suelta: es una pausa por saldo, como el 402.
-  assert.equal(fake.posts().length, 3)
-  assert.ok(fake.posts().every((call) => !/:scene-4:/.test(call.body.title)))
+  assert.equal(fake.posts().length, AVATAR_RENDER_CONCURRENCY)
+  assert.ok(
+    fake
+      .posts()
+      .every((call) => !call.body.title.includes(`:scene-${waiting}:`)),
+  )
   assert.deepEqual(ofType(events, 'avatar-scene-failed'), [])
   assert.deepEqual(ofType(events, 'avatar-provider-trouble'), [])
 })
@@ -747,32 +853,111 @@ test('saldo: una clave rechazada o ausente corta antes de subir nada', async (t)
   )
 })
 
-test('concurrencia: de cuatro escenas pendientes, nunca más de tres a la vez', async (t) => {
-  const project = await videoProject(t, [
-    avatarScene(1, 0),
-    avatarScene(2, 1),
-    avatarScene(3, 2),
-    avatarScene(4, 3),
-  ])
-  const events = []
-  fakeHeyGen(t, { clip: project.clip, clipSeconds: 1 })
-  let active = 0
-  let peak = 0
-  const context = await stageContext(project.root, events)
-  context.emitter = {
-    emit(event) {
-      events.push(event)
-      if (event.type === 'avatar-scene-started') peak = Math.max(peak, ++active)
-      if (
-        event.type === 'avatar-scene-ready' ||
-        event.type === 'avatar-scene-failed'
-      )
-        active--
-    },
+test('diez a la vez (entrega 2h, diseño §24.3): el tope de la cuenta, la paciencia ante una cuenta llena y el límite del ffmpeg local según los núcleos —como mucho 4, nunca más que la mitad, mínimo 1—', () => {
+  assert.equal(AVATAR_RENDER_CONCURRENCY, 10)
+  assert.equal(AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS, 10 * 60_000)
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 64, Number.NaN].map(
+      avatarLocalWorkConcurrency,
+    ),
+    [1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 1],
+  )
+})
+
+test('el limitador pasa el lugar en mano (ronda 1 de la 2h, M-2): con un lugar, una tarea que llega justo cuando se suelta espera su turno —nunca dos a la vez y en orden de llegada—', async () => {
+  // La tarea C llega N microtareas después de que A suelta el lugar, con B
+  // esperando en la cola: con el limitador de antes, a las 3 se metía en el
+  // hueco (dos a la vez, orden A-C-B).
+  const afterMicrotasks = (depth, callback) => {
+    if (depth === 0) return callback()
+    queueMicrotask(() => afterMicrotasks(depth - 1, callback))
   }
-  await avatarStage.run(context)
-  assert.equal(peak, 3)
-  assert.equal(ofType(events, 'avatar-scene-ready').length, 4)
+  for (let depth = 0; depth <= 6; depth++) {
+    const limited = limitConcurrency(1)
+    let running = 0
+    let peak = 0
+    const started = []
+    const work = (label, body = async () => {}) =>
+      limited(async () => {
+        running++
+        peak = Math.max(peak, running)
+        started.push(label)
+        try {
+          await body()
+        } finally {
+          running--
+        }
+      })
+    let releaseA
+    const gate = new Promise((resolve) => {
+      releaseA = resolve
+    })
+    let late
+    const first = work('A', async () => {
+      await gate
+      afterMicrotasks(depth, () => {
+        late = work('C')
+      })
+    })
+    const second = work('B')
+    releaseA()
+    await Promise.all([first, second])
+    await new Promise((done) => setImmediate(done))
+    await late
+
+    assert.equal(peak, 1, `depth ${depth}`)
+    assert.deepEqual(started, ['A', 'B', 'C'], `depth ${depth}`)
+  }
+})
+
+test('diez a la vez (entrega 2h, diseño §24.3): de doce apariciones, nunca más de diez renders en curso en HeyGen y se llega a diez; el ffmpeg local nunca pasa su límite', async (t) => {
+  const count = AVATAR_RENDER_CONCURRENCY + 2
+  const project = await videoProject(
+    t,
+    Array.from({ length: count }, (_, index) => avatarScene(index + 1, index)),
+  )
+  writeNarration(join(project.projectDir, 'narration.mp3'), count + 1)
+  const ffmpeg = await countingFfmpeg(t)
+  // Renders pedidos y todavía sin terminar en HeyGen: un render termina
+  // recién cuando hay diez en curso (o a los 5 s, si nunca se llega).
+  const rendering = new Set()
+  let peak = 0
+  let full
+  const accountFull = new Promise((resolve) => {
+    full = resolve
+  })
+  fakeHeyGen(t, {
+    clip: project.clip,
+    clipSeconds: 1,
+    async onRequest(call) {
+      if (isRenderRequest(call)) {
+        rendering.add(/:scene-(\d+):/.exec(call.body.title)[1])
+        peak = Math.max(peak, rendering.size)
+        if (rendering.size >= AVATAR_RENDER_CONCURRENCY) full()
+        return
+      }
+      const poll = /^\/v3\/videos\/video-(\d+)-\d+$/.exec(call.path)
+      if (!poll) return
+
+      await Promise.race([
+        accountFull,
+        new Promise((done) => setTimeout(done, 5000)),
+      ])
+      rendering.delete(poll[1])
+    },
+  })
+  const context = await stageContext(project.root, [])
+  context.job = { ...context.job, binaryPaths: { ffmpeg: ffmpeg.path } }
+
+  const outcome = await renderAvatarScenes(context)
+  assert.equal(outcome.rendered.length, count)
+  assert.equal(peak, AVATAR_RENDER_CONCURRENCY)
+  // El corte y la normalización de cada una pasaron por el límite.
+  const limit = avatarLocalWorkConcurrency(availableParallelism())
+  const running = await ffmpeg.running()
+  assert.ok(running.length >= count * 2, String(running.length))
+  assert.ok(Math.max(...running) <= limit, `${Math.max(...running)} > ${limit}`)
+  if (limit > 1) assert.ok(Math.max(...running) > 1)
 })
 
 test('cosecha antes que saldo: un render ya pago se baja y publica aunque el saldo no alcance para el resto', async (t) => {
@@ -1015,12 +1200,7 @@ test('el mp4 se marca desactualizado solo cuando una escena recibe un clip nuevo
 })
 
 test('cancelar con renders en vuelo: sale como cancelación, el pedido en vuelo queda guardado sin resolver y la que espera turno no arranca', async (t) => {
-  const project = await videoProject(t, [
-    avatarScene(1, 0),
-    avatarScene(2, 1),
-    avatarScene(3, 2),
-    avatarScene(4, 3),
-  ])
+  const project = await oneMoreThanTheSlots(t)
   const controller = new AbortController()
   // La persona cancela mientras el primer pedido de render está en vuelo.
   const fake = fakeHeyGen(t, {
@@ -1050,9 +1230,9 @@ test('cancelar con renders en vuelo: sale como cancelación, el pedido en vuelo 
     )
     assert.ok(attempts[0].audioAssetId)
   }
-  // La cuarta esperaba turno: ni saldo, ni audio, ni recibo.
-  assert.equal('attempts' in scenes[3].avatar, false)
-  assert.equal(scenes[3].avatar.status, 'planned')
+  // La que esperaba turno: ni saldo, ni audio, ni recibo.
+  assert.equal('attempts' in scenes.at(-1).avatar, false)
+  assert.equal(scenes.at(-1).avatar.status, 'planned')
 })
 
 test('lease: con las escenas tomadas se relee scenes.json; lo que otro job dejó listo entre la primera lectura y el lease no se vuelve a pagar ni se pisa', async (t) => {

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { availableParallelism } from 'node:os'
 import { isDeepStrictEqual } from 'node:util'
 
 import {
@@ -8,7 +9,7 @@ import {
 } from '../animation/coordination.ts'
 import { createAnimationLlm } from '../animation/llm.ts'
 import { frameBoundary, slotDurationSeconds } from '../animation/timing.ts'
-import { markVideoOutdated, readProjectMetadata } from '../project/metadata.ts'
+import { markStoredVideoOutdated } from '../project/metadata.ts'
 import { isValidFile, type ProjectPaths } from '../project/paths.ts'
 import {
   isAvatarClipStale,
@@ -32,6 +33,7 @@ import {
   AVATAR_MOTION_PROMPT_LIMIT,
   AVATAR_RENDER_CONCURRENCY,
   avatarExpressiveAvailable,
+  avatarLocalWorkConcurrency,
   avatarMotionSupport,
   avatarSceneSpan,
   estimateAvatarUsd,
@@ -1207,9 +1209,11 @@ export async function renderAvatarScenes(
               if ([...avatars.keys()].every((sceneId) => refused.has(sceneId)))
                 return
 
-              const latest = await readProjectMetadata(paths)
-              await markVideoOutdated(paths, latest)
-              context.metadata.videoOutdated = latest.videoOutdated
+              // Sobre lo que hay en disco y en la fila de escrituras de
+              // project.json (entrega 2h): en el pipeline corre junto con las
+              // imágenes y con el gancho que anota `completedStages`, y la
+              // marca no puede pisar lo que ese gancho acaba de guardar.
+              await markStoredVideoOutdated(paths, context.metadata)
             },
           ),
         )
@@ -1260,6 +1264,12 @@ export async function renderAvatarScenes(
       signal.throwIfAborted()
       if (prepared.size > 0) await persistAvatars(prepared, undefined)
 
+      // El trabajo local de los carriles (cortar el audio, normalizar el
+      // clip) con su propio límite, de toda la corrida (entrega 2h, §24.3):
+      // los diez renders a la vez pueden terminar juntos.
+      const localWork = limitConcurrency(
+        avatarLocalWorkConcurrency(availableParallelism()),
+      )
       const runScene = (scene: Scene, allowNewRequest: boolean) =>
         renderAvatarScene(scene, {
           client,
@@ -1280,6 +1290,7 @@ export async function renderAvatarScenes(
           forceNewRender: facts.get(scene.id)?.keepsClip === true,
           signal,
           clock: selection.clock,
+          localWork,
           events: {
             // El carril avisa en cada entrada, también en la cosecha que
             // termina en `needs-request` antes de pedir el render: la escena

@@ -57,7 +57,8 @@ al cuadro del render, mudo, sobre la narración de siempre.
    exacto a 25 fps, nunca se retima. `metadata.narrationVersion` sube al reemplazar la narración y
    deja todo avatar **desactualizado** (derivado al leer, nunca persistido); el render lo salta y
    renderiza el fondo estático.
-7. **Una fase `avatar`** entre `images` y `animation`; desde el editor, `avatar-render-scenes`,
+7. **Una fase `avatar`** entre `images` y `animation` en el registro (desde la 2h arranca junto con `images`,
+   enmienda del 2026-10-13); desde el editor, `avatar-render-scenes`,
    `avatar-insert-scene` y `avatar-remove-scene` con el lease de animación.
 8. **En el timeline, un bloque morado en la pista de escenas** (`--amethyst`), con la tarjeta
    compartida `TimelineBlockCard` que también adopta el clip animado (diseño de VidRush: borde blanco
@@ -76,7 +77,8 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
 ```
 
 > Esta es la forma original: con la enmienda del 2026-10-10 ya no hay decorado ni fondo generado
-> (ver «Forma, con la enmienda», más abajo).
+> (ver «Forma, con la enmienda», más abajo), y desde la 2h el avatar arranca junto con las imágenes y no
+> después (enmienda del 2026-10-13).
 
 | Componente                                | Estado  | Ubicación                                                                  |
 | ----------------------------------------- | ------- | -------------------------------------------------------------------------- |
@@ -106,7 +108,7 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
   en todos los consumidores de Kie (regeneración, deshacer, migración de legados). Descartado: un
   campo propio aísla sin tocar nada.
 - **Lotes (`/v3/videos/batches`)**: menos viajes, pero un recibo por aparición es lo que hace posible
-  pagar una sola vez y reintentar solo lo que falló. Se piden de a tres, uno por uno.
+  pagar una sola vez y reintentar solo lo que falló. Se piden de a tres, uno por uno (de a diez desde la 2h).
 - **Vimo compone el fondo** (pedir `webm` con alfa y `overlay` en ffmpeg): control del encuadre, pero
   WKWebView no reproduce VP9 con alfa y el ffmpeg de Windows no está confirmado. HeyGen compone ahora;
   reconsiderar en el sub-proyecto 3.
@@ -365,7 +367,7 @@ voz → transcripción (+sentenceEnd) → cortes (planifica el avatar y corta al
   después de un `409 request_in_progress` del mismo pedido (`sawRequestInProgress`: el original
   sigue en vuelo). El render se sondea a los 5 s y cada vez más espaciado hasta 20 s, con un
   plazo de 30 min: pasado el plazo el recibo queda `pending` y se cosecha después. La fase corre
-  de a tres, cosecha antes de pagar y mira el saldo antes de cada pago nuevo (diseño §8): la
+  de a tres (de a diez desde la 2h), cosecha antes de pagar y mira el saldo antes de cada pago nuevo (diseño §8): la
   relectura no cuenta las escenas ya admitidas que todavía no se cobraron, así que detecta un
   gasto ajeno mayor que lo que está en vuelo y uno menor lo ataja HeyGen con un 402. La
   cosecha puede repetir un POST con la misma clave antes del saldo, porque HeyGen deduplica: si el
@@ -1186,3 +1188,220 @@ encontró ninguno); los 0,93 US$ son una constante en dos archivos; que una V co
 que tenía guardado (R-2g-20) es no mandarlo desde el editor —apagarlo, como R-2g-6, pagaba de nuevo un
 render ya pedido o pagado de esa escena—; y el velo es `panelClassName` y `warningClassName` de
 `avatarDeleteMenuClasses.ts`. La ADR sigue en «Propuesta»: pasa a Aceptada con la QA del dueño.
+
+## Enmienda 2026-10-13 — entrega 2h
+
+Pedidos del dueño después de usar la 2g (hechos y decisiones: §24 del diseño; rulings `R-2h-N` en
+`docs/handoff/2026-10-09-avatar-heygen/execution-e2h/ledger.md` (interno), y los de cada paquete —WP-A el corredor, el
+carril y el disco; WP-B la pantalla de progreso y su «Cancelar»; WP-C el editor y los diagnósticos— en sus
+informes y revisiones de esa carpeta). Donde un pedido admitía dos lecturas, la decisión dice cuál se tomó para
+que el dueño la corrija en la QA. Lo que cambia con la plata: el avatar se empieza a generar, y a cobrar, al
+mismo tiempo que las imágenes, así que si la generación se corta (un fallo, una pausa por saldo, «Cancelar») lo
+que HeyGen ya aceptó se cobra igual y queda guardado; por eso el aviso al cancelar y la línea de la tarjeta del
+fallo. Diez renders a la vez gastan el mismo saldo que tres, más rápido. No hay endpoints, tarifas ni cobros
+nuevos. En la ejecución no se gastó saldo: los agentes no usaron la clave, el llavero ni la red (todo con HeyGen
+simulado) y el tope de diez salió de la documentación pública de HeyGen. Donde el diseño o las enmiendas de
+arriba dicen otra cosa que esta, manda esta.
+
+**El escenario cuesta 1 US$.** El 2026-10-13 el dueño confirmó en su cuenta que «Crear escenario»
+descuenta 1 US$. Los 0,93 US$ de la 2g (R-2g-1) salían de un saldo inicial que recordaba a medias
+(«como a $60, creo»). `AVATAR_LOOK_GENERATION_USD` pasa a 1 en `pipeline/types/avatar.ts` y en su
+espejo de `src/modules/avatars/constants.ts`; la ficha y el diálogo dicen «1,00 US$». Sigue siendo
+una constante: si HeyGen cambia el precio, se cambia ahí.
+
+- **El avatar corre junto con las imágenes (§24.1; R-2h-2, R-2h-3).** La fase `avatar` esperaba de balde a las
+  imágenes: no usa nada de los prompts ni de ellas. Ahora el runner las corre a la vez
+  (`runsAlongside: 'images'`, enmienda del mismo día de la [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md)):
+  evalúa los dos `skip()`, emite los dos `stage-started` (imágenes primero) y cada fase emite su
+  `stage-completed` y guarda su avance apenas termina. Por eso `completedStages` puede quedar con `avatar`
+  antes que `images`, y en un proyecto sin avatar el `stage-skipped` del avatar sale antes del `stage-started`
+  de las imágenes. Que lo haga el corredor y no una promesa suelta dentro de `images` cuesta tocar el store de
+  la app y el registro de Rust, que suponían una sola fase en curso, pero cada fase conserva sus eventos y su
+  `skip()`. Las reglas del fallo:
+  - Falla `images` (o se pausa por saldo de imágenes): se corta el avatar, se lo espera y sale el fallo de
+    `images`. Lo que HeyGen ya aceptó queda en los recibos y se cosecha en la próxima corrida sin pagar de nuevo.
+  - Falla el avatar (sin saldo, clave rechazada o cualquier fallo que la fase lanza): `images` termina, se
+    guarda y se anota; recién después sale el fallo del avatar (pausa por saldo o error). Reanudar saltea
+    `images` y rehace solo el avatar. Está probado en el pipeline real: sin saldo de avatar, las imágenes
+    terminan y quedan en `completedStages`, `project.json` queda `paused` con `avatar_insufficient_credits` y la
+    corrida siguiente solo habla con HeyGen.
+  - Fallan las dos: gana `images` y el del avatar va al log como aviso con su código (el eco del corte no).
+  - Cancelar frena las dos. Una aparición que falla sigue sin frenar nada (aviso e imagen fija, desde la 2d).
+  - Un fallo le gana a una pausa (hoy ninguna de las dos fases la pide). El runner no devuelve ni lanza antes
+    de que terminen las dos: el sidecar sale forzado después de `job-failed`.
+- **El disco (§24.1).** Dos fases que escriben el mismo proyecto a la vez.
+  - `scenes.json`: las tres escrituras de `images.ts` y la del carril verbatim de prompts
+    (`verbatim-persistence.ts`) pasan por `writeScenesKeepingAvatars`. Bajo el lease de checkpoint con el que
+    el avatar relee y guarda sus recibos, releen el disco y cada escena conserva el `avatar` de ahí (`images`
+    nunca cambia `scene.avatar`; sin avatares en disco escribe los mismos bytes de siempre). Sin esto, un
+    recibo pagado que el avatar guardara en el medio se perdía y se pagaba de nuevo. La espera del lease no se
+    cancela: las imágenes guardan sus tareas pagadas de Evolink aunque la persona cancele. El lease no es
+    reentrante, y ningún camino que ya lo tiene (el avatar, la animación, el recorte) llega a esas escrituras;
+    los que llegan (el pipeline, el editor regenerando imágenes) toman solo el lease del proyecto, que es
+    otro. La fase de prompts, que comparte la persistencia verbatim, también lo toma ahora, sin contención.
+  - `project.json`: una sola fila de escrituras por archivo en el proceso (`inMetadataQueue`): cada una toma la
+    copia en memoria cuando le toca escribir y no cuando se pidió, y la marca de video desactualizado del
+    carril (`markStoredVideoOutdated`) relee el disco dentro de la fila. Así ni `completedStages` ni
+    `videoOutdated` se pierden (la ADR-0013 lo cuenta entero). Se eligió «releer y unir» y no «escribir la copia
+    en memoria» porque el carril también corre como comando del editor junto a otros jobs, y ahí la copia de
+    un job puede estar vieja.
+- **Diez renders a la vez (§24.3; R-2h-1, R-2h-6).** `AVATAR_RENDER_CONCURRENCY` pasa de 3 a 10, el tope de una
+  cuenta Pay-As-You-Go. La fuente es «Usage limits» de la documentación de HeyGen
+  (`developers.heygen.com/docs/usage-limits`, leída el 2026-10-13): 10 trabajos asíncronos a la vez por cuenta
+  (Enterprise, 20 más una ráfaga: fuera de la 2h), y pasarse responde `429` `rate_limit_exceeded` con
+  `Retry-After`. El artículo de precios de la API (actualizado el 2026-09-16) dice «API plan allows for 10
+  videos to be processed concurrently». Los límites por ruta de Pay-As-You-Go no se tocan con diez carriles
+  (`POST /v3/videos` 10/s, `POST /v3/assets` 30/min y `GET /v3/videos/{id}` 500/min más 600/min por IP: unas 10
+  subidas por tanda y unas 120 consultas por minuto). Una cuenta con menos tope lo absorbe el 429 con paciencia
+  (abajo). El trabajo local del carril —cortar el audio y normalizar el clip con ffmpeg, y leer un crudo que no
+  se pudo normalizar— pasa por UN límite propio de la corrida, compartido por todos los carriles:
+  `min(4, max(1, floor(núcleos lógicos / 2)))` (`avatarLocalWorkConcurrency`, con `availableParallelism()` en
+  `render-scenes.ts`). Así diez clips que llegan juntos no ahogan la máquina mientras corren las imágenes; en
+  un equipo de 2 núcleos se normaliza de a uno. El control de saldo sigue igual: una aparición a la vez antes de
+  cada pago, con la billetera releída. El limitador compartido (`limitConcurrency`) pasa ahora el lugar en
+  mano: antes, una tarea que llegaba entre que se soltaba un lugar y la continuación de la que esperaba entraba
+  también y se pasaba del tope en uno (ningún llamador de hoy lo disparaba, pero el contrato era «a lo sumo
+  `max`»; revisión de WP-A, M-2).
+- **La cuenta llena: el 429 con paciencia (§24.3; R-2h-7).** Un `429` al pedir un render (`createVideo`) es la
+  cuenta llena —la persona tiene otro trabajo en curso en HeyGen, por ejemplo un escenario generándose—: un
+  rechazo, no se creó nada ni se cobró. El cliente espera y repite el MISMO pedido (misma `Idempotency-Key`,
+  mismo cuerpo), cancelable, con una paciencia para todo el render: `AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS`, 10
+  min en total, compartidos con las esperas del 409 `request_in_progress`. Cada espera es el `Retry-After` más
+  1 s con tope de 2 min (sin encabezado, la creciente), y solo se espera si entra en lo que queda de la
+  paciencia: con `Retry-After: 120` son 5 esperas de 2 min y 6 POST; sin encabezado, 10 POST en 492 s. No cuenta
+  como intento fallido: el recibo no se cierra ni cambia de clave. Agotada la paciencia sale como hasta hoy
+  (`avatar_rate_limited`, 429): el intento queda `ambiguous` y la aparición sale con la imagen fija del look.
+  Las demás llamadas siguen con sus tres reintentos. La revisión de WP-A (M-1) encontró que una espera
+  calculada que no era un número positivo dejaba sin efecto la paciencia (un `retry_after` de «soon» o de -1 en
+  el cuerpo daba 200 POST con la misma clave, sin pagar de más pero martillando la cuenta). Ahora
+  `secondsFromBody` solo toma del cuerpo un número finito mayor o igual que cero (o un texto que lo sea) y
+  cualquier otra cosa cae al encabezado o a la creciente; el cliente de HeyGen, además, nunca espera menos de
+  1 s (defensa en profundidad: por HTTP no se alcanza). `secondsFromBody` lo comparten DubVoice, ElevenLabs,
+  ai33 y Deepgram, y para ellos solo cambia con valores que antes daban una espera NaN o negativa.
+- **`render` es «cobrada», y `upload` antes de cada POST (§24.3; R-2h-4).** El carril emitía `render` antes del
+  POST; ahora lo emite recién cuando `createVideo` devolvió el id, antes de guardar el recibo `pending` (si
+  guardarlo falla, la aparición igual figura cobrada, que es lo cierto). La app cuenta como cobrada toda
+  aparición con una fase de `AVATAR_CHARGED_PHASES` (`render`, `download`, `normalize`) o lista: es el único
+  momento en que Vimo sabe que HeyGen aceptó el pedido. Hasta ahí va en `upload`, también si el audio se reusó
+  de un intento anterior o se repite un pedido sin respuesta (que no pasan por la subida) y durante la espera
+  de una cuenta llena. El carril recuerda la última fase avisada de cada aparición y no repite la misma dos
+  veces seguidas: un pedido nuevo da `audio`, `upload`, `render`, `download` y `normalize`, cada una una vez, y
+  la consulta del render ya no vuelve a avisar `render` en cada vuelta (el reloj de la app cuenta desde el
+  primer aviso). Retomar un render ya pedido avisa `render` al entrar. **Ventana conocida:** entre el POST y su
+  respuesta pasa a lo sumo un segundo en el que la aparición todavía figura en `upload`: un «Cancelar» justo ahí
+  corta sin aviso aunque HeyGen ya haya aceptado el pedido, y no hay forma de saberlo antes.
+- **La pantalla de progreso con dos fases a la vez (§24.2).** `CreateTask.stage` pasa a `activeStages`, las
+  fases que arrancaron y no terminaron, en orden de arranque: `stage-started` suma la suya, `stage-completed` y
+  `stage-skipped` sacan solo la suya (en cualquier orden) y todo cierre o relanzamiento de job la vacía, también
+  al restaurar una tarea guardada (el job murió con la app). Cada arranque reinicia solo lo suyo: el
+  `stage-started` de `images` borra la pasada de recuperación de imágenes, el de `scene-prompts` la vigilancia
+  del modelo de prompts, y ningún otro toca a ninguna de las dos. La lista de fases hace girar toda fila en
+  curso («Generando imágenes» y «Generando el avatar» juntas). Una fase, un panel: mientras corren las imágenes,
+  la grilla, con la tarjeta de cada aparición del avatar mostrando su porcentaje simulado apenas arranca («En
+  espera» solo mientras no arrancó); cuando las imágenes terminan y el avatar sigue, su panel, con el reloj y la
+  ayuda solo mientras `avatar` está en curso, y si el avatar termina primero su panel aparece cuando terminan
+  las imágenes, con lo que pasó (D7 de WP-B). Durante una pasada de recuperación que reescribe prompts el
+  avance del avatar solo se ve en su fila girando (D6 de WP-B: la grilla es la de prompts). La vista de
+  progreso de la Biblioteca hace lo mismo: monta la misma pantalla.
+- **«Cancelar» con apariciones cobradas: avisar y confirmar (§24.4; R-2h-5 y el ruling de unificación del
+  2026-10-13).** Con al menos una aparición cobrada y sin terminar (fase `render`, `download` o `normalize`),
+  «Cancelar» abre `AvatarChargedCancelDialog` en lugar del «¿Seguro? Cancelar», con el mismo componente en las
+  dos pantallas (`variant: 'generation'` o `'editor'`): «¿Cancelar la generación?» (en el editor, «¿Cancelar el
+  avatar?») y «Ya se mandaron a generar N apariciones del avatar: se cobran de tu saldo de avatares aunque
+  canceles. No se pierden: quedan guardadas y se usan cuando sigas con este video, sin pagar de nuevo»;
+  «Seguir generando» (con el foco; Escape o cerrar también es seguir) y «Cancelar igual», que pide UNA sola
+  cancelación aunque se toque dos veces. Sin ninguna cobrada todo sigue como hoy (el segundo clic del
+  «¿Seguro? Cancelar» en Crear y la Biblioteca; directo en el editor), y durante la cuenta regresiva del
+  reintento automático «Cancelar» vuelve al «¿Seguro?» porque no hay ningún render en curso. Lo que el ruling
+  fijó para las dos pantallas:
+  - La cuenta es la de las cobradas y sin terminar **al tocar «Cancelar»**. Sube si se cobran más con el aviso
+    abierto y **nunca baja**: un número que baja mientras se lee, o un aviso que desaparece bajo el puntero,
+    confunden.
+  - El aviso se cierra solo por elección de la persona, al terminar el job y, en Crear, al caer en la cuenta
+    regresiva del reintento; no porque lo cobrado termine. Está atado a su job: no reaparece con el siguiente.
+  - El foco vuelve al botón que lo abrió (`useFocusAfterDialogClose`, un efecto pasivo con `preventScroll`:
+    Radix no devuelve el foco de un diálogo abierto por estado, sin `Trigger`). Si ese botón ya no está (el
+    job terminó con el aviso abierto desde «Cancelar»), en Crear el foco cae en el título de la pantalla (el
+    `<h1>`, con `tabIndex={-1}`: no actúa con Enter) y en el editor va adonde va al terminar. Los botones
+    que abren el aviso ignoran las repeticiones de una tecla sostenida (`ignoreHeldKey`): un Enter largo
+    sobre «Seguir generando» reabría el aviso y, si entretanto terminaban las cobradas, cancelaba la
+    generación (medido con teclas reales).
+  - **«Crear otro»** también corta la corrida viva (`returnToForm` descarta la tarea): con cobradas pasa por el
+    mismo aviso (`back.cancelsRun`; el aviso recuerda qué confirma, y «Cancelar igual» vuelve al formulario
+    descartando una sola vez). El botón de la Biblioteca solo navega y no avisa.
+  - **En el editor** la cuenta es la del job entero y no la de la escena elegida (cancelar las corta todas); el
+    store anota la fase vigente de cada aparición (`SceneAvatarRendering.phase`), y pedida la cancelación, otro
+    «Cancelar» no hace nada. El aviso también vive en la tarjeta desplegada de la vista ampliada (un
+    `AlertDialog` sobre el `Dialog` de la galería: Escape cierra solo el aviso).
+- **La tarjeta del fallo y Crear (§24.2).** Si la generación se corta (falla o se pausa) y en la corrida se
+  mandaron a generar apariciones del avatar, la tarjeta suma «Las N apariciones del avatar que ya se mandaron a
+  generar están pagadas y quedan guardadas: al reintentar se usan sin pagar de nuevo». Va dentro de la tarjeta
+  del fallo y debajo de la de saldo agotado (D5 de WP-B: esa tarjeta no era suya; meterla adentro son dos
+  líneas), y también en una tarea interrumpida al cerrar la app: lo cobrado de la corrida
+  (`avatarChargedSceneIds`) sobrevive al reinicio porque los recibos quedaron en disco, y se vacía al lanzar
+  otra corrida. **D1 de WP-B:** la aparición que falla sale de esa cuenta, para que la tarjeta nunca prometa de
+  más (un render que HeyGen falló no se cobra); el costo es que un render cobrado cuya descarga falló o venció
+  (`avatar_download_failed`, `avatar_timeout`) tampoco se cuenta: la cifra puede quedar corta, nunca larga. Las apariciones que el
+  corredor corta al abortar el avatar no emiten `failed` y sí se cuentan. En Crear, debajo del costo estimado
+  del avatar y solo con el avatar encendido, la tarjeta del costo dice «El avatar se genera al mismo tiempo que
+  las imágenes y se cobra apenas empieza.» Los textos siguen sin nombrar al proveedor.
+- **Diagnósticos (§24.1).** `recorder.rs` guardaba una sola fase en curso y la que terminaba primero borraba a
+  la otra. Ahora guarda las fases en curso en el orden en que arrancaron, `stage-completed` y `stage-skipped`
+  sacan solo la suya y `job-failed` anota como `failed_stage` la primera que sigue en curso: con las reglas del
+  fallo eso nombra la que de verdad falló (si fallan las dos, `images`). Es una heurística, no un dato del
+  evento: si falla el gancho que guarda el avance de la que manda después de su `stage-completed`, el corredor
+  corta a la otra y el fallo queda anotado con ella (muy raro; el campo es una pista para soporte). El campo
+  sigue siendo UNA fase: ni el spool ni la fila del webview cambian.
+- **Aceptado y estacionado.** La espera de una cuenta llena (hasta 10 min) no se anuncia: la aparición figura en
+  «Subiendo la voz al servicio de avatares» y nada dice que la cuenta está llena. Un «Cancelar» durante la
+  ventana de un segundo entre el POST y su respuesta corta sin aviso. La cuenta que no baja puede decir
+  más de lo que queda en curso (3 cuando ya terminaron dos), y con todo lo cobrado terminado y el aviso abierto
+  hasta el fin del job, «Cancelar igual» corta un job sin nada cobrado en vuelo: no hace daño y el texto sigue
+  siendo cierto. `animation/generate.ts` conserva su propio «leer y marcar» de `project.json` (corre después
+  del grupo, sin carrera); si algún día corre junto con otra fase, debe pasar a `markStoredVideoOutdated`. Un
+  `failed_stage` ante un crash con las dos fases en curso nombra la primera en arrancar. El test de doce
+  apariciones usa un ffmpeg envuelto en `/bin/sh` y tiempo real (de 4 a 8 s): anda en macOS y Linux, no en
+  Windows, como el resto de los guards con ffmpeg del repo. «Crear otro» con cobradas lo cubre
+  `check-avatar-cancel-charged-ui.mjs` con la vista Create real y el formulario simulado; el guard del borrador
+  de Crear (`check-create-draft-ui.mjs`) sigue sin ese caso.
+- **Verificación.** Guards nuevos: `check-stage-runner-alongside.mjs` (26 tests: el grupo con fases falsas, la
+  fila de `project.json` y el pipeline real con Fal y HeyGen simulados) y `check-avatar-cancel-charged-ui.mjs`
+  (76 checks: lo cobrado, el aviso de Crear con teclas reales por CDP, «Crear otro» y la tarjeta del fallo).
+  Ampliados: `check-avatar-stage.mjs` (60), `check-avatar-lane.mjs` (97), `check-heygen-client.mjs` (65),
+  `check-avatar-scenes-skip-images.mjs` (15), `check-avatar-progress-ui.mjs` (252), `check-create-avatar-ui.mjs`
+  (403), `check-editor-avatar-regenerate-ui.mjs` (429) y `check-editor-avatar-gallery-ui.mjs` (201); en Rust,
+  `recorder.rs` suma 9 tests (20 ahí, 88 en total con `pnpm test:tauri`). Cada paquete corrió mutantes sobre una
+  copia y los que sobreviven son equivalentes (WP-A, 37 de 38 y, en su ronda, 13 de 14; WP-B, 37 de 37 y 24 de
+  24; WP-C, 12 de 12 en Rust y 27 de 27 y 32 de 32 en el editor). WP-A, WP-B y WP-C tuvieron una revisión de
+  tarea aparte y sus hallazgos se cerraron en una ronda: ninguno crítico; los importantes fueron «Crear otro»
+  que cortaba sin aviso y el «Cancelar» de la cabecera que no ignoraba la tecla sostenida (WP-B), y la cuenta y
+  el cierre del aviso del editor contra el ruling de unificación, su foco y la vista ampliada sin guard (WP-C).
+  `pnpm check:locales` cuenta 2196 claves. Todo con HeyGen simulado: la ejecución no gastó saldo.
+
+**A confirmar en la QA del dueño, con la app real** (lista: `execution-e2h/qa-2h.md`): (1) las dos filas
+girando a la vez y las tarjetas del avatar con su porcentaje mientras corren las imágenes; (2) diez apariciones
+a la vez en la cuenta real: cuánto tarda contra un video anterior y que HeyGen no devuelva un 429 con diez;
+(3) el aviso al cancelar con una aparición cobrada en Crear, en «Crear otro» y en el editor, y que el saldo baje
+por lo ya aceptado y no vuelva a bajar al reanudar; (4) la línea de la tarjeta del fallo (por ejemplo, cerrando
+la app a la fuerza con renders ya aceptados); (5) que `render` coincida con el momento en que baja el saldo;
+(6) si la cuenta llena existe en la práctica (opcional, necesita otro trabajo en HeyGen); (7) el precio de
+«Crear escenario» a 1,00 US$; (8) «Exportar para editar» con su X; (9) lo que entró de `dev` 0.10.1 (un video
+sin avatar de punta a punta, la exportación rápida y el cambio de voz tras un fallo con ai33).
+
+Costo si estuviera mal: que el avatar termine aunque fallen las imágenes (R-2h-3) es cambiar el corte de las
+acompañantes en `runGroup` (`run-stages.ts`), y que una pausa le gane a un fallo, el último `return` de esa
+función; los diez renders son la constante `AVATAR_RENDER_CONCURRENCY` (si la cuenta tiene menos, el 429 con
+paciencia lo absorbe) y el límite del ffmpeg local, `AVATAR_LOCAL_WORK_MAX_CONCURRENCY` con
+`avatarLocalWorkConcurrency` (R-2h-6); la paciencia de 10 min es `AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS` y su
+piso de 1 s, `RATE_LIMIT_MIN_WAIT_MS` del cliente (R-2h-7); qué cuenta como cobrada (R-2h-4) es
+`AVATAR_CHARGED_PHASES` en `constants.ts` y la fase `render` que emite el carril después del POST; que la cuenta
+del aviso siga a las cobradas en vivo, y no solo suba, es `chargedWarningAfterRender` en Crear y
+`useAvatarSceneRender` en el editor; que el aviso aparezca siempre que haya avatar y no solo con una cobrada en
+curso (R-2h-5) es la condición de `requestCancel` en `GenerationProgress` y de `cancelRender` en el editor; que
+«Crear otro» no corte la corrida (y vuelva al formulario dejándola correr, como la Biblioteca) es quitar
+`cancelsRun` de `Create.tsx`; que una aparición fallida siga en la cuenta de lo cobrado (D1 de WP-B) es quitar
+el caso `avatar-scene-failed` de `chargedSceneIdsWithAvatarEvent`; mostrar el panel del avatar durante una
+pasada que reescribe prompts (D6 de WP-B) es la condición de `showAvatarPanel`; la línea de lo guardado dentro
+de la tarjeta de saldo agotado (D5 de WP-B) es una prop `avatarKept` en `InsufficientCreditsCard`; y la
+heurística de `failed_stage` cambia en `failing_stage` de `recorder.rs`. La ADR sigue en «Propuesta»: pasa a
+Aceptada con la QA del dueño.

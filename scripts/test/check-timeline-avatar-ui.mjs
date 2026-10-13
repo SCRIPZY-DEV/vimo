@@ -155,9 +155,9 @@ try {
   // entero cambia en menos de 1,4 s.
   const percentBefore = rendering.textContent.match(/\d+%/)[0]
   check(await waitFor(() => cardTitled(rendering.title)?.textContent.match(/\d+%/)?.[0] !== percentBefore, 'el porcentaje del render avanza solo (sigue en ' + percentBefore + ')'), 'el porcentaje del render avanza solo')
-  // En cola (HeyGen renderiza de a tres): el mismo «Generando el avatar…»,
-  // sin porcentaje, aunque su reloj venga de hace un minuto; al arrancar, el
-  // porcentaje vuelve (entrega 2d).
+  // En cola (HeyGen renderiza de a diez, AVATAR_RENDER_CONCURRENCY): el mismo
+  // «Generando el avatar…», sin porcentaje, aunque su reloj venga de hace un
+  // minuto; al arrancar, el porcentaje vuelve (entrega 2d).
   window.setAvatarRendering({ 9: { startedAt, queued: true } })
   check(await waitFor(() => { const card = cardTitled(i18n.t('library.editor.timeline.avatarRendering')); return card && !/\d+%/.test(card.textContent) }, 'en cola, el bloque no muestra porcentaje'), 'en cola: «Generando el avatar…» sin porcentaje')
   window.setAvatarRendering({ 9: { startedAt } })

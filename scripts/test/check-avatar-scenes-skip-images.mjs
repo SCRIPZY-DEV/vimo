@@ -5,7 +5,11 @@
 // respaldo—, sus `skip()` no la esperan, queda en `scenes.json` como la dejó
 // el corte y su narración sigue siendo la ventana de época de su vecina. El
 // editor no le regenera imagen: en un pedido mixto la saltea con un aviso y
-// regenera las demás; un pedido solo de escenas de avatar se rechaza. Stages
+// regenera las demás; un pedido solo de escenas de avatar se rechaza. Y desde
+// la entrega 2h (diseño §24.1), con el avatar corriendo a la vez: un recibo
+// que el avatar guarda mientras se generan las imágenes sobrevive a cada
+// escritura de la fase (la primera, la de los prompts reescritos y la del
+// reintento) y a la escritura por lote del carril verbatim. Stages
 // y comandos reales; el LLM y Fal simulados (un solo `fetch` simulado vivo
 // por test); todo en carpetas temporales, sin red ni claves.
 import assert from 'node:assert/strict'
@@ -21,6 +25,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
+import { withAnimationCheckpointLease } from '../../pipeline/animation/coordination.ts'
 import { regenerateSceneImages } from '../../pipeline/commands/videos/regenerate-scene-images.ts'
 import { resolvePipelineConfig } from '../../pipeline/config/pipeline-config.ts'
 import { SUBJECT_CLASSIFIER_SYSTEM_PROMPT } from '../../pipeline/prompts/reference-characters.ts'
@@ -32,6 +37,7 @@ import { readScenes, writeScenes } from '../../pipeline/project/scenes-file.ts'
 import { buildCreateVideoContext } from '../../pipeline/stages/context.ts'
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
+import { createVerbatimPromptPersistence } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-persistence.ts'
 import {
   isNarrativeReviewRequest,
   narrativeReviewAnswer,
@@ -326,6 +332,144 @@ test('imágenes (casa): el rescate por política de contenido reescribe solo esc
     ],
   )
   assert.deepEqual(byId(await readScenes(context.paths), 2), FRESH[1])
+})
+
+// ─── El avatar corre junto con las imágenes (entrega 2h, diseño §24.1) ───
+
+// Lo que hace el carril del avatar al guardar un recibo (render-scenes.ts):
+// bajo el lease de checkpoint relee scenes.json y reemplaza SOLO el `avatar`
+// de su escena.
+async function saveAvatarReceipt(paths, sceneId, avatar) {
+  await withAnimationCheckpointLease(
+    paths.root,
+    new AbortController().signal,
+    async () => {
+      const current = await readScenes(paths)
+      await writeScenes(
+        paths,
+        current.map((scene) =>
+          scene.id === sceneId ? { ...scene, avatar } : scene,
+        ),
+      )
+    },
+  )
+}
+// Un recibo del render de la escena 2, pagado o en vuelo.
+const avatarWithReceipt = (state) => ({
+  ...AVATAR,
+  usdEstimated: 0.099,
+  attempts: [
+    {
+      hash: 'a'.repeat(64),
+      state,
+      engine: 'avatar_iii',
+      lookId: 'look-1',
+      audioAssetId: 'asset-audio',
+      createdAt: '2026-10-13T15:00:00.000Z',
+      videoId: 'video-2-1',
+    },
+  ],
+})
+
+test('imágenes (2h): un recibo del avatar guardado mientras se generan las imágenes sobrevive a cada escritura de la fase, también las de la pasada de recuperación', async (t) => {
+  const context = await houseProject(t, prompted())
+  const pending = avatarWithReceipt('pending')
+  const succeeded = avatarWithReceipt('succeeded')
+  const onDiskAtRetry = []
+  let antennaCalls = 0
+  const seen = mockProviders(t, {
+    async fal(prompt) {
+      if (!prompt.includes('red antenna')) return imageResponse()
+
+      antennaCalls++
+      if (antennaCalls === 1) {
+        // El avatar guarda su `pending` mientras las imágenes esperan a Fal,
+        // que rechaza la escena 1: hay pasada de recuperación.
+        await saveAvatarReceipt(context.paths, 2, pending)
+        return contentPolicyRejection()
+      }
+      // El reintento: ya pasaron la escritura de la primera pasada y la de
+      // los prompts reescritos. El avatar guarda que su render terminó.
+      onDiskAtRetry.push(byId(await readScenes(context.paths), 2).avatar)
+      await saveAvatarReceipt(context.paths, 2, succeeded)
+      return imageResponse()
+    },
+  })
+  await imagesStage.run(context)
+
+  assert.deepEqual(seen.writer, [1])
+  assert.deepEqual(onDiskAtRetry, [pending])
+  const stored = await readScenes(context.paths)
+  assert.deepEqual(byId(stored, 2), { ...FRESH[1], avatar: succeeded })
+  // Lo de las imágenes también quedó: modelo y calidad en las de imagen.
+  assert.ok(byId(stored, 1).imageModel)
+  assert.ok(byId(stored, 3).imageModel)
+  assert.equal(await imagesStage.skip(context), true)
+})
+
+test('imágenes (2h): si el avatar está guardando un recibo (con el lease tomado) cuando las imágenes escriben, la escritura espera y quedan las dos cosas', async (t) => {
+  const context = await houseProject(t, prompted())
+  const pending = avatarWithReceipt('pending')
+  let avatarWrite
+  mockProviders(t, {
+    async fal() {
+      if (avatarWrite) return imageResponse()
+
+      // El avatar toma el lease, relee scenes.json (todavía sin lo de las
+      // imágenes), tarda en escribir y escribe su recibo sobre lo que leyó,
+      // como persistAvatars. Fal responde recién con el lease tomado.
+      let holding
+      const held = new Promise((resolve) => {
+        holding = resolve
+      })
+      avatarWrite = withAnimationCheckpointLease(
+        context.paths.root,
+        new AbortController().signal,
+        async () => {
+          const current = await readScenes(context.paths)
+          holding()
+          await new Promise((done) => setTimeout(done, 300))
+          await writeScenes(
+            context.paths,
+            current.map((scene) =>
+              scene.id === 2 ? { ...scene, avatar: pending } : scene,
+            ),
+          )
+        },
+      )
+      await held
+      return imageResponse()
+    },
+  })
+  await imagesStage.run(context)
+  await avatarWrite
+
+  const stored = await readScenes(context.paths)
+  assert.deepEqual(byId(stored, 2), { ...FRESH[1], avatar: pending })
+  // La escritura de las imágenes fue después y no se perdió.
+  assert.ok(byId(stored, 1).imageModel)
+  assert.ok(byId(stored, 3).imageModel)
+})
+
+test('verbatim (2h): la escritura por lote de los prompts conserva el recibo del avatar que está en disco y escribe el prompt nuevo', async (t) => {
+  const context = await verbatimProject(t, prompted())
+  // La fase arrancó con la escena 2 sin recibos (su copia); el avatar guarda
+  // uno después.
+  const persistence = createVerbatimPromptPersistence(
+    context,
+    await readScenes(context.paths),
+  )
+  const pending = avatarWithReceipt('pending')
+  await saveAvatarReceipt(context.paths, 2, pending)
+  const prompt =
+    'Elena tightens the bolts of a red antenna on the station hull, Earth glowing below, a medium shot.'
+  await persistence.onPrompts([{ id: 1, imagePrompt: prompt }])
+  await persistence.flush()
+
+  const stored = await readScenes(context.paths)
+  assert.deepEqual(byId(stored, 2), { ...FRESH[1], avatar: pending })
+  assert.equal(byId(stored, 1).imagePrompt, prompt)
+  assert.equal(byId(stored, 3).imagePrompt, REGULAR[3])
 })
 
 test('imágenes (casa): la narración del avatar sigue siendo la ventana de época de la escena siguiente, como en la redacción', async (t) => {

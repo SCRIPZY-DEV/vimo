@@ -18,7 +18,10 @@
 // entrega 1 reconocida y las reglas del look principal (desde la 2e, uno listo
 // con cualquier motor con tarifa) y del estado. Importa el código real del
 // sidecar (Node quita los tipos) y simula HeyGen con `fetch` falso: nada sale
-// a la red.
+// a la red. Desde la entrega 2h (diseño §24.3), un 429 al pedir un render (la
+// cuenta llena) espera el `Retry-After` y repite el mismo pedido hasta 10 min
+// en total —también entre las esperas de un 409—, cancelable; las demás
+// llamadas siguen con tres reintentos.
 import assert from 'node:assert/strict'
 import {
   chmod,
@@ -67,6 +70,8 @@ import {
   isProjectDirectoryName,
   RESERVED_ROOT_DIRECTORIES,
 } from '../../pipeline/project/paths.ts'
+import { AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS } from '../../pipeline/types/avatar.ts'
+import { rateLimitDelayMs } from '../../pipeline/utils/http-retry.ts'
 import { writeFileAtomic } from '../../pipeline/utils/atomic-fs.ts'
 import { INSUFFICIENT_CREDITS_CODES } from '../../pipeline/utils/insufficient-credits.ts'
 
@@ -1370,30 +1375,197 @@ test('createVideo: el 409 request_in_progress agotado también sale marcado', as
   assert.equal(posts, 4)
 })
 
-test('createVideo: un 429 que request() ya agotó no se vuelve a repetir', async (t) => {
-  // request() repite el 429 tres veces (las esperas se cumplen al instante) y,
-  // agotado, sale avatar_rate_limited con status 429: no es el 409 de un
-  // pedido en vuelo, así que createVideo no lo repite (serían hasta 16 POST).
-  t.mock.method(globalThis, 'setTimeout', (callback) => setImmediate(callback))
+// Un 429 de HeyGen con su sobre; `retryAfter` (segundos) en el encabezado.
+const rateLimited = (retryAfter) =>
+  json(
+    {
+      error: {
+        code: 'rate_limit_exceeded',
+        message:
+          'Too many requests. Retry after the duration specified in the Retry-After header.',
+        param: null,
+      },
+    },
+    429,
+    retryAfter === undefined ? {} : { 'retry-after': String(retryAfter) },
+  )
+
+// Las esperas del cliente, anotadas y cumplidas al instante.
+function instantWaits(t, onWait = () => {}) {
+  const waits = []
+  t.mock.method(globalThis, 'setTimeout', (callback, ms) => {
+    waits.push(ms)
+    onWait(ms)
+    return setImmediate(callback)
+  })
+  return waits
+}
+
+test('createVideo: un 429 (la cuenta llena, entrega 2h) espera el Retry-After y repite el MISMO pedido —misma clave, mismo cuerpo— hasta que HeyGen lo acepta', async (t) => {
+  const waits = instantWaits(t)
+  const posts = []
+  mockFetch(t, async (_url, init) => {
+    posts.push({ key: init.headers['Idempotency-Key'], body: init.body })
+    if (posts.length <= 3) return rateLimited(30)
+    return json({ data: { video_id: 'video-1', status: 'waiting' } })
+  })
+  assert.equal(await client().createVideo(VIDEO_INPUT), 'video-1')
+  assert.equal(posts.length, 4)
+  assert.deepEqual(
+    [...new Set(posts.map((post) => post.key))],
+    [VIDEO_INPUT.idempotencyKey],
+  )
+  assert.equal(new Set(posts.map((post) => post.body)).size, 1)
+  // El Retry-After (30 s) más el segundo de margen, en cada espera.
+  assert.deepEqual(waits, [31_000, 31_000, 31_000])
+})
+
+test('createVideo: con la cuenta llena más allá de la paciencia sale avatar_rate_limited 429; las esperas nunca suman más de 10 minutos', async (t) => {
+  for (const [retryAfter, expectedWaits] of [
+    // Retry-After de 120 s (el tope de la espera): cinco esperas, 10 min justos.
+    [120, [120_000, 120_000, 120_000, 120_000, 120_000]],
+    // Sin Retry-After: la espera creciente hasta el tope, mientras entre.
+    [
+      undefined,
+      [3000, 5000, 9000, 17_000, 33_000, 65_000, 120_000, 120_000, 120_000],
+    ],
+  ]) {
+    const waits = instantWaits(t)
+    let posts = 0
+    mockFetch(t, async () => {
+      posts++
+      return rateLimited(retryAfter)
+    })
+    const error = await failure(client().createVideo(VIDEO_INPUT))
+    assert.equal(error.code, 'avatar_rate_limited', String(retryAfter))
+    assert.equal(error.httpStatus, 429)
+    assert.deepEqual(waits, expectedWaits, String(retryAfter))
+    assert.equal(posts, expectedWaits.length + 1, String(retryAfter))
+    const total = waits.reduce((sum, ms) => sum + ms, 0)
+    assert.ok(total <= AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS)
+    globalThis.setTimeout.mock.restore()
+  }
+})
+
+test('createVideo: cancelar durante la espera de un 429 sale como AbortError, sin repetir el POST', async (t) => {
+  const controller = new AbortController()
+  instantWaits(t, () => controller.abort())
   let posts = 0
   mockFetch(t, async () => {
     posts++
-    return json(
-      {
-        error: {
-          code: 'rate_limit_exceeded',
-          message:
-            'Too many requests. Retry after the duration specified in the Retry-After header.',
-          param: null,
+    return rateLimited(30)
+  })
+  const error = await failure(
+    createHeyGenClient('key-123', controller.signal).createVideo(VIDEO_INPUT),
+  )
+  assert.equal(error.name, 'AbortError')
+  assert.equal(posts, 1)
+})
+
+test('createVideo: la paciencia es de todo el pedido, también entre las esperas de un 409', async (t) => {
+  const waits = instantWaits(t)
+  const statuses = []
+  mockFetch(t, async () => {
+    // 429 durante 8 min, un 409 (el original en vuelo) y 429 otra vez.
+    const status = statuses.length < 4 ? 429 : statuses.length === 4 ? 409 : 429
+    statuses.push(status)
+    if (status === 409)
+      return json(
+        {
+          error: {
+            code: 'request_in_progress',
+            message: 'A request with this Idempotency-Key is in progress.',
+            param: null,
+          },
         },
-      },
-      429,
-    )
+        409,
+      )
+    return rateLimited(120)
   })
   const error = await failure(client().createVideo(VIDEO_INPUT))
   assert.equal(error.code, 'avatar_rate_limited')
   assert.equal(error.httpStatus, 429)
-  assert.equal(posts, 4)
+  // Cuatro esperas de 2 min, la del 409 (2 s, aparte) y una más de 2 min:
+  // con eso se cumplen los 10 min y el 429 siguiente ya no se espera.
+  assert.deepEqual(waits, [120_000, 120_000, 120_000, 120_000, 2000, 120_000])
+  assert.deepEqual(statuses, [429, 429, 429, 429, 409, 429, 429])
+})
+
+test('createVideo (ronda 1, M-1): un 429 con un `retry_after` del cuerpo que no es un número finito ≥ 0 («soon», -1) no deja la paciencia sin efecto: espera la creciente, repite con la MISMA clave y sale `avatar_rate_limited` dentro de los 10 min', async (t) => {
+  for (const retryAfter of ['soon', -1]) {
+    const waits = instantWaits(t)
+    const keys = []
+    mockFetch(t, async (_url, init) => {
+      keys.push(init.headers['Idempotency-Key'])
+      // Tope del simulacro: sin la paciencia acotada, el cliente repetiría
+      // para siempre; así el test cae enseguida con su aserción y no por
+      // memoria a los 100 s (re-revisión de la ronda 1, N-2).
+      if (keys.length > 50) throw new Error('la paciencia nunca se agotó')
+      return json(
+        {
+          retry_after: retryAfter,
+          error: {
+            code: 'rate_limit_exceeded',
+            message: 'Too many requests',
+            param: null,
+          },
+        },
+        429,
+      )
+    })
+    const error = await failure(client().createVideo(VIDEO_INPUT))
+    assert.equal(error.code, 'avatar_rate_limited', String(retryAfter))
+    assert.equal(error.httpStatus, 429)
+    // Sin un `retry_after` que sirva ni encabezado: la espera creciente.
+    assert.deepEqual(
+      waits,
+      [3000, 5000, 9000, 17_000, 33_000, 65_000, 120_000, 120_000, 120_000],
+      String(retryAfter),
+    )
+    const total = waits.reduce((sum, ms) => sum + ms, 0)
+    assert.ok(total <= AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS)
+    assert.equal(keys.length, waits.length + 1)
+    assert.deepEqual([...new Set(keys)], [VIDEO_INPUT.idempotencyKey])
+    globalThis.setTimeout.mock.restore()
+  }
+})
+
+test('rateLimitDelayMs (ronda 1, M-1): del cuerpo solo cuenta un `retry_after` o `retryIn` que sea un número finito ≥ 0 (o un texto que lo sea); si no, el encabezado o la espera creciente —lo comparten todos los proveedores—', () => {
+  const plain = new Response('', { status: 429 })
+  const withHeader = new Response('', {
+    status: 429,
+    headers: { 'retry-after': '10' },
+  })
+  for (const [response, body, expected] of [
+    [plain, '{"retry_after":30}', 31_000],
+    [plain, '{"retry_after":"30"}', 31_000],
+    [plain, '{"retry_after":0}', 1000],
+    [plain, '{"retryIn":5}', 6000],
+    [plain, '{"retry_after":"soon"}', 3000],
+    [plain, '{"retry_after":-1}', 3000],
+    [plain, '{"retry_after":""}', 3000],
+    [plain, '{"retry_after":null,"retryIn":5}', 6000],
+    [plain, '{"retry_after":"soon","retryIn":5}', 6000],
+    [plain, '{"retry_after":{"seconds":30}}', 3000],
+    [plain, 'null', 3000],
+    [plain, 'not json', 3000],
+    [withHeader, '{"retry_after":"soon"}', 11_000],
+    [withHeader, '{"retry_after":-1}', 11_000],
+  ])
+    assert.equal(rateLimitDelayMs(response, body, 0), expected, body)
+})
+
+test('request: las demás llamadas siguen con tres reintentos ante un 429, aunque traiga Retry-After', async (t) => {
+  const waits = instantWaits(t)
+  let calls = 0
+  mockFetch(t, async () => {
+    calls++
+    return rateLimited(30)
+  })
+  const error = await failure(client().getVideo('video-1'))
+  assert.equal(error.code, 'avatar_rate_limited')
+  assert.equal(calls, 4)
+  assert.deepEqual(waits, [31_000, 31_000, 31_000])
 })
 
 test('createVideo: cancelar durante la espera del 409 sale como AbortError, sin repetir el POST', async (t) => {

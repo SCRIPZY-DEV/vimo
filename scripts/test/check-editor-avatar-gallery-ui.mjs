@@ -30,6 +30,11 @@
 // - «Generar avatar» con el movimiento editado en la tarjeta (viaja como en el
 //   panel) y el aviso del fallo; «Regenerar todos (N)» desde una tarjeta y
 //   «Cancelar» de su avance; y la demo.
+// - Entrega 2h (§24.4): «Cancelar» el avance de la tarjeta con una aparición ya
+//   cobrada (la fase render) abre el aviso del editor sobre la galería (un
+//   modal sobre otro): Escape cierra solo el aviso, la galería sigue abierta,
+//   nada se cancela y el foco vuelve al «Cancelar» de la tarjeta; «Cancelar
+//   igual» corta el job y el foco queda en ese botón hasta que el job cierra.
 // Ronda 1: la tarjeta espera también mientras el editor guarda la copia de
 // trabajo (el `busy` del panel, con `savingChanges`, que la vista le pasa a la
 // galería) y su pastilla lleva de tooltip el título del bloque de la pista.
@@ -713,6 +718,27 @@ try {
   await waitFor(() => [2, 5, 7].every((id) => hasState(id, 'generating', STATE_LABELS.generating)) && regionOf(5), 'las tres tarjetas dicen que se generan y la desplegada muestra su avance')
   check(hasState(4, 'ready', STATE_LABELS.ready) && hasState(6, 'ready', STATE_LABELS.ready), 'las listas siguen listas')
   await waitFor(() => document.activeElement === regionOf(5), 'el foco va al avance de la tarjeta que la pidió: ' + describe(document.activeElement))
+  // Con una aparición ya cobrada (render), «Cancelar» abre el aviso del editor
+  // sobre la galería: Escape cierra solo el aviso y el foco vuelve al «Cancelar»
+  // de la tarjeta; «Cancelar igual» corta el job y el foco queda ahí.
+  const KEEP = t('library.editor.avatar.cancelarSeguir')
+  const CANCEL_ANYWAY = t('library.editor.avatar.cancelarIgual')
+  for (const id of [2, 5, 7]) all.onEvent({ type: 'avatar-scene-started', sceneId: id })
+  all.onEvent({ type: 'avatar-scene-progress', sceneId: 2, phase: 'render', elapsedSeconds: 5 })
+  await delay(150)
+  cardButton(5, CANCEL).click()
+  await waitFor(() => alertDialog()?.getAttribute('data-state') === 'open', 'el aviso abre sobre la galería')
+  check(alertDialog().textContent.includes(t('library.editor.avatar.cancelarTitulo')) && alertDialog().textContent.includes(t('library.editor.avatar.cancelarTexto', { count: 1 })), 'con el texto del editor y una cobrada: ' + alertDialog().textContent)
+  check(document.activeElement === alertButton(KEEP), 'el foco abre en «Seguir generando»: ' + describe(document.activeElement))
+  check(!window.cancels.includes('avatar-job-3'), 'abrir el aviso no corta nada')
+  await press('Escape')
+  await waitFor(() => !alertDialog() && document.activeElement === cardButton(5, CANCEL), 'Escape cierra solo el aviso y el foco vuelve al «Cancelar» de la tarjeta: ' + describe(document.activeElement))
+  check(gallery() && !window.cancels.includes('avatar-job-3'), 'la galería sigue abierta y no se canceló nada')
+  cardButton(5, CANCEL).click()
+  await waitFor(() => alertDialog()?.getAttribute('data-state') === 'open', 'otra vez el aviso')
+  alertButton(CANCEL_ANYWAY).click()
+  await waitFor(() => window.cancels.includes('avatar-job-3'), '«Cancelar igual» corta el job')
+  await waitFor(() => !alertDialog() && document.activeElement === cardButton(5, CANCEL), 'el foco queda en el «Cancelar» de la tarjeta mientras el job cierra: ' + describe(document.activeElement))
   const toastsBeforeCancel = window.toasts.length
   cardButton(5, CANCEL).click()
   await waitFor(() => window.cancels.includes('avatar-job-3'), '«Cancelar» de la tarjeta corta el job')

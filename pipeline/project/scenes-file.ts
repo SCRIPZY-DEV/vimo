@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises'
 
 import type { SceneAnimation, SceneAnimationView } from '../types/animation.ts'
+import { withAnimationCheckpointLease } from '../animation/coordination.ts'
 import { sceneAnimationBlocks } from '../animation/scene-blocks.ts'
 import { sceneAnimationClipFile } from '../animation/clip-path.ts'
 import { frameBoundary } from '../animation/timing.ts'
@@ -102,6 +103,46 @@ export async function writeScenesOwned(
     return
   }
   await mergeScenesById(paths, ownedIds, scenes)
+}
+
+// La escritura de scenes.json de las imágenes y de su carril verbatim (entrega
+// 2h, diseño §24.1): la fase `avatar` corre a la vez y guarda sus recibos
+// pagados en el mismo archivo. Bajo el lease de checkpoint —el mismo con el
+// que el avatar relee y guarda sus recibos— se relee el disco y cada escena
+// conserva el `avatar` que hay ahí: estas fases nunca lo cambian y su copia es
+// la de cuando arrancaron, que pisaría un recibo guardado en el medio. Sin
+// escenas de avatar en disco escribe exactamente lo de siempre. La espera del
+// lease usa su propia señal, nunca la del job: los recibos pagados de las
+// imágenes se guardan aunque la persona cancele. El lease no es reentrante:
+// ningún camino que ya lo tenga llega acá (el pipeline y la regeneración de
+// imágenes del editor toman solo el lease del proyecto, y quienes toman este
+// —el avatar, la animación, el recorte del avatar— no escriben por acá).
+export async function writeScenesKeepingAvatars(
+  paths: ProjectPaths,
+  scenes: Scene[],
+  ownedIds?: Set<number>,
+): Promise<void> {
+  const ownSignal = new AbortController().signal
+  await withAnimationCheckpointLease(paths.root, ownSignal, async () => {
+    const onDisk = (await readScenes(paths)) ?? []
+    await writeScenesOwned(paths, withAvatarsOnDisk(scenes, onDisk), ownedIds)
+  })
+}
+
+// Las escenas con el `avatar` que tiene cada una en disco. Una escena que en
+// disco no tiene avatar queda como vino.
+function withAvatarsOnDisk(scenes: Scene[], onDisk: Scene[]): Scene[] {
+  const avatars = new Map<number, SceneAvatar>()
+  for (const scene of onDisk)
+    if (scene.avatar) avatars.set(scene.id, scene.avatar)
+  if (avatars.size === 0) return scenes
+
+  return scenes.map((scene) => {
+    const avatar = avatars.get(scene.id)
+    if (!avatar) return scene
+
+    return { ...scene, avatar }
+  })
 }
 
 // Una imagen propia gana sobre el alias histórico de una pausa. Los cortes

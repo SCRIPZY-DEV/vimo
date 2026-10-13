@@ -364,9 +364,13 @@ function CreateView({
     return (
       <GenerationProgress
         task={task}
+        // «Crear otro» descarta la corrida viva: con apariciones del avatar
+        // cobradas y sin terminar, la pantalla avisa antes (entrega 2h, spec
+        // §24.4) y recién «Cancelar igual» vuelve al formulario.
         back={{
           labelKey: 'create.progress.createAnother',
           onClick: returnToForm,
+          cancelsRun: true,
         }}
         // Cancelar no es un error (origen v0.35.0): se va a la biblioteca en
         // el acto y el proyecto queda ahí como cancelado, reanudable o

@@ -10,7 +10,9 @@ import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { ImagesRecoveryView } from '@/modules/videos/types/create'
 
 interface StageBarProps {
-  currentStage: StageId | null
+  // Las fases que corren ahora (entrega 2h): el avatar corre junto con las
+  // imágenes, así que pueden girar dos filas a la vez.
+  activeStages: StageId[]
   showAnimation?: boolean
   // La fila del avatar solo con avatar presentador (por datos: una fase
   // saltada no queda en `completedStages`).
@@ -54,12 +56,28 @@ function recoveryNote(
   return null
 }
 
+// ¿Gira la fila de esta fase? Gira toda fase en curso (entrega 2h, spec
+// §24.2: «Generando imágenes» y «Generando el avatar» giran juntas). Durante
+// la reescritura de prompts de una pasada de recuperación, la de prompts
+// vuelve a girar y la de imágenes espera; el avatar, si corre, sigue girando.
+function isStageRunning(
+  stageId: StageId,
+  activeStages: StageId[],
+  rewriting: boolean,
+): boolean {
+  if (rewriting && stageId === 'scene-prompts') return true
+
+  if (rewriting && stageId === 'images') return false
+
+  return activeStages.includes(stageId)
+}
+
 // Lista de fases (port de BarraDeFases del origen): completada en saffron,
 // en curso en ocean, en pausa en saffron pleno con «te está esperando»,
 // pendiente neutra con un punto. Un escalón más grande que el origen (alto,
 // ícono y texto): a ventana completa la lista se veía diminuta.
 export function StageBar({
-  currentStage,
+  activeStages,
   showAnimation = false,
   showAvatar = false,
   completedStages,
@@ -78,8 +96,8 @@ export function StageBar({
     return true
   })
 
-  // Con el job cerrado en pausa no hay currentStage: la fase que espera es
-  // la primera sin completar.
+  // Con el job cerrado en pausa no corre ninguna fase: la que espera es la
+  // primera sin completar.
   const pausedStageId = paused
     ? (stages.find((stage) => !completedStages.includes(stage.id))?.id ?? null)
     : null
@@ -91,9 +109,7 @@ export function StageBar({
         const done = completedStages.includes(stage.id) && !reopened
         const waiting = stage.id === pausedStageId
         const active =
-          !done &&
-          !waiting &&
-          (rewriting ? reopened : currentStage === stage.id)
+          !done && !waiting && isStageRunning(stage.id, activeStages, rewriting)
         const pending = !done && !waiting && !active
         const note = recoveryNote(stage.id, recovery)
         const tone = ACTIVE_STAGE_TONES[stage.id] ?? DEFAULT_ACTIVE_STAGE_TONE

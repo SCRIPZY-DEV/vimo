@@ -1,4 +1,5 @@
 import type { CostEstimateLine } from '@/modules/common/types/credits'
+import type { AvatarRenderPhase } from '@/modules/videos/types/create'
 import type { SceneAnimationReviewOutcome } from '@/modules/videos/types/sceneImageReview'
 import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
@@ -153,9 +154,14 @@ export interface SceneAnimationProgress {
 // render (el `avatar-scene-started` del job) y nunca se reinicia; `queued`, que
 // todavía espera su turno (HeyGen renderiza de a AVATAR_RENDER_CONCURRENCY):
 // el bloque dice «Generando el avatar…» sin porcentaje hasta que arranca.
+// `phase` es el último paso que informó el carril (`avatar-scene-progress`):
+// desde `render` la aparición está cobrada (AVATAR_CHARGED_PHASES, entrega 2h,
+// spec §24.4) y «Cancelar» avisa antes de cortar. Sin fase todavía = nada que
+// se haya cobrado.
 export interface SceneAvatarRendering {
   startedAt: number
   queued?: boolean
+  phase?: AvatarRenderPhase
 }
 
 // Qué ofrece el panel para una escena de avatar (spec §11.1, §3.3 y §21.4):
@@ -225,6 +231,15 @@ export interface EditorAvatarRenderState {
   regenerateSceneIds: number[]
   failures: Record<number, string>
   cancelled?: boolean
+}
+
+// El aviso de «Cancelar» con apariciones del avatar ya cobradas, como lo guarda
+// useAvatarSceneRender (entrega 2h, spec §24.4): atado al job que lo abrió
+// (`requestId`) y con la cuenta de lo cobrado y sin terminar al tocar
+// «Cancelar», que solo sube mientras el aviso sigue abierto.
+export interface AvatarCancelWarning {
+  requestId: string
+  count: number
 }
 
 // Lo que el planificador haría con la escena seleccionada si se animara

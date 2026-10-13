@@ -105,7 +105,7 @@ create table public.diagnostic_logs (
   error_message    text,                             -- diagnóstico redactado
   error_provider   text,                             -- proveedor externo que falló (fal, evolink, deepinfra, dubvoice, …)
   error_http_status integer,                        -- status HTTP de ese fallo, si lo hubo
-  failed_stage     text,                             -- voice | transcription | scene-cuts | scene-prompts | images | render
+  failed_stage     text,                             -- voice | transcription | scene-cuts | scene-prompts | images | avatar | animation | render
   started_at       timestamptz not null,
   finished_at      timestamptz not null,
   duration_ms      integer not null,
@@ -155,6 +155,16 @@ select cron.schedule('diagnostic-logs-retention', '17 3 * * *',
 Insert-only alcanza porque la subida ocurre después del fin del job (o en el
 siguiente arranque si hubo crash). `id = jobId` hace que un reintento duplicado
 falle con `23505`, que el cliente trata como éxito y borra del spool.
+
+`failed_stage` es la fase del pipeline completo que estaba en curso cuando el job cayó
+(los ocho valores son los `STAGE_IDS` de `pipeline/runner/stage-id.ts`). Desde la entrega
+2h del avatar (2026-10-13, [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md))
+dos fases pueden correr a la vez (`images` y `avatar`), así que `recorder.rs` ya no guarda
+una sola: sigue las fases en curso en el orden en que arrancaron (`stage-completed` y
+`stage-skipped` sacan solo la suya) y `job-failed` anota la **primera que sigue en curso**
+(`running_stages` en `src-tauri/src/diagnostics/recorder.rs`). Con las reglas del fallo del
+corredor es la que falló, y si fallan las dos gana `images`. Es una pista para soporte, no
+un dato del evento: `job-failed` no dice qué fase falló.
 
 ### Identidad de la fila: `project_id` y `project_name`
 

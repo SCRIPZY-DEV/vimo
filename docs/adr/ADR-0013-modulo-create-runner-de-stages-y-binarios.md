@@ -215,3 +215,76 @@ scene-cuts` con `confirmScenes` → `confirm-scenes` → relanzar; se verifica
 - **Cookies de yt-dlp**, plataformas distintas de macOS arm64, y el guard de
   fidelidad por comparación de artefactos contra un proyecto del Vimo original
   (queda como verificación manual con claves reales).
+
+## Enmienda 2026-10-13 — una fase puede correr junto con la anterior
+
+El runner de esta ADR era un lazo secuencial: una fase, la siguiente. En la entrega 2h del avatar con HeyGen
+([ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md), diseño §24.1) el dueño pidió que el
+avatar se genere al mismo tiempo que las imágenes: la fase `avatar` no usa nada de los prompts ni de las
+imágenes (sus entradas son la narración, las semillas del corte y el look copiado al crear el proyecto), y
+esperarlas era tiempo perdido. Cambia cómo se recorren las fases, no qué hace cada una ni el orden del
+registro; fuera de un grupo, el runner es el de antes.
+
+- **`runsAlongside?: StageId`.** El contrato `Stage` suma ese campo: la fase arranca junto con esa otra, si la
+  sigue en la lista que recorre el runner. `avatar` declara `runsAlongside: 'images'`. `STAGE_IDS` y el orden
+  del registro no cambian y siguen siendo la secuencia del video (`animation` espera a las dos: necesita las
+  imágenes). Con `untilStage: 'images'` la lista termina en las imágenes y el avatar no corre; con `avatar` o
+  después corren las dos. Una acompañante que no tiene antes en la lista a la fase que acompaña corre sola, en
+  su lugar, como cualquier fase. El corredor no lo hace con una promesa suelta dentro de `images`: así cada
+  fase conserva su `skip()`, sus eventos y su gancho, y ninguna sabe de la otra (R-2h-2 de la entrega).
+- **El grupo (`runGroup`).** Al llegar a una fase, las que la siguen y declaran `runsAlongside` con su id
+  forman un grupo con ella. El runner evalúa el `skip()` de cada una, en orden (las salteadas emiten
+  `stage-skipped` en ese momento), emite el `stage-started` de cada una que corre —la que manda primero— y
+  las corre a la vez. Cada una emite su `stage-completed` y llama a `hooks.onStageCompleted` apenas termina.
+  Tres consecuencias que nadie debe contradecir: (1) `completedStages` puede quedar con `avatar` antes que
+  `images`; (2) el `stage-skipped` de una acompañante puede llegar **antes** del `stage-started` de la que
+  manda (en un proyecto sin avatar, `stage-skipped avatar` sale antes que `stage-started images`), no
+  «cuando su fase termina»; (3) el gancho puede correr para las dos fases a la vez, y quien escribe en él
+  tiene que tolerarlo.
+- **Solo el runner emite `stage-*`.** La regla de esta ADR sigue en pie y su grep de «Verificación de
+  cumplimiento» sigue vacío: ninguna fase emite `stage-started`, `stage-skipped` ni `stage-completed` a mano.
+  Es lo que permitió traer el avatar al grupo y no esconderlo dentro de `images`.
+- **Cuando algo falla (R-2h-3).** La que manda es la primera del grupo que corre (`images`). Cada acompañante
+  corre con su propio `AbortController` unido a la señal del job (`AbortSignal.any`), en una copia del
+  contexto que solo cambia `signal` (la metadata y el resto se comparten por referencia, a propósito).
+  1. Falla la que manda (o se pausa por saldo de imágenes): las acompañantes se cortan enseguida, el runner
+     espera a que terminen —lo que HeyGen ya aceptó queda en sus recibos y se cosecha en la próxima corrida sin
+     pagar de nuevo— y sale el fallo de la que manda.
+  2. Falla una acompañante: la que manda sigue hasta el final, emite su `stage-completed` y pasa por el
+     gancho; recién después sale el fallo de la acompañante (pausa por saldo o error, como hoy). Reanudar
+     saltea `images` y rehace solo el avatar.
+  3. Fallan las dos: gana la que manda y el fallo propio de la otra va como `log` `warn` con su código. El eco
+     de un corte (la acompañante cae con su señal ya cancelada, porque la cortó el runner o el job) no se
+     avisa como un segundo fallo.
+  4. Cancelación del job: se frenan las dos y sale la cancelación, que `run-video-pipeline` trata como
+     siempre (`paused`, `pauseReason: 'cancelled'`).
+  5. Una fase que devuelve `{ pause: true }`: se espera a las otras y el grupo devuelve la pausa, salvo que
+     otra haya fallado (un fallo le gana a una pausa; hoy ninguna de las dos la pide).
+
+  Un gancho que falla es el fallo de su fase, como en el lazo secuencial. El runner nunca devuelve ni lanza
+  antes de que terminen todas las fases del grupo: el sidecar sale forzado después de `job-failed`.
+
+- **`project.json` en fila.** Con el gancho corriendo para las dos fases y el avatar marcando el video
+  desactualizado, dos escrituras atómicas a la vez dejan la última que renombra y la otra se pierde
+  (`completedStages`, `videoOutdated`). Las escrituras de `project.json` del proceso (`writeProjectMetadata`)
+  van en una fila por archivo (`inMetadataQueue`, en `pipeline/project/metadata.ts`): cada una corre cuando
+  terminó la anterior y toma la copia en memoria **cuando le toca escribir**, no cuando se pidió; sin otra
+  escritura en curso corre en el acto, con los mismos bytes de siempre. La marca de video desactualizado del
+  carril (`markStoredVideoOutdated`) relee el disco **dentro** de la fila, le cambia solo `videoOutdated` y
+  copia la marca en la metadata en memoria antes de soltarla. Se eligió «releer y unir» y no «escribir la copia
+  en memoria» porque el mismo carril corre como comando del editor junto a otros jobs, y ahí la copia de un
+  job puede estar vieja. Entre procesos manda el lease del proyecto (un job que escribe por vez).
+  `animation/generate.ts` conserva su propio «leer y marcar» (corre después del grupo, sin carrera).
+- **`scenes.json`.** Las escrituras de `images` (y la del carril verbatim de prompts) van bajo el lease de
+  checkpoint y conservan el `avatar` que haya en disco en cada escena (`writeScenesKeepingAvatars`): `images`
+  nunca cambia `scene.avatar`. El detalle y el porqué están en la enmienda 2h de la ADR-0057.
+- **Verificación.** `check-stage-runner-alongside.mjs` (26 tests): el grupo con fases falsas, sin disco ni red
+  (el orden de los eventos, los dos órdenes de terminación, las combinaciones de `skip()`, cada regla del
+  fallo, la cancelación y la pausa), la fila de `project.json` cruzada con el gancho en los dos órdenes y el
+  pipeline real con Fal y HeyGen simulados. Con el `run-stages.ts` de antes, el guard se pone rojo.
+
+Costo si estuviera mal: que el avatar termine aunque fallen las imágenes es cambiar el corte de las
+acompañantes en `runGroup` (`leaderRun.catch`); que una pausa le gane a un fallo, el último `return` de
+`runGroup`; y volver al lazo secuencial es sacar `runsAlongside` del avatar (el resto del grupo queda sin
+uso). La fila de `project.json` y el lease de `scenes.json` no dependen de esto: siguen valiendo si algún día
+otra fase corre en paralelo.

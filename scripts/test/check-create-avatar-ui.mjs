@@ -105,8 +105,11 @@
 // en el sidecar y en su espejo de la UI) está a la vista en el diálogo, como
 // insignia con su detalle, y en la ficha del panel de un avatar propio, debajo
 // del título y antes de su ayuda; la ficha de uno de stock, apagada, no
-// promete cifra. Las teclas son de verdad (CDP, con la emulación de foco), así
-// el foco del teclado queda «visible».
+// promete cifra. Desde la entrega 2h (§24.2), con el avatar encendido la
+// tarjeta del costo dice, debajo del costo estimado, que el avatar se genera
+// al mismo tiempo que las imágenes y se cobra apenas empieza; apagado, ni el
+// costo ni esa línea. Las teclas son de verdad (CDP, con la emulación de
+// foco), así el foco del teclado queda «visible».
 // Los simulacros parten del real (ERRORES-CONOCIDOS: simulacro-de-hook-en-un-
 // guard-queda-viejo-en-silencio-cuando-el-hook-suma-un-miembro): `avatarsApi`,
 // `apiKeysApi` y `videosApi` son los reales con solo las lecturas del sidecar
@@ -485,6 +488,9 @@ try {
   window.dispatchEvent(new Event('visibilitychange'))
   await delay(200)
   check(window.listCalls === 1 && window.refreshCalls === 0, 'apagada: una sola lectura de la biblioteca, sin sondeo ni relectura al volver a la ventana (' + window.listCalls + ' lecturas, ' + window.refreshCalls + ' sondeos)')
+  // Cuándo se cobra (entrega 2h, diseño §24.2): solo con el avatar encendido.
+  const chargeTiming = phrase('create.avatar.chargeTiming')
+  check(costCard() === null && !text().includes(chargeTiming), 'apagada, ni el costo ni cuándo se cobra')
   toggle().click()
   await waitFor(() => window.patches.length === 1, 'encender el avatar')
   check(window.patches[0].useAvatar === true && same(window.patches[0].avatar, ANA), 'al encender se elige solo el primer avatar que sirve, con su look principal: ' + JSON.stringify(window.patches[0]))
@@ -500,6 +506,11 @@ try {
   check(!vic.disabled && nameOf(vic) === 'Vic ' + i18n.t('create.avatar.noLookShort') && previewIn(vic).image?.getAttribute('src') === diskImage('/library/vic-3.jpg'), 'Vic solo tiene un look vertical: se puede mirar, con su cara y sin look para 16:9: ' + nameOf(vic))
   check(named(avatarRadios(), 'Luz').disabled && nameOf(named(avatarRadios(), 'Luz')) === 'Luz ' + i18n.t('create.avatar.training'), 'Luz entrena: no se puede elegir')
   check(text().includes(i18n.t('create.avatar.cost', { amount: formatUsd(0.495, 'es') })), '3 × 10 s de un avatar de foto: ≈ 0,50 US$')
+  // Debajo del costo estimado, dentro de su tarjeta: el avatar se genera al
+  // mismo tiempo que las imágenes y se cobra apenas empieza.
+  const costLines = [...(costCard()?.querySelectorAll('p') ?? [])]
+  const amountLine = costLines.findIndex((line) => line.textContent === usdSays(0.495))
+  check(amountLine >= 0 && costLines.at(-1)?.textContent === chargeTiming && costLines.length - 1 > amountLine && costLines.filter((line) => line.textContent === chargeTiming).length === 1, 'encendida, la tarjeta del costo dice una vez cuándo se cobra, debajo del costo estimado: ' + costLines.map((line) => line.textContent).join(' | '))
   check(text().includes(i18n.t('create.avatar.lookHint')), 'el look sale tal cual, sin imágenes')
   const moderation = [...document.querySelectorAll('[role=note]')].find((element) => element.getAttribute('aria-label') === i18n.t('create.avatar.moderationTitle'))
   check(moderation?.textContent.includes(i18n.t('create.avatar.moderationTitle')) && moderation.textContent.includes(i18n.t('create.avatar.moderationHint')) && moderation.querySelector('svg')?.getAttribute('aria-hidden') === 'true', 'el aviso de moderación es una nota destacada con su título, el texto de siempre y el escudo decorativo')
@@ -710,6 +721,7 @@ try {
   toggle().click()
   await waitFor(() => same(window.patches.at(-1), { useAvatar: false }), 'apagar el avatar')
   check(window.value.avatar?.id === 'teo-2' && avatarRadios().length === 0, 'apagado: la tarjeta se esconde y la elección se conserva')
+  check(costCard() === null && !text().includes(chargeTiming), 'apagado otra vez, sin el costo ni cuándo se cobra')
 
   // 6b. Al montar Crear se pide, como mucho, el listado del avatar elegido.
   // Sol (de stock) tiene el principal vertical y un look horizontal sin vista

@@ -404,8 +404,36 @@ export const AVATAR_SHORTEST_APPEARANCE_SECONDS =
 // parte en su pausa interna más larga.
 export const SENTENCE_PAUSE_SECONDS = 0.35
 export const MAX_SENTENCE_SECONDS = 15
-// Renders de HeyGen a la vez (su tope es 10).
-export const AVATAR_RENDER_CONCURRENCY = 3
+// Renders de HeyGen a la vez (entrega 2h, diseño §24.3, R-2h-1): el tope de
+// una cuenta Pay-As-You-Go. Fuente: «Usage limits» de la documentación de
+// HeyGen (developers.heygen.com/docs/usage-limits, verificado el 2026-10-13):
+// 10 trabajos asíncronos a la vez por cuenta, y pasarse responde 429
+// `rate_limit_exceeded` con `Retry-After` (el carril lo espera con paciencia,
+// AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS). Enterprise tiene 20 y ráfaga: fuera de
+// la 2h.
+export const AVATAR_RENDER_CONCURRENCY = 10
+// Cuánto espera el carril, en total, ante un 429 al pedir un render (entrega
+// 2h, diseño §24.3, R-2h-7): la cuenta está llena (otro trabajo de la persona
+// en HeyGen) y el pedido no se creó ni se cobró. Repite con la misma clave y el
+// mismo cuerpo cada `Retry-After`, cancelable; agotada, sale el 429 como
+// siempre (la aparición queda con la imagen fija del look).
+export const AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS = 10 * 60_000
+// El trabajo local del carril a la vez (entrega 2h, diseño §24.3, R-2h-6):
+// cortar el audio y normalizar el clip con ffmpeg. Con diez renders que
+// terminan juntos mientras corren las imágenes, como mucho 4 y nunca más que
+// la mitad de los núcleos lógicos (mínimo 1).
+export const AVATAR_LOCAL_WORK_MAX_CONCURRENCY = 4
+
+export function avatarLocalWorkConcurrency(logicalCores: number): number {
+  // Un conteo que no es un número (no debería pasar) no deja el límite sin
+  // efecto: va de a uno.
+  if (!Number.isFinite(logicalCores)) return 1
+
+  return Math.min(
+    AVATAR_LOCAL_WORK_MAX_CONCURRENCY,
+    Math.max(1, Math.floor(logicalCores / 2)),
+  )
+}
 // Espera creciente al consultar el estado de un render.
 export const AVATAR_POLL_INITIAL_MS = 5000
 export const AVATAR_POLL_MAX_MS = 20_000

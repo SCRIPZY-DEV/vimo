@@ -31,6 +31,17 @@
 // título y el visor solo de imágenes; y el costo de reanudar con el motor del
 // proyecto (`estimateResumeCost`: el de la escena, el de las opciones o el
 // de siempre) y las opciones de corrida que lo llevan (`avatarRunOptions`).
+// Y la entrega 2h (diseño §24.2): el avatar corre junto con las imágenes. El
+// store lleva las fases en curso (`activeStages`, en orden de arranque; cada
+// una sale al terminar, en cualquier orden; vacías al cerrar el job y al
+// reiniciar la app), el arranque del avatar no borra la pasada de
+// recuperación de las imágenes ni el de otra fase la vigilancia de prompts;
+// la lista de fases hace girar las dos filas (también reescribiendo prompts);
+// mientras corren las imágenes la pantalla muestra la grilla, con el
+// porcentaje en la tarjeta de la aparición que arrancó y «En espera» en la
+// que no, sin el panel del avatar, que aparece cuando las imágenes terminan
+// (su reloj y su ayuda, solo con el avatar en curso); en Crear y en la
+// biblioteca, con los dos órdenes de terminación.
 // Solo `videosApi` se simula (el real importa el cliente
 // de Supabase), con las URLs de las miniaturas, la lectura del proyecto y el
 // canal de eventos del job; la tarjeta de saldo se reemplaza (su hook lee la
@@ -57,7 +68,9 @@ const mocks = {
     "import { CREATE_TASK_STORAGE_KEY } from './src/modules/videos/constants.ts'",
     "import { videosApi as real } from './src/modules/videos/api/index.ts'",
     'const look = { lookId: "look-ana", lookName: "Ana oficina", lookType: "photo_avatar", engine: "avatar_iii", origin: "auto", status: "planned" }',
-    'const previous = { id: "tc-previous", jobId: null, projectId: "p0", projectName: "Anterior", status: "completed", stage: null, completedStages: ["voice"], scenes: [{ id: 1, text: "", imageStatus: "ok", avatar: look, avatarActivity: { status: "generating", phase: "render", elapsedSeconds: 40, receivedAt: 1 } }], audioDurationSeconds: 150, voiceProgress: null, bgmProgress: null, renderProgress: null, promptsWritten: null, imagesRecovery: null, confirmation: null, logs: [], videoPath: null, errorKey: null, errorCode: null, startedAt: 1, pausedAt: null, pausedMs: 0, finishedAt: 2, retry: null, retryAttempts: 0, videoFormat: "16:9", cancelRequested: false, usesCustomStyle: false, promptModel: null, promptsStageActivity: null, promptModelIssue: null, promptModelSwitch: null, imageProvider: null, voiceVendor: null, creditsIssue: null, hasAvatar: true, avatarDropped: 2 }',
+    // La app se cerró con las imágenes y el avatar corriendo a la vez (entrega
+    // 2h): la tarea vuelve interrumpida y sin fases en curso.
+    'const previous = { id: "tc-previous", jobId: "job-p0", projectId: "p0", projectName: "Anterior", status: "generating", activeStages: ["images", "avatar"], completedStages: ["voice"], scenes: [{ id: 1, text: "", imageStatus: "ok", avatar: look, avatarActivity: { status: "generating", phase: "render", elapsedSeconds: 40, receivedAt: 1 } }], audioDurationSeconds: 150, voiceProgress: null, bgmProgress: null, renderProgress: null, promptsWritten: null, imagesRecovery: null, confirmation: null, logs: [], videoPath: null, errorKey: null, errorCode: null, startedAt: 1, pausedAt: null, pausedMs: 0, finishedAt: null, retry: null, retryAttempts: 0, videoFormat: "16:9", cancelRequested: false, usesCustomStyle: false, promptModel: null, promptsStageActivity: null, promptModelIssue: null, promptModelSwitch: null, imageProvider: null, voiceVendor: null, creditsIssue: null, hasAvatar: true, avatarDropped: 2 }',
     'try { localStorage.setItem(CREATE_TASK_STORAGE_KEY, JSON.stringify(previous)) } catch {}',
     'export const videosApi = {',
     '  ...real,',
@@ -71,6 +84,7 @@ const mocks = {
     '  async startPipeline(payload, onEvent) { window.emitPipelineEvent = onEvent; return { jobId: "job-" + payload.projectId, stop() {} } },',
     '  async cancelJob() {},',
     '  async confirmScenes() {},',
+    '  async setPromptModel() {},',
     '  previewSceneCuts: () => new Promise(() => {}),',
     '}',
   ].join('\n'),
@@ -127,6 +141,7 @@ import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { formatSecondsShort } from '@/modules/videos/utilities/formatElapsed'
 import { estimateResumeCost } from '@/modules/videos/utilities/estimateResumeCost'
 import { formatSceneSeconds } from '@/modules/videos/utilities/formatSceneSeconds'
+import { isPromptStageWatched } from '@/modules/videos/utilities/promptStageWatch'
 
 let checks = 0
 let renderError
@@ -177,21 +192,21 @@ try {
   const done = [...BEFORE_AVATAR, 'animation']
   check(failedStageOf(done, { hasAnimation: true, hasAvatar: false }) === 'render', 'un proyecto sin avatar reanudado desde disco no culpa a la fase avatar')
   check(failedStageOf(done, { hasAnimation: true, hasAvatar: true }) === 'avatar', 'con avatar, la fase sin completar es la suya')
-  check(!taskHasAvatar({ stage: null, scenes: [{ id: 1, text: '', imageStatus: 'ok' }] }) && taskHasAvatar({ hasAvatar: true, stage: null, scenes: [] }) && taskHasAvatar({ stage: 'avatar', scenes: [] }) && taskHasAvatar({ stage: null, scenes: base }), 'avatar por datos: pedido, en curso o con escenas de avatar')
+  check(!taskHasAvatar({ activeStages: [], scenes: [{ id: 1, text: '', imageStatus: 'ok' }] }) && !taskHasAvatar({ activeStages: ['images'], scenes: [] }) && taskHasAvatar({ hasAvatar: true, activeStages: [], scenes: [] }) && taskHasAvatar({ activeStages: ['avatar'], scenes: [] }) && taskHasAvatar({ activeStages: ['images', 'avatar'], scenes: [] }) && taskHasAvatar({ activeStages: [], scenes: base }), 'avatar por datos: pedido, en curso (sola o junto con las imágenes) o con escenas de avatar')
 
   // 3. La fila de la fase.
-  render(<StageBar currentStage="avatar" showAnimation={false} showAvatar completedStages={BEFORE_AVATAR} paused={false} recovery={null} promptModelStalled={false} />)
+  render(<StageBar activeStages={['avatar']} showAnimation={false} showAvatar completedStages={BEFORE_AVATAR} paused={false} recovery={null} promptModelStalled={false} />)
   await waitFor(() => rows().length === 7, 'siete fases con la del avatar')
   // La fase pendiente lleva un punto delante («·Ensamblando video»).
   const labels = rows().map((row) => row.textContent)
   check(labels[4] === i18n.t('create.stages.images') && labels[5] === i18n.t('create.stages.avatar') && labels[6].endsWith(i18n.t('create.stages.render')), 'la fila del avatar va entre imágenes y ensamblado: ' + labels.join(' | '))
   check(rows()[5].className.includes('border-amethyst/60'), 'la fase del avatar en curso va en morado')
   // Con animación también: el avatar va antes (la animación respeta sus tramos).
-  render(<StageBar currentStage="animation" showAnimation showAvatar completedStages={[...BEFORE_AVATAR, 'avatar']} paused={false} recovery={null} promptModelStalled={false} />)
+  render(<StageBar activeStages={['animation']} showAnimation showAvatar completedStages={[...BEFORE_AVATAR, 'avatar']} paused={false} recovery={null} promptModelStalled={false} />)
   await waitFor(() => rows().length === 8, 'ocho fases con avatar y animación')
   const allLabels = rows().map((row) => row.textContent)
   check(allLabels[5].endsWith(i18n.t('create.stages.avatar')) && allLabels[6].endsWith(i18n.t('create.stages.animation')) && allLabels[7].endsWith(i18n.t('create.stages.render')) && rows()[6].className.includes('border-sky/60'), 'el avatar va antes de la animación y la animación conserva su celeste')
-  render(<StageBar currentStage="render" showAnimation={false} showAvatar={false} completedStages={BEFORE_AVATAR} paused={false} recovery={null} promptModelStalled={false} />)
+  render(<StageBar activeStages={['render']} showAnimation={false} showAvatar={false} completedStages={BEFORE_AVATAR} paused={false} recovery={null} promptModelStalled={false} />)
   await waitFor(() => rows().length === 6, 'sin avatar, seis fases')
   check(!rows().some((row) => row.textContent.includes(i18n.t('create.stages.avatar'))), 'sin avatar no hay fila del avatar')
 
@@ -318,6 +333,8 @@ try {
   await waitFor(() => probe.api, 'el store monta')
   // El reinicio no resucita el reloj de un render que murió con la app.
   check(probe.task?.scenes[0].avatarActivity === undefined && probe.task.hasAvatar === true && probe.task.avatarDropped === 2, 'una tarea guardada vuelve sin renders «generando» y conserva el avatar pedido')
+  // Ni sus fases en curso (entrega 2h): las dos que corrían murieron con el job.
+  check(probe.task.status === 'error' && probe.task.jobId === null && JSON.stringify(probe.task.activeStages) === '[]', 'una tarea que quedó con las imágenes y el avatar corriendo vuelve interrumpida y sin fases en curso: ' + JSON.stringify(probe.task.activeStages))
 
   await probe.api.startPipelineForProject('p1', 'Con avatar', { hasAvatar: true, seed: { scenes: base, completedStages: BEFORE_AVATAR, audioDurationSeconds: 150 } })
   await waitFor(() => probe.task?.projectId === 'p1' && probe.task.status === 'generating', 'el job arranca')
@@ -326,7 +343,7 @@ try {
   emit({ type: 'avatar-planned', sceneIds: [1, 2, 3], dropped: 2 })
   emit({ type: 'avatar-scene-started', sceneId: 1 })
   emit({ type: 'avatar-scene-progress', sceneId: 1, phase: 'render', elapsedSeconds: 30 })
-  await waitFor(() => probe.task.stage === 'avatar' && probe.task.scenes[0].avatarActivity?.phase === 'render', 'el render llega a su escena')
+  await waitFor(() => JSON.stringify(probe.task.activeStages) === '["avatar"]' && probe.task.scenes[0].avatarActivity?.phase === 'render', 'el render llega a su escena')
   check(probe.task.avatarDropped === 2 && probe.task.scenes[1].avatarActivity === undefined, 'avatar-planned cuenta las apariciones que no entraron y el render va solo a su escena')
   emit({ type: 'avatar-scene-ready', sceneId: 1, scene: { ...base[0], avatar: readyView } })
   emit({ type: 'avatar-scene-started', sceneId: 2 })
@@ -1008,6 +1025,235 @@ try {
   const readyWithClip = { ...pendingScene(3, 60, 70, 'avatar_iv'), avatar: { ...planned, engine: 'avatar_iv', status: 'ready', clipPath: '/p/avatar/scene_3.mp4' } }
   check(Math.abs(sceneLine(withEngine('avatar_iii'), readyWithClip, pendingScene(2, 30, 42, 'avatar_iii')).estimated - 0.198) < 1e-9, 'una escena que ya tiene su clip no suma, tenga el motor que tenga')
   check(JSON.stringify(avatarRunOptions({ ...avatarOptions, engine: 'avatar_v' })) === JSON.stringify({ hasAvatar: true, avatarLookType: 'photo_avatar', avatarEngine: 'avatar_v' }), 'las opciones de corrida llevan el motor del proyecto, también Avatar V')
+
+  // 18. El avatar junto con las imágenes (entrega 2h, diseño §24.2). La lista
+  // de fases hace girar las dos filas a la vez; el store lleva las fases en
+  // curso (activeStages) en orden de arranque y cada una sale cuando
+  // termina, en cualquier orden (y completedStages puede quedar con el
+  // avatar antes que las imágenes); el arranque del avatar no borra la pasada
+  // de recuperación de las imágenes, ni el de otra fase la vigilancia del
+  // modelo de prompts; el fin del job las vacía. En pantalla, una fase, un
+  // panel: mientras corren las imágenes, la grilla, con el porcentaje en la
+  // tarjeta de la aparición que arrancó y «En espera» en la que no, sin el
+  // panel del avatar; cuando las imágenes terminan y el avatar sigue, su
+  // panel, con el reloj y la ayuda solo mientras el avatar corre. La pantalla
+  // de la biblioteca, igual.
+  const BEFORE_IMAGES = ['voice', 'transcription', 'scene-cuts', 'scene-prompts']
+  // (a) La lista de fases. Cada caso en su propio contenedor: el árbol del
+  // caso anterior sigue en la página hasta que React confirma el nuevo.
+  const stageBarCase = async (probeId, props) => {
+    render(<div data-probe={probeId}><StageBar showAnimation={false} showAvatar paused={false} recovery={null} promptModelStalled={false} {...props} /></div>)
+    return waitFor(() => { const items = [...document.querySelectorAll('[data-probe="' + probeId + '"] li')]; return items.length === 7 ? items : null }, 'la lista de fases de ' + probeId)
+  }
+  const spins = (row) => row.querySelector('.animate-spin') !== null
+  const isDone = (row) => row.querySelector('svg.lucide-check') !== null
+  let stageRows = await stageBarCase('both-running', { activeStages: ['images', 'avatar'], completedStages: BEFORE_IMAGES })
+  check(spins(stageRows[4]) && spins(stageRows[5]) && stageRows.filter(spins).length === 2, 'imágenes y avatar giran juntas, y ninguna otra fila')
+  check(stageRows[4].className.includes('border-ocean/60') && stageRows[5].className.includes('border-amethyst/60') && !isDone(stageRows[4]) && !isDone(stageRows[5]), 'cada una con su color: las imágenes en ocean y el avatar en morado')
+  stageRows = await stageBarCase('images-first', { activeStages: ['avatar'], completedStages: [...BEFORE_IMAGES, 'images'] })
+  check(isDone(stageRows[4]) && !spins(stageRows[4]) && spins(stageRows[5]) && stageRows.filter(spins).length === 1, 'las imágenes terminan primero: su fila queda hecha y la del avatar sigue girando')
+  stageRows = await stageBarCase('avatar-first', { activeStages: ['images'], completedStages: [...BEFORE_IMAGES, 'avatar'] })
+  check(isDone(stageRows[5]) && !spins(stageRows[5]) && spins(stageRows[4]) && stageRows.filter(spins).length === 1, 'el avatar termina primero: su fila queda hecha y la de imágenes sigue girando')
+  stageRows = await stageBarCase('rewriting', { activeStages: ['images', 'avatar'], completedStages: BEFORE_IMAGES, recovery: { kind: 'rewrite', sceneIds: [1], pass: 1, maxPasses: 2, streamed: 0 } })
+  check(spins(stageRows[3]) && !spins(stageRows[4]) && spins(stageRows[5]) && stageRows.filter(spins).length === 2, 'reescribiendo prompts: gira la de prompts, la de imágenes espera y la del avatar sigue girando')
+
+  // (b) El store y la pantalla de Crear, con los eventos del sidecar.
+  const imageScene = (id, startSeconds) => ({ id, text: 'imagen ' + id, imageStatus: 'pending', startSeconds, endSeconds: startSeconds + 10 })
+  const alongsideScenes = [imageScene(1, 0), avatarScene(2, 10), avatarScene(3, 20), imageScene(4, 30)]
+  const stagesNow = () => JSON.stringify(probe.task.activeStages)
+  const runAlongside = async (projectId) => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <TooltipProvider>
+          <div data-probe={'alongside-' + projectId}>
+            <Probe />
+            <MemoryRouter><LiveProgress /></MemoryRouter>
+          </div>
+        </TooltipProvider>
+      </QueryClientProvider>,
+    )
+    await waitFor(() => document.querySelector('[data-probe="alongside-' + projectId + '"]'), 'la pantalla de ' + projectId)
+    probe.api.discardTask()
+    await waitFor(() => probe.task === null, 'se descarta la tarea')
+    await probe.api.startPipelineForProject(projectId, 'Juntos ' + projectId, { hasAvatar: true, seed: { scenes: alongsideScenes, completedStages: BEFORE_IMAGES, audioDurationSeconds: 40 } })
+    await waitFor(() => probe.task?.projectId === projectId && probe.task.status === 'generating', 'arranca ' + projectId)
+  }
+  const liveStageRows = () => [...document.querySelectorAll('aside ul > li')]
+  const hint = i18n.t('create.progress.avatarHint')
+  const panelRow = (index) => rows().find((row) => row.textContent.includes(i18n.t('create.progress.avatarItem', { index, total: 2 })))
+
+  // Las imágenes terminan primero.
+  await runAlongside('pa1')
+  emit({ type: 'stage-started', stageId: 'images' })
+  emit({ type: 'images-recovery-pass', kind: 'retry', sceneIds: [1], pass: 1, maxPasses: 2 })
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  await waitFor(() => stagesNow() === '["images","avatar"]', 'las dos fases en curso, en el orden en que arrancaron')
+  check(probe.task.imagesRecovery?.kind === 'retry' && JSON.stringify(probe.task.imagesRecovery.sceneIds) === '[1]', 'el arranque del avatar no borra la pasada de recuperación de las imágenes')
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit({ type: 'avatar-scene-progress', sceneId: 2, phase: 'upload', elapsedSeconds: 61 })
+  const startedCard = await waitFor(() => cardWith(2, 'create.progress.avatarCardGenerating'), 'mientras corren las imágenes, la tarjeta de la aparición que arrancó se genera')
+  check(percentOf(startedCard) !== null && percentIn(startedCard)[0].textContent === i18n.t('create.progress.avatarPercent', { percent: percentOf(startedCard) }), 'con su porcentaje simulado, como las filas del panel del avatar')
+  check(cardWith(3, 'create.progress.avatarQueued') !== null && percentIn(cardWith(3, 'create.progress.avatarQueued')).length === 0, 'la que todavía no arrancó dice «En espera», sin porcentaje')
+  check(!text().includes(hint) && !panelRow(1) && !panelRow(2), 'mientras corren las imágenes no está el panel del avatar: su avance va en las tarjetas de la grilla')
+  check(liveStageRows().length === 7 && spins(liveStageRows()[4]) && spins(liveStageRows()[5]) && liveStageRows().filter(spins).length === 2, 'en la pantalla, «Generando imágenes» y «Generando el avatar» giran juntas')
+  emit({ type: 'stage-completed', stageId: 'images' })
+  await waitFor(() => stagesNow() === '["avatar"]' && text().includes(hint), 'las imágenes terminan y el avatar sigue: su panel, con su ayuda')
+  check(probe.task.completedStages.at(-1) === 'images' && probe.task.imagesRecovery === null, 'las imágenes quedan hechas y su pasada de recuperación se cierra')
+  check(panelRow(1) && panelRow(2) && cardWith(2, 'create.progress.avatarCardGenerating') !== null, 'el panel lista las dos apariciones y la grilla sigue a la vista')
+  const panelTime = () => panelRow(1)?.querySelector('time')?.textContent
+  const timeBefore = panelTime()
+  await delay(1300)
+  check(timeBefore && panelTime() !== timeBefore, 'el reloj del panel corre mientras el avatar sigue: ' + timeBefore + ' → ' + panelTime())
+  emit({ type: 'avatar-scene-ready', sceneId: 2, scene: { ...alongsideScenes[1], avatar: readyView } })
+  emit({ type: 'stage-completed', stageId: 'avatar' })
+  await waitFor(() => stagesNow() === '[]' && !text().includes(hint), 'el avatar termina: sin fases en curso, el panel sin su ayuda')
+  check(JSON.stringify(probe.task.completedStages.slice(-2)) === '["images","avatar"]' && panelRow(1), 'las dos hechas, en el orden en que terminaron, y el panel sigue con lo que pasó')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/juntos-1.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina el primer orden')
+
+  // El avatar termina primero.
+  await runAlongside('pa2')
+  emit({ type: 'stage-started', stageId: 'images' })
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit({ type: 'avatar-scene-ready', sceneId: 2, scene: { ...alongsideScenes[1], avatar: readyView } })
+  emit({ type: 'avatar-scene-started', sceneId: 3 })
+  emit({ type: 'avatar-scene-failed', sceneId: 3, code: 'avatar_render_failed' })
+  emit({ type: 'stage-completed', stageId: 'avatar' })
+  await waitFor(() => stagesNow() === '["images"]' && cardWith(2, 'create.progress.avatarReady') && cardWith(3, 'create.progress.avatarCardFallback'), 'el avatar termina primero: las tarjetas dicen cómo quedó cada aparición')
+  check(probe.task.completedStages.at(-1) === 'avatar' && !probe.task.completedStages.includes('images'), 'el avatar queda hecho antes que las imágenes')
+  check(!text().includes(hint) && !panelRow(1), 'con las imágenes corriendo, el panel del avatar sigue sin aparecer aunque el avatar terminó')
+  check(isDone(liveStageRows()[5]) && spins(liveStageRows()[4]) && liveStageRows().filter(spins).length === 1, 'la fila del avatar queda hecha y la de imágenes sigue girando')
+  emit({ type: 'stage-completed', stageId: 'images' })
+  await waitFor(() => stagesNow() === '[]' && panelRow(1), 'las imágenes terminan después: el panel del avatar, con lo que pasó')
+  check(JSON.stringify(probe.task.completedStages.slice(-2)) === '["avatar","images"]', 'completedStages queda con el avatar antes que las imágenes: nadie supone el orden')
+  check(!text().includes(hint) && panelRow(1).textContent.includes(i18n.t('create.progress.avatarReady')), 'sin el avatar en curso, el panel no corre su reloj ni muestra la ayuda')
+  // El cierre del job vacía las fases en curso aunque una no haya avisado que
+  // terminaba: la pantalla del video listo no deja una fila girando.
+  emit({ type: 'stage-started', stageId: 'render' })
+  await waitFor(() => stagesNow() === '["render"]', 'el ensamblado en curso')
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/juntos-2.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina el segundo orden')
+  check(stagesNow() === '[]' && liveStageRows().filter(spins).length === 0, 'el video listo no deja fases en curso ni filas girando')
+
+  // Una fase salteada sale de las que corren sin haber corrido; la vigilancia
+  // del modelo de prompts solo la reinicia el arranque de su fase; el fin del
+  // job vacía las fases en curso, también las que no avisaron que terminaban.
+  await runAlongside('pa3')
+  emit({ type: 'stage-started', stageId: 'scene-prompts' })
+  await waitFor(() => probe.task.promptsStageActivity !== null, 'arranca la vigilancia de los prompts')
+  const watch = probe.task.promptsStageActivity
+  emit({ type: 'stage-started', stageId: 'images' })
+  emit({ type: 'stage-skipped', stageId: 'avatar' })
+  await waitFor(() => stagesNow() === '["scene-prompts","images"]' && probe.task.completedStages.includes('avatar'), 'el avatar salteado no queda en curso')
+  check(probe.task.promptsStageActivity === watch, 'el arranque de otra fase no toca la vigilancia del modelo de prompts')
+  emit({ type: 'stage-completed', stageId: 'scene-prompts' })
+  await waitFor(() => stagesNow() === '["images"]' && probe.task.promptsStageActivity === null, 'la vigilancia termina con su fase')
+  checks += 1
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  await waitFor(() => stagesNow() === '["images","avatar"]', 'otra vez las dos')
+  emit({ type: 'job-failed', code: 'render_failed', message: 'fin' })
+  await waitFor(() => probe.task.status === 'error' && stagesNow() === '[]', 'el fin del job vacía las fases en curso')
+  checks += 1
+  // Cambiar de modelo de prompts a mitad de la fase: el cierre del job viejo
+  // no pasa por el reductor (la tarea espera el cambio), así que el job nuevo
+  // arranca sin las fases del anterior.
+  probe.api.discardTask()
+  await waitFor(() => probe.task === null, 'se descarta la tarea')
+  await probe.api.startPipelineForProject('pa4', 'Cambio de modelo', { usesCustomStyle: true, promptModel: 'modelo-a', seed: { scenes: [], completedStages: ['voice', 'transcription', 'scene-cuts'], audioDurationSeconds: 40 } })
+  await waitFor(() => probe.task?.projectId === 'pa4' && probe.task.jobId === 'job-pa4', 'arranca el job con estilo propio')
+  emit({ type: 'stage-started', stageId: 'scene-prompts' })
+  await waitFor(() => stagesNow() === '["scene-prompts"]', 'los prompts en curso')
+  const switching = probe.api.switchPromptModel('modelo-b')
+  await waitFor(() => probe.task.promptModelSwitch === 'cancelling', 'se cierra el job viejo')
+  emit({ type: 'job-failed', code: 'cancelled', message: 'cancelado' })
+  await switching
+  await waitFor(() => probe.task.promptModel === 'modelo-b' && probe.task.status === 'generating', 'el job nuevo con el otro modelo')
+  check(stagesNow() === '[]', 'el job relanzado arranca sin las fases en curso del anterior: ' + stagesNow())
+  emit({ type: 'job-failed', code: 'render_failed', message: 'fin' })
+  await waitFor(() => probe.task.status === 'error', 'se libera el turno del cambio de modelo')
+
+  // (d) Los otros lectores de las fases en curso (M-1 de la revisión de WP-B).
+  // El panel de la voz sigue a su fase aunque el disco ya la tenga terminada
+  // (cambiar de voz relanza la misma tarea); el del ensamblado, a la suya y
+  // al cierre del job.
+  await runAlongside('pv')
+  check(probe.task.completedStages.includes('voice'), 'la voz ya figura terminada en el disco')
+  const voiceTitle = i18n.t('create.progress.voice.title', { provider: 'edge' })
+  const renderHint = i18n.t('create.progress.render.chunks')
+  check(i18n.exists('create.progress.voice.title') && i18n.exists('create.progress.render.chunks') && voiceTitle.includes('edge'), 'los textos de los paneles de voz y de ensamblado son frases del catálogo')
+  emit({ type: 'stage-started', stageId: 'voice' })
+  emit({ type: 'voice-progress', provider: 'edge', totalChars: 1200, elapsedSeconds: 3, percent: 40 })
+  await waitFor(() => text().includes(voiceTitle), 'el panel de la voz mientras la voz corre de nuevo')
+  checks += 1
+  emit({ type: 'stage-completed', stageId: 'voice' })
+  await waitFor(() => stagesNow() === '[]' && !text().includes(voiceTitle), 'al terminar la voz, su panel se va')
+  checks += 1
+  emit({ type: 'stage-started', stageId: 'render' })
+  emit({ type: 'render-progress', percent: 40, phase: 'chunks' })
+  await waitFor(() => text().includes(renderHint), 'el panel del ensamblado mientras ensambla')
+  checks += 1
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/pv.mp4' } })
+  await waitFor(() => probe.task.status === 'completed' && !text().includes(renderHint), 'al cerrar el job, el panel del ensamblado se va')
+  checks += 1
+  // La animación en curso trae su fila y su panel, con la ayuda y el reloj de
+  // cada clip, aunque la tarea no la tenga por datos; al terminar, la ayuda se
+  // va.
+  await runAlongside('pw')
+  const animationHint = i18n.t('create.progress.animationProgressHint')
+  check(i18n.exists('create.progress.animationProgressHint') && !text().includes(animationHint) && liveStageRows().length === 7, 'antes de la animación, ni su fila ni su panel')
+  emit({ type: 'stage-started', stageId: 'animation' })
+  await waitFor(() => text().includes(animationHint) && liveStageRows().length === 8 && spins(liveStageRows()[6]), 'con la animación en curso, su fila gira y su panel corre el reloj con la ayuda')
+  checks += 1
+  emit({ type: 'stage-completed', stageId: 'animation' })
+  await waitFor(() => !text().includes(animationHint), 'al terminar la animación, el panel ya no corre')
+  checks += 1
+  emit({ type: 'job-completed', result: { status: 'completed', videoPath: '/v/pw.mp4' } })
+  await waitFor(() => probe.task.status === 'completed', 'termina la animación')
+  // Un fallo del proveedor con los prompts en curso bloquea el modelo elegido
+  // y abre la decisión; el mismo fallo con otra fase en curso, no.
+  const customRun = async (projectId, stageId) => {
+    probe.api.discardTask()
+    await waitFor(() => probe.task === null, 'se descarta la tarea')
+    await probe.api.startPipelineForProject(projectId, 'Modelo ' + projectId, { usesCustomStyle: true, promptModel: 'modelo-' + projectId, seed: { scenes: [], completedStages: ['voice', 'transcription', 'scene-cuts'], audioDurationSeconds: 40 } })
+    await waitFor(() => probe.task?.projectId === projectId && probe.task.jobId !== null, 'arranca ' + projectId)
+    emit({ type: 'stage-started', stageId })
+    await waitFor(() => stagesNow() === '["' + stageId + '"]', stageId + ' en curso')
+    emit({ type: 'job-failed', code: 'llm_provider_error', message: 'el proveedor falló' })
+    await waitFor(() => probe.task.status === 'error', 'el fallo de ' + projectId)
+  }
+  await customRun('pp1', 'scene-prompts')
+  check(probe.task.promptModelIssue?.reason === 'error' && probe.task.promptModelIssue.modelId === 'modelo-pp1' && stagesNow() === '[]', 'con los prompts en curso, el fallo del proveedor bloquea el modelo y abre la decisión: ' + JSON.stringify(probe.task.promptModelIssue))
+  await customRun('pp2', 'images')
+  check(probe.task.promptModelIssue === null && probe.task.errorCode === 'llm_provider_error', 'con otra fase en curso, el mismo fallo es un error más, sin bloquear el modelo')
+  // El vigilante del modelo de prompts mira que su fase esté entre las que
+  // corren (puede correr otra a la vez); el resto de sus condiciones, igual.
+  const watchedTask = { usesCustomStyle: true, status: 'generating', activeStages: ['scene-prompts'], imagesRecovery: null, promptModelSwitch: null, promptsStageActivity: { startedAt: 1, lastProgressAt: 1 }, promptModelIssue: null }
+  check(isPromptStageWatched(watchedTask) && isPromptStageWatched({ ...watchedTask, activeStages: ['scene-prompts', 'images'] }), 'el vigilante mira los prompts en curso, también con otra fase a la vez')
+  check(!isPromptStageWatched({ ...watchedTask, activeStages: ['images', 'avatar'] }) && !isPromptStageWatched({ ...watchedTask, activeStages: [] }), 'sin los prompts en curso no vigila, aunque corran las imágenes y el avatar')
+  check(!isPromptStageWatched({ ...watchedTask, usesCustomStyle: false }) && !isPromptStageWatched({ ...watchedTask, status: 'error' }) && !isPromptStageWatched({ ...watchedTask, imagesRecovery: { kind: 'rewrite', sceneIds: [1], pass: 1, maxPasses: 2, streamed: 0 } }) && !isPromptStageWatched({ ...watchedTask, promptModelSwitch: 'cancelling' }) && !isPromptStageWatched({ ...watchedTask, promptsStageActivity: null }), 'sin estilo propio, sin job, en una recuperación, cambiando de modelo o sin actividad, no vigila')
+  check(!isPromptStageWatched({ ...watchedTask, promptModelIssue: { reason: 'stalled', modelId: 'm', snoozedUntil: null } }) && isPromptStageWatched({ ...watchedTask, promptModelIssue: { reason: 'stalled', modelId: 'm', snoozedUntil: 5 } }), 'con el aviso a la vista no vigila; silenciado, sí')
+
+  // (c) La pantalla de la biblioteca hace lo mismo.
+  const alongsideOnDisk = diskStatus('Juntos en la biblioteca', true)
+  alongsideOnDisk.metadata.completedStages = BEFORE_IMAGES
+  alongsideOnDisk.scenes = alongsideScenes
+  window.projectStatuses.pl = alongsideOnDisk
+  probe.api.discardTask()
+  await waitFor(() => probe.task === null, 'se descarta la tarea')
+  await resumeFromLibrary('pl')
+  emit({ type: 'stage-started', stageId: 'images' })
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  emit({ type: 'avatar-scene-started', sceneId: 3 })
+  emit({ type: 'avatar-scene-progress', sceneId: 3, phase: 'render', elapsedSeconds: 30 })
+  const libraryCard = await waitFor(() => cardWith(3, 'create.progress.avatarCardGenerating'), 'en la biblioteca, la tarjeta de la aparición que arrancó se genera')
+  check(percentOf(libraryCard) !== null && cardWith(2, 'create.progress.avatarQueued') !== null, 'con su porcentaje, y la que no arrancó en espera')
+  check(!text().includes(hint) && liveStageRows().length === 7 && spins(liveStageRows()[4]) && spins(liveStageRows()[5]), 'en la biblioteca giran las dos filas y el panel del avatar espera a que terminen las imágenes')
+  emit({ type: 'stage-completed', stageId: 'images' })
+  await waitFor(() => text().includes(hint) && panelRow(2), 'en la biblioteca, el panel del avatar cuando las imágenes terminan')
+  checks += 1
+  emit({ type: 'job-failed', code: 'render_failed', message: 'fin' })
+  await waitFor(() => probe.task.status === 'error', 'se libera el turno')
   document.getElementById('result').textContent = 'PASS: avatar progress (' + checks + ' checks)'
 } catch (error) {
   const reason = renderError && renderError !== error ? ' (render error: ' + renderError.message + ')' : ''

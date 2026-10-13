@@ -22,7 +22,9 @@ interface CreateAvatarCostProps {
 // pre-check compara con el saldo (estimateCreateCost); las escenas de avatar
 // no suman imágenes (§6.2). Con «3 veces en 2 minutos» (entrega 2f) cuenta las
 // apariciones y los segundos que salen de verdad, no solo lo que mueven los
-// controles. Presentacional.
+// controles. Debajo, cuándo se cobra (entrega 2h, spec §24.2): el avatar se
+// genera junto con las imágenes y se cobra apenas empieza. La tarjeta solo
+// se monta con el avatar encendido. Presentacional.
 export function CreateAvatarCost({ value }: CreateAvatarCostProps) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'es'
@@ -68,6 +70,9 @@ export function CreateAvatarCost({ value }: CreateAvatarCostProps) {
           })}
         </p>
       )}
+      <p className="mt-2 font-body text-xs text-foreground/80">
+        {t('create.avatar.chargeTiming')}
+      </p>
     </div>
   )
 }

@@ -853,8 +853,8 @@ function dismissAnimationFailure(projectId: string) {
 // vez y exclusiva con todas las del proyecto: no arranca si hay otra y,
 // mientras corre, no entra ninguna. Devuelve si la aceptó; el job sigue solo y
 // sus eventos llenan el bloque del timeline. Las escenas arrancan «en cola»:
-// el sidecar renderiza de a tres y cada una sale de la cola con su
-// `avatar-scene-started`.
+// el sidecar renderiza de a diez (AVATAR_RENDER_CONCURRENCY, entrega 2h) y
+// cada una sale de la cola con su `avatar-scene-started`.
 function startAvatarRender(
   projectId: string,
   sceneIds: number[],
@@ -927,18 +927,29 @@ function handleAvatarRenderEvent(
   switch (event.type) {
     // Su render arrancó (o avisa una fase sin que el arranque haya llegado):
     // sale de la cola y su reloj empieza acá, una sola vez. Lo que ya salió de
-    // la cola (o del render) no vuelve: el porcentaje nunca baja.
+    // la cola (o del render) no vuelve: el porcentaje nunca baja. Cada aviso de
+    // fase anota en qué paso va (`phase`): el aviso de «Cancelar» cuenta las
+    // que llegaron a una fase cobrada (AVATAR_CHARGED_PHASES, entrega 2h).
     case 'avatar-scene-started':
-    case 'avatar-scene-progress':
-      if (!task.sceneAvatarRendering[event.sceneId]?.queued) return
+    case 'avatar-scene-progress': {
+      const current = task.sceneAvatarRendering[event.sceneId]
+      if (!current) return
+
+      const phase =
+        event.type === 'avatar-scene-progress' ? event.phase : current.phase
+      if (!current.queued && phase === current.phase) return
 
       patchTask(projectId, {
         sceneAvatarRendering: {
           ...task.sceneAvatarRendering,
-          [event.sceneId]: { startedAt: Date.now() },
+          [event.sceneId]: {
+            startedAt: current.queued ? Date.now() : current.startedAt,
+            phase,
+          },
         },
       })
       return
+    }
 
     // Lista o fallida: sale del render y `revision` relee el proyecto, que trae
     // del disco su clip o su motivo.

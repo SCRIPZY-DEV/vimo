@@ -34,6 +34,7 @@ import {
 } from '../types/avatar.ts'
 import type { Scene } from '../types/scenes.ts'
 import type { FrameSize, VideoFormat } from '../types/video-format.ts'
+import type { ConcurrencyLimiter } from '../utils/concurrency.ts'
 import {
   isInsufficientCreditsCode,
   isInsufficientCreditsFailure,
@@ -131,6 +132,11 @@ import {
 // pedido se cosecharía gratis); con una duración nueva, el tramo de la copia de
 // la escena que recibe el carril (otro corte de audio, otra huella), y la toma
 // no sube.
+// Desde la entrega 2h (diseño §24.3): la fase `render` sale cuando HeyGen
+// aceptó el pedido (es lo que la app cuenta como cobrado) y hasta ahí el pedido
+// va en `upload`; ninguna fase se avisa dos veces seguidas. Un 429 al pedir lo
+// espera el cliente con paciencia (heygen.ts) y el trabajo local —el corte del
+// audio y la normalización— pasa por el límite de la corrida (`localWork`).
 
 // Cada consulta de estado espera un 50 % más que la anterior, hasta el tope.
 const POLL_GROWTH = 1.5
@@ -373,6 +379,9 @@ export interface AvatarLaneClock {
 
 export const SYSTEM_CLOCK: AvatarLaneClock = { now: () => Date.now(), sleep }
 
+// Sin un límite de la corrida, el trabajo local del carril corre en el acto.
+const UNLIMITED_LOCAL_WORK: ConcurrencyLimiter = (task) => task()
+
 export interface AvatarLaneOptions {
   client: HeyGenClient
   paths: ProjectPaths
@@ -408,6 +417,11 @@ export interface AvatarLaneOptions {
   signal: AbortSignal
   events: AvatarLaneEvents
   clock?: AvatarLaneClock
+  // El límite del trabajo local de la corrida (entrega 2h, diseño §24.3):
+  // cortar el audio y normalizar el clip (y mirar si un crudo se puede leer)
+  // pasan por él, así diez carriles que bajan juntos no ahogan la máquina.
+  // Sin él, en el acto.
+  localWork?: ConcurrencyLimiter
   // Persiste el avatar de la escena. Tiene que guardar aunque la persona
   // cancele: guarda recibos de pedidos que pueden estar pagos. `details` dice
   // qué cambió además de los recibos.
@@ -603,6 +617,7 @@ export async function renderAvatarScene(
 
   const { client, paths, signal, events } = options
   const clock = options.clock ?? SYSTEM_CLOCK
+  const localWork = options.localWork ?? UNLIMITED_LOCAL_WORK
   const sceneId = scene.id
   const startedAt = clock.now()
   events.onStarted(sceneId)
@@ -622,12 +637,20 @@ export async function renderAvatarScene(
   })
   const checkpoint = (details?: AvatarCheckpointDetails) =>
     options.onCheckpoint(snapshot(), details)
-  const progress = (phase: AvatarScenePhase) =>
+  // La última fase que se avisó de esta aparición: la misma no se repite
+  // (ronda 1 de la 2h; la consulta del render ya no la vuelve a avisar en cada
+  // vuelta, el reloj lo lleva la app).
+  let lastPhase: AvatarScenePhase | undefined
+  const progress = (phase: AvatarScenePhase) => {
+    if (phase === lastPhase) return
+
+    lastPhase = phase
     events.onProgress(
       sceneId,
       phase,
       Math.max(0, Math.round((clock.now() - startedAt) / 1000)),
     )
+  }
   // La escena no quedó lista con un clip nuevo: falla con su código o, si se
   // regeneraba una lista, vuelve a su clip de antes (el código sale igual en
   // el resultado).
@@ -738,11 +761,13 @@ export async function renderAvatarScene(
     // de la huella completa; el WAV de un corte ya hecho se reusa.
     const audioPath = avatarAudioFile(paths, sceneId, audioCutHash)
     if (!(await isValidFile(audioPath)))
-      await cutAvatarAudio(options.ffmpegPath, paths.narrationFile, audioPath, {
-        startSeconds,
-        endSeconds,
-        signal,
-      })
+      await localWork(() =>
+        cutAvatarAudio(options.ffmpegPath, paths.narrationFile, audioPath, {
+          startSeconds,
+          endSeconds,
+          signal,
+        }),
+      )
     progress('upload')
     return client.uploadAsset(
       await readFile(audioPath),
@@ -804,7 +829,11 @@ export async function renderAvatarScene(
     // clave, ni el título, ni el movimiento (el del recibo) cambian.
     const title = sentTitleOf(index)
     const key = keyOf(index)
-    progress('render')
+    // Mientras HeyGen no acepta, el pedido va en `upload` (ronda 1 de la 2h):
+    // también si el audio se reusó de un intento anterior o se repite un
+    // pedido sin respuesta, que no pasaron por la subida, y durante la espera
+    // de una cuenta llena. Si ya estaba en `upload`, no se repite.
+    progress('upload')
     // El `try` cubre solo el pedido: un error al guardar el recibo después no
     // es una respuesta de HeyGen y no se clasifica como tal.
     let videoId: string
@@ -876,6 +905,12 @@ export async function renderAvatarScene(
       return failed(failure.code, failure)
     }
 
+    // HeyGen aceptó el render: recién ahora la aparición está cobrada y pasa a
+    // `render` (entrega 2h, diseño §24.3, R-2h-4); hasta acá iba en `upload`.
+    // La app cuenta como cobradas solo las que llegaron a `render`. Retomar un
+    // render ya pedido (`waitForRender`) avisa `render` al entrar, como
+    // siempre; después del POST, la consulta ya no la repite.
+    progress('render')
     // Si esta escritura falla, el error sube y en disco queda el recibo sin
     // resolver (`creating` o `ambiguous`): la próxima corrida lo busca por su
     // marca o repite la MISMA clave.
@@ -1031,11 +1066,13 @@ export async function renderAvatarScene(
     progress('normalize')
     let normalized: AvatarClipNormalization
     try {
-      normalized = await normalizeAvatarClip(
-        options.ffmpegPath,
-        rawPath,
-        avatarClipFile(paths, sceneId, requestKey),
-        { startSeconds, endSeconds, frame: options.frame, signal },
+      normalized = await localWork(() =>
+        normalizeAvatarClip(
+          options.ffmpegPath,
+          rawPath,
+          avatarClipFile(paths, sceneId, requestKey),
+          { startSeconds, endSeconds, frame: options.frame, signal },
+        ),
       )
     } catch (error) {
       if (signal.aborted) throw error
@@ -1047,8 +1084,10 @@ export async function renderAvatarScene(
       // Un crudo que no es un video legible se vuelve a bajar en la próxima
       // corrida (el render ya está pago y su URL se vuelve a pedir). Uno legible
       // se conserva: el fallo fue local y basta con volver a normalizar.
-      if (!(await isReadableVideo(options.ffmpegPath, rawPath, signal)))
-        await rm(rawPath, { force: true })
+      const readable = await localWork(() =>
+        isReadableVideo(options.ffmpegPath, rawPath, signal),
+      )
+      if (!readable) await rm(rawPath, { force: true })
 
       return failed('avatar_download_failed', failure)
     }

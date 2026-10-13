@@ -11,6 +11,9 @@ interface EditorAvatarRenderProgressProps {
   percent: number | undefined
   // La región del avance: adonde va el foco al arrancar la tarea.
   regionRef: RefObject<HTMLDivElement | null>
+  // El botón «Cancelar»: adonde vuelve el foco cuando se cierra el aviso que
+  // abrió (entrega 2h).
+  cancelRef: RefObject<HTMLButtonElement | null>
   // Adonde va el foco si estaba en el avance cuando desaparece (la tarea
   // terminó o se canceló).
   focusFallback(): HTMLElement | null
@@ -23,10 +26,13 @@ interface EditorAvatarRenderProgressProps {
 // próxima vez sin pagar de nuevo). Es una región enfocable: al arrancar, el
 // foco viene acá y no a «Cancelar», así un Enter sostenido sobre «Generar» no
 // cancela lo que acaba de confirmar; «Cancelar» además ignora las
-// repeticiones de una tecla (M1 de la revisión del WP-Q). Presentacional.
+// repeticiones de una tecla (M1 de la revisión del WP-Q): por eso también es
+// seguro devolverle el foco al cerrarse el aviso de «Cancelar» con apariciones
+// cobradas (`cancelRef`, entrega 2h). Presentacional.
 export function EditorAvatarRenderProgress({
   percent,
   regionRef,
+  cancelRef,
   focusFallback,
   onCancel,
 }: EditorAvatarRenderProgressProps) {
@@ -70,6 +76,7 @@ export function EditorAvatarRenderProgress({
       )}
 
       <Button
+        ref={cancelRef}
         type="button"
         variant="outline"
         size="sm"

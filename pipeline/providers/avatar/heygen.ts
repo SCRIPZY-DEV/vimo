@@ -3,7 +3,11 @@ import {
   PipelineFailure,
   toPipelineFailure,
 } from '../../runner/failure.ts'
-import { AVATAR_ENGINES, AVATAR_LOOK_TYPES } from '../../types/avatar.ts'
+import {
+  AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS,
+  AVATAR_ENGINES,
+  AVATAR_LOOK_TYPES,
+} from '../../types/avatar.ts'
 import type {
   AVATAR_EXPRESSIVE_LEVEL,
   AvatarAspectRatio,
@@ -34,6 +38,11 @@ export const HEYGEN_GROUPS_PAGE_LIMIT = 50
 const REQUEST_TIMEOUT_MS = 30_000
 const UPLOAD_TIMEOUT_MS = 120_000
 const RATE_LIMIT_MAX_RETRIES = 3
+// La espera mínima ante un 429 (el margen de utils/http-retry.ts): una espera
+// calculada que no es un número o es menor se lleva acá, así cada repetición
+// descuenta de la paciencia y la paciencia siempre se agota (revisión de WP-A
+// de la entrega 2h, M-1).
+const RATE_LIMIT_MIN_WAIT_MS = 1000
 // La cuenta no tiene una billetera con saldo legible (un plan de suscripción, o
 // un número que no sirve): la vista muestra «saldo no disponible». La clave,
 // en cambio, sirvió: HeyGen respondió.
@@ -555,6 +564,55 @@ function createVideoBody(input: HeyGenCreateVideoInput) {
   }
 }
 
+// La espera ante un 429: la de rateLimitDelayMs (el `Retry-After` o la
+// creciente), nunca menos de RATE_LIMIT_MIN_WAIT_MS.
+function rateLimitWaitMs(
+  response: Response,
+  bodyText: string,
+  attempt: number,
+): number {
+  const delayMs = rateLimitDelayMs(response, bodyText, attempt)
+  if (!Number.isFinite(delayMs) || delayMs < RATE_LIMIT_MIN_WAIT_MS)
+    return RATE_LIMIT_MIN_WAIT_MS
+
+  return delayMs
+}
+
+// Cuánto aguanta un pedido ante un 429 antes de darse por vencido: todas las
+// llamadas, un número de reintentos por pedido; pedir un render, una paciencia
+// en milisegundos para todo el pedido (entrega 2h, diseño §24.3). `allows`
+// dice si se puede esperar `delayMs` y repetir, y si se puede lo descuenta.
+interface RateLimitBudget {
+  allows(delayMs: number): boolean
+}
+
+function retryBudget(retries: number): RateLimitBudget {
+  let used = 0
+  return {
+    allows() {
+      if (used >= retries) return false
+
+      used++
+      return true
+    },
+  }
+}
+
+// La espera se suma entera: nunca se espera más que `patienceMs` en total, y
+// una espera que ya no entra corta ahí (repetir antes del `Retry-After` solo
+// daría otro 429).
+function patienceBudget(patienceMs: number): RateLimitBudget {
+  let waitedMs = 0
+  return {
+    allows(delayMs) {
+      if (waitedMs + delayMs > patienceMs) return false
+
+      waitedMs += delayMs
+      return true
+    },
+  }
+}
+
 // Ajustes de un cliente para una consulta que no puede demorar (el pre-vuelo
 // de la cuenta al crear un proyecto): el plazo de cada pedido y cuántas veces
 // se repite un 429. Sin ellos, 30 s y tres reintentos.
@@ -574,6 +632,7 @@ export function createHeyGenClient(
     path: string,
     init: RequestInit,
     timeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
+    rateLimit = retryBudget(rateLimitRetries),
   ): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
       const timeout = AbortSignal.timeout(timeoutMs)
@@ -612,10 +671,13 @@ export function createHeyGenClient(
       // Ídem: con el cuerpo cortado por la cancelación, un 409
       // `request_in_progress` se leería como un rechazo cualquiera.
       signal.throwIfAborted()
-      if (response.status === 429 && attempt < rateLimitRetries) {
-        await sleep(rateLimitDelayMs(response, bodyText, attempt), signal)
-        signal.throwIfAborted()
-        continue
+      if (response.status === 429) {
+        const delayMs = rateLimitWaitMs(response, bodyText, attempt)
+        if (rateLimit.allows(delayMs)) {
+          await sleep(delayMs, signal)
+          signal.throwIfAborted()
+          continue
+        }
       }
       throw heygenFailure(response.status, bodyText)
     }
@@ -776,11 +838,18 @@ export function createHeyGenClient(
         },
         body: JSON.stringify(createVideoBody(input)),
       }
+      // Un 429 al pedir el render es la cuenta llena (diseño §24.3): HeyGen
+      // atiende 10 renders a la vez por cuenta y la persona puede tener otro
+      // trabajo en curso. No se creó ni se cobró nada: se espera el
+      // `Retry-After` y se repite el MISMO pedido (misma clave, mismo cuerpo),
+      // con paciencia para todo el pedido —también entre las esperas de un
+      // 409—, cancelable. Agotada, sale el 429 como siempre.
+      const patience = patienceBudget(AVATAR_CREATE_RATE_LIMIT_PATIENCE_MS)
       let sawRequestInProgress = false
       for (let attempt = 0; ; attempt++) {
         let body: unknown
         try {
-          body = await request('/v3/videos', init)
+          body = await request('/v3/videos', init, undefined, patience)
         } catch (error) {
           // El mismo pedido, con la misma clave, sigue en vuelo: se espera y se
           // repite sin cambiar nada. Agotado, sale como avatar_rate_limited

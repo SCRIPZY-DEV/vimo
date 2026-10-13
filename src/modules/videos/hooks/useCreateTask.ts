@@ -19,6 +19,7 @@ import {
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import {
+  chargedSceneIdsWithAvatarEvent,
   scenesWithAvatarEvent,
   scenesWithAvatarRunEnded,
 } from '@/modules/videos/utilities/avatarTaskEvents'
@@ -106,6 +107,9 @@ function restoreTask(): CreateTask | null {
       finishedAt: stored.finishedAt ?? null,
       retry: null,
       retryAttempts: stored.retryAttempts ?? 0,
+      // Las fases en curso pertenecen a un job vivo, que murió con la app. Una
+      // tarea guardada antes de la 2h trae `stage` en su lugar: nadie la lee.
+      activeStages: [],
       videoFormat: stored.videoFormat ?? '16:9',
       promptsWritten: stored.promptsWritten ?? null,
       // La pasada de recuperación pertenece a un job vivo: no sobrevive.
@@ -131,6 +135,9 @@ function restoreTask(): CreateTask | null {
       // El rechazo por saldo sí sobrevive: el proyecto quedó pausado en
       // disco por eso y la tarjeta tiene que seguir diciéndolo.
       creditsIssue: stored.creditsIssue ?? null,
+      // Lo cobrado del avatar también: sus recibos quedaron en disco y la
+      // tarjeta del fallo dice que se usan sin pagar de nuevo (entrega 2h).
+      avatarChargedSceneIds: stored.avatarChargedSceneIds ?? [],
       // Tareas guardadas antes del campo: sin código conocido.
       errorCode: stored.errorCode ?? null,
     }
@@ -142,7 +149,6 @@ function restoreTask(): CreateTask | null {
       return {
         ...task,
         status: 'error',
-        stage: null,
         jobId: null,
         errorKey: INTERRUPTED_ERROR_KEY,
         errorCode: null,
@@ -186,7 +192,7 @@ function startAutoRetry(taskId: string, projectId: string, code: string) {
   patchTask(taskId, {
     status: 'generating',
     jobId: null,
-    stage: null,
+    activeStages: [],
     errorKey: errorKeyFor(code),
     errorCode: code,
     retry: {
@@ -256,21 +262,31 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
   }
 
   switch (event.type) {
+    // Desde la entrega 2h dos fases corren a la vez (el avatar arranca junto
+    // con las imágenes, spec §24.2): cada `stage-started` suma la suya a las
+    // que corren y reinicia solo lo suyo. La pasada de recuperación es de las
+    // imágenes; el arranque del avatar no la borra.
     case 'stage-started':
       patchTask(taskId, {
-        stage: event.stageId,
-        imagesRecovery: null,
+        activeStages: withStage(task.activeStages, event.stageId),
+        ...(event.stageId === 'images' ? { imagesRecovery: null } : {}),
         // Arranca la vigilancia del modelo de prompts (ADR-0028).
-        promptsStageActivity:
-          event.stageId === 'scene-prompts'
-            ? { startedAt: Date.now(), lastProgressAt: Date.now() }
-            : null,
+        ...(event.stageId === 'scene-prompts'
+          ? {
+              promptsStageActivity: {
+                startedAt: Date.now(),
+                lastProgressAt: Date.now(),
+              },
+            }
+          : {}),
       })
       return
 
+    // Cada fase sale de las que corren cuando termina, en cualquier orden.
     case 'stage-skipped':
     case 'stage-completed':
       patchTask(taskId, {
+        activeStages: withoutStage(task.activeStages, event.stageId),
         completedStages: withStage(task.completedStages, event.stageId),
         // El stream del redactor ya no importa con los prompts persistidos.
         ...(event.stageId === 'scene-prompts'
@@ -493,12 +509,19 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       })
       return
 
+    // Cada aparición que HeyGen ya aceptó (o que quedó lista) queda anotada
+    // como cobrada en esta corrida (entrega 2h, spec §24.3): con eso
+    // «Cancelar» avisa y la tarjeta del fallo dice lo que se conserva.
     case 'avatar-scene-started':
     case 'avatar-scene-progress':
     case 'avatar-scene-ready':
     case 'avatar-scene-failed':
       patchTask(taskId, {
         scenes: scenesWithAvatarEvent(task.scenes, event, Date.now()),
+        avatarChargedSceneIds: chargedSceneIdsWithAvatarEvent(
+          task.avatarChargedSceneIds,
+          event,
+        ),
       })
       return
 
@@ -615,7 +638,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         patchTask(taskId, {
           status: 'awaitingConfirmation',
           jobId: null,
-          stage: null,
+          activeStages: [],
           // Arranca la pausa del cronómetro: la espera no cuenta.
           pausedAt: Date.now(),
         })
@@ -624,7 +647,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         status: 'completed',
         jobId: null,
-        stage: null,
+        activeStages: [],
         imagesRecovery: null,
         videoPath: result?.videoPath ?? null,
         finishedAt: Date.now(),
@@ -646,7 +669,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         patchTask(taskId, {
           status: 'error',
           jobId: null,
-          stage: null,
+          activeStages: [],
           imagesRecovery: null,
           promptsStageActivity: null,
           errorKey: errorKeyFor(event.code),
@@ -662,14 +685,14 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       if (
         task.usesCustomStyle &&
         task.promptModel &&
-        task.stage === 'scene-prompts' &&
+        task.activeStages.includes('scene-prompts') &&
         PROVIDER_TROUBLE_CODES.has(event.code)
       ) {
         blockPromptModel(task.promptModel, 'error')
         patchTask(taskId, {
           status: 'error',
           jobId: null,
-          stage: null,
+          activeStages: [],
           imagesRecovery: null,
           promptsStageActivity: null,
           errorKey: errorKeyFor(event.code),
@@ -694,7 +717,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         status: 'error',
         jobId: null,
-        stage: null,
+        activeStages: [],
         imagesRecovery: null,
         errorKey: errorKeyFor(event.code),
         errorCode: event.code,
@@ -709,6 +732,10 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
 function withStage(stages: StageId[], stageId: StageId): StageId[] {
   return stages.includes(stageId) ? stages : [...stages, stageId]
+}
+
+function withoutStage(stages: StageId[], stageId: StageId): StageId[] {
+  return stages.filter((stage) => stage !== stageId)
 }
 
 // Marca «hubo avance ahora» en la vigilancia de la fase de prompts. Sin
@@ -795,7 +822,7 @@ function makeTask(
     projectId,
     projectName,
     status: 'creating',
-    stage: null,
+    activeStages: [],
     // Sembrado desde disco al reanudar (origen: `hidratar`): las fases hechas
     // y la grilla aparecen al toque; los eventos del job hacen merge encima.
     completedStages: seed?.completedStages ?? [],
@@ -839,6 +866,7 @@ function makeTask(
     avatarDropped: options.avatarDropped,
     avatarLookType: options.avatarLookType,
     avatarEngine: options.avatarEngine,
+    avatarChargedSceneIds: [],
   }
 }
 
@@ -858,9 +886,15 @@ async function runPipeline(taskId: string, projectId: string): Promise<void> {
   // redactor arranca de cero y la barra se quedaría quieta hasta alcanzar lo
   // ya visto — nunca vuelve atrás (regla del origen). Lo limpia la fase al
   // completarse y cada tarea nueva nace sin él.
-  // `imagesRecovery` sí: describe una pasada del job anterior, ya muerto.
+  // `imagesRecovery` sí: describe una pasada del job anterior, ya muerto. Y
+  // las fases en curso: un job cerrado mientras se cambiaba de modelo no
+  // llegó a vaciarlas (su cierre no pasa por el reductor). Lo cobrado del
+  // avatar también es de cada corrida: si esta vuelve a correr el avatar,
+  // cosecha los recibos de la anterior y los anota de nuevo.
   patchTask(taskId, {
     status: 'generating',
+    activeStages: [],
+    avatarChargedSceneIds: [],
     errorKey: null,
     errorCode: null,
     confirmation: null,
@@ -1196,7 +1230,7 @@ async function haltForPromptModelTrouble(
   patchTask(taskId, {
     status: 'error',
     jobId: null,
-    stage: null,
+    activeStages: [],
     imagesRecovery: null,
     promptsStageActivity: null,
     promptModelSwitch: null,
@@ -1241,7 +1275,7 @@ async function switchPromptModel(modelId: string): Promise<void> {
     patchTask(taskId, {
       status: 'error',
       jobId: null,
-      stage: null,
+      activeStages: [],
       promptModelSwitch: null,
       errorKey: videosApi.errorMessageKey(error),
       errorCode: null,

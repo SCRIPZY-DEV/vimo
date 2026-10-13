@@ -35,6 +35,8 @@ import {
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
 import type {
+  AvatarChargedCancelKeys,
+  AvatarChargedCancelVariant,
   AvatarRenderPhase,
   AvatarUsability,
   CreateFormValue,
@@ -418,6 +420,34 @@ export const AVATAR_RENDER_PHASE_KEYS: Record<AvatarRenderPhase, string> = {
   render: 'create.progress.avatarPhase.render',
   download: 'create.progress.avatarPhase.download',
   normalize: 'create.progress.avatarPhase.normalize',
+}
+// Las fases de una aparición que ya está cobrada (entrega 2h, spec §24.3): el
+// carril emite `render` recién cuando HeyGen aceptó el pedido, así que desde
+// ahí cancelar no devuelve la plata. Las cuentan el aviso de «Cancelar» y la
+// tarjeta del fallo (§24.2 y §24.4).
+export const AVATAR_CHARGED_PHASES: ReadonlySet<AvatarRenderPhase> = new Set([
+  'render',
+  'download',
+  'normalize',
+])
+// Los textos del aviso de «Cancelar» con apariciones cobradas, según desde
+// dónde se cancela (`body` lleva `{{count}}`).
+export const AVATAR_CHARGED_CANCEL_KEYS: Record<
+  AvatarChargedCancelVariant,
+  AvatarChargedCancelKeys
+> = {
+  generation: {
+    title: 'create.progress.cancelAvatarTitle',
+    body: 'create.progress.cancelAvatarBody',
+    keep: 'create.progress.cancelAvatarKeep',
+    confirm: 'create.progress.cancelAvatarConfirm',
+  },
+  editor: {
+    title: 'library.editor.avatar.cancelarTitulo',
+    body: 'library.editor.avatar.cancelarTexto',
+    keep: 'library.editor.avatar.cancelarSeguir',
+    confirm: 'library.editor.avatar.cancelarIgual',
+  },
 }
 // El panel lateral de la escena del editor: adonde vuelve el foco cuando lo
 // que lo tenía desaparece al terminar la tarea del avatar (el avance de la

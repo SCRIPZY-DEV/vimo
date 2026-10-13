@@ -101,6 +101,42 @@ export interface PromptModelIssueView {
 // vivo y se relanza el mismo proyecto sin salir de la pantalla de progreso.
 export type PromptModelSwitchPhase = 'halting' | 'cancelling' | 'relaunching'
 
+// De dónde se cancela con apariciones del avatar ya cobradas (entrega 2h, spec
+// §24.4): la pantalla de progreso (Crear y Biblioteca) o el render del avatar
+// en el editor. Cada una tiene sus textos.
+export type AvatarChargedCancelVariant = 'generation' | 'editor'
+
+export interface AvatarChargedCancelKeys {
+  title: string
+  body: string
+  keep: string
+  confirm: string
+}
+
+// Qué confirma «Cancelar igual» en la pantalla de progreso (entrega 2h, spec
+// §24.4): cortar la corrida («Cancelar») o volver descartándola («Crear
+// otro»).
+export type ChargedCancelAction = 'cancel' | 'back'
+
+// El aviso de «Cancelar» con apariciones del avatar cobradas, abierto: cuántas
+// dice (las cobradas y sin terminar al tocar el botón; sube si se cobran más
+// con el aviso abierto y nunca baja) y qué acción confirma.
+export interface ChargedCancelWarning {
+  count: number
+  action: ChargedCancelAction
+}
+
+// El botón de vuelta de la cabecera de la pantalla de progreso: «Crear otro»
+// en Crear, «Volver a la biblioteca» en la Biblioteca.
+export interface ProgressBackAction {
+  labelKey: string
+  onClick: () => void
+  // Volver descarta la corrida viva («Crear otro»): con apariciones cobradas y
+  // sin terminar pasa antes por el aviso de lo cobrado. La Biblioteca solo
+  // navega (el job sigue) y no lo pone.
+  cancelsRun?: boolean
+}
+
 // La pausa que abre el diálogo de confirmación de escenas.
 export interface SceneConfirmationView {
   suggestedScenes: number
@@ -162,8 +198,13 @@ export interface CreateTask {
   projectId: string
   projectName: string
   status: CreateTaskStatus
-  // Fase en curso; null antes de arrancar o al terminar.
-  stage: StageId | null
+  // Las fases que arrancaron y no terminaron, en el orden en que arrancaron
+  // (entrega 2h, spec §24.2): el avatar corre junto con las imágenes, así que
+  // puede haber dos a la vez. Vacío antes de arrancar, al cerrar el job y al
+  // rehidratar sin job vivo.
+  activeStages: StageId[]
+  // Una fase que corre junto con otra puede terminar antes: nadie supone el
+  // orden de las terminadas.
   completedStages: StageId[]
   scenes: SceneView[]
   audioDurationSeconds: number | null
@@ -231,6 +272,13 @@ export interface CreateTask {
   // look, la tarifa del costo real en la pausa. Una tarea guardada antes de la
   // 2e no lo trae y la pausa cobra a la tarifa de Avatar III.
   avatarEngine?: AvatarEngine
+  // Las apariciones del avatar cobradas en esta corrida (entrega 2h, spec
+  // §24.2 y §24.4): las que llegaron a una fase de AVATAR_CHARGED_PHASES
+  // (HeyGen ya aceptó su render) o quedaron listas, sin las que después
+  // fallaron. Las que siguen generándose son las que avisa «Cancelar»; todas,
+  // las que cuenta la tarjeta del fallo. Se vacía al lanzar otra corrida y
+  // sobrevive al reinicio (sus recibos quedaron en disco).
+  avatarChargedSceneIds: number[]
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -286,8 +334,9 @@ export type AvatarRenderPhase = Extract<
 >['phase']
 
 // El render de HeyGen de una escena de avatar en esta corrida. El tiempo que
-// informa el sidecar llega con cada consulta a HeyGen (cada 5 a 20 s); el
-// panel suma el reloj local desde `receivedAt` para que nada parezca colgado.
+// informa el sidecar llega con cada cambio de fase (el carril no repite la
+// misma); el panel suma el reloj local desde `receivedAt` para que nada parezca
+// colgado.
 export interface AvatarSceneActivity {
   status: 'generating' | 'ready' | 'failed'
   phase: AvatarRenderPhase | null

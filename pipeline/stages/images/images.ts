@@ -9,7 +9,7 @@ import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import {
   readScenes,
   toSceneSummary,
-  writeScenesOwned,
+  writeScenesKeepingAvatars,
 } from '../../project/scenes-file.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
@@ -220,8 +220,15 @@ export const imagesStage: Stage<CreateVideoContext> = {
 
     // En modo regeneración selectiva los objetivos se fuerzan desde la
     // primera pasada; en Create el set vacío deja todo el cache intacto.
+    // Cada escritura de esta fase conserva el `avatar` que hay en disco
+    // (entrega 2h, diseño §24.1): la fase `avatar` corre a la vez y guarda
+    // sus recibos en el mismo archivo; la copia de acá es la del arranque.
     scenes = await generateImages(scenes, generation, targets, events)
-    await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+    await writeScenesKeepingAvatars(
+      context.paths,
+      scenes,
+      context.regenerateSceneIds,
+    )
 
     // Pasadas de recuperación: reescriben el prompt SOLO de las rechazadas
     // por contenido (las de transporte conservan prompt y tarea pagada).
@@ -335,7 +342,11 @@ export const imagesStage: Stage<CreateVideoContext> = {
           },
         )
       }
-      await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+      await writeScenesKeepingAvatars(
+        context.paths,
+        scenes,
+        context.regenerateSceneIds,
+      )
 
       scenes = scenes.map((scene) =>
         scene.avatar || isReady(scene.id, readyNow)
@@ -356,7 +367,11 @@ export const imagesStage: Stage<CreateVideoContext> = {
         new Set(missing.map((scene) => scene.id)),
         events,
       )
-      await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+      await writeScenesKeepingAvatars(
+        context.paths,
+        scenes,
+        context.regenerateSceneIds,
+      )
     }
 
     // Gate final: el proyecto no sigue al render con huecos. Un objetivo de

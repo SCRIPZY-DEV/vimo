@@ -275,6 +275,14 @@ export interface AvatarSceneStartedEvent {
 
 // El paso del carril en el que va una aparición (diseño §7.2): el audio
 // cortado, las subidas, el render en HeyGen, la descarga y la normalización.
+// Desde la entrega 2h (diseño §24.3) `render` quiere decir «HeyGen aceptó el
+// render»: la aparición ya está cobrada. Hasta que HeyGen responde, el pedido
+// va en `upload` (también al repetir uno sin respuesta o al reusar el audio, y
+// mientras espera a una cuenta llena). La app cuenta como cobradas las que
+// llegaron a `render`, `download` o `normalize` (`AVATAR_CHARGED_PHASES`) para
+// avisar antes de cancelar: emitir `render` antes de que HeyGen acepte haría
+// que el aviso contara como cobrado algo que no se cobró. El carril no repite
+// la misma fase dos veces seguidas.
 export type AvatarScenePhase =
   'audio' | 'upload' | 'render' | 'download' | 'normalize'
 

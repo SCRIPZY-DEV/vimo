@@ -6,7 +6,7 @@
   SEA, con fixtures locales y sin claves de proveedor). No toca código de producto.
 - **Relacionado:** el PR #98 de `dev` (`06ae4063`, [informe](../2026-10-12-fix-lingering-sidecar/lingering-sidecar.md)),
   que entró a esta rama con el merge `08f609d5`; el hallazgo I-1 de
-  `docs/handoff/2026-10-09-avatar-heygen/execution-e2h/final-review.md`; y, de la misma familia (un guard
+  `docs/handoff/2026-10-09-avatar-heygen/execution-e2h/final-review.md` (interno); y, de la misma familia (un guard
   sobre el binario empaquetado que se queda atrás del sidecar), el
   [fix del guard del editor empaquetado](../2026-10-11-fix-packaged-editor-guard/packaged-editor-guard.md).
 

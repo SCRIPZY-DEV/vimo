@@ -21,8 +21,15 @@ import type { CreateVideoContext } from '../context.ts'
 // Y una vez terminada no vuelve a correr al reanudar por otra fase: lo que
 // dejó con la imagen fija se regenera desde el editor, con el costo a la
 // vista (ruling de la ronda 1 de WP-P).
+// Desde la entrega 2h (diseño §24.1) corre junto con las imágenes: no usa nada
+// de los prompts ni de las imágenes (la narración, el tramo de cada escena y el
+// look copiado al crear el proyecto), así que arranca con ellas. El runner le
+// da su propia señal: si las imágenes fallan, la corta (los recibos quedan
+// guardados); si falla ella, las imágenes terminan igual. Lo único del
+// contexto que cambia es `metadata.videoOutdated`, compartido a propósito.
 export const avatarStage: Stage<CreateVideoContext> = {
   id: 'avatar',
+  runsAlongside: 'images',
   async skip(context) {
     if (context.options.demo || context.regenerateSceneIds) return true
 

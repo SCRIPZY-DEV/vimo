@@ -3,6 +3,7 @@ import {
   PROMPT_STAGE_STALL_MS,
   PROMPT_STAGE_WATCHDOG_TICK_MS,
 } from '@/modules/videos/constants'
+import { isPromptStageWatched } from '@/modules/videos/utilities/promptStageWatch'
 import type { CreateTask } from '@/modules/videos/types/create'
 
 interface PromptStageWatchdogProps {
@@ -20,18 +21,8 @@ export function PromptStageWatchdog({
   onStall,
 }: PromptStageWatchdogProps) {
   const lastProgressAt = task.promptsStageActivity?.lastProgressAt ?? null
-  const issueVisible =
-    task.promptModelIssue !== null &&
-    task.promptModelIssue.snoozedUntil === null
   const snoozedUntil = task.promptModelIssue?.snoozedUntil ?? null
-  const watching =
-    task.usesCustomStyle &&
-    task.status === 'generating' &&
-    task.stage === 'scene-prompts' &&
-    task.imagesRecovery === null &&
-    task.promptModelSwitch === null &&
-    lastProgressAt !== null &&
-    !issueVisible
+  const watching = isPromptStageWatched(task)
 
   // El callback cambia de identidad en cada render del padre: se guarda por
   // ref (fuera del render) para no reiniciar el intervalo.

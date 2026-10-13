@@ -96,7 +96,8 @@ export function EditorAvatarGalleryCard({
   const editorTask = useLibraryEditorTask(projectId)
   const rendering = editorTask.task?.sceneAvatarRendering ?? {}
   const sceneRendering = rendering[scene.id]
-  // En cola (el servicio renderiza de a tres), sin porcentaje: como el bloque.
+  // En cola (el servicio renderiza de a diez: `AVATAR_RENDER_CONCURRENCY`), sin
+  // porcentaje: como el bloque.
   const percent = useAvatarRenderPercent(
     sceneRendering && !sceneRendering.queued ? sceneRendering : undefined,
   )
