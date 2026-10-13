@@ -45,6 +45,32 @@ fn project_context_drops_content() {
 }
 
 #[test]
+fn project_context_keeps_voice_id_and_scalar_settings() {
+    let metadata = json!({
+        "options": {
+            "voiceProvider": "elevenlabs",
+            "voiceId": "t9LRTh3y1ioN00e9wsNh",
+            "voiceName": "Ana",
+            "voiceSettings": {
+                "speed": 2,
+                "stability": 0.5,
+                "useSpeakerBoost": true,
+                "nested": { "text": "privado" },
+            },
+        },
+    });
+
+    assert_eq!(
+        project_context(&metadata),
+        json!({
+            "voiceProvider": "elevenlabs",
+            "voiceId": "t9LRTh3y1ioN00e9wsNh",
+            "voiceSettings": { "speed": 2, "stability": 0.5, "useSpeakerBoost": true },
+        })
+    );
+}
+
+#[test]
 fn project_rows_take_name_and_options_from_disk() {
     let root = tempfile::TempDir::new().unwrap();
     let directory = root.path().join("mi-video");

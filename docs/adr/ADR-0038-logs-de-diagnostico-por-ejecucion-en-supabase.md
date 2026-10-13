@@ -57,17 +57,17 @@ Sube el webview porque la sesión de Supabase (JWT) vive ahí.
 
 ### Qué se guarda y qué no
 
-| Pieza                | Regla                                                                                                                                                                                                                                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allowlist de claves  | De cada evento solo sobreviven las claves de `ALLOWED_EVENT_KEYS` (`type`, `stageId`, `level`, `code`, `message`, `detail`, `percent`, `phase`, `sceneId`, `modelId`, `provider`, `httpStatus`, `attempt`, `maxAttempts`, `recovered`, conteos…), y solo si son escalares o listas de números. Rust no redeclara tipos |
-| Descartado           | `scene`, `scenes`, `imagePath`, `result`, cualquier objeto anidado, y los eventos `scene-image-progress` / `scene-image-started`                                                                                                                                                                                       |
-| Muestreo de progreso | De `progress` y `*-progress`, una entrada cada 10 % por tipo de evento y etapa (cada 30 s si no trae porcentaje)                                                                                                                                                                                                       |
-| Redacción de strings | Clave API exacta → `[REDACTED_KEY]`; `Bearer …` / `key=…` → redactado; carpeta de proyectos → `<projects>`; home → `~`; otra carpeta de usuario → `<user>`; tope de 2000 caracteres                                                                                                                                    |
-| Tope de entradas     | 2000; si se excede quedan las primeras 500 y las últimas 1500, con `events_truncated`                                                                                                                                                                                                                                  |
-| Eventos sintéticos   | `sidecar-stderr`, `sidecar-stdout-invalid` (longitud + 200 caracteres redactados), `process-exited { exitCode, signal }`                                                                                                                                                                                               |
-| Estado final         | `completed`, `failed`, `cancelled`, `paused` o `crashed` (el proceso terminó sin `job-completed` ni `job-failed`; lleva `error_code = process_crashed` con el código de salida y la señal en `error_message`)                                                                                                          |
-| Spool                | Máximo 100 archivos o 7 días; lo más viejo se descarta                                                                                                                                                                                                                                                                 |
-| `context`            | Solo opciones no sensibles del proyecto (proveedor y calidad de imagen, formato, proveedor TTS, modelo de prompts, conteos, `demo`, `completedStages`) más `subject { kind, id }`: qué identifica al job (ver «Identidad de la fila»)                                                                                  |
+| Pieza                | Regla                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Allowlist de claves  | De cada evento solo sobreviven las claves de `ALLOWED_EVENT_KEYS` (`type`, `stageId`, `level`, `code`, `message`, `detail`, `percent`, `phase`, `sceneId`, `modelId`, `provider`, `httpStatus`, `attempt`, `maxAttempts`, `recovered`, `taskId`, conteos…), y solo si son escalares o listas de números. Rust no redeclara tipos |
+| Descartado           | `scene`, `scenes`, `imagePath`, `result`, cualquier objeto anidado, y los eventos `scene-image-progress` / `scene-image-started`                                                                                                                                                                                                 |
+| Muestreo de progreso | De `progress` y `*-progress`, una entrada cada 10 % por tipo de evento y etapa (cada 30 s si no trae porcentaje)                                                                                                                                                                                                                 |
+| Redacción de strings | Clave API exacta → `[REDACTED_KEY]`; `Bearer …` / `key=…` → redactado; carpeta de proyectos → `<projects>`; home → `~`; otra carpeta de usuario → `<user>`; tope de 2000 caracteres                                                                                                                                              |
+| Tope de entradas     | 2000; si se excede quedan las primeras 500 y las últimas 1500, con `events_truncated`                                                                                                                                                                                                                                            |
+| Eventos sintéticos   | `sidecar-stderr`, `sidecar-stdout-invalid` (longitud + 200 caracteres redactados), `process-exited { exitCode, signal }`                                                                                                                                                                                                         |
+| Estado final         | `completed`, `failed`, `cancelled`, `paused` o `crashed` (el proceso terminó sin `job-completed` ni `job-failed`; lleva `error_code = process_crashed` con el código de salida y la señal en `error_message`)                                                                                                                    |
+| Spool                | Máximo 100 archivos o 7 días; lo más viejo se descarta                                                                                                                                                                                                                                                                           |
+| `context`            | Solo opciones no sensibles del proyecto (proveedor y calidad de imagen, formato, proveedor TTS, `voiceId` y los ajustes escalares de `voiceSettings`, modelo de prompts, conteos, `demo`, `completedStages`) más `subject { kind, id }`: qué identifica al job (ver «Identidad de la fila»)                                      |
 
 ### Piezas
 
@@ -188,10 +188,17 @@ quién rechazó y con qué status. El `job-failed` los reenvía y quedan en las 
 Los fallos que el pipeline **recupera** (reintento de Fal/Evolink por 429 o 5xx,
 backoff y degradación de tier del LLM, cascada de carriles TTS) emiten el evento
 `provider-failure { provider, code, httpStatus?, attempt?, maxAttempts?, recovered,
-stageId?, sceneId?, detail? }` (`pipeline/utils/provider-failure.ts`). Entra a `events`
+stageId?, sceneId?, taskId?, detail? }` (`pipeline/utils/provider-failure.ts`). Entra a `events`
 por la allowlist y permite ver que un proveedor falló aunque la fila sea `completed`.
 Regla: **todo reintento o fallback de proveedor emite `provider-failure`**; el fallo
 terminal sigue viajando solo en `job-failed`.
+
+Enmienda (2026-10-12): cuando DubVoice marca una tarea como `failed`, el fallo lleva
+`taskId` (id de la tarea, para reclamarle al proveedor) y su `detail` incluye la
+respuesta JSON entera, no solo el `error` genérico. El `context` del job suma
+`voiceId` (id opaco del catálogo; el nombre de la voz sigue fuera) y los ajustes
+escalares de `voiceSettings`: sin ellos no había forma de reproducir un rechazo
+determinista del proveedor de voz.
 
 ### Runbook de soporte
 

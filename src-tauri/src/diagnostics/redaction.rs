@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 /// Todo lo que no está acá se descarta — `scene`, `scenes`, `imagePath`,
 /// `result`: contenido del usuario o rutas. Una clave nueva no se sube hasta
 /// agregarla; nunca sumar una que lleve guion, prompts o rutas.
-pub const ALLOWED_EVENT_KEYS: [&str; 30] = [
+pub const ALLOWED_EVENT_KEYS: [&str; 31] = [
     "type",
     "stageId",
     "level",
@@ -37,6 +37,8 @@ pub const ALLOWED_EVENT_KEYS: [&str; 30] = [
     "attempt",
     "maxAttempts",
     "recovered",
+    // Id de la tarea asíncrona del proveedor (DubVoice): para reclamarle.
+    "taskId",
 ];
 
 /// Tope de cada string del log.
