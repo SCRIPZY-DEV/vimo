@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import type { VoiceHistoryEntry } from '../../types/voices.ts'
+import { newNamedEntryId } from '../../utils/named-entry-id.ts'
 
 // Historial persistente de voces: `<projectsRoot>/_history/voices/<id>/` con
 // audio.mp3 y metadata.json. Misma convención que el historial de música
@@ -12,10 +13,11 @@ export const VOICE_HISTORY_SUBDIRECTORY = '_history/voices'
 export const HISTORY_AUDIO_FILE = 'audio.mp3'
 export const HISTORY_METADATA_FILE = 'metadata.json'
 
-// Ids `v-<timestamp36>-<rand>`: orden cronológico y sin caracteres raros.
-export function newHistoryId(): string {
-  const random = Math.random().toString(36).slice(2, 8)
-  return `v-${Date.now().toString(36)}-${random}`
+// Ids `<slug-del-nombre-de-la-voz>-<aleatorio>`, como los personajes: la
+// carpeta se reconoce al abrirla. Las entradas viejas (`v-<timestamp36>-…`)
+// se siguen listando: el orden sale de createdAt, no del id.
+export function newHistoryId(voiceName: string | undefined): string {
+  return newNamedEntryId(voiceName, 'voice')
 }
 
 const HISTORY_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
