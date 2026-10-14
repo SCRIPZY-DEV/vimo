@@ -229,7 +229,7 @@ export function CharacterPreviewPanel({
       </div>
 
       {missingProviderKey && (
-        <p className="font-body text-xs text-coral">
+        <p className="font-body text-xs text-coral-text">
           {t('characters.preview.faltaClave')}{' '}
           <Link
             to={apiKeysFocusPath(missingKeyProviders)}

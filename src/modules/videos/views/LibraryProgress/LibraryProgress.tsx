@@ -24,6 +24,7 @@ import {
 } from '@/modules/videos/constants'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useProjectStatus } from '@/modules/videos/hooks/useProjectStatus'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type {
   ProjectRunOptions,
@@ -50,6 +51,7 @@ export function LibraryProgress() {
     reportPromptModelIssue,
     snoozePromptModelIssue,
     switchPromptModel,
+    switchVoice,
   } = useCreateTask()
   const { models, defaultId } = usePromptModels()
 
@@ -109,6 +111,10 @@ export function LibraryProgress() {
         imageProvider: ownTask.imageProvider,
         executionPlan: ownTask.executionPlan,
         voiceVendor: ownTask.voiceVendor,
+        hasAvatar: ownTask.hasAvatar,
+        avatarLookType: ownTask.avatarLookType,
+        avatarEngine: ownTask.avatarEngine,
+        avatarDropped: ownTask.avatarDropped,
       }
     : {
         videoFormat: status?.metadata.options.videoFormat,
@@ -133,6 +139,8 @@ export function LibraryProgress() {
           status?.metadata.options.imageProvider ??
           null,
         executionPlan: status?.metadata.options.executionPlan,
+        ...avatarRunOptions(status?.metadata.options.avatar),
+        avatarDropped: status?.avatarDropped,
         voiceVendor: status?.metadata.options.voiceProvider
           ? vendorOfProvider(status.metadata.options.voiceProvider)
           : null,
@@ -177,6 +185,7 @@ export function LibraryProgress() {
         onPromptModelStall={() => reportPromptModelIssue(ownTask.id, 'stalled')}
         onSnoozePromptModelIssue={snoozePromptModelIssue}
         onSwitchPromptModel={(modelId) => void switchPromptModel(modelId)}
+        onSwitchVoice={(voice) => void switchVoice(voice)}
       />
     )
   }
@@ -206,6 +215,8 @@ export function LibraryProgress() {
     // El mismo objeto que guarda task.confirmation, reconstruido desde disco.
     // La pausa de un estilo propio con carril de segundos vuelve como el
     // paso inline también desde disco; el resto, con el diálogo de conteo.
+    // Con avatar, el estado rearma sus tramos y descartadas (el plan es puro)
+    // y el tipo de look y el motor (entrega 2e) salen de las opciones.
     const confirmation: SceneConfirmationView = {
       suggestedScenes: metadata.sceneCount ?? status.scenes.length,
       audioDurationSeconds: metadata.audioDurationSeconds ?? 0,
@@ -217,6 +228,14 @@ export function LibraryProgress() {
       ...(metadata.options.customStyle &&
       metadata.options.secondsPerScene !== undefined
         ? { secondsPerScene: metadata.options.secondsPerScene }
+        : {}),
+      ...(status.avatarSpans
+        ? {
+            avatarSpans: status.avatarSpans,
+            avatarDropped: status.avatarDropped,
+            avatarLookType: metadata.options.avatar?.lookType,
+            avatarEngine: metadata.options.avatar?.engine,
+          }
         : {}),
     }
 

@@ -6,13 +6,29 @@ const RATE_LIMIT_BASE_DELAY_MS = 2000
 const RATE_LIMIT_BUFFER_MS = 1000
 const RATE_LIMIT_MAX_DELAY_MS = 120_000
 
+// Los segundos de un campo del body: un número finito y no negativo, o un
+// texto que lo sea («30»). Cualquier otra cosa («soon», -1, null, un objeto) no
+// dice nada y la espera sale de los encabezados o del backoff: una respuesta
+// rara nunca da una espera NaN o negativa, que dejaba sin efecto la paciencia
+// del 429 de HeyGen (revisión de WP-A de la entrega 2h, M-1) y repetía casi
+// sin esperar con cualquier proveedor.
+function validSeconds(value: unknown): number | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined
+  if (typeof value === 'string' && !value.trim()) return undefined
+
+  const seconds = Number(value)
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined
+
+  return seconds
+}
+
 function secondsFromBody(bodyText: string): number | undefined {
   try {
     const parsed = JSON.parse(bodyText) as {
-      retry_after?: number
-      retryIn?: number
-    }
-    return parsed.retry_after ?? parsed.retryIn
+      retry_after?: unknown
+      retryIn?: unknown
+    } | null
+    return validSeconds(parsed?.retry_after) ?? validSeconds(parsed?.retryIn)
   } catch {
     return undefined
   }

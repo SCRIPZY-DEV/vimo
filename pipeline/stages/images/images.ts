@@ -9,7 +9,7 @@ import { isValidFile, sceneImageFile } from '../../project/paths.ts'
 import {
   readScenes,
   toSceneSummary,
-  writeScenesOwned,
+  writeScenesKeepingAvatars,
 } from '../../project/scenes-file.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { Stage } from '../../runner/stage.ts'
@@ -85,8 +85,9 @@ const PROGRESS_DEBOUNCE_MS = 250
 // ajenos conservan su estado global, pero no son fallos de este intento.
 function isImageTarget(scene: Scene, context: CreateVideoContext): boolean {
   return (
-    !context.regenerateSceneIds?.size ||
-    context.regenerateSceneIds.has(scene.id)
+    !scene.avatar &&
+    (!context.regenerateSceneIds?.size ||
+      context.regenerateSceneIds.has(scene.id))
   )
 }
 
@@ -96,6 +97,8 @@ function isImageTarget(scene: Scene, context: CreateVideoContext): boolean {
 // reescribir y anunciarlos a la UI.
 function needsPromptRewrite(scene: Scene, ready: boolean): boolean {
   if (ready) return false
+  // Una escena de avatar no tiene prompt que reescribir (ADR-0057).
+  if (scene.avatar) return false
   return scene.contentRejected === true || !isValidPrompt(scene.imagePrompt)
 }
 
@@ -136,8 +139,11 @@ export const imagesStage: Stage<CreateVideoContext> = {
     const scenes = await readScenes(context.paths)
     if (!scenes) return false
     const ready = await idsWithValidImage(context, scenes)
-    // Toda escena tiene su imagen.
-    return scenes.every((scene) => ready.has(scene.id))
+    // Toda escena tiene su imagen, salvo las de avatar, que no llevan: su
+    // video lo hace HeyGen con el look tal cual (ADR-0057).
+    return scenes.every(
+      (scene) => scene.avatar !== undefined || ready.has(scene.id),
+    )
   },
 
   async run(context) {
@@ -155,6 +161,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
       if (
         storedScenes.some(
           (scene) =>
+            !scene.avatar &&
             !existing.has(scene.id) &&
             !paidCompletion.sceneIds.includes(scene.id),
         )
@@ -224,6 +231,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // `contentRejected` es telemetría POR INTENTO: se resetea en las que se
     // van a (re)generar para que refleje solo lo que pase ahora.
     let alreadyReady = await idsWithValidImage(context, storedScenes)
+    // Una escena de avatar no lleva imagen (ADR-0057): queda como estaba.
     let scenes = applyProjectImageDefaults(
       storedScenes.map((scene) =>
         !isImageTarget(scene, context) || isReady(scene.id, alreadyReady)
@@ -237,6 +245,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
     // Cada apartada se anuncia como fallida (la grilla la marca y el log
     // dice por qué); al regenerar, solo las que el usuario pidió.
     for (const scene of scenes) {
+      if (!isImageTarget(scene, context)) continue
       if (!isParked(scene) || alreadyReady.has(scene.id)) continue
       if (targets.size > 0 && !targets.has(scene.id)) continue
       events.onFailed(scene.id, 'catalog_prompts_incomplete')
@@ -244,6 +253,9 @@ export const imagesStage: Stage<CreateVideoContext> = {
 
     // En modo regeneración selectiva los objetivos se fuerzan desde la
     // primera pasada; en Create el set vacío deja todo el cache intacto.
+    // Cada escritura de esta fase conserva el `avatar` que hay en disco
+    // (entrega 2h, diseño §24.1): la fase `avatar` corre a la vez y guarda
+    // sus recibos en el mismo archivo; la copia de acá es la del arranque.
     scenes = await generateImages(scenes, generation, targets, events)
     // Flow solo publica JPEG y recibos: no reescribe el snapshot de escenas,
     // que puede haber cambiado mientras llegaban resultados de otras escenas.
@@ -269,7 +281,11 @@ export const imagesStage: Stage<CreateVideoContext> = {
         )
       return undefined
     }
-    await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+    await writeScenesKeepingAvatars(
+      context.paths,
+      scenes,
+      context.regenerateSceneIds,
+    )
 
     // Pasadas de recuperación: reescriben el prompt SOLO de las rechazadas
     // por contenido (las de transporte conservan prompt y tarea pagada).
@@ -277,6 +293,7 @@ export const imagesStage: Stage<CreateVideoContext> = {
       context.signal.throwIfAborted()
       alreadyReady = await idsWithValidImage(context, scenes)
       // Las apartadas no tienen prompt que reintentar: esperan al editor.
+      // Las de avatar no llevan imagen (ADR-0057): nunca faltan.
       const missing = scenes.filter(
         (scene) =>
           isImageTarget(scene, context) &&
@@ -350,7 +367,11 @@ export const imagesStage: Stage<CreateVideoContext> = {
             if (!lane.written.has(scene.id)) continue
             context.emitter.emit({
               type: 'scene-prompt-ready',
-              scene: await toSceneSummary(context.paths, scene),
+              scene: await toSceneSummary(
+                context.paths,
+                scene,
+                context.metadata,
+              ),
             })
           }
         }
@@ -372,13 +393,21 @@ export const imagesStage: Stage<CreateVideoContext> = {
             onSceneProcessed: async (scene) => {
               context.emitter.emit({
                 type: 'scene-prompt-ready',
-                scene: await toSceneSummary(context.paths, scene),
+                scene: await toSceneSummary(
+                  context.paths,
+                  scene,
+                  context.metadata,
+                ),
               })
             },
           },
         )
       }
-      await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+      await writeScenesKeepingAvatars(
+        context.paths,
+        scenes,
+        context.regenerateSceneIds,
+      )
 
       scenes = scenes.map((scene) =>
         !isImageTarget(scene, context) || isReady(scene.id, readyNow)
@@ -399,7 +428,11 @@ export const imagesStage: Stage<CreateVideoContext> = {
         new Set(missing.map((scene) => scene.id)),
         events,
       )
-      await writeScenesOwned(context.paths, scenes, context.regenerateSceneIds)
+      await writeScenesKeepingAvatars(
+        context.paths,
+        scenes,
+        context.regenerateSceneIds,
+      )
     }
 
     // Gate final: Create no sigue al render con huecos. En el editor solo
@@ -546,13 +579,44 @@ function laneEvents(
   }
 }
 
-// Port de generarImagenes: Capa 4 (fallback para prompts inválidos) →
-// chokepoint de seguridad → carriles en paralelo → merge por id.
+// Una escena de avatar no lleva imagen: su video lo hace HeyGen con el look tal
+// cual (ADR-0057, enmienda del 2026-10-10). Se aparta antes de todo
+// —validación de prompts, respaldo, candado de tez, carriles— y vuelve intacta
+// a su lugar; su texto sigue en las ventanas de narración de sus vecinas. Sin
+// escenas de avatar, la llamada es la de siempre.
 async function generateImages(
   scenes: Scene[],
   inputs: GenerationInputs,
   forceRegenerate: Set<number>,
   events: ImageLaneEvents,
+): Promise<Scene[]> {
+  const imageScenes = scenes.filter((scene) => !scene.avatar)
+  if (imageScenes.length === scenes.length)
+    return generateSceneImages(scenes, inputs, forceRegenerate, events)
+
+  const generated = await generateSceneImages(
+    imageScenes,
+    inputs,
+    forceRegenerate,
+    events,
+    scenes,
+  )
+  const byId = new Map(generated.map((scene) => [scene.id, scene]))
+  return scenes.map((scene) => byId.get(scene.id) ?? scene)
+}
+
+// Port de generarImagenes: Capa 4 (fallback para prompts inválidos) →
+// chokepoint de seguridad → carriles en paralelo → merge por id. `narration`
+// son las escenas de las que salen las ventanas vecinas (la época del recorte
+// final y el contexto del respaldo): todas las del proyecto, también las de
+// avatar, como en la fase de prompts, para que redacción y compra cierren el
+// prompt con la misma ventana.
+async function generateSceneImages(
+  scenes: Scene[],
+  inputs: GenerationInputs,
+  forceRegenerate: Set<number>,
+  events: ImageLaneEvents,
+  narration: readonly Scene[] = scenes,
 ): Promise<Scene[]> {
   const { context, style } = inputs
   // Las frases fijas de una gema de plantilla (spec §5.4): van también en el
@@ -580,7 +644,7 @@ async function generateImages(
           invalidIds.join(', '),
       )
   }
-  const orderedScenes = [...scenes].sort((a, b) => a.id - b.id)
+  const orderedScenes = [...narration].sort((a, b) => a.id - b.id)
 
   // Capa 4: ninguna escena llega al proveedor sin prompt válido (la muda
   // también: el fallback la ilustra desde la ventana vecina).

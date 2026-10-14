@@ -13,6 +13,7 @@ import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatCompact } from '@/modules/common/utilities/formatCompact'
+import { formatUsd } from '@/modules/common/utilities/formatUsd'
 import { apiKeysApi } from '@/modules/api-keys/api'
 import { useApiKeyActions } from '@/modules/api-keys/hooks/useApiKeyActions'
 import {
@@ -37,7 +38,7 @@ export function ApiKeyCard({
   focused = false,
   primaryFocus = false,
 }: ApiKeyCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const {
     saveKey,
     canSaveKey,
@@ -81,14 +82,26 @@ export function ApiKeyCard({
     resetFeedback()
   }
 
-  // Con saldo leído en la misma comprobación (Kie.ai, PoYo) se muestra junto
-  // al «Conectado»: es la prueba de que la clave sirve de verdad.
+  // El saldo de HeyGen es prepago en dólares (se formatea como moneda del
+  // idioma activo); el de Kie.ai y PoYo son créditos.
+  const balanceMessage = (balance: number) => {
+    if (provider.balanceUnit === 'usd')
+      return t('apiKeys.validacionOkSaldoUsd', {
+        amount: formatUsd(balance, i18n.resolvedLanguage ?? 'es'),
+      })
+
+    return t('apiKeys.validacionOkSaldo', { amount: formatCompact(balance) })
+  }
+
+  // Con saldo leído en la misma comprobación (Kie.ai, PoYo, HeyGen) se muestra
+  // junto al «Conectado»: es la prueba de que la clave sirve de verdad. Se
+  // pregunta por `typeof === 'number'` y no por `!== null`: un `credits`
+  // ausente (`undefined`) llegaba a `formatCompact` y tumbaba el render de la
+  // tarjeta.
   const validationMessage = () => {
     if (!validation) return null
-    if (validation.ok && validation.credits !== null)
-      return t('apiKeys.validacionOkSaldo', {
-        amount: formatCompact(validation.credits),
-      })
+    if (validation.ok && typeof validation.credits === 'number')
+      return balanceMessage(validation.credits)
     if (validation.ok) return t('apiKeys.validacionOk')
     if (validation.code === null) return t(UNKNOWN_ERROR_MESSAGE_KEY)
 
@@ -162,7 +175,7 @@ export function ApiKeyCard({
                 onClick={removeKey}
                 disabled={removing}
                 aria-label={t('apiKeys.eliminar')}
-                className="rounded-lg text-muted-foreground hover:text-destructive"
+                className="rounded-lg text-muted-foreground hover:text-destructive-text"
               >
                 {removing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -217,7 +230,7 @@ export function ApiKeyCard({
                 'flex items-start gap-2 rounded-lg border p-2.5 font-body text-sm',
                 validation.ok
                   ? 'border-saffron/30 bg-saffron/10 text-foreground'
-                  : 'border-destructive/30 bg-destructive/10 text-destructive',
+                  : 'border-destructive/30 bg-destructive/10 text-destructive-text',
               )}
             >
               {validation.ok ? (

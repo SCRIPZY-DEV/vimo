@@ -19,7 +19,7 @@ function pillKind(status: CreateTaskStatus): PillKind {
 const PILL_CLASSES: Record<PillKind, string> = {
   generating: 'bg-ocean/20 text-ocean',
   completed: 'bg-saffron/20 text-foreground',
-  error: 'bg-destructive/15 text-destructive',
+  error: 'bg-destructive/15 text-destructive-text',
 }
 
 export function ProgressStatusPill({ status }: ProgressStatusPillProps) {

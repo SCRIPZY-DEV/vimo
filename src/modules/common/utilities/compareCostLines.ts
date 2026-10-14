@@ -29,6 +29,7 @@ export function compareCostLines(
       available: balance.available,
       sufficient: sufficiencyOf(estimate.estimated, balance.available),
       ...(estimate.informative ? { informative: true } : {}),
+      ...(estimate.upperBound ? { upperBound: true } : {}),
     }
   })
 

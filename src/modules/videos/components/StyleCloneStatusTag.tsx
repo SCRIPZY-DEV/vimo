@@ -9,16 +9,19 @@ interface StyleCloneStatusTagProps {
 }
 
 // Cada tono con su color y su ícono: trabajando (blanca, girando), detenida
-// (coral) o esperando una respuesta (saffron, con borde: es la que la persona
+// (vino) o esperando una respuesta (saffron, con borde: es la que la persona
 // tiene que encontrar si cerró el modal sin aprobar). Colores fijos y no los
-// del tema: la etiqueta va siempre sobre el velo oscuro de la tarjeta.
+// del tema: la etiqueta va siempre sobre el velo oscuro de la tarjeta. El
+// error usa `wine`, el rojo de «Error» de la paleta de estados de la
+// Biblioteca: 7,40:1 con el texto blanco, igual en claro y en oscuro (el
+// coral pleno daba 2,86:1).
 const TONES = {
   working: { container: 'bg-white text-charcoal', Icon: Loader2 },
   attention: {
     container: 'bg-saffron text-charcoal ring-2 ring-white/80',
     Icon: MessageCircleQuestion,
   },
-  error: { container: 'bg-coral text-white', Icon: CircleAlert },
+  error: { container: 'bg-wine text-white', Icon: CircleAlert },
 } as const
 
 // La etiqueta de estado de una clonación de estilo, en el centro de su tarjeta

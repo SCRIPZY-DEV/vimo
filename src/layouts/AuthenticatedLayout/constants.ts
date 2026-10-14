@@ -2,6 +2,7 @@ import type { SidebarNavItem } from '@/layouts/AuthenticatedLayout/types/navigat
 import { ExtensionRoutes } from '@/modules/extension/constants'
 import { ApiKeysRoutes } from '@/modules/api-keys/constants'
 import { AuthRoutesPaths } from '@/modules/auth/constants'
+import { AvatarsRoutes } from '@/modules/avatars/constants'
 import { CharactersRoutes } from '@/modules/characters/constants'
 import { CostsRoutes } from '@/modules/costs/constants'
 import { MusicRoutes } from '@/modules/music/constants'
@@ -18,6 +19,7 @@ import DoodleVoice from '@/modules/common/doodles/DoodleVoice'
 import DoodleCoin from '@/modules/common/doodles/DoodleCoin'
 import DoodleMusicNote from '@/modules/common/doodles/DoodleMusicNote'
 import DoodleCharacter from '@/modules/common/doodles/DoodleCharacter'
+import DoodleHappyFace from '@/modules/common/doodles/DoodleHappyFace'
 
 export const NAV_ITEMS: SidebarNavItem[] = [
   {
@@ -39,6 +41,11 @@ export const NAV_ITEMS: SidebarNavItem[] = [
     route: ExtensionRoutes.extension,
     labelKey: 'layout.nav.extension',
     Icon: DoodlePlay,
+  },
+  {
+    route: AvatarsRoutes.avatars,
+    labelKey: 'layout.nav.avatares',
+    Icon: DoodleHappyFace,
   },
   {
     route: VoicesRoutes.voices,

@@ -35,6 +35,21 @@ export const MAX_USER_PROMPT_CHARS = 2500
 // afectan a la PRÓXIMA regeneración, que marca el flag por su cuenta.
 const TIMING_FIELDS = ['startSeconds', 'endSeconds'] as const
 
+// Campos que solo tienen sentido con una imagen que generar: el prompt, la
+// descripción del editor, los personajes presentes, y el modelo y la calidad
+// con que se genera. Una escena de avatar no tiene imagen (ADR-0057): su video
+// lo hace el proveedor del avatar con el look elegido, y no hay nada de esto
+// que editar. Lo único que una escena de avatar acepta son sus tiempos (con su
+// propio candado) y la transición estática, que el interruptor global manda a
+// todas las escenas.
+const IMAGE_ONLY_FIELDS = [
+  'imagePrompt',
+  'userPrompt',
+  'charactersPresent',
+  'imageModel',
+  'imageQuality',
+] as const
+
 export async function updateScenes(
   context: PipelineContext,
 ): Promise<UpdateScenesResult> {
@@ -73,6 +88,11 @@ export async function updateScenes(
         'invalid_payload',
         `scene ${change.id} does not exist`,
       )
+    if (scene.avatar && editsSceneImage(change))
+      throw new PipelineFailure(
+        'avatar_scene_without_image',
+        `scene ${scene.id} is an avatar scene: it has no image prompt, description, characters, model or quality to edit`,
+      )
     if (hasTimingChange(scene, change)) {
       const protectedTiming = scenes.some((item) =>
         [...sceneAnimationBlocks(item), ...(item.animationPending ?? [])].some(
@@ -83,6 +103,15 @@ export async function updateScenes(
         throw new PipelineFailure(
           'animation_timing_locked',
           'Animation intervals cannot move while clips or generation receipts depend on them',
+        )
+      // Las fronteras de una escena de avatar con clip o recibos de HeyGen
+      // quedan bloqueadas en la entrega 2 (ADR-0057, diseño §10.3): la suya y
+      // la de la vecina que la comparte. Moverlas dejaría el clip pagado fuera
+      // de tramo. La entrega 3 las desbloquea con ajuste a frases.
+      if (movesLockedAvatarBoundary(scenes, scene, change))
+        throw new PipelineFailure(
+          'avatar_timing_locked',
+          'Avatar scene boundaries cannot move while its clip or HeyGen receipts depend on them',
         )
       renderAffected = true
     }
@@ -138,6 +167,49 @@ function hasTimingChange(scene: Scene, change: SceneChange): boolean {
 function secondsEqual(stored: number | undefined, next: number): boolean {
   if (stored === undefined) return false
   return Math.round(stored * 1000) === Math.round(next * 1000)
+}
+
+// ¿El cambio toca algo que solo vive en la imagen de la escena?
+function editsSceneImage(change: SceneChange): boolean {
+  return IMAGE_ONLY_FIELDS.some((field) => change[field] !== undefined)
+}
+
+// Una escena de avatar con clip o con recibos de HeyGen (ADR-0057).
+function isLockedAvatarScene(scene: Scene): boolean {
+  if (scene.avatar?.clipFile) return true
+  return (scene.avatar?.attempts?.length ?? 0) > 0
+}
+
+// ¿El cambio mueve una frontera de una escena de avatar bloqueada? La suya, o
+// la que comparte con su vecina: `update-scenes` no exige que lleguen las dos
+// mitades de una frontera, y mover solo la vecina invadiría el tramo del clip.
+function movesLockedAvatarBoundary(
+  scenes: Scene[],
+  scene: Scene,
+  change: SceneChange,
+): boolean {
+  if (isLockedAvatarScene(scene)) return true
+
+  const movesStart =
+    change.startSeconds !== undefined &&
+    !secondsEqual(scene.startSeconds, change.startSeconds)
+  const movesEnd =
+    change.endSeconds !== undefined &&
+    !secondsEqual(scene.endSeconds, change.endSeconds)
+  return scenes.some((other) => {
+    if (!isLockedAvatarScene(other)) return false
+    if (
+      movesEnd &&
+      other.startSeconds !== undefined &&
+      secondsEqual(scene.endSeconds, other.startSeconds)
+    )
+      return true
+    return (
+      movesStart &&
+      other.endSeconds !== undefined &&
+      secondsEqual(scene.startSeconds, other.endSeconds)
+    )
+  })
 }
 
 function assertValidChange(change: SceneChange): void {

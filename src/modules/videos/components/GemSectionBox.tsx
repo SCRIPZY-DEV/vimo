@@ -71,7 +71,9 @@ export function GemSectionBox({
           <span
             className={cn(
               'font-body text-[11px] tabular-nums',
-              value.length >= limit ? 'text-coral' : 'text-muted-foreground',
+              value.length >= limit
+                ? 'text-coral-text'
+                : 'text-muted-foreground',
             )}
           >
             {t('create.gemTemplate.sectionCount', {

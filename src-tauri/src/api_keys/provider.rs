@@ -13,9 +13,11 @@ pub enum Provider {
     Deepgram,
     Kie,
     Poyo,
+    HeyGen,
+    Ai33,
 }
 
-pub const ALL_PROVIDERS: [Provider; 8] = [
+pub const ALL_PROVIDERS: [Provider; 10] = [
     Provider::DeepInfra,
     Provider::Fal,
     Provider::Evolink,
@@ -24,6 +26,8 @@ pub const ALL_PROVIDERS: [Provider; 8] = [
     Provider::Deepgram,
     Provider::Kie,
     Provider::Poyo,
+    Provider::HeyGen,
+    Provider::Ai33,
 ];
 
 impl Provider {
@@ -38,6 +42,8 @@ impl Provider {
             Provider::Deepgram => "deepgram",
             Provider::Kie => "kie",
             Provider::Poyo => "poyo",
+            Provider::HeyGen => "heygen",
+            Provider::Ai33 => "ai33",
         }
     }
 
@@ -51,6 +57,8 @@ impl Provider {
             "deepgram" => Ok(Provider::Deepgram),
             "kie" => Ok(Provider::Kie),
             "poyo" => Ok(Provider::Poyo),
+            "heygen" => Ok(Provider::HeyGen),
+            "ai33" => Ok(Provider::Ai33),
             _ => Err(ApiKeyError::UnknownProvider),
         }
     }
@@ -64,6 +72,13 @@ pub fn mask_key(key: &str) -> String {
         return "•".repeat(key.len().min(12));
     }
     let start: String = key.chars().take(visible).collect();
-    let end: String = key.chars().rev().take(visible).collect::<Vec<_>>().into_iter().rev().collect();
+    let end: String = key
+        .chars()
+        .rev()
+        .take(visible)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     format!("{start}…{end}")
 }

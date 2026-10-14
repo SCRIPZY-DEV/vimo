@@ -1,3 +1,4 @@
+import { avatarCoveredIntervals } from '@pipeline/animation/avatar-coverage.ts'
 import {
   animationUnitFromBlock,
   planAnimationUnits,
@@ -13,8 +14,10 @@ export function pipelineAnimationCards(
   scenes: SceneView[],
   animationEndSeconds?: number,
 ): PipelineAnimationCard[] {
+  // Una escena de avatar no es fuente del prefijo aunque arrastre la marca de
+  // una versión anterior (ADR-0057).
   const sources = scenes.filter(
-    (scene) => scene.animationRequestedSeconds !== undefined,
+    (scene) => scene.animationRequestedSeconds !== undefined && !scene.avatar,
   )
   // Una imagen heredada puede cruzar el minuto solicitado. Su extremo no
   // autoriza otra animación: prevalece el rango real emitido por el sidecar.
@@ -42,7 +45,10 @@ export function pipelineAnimationCards(
     [],
     {
       endSeconds,
-      coveredIntervals: ready.map((card) => card.unit),
+      coveredIntervals: [
+        ...ready.map((card) => card.unit),
+        ...avatarCoveredIntervals(scenes),
+      ],
       replacementUnits: shortTailPendingAnimationUnits(scenes),
       mergeShortScenes: true,
       pairPrefixScenes: true,

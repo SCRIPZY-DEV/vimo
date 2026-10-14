@@ -5,12 +5,17 @@ interface CharacterPortraitProps {
   src: string | null
   doodleSize: number
   className?: string
+  // Hacia dónde se ancla el recorte: `top` deja siempre la cara a la vista en
+  // fotos de medio cuerpo o de cuerpo entero (avatares); `center`, el de
+  // siempre, sirve para los retratos de personajes.
+  focus?: 'center' | 'top'
 }
 
 export function CharacterPortrait({
   src,
   doodleSize,
   className,
+  focus = 'center',
 }: CharacterPortraitProps) {
   // La imagen va posicionada sobre la caja (no en el flujo): así una foto
   // vertical no aporta su alto natural al tamaño intrínseco de la tarjeta y
@@ -27,7 +32,10 @@ export function CharacterPortrait({
         <img
           src={src}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover"
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover',
+            focus === 'top' && 'object-top',
+          )}
         />
       ) : (
         <DoodleCharacter size={doodleSize} />

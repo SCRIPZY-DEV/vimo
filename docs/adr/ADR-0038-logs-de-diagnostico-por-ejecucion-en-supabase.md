@@ -95,7 +95,7 @@ create table public.diagnostic_logs (
                      references auth.users (id) on delete cascade,
   user_email       text not null,                    -- en minúsculas, validado contra el JWT
   source           text not null check (source in ('pipeline', 'update')),
-  module           text,                             -- videos | voices | characters | music | styles | demo | settings
+  module           text,                             -- videos | voices | characters | avatars | music | styles | demo | settings
   subcommand       text,                             -- run-video-pipeline, generate-voice, ...
   project_id       text,                             -- slug de la carpeta
   project_name     text,                             -- metadata.name de project.json
@@ -105,7 +105,7 @@ create table public.diagnostic_logs (
   error_message    text,                             -- diagnóstico redactado
   error_provider   text,                             -- proveedor externo que falló (fal, evolink, deepinfra, dubvoice, …)
   error_http_status integer,                        -- status HTTP de ese fallo, si lo hubo
-  failed_stage     text,                             -- voice | transcription | scene-cuts | scene-prompts | images | render
+  failed_stage     text,                             -- voice | transcription | scene-cuts | scene-prompts | images | avatar | animation | render
   started_at       timestamptz not null,
   finished_at      timestamptz not null,
   duration_ms      integer not null,
@@ -156,6 +156,16 @@ Insert-only alcanza porque la subida ocurre después del fin del job (o en el
 siguiente arranque si hubo crash). `id = jobId` hace que un reintento duplicado
 falle con `23505`, que el cliente trata como éxito y borra del spool.
 
+`failed_stage` es la fase del pipeline completo que estaba en curso cuando el job cayó
+(los ocho valores son los `STAGE_IDS` de `pipeline/runner/stage-id.ts`). Desde la entrega
+2h del avatar (2026-10-13, [ADR-0013](ADR-0013-modulo-create-runner-de-stages-y-binarios.md))
+dos fases pueden correr a la vez (`images` y `avatar`), así que `recorder.rs` ya no guarda
+una sola: sigue las fases en curso en el orden en que arrancaron (`stage-completed` y
+`stage-skipped` sacan solo la suya) y `job-failed` anota la **primera que sigue en curso**
+(`running_stages` en `src-tauri/src/diagnostics/recorder.rs`). Con las reglas del fallo del
+corredor es la que falló, y si fallan las dos gana `images`. Es una pista para soporte, no
+un dato del evento: `job-failed` no dice qué fase falló.
+
 ### Identidad de la fila: `project_id` y `project_name`
 
 Soporte busca por correo + nombre, así que **toda fila lleva un `project_name`
@@ -169,15 +179,20 @@ subcomando y el payload (nunca contenido: ni `text`, ni `prompt`, ni `script`), 
 | `create-video-project` que falla, se cancela o crashea                   | `NULL` (todavía no existe) | `payload.name`                                                           |
 | `style-*`, `generate-style-samples`                                      | `NULL`                     | `Estilo: <nombre>` (del payload o de `_styles/<id>/style.json`)          |
 | `character-*`, `design-style-character`, `generate-character-preview`, … | `NULL`                     | `Personaje: <nombre>` (del payload o de `characters/<id>/metadata.json`) |
+| `avatar-*`, `avatars-list`                                               | `NULL`                     | `Avatar: <nombre>` (del payload o de `avatars/<id>/metadata.json`)       |
 | `generate-voice`, `probe-tts`, `add-library-voice`                       | `NULL`                     | `Voz: <voiceName \| name \| provider>`                                   |
 | `generate-music`, `suggest-music-prompt`, `choose-music` sin proyecto    | `NULL`                     | `Música` (el prompt es contenido)                                        |
 | `demo-*`                                                                 | `NULL`                     | `Demo`                                                                   |
 
-Los prefijos son fijos y en español (`Estilo`, `Personaje`, `Voz`, `Música`, `Demo`):
-son un valor de datos para soporte, no texto de la UI, y permiten filtrar
+Los prefijos son fijos y en español (`Estilo`, `Personaje`, `Avatar`, `Voz`, `Música`,
+`Demo`): son un valor de datos para soporte, no texto de la UI, y permiten filtrar
 (`project_name like 'Estilo:%'`) sin mezclarse con los proyectos reales. Sin nombre
 resuelto queda solo el prefijo. La música que se genera desde un proyecto manda
 `projectId` en el payload (el handler lo ignora) y cae en la primera fila de la tabla.
+Un avatar que ya está en la biblioteca (payload con `id`) se nombra siempre desde su
+`metadata.json`: en `avatar-generate-look` el `name` del payload es el del look nuevo.
+Sin `id`, el `name` del payload es el del avatar: `avatar-create-photo` lo necesita y
+`avatar-add` lo manda solo para esta fila (el handler lo ignora).
 
 ### Errores de proveedor
 
@@ -416,3 +431,21 @@ El SQL (columnas, índice y retención) está en el spec
 (`docs/handoff/2026-09-30-catalog-on-custom-style-lane/design.md`, §6.5) y en
 `SETUP_RECONSTRUCTOR_GEMAS.md` de vimo-landing, y lo aplica el dueño. La ADR-0048 documenta el
 registro (L1), el cupo y los modos de falla.
+
+## Enmienda 2026-10-13 — un subcomando silencioso con advertencia sí se registra
+
+Usuarios reportaron estilos y personajes que «desaparecen». Los listados (`styles-list`,
+`characters-list`) saltean en silencio una entrada ilegible, y como son subcomandos silenciosos
+que terminan bien, no quedaba ninguna fila en `diagnostic_logs`.
+
+- **Regla nueva:** un subcomando silencioso que termina bien se registra si dejó al menos un
+  `log` de nivel `warn` o `error` (`has_warning` en `report.rs`). Sin advertencias, sigue
+  sin registrarse como hasta ahora.
+- **Qué deja un listado:** `skipped style "<id>": <motivo>` o `skipped character "<id>": <motivo>`,
+  donde el motivo es el código del sistema (`ENOENT`, `EACCES`…), `invalid_json`,
+  `invalid_content` o `photo_missing`. Nunca el contenido del archivo. El id de un personaje
+  empieza con el slug de su nombre (`ana-x1y2z3`), igual que la identidad de la fila.
+- **Carpeta de proyectos ilegible:** los dos listados fallan con `projects_root_unavailable`
+  (fila `failed`, sin la ruta en el mensaje) en vez de devolver una lista vacía.
+
+Informe: [library-disappearing](../fixes/2026-10-13-fix-library-disappearing/library-disappearing.md).

@@ -1,8 +1,13 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Clapperboard,
+  Film,
+  Mic,
+  Music2,
   RectangleHorizontal,
   RectangleVertical,
   Upload,
+  UserRound,
   Wand2,
 } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
@@ -20,16 +25,38 @@ import type {
 import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 import type { GemSectionKey } from '@pipeline/types/styles.ts'
 import type { ScenePromptFailureSource } from '@pipeline/types/scenes.ts'
+import type { AvatarLookFormat } from '@pipeline/avatar/look-orientation.ts'
+import type { AvatarRowStatus } from '@/modules/videos/utilities/avatarTaskEvents'
+import {
+  AVATAR_DEFAULT_APPEARANCE_SECONDS,
+  AVATAR_DEFAULT_APPEARANCES,
+  AVATAR_DEFAULT_ENGINE,
+} from '@pipeline/types/avatar.ts'
+import type { AvatarEngine } from '@pipeline/types/avatar.ts'
 import {
   NARRATION_CHAR_LIMIT,
   VOICE_SETTINGS_DEFAULTS,
 } from '@/modules/voices/constants'
-import type { CreateFormValue, SelectedCharacter } from './types/create'
+import type {
+  AvatarChargedCancelKeys,
+  AvatarChargedCancelVariant,
+  AvatarRenderPhase,
+  AvatarUsability,
+  CreateFormValue,
+  SelectedCharacter,
+  StageToneClasses,
+} from './types/create'
+import type { AvatarDurationLock } from './types/avatarDuration'
+import type { LookUnfitReason } from './utilities/selectableAvatar'
 import type {
   AudioMixValue,
   LibraryTab,
   ProjectBadge,
   SceneImageChoice,
+  TimelineBlockKind,
+  TimelineLayout,
+  TimelineTrackId,
+  TimelineTrackKind,
 } from './types/library'
 
 export const VideosRoutes = {
@@ -150,6 +177,7 @@ export const INSUFFICIENT_CREDITS_CODES: ReadonlySet<string> = new Set([
   'transcription_insufficient_credits',
   'music_insufficient_credits',
   'animation_insufficient_credits',
+  'avatar_insufficient_credits',
 ])
 // Margen sobre la estimación de costo antes de arrancar: estimar de menos y
 // quedarse sin saldo a mitad es peor que pedir un poco más.
@@ -196,6 +224,22 @@ export const PROVIDER_TROUBLE_CODES: ReadonlySet<string> = new Set([
 export const EDITOR_RESCUE_ERROR_CODES: ReadonlySet<string> = new Set([
   'images_incomplete',
   'render_missing_images',
+])
+// Rechazos definitivos de HeyGen para una aparición (spec §14): con el mismo
+// look y la misma narración, pedirla de nuevo falla igual. Desde la entrega 2d
+// la fase ya no se detiene por ellos (la escena sale con la imagen fija del
+// look); solo si dominan en un `avatar_incomplete` —el código heredado de antes
+// de la 2d, que un proyecto viejo detenido con ese error trae del disco— la
+// cabecera del fallo dice la salida (el editor, o cambiar el look) en vez de
+// «Reanudá». De estos, el carril no vuelve a pedir solo la moderación ni el
+// look no soportado (`isFinalRejection`, pipeline/avatar/lane.ts);
+// `avatar_invalid_request` sí se vuelve a pedir cuando la fase vuelve a correr
+// (una pausa de la cuenta, o un proyecto de antes de la 2d), y desde el editor
+// se piden los tres.
+export const AVATAR_DEFINITIVE_REJECTION_CODES: ReadonlySet<string> = new Set([
+  'avatar_moderation_rejected',
+  'avatar_look_unsupported',
+  'avatar_invalid_request',
 ])
 // Por qué una escena de Catálogo quedó sin prompt (rescate por el editor):
 // quién falló, el redactor, el revisor narrativo o los modelos de texto.
@@ -283,7 +327,40 @@ export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
 
 export const TIMELINE_RULER_HEIGHT = 32
 export const TIMELINE_TRACK_HEIGHT = 48
-export const TIMELINE_SIDEBAR_WIDTH = 112
+export const TIMELINE_SIDEBAR_WIDTH = 160
+
+// Pistas del timeline y su estado de interfaz por proyecto (ADR-0056).
+export const TIMELINE_TRACK_IDS: readonly TimelineTrackId[] = [
+  'scenes',
+  'narration',
+  'music',
+]
+export const TIMELINE_TRACK_KINDS: Record<TimelineTrackId, TimelineTrackKind> =
+  {
+    scenes: 'visual',
+    narration: 'audio',
+    music: 'audio',
+  }
+export const TIMELINE_TRACK_ICONS: Record<TimelineTrackId, LucideIcon> = {
+  scenes: Film,
+  narration: Mic,
+  music: Music2,
+}
+export const TIMELINE_TRACK_LABEL_KEYS: Record<TimelineTrackId, string> = {
+  scenes: 'library.editor.timeline.scenes',
+  narration: 'library.editor.timeline.narration',
+  music: 'library.editor.timeline.music',
+}
+export const DEFAULT_TIMELINE_LAYOUT: TimelineLayout = {
+  order: ['scenes', 'narration', 'music'],
+  muted: { scenes: false, narration: false, music: false },
+  locked: { scenes: false, narration: false, music: false },
+}
+// Una entrada por proyecto: `vimo:editor:timeline:v1:<projectId>`.
+export const TIMELINE_LAYOUT_STORAGE_KEY_PREFIX = 'vimo:editor:timeline:v1:'
+// Reordenar pistas con el puntero: px que hay que mover el asa antes de que
+// arranque el arrastre, así un clic sin movimiento no se toma como arrastre.
+export const TIMELINE_TRACK_DRAG_ACTIVATION_PX = 4
 
 // Espacio visual del fundido y del recorte interior, en píxeles.
 export const TIMELINE_TRANSITION_HEIGHT = 28
@@ -300,6 +377,10 @@ export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
 // manual del usuario (scroll/drag) para no pelearle el control.
 export const AUTOSCROLL_EDGE_PX = 80
 export const AUTOSCROLL_MANUAL_PAUSE_MS = 2500
+
+// Rueda en modo «líneas» (DOM_DELTA_LINE): píxeles por línea para pasarla a
+// desplazamiento horizontal del timeline.
+export const WHEEL_LINE_PX = 16
 
 // Autoscroll por arrastre del playhead contra el borde del viewport:
 // franja sensible y velocidad lineal (px por frame de rAF).
@@ -323,6 +404,68 @@ export const SEEK_TOLERANCE_SECONDS = 0.5
 // Preview: el clip de animación se re-sincroniza con la narración solo si se
 // desvía más que esto mientras suena (un seek por tick lo trabaría).
 export const CLIP_PREVIEW_DRIFT_SECONDS = 0.3
+
+// Bloques de la pista de escenas con la tarjeta compartida (ADR-0057, §10.3):
+// el color de cada tipo viaja como variable CSS (`--tone`) y la ficha de
+// arriba a la izquierda lo identifica. El clip animado conserva el celeste de
+// ADR-0047; el avatar estrena el morado.
+export const TIMELINE_BLOCK_TONES: Record<TimelineBlockKind, string> = {
+  clip: 'var(--sky)',
+  avatar: 'var(--amethyst)',
+}
+export const TIMELINE_BLOCK_ICONS: Record<TimelineBlockKind, LucideIcon> = {
+  clip: Clapperboard,
+  avatar: UserRound,
+}
+// Avance simulado del render de un avatar (HeyGen no informa porcentaje):
+// lo medido va de 32 s a 4 min (spec §17); a los 2 min llega a
+// ANIMATION_RAMP_PERCENT y después frena hacia el tope.
+export const AVATAR_EXPECTED_RENDER_SECONDS = 120
+// Cada cuánto corre el reloj de los renders del avatar (editor y progreso).
+export const AVATAR_PROGRESS_TICK_MS = 1000
+// La fase del render de una aparición en el panel del progreso (spec §8).
+// Atada al tipo del evento: una fase nueva del sidecar no compila sin texto.
+export const AVATAR_RENDER_PHASE_KEYS: Record<AvatarRenderPhase, string> = {
+  audio: 'create.progress.avatarPhase.audio',
+  upload: 'create.progress.avatarPhase.upload',
+  render: 'create.progress.avatarPhase.render',
+  download: 'create.progress.avatarPhase.download',
+  normalize: 'create.progress.avatarPhase.normalize',
+}
+// Las fases de una aparición que ya está cobrada (entrega 2h, spec §24.3): el
+// carril emite `render` recién cuando HeyGen aceptó el pedido, así que desde
+// ahí cancelar no devuelve la plata. Las cuentan el aviso de «Cancelar» y la
+// tarjeta del fallo (§24.2 y §24.4).
+export const AVATAR_CHARGED_PHASES: ReadonlySet<AvatarRenderPhase> = new Set([
+  'render',
+  'download',
+  'normalize',
+])
+// Los textos del aviso de «Cancelar» con apariciones cobradas, según desde
+// dónde se cancela (`body` lleva `{{count}}`).
+export const AVATAR_CHARGED_CANCEL_KEYS: Record<
+  AvatarChargedCancelVariant,
+  AvatarChargedCancelKeys
+> = {
+  generation: {
+    title: 'create.progress.cancelAvatarTitle',
+    body: 'create.progress.cancelAvatarBody',
+    keep: 'create.progress.cancelAvatarKeep',
+    confirm: 'create.progress.cancelAvatarConfirm',
+  },
+  editor: {
+    title: 'library.editor.avatar.cancelarTitulo',
+    body: 'library.editor.avatar.cancelarTexto',
+    keep: 'library.editor.avatar.cancelarSeguir',
+    confirm: 'library.editor.avatar.cancelarIgual',
+  },
+}
+// El panel lateral de la escena del editor: adonde vuelve el foco cuando lo
+// que lo tenía desaparece al terminar la tarea del avatar (el avance de la
+// escena, o el aviso de arriba si todas quedaron listas) y el botón que la
+// abrió ya no está; nunca a `body` (entrega 2d, M2 de la revisión del WP-Q).
+export const EDITOR_SCENE_PANEL_ID = 'editor-scene-panel'
+
 // Timeline: un click a menos de esto del final lleva exactamente al cierre.
 export const TIMELINE_END_SNAP_SECONDS = 0.5
 
@@ -338,9 +481,24 @@ export const PIPELINE_STAGES: { id: StageId; labelKey: string }[] = [
   { id: 'scene-cuts', labelKey: 'create.stages.sceneCuts' },
   { id: 'scene-prompts', labelKey: 'create.stages.scenePrompts' },
   { id: 'images', labelKey: 'create.stages.images' },
+  { id: 'avatar', labelKey: 'create.stages.avatar' },
   { id: 'animation', labelKey: 'create.stages.animation' },
   { id: 'render', labelKey: 'create.stages.render' },
 ]
+
+// Color de la fila de la fase en curso: la animación en celeste y el avatar
+// en morado, como sus bloques en el timeline; las demás en ocean.
+export const ACTIVE_STAGE_TONES: Partial<Record<StageId, StageToneClasses>> = {
+  animation: { row: 'border-sky/60 bg-sky/5', badge: 'bg-sky text-white' },
+  avatar: {
+    row: 'border-amethyst/60 bg-amethyst/5',
+    badge: 'bg-amethyst text-white',
+  },
+}
+export const DEFAULT_ACTIVE_STAGE_TONE: StageToneClasses = {
+  row: 'border-ocean/60 bg-ocean/5',
+  badge: 'bg-ocean text-white',
+}
 
 // Origen de la narración: leída por IA o subida por la persona.
 export const NARRATION_MODES: {
@@ -900,6 +1058,14 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   animateScenes: false,
   animateWholeVideo: false,
   animationMinutes: ANIMATION_MINUTES_DEFAULT,
+  useAvatar: false,
+  avatar: null,
+  avatarAppearances: AVATAR_DEFAULT_APPEARANCES,
+  avatarSecondsPerAppearance: AVATAR_DEFAULT_APPEARANCE_SECONDS,
+  avatarStartsVideo: true,
+  avatarEngine: AVATAR_DEFAULT_ENGINE,
+  avatarExpressive: false,
+  avatarThreeInTwoMinutes: false,
   imageProvider: 'evolink',
   imageQuality: '1024x576_low',
   voice: null,
@@ -925,12 +1091,191 @@ export const CREATE_FORM_INITIAL_VALUE: CreateFormValue = {
   customStyle: null,
 }
 
+// Qué dice cada ficha de avatar en la tarjeta de Crear: cuántos looks sirven
+// para el formato del video, o por qué no se puede usar. (La orientación del
+// look por formato NO se espeja acá: la regla es `lookOrientationFit`
+// (pipeline/avatar/look-orientation.ts), sobre AVATAR_LOOK_ORIENTATION_BY_FORMAT
+// de pipeline/types/avatar.ts, y un espejo podría divergir de ella.)
+export const AVATAR_USABILITY_LABEL_KEYS: Record<AvatarUsability, string> = {
+  usable: 'create.avatar.lookCount',
+  training: 'create.avatar.training',
+  failed: 'create.avatar.unavailable',
+  noLook: 'create.avatar.noLookShort',
+}
+// El motivo, con el nombre del avatar, cuando no tiene un look para el
+// formato del video.
+export const AVATAR_NO_LOOK_KEYS: Record<VideoFormat, string> = {
+  '16:9': 'create.avatar.noLookLandscape',
+  '9:16': 'create.avatar.noLookPortrait',
+}
+// La forma de las tarjetas de la fila «Avatar» y de las celdas de la grilla de
+// looks: la del video (entrega 2c, pedido del dueño: un look 16:9 no se
+// muestra vertical).
+export const AVATAR_LOOK_FRAME_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'aspect-video',
+  '9:16': 'aspect-[9/16]',
+}
+// Columnas de la fila «Avatar»: todas del mismo ancho, tantas como entren en
+// la tarjeta de Crear (`auto-fill`: con pocos avatares no se estiran). El
+// mínimo deja leer el nombre del look y «+N looks» sobre la imagen.
+export const AVATAR_CARD_GRID_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3',
+  '9:16': 'grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3',
+}
+// Columnas de la grilla del botón «Look», con el mismo criterio y celdas algo
+// más chicas: es una grilla para recorrer con scroll.
+export const AVATAR_LOOK_GRID_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3',
+  '9:16': 'grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3',
+}
+// La grilla de looks no crece más que esto: lo que sobra se recorre con scroll.
+export const AVATAR_LOOK_GRID_MAX_HEIGHT_CLASS = 'max-h-[26rem]'
+// La forma real de un look de otro formato dentro de una celda con la forma
+// del video (un look 9:16 en un video 16:9 se ve angosto, con aire a los
+// lados): la proporción del formato del look (`lookFormatOf`) y el lado que
+// llena la celda (en 16:9 todo otro formato es más alto que ancho en
+// proporción, en 9:16 más ancho).
+export const AVATAR_LOOK_SHAPE_CLASSES: Record<AvatarLookFormat, string> = {
+  ...AVATAR_LOOK_FRAME_CLASSES,
+  '1:1': 'aspect-square',
+  '4:5': 'aspect-[4/5]',
+  '5:4': 'aspect-[5/4]',
+}
+export const AVATAR_LOOK_SHAPE_FILL_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'h-full',
+  '9:16': 'w-full',
+}
+// El aire alrededor de esa forma: un rayado suave que se lee como marco
+// vacío, no como parte de la imagen.
+export const AVATAR_LOOK_LETTERBOX_CLASS =
+  'bg-[repeating-linear-gradient(135deg,hsl(var(--muted-foreground)/0.16)_0_1px,transparent_1px_7px)]'
+// Lo que dice una ficha de la grilla del botón «Look» que no se puede elegir,
+// por el motivo que da la regla (`lookUnfitReason`, selectableAvatar.ts). Un
+// look que se genera, que falló o que no admite ningún motor con tarifa usa
+// el texto corto de las tarjetas de la biblioteca; uno de otro formato dice
+// para qué videos es (`{{format}}`: el formato del look), y uno cuya
+// orientación HeyGen no informó lo dice tal cual, aunque su imagen tenga
+// medidas.
+export const LOOK_UNFIT_REASON_KEYS: Record<LookUnfitReason, string> = {
+  processing: 'avatars.detalle.lookGenerando',
+  failed: 'avatars.detalle.lookFallido',
+  engine: 'avatars.tarjeta.noCompatible',
+  unknownOrientation: 'create.avatar.unknownOrientation',
+  otherFormat: 'create.avatar.otherFormat',
+}
+// El pie del reproductor de un look que no sirve para el video (la acción
+// `unusable` de `LookPlayerDialog`), por el mismo motivo: siempre una frase
+// entera y no la etiqueta de la ficha de arriba, porque quien abre el look
+// tiene que leer por qué no hay «Usar», no deducirlo. El reproductor traduce
+// la clave SIN variables, así que `create.avatar.otherFormat` («Para videos
+// {{format}}») no sirve acá: el formato del look ya está en sus chips y la
+// frase de otro formato no lo repite. Un look que se genera o que no admite
+// ningún motor usa las frases del reproductor de la biblioteca; los otros
+// tres, las propias de Crear.
+export const LOOK_PLAYER_REASON_KEYS: Record<LookUnfitReason, string> = {
+  processing: 'avatars.reproductor.noListoHint',
+  failed: 'create.avatar.failedLookHint',
+  engine: 'avatars.reproductor.noCompatibleHint',
+  unknownOrientation: 'create.avatar.unknownOrientationHint',
+  otherFormat: 'create.avatar.otherFormatHint',
+}
+// El nombre de cada motor del avatar (el de la biblioteca) y la descripción
+// que dictó el dueño para elegirlo en Crear (entrega 2e, §21.3); el editor la
+// repite en la línea del motor. Un motor nuevo en AVATAR_ENGINES no compila
+// hasta tener sus textos.
+export const AVATAR_ENGINE_LABEL_KEYS: Record<AvatarEngine, string> = {
+  avatar_v: 'avatars.engines.avatar_v',
+  avatar_iv: 'avatars.engines.avatar_iv',
+  avatar_iii: 'avatars.engines.avatar_iii',
+}
+export const AVATAR_ENGINE_DESCRIPTION_KEYS: Record<AvatarEngine, string> = {
+  avatar_v: 'create.avatar.engineDescription.avatar_v',
+  avatar_iv: 'create.avatar.engineDescription.avatar_iv',
+  avatar_iii: 'create.avatar.engineDescription.avatar_iii',
+}
+// La guía «Qué podés pedir» de la sección «Movimiento» del editor (entrega 2e,
+// §21.4): lo que el motor del avatar controla y lo que no, en el orden de la
+// guía del proveedor (es también la regla del movimiento automático, §21.2).
+export const AVATAR_MOTION_GUIDE_ALLOWED_KEYS = [
+  'library.editor.avatar.guiaExpresiones',
+  'library.editor.avatar.guiaGestos',
+  'library.editor.avatar.guiaPostura',
+  'library.editor.avatar.guiaQuietud',
+  'library.editor.avatar.guiaMirada',
+] as const
+export const AVATAR_MOTION_GUIDE_FORBIDDEN_KEYS = [
+  'library.editor.avatar.guiaCamara',
+  'library.editor.avatar.guiaLugar',
+  'library.editor.avatar.guiaObjetos',
+  'library.editor.avatar.guiaCaminar',
+  'library.editor.avatar.guiaFondo',
+] as const
+// El prompt de movimiento es de una sola línea (entrega 2e): los saltos que
+// llegan pegados se vuelven espacios. Los separadores de línea y de párrafo de
+// Unicode van por propiedad, no por escape (ERRORES-CONOCIDOS,
+// harness-decodifica-escapes-unicode-en-parametros-de-herramientas).
+export const MOTION_PROMPT_LINE_BREAKS = /\r\n|[\r\n\p{Zl}\p{Zp}]/gu
+// De a cuántos segundos sube o baja el selector «Duración» de una aparición
+// del avatar en el editor (entrega 2g, diseño §23.3).
+export const AVATAR_DURATION_STEP_SECONDS = 1
+// Lo que dice el selector cuando la duración está quieta (diseño §23.3 y
+// R-2g-18): la escena que sigue está animada, o es el final del video.
+export const AVATAR_DURATION_LOCK_KEYS: Record<AvatarDurationLock, string> = {
+  neighbor: 'library.editor.avatar.duracionBloqueada',
+  videoEnd: 'library.editor.avatar.duracionFinal',
+}
+// Dónde cae el foco al desplegar una tarjeta del avatar en la vista ampliada
+// (entrega 2g, §23.4), en este orden: el «−» de la duración (lleva
+// `data-first-control`: el botón de ayuda que va junto a su título viene antes
+// en el documento y no es el primer control con sentido) y, si la escena no
+// ofrece duración, el primer botón, campo o interruptor que no esté apagado
+// con `disabled`. Los botones del selector que llegaron a un límite se apagan
+// con `aria-disabled` y pueden tener el foco.
+export const AVATAR_CARD_FIRST_CONTROL_SELECTORS = [
+  '[data-first-control]',
+  'button:not(:disabled), textarea:not(:disabled), [role="switch"]:not(:disabled)',
+] as const
+// Las columnas de la tarjeta del avatar desplegada, según el formato del
+// video: el clip a la izquierda (más angosto si es vertical, para que no
+// quede altísimo) y los controles a la derecha. Desde `sm`; debajo, una
+// columna.
+export const AVATAR_CARD_EXPANDED_GRID_CLASSES: Record<VideoFormat, string> = {
+  '16:9': 'sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]',
+  '9:16': 'sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)]',
+}
+// El estado de la tarjeta de una aparición en la grilla «Imágenes» del
+// progreso (entrega 2e, §21.5), con la misma regla que su fila del panel
+// (avatarRowStatus); cambia el texto corto: «Con imagen fija» dice lo que pasa
+// en el video con una aparición que no se completó, y «Generando» no repite la
+// fase del render, que ya dice el panel de arriba.
+export const AVATAR_CARD_STATUS_KEYS: Record<AvatarRowStatus, string> = {
+  queued: 'create.progress.avatarQueued',
+  generating: 'create.progress.avatarCardGenerating',
+  ready: 'create.progress.avatarReady',
+  failed: 'create.progress.avatarCardFallback',
+  stale: 'create.progress.avatarStale',
+}
+// Fichas de esqueleto mientras se lee la biblioteca de avatares.
+export const AVATAR_PICKER_SKELETONS = 5
+// Cuánto vale la lectura de la biblioteca de avatares que hace Crear: quien
+// tiene la clave de HeyGen y no usa el avatar no paga un proceso del sidecar
+// en cada montaje ni en cada foco de la ventana. Agregar o quitar un avatar,
+// o el sondeo de lo que procesa, la invalidan igual.
+export const CREATE_AVATAR_LIBRARY_STALE_TIME_MS = 60_000
+
 // Con qué se regenera una escena que no trae calidad propia: los mismos
 // defaults del formulario de creación.
 export const DEFAULT_IMAGE_CHOICE: SceneImageChoice = {
   provider: CREATE_FORM_INITIAL_VALUE.imageProvider,
   quality: CREATE_FORM_INITIAL_VALUE.imageQuality,
 }
+
+// Fallos de voz con una generación que el proveedor pudo haber aceptado (y
+// cobrado): el aviso previo a «Cambiar voz» lo dice explícitamente.
+export const VOICE_MAYBE_PAID_ERROR_CODES: ReadonlySet<string> = new Set([
+  'voice_request_pending',
+  'voice_request_unresolved',
+])
 
 // Código de error del sidecar/Rust → clave i18n del mensaje.
 export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
@@ -939,6 +1284,15 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   project_not_found: 'create.errors.projectNotFound',
   project_metadata_corrupt: 'create.errors.projectCorrupt',
   project_exists: 'create.errors.projectExists',
+  // Avatar presentador elegido en Crear (ADR-0057): lo valida
+  // create-video-project contra la biblioteca. `avatar_not_found` y
+  // `avatar_group_missing` (HeyGen ya no tiene el avatar) reusan el texto de
+  // la biblioteca de avatares.
+  avatar_not_found: 'avatars.errors.notFound',
+  avatar_group_missing: 'avatars.errors.groupMissing',
+  avatar_look_unavailable: 'create.errors.avatarLookUnavailable',
+  avatar_look_orientation_mismatch:
+    'create.errors.avatarLookOrientationMismatch',
   script_missing: 'create.errors.scriptMissing',
   narration_missing: 'create.errors.narrationMissing',
   narration_source_missing: 'create.errors.narrationSourceMissing',
@@ -967,6 +1321,7 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_insufficient_credits: 'create.errors.voiceInsufficientCredits',
   voice_account_restricted: 'create.errors.voiceAccountRestricted',
   voice_library_add_failed: 'create.errors.voiceLibraryAddFailed',
+  voice_submission_failed: 'create.errors.voiceProviderError',
   // Música y overlay
   music_generation_failed: 'create.errors.musicGenerationFailed',
   music_download_failed: 'create.errors.musicDownloadFailed',
@@ -1074,9 +1429,45 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   animation_request_changed: 'create.errors.animationRequestChanged',
   animation_incomplete: 'create.errors.animationIncomplete',
   animation_timing_locked: 'create.errors.animationTimingLocked',
+  // Escenas de avatar con HeyGen (ADR-0057, spec §14). Los códigos que la
+  // biblioteca de avatares ya traduce reusan SUS claves (avatars.errors.*,
+  // las mismas de src/modules/avatars/constants.ts): no se duplica el texto.
+  // `avatar_not_found` → avatars.errors.notFound está arriba, con los
+  // rechazos de Crear.
+  avatar_invalid_key: 'avatars.errors.invalidKey',
+  avatar_insufficient_credits: 'avatars.errors.insufficientCredits',
+  avatar_rate_limited: 'avatars.errors.rateLimited',
+  avatar_look_unsupported: 'avatars.errors.lookUnsupported',
+  avatar_moderation_rejected: 'avatars.errors.moderationRejected',
+  avatar_invalid_request: 'avatars.errors.providerError',
+  avatar_provider_error: 'avatars.errors.providerError',
+  avatar_network: 'avatars.errors.network',
+  // Los que introduce la fase `avatar` llevan texto propio en create.errors.
+  avatar_render_failed: 'create.errors.avatarRenderFailed',
+  avatar_timeout: 'create.errors.avatarTimeout',
+  avatar_download_failed: 'create.errors.avatarDownloadFailed',
+  // Entrega 2e: el proveedor rechazó el movimiento propio con ese look; el
+  // carril vuelve a pedir enseguida sin él, así que casi nunca se ve.
+  avatar_motion_unsupported: 'create.errors.avatarMotionUnsupported',
+  // Heredado de antes de la entrega 2d: la fase ya no lo lanza (una aparición
+  // que falla deja la imagen fija y el video sale), pero un proyecto que quedó
+  // detenido con él sigue en el disco y se muestra con su texto.
+  avatar_incomplete: 'create.errors.avatarIncomplete',
+  avatar_sentences_unavailable: 'create.errors.avatarSentencesUnavailable',
+  // El render (auto-export al final del pipeline) no encontró ni el clip ni
+  // la vista previa del look de una aparición.
+  avatar_render_look_unavailable: 'create.errors.avatarRenderLookUnavailable',
+  // Escena de avatar (ADR-0057): sus fronteras con clip o recibos de HeyGen no
+  // se mueven en la entrega 2.
+  avatar_timing_locked: 'create.errors.avatarTimingLocked',
+  // La duración de una escena de avatar desde el editor (entrega 2g, §23.3).
+  avatar_resize_out_of_range: 'create.errors.avatarResizeOutOfRange',
+  avatar_resize_locked: 'create.errors.avatarResizeLocked',
+  avatar_trim_unavailable: 'create.errors.avatarTrimUnavailable',
   // Transversales
   missing_api_key: 'create.errors.missingApiKey',
   missing_projects_root: 'create.errors.missingProjectsRoot',
+  projects_root_unavailable: 'create.errors.projectsRootUnavailable',
   // Estilos propios
   style_not_found: 'create.errors.styleNotFound',
   style_save_failed: 'create.errors.styleSaveFailed',
@@ -1103,6 +1494,11 @@ export const INTERRUPTED_ERROR_KEY = 'create.errors.interrupted'
 export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
   ...CREATE_ERROR_MESSAGE_KEYS,
   animation_image_locked: 'library.errors.animationImageLocked',
+  // Rechazo del editor: una escena de avatar no tiene imagen (ADR-0057).
+  avatar_scene_without_image: 'library.errors.avatarSceneWithoutImage',
+  // El render o el export del editor no encontró ni el clip ni la vista
+  // previa del look de una aparición.
+  avatar_render_look_unavailable: 'library.errors.avatarRenderLookUnavailable',
   animation_undo_pending: 'library.errors.animationUndoPending',
   animation_source_missing: 'library.errors.animationSourceMissing',
   invalid_audio_url: 'library.errors.invalidAudioUrl',

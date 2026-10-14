@@ -11,7 +11,7 @@ El bundle habitual usa su identidad, almacén y puerto propios. Sus cuatro vínc
 
 El supervisor nativo acepta una selección local explícita de coordinador existente, antes de arrancar el SEA. La configuración `flow-coordinator.json` contiene versión1, ruta absoluta de datos y puerto. Es nativa, sin secretos ni acceso por API desde React. Si está ausente usa el default; si está dañada o su destino no existe, falla cerrado sin crear otro historial. El directorio y puerto existentes conservan todas las identidades, referencias, resultados y las credenciales ya guardadas en las extensiones.
 
-El despliegue local requiere cerrar las dos apps Vimo, respaldar ambos almacenes, activar la selección atómica y abrir sólo la nueva app. Chrome Beta y Multimagen permanecen abiertos. Los cuatro vínculos históricos del almacén habitual quedan intactos; la app seleccionada muestra los cinco del coordinador adoptado. Arquitectura y fallo en ADR-0052.
+El despliegue local requiere cerrar las dos apps Vimo, respaldar ambos almacenes, activar la selección atómica y abrir sólo la nueva app. Chrome Beta y Multimagen permanecen abiertos. Los cuatro vínculos históricos del almacén habitual quedan intactos; la app seleccionada muestra los cinco del coordinador adoptado. Arquitectura y fallo en ADR-0058.
 
 ## Límites deliberados
 

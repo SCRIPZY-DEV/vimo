@@ -107,8 +107,15 @@ export function CustomStyleGallery({
   onArrivalOpened,
 }: CustomStyleGalleryProps) {
   const { t } = useTranslation()
-  const { styles, isLoading, saveStyle, showSavedStyle, deleteStyle, saving } =
-    useCustomStyles()
+  const {
+    styles,
+    isLoading,
+    errorKey,
+    saveStyle,
+    showSavedStyle,
+    deleteStyle,
+    saving,
+  } = useCustomStyles()
   const gemTemplateEnabled = useAccessFeature('gemTemplate')
   const aiStyleCreatorEnabled = useAccessFeature('aiStyleCreator')
   const migrations = useGemMigrations()
@@ -315,6 +322,8 @@ export function CustomStyleGallery({
           onDismiss={() => dismissGemMigration(style.id)}
         />
       ))}
+
+      {errorKey && <Alert title={t(errorKey)} />}
 
       {isLoading && (
         <p className="py-6 text-center">

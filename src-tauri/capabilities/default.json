@@ -21,7 +21,10 @@
         { "url": "https://evolink.ai/*" },
         { "url": "https://www.dubvoice.ai/*" },
         { "url": "https://elevenlabs.io/*" },
-        { "url": "https://console.deepgram.com/*" }
+        { "url": "https://ai33.pro/*" },
+        { "url": "https://console.deepgram.com/*" },
+        { "url": "https://kie.ai/*" },
+        { "url": "https://app.heygen.com/*" }
       ]
     },
     {

@@ -156,7 +156,7 @@ async function currentRequest(
   const scene = (await readScenes(paths))?.find(
     (candidate) => candidate.id === target,
   )
-  if (!scene) return false
+  if (!scene || scene.avatar) return false
   for (const character of metadata.options.characters ?? []) {
     if (character.mode !== 'photo' || !character.referenceImageFile) continue
     if (

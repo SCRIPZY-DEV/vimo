@@ -27,7 +27,10 @@ export interface ApiKeyStatus {
 export interface ValidationResult {
   ok: boolean
   code: ApiKeyErrorCode | null
-  /** Saldo leído al validar (Kie.ai y PoYo); null si el proveedor no lo da. */
+  /**
+   * Saldo leído al validar: Kie.ai y PoYo en créditos, HeyGen en dólares (ver
+   * `balanceUnit` del proveedor); null si el proveedor no lo da.
+   */
   credits: number | null
 }
 

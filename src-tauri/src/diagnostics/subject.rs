@@ -5,14 +5,15 @@ use serde_json::Value;
 
 /// Qué identifica a un job en el log de diagnóstico (ADR-0038): el proyecto
 /// cuando lo hay, y si no, la entidad sobre la que trabaja el subcomando
-/// (estilo, personaje, voz…). Soporte busca por correo + `project_name`, así
-/// que toda fila debería llevar un nombre legible.
+/// (estilo, personaje, avatar, voz…). Soporte busca por correo + `project_name`,
+/// así que toda fila debería llevar un nombre legible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SubjectKind {
     Project,
     Style,
     Character,
+    Avatar,
     Voice,
     Music,
     Demo,
@@ -30,9 +31,10 @@ pub const CREATE_PROJECT_SUBCOMMAND: &str = "create-video-project";
 /// Palabra del subcomando → familia, en orden de prioridad: gana la primera
 /// (`design-style-character` diseña un personaje; `set-project-music` es del
 /// proyecto). Espejo conceptual de SUBCOMMAND_MODULE_KEYWORDS del webview.
-const SUBCOMMAND_KIND_KEYWORDS: [(&str, SubjectKind); 7] = [
+const SUBCOMMAND_KIND_KEYWORDS: [(&str, SubjectKind); 8] = [
     ("project", SubjectKind::Project),
     ("demo", SubjectKind::Demo),
+    ("avatar", SubjectKind::Avatar),
     ("character", SubjectKind::Character),
     ("style", SubjectKind::Style),
     ("music", SubjectKind::Music),
@@ -45,19 +47,22 @@ const SUBCOMMAND_KIND_KEYWORDS: [(&str, SubjectKind); 7] = [
 /// (`project_name like 'Estilo:%'`) sin mezclar con proyectos reales.
 const STYLE_LABEL: &str = "Estilo";
 const CHARACTER_LABEL: &str = "Personaje";
+const AVATAR_LABEL: &str = "Avatar";
 const VOICE_LABEL: &str = "Voz";
 const MUSIC_LABEL: &str = "Música";
 const DEMO_LABEL: &str = "Demo";
 const LABEL_SEPARATOR: &str = ": ";
 
 /// Dónde vive cada biblioteca bajo la carpeta de proyectos y qué archivo
-/// lleva el nombre. Espejo de pipeline/project/paths.ts, styles/style-store.ts
-/// y characters/character-library.ts.
+/// lleva el nombre. Espejo de pipeline/project/paths.ts, styles/style-store.ts,
+/// characters/character-library.ts y avatars/avatar-library.ts.
 const PROJECT_METADATA_FILE: &str = "project.json";
 const STYLES_SUBDIRECTORY: &str = "_styles";
 const STYLE_METADATA_FILE: &str = "style.json";
 const CHARACTERS_SUBDIRECTORY: &str = "characters";
 const CHARACTER_METADATA_FILE: &str = "metadata.json";
+const AVATARS_SUBDIRECTORY: &str = "avatars";
+const AVATAR_METADATA_FILE: &str = "metadata.json";
 const NAME_FIELD: &str = "name";
 
 fn string_field(value: &Value, key: &str) -> Option<String> {
@@ -82,9 +87,9 @@ fn first_string_of(value: &Value, key: &str) -> Option<String> {
 // que nunca puede llevar `.`, `/` ni `\`.
 pub fn is_safe_entity_id(id: &str) -> bool {
     !id.is_empty()
-        && id
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_')
+        && id.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '-' || character == '_'
+        })
 }
 
 fn kind_of(subcommand: &str, payload: Option<&Value>) -> Option<SubjectKind> {
@@ -124,7 +129,18 @@ pub fn subject_from_payload(subcommand: &str, payload: Option<&Value>) -> Option
             string_field(payload, "id").or_else(|| string_field(payload, "styleId")),
             string_field(payload, NAME_FIELD),
         ),
-        SubjectKind::Character => (string_field(payload, "id"), string_field(payload, NAME_FIELD)),
+        SubjectKind::Character => (
+            string_field(payload, "id"),
+            string_field(payload, NAME_FIELD),
+        ),
+        // Un avatar que ya está en la biblioteca (payload con `id`) se nombra
+        // desde su metadata: en `avatar-generate-look`, `name` es el del look
+        // nuevo, no el del avatar. Sin `id` (crear desde foto, agregar del
+        // stock) el `name` del payload es el del avatar.
+        SubjectKind::Avatar => match string_field(payload, "id") {
+            Some(id) => (Some(id), None),
+            None => (None, string_field(payload, NAME_FIELD)),
+        },
         SubjectKind::Voice => (
             string_field(payload, "voiceId"),
             string_field(payload, "voiceName")
@@ -151,6 +167,10 @@ pub fn read_subject_metadata(projects_root: &Path, subject: &Subject) -> Option<
             .join(CHARACTERS_SUBDIRECTORY)
             .join(id)
             .join(CHARACTER_METADATA_FILE),
+        SubjectKind::Avatar => projects_root
+            .join(AVATARS_SUBDIRECTORY)
+            .join(id)
+            .join(AVATAR_METADATA_FILE),
         SubjectKind::Voice | SubjectKind::Music | SubjectKind::Demo => return None,
     };
     let body = std::fs::read(path).ok()?;
@@ -174,6 +194,7 @@ pub fn subject_label(subject: &Subject, name: Option<&str>) -> Option<String> {
         SubjectKind::Project => return name.map(str::to_owned),
         SubjectKind::Style => STYLE_LABEL,
         SubjectKind::Character => CHARACTER_LABEL,
+        SubjectKind::Avatar => AVATAR_LABEL,
         SubjectKind::Voice => VOICE_LABEL,
         SubjectKind::Music => MUSIC_LABEL,
         SubjectKind::Demo => DEMO_LABEL,

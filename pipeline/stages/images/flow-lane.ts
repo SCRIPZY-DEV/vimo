@@ -7,7 +7,7 @@ import { isValidPrompt } from '../../prompts/prompt-limits.ts'
 import { loadPipelineCharacters } from '../../project/characters.ts'
 import type { VideoProjectOptions } from '../../types/video-project.ts'
 import {
-  markVideoOutdated,
+  markStoredVideoOutdated,
   readProjectMetadata,
 } from '../../project/metadata.ts'
 import { isValidFile, sceneImageFile } from '../../project/paths.ts'
@@ -115,8 +115,10 @@ export async function generateFlowScenes(
   const targets = new Map<number, Scene>()
   const only = context.regenerateSceneIds
   for (const scene of scenes) {
+    if (scene.avatar) continue
     if (only?.size && !only.has(scene.id)) continue
     const target = flowTargetSceneId(scene)
+    if (currentById.get(target)?.avatar) continue
     if (!targets.has(target))
       targets.set(
         target,
@@ -236,7 +238,7 @@ export async function generateFlowScenes(
     const latest = (await readScenes(context.paths))?.find(
       (scene) => scene.id === source.id,
     )
-    if (!latest) return false
+    if (!latest || latest.avatar) return false
     const metadata = await readProjectMetadata(context.paths)
     const latestCharacters = await loadPipelineCharacters(
       context.paths,
@@ -355,9 +357,9 @@ export async function generateFlowScenes(
         })
         // Guardar invalidación ANTES del evento: también sobrevive a un lote
         // parcial o a una caída antes de que el subcomando termine.
-        const metadata = await readProjectMetadata(context.paths)
-        await markVideoOutdated(context.paths, metadata)
-        context.metadata.videoOutdated = metadata.videoOutdated
+        // La copia compartida se actualiza dentro de la cola de metadata:
+        // el avatar puede cerrar su fase y guardar completedStages a la vez.
+        await markStoredVideoOutdated(context.paths, context.metadata)
         markReady(target, destination)
         return importedHash
       },

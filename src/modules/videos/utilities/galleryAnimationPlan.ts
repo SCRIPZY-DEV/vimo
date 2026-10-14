@@ -3,6 +3,10 @@ import {
   animationUnitFromBlock,
   overlapsShortFinalAnimationScene,
 } from '@pipeline/animation/planner.ts'
+import {
+  avatarCoveredIntervals,
+  withoutAvatarSceneIds,
+} from '@pipeline/animation/avatar-coverage.ts'
 import { animationRangeEnd } from '@pipeline/animation/scope.ts'
 import { sceneAnimationBlocks } from '@pipeline/animation/scene-blocks.ts'
 import { readyAnimationClips } from '@/modules/videos/utilities/animationClips'
@@ -39,10 +43,15 @@ export function galleryAnimationPlan(
   options: GalleryAnimationPlanOptions,
 ): GalleryAnimationPlan {
   const requestedIds = new Set(sceneIds)
+  // Una escena de avatar se cae de la selección: no se anima con Kie
+  // (ADR-0057) y su tramo viaja como cubierto.
   const selectedIds = new Set(
-    scenes
-      .filter((scene) => requestedIds.has(scene.id))
-      .map((scene) => scene.absorbedBy ?? scene.id),
+    withoutAvatarSceneIds(
+      scenes
+        .filter((scene) => requestedIds.has(scene.id))
+        .map((scene) => scene.absorbedBy ?? scene.id),
+      scenes,
+    ),
   )
   const ready = readyAnimationClips(scenes)
   const preservedPending = shortTailPendingAnimationUnits(scenes)
@@ -93,6 +102,7 @@ export function galleryAnimationPlan(
     coveredIntervals: [
       ...coveredIntervals,
       ...selectedPending.map((clip) => clip.unit),
+      ...avatarCoveredIntervals(scenes),
     ],
   }
   const plan = planAnimationUnits(scenes, [...selectedIds], [], plannerOptions)

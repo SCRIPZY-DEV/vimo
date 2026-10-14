@@ -1,4 +1,5 @@
 import type { VoiceProviderId } from '../../types/voices.ts'
+import { ai33Provider } from './ai33.ts'
 import { edgeProvider } from './edge.ts'
 import { elevenLabsDirectProvider } from './elevenlabs-direct.ts'
 import { elevenLabsProvider } from './elevenlabs.ts'
@@ -17,6 +18,7 @@ export const TTS_PROVIDERS: Record<VoiceProviderId, TtsProvider> = {
   fishaudio: fishAudioProvider,
   edge: edgeProvider,
   'elevenlabs-direct': elevenLabsDirectProvider,
+  ai33: ai33Provider,
 }
 
 // Para los mensajes de payload inválido: la lista sale del registro, no de un

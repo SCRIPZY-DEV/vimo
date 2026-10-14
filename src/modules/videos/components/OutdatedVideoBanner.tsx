@@ -14,7 +14,7 @@ export function OutdatedVideoBanner({ projectId }: OutdatedVideoBannerProps) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border-2 border-coral/40 bg-coral/10 p-4">
       <p className="flex items-center gap-2 font-body text-sm text-foreground">
-        <TriangleAlert className="h-4 w-4 shrink-0 text-coral" />
+        <TriangleAlert className="h-4 w-4 shrink-0 text-coral-text" />
         {t('library.player.outdatedBanner')}
       </p>
       <Button asChild size="sm" className="shrink-0 rounded-lg font-display">

@@ -20,7 +20,16 @@ import {
   RETRYABLE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
+import {
+  chargedSceneIdsWithAvatarEvent,
+  scenesWithAvatarEvent,
+  scenesWithAvatarRunEnded,
+} from '@/modules/videos/utilities/avatarTaskEvents'
 import { creditsDomainOf } from '@/modules/videos/utilities/creditsDomainOf'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
+import { isEditorProjectBusy } from '@/modules/videos/utilities/editorProjectBusy'
+import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
+import { projectVoiceOf } from '@/modules/videos/utilities/projectVoiceOf'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import { hasPrompt } from '@/modules/videos/utilities/hasPrompt'
 import { hasAutomaticAnimation } from '@pipeline/animation/scope.ts'
@@ -37,6 +46,7 @@ import type {
   CreateTask,
   ProjectRunOptions,
   SceneCutChoice,
+  SelectedVoice,
 } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
@@ -118,6 +128,9 @@ function restoreTask(): CreateTask | null {
           !Number.isFinite(stored.pausedAt)),
       retry: null,
       retryAttempts: stored.retryAttempts ?? 0,
+      // Las fases en curso pertenecen a un job vivo, que murió con la app. Una
+      // tarea guardada antes de la 2h trae `stage` en su lugar: nadie la lee.
+      activeStages: [],
       videoFormat: stored.videoFormat ?? '16:9',
       promptsWritten: stored.promptsWritten ?? null,
       // La pasada de recuperación pertenece a un job vivo: no sobrevive.
@@ -127,6 +140,8 @@ function restoreTask(): CreateTask | null {
         animationActivity: undefined,
         animationLeadId: undefined,
         animationProgress: undefined,
+        // El render de HeyGen también pertenece a un job vivo.
+        avatarActivity: undefined,
       })),
       cancelRequested: false,
       // Tareas persistidas antes de ADR-0028: sin carril conocido no hay
@@ -141,6 +156,9 @@ function restoreTask(): CreateTask | null {
       // El rechazo por saldo sí sobrevive: el proyecto quedó pausado en
       // disco por eso y la tarjeta tiene que seguir diciéndolo.
       creditsIssue: stored.creditsIssue ?? null,
+      // Lo cobrado del avatar también: sus recibos quedaron en disco y la
+      // tarjeta del fallo dice que se usan sin pagar de nuevo (entrega 2h).
+      avatarChargedSceneIds: stored.avatarChargedSceneIds ?? [],
       // Tareas guardadas antes del campo: sin código conocido.
       errorCode: stored.errorCode ?? null,
     }
@@ -152,7 +170,6 @@ function restoreTask(): CreateTask | null {
       return {
         ...task,
         status: 'error',
-        stage: null,
         jobId: null,
         errorKey: INTERRUPTED_ERROR_KEY,
         errorCode: null,
@@ -196,7 +213,7 @@ function startAutoRetry(taskId: string, projectId: string, code: string) {
   patchTask(taskId, {
     status: 'generating',
     jobId: null,
-    stage: null,
+    activeStages: [],
     errorKey: errorKeyFor(code),
     errorCode: code,
     retry: {
@@ -257,22 +274,40 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
     return
   }
 
+  // El job terminó (éxito, pausa o fallo): un render del avatar que se anunció
+  // y no llegó a cerrarse —el saldo, la clave o una cancelación frenaron la
+  // corrida— ya no corre, y su fila no puede seguir girando.
+  if (event.type === 'job-completed' || event.type === 'job-failed') {
+    const scenes = scenesWithAvatarRunEnded(task.scenes)
+    if (scenes !== task.scenes) patchTask(taskId, { scenes })
+  }
+
   switch (event.type) {
+    // Desde la entrega 2h dos fases corren a la vez (el avatar arranca junto
+    // con las imágenes, spec §24.2): cada `stage-started` suma la suya a las
+    // que corren y reinicia solo lo suyo. La pasada de recuperación es de las
+    // imágenes; el arranque del avatar no la borra.
     case 'stage-started':
       patchTask(taskId, {
-        stage: event.stageId,
-        imagesRecovery: null,
+        activeStages: withStage(task.activeStages, event.stageId),
+        ...(event.stageId === 'images' ? { imagesRecovery: null } : {}),
         // Arranca la vigilancia del modelo de prompts (ADR-0028).
-        promptsStageActivity:
-          event.stageId === 'scene-prompts'
-            ? { startedAt: Date.now(), lastProgressAt: Date.now() }
-            : null,
+        ...(event.stageId === 'scene-prompts'
+          ? {
+              promptsStageActivity: {
+                startedAt: Date.now(),
+                lastProgressAt: Date.now(),
+              },
+            }
+          : {}),
       })
       return
 
+    // Cada fase sale de las que corren cuando termina, en cualquier orden.
     case 'stage-skipped':
     case 'stage-completed':
       patchTask(taskId, {
+        activeStages: withoutStage(task.activeStages, event.stageId),
         completedStages: withStage(task.completedStages, event.stageId),
         // El stream del redactor ya no importa con los prompts persistidos.
         ...(event.stageId === 'scene-prompts'
@@ -488,6 +523,62 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       })
       return
 
+    // Fase `avatar` (ADR-0057 §8): cuántas apariciones no entraron, y el
+    // render de cada escena con su fase y su tiempo («Avatar 2/3»). El corte
+    // lo anuncia antes de la pausa de escenas (y otra vez al cortar): la cifra
+    // se pisa, nunca se suma, y la pausa abierta también la recibe.
+    case 'avatar-planned':
+      patchTask(taskId, {
+        hasAvatar: true,
+        avatarDropped: event.dropped,
+        ...(task.confirmation
+          ? {
+              confirmation: {
+                ...task.confirmation,
+                avatarDropped: event.dropped,
+              },
+            }
+          : {}),
+      })
+      return
+
+    // Cada aparición que HeyGen ya aceptó (o que quedó lista) queda anotada
+    // como cobrada en esta corrida (entrega 2h, spec §24.3): con eso
+    // «Cancelar» avisa y la tarjeta del fallo dice lo que se conserva.
+    case 'avatar-scene-started':
+    case 'avatar-scene-progress':
+    case 'avatar-scene-ready':
+    case 'avatar-scene-failed':
+      patchTask(taskId, {
+        scenes: scenesWithAvatarEvent(task.scenes, event, Date.now()),
+        avatarChargedSceneIds: chargedSceneIdsWithAvatarEvent(
+          task.avatarChargedSceneIds,
+          event,
+        ),
+      })
+      return
+
+    // HeyGen da problemas en el camino (red, 5xx, 429 o demoras que no
+    // ceden): el job sigue con lo que pueda (no hay otro proveedor de avatar
+    // al que pasar). Queda en los logs internos y la persona lo ve en un
+    // aviso pasajero, traducido, que no bloquea nada: uno a la vez (el
+    // sidecar lo anuncia una vez por código y corrida) y se va solo. Una
+    // caída de red no trae status HTTP.
+    case 'avatar-provider-trouble':
+      patchTask(taskId, {
+        logs: appendLog(
+          task,
+          event.httpStatus === undefined
+            ? `avatar provider trouble: ${event.code}`
+            : `avatar provider trouble: ${event.code} (HTTP ${event.httpStatus})`,
+        ),
+      })
+      toast({
+        title: i18next.t('create.progress.avatarTroubleTitle'),
+        description: i18next.t(errorKeyOf(event.code)),
+      })
+      return
+
     // Avance de una imagen en curso (solo Evolink lo informa): la celda de
     // la grilla muestra el porcentaje; se limpia al cerrar la imagen.
     case 'scene-image-progress':
@@ -567,6 +658,17 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
           ...(event.secondsPerScene !== undefined
             ? { secondsPerScene: event.secondsPerScene }
             : {}),
+          // Con avatar, los tramos (vacíos si ninguna aparición entró: la
+          // pausa lo dice), las descartadas que anunció `avatar-planned` y el
+          // tipo de look y el motor del proyecto para el costo (entrega 2e).
+          ...(event.avatarSpans
+            ? {
+                avatarSpans: event.avatarSpans,
+                avatarDropped: task.avatarDropped,
+                avatarLookType: task.avatarLookType,
+                avatarEngine: task.avatarEngine,
+              }
+            : {}),
         },
       })
       return
@@ -580,7 +682,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         patchTask(taskId, {
           status: 'awaitingConfirmation',
           jobId: null,
-          stage: null,
+          activeStages: [],
           // Arranca la pausa del cronómetro: la espera no cuenta.
           pausedAt: Date.now(),
         })
@@ -589,7 +691,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         status: 'completed',
         jobId: null,
-        stage: null,
+        activeStages: [],
         imagesRecovery: null,
         videoPath: result?.videoPath ?? null,
         finishedAt: Date.now(),
@@ -612,7 +714,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
         patchTask(taskId, {
           status: 'error',
           jobId: null,
-          stage: null,
+          activeStages: [],
           imagesRecovery: null,
           promptsStageActivity: null,
           errorKey: errorKeyFor(event.code),
@@ -628,14 +730,14 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       if (
         task.usesCustomStyle &&
         task.promptModel &&
-        task.stage === 'scene-prompts' &&
+        task.activeStages.includes('scene-prompts') &&
         PROVIDER_TROUBLE_CODES.has(event.code)
       ) {
         blockPromptModel(task.promptModel, 'error')
         patchTask(taskId, {
           status: 'error',
           jobId: null,
-          stage: null,
+          activeStages: [],
           imagesRecovery: null,
           promptsStageActivity: null,
           errorKey: errorKeyFor(event.code),
@@ -660,7 +762,7 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
       patchTask(taskId, {
         status: 'error',
         jobId: null,
-        stage: null,
+        activeStages: [],
         imagesRecovery: null,
         errorKey: errorKeyFor(event.code),
         errorCode: event.code,
@@ -675,6 +777,10 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
 function withStage(stages: StageId[], stageId: StageId): StageId[] {
   return stages.includes(stageId) ? stages : [...stages, stageId]
+}
+
+function withoutStage(stages: StageId[], stageId: StageId): StageId[] {
+  return stages.filter((stage) => stage !== stageId)
 }
 
 // Marca «hubo avance ahora» en la vigilancia de la fase de prompts. Sin
@@ -777,7 +883,7 @@ function makeTask(
     projectId,
     projectName,
     status: 'creating',
-    stage: null,
+    activeStages: [],
     // Sembrado desde disco al reanudar (origen: `hidratar`): las fases hechas
     // y la grilla aparecen al toque; los eventos del job hacen merge encima.
     completedStages: seed?.completedStages ?? [],
@@ -819,6 +925,13 @@ function makeTask(
       : {}),
     voiceVendor: options.voiceVendor ?? null,
     creditsIssue: null,
+    hasAvatar:
+      options.hasAvatar ??
+      seed?.scenes.some((scene) => scene.avatar !== undefined),
+    avatarDropped: options.avatarDropped,
+    avatarLookType: options.avatarLookType,
+    avatarEngine: options.avatarEngine,
+    avatarChargedSceneIds: [],
   }
 }
 
@@ -849,10 +962,16 @@ async function runPipeline(
   // redactor arranca de cero y la barra se quedaría quieta hasta alcanzar lo
   // ya visto — nunca vuelve atrás (regla del origen). Lo limpia la fase al
   // completarse y cada tarea nueva nace sin él.
-  // `imagesRecovery` sí: describe una pasada del job anterior, ya muerto.
+  // `imagesRecovery` sí: describe una pasada del job anterior, ya muerto. Y
+  // las fases en curso: un job cerrado mientras se cambiaba de modelo no
+  // llegó a vaciarlas (su cierre no pasa por el reductor). Lo cobrado del
+  // avatar también es de cada corrida: si esta vuelve a correr el avatar,
+  // cosecha los recibos de la anterior y los anota de nuevo.
   patchTask(taskId, {
     status: 'generating',
     finishedAt: null,
+    activeStages: [],
+    avatarChargedSceneIds: [],
     errorKey: null,
     errorCode: null,
     confirmation: null,
@@ -911,6 +1030,12 @@ async function startCreation(input: {
   // La pantalla aparece antes del preflight; ningún proyecto se crea hasta
   // que sus verificaciones aprueban. El callback descarta respuestas tardías.
   beforeCreate?: (isCurrent: () => boolean) => Promise<boolean>
+  // Avisa una sola vez que el proyecto ya existe en disco, justo después de
+  // anotar su id y solo si la tarea sigue siendo la actual. Existe para lo
+  // que tiene que esperar a ese momento y no antes: Crear descarta ahí su
+  // borrador, así un createProject que falla (una clave o un avatar
+  // rechazados) no se lleva el formulario.
+  onProjectCreated?: () => void
 }): Promise<void> {
   if (rejectIfBusy()) return
   stopActiveJob()
@@ -927,6 +1052,7 @@ async function startCreation(input: {
       voiceVendor: input.payload.options.voiceProvider
         ? vendorOfProvider(input.payload.options.voiceProvider)
         : null,
+      ...avatarRunOptions(input.payload.options.avatar),
     }),
   )
 
@@ -948,6 +1074,7 @@ async function startCreation(input: {
     if (!isCurrent()) return
     projectId = project.projectId
     patchTask(taskId, { projectId })
+    input.onProjectCreated?.()
     // La biblioteca abre en la pestaña del formato recién creado.
     rememberLibraryTab(libraryTabFor(input.payload.options.videoFormat))
   } catch (error) {
@@ -984,9 +1111,17 @@ export function hasBusyCreateTask(): boolean {
   return status === 'creating' || status === 'generating'
 }
 
-// Otro job pesado está corriendo: se avisa acá, una vez, y no en cada vista.
-function rejectIfBusy(): boolean {
-  if (!hasBusyCreateTask()) return false
+// Otro job pesado está corriendo, o el editor tiene una tarea en ese mismo
+// proyecto (el avatar, que cobra en HeyGen; un render; una regeneración): se
+// avisa acá, una vez, y no en cada vista. Sin mirar al editor, el sidecar
+// rechazaba el pipeline con `animation_project_busy` y la tarea quedaba en
+// error en vez de esperar (entrega 2d, M3 de la revisión final).
+function rejectIfBusy(projectId?: string): boolean {
+  const busy =
+    hasBusyCreateTask() ||
+    (projectId !== undefined && isEditorProjectBusy(projectId))
+  if (!busy) return false
+
   toast({
     description: i18next.t('library.errors.projectBusy'),
     variant: 'destructive',
@@ -1003,7 +1138,7 @@ async function startPipelineForProject(
   options: ProjectRunOptions = {},
   flowRestartRequest?: FlowRestartRequest,
 ): Promise<boolean> {
-  if (rejectIfBusy()) return false
+  if (rejectIfBusy(projectId)) return false
 
   const restart =
     flowRestartRequest ??
@@ -1017,6 +1152,35 @@ async function startPipelineForProject(
   return true
 }
 
+// «Cambiar voz» desde Library, sobre un proyecto con error y SIN tarea viva
+// (ADR-0053): guarda la voz nueva y lo relanza como un reintento.
+async function switchVoiceForProject(
+  projectId: string,
+  projectName: string,
+  voice: SelectedVoice,
+  options: ProjectRunOptions = {},
+): Promise<boolean> {
+  if (rejectIfBusy(projectId)) return false
+
+  try {
+    await videosApi.setProjectVoice({
+      projectId,
+      voice: projectVoiceOf(voice),
+    })
+  } catch (error) {
+    toast({
+      description: i18next.t(videosApi.errorMessageKey(error)),
+      variant: 'destructive',
+    })
+    return false
+  }
+
+  return startPipelineForProject(projectId, projectName, {
+    ...options,
+    voiceVendor: vendorOfProvider(voice.provider),
+  })
+}
+
 // Confirma el corte de un proyecto SIN tarea viva (la pausa sobrevivió a un
 // reinicio: el estado quedó en disco) y relanza.
 async function confirmScenesForProject(
@@ -1025,7 +1189,7 @@ async function confirmScenesForProject(
   choice: SceneCutChoice,
   options: ProjectRunOptions = {},
 ): Promise<boolean> {
-  if (rejectIfBusy()) return false
+  if (rejectIfBusy(projectId)) return false
 
   stopActiveJob()
   const taskId = newTaskId()
@@ -1047,6 +1211,7 @@ async function confirmScenesForProject(
 async function confirmScenes(choice: SceneCutChoice): Promise<void> {
   const task = currentTask
   if (!task || task.status !== 'awaitingConfirmation') return
+  if (rejectIfBusy(task.projectId)) return
 
   patchTask(task.id, { status: 'generating', confirmation: null })
   try {
@@ -1061,11 +1226,13 @@ async function confirmScenes(choice: SceneCutChoice): Promise<void> {
   await runPipeline(task.id, task.projectId)
 }
 
-// Reanuda tras un error o una cancelación: el proyecto sigue en disco.
+// Reanuda tras un error o una cancelación: el proyecto sigue en disco. Si
+// mientras tanto el editor arrancó una tarea en ese proyecto, espera.
 async function resume(flowRestartRequest?: FlowRestartRequest): Promise<void> {
   const task = currentTask
   if (!task || !task.projectId) return
   if (task.status !== 'error' || activeJob || task.cancelRequested) return
+  if (rejectIfBusy(task.projectId)) return
   stopRetryTimer()
   patchTask(task.id, { retry: null })
   await runPipeline(task.id, task.projectId, flowRestartRequest)
@@ -1082,6 +1249,7 @@ async function completeWithPaid(provider: PaidImageProviderId): Promise<void> {
   )
     return
   if (!['evolink', 'fal'].includes(provider)) return
+  if (rejectIfBusy(task.projectId)) return
   stopRetryTimer()
   const request = task.flowPaidCompletionRequest ?? {
     requestId: crypto.randomUUID(),
@@ -1186,7 +1354,7 @@ async function haltForPromptModelTrouble(
   patchTask(taskId, {
     status: 'error',
     jobId: null,
-    stage: null,
+    activeStages: [],
     imagesRecovery: null,
     promptsStageActivity: null,
     promptModelSwitch: null,
@@ -1203,6 +1371,7 @@ async function switchPromptModel(modelId: string): Promise<void> {
   const task = currentTask
   if (!task || !task.projectId || !task.usesCustomStyle) return
   if (task.promptModelSwitch !== null) return
+  if (task.status === 'error' && rejectIfBusy(task.projectId)) return
   const taskId = task.id
   stopRetryTimer()
 
@@ -1231,7 +1400,7 @@ async function switchPromptModel(modelId: string): Promise<void> {
     patchTask(taskId, {
       status: 'error',
       jobId: null,
-      stage: null,
+      activeStages: [],
       promptModelSwitch: null,
       errorKey: videosApi.errorMessageKey(error),
       errorCode: null,
@@ -1240,6 +1409,35 @@ async function switchPromptModel(modelId: string): Promise<void> {
   }
 
   patchTask(taskId, { promptModel: modelId })
+  await runPipeline(taskId, task.projectId)
+}
+
+// «Cambiar voz» tras un fallo de la narración (ADR-0053): guarda la voz
+// nueva en el proyecto (descartando lo que la anterior dejó a medias) y
+// relanza la MISMA tarea. Solo con la tarea detenida por error.
+async function switchVoice(voice: SelectedVoice): Promise<void> {
+  const task = currentTask
+  if (!task || !task.projectId) return
+  if (task.status !== 'error' || activeJob || task.cancelRequested) return
+  if (rejectIfBusy(task.projectId)) return
+  const taskId = task.id
+  stopRetryTimer()
+  patchTask(taskId, { retry: null })
+
+  try {
+    await videosApi.setProjectVoice({
+      projectId: task.projectId,
+      voice: projectVoiceOf(voice),
+    })
+  } catch (error) {
+    patchTask(taskId, {
+      errorKey: videosApi.errorMessageKey(error),
+      errorCode: null,
+    })
+    return
+  }
+
+  patchTask(taskId, { voiceVendor: vendorOfProvider(voice.provider) })
   await runPipeline(taskId, task.projectId)
 }
 
@@ -1317,5 +1515,7 @@ export function useCreateTask() {
     reportPromptModelIssue,
     snoozePromptModelIssue,
     switchPromptModel,
+    switchVoice,
+    switchVoiceForProject,
   }
 }

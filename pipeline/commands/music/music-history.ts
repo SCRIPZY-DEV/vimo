@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { PipelineFailure } from '../../runner/failure.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import type { MusicHistoryEntry } from '../../types/music.ts'
+import { newNamedEntryId } from '../../utils/named-entry-id.ts'
 
 // Historial persistente de música: `<projectsRoot>/_history/music/<id>/` con
 // audio.mp3, cover.jpg (opcional) y metadata.json. La ubicación la decidió el
@@ -13,10 +14,11 @@ export const HISTORY_AUDIO_FILE = 'audio.mp3'
 export const HISTORY_COVER_FILE = 'cover.jpg'
 export const HISTORY_METADATA_FILE = 'metadata.json'
 
-// Ids `m-<timestamp36>-<rand>`: orden cronológico y sin caracteres raros.
-export function newHistoryId(): string {
-  const random = Math.random().toString(36).slice(2, 8)
-  return `m-${Date.now().toString(36)}-${random}`
+// Ids `<slug-del-nombre>-<aleatorio>`, como los personajes: la carpeta se
+// reconoce al abrirla. Las entradas viejas (`m-<timestamp36>-…`) se siguen
+// listando: el orden sale de createdAt, no del id.
+export function newHistoryId(name: string | undefined): string {
+  return newNamedEntryId(name, 'music')
 }
 
 const HISTORY_ID_PATTERN = /^[a-zA-Z0-9_-]+$/

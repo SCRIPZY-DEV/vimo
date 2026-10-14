@@ -172,7 +172,7 @@ export function PipelineAnimationPanel({
                   {formatSceneSeconds(unit.endSeconds)}
                 </p>
                 {failed && (
-                  <p className="font-body text-xs text-coral">
+                  <p className="font-body text-xs text-coral-text">
                     {t('create.progress.animationClipFailed')}
                   </p>
                 )}

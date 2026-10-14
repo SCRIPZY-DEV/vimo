@@ -5,7 +5,10 @@ import {
   resolveProjectPaths,
 } from '../../project/paths.ts'
 import { readProjectMetadata } from '../../project/metadata.ts'
-import { effectiveAnimationMinutes } from '../../animation/scope.ts'
+import {
+  animationRangeEnd,
+  effectiveAnimationMinutes,
+} from '../../animation/scope.ts'
 import { planPrefixSceneWindows } from '../../animation/prefix-scenes.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -19,6 +22,10 @@ import {
   clampSecondsPerScene,
   cutScenesBySeconds,
 } from '../../stages/scene-cuts/by-seconds.ts'
+import {
+  countScenesAroundSpans,
+  planAvatarPins,
+} from '../../stages/scene-cuts/pins.ts'
 
 // Vista previa del corte por segundos, para el slider del diálogo de
 // confirmación: función PURA sobre words.json, con exactamente la MISMA
@@ -61,6 +68,30 @@ export async function previewSceneCuts(
     metadata.options,
     audioDurationSeconds,
   )
+
+  // Con avatar (ADR-0057) la vista previa cuenta alrededor de sus pines, con
+  // las mismas ventanas que después corta la fase: si no, contaría escenas
+  // que el avatar reemplaza.
+  const avatarPlan = planAvatarPins(
+    metadata.options.avatar,
+    words,
+    audioDurationSeconds,
+  )
+  if (avatarPlan && avatarPlan.pins.length > 0)
+    return {
+      sceneCount: countScenesAroundSpans(
+        audioDurationSeconds,
+        avatarPlan.pins,
+        {
+          secondsPerScene: seconds,
+          prefixEndSeconds:
+            animationMinutes > 0
+              ? animationRangeEnd(animationMinutes, audioDurationSeconds)
+              : 0,
+        },
+      ),
+      audioDurationSeconds,
+    }
 
   return {
     sceneCount:

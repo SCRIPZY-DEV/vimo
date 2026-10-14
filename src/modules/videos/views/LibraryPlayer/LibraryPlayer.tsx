@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
@@ -6,15 +7,18 @@ import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { videosApi } from '@/modules/videos/api'
+import { AvatarFallbackNote } from '@/modules/videos/components/AvatarFallbackNote'
 import { LibraryVideoPlayer } from '@/modules/videos/components/LibraryVideoPlayer'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
 import { OutdatedVideoBanner } from '@/modules/videos/components/OutdatedVideoBanner'
 import { TaskErrorCard } from '@/modules/videos/components/TaskErrorCard'
 import { VideoFileActions } from '@/modules/videos/components/VideoFileActions'
+import { VoiceSwitchDialog } from '@/modules/videos/components/VoiceSwitchDialog'
 import {
   EDITOR_RESCUE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
   FLOW_PIPELINE_RECOVERY_ERROR_KEYS,
+  VOICE_MAYBE_PAID_ERROR_CODES,
   VideosRoutes,
   libraryEditorPath,
   libraryProgressPath,
@@ -22,8 +26,13 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
+import { avatarFallbackCount } from '@/modules/videos/utilities/avatarFallback'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
+import { failureMessageOf } from '@/modules/videos/utilities/failedStage'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { projectBadge } from '@/modules/videos/utilities/projectBadge'
+import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
+import type { SelectedVoice } from '@/modules/videos/types/create'
 
 // Detalle/reproductor de un proyecto: video final con velocidades, aviso de
 // desactualizado, reintento tras error y acciones (editar, abrir, eliminar).
@@ -33,7 +42,10 @@ export function LibraryPlayer() {
   const { projectId = '' } = useParams()
   const { detail, isLoading, errorKey } = useLibraryProjectDetail(projectId)
   const { deleteProjects, deleting } = useLibraryProjects()
-  const { task, startPipelineForProject } = useCreateTask()
+  const { task, startPipelineForProject, switchVoiceForProject } =
+    useCreateTask()
+  // Aviso + selector de «Cambiar voz» tras un fallo de la narración.
+  const [switchingVoice, setSwitchingVoice] = useState(false)
 
   usePageTitle(detail?.metadata.name ?? t('library.pageTitle'))
 
@@ -54,6 +66,15 @@ export function LibraryPlayer() {
   }
 
   const metadata = detail.metadata
+  // El mismo mensaje que la pantalla de progreso: con apariciones que HeyGen
+  // rechazó para siempre, la salida en vez de «Reanudá».
+  const failureMessage = failureMessageOf({
+    errorCode: metadata.errorCode ?? null,
+    errorKey: metadata.errorCode
+      ? videosApi.errorMessageKey({ code: metadata.errorCode })
+      : null,
+    scenes: detail.scenes,
+  })
   const badge = projectBadge(
     {
       state: metadata.state,
@@ -72,7 +93,26 @@ export function LibraryPlayer() {
       videoFormat: metadata.options.videoFormat,
       imageProvider: metadata.options.imageProvider ?? null,
       executionPlan: metadata.options.executionPlan,
+      ...avatarRunOptions(metadata.options.avatar),
     })
+    if (started) void navigate(libraryProgressPath(projectId))
+  }
+
+  // La narración sintetizada no llegó a completarse: se puede cambiar de voz.
+  const voiceFailed =
+    metadata.state === 'error' &&
+    metadata.options.narrationMode === 'tts' &&
+    !metadata.completedStages.includes('voice')
+  const voiceProvider = metadata.options.voiceProvider
+
+  const switchVoice = async (voice: SelectedVoice) => {
+    setSwitchingVoice(false)
+    const started = await switchVoiceForProject(
+      projectId,
+      metadata.name,
+      voice,
+      { videoFormat: metadata.options.videoFormat },
+    )
     if (started) void navigate(libraryProgressPath(projectId))
   }
 
@@ -101,7 +141,7 @@ export function LibraryPlayer() {
           size="sm"
           disabled={deleting}
           onClick={removeProject}
-          className="rounded-lg font-display text-muted-foreground hover:text-destructive"
+          className="rounded-lg font-display text-muted-foreground hover:text-destructive-text"
         >
           <Trash2 className="mr-1.5 h-3.5 w-3.5" />
           {t('library.player.delete')}
@@ -118,11 +158,9 @@ export function LibraryPlayer() {
               videosApi.errorMessageKey({ code: metadata.errorCode }),
             )
           }
-          message={`${t('library.player.errorIntro')} ${t(
-            metadata.errorCode
-              ? videosApi.errorMessageKey({ code: metadata.errorCode })
-              : UNKNOWN_CREATE_ERROR_KEY,
-          )}`}
+          message={`${t('library.player.errorIntro')} ${t(failureMessage.key, {
+            count: failureMessage.count,
+          })}`}
           retryLabel={t('library.player.retry')}
           onRetry={() => void retry()}
           // Con imágenes faltantes el proyecto se repara también desde el
@@ -134,11 +172,33 @@ export function LibraryPlayer() {
               ? () => void navigate(libraryEditorPath(projectId))
               : undefined
           }
+          onSwitchVoice={
+            voiceFailed ? () => setSwitchingVoice(true) : undefined
+          }
+        />
+      )}
+
+      {switchingVoice && (
+        <VoiceSwitchDialog
+          vendor={voiceProvider ? vendorOfProvider(voiceProvider) : null}
+          maybePaid={
+            !metadata.errorCode ||
+            VOICE_MAYBE_PAID_ERROR_CODES.has(metadata.errorCode)
+          }
+          onSelect={(voice) => void switchVoice(voice)}
+          onClose={() => setSwitchingVoice(false)}
         />
       )}
 
       {detail.videoPath ? (
         <>
+          {/* Las apariciones del avatar que el video muestra con la imagen
+              fija del look (entrega 2d), de los datos del proyecto ya hecho
+              (una planeada también cuenta): el aviso sale cada vez que se
+              abre, hasta que se regeneran. */}
+          <AvatarFallbackNote
+            count={avatarFallbackCount(detail.scenes, 'project')}
+          />
           <LibraryVideoPlayer
             src={videosApi.videoSource(detail.videoPath, detail.videoMtimeMs)}
             videoFormat={metadata.options.videoFormat}

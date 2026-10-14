@@ -22,7 +22,7 @@ Se prepara un clon QA persistente con identifier/llavero/WebKit/proyectos/callba
 
 El UUID WebKit se fija en el contexto Rust antes de crear ventanas para evitar el error de codegen Vec/array de esta versión. El override macOS también exige 14.0; antes anulaba el mínimo de la configuración base con 11.0.
 
-Detalles y diagrama: [ADR-0053](../docs/adr/ADR-0053-flow-qa-nativa-aislada.md). Pipeline, vendor, dispatcher, alias de imagen y locks de animación son los de d4169747. La configuración es sólo QA local, no una propuesta de release.
+Detalles y diagrama: [ADR-0059](../docs/adr/ADR-0059-flow-qa-nativa-aislada.md). Pipeline, vendor, dispatcher, alias de imagen y locks de animación son los de d4169747. La configuración es sólo QA local, no una propuesta de release.
 
 ## Límites deliberados
 

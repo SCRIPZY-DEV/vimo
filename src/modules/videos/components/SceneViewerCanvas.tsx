@@ -84,8 +84,8 @@ export function SceneViewerCanvas({
           )}
           {scene.imageStatus === 'error' && (
             <>
-              <AlertTriangle className="h-10 w-10 text-destructive" />
-              <p className="max-w-md px-6 text-center font-body text-sm text-destructive">
+              <AlertTriangle className="h-10 w-10 text-destructive-text" />
+              <p className="max-w-md px-6 text-center font-body text-sm text-destructive-text">
                 {t('create.viewer.failed')}
               </p>
             </>

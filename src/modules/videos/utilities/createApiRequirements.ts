@@ -1,3 +1,4 @@
+import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
 import type {
   ApiKeyProviderId,
   ApiKeyRequirement,
@@ -15,9 +16,7 @@ export function createApiRequirements(
   if (form.imageProvider !== 'flow') providers.add(form.imageProvider)
   if (form.narrationMode === 'tts') {
     const voiceVendor = form.voice
-      ? form.voice.provider === 'elevenlabs-direct'
-        ? 'elevenlabs'
-        : 'dubvoice'
+      ? vendorOfProvider(form.voice.provider)
       : defaultVoiceVendor
     providers.add(voiceVendor)
   }

@@ -15,6 +15,7 @@ export const DiagnosticModule = {
   videos: 'videos',
   voices: 'voices',
   characters: 'characters',
+  avatars: 'avatars',
   music: 'music',
   styles: 'styles',
   demo: 'demo',
@@ -29,10 +30,15 @@ export type DiagnosticModule =
 // `design-style-character` es de estilos). Sin coincidencia es de videos.
 export const SUBCOMMAND_MODULE_KEYWORDS = [
   ['project', DiagnosticModule.videos],
+  // Un job que trabaja escenas es del proyecto aunque su nombre lleve otra
+  // familia (`avatar-render-scenes`, ADR-0057): Rust lo registra igual, por el
+  // `projectId` del payload.
+  ['scene', DiagnosticModule.videos],
   ['demo', DiagnosticModule.demo],
   ['install-update', DiagnosticModule.settings],
   ['style', DiagnosticModule.styles],
   ['list-prompt-models', DiagnosticModule.styles],
+  ['avatar', DiagnosticModule.avatars],
   ['character', DiagnosticModule.characters],
   ['music', DiagnosticModule.music],
   ['voice', DiagnosticModule.voices],

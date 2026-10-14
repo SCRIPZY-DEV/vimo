@@ -11,6 +11,7 @@ import {
   writeVoiceListSnapshot,
 } from '../utilities/voiceListCache'
 import type {
+  Ai33Catalog,
   ListVoicesFilters,
   ListVoicesResult,
   VoiceProviderId,
@@ -21,6 +22,8 @@ import type { VoiceFilterState } from '../types/voices'
 interface UseVoicesOptions {
   provider: VoiceProviderId | null
   source?: VoiceSource
+  // Solo ai33: el catálogo de su Voice Library que lista la pestaña.
+  catalog?: Ai33Catalog
   filters: VoiceFilterState
   page: number
   ready: boolean
@@ -32,10 +35,12 @@ interface UseVoicesOptions {
 function serverFilters(
   provider: VoiceProviderId,
   source: VoiceSource | undefined,
+  catalog: Ai33Catalog | undefined,
   filters: VoiceFilterState,
 ): ListVoicesFilters {
   const result: ListVoicesFilters = {}
   if (source) result.source = source
+  if (catalog) result.catalog = catalog
   if (!isServerPagedCatalog(provider, source)) return result
 
   if (filters.search.trim()) result.search = filters.search.trim()
@@ -58,6 +63,7 @@ function serverFilters(
 export function useVoices({
   provider,
   source,
+  catalog,
   filters,
   page,
   ready,
@@ -65,7 +71,7 @@ export function useVoices({
   const native = voicesApi.isNative()
   const activeProvider = provider ?? 'minimax'
   const serverPaged = isServerPagedCatalog(activeProvider, source)
-  const baseFilters = serverFilters(activeProvider, source, filters)
+  const baseFilters = serverFilters(activeProvider, source, catalog, filters)
   const pageFilters = serverPaged ? { ...baseFilters, page } : baseFilters
   const filtersKey = JSON.stringify(pageFilters)
   const snapshot = VOICE_SNAPSHOT_PROVIDERS.includes(activeProvider)

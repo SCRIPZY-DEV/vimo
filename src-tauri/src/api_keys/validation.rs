@@ -17,17 +17,27 @@ pub struct ValidationResult {
     /// Código de error para i18n (`apiKeys.errores.*`); ausente si ok.
     pub code: Option<&'static str>,
     /// Saldo leído en la misma comprobación, cuando el endpoint con el que se
-    /// valida es el de saldo (Kie.ai y PoYo). La UI lo muestra junto al
-    /// «Conectado»: ver el saldo es la prueba de que la clave sirve de verdad.
+    /// valida lo trae (Kie.ai, PoYo, ai33 y HeyGen). La unidad depende del
+    /// proveedor: créditos en Kie.ai, PoYo y ai33, dólares en HeyGen (la UI lo
+    /// formatea según el `balanceUnit` del proveedor). La UI lo muestra junto
+    /// al «Conectado»: ver el saldo es la prueba de que la clave sirve de verdad.
     pub credits: Option<f64>,
 }
 
 impl ValidationResult {
     fn success(credits: Option<f64>) -> ValidationResult {
-        ValidationResult { ok: true, code: None, credits }
+        ValidationResult {
+            ok: true,
+            code: None,
+            credits,
+        }
     }
     fn failure(error: &ApiKeyError) -> ValidationResult {
-        ValidationResult { ok: false, code: Some(error.code()), credits: None }
+        ValidationResult {
+            ok: false,
+            code: Some(error.code()),
+            credits: None,
+        }
     }
 }
 
@@ -60,16 +70,17 @@ async fn probe(
     Ok(response.status())
 }
 
-/// Como `probe`, pero conserva el cuerpo JSON: los proveedores de animación
-/// validan contra su endpoint de saldo y el saldo viaja en el cuerpo. Un
-/// cuerpo que no es JSON se trata como vacío, nunca como fallo de red.
+/// Como `probe`, pero conserva el cuerpo JSON: los proveedores de animación y
+/// el de avatar validan contra un endpoint cuyo cuerpo importa. Un cuerpo que
+/// no es JSON se trata como vacío, nunca como fallo de red.
 async fn probe_json(
     url: &str,
+    header_name: &str,
     header_value: String,
 ) -> Result<(reqwest::StatusCode, serde_json::Value), ApiKeyError> {
     let response = client()?
         .get(url)
-        .header("Authorization", header_value)
+        .header(header_name, header_value)
         .send()
         .await
         .map_err(|_| ApiKeyError::Network)?;
@@ -102,6 +113,77 @@ fn validate_kie_response(
         .filter(|credits| credits.is_finite() && *credits >= 0.0)
         .ok_or(ApiKeyError::ProviderError)?;
     Ok(Some(credits))
+}
+
+/// HeyGen (ADR-0057) responde 200 con el perfil (`data.username`) cuando la
+/// clave sirve y 401/403 cuando no. Un 200 sin perfil no demuestra nada. El
+/// saldo sale del mismo perfil: `data.wallet.remaining_balance`, prepago en
+/// dólares (hecho verificado el 2026-10-09 con una clave real:
+/// `billing_type: "wallet"`, `wallet.currency: "usd"`, sin `subscription` ni
+/// `usage_based`). La UI rotula ese saldo en dólares, así que se asume USD por
+/// esa sonda: si `wallet.currency` viene y no es «usd» (sin distinguir
+/// mayúsculas) el saldo se descarta. Una cuenta sin billetera, con otra moneda
+/// o con un número que no sirve (texto, negativo, no finito), tiene igual una
+/// clave válida: devuelve `Ok(None)` y la UI muestra solo el «Conectado». Un
+/// cero con signo (`-0.0`) se normaliza a `0.0`.
+fn validate_heygen_response(
+    status: reqwest::StatusCode,
+    body: &serde_json::Value,
+) -> Result<Option<f64>, ApiKeyError> {
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        return Err(ApiKeyError::InvalidKey);
+    }
+    if status != reqwest::StatusCode::OK {
+        return Err(status_to_error(status));
+    }
+    let has_profile = body
+        .get("data")
+        .and_then(|data| data.get("username"))
+        .and_then(|username| username.as_str())
+        .is_some_and(|username| !username.is_empty());
+    if !has_profile {
+        return Err(ApiKeyError::ProviderError);
+    }
+    let wallet = body.get("data").and_then(|data| data.get("wallet"));
+    // Sin `currency` se asume USD; con `currency` que no es texto o no es «usd»
+    // no se sabe en qué unidad está el número y no se muestra.
+    let is_usd = wallet
+        .and_then(|wallet| wallet.get("currency"))
+        .map_or(true, |currency| {
+            currency
+                .as_str()
+                .is_some_and(|code| code.eq_ignore_ascii_case("usd"))
+        });
+    if !is_usd {
+        return Ok(None);
+    }
+    let balance = wallet
+        .and_then(|wallet| wallet.get("remaining_balance"))
+        .and_then(|balance| balance.as_f64())
+        .filter(|balance| balance.is_finite() && *balance >= 0.0)
+        // `-0.0 >= 0.0` es verdadero: sin esto un cero con signo llegaría a la
+        // UI como «-0,00 US$».
+        .map(f64::abs);
+    Ok(balance)
+}
+
+/// Saldo de ai33 (GET /v1/credits). La doc no fija el campo: se acepta el
+/// número (o string numérico) en las claves conocidas, en la raíz o en `data`.
+/// Sin saldo legible la clave igual sirve (el 200 ya lo probó): no se inventa
+/// un cero que bloquearía el pre-check.
+fn ai33_credits(body: &serde_json::Value) -> Option<f64> {
+    const KEYS: [&str; 4] = ["credits", "credit", "balance", "ec_remain_credits"];
+    let number = |value: &serde_json::Value| {
+        value
+            .as_f64()
+            .or_else(|| value.as_str().and_then(|text| text.trim().parse::<f64>().ok()))
+            .filter(|credits| credits.is_finite() && *credits >= 0.0)
+    };
+    [Some(body), body.get("data")]
+        .into_iter()
+        .flatten()
+        .flat_map(|scope| KEYS.iter().filter_map(move |key| scope.get(*key)))
+        .find_map(number)
 }
 
 /// Check especial de Fal: la clave DEBE ser tipo Admin (sin eso la generación
@@ -201,6 +283,7 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
         Provider::Kie => {
             let (status, body) = probe_json(
                 "https://api.kie.ai/api/v1/chat/credit",
+                "Authorization",
                 format!("Bearer {key}"),
             )
             .await?;
@@ -209,6 +292,7 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
         Provider::Poyo => {
             let (status, body) = probe_json(
                 "https://api.poyo.ai/api/user/balance",
+                "Authorization",
                 format!("Bearer {key}"),
             )
             .await?;
@@ -219,6 +303,34 @@ async fn validate_with_provider(provider: Provider, key: &str) -> Result<Option<
                 .get("data")
                 .and_then(|data| data.get("credits_amount"))
                 .and_then(|credits| credits.as_f64()))
+        }
+        // HeyGen (ADR-0057): el perfil del usuario es la lectura más barata que
+        // tiene, no se cobra y trae el saldo de la billetera (en dólares). El
+        // encabezado es `X-Api-Key`, no `Authorization`.
+        Provider::HeyGen => {
+            let (status, body) = probe_json(
+                "https://api.heygen.com/v3/users/me",
+                "X-Api-Key",
+                key.to_string(),
+            )
+            .await?;
+            validate_heygen_response(status, &body)
+        }
+        // ai33 también se valida contra su saldo, con su header xi-api-key.
+        Provider::Ai33 => {
+            let (status, body) = probe_json(
+                "https://api.ai33.pro/v1/credits",
+                "xi-api-key",
+                key.to_string(),
+            )
+            .await?;
+            if status == reqwest::StatusCode::FORBIDDEN {
+                return Err(ApiKeyError::InvalidKey);
+            }
+            if status != reqwest::StatusCode::OK {
+                return Err(status_to_error(status));
+            }
+            Ok(ai33_credits(&body))
         }
     }
 }

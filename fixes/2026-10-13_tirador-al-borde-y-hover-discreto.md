@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-13
 - **Rama:** feat/flow-export-motion
 
-> **Actualización 2026-10-14:** se restablece el diseño visual de esta entrega por pedido del usuario. La aparición durante arrastre se corrige por tirador individual en `2026-10-14_tirador-pastel-con-aparicion-individual.md`. La variante transparente de `6686ce39` queda superada.
+> El contrato completo de diseño y aparición está en [tirador pastel con aparición individual](2026-10-14_tirador-pastel-con-aparicion-individual.md). Este informe detalla la geometría del borde y su prioridad de interacción.
 
 ## Causa
 
@@ -18,7 +18,7 @@ La separación anterior sumaba medio ancho del marcador de transición al margen
 
 ## Límites deliberados
 
-Se mantienen los mismos tiempos, recorte compartido, mínimo de escena y bloqueos de animación. La transición conserva su duración; la superposición del control no modifica el efecto. No se modifica el pipeline ni la extensión. La visibilidad por selección/hover general y la prohibición de solapamiento del informe anterior quedan superadas por esta petición explícita.
+Se mantienen los mismos tiempos, recorte compartido, mínimo de escena y bloqueos de animación. La transición conserva su duración; la superposición del control no modifica el efecto. No se modifica el pipeline ni la extensión. El hover se limita al propio tirador y la superposición con el marcador prioriza el recorte.
 
 ## Validación reproducible
 

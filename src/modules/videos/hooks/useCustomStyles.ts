@@ -18,7 +18,7 @@ import type {
 export function useCustomStyles() {
   const native = videosApi.isNative()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: videosQueryKeys.customStyles,
     queryFn: () => videosApi.listCustomStyles(),
     enabled: native,
@@ -47,6 +47,10 @@ export function useCustomStyles() {
   return {
     styles: data?.entries ?? [],
     isLoading: native && isLoading,
+    // Un listado que falla no es una galería vacía: sin esto la persona ve
+    // «no tengo estilos» y cree que se borraron (p. ej. la carpeta de
+    // proyectos en un disco desconectado).
+    errorKey: isError ? videosApi.errorMessageKey(error) : null,
     // Pone lo recién guardado en la lista cacheada sin esperar el refetch: el
     // modal que pasa a esa gema la encuentra en `styles` aunque el refetch
     // tarde o falle (si no, se desmontaría y el editor quedaría trabado).

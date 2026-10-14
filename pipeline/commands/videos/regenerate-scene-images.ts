@@ -44,7 +44,10 @@ import {
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
 import { runStages } from '../../runner/run-stages.ts'
-import { buildCreateVideoContext } from '../../stages/context.ts'
+import {
+  buildCreateVideoContext,
+  type CreateVideoContext,
+} from '../../stages/context.ts'
 import { imagesStage } from '../../stages/images/images.ts'
 import { loadOrGenerateVisualBible } from '../../stages/shared/visual-bible.ts'
 import { scenePromptsStage } from '../../stages/scene-prompts/scene-prompts.ts'
@@ -203,37 +206,33 @@ async function regenerateReservedScenes(
     videoContext.flowRegenerationRequestId = payload.flowRegenerationRequestId
   }
 
-  const selectedScope =
-    videoContext.options.imageProvider === 'flow'
-      ? await flowRegenerationScope(
-          context,
-          videoContext.paths.root,
-          requests.map((request) => request.id),
-          payload.flowRegenerationRequestId,
-        )
-      : undefined
-  videoContext.flowRegenerationScope = selectedScope
-
-  const changes = requests.flatMap(
-    ({ id, userPrompt, imageQuality, charactersPresent }) =>
-      userPrompt !== undefined ||
-      imageQuality !== undefined ||
-      charactersPresent !== undefined
-        ? [
-            {
-              id,
-              ...(userPrompt !== undefined ? { userPrompt } : {}),
-              ...(imageQuality !== undefined ? { imageQuality } : {}),
-              ...(charactersPresent !== undefined ? { charactersPresent } : {}),
-            },
-          ]
-        : [],
-  )
   let scenes = await readScenes(videoContext.paths)
   if (!scenes)
     throw new PipelineFailure('scenes_missing', 'the project has no scenes')
 
-  const selectedIds = new Set(requests.map((request) => request.id))
+  // Una escena de avatar no tiene imagen que regenerar: su video lo hace HeyGen
+  // con el look tal cual (ADR-0057, enmienda del 2026-10-10). En un pedido con
+  // escenas de imagen se saltea con un aviso y las demás siguen; si todas las
+  // pedidas son de avatar, el pedido se rechaza antes de tocar el disco.
+  const avatarIds = new Set(
+    scenes.filter((scene) => scene.avatar).map((scene) => scene.id),
+  )
+  const imageRequests = requests.filter((request) => !avatarIds.has(request.id))
+  if (imageRequests.length === 0)
+    throw new PipelineFailure(
+      'avatar_scene_without_image',
+      'Avatar scenes have no image to regenerate: HeyGen renders the look as it is',
+    )
+
+  const selectedIds = new Set(imageRequests.map((request) => request.id))
+  const existingIds = new Set(scenes.map((scene) => scene.id))
+  for (const request of imageRequests)
+    if (!existingIds.has(request.id))
+      throw new PipelineFailure(
+        'invalid_payload',
+        `scene ${request.id} does not exist`,
+      )
+
   // Un clip heredado puede usar la imagen de otra escena por alias. También
   // se protege esa fuente efectiva; una imagen propia prevalece sobre el alias.
   const imageSources = new Map(
@@ -265,6 +264,35 @@ async function regenerateReservedScenes(
       'animation_image_locked',
       'Undo the animation or recover its pending task before regenerating source images',
     )
+
+  // La intención y los snapshots contienen sólo imágenes. Incluir avatares
+  // crearía otro scope Flow y updateScenes rechazaría sus campos de imagen.
+  const selectedScope =
+    videoContext.options.imageProvider === 'flow'
+      ? await flowRegenerationScope(
+          context,
+          videoContext.paths.root,
+          imageRequests.map((request) => request.id),
+          payload.flowRegenerationRequestId,
+        )
+      : undefined
+  videoContext.flowRegenerationScope = selectedScope
+
+  const changes = imageRequests.flatMap(
+    ({ id, userPrompt, imageQuality, charactersPresent }) =>
+      userPrompt !== undefined ||
+      imageQuality !== undefined ||
+      charactersPresent !== undefined
+        ? [
+            {
+              id,
+              ...(userPrompt !== undefined ? { userPrompt } : {}),
+              ...(imageQuality !== undefined ? { imageQuality } : {}),
+              ...(charactersPresent !== undefined ? { charactersPresent } : {}),
+            },
+          ]
+        : [],
+  )
 
   if (changes.length > 0 && !payload.flowRecoverOnly)
     await updateScenes({
@@ -307,7 +335,7 @@ async function regenerateReservedScenes(
           if (recoveryPlan) recoveryOptions.executionPlan = recoveryPlan
           else delete recoveryOptions.executionPlan
           const targets = new Set<number>()
-          for (const request of requests) {
+          for (const request of imageRequests) {
             const scene = scenesById.get(request.id)
             if (!scene) return false
             targets.add(flowTargetSceneId(scene))
@@ -345,7 +373,7 @@ async function regenerateReservedScenes(
   const targetIds = new Set<number>()
   const rewrites: Scene[] = []
   const appliedPromptIds = new Set<number>()
-  for (const request of requests) {
+  for (const request of imageRequests) {
     const scene = scenesById.get(request.id)
     if (!scene)
       throw new PipelineFailure(
@@ -375,6 +403,10 @@ async function regenerateReservedScenes(
 
   const before = await imageMtimes(videoContext.paths, targetIds)
 
+  // El aviso de las escenas de avatar salteadas sale recién con el pedido
+  // validado: si una escena no existe o una animación bloquea la imagen, el
+  // pedido entero se rechaza y el log no dice nada que no pasó.
+  warnSkippedAvatarScenes(videoContext, requests, avatarIds)
   videoContext.regenerateSceneIds = targetIds
   await withImagePreparationLease(
     videoContext.paths.root,
@@ -423,6 +455,29 @@ async function regenerateReservedScenes(
     await markVideoOutdated(videoContext.paths, videoContext.metadata)
 
   return { regenerated, failed }
+}
+
+// Un aviso con las escenas de avatar del pedido que no se regeneran, sin
+// repetir y en orden.
+function warnSkippedAvatarScenes(
+  context: CreateVideoContext,
+  requests: RegenerateSceneImagesPayload['scenes'],
+  avatarIds: Set<number>,
+): void {
+  const skippedIds = [
+    ...new Set(
+      requests
+        .filter((request) => avatarIds.has(request.id))
+        .map((request) => request.id),
+    ),
+  ].sort((a, b) => a - b)
+  if (skippedIds.length === 0) return
+
+  context.emitter.emit({
+    type: 'log',
+    level: 'warn',
+    message: `avatar scene(s) ${skippedIds.join(', ')} skipped: avatar_scene_without_image — HeyGen renders the look as it is`,
+  })
 }
 
 // Deja constancia de qué descripción quedó aplicada. Una escena que terminó

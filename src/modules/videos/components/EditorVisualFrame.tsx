@@ -4,6 +4,7 @@ import { ImageIcon } from 'lucide-react'
 import { ANIMATION_FPS, slotFrames } from '@pipeline/animation/timing.ts'
 import { videosApi } from '@/modules/videos/api'
 import { ClipPreviewVideo } from '@/modules/videos/components/ClipPreviewVideo'
+import { playableClip } from '@/modules/videos/utilities/playableClip'
 import { previewCameraStyle } from '@/modules/videos/utilities/previewCameraStyle'
 import { sceneImageSource } from '@/modules/videos/utilities/sceneImageSource'
 import type { TimelineBlock } from '@/modules/videos/utilities/timelineBlocks'
@@ -18,6 +19,11 @@ interface EditorVisualFrameProps {
   onClick(): void
 }
 
+// Un bloque del visor: su clip si tiene uno que se pueda reproducir (el de
+// Kie o el del avatar listo y al día, mudos y al ritmo de la narración) y, si
+// no, la imagen de la escena con el movimiento de cámara del render. Un avatar
+// sin clip válido muestra su imagen fija —la vista previa del look, que el
+// sidecar le pone como `imagePath`—, como en el video exportado (spec §10.1).
 export function EditorVisualFrame({
   block,
   sceneIndex,
@@ -29,21 +35,19 @@ export function EditorVisualFrame({
 }: EditorVisualFrameProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const scene = block.kind === 'clip' ? block.lead : block.scene
-  const animation = block.kind === 'clip' ? block.animation : undefined
-  const source = animation?.clipPath
-    ? videosApi.videoSource(animation.clipPath, animation.clipMtimeMs)
-    : null
+  const clip = playableClip(block)
+  const source = clip ? videosApi.videoSource(clip.path, clip.mtimeMs) : null
 
-  if (source && failedSource !== source) {
+  if (clip && source && failedSource !== source) {
     return (
       <ClipPreviewVideo
         src={source}
         clockRef={clockRef}
         startSeconds={block.startSeconds}
         offsetSeconds={offsetSeconds}
-        slotSeconds={
-          animation?.normalizedSeconds ?? block.endSeconds - block.startSeconds
-        }
+        slotSeconds={clip.slotSeconds}
+        resyncSeconds={clip.resyncSeconds}
+        retime={clip.retime}
         playing={playing}
         onClick={onClick}
         onUnavailable={() => setFailedSource(source)}

@@ -1,0 +1,120 @@
+import { useTranslation } from 'react-i18next'
+import { AlertTriangle, Check, History, Loader2 } from 'lucide-react'
+import { cn } from '@/modules/common/utilities/cn'
+import { formatTime } from '@/modules/common/utilities/formatTime'
+import { SceneThumbnail } from '@/modules/videos/components/SceneThumbnail'
+import { AVATAR_RENDER_PHASE_KEYS } from '@/modules/videos/constants'
+import { avatarActivityPercent } from '@/modules/videos/utilities/avatarActivityPercent'
+import {
+  avatarElapsedSeconds,
+  avatarRowStatus,
+} from '@/modules/videos/utilities/avatarTaskEvents'
+import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
+import { formatSecondsShort } from '@/modules/videos/utilities/formatElapsed'
+import type { SceneView } from '@/modules/videos/types/create'
+
+interface PipelineAvatarRowProps {
+  scene: SceneView
+  index: number
+  total: number
+  now: number
+}
+
+// Una aparición del avatar en la pantalla de progreso: su imagen fija (la
+// vista previa del look, que el sidecar le pone a la escena), «Avatar n/m»,
+// el tramo, en qué va el render y cuánto lleva. Mientras se genera, junto al
+// tiempo van el spinner y el porcentaje simulado (entrega 2e): uno solo por
+// fila, sin barra. Presentacional.
+export function PipelineAvatarRow({
+  scene,
+  index,
+  total,
+  now,
+}: PipelineAvatarRowProps) {
+  const { t } = useTranslation()
+  const status = avatarRowStatus(scene)
+  const activity = scene.avatarActivity
+  const elapsed = activity
+    ? Math.floor(avatarElapsedSeconds(activity, now))
+    : null
+  const percent = avatarActivityPercent(activity, now)
+
+  const statusText = () => {
+    if (status === 'generating')
+      return t(AVATAR_RENDER_PHASE_KEYS[activity?.phase ?? 'audio'])
+
+    if (status === 'ready') return t('create.progress.avatarReady')
+
+    // Desactualizada: no es «No se completó», porque la fase no la paga sola
+    // y se regenera desde el editor. Concuerda con «Lista» y con la aparición.
+    if (status === 'stale') return t('create.progress.avatarStale')
+
+    if (status === 'failed') {
+      return t('create.progress.avatarFailed', {
+        reason: t(errorKeyOf(activity?.code ?? scene.avatar?.errorCode)),
+      })
+    }
+
+    return t('create.progress.avatarQueued')
+  }
+
+  return (
+    <li className="flex items-center gap-3 rounded-xl border border-amethyst/30 bg-card p-2">
+      <div className="h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+        <SceneThumbnail scene={scene} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-sm font-bold text-foreground">
+          {t('create.progress.avatarItem', { index, total })}
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {formatTime(scene.startSeconds ?? 0)} –{' '}
+          {formatTime(scene.endSeconds ?? 0)}
+        </p>
+      </div>
+      <div className="min-w-0 max-w-[55%] text-right">
+        <p
+          className={cn(
+            'flex items-center justify-end gap-1.5 font-body text-xs',
+            status === 'failed' ? 'text-coral-text' : 'text-foreground',
+          )}
+        >
+          {status === 'ready' && (
+            <Check aria-hidden className="h-3.5 w-3.5 text-amethyst" />
+          )}
+          {status === 'failed' && (
+            <AlertTriangle aria-hidden className="h-3.5 w-3.5" />
+          )}
+          {status === 'stale' && (
+            <History aria-hidden className="h-3.5 w-3.5 text-saffron" />
+          )}
+          <span className="line-clamp-2">{statusText()}</span>
+        </p>
+        {elapsed !== null && (
+          <div className="flex items-center justify-end gap-1.5 font-mono text-xs tabular-nums">
+            <time dateTime={`PT${elapsed}S`} className="text-muted-foreground">
+              {formatSecondsShort(elapsed)}
+            </time>
+            {percent !== null && (
+              <>
+                <Loader2
+                  aria-hidden
+                  className="h-3.5 w-3.5 shrink-0 animate-spin text-amethyst"
+                />
+                <span
+                  role="img"
+                  aria-label={t('create.progress.avatarPercentAria', {
+                    percent,
+                  })}
+                  className="min-w-[3ch] text-right text-foreground"
+                >
+                  {t('create.progress.avatarPercent', { percent })}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </li>
+  )
+}

@@ -4,6 +4,7 @@
     "openVideo": "Reproduzir",
     "revealVideo": "Mostrar na pasta",
     "proximamente": "Em breve",
+    "cerrar": "Fechar",
     "longTextNotice": {
       "title": "Este texto é longo",
       "body": "São {{characters}} caracteres: a voz é gerada em várias partes e pode levar alguns minutos. Você pode continuar usando o app enquanto isso."
@@ -27,6 +28,7 @@
       "reload": "Recarregar saldo",
       "refresh": "Atualizar saldo",
       "needed": "você precisa de {{amount}}",
+      "neededUpTo": "você precisa de até {{amount}}",
       "available": "você tem {{amount}}",
       "unavailable": "saldo indisponível",
       "optional": "(opcional)",
@@ -55,7 +57,8 @@
       "claves": "Chaves API",
       "licencia": "Licença",
       "ajustes": "Configurações",
-      "extension": "Extensão"
+      "extension": "Extensão",
+      "avatares": "Avatares"
     },
     "navbar": {
       "temaClaro": "Modo claro",
@@ -64,9 +67,13 @@
     },
     "error": {
       "titulo": "Esta seção não pôde ser aberta",
-      "descripcion": "O resto do app continua funcionando: escolha outra seção no menu à esquerda, ou tente de novo aqui.",
+      "descripcion": "O resto do app continua funcionando: tente de novo aqui ou volte a outra seção.",
       "reintentar": "Tentar de novo",
       "detalleTecnico": "Detalhes técnicos (somente dev)"
+    },
+    "editorBar": {
+      "volverBiblioteca": "Voltar à biblioteca",
+      "rutaProyecto": "Localização do projeto"
     }
   },
   "login": {
@@ -189,7 +196,13 @@
         "edge": "Edge",
         "elevenlabs-account": "Minhas vozes",
         "elevenlabs-library": "Biblioteca",
-        "favorites": "Favoritas"
+        "favorites": "Favoritas",
+        "ai33-elevenlabs": "ElevenLabs",
+        "ai33-minimax": "Minimax",
+        "ai33-vbee": "Vbee",
+        "ai33-fishaudio": "Fish Audio",
+        "ai33-edge": "Edge",
+        "ai33-clone": "Minhas clonadas"
       },
       "hint": "Essa voz narra o seu vídeo inteiro — escolha uma antes de gerar.",
       "libraryNote": "As vozes da biblioteca são adicionadas à sua conta do ElevenLabs ao usá-las.",
@@ -298,7 +311,8 @@
       "scenePrompts": "Gerando prompts com IA",
       "images": "Gerando imagens",
       "render": "Montando vídeo",
-      "animation": "Gerando animação"
+      "animation": "Gerando animação",
+      "avatar": "Gerando o avatar"
     },
     "progress": {
       "createAnother": "Criar outro",
@@ -346,12 +360,16 @@
       "error": {
         "title": "Algo deu errado",
         "retryFromCheckpoint": "Tentar de novo a partir do último passo",
+        "avatarKept_one": "A aparição do avatar que já foi enviada para gerar está paga e fica salva: ao tentar de novo, ela é usada sem pagar outra vez.",
+        "avatarKept_other": "As {{count}} aparições do avatar que já foram enviadas para gerar estão pagas e ficam salvas: ao tentar de novo, elas são usadas sem pagar outra vez.",
         "retryRender": "Tentar a montagem de novo",
         "retryHint": "O que já foi gerado (áudio, cenas, prompts e imagens) é mantido; só o que falhou é tentado de novo.",
         "retryRenderHint": "Suas imagens e todo o resto já estão prontos — só a montagem do vídeo é refeita. Nada se perde e não se gastam créditos.",
         "continueHint": "No editor você pode regenerar uma a uma as cenas que ficaram sem imagem — com ou sem narração — ou dar a elas uma descrição própria, e depois gerar seu vídeo.",
         "switchModel": "Trocar de modelo e relançar",
-        "switchModelHint": "O modelo que escrevia os prompts falhou. Com outro modelo tudo o que foi feito é mantido e só os prompts que faltam são escritos."
+        "switchModelHint": "O modelo que escrevia os prompts falhou. Com outro modelo tudo o que foi feito é mantido e só os prompts que faltam são escritos.",
+        "switchVoice": "Trocar voz",
+        "switchVoiceHint": "Escolha outro provedor e outra voz, e o vídeo continua a partir da narração."
       },
       "savedAt": "Pronto! Seu vídeo foi salvo em",
       "imagesCount": "Imagens ({{ready}}/{{total}})",
@@ -381,7 +399,39 @@
       "animationClipFailed": "Não foi possível concluir. Tente novamente ao terminar esta etapa ou continue no editor.",
       "animationPending": "Pendente",
       "animationRetrying": "Tentando novamente · {{attempt}}/{{maxAttempts}}",
-      "startingTitle": "Verificando serviços e saldo"
+      "startingTitle": "Verificando serviços e saldo",
+      "cancelAvatarTitle": "Cancelar a geração?",
+      "cancelAvatarBody_one": "1 aparição do avatar já foi enviada para gerar: ela é cobrada do seu saldo de avatares mesmo se você cancelar. Não se perde: fica salva e é usada quando você continuar este vídeo, sem pagar de novo.",
+      "cancelAvatarBody_other": "{{count}} aparições do avatar já foram enviadas para gerar: elas são cobradas do seu saldo de avatares mesmo se você cancelar. Não se perdem: ficam salvas e são usadas quando você continuar este vídeo, sem pagar de novo.",
+      "cancelAvatarKeep": "Continuar gerando",
+      "cancelAvatarConfirm": "Cancelar mesmo assim",
+      "avatarCount": "{{ready}} de {{total}} aparições prontas",
+      "avatarItem": "Avatar {{index}}/{{total}}",
+      "avatarHint": "Cada aparição leva alguns minutos para ser gerada. O tempo de cada uma continua correndo: a geração não travou.",
+      "avatarTroubleTitle": "O serviço de avatares está com problemas; o Vimo segue com o resto do vídeo",
+      "avatarDropped_one": "{{count}} aparição não coube na narração.",
+      "avatarDropped_other": "{{count}} aparições não couberam na narração.",
+      "avatarNoneFit_one": "Nenhuma aparição do avatar coube na narração ({{count}} descartada): o vídeo sai sem avatar.",
+      "avatarNoneFit_other": "Nenhuma aparição do avatar coube na narração ({{count}} descartadas): o vídeo sai sem avatar.",
+      "avatarQueued": "Aguardando",
+      "avatarReady": "Pronta",
+      "avatarFailed": "Não foi concluída: {{reason}}",
+      "avatarStale": "Desatualizada",
+      "avatarPhase": {
+        "audio": "Preparando a voz",
+        "upload": "Enviando a voz para o serviço de avatares",
+        "render": "O serviço de avatares está gerando o avatar",
+        "download": "Baixando o clipe",
+        "normalize": "Ajustando o clipe ao vídeo"
+      },
+      "avatarFallback_one": "{{count}} aparição do avatar não foi gerada: o vídeo mostra a imagem fixa do look. Você pode regenerá-la no editor.",
+      "avatarFallback_other": "{{count}} aparições do avatar não foram geradas: o vídeo mostra a imagem fixa do look. Você pode regenerá-las no editor.",
+      "avatarPercent": "{{percent}}%",
+      "avatarPercentAria": "Progresso estimado: {{percent}}%",
+      "avatarCardLabel": "Avatar",
+      "avatarCardAria": "Cena {{index}}: aparição do avatar, {{status}}",
+      "avatarCardGenerating": "Gerando",
+      "avatarCardFallback": "Com imagem fixa"
     },
     "confirmScenes": {
       "title": "Confirme a quantidade de cenas",
@@ -390,7 +440,20 @@
       "words": "Palavras transcritas",
       "suggested": "Sugerido pelo Vimo",
       "countLabel": "Quantidade final",
-      "confirm": "Confirmar e continuar"
+      "confirm": "Confirmar e continuar",
+      "avatarLine_one": "O avatar aparece {{count}} vez ({{ranges}})",
+      "avatarLine_other": "O avatar aparece {{count}} vezes ({{ranges}})",
+      "avatarCost": "Custo do avatar: ≈ {{amount}}",
+      "avatarDropped_one": "{{count}} aparição não coube.",
+      "avatarDropped_other": "{{count}} aparições não couberam.",
+      "avatarNoneFits_one": "Nenhuma aparição do avatar cabe nesta narração ({{count}} descartada): você pode cancelar e encurtar as aparições ou alongar a narração.",
+      "avatarNoneFits_other": "Nenhuma aparição do avatar cabe nesta narração ({{count}} descartadas): você pode cancelar e encurtar as aparições ou alongar a narração.",
+      "avatarNoneFitsUncounted": "Nenhuma aparição do avatar cabe nesta narração: você pode cancelar e encurtar as aparições ou alongar a narração.",
+      "estimatedScenes_one": "≈ {{count}} cena no total",
+      "estimatedScenes_other": "≈ {{count}} cenas no total",
+      "imagesToGenerate_one": "{{count}} imagem a gerar (as aparições do avatar não levam)",
+      "imagesToGenerate_other": "{{count}} imagens a gerar (as aparições do avatar não levam)",
+      "avatarMinimum": "Com o avatar não podem ser menos de {{minimum}}: uma cena por trecho livre, mais as aparições."
     },
     "secondsStep": {
       "perScene": "dura cada cena",
@@ -453,7 +516,9 @@
       "promptModelsBlocked": "Todos os modelos para escrever prompts estão bloqueados: escolha um estilo da Vimo ou espere eles voltarem.",
       "insufficientCredits": "Um provedor não tem saldo suficiente para esta geração: recarregue ou reduza o custo (menos cenas, outra qualidade).",
       "animationMinutesInvalid": "Escolha uma quantidade inteira de minutos, no mínimo 1.",
-      "animationKeyRequired": "Configure sua chave da Kie.ai para animar cenas."
+      "animationKeyRequired": "Configure sua chave da Kie.ai para animar cenas.",
+      "avatarRequired": "Escolha o avatar apresentador e o look dele, ou desligue-o.",
+      "avatarUnavailable": "O avatar ou o look escolhido não serve para este vídeo: escolha outro."
     },
     "errors": {
       "discard": "Descartar",
@@ -461,6 +526,8 @@
       "projectNotFound": "Esse projeto não está mais na sua pasta.",
       "projectCorrupt": "Os dados do projeto estão danificados.",
       "projectExists": "Já existe um projeto com esse nome.",
+      "avatarLookUnavailable": "O look escolhido não pode ser usado: não está mais pronto, não aceita o motor escolhido ou não tem uma prévia. Escolha outro look ou motor para este vídeo.",
+      "avatarLookOrientationMismatch": "O look escolhido não tem a orientação do vídeo: um vídeo 16:9 precisa de um look horizontal e um 9:16, de um vertical. Escolha outro ou crie um cenário nesse formato em Avatares.",
       "scriptMissing": "Falta o roteiro do projeto.",
       "narrationMissing": "Não encontramos seu áudio. Envie de novo.",
       "narrationSourceMissing": "O arquivo de áudio não está mais onde você escolheu.",
@@ -523,6 +590,7 @@
       "renderStalled": "A montagem do vídeo parou de avançar e nós a interrompemos.",
       "missingApiKey": "Falta uma chave de API para esta ação.",
       "missingProjectsRoot": "Nenhuma pasta de projetos configurada. Verifique Ajustes.",
+      "projectsRootUnavailable": "Não foi possível ler sua pasta de projetos, por isso seus estilos não aparecem. Nada foi apagado: verifique em Ajustes se a pasta existe e se o disco dela está conectado.",
       "cancelled": "Geração cancelada. Você pode retomá-la quando quiser.",
       "sidecar": "Não conseguimos iniciar o motor do Vimo. Reinicie o app.",
       "interrupted": "A geração foi interrompida ao fechar o app. Retome: o que foi feito é preservado.",
@@ -565,8 +633,21 @@
       "animationRequestChanged": "Esta cena tem uma animação pendente. Recupere-a antes de encomendar outra versão.",
       "animationIncomplete": "O trecho da animação ainda tem clipes pendentes. Tente novamente para concluir ou recuperar as tarefas salvas.",
       "animationTimingLocked": "Os tempos destas cenas estão vinculados a clipes ou tarefas de animação salvos e não podem ser movidos.",
+      "avatarRenderFailed": "O serviço de avatares não conseguiu gerar o avatar. Tente de novo: um render com falha não é cobrado.",
+      "avatarTimeout": "O serviço de avatares ainda está gerando o avatar. Tente de novo mais tarde: o pedido fica salvo e não é cobrado de novo.",
+      "avatarDownloadFailed": "O avatar foi gerado mas não foi possível baixá-lo. Tente de novo: já está pago e não é cobrado outra vez.",
+      "avatarIncomplete": "Ficaram aparições do avatar sem gerar. Retome para concluí-las: as prontas não são cobradas de novo.",
+      "avatarRejected_one": "Essa aparição não pode ser gerada com este look. O vídeo mostra a imagem fixa dela: renderize pelo editor ou troque o look.",
+      "avatarRejected_other": "Essas {{count}} aparições não podem ser geradas com este look. O vídeo mostra a imagem fixa delas: renderize pelo editor ou troque o look.",
+      "avatarSentencesUnavailable": "Falta a transcrição com as frases da narração. Transcreva o áudio primeiro.",
+      "avatarRenderLookUnavailable": "A aparição do avatar não tem clipe nem prévia do look. Escolha o look de novo na biblioteca ou gere o avatar outra vez.",
+      "avatarTimingLocked": "Os tempos desta cena de avatar estão vinculados ao clipe ou a um pedido ao serviço de avatares e não podem ser movidos.",
+      "avatarResizeOutOfRange": "Essa duração não cabe mais neste ponto do vídeo. Escolha outra.",
+      "avatarResizeLocked": "A duração não pode mudar: a cena seguinte está animada.",
+      "avatarTrimUnavailable": "Esta aparição não tem um clipe pronto para cortar: gere-a com a nova duração.",
       "catalogSyncFailed": "Não foi possível atualizar o catálogo. Você continua vendo o último baixado.",
-      "catalogUploadFailed": "Não foi possível enviar as amostras para o catálogo. Tente de novo."
+      "catalogUploadFailed": "Não foi possível enviar as amostras para o catálogo. Tente de novo.",
+      "avatarMotionUnsupported": "Este look não permite movimento próprio com este motor: ele é gerado com o movimento do motor."
     },
     "credits": {
       "balance": "{{amount}} cr.",
@@ -1134,6 +1215,82 @@
       "wholeVideoHint": "O short é animado sem som. Se a última cena tiver menos de 3 s, ficará como imagem estática.",
       "durationPending": "Os créditos serão calculados quando a duração do áudio for conhecida.",
       "firstMinuteEstimateHint": "Estimativa para um minuto completo. Se o áudio for mais curto, serão gerados apenas os clipes necessários."
+    },
+    "avatar": {
+      "title": "Avatar apresentador",
+      "hint": "Uma pessoa gerada com IA aparece várias vezes no seu vídeo falando a sua narração, exatamente como no look que você escolher. O Vimo escolhe os momentos.",
+      "avatarLabel": "Avatar",
+      "chooseAvatar": "Escolha o avatar que apresenta o vídeo",
+      "manageLibrary": "Gerenciar avatares",
+      "emptyLibrary": "Você ainda não tem avatares na sua biblioteca.",
+      "createAvatar": "Criar um avatar",
+      "lookCount_one": "{{count}} look",
+      "lookCount_other": "{{count}} looks",
+      "training": "Treinando…",
+      "unavailable": "Indisponível",
+      "noLookShort": "Sem look para este formato",
+      "lookLabel": "Look",
+      "lookHint": "O avatar aparece exatamente como neste look, com o fundo dele e no formato do vídeo: o Vimo não gera imagens para esses trechos.",
+      "noLookLandscape": "{{name}} não tem looks horizontais para um vídeo 16:9.",
+      "noLookPortrait": "{{name}} não tem looks verticais para um vídeo 9:16.",
+      "createScenario": "Criar cenário",
+      "stockNoLook": "Os cenários são gerados sobre os seus próprios avatares: escolha outro avatar.",
+      "previousUnavailable": "O avatar ou o look que você tinha escolhido não serve para este vídeo: escolha outro.",
+      "appearances": "Aparições",
+      "secondsPerAppearance": "Segundos por aparição",
+      "secondsValue": "{{seconds}} s",
+      "startWithAvatar": "Começar com o avatar",
+      "costTitle": "Custo estimado do avatar",
+      "cost": "≈ {{amount}}",
+      "costPending": "Escolha um avatar para ver o custo",
+      "chargeTiming": "O avatar é gerado ao mesmo tempo que as imagens e é cobrado assim que começa.",
+      "total_one": "{{seconds}} s de avatar em {{count}} aparição",
+      "total_other": "{{seconds}} s de avatar em {{count}} aparições",
+      "pricePerMinute": "· {{price}} por minuto",
+      "moderationHint": "Não é aceito conteúdo político, violento ou enganoso, nem o uso de pessoas reais sem permissão.",
+      "noKey": "Para adicionar um avatar ao seu vídeo, cadastre a chave do avatar apresentador em Chaves API.",
+      "goToApiKeys": "Ir para Chaves de API",
+      "moderationTitle": "Regras de conteúdo",
+      "looksToggleAria": "Ver os looks de {{name}}",
+      "moreLooks_one": "+{{count}} look",
+      "moreLooks_other": "+{{count}} looks",
+      "otherFormat": "Para vídeos {{format}}",
+      "unknownOrientation": "Sem orientação confirmada",
+      "unknownOrientationHint": "Não foi possível confirmar a orientação deste look, então ele não pode ser usado em um vídeo.",
+      "failedLookHint": "Este look não pôde ser gerado, então não pode ser usado.",
+      "mainLook": "Principal",
+      "lookOpenAria": "Ver o look {{name}}",
+      "selectedLook": "Escolhido",
+      "otherFormatHint": "Este look não tem o formato do seu vídeo, então não pode ser usado.",
+      "engineTitle": "Motor",
+      "engineGroupAria": "Motor do avatar",
+      "engineDescription": {
+        "avatar_v": "Estilo de movimento coerente do personagem que se adapta ao roteiro",
+        "avatar_iv": "Movimento genérico que se adapta ao roteiro",
+        "avatar_iii": "Aplica sincronização labial"
+      },
+      "engineUnavailable": "Este look não é compatível com {{engine}}",
+      "expressive": "Movimento mais expressivo",
+      "expressiveHelpAria": "O que faz “Movimento mais expressivo”",
+      "expressiveTooltip": "Mais energia nos gestos e no rosto de cada aparição, sem exagero. Não soma custo.",
+      "expressiveUnavailable": "Com {{engine}}, este look não permite um movimento mais expressivo.",
+      "motionAuto": "O Vimo escreve o movimento de cada aparição de acordo com o que ela diz. Você pode mudá-lo no editor.",
+      "threeInTwo": "3 vezes em 2 minutos",
+      "threeInTwoHelpAria": "O que faz “3 vezes em 2 minutos”",
+      "threeInTwoTooltip": "O avatar aparece pelo menos 3 vezes nos primeiros 2 minutos do vídeo, contando a do início se ele começa com o avatar. As outras aparições se distribuem no resto do vídeo.",
+      "threeInTwoMinimum": "Com “3 vezes em 2 minutos”, saem pelo menos 3 aparições.",
+      "threeInTwoCapped": "As três primeiras duram até {{seconds}} s para caber nos 2 minutos."
+    },
+    "voiceSwitch": {
+      "title": "Antes de trocar a voz",
+      "checkHistory": "Confira seu histórico no {{provider}}: se a narração foi gerada lá, ao trocar de voz ela se perde e outra é gerada.",
+      "checkHistoryUnknown": "Confira o histórico do seu provedor de vozes: se a narração foi gerada lá, ao trocar de voz ela se perde e outra é gerada.",
+      "maybePaid": "É possível que esta geração já tenha sido cobrada no {{provider}}. Confira seu histórico e seu saldo antes de continuar.",
+      "maybePaidUnknown": "É possível que esta geração já tenha sido cobrada. Confira o histórico e o saldo do seu provedor antes de continuar.",
+      "discardHint": "Se preferir esperar, feche este aviso e use «Tentar de novo a partir do último passo»: retoma a mesma geração sem pagar outra.",
+      "openHistory": "Abrir {{provider}}",
+      "continue": "Escolher outra voz",
+      "cancel": "Cancelar"
     }
   },
   "createDemo": {
@@ -1231,9 +1388,28 @@
         "noMusic": "Sem música — clique para adicionar",
         "openAudio": "Abrir o áudio do projeto",
         "openMusic": "Abrir a música do projeto",
+        "dragTrack": "Arraste para reordenar a faixa {{track}}",
+        "mute": "Silenciar {{track}} na pré-visualização",
+        "lock": "Bloquear a faixa {{track}}",
+        "sortableRole": "faixa ordenável",
+        "dragInstructions": "Para reordenar, pressione espaço sobre a alça, mova com as setas e solte com espaço. Escape cancela.",
+        "dragStart": "Você pegou a faixa {{track}}.",
+        "dragOver": "A faixa {{track}} está sobre a posição de {{over}}.",
+        "dragOverNone": "A faixa {{track}} está fora das posições.",
+        "dragEnd": "Você soltou a faixa {{track}} na posição de {{over}}.",
+        "dragEndNone": "Você soltou a faixa {{track}} onde estava.",
+        "dragCancel": "Você cancelou a reordenação da faixa {{track}}.",
         "animatingPercent": "{{percent}}%",
         "clipDuration": "{{seconds}} s",
-        "retryingPercent": "Tentando novamente · {{percent}}%"
+        "retryingPercent": "Tentando novamente · {{percent}}%",
+        "avatarTitle": "Avatar · {{name}} · {{seconds}} s",
+        "avatarPlanned": "Avatar ainda não gerado: o vídeo mostra a imagem fixa do look.",
+        "avatarRendering": "Gerando o avatar…",
+        "avatarRenderingPercent": "{{percent}}%",
+        "avatarDuration": "{{seconds}} s",
+        "avatarStale": "Desatualizado",
+        "avatarStaleHint": "Desatualizado: a narração ou o trecho mudaram depois de gerá-lo; o vídeo mostra a imagem fixa do look até ser regenerado.",
+        "avatarFailed": "O avatar não foi gerado: {{reason}}"
       },
       "panel": {
         "noSelection": "Escolha uma cena na linha do tempo para editá-la.",
@@ -1309,7 +1485,8 @@
         "queuedScenes": "Cenas na fila: {{count}}",
         "regenerateFlowCount_one": "Regenerar com Vimo",
         "regenerateFlowCount_other": "Regenerar {{count}} cenas com Vimo",
-        "regenerationIncomplete": "A imagem não foi concluída. Você pode tentar novamente com Regenerar."
+        "regenerationIncomplete": "A imagem não foi concluída. Você pode tentar novamente com Regenerar.",
+        "avatarSceneHint": "É uma cena de avatar: o vídeo mostra o avatar com o seu look. Se não foi gerada ou ficou desatualizada, mostra a imagem fixa do look até você regenerá-la."
       },
       "render": {
         "render": "Exportar vídeo",
@@ -1334,7 +1511,8 @@
         "imageMotionHelpLabel": "Sobre o movimento de imagem",
         "imageMotionHelp": "Aplica às imagens o zoom e o movimento de câmera do Vimo (keyframes), já incorporados em cada clipe. Se desativado, as imagens ficam estáticas. Os clipes de vídeo mantêm a animação. Não gera imagens nem usa créditos de IA.",
         "confirm": "Confirmar exportação",
-        "cancel": "Cancelar"
+        "cancel": "Cancelar exportação",
+        "cancelDialog": "Cancelar"
       },
       "previewBadge": "Prévia",
       "regenFailed": "Não foi possível regenerar alguma cena: o motivo está em cada cena e a imagem anterior é mantida.",
@@ -1441,9 +1619,92 @@
         "shortPairHint": "Cenas de 3 s: ao animar uma, a próxima cena compatível é incluída para criar um clipe de 6 s. As duplas aparecem aqui antes de começar. Sem dupla, apenas esse clipe é ajustado à sua duração.",
         "undoHint_one": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente. Este clipe abrange {{count}} cena.",
         "undoHint_other": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente. Este clipe abrange {{count}} cenas.",
-        "undoBeforeImages": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente."
+        "undoBeforeImages": "Para alterar as imagens, desfaça primeiro a animação. Depois você poderá gerá-las novamente.",
+        "avatarCardAria": "Cena {{index}}: aparição do avatar",
+        "avatarPlay": "Reproduzir o clipe do avatar",
+        "avatarPause": "Pausar o clipe do avatar",
+        "avatarNoClip": "Ainda sem clipe: aparece a imagem do look.",
+        "descriptionWithAvatar_one": "{{count}} cena. Regenere imagens, anime clipes ou regenere o avatar sem sair desta galeria.",
+        "descriptionWithAvatar_other": "{{count}} cenas. Regenere imagens, anime clipes ou regenere o avatar sem sair desta galeria.",
+        "avatarExpand": "Ajustar avatar da cena {{index}}",
+        "avatarCollapse": "Fechar os ajustes do avatar da cena {{index}}"
       },
-      "preparingImage": "Preparando imagem…"
+      "preparingImage": "Preparando imagem…",
+      "previewBadgeMuted": "Simulação: há uma faixa silenciada",
+      "avatar": {
+        "generar": "Gerar avatar",
+        "regenerar": "Regenerar avatar",
+        "regenerarTodos": "Regenerar todos ({{count}})",
+        "regenerarAviso": "Regenerá-las ({{count}})",
+        "costo": "≈ {{amount}} do seu saldo de avatares",
+        "saldo": "Saldo de avatares: {{balance}}",
+        "saldoInsuficiente": "Seu saldo de avatares não é suficiente. Recarregue e tente de novo.",
+        "confirmarTitulo": "Gerar o avatar?",
+        "confirmarTexto_one": "Será gerada {{count}} aparição por ≈ {{amount}}. Uma renderização que falha não é cobrada.",
+        "confirmarTexto_other": "Serão geradas {{count}} aparições por ≈ {{amount}}. Uma renderização que falha não é cobrada.",
+        "confirmar": "Gerar",
+        "cancelar": "Cancelar",
+        "cancelarTitulo": "Cancelar o avatar?",
+        "cancelarTexto_one": "1 aparição já foi enviada para gerar: ela é cobrada do seu saldo de avatares mesmo se você cancelar. Não se perde: fica salva e é usada quando você gerá-la de novo, sem pagar outra vez.",
+        "cancelarTexto_other": "{{count}} aparições já foram enviadas para gerar: elas são cobradas do seu saldo de avatares mesmo se você cancelar. Não se perdem: ficam salvas e são usadas quando você gerá-las de novo, sem pagar outra vez.",
+        "cancelarSeguir": "Continuar gerando",
+        "cancelarIgual": "Cancelar mesmo assim",
+        "listo": "O avatar ficou pronto. Exporte o vídeo para que ele apareça no arquivo final.",
+        "fallo": "Não foi possível gerar o avatar: {{reason}}",
+        "fallbackNote_one": "{{count}} aparição do avatar não foi gerada: o vídeo mostra a imagem fixa do look.",
+        "fallbackNote_other": "{{count}} aparições do avatar não foram geradas: o vídeo mostra a imagem fixa do look.",
+        "confirmarTituloRegenerar": "Regenerar o avatar?",
+        "confirmarRegenerar": "Regenerar",
+        "confirmarTextoRegenerar_one": "{{count}} aparição é gerada de novo por ≈ {{amount}}, com a mesma parte da narração e a mesma voz. O clipe atual fica até o novo estar pronto.",
+        "confirmarTextoRegenerar_other": "{{count}} aparições são geradas de novo por ≈ {{amount}}, com as mesmas partes da narração e a mesma voz. Os clipes atuais ficam até os novos estarem prontos.",
+        "regenerarFalloConservado": "Não foi possível regenerar o avatar: {{reason}} O clipe anterior foi mantido.",
+        "movimientoTitulo": "Movimento",
+        "movimientoLabel": "Prompt de movimento",
+        "movimientoHint": "O Vimo escreveu de acordo com o que esta aparição diz. Se você mudar, ele é usado ao gerar ou regenerar.",
+        "movimientoVacio": "Sem prompt, o avatar usa o movimento próprio do motor.",
+        "movimientoPlaceholder": "Ex.: Sorri com simpatia e assente ao dizer o mais importante.",
+        "movimientoCaracteres": "{{used}}/{{max}}",
+        "movimientoAutomatico": "Usar o automático",
+        "movimientoNoAdmitido": "Da última vez o movimento próprio não foi aceito com {{engine}}: foi gerado com o movimento do motor. Você pode tentar outro prompt.",
+        "expresivo": "Movimento mais expressivo",
+        "expresivoAyudaAria": "O que faz “Movimento mais expressivo”",
+        "expresivoTooltip": "Mais energia nos gestos e no rosto, sem exagero. Não soma custo.",
+        "guiaBoton": "O que você pode pedir",
+        "guiaPuedeTitulo": "O que você pode controlar",
+        "guiaExpresiones": "Expressões faciais (calma, entusiasmada, sincera)",
+        "guiaGestos": "Gestos de mão (acenar, apontar, mão no coração)",
+        "guiaPostura": "Postura corporal (inclinar-se, caloroso e aberto, sereno)",
+        "guiaQuietud": "Imobilidade (sem gestos com as mãos, quase não se mexe)",
+        "guiaMirada": "Olhar (olhar para a câmera, desviar o olhar)",
+        "guiaNoPuedeTitulo": "O que você não pode controlar",
+        "guiaCamara": "Movimento de câmera (zoom, pan, travelling)",
+        "guiaLugar": "Local ou cena (ir até a cozinha, sair)",
+        "guiaObjetos": "Acessórios ou ações (tomar café, pegar um telefone)",
+        "guiaCaminar": "Levantar-se ou andar",
+        "guiaFondo": "Mudanças de fundo ou iluminação",
+        "movimientoPendiente": "O Vimo escreve o movimento de acordo com o que esta aparição diz quando a gera.",
+        "movimientoPropio": "Este prompt é usado ao gerar ou regenerar esta aparição.",
+        "duracion": "Duração",
+        "duracionValor": "{{seconds}} s",
+        "duracionMenos": "Um segundo a menos",
+        "duracionMas": "Um segundo a mais",
+        "duracionActual": "Agora dura {{seconds}} s.",
+        "duracionAyuda": "Termina na pausa mais próxima dessa duração, sem cortar uma palavra.",
+        "duracionLimite": "Aqui pode durar de {{min}} a {{max}} s.",
+        "duracionBloqueada": "A duração não pode mudar: a cena seguinte está animada.",
+        "duracionFinal": "É o final do vídeo: a duração não pode mudar.",
+        "duracionMasLarga": "Pega mais narração, até {{time}}, e é gerado de novo.",
+        "duracionTapa_one": "Cobre {{count}} cena de imagem.",
+        "duracionTapa_other": "Cobre {{count}} cenas de imagem.",
+        "recortar": "Cortar para {{seconds}} s",
+        "recortarGratis": "Grátis: o clipe que você já tem é cortado.",
+        "recortado": "O avatar agora dura {{seconds}} s.",
+        "recortarFallo": "Não foi possível cortar o avatar: {{reason}}",
+        "confirmarDuracion": "Nova duração: {{seconds}} s (agora dura {{current}} s).",
+        "ajustar": "Ajustar avatar",
+        "cerrarAjustes": "Fechar",
+        "motorAyudaAria": "O que o {{engine}} faz"
+      }
     },
     "errors": {
       "projectBusy": "Já há uma geração em andamento. Espere terminar antes de iniciar outra.",
@@ -1456,6 +1717,8 @@
       "animationAlreadyCovered": "Essa cena já faz parte de outro clipe animado.",
       "animationSlotOutOfRange": "Essa cena não cabe na duração de um clipe, nem sozinha nem junto com as vizinhas.",
       "animationImageLocked": "Desfaça a animação antes de gerar suas imagens novamente. Recupere qualquer tarefa pendente primeiro.",
+      "avatarSceneWithoutImage": "Uma cena de avatar não tem imagem para regenerar: o vídeo dela é feito pelo serviço de avatares com o look escolhido.",
+      "avatarRenderLookUnavailable": "A aparição do avatar não tem clipe nem prévia do look. Escolha o look de novo na biblioteca ou gere o avatar outra vez.",
       "animationUndoPending": "Estas cenas têm uma animação aguardando recuperação. Recupere-a antes de desfazer o clipe para preservar a geração enviada.",
       "animationSourceMissing": "Uma imagem original está ausente. O clipe animado é preservado para não deixar a cena vazia."
     },
@@ -1770,6 +2033,7 @@
       "llmProviderError": "O serviço de IA retornou um erro.",
       "missingApiKey": "Falta configurar a chave do provedor.",
       "missingProjectsRoot": "Escolha uma pasta de projetos em Ajustes.",
+      "projectsRootUnavailable": "Não foi possível ler sua pasta de projetos, por isso seus personagens não aparecem. Nada foi apagado: verifique em Ajustes se a pasta existe e se o disco dela está conectado.",
       "cancelled": "Prévia cancelada.",
       "sidecar": "Não conseguimos iniciar o motor do Vimo. Reinicie o aplicativo.",
       "interrupted": "A prévia foi interrompida.",
@@ -1794,7 +2058,12 @@
       "fishaudio": "Fish Audio",
       "favorites": "Favoritas",
       "elevenlabs-account": "Minhas vozes",
-      "elevenlabs-library": "Biblioteca"
+      "elevenlabs-library": "Biblioteca",
+      "ai33-elevenlabs": "ElevenLabs",
+      "ai33-minimax": "Minimax",
+      "ai33-vbee": "Vbee",
+      "ai33-fishaudio": "Fish Audio",
+      "ai33-clone": "Minhas clonadas"
     },
     "favoritos": {
       "vacio": "Você ainda não marcou vozes favoritas. Toque no coração de uma voz para guardá-la aqui."
@@ -1898,11 +2167,13 @@
       "titulo": "Clonagem de vozes",
       "descripcion": {
         "dubvoice": "Clone sua voz no painel do DubVoice; depois ela aparece na aba Minimax com o filtro «Somente clonadas».",
-        "elevenlabs": "Clone sua voz no Voice Lab do ElevenLabs; depois ela aparece na aba «Minhas vozes»."
+        "elevenlabs": "Clone sua voz no Voice Lab do ElevenLabs; depois ela aparece na aba «Minhas vozes».",
+        "ai33": "Clone sua voz no painel do ai33; depois ela aparece na aba «Minhas clonadas»."
       },
       "abrirDashboard": {
         "dubvoice": "Abrir DubVoice",
-        "elevenlabs": "Abrir ElevenLabs"
+        "elevenlabs": "Abrir ElevenLabs",
+        "ai33": "Abrir ai33"
       }
     },
     "historial": {
@@ -1988,9 +2259,10 @@
     "categoria": {
       "llm": "IA de roteiros (DeepInfra)",
       "image": "imagens (Fal.ai ou Evolink)",
-      "voice": "voz (DubVoice ou ElevenLabs)",
+      "voice": "voz (ai33, DubVoice ou ElevenLabs)",
       "transcription": "transcrição (Deepgram)",
-      "animation": "animação de cenas (Kie.ai)"
+      "animation": "animação de cenas (Kie.ai)",
+      "avatar": "avatar apresentador (HeyGen)"
     },
     "descripcion": {
       "deepinfra": "IA principal: gera os prompts visuais de cada cena.",
@@ -2000,7 +2272,9 @@
       "elevenlabs": "Voz premium direto da ElevenLabs.",
       "deepgram": "Transcrição palavra por palavra do áudio.",
       "kie": "Animação automática de cenas a partir das imagens, com saldo em créditos.",
-      "poyo": "Anima uma cena com Veo. Opcional, só se você quiser cenas animadas."
+      "poyo": "Anima uma cena com Veo. Opcional, só se você quiser cenas animadas.",
+      "heygen": "Avatar apresentador: uma pessoa gerada por IA que fala a narração do seu vídeo. Cobrado por minuto, em dólares.",
+      "ai33": "Voz narrada com ElevenLabs, Minimax, Vbee, Fish Audio e Edge com uma única chave."
     },
     "badge": {
       "falAdmin": "⚠ Tipo Admin"
@@ -2019,7 +2293,8 @@
     },
     "statusCheckFailed": "Não foi possível consultar o estado das chaves API. Verifique novamente antes de gerar.",
     "retryStatus": "Verificar novamente",
-    "checkingStatus": "Verificando chaves API…"
+    "checkingStatus": "Verificando chaves API…",
+    "validacionOkSaldoUsd": "Conectado com sucesso · saldo {{amount}}"
   },
   "settings": {
     "pageTitle": "Configurações — Vimo",
@@ -2062,8 +2337,8 @@
     "promptModelSaved": "Preferência salva.",
     "promptModelError": "Não foi possível salvar a preferência.",
     "voiceVendorTitle": "Seu provedor de vozes",
-    "voiceVendorTagline": "Com qual serviço as vozes são listadas e geradas em Vozes e em Criar. O DubVoice reúne Minimax, ElevenLabs, Vbee e Fish Audio com uma única chave; o ElevenLabs usa a sua própria conta.",
-    "voiceVendorAutomaticHint": "Ainda não escolhido: usa-se o DubVoice, ou o ElevenLabs se for a única chave de voz salva.",
+    "voiceVendorTagline": "Com qual serviço as vozes são listadas e geradas em Vozes e em Criar. O ai33 e o DubVoice reúnem ElevenLabs, Minimax, Vbee e Fish Audio com uma única chave; o ElevenLabs usa a sua própria conta.",
+    "voiceVendorAutomaticHint": "Ainda não escolhido: usa-se o ai33 se tiver chave; senão o DubVoice, ou o ElevenLabs se for a única chave de voz salva.",
     "voiceVendorResetAutomatic": "Voltar ao automático",
     "voiceVendorSaved": "Preferência salva.",
     "voiceVendorError": "Não foi possível salvar a preferência.",
@@ -2530,5 +2805,236 @@
     "recoveryStepAccount": "Confira se o Chrome e o Flow usam a mesma conta do Google vinculada ao Vimo. Entre se necessário, mantendo o projeto e as abas anteriores.",
     "recoveryReceiptsTitle": "Recuperando envios anteriores",
     "recoveryReceiptsHelp": "Este perfil tem solicitações sem confirmação que ainda ocupam seus espaços de geração. A extensão continuará buscando seus resultados sem apagar nem reenviar essas tentativas. As outras contas disponíveis podem continuar."
+  },
+  "avatars": {
+    "pageTitle": "Avatares",
+    "titulo": "Avatares",
+    "tagline": "a pessoa que apresenta seus vídeos",
+    "intro": "Um avatar apresentador fala a narração do seu vídeo, em tela cheia, nos momentos que você escolher. Adicione um do estoque ou crie o seu a partir de uma foto; depois é só escolhê-lo ao criar um vídeo.",
+    "soloEscritorio": "Os avatares ficam na sua pasta de projetos: esta tela funciona no aplicativo de desktop.",
+    "agregarStock": "Adicionar do estoque",
+    "crearFoto": "Criar a partir de foto",
+    "saldo": {
+      "etiqueta": "Saldo",
+      "refrescar": "Atualizar saldo",
+      "noDisponible": "indisponível",
+      "creditos": "{{amount}} cr."
+    },
+    "vacio": {
+      "titulo": "Você ainda não tem avatares",
+      "texto": "Adicione um do estoque ou crie o seu a partir de uma foto. Você precisa da sua chave do avatar apresentador em Chaves API."
+    },
+    "tarjeta": {
+      "noCompatible": "Não compatível com o Vimo",
+      "motoresAria": "Motores compatíveis: {{engines}}"
+    },
+    "types": {
+      "studio_avatar": "De estúdio",
+      "digital_twin": "Gêmeo digital",
+      "photo_avatar": "A partir de foto"
+    },
+    "engines": {
+      "avatar_iv": "Avatar IV",
+      "avatar_iii": "Avatar III",
+      "avatar_v": "Avatar V"
+    },
+    "status": {
+      "processing": "O Vimo está treinando o motor do seu avatar…",
+      "processingHint": "Em alguns minutos fica pronto. Enquanto isso, você pode continuar trabalhando.",
+      "failed": "Não foi possível treinar o avatar com essa foto. Tente outra, de frente e bem iluminada."
+    },
+    "stock": {
+      "titulo": "Adicionar um avatar",
+      "descripcion": "Escolha um avatar, veja os looks dele e adicione-o com o look de que mais gostar. Adicionar não custa nada; cada vídeo que você fizer com ele é cobrado por minuto.",
+      "origenAria": "Origem dos avatares",
+      "publicos": "Do estoque",
+      "propios": "Meus avatares",
+      "generoAria": "Gênero",
+      "genero": {
+        "todos": "Todos",
+        "hombres": "Homens",
+        "mujeres": "Mulheres"
+      },
+      "buscar": "Buscar por nome…",
+      "vacio": "Não há avatares com esse filtro.",
+      "looksCount_one": "{{count}} look",
+      "looksCount_other": "{{count}} looks",
+      "verLooks": "Ver looks",
+      "verLooksAria": "Ver looks de {{name}}",
+      "agregar": "Adicionar",
+      "agregarAria": "Adicionar {{name}}",
+      "agregado": "Na sua biblioteca",
+      "cargarMas": "Carregar mais",
+      "cargando": "Carregando avatares…",
+      "cargandoLooks": "Carregando looks…",
+      "volver": "Voltar aos avatares",
+      "elegirLook": "Clique em um look para vê-lo em movimento e carregá-lo na sua biblioteca.",
+      "yaEnBiblioteca": "Este avatar já está na sua biblioteca: escolha o cenário principal dele pela biblioteca.",
+      "abrirEnBiblioteca": "Abrir na sua biblioteca",
+      "vacioLooks": "Este avatar ainda não tem looks prontos.",
+      "previewAria": "Prévia de {{name}}",
+      "categoriaAria": "Categoria",
+      "categoria": {
+        "todos": "Todos",
+        "profesional": "Profissional",
+        "estiloDeVida": "Estilo de vida",
+        "comunidad": "Comunidade",
+        "favoritos": "Favoritos"
+      },
+      "clasificando": "Classificando os avatares do estoque…",
+      "clasificacionNoDisponible": "Não foi possível classificar os avatares: os filtros por categoria não estão disponíveis por enquanto.",
+      "favoritoAria": "Favorito: {{name}}",
+      "vacioFavoritos": "Você ainda não marcou favoritos: toque no coração de um avatar para guardá-lo aqui.",
+      "buscandoMas": "Procurando mais avatares…",
+      "abrirLookAria": "Ver o look {{name}}"
+    },
+    "detalle": {
+      "origen": {
+        "stock": "Do estoque",
+        "own": "Criado por você"
+      },
+      "looks": "Looks deste avatar",
+      "looksHint": "Um look é o mesmo avatar com outra roupa, outro fundo ou outro enquadramento, e aparece tal como é nos seus vídeos. O principal é o que o Vimo sugere primeiro ao criar um vídeo.",
+      "entrenando": "Os looks aparecem quando o treinamento terminar.",
+      "principal": "Cenário principal",
+      "usarPrincipal": "Usar como principal",
+      "usarPrincipalAria": "Usar como principal: {{name}}",
+      "lookGenerando": "Gerando…",
+      "lookFallido": "Não foi possível gerar",
+      "cerrar": "Fechar"
+    },
+    "reproductor": {
+      "cargar": "Carregar na biblioteca",
+      "cargando": "Carregando…",
+      "esPrincipal": "É o cenário principal deste avatar.",
+      "noCompatibleHint": "Este look não é compatível com o Vimo: não pode ser usado em um vídeo.",
+      "noListoHint": "Este look ainda está sendo gerado.",
+      "yaEnBiblioteca": "Este avatar já está na sua biblioteca.",
+      "sinVideo": "Este look não tem vídeo de prévia.",
+      "cerrar": "Fechar a prévia",
+      "silenciar": "Silenciar",
+      "activarSonido": "Ativar o som",
+      "velocidad": "Velocidade: {{rate}}×",
+      "pantallaCompleta": "Tela cheia",
+      "salirPantallaCompleta": "Sair da tela cheia",
+      "descripcion": "É assim que o avatar aparece nos seus vídeos: com esta roupa, este fundo e este enquadramento.",
+      "errorVideo": "Não foi possível carregar o vídeo deste look. Verifique sua conexão e abra de novo.",
+      "usar": "Usar",
+      "usarHint": "É usado em todas as aparições do avatar neste vídeo."
+    },
+    "formato": {
+      "r16x9": "16:9",
+      "r9x16": "9:16",
+      "r1x1": "1:1",
+      "r4x5": "4:5",
+      "r5x4": "5:4",
+      "aria": "Formato {{format}}"
+    },
+    "generar": {
+      "tarjeta": "Criar cenário",
+      "tarjetaHint": "Outra pose, outro fundo ou outro formato, descrito com suas palavras.",
+      "necesitaPrincipal": "Espere o avatar ficar pronto.",
+      "soloPropios": "Os cenários são gerados sobre os seus próprios avatares.",
+      "titulo": "Criar um cenário para {{name}}",
+      "descripcion": "Descreva o cenário: a roupa, o lugar, a luz. O Vimo o gera a partir do cenário principal e o adiciona a este avatar.",
+      "prompt": "Descrição",
+      "promptPlaceholder": "Coloque-o numa cozinha iluminada, de avental, com luz da manhã…",
+      "contador": "{{count}}/{{max}}",
+      "variarHint": "Para outra variação, mude a descrição: repeti-la devolve o mesmo look.",
+      "formato": "Formato",
+      "ratios": {
+        "auto": "Automático",
+        "r16x9": "Horizontal 16:9",
+        "r9x16": "Vertical 9:16",
+        "r1x1": "Quadrado 1:1",
+        "r4x5": "Vertical 4:5",
+        "r5x4": "Horizontal 5:4"
+      },
+      "referencias": "Imagens de referência (opcional, até {{max}})",
+      "referencia": "Imagem de referência {{n}}",
+      "agregarReferencias": "Adicionar imagens",
+      "quitarReferencia": "Remover a imagem {{n}}",
+      "referenciasHint": "Servem para copiar uma peça de roupa, um fundo ou um estilo. JPG ou PNG de até 12 MB cada uma.",
+      "nombre": "Nome do look (opcional)",
+      "nombrePlaceholder": "Cozinha iluminada",
+      "normas": "As regras de conteúdo continuam valendo: nada de pessoas reconhecíveis sem permissão nem conteúdo proibido.",
+      "costoDetalle": "por cenário · descontado do seu saldo de avatares",
+      "costoDesconocido": "É descontado do seu saldo de avatares ao gerar; o saldo é atualizado ao terminar.",
+      "cancelar": "Cancelar",
+      "generar": "Gerar look"
+    },
+    "foto": {
+      "titulo": "Criar um avatar a partir de uma foto",
+      "descripcion": "O Vimo treina um avatar com o rosto da foto. Leva alguns minutos e fica na sua biblioteca, pronto para apresentar seus vídeos.",
+      "nombre": "Nome",
+      "nombrePlaceholder": "Como você vai reconhecê-lo",
+      "subir": "Escolher foto",
+      "cambiar": "Trocar foto",
+      "consejo": "Melhor uma foto de frente, bem iluminada, dos ombros para cima e sem óculos escuros. JPG ou PNG de até 12 MB.",
+      "ampliar": "Ver a foto completa",
+      "fotoElegida": "A foto escolhida para o seu avatar",
+      "cerrarFoto": "Fechar a foto",
+      "permisos": {
+        "titulo": "Antes de criar seu avatar",
+        "propia": "Use sua própria foto ou a de alguém que deu permissão a você.",
+        "famosos": "Não é possível clonar famosos nem pessoas reconhecíveis sem o consentimento delas.",
+        "contenido": "Sem conteúdo político, violento ou enganoso: o provedor rejeita."
+      },
+      "consentimiento": {
+        "titulo": "Tenho o direito de usar esta foto",
+        "detalle": "A foto é minha, ou a pessoa que aparece me deu permissão para criar um avatar com a imagem dela."
+      },
+      "precio": {
+        "detalle": "por avatar · descontado do seu saldo de avatares"
+      },
+      "cancelar": "Cancelar",
+      "crear": "Criar avatar"
+    },
+    "toasts": {
+      "agregado": "Avatar adicionado à sua biblioteca.",
+      "creado": "Seu avatar está em treinamento. Em alguns minutos fica pronto.",
+      "lookPrincipal": "Cenário principal atualizado.",
+      "lookGenerando": "Gerando o look. Em alguns minutos ele aparece no seu avatar.",
+      "eliminadoHeygen": "{{name}} foi excluído da sua lista e da HeyGen.",
+      "eliminadoLista": "{{name}} saiu da sua lista."
+    },
+    "errors": {
+      "invalidKey": "A chave do avatar apresentador não é válida. Confira em Chaves API.",
+      "insufficientCredits": "Seu saldo de avatares não é suficiente para isso.",
+      "rateLimited": "O serviço de avatares está recebendo pedidos demais. Espere um momento e tente de novo.",
+      "moderationRejected": "O serviço de avatares rejeitou o pedido pela política de moderação: não é permitido usar pessoas reais sem permissão nem conteúdo proibido.",
+      "lookUnsupported": "Esse avatar ou motor não está disponível na sua conta do serviço de avatares.",
+      "noCompatibleLook": "Este avatar não tem nenhum look pronto que aceite um motor do Vimo (Avatar V, IV ou III).",
+      "groupMissing": "O serviço de avatares não tem mais este avatar. Remova-o da sua biblioteca.",
+      "lookNotListed": "O serviço de avatares recebeu o pedido, mas o look novo ainda não aparece. O Vimo vai procurá-lo de novo em alguns segundos; se não aparecer, confira seu saldo antes de tentar outra descrição.",
+      "mainLookNotReady": "O avatar ainda não tem um cenário principal pronto. Escolha um e tente de novo.",
+      "providerError": "O serviço de avatares respondeu algo inesperado. Tente de novo mais tarde.",
+      "network": "Não foi possível falar com o serviço de avatares. Verifique sua conexão.",
+      "photoInvalid": "Essa foto não serve: precisa ser JPG ou PNG de até 12 MB.",
+      "referenceInvalid": "Uma das imagens de referência não serve: precisa ser JPG ou PNG de até 12 MB.",
+      "notFound": "Esse avatar já não está na sua biblioteca.",
+      "trainingFailed": "Não foi possível treinar o avatar com essa foto.",
+      "nameRequired": "Dê um nome ao avatar.",
+      "photoRequired": "Escolha uma foto.",
+      "consentRequired": "Confirme que você tem o direito de usar a foto para continuar.",
+      "promptRequired": "Escreva uma descrição.",
+      "invalid": "O pedido não é válido.",
+      "missingApiKey": "Falta sua chave do avatar apresentador em Chaves API.",
+      "missingProjectsRoot": "Escolha uma pasta de projetos em Configurações.",
+      "cancelled": "Cancelado.",
+      "sidecar": "O motor do Vimo não iniciou. Reinicie o aplicativo.",
+      "unknown": "Algo deu errado. Tente de novo."
+    },
+    "eliminar": {
+      "boton": "Excluir",
+      "botonAria": "Excluir {{name}}",
+      "opcionesAria": "Como excluir {{name}}",
+      "deLista": "Remover da lista",
+      "deHeygen": "Excluir permanentemente da HeyGen",
+      "confirmarHeygen": "Este avatar também será excluído da HeyGen. Tem certeza?",
+      "seguro": "Sim, excluir",
+      "cancelar": "Cancelar",
+      "eliminando": "Excluindo…"
+    }
   }
 }

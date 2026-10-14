@@ -323,7 +323,7 @@ export function StyleCharacterBlock({
                 )}
 
                 {fixedMissing && (
-                  <p className="mt-2 font-body text-xs text-destructive">
+                  <p className="mt-2 font-body text-xs text-destructive-text">
                     {t('create.styleCharacter.defaultMissing')}
                   </p>
                 )}

@@ -42,7 +42,7 @@ export function AnimationFailureDialog({
         <DialogHeader>
           <div className="flex items-start gap-3">
             <div className="mt-0.5 rounded-full bg-coral/15 p-2">
-              <AlertCircle className="h-5 w-5 text-coral" />
+              <AlertCircle className="h-5 w-5 text-coral-text" />
             </div>
             <div className="flex-1">
               <DialogTitle className="font-display text-lg font-semibold">

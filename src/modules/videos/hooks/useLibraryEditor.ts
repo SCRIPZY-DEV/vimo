@@ -15,7 +15,8 @@ import {
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
-import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
+import { sceneTimingLocked } from '@/modules/videos/utilities/sceneTimingLocked'
 import { galleryAnimationPlan } from '@/modules/videos/utilities/galleryAnimationPlan'
 import {
   animationUndoPending,
@@ -82,7 +83,9 @@ export function useLibraryEditor(projectId: string) {
   const selectedFlowSceneIds =
     flowSelection.projectId === projectId
       ? flowSelection.sceneIds.filter((id) =>
-          workingScenes.some((scene) => scene.id === id),
+          workingScenes.some(
+            (scene) => scene.id === id && sceneImageEditable(scene),
+          ),
         )
       : []
   const [syncedProjectId, setSyncedProjectId] = useState(projectId)
@@ -106,7 +109,9 @@ export function useLibraryEditor(projectId: string) {
     setSyncedScenes(detailScenes)
     if (flowSelection.projectId === projectId) {
       const missingSelection = flowSelection.sceneIds.filter((id) =>
-        detailScenes.some((scene) => scene.id === id),
+        detailScenes.some(
+          (scene) => scene.id === id && sceneImageEditable(scene),
+        ),
       )
       if (missingSelection.length !== flowSelection.sceneIds.length)
         setFlowSelection({ projectId, sceneIds: missingSelection })
@@ -335,7 +340,7 @@ export function useLibraryEditor(projectId: string) {
   const regenerationSceneIds =
     imageChoice.provider === 'flow' && selectedFlowSceneIds.length > 0
       ? selectedFlowSceneIds
-      : selectedScene
+      : selectedScene && sceneImageEditable(selectedScene)
         ? [selectedScene.id]
         : []
   const occupiedSceneIds = new Set([
@@ -348,7 +353,12 @@ export function useLibraryEditor(projectId: string) {
     const latest = queryClient.getQueryData<VideoProjectDetailResult>(
       videosQueryKeys.projectDetail(projectId),
     )
-    if (!latest?.scenes.some((scene) => scene.id === sceneId)) return
+    if (
+      !latest?.scenes.some(
+        (scene) => scene.id === sceneId && sceneImageEditable(scene),
+      )
+    )
+      return
     setFlowSelection({
       projectId,
       sceneIds: selectedFlowSceneIds.includes(sceneId)
@@ -406,11 +416,19 @@ export function useLibraryEditor(projectId: string) {
     const requestedSceneIds =
       imageChoice.provider === 'flow' && selectedFlowSceneIds.length > 0
         ? selectedFlowSceneIds.filter((id) =>
-            latest?.scenes.some((scene) => scene.id === id),
+            latest?.scenes.some(
+              (scene) => scene.id === id && sceneImageEditable(scene),
+            ),
           )
         : regenerationSceneIds
     if (
       requestedSceneIds.length === 0 ||
+      requestedSceneIds.some(
+        (id) =>
+          !latest?.scenes.some(
+            (scene) => scene.id === id && sceneImageEditable(scene),
+          ),
+      ) ||
       requestedSceneIds.some((id) => occupiedSceneIds.has(id)) ||
       hasReadyAnimation(requestedSceneIds) ||
       hasPendingAnimationSource(workingScenes, requestedSceneIds)
@@ -470,11 +488,14 @@ export function useLibraryEditor(projectId: string) {
         workingScenes,
         unique.map((entry) => entry.id),
       ) ||
-      unique.some(
-        (entry) =>
-          !workingScenes.some((scene) => scene.id === entry.id) ||
-          entry.description.length > MAX_USER_PROMPT_CHARS,
-      )
+      unique.some((entry) => {
+        const scene = workingScenes.find((item) => item.id === entry.id)
+        return (
+          !scene ||
+          !sceneImageEditable(scene) ||
+          entry.description.length > MAX_USER_PROMPT_CHARS
+        )
+      })
     )
       return false
     const flowIntent = flowIntentFor(
@@ -576,7 +597,7 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     if (
       editorTask.isProjectBusy(projectId) ||
-      animationTimingLocked(workingScenes, [leftId, rightId])
+      sceneTimingLocked(workingScenes, [leftId, rightId])
     )
       return
     patchWorkingScene(leftId, { endSeconds: boundarySeconds })
@@ -596,7 +617,7 @@ export function useLibraryEditor(projectId: string) {
   ) => {
     if (
       editorTask.isProjectBusy(projectId) ||
-      animationTimingLocked(workingScenes, [leftId, rightId])
+      sceneTimingLocked(workingScenes, [leftId, rightId])
     )
       return
     commitScenes([
@@ -616,7 +637,7 @@ export function useLibraryEditor(projectId: string) {
   const canEditClipIn =
     selectedIndex > 0 &&
     !timingBusy &&
-    !animationTimingLocked(workingScenes, [
+    !sceneTimingLocked(workingScenes, [
       workingScenes[selectedIndex - 1].id,
       workingScenes[selectedIndex].id,
     ])
@@ -624,7 +645,7 @@ export function useLibraryEditor(projectId: string) {
     selectedIndex >= 0 &&
     selectedIndex < workingScenes.length - 1 &&
     !timingBusy &&
-    !animationTimingLocked(workingScenes, [
+    !sceneTimingLocked(workingScenes, [
       workingScenes[selectedIndex].id,
       workingScenes[selectedIndex + 1].id,
     ])

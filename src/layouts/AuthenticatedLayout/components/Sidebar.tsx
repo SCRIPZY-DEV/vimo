@@ -151,7 +151,7 @@ export function Sidebar() {
                 <Link
                   to={AuthRoutesPaths.logout}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 font-display text-sm font-semibold text-muted-foreground outline-none transition-colors hover:bg-coral/10 hover:text-coral',
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 font-display text-sm font-semibold text-muted-foreground outline-none transition-colors hover:bg-coral/10 hover:text-coral-text',
                     collapsed && 'justify-center',
                   )}
                 >

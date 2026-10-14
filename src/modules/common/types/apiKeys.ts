@@ -7,4 +7,6 @@ export type ApiKeyProviderId =
   | 'deepgram'
   | 'kie'
   | 'poyo'
+  | 'heygen'
+  | 'ai33'
 export type ApiKeyRequirement = ApiKeyProviderId[]

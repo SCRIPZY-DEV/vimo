@@ -328,7 +328,7 @@ Cada operación tiene identidad propia para rechazar eventos/handles tardíos.
 se le atribuye si su imagen ya se importó. Un fallo específico posterior sí se
 conserva. El cierre refetchea el disco y el aviso amarillo sigue mostrando los
 faltantes reales. Los detalles de UUID, reservas y recuperación Flow están en
-[ADR-0052](ADR-0052-flow-como-motor-de-imagenes.md#regeneración-del-editor-por-selección--2026-09-19).
+[ADR-0058](ADR-0058-flow-como-motor-de-imagenes.md#regeneración-del-editor-por-selección--2026-09-19).
 
 ### Enmienda 2026-10-11: movimiento opcional al exportar clips
 

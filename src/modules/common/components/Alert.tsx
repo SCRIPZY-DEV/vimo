@@ -3,7 +3,9 @@ import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 
 // Tono de la caja. Coral y no destructive: en oscuro `--destructive` se apaga
-// y el aviso se pierde, mientras `--coral` sigue vivo en los dos temas.
+// y el aviso se pierde, mientras `--coral` sigue vivo en los dos temas. La caja
+// (borde y fondo) lleva el coral pleno; el ícono, que sí se lee, usa
+// `text-coral-text`: el coral pleno sobre el fondo claro da 2,86:1.
 const ALERT_TONES = {
   warning: {
     container: 'border-saffron/60 bg-saffron/10',
@@ -12,7 +14,7 @@ const ALERT_TONES = {
   },
   danger: {
     container: 'border-coral/50 bg-coral/10',
-    icon: 'text-coral',
+    icon: 'text-coral-text',
     defaultIcon: TriangleAlert,
   },
   info: {

@@ -13,6 +13,7 @@ import { PipelineFailure } from '../runner/failure.ts'
 // ├── subtitles.ass          (derivado de scenes.json; solo si options.subtitles)
 // ├── scenes/scene_<id>.jpg      characters/reference_N.jpg
 // ├── animations/scene_<id>.mp4  (clip de la escena que encabeza, ADR-0047)
+// ├── avatar/                    (escenas de avatar y la vista previa del look elegido, ADR-0057)
 // ├── cache/chunks/              prompts.md
 // ├── clips/clip_NN.mp4          (export para editar; regenerable, ADR-0014)
 // └── <slug>.mp4
@@ -20,9 +21,11 @@ import { PipelineFailure } from '../runner/failure.ts'
 // Carpetas bajo <projectsRoot> que NO son proyectos: un proyecto no puede
 // llamarse así (el slug colisionaría con la biblioteca, el historial, la
 // galería de estilos, el pack de la demo — ADR-0029 —, la caché del catálogo
-// remoto — ADR-0049 — o las clonaciones de estilo en curso — ADR-0050).
+// remoto — ADR-0049 —, las clonaciones de estilo en curso — ADR-0050 — o la
+// biblioteca de avatares presentadores — ADR-0057).
 export const RESERVED_ROOT_DIRECTORIES = new Set([
   'characters',
+  'avatars',
   '_history',
   '_styles',
   '_demo-pack',
@@ -49,6 +52,11 @@ export interface ProjectPaths {
   // Clips de animación, uno por escena que encabeza (ADR-0047). Carpeta
   // propia: `clips/` la vacía el export en cada corrida.
   animationsDirectory: string
+  // Escenas de avatar (ADR-0057): el audio cortado, lo que devolvió HeyGen, el
+  // clip normalizado y la vista previa del look elegido (`look.<ext>`; la del
+  // avatar solo si el look no tiene una). Los nombres los arma
+  // pipeline/avatar/clip-path.ts.
+  avatarDirectory: string
   chunksCacheDirectory: string
   clipsDirectory: string
   promptsExportFile: string
@@ -109,6 +117,7 @@ export function resolveProjectPaths(
     scenesDirectory: join(projectDir, 'scenes'),
     charactersDirectory: join(projectDir, 'characters'),
     animationsDirectory: join(projectDir, 'animations'),
+    avatarDirectory: join(projectDir, 'avatar'),
     chunksCacheDirectory: join(projectDir, 'cache', 'chunks'),
     clipsDirectory: join(projectDir, 'clips'),
     promptsExportFile: join(projectDir, 'prompts.md'),

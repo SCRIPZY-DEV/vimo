@@ -86,7 +86,11 @@ async function emitAnimationPlan(
   const audioDurationSeconds =
     context.metadata.audioDurationSeconds ??
     Math.max(0, ...scenes.map((scene) => scene.endSeconds ?? 0))
-  const summaries = await toSceneSummaries(context.paths, scenes)
+  const summaries = await toSceneSummaries(
+    context.paths,
+    scenes,
+    context.metadata,
+  )
   context.signal.throwIfAborted()
   context.emitter.emit({
     type: 'scenes-planned',
@@ -105,8 +109,11 @@ function automaticRangeEnd(context: CreateVideoContext): number {
   )
 }
 
+// Una escena de avatar nunca recibe la marca del prefijo animado: no es fuente
+// de Kie (ADR-0057).
 function needsPrefixMarker(scene: Scene, endSeconds: number): boolean {
   return (
+    !scene.avatar &&
     scene.animationRequestedSeconds === undefined &&
     scene.startSeconds !== undefined &&
     Number.isFinite(scene.startSeconds) &&

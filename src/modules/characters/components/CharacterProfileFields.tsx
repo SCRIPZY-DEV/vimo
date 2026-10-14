@@ -136,7 +136,7 @@ export function CharacterProfileFields({
           {suggesting ? t('characters.experto.generando') : t(suggestLabelKey)}
         </Button>
         {missingLlmKey ? (
-          <p className="font-body text-xs text-coral">
+          <p className="font-body text-xs text-coral-text">
             {t('characters.experto.faltaClave')}{' '}
             <Link to={apiKeysFocusPath(['deepinfra'])} className="underline">
               {t('characters.irAClaves')}

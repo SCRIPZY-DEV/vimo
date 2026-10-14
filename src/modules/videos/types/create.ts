@@ -2,7 +2,9 @@ import type { FlowPaidCompletionRequest } from '@pipeline/types/flow-paid-comple
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type {
+  AwaitingSceneConfirmationEvent,
   ImagesRecoveryKind,
+  PipelineEventPayload,
   RenderPhase,
 } from '@pipeline/runner/events.ts'
 import type { SceneAnimationProgress } from '@/modules/videos/types/library'
@@ -14,6 +16,11 @@ import type {
   NarrationMode,
   ProbeTtsReason,
 } from '@pipeline/types/video-project.ts'
+import type {
+  AvatarEngine,
+  AvatarLookType,
+  AvatarSummary,
+} from '@pipeline/types/avatar.ts'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -97,6 +104,42 @@ export interface PromptModelIssueView {
 // vivo y se relanza el mismo proyecto sin salir de la pantalla de progreso.
 export type PromptModelSwitchPhase = 'halting' | 'cancelling' | 'relaunching'
 
+// De dónde se cancela con apariciones del avatar ya cobradas (entrega 2h, spec
+// §24.4): la pantalla de progreso (Crear y Biblioteca) o el render del avatar
+// en el editor. Cada una tiene sus textos.
+export type AvatarChargedCancelVariant = 'generation' | 'editor'
+
+export interface AvatarChargedCancelKeys {
+  title: string
+  body: string
+  keep: string
+  confirm: string
+}
+
+// Qué confirma «Cancelar igual» en la pantalla de progreso (entrega 2h, spec
+// §24.4): cortar la corrida («Cancelar») o volver descartándola («Crear
+// otro»).
+export type ChargedCancelAction = 'cancel' | 'back'
+
+// El aviso de «Cancelar» con apariciones del avatar cobradas, abierto: cuántas
+// dice (las cobradas y sin terminar al tocar el botón; sube si se cobran más
+// con el aviso abierto y nunca baja) y qué acción confirma.
+export interface ChargedCancelWarning {
+  count: number
+  action: ChargedCancelAction
+}
+
+// El botón de vuelta de la cabecera de la pantalla de progreso: «Crear otro»
+// en Crear, «Volver a la biblioteca» en la Biblioteca.
+export interface ProgressBackAction {
+  labelKey: string
+  onClick: () => void
+  // Volver descarta la corrida viva («Crear otro»): con apariciones cobradas y
+  // sin terminar pasa antes por el aviso de lo cobrado. La Biblioteca solo
+  // navega (el job sigue) y no lo pone.
+  cancelsRun?: boolean
+}
+
 // La pausa que abre el diálogo de confirmación de escenas.
 export interface SceneConfirmationView {
   suggestedScenes: number
@@ -106,6 +149,28 @@ export interface SceneConfirmationView {
   // a modo slider con este valor vigente.
   secondsPerScene?: number
   animationMinutes?: number
+  // Dónde sale el avatar (spec §6.1): la pausa lo dice en una línea. Cambiar
+  // la cantidad o los segundos solo reparte las escenas libres. Ausente sin
+  // avatar; vacío si ninguna aparición entró en la narración.
+  avatarSpans?: AvatarSpanView[]
+  // Cuántas apariciones pedidas no entraron (`avatar-planned`, o el estado
+  // rearmado desde el disco).
+  avatarDropped?: number
+  // El tipo del look elegido: con su tarifa, la línea suma lo que cobra HeyGen
+  // por esos tramos (la cifra real, no la de Crear).
+  avatarLookType?: AvatarLookType
+  // El motor del proyecto (entrega 2e, R-2e-12): con el tipo de look da la
+  // tarifa. Ausente en una pausa de antes de la 2e: Avatar III.
+  avatarEngine?: AvatarEngine
+}
+
+// La cuenta del diálogo de cantidad con avatar (countStepSceneEstimate): las
+// escenas que deja el corte con la cantidad tecleada, cuántas llevan imagen
+// (las apariciones no) y la mínima posible con esos tramos.
+export interface CountStepEstimate {
+  total: number
+  images: number
+  minimum: number
 }
 
 // Lo que el usuario confirmó en el diálogo: el conteo clásico, o los
@@ -122,6 +187,9 @@ export type SceneView = SceneSummary & {
   animationLeadId?: number
   animationProgress?: SceneAnimationProgress
   imagePhase?: string
+  // El render de HeyGen de esta escena de avatar en ESTA corrida (spec §3.3:
+  // memoria, no disco); no sobrevive al reinicio.
+  avatarActivity?: AvatarSceneActivity
 }
 
 // Una generación de video de punta a punta. Vive fuera de React (módulo
@@ -138,8 +206,13 @@ export interface CreateTask {
   projectId: string
   projectName: string
   status: CreateTaskStatus
-  // Fase en curso; null antes de arrancar o al terminar.
-  stage: StageId | null
+  // Las fases que arrancaron y no terminaron, en el orden en que arrancaron
+  // (entrega 2h, spec §24.2): el avatar corre junto con las imágenes, así que
+  // puede haber dos a la vez. Vacío antes de arrancar, al cerrar el job y al
+  // rehidratar sin job vivo.
+  activeStages: StageId[]
+  // Una fase que corre junto con otra puede terminar antes: nadie supone el
+  // orden de las terminadas.
   completedStages: StageId[]
   scenes: SceneView[]
   audioDurationSeconds: number | null
@@ -197,6 +270,26 @@ export interface CreateTask {
   // El job cayó por saldo agotado (ADR-0031). Sobrevive al reinicio: el
   // proyecto quedó pausado en disco por el mismo motivo.
   creditsIssue: CreditsIssueView | null
+  // El proyecto pidió avatar presentador (options.avatar): la fila «Avatar»
+  // de las fases aparece desde el arranque. Aditivo: las tareas guardadas
+  // antes lo derivan de sus escenas (taskHasAvatar).
+  hasAvatar?: boolean
+  // Apariciones que no entraron en la narración (`avatar-planned`).
+  avatarDropped?: number
+  // Tipo del look del avatar pedido (options.avatar): la tarifa del costo real
+  // en la pausa de escenas.
+  avatarLookType?: AvatarLookType
+  // El motor del avatar pedido (options.avatar, entrega 2e): con el tipo de
+  // look, la tarifa del costo real en la pausa. Una tarea guardada antes de la
+  // 2e no lo trae y la pausa cobra a la tarifa de Avatar III.
+  avatarEngine?: AvatarEngine
+  // Las apariciones del avatar cobradas en esta corrida (entrega 2h, spec
+  // §24.2 y §24.4): las que llegaron a una fase de AVATAR_CHARGED_PHASES
+  // (HeyGen ya aceptó su render) o quedaron listas, sin las que después
+  // fallaron. Las que siguen generándose son las que avisa «Cancelar»; todas,
+  // las que cuenta la tarjeta del fallo. Se vacía al lanzar otra corrida y
+  // sobrevive al reinicio (sus recibos quedaron en disco).
+  avatarChargedSceneIds: number[]
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -228,6 +321,14 @@ export interface ProjectRunOptions {
   promptModel?: string | null
   imageProvider?: ImageProviderId | null
   voiceVendor?: VoiceVendorId | null
+  // El proyecto tiene avatar presentador (de project.json al reanudar).
+  hasAvatar?: boolean
+  avatarLookType?: AvatarLookType
+  // El motor del avatar (entrega 2e): su tarifa da el costo de la pausa.
+  avatarEngine?: AvatarEngine
+  // Apariciones que no entraron, del estado rearmado desde el disco: la nota
+  // del progreso aparece aunque la corrida no vuelva a cortar.
+  avatarDropped?: number
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.
@@ -235,6 +336,44 @@ export interface RetryView {
   attempt: number
   maxAttempts: number
   secondsLeft: number
+}
+
+// Fase del render de una escena de avatar que informa el sidecar
+// (`avatar-scene-progress`, ADR-0057 §8).
+export type AvatarRenderPhase = Extract<
+  PipelineEventPayload,
+  { type: 'avatar-scene-progress' }
+>['phase']
+
+// El render de HeyGen de una escena de avatar en esta corrida. El tiempo que
+// informa el sidecar llega con cada cambio de fase (el carril no repite la
+// misma); el panel suma el reloj local desde `receivedAt` para que nada parezca
+// colgado.
+export interface AvatarSceneActivity {
+  status: 'generating' | 'ready' | 'failed'
+  phase: AvatarRenderPhase | null
+  elapsedSeconds: number
+  receivedAt: number
+  // El `avatar_*` con el que falló, para el motivo.
+  code?: string
+}
+
+// Un tramo de avatar en la pausa de confirmación de escenas (spec §6.1).
+export type AvatarSpanView = NonNullable<
+  AwaitingSceneConfirmationEvent['avatarSpans']
+>[number]
+
+// El mensaje de la cabecera de un fallo: su clave i18n y, si la clave tiene
+// plural, cuántas cosas cuenta (failureMessageOf).
+export interface FailureMessage {
+  key: string
+  count?: number
+}
+
+// Clases de la fila de la fase en curso en la pantalla de progreso.
+export interface StageToneClasses {
+  row: string
+  badge: string
 }
 
 // Un personaje elegido en el formulario (hasta 2).
@@ -249,6 +388,43 @@ export interface SelectedCharacter {
   // estilo actual o, si todavía no existe, cualquiera de las suyas. Nunca
   // viaja al proyecto — es solo para que la persona reconozca a quién eligió.
   portraitPath: string | null
+}
+
+// El avatar presentador elegido en el formulario (spec §9, con el cambio de
+// dirección del dueño del 2026-10-10): un avatar de la biblioteca y UNO de sus
+// looks —el escenario con el que sale, por defecto el principal—, ya
+// comprobado contra los motores y la orientación del formato del video
+// (utilities/selectableAvatar.ts). Lo que viaja en `options.avatar` sale de
+// acá; `name` es solo para la persona.
+export interface SelectedAvatar {
+  // Id en la biblioteca: create-video-project lo valida y copia la vista
+  // previa de ESTE look al proyecto (spec §6.2 y §16).
+  id: string
+  name: string
+  lookId: string
+  lookName: string
+  lookType: AvatarLookType
+  // Los motores que admite el look (entrega 2e, §21.3), copiados al elegirlo:
+  // con ellos el formulario, el costo y el envío derivan el motor con el que
+  // sale (selectedAvatarEngine) sin volver a leer la biblioteca.
+  supportedEngines: AvatarEngine[]
+  // ¿Avatar V lo puede mover con un prompt? (entrega 2f, §22.1,
+  // avatarHasMotionReference), copiado al elegirlo. Ausente en un borrador de
+  // antes de la 2f: cuenta como true.
+  motionReference?: boolean
+}
+
+// Si un avatar de la biblioteca sirve para un video en este formato y, si
+// no, por qué: entrena, falló o no tiene ningún look listo con algún motor
+// (desde la entrega 2e; antes, con Avatar III) en la orientación del formato.
+export type AvatarUsability = 'usable' | 'training' | 'failed' | 'noLook'
+
+// Lo que Crear lee de la biblioteca de avatares para validar la elección del
+// formulario (useAvatars): la lista, si todavía carga y si no se pudo leer.
+export interface AvatarLibraryRead {
+  entries: AvatarSummary[]
+  isLoading: boolean
+  errorKey: string | null
 }
 
 // Voz elegida en el picker.
@@ -297,6 +473,23 @@ export interface CreateFormValue {
   animateScenes: boolean
   animateWholeVideo: boolean
   animationMinutes: number
+  // Avatar presentador (ADR-0057, spec §9): el interruptor de la tarjeta, el
+  // avatar y el look elegidos (null = ninguno todavía) y cuántas veces y
+  // cuánto sale. Con el interruptor apagado no viaja nada; la elección se
+  // conserva para volver a encenderlo.
+  useAvatar: boolean
+  avatar: SelectedAvatar | null
+  avatarAppearances: number
+  avatarSecondsPerAppearance: number
+  // La primera aparición abre el video.
+  avatarStartsVideo: boolean
+  // «3 veces en 2 minutos» (entrega 2f, §22.2).
+  avatarThreeInTwoMinutes: boolean
+  // Entrega 2e (§21.3): el motor que prefiere la persona (si el look no lo
+  // admite, sale con el primero que admite: avatarEngineFor) y «Movimiento más
+  // expresivo», que solo viaja si el motor y el look lo admiten.
+  avatarEngine: AvatarEngine
+  avatarExpressive: boolean
   imageProvider: ImageProviderId
   imageQuality: string
   voice: SelectedVoice | null
@@ -349,6 +542,11 @@ export interface FormBlockersContext {
   // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).
   fixedCharacterMissing?: boolean
   animationKeyMissing?: boolean
+  // El avatar o el look elegidos ya no sirven: se fueron de la biblioteca,
+  // perdieron Avatar III o no tienen la orientación del formato del video
+  // (selectedAvatarUnavailable, contra la lista). Sin clave de HeyGen no hay
+  // bloqueo: el formulario ya llega con el avatar apagado (withAvatarKey).
+  avatarUnavailable?: boolean
 }
 
 // Cómo se arma el payload de create-video-project desde el formulario.

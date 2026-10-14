@@ -192,12 +192,14 @@ export const CONTENT_POLICY_RETRY_NOTE =
 
 /**
  * La nota de una escena MUDA (el corte clásico cayó en una pausa): su
- * fragmento es la narración vecina, y el modelo tiene que ilustrar el momento
- * entre esas líneas, no repetir la imagen anterior. Mismo registro que la
+ * fragmento es la narración anterior a la pausa (la siguiente, solo si la
+ * pausa abre el video: `narrativeCandidateFor`), y el modelo tiene que
+ * sostener ese momento sin agregar hechos (ADR-0043: los silencios sostienen
+ * el contexto previo), no repetir la imagen anterior. Mismo registro que la
  * nota de content-policy: mensaje al modelo, no texto de UI.
  */
 export const SILENT_PAUSE_NOTE =
-  'En el tramo de esta escena no se dice nada: el fragmento es la narración inmediatamente anterior y posterior a la pausa. Ilustra el momento ENTRE esas líneas (una transición, una reacción, un detalle del mismo lugar), sin repetir la imagen de la escena anterior ni ilustrar literalmente la línea siguiente, manteniendo intacto el estilo visual.'
+  'En el tramo de esta escena no se dice nada: el fragmento es la narración inmediatamente anterior a la pausa (la siguiente, si la pausa abre el video). Sostén ese momento (una reacción, un detalle del mismo lugar, una pose en reposo) sin agregar ningún hecho nuevo, sin repetir la imagen de la escena anterior ni ilustrar nada más allá del fragmento; si la pausa abre el video, solo presenta el sujeto y el lugar de esa primera línea, sin actuarla todavía, manteniendo intacto el estilo visual.'
 
 /** Una escena con su prompt recién escrito, lista para ir a disco. */
 export interface VerbatimScenePrompt {
@@ -328,6 +330,10 @@ export async function runVerbatimLane(
 
   const pending = scenes.filter(
     (scene) =>
+      // Una escena de avatar no lleva prompt: su video lo hace HeyGen con el
+      // look tal cual (ADR-0057). Tampoco en el rescate por política de
+      // contenido ni desde el editor.
+      !scene.avatar &&
       (!context.regenerateSceneIds?.size ||
         context.regenerateSceneIds.has(scene.id)) &&
       !isValidPrompt(scene.imagePrompt),

@@ -45,6 +45,13 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0059](ADR-0059-flow-qa-nativa-aislada.md)                                           | Entorno aislado para aceptación nativa de Flow                                    | Referencia QA              | QA local                      |
+| [ADR-0058](ADR-0058-flow-como-motor-de-imagenes.md)                                      | Flow como motor de imágenes con coordinador nativo                                | Implementada localmente    | app / pipeline / extensión    |
+| [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Escenas de avatar con HeyGen sobre la narración                                   | Propuesta                  | pipeline / app / providers    |
+| [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | Layout propio del editor a pantalla completa                                      | Aceptada                   | app                           |
+| [ADR-0055](ADR-0055-regeneracion-concurrente-por-escena.md)                              | Regeneración concurrente por escena                                               | Aceptada                   | app / pipeline                |
+| [ADR-0054](ADR-0054-recuperacion-multimagen-y-completado-pago.md)                        | Recuperación de Multimagen y completado pago explícito                            | Implementada localmente    | app / pipeline / extensión    |
+| [ADR-0053](ADR-0053-ai33-proveedor-de-voz-y-cambio-de-voz-tras-un-fallo.md)              | ai33 como proveedor de voz, y cambio de voz tras un fallo                         | Propuesta                  | providers / pipeline / app    |
 | [ADR-0052](ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)                   | Exportación rápida sin temblor, según el equipo del usuario                       | Aceptada                   | pipeline                      |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adaptar el personaje del usuario al lenguaje del estilo                           | Propuesta                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | Creador de estilo con IA: clonar un estilo desde un video o desde imágenes        | Aceptada                   | pipeline / app / servidor     |
@@ -95,7 +102,6 @@ agrega ruido.
 | [ADR-0003](ADR-0003-fundaciones-de-la-interfaz.md)                                       | Fundaciones de la interfaz: portar la capa común original                         | Aceptada (i18n → 0004)     | app                           |
 | [ADR-0002](ADR-0002-servidor-local-como-sidecar-de-tauri.md)                             | El servidor local se empaqueta como sidecar de Tauri                              | Reemplazada por ADR-0007   | distribución                  |
 | [ADR-0001](ADR-0001-separacion-interfaz-y-pipeline.md)                                   | Separar la interfaz del pipeline y reescribirla desde cero                        | Reemplazada por ADR-0002   | app                           |
-| [ADR-0052](ADR-0052-flow-como-motor-de-imagenes.md)                                      | Flow como motor de imágenes con coordinador nativo                                | Aceptada localmente        | app / pipeline / extensión    |
 
 ## Nota sobre distribución
 

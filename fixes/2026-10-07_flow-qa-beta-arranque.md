@@ -18,7 +18,7 @@ Sebas informa que Google rechazó login en Chrome for Testing. La prueba pasa a 
 
 Opener dev-only restringido al authorize real y callback localhost exacto, manteniendo provider único y PKCE. Se retiró el registro de esquemaQA. Perfil OAuth `browser-auth-beta`, separado de los cinco perfiles Flow y del previo CfT. Root confirmó la ruta `/Users/sebas/Applications/Google Chrome Beta.app`; queda fijado su ejecutable interior, con cero fallback a navegador operativo. No se abrió navegador ni se creó su perfil durante la preparación.
 
-Hook exacto `pnpm run dev --host 127.0.0.1 --port 5173 --strictPort`; Vite/devUrl IPv4. Constante frontend fija callback localhost permitido. La lanzadera persistente externa comprueba5173/43137 libres y crea contexto privado; Vite publica readiness atómico tras listening y el runner comprueba ID/permisos/PID propietario antes de exec Cargo. Ver [ADR-0053](../docs/adr/ADR-0053-flow-qa-nativa-aislada.md).
+Hook exacto `pnpm run dev --host 127.0.0.1 --port 5173 --strictPort`; Vite/devUrl IPv4. Constante frontend fija callback localhost permitido. La lanzadera persistente externa comprueba5173/43137 libres y crea contexto privado; Vite publica readiness atómico tras listening y el runner comprueba ID/permisos/PID propietario antes de exec Cargo. Ver [ADR-0059](../docs/adr/ADR-0059-flow-qa-nativa-aislada.md).
 
 ## Límites deliberados
 

@@ -1,9 +1,9 @@
 import { useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ErrorBoundary } from '@/layouts/AuthenticatedLayout/components/ErrorBoundary'
 import { FrozenOutlet } from '@/layouts/AuthenticatedLayout/components/FrozenOutlet'
 import { Navbar } from '@/layouts/AuthenticatedLayout/components/Navbar'
 import { Sidebar } from '@/layouts/AuthenticatedLayout/components/Sidebar'
+import { ErrorBoundary } from '@/modules/common/components/ErrorBoundary'
 import { useTheme } from '@/modules/common/theme/useTheme'
 
 /**

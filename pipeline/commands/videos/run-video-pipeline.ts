@@ -65,7 +65,13 @@ export async function runVideoPipeline(
   try {
     const outcome = await runStages(stages, videoContext, {
       // completedStages persiste el avance: es lo que Library y la UI leen
-      // para saber por dónde va un proyecto entre jobs.
+      // para saber por dónde va un proyecto entre jobs. Desde la entrega 2h el
+      // avatar corre junto con las imágenes (diseño §24.1): este gancho puede
+      // correr para las dos a la vez y `avatar` puede quedar antes que
+      // `images` (nadie supone ese orden). Las escrituras van en la fila de
+      // project.json (metadata.ts): cada una toma la copia en memoria al
+      // escribir, así ninguna pierde lo que anotó la otra, ni la marca de
+      // video desactualizado que deja el avatar (markStoredVideoOutdated).
       async onStageCompleted(stageId) {
         if (!videoContext.metadata.completedStages.includes(stageId))
           videoContext.metadata.completedStages.push(stageId)

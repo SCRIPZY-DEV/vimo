@@ -28,6 +28,16 @@ interface PrefixSceneOptions {
   sceneCount?: number
 }
 
+// El mismo plan con el prefijo en segundos (0 = sin prefijo). Lo usa el corte
+// alrededor del avatar para cada tramo libre, con lo que queda del rango
+// animado desde su inicio (pipeline/stages/scene-cuts/pins.ts, ADR-0057).
+export interface PrefixSecondsOptions {
+  totalSeconds: number
+  prefixSeconds: number
+  secondsPerScene?: number
+  sceneCount?: number
+}
+
 export function planPrefixSceneWindows({
   totalSeconds,
   minutes,
@@ -35,15 +45,35 @@ export function planPrefixSceneWindows({
   sceneCount,
 }: PrefixSceneOptions): PrefixSceneWindow[] {
   if (
-    !Number.isFinite(totalSeconds) ||
-    totalSeconds <= 0 ||
     !Number.isSafeInteger(minutes) ||
     minutes < 1 ||
     !Number.isSafeInteger(minutes * SECONDS_PER_MINUTE)
   )
     return []
 
-  const prefixEnd = Math.min(totalSeconds, minutes * SECONDS_PER_MINUTE)
+  return planPrefixSceneWindowsWithin({
+    totalSeconds,
+    prefixSeconds: minutes * SECONDS_PER_MINUTE,
+    secondsPerScene,
+    sceneCount,
+  })
+}
+
+export function planPrefixSceneWindowsWithin({
+  totalSeconds,
+  prefixSeconds,
+  secondsPerScene,
+  sceneCount,
+}: PrefixSecondsOptions): PrefixSceneWindow[] {
+  if (
+    !Number.isFinite(totalSeconds) ||
+    totalSeconds <= 0 ||
+    !Number.isFinite(prefixSeconds) ||
+    prefixSeconds < 0
+  )
+    return []
+
+  const prefixEnd = Math.min(totalSeconds, prefixSeconds)
   const windows: PrefixSceneWindow[] = []
   for (
     let start = 0;

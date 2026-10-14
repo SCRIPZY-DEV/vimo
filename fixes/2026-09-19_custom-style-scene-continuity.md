@@ -100,7 +100,7 @@ Tras retirar la adenda, verificar que no queda diff de producto:
 git diff --exit-code -- pipeline/prompts/verbatim-messages.ts
 pnpm exec tsc -p tsconfig.pipeline.json --noEmit
 pnpm exec eslint pipeline/prompts/verbatim-messages.ts
-pnpm exec prettier --check docs/adr/ADR-0019-carril-verbatim-y-segundos-por-escena.md docs/adr/ADR-0052-flow-como-motor-de-imagenes.md fixes/2026-09-19_custom-style-scene-continuity.md
+pnpm exec prettier --check docs/adr/ADR-0019-carril-verbatim-y-segundos-por-escena.md docs/adr/ADR-0058-flow-como-motor-de-imagenes.md fixes/2026-09-19_custom-style-scene-continuity.md
 ```
 
 ## Pruebas manuales realizadas

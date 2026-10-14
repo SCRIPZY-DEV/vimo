@@ -78,7 +78,7 @@ export async function prepareFlowPaidCompletion(
         )
       for (const saved of batch.requests) {
         const scene = scenes.find((value) => String(value.id) === saved.key)
-        if (!scene) continue
+        if (!scene || scene.avatar) continue
         const destination = sceneImageFile(context.paths, scene.id)
         if (await isValidFile(destination)) continue
         const job = snapshot.jobs.find(
@@ -103,6 +103,7 @@ export async function prepareFlowPaidCompletion(
             const metadata = await readProjectMetadata(context.paths)
             return (
               !!latest &&
+              !latest.avatar &&
               flowSceneRequestRevision(
                 latest,
                 { ...metadata.options, executionPlan: saved.executionPlan },
@@ -119,7 +120,10 @@ export async function prepareFlowPaidCompletion(
     if (!previous) {
       const sceneIds: number[] = []
       for (const scene of scenes)
-        if (!(await isValidFile(sceneImageFile(context.paths, scene.id))))
+        if (
+          !scene.avatar &&
+          !(await isValidFile(sceneImageFile(context.paths, scene.id)))
+        )
           sceneIds.push(scene.id)
       context.metadata.flowPaidCompletion = {
         ...consent,

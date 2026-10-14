@@ -27,7 +27,7 @@ export function UpdateInstallHelp() {
     <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
       <p className="font-body text-sm text-foreground">{t(messageKey)}</p>
       {installFailure && (
-        <p className="break-words font-body text-xs text-muted-foreground">
+        <p className="break-words font-body text-xs text-foreground/65">
           {t('settings.updatesErrorDetail', { detail: installFailure.detail })}
         </p>
       )}

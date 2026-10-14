@@ -5,6 +5,12 @@
   (tarjetas de error, reproductor, banner del editor)
 - **Guard:** `scripts/test/check-silent-scene-images.mjs`
 
+> **Actualización (2026-10-11):** lo que este informe cuenta del fragmento de la pausa (la ventana de
+> las vecinas) y de la consigna («ilustrar el momento ENTRE las líneas vecinas») cambió con la
+> ADR-0043 (PR #91): hoy el fragmento es la narración anterior a la pausa (la siguiente, solo si la
+> pausa abre el video) y la imagen la sostiene. Ver el
+> [fix de los textos de la pausa](../2026-10-11-fix-silent-pause-prompts/silent-pause-prompts.md).
+
 ## Causa
 
 Un usuario con una narración de ~16 minutos falló al final de todo, en el render, con

@@ -1,41 +1,61 @@
-# Fix: diseño pastel original y aparición individual del tirador
+# Fix: tirador pastel con aparición individual
 
 - **Fecha:** 2026-10-14
-- **Rama:** feat/flow-export-motion
+- **Rama:** `feat/flow-export-motion`
 
 ## Causa
 
-El usuario prefirió el diseño original de `editor-pastel-borde` y pidió deshacer el contorno transparente y el ocultamiento del marcador de transición de la entrega anterior. Se mantiene el problema original a corregir: dos tiradores comparten la misma frontera temporal, pero sólo el pulsado debe verse durante un arrastre.
+Los dos tiradores de una frontera compartían el estado activo. Arrastrar el
+derecho de un clip también mostraba el izquierdo del vecino, y el hover o foco
+podían revelar otros controles durante el gesto.
 
 ## Corrección
 
-Se parte del componente de `8017ff3a` y se conserva su diseño: gradiente amarillo pastel, raya central, sombras, geometría de 3 px, marcador de transición y estados de hover/foco. Se añade únicamente identidad estable por bloque y lado para el tirador activo. Durante el arrastre se suprimen hover/foco y la animación residual de opacidad de los demás tiradores. Fuera del arrastre, pasar sobre el centro del clip no muestra asas; el hover debe estar sobre el propio tirador. La transición ya no se oculta por hover, foco ni arrastre.
+`EditorTimeline.tsx` identifica cada tirador por bloque estable y lado. Durante
+el arrastre sólo permanece visible el que inició el gesto; se suprimen el hover,
+foco y la opacidad residual de los demás. En reposo, seleccionar el clip o pasar
+por su centro no revela las asas: el cursor debe estar sobre el propio tirador.
+El foco de teclado también permite descubrir y ajustar ese control.
+
+El diseño conserva el relleno amarillo pastel con gradiente, raya central,
+sombras y posición a 3 px del borde interior. El marcador de transición permanece
+visible durante hover, foco y arrastre; su área compartida prioriza el tirador
+para permitir recortar. Los bordes blancos y los cursores rojo y azul se conservan.
 
 ## Límites deliberados
 
-Se conserva el recorte de frontera compartida, mínimos, guardado, accesibilidad de teclado y bloqueos de animación. No cambia la extensión ni el pipeline. No se reescribe historial Git ni se toca ningún proyecto del usuario.
+El recorte mueve una frontera compartida, respeta los mínimos y los bloqueos de
+animación, y no añade controles para el comienzo o final global del video.
+No modifica la duración del fundido, el pipeline, las cuentas ni la extensión.
+Los cambios de tiempos mantienen el guardado y la accesibilidad de teclado.
 
 ## Validación reproducible
 
-1. Comparar el componente con `git show 8017ff3a:src/modules/videos/components/EditorTimeline.tsx`: el cambio queda limitado a identidad del asa y aparición durante el gesto.
-2. Reposo y hover sobre el centro del clip: asas ocultas. Hover sobre cada tirador: aparece el correspondiente con el diseño pastel original.
-3. Arrastrar ambos lados; sólo el tirador pulsado permanece visible, incluso cruzando sobre el vecino enfocado. El marcador de transición sigue visible.
-4. Repetir teclado, claro/oscuro y ancho mínimo; ejecutar formato, lint, build y firma de la app local.
-
-Pasaron diez grupos de controles Chromium sobre los componentes y CSS reales: diseño pastel original (gradiente, raya, sombra y geometría), reposo/hover en centro, hover y drag de ambos lados con todas las transiciones visibles, vecino previamente enfocado y puntero sobre él, salida del timeline, teclado con foco estable, claro/oscuro y ancho mínimo. Sin errores de ejecución.
-
-WKWebView pasó reposo, foco y arrastre izquierdo/derecho; el marcador de transición permanece visible en todos los casos. Se revisaron las capturas compuestas. La automatización usa escenas sintéticas y los gestos WebKit son eventos DOM en su propia ventana.
-
-Formato, lint, TypeScript, Vite y compilación macOS completos. La copia final tiene los mismos siete archivos que el bundle y pasa firma deep/strict. Pipeline, FFmpeg y FFprobe son idénticos a editor-pastel-borde; se conserva la identidad click.vimo.portable.
-
-Revisión independiente del diff frente a 8017ff3a: diseño y bloque completo de transiciones iguales; sólo cambia identidad del asa y visibilidad durante el gesto. Evidencia externa en Vimo-Flow-QA/2026-10-14/editor-pastel-borde-corregido/.
+1. Abrir tres escenas estáticas con fundidos. En reposo y al pasar por el centro
+   de un clip, comprobar que no aparecen tiradores.
+2. Pasar por cada borde interior: sólo aparece su tirador pastel, con raya y
+   relleno. La transición sigue visible.
+3. Arrastrar cada lado, cruzar sobre el vecino previamente enfocado y salir del
+   timeline: sólo se muestra el tirador pulsado. Soltar conserva la frontera y
+   el siguiente clic sobre la regla funciona.
+4. Usar flechas y Shift con foco en el tirador; comprobar ajustes consecutivos,
+   guardado y foco. Repetir en claro/oscuro y con ancho mínimo.
+5. Comprobar por separado un clip animado y una escena de avatar: sus fronteras
+   bloqueadas deben conservarse. Guardar y reabrir el proyecto.
+6. Ejecutar formato, lint y build; reconstruir el bundle macOS y verificar su
+   firma con `codesign --verify --deep --strict`.
 
 ## Pruebas manuales realizadas
 
-Se inspeccionaron capturas de Chromium y la ventana compuesta de WKWebView: vuelve el relleno pastel y la raya; la transición se conserva y sólo aparece el tirador utilizado durante el arrastre. Los gestos se ejecutaron por automatización aislada, no manualmente en un proyecto real del usuario.
+Se revisaron capturas de Chromium y la ventana compuesta de WKWebView del
+componente y CSS reales sobre escenas sintéticas. Diez grupos automatizados en
+Chromium comprobaron diseño pastel, hover individual, ambos arrastres, vecino
+enfocado, salida del timeline, teclado, temas y ancho mínimo. WKWebView comprobó
+reposo, foco y arrastre izquierdo/derecho mediante eventos DOM sintéticos.
 
-## Entrega local
-
-App: `/Users/sebas/Documents/Vimo-builds/Vimo-0.10.0-editor-pastel-borde-corregido.app`.
-
-Conserva las correcciones Flow anteriores; no requiere actualizar la extensión 0.2.36. Sin publicación.
+La evidencia está fuera de Git en
+`Vimo-Flow-QA/2026-10-14/editor-pastel-borde-corregido/`. Esos resultados pertenecen
+al componente previo a la integración de `dev`, cuyo bundle local pasó build,
+copia y firma. No acreditan la app integrada ni una sesión manual sobre proyectos
+reales. Se deben repetir las comprobaciones del candidato integrado, incluidos
+clips animados y escenas de avatar, antes de atribuirle aceptación nativa.

@@ -4,7 +4,8 @@ import { useVoiceVendorPreference } from '@/modules/settings/hooks/useVoiceVendo
 
 /**
  * Proveedor de voces EFECTIVO (ADR-0024): la preferencia de Ajustes, o —si no
- * hay— DubVoice salvo que ElevenLabs sea la única clave de voz guardada.
+ * hay— ai33 si tiene clave; si no, DubVoice salvo que ElevenLabs sea la única
+ * clave de voz guardada.
  * Es el proveedor POR DEFECTO: Voces y el picker de Crear lo pueden cambiar
  * localmente sin persistir; la preferencia solo se escribe desde Ajustes.
  */
@@ -17,6 +18,9 @@ export function useVoiceVendor() {
   const { statuses, isLoading: keysLoading } = useApiKeys()
 
   const configured = {
+    ai33: statuses.some(
+      (status) => status.providerId === 'ai33' && status.configured,
+    ),
     dubvoice: statuses.some(
       (status) => status.providerId === 'dubvoice' && status.configured,
     ),

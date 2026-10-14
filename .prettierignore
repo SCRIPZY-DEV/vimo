@@ -10,3 +10,5 @@ src-tauri/sidecar-build
 
 # Caché local de dependencias; no es código ni artefacto distribuible
 .pnpm-store/
+# Espacio de trabajo de los planes ejecutados con subagentes (ignorado por git)
+.superpowers

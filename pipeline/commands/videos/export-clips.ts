@@ -67,17 +67,28 @@ export async function exportClips(
     )
 
   // Las escenas animadas (ADR-0047) salen como su clip normalizado al tramo,
-  // igual que en el render final: lo exportado coincide 1:1 con el video.
-  const { renderScenes, missingImages } = await collectRenderScenes(
-    paths,
-    ffmpegPath,
-    timedScenes,
-    (message) => context.emitter.emit({ type: 'log', level: 'warn', message }),
-  )
+  // igual que en el render final: lo exportado coincide 1:1 con el video. Una
+  // escena de avatar (ADR-0057) sale como su clip o, si no sirve, como la vista
+  // previa del look; sin ninguno de los dos, el mismo código que el render.
+  const { renderScenes, missingImages, missingAvatarLooks } =
+    await collectRenderScenes(
+      paths,
+      ffmpegPath,
+      timedScenes,
+      metadata,
+      (message) =>
+        context.emitter.emit({ type: 'log', level: 'warn', message }),
+    )
   if (missingImages.length > 0)
     throw new PipelineFailure(
       'clips_no_images',
       `scenes without a valid image: ${missingImages.join(', ')}`,
+    )
+
+  if (missingAvatarLooks.length > 0)
+    throw new PipelineFailure(
+      'avatar_render_look_unavailable',
+      `avatar scenes without a usable clip or a look preview: ${missingAvatarLooks.join(', ')}`,
     )
 
   await rm(paths.clipsDirectory, { recursive: true, force: true })
@@ -99,7 +110,15 @@ export async function exportClips(
         context.emitter.emit({ type: 'progress', percent })
       },
     },
-  )
+  ).catch(async (error) => {
+    // Cancelada (la persona tocó «Cancelar») o caída a mitad de camino: la
+    // carpeta tiene solo una parte de los clips. Se borra para que nadie la
+    // tome por una exportación entera; la próxima la arma de cero.
+    await rm(paths.clipsDirectory, { recursive: true, force: true }).catch(
+      () => undefined,
+    )
+    throw error
+  })
 
   await copyFile(
     paths.narrationFile,

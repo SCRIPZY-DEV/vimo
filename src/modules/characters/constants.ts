@@ -129,6 +129,7 @@ export const CHARACTERS_ERROR_MESSAGE_KEYS: Record<string, string> = {
   invalid_payload: 'characters.errors.invalid',
   missing_api_key: 'characters.errors.missingApiKey',
   missing_projects_root: 'characters.errors.missingProjectsRoot',
+  projects_root_unavailable: 'characters.errors.projectsRootUnavailable',
   cancelled: 'characters.errors.cancelled',
   sidecar_missing: 'characters.errors.sidecar',
   sidecar_spawn: 'characters.errors.sidecar',

@@ -76,7 +76,7 @@ export async function generateVoiceCommand(
 
   // La carpeta de la entry se crea antes: las partes y el manifest del troceo
   // viven ahí. Si la síntesis falla, se borra para no dejar una entry huérfana.
-  const id = newHistoryId()
+  const id = newHistoryId(payload.voiceName ?? payload.voiceId)
   const entryDirectory = join(historyRoot, id)
   await mkdir(entryDirectory, { recursive: true })
   const audioPath = join(entryDirectory, HISTORY_AUDIO_FILE)

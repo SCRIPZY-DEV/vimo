@@ -24,6 +24,7 @@ import {
   hasPendingAnimationSource,
   undoableAnimationClips,
 } from '@/modules/videos/utilities/animationUndo'
+import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import {
@@ -69,7 +70,10 @@ export function useGalleryActions({
   const planFor = (ids: number[]) =>
     galleryAnimationPlan(scenes, ids, { videoFormat, durationSeconds })
   const validSelection = (ids: number[]) =>
-    ids.length > 0 && ids.every((id) => scenes.some((scene) => scene.id === id))
+    ids.length > 0 &&
+    ids.every((id) =>
+      scenes.some((scene) => scene.id === id && sceneImageEditable(scene)),
+    )
   const readyClips = undoableAnimationClips(scenes)
   const getUndoSceneCount = (id: number) =>
     new Set(

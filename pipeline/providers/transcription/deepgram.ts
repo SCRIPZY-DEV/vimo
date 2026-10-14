@@ -8,20 +8,41 @@ import { sleep } from '../../utils/sleep.ts'
 // la transcripción local quedó fuera de alcance en ADR-0010). El body es el
 // mp3 binario completo; audios largos tardan minutos, de ahí el techo de
 // 10 minutos.
+//
+// `punctuate=true` (gratis) suma `punctuated_word` a cada palabra: de ahí sale
+// la marca de fin de frase (`sentenceEnd`) que usan las frases del avatar.
 const DEEPGRAM_URL =
-  'https://api.deepgram.com/v1/listen?model=nova-2&detect_language=true'
+  'https://api.deepgram.com/v1/listen?model=nova-2&detect_language=true&punctuate=true'
 const REQUEST_TIMEOUT_MS = 600_000
 const RATE_LIMIT_MAX_RETRIES = 3
 // Id del proveedor en los fallos (ADR-0038).
 const FAILURE_PROVIDER = 'deepgram'
 
+// Una palabra de la respuesta: `punctuated_word` llega con `punctuate=true`.
+interface DeepgramWord {
+  word: string
+  start: number
+  end: number
+  punctuated_word?: string
+}
+
 interface DeepgramResponse {
   results?: {
     channels?: {
-      alternatives?: { words?: TranscriptWord[] }[]
+      alternatives?: { words?: DeepgramWord[] }[]
     }[]
   }
 }
+
+// La palabra puntuada cierra una frase si termina en punto, signo de pregunta
+// o de exclamación, o puntos suspensivos, aunque después venga un cierre de
+// comillas o de paréntesis («dijo."», «sí.)»). Incluye los terminadores del
+// japonés y el chino (。！？ y el 。 de ancho medio ｡), que no llevan un espacio
+// detrás, con sus cierres (「…。」, （…。）): sin ellos una narración en ja o zh
+// nunca traería la marca y caería al modo por pausas sin aviso. Una
+// abreviatura («Sr.») también cierra: en una narración transcripta es rara y
+// solo suma una frontera de frase posible.
+const SENTENCE_END_PATTERN = /[.?!…。！？｡]["'”’»)\]」』）】]*$/u
 
 export async function transcribeWithDeepgram(
   audioBytes: Buffer,
@@ -41,11 +62,24 @@ export async function transcribeWithDeepgram(
       { provider: FAILURE_PROVIDER, httpStatus: response.status },
     )
 
-  return words.map((word) => ({
+  return words.map(toTranscriptWord)
+}
+
+// Lo que guarda words.json: `word`, `start` y `end` tal cual, y `sentenceEnd`
+// solo en la palabra que cierra una frase (nunca `false`).
+function toTranscriptWord(word: DeepgramWord): TranscriptWord {
+  const transcript: TranscriptWord = {
     word: word.word,
     start: word.start,
     end: word.end,
-  }))
+  }
+  if (
+    typeof word.punctuated_word === 'string' &&
+    SENTENCE_END_PATTERN.test(word.punctuated_word)
+  )
+    transcript.sentenceEnd = true
+
+  return transcript
 }
 
 // Un 429 acá no cuesta créditos (Deepgram cobra por minuto transcripto, no

@@ -1,3 +1,7 @@
+import {
+  avatarCoveredIntervals,
+  withoutAvatarSceneIds,
+} from '@pipeline/animation/avatar-coverage.ts'
 import { planAnimationUnits } from '@pipeline/animation/planner.ts'
 import { readyAnimationClips } from '@/modules/videos/utilities/animationClips'
 import {
@@ -29,17 +33,25 @@ export function animationRangePlan(
   )
   const mergeShortScenes =
     options.pairPrefixScenes === true || options.videoFormat !== '9:16'
-  const sceneIds = scenes
-    .filter(
-      (scene) =>
-        scene.startSeconds !== undefined && scene.startSeconds < endSeconds,
-    )
-    .map((scene) => scene.id)
+  // Una escena de avatar no se marca para Kie y su tramo viaja como cubierto
+  // (ADR-0057): marcada, el planificador la rechazaría por larga.
+  const sceneIds = withoutAvatarSceneIds(
+    scenes
+      .filter(
+        (scene) =>
+          scene.startSeconds !== undefined && scene.startSeconds < endSeconds,
+      )
+      .map((scene) => scene.id),
+    scenes,
+  )
   const preservedPending = shortTailPendingAnimationUnits(scenes)
-  const coveredIntervals = readyAnimationClips(scenes).map((clip) => ({
-    startSeconds: clip.startSeconds,
-    endSeconds: clip.endSeconds,
-  }))
+  const coveredIntervals = [
+    ...readyAnimationClips(scenes).map((clip) => ({
+      startSeconds: clip.startSeconds,
+      endSeconds: clip.endSeconds,
+    })),
+    ...avatarCoveredIntervals(scenes),
+  ]
   const plan = planAnimationUnits(scenes, sceneIds, [], {
     endSeconds,
     mergeShortScenes,

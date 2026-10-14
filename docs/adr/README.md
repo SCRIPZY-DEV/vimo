@@ -46,6 +46,13 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0059](ADR-0059-flow-qa-nativa-aislada.md)                                           | Isolated native Flow acceptance environment                                         | QA reference              | local QA                      |
+| [ADR-0058](ADR-0058-flow-como-motor-de-imagenes.md)                                      | Flow image generation with a native coordinator                                     | Implemented locally       | app / pipeline / extension    |
+| [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Avatar scenes with HeyGen over the narration                                        | Proposed                  | pipeline / app / providers    |
+| [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | A dedicated full-screen layout for the project editor                               | Accepted                  | app                           |
+| [ADR-0055](ADR-0055-regeneracion-concurrente-por-escena.md)                              | Concurrent image regeneration by scene                                              | Accepted                  | app / pipeline                |
+| [ADR-0054](ADR-0054-recuperacion-multimagen-y-completado-pago.md)                        | Multimagen recovery and explicit paid completion                                    | Implemented locally       | app / pipeline / extension    |
+| [ADR-0053](ADR-0053-ai33-proveedor-de-voz-y-cambio-de-voz-tras-un-fallo.md)              | ai33 as a voice provider, and switching voices after a failure                      | Proposed                  | providers / pipeline / app    |
 | [ADR-0052](ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)                   | Fast export without jitter, sized to the user's machine                             | Accepted                  | pipeline                      |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adapting the user's character to the style's language                               | Proposed                  | pipeline / app                |
 | [ADR-0050](ADR-0050-creador-de-estilo-con-ia.md)                                         | AI style creator: cloning a style from a video or from images                       | Accepted                  | pipeline / app / server       |
@@ -94,7 +101,6 @@ the code already explains. An ADR nobody will consult is just noise.
 | [ADR-0003](ADR-0003-fundaciones-de-la-interfaz.md)                                       | Interface foundations: port the original app's common layer                         | Aceptada (i18n → 0004)    | app                           |
 | [ADR-0002](ADR-0002-servidor-local-como-sidecar-de-tauri.md)                             | The local server ships as a Tauri sidecar                                           | Reemplazada por ADR-0007  | distribución                  |
 | [ADR-0001](ADR-0001-separacion-interfaz-y-pipeline.md)                                   | Split the interface from the pipeline and rewrite it from scratch                   | Reemplazada por ADR-0002  | app                           |
-| [ADR-0052](ADR-0052-flow-como-motor-de-imagenes.md)                                      | Flow como motor de imágenes con coordinador nativo                                  | Aceptada localmente       | app / pipeline / extensión    |
 
 ## A note on distribution
 

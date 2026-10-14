@@ -35,12 +35,20 @@ import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
 import {
+  clearCreateDraft,
+  readCreateDraft,
+  writeCreateDraft,
+} from '@/modules/videos/utilities/createDraft'
+import {
   demoFollowStyle,
   demoFormValue,
 } from '@/modules/videos/utilities/demoForm'
 import { readDemoState } from '@/modules/videos/utilities/demoState'
 import { customStyleForTab } from '@/modules/videos/utilities/formLane'
-import { createProjectPayload } from '@/modules/videos/utilities/formPayload'
+import {
+  createProjectPayload,
+  withAvatarKey,
+} from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import {
@@ -49,6 +57,7 @@ import {
 } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
+import type { CreateDraft } from '@/modules/videos/utilities/createDraft'
 import type { DemoManifest } from '@pipeline/types/demo.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { ProbeTtsReason } from '@pipeline/types/video-project.ts'
@@ -128,11 +137,19 @@ interface CreateViewProps {
   demo: DemoManifest | null
 }
 
+// Con qué se montó Crear: el formulario y la selección de la otra pestaña de
+// ese primer render, y si salieron de un borrador (trabajo de la persona) o
+// de las preferencias.
+interface CreateMountSeed extends CreateDraft {
+  restored: boolean
+}
+
 // Es dueña de la tarea: el formulario y la pantalla de progreso son
 // presentacionales; el estado del job vive en el store de `useCreateTask`
 // (sobrevive a la navegación y al reload). Con una tarea viva, la pantalla
 // de progreso ocupa la página entera (origen): «Crear otro» la descarta y
-// vuelve al formulario.
+// vuelve al formulario. El formulario, en cambio, sobrevive a la navegación
+// en el borrador de Crear (createDraft), solo mientras la app sigue abierta.
 function CreateView({
   initialSceneCount,
   initialImageProvider,
@@ -153,6 +170,7 @@ function CreateView({
     reportPromptModelIssue,
     snoozePromptModelIssue,
     switchPromptModel,
+    switchVoice,
   } = useCreateTask()
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
@@ -183,15 +201,53 @@ function CreateView({
       confirmSceneDuration: initialConfirmScenes,
       promptModel: initialPromptModel,
     }
-    return demo ? demoFormValue(base, demo) : base
+    if (demo) return demoFormValue(base, demo)
+
+    // De vuelta en Crear (spec §9), el borrador manda sobre la semilla de las
+    // preferencias: el formulario sigue como se dejó. Salvo lo que ninguna
+    // pantalla de Crear edita y solo siembra Ajustes —la duración de escena
+    // de las gemas y la pausa para elegirla—: eso sale siempre de la semilla
+    // actual, así una preferencia cambiada con un borrador vivo es la que
+    // viaja al generar.
+    const draft = readCreateDraft()
+    if (!draft) return base
+
+    return {
+      ...draft.form,
+      secondsPerScene: base.secondsPerScene,
+      confirmSceneDuration: base.confirmSceneDuration,
+    }
   })
   // Con el catálogo nuevo, una selección por pestaña: la de la pestaña que no
   // está a la vista. Vive acá y no en el formulario, que se desmonta con la
   // pantalla de progreso (al generar, o si un pre-check frena el envío): al
   // volver, cada pestaña sigue con su tarjeta. Sin el catálogo nuevo nadie la
-  // toca.
+  // toca. También vuelve con el borrador.
   const [otherTabStyle, setOtherTabStyle] =
-    useState<SelectedCustomStyle | null>(null)
+    useState<SelectedCustomStyle | null>(() => {
+      if (demo) return null
+
+      return readCreateDraft()?.otherTabStyle ?? null
+    })
+
+  // Con qué se montó el formulario y si salió de un borrador: lo que decide
+  // qué se guarda (saveCreateDraft). Cada cambio arma un objeto nuevo, así
+  // que basta comparar referencias.
+  const [seed] = useState<CreateMountSeed>(() => ({
+    form,
+    otherTabStyle,
+    restored: !demo && readCreateDraft() !== null,
+  }))
+
+  // El borrador sigue al formulario en cada cambio: es un efecto porque
+  // sincroniza con algo de afuera de React (la memoria del módulo), y así
+  // salir de Crear por un enlace («Crear escenario», «Ir a Claves API») no
+  // pierde nada. La demo ni lo lee ni lo escribe.
+  useEffect(() => {
+    if (demo) return
+
+    saveCreateDraft({ form, otherTabStyle }, seed)
+  }, [form, otherTabStyle, demo, seed])
 
   const { vendor: defaultVoiceVendor, isLoading: loadingVoiceVendor } =
     useVoiceVendor()
@@ -200,6 +256,7 @@ function CreateView({
   const requirements = createApiRequirements(form, defaultVoiceVendor)
   const {
     isNative,
+    configuredProviders,
     missingKeys,
     missingRequirements,
     ready: keysReady,
@@ -208,11 +265,6 @@ function CreateView({
     refreshStatus,
   } = useRequiredApiKeys({ requirements })
   const apiReady = keysReady && !checkingVoiceVendor
-  const flowCapacity = useFlowCapacity(
-    estimatedSceneCount(form, form.script.trim()) || 1,
-    form.imageProvider === 'flow' && !demo,
-    { executionPlan: form.executionPlan },
-  )
 
   // En demo la gema del pack arranca en uso apenas la galería la lista: se
   // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
@@ -235,12 +287,24 @@ function CreateView({
     },
     newCatalog,
   )
+  // Sin clave de HeyGen la tarjeta del avatar se ve apagada: lo que se
+  // valida, se estima y se envía también lo tiene apagado (spec §9). La
+  // elección se queda en `form` para cuando vuelva la clave.
+  const keyedForm = withAvatarKey(form, configuredProviders.has('heygen'))
   const formValue =
-    customStyle === form.customStyle ? form : { ...form, customStyle }
+    customStyle === keyedForm.customStyle
+      ? keyedForm
+      : { ...keyedForm, customStyle }
+
+  const flowCapacity = useFlowCapacity(
+    estimatedSceneCount(formValue, formValue.script.trim()) || 1,
+    formValue.imageProvider === 'flow' && !demo,
+    { executionPlan: formValue.executionPlan },
+  )
 
   // El formulario ya avisa con el saldo cacheado; acá se re-lee justo antes
   // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse.
-  const { verify: verifyCredits } = useCreateCostCheck({ form })
+  const { verify: verifyCredits } = useCreateCostCheck({ form: keyedForm })
 
   // Sin auto-export el job termina sin video: el destino natural es el
   // editor (el proyecto quedó en borrador con todo generado, ADR-0016).
@@ -298,11 +362,24 @@ function CreateView({
           verifyCredits(),
         ])
         if (!isCurrent()) return false
+
         if (voiceCheck && !voiceCheck.ok) {
           setProbeFailure(voiceCheck.reason)
           return false
         }
+
         return !costCheck.blocking
+      },
+      // El proyecto ya existe: recién ahí el borrador cumplió (spec §9). Si
+      // un pre-chequeo frena, si se cancela o si createProject falla (una
+      // clave o un avatar rechazados), el borrador sigue, y salir por el menú
+      // y volver con «Crear otro» no pierde el formulario. No se vuelve a
+      // descartar al terminar la tarea: el formulario sigue en el estado de
+      // esta vista, «Crear otro» vuelve a él tal como estaba y lo guarda de
+      // nuevo (returnToForm), y una generación nueva arranca del último
+      // formulario, como ahora. La demo no lo toca.
+      onProjectCreated: () => {
+        if (!demo) clearCreateDraft()
       },
       // `formValue` (y no `form`): en demo lleva la gema derivada en el render.
       payload: createProjectPayload(
@@ -317,13 +394,30 @@ function CreateView({
     })
   }
 
+  // «Crear otro» y cerrar la confirmación de escenas descartan la tarea y
+  // vuelven al formulario tal como estaba (el store los trata como el mismo
+  // cierre): el que se vuelve a mostrar queda otra vez como borrador, así
+  // salir de Crear sin tocarlo y volver tampoco lo pierde (spec §9), con la
+  // misma regla que el efecto: la semilla de preferencias intacta de un
+  // montaje nuevo no se guarda. Se guarda acá, en el manejador, y nunca en un
+  // efecto: la autonavegación al editor también descarta la tarea y no tiene
+  // que guardarlo. La demo no lo toca.
+  const returnToForm = () => {
+    if (!demo) saveCreateDraft({ form, otherTabStyle }, seed)
+    discardTask()
+  }
+
   if (task) {
     return (
       <GenerationProgress
         task={task}
+        // «Crear otro» descarta la corrida viva: con apariciones del avatar
+        // cobradas y sin terminar, la pantalla avisa antes (entrega 2h, spec
+        // §24.4) y recién «Cancelar igual» vuelve al formulario.
         back={{
           labelKey: 'create.progress.createAnother',
-          onClick: discardTask,
+          onClick: returnToForm,
+          cancelsRun: true,
         }}
         // Cancelar no es un error (origen v0.35.0): se va a la biblioteca en
         // el acto y el proyecto queda ahí como cancelado, reanudable o
@@ -341,10 +435,11 @@ function CreateView({
           navigate(libraryEditorPath(projectId))
         }}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
-        onDismissConfirmation={discardTask}
+        onDismissConfirmation={returnToForm}
         onPromptModelStall={() => reportPromptModelIssue(task.id, 'stalled')}
         onSnoozePromptModelIssue={snoozePromptModelIssue}
         onSwitchPromptModel={(modelId) => void switchPromptModel(modelId)}
+        onSwitchVoice={(voice) => void switchVoice(voice)}
       />
     )
   }
@@ -442,4 +537,20 @@ function CreateView({
       )}
     </div>
   )
+}
+
+// Guarda el borrador de Crear (spec §9), salvo un formulario intacto —la
+// semilla de las preferencias con la que Crear se montó— cuando no hay
+// borrador: así Crear sigue tomando las preferencias y las claves del
+// momento. Uno restaurado de un borrador es trabajo de la persona y se guarda
+// aunque no se haya tocado (si no, generar con él, volver con «Crear otro» y
+// salir lo perdería). Con un borrador ya escrito se refleja todo, también una
+// vuelta a los valores de la semilla. Lo usan el efecto que sigue al
+// formulario y returnToForm: una sola regla para los dos.
+function saveCreateDraft(next: CreateDraft, seed: CreateMountSeed): void {
+  const untouched =
+    next.form === seed.form && next.otherTabStyle === seed.otherTabStyle
+  if (untouched && !seed.restored && readCreateDraft() === null) return
+
+  writeCreateDraft(next)
 }

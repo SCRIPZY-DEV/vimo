@@ -130,7 +130,10 @@ fn labels_carry_a_fixed_prefix() {
         subject_label(&subject(SubjectKind::Project, "p"), Some("Mi video")).as_deref(),
         Some("Mi video")
     );
-    assert_eq!(subject_label(&subject(SubjectKind::Project, "p"), None), None);
+    assert_eq!(
+        subject_label(&subject(SubjectKind::Project, "p"), None),
+        None
+    );
 }
 
 #[test]
@@ -145,14 +148,22 @@ fn names_are_read_from_the_library_on_disk() {
     .unwrap();
     let character_directory = root.path().join(CHARACTERS_SUBDIRECTORY).join("Ana_x1");
     fs::create_dir_all(&character_directory).unwrap();
-    fs::write(character_directory.join(CHARACTER_METADATA_FILE), r#"{"name":"Ana"}"#).unwrap();
+    fs::write(
+        character_directory.join(CHARACTER_METADATA_FILE),
+        r#"{"name":"Ana"}"#,
+    )
+    .unwrap();
 
     assert_eq!(
         resolve_subject_name(Some(root.path()), &subject(SubjectKind::Style, "neon")).as_deref(),
         Some("Neón")
     );
     assert_eq!(
-        resolve_subject_name(Some(root.path()), &subject(SubjectKind::Character, "Ana_x1")).as_deref(),
+        resolve_subject_name(
+            Some(root.path()),
+            &subject(SubjectKind::Character, "Ana_x1")
+        )
+        .as_deref(),
         Some("Ana")
     );
     // El nombre del payload gana sobre el disco; sin archivo no hay nombre.
@@ -161,12 +172,18 @@ fn names_are_read_from_the_library_on_disk() {
         id: Some("neon".into()),
         name: Some("Otro".into()),
     };
-    assert_eq!(resolve_subject_name(Some(root.path()), &named).as_deref(), Some("Otro"));
+    assert_eq!(
+        resolve_subject_name(Some(root.path()), &named).as_deref(),
+        Some("Otro")
+    );
     assert_eq!(
         resolve_subject_name(Some(root.path()), &subject(SubjectKind::Style, "missing")),
         None
     );
-    assert_eq!(resolve_subject_name(None, &subject(SubjectKind::Style, "neon")), None);
+    assert_eq!(
+        resolve_subject_name(None, &subject(SubjectKind::Style, "neon")),
+        None
+    );
 }
 
 #[test]
@@ -181,5 +198,130 @@ fn ids_cannot_escape_the_root() {
     assert_eq!(
         read_subject_metadata(root.path(), &subject(SubjectKind::Project, "../x")),
         None
+    );
+}
+
+#[test]
+fn avatar_subcommands_are_their_own_family() {
+    let create = subject_from_payload(
+        "avatar-create-photo",
+        Some(&json!({ "name": "Ana", "photoPath": "/x/ana.png" })),
+    )
+    .expect("avatar subject");
+    assert_eq!(create.kind, SubjectKind::Avatar);
+    assert_eq!(create.id, None);
+    assert_eq!(create.name.as_deref(), Some("Ana"));
+
+    // Agregar un avatar del stock: el nombre del listado viaja en el payload
+    // solo para esta fila (el sidecar no lo usa).
+    let added = subject_from_payload(
+        "avatar-add",
+        Some(&json!({ "groupId": "group-1", "ownership": "stock", "name": "Bob" })),
+    )
+    .expect("avatar subject");
+    assert_eq!(added.kind, SubjectKind::Avatar);
+    assert_eq!(added.id, None);
+    assert_eq!(added.name.as_deref(), Some("Bob"));
+
+    let refreshed = subject_from_payload("avatar-refresh", Some(&json!({ "id": "ana-abc123" })))
+        .expect("avatar subject");
+    assert_eq!(refreshed.id.as_deref(), Some("ana-abc123"));
+    assert_eq!(
+        subject_from_payload("avatars-list", None).map(|subject| subject.kind),
+        Some(SubjectKind::Avatar)
+    );
+
+    assert_eq!(
+        subject_label(&subject(SubjectKind::Avatar, "ana-abc123"), Some("Ana")).as_deref(),
+        Some("Avatar: Ana")
+    );
+    assert_eq!(
+        subject_label(&subject(SubjectKind::Avatar, "ana-abc123"), None).as_deref(),
+        Some("Avatar")
+    );
+}
+
+#[test]
+fn avatar_names_are_read_from_the_library_on_disk() {
+    let root = TempDir::new().unwrap();
+    let avatar_directory = root.path().join(AVATARS_SUBDIRECTORY).join("ana-abc123");
+    fs::create_dir_all(&avatar_directory).unwrap();
+    fs::write(
+        avatar_directory.join(AVATAR_METADATA_FILE),
+        r#"{ "name": "Ana", "lookId": "look-1" }"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        resolve_subject_name(
+            Some(root.path()),
+            &subject(SubjectKind::Avatar, "ana-abc123")
+        )
+        .as_deref(),
+        Some("Ana")
+    );
+    // Un id con `..` nunca sale de la carpeta raíz, también para avatares.
+    assert_eq!(
+        read_subject_metadata(root.path(), &subject(SubjectKind::Avatar, "../x")),
+        None
+    );
+}
+
+#[test]
+fn a_generated_look_is_logged_under_its_avatar_name() {
+    let root = TempDir::new().unwrap();
+    let avatar_directory = root.path().join(AVATARS_SUBDIRECTORY).join("ana-abc123");
+    fs::create_dir_all(&avatar_directory).unwrap();
+    fs::write(
+        avatar_directory.join(AVATAR_METADATA_FILE),
+        r#"{ "name": "Ana", "groupId": "group-1", "looks": [] }"#,
+    )
+    .unwrap();
+
+    // «Crear escenario»: `name` es el del look nuevo, no el del avatar.
+    let generated = subject_from_payload(
+        "avatar-generate-look",
+        Some(&json!({
+            "id": "ana-abc123",
+            "prompt": "privado",
+            "aspectRatio": "auto",
+            "name": "Cocina luminosa"
+        })),
+    )
+    .expect("avatar subject");
+    assert_eq!(generated.id.as_deref(), Some("ana-abc123"));
+    assert_eq!(generated.name, None);
+
+    let name = resolve_subject_name(Some(root.path()), &generated);
+    assert_eq!(
+        subject_label(&generated, name.as_deref()).as_deref(),
+        Some("Avatar: Ana")
+    );
+}
+
+#[test]
+fn avatar_scene_renders_are_logged_under_their_project() {
+    let root = TempDir::new().unwrap();
+    let project_directory = root.path().join("mi-video");
+    fs::create_dir_all(&project_directory).unwrap();
+    fs::write(
+        project_directory.join(PROJECT_METADATA_FILE),
+        r#"{ "name": "Mi video" }"#,
+    )
+    .unwrap();
+
+    // Lleva `projectId`: es un job del proyecto aunque su nombre empiece con
+    // «avatar» (ADR-0038; ruling de la entrega 2 de la ADR-0057).
+    let render = subject_from_payload(
+        "avatar-render-scenes",
+        Some(&json!({ "projectId": "mi-video", "sceneIds": [2, 5] })),
+    )
+    .expect("project subject");
+    assert_eq!(render, subject(SubjectKind::Project, "mi-video"));
+
+    let name = resolve_subject_name(Some(root.path()), &render);
+    assert_eq!(
+        subject_label(&render, name.as_deref()).as_deref(),
+        Some("Mi video")
     );
 }

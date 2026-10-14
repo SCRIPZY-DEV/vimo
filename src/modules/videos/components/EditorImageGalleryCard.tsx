@@ -248,7 +248,7 @@ export function EditorImageGalleryCard({
             role="status"
             className={cn(
               'flex items-center gap-1.5 font-body text-xs',
-              failed ? 'text-destructive' : 'text-muted-foreground',
+              failed ? 'text-destructive-text' : 'text-muted-foreground',
             )}
           >
             {(preparing || generating) && (
@@ -300,7 +300,7 @@ export function EditorImageGalleryCard({
           </div>
         )}
         {!animating && animationErrorKey && (
-          <p role="status" className="font-body text-xs text-destructive">
+          <p role="status" className="font-body text-xs text-destructive-text">
             {t('library.editor.panel.animation.lastError', {
               reason: t(animationErrorKey),
             })}

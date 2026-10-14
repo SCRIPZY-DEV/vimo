@@ -85,14 +85,24 @@ export async function moveDirectoryAtomic(
 }
 
 // Escribe en un temporal y luego lo mueve al destino para evitar archivos
-// parcialmente escritos durante una interrupción.
+// parcialmente escritos durante una interrupción. El temporal es único por
+// escritura (pid + aleatorio): con uno fijo, dos procesos que reescriben el
+// mismo archivo a la vez truncaban el mismo temporal (el destino quedaba con
+// un JSON mezclado) y el primer rename se llevaba el del otro, que caía con
+// ENOENT. Si la escritura o el rename fallan, el temporal se borra. Sin fsync:
+// alarga la escritura y con ella la ventana de quien relee antes de escribir.
 export async function writeFileAtomic(
   path: string,
   data: Buffer | string,
 ): Promise<void> {
-  const temporaryPath = `${path}.tmp`
-  await writeFile(temporaryPath, data)
-  await renameAtomic(temporaryPath, path)
+  const temporaryPath = `${path}.${process.pid}-${randomUUID().slice(0, 8)}.tmp`
+  try {
+    await writeFile(temporaryPath, data)
+    await renameAtomic(temporaryPath, path)
+  } catch (error) {
+    await unlink(temporaryPath).catch(() => undefined)
+    throw error
+  }
 }
 
 // Los recibos que autorizan compras no admiten la copia sobre el destino

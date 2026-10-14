@@ -1,12 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Film, Mic, Minus, Music2, Plus, Shuffle } from 'lucide-react'
+import { Minus, Plus, Shuffle } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { formatTime } from '@/modules/common/utilities/formatTime'
 import { TimelineClipItem } from '@/modules/videos/components/TimelineClipItem'
+import { TimelineAvatarItem } from '@/modules/videos/components/TimelineAvatarItem'
 import { TimelineSceneItem } from '@/modules/videos/components/TimelineSceneItem'
+import { TimelineTrackHeader } from '@/modules/videos/components/TimelineTrackHeader'
 import { TimelineWaveform } from '@/modules/videos/components/TimelineWaveform'
 import { timelineTransitionFrames } from '@/modules/videos/utilities/timelineTransitionFrames'
 import {
@@ -22,26 +39,36 @@ import {
   TIMELINE_END_SNAP_SECONDS,
   TIMELINE_RULER_HEIGHT,
   TIMELINE_SIDEBAR_WIDTH,
+  TIMELINE_TRACK_DRAG_ACTIVATION_PX,
   TIMELINE_TRACK_HEIGHT,
   TIMELINE_TRANSITION_BASE_WIDTH,
   TIMELINE_TRANSITION_HEIGHT,
   TIMELINE_TRANSITION_MIN_WIDTH,
   TIMELINE_TRIM_INSET,
   TIMELINE_TRIM_WIDTH,
+  TIMELINE_TRACK_ICONS,
+  TIMELINE_TRACK_LABEL_KEYS,
   TIMELINE_ZOOM_LEVELS,
+  WHEEL_LINE_PX,
 } from '@/modules/videos/constants'
 import { useAudioPeaks } from '@/modules/videos/hooks/useAudioPeaks'
 import { clampBoundarySeconds } from '@/modules/videos/utilities/clampBoundarySeconds'
-import { animationTimingLocked } from '@/modules/videos/utilities/animationTimingLocked'
+import { sceneTimingLocked } from '@/modules/videos/utilities/sceneTimingLocked'
 import {
   firstSceneOf,
   lastSceneOf,
+  timelineBlockKey,
   timelineBlocks,
 } from '@/modules/videos/utilities/timelineBlocks'
+import { isTimelineTrackId } from '@/modules/videos/utilities/timelineLayout'
+import { trackReorderAnnouncements } from '@/modules/videos/utilities/trackReorderAnnouncements'
 import type {
   SceneAnimationActivity,
   SceneAnimationFailure,
   SceneAnimationProgress,
+  SceneAvatarRendering,
+  TimelineLayout,
+  TimelineTrackId,
 } from '@/modules/videos/types/library'
 import type { SceneImageReviewRequest } from '@/modules/videos/types/sceneImageReview'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
@@ -64,8 +91,15 @@ interface EditorTimelineProps {
   sceneAnimationErrors: Record<number, SceneAnimationFailure>
   // Escenas que absorbería el clip de la escena seleccionada (ADR-0041).
   plannedSceneIds: number[]
+  // Renders de HeyGen en curso desde el editor (entrega 3); sin él, ninguno.
+  sceneAvatarRendering?: Record<number, SceneAvatarRendering>
   narrationSrc: string | null
   musicSrc: string | null
+  // Orden, silencio en el visor y candado de las pistas (ADR-0056).
+  layout: TimelineLayout
+  onReorderTracks(activeId: TimelineTrackId, overId: TimelineTrackId): void
+  onToggleMuted(id: TimelineTrackId): void
+  onToggleLocked(id: TimelineTrackId): void
   zoomIndex: number
   onZoomChange(index: number): void
   onSelectScene(sceneId: number): void
@@ -108,8 +142,13 @@ export function EditorTimeline({
   sceneAnimationProgress,
   sceneAnimationErrors,
   plannedSceneIds,
+  sceneAvatarRendering = {},
   narrationSrc,
   musicSrc,
+  layout,
+  onReorderTracks,
+  onToggleMuted,
+  onToggleLocked,
   zoomIndex,
   onZoomChange,
   onSelectScene,
@@ -153,8 +192,15 @@ export function EditorTimeline({
   const totalWidth = Math.max(duration * pxPerSecond + 16, viewportWidth)
   const tracksHeight = TIMELINE_RULER_HEIGHT + 3 * TIMELINE_TRACK_HEIGHT
   // Un clip que cubre varias escenas es UN bloque del largo del hueco entero
-  // (ADR-0041); las fronteras arrastrables quedan solo entre bloques.
-  const blocks = timelineBlocks(timedScenes, sceneAnimationProgress)
+  // (ADR-0041) y una escena de avatar es un bloque propio (ADR-0057); las
+  // fronteras arrastrables quedan solo entre bloques.
+  const blocks = timelineBlocks(
+    timedScenes,
+    sceneAnimationProgress,
+    sceneAvatarRendering,
+  )
+  // Candado de la pista de escenas (ADR-0056): sin arrastre de fronteras.
+  const scenesLocked = layout.locked.scenes
   // La transición conserva su frontera real. Su ancho visual se acota al
   // espacio vecino; las asas quedan en el borde interior y por encima.
   const transitions = timelineBlocks(timedScenes, {}).flatMap(
@@ -211,22 +257,41 @@ export function EditorTimeline({
     return () => observer.disconnect()
   }, [])
 
-  // Cmd/Ctrl + rueda = zoom (estilo CapCut). Listener nativo: React registra
-  // wheel como pasivo y el preventDefault no funcionaría.
+  // Rueda: Cmd/Ctrl + rueda = zoom (estilo CapCut); rueda vertical sola =
+  // desplazamiento horizontal, 1 px por 1 px, como VidRush (el gesto que baja
+  // una página adelanta el timeline, y respeta la dirección configurada en el
+  // sistema). El gesto horizontal del trackpad sigue siendo nativo. Listener
+  // nativo: React registra wheel como pasivo y el preventDefault no
+  // funcionaría.
   useEffect(() => {
     const element = scrollRef.current
     if (!element) return
     const handleWheel = (event: WheelEvent) => {
       markManualInteraction()
-      if (!event.metaKey && !event.ctrlKey) return
       setHoverSeconds(null)
+      if (event.metaKey || event.ctrlKey) {
+        event.preventDefault()
+        const direction = event.deltaY < 0 ? 1 : -1
+        const next = Math.max(
+          0,
+          Math.min(TIMELINE_ZOOM_LEVELS.length - 1, zoomIndex + direction),
+        )
+        if (next !== zoomIndex) onZoomChange(next)
+        return
+      }
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+
+      // Sin desborde horizontal no hay nada que desplazar: la rueda sigue
+      // siendo de la página (por debajo de lg el editor scrollea en vertical).
+      if (element.scrollWidth <= element.clientWidth) return
+
       event.preventDefault()
-      const direction = event.deltaY < 0 ? 1 : -1
-      const next = Math.max(
-        0,
-        Math.min(TIMELINE_ZOOM_LEVELS.length - 1, zoomIndex + direction),
-      )
-      if (next !== zoomIndex) onZoomChange(next)
+      // Algunos mouses mandan líneas en vez de píxeles: una línea ≈ 16 px.
+      const delta =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * WHEEL_LINE_PX
+          : event.deltaY
+      element.scrollLeft += delta
     }
     element.addEventListener('wheel', handleWheel, { passive: false })
     return () => element.removeEventListener('wheel', handleWheel)
@@ -350,7 +415,12 @@ export function EditorTimeline({
     left: SceneDetail,
     right: SceneDetail,
   ) => {
-    if (timingBusy || animationTimingLocked(scenes, [left.id, right.id])) return
+    if (
+      timingBusy ||
+      scenesLocked ||
+      sceneTimingLocked(scenes, [left.id, right.id])
+    )
+      return
     event.preventDefault()
     event.stopPropagation()
     markManualInteraction()
@@ -397,7 +467,12 @@ export function EditorTimeline({
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
     event.preventDefault()
     event.stopPropagation()
-    if (timingBusy || animationTimingLocked(scenes, [left.id, right.id])) return
+    if (
+      timingBusy ||
+      scenesLocked ||
+      sceneTimingLocked(scenes, [left.id, right.id])
+    )
+      return
     markManualInteraction()
     const step = event.shiftKey ? 1 : 0.1
     const initial = left.endSeconds ?? 0
@@ -441,6 +516,43 @@ export function EditorTimeline({
     onSeek(seekSecondsAtClientX(event.clientX))
   }
 
+  // ── Orden de las pistas ──
+
+  // Reordenar pistas: puntero (con tolerancia, para no robarle el clic a los
+  // botones) y teclado (espacio + flechas sobre el asa).
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: TIMELINE_TRACK_DRAG_ACTIVATION_PX },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+  const handleTrackDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    if (!isTimelineTrackId(active.id) || !isTimelineTrackId(over.id)) return
+
+    onReorderTracks(active.id, over.id)
+  }
+
+  // Lo que dnd-kit le dice al lector de pantalla (instrucciones del asa y
+  // anuncios del arrastre), traducido y con el nombre de cada pista. Se
+  // memoriza por idioma: dnd-kit vuelve a registrar su monitor de anuncios
+  // cada vez que cambia la identidad de `announcements`, y el timeline se
+  // re-renderiza unas 30 veces por segundo durante la reproducción.
+  const announcements = useMemo(() => trackReorderAnnouncements(t), [t])
+  const accessibility = useMemo(
+    () => ({
+      screenReaderInstructions: {
+        draggable: t('library.editor.timeline.dragInstructions'),
+      },
+      announcements,
+    }),
+    [t, announcements],
+  )
+
   // ── Regla adaptativa ──
 
   const majorStep =
@@ -468,6 +580,7 @@ export function EditorTimeline({
   const canZoomIn = zoomIndex < TIMELINE_ZOOM_LEVELS.length - 1
   const trackTop = (index: number) =>
     TIMELINE_RULER_HEIGHT + index * TIMELINE_TRACK_HEIGHT
+  const trackIndex = (id: TimelineTrackId) => layout.order.indexOf(id)
 
   return (
     <div className="select-none overflow-hidden rounded-2xl border-2 border-border bg-card">
@@ -519,22 +632,31 @@ export function EditorTimeline({
             style={{ height: TIMELINE_RULER_HEIGHT }}
             className="border-b border-border/50"
           />
-          {[
-            { Icon: Film, label: t('library.editor.timeline.scenes') },
-            { Icon: Mic, label: t('library.editor.timeline.narration') },
-            { Icon: Music2, label: t('library.editor.timeline.music') },
-          ].map(({ Icon, label }) => (
-            <div
-              key={label}
-              style={{ height: TIMELINE_TRACK_HEIGHT }}
-              className="flex items-center gap-1.5 border-b border-border/50 px-2 last:border-b-0"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            accessibility={accessibility}
+            onDragEnd={handleTrackDragEnd}
+          >
+            <SortableContext
+              items={layout.order}
+              strategy={verticalListSortingStrategy}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                {label}
-              </span>
-            </div>
-          ))}
+              {layout.order.map((id) => (
+                <TimelineTrackHeader
+                  key={id}
+                  id={id}
+                  Icon={TIMELINE_TRACK_ICONS[id]}
+                  label={t(TIMELINE_TRACK_LABEL_KEYS[id])}
+                  muted={layout.muted[id]}
+                  locked={layout.locked[id]}
+                  onToggleMuted={onToggleMuted}
+                  onToggleLocked={onToggleLocked}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </div>
 
         {/* Carril scrolleable */}
@@ -605,7 +727,10 @@ export function EditorTimeline({
 
             {/* Pista V1: escenas */}
             <div
-              style={{ top: trackTop(0), height: TIMELINE_TRACK_HEIGHT }}
+              style={{
+                top: trackTop(trackIndex('scenes')),
+                height: TIMELINE_TRACK_HEIGHT,
+              }}
               className="absolute left-0 w-full border-b border-border/50"
             >
               {blocks.map((block, index) => {
@@ -623,17 +748,14 @@ export function EditorTimeline({
                 )
                 // Los tiempos cambian al recortar. La identidad usa la escena
                 // y el clip anterior para conservar foco y distinguir sus restos.
-                const key =
-                  block.kind === 'clip'
-                    ? `clip-${block.id}`
-                    : `scene-${block.scene.id}-${previous?.kind === 'clip' ? previous.id : 'start'}`
+                const key = timelineBlockKey(block, previous)
                 return (
                   <div
                     key={key}
                     style={{ left, width }}
                     className="group/timeline-block absolute top-0 h-full"
                   >
-                    {block.kind === 'clip' ? (
+                    {block.kind === 'clip' && (
                       <TimelineClipItem
                         block={block}
                         selected={block.scenes.some(
@@ -644,7 +766,17 @@ export function EditorTimeline({
                         versions={sceneVersions}
                         onSelect={() => onSelectScene(block.lead.id)}
                       />
-                    ) : (
+                    )}
+                    {block.kind === 'avatar' && (
+                      <TimelineAvatarItem
+                        block={block}
+                        selected={block.scene.id === selectedSceneId}
+                        rendering={sceneAvatarRendering[block.scene.id]}
+                        version={sceneVersions[block.scene.id]}
+                        onSelect={() => onSelectScene(block.scene.id)}
+                      />
+                    )}
+                    {block.kind === 'scene' && (
                       <TimelineSceneItem
                         scene={block.scene}
                         selected={block.scene.id === selectedSceneId}
@@ -667,11 +799,9 @@ export function EditorTimeline({
                       const leftScene = lastSceneOf(before)
                       const rightScene = firstSceneOf(after)
                       if (
+                        scenesLocked ||
                         leftScene.id === rightScene.id ||
-                        animationTimingLocked(scenes, [
-                          leftScene.id,
-                          rightScene.id,
-                        ])
+                        sceneTimingLocked(scenes, [leftScene.id, rightScene.id])
                       )
                         return null
                       // Los dos lados comparten tiempos, pero sólo el asa que
@@ -742,7 +872,7 @@ export function EditorTimeline({
                   left: xOfSeconds(transition.seconds) - transition.width / 2,
                   width: transition.width,
                   top:
-                    trackTop(0) +
+                    trackTop(trackIndex('scenes')) +
                     (TIMELINE_TRACK_HEIGHT - TIMELINE_TRANSITION_HEIGHT) / 2,
                   height: TIMELINE_TRANSITION_HEIGHT,
                 }}
@@ -769,17 +899,21 @@ export function EditorTimeline({
 
             {/* Pista A1: narración */}
             <div
-              style={{ top: trackTop(1), height: TIMELINE_TRACK_HEIGHT }}
+              style={{
+                top: trackTop(trackIndex('narration')),
+                height: TIMELINE_TRACK_HEIGHT,
+              }}
               className="absolute left-0 w-full border-b border-border/50"
             >
               {narrationSrc && (
                 <button
                   type="button"
                   {...NO_SEEK_PROPS}
+                  disabled={layout.locked.narration}
                   onClick={onOpenAudio}
                   aria-label={t('library.editor.timeline.openAudio')}
                   style={{ width: xOfSeconds(duration) }}
-                  className="absolute bottom-1 top-1 left-0 overflow-hidden rounded-md border-2 border-ocean/60 bg-ocean/20 hover:brightness-110"
+                  className="absolute bottom-1 top-1 left-0 overflow-hidden rounded-md border-2 border-ocean/60 bg-ocean/20 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               )}
               {narrationPeaks && (
@@ -797,18 +931,22 @@ export function EditorTimeline({
 
             {/* Pista A2: música */}
             <div
-              style={{ top: trackTop(2), height: TIMELINE_TRACK_HEIGHT }}
-              className="absolute left-0 w-full"
+              style={{
+                top: trackTop(trackIndex('music')),
+                height: TIMELINE_TRACK_HEIGHT,
+              }}
+              className="absolute left-0 w-full border-b border-border/50"
             >
               {musicSrc ? (
                 <>
                   <button
                     type="button"
                     {...NO_SEEK_PROPS}
+                    disabled={layout.locked.music}
                     onClick={onOpenMusic}
                     aria-label={t('library.editor.timeline.openMusic')}
                     style={{ width: xOfSeconds(duration) }}
-                    className="absolute bottom-1 top-1 left-0 overflow-hidden rounded-md border-2 border-lavender/70 bg-lavender/25 hover:brightness-110"
+                    className="absolute bottom-1 top-1 left-0 overflow-hidden rounded-md border-2 border-lavender/70 bg-lavender/25 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   {musicPeaks && (
                     <TimelineWaveform
@@ -826,9 +964,10 @@ export function EditorTimeline({
                 <button
                   type="button"
                   {...NO_SEEK_PROPS}
+                  disabled={layout.locked.music}
                   onClick={onOpenMusic}
                   style={{ left: 8, width: Math.max(totalWidth - 16, 80) }}
-                  className="absolute bottom-1 top-1 rounded-md border-2 border-dashed border-border font-body text-xs text-muted-foreground hover:border-lavender/60 hover:text-foreground"
+                  className="absolute bottom-1 top-1 rounded-md border-2 border-dashed border-border font-body text-xs text-muted-foreground hover:border-lavender/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {t('library.editor.timeline.noMusic')}
                 </button>

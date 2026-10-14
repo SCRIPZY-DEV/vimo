@@ -22,7 +22,8 @@ import { downloadImage } from './download.ts'
 //   (a) el pedido de creación NO lleva timeout propio corto — bajo ráfaga el
 //       gateway tarda 30-90 s, y cortarlo convirtió 18 imágenes en 48 tareas
 //       cobradas;
-//   (b) el ÚNICO corte es el plazo largo por encargo (210 s);
+//   (b) el ÚNICO corte es el plazo largo por encargo (360 s: con 210 s,
+//       tareas de ~5 min que Evolink sí terminaba se daban por perdidas);
 //   (c) al vencer ese plazo se hace una VERIFICACIÓN FINAL de la tarea antes
 //       de darla por perdida: si terminó se cosecha (costo cero extra), si el
 //       proveedor la marcó fallida ese es el error real.
@@ -35,7 +36,7 @@ const IMAGE_MODEL = 'gpt-image-2'
 // Id del proveedor en los fallos (ADR-0038).
 const FAILURE_PROVIDER = 'evolink'
 
-export const ORDER_DEADLINE_MS = 210_000
+export const ORDER_DEADLINE_MS = 360_000
 // Polling cada 2 s (el origen consultaba cada 1 s): con 5 s la imagen llegaba
 // a la grilla hasta 5 s después de que Evolink la terminara, y el porcentaje
 // real que devuelve avanzaba a saltos. Un 429 durante el polling es

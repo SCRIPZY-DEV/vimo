@@ -29,7 +29,7 @@ el pipeline y proteger credenciales, revisiones y trabajos de resultado incierto
   cancelados solamente cuando los recibos prueban seguridad.
 
 La decisión y los contratos están en
-[ADR-0038](../docs/adr/ADR-0052-flow-como-motor-de-imagenes.md). La procedencia de
+[ADR-0058](../docs/adr/ADR-0058-flow-como-motor-de-imagenes.md). La procedencia de
 la copia del coordinador está en su README; no depende del repositorio externo
 ni del Node del sistema en producción.
 

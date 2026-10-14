@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Info, Loader2, PackageOpen } from 'lucide-react'
+import { Info, Loader2, PackageOpen, X } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -23,6 +23,7 @@ interface ExportClipsButtonProps {
   exportState: EditorExportState | null
   busy: boolean
   onExport(imageMotion: boolean): void
+  onCancel(): void
 }
 
 // La elección sólo afecta esta exportación, no el render ni el proyecto.
@@ -30,6 +31,7 @@ export function ExportClipsButton({
   exportState,
   busy,
   onExport,
+  onCancel,
 }: ExportClipsButtonProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -50,34 +52,46 @@ export function ExportClipsButton({
   return (
     <div ref={container} tabIndex={-1} className="rounded-xl outline-none">
       <Dialog open={open} onOpenChange={setOpen}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={unavailable}
-                className="rounded-xl font-display"
-              >
-                {exportState ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
+        {exportState ? (
+          <div className="flex h-10 items-center gap-2 rounded-xl border border-input bg-background px-3 outline-none">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="font-display text-sm text-foreground">
+              {t('library.editor.export.progress', {
+                percent: exportState.percent,
+              })}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onCancel}
+              aria-label={t('library.editor.export.cancel')}
+              className="h-6 w-6 rounded-md text-muted-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={unavailable}
+                  className="rounded-xl font-display"
+                >
                   <PackageOpen className="mr-1.5 h-4 w-4" />
-                )}
-                {exportState
-                  ? t('library.editor.export.progress', {
-                      percent: exportState.percent,
-                    })
-                  : t('library.editor.export.button')}
-              </Button>
-            </DialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent
-            side="bottom"
-            className="max-w-xs text-sm leading-snug"
-          >
-            {t('library.editor.export.help')}
-          </TooltipContent>
-        </Tooltip>
+                  {t('library.editor.export.button')}
+                </Button>
+              </DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              className="max-w-xs text-sm leading-snug"
+            >
+              {t('library.editor.export.help')}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <DialogContent
           className="rounded-2xl"
           onCloseAutoFocus={(event) => {
@@ -126,7 +140,7 @@ export function ExportClipsButton({
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">
-                {t('library.editor.export.cancel')}
+                {t('library.editor.export.cancelDialog')}
               </Button>
             </DialogClose>
             <Button onClick={confirmExport} disabled={unavailable}>

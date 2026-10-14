@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-06.
 - **Rama:** `feat/flow-dev-compat-20261006`.
 - **Base:** integración aislada de `dev` `2950ebb` con Flow `8257e334`.
-- **Contrato:** [ADR-0052: Flow como motor de imágenes](../docs/adr/ADR-0052-flow-como-motor-de-imagenes.md).
+- **Contrato:** [ADR-0058: Flow como motor de imágenes](../docs/adr/ADR-0058-flow-como-motor-de-imagenes.md).
 
 ## Causa
 

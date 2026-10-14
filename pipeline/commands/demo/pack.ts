@@ -65,6 +65,7 @@ const VOICE_PROVIDER_IDS: readonly string[] = [
   'fishaudio',
   'edge',
   'elevenlabs-direct',
+  'ai33',
 ]
 const FALLBACK_VOICE_PROVIDER: VoiceProviderId = 'elevenlabs'
 

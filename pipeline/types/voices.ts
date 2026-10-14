@@ -7,10 +7,25 @@
 // MOTOR y queda persistido en project.json, historial y favoritos; el vendor
 // se deriva del id. 'elevenlabs' sigue siendo el motor vía DubVoice
 // (compatibilidad con lo ya guardado); 'elevenlabs-direct' es la API directa.
+//
+// ai33 (ADR-0053) es un tercer vendor y un solo motor: sirve los mismos
+// motores que DubVoice tras una API unificada, y el motor real viaja como
+// prefijo del voice_id ("elevenlabs_<id>", "minimax_<id>", …).
 export type VoiceProviderId =
-  'minimax' | 'elevenlabs' | 'vbee' | 'fishaudio' | 'edge' | 'elevenlabs-direct'
+  | 'minimax'
+  | 'elevenlabs'
+  | 'vbee'
+  | 'fishaudio'
+  | 'edge'
+  | 'elevenlabs-direct'
+  | 'ai33'
 
-export type VoiceVendorId = 'dubvoice' | 'elevenlabs'
+export type VoiceVendorId = 'dubvoice' | 'elevenlabs' | 'ai33'
+
+// Catálogos de la Voice Library v3 de ai33 (`provider` de GET /v3/voices) y
+// prefijo de sus voice_id.
+export type Ai33Catalog =
+  'elevenlabs' | 'minimax' | 'clone' | 'edge' | 'kokoro' | 'vbee' | 'fishaudio'
 
 // Solo elevenlabs-direct: 'account' = voces de la cuenta del usuario
 // (/v2/voices); 'library' = biblioteca pública (/v1/shared-voices).
@@ -58,6 +73,8 @@ export interface ListVoicesFilters {
   source?: VoiceSource
   // Solo elevenlabs-direct con source 'library': filtro server-side.
   category?: string
+  // Solo ai33: qué catálogo de la Voice Library listar (default elevenlabs).
+  catalog?: Ai33Catalog
 }
 
 export interface ListVoicesPayload {
@@ -150,7 +167,8 @@ export interface VoiceCreditsPayload {
 
 export interface VoiceCreditsResult {
   vendor: VoiceVendorId
-  // dubvoice: créditos prepagos; elevenlabs: caracteres de la cuota mensual.
+  // dubvoice y ai33: créditos prepagos; elevenlabs: caracteres de la cuota
+  // mensual.
   unit: 'credits' | 'characters'
   // dubvoice: saldo; elevenlabs: caracteres restantes (limit - used).
   credits: number
@@ -243,6 +261,78 @@ export interface DubvoiceAccountResponse {
   email?: string
   credits?: number
   plan?: string
+}
+
+// ─── Formas crudas de la API de ai33 (solo los campos que consumimos) ───
+// Varios campos se leen con alternativas: la doc no fija el shape de los
+// items del catálogo ni del saldo (verificación en vivo pendiente).
+
+export interface Ai33Voice {
+  voice_id?: string
+  id?: string
+  name?: string
+  voice_name?: string
+  language?: string
+  locale?: string
+  gender?: string
+  accent?: string
+  category?: string
+  preview_url?: string
+  sample_audio?: string
+}
+
+export interface Ai33Pagination {
+  page?: number
+  page_size?: number
+  total?: number
+  total_pages?: number
+  has_more?: boolean
+}
+
+export interface Ai33VoicesResponse {
+  success?: boolean
+  data?: Ai33Voice[]
+  pagination?: Ai33Pagination
+}
+
+export interface Ai33CreateTaskResponse {
+  success?: boolean
+  task_id?: string
+  message?: string
+}
+
+export interface Ai33TaskResponse {
+  id?: string
+  created_at?: string
+  type?: string
+  // Recortado a 1000 caracteres; text_length es el largo original.
+  text?: string
+  text_length?: number
+  file_name?: string
+  // 'doing' mientras avanza; 'done' o 'error' al terminar.
+  status?: string
+  error_message?: string | null
+  credit_cost?: number
+  progress?: number
+  metadata?: { audio_url?: string; file_name?: string }
+}
+
+export interface Ai33TasksResponse {
+  data?: Ai33TaskResponse[]
+  tasks?: Ai33TaskResponse[]
+  items?: Ai33TaskResponse[]
+}
+
+export interface Ai33CreditsResponse {
+  credits?: number | string
+  credit?: number | string
+  balance?: number | string
+  ec_remain_credits?: number | string
+  data?: {
+    credits?: number | string
+    credit?: number | string
+    balance?: number | string
+  }
 }
 
 // ─── Formas crudas de la API directa de ElevenLabs (solo lo que consumimos) ───

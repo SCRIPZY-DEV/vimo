@@ -189,7 +189,7 @@ export async function runDemoPipeline(
       await writeScenes(context.paths, scenes)
       context.emitter.emit({
         type: 'scenes-planned',
-        scenes: await toSceneSummaries(context.paths, scenes),
+        scenes: await toSceneSummaries(context.paths, scenes, context.metadata),
         audioDurationSeconds: context.metadata.audioDurationSeconds ?? 0,
       })
       context.metadata.sceneCount = scenes.length
@@ -206,7 +206,7 @@ export async function runDemoPipeline(
         scene.imagePrompt = packScenes[index].promptImagen ?? ''
         context.emitter.emit({
           type: 'scene-prompt-ready',
-          scene: await toSceneSummary(context.paths, scene),
+          scene: await toSceneSummary(context.paths, scene, context.metadata),
         })
         context.emitter.emit({
           type: 'scene-prompts-progress',

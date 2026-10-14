@@ -198,7 +198,7 @@ export function StyleCloneSourceStep({
             className={cn(CUSTOM_STYLE_FIELD_CLASS, 'font-body text-sm')}
           />
           {linkTyped && !linkValid ? (
-            <p role="alert" className="font-body text-xs text-coral">
+            <p role="alert" className="font-body text-xs text-coral-text">
               {t('create.styleClone.videoInvalid')}
             </p>
           ) : (
@@ -248,7 +248,7 @@ export function StyleCloneSourceStep({
                   />
                   {invalid && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-1 text-center">
-                      <TriangleAlert className="h-4 w-4 text-coral" />
+                      <TriangleAlert className="h-4 w-4 text-coral-text" />
                       <span className="font-body text-[10px] font-semibold leading-tight text-foreground">
                         {t('create.styleClone.imagesRejected')}
                       </span>
@@ -260,7 +260,7 @@ export function StyleCloneSourceStep({
                     aria-label={t('create.styleClone.imagesRemove', {
                       number: index + 1,
                     })}
-                    className="absolute right-1 top-1 cursor-pointer rounded-full bg-background/90 p-1 text-foreground shadow transition-colors hover:bg-coral hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-saffron/50"
+                    className="absolute right-1 top-1 cursor-pointer rounded-full bg-background/90 p-1 text-foreground shadow transition-colors hover:bg-wine hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-saffron/50"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -298,7 +298,7 @@ export function StyleCloneSourceStep({
             </p>
           )}
           {hasRejected && (
-            <p role="alert" className="font-body text-xs text-coral">
+            <p role="alert" className="font-body text-xs text-coral-text">
               {t('create.styleClone.imagesRejectedNotice')}
             </p>
           )}

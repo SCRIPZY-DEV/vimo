@@ -39,6 +39,7 @@ export function useVoiceCatalogPage({
   const catalog = tab === 'favorites' ? null : VOICE_TAB_CATALOGS[tab]
   const provider = catalog?.provider ?? null
   const source = catalog?.source
+  const ai33Catalog = catalog?.catalog
   // Favoritos del vendor visible: los del otro siguen guardados.
   const vendorFavorites = favorites.filter((favorite) =>
     VOICE_PROVIDERS_BY_VENDOR[vendor].includes(favorite.provider),
@@ -54,7 +55,14 @@ export function useVoiceCatalogPage({
     serverPaged,
     hasNextPage,
     serverTotal,
-  } = useVoices({ provider, source, filters: effectiveFilters, page, ready })
+  } = useVoices({
+    provider,
+    source,
+    catalog: ai33Catalog,
+    filters: effectiveFilters,
+    page,
+    ready,
+  })
 
   const catalogVoices = tab === 'favorites' ? vendorFavorites : voices
   const filteredVoices = filterVoices(catalogVoices, effectiveFilters, {

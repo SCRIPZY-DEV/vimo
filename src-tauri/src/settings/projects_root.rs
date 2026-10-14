@@ -30,6 +30,33 @@ pub fn resolve_projects_root(app: &AppHandle) -> Option<String> {
         .map(|root| root.to_string_lossy().into_owned())
 }
 
+/// Crea la carpeta si falta. Una ruta relativa no se crea: se resolvería
+/// contra el directorio de trabajo del proceso, no contra la del usuario.
+fn create_projects_root(root: &Path) -> std::io::Result<()> {
+    if !root.is_absolute() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(root)
+}
+
+/// Crea `~/Documents/Vimo` en el arranque cuando es la carpeta en uso (nadie
+/// eligió otra). Así el sidecar puede tratar una carpeta de proyectos que no
+/// existe como lo que es —un disco desconectado, una carpeta movida o
+/// borrada— y avisar, en vez de confundirla con el primer uso y mostrar las
+/// bibliotecas vacías. La carpeta elegida en Ajustes no se recrea: crearla
+/// vacía escondería justamente ese problema.
+pub fn ensure_default_projects_root(app: &AppHandle) {
+    if stored_projects_root(app).is_some() {
+        return;
+    }
+    let Some(root) = default_projects_root(app) else {
+        return;
+    };
+    if let Err(error) = create_projects_root(&root) {
+        log::warn!("no se pudo crear la carpeta de proyectos por defecto {}: {error}", root.display());
+    }
+}
+
 fn allow_directory(app: &AppHandle, directory: &Path) -> tauri::Result<()> {
     app.asset_protocol_scope().allow_directory(directory, true)?;
     app.fs_scope().allow_directory(directory, true)?;
@@ -55,3 +82,7 @@ pub fn allow_projects_root(app: &AppHandle) {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tests/projects_root.rs"]
+mod tests;
