@@ -19,7 +19,7 @@ pipeline/
 │   ├── characters/                biblioteca de personajes (8)
 │   ├── music/                     música IA + historial (8)
 │   └── voices/                    TTS + historial (7)
-├── stages/                        las 6 fases del video (32)
+├── stages/                        las 8 fases del video (32)
 │   ├── registry.ts                CREATE_VIDEO_STAGES: el orden ES la secuencia
 │   ├── context.ts                 CreateVideoContext (paths, metadata, opciones)
 │   ├── voice/                     fase 1: narración + BGM + overlay (4)
@@ -27,7 +27,9 @@ pipeline/
 │   ├── scene-cuts/                fase 3: cortes + pausa de confirmación (1)
 │   ├── scene-prompts/             fase 4: director + redactor de prompts (7)
 │   ├── images/                    fase 5: carriles de generación de imagen (6)
-│   ├── render/                    fase 6: chunks, concat y mezcla final (8)
+│   ├── avatar/                    fase 6: escenas de avatar con HeyGen, a la vez que images (1)
+│   ├── animation/                 fase 7: animación del prefijo con Kie (1)
+│   ├── render/                    fase 8: chunks, concat y mezcla final (8)
 │   └── shared/                    LLM, biblia visual, saneo de prompts (3)
 ├── providers/                     clientes de servicios externos (16)
 │   ├── llm/                       DeepInfra + reintentos y degradación (2)
@@ -55,7 +57,7 @@ flowchart TD
   main["main.ts<br/>(entrada y dispatch)"] --> commands
   commands["commands/<br/>(subcomandos por dominio)"] --> stages
   commands --> project & providers
-  stages["stages/<br/>(las 6 fases)"] --> providers & project & prompts & utils
+  stages["stages/<br/>(las 8 fases)"] --> providers & project & prompts & utils
   providers["providers/<br/>(clientes externos)"] --> runner
   project["project/<br/>(disco)"] --> runner
   commands --> runner
@@ -132,7 +134,7 @@ subcomandos:
 | `music/`      | `suggest-music-prompt`, `generate-music`, `choose-music`, `get-music-credits`, `music-history-list`, `music-history-delete`                                                                                                                                                                                                                                    | `<projectsRoot>/_history/music/<id>/`  |
 | `voices/`     | `list-voices`, `generate-voice`, `get-voice-credits`, `voice-history-list`, `voice-history-delete`, `add-library-voice`                                                                                                                                                                                                                                        | `<projectsRoot>/_history/voices/<id>/` |
 
-## 6. Las 6 stages del video (el corazón)
+## 6. Las 8 stages del video (el corazón)
 
 `stages/registry.ts` define `CREATE_VIDEO_STAGES`; **el orden del array ES la
 secuencia del video**. `run-video-pipeline` construye un `CreateVideoContext`
@@ -147,17 +149,33 @@ flowchart TD
   s2["2 · transcription<br/>Deepgram palabra a palabra, en paralelo<br/>con la medición de duración real (ffmpeg)"]
   s3["3 · scene-cuts<br/>corte uniforme por tiempo (≈1 escena / 3 s);<br/>emite scenes-planned"]
   s4["4 · scene-prompts<br/>presencia de personajes → director de escenas<br/>(1 pasada LLM) → redactor por escena, incremental"]
-  s5["5 · images<br/>carriles Evolink/Fal + carril de personaje,<br/>saneo de prompts y pasadas de recuperación"]
-  s6["6 · render<br/>chunks mudos con Ken Burns (con caché) →<br/>concat sin re-encode → mezcla final de audio"]
+  subgraph junto["a la vez (runsAlongside)"]
+    s5["5 · images<br/>carriles Evolink/Fal + carril de personaje,<br/>saneo de prompts y pasadas de recuperación"]
+    s6["6 · avatar (opcional)<br/>escenas de avatar con HeyGen, de a diez;<br/>no usa los prompts ni las imágenes"]
+  end
+  s7["7 · animation (opcional)<br/>agrupa las fuentes del prefijo en clips (Kie)"]
+  s8["8 · render<br/>chunks mudos con Ken Burns (con caché) →<br/>concat sin re-encode → mezcla final de audio"]
 
   s1 -- "narration.mp3 · music.mp3 · overlay.mp4" --> s2
   s2 -- "words.json" --> s3
   s3 -- "scenes.json" --> s4
   s3 -. "si confirmScenes y no hay confirmación:<br/>awaiting-scene-confirmation + pausa<br/>(el job cierra limpio)" .-> pausa(["espera a la UI"])
   s4 -- "scenes.json con imagePrompt" --> s5
-  s5 -- "scenes/scene_(id).jpg" --> s6
-  s6 --> fin(["(slug).mp4 + prompts.md"])
+  s4 -- "arranca junto con images<br/>(narración y tramos de scenes.json)" --> s6
+  s5 -- "scenes/scene_(id).jpg" --> s7
+  s6 -- "avatar/scene_(id).(hash8).mp4" --> s7
+  s7 -- "animations/scene_(id).mp4" --> s8
+  s8 --> fin(["(slug).mp4 + prompts.md"])
 ```
+
+`avatar` y `animation` son opcionales: sin avatar o sin animación automática se saltean.
+`avatar` declara `runsAlongside: 'images'` (ADR-0013, entrega 2h): al llegar a `images`, el
+runner evalúa el `skip()` de las dos, emite sus `stage-started` y las corre **a la vez**; cada
+`stage-completed` llega apenas ella termina, en cualquier orden, y `animation` espera a que
+terminen las dos. Si fallan las imágenes se corta el avatar (sus recibos quedan guardados); si
+falla el avatar, las imágenes terminan y después sale su fallo; si fallan las dos, gana el de
+las imágenes. `render` junta lo que dejaron las tres: las imágenes, los clips de avatar y los de
+animación. El detalle está en [ADR-0013](../adr/ADR-0013-modulo-create-runner-de-stages-y-binarios.md).
 
 Cada stage declara un `skip()` que mira si su artefacto ya existe (cache-hit →
 evento `stage-skipped`). Eso es lo que permite reanudar, regenerar por partes y
@@ -170,7 +188,9 @@ el ciclo de pausa. Detalles por fase:
 | 3   | `scene-cuts`    | `stages/scene-cuts/scene-cuts.ts`       | el único punto de pausa (`StagePause`)                                                                                            |
 | 4   | `scene-prompts` | `stages/scene-prompts/scene-prompts.ts` | acá se cobra (`await`) la biblia visual hoisteada en la fase 1; persiste incrementalmente y emite `scene-prompt-ready` por escena |
 | 5   | `images`        | `stages/images/images.ts`               | ver §8                                                                                                                            |
-| 6   | `render`        | `stages/render/render.ts`               | progreso 0–45 % chunks · 45–50 % concat · 50–100 % mezcla; se filtra del run si `autoRender: false` (ADR-0016)                    |
+| 6   | `avatar`        | `stages/avatar/avatar.ts`               | opcional (ADR-0057): corre a la vez que `images` (`runsAlongside`, ADR-0013); sin avatar se saltea                                |
+| 7   | `animation`     | `stages/animation/animation.ts`         | opcional (ADR-0045): clips del prefijo animado con Kie; sin animación automática se saltea                                        |
+| 8   | `render`        | `stages/render/render.ts`               | progreso 0–45 % chunks · 45–50 % concat · 50–100 % mezcla; se filtra del run si `autoRender: false` (ADR-0016)                    |
 
 ## 7. El ciclo de pausa (confirmación de escenas, ADR-0013)
 
@@ -193,7 +213,7 @@ sequenceDiagram
   C->>C: escribe scenes-confirmed.json<br/>(borra scenes.json si difiere)
   UI->>S2: relanza run-video-pipeline
   S2->>S2: voice y transcription: stage-skipped (cache-hit)
-  S2->>S2: scene-cuts ve la confirmación y sigue<br/>→ scene-prompts → images → render
+  S2->>S2: scene-cuts ve la confirmación y sigue<br/>→ scene-prompts → images + avatar (a la vez) → animation → render
   S2-->>UI: job-completed
 ```
 

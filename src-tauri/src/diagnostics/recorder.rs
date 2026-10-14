@@ -126,7 +126,11 @@ pub struct DiagnosticRecorder {
     tail: VecDeque<Value>,
     truncated: bool,
     progress_buckets: HashMap<String, u64>,
-    current_stage: Option<String>,
+    /// Las fases en curso, en el orden en que arrancaron. El corredor puede
+    /// correr dos a la vez (`images` y `avatar`, ADR-0013 y spec §24.1): cada
+    /// `stage-completed` o `stage-skipped` saca solo la suya, y la que falló es
+    /// la primera que sigue en curso cuando llega `job-failed`.
+    running_stages: Vec<String>,
     status: Option<RunStatus>,
     error_code: Option<String>,
     error_message: Option<String>,
@@ -147,7 +151,7 @@ impl DiagnosticRecorder {
             tail: VecDeque::new(),
             truncated: false,
             progress_buckets: HashMap::new(),
-            current_stage: None,
+            running_stages: Vec::new(),
             status: None,
             error_code: None,
             error_message: None,
@@ -189,10 +193,46 @@ impl DiagnosticRecorder {
         true
     }
 
+    // `stage-started`: la fase entra al final de las que están en curso. Un
+    // evento sin `stageId` no se puede seguir.
+    fn start_stage(&mut self, event: &Value) {
+        let Some(stage) = string_field(event, "stageId") else {
+            return;
+        };
+        self.running_stages.push(stage);
+    }
+
+    // `stage-completed` y `stage-skipped`: sacan solo la fase del evento (todas
+    // sus entradas, si arrancó dos veces). Una que nunca arrancó (la salteada)
+    // o un evento sin `stageId` no tocan a las que siguen corriendo.
+    fn end_stage(&mut self, event: &Value) {
+        let Some(stage) = string_field(event, "stageId") else {
+            return;
+        };
+        self.running_stages.retain(|running| *running != stage);
+    }
+
+    // La fase que se da por fallida si el job cae: la primera que sigue en
+    // curso. Con las reglas del corredor (§24.1) es la que de verdad falló: si
+    // `images` falla se corta el avatar (que no llega a completarse) y si
+    // fallan las dos gana `images`, la primera en arrancar; si falla el avatar,
+    // `images` termina antes de que el job caiga y ya no está en curso.
+    //
+    // Es una heurística, no un dato del evento: `job-failed` no dice qué fase
+    // falló. El límite conocido es un fallo que llega DESPUÉS del
+    // `stage-completed` de su fase, en el gancho que guarda su avance
+    // (`onStageCompleted`, por ejemplo sin disco): el corredor corta a la otra,
+    // que sigue en curso, y el `job-failed` queda anotado con ella (o sin fase
+    // si no queda ninguna). Es muy raro, y el campo es una pista para soporte,
+    // no una prueba.
+    fn failing_stage(&self) -> Option<String> {
+        self.running_stages.first().cloned()
+    }
+
     fn track_outcome(&mut self, event_type: &str, event: &Value) {
         match event_type {
-            "stage-started" => self.current_stage = string_field(event, "stageId"),
-            "stage-completed" | "stage-skipped" => self.current_stage = None,
+            "stage-started" => self.start_stage(event),
+            "stage-completed" | "stage-skipped" => self.end_stage(event),
             "job-completed" => {
                 let result = event.get("result");
                 let awaiting = result
@@ -232,7 +272,7 @@ impl DiagnosticRecorder {
                 self.error_code = code;
                 self.error_provider = string_field(event, "provider");
                 self.error_http_status = event.get("httpStatus").and_then(Value::as_u64);
-                self.failed_stage = self.current_stage.clone();
+                self.failed_stage = self.failing_stage();
             }
             _ => {}
         }
@@ -292,7 +332,7 @@ impl DiagnosticRecorder {
                 Some(format!(
                     "process exited without a terminal event (exit code {exit_code:?}, signal {signal:?})"
                 )),
-                self.current_stage.clone(),
+                self.failing_stage(),
             ),
             _ => (self.error_code, self.error_message, self.failed_stage),
         };

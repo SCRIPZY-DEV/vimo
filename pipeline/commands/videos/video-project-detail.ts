@@ -18,6 +18,7 @@ import type {
   SceneDetail,
   VideoProjectDetailPayload,
   VideoProjectDetailResult,
+  VideoProjectMetadata,
 } from '../../types/video-project.ts'
 import { readTextWithRetry } from '../../utils/atomic-fs.ts'
 
@@ -46,7 +47,7 @@ export async function videoProjectDetail(
   const scenes = await readScenes(paths)
   const result: VideoProjectDetailResult = {
     metadata,
-    scenes: scenes ? await toSceneDetails(paths, scenes) : [],
+    scenes: scenes ? await toSceneDetails(paths, scenes, metadata) : [],
     words: await readWords(paths),
     script: await readScript(paths),
   }
@@ -77,10 +78,11 @@ export async function videoProjectDetail(
 async function toSceneDetails(
   paths: ProjectPaths,
   scenes: Scene[],
+  metadata: VideoProjectMetadata,
 ): Promise<SceneDetail[]> {
   const details: SceneDetail[] = []
   for (const scene of scenes) {
-    const detail: SceneDetail = await toSceneSummary(paths, scene)
+    const detail: SceneDetail = await toSceneSummary(paths, scene, metadata)
     if (scene.imagePrompt) detail.imagePrompt = scene.imagePrompt
     if (scene.userPrompt) detail.userPrompt = scene.userPrompt
     if (hasPendingUserPrompt(scene)) detail.userPromptPending = true

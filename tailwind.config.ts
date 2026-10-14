@@ -39,6 +39,7 @@ export default {
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
+          text: 'hsl(var(--destructive-text))',
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
@@ -59,6 +60,7 @@ export default {
         saffron: 'hsl(var(--saffron))',
         charcoal: 'hsl(var(--charcoal))',
         coral: 'hsl(var(--coral))',
+        'coral-text': 'hsl(var(--coral-text))',
         ocean: 'hsl(var(--ocean))',
         mint: 'hsl(var(--mint))',
         'ocean-deep': 'hsl(var(--ocean-deep))',
@@ -69,6 +71,7 @@ export default {
         iris: 'hsl(var(--iris))',
         graphite: 'hsl(var(--graphite))',
         sky: 'hsl(var(--sky))',
+        amethyst: 'hsl(var(--amethyst))',
         lavender: 'hsl(var(--lavender))',
         'warm-gray': 'hsl(var(--warm-gray))',
         ink: 'hsl(var(--ink))',

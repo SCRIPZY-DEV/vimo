@@ -65,7 +65,7 @@ export function CreateAnimationSection({
           </p>
           {!configuredProviders.has('kie') && (
             <div className="space-y-2">
-              <p className="font-body text-xs text-coral">
+              <p className="font-body text-xs text-coral-text">
                 {t('create.validation.animationKeyRequired')}
               </p>
               <Button asChild size="sm" variant="outline">

@@ -3,6 +3,11 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-08-12
 - **Área:** app
+- **Enmendada:** 2026-10-08, por la
+  [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md) (todavía Propuesta): un tercer
+  layout, `EditorLayout`, para el editor a pantalla completa. El resto sigue vigente.
+- **Enmendada:** 2026-10-11, decisión del dueño: una segunda excepción acotada a la regla de
+  dependencias para `videos` (ver «Enmienda del 2026-10-11» al final).
 
 ## Problema
 
@@ -88,6 +93,32 @@ acceso, progreso real del splash.
 - **Cómo se vería una regresión:** un layout importando componentes internos de un
   módulo (rompe la regla de dependencias), o una vista montada fuera de su layout
   (login con sidebar, p. ej.).
+
+## Enmienda del 2026-10-11 — `videos` compone otros dominios
+
+**Contexto.** La regla de arriba dice que componentes, hooks y `api/` son privados del módulo. En la
+práctica, `videos` (Crear y el editor) importa desde hace tiempo lo que otros módulos exponen para
+elegir algo: voces (`voices`), claves (`api-keys`), ajustes (`settings`) y personajes (`characters`).
+La entrega 2 del avatar sumó `avatars` (la biblioteca, el saldo y la vista previa de un look) y la 2d
+suma el reproductor de un look (`LookPlayerDialog`). La revisión de la entrega 2b lo marcó: o se
+escribe la excepción, o cada pieza baja a `common`, que no es su lugar (son del dominio de avatares,
+voces o claves).
+
+**Decisión (del dueño, 2026-10-11, «implementa sus soluciones: la excepción en CLAUDE.md»).**
+`videos` arma el video con piezas de otros dominios, así que puede importar lo que esos módulos
+exponen para elegir o mostrar algo: su `api/`, sus hooks, sus tipos, sus constantes públicas (claves
+de query, límites, tiempos), sus utilidades puras y sus componentes de selección o vista previa. Solo `videos` tiene esta excepción y solo en ese sentido:
+lo que comparten dos módulos que no son `videos` sigue subiendo a `common`. El texto vive en
+`CLAUDE.md`, «Regla de dependencias».
+
+**Fuera de esta enmienda.** Medido el 2026-10-11 con un grep de las importaciones entre módulos:
+`avatars`, `characters`, `music` y `voices` importan de `api-keys` (el aviso y el botón de la clave
+de cada proveedor), `voices` lee un hook de `settings` y `common` importa una constante de `videos`.
+Son prácticas anteriores que esta enmienda no legitima ni corrige; quedan para una decisión aparte
+(por ejemplo, subir el aviso de clave a `common`).
+
+**Cómo se vería una regresión:** un módulo que no es `videos` importando componentes o hooks de
+otro, o un módulo importando de `videos` algo que no sean sus rutas.
 
 ## Referencias
 

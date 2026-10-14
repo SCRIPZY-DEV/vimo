@@ -1,4 +1,8 @@
 import {
+  avatarCoveredIntervals,
+  withoutAvatarSceneIds,
+} from '@pipeline/animation/avatar-coverage.ts'
+import {
   planAnimationUnits,
   animationUnitFromBlock,
 } from '@pipeline/animation/planner.ts'
@@ -25,7 +29,10 @@ export function animationPlanPreview(
   selected: SceneDetail,
   options: AnimationPreviewOptions = {},
 ): AnimationPlanPreview {
-  const selectedIds = new Set([selected.absorbedBy ?? selected.id])
+  // El panel de una escena de avatar no ofrece animarla (ADR-0057).
+  const selectedIds = new Set(
+    withoutAvatarSceneIds([selected.absorbedBy ?? selected.id], timedScenes),
+  )
   const ready = readyAnimationClips(timedScenes)
   let expanding = true
   while (expanding) {
@@ -38,7 +45,10 @@ export function animationPlanPreview(
   const replaced = ready.filter((clip) =>
     clip.animation.sceneIds.some((id) => selectedIds.has(id)),
   )
-  const coveredIntervals = ready.filter((clip) => !replaced.includes(clip))
+  const coveredIntervals = [
+    ...ready.filter((clip) => !replaced.includes(clip)),
+    ...avatarCoveredIntervals(timedScenes),
+  ]
   const preservedPending = shortTailPendingAnimationUnits(timedScenes)
   const plannerOptions = {
     endSeconds: animationRangeEnd(undefined, options.durationSeconds),

@@ -7,6 +7,33 @@ import { isValidFile, type ProjectPaths } from './paths.ts'
 // estado del proyecto entre jobs (el sidecar es un proceso por job: todo lo
 // que debe sobrevivir vive en disco).
 
+// Las escrituras de project.json del proceso, en fila por archivo (entrega 2h,
+// diseño §24.1): con el avatar corriendo junto con las imágenes, las dos
+// fases y el gancho del pipeline que anota `completedStages` escriben el mismo
+// archivo a la vez, y dos escrituras atómicas a la vez dejan la última que
+// renombra: la otra se pierde. En fila, cada una corre cuando terminó la
+// anterior y toma lo que escribe en ese momento, no cuando se pidió: así la
+// copia en memoria que se escribe última lleva todo lo que se le anotó antes.
+// Sin otra escritura en curso corre en el acto, como siempre. Entre procesos
+// manda el lease del proyecto (subcommands.ts): un job que escribe por vez.
+const metadataWrites = new Map<string, Promise<void>>()
+
+function inMetadataQueue(
+  paths: ProjectPaths,
+  operation: () => Promise<void>,
+): Promise<void> {
+  const file = paths.metadataFile
+  const previous = metadataWrites.get(file)
+  const result = previous ? previous.then(operation) : operation()
+  const tail = result.catch(() => undefined)
+  metadataWrites.set(file, tail)
+  // La fila vacía no queda en el mapa: la próxima escritura corre en el acto.
+  void tail.then(() => {
+    if (metadataWrites.get(file) === tail) metadataWrites.delete(file)
+  })
+  return result
+}
+
 export async function readProjectMetadata(
   paths: ProjectPaths,
 ): Promise<VideoProjectMetadata> {
@@ -28,8 +55,16 @@ export async function readProjectMetadata(
 }
 
 // Escritura atómica con updatedAt sellado acá: ningún caller lo estampa a
-// mano, así todo write queda fechado.
-export async function writeProjectMetadata(
+// mano, así todo write queda fechado. Va en la fila de escrituras del archivo.
+export function writeProjectMetadata(
+  paths: ProjectPaths,
+  metadata: VideoProjectMetadata,
+): Promise<void> {
+  return inMetadataQueue(paths, () => writeMetadataNow(paths, metadata))
+}
+
+// La escritura en sí, sin pasar por la fila: solo desde adentro de ella.
+async function writeMetadataNow(
   paths: ProjectPaths,
   metadata: VideoProjectMetadata,
 ): Promise<void> {
@@ -54,4 +89,26 @@ export async function markVideoOutdated(
   await writeProjectMetadata(paths, next)
   metadata.videoOutdated = true
   metadata.updatedAt = next.updatedAt
+}
+
+// Lo mismo, sobre lo que hay EN DISCO (entrega 2h, diseño §24.1), para quien no
+// es dueño de project.json: el carril del avatar, que corre junto con las
+// imágenes y con el gancho del pipeline que anota `completedStages`, o como
+// comando del editor junto a otros jobs. Dentro de la fila de escrituras
+// relee el archivo y le cambia solo `videoOutdated` (no pisa lo que otra
+// escritura acaba de guardar), y antes de soltar la fila copia la marca en
+// `metadata`, la copia en memoria del job: la próxima escritura de esa copia ya
+// la lleva y no la deshace.
+export function markStoredVideoOutdated(
+  paths: ProjectPaths,
+  metadata: VideoProjectMetadata,
+): Promise<void> {
+  return inMetadataQueue(paths, async () => {
+    const latest = await readProjectMetadata(paths)
+    if (!latest.videoOutdated && (await isValidFile(paths.videoFile))) {
+      latest.videoOutdated = true
+      await writeMetadataNow(paths, latest)
+    }
+    metadata.videoOutdated = latest.videoOutdated
+  })
 }

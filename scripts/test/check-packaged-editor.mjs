@@ -7,6 +7,10 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { targetTriple, executableSuffix } from '../target-triple.mjs'
+import {
+  isNarrativeReviewRequest,
+  narrativeReviewAnswer,
+} from './narrative-review-fixture.mjs'
 
 const triple = targetTriple()
 const binary = resolve(
@@ -24,8 +28,23 @@ const server = createServer(async (request, response) => {
   let body = ''
   for await (const chunk of request) body += chunk
   const input = JSON.parse(body)
+  // Desde el PR #91 (ADR-0043) el juez de correspondencia también llama a este
+  // servidor después de escribir cada prompt: se le aprueba todo y sus pedidos
+  // no cuentan como pedidos del redactor (ni llevan la gema del usuario).
+  if (isNarrativeReviewRequest(input)) {
+    const answer = narrativeReviewAnswer(input)
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(await answer.text())
+    return
+  }
   requests.push(input)
-  assert.ok(input.messages[0].content.startsWith(gem))
+  // Un pedido que no es del redactor (ni del juez) dice acá cuál es, en vez de
+  // dejar solo «falsy value» dentro del servidor simulado.
+  assert.ok(
+    input.messages[0].content.startsWith(gem),
+    'unexpected LLM request, its system message starts with: ' +
+      input.messages[0].content.slice(0, 80),
+  )
   const absent = input.messages[0].content.includes(
     'ESTE PEDIDO VA SIN PROTAGONISTA',
   )
@@ -180,10 +199,14 @@ try {
   const failed = await run('regenerate-scene-images', {
     scenes: [{ id: 1, rewritePrompt: false }],
   })
+  // Desde el PR #91 una escena que el redactor no logra escribir (tampoco con
+  // el rescate de otro modelo) corta con este código, no con
+  // `llm_empty_response`: lo mismo que afirma check-editor-character-selection.
   assert.ok(
     failed.some(
       (event) =>
-        event.type === 'job-failed' && event.code === 'llm_empty_response',
+        event.type === 'job-failed' &&
+        event.code === 'scene_prompt_alignment_failed',
     ),
   )
   assert.ok(

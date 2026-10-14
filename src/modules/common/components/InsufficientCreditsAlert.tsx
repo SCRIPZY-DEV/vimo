@@ -46,12 +46,21 @@ export function InsufficientCreditsAlert({
     : lines
   if (visibleLines.length === 0) return null
 
+  // Los dólares van con sus dos decimales y el redondeo de Intl, el mismo con
+  // el que Crear muestra el costo del avatar (formatUsd): 0,495 es «0,50» y no
+  // el «0,49» que deja toFixed por la coma flotante.
   const formatAmount = (amount: number, unit: CreditsUnit) => {
     if (!Number.isFinite(amount)) return '∞'
-    const rounded = unit === 'usd' ? amount.toFixed(2) : Math.ceil(amount)
-    return t(UNIT_KEYS[unit], {
-      amount: Number(rounded).toLocaleString(i18n.resolvedLanguage),
-    })
+
+    const language = i18n.resolvedLanguage
+    const formatted =
+      unit === 'usd'
+        ? amount.toLocaleString(language, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : Math.ceil(amount).toLocaleString(language)
+    return t(UNIT_KEYS[unit], { amount: formatted })
   }
 
   return (
@@ -91,16 +100,19 @@ export function InsufficientCreditsAlert({
               <span className="opacity-60"> · </span>
               {line.estimated !== null && (
                 <span>
-                  {t('common.credits.needed', {
-                    amount: formatAmount(line.estimated, line.unit),
-                  })}
+                  {t(
+                    line.upperBound
+                      ? 'common.credits.neededUpTo'
+                      : 'common.credits.needed',
+                    { amount: formatAmount(line.estimated, line.unit) },
+                  )}
                   <span className="opacity-60"> · </span>
                 </span>
               )}
               <span
                 className={cn(
                   'tabular-nums',
-                  line.sufficient === false && 'font-bold text-coral',
+                  line.sufficient === false && 'font-bold text-coral-text',
                 )}
               >
                 {line.available === null

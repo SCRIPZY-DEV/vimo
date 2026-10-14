@@ -5,6 +5,7 @@ import { usePromptModelBlocks } from '@/modules/common/hooks/usePromptModelBlock
 import { usePromptModels } from '@/modules/common/hooks/usePromptModels'
 import { apiKeysApi } from '@/modules/api-keys/api'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
+import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
 import { InsufficientCreditsAlert } from '@/modules/common/components/InsufficientCreditsAlert'
 import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
@@ -13,6 +14,7 @@ import { cn } from '@/modules/common/utilities/cn'
 import { CatalogStyleGallery } from '@/modules/videos/components/CatalogStyleGallery'
 import { CharacterSection } from '@/modules/videos/components/CharacterSection'
 import { CreateAnimationSection } from '@/modules/videos/components/CreateAnimationSection'
+import { CreateAvatarSection } from '@/modules/videos/components/CreateAvatarSection'
 import { CreateBlockersAlert } from '@/modules/videos/components/CreateBlockersAlert'
 import { CustomStyleGallery } from '@/modules/videos/components/CustomStyleGallery'
 import { ImageProviderSection } from '@/modules/videos/components/ImageProviderSection'
@@ -24,6 +26,7 @@ import { StyleSourceTabs } from '@/modules/videos/components/StyleSourceTabs'
 import { VideoFormatSection } from '@/modules/videos/components/VideoFormatSection'
 import { VoiceSection } from '@/modules/videos/components/VoiceSection'
 import {
+  CREATE_AVATAR_LIBRARY_STALE_TIME_MS,
   CREATE_BLOCKERS_ID,
   MAX_SCENE_COUNT,
   PROJECT_NAME_LIMIT,
@@ -43,6 +46,7 @@ import {
   tabSwitchSelection,
 } from '@/modules/videos/utilities/formLane'
 import { formBlockers } from '@/modules/videos/utilities/formPayload'
+import { selectedAvatarUnavailable } from '@/modules/videos/utilities/selectableAvatar'
 import { selectedCustomStyleFrom } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type {
@@ -109,10 +113,20 @@ export function CreateForm({
   // Pre-check de saldo (ADR-0031): con saldo leído e insuficiente el envío
   // se frena como cualquier otro paso faltante; ilegible solo avisa.
   const costCheck = useCreateCostCheck({ form: value })
+  // La elección del avatar contra la biblioteca de hoy y el formato del video
+  // (spec §6.2 y §16): un avatar borrado, un look que perdió Avatar III o uno
+  // de otra orientación (la persona cambió el formato) frena el envío acá, en
+  // vez de fallar al crear el proyecto. Sin clave de HeyGen `value` ya llega
+  // con el avatar apagado (withAvatarKey), así que no se lee nada.
+  const avatarLibrary = useAvatars({
+    enabled: value.useAvatar,
+    staleTime: CREATE_AVATAR_LIBRARY_STALE_TIME_MS,
+  })
   const missingSteps = formBlockers(value, {
     promptModelsBlocked,
     fixedCharacterMissing: fixedMissing,
     animationKeyMissing: !configuredProviders.has('kie'),
+    avatarUnavailable: selectedAvatarUnavailable(value, avatarLibrary),
     newCatalog,
   })
   const blockers = costCheck.result.blocking
@@ -319,6 +333,12 @@ export function CreateForm({
       />
 
       <CreateAnimationSection
+        value={value}
+        disabled={disabled || demo !== null}
+        onChange={onChange}
+      />
+
+      <CreateAvatarSection
         value={value}
         disabled={disabled || demo !== null}
         onChange={onChange}

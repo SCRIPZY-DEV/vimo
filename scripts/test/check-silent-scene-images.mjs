@@ -19,6 +19,7 @@ import { runStages } from '../../pipeline/runner/run-stages.ts'
 import { regenerateSceneImages } from '../../pipeline/commands/videos/regenerate-scene-images.ts'
 import { cutScenesByTime } from '../../pipeline/stages/scene-cuts/scene-cuts.ts'
 import { scenePromptsStage } from '../../pipeline/stages/scene-prompts/scene-prompts.ts'
+import { SILENT_PAUSE_NOTE } from '../../pipeline/stages/scene-prompts/verbatim/verbatim-lane.ts'
 import { imagesStage } from '../../pipeline/stages/images/images.ts'
 import { hasCatalogPrompt } from '../../pipeline/stages/shared/catalog-prompt.ts'
 import {
@@ -179,7 +180,10 @@ function writerReply() {
   return stream(JSON.stringify({ prompt_imagen: silentDescription }))
 }
 function mockProviders(t, { llm, image }) {
-  const requests = { text: [], image: [] }
+  // `failures`: las aserciones que fallan DENTRO del fetch simulado. Ahí el
+  // proveedor las ve como un fallo de red y reintenta con otros modelos, así
+  // que sin anotarlas el test solo decía «9 !== 1» llamadas al redactor.
+  const requests = { text: [], image: [], failures: [] }
   t.mock.method(globalThis, 'fetch', async (url, init) => {
     if (String(url).includes('chat/completions')) {
       const request = JSON.parse(init.body)
@@ -187,7 +191,12 @@ function mockProviders(t, { llm, image }) {
       if (isNarrativeReviewRequest(request))
         return narrativeReviewAnswer(request)
       requests.text.push(request)
-      return llm(request)
+      try {
+        return llm(request)
+      } catch (error) {
+        requests.failures.push(error.message)
+        throw error
+      }
     }
     if (String(url).startsWith('https://fal.run/')) {
       const request = JSON.parse(init.body)
@@ -252,13 +261,22 @@ test('prompts stage writes the silent scene from its neighbours, without the dir
     llm: (request) => {
       assert.ok(isWriterRequest(request), 'the pause block reaches the writer')
       const user = userMessage(request)
+      // Las dos vecinas llegan en la narración que rodea a la escena.
       assert.ok(user.includes(before) && user.includes(after))
-      assert.equal(fragmentOf(user), `${before} ${after}`)
+      // ADR-0043 (PR #91): una escena muda sostiene el contexto previo, así
+      // que su fragmento es la narración anterior (la siguiente, solo si no
+      // hay anterior), no las dos juntas.
+      assert.equal(fragmentOf(user), before)
       return writerReply()
     },
   })
   assert.equal(await scenePromptsStage.skip(context), false)
   await scenePromptsStage.run(context)
+  assert.deepEqual(
+    requests.failures,
+    [],
+    'the writer request is the expected one',
+  )
   assert.equal(requests.text.length, 1, 'one writer call, no director')
   assert.equal(requests.image.length, 0)
   const stored = await readScenes(context.paths)
@@ -274,6 +292,91 @@ test('prompts stage writes the silent scene from its neighbours, without the dir
   assert.equal(progress.at(-1).ready, 3)
   assert.equal(progress.at(-1).total, 3)
   assert.equal(await scenePromptsStage.skip(context), true)
+})
+
+test('the pause texts say what ADR-0043 sends: hold the line before the pause, the next one only when the pause opens the video', () => {
+  // Catálogo (en inglés) y Mi estilo (en español) le dicen al modelo lo mismo
+  // que hace el código: el fragmento es la narración anterior a la pausa (la
+  // siguiente, solo si la pausa abre el video) y la imagen sostiene ese
+  // momento. Antes decían «anterior y posterior» y pedían el momento ENTRE las
+  // líneas, que adelanta la siguiente: justo lo que la ADR-0043 prohíbe.
+  const texts = [
+    {
+      name: 'SILENT_PAUSE_BLOCK',
+      text: SILENT_PAUSE_BLOCK,
+      required: [
+        /narration that comes right BEFORE the pause/,
+        /when the pause opens the video, the narration that comes right AFTER it/,
+        /HOLD that moment/,
+        /adding no new event/,
+        /do NOT illustrate anything beyond the FRAGMENT/,
+      ],
+      forbidden: [/BEFORE and AFTER/, /BETWEEN/, /bridges/],
+    },
+    {
+      name: 'SILENT_PAUSE_NOTE',
+      text: SILENT_PAUSE_NOTE,
+      required: [
+        /inmediatamente anterior a la pausa \(la siguiente, si la pausa abre el video\)/,
+        /Sostén ese momento/,
+        /ningún hecho nuevo/,
+        /ilustrar nada más allá del fragmento/,
+      ],
+      forbidden: [/anterior y posterior/, /ENTRE esas líneas/, /transición/],
+    },
+  ]
+  for (const { name, text, required, forbidden } of texts) {
+    for (const pattern of required)
+      assert.match(text, pattern, `${name} says ${pattern}`)
+    for (const pattern of forbidden)
+      assert.doesNotMatch(text, pattern, `${name} no longer says ${pattern}`)
+  }
+})
+
+test('a pause that opens the video is written from the line that follows it', async (t) => {
+  // Sin narración anterior, la pausa inicial toma la primera línea que sigue
+  // (ADR-0043): el caso «la siguiente, solo si no hay anterior» de los textos
+  // de la pausa. Escenas 1 a 3, para no mezclarla con las vecinas de arriba.
+  const opening = [
+    { id: 1, text: '', startSeconds: 0, endSeconds: 4 },
+    {
+      id: 2,
+      text: before,
+      startSeconds: 4,
+      endSeconds: 8,
+      imagePrompt: descriptions[327],
+      promptIsFallback: false,
+    },
+    {
+      id: 3,
+      text: after,
+      startSeconds: 8,
+      endSeconds: 12,
+      imagePrompt: descriptions[329],
+      promptIsFallback: false,
+    },
+  ]
+  const context = await fixture(t, opening)
+  const requests = mockProviders(t, {
+    llm: (request) => {
+      assert.ok(isWriterRequest(request), 'the pause block reaches the writer')
+      assert.equal(fragmentOf(userMessage(request)), before)
+      return writerReply()
+    },
+  })
+  assert.equal(await scenePromptsStage.skip(context), false)
+  await scenePromptsStage.run(context)
+  assert.deepEqual(
+    requests.failures,
+    [],
+    'the writer request is the expected one',
+  )
+  assert.equal(requests.text.length, 1, 'one writer call, no director')
+  const stored = await readScenes(context.paths)
+  assert.ok(sceneById(stored, 1).imagePrompt.includes(silentDescription))
+  assert.equal(sceneById(stored, 1).promptIsFallback, false)
+  assert.ok(sceneById(stored, 2).imagePrompt.startsWith(descriptions[327]))
+  assert.ok(sceneById(stored, 3).imagePrompt.startsWith(descriptions[329]))
 })
 
 test('images stage generates the silent scene and leaves its neighbours untouched', async (t) => {

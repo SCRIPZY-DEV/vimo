@@ -1,4 +1,7 @@
 import { providerLabel } from '@/modules/api-keys/utilities/providerLabel'
+import { avatarsApi } from '@/modules/avatars/api'
+import { avatarsQueryKeys } from '@/modules/avatars/constants'
+import { useAvatarBalance } from '@/modules/avatars/hooks/useAvatarBalance'
 import { queryClient } from '@/modules/common/queryClient'
 import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
 import { commonApi } from '@/modules/common/api'
@@ -31,6 +34,9 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
   const needsVoice =
     voiceVendor !== null && estimates.some((line) => line.domain === 'voice')
   const needsVideo = estimates.some((line) => line.domain === 'animation')
+  // El avatar presentador cobra en la billetera de HeyGen (ADR-0057): su
+  // saldo se pide solo si la estimación trae su línea.
+  const needsAvatar = estimates.some((line) => line.domain === 'avatar')
 
   const image = useImageCredits({ enabled: needsImage })
   const voice = useVoiceCredits({
@@ -38,10 +44,16 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
     enabled: needsVoice,
   })
   const video = useVideoCredits({ enabled: needsVideo })
+  const avatar = useAvatarBalance({ enabled: needsAvatar })
 
   const result = compareCostLines(
     estimates,
-    { image: image.credits, voice: voice.credits, video: video.credits },
+    {
+      image: image.credits,
+      voice: voice.credits,
+      video: video.credits,
+      avatar: avatar.status,
+    },
     providerLabel,
   )
 
@@ -49,43 +61,64 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
     if (needsImage) image.refresh()
     if (needsVoice) voice.refresh()
     if (needsVideo) video.refresh()
+    if (needsAvatar) avatar.refresh()
   }
 
   const verify = async (): Promise<CostCheckResult> => {
     if (!videosApi.isNative() || estimates.length === 0) return result
 
-    const [freshImage, freshVoice, freshVideo] = await Promise.all([
-      needsImage
-        ? queryClient
-            .fetchQuery({
-              queryKey: commonQueryKeys.imageCredits,
-              queryFn: () => commonApi.getImageCredits(),
-              staleTime: 0,
-            })
-            .catch(() => null)
-        : null,
-      needsVoice && voiceVendor
-        ? queryClient
-            .fetchQuery({
-              queryKey: voicesQueryKeys.credits(voiceVendor),
-              queryFn: () => voicesApi.getCredits(voiceVendor),
-              staleTime: 0,
-            })
-            .catch(() => null)
-        : null,
-      needsVideo
-        ? queryClient
-            .fetchQuery({
-              queryKey: commonQueryKeys.videoCredits,
-              queryFn: () => commonApi.getVideoCredits(),
-              staleTime: 0,
-            })
-            .catch(() => null)
-        : null,
-    ])
+    const [freshImage, freshVoice, freshVideo, freshAvatar] = await Promise.all(
+      [
+        needsImage
+          ? queryClient
+              .fetchQuery({
+                queryKey: commonQueryKeys.imageCredits,
+                queryFn: () => commonApi.getImageCredits(),
+                staleTime: 0,
+              })
+              .catch(() => null)
+          : null,
+        needsVoice && voiceVendor
+          ? queryClient
+              .fetchQuery({
+                queryKey: voicesQueryKeys.credits(voiceVendor),
+                queryFn: () => voicesApi.getCredits(voiceVendor),
+                staleTime: 0,
+              })
+              .catch(() => null)
+          : null,
+        needsVideo
+          ? queryClient
+              .fetchQuery({
+                queryKey: commonQueryKeys.videoCredits,
+                queryFn: () => commonApi.getVideoCredits(),
+                staleTime: 0,
+              })
+              .catch(() => null)
+          : null,
+        // Misma clave que la píldora de Avatares: la relectura la actualiza
+        // también allá. El sidecar es local: sin red responde igual
+        // (ERRORES-CONOCIDOS: tanstack-mutacion-pausada-por-networkmode-online).
+        needsAvatar
+          ? queryClient
+              .fetchQuery({
+                queryKey: avatarsQueryKeys.balance,
+                queryFn: () => avatarsApi.balance(),
+                staleTime: 0,
+                networkMode: 'always',
+              })
+              .catch(() => null)
+          : null,
+      ],
+    )
     return compareCostLines(
       estimates,
-      { image: freshImage, voice: freshVoice, video: freshVideo },
+      {
+        image: freshImage,
+        voice: freshVoice,
+        video: freshVideo,
+        avatar: freshAvatar,
+      },
       providerLabel,
     )
   }
@@ -99,7 +132,9 @@ export function useCostCheck({ estimates, voiceVendor }: UseCostCheckOptions) {
       voice.isLoading ||
       voice.isRefreshing ||
       video.isLoading ||
-      video.isRefreshing,
+      video.isRefreshing ||
+      avatar.loading ||
+      avatar.refreshing,
     verify,
   }
 }

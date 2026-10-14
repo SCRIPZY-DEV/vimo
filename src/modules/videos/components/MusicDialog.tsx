@@ -136,7 +136,7 @@ export function MusicDialog({
             variant="ghost"
             disabled={busy}
             onClick={() => void applyMusic({ source: 'remove' })}
-            className="rounded-xl font-display text-muted-foreground hover:text-destructive"
+            className="rounded-xl font-display text-muted-foreground hover:text-destructive-text"
           >
             <Trash2 className="mr-1.5 h-4 w-4" />
             {t('library.music.remove')}

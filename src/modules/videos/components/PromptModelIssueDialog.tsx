@@ -100,9 +100,9 @@ export function PromptModelIssueDialog({
           <div className="flex items-start gap-3">
             <div className="mt-0.5 rounded-full bg-coral/15 p-2">
               {reason === 'stalled' ? (
-                <Hourglass className="h-5 w-5 text-coral" />
+                <Hourglass className="h-5 w-5 text-coral-text" />
               ) : (
-                <AlertCircle className="h-5 w-5 text-coral" />
+                <AlertCircle className="h-5 w-5 text-coral-text" />
               )}
             </div>
             <div className="flex-1">

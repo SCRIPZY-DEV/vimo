@@ -67,7 +67,7 @@ export function StyleSourceTabs({
             <span
               className={cn(
                 'mt-0.5 block font-body text-xs',
-                blocked ? 'text-coral' : 'text-muted-foreground',
+                blocked ? 'text-coral-text' : 'text-muted-foreground',
               )}
             >
               {t(blocked ? 'create.styleSource.customBlockedHint' : hintKey)}

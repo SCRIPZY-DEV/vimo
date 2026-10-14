@@ -18,6 +18,10 @@ export interface GalleryActionsOptions {
   videoFormat: VideoFormat
   durationSeconds?: number
   locked: boolean
+  // Otra tarea del proyecto o un guardado del editor en curso: lo mismo que
+  // recibe el panel de la escena. Apaga las acciones de las tarjetas del
+  // avatar de la galería (entrega 2f).
+  busy: boolean
   imageProvider: ImageProviderId
   onRegenerateImages(requests: GalleryImageRequest[]): Promise<boolean>
   onUndoAnimation(sceneId: number): Promise<boolean>

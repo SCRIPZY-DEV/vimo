@@ -1,6 +1,18 @@
 import { copyFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { avatarLookPreviewFile } from '../../avatar/clip-path.ts'
+import { lookOrientationFit } from '../../avatar/look-orientation.ts'
+import {
+  AVATAR_GROUP_MISSING_CODE,
+  assertValidAvatarId,
+  avatarsRoot,
+  isUsableLook,
+  readAvatarMetadata,
+  readAvatarPreview,
+  readLookPreview,
+  type StoredAvatarLook,
+} from '../avatars/avatar-library.ts'
 import {
   readCharacterMetadata,
   assertValidCharacterId,
@@ -11,7 +23,13 @@ import {
   isValidFile,
   projectsRootOf,
   resolveProjectPaths,
+  type ProjectPaths,
 } from '../../project/paths.ts'
+import {
+  BALANCE_UNAVAILABLE_CODE,
+  createHeyGenClient,
+} from '../../providers/avatar/heygen.ts'
+import { HEYGEN_PROVIDER } from '../../providers/avatar/heygen-errors.ts'
 import { decodeImageDataUri } from '../../providers/image/download.ts'
 import type { PipelineContext } from '../../runner/context.ts'
 import { PipelineFailure } from '../../runner/failure.ts'
@@ -30,7 +48,22 @@ import {
   MAX_SECONDS_PER_SCENE,
   MIN_SECONDS_PER_SCENE,
 } from '../../stages/scene-cuts/by-seconds.ts'
+import {
+  AVATAR_ENGINES,
+  AVATAR_LOOK_ORIENTATION_BY_FORMAT,
+  AVATAR_LOOK_TYPES,
+  AVATAR_MAX_APPEARANCES,
+  AVATAR_MAX_APPEARANCE_SECONDS,
+  AVATAR_MIN_APPEARANCES,
+  AVATAR_MIN_APPEARANCE_SECONDS,
+  AVATAR_PLACEMENTS,
+  avatarEngineAvailable,
+  avatarExpressiveAvailable,
+  type ProjectAvatarOptions,
+} from '../../types/avatar.ts'
 import type { CharacterStyleId } from '../../types/characters.ts'
+import type { DecodedImage } from '../../types/images.ts'
+import { videoFormatOf } from '../../types/video-format.ts'
 import type {
   CreateVideoProjectPayload,
   CreateVideoProjectResult,
@@ -38,9 +71,10 @@ import type {
   ProjectCharacter,
   ProjectCustomStyle,
   VideoProjectMetadata,
+  VideoProjectOptions,
 } from '../../types/video-project.ts'
 import { TTS_TEXT_CHAR_LIMIT } from '../../providers/tts/text-limits.ts'
-import { ensureDirectory } from '../../utils/atomic-fs.ts'
+import { ensureDirectory, writeFileAtomic } from '../../utils/atomic-fs.ts'
 import { slugifyProjectName } from '../../utils/slug.ts'
 
 // Límites del formulario, espejados en src/modules/videos/constants.ts.
@@ -54,6 +88,10 @@ export const MAX_SCENE_COUNT = 500
 export const PROMPT_MODEL_ID_LIMIT = 200
 
 const MAX_REFERENCE_IMAGE_BYTES = 8 * 1024 * 1024
+// El pre-vuelo de la cuenta no puede colgar «Crear»: un plazo corto y ningún
+// reintento de un 429 (el cliente, por defecto, espera 30 s por pedido y
+// repite tres veces). Al vencer, o con un 429, avisa y sigue.
+const ACCOUNT_CHECK_TIMEOUT_MS = 8000
 const MAX_SLUG_ATTEMPTS = 50
 // `options.styleId` de un proyecto con estilo propio o con una gema nueva del
 // catálogo: el contrato exige un CharacterStyleId y el resolver prefiere el
@@ -70,6 +108,10 @@ export async function createVideoProject(
   validatePayload(payload)
 
   const projectsRoot = projectsRootOf(context)
+  // El avatar se valida contra la biblioteca, su vista previa se lee y la
+  // cuenta de HeyGen se mira ANTES de crear la carpeta: un look que no sirve o
+  // una clave muerta no dejan un proyecto a medias.
+  const projectAvatar = await resolveProjectAvatar(context, payload.options)
   const projectId = await resolveAvailableSlug(projectsRoot, payload.name)
   const paths = resolveProjectPaths(join(projectsRoot, projectId), projectId)
 
@@ -83,6 +125,7 @@ export async function createVideoProject(
     paths.charactersDirectory,
     payload,
   )
+  if (projectAvatar) await storeAvatarLookPreview(paths, projectAvatar.preview)
 
   const now = new Date().toISOString()
   const metadata: VideoProjectMetadata = {
@@ -91,7 +134,11 @@ export async function createVideoProject(
     createdAt: now,
     updatedAt: now,
     state: 'draft',
-    options: { ...payload.options, characters },
+    options: {
+      ...payload.options,
+      characters,
+      ...(projectAvatar ? { avatar: projectAvatar.options } : {}),
+    },
     completedStages: [],
   }
   await writeProjectMetadata(paths, metadata)
@@ -184,6 +231,11 @@ function validatePayload(
   const customStyle = options.customStyle
   if (customStyle !== undefined)
     assertProjectCustomStyle(customStyle, options.styleId)
+
+  // Avatar presentador (ADR-0057): forma, rangos y enumerados acá; la
+  // biblioteca, en `resolveProjectAvatar`, antes de crear la carpeta.
+  if (options.avatar !== undefined)
+    assertProjectAvatar(options.avatar, options.demo)
 
   const sceneCount = options.sceneCount
   if (
@@ -489,4 +541,299 @@ async function storeReferenceImage(
     join(charactersDirectory, file),
   )
   return file
+}
+
+// El avatar presentador (ADR-0057, diseño §3.4 y §9): forma, rangos y
+// enumerados, sin tocar el disco. La demo no tiene proveedores: un proyecto
+// demo con avatar es un llamador roto. Los números son enteros, como los del
+// formulario de Crear.
+function assertProjectAvatar(avatar: unknown, demo: boolean | undefined): void {
+  if (demo)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar is not available in demo projects',
+    )
+  if (!avatar || typeof avatar !== 'object' || Array.isArray(avatar))
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar must be an object',
+    )
+
+  const value = avatar as Partial<Record<keyof ProjectAvatarOptions, unknown>>
+  if (typeof value.avatarId !== 'string')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.avatarId is required',
+    )
+  assertValidAvatarId(value.avatarId)
+  if (typeof value.lookId !== 'string' || !value.lookId.trim())
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.lookId is required',
+    )
+  if (typeof value.lookName !== 'string' || !value.lookName.trim())
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.lookName is required',
+    )
+  if (!AVATAR_LOOK_TYPES.some((type) => type === value.lookType))
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.lookType is unknown',
+    )
+  // El motor que eligió la persona (entrega 2e, §21.3): cualquiera de los que
+  // Vimo conoce. Que el look lo admita se mira contra la biblioteca
+  // (resolveProjectAvatar).
+  if (!AVATAR_ENGINES.some((engine) => engine === value.engine))
+    throw new PipelineFailure(
+      'invalid_payload',
+      `options.avatar.engine must be one of ${AVATAR_ENGINES.join(', ')}`,
+    )
+  // «Movimiento más expresivo» (entrega 2e): si viene, booleano. Se guarda
+  // solo si sirve (storedAvatarOptions).
+  if (value.expressive !== undefined && typeof value.expressive !== 'boolean')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.expressive must be a boolean',
+    )
+  // «3 veces en 2 minutos» (entrega 2f, §22.2): si viene, booleano. Se guarda
+  // solo en true (storedAvatarOptions).
+  if (
+    value.threeInFirstTwoMinutes !== undefined &&
+    typeof value.threeInFirstTwoMinutes !== 'boolean'
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.threeInFirstTwoMinutes must be a boolean',
+    )
+  if (
+    !isIntegerBetween(
+      value.appearances,
+      AVATAR_MIN_APPEARANCES,
+      AVATAR_MAX_APPEARANCES,
+    )
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      `options.avatar.appearances must be an integer between ${AVATAR_MIN_APPEARANCES} and ${AVATAR_MAX_APPEARANCES}`,
+    )
+  if (
+    !isIntegerBetween(
+      value.secondsPerAppearance,
+      AVATAR_MIN_APPEARANCE_SECONDS,
+      AVATAR_MAX_APPEARANCE_SECONDS,
+    )
+  )
+    throw new PipelineFailure(
+      'invalid_payload',
+      `options.avatar.secondsPerAppearance must be an integer between ${AVATAR_MIN_APPEARANCE_SECONDS} and ${AVATAR_MAX_APPEARANCE_SECONDS}`,
+    )
+  if (typeof value.startWithAvatar !== 'boolean')
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.startWithAvatar must be a boolean',
+    )
+  if (!AVATAR_PLACEMENTS.some((placement) => placement === value.placement))
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.placement must be auto or manual',
+    )
+}
+
+function isIntegerBetween(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): boolean {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= minimum &&
+    value <= maximum
+  )
+}
+
+// Lo que `createVideoProject` toma del avatar elegido: las opciones que se
+// persisten y la vista previa que se copia al proyecto, ya leída y validada.
+interface ResolvedProjectAvatar {
+  options: ProjectAvatarOptions
+  preview: DecodedImage
+}
+
+// El look ELEGIDO tal como está en la biblioteca (ADR-0057, diseño §6.2 y §9,
+// cuidados 1 y 4 de §16): el avatar existe y HeyGen todavía tiene su grupo; el
+// look es uno de los suyos (Crear manda por defecto el principal, pero puede
+// ser otro); sirve —listo y con el motor elegido, que el look tiene que admitir
+// con tarifa (entrega 2e), nunca deducido de `status: 'ready'`—; tiene la
+// orientación del video, porque HeyGen lo renderiza tal cual; y tiene una
+// vista previa legible, la suya o, si no, la del avatar, porque es la imagen
+// fija de sus escenas. Un look sin orientación conocida pasa con un aviso. Al
+// final, la clave de HeyGen tiene que servir (`assertHeyGenAccount`). Nada se
+// escribe: quien llama crea la carpeta recién cuando esto no lanzó.
+async function resolveProjectAvatar(
+  context: PipelineContext,
+  options: VideoProjectOptions,
+): Promise<ResolvedProjectAvatar | undefined> {
+  const avatar = options.avatar
+  if (!avatar) return undefined
+
+  const entryDirectory = join(avatarsRoot(context), avatar.avatarId)
+  const metadata = await readAvatarMetadata(entryDirectory)
+  if (!metadata)
+    throw new PipelineFailure(
+      'avatar_not_found',
+      `avatar "${avatar.avatarId}" is not in the library`,
+    )
+
+  // HeyGen ya no tiene el grupo del avatar: `avatar-refresh` lo deja `failed`
+  // con este código, pero sus looks listos siguen listos, así que el look de
+  // abajo pasaría. El render fallaría recién en la etapa AVATAR, después de
+  // pagar las imágenes de las demás escenas. Se mira el código y no
+  // `metadata.status`: ese estado sale del look PRINCIPAL, y un look que no lo
+  // es puede estar listo bajo un avatar fallido o procesando.
+  if (metadata.errorCode === AVATAR_GROUP_MISSING_CODE)
+    throw new PipelineFailure(
+      AVATAR_GROUP_MISSING_CODE,
+      `avatar "${avatar.avatarId}" no longer exists in HeyGen`,
+    )
+
+  const look = metadata.looks.find(
+    (candidate) => candidate.lookId === avatar.lookId,
+  )
+  if (
+    !look ||
+    !isUsableLook(look) ||
+    !avatarEngineAvailable(avatar.engine, look)
+  )
+    throw new PipelineFailure(
+      'avatar_look_unavailable',
+      `look "${avatar.lookId}" of avatar "${avatar.avatarId}" is missing, not ready or without ${avatar.engine}`,
+    )
+  if (look.lookType !== avatar.lookType)
+    throw new PipelineFailure(
+      'invalid_payload',
+      'options.avatar.lookType does not match the library look',
+    )
+
+  const videoFormat = videoFormatOf(options)
+  const orientationFit = lookOrientationFit(look, videoFormat)
+  if (orientationFit === 'mismatch')
+    throw new PipelineFailure(
+      'avatar_look_orientation_mismatch',
+      `look "${avatar.lookId}" is ${look.preferredOrientation}; a ${videoFormat} video needs a ${AVATAR_LOOK_ORIENTATION_BY_FORMAT[videoFormat]} look`,
+    )
+
+  const lookPreview = await readLookPreview(entryDirectory, look.lookId)
+  const preview =
+    lookPreview ?? (await readAvatarPreview(entryDirectory, metadata))
+  if (!preview)
+    throw new PipelineFailure(
+      'avatar_look_unavailable',
+      `look "${avatar.lookId}" of avatar "${avatar.avatarId}" has no readable preview, and neither has the avatar`,
+    )
+
+  // La cuenta de HeyGen, recién con todo lo local validado: un rechazo local
+  // no gasta ni un pedido.
+  await assertHeyGenAccount(context)
+
+  // Los avisos, recién cuando el look ya sirvió: un rechazo no deja ninguno.
+  if (orientationFit === 'unknown')
+    warn(
+      context,
+      'the chosen look has no known orientation: it may not fill the video frame',
+    )
+  if (!lookPreview)
+    warn(
+      context,
+      "the chosen look has no readable preview in the library: the avatar's own preview is the still image of its scenes",
+    )
+
+  return { options: storedAvatarOptions(avatar, look), preview }
+}
+
+// El pre-vuelo de la cuenta (ADR-0057): UNA
+// lectura gratis de `GET /v3/users/me` con la clave del usuario antes de crear
+// un proyecto con avatar. Una clave que HeyGen rechaza (401 o 403), o que
+// falta, se descubre acá y no en la fase `avatar`, después de pagar la voz y
+// las imágenes. El saldo no frena acá: lo comparan Crear y la fase antes de
+// cada pago. HeyGen caído, lento (más de ACCOUNT_CHECK_TIMEOUT_MS), con un 429
+// o con una respuesta rara avisa y sigue: la fase vuelve a mirar la clave y el
+// saldo antes de pagar.
+async function assertHeyGenAccount(context: PipelineContext): Promise<void> {
+  const apiKey = context.job.apiKeys.heygen
+  if (!apiKey)
+    throw new PipelineFailure('missing_api_key', 'HeyGen API key is missing')
+
+  const client = createHeyGenClient(apiKey, context.signal, {
+    requestTimeoutMs: ACCOUNT_CHECK_TIMEOUT_MS,
+    rateLimitRetries: 0,
+  })
+  const balance = await client.getBalance()
+  if (balance.available) return
+
+  if (balance.errorCode === 'avatar_invalid_key')
+    throw new PipelineFailure(
+      'avatar_invalid_key',
+      'HeyGen rejected the API key before the project was created',
+      { provider: HEYGEN_PROVIDER },
+    )
+
+  // HeyGen respondió (la clave sirve), pero la cuenta no tiene una billetera
+  // legible, como un plan de suscripción: nada que avisar.
+  if (balance.errorCode === BALANCE_UNAVAILABLE_CODE) return
+
+  warn(
+    context,
+    `HeyGen account could not be checked (${balance.errorCode ?? 'unknown'}): the avatar stage checks the key and the balance again before paying`,
+  )
+}
+
+// Lo que se persiste: solo los campos del contrato (§3.4 + `avatarId`), con el
+// nombre del look tal como está en la biblioteca (el de HeyGen no tiene tope de
+// largo). Un campo de más en el payload no llega a project.json. `expressive`
+// (entrega 2e) va al final, solo en true y solo si el motor y el look lo
+// admiten; detrás, `threeInFirstTwoMinutes` (entrega 2f), solo en true: sin
+// ellos, las opciones de antes, byte a byte.
+function storedAvatarOptions(
+  avatar: ProjectAvatarOptions,
+  look: StoredAvatarLook,
+): ProjectAvatarOptions {
+  const expressive =
+    avatar.expressive === true &&
+    avatarExpressiveAvailable(avatar.engine, look.lookType)
+
+  return {
+    avatarId: avatar.avatarId,
+    lookId: look.lookId,
+    lookName: look.name,
+    lookType: look.lookType,
+    engine: avatar.engine,
+    appearances: avatar.appearances,
+    secondsPerAppearance: avatar.secondsPerAppearance,
+    startWithAvatar: avatar.startWithAvatar,
+    placement: avatar.placement,
+    ...(expressive ? { expressive: true } : {}),
+    ...(avatar.threeInFirstTwoMinutes === true
+      ? { threeInFirstTwoMinutes: true }
+      : {}),
+  }
+}
+
+// Copia la vista previa ya validada al proyecto con su extensión REAL, leída de
+// sus primeros bytes (cuidado 4 de §16): es la imagen fija de las escenas de
+// avatar —miniatura y respaldo estático del render— y el proyecto queda
+// autocontenido aunque la biblioteca cambie.
+async function storeAvatarLookPreview(
+  paths: ProjectPaths,
+  preview: DecodedImage,
+): Promise<void> {
+  await ensureDirectory(paths.avatarDirectory)
+  await writeFileAtomic(
+    avatarLookPreviewFile(paths, preview.ext),
+    preview.bytes,
+  )
+}
+
+function warn(context: PipelineContext, message: string): void {
+  context.emitter.emit({ type: 'log', level: 'warn', message })
 }

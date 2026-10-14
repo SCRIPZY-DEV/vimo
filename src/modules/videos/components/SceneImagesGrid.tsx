@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/modules/common/utilities/cn'
+import { AvatarSceneCell } from '@/modules/videos/components/AvatarSceneCell'
 import { SceneCell } from '@/modules/videos/components/SceneCell'
 import { SceneViewerDialog } from '@/modules/videos/components/SceneViewerDialog'
 import { SUPPORT_NOTE_CLASS } from '@/modules/videos/constants'
@@ -16,12 +17,22 @@ interface SceneImagesGridProps {
 // La grilla de miniaturas (port de GrillaPreviewImagenes del origen). En un
 // short las celdas son verticales: con las columnas de siempre salían
 // tarjetas altísimas, así que van más columnas y las celdas quedan angostas
-// con un alto parecido al de las 16:9.
+// con un alto parecido al de las 16:9. Las escenas del avatar no son
+// imágenes (llegan con la foto del look): cada una es una tarjeta propia
+// (AvatarSceneCell, con su propio reloj: la grilla no corre ninguno, así ni
+// ella ni el visor de «Ampliar» se repintan cada segundo) y el visor no las
+// recorre.
 export function SceneImagesGrid({ scenes, videoFormat }: SceneImagesGridProps) {
   const { t } = useTranslation()
   // Escena abierta en el visor, por id: el arreglo crece durante la
   // generación y con un índice te quedarías mirando otra escena.
   const [viewerSceneId, setViewerSceneId] = useState<number | null>(null)
+  // El efecto del visor depende de su `onClose` y, al correr, enfoca su
+  // contenedor: con una función nueva en cada render (el store repinta la
+  // grilla con cada evento) le sacaría el foco a quien lo está usando. Es la
+  // identidad referencial que un efecto necesita, no una memoización de
+  // reflejo.
+  const closeViewer = useCallback(() => setViewerSceneId(null), [])
 
   if (scenes.length === 0) {
     return (
@@ -55,22 +66,33 @@ export function SceneImagesGrid({ scenes, videoFormat }: SceneImagesGridProps) {
             : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-3 min-[1400px]:grid-cols-4 min-[1750px]:grid-cols-5',
         )}
       >
-        {scenes.map((scene) => (
-          <SceneCell
-            key={scene.id}
-            scene={scene}
-            videoFormat={videoFormat}
-            onOpen={() => setViewerSceneId(scene.id)}
-          />
-        ))}
+        {scenes.map((scene) => {
+          if (scene.avatar)
+            return (
+              <AvatarSceneCell
+                key={scene.id}
+                scene={scene}
+                videoFormat={videoFormat}
+              />
+            )
+
+          return (
+            <SceneCell
+              key={scene.id}
+              scene={scene}
+              videoFormat={videoFormat}
+              onOpen={() => setViewerSceneId(scene.id)}
+            />
+          )
+        })}
       </div>
 
       {viewerSceneId !== null && (
         <SceneViewerDialog
-          scenes={scenes}
+          scenes={scenes.filter((scene) => !scene.avatar)}
           sceneId={viewerSceneId}
           videoFormat={videoFormat}
-          onClose={() => setViewerSceneId(null)}
+          onClose={closeViewer}
           onNavigate={setViewerSceneId}
         />
       )}

@@ -27,6 +27,9 @@ interface EditorPreviewPlayerProps {
   musicSrc: string | null
   // Solo con render vigente (mp4 válido y NO desactualizado).
   videoSrc: string | null
+  // true cuando una pista silenciada obliga a simular aunque haya render
+  // vigente (el mp4 trae su mezcla): la insignia dice por qué.
+  mutedPreview: boolean
   durationSeconds: number
   // Relación del proyecto: el visor la respeta para no letterboxear.
   videoFormat: VideoFormat
@@ -50,6 +53,7 @@ export function EditorPreviewPlayer({
   narrationSrc,
   musicSrc,
   videoSrc,
+  mutedPreview,
   durationSeconds,
   videoFormat,
   mix,
@@ -73,6 +77,7 @@ export function EditorPreviewPlayer({
     videoMode,
     durationSeconds,
     mix,
+    cursorSeconds,
     scrubbing,
     onTimeChange,
     playerRef,
@@ -143,7 +148,11 @@ export function EditorPreviewPlayer({
 
         {!videoMode && (
           <span className="absolute right-2 top-2 z-10 transform-gpu rounded bg-black/60 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wide text-white/90">
-            {t('library.editor.previewBadge')}
+            {t(
+              mutedPreview
+                ? 'library.editor.previewBadgeMuted'
+                : 'library.editor.previewBadge',
+            )}
           </span>
         )}
 

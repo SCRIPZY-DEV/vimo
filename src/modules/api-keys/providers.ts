@@ -3,7 +3,7 @@ import type { ApiKeyProvider } from './types/provider'
 /**
  * Catálogo único de proveedores con clave BYO. Rust lo espeja en
  * `src-tauri/src/api_keys/provider.rs`: todo cambio de ids o categorías acá
- * se replica allá (las URLs son solo de la UI).
+ * se replica allá (las URLs y la unidad del saldo son solo de la UI).
  */
 export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
   {
@@ -96,6 +96,17 @@ export const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     billingUrl: 'https://poyo.ai/pricing',
     keyFormatHint: 'Bearer',
     descriptionKey: 'apiKeys.descripcion.poyo',
+    recommended: false,
+  },
+  {
+    id: 'heygen',
+    category: 'avatar',
+    label: 'HeyGen',
+    getKeyUrl: 'https://app.heygen.com/developers/api',
+    billingUrl: 'https://app.heygen.com/developers/api',
+    keyFormatHint: 'X-Api-Key',
+    descriptionKey: 'apiKeys.descripcion.heygen',
+    balanceUnit: 'usd',
     recommended: false,
   },
 ]

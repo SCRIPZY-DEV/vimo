@@ -7,12 +7,13 @@ import {
 import type { CreditsShortfallLine } from '@/modules/common/types/credits'
 import type { CreditsIssueContext } from '@/modules/videos/types/credits'
 
-// Proveedores fijos por dominio: LLM y transcripción no exponen saldo y la
-// música de fondo siempre es Evolink.
+// Proveedores fijos por dominio: LLM y transcripción no exponen saldo, la
+// música de fondo siempre es Evolink y el avatar presentador, HeyGen.
 const FIXED_PROVIDERS = {
   llm: 'deepinfra',
   transcription: 'deepgram',
   music: 'evolink',
+  avatar: 'heygen',
 } as const
 
 // A qué cuenta le falta saldo, según el dominio del rechazo y el proveedor

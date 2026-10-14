@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import {
@@ -12,10 +12,15 @@ import {
   PlayCircle,
   RefreshCw,
 } from 'lucide-react'
+import { ignoreHeldKey } from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import DoodleStar from '@/modules/common/doodles/DoodleStar'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { videosApi } from '@/modules/videos/api'
+import { AvatarChargedCancelDialog } from '@/modules/videos/components/AvatarChargedCancelDialog'
+import { AvatarDroppedNote } from '@/modules/videos/components/AvatarDroppedNote'
+import { AvatarFallbackNote } from '@/modules/videos/components/AvatarFallbackNote'
+import { AvatarKeptNote } from '@/modules/videos/components/AvatarKeptNote'
 import { PhaseProgressPanel } from '@/modules/videos/components/PhaseProgressPanel'
 import { ConfirmScenesDialog } from '@/modules/videos/components/ConfirmScenesDialog'
 import { ElapsedTimer } from '@/modules/videos/components/ElapsedTimer'
@@ -26,6 +31,7 @@ import { PromptModelIssueDialog } from '@/modules/videos/components/PromptModelI
 import { PromptStageWatchdog } from '@/modules/videos/components/PromptStageWatchdog'
 import { PromptsGrid } from '@/modules/videos/components/PromptsGrid'
 import { PipelineAnimationPanel } from '@/modules/videos/components/PipelineAnimationPanel'
+import { PipelineAvatarPanel } from '@/modules/videos/components/PipelineAvatarPanel'
 import { SceneImagesGrid } from '@/modules/videos/components/SceneImagesGrid'
 import { SecondsPerSceneStep } from '@/modules/videos/components/SecondsPerSceneStep'
 import { StageBar } from '@/modules/videos/components/StageBar'
@@ -33,17 +39,30 @@ import { VoiceSwitchDialog } from '@/modules/videos/components/VoiceSwitchDialog
 import {
   CANCEL_CONFIRM_WINDOW_MS,
   EDITOR_RESCUE_ERROR_CODES,
-  PIPELINE_STAGES,
   STYLE_GEM_ERROR_CODES,
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
   VOICE_MAYBE_PAID_ERROR_CODES,
 } from '@/modules/videos/constants'
+import { useFocusAfterDialogClose } from '@/modules/videos/hooks/useFocusAfterDialogClose'
+import { avatarFallbackCount } from '@/modules/videos/utilities/avatarFallback'
+import {
+  chargedAvatarScenesInFlight,
+  chargedWarningAfterRender,
+  taskHasAvatar,
+} from '@/modules/videos/utilities/avatarTaskEvents'
+import {
+  failedStageOf,
+  failureMessageOf,
+} from '@/modules/videos/utilities/failedStage'
 import { shortenHomePath } from '@/modules/videos/utilities/shortenHomePath'
 import { isVertical } from '@/modules/videos/utilities/videoFormat'
 import { voiceProgressPercent } from '@/modules/videos/utilities/voiceProgressPercent'
 import type {
+  ChargedCancelAction,
+  ChargedCancelWarning,
   CreateTask,
+  ProgressBackAction,
   SceneCutChoice,
   SelectedVoice,
   VoiceProgressView,
@@ -51,9 +70,9 @@ import type {
 
 interface GenerationProgressProps {
   task: CreateTask
-  // Botón de vuelta de la cabecera: «Crear otro» en Create, «Volver a la
-  // biblioteca» en Library.
-  back: { labelKey: string; onClick: () => void }
+  // Botón de vuelta de la cabecera: «Crear otro» en Create (descarta la
+  // corrida viva: `cancelsRun`), «Volver a la biblioteca» en Library.
+  back: ProgressBackAction
   onCancel: () => void
   // Reintentar desde el último checkpoint cuando el job falló.
   onRetryPipeline: () => void
@@ -99,6 +118,21 @@ export function GenerationProgress({
 }: GenerationProgressProps) {
   const { t } = useTranslation()
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  // El aviso de lo cobrado (entrega 2h, spec §24.4): la cuenta que dice y qué
+  // confirma «Cancelar igual»; null = cerrado.
+  const [chargedWarning, setChargedWarning] =
+    useState<ChargedCancelWarning | null>(null)
+  // «Cancelar igual» corta una sola vez por aviso: el segundo clic de un
+  // doble clic llega antes de que React dibuje el aviso cerrado.
+  const cancelSentRef = useRef(false)
+  // Los botones que abren el aviso («Cancelar» y «Crear otro») y cuál lo
+  // abrió: al cerrarse, el foco vuelve a ese.
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const backButtonRef = useRef<HTMLButtonElement>(null)
+  // Destino de respaldo: si el job terminó con el aviso abierto, «Cancelar» ya
+  // no está; el título queda siempre montado y no actúa con Enter.
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const warningOpenerRef = useRef<ChargedCancelAction>('cancel')
   // Diálogo de cambio de modelo abierto a mano desde la tarjeta de error.
   const [switchingFromError, setSwitchingFromError] = useState(false)
   // Aviso + selector de «Cambiar voz», abierto desde la tarjeta de error.
@@ -114,6 +148,16 @@ export function GenerationProgress({
     return () => clearTimeout(timer)
   }, [confirmingCancel])
 
+  // El aviso se abre por estado, sin Trigger, y Radix no devuelve el foco al
+  // cerrarlo: vuelve al botón que lo abrió, si sigue a la vista. Los dos
+  // ignoran las repeticiones de una tecla sostenida (ignoreHeldKey): el Enter
+  // que cerró el aviso sigue llegando ahí.
+  useFocusAfterDialogClose(chargedWarning !== null, () => {
+    if (warningOpenerRef.current === 'back') return backButtonRef.current
+
+    return cancelButtonRef.current ?? headingRef.current
+  })
+
   const paused = task.status === 'awaitingConfirmation'
   // La pausa de un estilo propio pregunta SEGUNDOS por escena con el paso
   // inline; el diálogo clásico de conteo queda para el resto.
@@ -121,30 +165,64 @@ export function GenerationProgress({
   const finished = task.status === 'completed'
   const failed = task.status === 'error'
   const generating = !finished && !failed
+
+  // Las apariciones cobradas y sin terminar. El aviso se ajusta durante el
+  // render (sin efecto): se cierra si ya no hay un job vivo que cortar —la
+  // corrida terminó o espera el reintento automático, y así tampoco vuelve
+  // solo con la siguiente—, y abierto, su cuenta sube y nunca baja.
+  const chargedInFlight = chargedAvatarScenesInFlight(task)
+  const settledWarning = chargedWarningAfterRender(
+    chargedWarning,
+    chargedInFlight,
+    !generating || task.retry !== null,
+  )
+  if (settledWarning !== chargedWarning) setChargedWarning(settledWarning)
+
   const completed = task.completedStages
+  // Las fases que corren ahora: desde la entrega 2h, el avatar junto con las
+  // imágenes (spec §24.2).
+  const running = task.activeStages
   const voice = task.voiceProgress
   const hasAnimation = Boolean(
     task.automaticAnimation ||
     task.confirmation?.animationMinutes ||
-    task.stage === 'animation' ||
+    running.includes('animation') ||
     task.scenes.some((scene) => scene.animationRequestedSeconds !== undefined),
   )
   const showAnimationPanel =
     hasAnimation &&
-    (task.stage === 'animation' ||
+    (running.includes('animation') ||
       task.scenes.some((scene) => scene.animationActivity !== undefined) ||
       completed.includes('animation'))
+  // El avatar, por datos como la animación: pedido al crear, en curso o con
+  // escenas de avatar (una fase saltada nunca queda en `completedStages`).
+  const hasAvatar = taskHasAvatar(task)
+  // Una fase, un panel, también con dos a la vez (entrega 2h, spec §24.2):
+  // mientras corren las imágenes, el avance del avatar va en sus tarjetas de
+  // la grilla; cuando las imágenes terminan y el avatar sigue, su panel.
+  const showAvatarPanel =
+    hasAvatar &&
+    !running.includes('images') &&
+    (running.includes('avatar') ||
+      task.scenes.some((scene) => scene.avatarActivity !== undefined))
+  // Las apariciones que no entraron se dicen siempre (spec §5), también si
+  // no entró ninguna y la fase se saltea; con el panel a la vista lo dice él,
+  // y en la pausa, la pausa.
+  const avatarDropped = task.avatarDropped ?? 0
+  const showAvatarDroppedNote =
+    hasAvatar && avatarDropped > 0 && !showAvatarPanel && !paused
 
-  // Reglas por datos y no solo por `stage`: al retomar, las fases vienen del
-  // disco y `stage` es null hasta el primer evento del job.
+  // Reglas por datos y no solo por las fases en curso: al retomar, las
+  // terminadas vienen del disco y ninguna corre hasta el primer evento.
   const showVoicePanel =
-    voice !== null && (task.stage === 'voice' || !completed.includes('voice'))
+    voice !== null &&
+    (running.includes('voice') || !completed.includes('voice'))
   const showBgmPanel =
     task.bgmProgress !== null && task.bgmProgress.status !== 'completed'
   // Solo mientras el job renderiza: al retomar, `renderProgress` puede venir
-  // viejo del disco y `stage` es null hasta el primer evento.
+  // viejo del disco y ninguna fase corre hasta el primer evento.
   const showRenderPanel =
-    generating && task.stage === 'render' && task.renderProgress !== null
+    generating && running.includes('render') && task.renderProgress !== null
   // Pasada de recuperación de imágenes: mientras se reescriben prompts, la
   // grilla de prompts vuelve (solo con las escenas afectadas) y la de
   // imágenes espera; el reintento se anota sobre la grilla de imágenes.
@@ -154,6 +232,13 @@ export function GenerationProgress({
   const rewritingScenes = rewriting
     ? task.scenes.filter((scene) => recovery.sceneIds.includes(scene.id))
     : task.scenes
+  // El conteo del título de la grilla es de imágenes: las apariciones del
+  // avatar tienen su propia tarjeta en la grilla y su panel con el avance.
+  const imageScenes = task.scenes.filter((scene) => !scene.avatar)
+  // Si una aparición cubre toda la narración no queda ninguna escena de
+  // imagen: el título no dice «Imágenes (0/0)» sobre una grilla de tarjetas
+  // del avatar. Sin escenas del todo (la grilla vacía de siempre), sí.
+  const onlyAvatarScenes = task.scenes.length > 0 && imageScenes.length === 0
   const showPromptsPanel =
     !paused &&
     (rewriting ||
@@ -165,21 +250,22 @@ export function GenerationProgress({
     !paused &&
     !rewriting &&
     (completed.includes('scene-prompts') ||
-      task.stage === 'images' ||
+      running.includes('images') ||
       !generating)
   // La fase en la que se cayó el job: la primera sin completar.
   const failedStage = failed
-    ? (PIPELINE_STAGES.find(
-        (stage) =>
-          (stage.id !== 'animation' || hasAnimation) &&
-          !completed.includes(stage.id),
-      )?.id ?? null)
+    ? failedStageOf(completed, { hasAnimation, hasAvatar })
     : null
-  // Rescate por el editor: un fallo de imágenes, o un código que deja el
-  // proyecto reparable desde ahí aunque la fase caída sea otra (el render sin
-  // imágenes cae en `render` con todo lo demás en disco).
+  // Lo que dice la cabecera del fallo: el texto del código, salvo un avatar
+  // incompleto por rechazos definitivos de HeyGen, que dice la salida.
+  const failureMessage = failureMessageOf(task)
+  // Rescate por el editor: un fallo de imágenes, del avatar (sus escenas se
+  // ven con la imagen fija del look) o de la animación, o un código que deja
+  // el proyecto reparable desde ahí aunque la fase caída sea otra (el render
+  // sin imágenes cae en `render` con todo lo demás en disco).
   const editorRescue =
     failedStage === 'images' ||
+    failedStage === 'avatar' ||
     failedStage === 'animation' ||
     (task.errorCode !== null && EDITOR_RESCUE_ERROR_CODES.has(task.errorCode))
   // Solo el carril verbatim tiene un modelo elegible que cambiar — y no
@@ -193,6 +279,61 @@ export function GenerationProgress({
   const voiceSwitchable = failedStage === 'voice' && task.voiceVendor !== null
   const promptModelStalled =
     generating && task.promptModelIssue?.reason === 'stalled'
+  // Las apariciones del avatar cobradas en la corrida (entrega 2h, spec
+  // §24.2): si se corta, la tarjeta dice que están pagadas y guardadas.
+  const avatarKept = task.avatarChargedSceneIds.length
+
+  // Abre el aviso de lo cobrado para `action` si hay apariciones cobradas y
+  // sin terminar (entrega 2h, spec §24.4), con la cuenta de ahora. Devuelve si
+  // lo abrió.
+  const openChargedWarning = (action: ChargedCancelAction) => {
+    if (chargedInFlight === 0) return false
+
+    cancelSentRef.current = false
+    warningOpenerRef.current = action
+    setConfirmingCancel(false)
+    setChargedWarning({ count: chargedInFlight, action })
+    return true
+  }
+
+  // «Cancelar»: con apariciones cobradas y sin terminar, el aviso que dice que
+  // se cobran igual; sin ninguna, el «¿Seguro? Cancelar» de siempre, con su
+  // segundo clic (origen v0.35.0).
+  const requestCancel = () => {
+    if (openChargedWarning('cancel')) return
+
+    if (!confirmingCancel) {
+      setConfirmingCancel(true)
+      return
+    }
+
+    setConfirmingCancel(false)
+    onCancel()
+  }
+
+  // El botón de vuelta: «Crear otro» descarta la corrida viva, así que con
+  // apariciones cobradas y sin terminar pasa antes por el mismo aviso; sin
+  // ninguna, o en la Biblioteca (que solo navega), como siempre.
+  const requestBack = () => {
+    if (back.cancelsRun && openChargedWarning('back')) return
+
+    back.onClick()
+  }
+
+  // «Cancelar igual»: corta (o vuelve descartando, según qué abrió el aviso)
+  // una sola vez, aunque llegue un doble clic.
+  const confirmChargedCancel = () => {
+    if (cancelSentRef.current || chargedWarning === null) return
+
+    cancelSentRef.current = true
+    setChargedWarning(null)
+    if (chargedWarning.action === 'back') {
+      back.onClick()
+      return
+    }
+
+    onCancel()
+  }
 
   return (
     // Fluida hasta 1600px (el origen se acota a 1152 y centra): acá el
@@ -202,15 +343,24 @@ export function GenerationProgress({
       <div className="flex items-center justify-between">
         <div>
           <Button
+            ref={backButtonRef}
             variant="ghost"
             size="sm"
-            onClick={back.onClick}
+            onClick={requestBack}
+            // Si descarta la corrida, una tecla sostenida no puede volver a
+            // abrir el aviso ni descartar con la repetición que le llega
+            // cuando el foco vuelve acá.
+            onKeyDown={back.cancelsRun ? ignoreHeldKey : undefined}
             className="-ml-3 mb-1 font-display font-semibold text-muted-foreground"
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
             {t(back.labelKey)}
           </Button>
-          <h1 className="font-display text-3xl font-extrabold text-foreground">
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            className="font-display text-3xl font-extrabold text-foreground outline-none"
+          >
             {task.projectName}
           </h1>
           <ProgressStatusPill status={task.status} />
@@ -220,16 +370,14 @@ export function GenerationProgress({
           <ElapsedTimer task={task} />
           {generating && (
             <Button
+              ref={cancelButtonRef}
               variant={confirmingCancel ? 'destructive' : 'outline'}
               size="sm"
-              onClick={() => {
-                if (!confirmingCancel) {
-                  setConfirmingCancel(true)
-                  return
-                }
-                setConfirmingCancel(false)
-                onCancel()
-              }}
+              onClick={requestCancel}
+              // Cortar es un botón de plata: una tecla sostenida no reabre el
+              // aviso ni confirma el «¿Seguro?» con sus repeticiones
+              // (ERRORES-CONOCIDOS: tras-confirmar-el-foco-va-a-un-boton-…).
+              onKeyDown={ignoreHeldKey}
               className="font-display font-semibold"
             >
               <Ban className="mr-1.5 h-4 w-4" />
@@ -263,8 +411,9 @@ export function GenerationProgress({
             {t('create.progress.phasesTitle')}
           </h2>
           <StageBar
-            currentStage={task.stage}
+            activeStages={running}
             showAnimation={hasAnimation}
+            showAvatar={hasAvatar}
             completedStages={completed}
             paused={paused}
             recovery={recovery}
@@ -277,6 +426,15 @@ export function GenerationProgress({
                 scenes: task.scenes.length,
               })}
             </div>
+          )}
+          {showAvatarDroppedNote && (
+            <AvatarDroppedNote
+              dropped={avatarDropped}
+              noneFit={
+                task.scenes.length > 0 &&
+                !task.scenes.some((scene) => scene.avatar !== undefined)
+              }
+            />
           )}
         </aside>
 
@@ -353,6 +511,15 @@ export function GenerationProgress({
               </div>
             </motion.div>
           )}
+          {/* Las apariciones que salieron con la imagen fija del look (entrega
+              2d): al terminar, aunque la fase se haya salteado en esta
+              corrida, con la regla de la pantalla de progreso (una planeada
+              todavía la genera la fase). Sin ninguna no dice nada. */}
+          {finished && (
+            <AvatarFallbackNote
+              count={avatarFallbackCount(task.scenes, 'progress')}
+            />
+          )}
 
           {showVoicePanel && voice && (
             <PhaseProgressPanel
@@ -418,27 +585,35 @@ export function GenerationProgress({
             </motion.div>
           )}
 
+          {/* La pausa por saldo también dice lo cobrado del avatar (entrega
+              2h, spec §24.2), justo debajo de su tarjeta. */}
           {failed && task.creditsIssue && (
-            <InsufficientCreditsCard
-              message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
-              projectId={task.projectId}
-              context={{
-                domain: task.creditsIssue.domain,
-                imageProvider: task.imageProvider,
-                voiceVendor: task.voiceVendor,
-                // Las animaciones automáticas también usan el saldo de Kie.
-                videoProvider: 'kie',
-              }}
-              onRetry={onRetryPipeline}
-              onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
-            />
+            <div className="space-y-3">
+              <InsufficientCreditsCard
+                message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
+                projectId={task.projectId}
+                context={{
+                  domain: task.creditsIssue.domain,
+                  imageProvider: task.imageProvider,
+                  voiceVendor: task.voiceVendor,
+                  // Las animaciones automáticas también usan el saldo de Kie.
+                  videoProvider: 'kie',
+                }}
+                onRetry={onRetryPipeline}
+                onContinueInEditor={
+                  editorRescue ? onContinueInEditor : undefined
+                }
+              />
+              <AvatarKeptNote count={avatarKept} />
+            </div>
           )}
 
           {failed && !task.creditsIssue && (
             <GenerationErrorCard
-              message={t(task.errorKey ?? UNKNOWN_CREATE_ERROR_KEY)}
+              message={t(failureMessage.key, { count: failureMessage.count })}
               failedStage={failedStage}
               errorCode={task.errorCode}
+              avatarKept={avatarKept}
               onRetry={onRetryPipeline}
               onContinueInEditor={editorRescue ? onContinueInEditor : undefined}
               onSwitchPromptModel={
@@ -483,28 +658,38 @@ export function GenerationProgress({
             />
           )}
 
+          {showAvatarPanel && (
+            <PipelineAvatarPanel
+              scenes={task.scenes}
+              dropped={task.avatarDropped ?? 0}
+              active={generating && running.includes('avatar')}
+            />
+          )}
+
           {showAnimationPanel && (
             <PipelineAnimationPanel
               scenes={task.scenes}
               endSeconds={task.animationEndSeconds}
               videoFormat={task.videoFormat}
-              active={generating && task.stage === 'animation'}
+              active={generating && running.includes('animation')}
               complete={completed.includes('animation')}
             />
           )}
 
           {showImagesPanel && (
             <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-display text-base font-bold text-foreground">
-                  {t('create.progress.imagesCount', {
-                    ready: task.scenes.filter(
-                      (scene) => scene.imageStatus === 'ok',
-                    ).length,
-                    total: task.scenes.length,
-                  })}
-                </h2>
-              </div>
+              {!onlyAvatarScenes && (
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="font-display text-base font-bold text-foreground">
+                    {t('create.progress.imagesCount', {
+                      ready: imageScenes.filter(
+                        (scene) => scene.imageStatus === 'ok',
+                      ).length,
+                      total: imageScenes.length,
+                    })}
+                  </h2>
+                </div>
+              )}
               {retrying && (
                 <p
                   className={cn(
@@ -567,6 +752,16 @@ export function GenerationProgress({
           setSwitchingFromError(false)
           onCancel()
         }}
+      />
+
+      {/* «Cancelar» (o «Crear otro») con apariciones del avatar cobradas y
+          sin terminar: lo ya mandado se cobra igual, no se pierde y se usa al
+          seguir. Seguir generando (con el foco, o Escape) no cancela nada. */}
+      <AvatarChargedCancelDialog
+        chargedCount={settledWarning?.count ?? null}
+        variant="generation"
+        onKeep={() => setChargedWarning(null)}
+        onConfirm={confirmChargedCancel}
       />
     </div>
   )

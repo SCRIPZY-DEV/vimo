@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Mic, Pencil, RefreshCw, Shuffle } from 'lucide-react'
 import DoodleSadFace from '@/modules/common/doodles/DoodleSadFace'
 import { Button } from '@/modules/common/ui/button'
+import { AvatarKeptNote } from '@/modules/videos/components/AvatarKeptNote'
 import { EDITOR_RESCUE_ERROR_CODES } from '@/modules/videos/constants'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 
@@ -15,6 +16,9 @@ interface GenerationErrorCardProps {
   // (el reintento vuelve a pasar por prompts e imágenes), así que valen los
   // textos genéricos del checkpoint y no los de «solo se rehace el armado».
   errorCode: string | null
+  // Apariciones del avatar cobradas en la corrida que se cortó (entrega 2h,
+  // spec §24.2): con alguna, la tarjeta dice que están pagadas y guardadas.
+  avatarKept: number
   // Reintentar desde el último checkpoint: lo ya hecho se conserva.
   onRetry: () => void
   // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
@@ -34,6 +38,7 @@ export function GenerationErrorCard({
   message,
   failedStage,
   errorCode,
+  avatarKept,
   onRetry,
   onContinueInEditor,
   onSwitchPromptModel,
@@ -53,14 +58,16 @@ export function GenerationErrorCard({
       <div className="flex items-start gap-4">
         <DoodleSadFace size={48} delay={100} />
         <div className="flex-1">
-          <p className="font-display text-base font-bold text-destructive">
+          <p className="font-display text-base font-bold text-destructive-text">
             {t('create.progress.error.title')}
           </p>
-          <p className="mt-1 font-body text-sm text-destructive/80">
+          <p className="mt-1 font-body text-sm text-destructive-text">
             {message}
           </p>
         </div>
       </div>
+
+      <AvatarKeptNote count={avatarKept} />
 
       <div className="space-y-2">
         <Button
@@ -73,7 +80,7 @@ export function GenerationErrorCard({
             ? t('create.progress.error.retryRender')
             : t('create.progress.error.retryFromCheckpoint')}
         </Button>
-        <p className="text-center font-body text-xs text-muted-foreground">
+        <p className="text-center font-body text-xs text-foreground/65">
           {renderFailed
             ? t('create.progress.error.retryRenderHint')
             : t('create.progress.error.retryHint')}
@@ -91,7 +98,7 @@ export function GenerationErrorCard({
             <Shuffle className="mr-2 h-4 w-4" />
             {t('create.progress.error.switchModel')}
           </Button>
-          <p className="text-center font-body text-xs text-muted-foreground">
+          <p className="text-center font-body text-xs text-foreground/65">
             {t('create.progress.error.switchModelHint')}
           </p>
         </div>
@@ -125,7 +132,7 @@ export function GenerationErrorCard({
             <Pencil className="mr-2 h-4 w-4" />
             {t('create.errors.continueInEditor')}
           </Button>
-          <p className="text-center font-body text-xs text-muted-foreground">
+          <p className="text-center font-body text-xs text-foreground/65">
             {t('create.progress.error.continueHint')}
           </p>
         </div>

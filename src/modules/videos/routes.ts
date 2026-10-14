@@ -18,11 +18,14 @@ export const videosRoutes: RouteObject[] = [
     path: VideosRoutes.libraryProgress,
     lazy: () => import('./views/LibraryProgress'),
   },
-  {
-    path: VideosRoutes.libraryEditor,
-    lazy: () => import('./views/LibraryEditor'),
-  },
 ]
+
+// El editor va a pantalla completa en su propio layout (ADR-0056): el router
+// lo cuelga del EditorLayout, con el mismo path y el mismo guard.
+export const libraryEditorRoute: RouteObject = {
+  path: VideosRoutes.libraryEditor,
+  lazy: () => import('./views/LibraryEditor'),
+}
 
 // La puerta de la demo se exporta aparte: el router le adjunta el guard de
 // acceso, que vive en auth (un módulo no importa los guards de otro).

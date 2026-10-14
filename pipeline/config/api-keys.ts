@@ -10,6 +10,7 @@ export type ProviderId =
   | 'deepgram'
   | 'kie'
   | 'poyo'
+  | 'heygen'
   | 'ai33'
 
 // Claves BYO del usuario, inyectadas por Rust desde la fuente de claves

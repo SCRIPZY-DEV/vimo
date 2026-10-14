@@ -12,16 +12,21 @@ const chrome =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const root = await mkdtemp(join(tmpdir(), 'vimo-export-header-ui-'))
 const mocks = {
+  // `isNative` en falso: las piezas del editor que leen del sidecar por su
+  // cuenta (galería, estimación de la animación) no consultan nada.
   '@/modules/videos/api':
-    'export const videosApi = { videoSource: () => "fixture-media" }',
+    'export const videosApi = { videoSource: () => "fixture-media", isNative: () => false }',
   '@/modules/videos/hooks/useLibraryEditor':
     'export function useLibraryEditor() { return window.fixture }',
   '@/modules/videos/hooks/useProjectAudio':
     'export function useProjectAudio() { return { audioBusy: false } }',
   '@/modules/common/hooks/useImageCredits':
     'export function useImageCredits() { return { credits: null, isLoading: false, isRefreshing: false, refresh() {} } }',
+  // Desde el PR #91 la vista importa componentes que usan la cola real del
+  // editor (useLibraryEditorTask), que a su vez lee del pipeline de Crear si
+  // hay otra tarea pesada en curso: acá no hay ninguna.
   '@/modules/videos/hooks/useCreateTask':
-    'export function useCreateTask() { return { task: null } }',
+    'export function useCreateTask() { return { task: null } } export function hasBusyCreateTask() { return false } export function subscribeCreateTask() { return () => {} }',
   '@/modules/videos/components/EditorPreviewPlayer':
     'export function EditorPreviewPlayer() { return null }',
   '@/modules/videos/components/EditorTimeline':
@@ -35,10 +40,13 @@ const entry = String.raw`
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Routes, Route } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import es from './public/locales/es.json'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
+import { EDITOR_BAR_SLOT_IDS } from '@/modules/common/constants'
+import { TRANSITION_POLICY_VERSION } from '@pipeline/animation/transitions.ts'
 import { LibraryEditor } from '@/modules/videos/views/LibraryEditor/LibraryEditor'
 
 const check = (condition, message) => { if (!condition) throw new Error(message) }
@@ -50,31 +58,46 @@ async function waitFor(get, message) {
 await i18n.init({ lng: 'es', resources: { es: { translation: es } }, interpolation: { escapeValue: false } })
 let renderError
 const root = createRoot(document.getElementById('root'), { onUncaughtError: error => { renderError = error } })
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const calls = []
 let revision = 0
 let cases = 0
 try {
   for (const format of ['9:16', '16:9']) {
-    for (const state of ['draft', 'current', 'outdated', 'busy', 'rendering']) {
+    for (const state of ['draft', 'current', 'outdated', 'busy', 'rendering', 'exporting']) {
       const scene = { id: 1, text: 'Fixture', startSeconds: 0, endSeconds: 4, imagePath: 'fixture.jpg' }
-      const busy = state === 'busy' || state === 'rendering'
+      const busy = state === 'busy' || state === 'rendering' || state === 'exporting'
+      // Lo que el editor de hoy lee de useLibraryEditor al renderizar (sin
+      // escena elegida, sin claves de animación); la versión de transiciones
+      // vigente hace que «current» sea un render al día.
       window.fixture = {
-        detail: { metadata: { name: format + ' ' + state, state: 'draft', videoOutdated: state === 'outdated', options: { videoFormat: format, imageProvider: 'fal' } }, videoPath: state === 'current' || state === 'outdated' ? 'fixture.mp4' : null },
-        workingScenes: [scene], selectedScene: null, imageChoice: { provider: 'fal', quality: 'low' },
+        detail: { metadata: { name: format + ' ' + state, state: 'draft', videoOutdated: state === 'outdated', renderTransitionVersion: TRANSITION_POLICY_VERSION, options: { videoFormat: format, imageProvider: 'fal' } }, videoPath: state === 'current' || state === 'outdated' ? 'fixture.mp4' : null },
+        workingScenes: [scene], selectedScene: null, selectedSceneId: null, imageChoice: { provider: 'fal', quality: 'low' },
+        videoProvider: 'kie', configuredProviders: new Set(), savingChanges: false, userPromptPending: false,
+        canEditClipIn: false, canEditClipOut: false, selectedAnimationSceneCount: 0, selectedAnimationUndoPending: false, undoingSceneId: null,
+        setSelectedSceneId() {},
         editorTask: {
-          task: { render: state === 'rendering' ? { phase: 'chunks', percent: 45 } : null },
+          task: {
+            render: state === 'rendering' ? { phase: 'chunks', percent: 45 } : null,
+            export: state === 'exporting' ? { jobId: 'export-job', percent: 30, cancelled: false } : null,
+          },
           isProjectBusy: () => busy,
+          canStartAnimation: () => false,
           startRender: projectId => calls.push(['render', projectId]),
           cancelActiveJob: projectId => calls.push(['cancel', projectId]),
           startExport: projectId => calls.push(['clips', projectId]),
         }
       }
-      root.render(<I18nextProvider key={++revision} i18n={i18n}><TooltipProvider><MemoryRouter initialEntries={['/editor/fixture']}><Routes><Route path="/editor/:projectId" element={<LibraryEditor />} /></Routes></MemoryRouter></TooltipProvider></I18nextProvider>)
+      // ADR-0056: el título y las acciones del editor van por portal a los
+      // huecos de la barra del layout; acá los huecos los pone la prueba.
+      // Algunas piezas del editor (saldo de animación, galería) usan TanStack
+      // Query aunque acá no consulten nada.
+      root.render(<QueryClientProvider client={queryClient}><I18nextProvider key={++revision} i18n={i18n}><TooltipProvider><MemoryRouter initialEntries={['/editor/fixture']}><div id={EDITOR_BAR_SLOT_IDS.title} /><div id={EDITOR_BAR_SLOT_IDS.actions} /><Routes><Route path="/editor/:projectId" element={<LibraryEditor />} /></Routes></MemoryRouter></TooltipProvider></I18nextProvider></QueryClientProvider>)
       await waitFor(() => {
         if (renderError) throw renderError
         return document.querySelector('h1')?.textContent === format + ' ' + state
       }, 'vista del editor: ' + format + ' ' + state)
-      const header = document.querySelector('h1').parentElement.parentElement
+      const header = document.getElementById(EDITOR_BAR_SLOT_IDS.actions)
       const buttons = [...document.querySelectorAll('button')]
       const cancel = buttons.filter(button => button.getAttribute('aria-label') === i18n.t('library.editor.render.cancel'))
       const label = i18n.t(state === 'current' ? 'library.editor.render.rerenderClean' : state === 'outdated' ? 'library.editor.render.rerender' : 'library.editor.render.render')
@@ -95,13 +118,28 @@ try {
       }
       check(!document.querySelector('.fixed.bottom-6.right-6'), 'sin flotante superpuesto al timeline')
       const clips = buttons.filter(button => button.textContent.trim() === i18n.t('library.editor.export.button'))
-      check(clips.length === 1 && header.contains(clips[0]), 'exportar clips sigue separado en header')
+      const clipsCancel = buttons.filter(button => button.getAttribute('aria-label') === i18n.t('library.editor.export.cancel'))
+      if (state === 'exporting') {
+        // Entrega 2h: mientras exporta para editar, el botón es una píldora con
+        // el progreso y su «Cancelar», como la del render.
+        check(clips.length === 0, 'no duplica «Exportar para editar» mientras exporta: ' + format)
+        check(header.textContent.includes(i18n.t('library.editor.export.progress', { percent: 30 })), 'progreso de la exportación en header: ' + format)
+        check(clipsCancel.length === 1 && header.contains(clipsCancel[0]) && !clipsCancel[0].disabled, 'cancelar la exportación, único y en header: ' + format)
+        clipsCancel[0].click()
+        check(calls.at(-1)[0] === 'cancel' && calls.at(-1)[1] === 'fixture', 'cancelar la exportación usa el cancelar del store')
+      } else {
+        check(clips.length === 1 && header.contains(clips[0]), 'exportar clips sigue separado en header')
+        check(clipsCancel.length === 0, 'sin «Cancelar exportación» si no exporta: ' + state)
+      }
       cases++
     }
   }
   document.getElementById('result').textContent = 'PASS: export header in both formats (' + cases + ' cases)'
 } catch (error) {
-  document.getElementById('result').textContent = 'FAIL: ' + error.message
+  // Un error de render se reporta con su mensaje aunque haya caído fuera de
+  // una espera (el árbol desmontado haría fallar otra comprobación).
+  const render = renderError && renderError !== error ? ' (render error: ' + renderError.message + ')' : ''
+  document.getElementById('result').textContent = 'FAIL: ' + error.message + render
 }
 `
 

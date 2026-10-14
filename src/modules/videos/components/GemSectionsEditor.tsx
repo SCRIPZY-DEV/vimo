@@ -109,7 +109,7 @@ export function GemSectionsEditor({
       <p
         className={cn(
           'font-body text-xs tabular-nums',
-          totalFull ? 'text-coral' : 'text-muted-foreground',
+          totalFull ? 'text-coral-text' : 'text-muted-foreground',
         )}
       >
         {t('create.gemTemplate.totalCount', {
@@ -118,7 +118,7 @@ export function GemSectionsEditor({
         })}
       </p>
       {totalFull && (
-        <p className="font-body text-xs text-coral">
+        <p className="font-body text-xs text-coral-text">
           {t('create.gemTemplate.totalFull')}
         </p>
       )}

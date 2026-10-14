@@ -1,6 +1,6 @@
 import {
   toSceneSummary,
-  writeScenesOwned,
+  writeScenesKeepingAvatars,
 } from '../../../project/scenes-file.ts'
 import type { Scene } from '../../../types/scenes.ts'
 import type { CreateVideoContext } from '../../context.ts'
@@ -18,6 +18,11 @@ import { withTreatment } from './treatments.ts'
  * `scene-prompts.ts`): un buffer con todas las escenas y una cadena de
  * promesas que serializa las escrituras, porque los grupos corren en paralelo
  * y comparten este objeto.
+ *
+ * Desde la entrega 2h (diseño §24.1) la fase de imágenes lo usa en sus
+ * pasadas de recuperación mientras la fase `avatar` corre a la vez: cada
+ * escritura conserva el `avatar` que hay en disco (`writeScenesKeepingAvatars`),
+ * porque el del buffer es el de cuando arrancó la fase.
  */
 export interface VerbatimPromptPersistence {
   onPrompts: (prompts: readonly VerbatimScenePrompt[]) => Promise<void>
@@ -65,7 +70,7 @@ export function createVerbatimPromptPersistence(
         // tarde.
         if (context.signal.aborted) return
         for (const prompt of prompts) apply(prompt)
-        await writeScenesOwned(
+        await writeScenesKeepingAvatars(
           context.paths,
           buffer,
           context.regenerateSceneIds,
@@ -75,7 +80,7 @@ export function createVerbatimPromptPersistence(
           if (!scene) continue
           context.emitter.emit({
             type: 'scene-prompt-ready',
-            scene: await toSceneSummary(context.paths, scene),
+            scene: await toSceneSummary(context.paths, scene, context.metadata),
           })
         }
       })

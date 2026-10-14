@@ -1,11 +1,29 @@
 import { stat } from 'node:fs/promises'
 
 import type { SceneAnimation, SceneAnimationView } from '../types/animation.ts'
+import { withAnimationCheckpointLease } from '../animation/coordination.ts'
 import { sceneAnimationBlocks } from '../animation/scene-blocks.ts'
 import { sceneAnimationClipFile } from '../animation/clip-path.ts'
+import { frameBoundary } from '../animation/timing.ts'
+import {
+  findAvatarLookPreview,
+  sceneAvatarClipFile,
+} from '../avatar/clip-path.ts'
+import { avatarRenderHash } from '../avatar/fingerprint.ts'
+import type { SceneAvatar, SceneAvatarView } from '../types/avatar.ts'
 import type { Scene, SceneSummary } from '../types/scenes.ts'
+import type { VideoProjectMetadata } from '../types/video-project.ts'
 import { readTextWithRetry, writeFileAtomicStrict } from '../utils/atomic-fs.ts'
 import { isValidFile, sceneImageFile, type ProjectPaths } from './paths.ts'
+
+// Lo que la vista necesita del proyecto para derivar lo que no se persiste
+// (ADR-0057, diseño §3.3): la versión vigente de la narración (ausente = 0).
+export type SceneViewProject = Pick<VideoProjectMetadata, 'narrationVersion'>
+
+// Un `ready` cuyo clip no está en disco (o con un nombre que no es de Vimo):
+// para la persona es reintentar la descarga, que reusa el video ya pagado
+// (diseño §7.2, paso 5).
+const AVATAR_CLIP_MISSING_CODE = 'avatar_download_failed'
 
 // Lectura/escritura de scenes.json (port de leerEscenasNormalizadas +
 // persistencia incremental del origen). El pipeline completo escribe el
@@ -38,6 +56,9 @@ export async function readScenes(paths: ProjectPaths): Promise<Scene[] | null> {
   return scenes.length > 0 ? scenes : null
 }
 
+// Reescribe el archivo ENTERO. Con recibos pagados en juego (Kie o HeyGen), se
+// llama releyendo antes bajo `withAnimationCheckpointLease`, o bajo el lease
+// exclusivo del proyecto (el pipeline completo, el reemplazo de narración).
 export async function writeScenes(
   paths: ProjectPaths,
   scenes: Scene[],
@@ -84,6 +105,46 @@ export async function writeScenesOwned(
   await mergeScenesById(paths, ownedIds, scenes)
 }
 
+// La escritura de scenes.json de las imágenes y de su carril verbatim (entrega
+// 2h, diseño §24.1): la fase `avatar` corre a la vez y guarda sus recibos
+// pagados en el mismo archivo. Bajo el lease de checkpoint —el mismo con el
+// que el avatar relee y guarda sus recibos— se relee el disco y cada escena
+// conserva el `avatar` que hay ahí: estas fases nunca lo cambian y su copia es
+// la de cuando arrancaron, que pisaría un recibo guardado en el medio. Sin
+// escenas de avatar en disco escribe exactamente lo de siempre. La espera del
+// lease usa su propia señal, nunca la del job: los recibos pagados de las
+// imágenes se guardan aunque la persona cancele. El lease no es reentrante:
+// ningún camino que ya lo tenga llega acá (el pipeline y la regeneración de
+// imágenes del editor toman solo el lease del proyecto, y quienes toman este
+// —el avatar, la animación, el recorte del avatar— no escriben por acá).
+export async function writeScenesKeepingAvatars(
+  paths: ProjectPaths,
+  scenes: Scene[],
+  ownedIds?: Set<number>,
+): Promise<void> {
+  const ownSignal = new AbortController().signal
+  await withAnimationCheckpointLease(paths.root, ownSignal, async () => {
+    const onDisk = (await readScenes(paths)) ?? []
+    await writeScenesOwned(paths, withAvatarsOnDisk(scenes, onDisk), ownedIds)
+  })
+}
+
+// Las escenas con el `avatar` que tiene cada una en disco. Una escena que en
+// disco no tiene avatar queda como vino.
+function withAvatarsOnDisk(scenes: Scene[], onDisk: Scene[]): Scene[] {
+  const avatars = new Map<number, SceneAvatar>()
+  for (const scene of onDisk)
+    if (scene.avatar) avatars.set(scene.id, scene.avatar)
+  if (avatars.size === 0) return scenes
+
+  return scenes.map((scene) => {
+    const avatar = avatars.get(scene.id)
+    if (!avatar) return scene
+
+    return { ...scene, avatar }
+  })
+}
+
 // Una imagen propia gana sobre el alias histórico de una pausa. Los cortes
 // nuevos generan su visual; el alias solo recupera proyectos anteriores.
 export async function resolveSceneImageSourceId(
@@ -99,6 +160,7 @@ export async function resolveSceneImageSourceId(
 export async function toSceneSummary(
   paths: ProjectPaths,
   scene: Scene,
+  project: SceneViewProject,
 ): Promise<SceneSummary> {
   const summary: SceneSummary = {
     id: scene.id,
@@ -121,6 +183,17 @@ export async function toSceneSummary(
     summary.imageStatus = 'ok'
   }
 
+  // Una escena de avatar no tiene imagen generada (su clip ES la escena, con
+  // el fondo del look): su imagen fija es la vista previa del look, copiada en
+  // `avatar/look.<ext>` al crear el proyecto. Así nada la muestra pendiente.
+  const lookPreview = scene.avatar
+    ? await findAvatarLookPreview(paths)
+    : undefined
+  if (lookPreview) {
+    summary.imagePath = lookPreview
+    summary.imageStatus = 'ok'
+  }
+
   const animation = await toSceneAnimationView(paths, scene)
   if (animation) summary.animation = animation
   if (scene.animations !== undefined)
@@ -138,6 +211,8 @@ export async function toSceneSummary(
   if (imageSourceId !== scene.id) summary.visualSourceSceneId = imageSourceId
   if (scene.animations === undefined && scene.absorbedBy !== undefined)
     summary.absorbedBy = scene.absorbedBy
+  const avatar = await toSceneAvatarView(paths, scene, project)
+  if (avatar) summary.avatar = avatar
 
   return summary
 }
@@ -211,13 +286,119 @@ export async function animationView(
   return view
 }
 
+// Vista de la escena de avatar (ADR-0057, diseño §3.3): sin recibos, sin el
+// nombre local del clip y sin la huella. El clip se deriva de la EXISTENCIA del
+// archivo, como el de Kie: un `ready` sin archivo (o con un nombre que no arma
+// Vimo) sale `failed`. `stale` se deriva acá y nunca se persiste: un clip
+// renderizado con otra versión de la narración está desactualizado. La otra
+// causa es la huella `renderHash` del carril de HeyGen: un clip de otro tramo,
+// otro look u otro motor (isAvatarClipStale). Desde la entrega 2d se marca en
+// TODA escena lista, también en la que perdió su archivo (que se sigue
+// mostrando fallida): la fase no la paga sola (isAvatarScenePending) y el
+// costo de reanudar la deja afuera por esta marca.
+export async function toSceneAvatarView(
+  paths: ProjectPaths,
+  scene: Scene,
+  project: SceneViewProject,
+): Promise<SceneAvatarView | undefined> {
+  const avatar = scene.avatar
+  if (!avatar) return undefined
+
+  const view: SceneAvatarView = {
+    lookId: avatar.lookId,
+    lookName: avatar.lookName,
+    lookType: avatar.lookType,
+    engine: avatar.engine,
+    origin: avatar.origin,
+    status: avatar.status,
+  }
+  if (avatar.normalizedSeconds !== undefined)
+    view.normalizedSeconds = avatar.normalizedSeconds
+  if (avatar.narrationVersion !== undefined)
+    view.narrationVersion = avatar.narrationVersion
+  if (avatar.usdEstimated !== undefined) view.usdEstimated = avatar.usdEstimated
+  if (avatar.errorCode) view.errorCode = avatar.errorCode
+  copyMotionView(avatar, view)
+
+  if (avatar.status !== 'ready') return view
+
+  if (isAvatarClipStale(scene, avatar, project)) view.stale = true
+
+  const clipPath = sceneAvatarClipFile(paths, avatar)
+  const clipMtimeMs = clipPath ? await validFileMtime(clipPath) : undefined
+  if (!clipPath || clipMtimeMs === undefined) {
+    view.status = 'failed'
+    view.errorCode = AVATAR_CLIP_MISSING_CODE
+    return view
+  }
+
+  view.clipPath = clipPath
+  view.clipMtimeMs = clipMtimeMs
+  return view
+}
+
+// El movimiento de la escena para el editor (entrega 2e, §21.4): el prompt,
+// el último automático y quién lo escribió, «más expresivo» y si HeyGen
+// rechazó el movimiento con este look. Cada uno solo si está y con su tipo (un
+// scenes.json editado no le pasa a la UI un prompt que no es texto). La huella
+// del texto y la toma son del sidecar: no viajan.
+function copyMotionView(avatar: SceneAvatar, view: SceneAvatarView): void {
+  if (typeof avatar.motionPrompt === 'string')
+    view.motionPrompt = avatar.motionPrompt
+  if (avatar.motionSource === 'auto' || avatar.motionSource === 'user')
+    view.motionSource = avatar.motionSource
+  if (typeof avatar.autoMotionPrompt === 'string')
+    view.autoMotionPrompt = avatar.autoMotionPrompt
+  if (avatar.expressive === true) view.expressive = true
+  if (avatar.motionUnsupported === true) view.motionUnsupported = true
+}
+
+// Un clip listo está desactualizado si se renderizó con otra versión de la
+// narración o si ya no corresponde al tramo, al look o al motor de la escena:
+// su `renderHash` (la huella del carril de HeyGen,
+// pipeline/avatar/fingerprint.ts) no es la de la escena de hoy. Un clip sin
+// huella también: no se sabe para qué tramo se hizo. La misma regla decide si
+// la fase `avatar` paga sola una escena lista (isAvatarScenePending,
+// pipeline/avatar/render-scenes.ts): una desactualizada, nunca.
+export function isAvatarClipStale(
+  scene: Scene,
+  avatar: SceneAvatar,
+  project: SceneViewProject,
+): boolean {
+  const narrationVersion = project.narrationVersion ?? 0
+  if ((avatar.narrationVersion ?? 0) !== narrationVersion) return true
+
+  return (
+    avatar.renderHash !==
+    avatarRenderHash({
+      lookId: avatar.lookId,
+      engine: avatar.engine,
+      startFrame: frameBoundary(scene.startSeconds ?? 0),
+      endFrame: frameBoundary(scene.endSeconds ?? 0),
+      narrationVersion,
+    })
+  )
+}
+
+// El mtime (redondeado) de un archivo que existe y no está vacío, o undefined.
+async function validFileMtime(path: string): Promise<number | undefined> {
+  try {
+    const info = await stat(path)
+    if (!info.isFile() || info.size === 0) return undefined
+    return Math.round(info.mtimeMs)
+  } catch {
+    return undefined
+  }
+}
+
 export async function toSceneSummaries(
   paths: ProjectPaths,
   scenes: Scene[],
+  project: SceneViewProject,
 ): Promise<SceneSummary[]> {
   const summaries: SceneSummary[] = []
   for (const scene of scenes) {
-    summaries.push(await toSceneSummary(paths, scene))
+    summaries.push(await toSceneSummary(paths, scene, project))
   }
   return summaries
 }

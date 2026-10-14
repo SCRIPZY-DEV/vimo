@@ -5,9 +5,11 @@ import { Button } from '@/modules/common/ui/button'
 import { Input } from '@/modules/common/ui/input'
 import { Label } from '@/modules/common/ui/label'
 import { formatTime } from '@/modules/common/utilities/formatTime'
+import { AvatarSpansNote } from '@/modules/videos/components/AvatarSpansNote'
 import { DataBox } from '@/modules/videos/components/DataBox'
 import { MAX_SCENE_COUNT } from '@/modules/videos/constants'
 import { clampSceneCount } from '@/modules/videos/utilities/clampSceneCount'
+import { countStepSceneEstimate } from '@/modules/videos/utilities/countStepSceneEstimate'
 import type {
   SceneConfirmationView,
   SceneCutChoice,
@@ -35,6 +37,9 @@ function ConfirmScenesForm({
 }: ConfirmScenesFormProps) {
   const { t } = useTranslation()
   const [sceneCount, setSceneCount] = useState(confirmation.suggestedScenes)
+  // Con avatar, lo que deja el corte con la cantidad tecleada: las apariciones
+  // cuentan en el total y no llevan imagen. Sin avatar, nada nuevo.
+  const avatarEstimate = countStepSceneEstimate(confirmation, sceneCount)
 
   return (
     <>
@@ -61,6 +66,14 @@ function ConfirmScenesForm({
           value={String(confirmation.suggestedScenes)}
         />
       </div>
+
+      <AvatarSpansNote
+        spans={confirmation.avatarSpans}
+        dropped={confirmation.avatarDropped}
+        lookType={confirmation.avatarLookType}
+        engine={confirmation.avatarEngine}
+        className="mt-3"
+      />
 
       <form
         className="mt-4 space-y-3"
@@ -94,6 +107,24 @@ function ConfirmScenesForm({
             }
             className="mt-1 font-mono text-base tabular-nums"
           />
+          {avatarEstimate && (
+            <p className="mt-1.5 font-body text-xs text-muted-foreground">
+              {t('create.confirmScenes.estimatedScenes', {
+                count: avatarEstimate.total,
+              })}
+              {' · '}
+              {t('create.confirmScenes.imagesToGenerate', {
+                count: avatarEstimate.images,
+              })}
+              {sceneCount < avatarEstimate.minimum && (
+                <span className="mt-0.5 block text-coral-text">
+                  {t('create.confirmScenes.avatarMinimum', {
+                    minimum: avatarEstimate.minimum,
+                  })}
+                </span>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex items-center justify-end gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={onCancel}>

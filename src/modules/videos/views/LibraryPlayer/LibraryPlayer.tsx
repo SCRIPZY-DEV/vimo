@@ -7,6 +7,7 @@ import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { Button } from '@/modules/common/ui/button'
 import { videosApi } from '@/modules/videos/api'
+import { AvatarFallbackNote } from '@/modules/videos/components/AvatarFallbackNote'
 import { LibraryVideoPlayer } from '@/modules/videos/components/LibraryVideoPlayer'
 import { LibraryViewHeader } from '@/modules/videos/components/LibraryViewHeader'
 import { OutdatedVideoBanner } from '@/modules/videos/components/OutdatedVideoBanner'
@@ -24,6 +25,9 @@ import {
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useLibraryProjectDetail } from '@/modules/videos/hooks/useLibraryProjectDetail'
 import { useLibraryProjects } from '@/modules/videos/hooks/useLibraryProjects'
+import { avatarFallbackCount } from '@/modules/videos/utilities/avatarFallback'
+import { avatarRunOptions } from '@/modules/videos/utilities/avatarRunOptions'
+import { failureMessageOf } from '@/modules/videos/utilities/failedStage'
 import { isTaskLiveFor } from '@/modules/videos/utilities/isTaskLiveFor'
 import { projectBadge } from '@/modules/videos/utilities/projectBadge'
 import { vendorOfProvider } from '@/modules/voices/utilities/vendorOfProvider'
@@ -61,6 +65,15 @@ export function LibraryPlayer() {
   }
 
   const metadata = detail.metadata
+  // El mismo mensaje que la pantalla de progreso: con apariciones que HeyGen
+  // rechazó para siempre, la salida en vez de «Reanudá».
+  const failureMessage = failureMessageOf({
+    errorCode: metadata.errorCode ?? null,
+    errorKey: metadata.errorCode
+      ? videosApi.errorMessageKey({ code: metadata.errorCode })
+      : null,
+    scenes: detail.scenes,
+  })
   const badge = projectBadge(
     {
       state: metadata.state,
@@ -77,6 +90,7 @@ export function LibraryPlayer() {
   const retry = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
+      ...avatarRunOptions(metadata.options.avatar),
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }
@@ -124,7 +138,7 @@ export function LibraryPlayer() {
           size="sm"
           disabled={deleting}
           onClick={removeProject}
-          className="rounded-lg font-display text-muted-foreground hover:text-destructive"
+          className="rounded-lg font-display text-muted-foreground hover:text-destructive-text"
         >
           <Trash2 className="mr-1.5 h-3.5 w-3.5" />
           {t('library.player.delete')}
@@ -135,11 +149,9 @@ export function LibraryPlayer() {
 
       {metadata.state === 'error' && (
         <TaskErrorCard
-          message={`${t('library.player.errorIntro')} ${t(
-            metadata.errorCode
-              ? videosApi.errorMessageKey({ code: metadata.errorCode })
-              : UNKNOWN_CREATE_ERROR_KEY,
-          )}`}
+          message={`${t('library.player.errorIntro')} ${t(failureMessage.key, {
+            count: failureMessage.count,
+          })}`}
           retryLabel={t('library.player.retry')}
           onRetry={() => void retry()}
           // Con imágenes faltantes el proyecto se repara también desde el
@@ -171,6 +183,13 @@ export function LibraryPlayer() {
 
       {detail.videoPath ? (
         <>
+          {/* Las apariciones del avatar que el video muestra con la imagen
+              fija del look (entrega 2d), de los datos del proyecto ya hecho
+              (una planeada también cuenta): el aviso sale cada vez que se
+              abre, hasta que se regeneran. */}
+          <AvatarFallbackNote
+            count={avatarFallbackCount(detail.scenes, 'project')}
+          />
           <LibraryVideoPlayer
             src={videosApi.videoSource(detail.videoPath, detail.videoMtimeMs)}
             videoFormat={metadata.options.videoFormat}

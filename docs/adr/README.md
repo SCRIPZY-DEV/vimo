@@ -46,6 +46,8 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Avatar scenes with HeyGen over the narration                                        | Proposed                  | pipeline / app / providers    |
+| [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | A dedicated full-screen layout for the project editor                               | Accepted                  | app                           |
 | [ADR-0053](ADR-0053-ai33-proveedor-de-voz-y-cambio-de-voz-tras-un-fallo.md)              | ai33 as a voice provider, and switching voices after a failure                      | Proposed                  | providers / pipeline / app    |
 | [ADR-0052](ADR-0052-exportacion-rapida-sin-temblor-segun-el-equipo.md)                   | Fast export without jitter, sized to the user's machine                             | Accepted                  | pipeline                      |
 | [ADR-0051](ADR-0051-personaje-del-usuario-en-el-lenguaje-del-estilo.md)                  | Adapting the user's character to the style's language                               | Proposed                  | pipeline / app                |

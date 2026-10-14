@@ -74,7 +74,7 @@ export function License() {
           size="sm"
           onClick={logout}
           disabled={loggingOut}
-          className="text-muted-foreground hover:bg-coral/10 hover:text-coral"
+          className="text-muted-foreground hover:bg-coral/10 hover:text-coral-text"
         >
           <LogOut className="mr-1 h-4 w-4" />
           {loggingOut ? t('license.saliendo') : t('license.salir')}

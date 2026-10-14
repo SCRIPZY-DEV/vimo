@@ -1,4 +1,11 @@
 import { useSyncExternalStore } from 'react'
+import i18next from 'i18next'
+import {
+  avatarsQueryKeys,
+  BALANCE_RECHECK_MS,
+} from '@/modules/avatars/constants'
+import { toast } from '@/modules/common/hooks/useToast'
+import { queryClient } from '@/modules/common/queryClient'
 import { blockAnimationProvider } from '@/modules/common/utilities/animationProviderBlocks'
 import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { videosApi } from '@/modules/videos/api'
@@ -10,7 +17,12 @@ import {
   hasBusyCreateTask,
   subscribeCreateTask,
 } from '@/modules/videos/hooks/useCreateTask'
+import { avatarRenderPayload } from '@/modules/videos/utilities/avatarRegeneration'
+import { setEditorProjectBusyCheck } from '@/modules/videos/utilities/editorProjectBusy'
+import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
 import type {
+  AvatarRenderRequestOptions,
+  EditorAvatarRenderState,
   LibraryEditorTask,
   EditorAnimationRequest,
   RegenQueueEntry,
@@ -23,6 +35,10 @@ import type {
 } from '@/modules/videos/types/sceneImageReview'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { AnimateScenesResult } from '@pipeline/types/animation.ts'
+import type {
+  AvatarRenderScenesPayload,
+  AvatarRenderScenesResult,
+} from '@pipeline/types/avatar.ts'
 import type {
   ExportClipsResult,
   RegenerateSceneImagesResult,
@@ -38,8 +54,9 @@ import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 // disco.
 //
 // Concurrencia (ADR-0014): la cola de regen se coalesce en UN job por
-// proyecto; regen ⊻ render ⊻ export ⊻ conjunto de animaciones ⊻ audio, y todo ⊻ el
-// pipeline completo de useCreateTask. El store es el único despachador.
+// proyecto; regen ⊻ render ⊻ export ⊻ conjunto de animaciones ⊻ audio ⊻ el
+// avatar de HeyGen, y todo ⊻ el pipeline completo de useCreateTask. El store
+// es el único despachador.
 const tasks = new Map<string, LibraryEditorTask>()
 const animationRequests = new Map<string, EditorAnimationRequest[]>()
 const subscribers = new Set<() => void>()
@@ -68,6 +85,8 @@ function emptyTask(projectId: string): LibraryEditorTask {
     sceneAnimationProgress: {},
     sceneAnimationErrors: {},
     animationFailure: null,
+    avatarRender: null,
+    sceneAvatarRendering: {},
     audioBusy: false,
     errorKey: null,
     errorCode: null,
@@ -84,8 +103,8 @@ function patchTask(projectId: string, patch: Partial<LibraryEditorTask>) {
   notify()
 }
 
-// ¿El proyecto puede aceptar un job nuevo del editor?
-function isProjectBusy(projectId: string): boolean {
+// ¿El editor tiene una tarea en curso en el proyecto?
+function hasEditorTask(projectId: string) {
   const task = taskOf(projectId)
   return (
     task.savingScenes ||
@@ -94,10 +113,20 @@ function isProjectBusy(projectId: string): boolean {
     task.render !== null ||
     task.export !== null ||
     task.animation !== null ||
-    task.audioBusy ||
-    hasBusyCreateTask()
+    task.avatarRender !== null ||
+    task.audioBusy
   )
 }
+
+// ¿El proyecto puede aceptar un job nuevo del editor?
+function isProjectBusy(projectId: string): boolean {
+  return hasEditorTask(projectId) || hasBusyCreateTask()
+}
+
+// Y al revés: Crear no lanza el pipeline sobre un proyecto con una tarea del
+// editor en curso (rejectIfBusy en useCreateTask; entrega 2d, M3 de la
+// revisión final).
+setEditorProjectBusyCheck(hasEditorTask)
 
 // Las ediciones exclusivas, como deshacer un clip, reservan el proyecto.
 // Las descripciones de regeneración usan su propia reserva activeRegen al
@@ -124,6 +153,7 @@ function canQueueRegeneration(projectId: string, sceneIds: number[]): boolean {
     task.savingScenes ||
     task.render ||
     task.export ||
+    task.avatarRender ||
     task.audioBusy ||
     hasBusyCreateTask()
   )
@@ -188,6 +218,7 @@ function dispatchGenerations(projectId: string) {
     task.activeRegen ||
     task.render ||
     task.export ||
+    task.avatarRender ||
     task.audioBusy ||
     hasBusyCreateTask()
   )
@@ -410,6 +441,7 @@ function canStartAnimation(
     task.savingScenes ||
     task.render ||
     task.export ||
+    task.avatarRender ||
     task.audioBusy ||
     hasBusyCreateTask()
   )
@@ -810,6 +842,298 @@ function dismissAnimationFailure(projectId: string) {
   patchTask(projectId, { animationFailure: null })
 }
 
+// ── Avatar de HeyGen (entrega 2d, spec §20) ──
+
+// «Generar», «Regenerar» o «Regenerar todos» del panel: corre
+// `avatar-render-scenes` con esas escenas y, desde la entrega 2e (§21.4), con
+// las listas que se pidió regenerar y el movimiento de la escena elegida y,
+// desde la 2g (§23.3), la duración nueva de las que la cambiaron
+// (avatarRenderPayload: sin ellos, el pedido de siempre). Cobra en HeyGen, así
+// que el panel muestra el costo y el saldo antes de llegar acá. Una tarea a la
+// vez y exclusiva con todas las del proyecto: no arranca si hay otra y,
+// mientras corre, no entra ninguna. Devuelve si la aceptó; el job sigue solo y
+// sus eventos llenan el bloque del timeline. Las escenas arrancan «en cola»:
+// el sidecar renderiza de a diez (AVATAR_RENDER_CONCURRENCY, entrega 2h) y
+// cada una sale de la cola con su `avatar-scene-started`.
+function startAvatarRender(
+  projectId: string,
+  sceneIds: number[],
+  options: AvatarRenderRequestOptions = {},
+): boolean {
+  const payload = avatarRenderPayload(projectId, { ...options, sceneIds })
+  if (payload.sceneIds.length === 0) return false
+  if (isProjectBusy(projectId)) return false
+
+  const task = taskOf(projectId)
+  const requestId = crypto.randomUUID()
+  const queuedAt = Date.now()
+  const sceneAvatarRendering = { ...task.sceneAvatarRendering }
+  for (const sceneId of payload.sceneIds)
+    sceneAvatarRendering[sceneId] = { startedAt: queuedAt, queued: true }
+  patchTask(projectId, {
+    avatarRender: {
+      requestId,
+      jobId: null,
+      sceneIds: payload.sceneIds,
+      regenerateSceneIds: payload.regenerateSceneIds ?? [],
+      failures: {},
+    },
+    sceneAvatarRendering,
+    errorKey: null,
+    errorCode: null,
+  })
+  void submitAvatarRender(projectId, requestId, payload)
+  return true
+}
+
+async function submitAvatarRender(
+  projectId: string,
+  requestId: string,
+  payload: AvatarRenderScenesPayload,
+) {
+  try {
+    const job = await videosApi.startAvatarRender(payload, (event) =>
+      handleAvatarRenderEvent(projectId, requestId, event),
+    )
+    const current = taskOf(projectId).avatarRender
+    // Un job muy rápido pudo cerrar antes de que el invoke devolviera su id.
+    if (current?.requestId !== requestId) {
+      job.stop()
+      return
+    }
+
+    patchTask(projectId, { avatarRender: { ...current, jobId: job.jobId } })
+    if (current.cancelled) cancelJobQuietly(job.jobId)
+  } catch (error) {
+    finishAvatarRender(
+      projectId,
+      requestId,
+      videosApi.errorMessageKey(error),
+      videosApi.errorCode(error),
+      null,
+    )
+  }
+}
+
+function handleAvatarRenderEvent(
+  projectId: string,
+  requestId: string,
+  event: PipelineEventPayload,
+) {
+  const task = taskOf(projectId)
+  const avatarRender = task.avatarRender
+  if (avatarRender?.requestId !== requestId) return
+
+  switch (event.type) {
+    // Su render arrancó (o avisa una fase sin que el arranque haya llegado):
+    // sale de la cola y su reloj empieza acá, una sola vez. Lo que ya salió de
+    // la cola (o del render) no vuelve: el porcentaje nunca baja. Cada aviso de
+    // fase anota en qué paso va (`phase`): el aviso de «Cancelar» cuenta las
+    // que llegaron a una fase cobrada (AVATAR_CHARGED_PHASES, entrega 2h).
+    case 'avatar-scene-started':
+    case 'avatar-scene-progress': {
+      const current = task.sceneAvatarRendering[event.sceneId]
+      if (!current) return
+
+      const phase =
+        event.type === 'avatar-scene-progress' ? event.phase : current.phase
+      if (!current.queued && phase === current.phase) return
+
+      patchTask(projectId, {
+        sceneAvatarRendering: {
+          ...task.sceneAvatarRendering,
+          [event.sceneId]: {
+            startedAt: current.queued ? Date.now() : current.startedAt,
+            phase,
+          },
+        },
+      })
+      return
+    }
+
+    // Lista o fallida: sale del render y `revision` relee el proyecto, que trae
+    // del disco su clip o su motivo.
+    case 'avatar-scene-ready': {
+      const sceneAvatarRendering = { ...task.sceneAvatarRendering }
+      delete sceneAvatarRendering[event.sceneId]
+      patchTask(projectId, {
+        sceneAvatarRendering,
+        revision: task.revision + 1,
+      })
+      return
+    }
+
+    case 'avatar-scene-failed': {
+      const sceneAvatarRendering = { ...task.sceneAvatarRendering }
+      delete sceneAvatarRendering[event.sceneId]
+      patchTask(projectId, {
+        avatarRender: {
+          ...avatarRender,
+          failures: { ...avatarRender.failures, [event.sceneId]: event.code },
+        },
+        sceneAvatarRendering,
+        revision: task.revision + 1,
+      })
+      return
+    }
+
+    case 'job-completed': {
+      const result = event.result as unknown as AvatarRenderScenesResult | null
+      finishAvatarRender(projectId, requestId, null, null, result)
+      return
+    }
+
+    case 'job-failed':
+      finishAvatarRender(
+        projectId,
+        requestId,
+        videosApi.errorMessageKey({ code: event.code }),
+        event.code,
+        null,
+      )
+      return
+
+    default:
+      return
+  }
+}
+
+// Cierra el job: limpia lo transitorio, relee el proyecto (cada bloque queda
+// listo con su clip o fallido con su motivo; un clip nuevo deja desactualizado
+// el video exportado, como cualquier cambio del editor) y el saldo de
+// avatares, y avisa. Un job que cayó entero (clave, saldo, cancelación) lo
+// dice la alerta del editor (`errorKey`); con saldo agotado, además, la de la
+// cuenta (ADR-0031).
+function finishAvatarRender(
+  projectId: string,
+  requestId: string,
+  errorKey: string | null,
+  errorCode: string | null,
+  result: AvatarRenderScenesResult | null,
+) {
+  const task = taskOf(projectId)
+  const avatarRender = task.avatarRender
+  if (avatarRender?.requestId !== requestId) return
+
+  // Las que no quedaron listas: las que fallaron y las que seguían en cola o
+  // generándose cuando el job cerró.
+  const unfinishedIds = avatarRender.sceneIds.filter((sceneId) => {
+    const failed = avatarRender.failures[sceneId] !== undefined
+    return failed || task.sceneAvatarRendering[sceneId] !== undefined
+  })
+  const sceneAvatarRendering = { ...task.sceneAvatarRendering }
+  for (const sceneId of avatarRender.sceneIds)
+    delete sceneAvatarRendering[sceneId]
+  patchTask(projectId, {
+    avatarRender: null,
+    sceneAvatarRendering,
+    errorKey,
+    errorCode,
+    revision: task.revision + 1,
+  })
+  recheckAvatarBalance()
+  if (result) announceAvatarRender(avatarRender, result)
+  if (!result && errorKey)
+    announceKeptAvatarClips(avatarRender, unfinishedIds, errorKey, errorCode)
+  dispatchGenerations(projectId)
+}
+
+// Una regeneración de listas que cae entera con `job-failed` (la cuenta
+// pausa, la clave deja de servir…) o que ni arrancó (ronda 1 de WP-X, M6 de su
+// revisión): las que no quedaron listas conservan su clip anterior (el sidecar
+// las devuelve a su estado listo, §21.4) y el aviso lo dice con el motivo del
+// job, además del error del editor. Cancelar no avisa nada (lo dice el
+// editor, como en la 2d), y una que alcanzó a quedar lista tiene clip nuevo.
+function announceKeptAvatarClips(
+  avatarRender: EditorAvatarRenderState,
+  unfinishedIds: number[],
+  errorKey: string,
+  errorCode: string | null,
+) {
+  if (avatarRender.cancelled || errorCode === 'cancelled') return
+
+  if (unfinishedIds.length === 0) return
+
+  const allRetakes = unfinishedIds.every((sceneId) =>
+    avatarRender.regenerateSceneIds.includes(sceneId),
+  )
+  if (!allRetakes) return
+
+  toast({
+    description: i18next.t('library.editor.avatar.regenerarFalloConservado', {
+      reason: i18next.t(errorKey),
+    }),
+    variant: 'destructive',
+  })
+}
+
+// El aviso pasajero del final: «listo» si todas las pedidas quedaron listas;
+// si alguna falló, el motivo que más se repite (cada bloque dice el suyo). Si
+// las que fallaron son listas que se pidió regenerar (entrega 2e, §21.4), el
+// sidecar les dejó el clip anterior y el aviso lo dice.
+function announceAvatarRender(
+  avatarRender: EditorAvatarRenderState,
+  result: AvatarRenderScenesResult,
+) {
+  if (
+    avatarRender.sceneIds.every((sceneId) => result.rendered.includes(sceneId))
+  ) {
+    toast({ description: i18next.t('library.editor.avatar.listo') })
+    return
+  }
+
+  if (result.failed.length === 0) return
+
+  const reason = i18next.t(
+    errorKeyOf(dominantAvatarFailure(avatarRender, result.failed)),
+  )
+  const keptPrevious = result.failed.every((sceneId) =>
+    avatarRender.regenerateSceneIds.includes(sceneId),
+  )
+  toast({
+    description: i18next.t(
+      keptPrevious
+        ? 'library.editor.avatar.regenerarFalloConservado'
+        : 'library.editor.avatar.fallo',
+      { reason },
+    ),
+    variant: 'destructive',
+  })
+}
+
+// El código que más se repite entre las escenas que fallaron; a igualdad, el
+// de la primera. Sin ninguno anotado, el genérico.
+function dominantAvatarFailure(
+  avatarRender: EditorAvatarRenderState,
+  failedIds: number[],
+): string | undefined {
+  const counts = new Map<string, number>()
+  for (const sceneId of failedIds) {
+    const code = avatarRender.failures[sceneId]
+    if (code) counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+
+  let dominant: string | undefined
+  let dominantCount = 0
+  for (const [code, count] of counts) {
+    if (count <= dominantCount) continue
+
+    dominant = code
+    dominantCount = count
+  }
+  return dominant
+}
+
+// Tras cada job el saldo de avatares se relee al instante y otra vez a los
+// BALANCE_RECHECK_MS (HeyGen puede descontar con retraso), con la misma clave
+// que la píldora de Avatares y que la confirmación del panel.
+function recheckAvatarBalance() {
+  const refetch = () =>
+    void queryClient.invalidateQueries({ queryKey: avatarsQueryKeys.balance })
+  refetch()
+  setTimeout(refetch, BALANCE_RECHECK_MS)
+}
+
 // ── Render ──
 
 async function startRender(projectId: string): Promise<boolean> {
@@ -880,7 +1204,7 @@ async function startExport(projectId: string): Promise<boolean> {
   if (isProjectBusy(projectId)) return false
 
   patchTask(projectId, {
-    export: { jobId: null, percent: 0 },
+    export: { jobId: null, percent: 0, cancelled: false },
     errorKey: null,
     errorCode: null,
   })
@@ -889,9 +1213,14 @@ async function startExport(projectId: string): Promise<boolean> {
       handleExportEvent(projectId, event),
     )
     const current = taskOf(projectId)
-    if (current.export && current.export.jobId === null)
-      patchTask(projectId, { export: { ...current.export, jobId: job.jobId } })
-    else job.stop()
+    if (!current.export || current.export.jobId !== null) {
+      job.stop()
+      return true
+    }
+
+    patchTask(projectId, { export: { ...current.export, jobId: job.jobId } })
+    // «Cancelar» llegó antes que el id: el job se corta apenas se conoce.
+    if (current.export.cancelled) cancelJobQuietly(job.jobId)
   } catch (error) {
     patchTask(projectId, {
       export: null,
@@ -916,13 +1245,23 @@ function handleExportEvent(projectId: string, event: PipelineEventPayload) {
     case 'job-completed': {
       patchTask(projectId, { export: null, revision: task.revision + 1 })
       const result = event.result as unknown as ExportClipsResult | null
-      // Como el origen: la carpeta exportada se abre sola.
-      if (result?.directory) void videosApi.openFolder(result.directory)
+      // Como el origen: la carpeta exportada se abre sola, salvo que la persona
+      // haya pedido cancelar y el job terminara antes de cortarse.
+      if (result?.directory && !task.export?.cancelled)
+        void videosApi.openFolder(result.directory)
       dispatchGenerations(projectId)
       return
     }
 
     case 'job-failed':
+      // Cancelar no es un error: el botón vuelve, sin aviso (el de «Generación
+      // cancelada» habla de reanudar, y una exportación vuelve a empezar).
+      if (event.code === 'cancelled') {
+        patchTask(projectId, { export: null })
+        dispatchGenerations(projectId)
+        return
+      }
+
       patchTask(projectId, {
         export: null,
         errorKey: videosApi.errorMessageKey({ code: event.code }),
@@ -990,9 +1329,39 @@ function cancelActiveJob(projectId: string) {
       ? { ...task.activeRegen, cancelled: true }
       : null,
   })
-  const jobId =
-    task.activeRegen?.jobId ?? task.render?.jobId ?? task.export?.jobId
+  const jobId = task.activeRegen?.jobId ?? task.render?.jobId
   if (jobId) void videosApi.cancelJob(jobId)
+
+  cancelExport(projectId)
+
+  // El avatar: el job se corta y su cierre llega como `job-failed`. Lo que
+  // HeyGen ya cobró queda en sus recibos y la próxima vez se cosecha sin
+  // pagar de nuevo. Si el invoke todavía no devolvió el id, se cancela al
+  // llegar (submitAvatarRender). Se pide una sola vez: un segundo «Cancelar»
+  // (o una tecla repetida) no vuelve a llamar al sidecar (M1 de la revisión
+  // del WP-Q).
+  const avatarRender = taskOf(projectId).avatarRender
+  if (!avatarRender || avatarRender.cancelled) return
+
+  patchTask(projectId, { avatarRender: { ...avatarRender, cancelled: true } })
+  if (avatarRender.jobId) cancelJobQuietly(avatarRender.jobId)
+}
+
+// La exportación «para editar», como el avatar: se pide una sola vez y, si el
+// invoke todavía no devolvió el id, startExport la corta al llegar. Su cierre
+// llega como `job-failed` con `cancelled` y el botón vuelve sin aviso.
+function cancelExport(projectId: string) {
+  const exportState = taskOf(projectId).export
+  if (!exportState || exportState.cancelled) return
+
+  patchTask(projectId, { export: { ...exportState, cancelled: true } })
+  if (exportState.jobId) cancelJobQuietly(exportState.jobId)
+}
+
+// Cancelar un job que ya terminó responde `JobNotFound`: no hay nada que
+// cortar y la promesa no queda rechazada sin atender.
+function cancelJobQuietly(jobId: string) {
+  videosApi.cancelJob(jobId).catch(() => undefined)
 }
 
 function clearError(projectId: string) {
@@ -1088,6 +1457,7 @@ export function useLibraryEditorTask(projectId: string) {
     observeSceneAnimation,
     dismissAnimationFailure,
     clearRestoredAnimations,
+    startAvatarRender,
     startRender,
     startExport,
     beginAudioOperation,

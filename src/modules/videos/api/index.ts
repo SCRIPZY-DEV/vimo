@@ -89,6 +89,11 @@ import type {
   UndoSceneAnimationResult,
 } from '@pipeline/types/animation.ts'
 import type {
+  AvatarRenderScenesPayload,
+  AvatarTrimScenePayload,
+  AvatarTrimSceneResult,
+} from '@pipeline/types/avatar.ts'
+import type {
   CatalogCopyToCustomPayload,
   CatalogCopyToCustomResult,
   CatalogDraftSamplesUploadPayload,
@@ -253,6 +258,21 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('animate-scenes', payload, onEvent)
+  },
+  // «Generar» / «Regenerar» el avatar de escenas puntuales desde el editor
+  // (entrega 2d): cobra en HeyGen, así que la vista confirma el costo antes.
+  async startAvatarRender(
+    payload: AvatarRenderScenesPayload,
+    onEvent: (event: PipelineEventPayload) => void,
+  ): Promise<PipelineJobHandle> {
+    return startPipelineJob('avatar-render-scenes', payload, onEvent)
+  },
+  // Acorta una escena de avatar lista recortando su clip (entrega 2g, §23.3):
+  // gratis y sin hablar con el proveedor.
+  async trimAvatarScene(
+    payload: AvatarTrimScenePayload,
+  ): Promise<AvatarTrimSceneResult> {
+    return runPipelineJob<AvatarTrimSceneResult>('avatar-trim-scene', payload)
   },
   async undoAnimation(
     projectId: string,

@@ -73,13 +73,15 @@ export const PROMPT_SAFETY_BLOCK = `# REAL PEOPLE, BRANDS & SAFETY (mandatory �
 Staying within the image generator's content policy still matters: be faithful to the role, action and mood — never to a brand. A named public figure is drawn stylized-but-recognizable as above.`
 
 // Bloque para una escena MUDA: en su tramo no se dice nada, así que el
-// FRAGMENT que ve el redactor es la narración vecina. Le pide ilustrar el
-// momento ENTRE esas líneas (una transición o reacción), sin repetir la imagen
-// anterior ni adelantar literalmente la siguiente. Empieza y termina con salto
-// de línea para insertarse entre párrafos del task.
+// FRAGMENT que ve el redactor es la narración ANTERIOR a la pausa (la
+// siguiente, solo si la pausa abre el video: `narrationFragmentFor`). Le pide
+// sostener ese momento (ADR-0043: los silencios sostienen el contexto previo)
+// sin agregar ningún hecho nuevo, sin repetir la imagen anterior ni ilustrar
+// nada más allá del fragmento. Empieza y termina con salto de línea para
+// insertarse entre párrafos del task.
 export const SILENT_PAUSE_BLOCK = `
 # THIS SCENE IS A NARRATION PAUSE
-No words are spoken during this scene's time range: the FRAGMENT below is the narration immediately BEFORE and AFTER the pause, not what is said here. Illustrate the beat BETWEEN those lines — a transition, a reaction, a lingering detail of the same moment or place — that bridges the previous line into the next one. Do NOT repeat the previous scene's image and do NOT illustrate the next line literally.
+No words are spoken during this scene's time range: the FRAGMENT below is the narration that comes right BEFORE the pause (or, when the pause opens the video, the narration that comes right AFTER it), not what is said here. HOLD that moment — keep its subject, place and props and show a lingering detail, a quiet reaction or a settled pose, adding no new event. Do NOT repeat the previous scene's image and do NOT illustrate anything beyond the FRAGMENT. If the pause opens the video, only establish the subject and place of that first line; do not act out its action yet.
 `
 
 // Bloque que fija cuándo se permite texto dentro de la imagen y su idioma

@@ -135,7 +135,7 @@ export function VoiceHistoryPanel() {
                   disabled={deleting}
                   onClick={() => confirmDelete(entry)}
                   aria-label={t('voices.historial.eliminar')}
-                  className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
+                  className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-destructive-text"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

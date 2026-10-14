@@ -231,10 +231,10 @@ export function CharacterSection({
             editable
             onEdit={editStyleInUse}
           >
-            <p className="font-display text-sm font-bold text-destructive">
+            <p className="font-display text-sm font-bold text-destructive-text">
               {t('create.characters.fixedMissingTitle')}
             </p>
-            <p className="font-body text-xs text-muted-foreground">
+            <p className="font-body text-xs text-foreground/65">
               {t('create.characters.fixedMissingHint')}
             </p>
           </StyleCharacterChip>
@@ -376,7 +376,7 @@ export function CharacterSection({
                     ),
                   })
                 }
-                className="text-muted-foreground hover:text-destructive"
+                className="text-muted-foreground hover:text-destructive-text"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

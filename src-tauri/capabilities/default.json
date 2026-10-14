@@ -22,7 +22,9 @@
         { "url": "https://www.dubvoice.ai/*" },
         { "url": "https://elevenlabs.io/*" },
         { "url": "https://ai33.pro/*" },
-        { "url": "https://console.deepgram.com/*" }
+        { "url": "https://console.deepgram.com/*" },
+        { "url": "https://kie.ai/*" },
+        { "url": "https://app.heygen.com/*" }
       ]
     },
     {

@@ -60,6 +60,10 @@ import {
   type AnimationInterval,
   type AnimationUnit,
 } from './planner.ts'
+import {
+  avatarCoveredIntervals,
+  withoutAvatarSceneIds,
+} from './avatar-coverage.ts'
 import { buildAnimationPrompt } from './prompt.ts'
 import { sceneAnimationBlocks } from './scene-blocks.ts'
 import {
@@ -154,7 +158,12 @@ export async function hasAnimationWork(
     return true
   const plan = planAnimationUnits(
     scenes,
-    scenes.map((scene) => scene.id),
+    // Una escena de avatar no se marca: su tramo es del clip del avatar
+    // (ADR-0057) y, marcada, el planificador la rechazaría por larga.
+    withoutAvatarSceneIds(
+      scenes.map((scene) => scene.id),
+      scenes,
+    ),
     [],
     {
       endSeconds,
@@ -165,7 +174,10 @@ export async function hasAnimationWork(
           .map((animation) => blockUnit(scene.id, animation, scenes))
           .filter((unit) => overlapsShortFinalAnimationScene(scenes, unit)),
       ),
-      coveredIntervals: ready.map((record) => record.unit),
+      coveredIntervals: [
+        ...ready.map((record) => record.unit),
+        ...avatarCoveredIntervals(scenes),
+      ],
     },
   )
   return plan.units.length > 0 || plan.rejected.length > 0
@@ -235,7 +247,9 @@ export async function generateSceneAnimations(
     if (!byId.has(id))
       throw new PipelineFailure('invalid_payload', 'Unknown scene id')
 
-  const selected = new Set(marks)
+  // Las escenas de avatar nunca se animan con Kie (ADR-0057): una marca sobre
+  // ellas se descarta sin error y su tramo viaja como cubierto.
+  const selected = new Set(withoutAvatarSceneIds(marks, scenes))
   const ready = await readyAnimationBlocks(paths, scenes)
   // Rehacer un grupo histórico conserva sus límites hasta poder reemplazar
   // todos sus intervalos en una sola escritura; nunca deja media pareja suelta.
@@ -329,6 +343,7 @@ export async function generateSceneAnimations(
     coveredIntervals: [
       ...activeCoverage.map((record) => record.unit),
       ...pending.map((record) => record.unit),
+      ...avatarCoveredIntervals(scenes),
     ],
   })
   const animated: number[] = []

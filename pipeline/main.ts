@@ -1,5 +1,6 @@
 import { createInterface, type Interface } from 'node:readline'
 
+import { avatarsSubcommands } from './commands/avatars/subcommands.ts'
 import { catalogSubcommands } from './commands/catalog/subcommands.ts'
 import { charactersSubcommands } from './commands/characters/subcommands.ts'
 import { demoSubcommands } from './commands/demo/subcommands.ts'
@@ -32,6 +33,7 @@ const SUBCOMMANDS: Record<string, SubcommandHandler> = {
   ...musicSubcommands,
   ...voicesSubcommands,
   ...charactersSubcommands,
+  ...avatarsSubcommands,
   ...stylesSubcommands,
   ...catalogSubcommands,
   ...videosSubcommands,
