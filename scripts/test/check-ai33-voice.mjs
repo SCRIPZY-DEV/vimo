@@ -184,6 +184,20 @@ test('the voice library lists one catalog with prefixed ids and language names',
   assert.equal(result.total, 61)
 })
 
+test('vbee asks ai33 for its whole library, community voices included', async (t) => {
+  const queries = []
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    queries.push(new URL(url).searchParams)
+    return Response.json({ success: true, data: [], pagination: {} })
+  })
+
+  await listAi33Voices('ai33-key', { catalog: 'vbee' })
+  await listAi33Voices('ai33-key', { catalog: 'minimax' })
+
+  assert.equal(queries[0].get('voice_ownership'), 'all')
+  assert.equal(queries[1].has('voice_ownership'), false)
+})
+
 test('a submit cut before the task id finds the task by its mark and pays once', async (t) => {
   const { context } = await narrationContext(t, {
     voiceId: 'elevenlabs_fixture',

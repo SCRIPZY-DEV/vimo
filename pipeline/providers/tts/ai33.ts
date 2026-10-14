@@ -55,6 +55,8 @@ const POLL_REQUEST_TIMEOUT_MS = 30_000
 const MIN_SPEED = 0.5
 const MAX_SPEED = 1.5
 const DEFAULT_CATALOG: Ai33Catalog = 'elevenlabs'
+// Vbee completo en la Voice Library: las voces propias y las de la comunidad.
+const VBEE_VOICE_OWNERSHIP = 'all'
 // Huella del pedido en `file_name`: permite reconocer la tarea en
 // GET /v1/tasks si el POST se corta sin devolver el task_id.
 const FILE_NAME_PREFIX = 'vimo-'
@@ -290,6 +292,10 @@ export async function listAi33Voices(
   if (filters.language)
     query.set('language', languageNameParam(filters.language))
   if (filters.gender) query.set('gender', filters.gender)
+  // Sin `voice_ownership` ai33 lista solo las voces propias de Vbee. Fish no
+  // tiene equivalente: ai33 expone 50 voces por consulta (total: 50 con
+  // cualquier page_size o `sort`); las demás se encuentran buscando.
+  if (catalog === 'vbee') query.set('voice_ownership', VBEE_VOICE_OWNERSHIP)
 
   const response = await ai33Fetch(
     `${AI33_BASE_URL}/v3/voices?${query.toString()}`,
