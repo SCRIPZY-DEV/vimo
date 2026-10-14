@@ -285,6 +285,14 @@ export const TIMELINE_RULER_HEIGHT = 32
 export const TIMELINE_TRACK_HEIGHT = 48
 export const TIMELINE_SIDEBAR_WIDTH = 112
 
+// Espacio visual del fundido y del recorte interior, en píxeles.
+export const TIMELINE_TRANSITION_HEIGHT = 28
+export const TIMELINE_TRANSITION_BASE_WIDTH = 20
+// Icono de 12px + ambos bordes: por debajo se oculta sólo el marcador.
+export const TIMELINE_TRANSITION_MIN_WIDTH = 14
+export const TIMELINE_TRIM_INSET = 4
+export const TIMELINE_TRIM_WIDTH = 9
+
 // Candidatos de step mayor de la regla: el primero cuyo ancho en px sea >= 50.
 export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
 

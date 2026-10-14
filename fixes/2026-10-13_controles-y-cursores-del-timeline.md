@@ -3,6 +3,8 @@
 - **Fecha:** 2026-10-13
 - **Rama:** feat/flow-export-motion
 
+> **Diseño visual superado el 2026-10-13:** la descripción de asas blancas y pastilla de transición documenta la versión anterior. El diseño vigente usa [asas interiores en amarillo pastel y transición compacta](2026-10-13_asas-internas-amarillo-pastel.md). Se conservan las correcciones de interacción y cursores de este informe.
+
 ## Causa
 
 Los clips usaban bordes amarillos/celestes y un área invisible para ajustar la frontera. Los fundidos eran marcadores morados pequeños. El cabezal de reproducción tenía forma de rombo y faltaba una previsualización del lugar al que llevaría el clic. Además, la preparación de una imagen necesitaba distinguirse de una solicitud realmente en cola.

@@ -3,6 +3,8 @@
 - **Fecha:** 2026-10-13
 - **Rama:** feat/flow-export-motion
 
+> **Diseño visual superado el 2026-10-13:** la descripción de asas blancas y pastilla de transición documenta la versión anterior. El diseño vigente usa [asas interiores en amarillo pastel y transición compacta](2026-10-13_asas-internas-amarillo-pastel.md). Se conservan las correcciones de interacción y cursores de este informe.
+
 ## Causa
 
 El diseño solicitado ya estaba integrado por `7ca6af3d`: bordes blancos, asas de recorte, pastillas translúcidas de transición y cabezales triangulares rojo y azul. La revisión de interacción detectó tres problemas: la key de los bloques estáticos incluía su tiempo inicial y remontaba el asa izquierda al moverla; durante el guardado se desmontaban todas las asas; soltar un drag fuera del timeline dejaba una bandera que consumía el siguiente clic legítimo. El indicador azul también conservaba una posición anterior al cambiar el zoom mediante la rueda.

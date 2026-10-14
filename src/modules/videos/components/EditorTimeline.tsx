@@ -23,6 +23,11 @@ import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_SIDEBAR_WIDTH,
   TIMELINE_TRACK_HEIGHT,
+  TIMELINE_TRANSITION_BASE_WIDTH,
+  TIMELINE_TRANSITION_HEIGHT,
+  TIMELINE_TRANSITION_MIN_WIDTH,
+  TIMELINE_TRIM_INSET,
+  TIMELINE_TRIM_WIDTH,
   TIMELINE_ZOOM_LEVELS,
 } from '@/modules/videos/constants'
 import { useAudioPeaks } from '@/modules/videos/hooks/useAudioPeaks'
@@ -150,6 +155,37 @@ export function EditorTimeline({
   // Un clip que cubre varias escenas es UN bloque del largo del hueco entero
   // (ADR-0041); las fronteras arrastrables quedan solo entre bloques.
   const blocks = timelineBlocks(timedScenes, sceneAnimationProgress)
+  // La transición conserva su frontera real. Su ancho visual se acota al
+  // espacio vecino para reservar asas dentro de cada clip, sin superponerlas.
+  const transitions = timelineBlocks(timedScenes, {}).flatMap(
+    (block, index, visualBlocks) => {
+      const previous = visualBlocks[index - 1]
+      const frames = timelineTransitionFrames(previous, block)
+      if (!previous || frames === 0) return []
+      // Normalizar sólo píxeles evita ocultar 14px representados como 13.999…
+      // por la resta de tiempos. La frontera temporal permanece intacta.
+      const width = Number(
+        Math.min(
+          Math.max(
+            TIMELINE_TRANSITION_BASE_WIDTH,
+            (frames / ANIMATION_FPS) * pxPerSecond,
+          ),
+          ((previous.endSeconds - previous.startSeconds) * pxPerSecond) / 2,
+          ((block.endSeconds - block.startSeconds) * pxPerSecond) / 2,
+        ).toFixed(2),
+      )
+      // A zoom mínimo prima el recorte; ocultar el icono no cambia el fundido.
+      if (width < TIMELINE_TRANSITION_MIN_WIDTH) return []
+      return [
+        {
+          seconds: block.startSeconds,
+          width,
+          from: lastSceneOf(previous).id,
+          to: firstSceneOf(block).id,
+        },
+      ]
+    },
+  )
 
   const xOfSeconds = (seconds: number) => seconds * pxPerSecond
   const markManualInteraction = () => {
@@ -584,6 +620,25 @@ export function EditorTimeline({
                   { edge: 'left', before: previous, after: block },
                   { edge: 'right', before: block, after: next },
                 ] as const
+                const leftInset = Math.max(
+                  TIMELINE_TRIM_INSET,
+                  (transitions.find(
+                    (item) => item.seconds === block.startSeconds,
+                  )?.width ?? 0) /
+                    2 +
+                    TIMELINE_TRIM_INSET,
+                )
+                const rightInset = Math.max(
+                  TIMELINE_TRIM_INSET,
+                  (transitions.find((item) => item.seconds === block.endSeconds)
+                    ?.width ?? 0) /
+                    2 +
+                    TIMELINE_TRIM_INSET,
+                )
+                const handleWidth = Math.min(
+                  TIMELINE_TRIM_WIDTH,
+                  Math.max(2, (width - leftInset - rightInset - 2) / 2),
+                )
                 // Los tiempos cambian al recortar. La identidad usa la escena
                 // y el clip anterior para conservar foco y distinguir sus restos.
                 const key =
@@ -645,6 +700,11 @@ export function EditorTimeline({
                           role="separator"
                           aria-orientation="vertical"
                           aria-disabled={timingBusy}
+                          data-timeline-trim-edge={edge}
+                          style={{
+                            width: handleWidth,
+                            [edge]: edge === 'left' ? leftInset : rightInset,
+                          }}
                           aria-valuenow={leftScene.endSeconds}
                           aria-valuemin={
                             (leftScene.startSeconds ?? 0) + MIN_SCENE_SECONDS
@@ -663,9 +723,8 @@ export function EditorTimeline({
                             handleBoundaryKey(event, leftScene, rightScene)
                           }
                           className={cn(
-                            'absolute top-1/2 z-40 flex h-7 w-2.5 -translate-y-1/2 items-center justify-center rounded-[3px] bg-white text-slate-700 shadow-sm outline-none transition-opacity duration-150 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500 group-hover/timeline-block:opacity-100 group-focus-within/timeline-block:opacity-100',
+                            'absolute top-1/2 z-40 flex h-6 -translate-y-1/2 items-center justify-center rounded-[3px] bg-gradient-to-b from-[#FFF1C2] via-[#FFE5A3] to-[#F5D582] text-[#725516] shadow-[inset_0_0_0_1px_rgba(161,119,31,0.2),inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition-[opacity,filter] duration-150 hover:brightness-105 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#A77B20] group-hover/timeline-block:opacity-100 group-focus-within/timeline-block:opacity-100',
                             timingBusy ? 'cursor-wait' : 'cursor-ew-resize',
-                            edge === 'left' ? 'left-0.5' : 'right-0.5',
                             selected || activeBoundary === boundaryId
                               ? 'opacity-100'
                               : 'opacity-0',
@@ -673,7 +732,7 @@ export function EditorTimeline({
                         >
                           <span
                             aria-hidden
-                            className="h-3 w-0.5 rounded-full bg-current"
+                            className="h-3 w-px rounded-full bg-current"
                           />
                         </button>
                       )
@@ -683,51 +742,39 @@ export function EditorTimeline({
               })}
             </div>
 
-            {/* El marcador de fundido selecciona su escena. El recorte sigue
-                perteneciendo a las asas blancas de los clips. */}
-            {timelineBlocks(timedScenes, {}).map(
-              (block, index, visualBlocks) => {
-                const previous = visualBlocks[index - 1]
-                const frames = timelineTransitionFrames(previous, block)
-                if (!previous || frames === 0) return null
-                const leftScene = lastSceneOf(previous)
-                const rightScene = firstSceneOf(block)
-                const width = Math.max(
-                  24,
-                  (frames / ANIMATION_FPS) * pxPerSecond,
-                )
-                return (
-                  <div
-                    key={'transition-' + block.startSeconds}
-                    data-transition-start={block.startSeconds}
-                    style={{
-                      left: xOfSeconds(block.startSeconds) - width / 2,
-                      width,
-                      top: trackTop(0) + 4,
-                      height: TIMELINE_TRACK_HEIGHT - 8,
-                    }}
-                    className="group/timeline-transition pointer-events-none absolute z-30 rounded-md border-[3px] border-transparent bg-white/80 shadow-sm backdrop-blur-sm transition-colors duration-150 hover:border-blue-300 hover:bg-white/70 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
-                  >
-                    <button
-                      type="button"
-                      {...NO_SEEK_PROPS}
-                      aria-label={t('library.editor.transitions.marker', {
-                        from: leftScene.id,
-                        to: rightScene.id,
-                      })}
-                      title={t('library.editor.transitions.marker', {
-                        from: leftScene.id,
-                        to: rightScene.id,
-                      })}
-                      onClick={() => onSelectScene(rightScene.id)}
-                      className="pointer-events-auto flex h-full w-full items-center justify-center rounded-sm text-slate-800 outline-none"
-                    >
-                      <Shuffle aria-hidden className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )
-              },
-            )}
+            {/* El marcador queda en la frontera, separado de las asas internas. */}
+            {transitions.map((transition) => (
+              <div
+                key={'transition-' + transition.seconds}
+                data-transition-start={transition.seconds}
+                style={{
+                  left: xOfSeconds(transition.seconds) - transition.width / 2,
+                  width: transition.width,
+                  top:
+                    trackTop(0) +
+                    (TIMELINE_TRACK_HEIGHT - TIMELINE_TRANSITION_HEIGHT) / 2,
+                  height: TIMELINE_TRANSITION_HEIGHT,
+                }}
+                className="pointer-events-none absolute z-30 rounded-[4px] border border-slate-300/70 bg-slate-100/85 transition-colors duration-150 hover:border-slate-400 hover:bg-slate-100 focus-within:border-[#C9A251] focus-within:bg-[#FFF4D6] dark:border-white/20 dark:bg-zinc-200/85 dark:hover:bg-zinc-100"
+              >
+                <button
+                  type="button"
+                  {...NO_SEEK_PROPS}
+                  aria-label={t('library.editor.transitions.marker', {
+                    from: transition.from,
+                    to: transition.to,
+                  })}
+                  title={t('library.editor.transitions.marker', {
+                    from: transition.from,
+                    to: transition.to,
+                  })}
+                  onClick={() => onSelectScene(transition.to)}
+                  className="pointer-events-auto flex h-full w-full items-center justify-center overflow-hidden rounded-[3px] text-slate-700 outline-none"
+                >
+                  <Shuffle aria-hidden className="h-3 w-3 shrink-0" />
+                </button>
+              </div>
+            ))}
 
             {/* Pista A1: narración */}
             <div
