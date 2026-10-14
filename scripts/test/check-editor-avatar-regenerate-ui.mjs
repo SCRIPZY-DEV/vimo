@@ -713,8 +713,8 @@ try {
   check(first.subcommand === 'avatar-render-scenes', 'corre el subcomando avatar-render-scenes: ' + first.subcommand)
   check(JSON.stringify(first.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [2] }), 'el pedido lleva el proyecto y SOLO la escena elegida: ' + JSON.stringify(first.payload))
   await waitFor(() => !dialog(), 'la confirmación se cierra al arrancar')
-  await waitFor(() => progressRegion() && document.activeElement === progressRegion(), 'el foco queda en la región del avance, no en su «Cancelar»: ' + activeText())
-  check(progressRegion().getAttribute('aria-label') === RENDERING && panelButton(CANCEL), 'la región se llama «Generando el avatar…» y adentro está «Cancelar»')
+  await waitFor(() => progressRegion() && document.activeElement === progressRegion(), 'el foco queda en la región del avance: ' + activeText())
+  check(progressRegion().getAttribute('aria-label') === RENDERING && !panelButton(CANCEL), 'la región se llama «Generando el avatar…» y no ofrece «Cancelar»: con solo confirmar ya se cobra')
   await waitFor(() => avatarBlock(2)?.title === RENDERING, 'el bloque de la escena 2 dice «Generando el avatar…»')
   check(!percentIn(avatarBlock(2)) && !percentIn(panel()), 'en cola, sin porcentaje en el bloque ni en el panel')
   check(window.editor.editorTask.isProjectBusy('fixture'), 'el proyecto queda ocupado mientras corre')
@@ -791,9 +791,11 @@ try {
   check(panelButton(REGENERATE) && panel().textContent.includes(t('library.editor.avatar.fallo', { reason: timeoutReason })), 'el panel de la fallida dice el motivo y ofrece «Regenerar avatar»')
   check(!panelButton(ALL(1)) && !panelButton(ALL(2)), 'con una sola pendiente no hay «Regenerar todos»')
 
-  // 8. Cancelar antes de que el invoke devuelva el id: se cancela al llegar.
-  //    El cierre cancelado devuelve la escena a lo que dice el disco, sin
-  //    avisos de listo ni de fallo; el editor dice que se canceló.
+  // 8. El store cancela antes de que el invoke devuelva el id: se cancela al
+  //    llegar. El panel ya no ofrece «Cancelar» (con solo confirmar se cobra),
+  //    pero el store conserva el corte para quien cierre el job. El cierre
+  //    cancelado devuelve la escena a lo que dice el disco, sin avisos de listo
+  //    ni de fallo; el editor dice que se canceló.
   window.holdInvoke = true
   const toastsBeforeCancel = window.toasts.length
   panelButton(REGENERATE).click()
@@ -801,8 +803,8 @@ try {
   dialogButton(CONFIRM).click()
   await waitFor(() => window.avatarJobs.length === 3, 'pide la escena 5')
   check(JSON.stringify(window.avatarJobs[2].payload.sceneIds) === '[5]', 'solo la 5')
-  await waitFor(() => panelButton(CANCEL), 'el avance con «Cancelar»')
-  panelButton(CANCEL).click()
+  await waitFor(() => progressRegion() && !panelButton(CANCEL), 'el avance, sin «Cancelar»')
+  window.editor.editorTask.cancelActiveJob('fixture')
   await delay()
   check(window.cancels.length === 0, 'sin id todavía no hay nada que cancelar en el sidecar')
   window.avatarJobs[2].release()
@@ -813,15 +815,15 @@ try {
   check(document.getElementById('banner').textContent === t(errorKeyOf('cancelled')), 'el editor dice que se canceló: ' + document.getElementById('banner').textContent)
   check(window.toasts.length === toastsBeforeCancel, 'cancelar no avisa «listo» ni un fallo')
 
-  // 9. Cancelar con el id ya en mano: va directo al sidecar. Un job que cae
+  // 9. El store cancela con el id ya en mano: va directo al sidecar. Un job que cae
   //    entero (el saldo) lo dice el editor, sin avisos pasajeros.
   window.holdInvoke = false
   panelButton(REGENERATE).click()
   await waitFor(() => dialog()?.textContent.includes(t('library.editor.avatar.saldo', { balance: usd(5) })), 'la confirmación')
   dialogButton(CONFIRM).click()
-  await waitFor(() => window.avatarJobs.length === 4 && panelButton(CANCEL), 'la cuarta tarea')
+  await waitFor(() => window.avatarJobs.length === 4 && progressRegion(), 'la cuarta tarea')
   await waitFor(() => window.editor.editorTask.task?.avatarRender?.jobId === 'avatar-job-4', 'con su id')
-  panelButton(CANCEL).click()
+  window.editor.editorTask.cancelActiveJob('fixture')
   await waitFor(() => window.cancels.includes('avatar-job-4'), 'cancelar llama al sidecar con su id')
   window.avatarJobs[3].onEvent({ type: 'job-failed', code: 'avatar_insufficient_credits', message: 'no credits' })
   await waitFor(() => !window.editor.editorTask.isProjectBusy('fixture'), 'liberado')
@@ -843,9 +845,9 @@ try {
   // 10b. Enter sostenido de verdad (M1 de la revisión del WP-Q, como su
   //      sonda): sobre «Generar» de la confirmación pide una sola vez, cada
   //      repetición se ignora (mientras relee el saldo y después) y el foco
-  //      pasa a la región del avance, no a su «Cancelar»: lo que se acaba de
-  //      confirmar no se cancela. Sobre «Cancelar» del avance, una sola
-  //      cancelación; cancelar otra vez no vuelve a llamar al sidecar.
+  //      pasa a la región del avance: lo que se acaba de confirmar no se
+  //      cancela. El store corta una sola vez: cancelar otra vez no vuelve a
+  //      llamar al sidecar.
   forgetBalance()
   panelButton(REGENERATE).click()
   await waitFor(() => dialog()?.textContent.includes(t('library.editor.avatar.saldo', { balance: usd(5) })), 'la confirmación')
@@ -876,13 +878,9 @@ try {
   // El sidecar ya lo cerró: su cancelar responde JobNotFound, y esa respuesta
   // no queda como una promesa rechazada sin atender.
   window.cancelFails = true
-  panelButton(CANCEL).focus()
-  await press(ENTER_HELD)
-  await waitFor(() => window.cancels.length === cancelsBeforeHeld + 1, 'Enter sobre «Cancelar» cancela')
-  await delay(100)
-  check(window.cancels.length === cancelsBeforeHeld + 1 && window.cancels.at(-1) === heldJob.jobId, 'Enter sostenido sobre «Cancelar» cancela una sola vez el job que corre: ' + JSON.stringify(window.cancels.slice(cancelsBeforeHeld)))
-  const heldOnCancel = window.heldOn.get(CANCEL)
-  check(heldOnCancel?.repeats > 0 && heldOnCancel.ignored === heldOnCancel.repeats, '«Cancelar» ignora cada repetición: ' + JSON.stringify(heldOnCancel))
+  window.editor.editorTask.cancelActiveJob('fixture')
+  await waitFor(() => window.cancels.length === cancelsBeforeHeld + 1, 'el store cancela')
+  check(window.cancels.at(-1) === heldJob.jobId, 'el job que corre: ' + JSON.stringify(window.cancels.slice(cancelsBeforeHeld)))
   window.editor.editorTask.cancelActiveJob('fixture')
   await delay(100)
   check(window.cancels.length === cancelsBeforeHeld + 1, 'cancelar otra vez no vuelve a llamar al sidecar')
@@ -891,178 +889,22 @@ try {
   heldJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
   await waitFor(() => !window.editor.editorTask.isProjectBusy('fixture'), 'liberado')
 
-  // 10c. Entrega 2h (§24.4, WP-C): «Cancelar» con apariciones ya cobradas. Una
-  //      aparición queda cobrada cuando el carril avisa la fase render (HeyGen
-  //      aceptó el pedido), download o normalize; antes (en cola, audio,
-  //      upload) no hay nada cobrado. Con al menos una cobrada y sin terminar
-  //      del job (no solo de la escena elegida), «Cancelar» abre el aviso del
-  //      editor y no corta nada; sin ninguna, corta directo como siempre. El aviso
-  //      se cierra con una animación de salida (el nodo sigue en el documento
-  //      unos instantes), como en la app.
-  const KEEP = t('library.editor.avatar.cancelarSeguir')
-  const CANCEL_ANYWAY = t('library.editor.avatar.cancelarIgual')
-  const WARNING_TITLE = t('library.editor.avatar.cancelarTitulo')
-  const warningText = (count) => t('library.editor.avatar.cancelarTexto', { count })
-  const dialogOpen = () => dialog()?.getAttribute('data-state') === 'open'
-  const phaseOf = (id) => window.editor.editorTask.task?.sceneAvatarRendering?.[id]?.phase
-  const startedAtOf = (id) => window.editor.editorTask.task?.sceneAvatarRendering?.[id]?.startedAt
-  const closingStyle = document.createElement('style')
-  closingStyle.textContent = '@keyframes wp-c-close { from { opacity: 1 } to { opacity: 0 } } [role="alertdialog"][data-state="closed"] { animation: wp-c-close 300ms linear forwards }'
-  document.head.append(closingStyle)
-  async function startEditorJob(sceneIds) {
-    const jobsBefore = window.avatarJobs.length
-    check(window.editor.editorTask.startAvatarRender('fixture', sceneIds), 'el editor arranca el avatar de ' + sceneIds.join(', '))
-    const job = await waitFor(() => window.avatarJobs[jobsBefore], 'el pedido del avatar de ' + sceneIds.join(', '))
-    await waitFor(() => window.editor.editorTask.task?.avatarRender?.jobId === job.jobId, 'con su id')
-    return job
-  }
-  // Montar el panel de otra escena de avatar no le roba el foco a quien lo
-  // tiene (el efecto que devuelve el foco solo actúa al cerrarse el aviso).
-  await select(4)
-  avatarBlock(5).focus()
-  await select(5)
-  check(document.activeElement === avatarBlock(5), 'cambiar de escena no mueve el foco de la pista: ' + activeText())
-  window.cancelRequests.length = 0
-
-  // Sin ninguna cobrada (todas suben su audio o esperan su turno): directo.
-  const unchargedJob = await startEditorJob([4, 5, 7])
-  await waitFor(() => progressRegion() && panelButton(CANCEL), 'el avance de la 5 con «Cancelar»')
-  check(!dialog() && window.editor.editorTask.task.sceneAvatarRendering[5].phase === undefined, 'en cola no hay fase: nada cobrado')
-  for (const id of [4, 5, 7]) unchargedJob.onEvent({ type: 'avatar-scene-started', sceneId: id })
-  for (const phase of ['audio', 'upload']) for (const id of [4, 5, 7]) unchargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: id, phase, elapsedSeconds: 2 })
-  await waitFor(() => [4, 5, 7].every((id) => phaseOf(id) === 'upload'), 'la fase de cada escena llega al store')
-  panelButton(CANCEL).click()
-  await waitFor(() => window.cancels.includes(unchargedJob.jobId), 'sin ninguna cobrada, «Cancelar» corta directo')
-  check(!dialog() && window.cancelRequests.length === 1, 'sin aviso y con un solo pedido al store: ' + window.cancelRequests.length)
-  panelButton(CANCEL).click()
-  await delay(100)
-  check(!dialog() && window.cancelRequests.length === 1, 'con el pedido ya hecho, otro «Cancelar» no abre nada ni pide de nuevo')
-  unchargedJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
-  await waitFor(() => !window.editor.editorTask.isProjectBusy('fixture'), 'liberado')
-  const cancelsAfterUncharged = window.cancels.length
-
-  // Con una cobrada de tres (la elegida, la 5, todavía sube su audio): el aviso
-  // del editor, con su cuenta en singular, sin cortar nada.
-  window.cancelRequests.length = 0
-  const chargedJob = await startEditorJob([4, 5, 7])
-  await waitFor(() => progressRegion() && panelButton(CANCEL), 'el avance de la 5 con «Cancelar»')
+  // 10c. Sin «Cancelar» en el editor: ni con apariciones ya cobradas (fase
+  //      render, download o normalize) el avance ofrece cortar, y no se abre
+  //      ningún aviso. Reemplaza el aviso de la entrega 2h (§24.4): con solo
+  //      confirmar HeyGen ya cobra.
+  const chargedJobsBefore = window.avatarJobs.length
+  check(window.editor.editorTask.startAvatarRender('fixture', [4, 5, 7]), 'el editor arranca el avatar de 4, 5 y 7')
+  const chargedJob = await waitFor(() => window.avatarJobs[chargedJobsBefore], 'el pedido de las tres')
+  await waitFor(() => window.editor.editorTask.task?.avatarRender?.jobId === chargedJob.jobId, 'con su id')
   for (const id of [4, 5, 7]) chargedJob.onEvent({ type: 'avatar-scene-started', sceneId: id })
-  chargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: 4, phase: 'render', elapsedSeconds: 8 })
-  chargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: 5, phase: 'upload', elapsedSeconds: 8 })
-  chargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: 7, phase: 'audio', elapsedSeconds: 8 })
-  await waitFor(() => phaseOf(4) === 'render' && phaseOf(5) === 'upload' && phaseOf(7) === 'audio', 'las fases llegan al store')
-  const startedAt5 = startedAtOf(5)
-  panelButton(CANCEL).click()
-  await waitFor(() => dialogOpen(), 'con una cobrada, «Cancelar» abre el aviso')
-  check(dialog().getAttribute('role') === 'alertdialog' && dialog().textContent.includes(WARNING_TITLE), 'es un aviso con su título: ' + dialog().textContent)
-  check(dialogDescription() === warningText(1), 'dice una aparición (la de otra escena del job, no la elegida): ' + dialogDescription())
-  check(dialogButton(KEEP) && dialogButton(CANCEL_ANYWAY), 'con «Seguir generando» y «Cancelar igual»')
-  check(activeText() === KEEP && dialog().contains(document.activeElement), 'el foco abre en «Seguir generando»: ' + activeText())
-  await delay(100)
-  check(window.cancelRequests.length === 0 && window.cancels.length === cancelsAfterUncharged && !window.editor.editorTask.task.avatarRender.cancelled, 'abrir el aviso no corta nada')
-
-  // Con el aviso abierto la cuenta sube si se cobran más (una por fase cobrada:
-  // render, download y normalize) y nunca baja: una que queda lista no la
-  // cambia.
-  chargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: 5, phase: 'download', elapsedSeconds: 12 })
-  await waitFor(() => dialogOpen() && dialogDescription() === warningText(2), 'se cobra una más con el aviso abierto: la cuenta sube a dos, en plural: ' + dialogDescription())
-  chargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: 7, phase: 'normalize', elapsedSeconds: 12 })
-  await waitFor(() => dialogOpen() && dialogDescription() === warningText(3), 'y otra: sube a tres (render, download y normalize): ' + dialogDescription())
-  check(startedAtOf(5) === startedAt5 && startedAt5 !== undefined, 'una fase nueva no reinicia el reloj de la aparición (el porcentaje no baja)')
-  storeAvatar(4, view())
-  chargedJob.onEvent({ type: 'avatar-scene-ready', sceneId: 4, scene: { id: 4 } })
-  await waitFor(() => !phaseOf(4), 'la 4 quedó lista: ya no está en curso')
-  await delay(250)
-  check(dialogOpen() && dialogDescription() === warningText(3), 'la cuenta nunca baja: con la 4 lista sigue en tres: ' + dialogDescription())
-  check(window.cancelRequests.length === 0 && !window.editor.editorTask.task.avatarRender.cancelled, 'ni corta nada')
-
-  // Escape es seguir: no cancela y el foco vuelve al «Cancelar» que abrió el aviso.
-  await press('Escape')
-  await waitFor(() => !dialog() && document.activeElement === panelButton(CANCEL), 'Escape cierra el aviso y el foco vuelve al «Cancelar», no a body: ' + activeText())
-  check(window.cancelRequests.length === 0 && window.cancels.length === cancelsAfterUncharged && !window.editor.editorTask.task.avatarRender.cancelled, 'Escape es seguir: no se canceló nada')
-
-  // Un «Cancelar» nuevo cuenta lo cobrado y sin terminar de ese momento (la 5 y
-  // la 7: la 4 ya terminó), y «Seguir generando» con el mouse no cancela.
-  panelButton(CANCEL).click()
-  await waitFor(() => dialogOpen() && dialogDescription() === warningText(2), 'otro aviso parte de lo cobrado de ahora: dos: ' + dialogDescription())
-  dialogButton(KEEP).click()
-  await waitFor(() => !dialog() && document.activeElement === panelButton(CANCEL), '«Seguir generando» cierra el aviso y el foco vuelve al «Cancelar»: ' + activeText())
-  check(window.cancelRequests.length === 0 && window.cancels.length === cancelsAfterUncharged && !window.editor.editorTask.task.avatarRender.cancelled, '«Seguir generando» no cancela')
-
-  // «Cancelar igual» pide la cancelación una sola vez aunque se toque dos veces
-  // mientras el aviso se cierra; después, otro «Cancelar» no abre nada.
-  panelButton(CANCEL).click()
-  await waitFor(() => dialogOpen() && dialogDescription() === warningText(2), 'otra vez el aviso, con dos')
-  const confirmButton = dialogButton(CANCEL_ANYWAY)
-  confirmButton.click()
-  confirmButton.click()
-  await waitFor(() => window.cancels.includes(chargedJob.jobId), '«Cancelar igual» cancela el job')
-  await delay(150)
-  check(window.cancelRequests.length === 1 && window.cancels.filter((id) => id === chargedJob.jobId).length === 1, 'un solo pedido aunque se toque dos veces: el store recibió ' + window.cancelRequests.length)
-  check(window.editor.editorTask.task.avatarRender.cancelled === true, 'la tarea queda cancelada')
-  await waitFor(() => !dialog() && document.activeElement === panelButton(CANCEL), 'el aviso se cierra y el foco queda en el «Cancelar», que sigue hasta el cierre del job: ' + activeText())
-  panelButton(CANCEL).click()
-  await delay(150)
-  check(!dialog() && window.cancelRequests.length === 1, 'con la cancelación ya pedida, otro «Cancelar» no abre el aviso ni vuelve a pedir')
+  chargedJob.onEvent({ type: 'avatar-scene-progress', sceneId: 5, phase: 'render', elapsedSeconds: 8 })
+  await waitFor(() => window.editor.editorTask.task?.sceneAvatarRendering?.[5]?.phase === 'render', 'la 5 cobrada')
+  await waitFor(() => progressRegion(), 'el avance de la 5')
+  check(!panelButton(CANCEL) && !dialog(), 'con una aparición cobrada, el avance no ofrece «Cancelar» ni abre un aviso')
   chargedJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
   await waitFor(() => !window.editor.editorTask.isProjectBusy('fixture'), 'liberado')
-  check(focusIsOnPanel(), 'el botón se fue con el foco: pasa al panel, nunca a body: ' + document.activeElement?.tagName)
-
-  // Enter sostenido sobre «Cancelar»: abre el aviso y las repeticiones caen en
-  // «Seguir generando», que las ignora (no se cierra ni se corta). Con la única
-  // cobrada ya lista el aviso sigue abierto, con su cuenta: se cierra con el
-  // fin del job, y el foco, sin botón al que volver, va al panel y no a body.
-  window.cancelRequests.length = 0
-  const lonelyJob = await startEditorJob([5])
-  await waitFor(() => progressRegion() && panelButton(CANCEL), 'el avance de la 5')
-  lonelyJob.onEvent({ type: 'avatar-scene-started', sceneId: 5 })
-  lonelyJob.onEvent({ type: 'avatar-scene-progress', sceneId: 5, phase: 'render', elapsedSeconds: 30 })
-  await waitFor(() => phaseOf(5) === 'render', 'la 5 cobrada')
-  window.heldOn.clear()
-  panelButton(CANCEL).focus()
-  await press(ENTER_HELD)
-  await waitFor(() => dialogOpen() && dialogDescription() === warningText(1), 'Enter sostenido sobre «Cancelar» abre el aviso con una cobrada')
-  const heldOnKeep = window.heldOn.get(KEEP)
-  check(heldOnKeep?.repeats > 0 && heldOnKeep.ignored === heldOnKeep.repeats, '«Seguir generando» ignora cada repetición: ' + JSON.stringify([...window.heldOn]))
-  check(dialogOpen() && window.cancelRequests.length === 0, 'la tecla sostenida no cerró el aviso ni cortó nada')
-  storeAvatar(5, view())
-  lonelyJob.onEvent({ type: 'avatar-scene-ready', sceneId: 5, scene: { id: 5 } })
-  await waitFor(() => !phaseOf(5), 'la 5 quedó lista: ya no está en curso')
-  await delay(350)
-  check(dialogOpen() && dialogDescription() === warningText(1), 'con la única cobrada lista, el aviso no se cierra solo (sigue más que su animación de salida, con su cuenta): ' + dialogDescription())
-  check(window.cancelRequests.length === 0 && !window.editor.editorTask.task.avatarRender.cancelled, 'sin cortar nada')
-  lonelyJob.onEvent({ type: 'job-completed', result: { rendered: [5], failed: [] } })
-  await waitFor(() => !dialog() && !window.editor.editorTask.isProjectBusy('fixture'), 'al terminar el job, el aviso se cierra')
-  check(window.cancelRequests.length === 0, 'terminar el job no cancela nada')
-  check(focusIsOnPanel(), 'el foco que estaba en el aviso pasa al panel, nunca a body: ' + document.activeElement?.tagName)
-
-  // El aviso que se cerró con su job no queda guardado: con el próximo job,
-  // aunque se cobre, no reaparece sin que nadie toque «Cancelar». Y Enter
-  // sostenido sobre «Seguir generando» lo cierra: el foco cae en «Cancelar» y
-  // las repeticiones que siguen caen ahí, que las ignora (no reabre el aviso ni
-  // corta nada).
-  const nextJob = await startEditorJob([5])
-  nextJob.onEvent({ type: 'avatar-scene-started', sceneId: 5 })
-  nextJob.onEvent({ type: 'avatar-scene-progress', sceneId: 5, phase: 'render', elapsedSeconds: 30 })
-  await waitFor(() => phaseOf(5) === 'render', 'la 5 cobrada otra vez')
-  await delay(250)
-  check(!dialog(), 'un job nuevo con una cobrada no abre el aviso solo')
-  panelButton(CANCEL).click()
-  await waitFor(() => dialogOpen() && activeText() === KEEP, 'el aviso del job nuevo, con el foco en «Seguir generando»: ' + activeText())
-  window.heldOn.clear()
-  await press(ENTER_HELD)
-  await waitFor(() => !dialog() && document.activeElement === panelButton(CANCEL), 'Enter sostenido sobre «Seguir generando» cierra el aviso y el foco cae en «Cancelar»: ' + activeText())
-  const heldOnCancelAfterKeep = window.heldOn.get(CANCEL)
-  check(heldOnCancelAfterKeep?.repeats > 0 && heldOnCancelAfterKeep.ignored === heldOnCancelAfterKeep.repeats, 'las repeticiones que siguen caen en «Cancelar», que las ignora: ' + JSON.stringify([...window.heldOn]))
-  check(!dialog() && window.cancelRequests.length === 0 && !window.editor.editorTask.task.avatarRender.cancelled, 'la tecla sostenida no reabrió el aviso ni cortó nada')
-  nextJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
-  await waitFor(() => !window.editor.editorTask.isProjectBusy('fixture'), 'liberado')
-  closingStyle.remove()
-  // Devolver el foco no desplaza el documento (preventScroll): un scroll cierra
-  // cualquier tooltip de Radix abierto con el foco, y los casos que siguen
-  // miden varios (ERRORES-CONOCIDOS: tooltip-de-radix-abierto-con-focus-se-
-  // cierra-con-el-scroll-que-deja-un-caso-anterior-del-banco).
-  check(document.scrollingElement.scrollTop === 0, 'devolver el foco no desplaza el documento: ' + document.scrollingElement.scrollTop)
+  await select(5)
 
   // 11. Otra tarea en curso: los botones esperan y el store no arranca.
   window.editor.editorTask.beginAudioOperation('fixture')
@@ -1366,8 +1208,8 @@ try {
   await waitFor(() => idle() && panelButton(REGENERATE), 'liberado')
   toastsBefore = window.toasts.length
   const cancelledJob = await confirmRequest(REGENERATE, RETAKE, 'una regeneración que se cancela')
-  await waitFor(() => panelButton(CANCEL) && window.editor.editorTask.task?.avatarRender?.jobId === cancelledJob.jobId, 'el avance con «Cancelar» y el id del job')
-  panelButton(CANCEL).click()
+  await waitFor(() => !panelButton(CANCEL) && window.editor.editorTask.task?.avatarRender?.jobId === cancelledJob.jobId, 'el avance, sin «Cancelar», y el id del job')
+  window.editor.editorTask.cancelActiveJob('fixture')
   await waitFor(() => window.cancels.includes(cancelledJob.jobId), 'cancelar llama al sidecar')
   cancelledJob.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
   await waitFor(() => idle() && panelButton(REGENERATE), 'liberado')
@@ -1892,7 +1734,7 @@ try {
   const viewJob = window.avatarJobs.at(-1)
   check(viewJob.subcommand === 'avatar-render-scenes' && JSON.stringify(viewJob.payload) === JSON.stringify({ projectId: 'fixture-view', sceneIds: [2] }), 'con el proyecto de la ruta y la escena elegida: ' + JSON.stringify(viewJob.payload))
   await waitFor(() => avatarBlock(2)?.title === RENDERING, 'la pista de la vista muestra el bloque generando (sceneAvatarRendering cableado)')
-  check(!percentIn(avatarBlock(2)) && panelButton(CANCEL), 'en cola, sin porcentaje y con «Cancelar» en el panel')
+  check(!percentIn(avatarBlock(2)) && !panelButton(CANCEL), 'en cola, sin porcentaje y sin «Cancelar» en el panel')
   check(exportButton()?.disabled, 'mientras se genera, exportar espera (el ocupado de la vista)')
   viewJob.onEvent({ type: 'avatar-scene-started', sceneId: 2 })
   await waitFor(() => percentIn(avatarBlock(2)) && percentIn(panel()), 'arrancó: el porcentaje en la pista y en el panel de la vista')
