@@ -18,8 +18,14 @@ export const voicesQueryKeys = {
     return ['voices', 'credits', vendor]
   },
   history: ['voices', 'history'],
-  list(provider: VoiceProviderId, filtersKey: string) {
-    return ['voices', 'list', provider, filtersKey]
+  // `catalogKey` separa los catálogos de un mismo motor (los de ai33, la
+  // cuenta y la biblioteca de ElevenLabs): con él la UI sabe si un cambio es
+  // solo de página/filtros o de catálogo.
+  list(provider: VoiceProviderId, catalogKey: string, filtersKey: string) {
+    return ['voices', 'list', provider, catalogKey, filtersKey]
+  },
+  catalog(provider: VoiceProviderId, catalogKey: string) {
+    return ['voices', 'list', provider, catalogKey]
   },
   listRoot(provider: VoiceProviderId) {
     return ['voices', 'list', provider]
