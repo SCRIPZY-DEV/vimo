@@ -41,6 +41,8 @@ import {
   mergeAttemptStats,
 } from '../extension/attempt-audit.js'
 import {
+  persistentTemporaryRejection,
+  persistentAttemptReusable,
   automaticRecoveryEligible,
   isSettledInternalGenerationError,
 } from '../extension/generation-errors.js'
@@ -55,6 +57,8 @@ import {
 } from '../extension/execution-plan.js'
 
 import {
+  persistentRecoveryChain,
+  persistentRecoveryHistoryValid,
   AUTO_RECOVERY_CAPABILITY,
   UNKNOWN_RECONCILE_MS,
   STALLED_ATTEMPT_MS,
@@ -302,6 +306,17 @@ function safeError(error) {
     )
   )
     result.operationSubmission = error.operationSubmission
+  // A Tools restriction hint never changes submission certainty or retry eligibility.
+  if (
+    result.code === 'TOOLS_SUBMISSION_UNKNOWN' &&
+    (result.submission === 'unknown' ||
+      (result.phase === 'upload' &&
+        result.operationSubmission === 'unknown')) &&
+    ['ACTIVITY_BLOCKED', 'CAPTCHA_REQUIRED', 'SESSION_REQUIRED'].includes(
+      error?.recoveryReason,
+    )
+  )
+    result.recoveryReason = error.recoveryReason
   // Dropping malformed fields must never create stronger evidence than the
   // worker sent (for example an unrecognized phase or fractional provider wait).
   if (
@@ -458,6 +473,31 @@ function normalizeJob(input, previous) {
 }
 
 /** Prototipo nativo independiente; no importa ni modifica Vimo. onEvent jamás recibe credenciales Google/URLs. */
+function automaticLinkScope(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    value.version !== 1 ||
+    Object.keys(value).length !== 4 ||
+    !RETRY_ID.test(value.bindingId ?? '') ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+      value.projectId ?? '',
+    ) ||
+    !/^[a-f0-9]{64}$/.test(value.accountKey ?? '')
+  )
+    return null
+  return {
+    version: 1,
+    bindingId: value.bindingId,
+    projectId: value.projectId,
+    accountKey: value.accountKey,
+  }
+}
+function sameAutomaticLink(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+}
+
 export async function createBridge({
   port = 43127,
   dataDir,
@@ -465,6 +505,7 @@ export async function createBridge({
   downloader = downloadImage,
   trustedExtensionOrigins = [],
   allowExtensionLinkRequests = false,
+  allowAutomaticLinks = false,
 } = {}) {
   if (
     !dataDir ||
@@ -475,6 +516,8 @@ export async function createBridge({
     throw new Error('bridge_options_invalid')
   if (
     typeof allowExtensionLinkRequests !== 'boolean' ||
+    typeof allowAutomaticLinks !== 'boolean' ||
+    (allowAutomaticLinks && !allowExtensionLinkRequests) ||
     !Array.isArray(trustedExtensionOrigins) ||
     trustedExtensionOrigins.some((origin) => !ORIGIN.test(origin))
   )
@@ -631,12 +674,14 @@ export async function createBridge({
           ![2, 4].includes(recovery.maxReplacements)) ||
         !automaticJob(job) ||
         state.batches[job.batchId]?.autoRecoveryVersion !== 1 ||
-        !Number.isInteger(job.automaticRetryCount) ||
+        !Number.isSafeInteger(job.automaticRetryCount) ||
         job.automaticRetryCount < 0 ||
-        job.automaticRetryCount > (recovery.maxReplacements ?? 2) ||
-        !Number.isInteger(recovery.replacementCount) ||
+        (job.automaticRetryCount > (recovery.maxReplacements ?? 2) &&
+          job.persistentRecoveryVersion !== 1) ||
+        !Number.isSafeInteger(recovery.replacementCount) ||
         recovery.replacementCount < 0 ||
-        recovery.replacementCount > (recovery.maxReplacements ?? 2) ||
+        (recovery.replacementCount > (recovery.maxReplacements ?? 2) &&
+          job.persistentRecoveryVersion !== 1) ||
         !Array.isArray(recovery.attempts) ||
         recovery.attempts.length !== recovery.replacementCount ||
         ![
@@ -663,9 +708,10 @@ export async function createBridge({
         ) ||
         [job, ...recovery.attempts].some(
           (attempt) =>
-            !Number.isInteger(attempt.automaticRetryCount) ||
+            !Number.isSafeInteger(attempt.automaticRetryCount) ||
             attempt.automaticRetryCount < 0 ||
-            attempt.automaticRetryCount > (recovery.maxReplacements ?? 2) ||
+            (attempt.automaticRetryCount > (recovery.maxReplacements ?? 2) &&
+              attempt.persistentRecoveryVersion !== 1) ||
             (attempt.automaticRetryCount > 0 &&
               (!RETRY_ID.test(attempt.retryRequestId ?? '') ||
                 !RETRY_ID.test(attempt.previousAttemptId ?? '') ||
@@ -679,11 +725,7 @@ export async function createBridge({
             attempt.requestHash !== job.requestHash ||
             !executionPlansEqual(attempt.executionPlan, job.executionPlan),
         ) ||
-        new Set([
-          ...recovery.attempts.map((attempt) => attempt.connectionId),
-          ...(job.connectionId ? [job.connectionId] : []),
-        ]).size !==
-          recovery.attempts.length + (job.connectionId ? 1 : 0)
+        !persistentRecoveryHistoryValid(job)
       )
         throw new Error('store_auto_recovery_invalid')
     }
@@ -1089,7 +1131,7 @@ export async function createBridge({
           alias: entry.alias,
           identity: entry.identity,
           hasFlowTab: entry.hasFlowTab,
-          panelOpen: true,
+          panelOpen: entry.panelOpen,
           expiresAt: entry.expiresAt,
           linked: Boolean(existing),
           trusted,
@@ -1111,8 +1153,35 @@ export async function createBridge({
       }
     }
     function announceDiscovery(socket, frame, origin) {
-      if (!validId(frame.installationId) || frame.panelOpen !== true)
+      const automaticLink = automaticLinkScope(frame.automaticLink)
+      if (frame.automaticLink !== undefined && !automaticLink)
+        throw new Error('automatic_link_invalid')
+      if (
+        !validId(frame.installationId) ||
+        (frame.panelOpen !== true && !automaticLink)
+      )
         throw new Error('discovery_invalid')
+      if (
+        automaticLink &&
+        (!allowAutomaticLinks ||
+          !allowExtensionLinkRequests ||
+          !configuredOrigins.has(origin))
+      )
+        throw new Error('automatic_link_disabled')
+      if (
+        automaticLink &&
+        (!safeIdentity(frame.identity).verified ||
+          automaticLink.accountKey !== safeIdentity(frame.identity).accountKey)
+      )
+        throw new Error('discovery_link_request_mismatch')
+      if (
+        automaticLink &&
+        Object.values(state.connections).some(
+          (value) =>
+            value.installationId === frame.installationId && value.revoked,
+        )
+      )
+        throw new Error('automatic_link_revoked')
       if (!socket.discoveryId && discoveries.size >= 100)
         throw new Error('discovery_full')
       const previous = socket.discoveryId
@@ -1146,6 +1215,8 @@ export async function createBridge({
             : 'Perfil de Chrome',
         identity: safeIdentity(frame.identity),
         hasFlowTab: frame.hasFlowTab === true,
+        panelOpen: frame.panelOpen === true,
+        automaticLink,
         expiresAt: Date.now() + DISCOVERY_TTL_MS,
       }
       // A -> B -> A no puede revivir el nonce de A; los requestId consumidos
@@ -1154,7 +1225,8 @@ export async function createBridge({
         previous &&
         (previous.identity.verified !== entry.identity.verified ||
           previous.identity.accountKey !== entry.identity.accountKey ||
-          previous.hasFlowTab !== entry.hasFlowTab)
+          previous.hasFlowTab !== entry.hasFlowTab ||
+          !sameAutomaticLink(previous.automaticLink, entry.automaticLink))
       )
         discoveryPairs.delete(socket.discoveryId)
       discoveries.set(socket.discoveryId, entry)
@@ -1168,7 +1240,12 @@ export async function createBridge({
         discoveryId: entry.discoveryId,
         expiresAt: entry.expiresAt,
         ...(allowExtensionLinkRequests
-          ? { capabilities: { extensionLinkRequest: true } }
+          ? {
+              capabilities: {
+                extensionLinkRequest: true,
+                ...(allowAutomaticLinks ? { automaticLinkVersion: 1 } : {}),
+              },
+            }
           : {}),
       })
       emit({
@@ -1192,6 +1269,14 @@ export async function createBridge({
       if (!canLink(state.connections, profile.installationId))
         throw new Error('connection_limit_reached')
       const entry = discoveries.get(discoveryId)
+      if (
+        entry.automaticLink &&
+        Object.values(state.connections).some(
+          (value) =>
+            value.installationId === entry.installationId && value.revoked,
+        )
+      )
+        throw new Error('automatic_link_revoked')
       const pending = discoveryPairs.get(discoveryId)
       if (
         pending &&
@@ -1199,6 +1284,7 @@ export async function createBridge({
         pending.origin === entry.origin &&
         pending.installationId === entry.installationId &&
         pending.accountKey === entry.identity.accountKey &&
+        sameAutomaticLink(pending.automaticLink, entry.automaticLink) &&
         pending.expiresAt > Date.now()
       ) {
         return { type: 'discovery.linking', discoveryId }
@@ -1209,6 +1295,7 @@ export async function createBridge({
         origin: entry.origin,
         installationId: entry.installationId,
         accountKey: entry.identity.accountKey,
+        automaticLink: entry.automaticLink,
         tokenHash: sha256(token),
         expiresAt: Date.now() + 30_000,
       })
@@ -1234,6 +1321,7 @@ export async function createBridge({
               'discoveryId',
               'installationId',
               'identity',
+              'automaticLink',
             ].includes(key),
         )
       )
@@ -1242,6 +1330,21 @@ export async function createBridge({
         throw new Error('discovery_origin_untrusted')
       const entry = discoveries.get(socket.discoveryId)
       const identity = safeIdentity(frame.identity)
+      const automaticLink = automaticLinkScope(frame.automaticLink)
+      if (
+        (frame.automaticLink !== undefined && !automaticLink) ||
+        !sameAutomaticLink(automaticLink, entry?.automaticLink)
+      )
+        throw new Error('discovery_link_request_mismatch')
+      if (
+        automaticLink &&
+        (!allowAutomaticLinks ||
+          Object.values(state.connections).some(
+            (value) =>
+              value.installationId === frame.installationId && value.revoked,
+          ))
+      )
+        throw new Error('automatic_link_revoked')
       if (
         !entry ||
         entry.socket !== socket ||
@@ -1844,7 +1947,10 @@ export async function createBridge({
             : null
         return
       }
-      if (recovery.replacementCount >= (recovery.maxReplacements ?? 2)) {
+      if (
+        recovery.replacementCount >= (recovery.maxReplacements ?? 2) &&
+        !persistentRecoveryChain(job)
+      ) {
         recovery.status = 'exhausted'
         recovery.nextAttemptAt = null
         recovery.reason = 'replacement_limit'
@@ -1857,7 +1963,25 @@ export async function createBridge({
         )
       else
         recovery.eligibleAt ??=
-          now + RECOVERY_BACKOFF_MS[recovery.replacementCount]
+          now +
+          (recovery.replacementCount >= (recovery.maxReplacements ?? 2)
+            ? Math.min(
+                1_800_000,
+                120_000 *
+                  2 **
+                    Math.min(
+                      4,
+                      Math.max(
+                        0,
+                        Math.floor(
+                          (recovery.replacementCount -
+                            (recovery.maxReplacements ?? 2)) /
+                            5,
+                        ),
+                      ),
+                    ),
+              )
+            : RECOVERY_BACKOFF_MS[recovery.replacementCount])
       recovery.status =
         uncertain && now < recovery.eligibleAt ? 'reconciling' : 'backoff'
       recovery.nextAttemptAt ??= recovery.eligibleAt
@@ -1871,6 +1995,12 @@ export async function createBridge({
       return {
         autoRecoveryVersion: 1,
         automaticRetryCount: job.automaticRetryCount,
+        ...(job.persistentRecoveryVersion === 1
+          ? { persistentRecoveryVersion: 1 }
+          : {}),
+        ...(job.previousLocalAttemptId
+          ? { previousLocalAttemptId: job.previousLocalAttemptId }
+          : {}),
         ...(job.automaticRetryCount
           ? {
               previousAttemptId: job.previousAttemptId,
@@ -1922,10 +2052,25 @@ export async function createBridge({
       )
         return false
       const recovery = job.autoRecovery
+      const priorLocal = [job, ...archivedAttempts(job).slice().reverse()].find(
+        (attempt) => attempt.connectionId === owner.connectionId,
+      )
+      if (
+        priorLocal &&
+        (owner.persistentRecoveryVersion !== 1 || !persistentRecoveryChain(job))
+      )
+        return false
+      if (
+        job.persistentRecoveryVersion === 1 &&
+        owner.persistentRecoveryVersion !== 1
+      )
+        return false
       recovery.attempts.push(attemptSnapshot(job))
       recovery.replacementCount++
       const previous = recovery.attempts.at(-1)
       job.automaticRetryCount = recovery.replacementCount
+      delete job.previousLocalAttemptId
+      if (priorLocal) job.previousLocalAttemptId = priorLocal.attemptId
       job.retryRequestId = randomUUID()
       job.previousAttemptId = previous.attemptId
       job.previousConnectionId = previous.connectionId
@@ -2065,6 +2210,31 @@ export async function createBridge({
             submission: 'unknown',
           }
         }
+        // Upgrade an old opted-in, exhausted logical image only after observing
+        // the new receiver contract. Every historical attempt must be finally
+        // rejected/unsent; unknown, results and human/global pauses never migrate.
+        const previousOwnerForUpgrade = state.connections[job.connectionId]
+        if (
+          job.persistentRecoveryVersion === undefined &&
+          !effectivelyPaused() &&
+          batch?.status === 'prepared' &&
+          !recovery.stoppedReason &&
+          previousOwnerForUpgrade?.persistentRecoveryVersion === 1 &&
+          ['ready', 'checking'].includes(
+            previousOwnerForUpgrade.profileAvailability?.state,
+          ) &&
+          connectionReady(previousOwnerForUpgrade, job.executionPlan) &&
+          previousOwnerForUpgrade.binding?.projectId ===
+            job.binding?.projectId &&
+          persistentAttemptReusable(job, recovery.currentAttemptStats) &&
+          archivedAttempts(job).every((attempt) =>
+            persistentAttemptReusable(attempt),
+          )
+        ) {
+          job.persistentRecoveryVersion = 1
+          recovery.retryEligible = true
+          await persist()
+        }
         const before = JSON.stringify(recovery)
         planAutomaticRecovery(job, now)
         if (before !== JSON.stringify(recovery)) await persist()
@@ -2100,15 +2270,19 @@ export async function createBridge({
           job.executionPlan,
           1,
         )
+        const persistent = persistentRecoveryChain(job)
         const owner = report.profiles
           .filter(
             (profile) =>
-              profile.available > 0 && !used.has(profile.connectionId),
+              profile.available > 0 &&
+              (!used.has(profile.connectionId) || persistent),
           )
           .map((profile) => state.connections[profile.connectionId])
           .filter(
             (candidate) =>
               candidate.autoRecoveryVersion === 1 &&
+              (job.persistentRecoveryVersion !== 1 ||
+                candidate.persistentRecoveryVersion === 1) &&
               candidate.binding?.projectId ===
                 state.batches[job.batchId].connectionProjects[
                   candidate.connectionId
@@ -2120,6 +2294,8 @@ export async function createBridge({
           )
           .sort(
             (left, right) =>
+              Number(used.has(left.connectionId)) -
+                Number(used.has(right.connectionId)) ||
               remoteCount(left.connectionId) -
                 remoteCount(right.connectionId) ||
               (left.lastAssignedAt ?? 0) - (right.lastAssignedAt ?? 0),
@@ -2493,6 +2669,8 @@ export async function createBridge({
         job.connectionId = owner.connectionId
         job.binding = { ...owner.binding }
         job.attemptId = randomUUID()
+        if (automaticJob(job) && owner.persistentRecoveryVersion === 1)
+          job.persistentRecoveryVersion = 1
         job.state = 'dispatching'
         job.dispatchedAt = new Date().toISOString()
         owner.lastAssignedAt = Date.now()
@@ -2824,6 +3002,11 @@ export async function createBridge({
         let connection
         let credential
         if (frame.type === 'auth.pair') {
+          if (
+            frame.automaticLink !== undefined &&
+            !automaticLinkScope(frame.automaticLink)
+          )
+            throw new Error('automatic_link_invalid')
           const discoveryPair = socket.discoveryId
             ? discoveryPairs.get(socket.discoveryId)
             : null
@@ -2841,6 +3024,14 @@ export async function createBridge({
             currentCandidate.identity.accountKey === discoveryPair.accountKey &&
             redemptionIdentity.verified &&
             redemptionIdentity.accountKey === discoveryPair.accountKey &&
+            sameAutomaticLink(
+              discoveryPair.automaticLink,
+              discoveries.get(socket.discoveryId)?.automaticLink,
+            ) &&
+            sameAutomaticLink(
+              discoveryPair.automaticLink,
+              automaticLinkScope(frame.automaticLink),
+            ) &&
             discoveryPair.installationId === frame.installationId &&
             Date.now() < discoveryPair.expiresAt &&
             sameSecret(frame.token, discoveryPair.tokenHash)
@@ -2848,8 +3039,19 @@ export async function createBridge({
             pairing &&
             Date.now() < pairing.expiresAt &&
             sameSecret(frame.token, sha256(pairing.token))
-          if (!matchedDiscovery && !matchedManual)
+          if (
+            (!matchedDiscovery && !matchedManual) ||
+            (frame.automaticLink !== undefined && !matchedDiscovery)
+          )
             throw new Error('pairing_invalid')
+          if (
+            frame.automaticLink !== undefined &&
+            Object.values(state.connections).some(
+              (value) =>
+                value.installationId === frame.installationId && value.revoked,
+            )
+          )
+            throw new Error('automatic_link_revoked')
           connection = Object.values(state.connections).find(
             (value) => value.installationId === frame.installationId,
           )
@@ -2919,6 +3121,7 @@ export async function createBridge({
         connection.flowTools = null
         connection.generationRetrySupported = false
         connection.autoRecoveryVersion = null
+        connection.persistentRecoveryVersion = null
         connection.localDeletionSupported = false
         const previousIdentity = safeIdentity(connection.identity)
         if (!credential) rememberVerifiedIdentity(connection, previousIdentity)
@@ -3098,6 +3301,11 @@ export async function createBridge({
             frame.capabilities?.generationRetry === true
           connection.autoRecoveryVersion =
             frame.capabilities?.autoRecoveryVersion === 1 ? 1 : null
+          connection.persistentRecoveryVersion =
+            connection.autoRecoveryVersion === 1 &&
+            frame.capabilities?.persistentRecoveryVersion === 1
+              ? 1
+              : null
           connection.localDeletionSupported =
             frame.capabilities?.localDeletion === true
           connection.sessionObservedAt = Date.now()
@@ -3238,11 +3446,21 @@ export async function createBridge({
             job.error = safeError(frame.error)
             if (automaticJob(job))
               job.autoRecovery.retryEligible =
-                automaticRecoveryEligible(frame.error, frame.attemptStats) &&
-                automaticRecoveryEligible(
-                  frame.error,
-                  job.autoRecovery.currentAttemptStats,
-                )
+                (automaticRecoveryEligible(frame.error, frame.attemptStats) &&
+                  automaticRecoveryEligible(
+                    frame.error,
+                    job.autoRecovery.currentAttemptStats,
+                  )) ||
+                (job.persistentRecoveryVersion === 1 &&
+                  connection.persistentRecoveryVersion === 1 &&
+                  persistentTemporaryRejection(
+                    frame.error,
+                    frame.attemptStats,
+                  ) &&
+                  persistentTemporaryRejection(
+                    job.error,
+                    job.autoRecovery.currentAttemptStats,
+                  ))
           }
           planAutomaticRecovery(job)
           await pauseForAttention(job)
@@ -3278,11 +3496,18 @@ export async function createBridge({
           }
           if (automaticJob(job))
             job.autoRecovery.retryEligible =
-              automaticRecoveryEligible(frame.error, frame.attemptStats) &&
-              automaticRecoveryEligible(
-                frame.error,
-                job.autoRecovery.currentAttemptStats,
-              )
+              (automaticRecoveryEligible(frame.error, frame.attemptStats) &&
+                automaticRecoveryEligible(
+                  frame.error,
+                  job.autoRecovery.currentAttemptStats,
+                )) ||
+              (job.persistentRecoveryVersion === 1 &&
+                connection.persistentRecoveryVersion === 1 &&
+                persistentTemporaryRejection(frame.error, frame.attemptStats) &&
+                persistentTemporaryRejection(
+                  job.error,
+                  job.autoRecovery.currentAttemptStats,
+                ))
           planAutomaticRecovery(job)
           if (job.result) automaticDownloadFailure(job)
           await pauseForAttention(job)
@@ -3346,14 +3571,24 @@ export async function createBridge({
                 job.error = safeError(receipt.error)
                 if (automaticJob(job))
                   job.autoRecovery.retryEligible =
-                    automaticRecoveryEligible(
+                    (automaticRecoveryEligible(
                       receipt.error,
                       receipt.attemptStats,
                     ) &&
-                    automaticRecoveryEligible(
-                      receipt.error,
-                      job.autoRecovery.currentAttemptStats,
-                    )
+                      automaticRecoveryEligible(
+                        receipt.error,
+                        job.autoRecovery.currentAttemptStats,
+                      )) ||
+                    (job.persistentRecoveryVersion === 1 &&
+                      connection.persistentRecoveryVersion === 1 &&
+                      persistentTemporaryRejection(
+                        receipt.error,
+                        receipt.attemptStats,
+                      ) &&
+                      persistentTemporaryRejection(
+                        job.error,
+                        job.autoRecovery.currentAttemptStats,
+                      ))
               }
               planAutomaticRecovery(job)
               internalMigrations.push({ job, previousIncident, previousError })
@@ -4025,6 +4260,7 @@ export async function createBridge({
       connection.sessionObservedAt = 0
       connection.generationRetrySupported = false
       connection.autoRecoveryVersion = null
+      connection.persistentRecoveryVersion = null
       connection.localDeletionSupported = false
     }
     for (const job of Object.values(state.jobs))

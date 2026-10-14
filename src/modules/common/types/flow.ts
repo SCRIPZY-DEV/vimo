@@ -129,6 +129,7 @@ export interface FlowJobError {
   operation?: string
   phase?: string
   operationSubmission?: string
+  recoveryReason?: 'ACTIVITY_BLOCKED' | 'CAPTCHA_REQUIRED' | 'SESSION_REQUIRED'
   retryAfterMs?: number
   retryAfter?: number
 }

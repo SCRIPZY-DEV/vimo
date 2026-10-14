@@ -387,6 +387,7 @@ export async function runFlowService(): Promise<number> {
       dataDir: startup.dataDir,
       trustedExtensionOrigins: startup.trustedExtensionOrigins,
       allowExtensionLinkRequests: true,
+      allowAutomaticLinks: true,
       // bridge.ready/bridge.pairing contienen secretos. No reenviar eventos
       // al stdout del pipeline ni a logs; la UI consulta comandos autorizados.
       onEvent(event) {

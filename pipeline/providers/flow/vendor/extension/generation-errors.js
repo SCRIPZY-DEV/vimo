@@ -206,3 +206,63 @@ export function automaticRecoveryEligible(error, attemptStats) {
     ['not_sent', 'not-sent'].includes(error.operationSubmission)
   )
 }
+
+// Versioned persistent periods require a final rejection or proof that no
+// generation was sent. Ambiguous SDK failures and unknown audits are excluded.
+export const PERSISTENT_RECOVERY_VERSION = 1
+export function persistentTemporaryRejection(error, attemptStats) {
+  const stats = safeAttemptStats(attemptStats)
+  if (
+    !stats ||
+    stats.uncertain !== 0 ||
+    !error ||
+    typeof error !== 'object' ||
+    Array.isArray(error)
+  )
+    return false
+  if (error.code !== 'ACTIVITY_BLOCKED')
+    return (
+      automaticRecoveryEligible(error, stats) &&
+      !['TOOLS_MODELS_EXHAUSTED', 'TOOLS_MODELS_UNAVAILABLE'].includes(
+        error.code,
+      )
+    )
+  if (
+    error.operationSubmission !== undefined &&
+    error.operationSubmission !== 'rejected'
+  )
+    return false
+  for (const key of ['retryAfterMs', 'retryAfter'])
+    if (
+      error[key] !== undefined &&
+      (!Number.isSafeInteger(error[key]) || error[key] < 0)
+    )
+      return false
+  if (error.phase === 'upload')
+    return (
+      stats.starts === 0 &&
+      ['not_sent', 'not-sent'].includes(error.submission) &&
+      error.operationSubmission === 'rejected' &&
+      (error.operation === undefined || error.operation === 'upload')
+    )
+  return (
+    error.phase === undefined &&
+    error.submission === 'rejected' &&
+    (error.operation === undefined || error.operation === 'generate') &&
+    stats.confirmedSubmissions > 0
+  )
+}
+
+export function persistentAttemptReusable(
+  job,
+  attemptStats = job?.attemptStats,
+) {
+  return (
+    job?.state === 'failed' &&
+    !job.result &&
+    !job.cancelRequested &&
+    !job.deletedAt &&
+    !job.generationRetry &&
+    persistentTemporaryRejection(job.error, attemptStats)
+  )
+}

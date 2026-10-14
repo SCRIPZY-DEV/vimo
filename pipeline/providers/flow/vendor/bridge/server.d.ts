@@ -3,6 +3,7 @@ export interface FlowBridgeOptions {
   dataDir: string
   trustedExtensionOrigins?: string[]
   allowExtensionLinkRequests?: boolean
+  allowAutomaticLinks?: boolean
   onEvent?: (event: Record<string, unknown>) => void
 }
 

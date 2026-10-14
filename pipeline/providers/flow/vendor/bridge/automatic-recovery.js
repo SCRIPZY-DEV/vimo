@@ -1,3 +1,4 @@
+import { persistentAttemptReusable } from '../extension/generation-errors.js'
 // Recovery changes physical attempts, never the logical image intent. Historical
 // jobs without the explicit version are deliberately outside this policy.
 export const AUTO_RECOVERY_CAPABILITY = Object.freeze({
@@ -71,6 +72,9 @@ export function recoverySummary(job) {
   const recovery = job.autoRecovery
   return {
     version: 1,
+    ...(job.persistentRecoveryVersion === 1
+      ? { persistentRecoveryVersion: 1 }
+      : {}),
     status:
       job.state === 'ready'
         ? 'completed'
@@ -99,4 +103,89 @@ export function observeRecoveryProgress(job, now) {
   // Duplicate snapshots and heartbeats cannot renew this reconciliation window.
   if (uncertainAutomaticAttempt(job) && recovery.unknownSince === null)
     recovery.unknownSince = now
+}
+
+export function persistentRecoveryChain(job) {
+  return (
+    job?.persistentRecoveryVersion === 1 &&
+    automaticJob(job) &&
+    persistentAttemptReusable(job, job.autoRecovery.currentAttemptStats) &&
+    archivedAttempts(job).every((attempt) => persistentAttemptReusable(attempt))
+  )
+}
+
+export function persistentRecoveryHistoryValid(job) {
+  if (
+    job.persistentRecoveryVersion !== undefined &&
+    job.persistentRecoveryVersion !== 1
+  )
+    return false
+  const attempts = [...archivedAttempts(job), ...(job.attemptId ? [job] : [])]
+  if (
+    new Set(attempts.map((attempt) => attempt.attemptId)).size !==
+    attempts.length
+  )
+    return false
+  const uuid = (value) =>
+    typeof value === 'string' &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
+      value,
+    )
+  if (
+    attempts.some(
+      (attempt) =>
+        (attempt.persistentRecoveryVersion !== undefined &&
+          attempt.persistentRecoveryVersion !== 1) ||
+        (attempt.previousLocalAttemptId !== undefined &&
+          (attempt.persistentRecoveryVersion !== 1 ||
+            !uuid(attempt.previousLocalAttemptId) ||
+            attempt.previousLocalAttemptId === attempt.attemptId)),
+    )
+  )
+    return false
+  const ordered = attempts
+    .slice()
+    .sort((a, b) => a.automaticRetryCount - b.automaticRetryCount)
+  if (
+    ordered.some(
+      (attempt, index) =>
+        attempt.automaticRetryCount !== index ||
+        (index > 0 &&
+          (attempt.previousAttemptId !== ordered[index - 1].attemptId ||
+            attempt.previousConnectionId !== ordered[index - 1].connectionId)),
+    )
+  )
+    return false
+  // Promoting an older real media receipt legitimately reorders the archive and
+  // selects an earlier counter. Without a winner, the current attempt is latest.
+  if (
+    !job.result &&
+    ((job.attemptId &&
+      job.automaticRetryCount !== job.autoRecovery.replacementCount) ||
+      archivedAttempts(job).some(
+        (attempt, index) => attempt.automaticRetryCount !== index,
+      ))
+  )
+    return false
+  const local = new Map()
+  for (const attempt of ordered) {
+    if (
+      (local.get(attempt.connectionId) ?? undefined) !==
+      attempt.previousLocalAttemptId
+    )
+      return false
+    local.set(attempt.connectionId, attempt.attemptId)
+  }
+  const repeatedOwner =
+    new Set(attempts.map((attempt) => attempt.connectionId)).size !==
+    attempts.length
+  const extended =
+    job.autoRecovery.replacementCount > (job.autoRecovery.maxReplacements ?? 2)
+  return (
+    (!extended && !repeatedOwner) ||
+    (job.persistentRecoveryVersion === 1 &&
+      archivedAttempts(job).every((attempt) =>
+        persistentAttemptReusable(attempt),
+      ))
+  )
 }

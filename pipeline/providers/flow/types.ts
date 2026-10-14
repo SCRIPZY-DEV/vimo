@@ -79,6 +79,8 @@ export interface FlowJobStatus {
     phase?: string
     submission?: string
     operationSubmission?: string
+    recoveryReason?:
+      'ACTIVITY_BLOCKED' | 'CAPTCHA_REQUIRED' | 'SESSION_REQUIRED'
   } | null
 }
 
