@@ -48,7 +48,10 @@ export async function chooseMusic(
     )
   assertHttpUrl(audioUrl)
 
-  const id = newHistoryId()
+  // La carpeta lleva el nombre que eligió el usuario (o el título de la
+  // pista), como los personajes.
+  const name = payload.name ? sanitizeFileName(payload.name) : undefined
+  const id = newHistoryId(name || payload.option.title)
   const entryDirectory = join(musicHistoryRoot(context), id)
   await mkdir(entryDirectory, { recursive: true })
 
@@ -70,7 +73,6 @@ export async function chooseMusic(
     }
   }
 
-  const name = payload.name ? sanitizeFileName(payload.name) : undefined
   const metadata: Omit<MusicHistoryEntry, 'audioPath' | 'coverPath'> = {
     id,
     createdAt: new Date().toISOString(),

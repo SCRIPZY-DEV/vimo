@@ -20,7 +20,7 @@ import {
   readLibraryDirectory,
   warnSkippedLibraryEntry,
 } from '../../utils/library-directory.ts'
-import { sanitizeFileName } from '../../utils/sanitize-file-name.ts'
+import { newNamedEntryId } from '../../utils/named-entry-id.ts'
 import { isPreviewStyleKey } from './preview-style.ts'
 
 // Biblioteca de personajes: `<projectsRoot>/characters/<id>/` con metadata.json,
@@ -34,7 +34,6 @@ export const CHARACTER_METADATA_FILE = 'metadata.json'
 
 const PREVIEW_FILE_PREFIX = 'preview.'
 const PHOTO_FILE_PREFIX = 'photo.'
-const ID_NAME_LIMIT = 32
 
 export const NAME_LIMIT = 80
 export const DESCRIPTION_LIMIT = 1200
@@ -51,9 +50,7 @@ export const MAX_PHOTO_BYTES = 12 * 1024 * 1024
 // Id `<slug-del-nombre>-<aleatorio>`: carpetas legibles y estables (el id no
 // cambia al renombrar el personaje).
 export function newCharacterId(name: string): string {
-  const slug = sanitizeFileName(name).toLowerCase().slice(0, ID_NAME_LIMIT)
-  const random = Math.random().toString(36).slice(2, 8)
-  return `${slug || 'character'}-${random}`
+  return newNamedEntryId(name, 'character')
 }
 
 const CHARACTER_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
