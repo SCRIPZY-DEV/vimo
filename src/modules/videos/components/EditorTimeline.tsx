@@ -183,6 +183,7 @@ export function EditorTimeline({
     const handleWheel = (event: WheelEvent) => {
       markManualInteraction()
       if (!event.metaKey && !event.ctrlKey) return
+      setHoverSeconds(null)
       event.preventDefault()
       const direction = event.deltaY < 0 ? 1 : -1
       const next = Math.max(
@@ -357,9 +358,9 @@ export function EditorTimeline({
     right: SceneDetail,
   ) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-    if (timingBusy || animationTimingLocked(scenes, [left.id, right.id])) return
     event.preventDefault()
     event.stopPropagation()
+    if (timingBusy || animationTimingLocked(scenes, [left.id, right.id])) return
     markManualInteraction()
     const step = event.shiftKey ? 1 : 0.1
     const initial = left.endSeconds ?? 0
@@ -506,7 +507,12 @@ export function EditorTimeline({
             setScrollLeft(event.currentTarget.scrollLeft)
             setHoverSeconds(null)
           }}
-          onMouseDown={markManualInteraction}
+          onMouseDown={() => {
+            // Una pulsación nueva no hereda el clic suprimido de un drag
+            // que terminó fuera del carril. Los drags detienen el bubbling.
+            suppressClickRef.current = false
+            markManualInteraction()
+          }}
           onTouchStart={markManualInteraction}
           className="cursor-crosshair overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
@@ -578,10 +584,12 @@ export function EditorTimeline({
                   { edge: 'left', before: previous, after: block },
                   { edge: 'right', before: block, after: next },
                 ] as const
+                // Los tiempos cambian al recortar. La identidad usa la escena
+                // y el clip anterior para conservar foco y distinguir sus restos.
                 const key =
                   block.kind === 'clip'
                     ? `clip-${block.id}`
-                    : `scene-${block.scene.id}-${block.startSeconds}`
+                    : `scene-${block.scene.id}-${previous?.kind === 'clip' ? previous.id : 'start'}`
                 return (
                   <div
                     key={key}
@@ -618,7 +626,7 @@ export function EditorTimeline({
                       />
                     )}
                     {boundaries.map(({ edge, before, after }) => {
-                      if (!before || !after || timingBusy) return null
+                      if (!before || !after) return null
                       const leftScene = lastSceneOf(before)
                       const rightScene = firstSceneOf(after)
                       if (
@@ -636,6 +644,7 @@ export function EditorTimeline({
                           type="button"
                           role="separator"
                           aria-orientation="vertical"
+                          aria-disabled={timingBusy}
                           aria-valuenow={leftScene.endSeconds}
                           aria-valuemin={
                             (leftScene.startSeconds ?? 0) + MIN_SCENE_SECONDS
@@ -654,7 +663,8 @@ export function EditorTimeline({
                             handleBoundaryKey(event, leftScene, rightScene)
                           }
                           className={cn(
-                            'absolute top-1/2 z-40 flex h-7 w-2.5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-[3px] bg-white text-slate-700 shadow-sm outline-none transition-opacity duration-150 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500 group-hover/timeline-block:opacity-100 group-focus-within/timeline-block:opacity-100',
+                            'absolute top-1/2 z-40 flex h-7 w-2.5 -translate-y-1/2 items-center justify-center rounded-[3px] bg-white text-slate-700 shadow-sm outline-none transition-opacity duration-150 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500 group-hover/timeline-block:opacity-100 group-focus-within/timeline-block:opacity-100',
+                            timingBusy ? 'cursor-wait' : 'cursor-ew-resize',
                             edge === 'left' ? 'left-0.5' : 'right-0.5',
                             selected || activeBoundary === boundaryId
                               ? 'opacity-100'

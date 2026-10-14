@@ -35,3 +35,7 @@ El harness temporal personal empaquetó estos mismos componentes y CSS, con seis
 ## Pruebas manuales
 
 Se revisó visualmente la captura del harness aislado: cabezales rojo/azul, líneas, borde blanco, asas y fundidos. No se usaron proyectos, cuentas ni perfiles vivos. La revisión de la app Tauri final y la aceptación con un proyecto real corresponden a la validación integrada de la entrega; esta prueba aislada no afirma haberlas realizado.
+
+## Enmienda de interacción del 2026-10-13
+
+La corrección visual se conserva. El supuesto de que una única flecha probaba todo el ajuste por teclado queda superado por la [revisión de foco, guardado y gestos](2026-10-13_interaccion-editor-vidrush.md): ahora se comprueban el asa izquierda, teclas consecutivas, guardado intermedio y mouseup fuera del carril.
