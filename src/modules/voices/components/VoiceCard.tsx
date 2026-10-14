@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Heart, Pause, Play } from 'lucide-react'
+import { Heart, Pause, Play, Trash2 } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
 import type { VoiceSummary } from '@pipeline/types/voices.ts'
 
@@ -11,6 +11,8 @@ interface VoiceCardProps {
   onSelect: (voice: VoiceSummary) => void
   onTogglePreview: (voice: VoiceSummary) => void
   onToggleFavorite: (voice: VoiceSummary) => void
+  // Solo donde se puede borrar la voz (las clonadas de ai33 en Voces).
+  onDelete?: (voice: VoiceSummary) => void
 }
 
 // Tarjeta de seleccionar para el probador, escuchar el preview
@@ -24,6 +26,7 @@ export function VoiceCard({
   onSelect,
   onTogglePreview,
   onToggleFavorite,
+  onDelete,
 }: VoiceCardProps) {
   const { t } = useTranslation()
 
@@ -106,6 +109,17 @@ export function VoiceCard({
       >
         <Heart className={cn('h-4 w-4', isFavorite && 'fill-current')} />
       </button>
+
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(voice)}
+          aria-label={t('voices.tarjeta.borrar')}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
     </div>
   )
 }

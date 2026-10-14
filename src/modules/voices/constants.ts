@@ -299,6 +299,9 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   voice_account_restricted: 'voices.errores.accountRestricted',
   voice_library_add_failed: 'voices.errores.libraryAddFailed',
   voice_submission_failed: 'voices.errores.providerError',
+  voice_clone_audio_invalid: 'voices.errores.cloneAudioInvalid',
+  voice_clone_duration_invalid: 'voices.errores.cloneDurationInvalid',
+  ffmpeg_missing: 'voices.errores.sidecar',
   invalid_payload: 'voices.errores.invalido',
   missing_api_key: 'voices.errores.missingApiKey',
   missing_projects_root: 'voices.errores.missingProjectsRoot',
@@ -309,6 +312,22 @@ export const VOICE_ERROR_MESSAGE_KEYS: Record<string, string> = {
 }
 
 export const UNKNOWN_VOICE_ERROR_KEY = 'voices.errores.desconocido'
+
+// Clonación por ai33: la pestaña donde aparecen las clonadas, el tope del
+// nombre y los formatos de muestra que acepta el diálogo (espejo de
+// pipeline/commands/voices/clone-voice.ts, que valida de nuevo con la duración).
+export const AI33_CLONE_TAB: VoiceTab = 'ai33-clone'
+export const VOICE_CLONE_NAME_LIMIT = 100
+export const VOICE_CLONE_AUDIO_EXTENSIONS = [
+  'mp3',
+  'wav',
+  'm4a',
+  'aac',
+  'ogg',
+  'webm',
+  'flac',
+  'opus',
+]
 export const INTERRUPTED_ERROR_KEY = 'voices.errores.interrumpida'
 
 export const DUBVOICE_DASHBOARD_URL = 'https://www.dubvoice.ai/'
