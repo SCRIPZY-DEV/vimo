@@ -130,6 +130,11 @@ export function EditorTimeline({
   const [hoverSeconds, setHoverSeconds] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const [activeBoundary, setActiveBoundary] = useState<string | null>(null)
+  const [activeTrimHandle, setActiveTrimHandle] = useState<string | null>(null)
+  const [hoveredBoundary, setHoveredBoundary] = useState<string | null>(null)
+  const [focusedBoundary, setFocusedBoundary] = useState<string | null>(null)
+  // Sólo se retira el marcador que taparía la imagen dentro del asa hueca.
+  const revealedBoundary = activeBoundary ?? hoveredBoundary ?? focusedBoundary
 
   // Última interacción manual: pausa el follow-playhead un rato para no
   // pelearle el scroll al usuario.
@@ -346,6 +351,7 @@ export function EditorTimeline({
 
   const startBoundaryDrag = (
     event: React.MouseEvent,
+    handleId: string,
     left: SceneDetail,
     right: SceneDetail,
   ) => {
@@ -358,6 +364,7 @@ export function EditorTimeline({
     setDragging(true)
     setHoverSeconds(null)
     setActiveBoundary(`${left.id}-${right.id}`)
+    setActiveTrimHandle(handleId)
 
     const startX = event.clientX
     const initialBoundary = left.endSeconds ?? 0
@@ -379,6 +386,7 @@ export function EditorTimeline({
       window.removeEventListener('mouseup', handleUp)
       setDragging(false)
       setActiveBoundary(null)
+      setActiveTrimHandle(null)
       // Un clic sin movimiento no guarda nada (y no marca el video como
       // desactualizado).
       if (boundary !== initialBoundary)
@@ -674,6 +682,9 @@ export function EditorTimeline({
                       )
                         return null
                       const boundaryId = `${leftScene.id}-${rightScene.id}`
+                      // La frontera tiene dos asas: sólo la que inició el gesto
+                      // permanece visible, incluso al cruzar sobre la vecina.
+                      const handleId = `${key}-${edge}`
                       return (
                         <button
                           key={edge}
@@ -697,25 +708,31 @@ export function EditorTimeline({
                           aria-label={t('library.editor.timeline.boundary')}
                           title={t('library.editor.timeline.boundary')}
                           {...NO_SEEK_PROPS}
+                          onMouseEnter={() => setHoveredBoundary(boundaryId)}
+                          onMouseLeave={() => setHoveredBoundary(null)}
+                          onFocus={() => setFocusedBoundary(boundaryId)}
+                          onBlur={() => setFocusedBoundary(null)}
                           onMouseDown={(event) =>
-                            startBoundaryDrag(event, leftScene, rightScene)
+                            startBoundaryDrag(
+                              event,
+                              handleId,
+                              leftScene,
+                              rightScene,
+                            )
                           }
                           onKeyDown={(event) =>
                             handleBoundaryKey(event, leftScene, rightScene)
                           }
                           className={cn(
-                            'absolute top-1/2 z-40 flex h-6 -translate-y-1/2 items-center justify-center rounded-[3px] bg-gradient-to-b from-[#FFF1C2] via-[#FFE5A3] to-[#F5D582] text-[#725516] shadow-[inset_0_0_0_1px_rgba(161,119,31,0.2),inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition-[opacity,filter] duration-150 hover:brightness-105 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#A77B20]',
+                            'absolute top-1/2 z-40 h-6 -translate-y-1/2 rounded-[3px] border-2 border-[#FFE6A3] bg-transparent shadow-[0_0_0_1px_rgba(114,85,22,0.18)] outline-none',
                             timingBusy ? 'cursor-wait' : 'cursor-ew-resize',
-                            activeBoundary === boundaryId
+                            activeTrimHandle === handleId
                               ? 'opacity-100'
                               : 'opacity-0',
+                            activeTrimHandle === null &&
+                              'transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100',
                           )}
-                        >
-                          <span
-                            aria-hidden
-                            className="h-3 w-px rounded-full bg-current"
-                          />
-                        </button>
+                        />
                       )
                     })}
                   </div>
@@ -735,6 +752,10 @@ export function EditorTimeline({
                     trackTop(0) +
                     (TIMELINE_TRACK_HEIGHT - TIMELINE_TRANSITION_HEIGHT) / 2,
                   height: TIMELINE_TRANSITION_HEIGHT,
+                  opacity:
+                    revealedBoundary === `${transition.from}-${transition.to}`
+                      ? 0
+                      : 1,
                 }}
                 className="pointer-events-none absolute z-30 rounded-[4px] border border-slate-300/70 bg-slate-100/85 transition-colors duration-150 hover:border-slate-400 hover:bg-slate-100 focus-within:border-[#C9A251] focus-within:bg-[#FFF4D6] dark:border-white/20 dark:bg-zinc-200/85 dark:hover:bg-zinc-100"
               >

@@ -3,6 +3,8 @@
 - **Fecha:** 2026-10-13
 - **Rama:** feat/flow-export-motion
 
+> **Actualización 2026-10-13:** la visibilidad por frontera compartida y el relleno pastel quedan reemplazados por `2026-10-13_tirador-unico-con-contorno-transparente.md`. Se conserva la geometría al borde y la evidencia histórica de esta entrega.
+
 ## Causa
 
 La separación anterior sumaba medio ancho del marcador de transición al margen del tirador. Por eso el agarre amarillo quedaba desplazado hacia el centro de la tarjeta. Además, mostrar ambas asas por selección o por hover sobre cualquier parte del clip añadía demasiado relleno. El usuario pidió el borde interior y, después, la referencia de CapCut: transición visible en reposo y tirador accesible al pasar por su zona, aunque se superponga al efecto.
