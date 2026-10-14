@@ -4,6 +4,8 @@
 - **Rama:** feat/flow-export-motion
 - **Validación y entrega:** 2026-10-14
 
+> **SUPERADO el 2026-10-14:** el usuario pidió restaurar el diseño pastel de editor-pastel-borde y mantener visible el marcador de transición. El criterio vigente está en `2026-10-14_tirador-pastel-con-aparicion-individual.md`; la corrección de aparición individual se conserva.
+
 ## Causa
 
 Los dos tiradores de una frontera compartían `activeBoundary`, por lo que el derecho de un clip y el izquierdo del siguiente se mostraban al mismo tiempo al arrastrar. Las variantes CSS de hover y foco podían revelar otros tiradores durante el gesto. El gradiente opaco y la raya central tapaban la imagen del clip.

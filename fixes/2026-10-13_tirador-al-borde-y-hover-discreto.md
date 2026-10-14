@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-13
 - **Rama:** feat/flow-export-motion
 
-> **Actualización 2026-10-13:** la visibilidad por frontera compartida y el relleno pastel quedan reemplazados por `2026-10-13_tirador-unico-con-contorno-transparente.md`. Se conserva la geometría al borde y la evidencia histórica de esta entrega.
+> **Actualización 2026-10-14:** se restablece el diseño visual de esta entrega por pedido del usuario. La aparición durante arrastre se corrige por tirador individual en `2026-10-14_tirador-pastel-con-aparicion-individual.md`. La variante transparente de `6686ce39` queda superada.
 
 ## Causa
 
