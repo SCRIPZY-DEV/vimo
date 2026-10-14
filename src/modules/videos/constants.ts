@@ -290,7 +290,7 @@ export const TIMELINE_TRANSITION_HEIGHT = 28
 export const TIMELINE_TRANSITION_BASE_WIDTH = 20
 // Icono de 12px + ambos bordes: por debajo se oculta sólo el marcador.
 export const TIMELINE_TRANSITION_MIN_WIDTH = 14
-export const TIMELINE_TRIM_INSET = 4
+export const TIMELINE_TRIM_INSET = 3
 export const TIMELINE_TRIM_WIDTH = 9
 
 // Candidatos de step mayor de la regla: el primero cuyo ancho en px sea >= 50.

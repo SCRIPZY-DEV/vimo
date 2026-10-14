@@ -98,7 +98,7 @@ export function TimelineClipItem({
         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"
       />
 
-      <span className="absolute bottom-0.5 right-8 rounded bg-charcoal/80 px-1 font-mono text-[10px] tabular-nums text-white">
+      <span className="absolute bottom-0.5 right-4 rounded bg-charcoal/80 px-1 font-mono text-[10px] tabular-nums text-white">
         {t('library.editor.timeline.clipDuration', {
           seconds: formatSlotSeconds(
             slotSeconds,
@@ -107,13 +107,13 @@ export function TimelineClipItem({
         })}
       </span>
 
-      <span className="absolute left-8 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded bg-charcoal/80 px-1 font-display text-[10px] font-bold tabular-nums text-white">
+      <span className="absolute left-4 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded bg-charcoal/80 px-1 font-display text-[10px] font-bold tabular-nums text-white">
         {block.scenes.map((scene) => scene.id).join(' · ')}
       </span>
 
       <span
         aria-hidden
-        className="absolute right-8 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-sky text-white"
+        className="absolute right-4 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-sky text-white"
       >
         <Clapperboard className="h-2.5 w-2.5" />
       </span>

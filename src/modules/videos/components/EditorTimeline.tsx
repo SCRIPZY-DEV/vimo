@@ -156,7 +156,7 @@ export function EditorTimeline({
   // (ADR-0041); las fronteras arrastrables quedan solo entre bloques.
   const blocks = timelineBlocks(timedScenes, sceneAnimationProgress)
   // La transición conserva su frontera real. Su ancho visual se acota al
-  // espacio vecino para reservar asas dentro de cada clip, sin superponerlas.
+  // espacio vecino; las asas quedan en el borde interior y por encima.
   const transitions = timelineBlocks(timedScenes, {}).flatMap(
     (block, index, visualBlocks) => {
       const previous = visualBlocks[index - 1]
@@ -612,32 +612,13 @@ export function EditorTimeline({
                 const width = Math.max(xOfSeconds(block.endSeconds) - left, 4)
                 const previous = blocks[index - 1]
                 const next = blocks[index + 1]
-                const selected =
-                  block.kind === 'clip'
-                    ? block.scenes.some((scene) => scene.id === selectedSceneId)
-                    : block.scene.id === selectedSceneId
                 const boundaries = [
                   { edge: 'left', before: previous, after: block },
                   { edge: 'right', before: block, after: next },
                 ] as const
-                const leftInset = Math.max(
-                  TIMELINE_TRIM_INSET,
-                  (transitions.find(
-                    (item) => item.seconds === block.startSeconds,
-                  )?.width ?? 0) /
-                    2 +
-                    TIMELINE_TRIM_INSET,
-                )
-                const rightInset = Math.max(
-                  TIMELINE_TRIM_INSET,
-                  (transitions.find((item) => item.seconds === block.endSeconds)
-                    ?.width ?? 0) /
-                    2 +
-                    TIMELINE_TRIM_INSET,
-                )
                 const handleWidth = Math.min(
                   TIMELINE_TRIM_WIDTH,
-                  Math.max(2, (width - leftInset - rightInset - 2) / 2),
+                  Math.max(2, (width - TIMELINE_TRIM_INSET * 2 - 2) / 2),
                 )
                 // Los tiempos cambian al recortar. La identidad usa la escena
                 // y el clip anterior para conservar foco y distinguir sus restos.
@@ -703,7 +684,7 @@ export function EditorTimeline({
                           data-timeline-trim-edge={edge}
                           style={{
                             width: handleWidth,
-                            [edge]: edge === 'left' ? leftInset : rightInset,
+                            [edge]: TIMELINE_TRIM_INSET,
                           }}
                           aria-valuenow={leftScene.endSeconds}
                           aria-valuemin={
@@ -723,9 +704,9 @@ export function EditorTimeline({
                             handleBoundaryKey(event, leftScene, rightScene)
                           }
                           className={cn(
-                            'absolute top-1/2 z-40 flex h-6 -translate-y-1/2 items-center justify-center rounded-[3px] bg-gradient-to-b from-[#FFF1C2] via-[#FFE5A3] to-[#F5D582] text-[#725516] shadow-[inset_0_0_0_1px_rgba(161,119,31,0.2),inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition-[opacity,filter] duration-150 hover:brightness-105 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#A77B20] group-hover/timeline-block:opacity-100 group-focus-within/timeline-block:opacity-100',
+                            'absolute top-1/2 z-40 flex h-6 -translate-y-1/2 items-center justify-center rounded-[3px] bg-gradient-to-b from-[#FFF1C2] via-[#FFE5A3] to-[#F5D582] text-[#725516] shadow-[inset_0_0_0_1px_rgba(161,119,31,0.2),inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition-[opacity,filter] duration-150 hover:brightness-105 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#A77B20]',
                             timingBusy ? 'cursor-wait' : 'cursor-ew-resize',
-                            selected || activeBoundary === boundaryId
+                            activeBoundary === boundaryId
                               ? 'opacity-100'
                               : 'opacity-0',
                           )}
@@ -742,7 +723,7 @@ export function EditorTimeline({
               })}
             </div>
 
-            {/* El marcador queda en la frontera, separado de las asas internas. */}
+            {/* El marcador queda en la frontera; el recorte visible tiene prioridad. */}
             {transitions.map((transition) => (
               <div
                 key={'transition-' + transition.seconds}

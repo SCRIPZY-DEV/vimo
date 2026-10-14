@@ -3,6 +3,8 @@
 - **Fecha:** 2026-10-13
 - **Rama:** feat/flow-export-motion
 
+> **Posición y visibilidad superadas el 2026-10-13:** el usuario pidió después el tirador pegado al borde y discreto en reposo, con superposición intencional al pasar por él. El criterio vigente está en [tirador al borde y aparición discreta](2026-10-13_tirador-al-borde-y-hover-discreto.md). Se conserva el color pastel y el comportamiento del recorte.
+
 ## Causa
 
 Las asas blancas quedaban a 2 px del extremo, invadiendo el borde de selección de 3 px. El marcador de transición de 40 px de alto se superponía con ellas y sus esquinas redondeadas producían la apariencia de una aleta exterior. El usuario pidió que el recorte quedara dentro de la tarjeta, en amarillo pastel, con una separación visual similar a la referencia de Vidrush.
