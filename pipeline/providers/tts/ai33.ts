@@ -1,6 +1,7 @@
 import { PipelineFailure } from '../../runner/failure.ts'
 import type {
   Ai33Catalog,
+  Ai33CloneVoiceResponse,
   Ai33CreateTaskResponse,
   Ai33CreditsResponse,
   Ai33TaskResponse,
@@ -55,6 +56,11 @@ const POLL_REQUEST_TIMEOUT_MS = 30_000
 const MIN_SPEED = 0.5
 const MAX_SPEED = 1.5
 const DEFAULT_CATALOG: Ai33Catalog = 'elevenlabs'
+// Vbee completo en la Voice Library: las voces propias y las de la comunidad.
+const VBEE_VOICE_OWNERSHIP = 'all'
+// Clonar procesa la muestra (y quita el fondo si se pide) antes de responder.
+const CLONE_TIMEOUT_MS = 120_000
+const CLONE_ID_PREFIX = 'clone_'
 // Huella del pedido en `file_name`: permite reconocer la tarea en
 // GET /v1/tasks si el POST se corta sin devolver el task_id.
 const FILE_NAME_PREFIX = 'vimo-'
@@ -290,6 +296,10 @@ export async function listAi33Voices(
   if (filters.language)
     query.set('language', languageNameParam(filters.language))
   if (filters.gender) query.set('gender', filters.gender)
+  // Sin `voice_ownership` ai33 lista solo las voces propias de Vbee. Fish no
+  // tiene equivalente: ai33 expone 50 voces por consulta (total: 50 con
+  // cualquier page_size o `sort`); las demás se encuentran buscando.
+  if (catalog === 'vbee') query.set('voice_ownership', VBEE_VOICE_OWNERSHIP)
 
   const response = await ai33Fetch(
     `${AI33_BASE_URL}/v3/voices?${query.toString()}`,
@@ -312,6 +322,79 @@ export async function listAi33Voices(
     result.total = data.pagination.total
 
   return result
+}
+
+interface CloneAi33VoiceInput {
+  name: string
+  audio: Buffer
+  fileName: string
+  removeBackground: boolean
+}
+
+/**
+ * Clona una voz a partir de una muestra (POST /v3/text-to-speech/voice-clone).
+ * Devuelve la voz ya con el id del catálogo (`clone_<voice_id>`), lista para
+ * sintetizar. Un 429 no crea el clon, así que el reintento de ai33Fetch no
+ * duplica voces.
+ */
+export async function cloneAi33Voice(
+  apiKey: string,
+  input: CloneAi33VoiceInput,
+  signal?: AbortSignal,
+): Promise<VoiceSummary> {
+  const form = new FormData()
+  form.append('voice_name', input.name)
+  form.append('audio_file', new Blob([input.audio]), input.fileName)
+  form.append('remove_background', input.removeBackground ? 'true' : 'false')
+
+  const response = await ai33Fetch(
+    `${AI33_BASE_URL}/v3/text-to-speech/voice-clone`,
+    { method: 'POST', headers: authHeaders(apiKey), body: form },
+    { timeoutMs: CLONE_TIMEOUT_MS, signal },
+  )
+
+  const data = (await response
+    .json()
+    .catch(() => ({}))) as Ai33CloneVoiceResponse
+  const rawId = data.data?.voice_id ?? data.data?.id
+  if (!rawId)
+    throw new PipelineFailure(
+      'voice_provider_error',
+      'ai33 voice clone answered without a voice_id',
+      { provider: FAILURE_PROVIDER, httpStatus: response.status },
+    )
+
+  return {
+    provider: 'ai33',
+    voiceId: prefixedVoiceId('clone', rawId),
+    name: input.name,
+    isClone: true,
+  }
+}
+
+/**
+ * Borra una voz clonada. La API recibe el id sin el prefijo del catálogo; un
+ * 404 cuenta como borrada (otra sesión o el panel web ya la quitó).
+ */
+export async function deleteAi33ClonedVoice(
+  apiKey: string,
+  voiceId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const rawId = voiceId.startsWith(CLONE_ID_PREFIX)
+    ? voiceId.slice(CLONE_ID_PREFIX.length)
+    : voiceId
+
+  try {
+    await ai33Fetch(
+      `${AI33_BASE_URL}/v3/text-to-speech/voice-clone/${encodeURIComponent(rawId)}`,
+      { method: 'DELETE', headers: authHeaders(apiKey) },
+      { timeoutMs: LIST_TIMEOUT_MS, signal },
+    )
+  } catch (error) {
+    if (error instanceof PipelineFailure && error.httpStatus === 404) return
+    throw error
+  }
 }
 
 // Intervalo de polling escalado por largo del texto, como en DubVoice: cada

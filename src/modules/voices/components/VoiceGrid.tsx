@@ -10,6 +10,7 @@ interface VoiceGridProps {
   onSelect: (voice: VoiceSummary) => void
   onTogglePreview: (voice: VoiceSummary) => void
   onToggleFavorite: (voice: VoiceSummary) => void
+  onDelete?: (voice: VoiceSummary) => void
 }
 
 // Grilla tonta: recibe ya la página de voces a mostrar (la paginación vive en
@@ -22,6 +23,7 @@ export function VoiceGrid({
   onSelect,
   onTogglePreview,
   onToggleFavorite,
+  onDelete,
 }: VoiceGridProps) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -39,6 +41,7 @@ export function VoiceGrid({
             onSelect={onSelect}
             onTogglePreview={onTogglePreview}
             onToggleFavorite={onToggleFavorite}
+            onDelete={onDelete}
           />
         )
       })}

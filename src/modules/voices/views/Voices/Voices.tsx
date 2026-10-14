@@ -14,6 +14,8 @@ import { formatDateTime } from '@/modules/common/utilities/formatDateTime'
 import { MissingApiKeysNotice } from '@/modules/api-keys/components/MissingApiKeysNotice'
 import { VOICE_VENDOR_API_KEY_REQUIREMENTS } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
+import { Ai33VoiceCloneCard } from '@/modules/voices/components/Ai33VoiceCloneCard'
+import { DeleteClonedVoiceDialog } from '@/modules/voices/components/DeleteClonedVoiceDialog'
 import { VoiceCloningInfoCard } from '@/modules/voices/components/VoiceCloningInfoCard'
 import { VoiceCount } from '@/modules/voices/components/VoiceCount'
 import { VoiceFilters } from '@/modules/voices/components/VoiceFilters'
@@ -22,12 +24,14 @@ import { VoiceHistoryPanel } from '@/modules/voices/components/VoiceHistoryPanel
 import { VoicePagination } from '@/modules/voices/components/VoicePagination'
 import { VoiceTesterPanel } from '@/modules/voices/components/VoiceTesterPanel'
 import {
+  AI33_CLONE_TAB,
   CREDITS_SETTLE_DELAY_MS,
   VOICE_FILTERS_INITIAL_VALUE,
   VOICE_TABS_BY_VENDOR,
   voicesQueryKeys,
 } from '@/modules/voices/constants'
 import { useVoiceCatalogPage } from '@/modules/voices/hooks/useVoiceCatalogPage'
+import { useDeleteClonedVoice } from '@/modules/voices/hooks/useDeleteClonedVoice'
 import { useVoiceCredits } from '@/modules/voices/hooks/useVoiceCredits'
 import { useVoiceFavorites } from '@/modules/voices/hooks/useVoiceFavorites'
 import { useVoicePreview } from '@/modules/voices/hooks/useVoicePreview'
@@ -64,6 +68,13 @@ export function Voices() {
   const [filters, setFilters] = useState(VOICE_FILTERS_INITIAL_VALUE)
   const [page, setPage] = useState(1)
   const [selectedVoice, setSelectedVoice] = useState<VoiceSummary | null>(null)
+  const [voiceToDelete, setVoiceToDelete] = useState<VoiceSummary | null>(null)
+  const {
+    deleteClonedVoice,
+    deleting,
+    errorKey: deleteErrorKey,
+    reset: resetDelete,
+  } = useDeleteClonedVoice()
 
   usePageTitle(t('voices.pageTitle'))
 
@@ -118,6 +129,27 @@ export function Voices() {
   }
   const changeFilters = (value: VoiceFilterState) => {
     setFilters(value)
+    setPage(1)
+  }
+
+  const requestDelete = (voice: VoiceSummary) => {
+    resetDelete()
+    setVoiceToDelete(voice)
+  }
+  // Una clonada borrada deja de existir en ai33: sale también de favoritos y
+  // del probador si estaba abierta.
+  const confirmDelete = async () => {
+    if (!voiceToDelete) return
+
+    await deleteClonedVoice(voiceToDelete)
+    if (isFavorite(voiceToDelete)) toggleFavorite(voiceToDelete)
+    if (selectedVoice && voiceKey(selectedVoice) === voiceKey(voiceToDelete))
+      setSelectedVoice(null)
+    setVoiceToDelete(null)
+  }
+  // La voz recién clonada se muestra en su pestaña.
+  const showClonedVoices = () => {
+    setChosenTab(AI33_CLONE_TAB)
     setPage(1)
   }
 
@@ -271,6 +303,7 @@ export function Voices() {
             onSelect={setSelectedVoice}
             onTogglePreview={togglePreviewFor}
             onToggleFavorite={toggleFavorite}
+            onDelete={tab === AI33_CLONE_TAB ? requestDelete : undefined}
           />
         )}
 
@@ -291,9 +324,21 @@ export function Voices() {
         transition={{ delay: 0.1 }}
         className="max-w-5xl space-y-8"
       >
-        <VoiceCloningInfoCard />
+        {vendor === 'ai33' ? (
+          <Ai33VoiceCloneCard onCloned={showClonedVoices} />
+        ) : (
+          <VoiceCloningInfoCard />
+        )}
         <VoiceHistoryPanel />
       </motion.div>
+
+      <DeleteClonedVoiceDialog
+        voice={voiceToDelete}
+        deleting={deleting}
+        errorKey={deleteErrorKey}
+        onCancel={() => setVoiceToDelete(null)}
+        onConfirm={() => void confirmDelete().catch(() => undefined)}
+      />
 
       {/* Probador centrado: se cierra con la X, Esc o click fuera. */}
       <Dialog

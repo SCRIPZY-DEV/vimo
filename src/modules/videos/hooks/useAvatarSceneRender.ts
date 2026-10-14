@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useHeyGenAccess } from '@/modules/avatars/hooks/useHeyGenAccess'
 import { clamp } from '@/modules/common/utilities/clamp'
-import { AVATAR_CHARGED_PHASES } from '@/modules/videos/constants'
 import { useAvatarRenderConfirmation } from '@/modules/videos/hooks/useAvatarRenderConfirmation'
 import { useAvatarSceneTrim } from '@/modules/videos/hooks/useAvatarSceneTrim'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
@@ -25,10 +24,8 @@ import type {
   AvatarDurationEdit,
 } from '@/modules/videos/types/avatarDuration'
 import type {
-  AvatarCancelWarning,
   AvatarMotionDraft,
   AvatarMotionEdit,
-  SceneAvatarRendering,
 } from '@/modules/videos/types/library'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
 
@@ -70,14 +67,9 @@ interface UseAvatarSceneRenderOptions {
 // que el borrador sigue con la marca y solo viaja si cambia el prompt
 // (avatarMotionInput).
 //
-// Desde la entrega 2h (§24.4) «Cancelar» el render avisa antes de cortar si ya
-// hay apariciones cobradas y sin terminar (`cancelWarning`): HeyGen las cobra
-// igual, quedan guardadas y se usan al volver a generar. Cuenta las del job
-// entero, no solo las de la escena elegida, porque cancelar las corta todas.
-// La cuenta es la de ese momento: sube si se cobran más con el aviso abierto y
-// nunca baja, y el aviso se cierra solo por elección de la persona o cuando el
-// job termina. Sin ninguna cobrada, «Cancelar» va directo al store, que la
-// pide una sola vez.
+// Un render del editor no se puede cancelar: con solo confirmar «Regenerar»
+// HeyGen ya cobra, así que el avance no ofrece «Cancelar» (se quitó junto con
+// el aviso de apariciones cobradas de la entrega 2h, §24.4).
 export function useAvatarSceneRender({
   projectId,
   scene,
@@ -95,29 +87,6 @@ export function useAvatarSceneRender({
   const rendering = editorTask.task?.sceneAvatarRendering ?? {}
   const action = avatarSceneAction(scene, rendering)
   const avatar = scene.avatar
-
-  // El aviso de «Cancelar» (§24.4). Se abre con la cuenta de lo cobrado en ese
-  // momento y está atado al job que lo abrió (`requestId`): vive hasta que la
-  // persona elige o ese job termina o se corta, nunca porque las cobradas
-  // terminen. Si se cobran más con el aviso abierto la cuenta sube; no baja
-  // (ajustes durante el render, no efectos). Un job nuevo no lo reabre.
-  const [warning, setWarning] = useState<AvatarCancelWarning | null>(null)
-  const requestId = editorTask.task?.avatarRender?.requestId
-  const cancelRequested = editorTask.task?.avatarRender?.cancelled === true
-  const chargedCount = countChargedAvatarRenders(rendering)
-  const openWarning =
-    warning && warning.requestId === requestId && !cancelRequested
-      ? warning
-      : null
-  if (warning && !openWarning) setWarning(null)
-
-  if (openWarning && chargedCount > openWarning.count)
-    setWarning({ ...openWarning, count: chargedCount })
-
-  // El job cuya cancelación ya se pidió: el estado llega con el render y dos
-  // clics en el mismo tick verían lo mismo (el store ya corta el avatar una
-  // sola vez, pero «Cancelar igual» promete un solo pedido).
-  const cancelSentRef = useRef<string | null>(null)
 
   // La sección «Movimiento» (§21.4): solo donde hay algo que pedir y si el
   // motor y el look aceptan movimiento (V, o IV con un look de foto).
@@ -187,34 +156,6 @@ export function useAvatarSceneRender({
     trim(scene.id, duration.seconds)
   }
 
-  // Le pide al store cortar el job, una sola vez por job.
-  const sendCancel = () => {
-    if (requestId === undefined || cancelSentRef.current === requestId) return
-
-    cancelSentRef.current = requestId
-    editorTask.cancelActiveJob(projectId)
-  }
-
-  // «Cancelar» el render: con apariciones cobradas abre el aviso (no corta
-  // nada todavía); sin ninguna, corta. Pedida la cancelación, un clic más no
-  // hace nada: el aviso nace cerrado (openWarning) y el pedido ya se hizo.
-  const cancelRender = () => {
-    if (requestId === undefined || chargedCount === 0) {
-      sendCancel()
-      return
-    }
-
-    setWarning({ requestId, count: chargedCount })
-  }
-
-  const keepRendering = () => setWarning(null)
-
-  // «Cancelar igual»: cierra el aviso y corta.
-  const cancelAnyway = () => {
-    setWarning(null)
-    sendCancel()
-  }
-
   return {
     canUseHeyGen,
     missingKey,
@@ -239,27 +180,7 @@ export function useAvatarSceneRender({
     durationAction,
     runTrim,
     trimming,
-    cancelRender,
-    // Las props de AvatarChargedCancelDialog: `chargedCount` es null con el
-    // aviso cerrado.
-    cancelWarning: {
-      chargedCount: openWarning ? openWarning.count : null,
-      onKeep: keepRendering,
-      onConfirm: cancelAnyway,
-    },
   }
-}
-
-// Cuántas apariciones del render en curso ya están cobradas y sin terminar: las
-// que llegaron a una fase de AVATAR_CHARGED_PHASES. Las que quedaron listas o
-// fallidas ya salieron de `rendering`, y las que esperan turno o van en el
-// audio o la subida todavía no cobraron.
-function countChargedAvatarRenders(
-  rendering: Record<number, SceneAvatarRendering>,
-) {
-  return Object.values(rendering).filter(
-    (item) => item.phase !== undefined && AVATAR_CHARGED_PHASES.has(item.phase),
-  ).length
 }
 
 // El selector «Duración» de la escena: el valor elegido (acotado a los

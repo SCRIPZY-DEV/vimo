@@ -2327,7 +2327,8 @@
       "pausar": "Pausar muestra",
       "favorito": "Agregar a favoritos",
       "quitarFavorito": "Quitar de favoritos",
-      "biblioteca": "Biblioteca"
+      "biblioteca": "Biblioteca",
+      "borrar": "Borrar voz clonada"
     },
     "probador": {
       "titulo": "Probador de voz",
@@ -2387,6 +2388,24 @@
         "dubvoice": "Abrir DubVoice",
         "elevenlabs": "Abrir ElevenLabs",
         "ai33": "Abrir ai33"
+      },
+      "ai33": {
+        "descripcion": "Subí una muestra de tu voz y ai33 la clona en tu cuenta; después aparece en «Mis clonadas».",
+        "nombre": "Nombre de la voz",
+        "nombrePlaceholder": "Ej.: Mi voz narrando",
+        "muestra": "Muestra de audio",
+        "elegirMuestra": "Elegir audio…",
+        "muestraAyuda": "De 3 a 30 segundos, hasta 10 MB. MP3, WAV, M4A, AAC, OGG, WEBM, FLAC u OPUS. Solo tu voz, sin otras personas hablando.",
+        "quitarFondo": "Quitar ruido y música de fondo",
+        "clonar": "Clonar voz",
+        "clonando": "Clonando…",
+        "exito": "«{{name}}» ya está en «Mis clonadas»."
+      },
+      "borrar": {
+        "titulo": "¿Borrar «{{name}}»?",
+        "descripcion": "Se borra de tu cuenta de ai33 y no se puede deshacer. Los videos que ya la usan conservan su audio, pero no vas a poder volver a generar su voz.",
+        "cancelar": "Cancelar",
+        "confirmar": "Borrar voz"
       }
     },
     "historial": {
@@ -2424,7 +2443,9 @@
       "quotaExceeded": "Se agotó la cuota de caracteres de tu cuenta de ElevenLabs. Esperá a que se renueve o mejorá tu plan.",
       "libraryAddFailed": "No se pudo añadir la voz de la biblioteca a tu cuenta de ElevenLabs. Revisá los espacios de voz de tu plan.",
       "accountRestricted": "ElevenLabs restringió tu cuenta para esta función (actividad inusual en el plan gratuito o función solo para planes pagos). Revisá tu cuenta en ElevenLabs.",
-      "insufficientCredits": "Tu cuenta no tiene créditos suficientes para generar esta voz. Recargá y volvé a intentar."
+      "insufficientCredits": "Tu cuenta no tiene créditos suficientes para generar esta voz. Recargá y volvé a intentar.",
+      "cloneAudioInvalid": "El archivo no es un audio válido o pesa más de 10 MB. Probá con un MP3 o WAV.",
+      "cloneDurationInvalid": "La muestra tiene que durar entre 3 y 30 segundos."
     },
     "credits": {
       "characters": "Caracteres ElevenLabs",
