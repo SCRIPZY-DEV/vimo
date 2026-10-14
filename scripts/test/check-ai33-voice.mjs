@@ -14,7 +14,12 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { listAi33Voices } from '../../pipeline/providers/tts/ai33.ts'
+import {
+  cloneAi33Voice,
+  deleteAi33ClonedVoice,
+  listAi33Voices,
+} from '../../pipeline/providers/tts/ai33.ts'
+import { deleteClonedVoiceCommand } from '../../pipeline/commands/voices/delete-cloned-voice.ts'
 import { setProjectVoice } from '../../pipeline/commands/videos/set-project-voice.ts'
 import { synthesizeNarration } from '../../pipeline/stages/voice/narration.ts'
 
@@ -196,6 +201,76 @@ test('vbee asks ai33 for its whole library, community voices included', async (t
 
   assert.equal(queries[0].get('voice_ownership'), 'all')
   assert.equal(queries[1].has('voice_ownership'), false)
+})
+
+test('cloning sends the sample as multipart and returns a prefixed clone voice', async (t) => {
+  let request
+  t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    request = { url, init }
+    return Response.json({ success: true, data: { voice_id: 'abc123' } })
+  })
+
+  const voice = await cloneAi33Voice('ai33-key', {
+    name: 'Mi voz',
+    audio,
+    fileName: 'sample.mp3',
+    removeBackground: true,
+  })
+
+  assert.ok(request.url.endsWith('/v3/text-to-speech/voice-clone'))
+  assert.equal(request.init.method, 'POST')
+  assert.equal(request.init.headers['xi-api-key'], 'ai33-key')
+  assert.equal(request.init.body.get('voice_name'), 'Mi voz')
+  assert.equal(request.init.body.get('remove_background'), 'true')
+  assert.equal(request.init.body.get('audio_file').name, 'sample.mp3')
+  assert.deepEqual(voice, {
+    provider: 'ai33',
+    voiceId: 'clone_abc123',
+    name: 'Mi voz',
+    isClone: true,
+  })
+})
+
+test('a clone answer without voice_id fails instead of inventing a voice', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ success: true }),
+  )
+
+  await assert.rejects(
+    cloneAi33Voice('ai33-key', {
+      name: 'Mi voz',
+      audio,
+      fileName: 'sample.mp3',
+      removeBackground: false,
+    }),
+    { code: 'voice_provider_error' },
+  )
+})
+
+test('deleting a clone drops the catalog prefix and treats 404 as deleted', async (t) => {
+  const urls = []
+  t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    urls.push(url)
+    assert.equal(init.method, 'DELETE')
+    if (url.endsWith('/gone')) return new Response('not found', { status: 404 })
+    return Response.json({ success: true })
+  })
+
+  await deleteAi33ClonedVoice('ai33-key', 'clone_abc123')
+  await deleteAi33ClonedVoice('ai33-key', 'clone_gone')
+
+  assert.ok(urls[0].endsWith('/v3/text-to-speech/voice-clone/abc123'))
+})
+
+test('delete-cloned-voice only accepts ai33 clone ids', async () => {
+  const context = {
+    job: { apiKeys: { ai33: 'ai33-key' }, payload: { voiceId: '../credits' } },
+    signal: new AbortController().signal,
+  }
+
+  await assert.rejects(deleteClonedVoiceCommand(context), {
+    code: 'invalid_payload',
+  })
 })
 
 test('a submit cut before the task id finds the task by its mark and pays once', async (t) => {
