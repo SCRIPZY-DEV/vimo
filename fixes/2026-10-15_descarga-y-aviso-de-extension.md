@@ -15,6 +15,8 @@ Los comandos nativos verifican el esquema, el dominio/ruta HTTPS exactos, límit
 
 El puente vendorizado recibe el metadato `extensionVersion` desde la extensión 0.2.37 y lo limpia al reconectar/reiniciar. No cambia autenticación, cuotas, generaciones ni la identidad de Chrome. El esquema y publicación quedan documentados en `docs/adr/ADR-0060-distribucion-versionada-de-extension.md`.
 
+Las instrucciones en es/en/pt nombran la carpeta estable `Vimo-Extension`, sugieren `Documentos/Vimo/Extensiones/Vimo-Extension` y explican que una actualización reemplaza su contenido en la ubicación ya cargada en Chrome, sin anidar otra carpeta. El destino del ZIP sigue siendo una elección del diálogo Guardar. Lint, build, locales y compilación nativa correctos tras este ajuste; se inspeccionó el modal actualizado en claro y oscuro.
+
 ## Límites deliberados
 
 - La extensión se instala o recarga manualmente en Chrome. Descargar el ZIP no instala código automáticamente.
