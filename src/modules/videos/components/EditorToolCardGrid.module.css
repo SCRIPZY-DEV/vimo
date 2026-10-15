@@ -1,0 +1,25 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--editor-tool-card-width)), 1fr)
+  );
+  gap: var(--editor-tool-card-gap);
+  max-width: calc(
+    var(--editor-tool-card-width) * var(--editor-tool-card-max-columns) +
+      var(--editor-tool-card-gap) * (var(--editor-tool-card-max-columns) - 1)
+  );
+  align-items: start;
+}
+
+.grid > * {
+  min-width: 0;
+}
+
+/* Una única opción se destaca en el panel estrecho. Al ampliarlo conserva
+   el espacio de las columnas disponibles, incluso si el catálogo tiene una sola. */
+@container (max-width: 18rem) {
+  .grid > :only-child {
+    grid-column: 1 / -1;
+  }
+}

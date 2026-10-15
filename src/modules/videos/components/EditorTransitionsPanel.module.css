@@ -1,14 +1,3 @@
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, var(--editor-tool-card-width));
-  gap: var(--editor-tool-card-gap);
-  max-width: calc(
-    var(--editor-tool-card-width) * var(--editor-tool-card-max-columns) +
-      var(--editor-tool-card-gap) * (var(--editor-tool-card-max-columns) - 1)
-  );
-  align-items: start;
-}
-
 .card:hover .secondScene,
 .card:focus-visible .secondScene {
   animation: crossfade-preview 2.4s ease-in-out infinite;

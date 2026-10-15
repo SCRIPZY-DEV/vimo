@@ -7,6 +7,7 @@ import { cn } from '@/modules/common/utilities/cn'
 import type { EditorTransitionsPanelProps } from '@/modules/videos/types/editorTools'
 import { TransitionPreview } from '@/modules/videos/components/TransitionPreview'
 import styles from '@/modules/videos/components/EditorTransitionsPanel.module.css'
+import gridStyles from '@/modules/videos/components/EditorToolCardGrid.module.css'
 
 export function EditorTransitionsPanel({
   enabled,
@@ -100,7 +101,7 @@ export function EditorTransitionsPanel({
         ))}
       </div>
       {matches ? (
-        <div data-editor-transition-grid className={styles.grid}>
+        <div data-editor-transition-grid className={gridStyles.grid}>
           <button
             type="button"
             disabled={busy || !available}

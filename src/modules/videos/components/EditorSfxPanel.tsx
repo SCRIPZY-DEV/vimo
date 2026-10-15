@@ -21,6 +21,7 @@ import { formatTime } from '@/modules/common/utilities/formatTime'
 import { EDITOR_SOUND_EFFECT_MIME } from '@/modules/videos/constants'
 import { formatSlotSeconds } from '@/modules/videos/utilities/formatSlotSeconds'
 import type { EditorSfxPanelProps } from '@/modules/videos/types/editorTools'
+import gridStyles from '@/modules/videos/components/EditorToolCardGrid.module.css'
 
 export function EditorSfxPanel({
   effect,
@@ -109,7 +110,7 @@ export function EditorSfxPanel({
           </p>
         )}
         {effect && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(135px,1fr))] gap-3">
+          <div data-editor-sfx-grid className={gridStyles.grid}>
             <div
               draggable={!busy}
               data-editor-sfx-card={effect.id}
