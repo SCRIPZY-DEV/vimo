@@ -27,9 +27,9 @@ export interface DemoPackPart {
 // se cambian JUNTAS: subir la versión invalida el marcador `.ok` y el staging
 // a medias, y fuerza una descarga limpia en todas las máquinas.
 // `delayScale` multiplica las esperas de la simulación (1 = los ~40 s
-// reales; el guard lo baja a 0). `diskMarginBytes` es el espacio libre que se
-// exige además de lo que falta extraer y la parte más grande (el guard lo
-// sube para simular un disco lleno).
+// reales, ~55 s con la animación; el guard lo baja a 0). `diskMarginBytes`
+// es el espacio libre que se exige además de lo que falta extraer y la parte
+// más grande (el guard lo sube para simular un disco lleno).
 // `downloadIdleMs` es el tope de inactividad de la descarga de cada parte:
 // sin respuesta o sin bytes nuevos por ese tiempo, la parte falla con un
 // código de la red y el próximo intento sigue desde ella (el guard lo baja).

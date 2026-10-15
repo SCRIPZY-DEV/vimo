@@ -8,6 +8,8 @@ import type { DemoConfig } from '../../config/pipeline-config.ts'
 import type { SceneAnimation } from '../../types/animation.ts'
 import {
   AVATAR_ENGINES,
+  AVATAR_LOOK_TYPES,
+  AVATAR_PLACEMENTS,
   type AvatarEngine,
   type ProjectAvatarOptions,
   type SceneAvatar,
@@ -22,6 +24,7 @@ import type {
   DemoStyleEntry,
   DemoVoice,
 } from '../../types/demo.ts'
+import type { ImageExtension } from '../../types/image-provider.ts'
 import { videoFormatOf, type VideoFormat } from '../../types/video-format.ts'
 import type { VideoProjectOptions } from '../../types/video-project.ts'
 import type { VoiceProviderId } from '../../types/voices.ts'
@@ -69,8 +72,17 @@ export const PACK_VIDEO_FILE = 'video_final.mp4'
 // nombran sus escenas.
 export const PACK_ANIMATED_VIDEO_FILE = 'video_animado.mp4'
 export const PACK_ANIMATIONS_DIRECTORY = 'animaciones'
-// Los clips de las apariciones del avatar (historias con `avatar`).
+// Los clips de las apariciones del avatar (historias con `avatar`) y la
+// vista del look con el nombre que le da Vimo en el proyecto, `look.<ext>`
+// (avatar/clip-path.ts): la imagen fija de las apariciones, que la simulación
+// copia tal cual (Ruling R8).
 export const PACK_AVATAR_DIRECTORY = 'avatar'
+const PACK_AVATAR_LOOK_NAME = 'look'
+const PACK_AVATAR_LOOK_EXTENSIONS: readonly ImageExtension[] = [
+  'jpg',
+  'png',
+  'webp',
+]
 // La vista del look del avatar, en la carpeta de la gema.
 export const PACK_AVATAR_PREVIEW_FILE = 'avatar.jpg'
 
@@ -102,9 +114,9 @@ interface PackAvatar {
   motor: AvatarEngine
   apariciones: number
   segundosPorAparicion: number
-  // Las opciones del proyecto con avatar del que salió la historia: las
-  // copia la simulación.
-  opciones?: ProjectAvatarOptions
+  // Las opciones del proyecto con avatar del que salió la historia: la
+  // simulación las copia a `options.avatar` (Ruling R8).
+  opciones: ProjectAvatarOptions
 }
 
 // Una historia tal como la lista el manifest.
@@ -174,6 +186,23 @@ export function demoPackRoot(context: PipelineContext): string {
 
 export function packImageFile(storyDirectory: string, sceneId: number): string {
   return join(storyDirectory, PACK_IMAGES_DIRECTORY, `imagen_${sceneId}.jpg`)
+}
+
+// La vista del look que trae una historia con avatar (la primera de jpg, png
+// y webp, como la busca el proyecto), con su extensión; null si no trae.
+export async function packAvatarLookFile(
+  storyDirectory: string,
+): Promise<{ file: string; extension: ImageExtension } | null> {
+  for (const extension of PACK_AVATAR_LOOK_EXTENSIONS) {
+    const file = join(
+      storyDirectory,
+      PACK_AVATAR_DIRECTORY,
+      `${PACK_AVATAR_LOOK_NAME}.${extension}`,
+    )
+    if (await isValidFile(file)) return { file, extension }
+  }
+
+  return null
 }
 
 // La historia de un proyecto demo, por su carpeta: la del estilo del
@@ -324,15 +353,35 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
 }
 
+function isFilledText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
 // El avatar que declara una historia: lo que muestra la tarjeta de Crear.
 function isPackAvatar(value: unknown): value is PackAvatar {
   if (!isRecord(value)) return false
-  if (typeof value.nombre !== 'string' || !value.nombre.trim()) return false
+  if (!isFilledText(value.nombre)) return false
   if (!AVATAR_ENGINES.some((engine) => engine === value.motor)) return false
   return (
     isPositiveInteger(value.apariciones) &&
     isPositiveInteger(value.segundosPorAparicion)
   )
+}
+
+// Las opciones del proyecto del que salió la historia (ProjectAvatarOptions,
+// Ruling R8): los campos que guarda create-video-project, cada uno con su
+// tipo. La simulación las copia a `options.avatar` y el editor las lee de
+// ahí.
+function isProjectAvatarOptions(value: unknown): value is ProjectAvatarOptions {
+  if (!isRecord(value)) return false
+  if (!isFilledText(value.avatarId)) return false
+  if (!isFilledText(value.lookId) || !isFilledText(value.lookName)) return false
+  if (!AVATAR_LOOK_TYPES.some((type) => type === value.lookType)) return false
+  if (!AVATAR_ENGINES.some((engine) => engine === value.engine)) return false
+  if (!isPositiveInteger(value.appearances)) return false
+  if (!isPositiveInteger(value.secondsPerAppearance)) return false
+  if (typeof value.startWithAvatar !== 'boolean') return false
+  return AVATAR_PLACEMENTS.some((placement) => placement === value.placement)
 }
 
 function gemSampleFile(index: number): string {
@@ -397,8 +446,8 @@ async function validateClip(
 
 // Las escenas de una historia: cada una con su imagen y su prompt, salvo una
 // aparición del avatar (Vimo no le genera ninguno, ADR-0057); con `animada`,
-// el clip de cada bloque de animación que nombra; con `avatar`, el clip de
-// cada aparición, y al menos una.
+// el clip de cada bloque de animación, y al menos uno (la simulación los copia
+// por su nombre); con `avatar`, el clip de cada aparición, y al menos una.
 async function validateScenes(
   directory: string,
   label: string,
@@ -410,6 +459,7 @@ async function validateScenes(
   if (!Array.isArray(scenes) || scenes.length === 0)
     return `${label}/${PACK_SCENES_FILE} is missing or empty`
 
+  let animationClips = 0
   let avatarClips = 0
   for (const scene of scenes) {
     if (!isRecord(scene) || typeof scene.id !== 'number')
@@ -429,18 +479,18 @@ async function validateScenes(
       if (!isOptionalList(native.animations))
         return `${label}/${PACK_SCENES_FILE} has animations that are not a list`
       for (const animation of native.animations ?? []) {
-        if (!isRecord(animation) || animation.clipFile === undefined) continue
+        animationClips += 1
         const problem = await validateClip(
           directory,
           label,
           PACK_ANIMATIONS_DIRECTORY,
-          animation.clipFile,
+          isRecord(animation) ? animation.clipFile : undefined,
         )
         if (problem) return problem
       }
     }
 
-    if (avatar?.clipFile === undefined) continue
+    if (!avatar) continue
     avatarClips += 1
     const problem = await validateClip(
       directory,
@@ -451,8 +501,10 @@ async function validateScenes(
     if (problem) return problem
   }
 
+  if (story.animada && animationClips === 0)
+    return `${label}/${PACK_SCENES_FILE} has no animation clip`
   if (story.avatar && avatarClips === 0)
-    return `${label}/${PACK_SCENES_FILE} has no avatar appearance with its clip`
+    return `${label}/${PACK_SCENES_FILE} has no avatar appearance`
   return null
 }
 
@@ -474,6 +526,8 @@ async function validateStory(
     if (!gem) return `${label}: only gem stories can carry an avatar`
     if (!isPackAvatar(story.avatar))
       return `${label}: avatar needs nombre, motor, apariciones and segundosPorAparicion`
+    if (!isProjectAvatarOptions(story.avatar.opciones))
+      return `${label}: avatar needs opciones with the avatar options of its project`
   }
 
   const directory = demoStoryDirectory(packRoot, format, story.id)
@@ -492,6 +546,8 @@ async function validateStory(
     const preview = `${DEMO_GEMS_FOLDER}/${story.id}/${PACK_AVATAR_PREVIEW_FILE}`
     if (!(await isValidFile(join(packRoot, preview))))
       return `${preview} is missing`
+    if (!(await packAvatarLookFile(directory)))
+      return `${label}/${PACK_AVATAR_DIRECTORY}/${PACK_AVATAR_LOOK_NAME}.<${PACK_AVATAR_LOOK_EXTENSIONS.join('|')}> is missing`
   }
 
   return validateScenes(directory, label, story)
@@ -617,6 +673,7 @@ function toDemoAvatar(
       gemId,
       PACK_AVATAR_PREVIEW_FILE,
     ),
+    options: avatar.opciones,
   }
 }
 

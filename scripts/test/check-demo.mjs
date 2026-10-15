@@ -12,8 +12,11 @@
 // secciones 21 a 33 prueban la instalación por partes: reanudable, con
 // chequeo de espacio, con las partes que arma el armador (27), con un solo
 // instalador por raíz (29 y 30) y ante los fallos de Windows y del disco
-// (28, 31, 32 y 33, con stubs que el sidecar carga con --import). Las
-// secciones 38 a 40 prueban el tope de inactividad de la descarga (un
+// (28, 31, 32 y 33, con stubs que el sidecar carga con --import). La
+// simulación recorre las ocho fases de la corrida real (8 y 34 a 37): la
+// animación del primer minuto con sus clips, el avatar de Jardinería junto
+// con las imágenes y las fases que no aplican salteadas. Las secciones 38 a
+// 40 vuelven a la instalación: el tope de inactividad de la descarga (un
 // cuelgue de la red falla enseguida y sigue desde la parte que faltaba; una
 // parte lenta pero viva no se corta), si alguien tiene el lock según
 // demo-status, y el disco lleno al mover el pack o al sembrar las gemas.
@@ -244,8 +247,15 @@ function storyFiles(format, id) {
   }
   if (isStory(ANIMATED_STORY, format, id))
     files.set(`${directory}/video_animado.mp4`, FAKE_ANIMATED_MP4)
+  // La vista del look junto a los clips del avatar (Ruling R8): la imagen
+  // fija de las apariciones, que la simulación copia al proyecto.
+  if (isStory(AVATAR_STORY, format, id))
+    files.set(`${directory}/avatar/look.jpg`, FAKE_JPG)
   return files
 }
+
+// La historia `id` de una lista del manifest del pack (claves en español).
+const storyIn = (stories, id) => stories.find((story) => story.id === id)
 
 // Lo que el manifest dice de una historia.
 function manifestStory(format, id) {
@@ -1565,12 +1575,17 @@ try {
     )
   }
 
+  // Las fases de la corrida real, en orden (pipeline/runner/stage-id.ts): la
+  // simulación las recorre todas y, como el corredor, avisa `stage-skipped`
+  // de las que no aplican.
   const STAGE_IDS = [
     'voice',
     'transcription',
     'scene-cuts',
     'scene-prompts',
     'images',
+    'avatar',
+    'animation',
     'render',
   ]
   const KNOWN_EVENTS = new Set([
@@ -1588,13 +1603,91 @@ try {
     'scene-image-ready',
     'scene-image-failed',
     'scene-image-progress',
+    'scene-animation-started',
+    'scene-animation-progress',
+    'scene-animation-ready',
+    'scene-animation-failed',
+    'animation-provider-trouble',
     'voice-progress',
     'bgm-progress',
     'render-progress',
     'awaiting-scene-confirmation',
+    'avatar-planned',
+    'avatar-scene-started',
+    'avatar-scene-progress',
+    'avatar-scene-ready',
+    'avatar-scene-failed',
+    'avatar-provider-trouble',
     'job-completed',
     'job-failed',
   ])
+  // El recorrido de las fases como lo emite el corredor real
+  // (pipeline/runner/run-stages.ts): «started voice», «skipped avatar»… Las
+  // imágenes y el avatar corren a la vez y terminan en cualquier orden: sus
+  // dos «completed» seguidos se comparan como «images» y después «avatar».
+  const STAGE_EVENT_TYPES = new Set([
+    'stage-started',
+    'stage-skipped',
+    'stage-completed',
+  ])
+  const stageTrace = (events) => {
+    const trace = events
+      .filter((event) => STAGE_EVENT_TYPES.has(event.type))
+      .map((event) => `${event.type.replace('stage-', '')} ${event.stageId}`)
+    const images = trace.indexOf('completed images')
+    const avatar = trace.indexOf('completed avatar')
+    if (avatar >= 0 && avatar === images - 1)
+      [trace[avatar], trace[images]] = [trace[images], trace[avatar]]
+    return trace
+  }
+  // El recorrido esperado: el avatar arranca junto con las imágenes y, si la
+  // historia no lo trae, se saltea antes de que arranquen (runGroup); la
+  // animación corre o se saltea antes del render.
+  const expectedTrace = ({ avatar, animation }) => [
+    ...['voice', 'transcription', 'scene-cuts', 'scene-prompts'].flatMap(
+      (stageId) => [`started ${stageId}`, `completed ${stageId}`],
+    ),
+    ...(avatar
+      ? [
+          'started images',
+          'started avatar',
+          'completed images',
+          'completed avatar',
+        ]
+      : ['skipped avatar', 'started images', 'completed images']),
+    ...(animation
+      ? ['started animation', 'completed animation']
+      : ['skipped animation']),
+    'started render',
+    'completed render',
+  ]
+  // completedStages de una corrida real: las fases que corrieron, nunca las
+  // salteadas.
+  const expectedCompletedStages = ({ avatar, animation }) =>
+    STAGE_IDS.filter(
+      (stageId) =>
+        (stageId !== 'avatar' || avatar) &&
+        (stageId !== 'animation' || animation),
+    )
+  const sameStages = (actual, expected) =>
+    JSON.stringify([...(actual ?? [])].sort()) ===
+    JSON.stringify([...expected].sort())
+  // Ningún rastro de la animación: ni bloques ni marcas del primer minuto.
+  const withoutAnimation = (scenes) =>
+    scenes.every(
+      (scene) =>
+        scene.animations === undefined &&
+        scene.animationRequestedSeconds === undefined,
+    )
+  // El mp4 final del proyecto: el del pack que se copió en el render.
+  const readVideo = (projectId) =>
+    readFile(join(projectsRoot, String(projectId), `${projectId}.mp4`)).catch(
+      () => Buffer.alloc(0),
+    )
+  // El cierre que deja el editor reproduciendo el mp4 (TRANSITION_POLICY_VERSION
+  // de pipeline/animation/transitions.ts, y sin la marca de desactualizado).
+  const playsFinalVideo = (metadata) =>
+    metadata.renderTransitionVersion === 1 && metadata.videoOutdated === false
   // El snapshot que Crear manda con un estilo del catálogo nuevo (plan E2
   // §5.4): el id de la gema en `styleId` y en `catalogStyleId`.
   const catalogStyle = (catalogStyleId) => ({
@@ -1658,7 +1751,9 @@ try {
     )
   }
 
-  // 8. La simulación completa: orden de fases, archivos antes que eventos, metadata final.
+  // 8. La simulación completa: orden de fases, archivos antes que eventos,
+  // metadata final. Sin animationMinutes, aunque la historia (`normal`) esté
+  // animada: avatar y animación salteados y el video sin animar.
   section('8. run-video-pipeline con options.demo')
   {
     const projectId = await createProject('Demo normal', { demo: true })
@@ -1666,7 +1761,6 @@ try {
       typeof projectId === 'string',
       'create-video-project acepta demo:true',
     )
-    const started = []
     const filesAtEvent = []
     let unknown = 0
     const { events } = await runSidecar('run-video-pipeline', {
@@ -1675,7 +1769,6 @@ try {
       payload: { projectId },
       onEvent(event) {
         if (!KNOWN_EVENTS.has(event.type)) unknown += 1
-        if (event.type === 'stage-started') started.push(event.stageId)
         if (event.type === 'scene-image-ready')
           filesAtEvent.push(
             existsSync(event.imagePath) && statSync(event.imagePath).size > 0,
@@ -1695,15 +1788,21 @@ try {
       resultOf(events)?.status === 'completed',
       'result.status es completed',
     )
+    const trace = stageTrace(events)
     assert(
-      JSON.stringify(started) === JSON.stringify(STAGE_IDS),
-      `las fases arrancan en el orden de STAGE_IDS (fue ${started.join(',')})`,
-    )
-    assert(
-      events.filter((event) => event.type === 'stage-completed').length === 6,
-      'las seis fases completan',
+      JSON.stringify(trace) ===
+        JSON.stringify(expectedTrace({ avatar: false, animation: false })),
+      `las ocho fases van en el orden real: avatar se saltea antes de las imágenes y animación antes del render (fue ${trace.join(', ')})`,
     )
     assert(unknown === 0, 'ningún evento de tipo desconocido')
+    assert(
+      !events.some(
+        (event) =>
+          event.type.startsWith('scene-animation-') ||
+          event.type.startsWith('avatar-'),
+      ),
+      'sin animación ni avatar no hay eventos de clips ni de apariciones',
+    )
     assert(
       filesAtEvent.length === 3 && filesAtEvent.every(Boolean),
       'cada imagen y el video existen en disco cuando se emite su evento',
@@ -1747,8 +1846,19 @@ try {
     const metadata = await readMetadata(projectId)
     assert(metadata.state === 'completed', 'project.json queda completed')
     assert(
-      JSON.stringify(metadata.completedStages) === JSON.stringify(STAGE_IDS),
-      'completedStages trae las seis fases',
+      JSON.stringify(metadata.completedStages) ===
+        JSON.stringify(
+          expectedCompletedStages({ avatar: false, animation: false }),
+        ),
+      `completedStages trae las seis fases que corrieron, sin avatar ni animación (fue ${metadata.completedStages?.join(',')})`,
+    )
+    assert(
+      playsFinalVideo(metadata),
+      `al terminar, renderTransitionVersion es 1 y videoOutdated false: el editor reproduce el mp4 (fue ${metadata.renderTransitionVersion} y ${metadata.videoOutdated})`,
+    )
+    assert(
+      (await readVideo(projectId)).equals(FAKE_MP4),
+      'sin animationMinutes el mp4 final es el video_final.mp4 de la historia',
     )
     assert(
       metadata.sceneCount === 2 &&
@@ -1781,6 +1891,11 @@ try {
     assert(
       scenes[0]?.imagePrompt === 'normal scene one',
       'los prompts salen de la carpeta normal',
+    )
+    assert(
+      withoutAnimation(scenes) &&
+        !existsSync(join(projectsRoot, projectId, 'animations')),
+      'sin animación, scenes.json no trae bloques ni marcas del primer minuto (aunque la historia esté animada) y no se copia ningún clip',
     )
     assert(
       existsSync(join(projectsRoot, projectId, `${projectId}.mp4`)),
@@ -1902,7 +2017,7 @@ try {
     assert(
       resultOf(catalogRun.events)?.status === 'completed' &&
         (await readScenes(catalogId))[0]?.imagePrompt === '2d-mono scene one',
-      `customStyle.catalogStyleId 2d-mono copia la historia 2d-mono (fue ${outcomeOf(catalogRun.events)})`,
+      `customStyle.catalogStyleId 2d-mono copia la historia 2d-mono, no la de storytelling (fue ${outcomeOf(catalogRun.events)})`,
     )
   }
 
@@ -2918,6 +3033,82 @@ try {
         label: 'avatar-sin-su-vista',
         expected: 'gemas/jardineria/avatar.jpg is missing',
         tweak: ({ files }) => files.delete('gemas/jardineria/avatar.jpg'),
+      },
+      // Ruling R8: la simulación copia `opciones` a options.avatar y la vista
+      // del look de la historia al proyecto; sin ellas no hay avatar que
+      // mostrar en el editor.
+      {
+        label: 'avatar-sin-opciones',
+        expected: 'jardineria: avatar needs opciones',
+        tweak: ({ manifest }) => {
+          const withoutOptions = { ...AVATAR_MANIFEST }
+          delete withoutOptions.opciones
+          storyIn(manifest.historiasGema, 'jardineria').avatar = withoutOptions
+        },
+      },
+      {
+        label: 'avatar-con-opciones-que-no-son-un-objeto',
+        expected: 'jardineria: avatar needs opciones',
+        tweak: ({ manifest }) => {
+          storyIn(manifest.historiasGema, 'jardineria').avatar = {
+            ...AVATAR_MANIFEST,
+            opciones: [AVATAR_MANIFEST.opciones],
+          }
+        },
+      },
+      {
+        label: 'avatar-con-opciones-sin-look',
+        expected: 'jardineria: avatar needs opciones',
+        tweak: ({ manifest }) => {
+          storyIn(manifest.historiasGema, 'jardineria').avatar = {
+            ...AVATAR_MANIFEST,
+            opciones: { ...AVATAR_MANIFEST.opciones, lookId: '' },
+          }
+        },
+      },
+      {
+        label: 'avatar-sin-la-vista-del-look',
+        expected: 'jardineria/avatar/look.<jpg|png|webp> is missing',
+        tweak: ({ files }) => files.delete('jardineria/avatar/look.jpg'),
+      },
+      {
+        // Dos apariciones: la primera con su clip y la segunda sin él.
+        label: 'aparicion-sin-clip',
+        expected: 'jardineria/escenas.json names an invalid avatar clip',
+        tweak: ({ files }) => {
+          const scenes = storyScenes('16:9', 'jardineria')
+          const firstClip = 'scene_1.0123abcd.mp4'
+          delete scenes[0].promptImagen
+          scenes[0].nativo = {
+            avatar: { ...scenes[1].nativo.avatar, clipFile: firstClip },
+          }
+          delete scenes[1].nativo.avatar.clipFile
+          files.set(
+            'jardineria/escenas.json',
+            Buffer.from(JSON.stringify(scenes)),
+          )
+          files.set(`jardineria/avatar/${firstClip}`, FAKE_CLIP_MP4)
+        },
+      },
+      // La simulación copia cada clip por su nombre: un bloque sin clip, o una
+      // historia animada sin ninguno, no tiene qué reproducir.
+      {
+        label: 'clip-sin-nombre',
+        expected: 'normal/escenas.json names an invalid animaciones clip',
+        tweak: ({ files }) => {
+          const scenes = storyScenes('16:9', 'normal')
+          delete scenes[0].nativo.animations[0].clipFile
+          files.set('normal/escenas.json', Buffer.from(JSON.stringify(scenes)))
+        },
+      },
+      {
+        label: 'animada-sin-clips',
+        expected: 'normal/escenas.json has no animation clip',
+        tweak: ({ files }) => {
+          const scenes = storyScenes('16:9', 'normal')
+          delete scenes[0].nativo.animations
+          files.set('normal/escenas.json', Buffer.from(JSON.stringify(scenes)))
+        },
       },
       {
         label: 'avatar-en-el-catalogo',
@@ -4231,6 +4422,424 @@ try {
         intact.every(Boolean) &&
         existsSync(join(root, '_demo-pack', '.ok')),
       `el próximo demo-prepare repite la copia desde el staging, sin volver a bajar, y cada archivo del pack queda entero (fue ${outcomeOf(repaired.events)}; pedidos: ${parts.map(requestsFor).join(' y ')}; ${intact.filter(Boolean).length} de ${intact.length} archivos enteros)`,
+    )
+  }
+
+  // Las secciones 34 y 36 corren con cada copyFile del sidecar demorado: si
+  // la simulación avisara un clip o una aparición antes de copiar su archivo,
+  // el guard lo vería faltar al recibir el evento (sin la demora, la copia
+  // ganaría la carrera igual). Con el orden correcto solo tarda un poco más.
+  const COPY_DELAY_MS = 150
+  const slowCopyStub = await writeStub(
+    'slow-copy',
+    [
+      'const copyFile = fsPromises.copyFile',
+      'fsPromises.copyFile = async (...args) => {',
+      `  await new Promise((resolve) => setTimeout(resolve, ${COPY_DELAY_MS}))`,
+      '  return copyFile(...args)',
+      '}',
+    ].join('\n'),
+  )
+
+  // 34. Animación del primer minuto (spec v4 §4 «Simulación»): con
+  // animationMinutes y la historia animada, la fase `animation` corre como la
+  // real (stages/animation/animation.ts y animation/generate.ts): el plan con
+  // su fin y, por clip y en tandas, started, progress con porcentaje y ready
+  // con su vista, con el clip ya en animations/. El render copia
+  // video_animado.mp4.
+  section('34. animación del primer minuto')
+  {
+    const projectId = await createProject('Demo animada', {
+      demo: true,
+      animationMinutes: 1,
+    })
+    const clipPath = join(
+      projectsRoot,
+      String(projectId),
+      'animations',
+      ANIMATION_CLIP,
+    )
+    const atReady = []
+    let unknown = 0
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+      preload: slowCopyStub,
+      onEvent(event) {
+        if (!KNOWN_EVENTS.has(event.type)) unknown += 1
+        if (event.type !== 'scene-animation-ready') return
+        atReady.push(
+          event.clipPath === clipPath &&
+            existsSync(clipPath) &&
+            statSync(clipPath).size > 0 &&
+            event.animation?.status === 'ready' &&
+            event.animation?.clipPath === clipPath,
+        )
+      },
+    })
+    assert(
+      resultOf(events)?.status === 'completed',
+      `con animationMinutes la demo completa (fue ${outcomeOf(events)})`,
+    )
+    assert(unknown === 0, 'con animación, ningún evento de tipo desconocido')
+    const trace = stageTrace(events)
+    assert(
+      JSON.stringify(trace) ===
+        JSON.stringify(expectedTrace({ avatar: false, animation: true })),
+      `la fase animation corre entre las imágenes y el render (fue ${trace.join(', ')})`,
+    )
+    const stageAt = (type, stageId) =>
+      events.findIndex(
+        (event) => event.type === type && event.stageId === stageId,
+      )
+    const animationStarted = stageAt('stage-started', 'animation')
+    const animationCompleted = stageAt('stage-completed', 'animation')
+    const plan = events.find(
+      (event, index) =>
+        index > animationStarted && event.type === 'scenes-planned',
+    )
+    assert(
+      plan?.animationEndSeconds === 2.3 &&
+        plan.scenes.find((scene) => scene.id === 1)
+          ?.animationRequestedSeconds === 6,
+      `al arrancar la fase, scenes-planned trae el fin de la animación (el primer minuto, acotado al audio de 2.3 s) y las escenas marcadas (fue ${plan?.animationEndSeconds})`,
+    )
+    assert(
+      !events.some(
+        (event, index) =>
+          index < animationStarted &&
+          event.type === 'scenes-planned' &&
+          event.animationEndSeconds !== undefined,
+      ),
+      'el scenes-planned del corte no trae animationEndSeconds',
+    )
+    const clipEvents = events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.type.startsWith('scene-animation-'))
+    const started = clipEvents.find(
+      ({ event }) => event.type === 'scene-animation-started',
+    )
+    const progress = clipEvents.filter(
+      ({ event }) => event.type === 'scene-animation-progress',
+    )
+    const ready = clipEvents.find(
+      ({ event }) => event.type === 'scene-animation-ready',
+    )
+    assert(
+      started?.event.sceneId === 1 &&
+        JSON.stringify(started.event.sceneIds) === '[1]' &&
+        started.event.attempt === 1 &&
+        started.event.animationId === 'anim_1' &&
+        started.event.startSeconds === 0 &&
+        started.event.endSeconds === 1.1,
+      `scene-animation-started trae la escena que encabeza, las que cubre, el intento y el tramo del clip (fue ${JSON.stringify(started?.event)})`,
+    )
+    assert(
+      progress.length > 0 &&
+        progress.every(
+          ({ event }) =>
+            event.sceneId === 1 &&
+            typeof event.percent === 'number' &&
+            event.percent > 0 &&
+            event.percent < 100,
+        ) &&
+        isNonDecreasing(progress.map(({ event }) => event.percent)),
+      `scene-animation-progress trae un porcentaje que sube: la barra no espera la rampa de ~75 s de Kie (fue ${progress.map(({ event }) => event.percent).join(',')})`,
+    )
+    assert(
+      started !== undefined &&
+        ready !== undefined &&
+        progress.length > 0 &&
+        events.indexOf(plan) < started.index &&
+        started.index < progress[0].index &&
+        progress.at(-1).index < ready.index &&
+        started.index > animationStarted &&
+        ready.index < animationCompleted,
+      'por clip: started, progress y ready, en orden, después del plan y dentro de la fase',
+    )
+    assert(
+      atReady.length === 1 && atReady.every(Boolean),
+      'el clip está en animations/ cuando llega su scene-animation-ready, y su vista lo da por listo',
+    )
+    assert(
+      (await readFile(clipPath).catch(() => Buffer.alloc(0))).equals(
+        FAKE_CLIP_MP4,
+      ),
+      'el clip del proyecto es el de animaciones/ de la historia',
+    )
+    const scenes = await readScenes(projectId)
+    const packBlock = storyScenes('16:9', 'normal')[0].nativo.animations[0]
+    assert(
+      scenes[0]?.animationRequestedSeconds === 6 &&
+        isDeepStrictEqual(scenes[0]?.animations, [packBlock]) &&
+        scenes[1]?.animations === undefined,
+      'scenes.json trae la marca y el bloque de animación del pack en la escena que encabeza el clip',
+    )
+    assert(
+      (await readVideo(projectId)).equals(FAKE_ANIMATED_MP4),
+      'con animación, el mp4 final es el video_animado.mp4 de la historia',
+    )
+    const metadata = await readMetadata(projectId)
+    assert(
+      JSON.stringify(metadata.completedStages) ===
+        JSON.stringify(
+          expectedCompletedStages({ avatar: false, animation: true }),
+        ),
+      `completedStages trae la animación (fue ${metadata.completedStages?.join(',')})`,
+    )
+    assert(
+      metadata.state === 'completed' && playsFinalVideo(metadata),
+      `con animación, el proyecto queda completed con renderTransitionVersion 1 y videoOutdated false (fue ${metadata.state}, ${metadata.renderTransitionVersion} y ${metadata.videoOutdated})`,
+    )
+  }
+
+  // 35. Animación pedida en una historia sin variante animada (Foco de
+  // revisión 4 del plan): la fase se saltea, no se restaura nada de la
+  // animación y sale el video sin animar.
+  section('35. animación pedida en una historia sin variante animada')
+  {
+    const projectId = await createProject('Demo 2d mono animada', {
+      demo: true,
+      customStyle: catalogStyle('2d-mono'),
+      animationMinutes: 1,
+    })
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+    })
+    assert(
+      resultOf(events)?.status === 'completed',
+      `con animationMinutes y una historia sin variante animada la demo completa (fue ${outcomeOf(events)})`,
+    )
+    const trace = stageTrace(events)
+    assert(
+      JSON.stringify(trace) ===
+        JSON.stringify(expectedTrace({ avatar: false, animation: false })),
+      `la fase animation se saltea (fue ${trace.join(', ')})`,
+    )
+    assert(
+      !events.some(
+        (event) =>
+          event.type.startsWith('scene-animation-') ||
+          (event.type === 'scenes-planned' &&
+            event.animationEndSeconds !== undefined),
+      ),
+      'sin variante animada no hay plan de animación ni eventos de clips',
+    )
+    assert(
+      (await readVideo(projectId)).equals(FAKE_MP4),
+      'el mp4 final es el video_final.mp4 de la historia',
+    )
+    assert(
+      withoutAnimation(await readScenes(projectId)) &&
+        !existsSync(join(projectsRoot, projectId, 'animations')),
+      'scenes.json queda sin bloques ni marcas de animación y no se copia ningún clip',
+    )
+    const metadata = await readMetadata(projectId)
+    assert(
+      JSON.stringify(metadata.completedStages) ===
+        JSON.stringify(
+          expectedCompletedStages({ avatar: false, animation: false }),
+        ) && playsFinalVideo(metadata),
+      `completedStages sin animación y el editor reproduce el mp4 (fue ${metadata.completedStages?.join(',')}, ${metadata.renderTransitionVersion} y ${metadata.videoOutdated})`,
+    )
+  }
+
+  // 36. Jardinería (spec v4 §1 y §4, Ruling R8): la fase `avatar` corre junto
+  // con las imágenes con los eventos del carril real (avatar/render-scenes.ts y
+  // avatar/lane.ts: started, sus fases y ready con la vista); la vista del look
+  // y el clip están en avatar/ antes del evento que los nombra; project.json
+  // trae options.avatar del pack y scenes.json, el bloque del avatar.
+  section('36. Jardinería: el avatar junto con las imágenes')
+  {
+    const projectId = await createProject('Demo jardineria', {
+      demo: true,
+      customStyle: gemStyle(GEMS[1]),
+    })
+    const avatarDirectory = join(projectsRoot, String(projectId), 'avatar')
+    const lookFile = join(avatarDirectory, 'look.jpg')
+    const clipFile = join(avatarDirectory, AVATAR_CLIP)
+    const seen = { planned: [], ready: [] }
+    let unknown = 0
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig(),
+      payload: { projectId },
+      preload: slowCopyStub,
+      onEvent(event) {
+        if (!KNOWN_EVENTS.has(event.type)) unknown += 1
+        if (event.type === 'scenes-planned') {
+          const appearance = event.scenes.find((scene) => scene.id === 2)
+          seen.planned.push(
+            appearance?.avatar?.status === 'planned' &&
+              appearance.imagePath === lookFile &&
+              appearance.imageStatus === 'ok' &&
+              existsSync(lookFile),
+          )
+        }
+        if (event.type === 'avatar-scene-ready') {
+          const avatar = event.scene?.avatar
+          seen.ready.push(
+            avatar?.status === 'ready' &&
+              avatar.clipPath === clipFile &&
+              existsSync(clipFile) &&
+              statSync(clipFile).size > 0 &&
+              event.scene.imagePath === lookFile,
+          )
+        }
+      },
+    })
+    assert(
+      resultOf(events)?.status === 'completed',
+      `con Jardinería la demo completa (fue ${outcomeOf(events)})`,
+    )
+    assert(unknown === 0, 'con avatar, ningún evento de tipo desconocido')
+    const trace = stageTrace(events)
+    assert(
+      JSON.stringify(trace) ===
+        JSON.stringify(expectedTrace({ avatar: true, animation: false })),
+      `el avatar arranca junto con las imágenes y la animación se saltea (fue ${trace.join(', ')})`,
+    )
+    const stageAt = (type, stageId) =>
+      events.findIndex(
+        (event) => event.type === type && event.stageId === stageId,
+      )
+    const avatarEvents = events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.type.startsWith('avatar-scene-'))
+    const steps = avatarEvents.map(({ event }) =>
+      event.type === 'avatar-scene-progress' ? event.phase : event.type,
+    )
+    assert(
+      JSON.stringify(steps) ===
+        JSON.stringify([
+          'avatar-scene-started',
+          'audio',
+          'upload',
+          'render',
+          'download',
+          'normalize',
+          'avatar-scene-ready',
+        ]) && avatarEvents.every(({ event }) => event.sceneId === 2),
+      `la aparición pasa por las fases del carril real, en orden (fue ${steps.join(', ')})`,
+    )
+    assert(
+      avatarEvents.length > 0 &&
+        avatarEvents[0].index > stageAt('stage-started', 'avatar') &&
+        avatarEvents[0].index < stageAt('stage-completed', 'images') &&
+        avatarEvents.at(-1).index < stageAt('stage-completed', 'avatar'),
+      'el avatar corre mientras corren las imágenes: su primer evento llega antes de que terminen y todos caen dentro de su fase',
+    )
+    const planned = events.find((event) => event.type === 'avatar-planned')
+    const plannedAt = events.indexOf(planned)
+    assert(
+      JSON.stringify(planned?.sceneIds) === '[2]' &&
+        planned.dropped === AVATAR_MANIFEST.opciones.appearances - 1 &&
+        plannedAt >
+          events.findIndex((event) => event.type === 'scenes-planned') &&
+        plannedAt < stageAt('stage-completed', 'scene-cuts'),
+      `el corte anuncia avatar-planned con la escena del avatar y las apariciones pedidas que no están (fue ${JSON.stringify(planned)})`,
+    )
+    assert(
+      seen.planned.length > 0 && seen.planned.every(Boolean),
+      'la vista del look ya está en avatar/ cuando scenes-planned nombra la aparición: es su imagen fija',
+    )
+    assert(
+      seen.ready.length === 1 && seen.ready.every(Boolean),
+      'el clip de la aparición está en avatar/ cuando llega su avatar-scene-ready, y la vista la da por lista',
+    )
+    assert(
+      !events.some(
+        (event) =>
+          (event.type === 'scene-prompt-ready' && event.scene?.id === 2) ||
+          (event.type.startsWith('scene-image-') && event.sceneId === 2),
+      ) &&
+        events.some(
+          (event) => event.type === 'scene-image-ready' && event.sceneId === 1,
+        ),
+      'la aparición no tiene prompt ni imagen; la otra escena sí',
+    )
+    const promptsProgress = events.filter(
+      (event) => event.type === 'scene-prompts-progress',
+    )
+    assert(
+      promptsProgress.length === 1 &&
+        promptsProgress[0].ready === 2 &&
+        promptsProgress[0].total === 2,
+      `el avance de los prompts es sobre todas las escenas, con la aparición contada como lista, como el carril real (fue ${promptsProgress.map((event) => `${event.ready}/${event.total}`).join(', ')})`,
+    )
+    assert(
+      (await readFile(lookFile).catch(() => Buffer.alloc(0))).equals(
+        FAKE_JPG,
+      ) &&
+        (await readFile(clipFile).catch(() => Buffer.alloc(0))).equals(
+          FAKE_CLIP_MP4,
+        ),
+      'avatar/ del proyecto trae la vista del look y el clip de la historia',
+    )
+    const scenes = await readScenes(projectId)
+    assert(
+      isDeepStrictEqual(
+        scenes[1]?.avatar,
+        storyScenes('16:9', 'jardineria')[1].nativo.avatar,
+      ) &&
+        scenes[1]?.imagePrompt === undefined &&
+        scenes[0]?.imagePrompt === 'jardineria scene one' &&
+        scenes[0]?.avatar === undefined,
+      'scenes.json trae el bloque del avatar del pack en la aparición, sin prompt',
+    )
+    const metadata = await readMetadata(projectId)
+    assert(
+      isDeepStrictEqual(metadata.options?.avatar, AVATAR_MANIFEST.opciones),
+      `project.json trae options.avatar con las opciones del pack (fue ${JSON.stringify(metadata.options?.avatar)})`,
+    )
+    assert(
+      sameStages(
+        metadata.completedStages,
+        expectedCompletedStages({ avatar: true, animation: false }),
+      ),
+      `completedStages trae el avatar (fue ${metadata.completedStages?.join(',')})`,
+    )
+    assert(
+      metadata.state === 'completed' &&
+        playsFinalVideo(metadata) &&
+        (await readVideo(projectId)).equals(FAKE_MP4),
+      `con Jardinería sin animación sale el video_final.mp4 y el editor lo reproduce (fue ${metadata.state}, ${metadata.renderTransitionVersion} y ${metadata.videoOutdated})`,
+    )
+  }
+
+  // 37. Cancelar con el avatar en curso: las dos fases que corren a la vez se
+  // frenan, ninguna completa y el proyecto queda en pausa.
+  section('37. cancelar con el avatar en curso')
+  {
+    const projectId = await createProject('Demo jardineria cancel', {
+      demo: true,
+      customStyle: gemStyle(GEMS[1]),
+    })
+    const { events } = await runSidecar('run-video-pipeline', {
+      projectsRoot,
+      config: demoConfig({ delayScale: 0.05 }),
+      payload: { projectId },
+      cancelOn: 'avatar-scene-started',
+    })
+    assert(
+      codeOf(events) === 'cancelled',
+      `cancelar con el avatar en curso termina en job-failed cancelled (fue ${outcomeOf(events)})`,
+    )
+    assert(
+      !events.some(
+        (event) =>
+          event.type === 'job-completed' ||
+          (event.type === 'stage-completed' &&
+            (event.stageId === 'images' || event.stageId === 'avatar')),
+      ),
+      'ni las imágenes ni el avatar completan tras cancelar',
+    )
+    assert(
+      (await readMetadata(projectId)).state === 'paused',
+      'project.json queda paused',
     )
   }
 

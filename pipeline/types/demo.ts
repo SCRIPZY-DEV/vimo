@@ -1,4 +1,4 @@
-import type { AvatarEngine } from './avatar.ts'
+import type { AvatarEngine, ProjectAvatarOptions } from './avatar.ts'
 import type { VideoFormat } from './video-format.ts'
 import type { VoiceProviderId } from './voices.ts'
 
@@ -27,6 +27,9 @@ export interface DemoAvatar {
   secondsPerAppearance: number
   // Ruta absoluta de la vista del look dentro del pack instalado.
   previewFile: string
+  // Las opciones del proyecto del que salió la historia: la simulación las
+  // copia a `options.avatar` (en la demo el avatar nunca viene del payload).
+  options: ProjectAvatarOptions
 }
 
 // Una historia del pack: la de un estilo del catálogo o la de una gema.
