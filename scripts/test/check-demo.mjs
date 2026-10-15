@@ -5,18 +5,33 @@
 // clip y una con avatar, 2 escenas por historia, archivos diminutos), lo
 // empaqueta en un zip en memoria, lo sirve por HTTP local y corre los
 // subcomandos del sidecar contra una carpeta raíz temporal. Cada sección
-// asserta un invariante de la ADR o de la spec.
+// asserta un invariante de la ADR o de la spec. La sección 18 corre el
+// armador (scripts/build-demo-pack.mjs) sobre proyectos nativos sintéticos,
+// con medios diminutos del ffmpeg empaquetado en src-tauri/binaries.
 //
 //   pnpm check:demo
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 import { crc32 } from 'node:zlib'
+
+import { extractZip } from '../../pipeline/commands/demo/extract.ts'
+import { validatePack } from '../../pipeline/commands/demo/pack.ts'
+import { executableSuffix, targetTriple } from '../target-triple.mjs'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const failures = []
@@ -324,6 +339,504 @@ function buildZip(entries) {
 
 function sha256(buffer) {
   return createHash('sha256').update(buffer).digest('hex')
+}
+
+// ── Fixture del armador v4: proyectos nativos ────────────────────────────────
+// Tres proyectos como los deja el pipeline real, en una raíz temporal: el
+// estilo `normal` del catálogo en 16:9, animado con un clip; la gema
+// `jardineria` en 16:9 con una aparición del avatar; la gema `storytelling`
+// en Short. Las imágenes de escena son PNG con extensión .jpg, como las guarda
+// el pipeline (Ruling R4); las muestras y la vista del avatar, PNG, JPEG o
+// WEBP. Los medios salen del ffmpeg empaquetado y pesan pocos KB, salvo los
+// videos: el armador exige más de 100 KB a cada uno.
+const BUILDER_SCRIPT = join(repoRoot, 'scripts/build-demo-pack.mjs')
+const BUILT_PART_PREFIX = 'vimo-demo-pack-v4.part-'
+const BUILT_CLIP = '0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e.mp4'
+const BUILT_AVATAR_CLIP = 'scene_2.0123abcd.mp4'
+const BUILT_RENDER_HASH = 'f'.repeat(64)
+const BUILT_VOICE = {
+  voiceProvider: 'ai33',
+  voiceId: 'voice-mini',
+  voiceName: 'Abel mini',
+}
+const BUILT_AVATAR_OPTIONS = {
+  avatarId: 'jardineria-z2l3du',
+  lookId: 'look-jardineria',
+  lookName: 'Jardineria',
+  lookType: 'photo_avatar',
+  engine: 'avatar_iv',
+  appearances: 1,
+  secondsPerAppearance: 5,
+  startWithAvatar: false,
+  placement: 'auto',
+}
+// Las historias de la fixture, en el orden de stories.json.
+const BUILT_STORIES = [
+  { format: '16:9', id: 'normal' },
+  { format: '16:9', id: 'jardineria' },
+  { format: '9:16', id: 'storytelling' },
+]
+// Lo que un proyecto real deja junto a sus clips y el pack no lleva.
+const BUILT_LEFTOVERS = /\.(source\.mp4|reference-\d+\.jpg|raw\.mp4|wav)$/
+// Recibos, tareas y URLs del proveedor: nunca en escenas.json.
+const BUILT_PRIVATE_KEYS = [
+  '"attempts"',
+  '"task"',
+  '"videoUrl"',
+  '"creditsConsumed"',
+  '"errorCode"',
+]
+const JPEG_MAGIC = Buffer.from('ffd8ff', 'hex')
+// Lo que una gema de la galería guarda y el pack público no lleva (Ruling
+// R13): de dónde se clonó (con el link del video) y el texto que se mandó al
+// agente.
+const BUILT_GEM_PRIVATE = {
+  origin: {
+    kind: 'ai-clone',
+    source: 'youtube',
+    videoUrl: 'https://www.youtube.com/watch?v=demo-guard',
+  },
+  sourcePrompt: 'El texto que se mandó al agente para crear la gema.',
+}
+// Un mp4 que empieza como uno (caja ftyp) y que ffmpeg no puede leer: solo
+// falla al recomprimir.
+const CORRUPT_MP4 = Buffer.concat([
+  Buffer.from('00000018', 'hex'),
+  Buffer.from('ftypisom'),
+  Buffer.alloc(4096, 0x5a),
+])
+
+// El ffmpeg empaquetado (ADR-0026), el mismo que usa el armador; null si no
+// está, y entonces la sección 18 falla avisando.
+function pinnedFfmpeg() {
+  try {
+    const triple = targetTriple()
+    const path = join(
+      repoRoot,
+      'src-tauri/binaries',
+      `ffmpeg-${triple}${executableSuffix(triple)}`,
+    )
+    return existsSync(path) ? path : null
+  } catch {
+    return null
+  }
+}
+
+// Los medios de prueba, generados una sola vez con lavfi: un PNG, un JPEG y
+// un WEBP diminutos, un clip mudo de un segundo y dos videos con audio de
+// ruido (que no se comprime) para pasar el mínimo de 100 KB.
+async function writeBuilderMedia(ffmpeg, directory) {
+  await mkdir(directory, { recursive: true })
+  const run = (args) =>
+    execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', ...args])
+  const noiseVideo = (seed, frequency, path) =>
+    run([
+      '-f',
+      'lavfi',
+      '-i',
+      `nullsrc=s=128x72:r=25:d=1,geq=lum='random(${seed})*255':cb=128:cr=128`,
+      '-f',
+      'lavfi',
+      '-i',
+      `sine=frequency=${frequency}:duration=1`,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-qp',
+      '0',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-shortest',
+      '-y',
+      path,
+    ])
+  const media = {
+    png: join(directory, 'image.png'),
+    jpg: join(directory, 'image.jpg'),
+    webp: join(directory, 'image.webp'),
+    clip: join(directory, 'clip.mp4'),
+    video: join(directory, 'video.mp4'),
+    staticVideo: join(directory, 'static.mp4'),
+  }
+  const still = ['-f', 'lavfi', '-i', 'testsrc2=s=64x36', '-frames:v', '1']
+  run([...still, '-y', media.png])
+  run([...still, '-y', media.jpg])
+  run([...still, '-c:v', 'libwebp', '-y', media.webp])
+  run([
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc=s=64x36:r=25:d=1',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-pix_fmt',
+    'yuv420p',
+    '-y',
+    media.clip,
+  ])
+  noiseVideo(1, 440, media.video)
+  noiseVideo(2, 330, media.staticVideo)
+  return media
+}
+
+// Los tres proyectos, las gemas y los dos JSON del armador, como datos. Cada
+// archivo es un Buffer o el nombre de un medio de `writeBuilderMedia`; los
+// casos rotos cambian estos datos antes de escribirlos.
+function builderFixture() {
+  const words = [
+    { word: 'Primera', start: 0.1, end: 0.5, confidence: 0.99 },
+    { word: 'frase', start: 0.6, end: 1.0, confidence: 0.98 },
+    { word: 'Segunda', start: 1.2, end: 1.7, confidence: 0.97 },
+    { word: 'frase', start: 1.8, end: 2.3, confidence: 0.99 },
+  ]
+  const stages = [
+    'voice',
+    'transcription',
+    'scene-cuts',
+    'scene-prompts',
+    'images',
+  ]
+  const options = (extra) => ({
+    sceneCount: 0,
+    narrationMode: 'tts',
+    ...BUILT_VOICE,
+    imageProvider: 'evolink',
+    useBgm: false,
+    useOverlay: false,
+    confirmScenes: false,
+    videoFormat: '16:9',
+    ...extra,
+  })
+  const scene = (id, prompt, startSeconds, endSeconds) => ({
+    id,
+    text: `Frase ${id}`,
+    startSeconds,
+    endSeconds,
+    imagePrompt: prompt,
+    treatment: 'action',
+    contentRejected: false,
+    animations: [],
+    animationPending: [],
+    animationHistory: [],
+  })
+  const project = ({ id, name, projectOptions, completedStages, scenes }) => ({
+    metadata: {
+      id,
+      name,
+      createdAt: '2026-10-14T00:00:00.000Z',
+      updatedAt: '2026-10-14T00:00:00.000Z',
+      state: 'completed',
+      options: projectOptions,
+      completedStages,
+      audioDurationSeconds: 2.3,
+      sceneCount: scenes.length,
+      wordCount: words.length,
+    },
+    script: `${name}. Primera frase. Segunda frase.`,
+    words,
+    scenes,
+  })
+
+  // El bloque de animación trae lo que el pack no lleva: recibos con la URL
+  // del proveedor, la tarea, los créditos y un código de error.
+  const animated = project({
+    id: 'demo-normal',
+    name: 'El océano profundo',
+    projectOptions: options({
+      styleId: 'normal',
+      animationMinutes: 1,
+      customStyle: {
+        styleId: 'normal',
+        catalogStyleId: 'normal',
+        name: 'Normal',
+        character: { mode: 'generic' },
+      },
+    }),
+    completedStages: [...stages, 'animation', 'render'],
+    scenes: [
+      {
+        ...scene(1, 'normal built scene one', 0, 1.1),
+        animationRequestedSeconds: 6,
+        animations: [
+          {
+            id: BUILT_CLIP.replace('.mp4', ''),
+            clipFile: BUILT_CLIP,
+            provider: 'kie',
+            model: 'grok-imagine-video-1-5-preview',
+            sceneIds: [1, 2],
+            startSeconds: 0,
+            endSeconds: 2.3,
+            slotSeconds: 2.3,
+            requestedSeconds: 6,
+            strategy: 'merge',
+            prompt: 'slow camera push',
+            status: 'ready',
+            normalizedSeconds: 2.3,
+            creditsConsumed: 27,
+            errorCode: 'animation_provider_failed',
+            task: { provider: 'kie', taskId: 'task-123', hash: 'abc123' },
+            attempts: [
+              {
+                model: 'grok-imagine-video-1-5-preview',
+                hash: 'abc123',
+                state: 'succeeded',
+                taskId: 'task-123',
+                videoUrl: 'https://tempfile.example.com/generated_video.mp4',
+                creditsConsumed: 27,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        ...scene(2, 'normal built scene two', 1.1, 2.3),
+        staticTransitionIn: true,
+      },
+    ],
+  })
+  animated.files = {
+    'scenes/scene_1.jpg': 'png',
+    'scenes/scene_2.jpg': 'png',
+    [`animations/${BUILT_CLIP}`]: 'clip',
+    [`animations/${BUILT_CLIP}.source.mp4`]: 'clip',
+    [`animations/${BUILT_CLIP}.reference-0.jpg`]: 'jpg',
+    'demo-normal.mp4': 'video',
+  }
+
+  // La escena 2 es la aparición del avatar: sin prompt ni imagen, con el
+  // recibo de HeyGen y su URL firmada, y un campo con una URL del proveedor
+  // que el tipo no declara (cualquier URL se va).
+  const presenter = project({
+    id: 'demo-jardineria',
+    name: 'Mi huerta en el balcón',
+    projectOptions: options({
+      styleId: 'normal',
+      customStyle: {
+        styleId: 'demo-jardineria',
+        name: 'Jardinería mini',
+        sections: { visualStyle: 'Acuarela suave de un jardín.' },
+        character: { mode: 'none' },
+      },
+      avatar: BUILT_AVATAR_OPTIONS,
+    }),
+    completedStages: [...stages, 'avatar', 'render'],
+    scenes: [
+      scene(1, 'jardineria built scene one', 0, 1.1),
+      {
+        id: 2,
+        text: 'Frase 2',
+        startSeconds: 1.1,
+        endSeconds: 2.3,
+        animations: [],
+        animationPending: [],
+        animationHistory: [],
+        avatar: {
+          lookId: 'look-jardineria',
+          lookName: 'Jardineria',
+          lookType: 'photo_avatar',
+          engine: 'avatar_iv',
+          origin: 'auto',
+          status: 'ready',
+          clipFile: BUILT_AVATAR_CLIP,
+          normalizedSeconds: 1.2,
+          renderHash: BUILT_RENDER_HASH,
+          narrationVersion: 0,
+          usdEstimated: 0.05,
+          motionPrompt: 'Warm smile.',
+          motionSource: 'auto',
+          thumbnailUrl: 'https://files2.heygen.ai/avatar_tmp/thumbnail.jpg',
+          attempts: [
+            {
+              hash: '0123abcd'.padEnd(64, '0'),
+              state: 'succeeded',
+              engine: 'avatar_iv',
+              lookId: 'look-jardineria',
+              createdAt: '2026-10-14T00:00:00.000Z',
+              videoId: 'video-1',
+              videoUrl:
+                'https://files2.heygen.ai/avatar_tmp/video-1.mp4?Signature=secret',
+            },
+          ],
+        },
+      },
+    ],
+  })
+  presenter.files = {
+    'scenes/scene_1.jpg': 'png',
+    'avatar/look.png': 'png',
+    [`avatar/${BUILT_AVATAR_CLIP}`]: 'clip',
+    'avatar/scene_2.0123abcd.raw.mp4': 'clip',
+    'avatar/scene_2.89abcdef.wav': FAKE_MP3,
+    'demo-jardineria.mp4': 'video',
+  }
+
+  const short = project({
+    id: 'demo-storytelling-short',
+    name: 'El último tren a casa',
+    projectOptions: options({
+      styleId: 'normal',
+      videoFormat: '9:16',
+      customStyle: {
+        styleId: 'demo-storytelling',
+        name: 'STORYTELLING mini',
+        systemPrompt: 'You write prompts.',
+      },
+    }),
+    completedStages: [...stages, 'render'],
+    scenes: [
+      scene(1, 'storytelling built scene one', 0, 1.1),
+      scene(2, 'storytelling built scene two', 1.1, 2.3),
+    ],
+  })
+  short.files = {
+    'scenes/scene_1.jpg': 'png',
+    'scenes/scene_2.jpg': 'png',
+    'demo-storytelling-short.mp4': 'video',
+  }
+
+  return {
+    projects: {
+      'demo-normal': animated,
+      'demo-jardineria': presenter,
+      'demo-storytelling-short': short,
+    },
+    // Rutas relativas a la carpeta de cada JSON, como las acepta el armador.
+    stories: [
+      {
+        format: '16:9',
+        id: 'normal',
+        kind: 'catalog',
+        project: 'demo-normal',
+        staticVideo: 'static/demo-normal.mp4',
+        title: 'El océano profundo (armado)',
+      },
+      {
+        format: '16:9',
+        id: 'jardineria',
+        kind: 'gem',
+        project: 'demo-jardineria',
+        staticVideo: 'static/demo-jardineria.mp4',
+      },
+      {
+        format: '9:16',
+        id: 'storytelling',
+        kind: 'gem',
+        project: 'demo-storytelling-short',
+        staticVideo: 'static/demo-storytelling-short.mp4',
+      },
+    ],
+    gems: [
+      {
+        id: 'storytelling',
+        styleId: 'demo-storytelling',
+        styleDir: '_styles/demo-storytelling',
+      },
+      {
+        id: 'jardineria',
+        styleId: 'demo-jardineria',
+        styleDir: '_styles/demo-jardineria',
+        avatarPreview: 'avatars/jardineria/preview.webp',
+      },
+    ],
+    // Lo que vive fuera de los proyectos: los videos sin animar (otro render
+    // del mismo proyecto), las gemas de la galería (la de jardineria, con lo
+    // que el pack no lleva) y la vista del avatar.
+    files: {
+      'static/demo-normal.mp4': 'staticVideo',
+      'static/demo-jardineria.mp4': 'staticVideo',
+      'static/demo-storytelling-short.mp4': 'staticVideo',
+      '_styles/demo-storytelling/style.json': Buffer.from(
+        JSON.stringify(GEMS[0].style),
+      ),
+      '_styles/demo-storytelling/sample-1.jpg': 'png',
+      '_styles/demo-storytelling/sample-2.jpg': 'jpg',
+      '_styles/demo-jardineria/style.json': Buffer.from(
+        JSON.stringify({ ...GEMS[1].style, ...BUILT_GEM_PRIVATE }),
+      ),
+      '_styles/demo-jardineria/sample-1.jpg': 'png',
+      'avatars/jardineria/preview.webp': 'webp',
+    },
+  }
+}
+
+// Escribe la fixture en `root`; `tweak` la cambia antes (casos rotos).
+async function writeBuilderFixture(root, media, tweak) {
+  const fixture = builderFixture()
+  tweak?.(fixture)
+  const put = async (name, value) => {
+    const target = join(root, name)
+    await mkdir(dirname(target), { recursive: true })
+    if (Buffer.isBuffer(value)) return writeFile(target, value)
+    return copyFile(media[value], target)
+  }
+  const json = (value) => Buffer.from(JSON.stringify(value))
+  for (const [folder, project] of Object.entries(fixture.projects)) {
+    await put(`${folder}/project.json`, json(project.metadata))
+    await put(`${folder}/script.txt`, Buffer.from(project.script))
+    await put(`${folder}/narration.mp3`, FAKE_MP3)
+    await put(`${folder}/words.json`, json(project.words))
+    await put(`${folder}/scenes.json`, json(project.scenes))
+    for (const [name, value] of Object.entries(project.files))
+      await put(`${folder}/${name}`, value)
+  }
+  for (const [name, value] of Object.entries(fixture.files))
+    await put(name, value)
+  await put('stories.json', json(fixture.stories))
+  await put('gems.json', json(fixture.gems))
+}
+
+// Corre el armador y devuelve su salida.
+function runBuilder(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [BUILDER_SCRIPT, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk) => (stdout += chunk))
+    child.stderr.on('data', (chunk) => (stderr += chunk))
+    child.on('error', reject)
+    child.on('close', (code) => resolve({ code, stdout, stderr }))
+  })
+}
+
+// Los nombres de las entradas de un zip, en el orden de su directorio
+// central (el armador no escribe comentario de zip).
+function zipEntryNames(zip) {
+  const end = zip.length - 22
+  if (end < 0 || zip.readUInt32LE(end) !== 0x06054b50) return []
+  const count = zip.readUInt16LE(end + 10)
+  let offset = zip.readUInt32LE(end + 16)
+  const names = []
+  for (let index = 0; index < count; index++) {
+    if (zip.readUInt32LE(offset) !== 0x02014b50) return names
+    const nameLength = zip.readUInt16LE(offset + 28)
+    const extraLength = zip.readUInt16LE(offset + 30)
+    const commentLength = zip.readUInt16LE(offset + 32)
+    names.push(zip.toString('utf8', offset + 46, offset + 46 + nameLength))
+    offset += 46 + nameLength + extraLength + commentLength
+  }
+  return names
+}
+
+// Extrae las partes con el extractor del sidecar; false si alguna no abre.
+async function extractParts(directory, files, destination) {
+  try {
+    for (const file of files)
+      await extractZip(
+        join(directory, file),
+        destination,
+        new AbortController().signal,
+      )
+    return true
+  } catch {
+    return false
+  }
 }
 
 // ── Servidor HTTP local que sirve los zips ───────────────────────────────────
@@ -1326,8 +1839,615 @@ try {
     )
   }
 
-  // (La 18, el armador del pack, vuelve reescrita para el formato v4 junto
-  // con el armador.)
+  // 18. El armador v4 (spec §3): tres proyectos nativos → partes con
+  // historias enteras, la primera con el manifest y las gemas, sin recibos
+  // ni URLs del proveedor, con las imágenes recomprimidas a JPEG de verdad y
+  // que el lector del sidecar acepta. La instalación de las partes con
+  // demo-prepare es de la Tarea 4 (Ruling R2).
+  section('18. build-demo-pack arma el pack v4 en partes')
+  {
+    const ffmpeg = pinnedFfmpeg()
+    assert(
+      ffmpeg !== null,
+      'el ffmpeg empaquetado está en src-tauri/binaries (pnpm fetch:binaries)',
+    )
+    const media = ffmpeg
+      ? await writeBuilderMedia(ffmpeg, join(workspace, 'builder-media'))
+      : null
+    const nativeRoot = join(workspace, 'builder-native')
+    const outDirectory = join(workspace, 'builder-out')
+    const builderArguments = (root, out) => [
+      '--stories',
+      join(root, 'stories.json'),
+      '--gems',
+      join(root, 'gems.json'),
+      '--out',
+      out,
+    ]
+    if (media) await writeBuilderFixture(nativeRoot, media)
+
+    // Con --part-mb 0.05 ninguna historia entra junto a otra: una por parte.
+    // De a un ffmpeg por vez, para compararlo después con varios a la vez.
+    const build = media
+      ? await runBuilder([
+          ...builderArguments(nativeRoot, outDirectory),
+          '--part-mb',
+          '0.05',
+          '--jobs',
+          '1',
+        ])
+      : { code: null, stdout: '', stderr: '' }
+    assert(
+      build.code === 0,
+      `build-demo-pack termina en 0 (fue ${build.code}: ${build.stderr.trim()})`,
+    )
+    const readParts = async () => {
+      const listed = await readJsonIfPresent(join(outDirectory, 'parts.json'))
+      return Array.isArray(listed) ? listed : []
+    }
+    const parts = await readParts()
+    assert(
+      parts.length >= 2,
+      `con --part-mb 0.05, parts.json lista al menos dos partes (fueron ${parts.length})`,
+    )
+    const zips = []
+    for (const [index, part] of parts.entries()) {
+      const file = join(outDirectory, String(part?.file))
+      const zip = existsSync(file) ? await readFile(file) : Buffer.alloc(0)
+      assert(
+        part?.file === `${BUILT_PART_PREFIX}${index + 1}.zip` &&
+          zip.length > 0 &&
+          part?.bytes === zip.length &&
+          part?.sha256 === sha256(zip),
+        `parts.json trae el archivo, los bytes y el sha256 de la parte ${index + 1}`,
+      )
+      zips.push(zip)
+    }
+    assert(
+      parts.length > 0 &&
+        parts.every((part) => build.stdout.includes(part?.sha256)),
+      'imprime parts.json con el sha256 de cada parte',
+    )
+    assert(
+      existsSync(outDirectory) &&
+        isDeepStrictEqual(
+          (await readdir(outDirectory)).sort(),
+          [...parts.map((part) => part?.file), 'parts.json'].sort(),
+        ),
+      '--out queda con las partes y parts.json, nada más',
+    )
+
+    const names = zips.map(zipEntryNames)
+    assert(
+      names[0]?.[0] === 'manifest.json' && names[0]?.[1]?.startsWith('gemas/'),
+      `la parte 1 abre con manifest.json y sigue con gemas/ (fue ${names[0]?.slice(0, 2).join(', ')})`,
+    )
+    assert(
+      names.length >= 2 &&
+        names
+          .slice(1)
+          .every((entries) =>
+            entries.every(
+              (name) => name !== 'manifest.json' && !name.startsWith('gemas/'),
+            ),
+          ),
+      'manifest.json y gemas/ viajan solo en la parte 1',
+    )
+    for (const story of BUILT_STORIES) {
+      const prefix = `${FORMAT_PREFIXES[story.format]}${story.id}/`
+      const holders = names.filter((entries) =>
+        entries.some((name) => name.startsWith(prefix)),
+      ).length
+      assert(
+        holders === 1,
+        `${prefix} viaja entera en una sola parte (está en ${holders})`,
+      )
+    }
+    const allNames = names.flat()
+    assert(
+      allNames.length > 0 && allNames.length === new Set(allNames).size,
+      'ningún archivo se repite entre partes',
+    )
+    assert(
+      allNames.length > 0 &&
+        !allNames.some((name) => BUILT_LEFTOVERS.test(name)),
+      'no viajan los .source.mp4, .reference-N.jpg, .raw.mp4 ni .wav del proyecto',
+    )
+
+    // Las partes juntas, con el extractor y el lector del sidecar.
+    const extractedRoot = join(workspace, 'builder-extracted')
+    assert(
+      parts.length > 0 &&
+        (await extractParts(
+          outDirectory,
+          parts.map((part) => String(part?.file)),
+          extractedRoot,
+        )),
+      'el extractor del sidecar abre cada parte',
+    )
+    const problem = await validatePack(extractedRoot)
+    assert(
+      problem === null,
+      `el lector del sidecar acepta el pack armado (validatePack: ${problem})`,
+    )
+    const packed = (name) => join(extractedRoot, name)
+    const manifest = await readJsonIfPresent(packed('manifest.json'), {})
+    assert(
+      manifest.version === 'v4' &&
+        isDeepStrictEqual(manifest.voz, {
+          provider: 'ai33',
+          voice_id: 'voice-mini',
+          nombre: 'Abel mini',
+        }),
+      `el manifest es v4 con la voz de la primera historia (fue ${JSON.stringify(manifest.voz)})`,
+    )
+    assert(
+      isDeepStrictEqual(manifest.gemas, [
+        { id: 'storytelling', styleId: 'demo-storytelling' },
+        { id: 'jardineria', styleId: 'demo-jardineria' },
+      ]),
+      `gemas lista las de gems.json con su styleId (fue ${JSON.stringify(manifest.gemas)})`,
+    )
+    assert(
+      isDeepStrictEqual(manifest.estilos, [
+        {
+          id: 'normal',
+          nombreSugerido: 'El océano profundo (armado)',
+          numEscenas: 2,
+          duracionAudioSeg: 2.3,
+          personaje: 'generic',
+          animada: true,
+        },
+      ]),
+      `estilos trae normal con el título de stories.json, personaje generic y animada (fue ${JSON.stringify(manifest.estilos)})`,
+    )
+    assert(
+      isDeepStrictEqual(manifest.historiasGema, [
+        {
+          id: 'jardineria',
+          nombreSugerido: 'Mi huerta en el balcón',
+          numEscenas: 2,
+          duracionAudioSeg: 2.3,
+          personaje: 'none',
+          animada: false,
+          avatar: {
+            nombre: 'Jardineria',
+            motor: 'avatar_iv',
+            apariciones: 1,
+            segundosPorAparicion: 5,
+            opciones: BUILT_AVATAR_OPTIONS,
+          },
+        },
+      ]),
+      `historiasGema trae jardineria con su avatar y las opciones nativas (fue ${JSON.stringify(manifest.historiasGema)})`,
+    )
+    assert(
+      (manifest.short?.estilos ?? []).length === 0 &&
+        isDeepStrictEqual(manifest.short?.historiasGema, [
+          {
+            id: 'storytelling',
+            nombreSugerido: 'El último tren a casa',
+            numEscenas: 2,
+            duracionAudioSeg: 2.3,
+            personaje: 'none',
+            animada: false,
+          },
+        ]),
+      `short trae la gema storytelling sin personaje ni animación (fue ${JSON.stringify(manifest.short)})`,
+    )
+
+    assert(
+      existsSync(packed('normal/video_animado.mp4')) &&
+        existsSync(packed(`normal/animaciones/${BUILT_CLIP}`)),
+      'la historia animada trae video_animado.mp4 y su clip',
+    )
+    assert(
+      existsSync(packed('jardineria/video_final.mp4')) &&
+        existsSync(packed('short/storytelling/video_final.mp4')) &&
+        !existsSync(packed('jardineria/video_animado.mp4')) &&
+        !existsSync(packed('short/storytelling/video_animado.mp4')) &&
+        !existsSync(packed('jardineria/animaciones')),
+      'las historias sin animar traen solo el video sin animar, sin clips',
+    )
+    assert(
+      existsSync(packed(`jardineria/avatar/${BUILT_AVATAR_CLIP}`)) &&
+        existsSync(packed('jardineria/avatar/look.jpg')),
+      'la historia con avatar trae el clip de la aparición y la vista del look',
+    )
+    assert(
+      existsSync(packed('gemas/jardineria/avatar.jpg')) &&
+        !existsSync(packed('gemas/storytelling/avatar.jpg')),
+      'la vista del avatar va solo en la gema que la trae',
+    )
+    const packedStyle = await readFile(
+      packed('gemas/jardineria/style.json'),
+      'utf8',
+    ).catch(() => '')
+    assert(
+      isDeepStrictEqual(
+        packedStyle ? JSON.parse(packedStyle) : null,
+        GEMS[1].style,
+      ) &&
+        !packedStyle.includes('youtube') &&
+        existsSync(packed('gemas/storytelling/sample-2.jpg')),
+      'cada gema lleva su style.json sin origin ni sourcePrompt, y sus muestras',
+    )
+    const images = allNames.filter((name) => name.endsWith('.jpg'))
+    const realJpegs = await Promise.all(
+      images.map(async (name) =>
+        (await readFile(packed(name)).catch(() => Buffer.alloc(0)))
+          .subarray(0, JPEG_MAGIC.length)
+          .equals(JPEG_MAGIC),
+      ),
+    )
+    assert(
+      images.length === 10 && realJpegs.every(Boolean),
+      `las 10 imágenes son JPEG de verdad, aunque el origen sea PNG o WEBP (fueron ${images.length}, JPEG ${realJpegs.filter(Boolean).length})`,
+    )
+    // Un archivo del pack, o vacío si falta: el chequeo es el que avisa.
+    const packedBytes = (name) =>
+      readFile(packed(name)).catch(() => Buffer.alloc(0))
+    const sameBytes = async (packedName, source) =>
+      (await packedBytes(packedName)).equals(await readFile(source))
+    assert(
+      media !== null &&
+        !(await sameBytes('normal/video_final.mp4', media.staticVideo)) &&
+        !(await sameBytes(`normal/animaciones/${BUILT_CLIP}`, media.clip)) &&
+        (await packedBytes('normal/video_final.mp4'))
+          .subarray(4, 8)
+          .toString() === 'ftyp',
+      'los videos y los clips salen recomprimidos, en mp4',
+    )
+    assert(
+      (await packedBytes('normal/audio.mp3')).equals(FAKE_MP3) &&
+        (
+          await readFile(packed('short/storytelling/guion.txt'), 'utf8').catch(
+            () => '',
+          )
+        ).startsWith('El último tren a casa'),
+      'audio.mp3 es la narración tal cual y guion.txt el script.txt',
+    )
+    const words = await readJsonIfPresent(packed('normal/palabras.json'), [])
+    assert(
+      words.length === 4 &&
+        words.every(
+          (word) => !('confidence' in word) && typeof word.end === 'number',
+        ),
+      'palabras.json lleva word, start y end',
+    )
+
+    const rawScenes = await Promise.all(
+      ['normal', 'jardineria', 'short/storytelling'].map((directory) =>
+        readFile(packed(`${directory}/escenas.json`), 'utf8').catch(() => ''),
+      ),
+    )
+    assert(
+      rawScenes.every(
+        (text) =>
+          text.length > 0 &&
+          BUILT_PRIVATE_KEYS.every((key) => !text.includes(key)) &&
+          !/https?:\/\//.test(text),
+      ),
+      'ningún escenas.json trae attempts, task, videoUrl, creditsConsumed, errorCode ni URLs',
+    )
+    const parseScenes = (text) => (text ? JSON.parse(text) : [])
+    const [normalScenes, presenterScenes] = rawScenes.map(parseScenes)
+    assert(
+      normalScenes[0]?.texto === 'Frase 1' &&
+        normalScenes[0]?.promptImagen === 'normal built scene one' &&
+        normalScenes[1]?.tiempoInicioSeg === 1.1 &&
+        normalScenes[1]?.tiempoFinSeg === 2.3 &&
+        normalScenes[0]?.nativo?.animationRequestedSeconds === 6 &&
+        normalScenes[1]?.nativo?.staticTransitionIn === true,
+      'escenas.json conserva los campos del v3 y suma animationRequestedSeconds y staticTransitionIn',
+    )
+    const block = normalScenes[0]?.nativo?.animations?.[0]
+    assert(
+      block?.clipFile === BUILT_CLIP &&
+        block?.status === 'ready' &&
+        block?.normalizedSeconds === 2.3 &&
+        block?.prompt === 'slow camera push' &&
+        isDeepStrictEqual(block?.sceneIds, [1, 2]) &&
+        normalScenes[1]?.nativo?.animations === undefined,
+      'el bloque de animación viaja en nativo, en su escena, con su forma nativa',
+    )
+    const avatarBlock = presenterScenes[1]?.nativo?.avatar
+    assert(
+      avatarBlock?.clipFile === BUILT_AVATAR_CLIP &&
+        avatarBlock?.renderHash === BUILT_RENDER_HASH &&
+        avatarBlock?.lookId === 'look-jardineria' &&
+        avatarBlock?.motionPrompt === 'Warm smile.' &&
+        presenterScenes[1]?.promptImagen === undefined,
+      'la aparición del avatar viaja en nativo, sin promptImagen',
+    )
+
+    // Varios ffmpeg a la vez (--jobs 3) arman exactamente las mismas partes:
+    // la recompresión es determinista y el orden no depende de cuál termina
+    // primero.
+    const jobsDirectory = join(workspace, 'builder-out-jobs')
+    const parallel = media
+      ? await runBuilder([
+          ...builderArguments(nativeRoot, jobsDirectory),
+          '--part-mb',
+          '0.05',
+          '--jobs',
+          '3',
+        ])
+      : { code: null, stdout: '', stderr: '' }
+    assert(
+      parallel.code === 0 &&
+        parts.length > 0 &&
+        isDeepStrictEqual(
+          await readJsonIfPresent(join(jobsDirectory, 'parts.json')),
+          parts,
+        ),
+      `con --jobs 3, parts.json es idéntico al de --jobs 1: mismos bytes y mismos SHA-256 (fue ${parallel.code}: ${parallel.stderr.trim()})`,
+    )
+    const zeroJobs = media
+      ? await runBuilder([
+          ...builderArguments(nativeRoot, join(workspace, 'builder-out-zero')),
+          '--jobs',
+          '0',
+        ])
+      : { code: null, stdout: '', stderr: '' }
+    assert(
+      zeroJobs.code !== 0 && zeroJobs.stderr.includes('--jobs tiene que ser'),
+      `--jobs 0 se rechaza (fue ${zeroJobs.code}: ${zeroJobs.stderr.trim()})`,
+    )
+
+    // Sin recomprimir y con el tamaño por defecto, sobre la misma carpeta.
+    const plain = media
+      ? await runBuilder([
+          ...builderArguments(nativeRoot, outDirectory),
+          '--no-recompress',
+        ])
+      : { code: null, stdout: '', stderr: '' }
+    assert(
+      plain.code === 0,
+      `build-demo-pack --no-recompress termina en 0 (fue ${plain.code}: ${plain.stderr.trim()})`,
+    )
+    const plainParts = await readParts()
+    assert(
+      plainParts.length === 1 &&
+        existsSync(outDirectory) &&
+        isDeepStrictEqual((await readdir(outDirectory)).sort(), [
+          'parts.json',
+          `${BUILT_PART_PREFIX}1.zip`,
+        ]),
+      'con el tamaño por defecto entra todo en una parte y las sobrantes del armado anterior se borran',
+    )
+    const plainRoot = join(workspace, 'builder-extracted-plain')
+    assert(
+      plainParts.length === 1 &&
+        (await extractParts(outDirectory, [plainParts[0].file], plainRoot)) &&
+        (await validatePack(plainRoot)) === null,
+      'la parte única también la acepta el lector',
+    )
+    const plainBytes = async (packedName, source) =>
+      (
+        await readFile(join(plainRoot, packedName)).catch(() => Buffer.alloc(0))
+      ).equals(await readFile(source))
+    assert(
+      media !== null &&
+        (await plainBytes('normal/imagenes/imagen_1.jpg', media.png)) &&
+        (await plainBytes(`normal/animaciones/${BUILT_CLIP}`, media.clip)) &&
+        existsSync(join(plainRoot, 'jardineria/avatar/look.png')),
+      'con --no-recompress las imágenes y los clips se copian tal cual y el look conserva su extensión',
+    )
+    assert(
+      media !== null &&
+        (await plainBytes('normal/video_final.mp4', media.staticVideo)) &&
+        (await plainBytes('normal/video_animado.mp4', media.video)),
+      'video_final.mp4 sale de staticVideo y video_animado.mp4 del mp4 del proyecto',
+    )
+
+    // Entradas rotas: el armador falla por SU motivo y no escribe partes.
+    const brokenBuilds = [
+      {
+        label: 'proyecto sin terminar',
+        expected: 'no está completed',
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].metadata.state = 'paused'
+        },
+      },
+      {
+        label: 'formato distinto al del proyecto',
+        expected: 'stories.json lo pone en 9:16',
+        tweak: (fixture) => {
+          fixture.stories[0].format = '9:16'
+        },
+      },
+      {
+        label: 'otra voz',
+        expected: 'misma voz en todas las historias',
+        tweak: (fixture) => {
+          fixture.projects['demo-storytelling-short'].metadata.options.voiceId =
+            'otra-voz'
+        },
+      },
+      {
+        label: 'ids de escena salteados',
+        expected: 'ids de escena no contiguos',
+        tweak: (fixture) => {
+          fixture.projects['demo-storytelling-short'].scenes[1].id = 3
+        },
+      },
+      {
+        label: 'escena sin imagen',
+        expected: 'falta scenes/scene_2.jpg',
+        tweak: (fixture) => {
+          delete fixture.projects['demo-storytelling-short'].files[
+            'scenes/scene_2.jpg'
+          ]
+        },
+      },
+      {
+        label: 'animada sin la fase animation',
+        expected: '"animation" no está en completedStages',
+        tweak: (fixture) => {
+          const metadata = fixture.projects['demo-normal'].metadata
+          metadata.completedStages = metadata.completedStages.filter(
+            (stage) => stage !== 'animation',
+          )
+        },
+      },
+      {
+        label: 'clip fallido',
+        expected: 'no está listo',
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].scenes[0].animations[0].status =
+            'failed'
+        },
+      },
+      {
+        label: 'clip sin normalizar',
+        expected: 'normalizedSeconds',
+        tweak: (fixture) => {
+          delete fixture.projects['demo-normal'].scenes[0].animations[0]
+            .normalizedSeconds
+        },
+      },
+      {
+        label: 'clip que falta',
+        expected: `falta animations/${BUILT_CLIP}`,
+        tweak: (fixture) => {
+          delete fixture.projects['demo-normal'].files[
+            `animations/${BUILT_CLIP}`
+          ]
+        },
+      },
+      {
+        label: 'aparición sin su clip',
+        expected: `falta avatar/${BUILT_AVATAR_CLIP}`,
+        tweak: (fixture) => {
+          delete fixture.projects['demo-jardineria'].files[
+            `avatar/${BUILT_AVATAR_CLIP}`
+          ]
+        },
+      },
+      {
+        label: 'menos apariciones que las pedidas',
+        expected: 'pide 2 apariciones y scenes.json trae 1',
+        tweak: (fixture) => {
+          fixture.projects['demo-jardineria'].metadata.options.avatar = {
+            ...BUILT_AVATAR_OPTIONS,
+            appearances: 2,
+          }
+        },
+      },
+      {
+        label: 'gema con avatar sin su vista',
+        expected: 'avatarPreview',
+        tweak: (fixture) => {
+          delete fixture.gems[1].avatarPreview
+        },
+      },
+      {
+        label: 'video sin animar de menos de 100 KB',
+        expected: 'pesa menos de',
+        tweak: (fixture) => {
+          fixture.files['static/demo-storytelling-short.mp4'] = FAKE_MP4
+        },
+      },
+      {
+        // Imágenes o clips rehechos después del render: el mp4 ya no es el
+        // de escenas.json.
+        label: 'video desactualizado',
+        expected: 'videoOutdated',
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].metadata.videoOutdated = true
+        },
+      },
+      {
+        label: 'voz sin nombre',
+        expected: 'voiceName',
+        tweak: (fixture) => {
+          delete fixture.projects['demo-storytelling-short'].metadata.options
+            .voiceName
+        },
+      },
+      {
+        // Una máquina de la demo no tiene el personaje propio de la gema.
+        label: 'gema con personaje propio',
+        expected: 'personaje propio',
+        tweak: (fixture) => {
+          fixture.files['_styles/demo-storytelling/style.json'] = Buffer.from(
+            JSON.stringify({
+              ...GEMS[0].style,
+              character: { mode: 'own', defaultCharacterId: 'mi-personaje' },
+            }),
+          )
+        },
+      },
+      {
+        label: 'clip que no es un mp4',
+        expected: 'no es un mp4',
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].files[`animations/${BUILT_CLIP}`] =
+            FAKE_CLIP_MP4
+        },
+      },
+      // Con recompresión. Lo que se revisa sin tocar los medios falla antes
+      // de recomprimir nada, aunque una historia anterior traiga un clip que
+      // ffmpeg no puede leer: recomprimiendo primero, fallaría por ese clip.
+      {
+        label: 'URL anidada en la aparición, con un clip ilegible antes',
+        expected: 'conserva una URL',
+        recompress: true,
+        beforeRecompressing: true,
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].files[`animations/${BUILT_CLIP}`] =
+            CORRUPT_MP4
+          fixture.projects['demo-jardineria'].scenes[1].avatar.extra = {
+            link: 'https://provider.example/avatar/clip.mp4',
+          }
+        },
+      },
+      {
+        label: 'gema que el lector rechaza, con un clip ilegible antes',
+        expected: 'lacks name, systemPrompt or sections',
+        recompress: true,
+        beforeRecompressing: true,
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].files[`animations/${BUILT_CLIP}`] =
+            CORRUPT_MP4
+          fixture.files['_styles/demo-jardineria/style.json'] = Buffer.from(
+            JSON.stringify({ name: 'Jardinería mini', shots: [] }),
+          )
+        },
+      },
+      {
+        label: 'clip que ffmpeg no puede leer',
+        expected: 'ffmpeg no pudo recomprimir',
+        recompress: true,
+        tweak: (fixture) => {
+          fixture.projects['demo-normal'].files[`animations/${BUILT_CLIP}`] =
+            CORRUPT_MP4
+        },
+      },
+    ]
+    for (const [index, broken] of brokenBuilds.entries()) {
+      if (!media) break
+      const { label, expected } = broken
+      const root = join(workspace, `builder-broken-${index + 1}`)
+      const out = join(workspace, `builder-broken-out-${index + 1}`)
+      await writeBuilderFixture(root, media, broken.tweak)
+      const run = await runBuilder([
+        ...builderArguments(root, out),
+        ...(broken.recompress ? [] : ['--no-recompress']),
+      ])
+      assert(
+        run.code !== 0 && run.stderr.includes(expected),
+        `${label} → el armador falla por «${expected}» (fue ${run.code}: ${run.stderr.trim()})`,
+      )
+      assert(!existsSync(out), `${label}: no escribe partes`)
+      if (!broken.beforeRecompressing) continue
+      assert(
+        !run.stdout.includes('recomprimida'),
+        `${label}: falla antes de recomprimir nada`,
+      )
+    }
+  }
 
   // 19. El .ok de otra versión no basta: re-descarga limpia y reemplaza el pack.
   section('19. .ok de otra versión: re-descarga limpia al cambiar de pack')
