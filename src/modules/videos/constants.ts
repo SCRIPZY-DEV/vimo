@@ -330,6 +330,13 @@ export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
 
 export const EMPTY_SOUND_EFFECTS: readonly SoundEffectInstance[] = []
 
+// Pareja fija compartida por las muestras de transiciones; reutiliza fotos
+// ya incluidas en la aplicación y funciona también sin conexión.
+export const TRANSITION_PREVIEW_IMAGES = [
+  '/style-references/normal_1.jpg',
+  '/style-references/normal_2.jpg',
+] as const
+
 export const EDITOR_TOOL_PANEL_DEFAULT_WIDTH = 320
 export const EDITOR_TOOL_PANEL_MIN_WIDTH = 280
 export const EDITOR_TOOL_PANEL_MAX_WIDTH = 720

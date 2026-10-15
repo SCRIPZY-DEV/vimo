@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { AudioLines, Clapperboard, Music2, Blend } from 'lucide-react'
+import { AudioLines, Clapperboard, Music2, Shuffle } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -31,7 +31,7 @@ export function EditorToolRail({
     {
       tool: 'transitions',
       label: t('library.editor.tools.transitions'),
-      icon: Blend,
+      icon: Shuffle,
     },
     {
       tool: 'music',

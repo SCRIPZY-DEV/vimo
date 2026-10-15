@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
@@ -7,7 +7,10 @@ import { videosApi } from '@/modules/videos/api'
 import { videosQueryKeys } from '@/modules/videos/constants'
 import { useLibraryEditorTask } from '@/modules/videos/hooks/useLibraryEditorTask'
 import { resolvePreviewSoundEffects } from '@/modules/videos/utilities/projectSoundEffects'
-import type { ProjectSoundEffectsOptions } from '@/modules/videos/types/projectSoundEffects'
+import type {
+  PendingProjectSoundEffects,
+  ProjectSoundEffectsOptions,
+} from '@/modules/videos/types/projectSoundEffects'
 import type {
   SetProjectSoundEffectsPayload,
   SoundEffectInstance,
@@ -24,6 +27,12 @@ export function useProjectSoundEffects({
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const editorTask = useLibraryEditorTask(projectId)
+  const saving = useRef(false)
+  const [pending, setPending] = useState<PendingProjectSoundEffects | null>(
+    null,
+  )
+  const visibleInstances =
+    pending?.projectId === projectId ? pending.instances : storedInstances
   const catalog = useQuery({
     queryKey: videosQueryKeys.soundEffects,
     queryFn: () => videosApi.listSoundEffects(),
@@ -36,8 +45,8 @@ export function useProjectSoundEffects({
   // Identidad estable para que el reloj del player no reinicie un click
   // con cada actualización del cursor.
   const instances = useMemo(
-    () => resolvePreviewSoundEffects(storedInstances, scenes, durationSeconds),
-    [storedInstances, scenes, durationSeconds],
+    () => resolvePreviewSoundEffects(visibleInstances, scenes, durationSeconds),
+    [visibleInstances, scenes, durationSeconds],
   )
   const transitions = scenes.filter((scene) => {
     return (
@@ -84,7 +93,14 @@ export function useProjectSoundEffects({
   })
 
   const save = async (nextInstances: SoundEffectInstance[]) => {
+    if (saving.current) return
+    saving.current = true
+    // Publicar el borrador antes de activar busy evita volver a las props
+    // anteriores al soltar el puntero. También cubre refetches durante el guardado.
+    setPending({ projectId, instances: nextInstances })
     if (!editorTask.beginAudioOperation(projectId)) {
+      saving.current = false
+      setPending(null)
       toast({
         description: t('library.errors.projectBusy'),
         variant: 'destructive',
@@ -98,6 +114,11 @@ export function useProjectSoundEffects({
       const errorKey = videosApi.errorMessageKey(error)
       editorTask.endAudioOperation(projectId, errorKey)
       toast({ description: t(errorKey), variant: 'destructive' })
+    } finally {
+      saving.current = false
+      setPending((current) =>
+        current?.projectId === projectId ? null : current,
+      )
     }
   }
 

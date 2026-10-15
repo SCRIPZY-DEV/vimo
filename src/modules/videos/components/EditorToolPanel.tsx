@@ -32,7 +32,19 @@ export function EditorToolPanel({
     if (event.button !== 0) return
 
     event.preventDefault()
+    const panel = event.currentTarget.closest<HTMLElement>(
+      '[data-editor-tool-panel]',
+    )
+    const container = panel?.closest<HTMLElement>(
+      '[data-editor-tool-container]',
+    )
+    if (!panel || !container) return
+
+    event.currentTarget.focus({ preventScroll: true })
     resize.current = {
+      panel,
+      container,
+      width: effectiveWidth,
       pointerId: event.pointerId,
       startX: event.clientX,
       startWidth: effectiveWidth,
@@ -44,13 +56,26 @@ export function EditorToolPanel({
     const current = resize.current
     if (!current || current.pointerId !== event.pointerId) return
 
-    changeWidth(current.startWidth + event.clientX - current.startX)
+    current.width = Math.max(
+      minWidth,
+      Math.min(maxWidth, current.startWidth + event.clientX - current.startX),
+    )
+    // El panel y la vista previa siguen el puntero en este mismo evento. React
+    // recibe sólo el ancho final, sin reconstruir el timeline en cada píxel.
+    current.panel.style.width = `${current.width}px`
+    current.container.style.width = `${current.width}px`
+    event.currentTarget.setAttribute(
+      'aria-valuenow',
+      String(Math.round(current.width)),
+    )
   }
 
   const stopResize = (event: PointerEvent<HTMLDivElement>) => {
-    if (resize.current?.pointerId !== event.pointerId) return
+    const current = resize.current
+    if (!current || current.pointerId !== event.pointerId) return
 
     resize.current = null
+    changeWidth(current.width)
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId)
   }
@@ -111,9 +136,7 @@ export function EditorToolPanel({
         onPointerMove={moveResize}
         onPointerUp={stopResize}
         onPointerCancel={stopResize}
-        onLostPointerCapture={() => {
-          resize.current = null
-        }}
+        onLostPointerCapture={stopResize}
         onKeyDown={resizeWithKeyboard}
         className="group absolute inset-y-3 -right-2 z-10 flex w-4 touch-none cursor-col-resize select-none items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron"
       >

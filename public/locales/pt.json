@@ -1738,7 +1738,13 @@
           "all": "Todas",
           "empty": "Nenhuma transição corresponde a este filtro.",
           "previewHint": "Passe o cursor sobre uma transição para visualizá-la. Clique para aplicar ou remover.",
-          "unavailable": "Você precisa de pelo menos duas cenas com duração para adicionar transições."
+          "unavailable": "Você precisa de pelo menos duas cenas com duração para adicionar transições.",
+          "pairHint": "Cena {{from}} → cena {{to}}",
+          "selectedBoundaryHint": "Aplica-se entre o clipe selecionado e o seguinte.",
+          "selectBoundaryHint": "Selecione um clipe para aplicar a fusão com o seguinte.",
+          "noNextSceneHint": "Este clipe não tem uma próxima junção disponível.",
+          "applyAll": "Aplicar a todas as transições",
+          "automaticHint": "Esta junção já usa a fusão automática dos clipes animados."
         }
       },
       "sfx": {

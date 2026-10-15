@@ -32,6 +32,9 @@ export interface EditorToolPanelResize {
   pointerId: number
   startX: number
   startWidth: number
+  width: number
+  panel: HTMLElement
+  container: HTMLElement
 }
 
 export interface EditorSfxPanelProps {
@@ -50,6 +53,16 @@ export interface EditorSfxPanelProps {
 export interface EditorTransitionsPanelProps {
   enabled: boolean
   available: boolean
+  allEnabled: boolean
+  allAvailable: boolean
   busy: boolean
+  selectedSceneNumber?: number
+  nextSceneNumber?: number
+  previewImages?: readonly [string, string]
   onChange(enabled: boolean): void
+  onChangeAll(enabled: boolean): void
+}
+
+export interface TransitionPreviewProps {
+  images?: readonly [string, string]
 }

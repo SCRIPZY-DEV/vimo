@@ -10,7 +10,6 @@
 .editor-workspace-tools {
   flex-shrink: 0;
   min-width: 0;
-  transition: width 220ms ease;
 }
 
 .editor-workspace:not([data-tools-open='true']) .editor-workspace-tools {

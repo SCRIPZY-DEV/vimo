@@ -29,8 +29,8 @@ interface TimelineBlockCardProps {
 
 // La tarjeta de un bloque de la pista de escenas con el diseño del clip de
 // VidRush (ADR-0057, spec §10.3): esquinas redondeadas, borde de 2 px del
-// color de su tipo (celeste el clip animado, morado el avatar), borde blanco
-// y brillo del mismo color al elegirla, más luz al pasar el cursor, y la ficha
+// color de su tipo (celeste el clip animado, morado el avatar), borde amarillo
+// pastel al elegirla, más luz al pasar el cursor, y la ficha
 // del tipo arriba a la izquierda. Presentacional: el estado llega resuelto.
 // Sin asas: se dibujan recién cuando un bloque se pueda estirar (entrega 3).
 export function TimelineBlockCard({
@@ -61,7 +61,7 @@ export function TimelineBlockCard({
       className={cn(
         'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-[3px] outline-none transition-[border-color,box-shadow,filter] duration-150 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-blue-500',
         selected
-          ? 'border-white shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
+          ? 'border-[#FFE5A3] focus-visible:border-[#FFE5A3] shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
           : 'border-[hsl(var(--tone)/0.7)] hover:border-white hover:brightness-110',
       )}
     >

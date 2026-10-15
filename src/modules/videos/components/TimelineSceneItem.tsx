@@ -33,7 +33,7 @@ interface TimelineSceneItemProps {
 // Bloque de una escena en la pista de video. El padre lo posiciona en
 // absoluto según la duración de la escena. Una escena animada (la que
 // encabeza el clip o una absorbida por él) lleva borde celeste SIEMPRE, con
-// selección o sin ella. El hover y la selección usan un borde blanco; el
+// selección o sin ella. El hover usa un borde blanco y la selección, amarillo pastel; el
 // icono de animación conserva la diferencia con las escenas estáticas.
 export function TimelineSceneItem({
   scene,
@@ -97,7 +97,7 @@ export function TimelineSceneItem({
 
   const borderClass = () => {
     if (selected)
-      return 'border-white shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
+      return 'border-[#FFE5A3] focus-visible:border-[#FFE5A3] shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
     if (clipBorder)
       return 'border-sky/70 hover:border-white hover:brightness-110'
     return 'border-border/60 hover:border-white'

@@ -37,32 +37,6 @@ export function useEditorWorkspace(projectId: string) {
     return () => observer.disconnect()
   }, [activeTool])
 
-  useEffect(() => {
-    if (!activeTool) return
-    const closeOutside = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Element)) return
-      if (
-        target.closest(
-          '[data-editor-tool-panel], [data-editor-tool-rail], [data-radix-popper-content-wrapper], [role="dialog"]',
-        )
-      )
-        return
-      setActiveTool(null)
-    }
-    const closeEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-      event.preventDefault()
-      setActiveTool(null)
-    }
-    document.addEventListener('pointerdown', closeOutside)
-    window.addEventListener('keydown', closeEscape)
-    return () => {
-      document.removeEventListener('pointerdown', closeOutside)
-      window.removeEventListener('keydown', closeEscape)
-    }
-  }, [activeTool])
-
   return {
     activeTool,
     workspaceRef,

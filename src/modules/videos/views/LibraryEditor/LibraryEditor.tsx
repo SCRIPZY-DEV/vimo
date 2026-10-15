@@ -91,7 +91,11 @@ export function LibraryEditor() {
     storedInstances: detail?.metadata.options.soundEffects,
     durationSeconds,
   })
-  const transitions = useSceneTransitions({ projectId, scenes: workingScenes })
+  const transitions = useSceneTransitions({
+    projectId,
+    scenes: workingScenes,
+    selectedSceneId: editor.selectedSceneId,
+  })
   const {
     credits,
     isLoading: creditsLoading,
@@ -401,6 +405,7 @@ export function LibraryEditor() {
         >
           <EditorToolRail activeTool={activeTool} onToggle={toggleToolPanel} />
           <div
+            data-editor-tool-container
             className="editor-workspace-tools"
             style={{ width: activeTool ? toolPanelWidth : 0 }}
           >
@@ -440,18 +445,20 @@ export function LibraryEditor() {
                     error={soundEffects.error}
                     onToggleAllTransitions={soundEffects.toggleAllTransitions}
                     onAdd={() => soundEffects.add(cursorRef.current)}
-                    onOpenMix={() => {
-                      closeToolPanel()
-                      setMixOpen(true)
-                    }}
+                    onOpenMix={() => setMixOpen(true)}
                   />
                 )}
                 {activeTool === 'transitions' && (
                   <EditorTransitionsPanel
-                    enabled={transitions.enabled}
-                    available={transitions.available}
+                    enabled={transitions.selectedEnabled}
+                    available={transitions.selectedAvailable}
+                    allEnabled={transitions.enabled}
+                    allAvailable={transitions.available}
+                    selectedSceneNumber={transitions.selectedSceneNumber}
+                    nextSceneNumber={transitions.nextSceneNumber}
                     busy={busy || editor.savingChanges}
-                    onChange={transitions.change}
+                    onChange={transitions.changeSelected}
+                    onChangeAll={transitions.change}
                   />
                 )}
                 {activeTool === 'music' && (

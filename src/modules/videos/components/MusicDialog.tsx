@@ -61,7 +61,7 @@ export function MusicDialog({
 
   const applyMusic = async (choice: MusicChoice) => {
     const ok = await onSetMusic(choice)
-    if (ok) onClose()
+    if (ok && !embedded) onClose()
   }
 
   const applyFile = async () => {

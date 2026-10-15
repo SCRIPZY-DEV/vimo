@@ -7,3 +7,8 @@ export interface ProjectSoundEffectsOptions {
   storedInstances?: SoundEffectInstance[]
   durationSeconds: number
 }
+
+export interface PendingProjectSoundEffects {
+  projectId: string
+  instances: SoundEffectInstance[]
+}

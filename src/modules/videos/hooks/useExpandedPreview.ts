@@ -25,7 +25,6 @@ export function useExpandedPreview() {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        setExpanded(false)
       } else if (event.key === 'Tab') {
         const elements = focusable()
         const first = elements[0]
@@ -48,8 +47,8 @@ export function useExpandedPreview() {
         }
       }
     }
-    // Captura antes de los atajos del editor: Escape cierra el visor sin
-    // deseleccionar una escena detrás del modal.
+    // Escape no cierra el visor ni deselecciona escenas detrás. El cierre
+    // es explícito con el botón de restaurar o la X.
     document.addEventListener('keydown', onKeyDown, true)
     const onFocus = (event: FocusEvent) => {
       if (event.target instanceof Node && !container.contains(event.target))

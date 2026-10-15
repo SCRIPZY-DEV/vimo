@@ -1,19 +1,27 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Blend, Check, Search } from 'lucide-react'
+import { Shuffle, Check, Search } from 'lucide-react'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { Input } from '@/modules/common/ui/input'
 import { cn } from '@/modules/common/utilities/cn'
 import type { EditorTransitionsPanelProps } from '@/modules/videos/types/editorTools'
+import { TransitionPreview } from '@/modules/videos/components/TransitionPreview'
 import styles from '@/modules/videos/components/EditorTransitionsPanel.module.css'
 
 export function EditorTransitionsPanel({
   enabled,
   available,
+  allEnabled,
+  allAvailable,
   busy,
+  selectedSceneNumber,
+  nextSceneNumber,
+  previewImages,
   onChange,
+  onChangeAll,
 }: EditorTransitionsPanelProps) {
   const { t } = useTranslation()
+  const boundaryHintId = useId()
   const [search, setSearch] = useState('')
   const [appliedOnly, setAppliedOnly] = useState(false)
   const name = t('library.editor.tools.transitionsPanel.crossfade')
@@ -25,6 +33,29 @@ export function EditorTransitionsPanel({
       .trim()
   const matches =
     (!appliedOnly || enabled) && normalize(name).includes(normalize(search))
+
+  const boundaryHint = () => {
+    if (
+      available &&
+      selectedSceneNumber !== undefined &&
+      nextSceneNumber !== undefined
+    )
+      return t('library.editor.tools.transitionsPanel.pairHint', {
+        from: selectedSceneNumber,
+        to: nextSceneNumber,
+      })
+
+    if (available)
+      return t('library.editor.tools.transitionsPanel.selectedBoundaryHint')
+
+    if (selectedSceneNumber === undefined)
+      return t('library.editor.tools.transitionsPanel.selectBoundaryHint')
+
+    if (nextSceneNumber !== undefined && enabled)
+      return t('library.editor.tools.transitionsPanel.automaticHint')
+
+    return t('library.editor.tools.transitionsPanel.noNextSceneHint')
+  }
 
   return (
     <div className="space-y-4">
@@ -74,6 +105,7 @@ export function EditorTransitionsPanel({
             type="button"
             disabled={busy || !available}
             aria-label={name}
+            aria-describedby={boundaryHintId}
             aria-pressed={enabled}
             data-editor-transition="crossfade"
             onClick={() => onChange(!enabled)}
@@ -85,24 +117,10 @@ export function EditorTransitionsPanel({
                 : 'border-border bg-background hover:border-saffron/70',
             )}
           >
-            <div aria-hidden className="relative h-24 overflow-hidden">
-              <div className="absolute inset-0 overflow-hidden bg-gradient-to-b from-sky/30 via-sky/10 to-ocean/20">
-                <div className="absolute right-5 top-4 h-6 w-6 rounded-full bg-saffron/80" />
-                <div className="absolute -bottom-7 -left-5 h-20 w-32 rotate-12 rounded-[45%] bg-ocean/50" />
-                <div className="absolute -bottom-10 -right-3 h-24 w-36 -rotate-12 rounded-[45%] bg-ocean/75" />
-              </div>
-              <div
-                className={cn(
-                  styles.secondScene,
-                  'absolute inset-0 overflow-hidden bg-gradient-to-b from-lavender/65 via-lavender/30 to-amethyst/25',
-                )}
-              >
-                <div className="absolute left-5 top-4 h-7 w-7 rounded-full bg-white/80" />
-                <div className="absolute -bottom-5 -left-6 h-20 w-36 -rotate-12 rounded-[45%] bg-amethyst/50" />
-                <div className="absolute -bottom-8 -right-6 h-24 w-32 rotate-12 rounded-[45%] bg-amethyst/70" />
-              </div>
+            <div aria-hidden className="relative">
+              <TransitionPreview images={previewImages} />
               <div className="absolute bottom-2 left-2 rounded-md bg-card/80 p-1 text-foreground/70">
-                <Blend className="h-3.5 w-3.5" />
+                <Shuffle className="h-3.5 w-3.5" />
               </div>
               {enabled && (
                 <span className="absolute right-2 top-2 rounded-full bg-saffron p-1 text-charcoal">
@@ -126,17 +144,18 @@ export function EditorTransitionsPanel({
       <p className="font-body text-xs leading-relaxed text-muted-foreground">
         {t('library.editor.tools.transitionsPanel.previewHint')}
       </p>
-      {!available && (
-        <p className="font-body text-xs leading-relaxed text-muted-foreground">
-          {t('library.editor.tools.transitionsPanel.unavailable')}
-        </p>
-      )}
+      <p
+        id={boundaryHintId}
+        className="font-body text-xs leading-relaxed text-muted-foreground"
+      >
+        {boundaryHint()}
+      </p>
       <div className="rounded-xl border border-border bg-muted/20 p-3">
         <CheckboxRow
-          label={t('library.editor.transitions.label')}
-          checked={enabled}
-          disabled={busy || !available}
-          onChange={onChange}
+          label={t('library.editor.tools.transitionsPanel.applyAll')}
+          checked={allEnabled}
+          disabled={busy || !allAvailable}
+          onChange={onChangeAll}
         />
       </div>
     </div>

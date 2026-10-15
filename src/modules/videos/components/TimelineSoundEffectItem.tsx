@@ -32,10 +32,9 @@ export function TimelineSoundEffectItem({
       {...NO_SEEK_PROPS}
       data-sound-effect-id={instance.id}
       style={{
-        left:
-          (disabled
-            ? instance.startSeconds
-            : (previewSeconds ?? instance.startSeconds)) * pxPerSecond,
+        // El bloqueo transitorio al guardar no debe devolver el clip a su
+        // posición previa; el hook confirma o revierte la posición optimista.
+        left: (previewSeconds ?? instance.startSeconds) * pxPerSecond,
         width: Math.max(6, durationSeconds * pxPerSecond),
       }}
       className={cn(
@@ -46,7 +45,7 @@ export function TimelineSoundEffectItem({
     >
       <button
         type="button"
-        disabled={disabled}
+        aria-disabled={disabled}
         aria-label={t('library.editor.sfx.move', { effect: label })}
         title={`${label} · ${t('library.editor.tools.sfx.duration', {
           seconds: formatSlotSeconds(
@@ -54,10 +53,27 @@ export function TimelineSoundEffectItem({
             i18n.resolvedLanguage ?? 'es',
           ),
         })}`}
-        className="flex h-full w-full touch-none items-center justify-center overflow-hidden rounded-sm text-foreground/75 outline-none hover:bg-saffron/30 focus-visible:ring-2 focus-visible:ring-saffron disabled:cursor-not-allowed enabled:cursor-grab enabled:active:cursor-grabbing"
+        className={cn(
+          'flex h-full w-full touch-none items-center justify-center overflow-hidden rounded-sm text-foreground/75 outline-none hover:bg-saffron/30 focus-visible:ring-2 focus-visible:ring-saffron',
+          disabled
+            ? 'cursor-not-allowed'
+            : 'cursor-grab active:cursor-grabbing',
+        )}
+        // WebKit no enfoca los botones al hacer clic. La selección de este
+        // clip vive en el foco: Delete y Backspace llegan al mismo botón.
+        onClick={(event) => {
+          event.stopPropagation()
+          event.currentTarget.focus({ preventScroll: true })
+        }}
+        onMouseDown={(event) => {
+          // Conserva el foco explícito del pointerdown: el mousedown nativo
+          // de macOS puede llevarlo de nuevo al body antes del drag.
+          event.preventDefault()
+        }}
         onPointerDown={(event) => {
           if (disabled || event.button !== 0) return
           event.stopPropagation()
+          event.currentTarget.focus({ preventScroll: true })
           event.currentTarget.setPointerCapture(event.pointerId)
           dragRef.current = {
             pointerId: event.pointerId,
@@ -79,7 +95,8 @@ export function TimelineSoundEffectItem({
           if (!drag || drag.pointerId !== event.pointerId) return
           dragRef.current = null
           setPreviewSeconds(null)
-          event.currentTarget.releasePointerCapture(event.pointerId)
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId)
           if (!disabled && drag.seconds !== drag.initialSeconds)
             onMove(instance.id, drag.seconds)
         }}
@@ -88,14 +105,14 @@ export function TimelineSoundEffectItem({
           setPreviewSeconds(null)
         }}
         onKeyDown={(event) => {
-          if (disabled) return
           if (event.key === 'Delete' || event.key === 'Backspace') {
             event.preventDefault()
             event.stopPropagation()
-            onRemove(instance.id)
+            if (!disabled) onRemove(instance.id)
           } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault()
             event.stopPropagation()
+            if (disabled) return
             const direction = event.key === 'ArrowLeft' ? -1 : 1
             onMove(
               instance.id,

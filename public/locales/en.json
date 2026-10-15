@@ -1738,7 +1738,13 @@
           "all": "All",
           "empty": "No transitions match this filter.",
           "previewHint": "Hover over a transition to preview it. Click to apply or remove it.",
-          "unavailable": "You need at least two scenes with a duration to add transitions."
+          "unavailable": "You need at least two scenes with a duration to add transitions.",
+          "pairHint": "Scene {{from}} → scene {{to}}",
+          "selectedBoundaryHint": "Applies between the selected clip and the next one.",
+          "selectBoundaryHint": "Select a clip to apply a crossfade to the next one.",
+          "noNextSceneHint": "This clip has no available next boundary.",
+          "applyAll": "Apply to all transitions",
+          "automaticHint": "This boundary already uses the automatic crossfade for animated clips."
         }
       },
       "sfx": {
