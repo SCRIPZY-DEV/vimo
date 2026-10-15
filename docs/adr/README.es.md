@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md)              | Demo v4: catálogo nuevo, animación y avatar con un pack que se baja por partes    | Propuesta                  | app / pipeline / distribución |
 | [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Escenas de avatar con HeyGen sobre la narración                                   | Propuesta                  | pipeline / app / providers    |
 | [ADR-0056](ADR-0056-layout-propio-del-editor-a-pantalla-completa.md)                     | Layout propio del editor a pantalla completa                                      | Aceptada                   | app                           |
 | [ADR-0053](ADR-0053-ai33-proveedor-de-voz-y-cambio-de-voz-tras-un-fallo.md)              | ai33 como proveedor de voz, y cambio de voz tras un fallo                         | Propuesta                  | providers / pipeline / app    |

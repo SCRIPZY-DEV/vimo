@@ -3,6 +3,10 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-30
 - **Área:** pipeline / app / servidor
+- **Enmendada:** 2026-10-15, por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) (Propuesta al 2026-10-15): la
+  demo usa siempre el catálogo nuevo (ver la nota «superado» en «Nota posterior 2026-10-02 — el catálogo sobre
+  el carril (Entrega 2)»).
 - **Retoma:** [ADR-0039](ADR-0039-catalogo-sobre-el-carril-de-mi-estilo.md) (Propuesta). Esta ADR
   es la Entrega 1 de esa migración; la ADR-0039 pasa a Aceptada con la Entrega 2.
 - **Extiende a:** [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md) (la gema guardada
@@ -522,7 +526,9 @@ hace que las gemas de la casa corran por este mismo carril, y con eso la
   muestra muestras, etiquetas y el modo de personaje (sin el texto de la gema), recordado por estilo
   en `localStorage` (`vimo:catalog:character:v1`, con lectura tolerante). Sin tarjeta elegida no hay
   video (P4). Un proyecto del catálogo nuevo viaja como uno de Mi estilo (`options.customStyle` con
-  `catalogStyleId`, sin `characterFrequency` ni cantidad de escenas).
+  `catalogStyleId`, sin `characterFrequency` ni cantidad de escenas). (Superado por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md),
+  2026-10-15: la demo usa siempre el catálogo nuevo, tenga o no el interruptor.)
 - **Decisiones del plan que afectan a esta ADR:** P3 (modo por defecto = `sampleMode`: cinemático en
   los estilos sin personaje), P8 (textos dentro de la gema, no en i18n: en la Entrega 3 salen de la
   fila de Supabase), P9 (sin `sourcePrompt` en las gemas del catálogo ni en sus copias), P11 (las 5 de

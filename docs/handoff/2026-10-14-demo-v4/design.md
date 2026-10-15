@@ -3,7 +3,8 @@
 - **Fecha:** 2026-10-14
 - **Rama:** `feat/demo-actualizacion`
 - **Estado:** aprobada por el dueño el 2026-10-14, con el cambio del switch de avatar (sección 2); en ejecución
-- **Extiende:** [ADR-0029](../../adr/ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md) (modo demo) y [ADR-0030](../../adr/ADR-0030-pack-v3-historias-short-y-narracion-precargada.md) (pack v3). Se registra como ADR-0058.
+- **Extiende:** [ADR-0029](../../adr/ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md) (modo demo) y [ADR-0030](../../adr/ADR-0030-pack-v3-historias-short-y-narracion-precargada.md) (pack v3). Se registra como [ADR-0061](../../adr/ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md).
+- **Formato y comportamiento finales:** los de la [ADR-0061](../../adr/ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md). Esta spec es el diseño aprobado y su §3 usa nombres que no son los publicados (`estilo.json`, `muestra-N.jpg` y `short { estilos[], gemas[] }` son `style.json`, `sample-N.jpg` e `historiasGema[]`).
 
 ## Objetivo
 
@@ -244,7 +245,7 @@ video_animado.mp4            animado
 
 ## 9. Documentación y entrega
 
-- **ADR-0058:** pack v4, descarga por partes en segundo plano, Crear en demo sobre el catálogo nuevo, animación y avatar en la simulación, y 720p interno. Enmienda la regla 1 de ADR-0030 y el «fuera de alcance» de ADR-0029 sobre la descarga en segundo plano.
+- **ADR-0061:** pack v4, descarga por partes en segundo plano, Crear en demo sobre el catálogo nuevo, animación y avatar en la simulación, y 720p interno. Enmienda la regla 1 de ADR-0030 y el «fuera de alcance» de ADR-0029 sobre la descarga en segundo plano.
 - **Documentos que cambian:** la sección de la demo en `docs/ARCHITECTURE.md`, y los catálogos `es`, `en` y `pt` con las mismas claves.
 - **Informe:** `docs/fixes/` lleva el del editor de la demo (`renderTransitionVersion`).
 - **Commits:** locales y agrupados por cambio coherente, con el repo verde en cada uno. Push, release y PR, solo con el sí del dueño en el momento.
@@ -255,7 +256,7 @@ video_animado.mp4            animado
 - **720p para usuarios:** ofrecer el 720p como opción de la app.
 - **Descarga por estilo bajo demanda:** se descartó en favor del pack en partes.
 - **Seguir usando el v3 mientras baja el v4.**
-- **Otros huecos conocidos de la demo:** «Crear estilo» y la música del editor siguen alcanzables.
+- **Otros huecos conocidos de la demo:** el menú de las gemas del pack (editarlas y generar sus muestras) y la música del editor siguen alcanzables; «Crear estilo» y «Crear estilo con IA» quedan ocultos en Crear (ADR-0061).
 
 ## 11. Riesgos
 
