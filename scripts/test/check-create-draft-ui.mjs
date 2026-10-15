@@ -103,8 +103,8 @@ const LIBRARY = [{ id: 'ana-1', name: 'Ana', groupId: 'group-ana-1', ownership: 
 // La elección lleva los motores de su look (entrega 2e): con ellos Crear
 // deriva el motor con el que sale.
 const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', supportedEngines: ['avatar_iii'] }
-const story = (id, name) => ({ id, suggestedName: name, script: 'Guion de ' + name, sceneCount: 6, audioDurationSeconds: 30, audioFile: '/pack/' + id + '.mp3' })
-const DEMO = { version: '3', voice: { provider: 'minimax', voiceId: 'v1', name: 'Lucía' }, stories: { '16:9': { styles: [story('normal', 'Historia demo')], customStyle: story('gema', 'Gema demo') } }, customStyleId: 'demo-gem' }
+const story = (id, name) => ({ id, suggestedName: name, script: 'Guion de ' + name, sceneCount: 6, audioDurationSeconds: 30, audioFile: '/pack/' + id + '.mp3', character: 'none', animated: false })
+const DEMO = { version: 'v4', voice: { provider: 'minimax', voiceId: 'v1', name: 'Lucía' }, gems: [{ id: 'gema', styleId: 'demo-gem', name: 'Gema demo' }], stories: { '16:9': { styles: [story('normal', 'Historia demo')], gems: [story('gema', 'Gema demo')] } } }
 const USD = (remaining) => ({ available: true, remaining, currency: 'usd' })
 // Una gema de Mi estilo: con ella el envío lleva la duración de escena y la
 // pausa que siembra Ajustes (formPayload).

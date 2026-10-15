@@ -17,14 +17,13 @@ import { videoFormatOf } from '../../types/video-format.ts'
 import type { RunVideoPipelineResult } from '../../types/video-project.ts'
 import { ensureDirectory, writeFileAtomic } from '../../utils/atomic-fs.ts'
 import {
-  DEMO_CUSTOM_STYLE_FOLDER,
   DEMO_PACK_MANIFEST_FILE,
   PACK_AUDIO_FILE,
   PACK_SCRIPT_FILE,
   PACK_VIDEO_FILE,
   demoPackRoot,
   demoStoryDirectory,
-  demoStyleFolderFor,
+  demoStoryFolderFor,
   isPackInstalled,
   packImageFile,
   readDemoManifest,
@@ -42,8 +41,9 @@ import {
 //  - Solo eventos de runner/events.ts, y nunca awaiting-scene-confirmation.
 //  - Toda espera respeta context.signal: cancelar deja `paused` como una
 //    corrida real; volver a correr es idempotente (las copias pisan).
-//  - La carpeta se elige por formato (raíz = 16:9, `short/` = 9:16) y estilo;
-//    con `own-audio` no hay ramp de voz (ADR-0030).
+//  - La historia se elige por formato (raíz = 16:9, `short/` = 9:16) y por
+//    el estilo del catálogo o la gema del proyecto (demoStoryFolderFor); con
+//    `own-audio` no hay ramp de voz (ADR-0030).
 
 // Presupuesto ≈ 40 s (pedido del dueño): las fases por escena reparten su
 // presupuesto entre las N escenas del pack; las imágenes van de a 10 como la
@@ -89,20 +89,20 @@ export async function runDemoPipeline(
         'the demo pack is not installed in this projects root',
       )
 
-    const styleFolder = demoStyleFolderFor(context.options)
     const format = videoFormatOf(context.options)
-    const manifest = await readDemoManifest(packRoot, demo)
+    const manifest = await readDemoManifest(packRoot)
     const stories = manifest.stories[format]
-    // Crear en demo solo ofrece los formatos con historias en el pack (Short
-    // queda en «Próximamente» con un pack v2): llegar acá es un payload a
+    // Crear en demo solo ofrece los formatos con historias en el pack (sin
+    // ellas, el formato queda en «Próximamente»): llegar acá es un payload a
     // mano o un pack cambiado por debajo, y queda como error del proyecto.
     if (!stories)
       throw new PipelineFailure(
         'demo_format_not_included',
         `the demo pack has no ${format} stories`,
       )
-    const storyDirectory = demoStoryDirectory(packRoot, format, styleFolder)
-    const entry = resolveStyleEntry(stories, styleFolder)
+    const storyFolder = demoStoryFolderFor(context.options, manifest)
+    const storyDirectory = demoStoryDirectory(packRoot, format, storyFolder)
+    const entry = resolveStoryEntry(stories, storyFolder)
     const packScenes = await readPackScenes(storyDirectory)
     const packWords = await readPackWords(storyDirectory)
     const packScript = await readFile(
@@ -309,22 +309,21 @@ export async function runDemoPipeline(
   }
 }
 
-// La carpeta de la gema no tiene entrada en stories.styles (vive aparte, en
-// stories.customStyle); cualquier otra carpeta sin entrada es un pack
-// incompleto — nunca se cae de vuelta a un estilo cualquiera del manifest
-// por accidente (validatePack ya exige las tres, pero un pack corrupto
-// puede haber sido instalado antes de que ese chequeo existiera).
-function resolveStyleEntry(
+// La entrada del manifest de la historia elegida: la de un estilo del
+// catálogo o la de una gema (un id no se repite en un formato, validatePack
+// lo exige). Sin entrada el pack está incompleto: nunca se cae de vuelta a
+// otra historia del manifest por accidente.
+function resolveStoryEntry(
   stories: DemoStories,
   folder: string,
 ): DemoStyleEntry {
-  if (folder === DEMO_CUSTOM_STYLE_FOLDER) return stories.customStyle
-
-  const entry = stories.styles.find((style) => style.id === folder)
+  const entry = [...stories.styles, ...stories.gems].find(
+    (story) => story.id === folder,
+  )
   if (entry) return entry
 
   throw new PipelineFailure(
     'demo_pack_incomplete',
-    `${DEMO_PACK_MANIFEST_FILE} has no entry for style folder "${folder}"`,
+    `${DEMO_PACK_MANIFEST_FILE} has no entry for story folder "${folder}"`,
   )
 }

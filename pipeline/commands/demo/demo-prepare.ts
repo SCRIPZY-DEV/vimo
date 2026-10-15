@@ -14,7 +14,7 @@ import {
   demoPackRoot,
   isPackInstalled,
   readDemoManifest,
-  seedCustomStyle,
+  seedGems,
   validatePack,
   writeOkMarker,
 } from './pack.ts'
@@ -23,8 +23,9 @@ import {
 const DOWNLOAD_PERCENT_CAP = 99
 
 // Descarga única del pack (ADR-0029): SHA-256 pineado, extracción a `.tmp`,
-// validación entera y rename atómico — el pack real nunca queda a medias. La
-// gema se siembra aunque el pack ya estuviera (la persona pudo borrarla).
+// validación entera y rename atómico — el pack real nunca queda a medias. Las
+// gemas se siembran aunque el pack ya estuviera (la persona pudo borrar
+// alguna); las que siguen en la galería no se tocan.
 export async function demoPrepare(
   context: PipelineContext,
 ): Promise<DemoPrepareResult> {
@@ -33,9 +34,10 @@ export async function demoPrepare(
 
   if (!(await isPackInstalled(packRoot, demo)))
     await installPack(context, packRoot)
-  await seedCustomStyle(context, packRoot)
+  const manifest = await readDemoManifest(packRoot)
+  await seedGems(context, packRoot, manifest.gems)
 
-  return { manifest: await readDemoManifest(packRoot, demo) }
+  return { manifest }
 }
 
 async function installPack(

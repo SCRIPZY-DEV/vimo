@@ -235,11 +235,12 @@ function CreateView({
     saveCreateDraft({ form, otherTabStyle }, seed)
   }, [form, otherTabStyle, demo, seed])
 
-  // En demo la gema del pack arranca en uso apenas la galería la lista: se
-  // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
+  // En demo la primera gema del pack arranca en uso apenas la galería la
+  // lista: se deriva en el render (sin efecto); elegir otra tarjeta la
+  // reemplaza.
   const demoGem =
     demo && form.customStyle === null
-      ? customStyles.find((style) => style.id === demo.customStyleId)
+      ? customStyles.find((style) => style.id === demo.gems[0]?.styleId)
       : undefined
   const chosenStyle = demoGem
     ? selectedCustomStyleFrom(demoGem)

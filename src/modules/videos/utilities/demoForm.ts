@@ -25,36 +25,38 @@ export function demoStoriesFor(
   manifest: DemoManifest,
   format: VideoFormat,
 ): DemoStories {
-  return manifest.stories[format] ?? manifest.stories['16:9']
+  return (
+    manifest.stories[format] ??
+    manifest.stories['16:9'] ?? { styles: [], gems: [] }
+  )
 }
 
-// Ids del catálogo con historia pre-hecha, en el orden de la galería. Lee
-// solo 16:9: por contrato el árbol short/ espeja el mismo conjunto de
-// estilos que la raíz (validatePack exige las mismas tres entradas del
-// catálogo en los dos árboles, ADR-0030 regla 2), así que los ids de la
-// galería no cambian entre formatos.
+// Ids del catálogo viejo (VIDEO_STYLES) con historia pre-hecha en 16:9, en el
+// orden de la galería: la pestaña Catálogo de la demo todavía elige por
+// `styleId`.
 export function demoStyleIds(manifest: DemoManifest): CharacterStyleId[] {
+  const landscape = manifest.stories['16:9']?.styles ?? []
   const ids: CharacterStyleId[] = []
   for (const style of VIDEO_STYLES) {
-    if (manifest.stories['16:9'].styles.some((entry) => entry.id === style.id))
-      ids.push(style.id)
+    if (landscape.some((entry) => entry.id === style.id)) ids.push(style.id)
   }
   return ids
 }
 
 // Formatos sin historias en el pack: el selector los muestra en
-// «Próximamente» (con el pack v2 instalado, Short).
+// «Próximamente» (con un pack sin bloque `short`, Short).
 export function demoComingSoonFormats(manifest: DemoManifest): VideoFormat[] {
   return VIDEO_FORMATS.map((format) => format.id).filter(
     (id) => manifest.stories[id] === undefined,
   )
 }
 
-// La historia de lo elegido: la gema en «Mi estilo»; si no, la del estilo
-// del catálogo (o la primera del pack), en el formato elegido. La pestaña
-// Catálogo de la demo es siempre la vieja (plan E2, P5): el catálogo nuevo no
-// aplica en demo, así que acá Catálogo elige por `styleId` (carril
-// `legacy-catalog`) y nunca hay un estilo del catálogo nuevo en el formulario.
+// La historia de lo elegido: la de la primera gema del formato en «Mi
+// estilo»; si no, la del estilo del catálogo (o la primera del pack), en el
+// formato elegido. La pestaña Catálogo de la demo es siempre la vieja (plan
+// E2, P5): el catálogo nuevo no aplica en demo, así que acá Catálogo elige
+// por `styleId` (carril `legacy-catalog`) y nunca hay un estilo del catálogo
+// nuevo en el formulario.
 export function demoEntryFor(
   manifest: DemoManifest,
   format: VideoFormat,
@@ -62,7 +64,7 @@ export function demoEntryFor(
   styleId: CharacterStyleId,
 ): DemoStyleEntry {
   const stories = demoStoriesFor(manifest, format)
-  if (styleSource === 'custom') return stories.customStyle
+  if (styleSource === 'custom') return stories.gems[0]
   return (
     stories.styles.find((entry) => entry.id === styleId) ?? stories.styles[0]
   )

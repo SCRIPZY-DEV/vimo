@@ -30,7 +30,7 @@ import {
 // se copian del disco y las del payload se ignoran.
 //
 // Todo el payload se valida antes de tocar el disco. Las muestras se escriben
-// primero y style.json al final, como en seedCustomStyle de la demo: hasta
+// primero y style.json al final, como en seedGems de la demo: hasta
 // que existe, la carpeta no es un estilo y styles-list no la muestra, así que
 // una copia interrumpida no deja una tarjeta a medias.
 export async function catalogStyleCopy(
