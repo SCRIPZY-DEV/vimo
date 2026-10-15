@@ -89,9 +89,59 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
   },
   demo: {
     packVersion: 'v4',
-    // Las partes del release demo-pack-v4 (URL, SHA-256 y bytes de cada una)
-    // se cargan al publicarlo; hasta entonces no hay qué bajar.
-    packParts: [],
+    // Las 8 partes del release demo-pack-v4 de otd20071-cloud/vimo-releases
+    // (publicado el 2026-10-15): URL, SHA-256 y bytes de cada una, en el orden
+    // en que se instalan (la primera trae el manifest y las gemas).
+    packParts: [
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-1.zip',
+        sha256:
+          'c9d4814e0ae198221282f2e249613bbd9224614301ad4724a71aac39c337654c',
+        bytes: 463983552,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-2.zip',
+        sha256:
+          '95bfe94d5778ba21b9cbaadaa088064625224a7682759cc3d2696c4f7fb74f7f',
+        bytes: 481687496,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-3.zip',
+        sha256:
+          '1e7541b15ea3870e0f2d167627bfc7f780f90c8f723efceeb491b577bd9402f6',
+        bytes: 491148356,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-4.zip',
+        sha256:
+          '7a4ef139abd2fa0952a7bb135957ef9c2fa1b9f75fe7fb5f8989db91470faa3a',
+        bytes: 447945266,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-5.zip',
+        sha256:
+          'e0bdf39e28346f028c128548b75587d5b6f0e108ed5e03021c2443974f776213',
+        bytes: 473756971,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-6.zip',
+        sha256:
+          'c8fe63c4009c8425449c1ba952846005877f43bab96bf908d770d14f0161f79a',
+        bytes: 464268435,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-7.zip',
+        sha256:
+          'b6aaca8a627d5775c5dea633560cb53f7d67fcb69f54adc515193b160bbcecae',
+        bytes: 483354263,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-8.zip',
+        sha256:
+          '72277e322af9a655f87a5d9acc8a16f59765d0fe47a414c71f38a4a0b76248ca',
+        bytes: 35331667,
+      },
+    ],
     delayScale: 1,
     diskMarginBytes: DEMO_DISK_MARGIN_BYTES,
     downloadIdleMs: DEMO_DOWNLOAD_IDLE_MS,
