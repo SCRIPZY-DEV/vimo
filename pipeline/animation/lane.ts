@@ -31,6 +31,7 @@ import type {
   SceneAnimationTask,
 } from '../types/animation.ts'
 import type { FrameSize } from '../types/video-format.ts'
+import type { AnimationResolution } from '../types/video-provider.ts'
 import { isInsufficientCreditsFailure } from '../utils/insufficient-credits.ts'
 import { startOrderDeadline } from '../utils/order-deadline.ts'
 import { sleep } from '../utils/sleep.ts'
@@ -72,6 +73,8 @@ export interface AnimationLaneInputs {
   model: string
   aspectRatio: VideoAspectRatio
   requestedSeconds: number
+  // Entra al hash y al recibo del intento, y viaja en el pedido al proveedor.
+  resolution: AnimationResolution
 }
 
 export interface AnimationLaneOptions {
@@ -398,7 +401,7 @@ export async function animateUnit(
           .update(
             JSON.stringify({
               model,
-              resolution: '480p',
+              resolution: inputs.resolution,
               audio: false,
               references: referenceHash,
               prompt: animation.prompt,
@@ -417,7 +420,7 @@ export async function animateUnit(
           state: 'creating',
           requestedSeconds: inputs.requestedSeconds,
           aspectRatio: inputs.aspectRatio,
-          resolution: '480p',
+          resolution: inputs.resolution,
         })
         animation = { ...animation, status: 'pending', model }
         delete animation.errorCode
@@ -432,6 +435,7 @@ export async function animateUnit(
               imageUrls: imageUrls!,
               durationSeconds: inputs.requestedSeconds,
               aspectRatio: inputs.aspectRatio,
+              resolution: inputs.resolution,
             },
             inputs.apiKey,
             order.signal,

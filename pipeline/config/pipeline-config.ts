@@ -1,4 +1,8 @@
 import type { LlmTier } from '../types/llm.ts'
+import {
+  DEFAULT_ANIMATION_RESOLUTION,
+  type AnimationResolution,
+} from '../types/video-provider.ts'
 
 // Configuración del pipeline. Reemplaza al ConfigManager estático del origen:
 // acá no se lee el entorno del proceso — Rust manda overrides dentro del
@@ -21,9 +25,17 @@ export interface DemoConfig {
   delayScale: number
 }
 
+// Animación de los clips (demo v4, spec §5). `resolution` es un ajuste interno:
+// solo el harness lo cambia (a '720p') por el config del job; Rust nunca manda
+// `animation`, así que los usuarios siguen en 480p.
+export interface AnimationConfig {
+  resolution: AnimationResolution
+}
+
 export interface PipelineConfig {
   llm: LlmConfig
   demo: DemoConfig
+  animation: AnimationConfig
 }
 
 export interface LlmConfigOverrides {
@@ -36,6 +48,7 @@ export interface LlmConfigOverrides {
 export interface PipelineConfigOverrides {
   llm?: LlmConfigOverrides
   demo?: Partial<DemoConfig>
+  animation?: Partial<AnimationConfig>
 }
 
 // Defaults portados del ConfigManager del origen (modelos DeepInfra por tier).
@@ -57,6 +70,9 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
       '7c1930c58d898f2232628ad75f49d7cb497d8ebed9fd92f81737f0a3e208c152',
     delayScale: 1,
   },
+  animation: {
+    resolution: DEFAULT_ANIMATION_RESOLUTION,
+  },
 }
 
 export function resolvePipelineConfig(
@@ -76,6 +92,10 @@ export function resolvePipelineConfig(
     demo: {
       ...DEFAULT_PIPELINE_CONFIG.demo,
       ...overrides.demo,
+    },
+    animation: {
+      ...DEFAULT_PIPELINE_CONFIG.animation,
+      ...overrides.animation,
     },
   }
 }
