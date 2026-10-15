@@ -270,13 +270,16 @@ function CreateView({
   const { verify: verifyCredits } = useCreateCostCheck({ form: keyedForm })
 
   // Sin auto-export el job termina sin video: el destino natural es el
-  // editor (el proyecto quedó en borrador con todo generado, ADR-0016).
+  // editor (el proyecto quedó en borrador con todo generado, ADR-0016). La
+  // tarea se descarta recién al llegar: descartarla antes volvía a pintar el
+  // formulario mientras el router resolvía el guard y el chunk del editor.
   useEffect(() => {
     if (task?.status !== 'completed' || task.videoPath || !task.projectId)
       return
     const projectId = task.projectId
-    discardTask()
-    navigate(libraryEditorPath(projectId))
+    void Promise.resolve(navigate(libraryEditorPath(projectId))).then(
+      discardTask,
+    )
   }, [task, discardTask, navigate])
   const [probeFailure, setProbeFailure] = useState<ProbeTtsReason | null>(null)
 
@@ -382,8 +385,9 @@ function CreateView({
         onRetryPipeline={() => void resume()}
         onContinueInEditor={() => {
           const projectId = task.projectId
-          discardTask()
-          navigate(libraryEditorPath(projectId))
+          void Promise.resolve(navigate(libraryEditorPath(projectId))).then(
+            discardTask,
+          )
         }}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
         onDismissConfirmation={returnToForm}
