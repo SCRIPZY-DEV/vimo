@@ -1,6 +1,6 @@
 # ADR-0060 — Distribución versionada de la extensión desde Vimo
 
-- **Estado:** Implementada localmente; publicación pendiente de aprobación
+- **Estado:** Servicio de distribución publicado; consumidor de Vimo implementado localmente, sin publicación de la app
 - **Fecha:** 2026-10-15
 - **Área:** Extensión y distribución
 - **Relacionadas:** ADR-0027 (actualizador de la app), ADR-0058 (motor Flow)
@@ -16,12 +16,12 @@ flowchart LR
     ext["Extensión en Chrome"]:::propio
     bridge["Coordinador local Flow"]:::propio
     ui["Sección Extensión de Vimo"]:::propio
-    native["Comandos nativos de descarga"]:::propio
+    native["Comandos nativos de Vimo"]:::propio
     r2[("Releases · R2")]:::datos
     disk[("ZIP elegido por el usuario")]:::datos
     ext -.->|"anuncia versión · WebSocket"| bridge
-    ui -->|"consulta conexiones · invoke"| bridge
-    ui -->|"consulta versión y solicita descarga · invoke"| native
+    ui -->|"consulta perfiles, versión y descarga · invoke"| native
+    native -->|"consulta conexiones · HTTP loopback autenticado"| bridge
     native -->|"lee descriptor y ZIP · HTTPS"| r2
     native -->|"guarda ZIP verificado · filesystem"| disk
     classDef propio fill:#e3f2fd,stroke:#1976d2
@@ -48,4 +48,16 @@ Tras aprobación explícita: subir primero el ZIP a la ruta versionada, comproba
 
 ## Validación
 
-Pruebas Rust separadas en `extension_release/tests/` cubren contrato, transporte HTTP real aislado, cuerpo cortado, límites, redirecciones, checksum, escritura atómica y concurrencia. Las comprobaciones temporales de UI cubren actualización, versiones desconocidas/mixtas, recibos, cancelación, errores, caché y reentrada. No invocan proveedores ni tocan proyectos reales. La validación remota del endpoint de producción queda para la publicación aprobada.
+Pruebas Rust separadas en `extension_release/tests/` cubren contrato, transporte HTTP real aislado, cuerpo cortado, límites, redirecciones, checksum, escritura atómica y concurrencia. Las comprobaciones temporales de UI cubren actualización, versiones desconocidas/mixtas, recibos, cancelación, errores, caché y reentrada. No invocan proveedores ni tocan proyectos reales. El resultado de la validación remota del endpoint de producción se registra en la sección de publicación al final de esta ADR.
+
+## Publicación del servicio — 2026-10-15
+
+A las **10:36:38 America/Bogota**, con aprobación explícita del owner, se publicaron sólo el ZIP de extensión **0.2.37** y el descriptor público. Bucket: `vimo-releases`; endpoint fijo `https://releases.vimo.click/extensions/latest.json`; ZIP `https://releases.vimo.click/extensions/v0.2.37/vimo-automate-0.2.37.zip`.
+
+El ZIP se subió a las 10:22:30; el descriptor se publicó a las 10:36:38, después de validar el enlace canónico y el contenido del ZIP.
+
+Artefacto: 166827 bytes, SHA-256 `46dd9531e9fe4ca36e0071d8e390829c259a89eec124ab42162aa8c64878eaa1`. Estructura instalable: `Vimo-Extension/manifest.json`; una única raíz Vimo-Extension, 21 archivos idénticos a fuentes y carpeta entregada, versión 0.2.37, identidad y permisos conservados. Verificación remota: Descriptor y ZIP canónicos sin query: HTTP 200, versión, tamaño y SHA-256 coincidentes; descriptor con no-store y ZIP inmutable. Descarga/guardado nativos contrastados con el mismo artefacto público; auditoría independiente adicional: 46/46 controles.
+
+Prueba de descarga en la app real: Descarga real verificada a las 11:06:08 en `/Users/sebas/Documents/Vimo-builds/Vimo-0.11.0-extension-descarga-20261015.app`: entrar en Extensión, aviso 0.2.37, diálogo Guardar y estado «ZIP guardado; falta cargarlo en Chrome»; 166827 bytes y SHA-256 coinciden. No se instaló ni recargó Chrome. Esta prueba usó la app local anterior de descarga; la app final con instrucciones de carpeta se identifica por separado.
+
+Esto sustituye el estado de publicación pendiente del servicio. El código y la app de Vimo que consumen este descriptor siguen siendo locales; no hubo push de código, release de escritorio ni instalación automática. El usuario elige dónde guardar el ZIP y dónde conservar la carpeta descomprimida. Se recomienda `Documentos/Vimo/Extensiones/Vimo-Extension`, sin crear esa ruta automáticamente.
