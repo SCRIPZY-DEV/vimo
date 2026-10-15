@@ -41,6 +41,10 @@ interface StyleCharacterBlockProps {
   // catálogo o de Mi estilo: «genérico» es ESE personaje y la fila lo dice con
   // sus textos. Ausente = los de siempre.
   fixedCharacter?: boolean
+  // El modo es fijo y no se elige (la demo, spec demo v4 §2): las filas no
+  // responden y el catálogo no muestra su línea de ayuda, que invita a
+  // elegir (ruling R32). Ausente = se elige.
+  locked?: boolean
   onChange: (value: StyleCharacter) => void
   // Abre el selector de personajes para fijar uno, con el ya elegido
   // preseleccionado (null = ninguno). Lo maneja el modal, que es quien
@@ -121,11 +125,14 @@ export function StyleCharacterBlock({
   allowedModes,
   variant = 'custom',
   fixedCharacter = false,
+  locked = false,
   onChange,
   onPickCharacter,
 }: StyleCharacterBlockProps) {
   const { t } = useTranslation()
   const { characters, isLoading } = useCharacterCatalog(true)
+  // Ni la fila ni sus switches responden: apagado, o con el modo fijo.
+  const inert = disabled || locked
   const allowedOptions = allowedModes
     ? MODE_OPTIONS.filter((option) => allowedModes.includes(option.mode))
     : MODE_OPTIONS
@@ -169,7 +176,7 @@ export function StyleCharacterBlock({
       // aparece cuando un switch queda dentro de un <form>) re-despacha un
       // click burbujeante en cada cambio, y tomarlo como click de la persona
       // re-togglea en loop infinito.
-      if (disabled || !event.nativeEvent.isTrusted) return
+      if (inert || !event.nativeEvent.isTrusted) return
       if (hitsOwnControl(event.target)) return
       toggle(mode, value.mode !== mode)
     }
@@ -182,7 +189,7 @@ export function StyleCharacterBlock({
       // también el toggle de la fila.
       if (event.target !== event.currentTarget) return
       event.preventDefault()
-      if (!disabled) toggle(mode, value.mode !== mode)
+      if (!inert) toggle(mode, value.mode !== mode)
     }
   }
 
@@ -194,7 +201,7 @@ export function StyleCharacterBlock({
             ? t('create.catalog.characterTitle')
             : t('create.styleCharacter.title')}
         </h3>
-        {variant === 'catalog' && (
+        {variant === 'catalog' && !locked && (
           <p className="mt-0.5 font-body text-xs text-muted-foreground">
             {t('create.catalog.characterHint')}
           </p>
@@ -207,12 +214,12 @@ export function StyleCharacterBlock({
           <div
             key={mode}
             role="button"
-            tabIndex={disabled ? undefined : 0}
+            tabIndex={inert ? undefined : 0}
             onClick={rowClick(mode)}
             onKeyDown={rowKeyDown(mode)}
             className={cn(
               'rounded-xl border-2 px-4 py-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ocean/50',
-              !disabled && 'cursor-pointer',
+              !inert && 'cursor-pointer',
               active
                 ? 'border-ocean/40 bg-ocean/10 hover:bg-ocean/15'
                 : 'border-border bg-background hover:border-ocean/40 hover:bg-ocean/5',
@@ -261,7 +268,7 @@ export function StyleCharacterBlock({
               </div>
               <Switch
                 checked={active}
-                disabled={disabled}
+                disabled={inert}
                 onCheckedChange={(checked) => toggle(mode, checked)}
                 aria-label={t(titleKey)}
                 className="shrink-0 data-[state=checked]:bg-ocean"
@@ -290,7 +297,7 @@ export function StyleCharacterBlock({
                   </div>
                   <Switch
                     checked={Boolean(value.defaultCharacterId)}
-                    disabled={disabled}
+                    disabled={inert}
                     onCheckedChange={(checked) => {
                       if (checked) {
                         onPickCharacter(fixed ? toSelected(fixed) : null)
@@ -306,7 +313,7 @@ export function StyleCharacterBlock({
                 {fixed && (
                   <button
                     type="button"
-                    disabled={disabled}
+                    disabled={inert}
                     onClick={() => onPickCharacter(toSelected(fixed))}
                     className="mt-2 flex w-full items-center gap-3 rounded-lg border border-ocean/30 bg-background px-3 py-2 text-left transition-colors hover:bg-muted"
                   >

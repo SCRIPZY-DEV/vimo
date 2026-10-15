@@ -9,10 +9,24 @@
 // funciona y se ve encendido sin clave de HeyGen (withAvatarKey) y sin leer la
 // biblioteca; encendido, pedir otra gema o la pestaña Catálogo vuelve a
 // Jardinería, no toca la selección guardada de la otra pestaña y muestra el
-// aviso hasta el siguiente cambio (formato o switch); una tarjeta del Catálogo
-// guardada sin historia en el formato actual no se restaura; elegir la gema
-// vieja del pack no la manda a migrar (la demo no llama al agente); y el envío
-// sale con la historia elegida, sin options.avatar.
+// aviso hasta el siguiente cambio (formato, switch o volver a elegir
+// Jardinería); una tarjeta del Catálogo guardada sin historia en el formato
+// actual no se restaura; elegir la gema vieja del pack no la manda a migrar
+// (la demo no llama al agente); y el envío sale con la historia elegida, sin
+// options.avatar. Y lo que la spec §8 pide del resto del formulario: un solo
+// modelo de IA (el de la casa, sin enlace a Ajustes) aunque todos estén
+// bloqueados, sin apagar Mi estilo ni frenar, y el envío lleva ese modelo
+// con todos bloqueados; los personajes según la
+// historia (el modo es el de la historia y no el recordado en la app, ni en
+// la galería, ni en la tarjeta por defecto, ni en «Ver»; el chip «Personaje
+// del estilo», quieto, solo con un estilo con personaje fijo; en «Ver», sin
+// «Mi personaje» ni «Sin personaje» y sin la pista que invita a elegir
+// (ruling R32); la memoria de la app intacta); sin la
+// casilla de subtítulos; sin consulta ni bloqueo por saldo (imagen y Kie en
+// cero), ni etiquetas de saldo en el selector de imagen (ruling R31); y la
+// animación: el switch funciona sin clave de Kie, sin aviso ni
+// estimación, queda en «Próximamente» con una historia sin variante animada y
+// viaja en el payload con el primer minuto.
 // Sin red: Tauri y fetch van simulados y rechazan todo lo que no se fija acá;
 // las APIs parten de las reales con solo sus lecturas reemplazadas, y un
 // envoltorio de CreateForm expone lo que Create le pasa (valor, onChange y la
@@ -45,7 +59,15 @@ const mocks = {
   ].join('\n'),
   '@/modules/settings/api': [
     "import { settingsApi as real } from './src/modules/settings/api/index.ts'",
-    'export const settingsApi = { ...real, async getDefaultSceneCount() { return 0 }, async getSceneDurationDefaults() { return { secondsPerScene: 5, confirmScenes: true } }, async getPromptModelDefaults() { return { modelId: null, compact: false } }, async getVoiceVendor() { return null } }',
+    'export const settingsApi = { ...real, async getDefaultSceneCount() { return 0 }, async getSceneDurationDefaults() { return { secondsPerScene: 5, confirmScenes: true } }, async getPromptModelDefaults() { return { modelId: "modelo-rapido", compact: false } }, async getVoiceVendor() { return null } }',
+  ].join('\n'),
+  // El catálogo de modelos de prompts (el de la casa y dos más; en Ajustes la
+  // persona eligió otro) y los saldos de imagen y de Kie en cero: con la
+  // estimación de siempre, la demo frenaría por saldo. Cada lectura de saldo
+  // se cuenta.
+  '@/modules/common/api': [
+    "import { commonApi as real } from './src/modules/common/api/index.ts'",
+    'export const commonApi = { ...real, isNative: () => true, async listPromptModels() { return structuredClone(window.fixture.promptModels) }, async getImageCredits() { window.imageCreditReads += 1; return { fal: { available: true, remaining: 0 }, evolink: { available: true, remaining: 0 } } }, async getVideoCredits() { window.videoCreditReads += 1; return { kie: { available: true, remaining: 0 }, poyo: { available: true, remaining: 0 } } } }',
   ].join('\n'),
   // La lista del catálogo y la de Mi estilo, el agente que migra gemas (cuenta
   // y falla) y la creación del proyecto (guarda el pedido y frena).
@@ -72,8 +94,9 @@ import es from './public/locales/es.json'
 import { commonQueryKeys } from '@/modules/common/constants'
 import { queryClient } from '@/modules/common/queryClient'
 import { TooltipProvider } from '@/modules/common/ui/tooltip'
+import { blockPromptModel, isPromptModelBlocked } from '@/modules/common/utilities/promptModelBlocks'
 import { Create } from '@/modules/videos/views/Create'
-import { VideosRoutes } from '@/modules/videos/constants'
+import { CATALOG_CHARACTER_STORAGE_KEY, VideosRoutes } from '@/modules/videos/constants'
 import { openCatalogStyleViewer } from '@/modules/videos/hooks/useCatalogStyleViewer'
 
 let checks = 0
@@ -94,7 +117,8 @@ function phrase(key, vars) {
   return sentence
 }
 
-// El pack: 2d-mono sin Short, Jardinería con avatar solo en 16:9.
+// El pack: 2d-mono sin Short y con el personaje del estilo, Jardinería con
+// avatar solo en 16:9, y la historia Short de cosmos sin su variante animada.
 const story = (id, format, extra = {}) => ({ id, suggestedName: 'Historia ' + id + ' ' + format, script: 'Guion de ' + id + ' en ' + format, sceneCount: 20, audioDurationSeconds: 60, audioFile: '/pack/' + (format === '9:16' ? 'short/' : '') + id + '/audio.mp3', character: 'none', animated: true, ...extra })
 const AVATAR = { name: 'Jardineria', engine: 'avatar_iv', appearances: 5, secondsPerAppearance: 5, previewFile: '/pack/gemas/jardineria/avatar.jpg', options: { avatarId: 'jardineria-a', lookId: 'look-j', lookName: 'Jardineria', lookType: 'photo_avatar', engine: 'avatar_iv', appearances: 5, secondsPerAppearance: 5, startWithAvatar: true, placement: 'auto' } }
 const DEMO = {
@@ -103,14 +127,21 @@ const DEMO = {
   gems: [{ id: 'storytelling', styleId: 'demo-storytelling', name: 'STORYTELLING2' }, { id: 'jardineria', styleId: 'demo-jardineria', name: 'JARDINERIA' }],
   stories: {
     '16:9': { styles: [story('normal', '16:9'), story('2d-mono', '16:9', { character: 'generic' }), story('cosmos', '16:9')], gems: [story('storytelling', '16:9', { character: 'generic' }), story('jardineria', '16:9', { avatar: AVATAR })] },
-    '9:16': { styles: [story('cosmos', '9:16'), story('normal', '9:16')], gems: [story('storytelling', '9:16', { character: 'generic' })] },
+    '9:16': { styles: [story('cosmos', '9:16', { animated: false }), story('normal', '9:16')], gems: [story('storytelling', '9:16', { character: 'generic' })] },
   },
 }
-const gem = (id) => ({ id, name: { es: 'Estilo ' + id, en: 'Style ' + id, pt: 'Estilo ' + id }, tags: [], sections: { visualStyle: 'Visual ' + id }, templateVersion: 1, allowedModes: ['generic', 'none'], sampleMode: 'none', colorFilter: 'none', sampleCount: 0 })
+// Cada estilo admite los tres modos, como los del catálogo; 2D Mono trae su
+// personaje escrito (la sección «character»).
+const gem = (id, sections = {}) => ({ id, name: { es: 'Estilo ' + id, en: 'Style ' + id, pt: 'Estilo ' + id }, tags: [], sections: { visualStyle: 'Visual ' + id, ...sections }, templateVersion: 1, allowedModes: ['generic', 'own', 'none'], sampleMode: 'none', colorFilter: 'none', sampleCount: 0 })
+const promptModel = (id, label) => ({ id, label, author: 'Autor de ' + label, speed: 'fast', tokensField: 'max_tokens', outputTokensMargin: 0, inCatalog: true, inUi: true })
+// Lo que la persona dejó en la app: «Mi personaje» recordado para cosmos y
+// 2D Mono. La demo no lo lee ni lo pisa.
+const REMEMBERED = { cosmos: { mode: 'own' }, '2d-mono': { mode: 'own' } }
 window.fixture = {
   // La lista del catálogo no trae normal (el primero del pack: se ocultó) y
   // trae uno que el pack no tiene (nuevo).
-  catalog: { version: 1, entries: [gem('nuevo'), gem('cosmos'), gem('2d-mono')] },
+  catalog: { version: 1, entries: [gem('nuevo'), gem('cosmos'), gem('2d-mono', { character: 'Un mono gris dibujado a mano alzada' })] },
+  promptModels: { models: [promptModel('modelo-casa', 'Modelo de la casa'), promptModel('modelo-rapido', 'Modelo rápido'), promptModel('modelo-caro', 'Modelo caro')], defaultId: 'modelo-casa', batchSize: 10 },
   // Storytelling es una gema vieja (texto, sin secciones), como la del pack;
   // st-mio es un estilo propio que la demo no muestra.
   customStyles: { entries: [
@@ -121,10 +152,16 @@ window.fixture = {
 }
 window.avatarListCalls = 0
 window.rebuildCalls = 0
+window.imageCreditReads = 0
+window.videoCreditReads = 0
 
 // La plantilla de gemas encendida (la migración automática existe) y el
 // catálogo nuevo apagado (la demo lo enciende igual).
 queryClient.setQueryData(commonQueryKeys.access, { features: { gemTemplate: true } })
+// La memoria de modos de la app y todos los modelos de prompts bloqueados
+// (ADR-0028), antes de montar Crear.
+localStorage.setItem(CATALOG_CHARACTER_STORAGE_KEY, JSON.stringify(REMEMBERED))
+for (const model of window.fixture.promptModels.models) blockPromptModel(model.id, 'error')
 
 function Probe() { window.navigate = useNavigate(); return null }
 const reactRoot = createRoot(document.getElementById('root'), { onUncaughtError: (error) => { renderError = error } })
@@ -137,7 +174,11 @@ const cardNamed = (name) => [...document.querySelectorAll('[role=button]')].find
 const tabNamed = (label) => [...document.querySelectorAll('[role=tab]')].find((tab) => tab.textContent.includes(label)) ?? null
 const buttonWith = (label) => [...document.querySelectorAll('button')].find((button) => button.textContent.includes(label)) ?? null
 const avatarSwitch = () => document.getElementById('create-avatar')
+const animationSwitch = () => document.getElementById('create-animate-scenes')
 const noticeShown = () => [...document.querySelectorAll('[role=alert]')].some((alert) => alert.textContent.includes(USE_THIS_STYLE))
+const styleCharacterChip = () => document.querySelector('[data-style-character-chip]')
+// Lo que falta para generar, tal como lo dice la alerta (vacío: nada).
+const blockersText = () => document.getElementById('create-blockers')?.textContent ?? ''
 async function click(element, message) {
   check(element, message)
   element.click()
@@ -166,23 +207,77 @@ try {
   check(phrase('create.styleSource.catalogHintDemo', { count: 0 }) === phrase('create.styleSource.catalogHintDemo_zero'), 'sin tarjetas a la vista (la lista carga) el texto no dice una cifra')
   check(!pageText().includes(phrase('create.scenes.countLabel')) && !pageText().includes(phrase('create.scenes.confirmLabel')), 'sin cantidad de escenas ni «Confirmar escenas» (el carril viejo no existe en la demo)')
 
+  // 1b. Un solo modelo de IA, el de la casa, sin enlace a Ajustes, aunque
+  // todos estén bloqueados: el bloqueo (ADR-0028) no aplica en la demo, Mi
+  // estilo sigue a mano y nada frena. La tarjeta por defecto toma el modo de
+  // personaje de su historia (cosmos: sin personaje), no el recordado en la
+  // app («Mi personaje»): ni sección de personajes ni un personaje que pedir.
+  // Sin la casilla de subtítulos, y el saldo de imagen en cero no frena.
+  check(localStorage.getItem(CATALOG_CHARACTER_STORAGE_KEY) === JSON.stringify(REMEMBERED), 'la memoria de modos de la app quedó sembrada')
+  await waitFor(() => pageText().includes('Modelo de la casa'), 'la tarjeta del modelo de la casa')
+  check(!pageText().includes('Modelo rápido') && !pageText().includes('Modelo caro'), 'un solo modelo de IA: el de la casa, ni el de Ajustes ni los demás')
+  check(!pageText().includes(phrase('create.promptModel.settingsLink')) && !pageText().includes(phrase('create.promptModel.allBlocked')), 'sin enlace a Ajustes ni el aviso de los modelos bloqueados')
+  check(!tabNamed(CUSTOM_TAB).disabled && !pageText().includes(phrase('create.styleSource.customBlockedHint')), 'con todos los modelos bloqueados, Mi estilo sigue a mano')
+  check(form().customStyle.character?.mode === 'none', 'la tarjeta por defecto con el modo de su historia, no el recordado: ' + JSON.stringify(form().customStyle.character))
+  check(!styleCharacterChip() && !pageText().includes(phrase('create.characters.label')) && !pageText().includes(phrase('create.characters.labelOfStyle')) && !pageText().includes(phrase('create.characters.choose')), 'una historia sin personaje no muestra la sección de personajes')
+  check(!pageText().includes(phrase('create.subtitles.label')), 'sin la casilla de subtítulos')
+  check(blockersText() === '', 'no falta ningún paso (ni personaje, ni modelos, ni saldo): ' + blockersText())
+  check(!pageText().includes('evolink.ai') && !pageText().includes('fal.ai') && !document.querySelector('[aria-label="' + phrase('create.credits.refresh') + '"]'), 'el selector de imagen no muestra etiquetas de saldo (ruling R31)')
+
   // 2. El primer cambio deja la tarjeta derivada en el formulario: lo escrito
   // no lo pisa la historia.
   window.formProps.onChange({ name: 'Mi video de cosmos' })
   await waitFor(() => form().name === 'Mi video de cosmos', 'el nombre escrito con la tarjeta derivada se queda: ' + form().name)
   check(form().customStyle?.catalogStyleId === 'cosmos' && form().script === 'Guion de cosmos en 16:9', 'la tarjeta y el guion siguen siendo los de cosmos')
 
-  // 3. «Ver» sin «Pasar a mi estilo».
+  // 2b. La animación funciona sin clave de Kie, sin su aviso ni la
+  // estimación de créditos; y la demo no consulta ni frena por saldo (imagen
+  // y Kie en cero: con la estimación de siempre, frenaría): ni el pre-check
+  // ni el selector de imagen leen un saldo (ruling R31).
+  check(animationSwitch() && !animationSwitch().disabled && animationSwitch().getAttribute('aria-checked') === 'false', 'el switch de animación se puede tocar en la demo')
+  await click(animationSwitch(), 'el switch de animación')
+  await waitFor(() => form().animateScenes === true && animationSwitch().getAttribute('aria-checked') === 'true', 'la animación encendida')
+  check(pageText().includes(phrase('create.animation.hint')) && !pageText().includes(phrase('create.validation.animationKeyRequired')) && !pageText().includes(phrase('create.animation.estimateTitle')), 'encendida: su explicación, sin el aviso de la clave de Kie ni la estimación de créditos')
+  await delay(300)
+  check(!pageText().includes(phrase('common.credits.title')) && blockersText() === '', 'con saldo en cero, ni «Saldo insuficiente» ni un paso que falte: ' + blockersText())
+  check(window.imageCreditReads === 0 && window.videoCreditReads === 0, 'la demo no consulta ningún saldo, ni de imagen ni de Kie: ' + JSON.stringify({ image: window.imageCreditReads, video: window.videoCreditReads }))
+
+  // 3. «Ver» sin «Pasar a mi estilo» y sin elegir el modo de personaje: con
+  // cosmos (historia sin personaje), nada de personaje; con 2D Mono (historia
+  // con el personaje del estilo), solo «Personaje del estilo», quieto. «Usar
+  // en este video» lo elige con el modo de su historia y no toca la memoria
+  // de la app.
+  openCatalogStyleViewer({ catalogStyleId: 'cosmos' })
+  const cosmosDialog = await waitFor(() => document.querySelector('[role=dialog]'), 'el modal de «Ver» de cosmos')
+  check(!cosmosDialog.textContent.includes(phrase('create.catalog.characterTitle')) && !cosmosDialog.querySelector('[role=switch]'), '«Ver» de una historia sin personaje no muestra el bloque de personaje')
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  await waitFor(() => !document.querySelector('[role=dialog]'), 'el modal se cierra')
   openCatalogStyleViewer({ catalogStyleId: '2d-mono' })
   const dialog = await waitFor(() => document.querySelector('[role=dialog]'), 'el modal de «Ver»')
   check(!dialog.textContent.includes(phrase('create.catalog.copyToCustom')), '«Ver» no ofrece «Pasar a mi estilo» en la demo')
-  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-  await waitFor(() => !document.querySelector('[role=dialog]'), 'el modal se cierra')
+  check(dialog.textContent.includes(phrase('create.styleCharacter.fromStyle.title')) && !dialog.textContent.includes(phrase('create.styleCharacter.own.title')) && !dialog.textContent.includes(phrase('create.styleCharacter.none.title')), '«Ver» de 2D Mono: «Personaje del estilo», sin «Mi personaje» ni «Sin personaje»')
+  const modeSwitches = [...dialog.querySelectorAll('[role=switch]')]
+  check(modeSwitches.length === 1 && modeSwitches.every((toggle) => toggle.disabled), 'en «Ver» el modo no se cambia: una sola fila, quieta (' + modeSwitches.length + ' switches)')
+  check(dialog.textContent.includes(phrase('create.catalog.characterTitle')) && !dialog.textContent.includes(phrase('create.catalog.characterHint')), 'en «Ver» no hay pista que invite a elegir el personaje (ruling R32)')
+  await click(buttonWith(phrase('create.catalog.useButton')), '«Usar en este video»')
+  await waitFor(() => form().customStyle?.catalogStyleId === '2d-mono' && !document.querySelector('[role=dialog]'), '«Usar en este video» elige 2D Mono y cierra «Ver»')
+  check(form().customStyle.character?.mode === 'generic', '2D Mono con el modo de su historia (el personaje del estilo), no el recordado: ' + JSON.stringify(form().customStyle.character))
+  check(localStorage.getItem(CATALOG_CHARACTER_STORAGE_KEY) === JSON.stringify(REMEMBERED), 'la demo no toca el modo recordado en la app: ' + localStorage.getItem(CATALOG_CHARACTER_STORAGE_KEY))
 
-  // 4. Una tarjeta guardada sin historia en el formato actual no vuelve: 2D
-  // Mono en 16:9, Mi estilo, Short y otra vez Catálogo.
+  // 4. Elegir en la galería también toma el modo de la historia: cosmos, sin
+  // personaje ni sección; 2D Mono, el chip «Personaje del estilo», que es un
+  // cartel (el modo no se cambia). Después, una tarjeta guardada sin historia
+  // en el formato actual no vuelve: 2D Mono en 16:9, Mi estilo, Short y otra
+  // vez Catálogo.
+  await click(cardNamed('Estilo cosmos'), 'la tarjeta de cosmos')
+  await waitFor(() => form().customStyle?.catalogStyleId === 'cosmos', 'cosmos elegido')
+  check(form().customStyle.character?.mode === 'none' && !styleCharacterChip(), 'cosmos con el modo de su historia, sin sección de personajes: ' + JSON.stringify(form().customStyle.character))
   await click(cardNamed('Estilo 2d-mono'), 'la tarjeta de 2D Mono')
   await waitFor(() => form().customStyle?.catalogStyleId === '2d-mono', '2D Mono elegido')
+  check(form().customStyle.character?.mode === 'generic', '2D Mono elegido en la galería con el modo de su historia: ' + JSON.stringify(form().customStyle.character))
+  const chip = await waitFor(() => styleCharacterChip(), 'el chip del personaje del estilo')
+  check(chip.dataset.styleCharacterChip === 'style-decides' && chip.tagName === 'DIV' && chip.textContent.includes(phrase('create.styleCharacter.fromStyle.title')) && !pageText().includes(phrase('create.characters.wantYours')), 'el chip «Personaje del estilo» es un cartel: el modo no se cambia')
+  check(blockersText() === '', 'con la historia de 2D Mono no falta ningún paso: ' + blockersText())
   await click(tabNamed(CUSTOM_TAB), 'la pestaña Mi estilo')
   await waitFor(() => form().styleSource === 'custom', 'en Mi estilo')
   check(window.formProps.otherTabStyle?.catalogStyleId === '2d-mono', 'la pestaña Catálogo guarda 2D Mono')
@@ -196,8 +291,14 @@ try {
   check(form().narrationFilePath === '/pack/short/cosmos/audio.mp3', 'con la historia Short de cosmos')
   check(!buttonWith(SHORT).disabled, 'Short sigue elegible')
   check(pageText().includes(phrase('create.styleSource.catalogHintDemo', { count: 1 })), 'en Short la pestaña cuenta la única tarjeta a la vista')
+  // La historia Short de cosmos no trae su variante animada: el switch queda
+  // en «Próximamente» y lo que se valida y se envía va sin animación, sin
+  // perder la elección.
+  check(animationSwitch().disabled && animationSwitch().getAttribute('aria-checked') === 'false' && animationSwitch().closest('section').textContent.includes(phrase('common.proximamente')), 'sin historia animada, el switch de animación en «Próximamente»')
+  check(form().animateScenes === false, 'sin historia animada, el formulario que se valida y se envía va sin animación')
   await click(buttonWith(LONG), 'el formato largo')
   await waitFor(() => form().videoFormat === '16:9', 'de vuelta en 16:9')
+  check(form().animateScenes === true && !animationSwitch().disabled && animationSwitch().getAttribute('aria-checked') === 'true', 'con una historia animada la animación vuelve encendida')
 
   // 5. La gema vieja del pack no se manda a migrar: la demo no llama al
   // agente aunque la plantilla esté encendida.
@@ -208,6 +309,7 @@ try {
   await delay(400)
   check(window.rebuildCalls === 0, 'elegir la gema vieja del pack no llama al agente (' + window.rebuildCalls + ')')
   check(!pageText().includes(phrase('create.gemTemplate.adaptingTitle')) && !pageText().includes(phrase('create.gemTemplate.migrationFailedNamed', { name: 'STORYTELLING2' })), 'ni muestra una migración ni su aviso')
+  check(!styleCharacterChip() && !pageText().includes(phrase('create.characters.label')), 'la gema vieja del pack (genérica, sin su personaje escrito) no muestra la sección de personajes')
   await click(tabNamed(CATALOG_TAB), 'la pestaña Catálogo')
   await waitFor(() => form().styleSource === 'catalog', 'en Catálogo, con Storytelling guardada para Mi estilo')
   check(window.formProps.otherTabStyle?.styleId === 'demo-storytelling', 'la pestaña Mi estilo guarda Storytelling')
@@ -223,6 +325,7 @@ try {
   check(pageText().includes(phrase('create.avatar.demoAppearances', { count: 5, seconds: 5 })) && !pageText().includes(phrase('create.avatar.noKey')), 'la tarjeta del pack (5 × 5 s), sin aviso de clave')
   check(window.avatarListCalls === 0, 'la demo no lee la biblioteca de avatares (' + window.avatarListCalls + ')')
   check(window.formProps.otherTabStyle?.styleId === 'demo-storytelling', 'encender no toca lo guardado de la otra pestaña')
+  check(!styleCharacterChip(), 'Jardinería (historia sin personaje) no muestra la sección de personajes')
 
   // 7. Encendido, pedir otra gema o la pestaña Catálogo vuelve a Jardinería,
   // no toca lo guardado y avisa; el aviso se va con el siguiente cambio.
@@ -239,6 +342,13 @@ try {
   await waitFor(() => !noticeShown(), 'el aviso se va con el siguiente cambio de formato')
   await click(cardNamed('STORYTELLING2'), 'la tarjeta de Storytelling otra vez')
   await waitFor(() => noticeShown(), 'el aviso vuelve con otro pedido')
+  // Volver a elegir Jardinería con el switch encendido es justo lo pedido:
+  // no hay redirección y el aviso se va.
+  await click(cardNamed('JARDINERIA'), 'la tarjeta de Jardinería con el switch encendido')
+  await waitFor(() => !noticeShown(), 'elegir Jardinería con el switch encendido borra el aviso')
+  check(form().customStyle?.styleId === 'demo-jardineria' && form().useAvatar === true, 'sigue Jardinería con el switch encendido')
+  await click(cardNamed('STORYTELLING2'), 'la tarjeta de Storytelling una vez más')
+  await waitFor(() => noticeShown(), 'el aviso vuelve')
 
   // 8. Apagarlo con Jardinería vuelve a Catálogo con la primera tarjeta y su
   // historia; el aviso se va.
@@ -249,16 +359,23 @@ try {
   check(form().name === 'Historia cosmos 16:9', 'con su historia')
 
   // 9. Con el switch apagado, elegir Jardinería lo enciende, y el envío sale
-  // con su historia y sin options.avatar ni bloqueos del avatar.
+  // con su historia y sin options.avatar ni bloqueos del avatar; con la
+  // animación del primer minuto, sin subtítulos y con el modelo de la casa
+  // (la tarjeta que se vio) aunque todos los modelos sigan bloqueados, y
+  // aunque el saldo de imagen y de Kie esté en cero (ni se lo lee al enviar).
+  check(window.fixture.promptModels.models.every((model) => isPromptModelBlocked(model.id)), 'los modelos siguen bloqueados al enviar')
   await click(tabNamed(CUSTOM_TAB), 'la pestaña Mi estilo')
   await waitFor(() => form().styleSource === 'custom', 'en Mi estilo')
   await click(cardNamed('JARDINERIA'), 'la tarjeta de Jardinería')
   await waitFor(() => form().useAvatar === true && form().customStyle?.styleId === 'demo-jardineria', 'elegir Jardinería enciende el switch')
   window.lastPayload = null
   await click(buttonWith(phrase('create.form.submit')), 'el botón de generar')
-  await waitFor(() => window.lastPayload, 'el envío llega a crear el proyecto: ' + (document.getElementById('create-blockers')?.textContent ?? ''))
+  await waitFor(() => window.lastPayload, 'el envío llega a crear el proyecto: ' + blockersText())
   const options = window.lastPayload.options
   check(options.demo === true && options.customStyle?.styleId === 'demo-jardineria' && options.videoFormat === '16:9' && options.avatar === undefined, 'el envío: demo, Jardinería, 16:9 y sin options.avatar: ' + JSON.stringify({ demo: options.demo, style: options.customStyle?.styleId, format: options.videoFormat, avatar: options.avatar }))
+  check(options.animationMinutes === 1 && options.animateWholeVideo === false, 'la animación encendida viaja con el primer minuto: ' + JSON.stringify({ minutes: options.animationMinutes, whole: options.animateWholeVideo }))
+  check(options.subtitles === false && options.promptModel === 'modelo-casa', 'sin subtítulos y con el modelo de la casa, el de la tarjeta, con todos los modelos bloqueados: ' + JSON.stringify({ subtitles: options.subtitles, model: options.promptModel }))
+  check(window.imageCreditReads === 0 && window.videoCreditReads === 0, 'ni al enviar se lee un saldo: ' + JSON.stringify({ image: window.imageCreditReads, video: window.videoCreditReads }))
 
   document.getElementById('result').textContent = 'PASS: create demo (' + checks + ' checks)'
 } catch (error) {

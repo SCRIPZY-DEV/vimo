@@ -3,12 +3,15 @@ import { useCatalogStyles } from '@/modules/videos/hooks/useCatalogStyles'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { characterPatchForStyle } from '@/modules/videos/utilities/characterPatchForStyle'
 import {
+  demoAnimationAvailable,
   demoAudioFileLabel,
   demoAvatar,
   demoAvatarGem,
   demoAvatarToggle,
+  demoCatalogCharacter,
   demoComingSoonFormats,
   demoGemStyleIds,
+  demoShowsCharacterSection,
   demoStyleRequest,
   demoVisibleCatalogGems,
 } from '@/modules/videos/utilities/demoForm'
@@ -31,12 +34,13 @@ interface UseDemoFormChoicesOptions {
 
 // Las elecciones del formulario de Crear en la demo (spec demo v4 §2): qué
 // ofrece cada galería y el selector de formato, el avatar del pack, el nombre
-// del audio de la historia y los manejadores que aplican las reglas de
-// utilities/demoForm.ts. Con el switch de avatar encendido, pedir otro estilo
-// o la otra pestaña vuelve a la gema del avatar y se avisa junto a la galería
-// hasta el próximo cambio de estilo, pestaña, formato o switch (pedido del
-// dueño del 2026-10-14). Fuera de la demo devuelve null y el formulario sigue
-// como siempre.
+// del audio de la historia, el modo de personaje de cada estilo del catálogo
+// y si se ven la sección de personajes y el switch de animación, y los
+// manejadores que aplican las reglas de utilities/demoForm.ts. Con el switch
+// de avatar encendido, pedir otro estilo o la otra pestaña vuelve a la gema
+// del avatar y se avisa junto a la galería hasta el próximo cambio de estilo,
+// pestaña, formato o switch (pedido del dueño del 2026-10-14). Fuera de la
+// demo devuelve null y el formulario sigue como siempre.
 export function useDemoFormChoices({
   demo,
   value,
@@ -87,6 +91,14 @@ export function useDemoFormChoices({
     comingSoonFormats: demoComingSoonFormats(demo, value),
     avatar: demoAvatar(demo),
     audioFileLabel: demoAudioFileLabel(demo, value),
+    // El modo de personaje de un estilo del catálogo: el de su historia en
+    // el formato, al elegirlo en la galería o en «Ver».
+    catalogCharacterOf: (catalogStyleId: string) =>
+      demoCatalogCharacter(demo, value.videoFormat, catalogStyleId),
+    // La sección de personajes, solo con un estilo con personaje fijo.
+    showsCharacterSection: demoShowsCharacterSection(demo, value),
+    // El switch de animación, solo con una historia animada.
+    animationAvailable: demoAnimationAvailable(demo, value),
     avatarStyleNotice,
     // Pedir un estilo o la otra pestaña (demoStyleRequest). Devuelve si quedó
     // lo pedido: con el switch de avatar encendido la pestaña no cambia.

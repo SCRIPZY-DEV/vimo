@@ -7,16 +7,32 @@
 // estilo con él encendido (pedido del dueño del 2026-10-14: con el switch
 // encendido solo vale Jardinería, en Mi estilo y en 16:9; otro pedido vuelve a
 // ella y avisa; elegir Jardinería con el switch apagado lo enciende; apagarlo
-// con Jardinería vuelve a la pestaña Catálogo sin tarjeta). Módulo puro de
-// src/ corrido con Node (type stripping), sin bundler.
+// con Jardinería vuelve a la pestaña Catálogo sin tarjeta). Además: el modo de
+// personaje sale de la historia y la sección de personajes solo se ve con un
+// estilo con personaje fijo; el switch de animación solo con una historia
+// animada; el payload lleva la animación como fuera de la demo y nunca el
+// avatar; formBlockers no frena por la clave de Kie, los modelos bloqueados ni
+// los personajes; y una corrida de la demo no anota apariciones del avatar
+// cobradas (ruling R28). demoForm.ts es un módulo puro de src/ corrido con
+// Node (type stripping), sin bundler; formPayload.ts y avatarTaskEvents.ts
+// usan `@/` (las constantes de videos y voces), así que se empaquetan con
+// esbuild y los alias de tsconfig.app.json, como check-app-catalog-payload.mjs:
+// es el código real, sin fixtures.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { after, before, test } from 'node:test'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { build } from 'esbuild'
 import { FRAME_SIZES } from '../../pipeline/types/video-format.ts'
 import {
+  demoAnimationAvailable,
   demoAudioFileLabel,
   demoAvatar,
   demoAvatarGem,
   demoAvatarToggle,
+  demoCatalogCharacter,
   demoCatalogIds,
   demoComingSoonFormats,
   demoDefaultCatalogGem,
@@ -24,9 +40,45 @@ import {
   demoFollowStyle,
   demoFormValue,
   demoGemStyleIds,
+  demoShowsCharacterSection,
   demoStyleRequest,
   demoVisibleCatalogGems,
+  withDemoAnimation,
 } from '../../src/modules/videos/utilities/demoForm.ts'
+
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
+
+let workdir
+let app
+
+before(async () => {
+  const output = await build({
+    stdin: {
+      contents: [
+        "export * from './src/modules/videos/utilities/formPayload.ts'",
+        "export * from './src/modules/videos/utilities/avatarTaskEvents.ts'",
+        "export { ANIMATION_MINUTES_DEFAULT } from './src/modules/videos/constants.ts'",
+      ].join('\n'),
+      resolveDir: repoRoot,
+      sourcefile: 'demo-form-entry.ts',
+      loader: 'ts',
+    },
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'node',
+    target: 'node22',
+    tsconfig: join(repoRoot, 'tsconfig.app.json'),
+  })
+  workdir = await mkdtemp(join(tmpdir(), 'demo-form-guard-'))
+  const file = join(workdir, 'demo-form.mjs')
+  await writeFile(file, output.outputFiles[0].contents)
+  app = await import(pathToFileURL(file).href)
+})
+
+after(async () => {
+  if (workdir) await rm(workdir, { recursive: true, force: true })
+})
 
 // Una historia del pack con la forma de DemoStyleEntry. El audio de cada
 // historia vive en su carpeta: la raíz para 16:9, `short/` para 9:16.
@@ -76,7 +128,9 @@ const JARDINERIA_GEM = {
 }
 
 // El pack v4 en chico: el orden del manifest no es el alfabético, Short no
-// trae 2D Mono ni Jardinería, y solo Jardinería trae avatar (en 16:9).
+// trae 2D Mono ni Jardinería, solo Jardinería trae avatar (en 16:9) y la
+// historia Short de cosmos no trae su variante animada (en el pack publicado
+// todas la traen; la regla tiene que valer igual).
 const MANIFEST = {
   version: 'v4',
   voice: {
@@ -98,7 +152,10 @@ const MANIFEST = {
       ],
     },
     '9:16': {
-      styles: [story('cosmos', '9:16'), story('normal', '9:16')],
+      styles: [
+        story('cosmos', '9:16', { animated: false }),
+        story('normal', '9:16'),
+      ],
       gems: [story('storytelling', '9:16', { character: 'generic' })],
     },
   },
@@ -119,7 +176,7 @@ const LANDSCAPE_ONLY = {
 // Las selecciones del formulario: un estilo del catálogo (con su id de
 // catálogo, como lo arma selectedCatalogStyleFrom) o una gema de Mi estilo
 // (por el `styleId` sembrado, como selectedCustomStyleFrom).
-function catalogStyle(id) {
+function catalogStyle(id, overrides = {}) {
   return {
     styleId: id,
     catalogStyleId: id,
@@ -130,8 +187,19 @@ function catalogStyle(id) {
     templateVersion: 1,
     colorFilter: 'none',
     character: { mode: 'none' },
+    ...overrides,
   }
 }
+
+// 2D Mono como lo trae el catálogo: con su personaje escrito (la sección
+// `character`), en el modo con que se generó su historia.
+const MONO_WITH_CHARACTER = catalogStyle('2d-mono', {
+  sections: {
+    visualStyle: 'Visual de 2d-mono',
+    character: 'Un mono gris dibujado a mano alzada',
+  },
+  character: { mode: 'generic' },
+})
 
 function gemStyle(styleId) {
   return { styleId, name: styleId, systemPrompt: 'Prompt', shots: [] }
@@ -899,6 +967,15 @@ test('el formulario inicial: la voz del pack, pestaña Catálogo sin tarjeta y l
   // En el formato de la base, con su primera historia.
   const short = demoFormValue(form({ videoFormat: '9:16' }), MANIFEST)
   assert.equal(short.name, MANIFEST.stories['9:16'].styles[0].suggestedName)
+
+  // El modelo de prompts es el predeterminado de la casa (la única tarjeta
+  // que muestra la demo), no el que la persona eligió en Ajustes: lo que se
+  // ve es lo que viaja.
+  assert.equal(
+    demoFormValue(form({ promptModel: 'modelo-de-ajustes' }), MANIFEST)
+      .promptModel,
+    null,
+  )
 })
 
 test('el audio de «Subir mi audio» se nombra con la historia que lo trae', () => {
@@ -923,4 +1000,360 @@ test('el audio de «Subir mi audio» se nombra con la historia que lo trae', () 
     demoAudioFileLabel(MANIFEST, form({ narrationFilePath: '/otro.mp3' })),
     undefined,
   )
+})
+
+test('el modo de personaje de un estilo del catálogo es el de su historia, en el formato', () => {
+  // Spec demo v4 §1: el personaje del estilo en los que tienen personaje
+  // fijo (2D Mono) y ninguno en el resto, nunca el recordado ni el de las
+  // muestras: la historia ya se generó así.
+  assert.deepEqual(demoCatalogCharacter(MANIFEST, '16:9', '2d-mono'), {
+    mode: 'generic',
+  })
+  assert.deepEqual(demoCatalogCharacter(MANIFEST, '16:9', 'cosmos'), {
+    mode: 'none',
+  })
+  assert.deepEqual(demoCatalogCharacter(MANIFEST, '9:16', 'normal'), {
+    mode: 'none',
+  })
+  // Sin historia en el formato (la galería no lo ofrece): sin personaje.
+  assert.deepEqual(demoCatalogCharacter(MANIFEST, '9:16', '2d-mono'), {
+    mode: 'none',
+  })
+  assert.deepEqual(demoCatalogCharacter(MANIFEST, '16:9', 'nuevo'), {
+    mode: 'none',
+  })
+})
+
+test('la sección de personajes solo se ve con la historia de un estilo con personaje fijo', () => {
+  // 2D Mono con su personaje escrito y su historia generada con él: el chip.
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({ styleSource: 'catalog', customStyle: MONO_WITH_CHARACTER }),
+    ),
+    true,
+  )
+  // Una historia sin personaje (cosmos), aunque la gema dijera otra cosa.
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({
+        styleSource: 'catalog',
+        customStyle: catalogStyle('cosmos', {
+          sections: { visualStyle: 'Visual', character: 'Alguien' },
+          character: { mode: 'generic' },
+        }),
+      }),
+    ),
+    false,
+  )
+  // Una historia con personaje y una gema que no lo trae escrito: la gema
+  // vieja del pack (Storytelling, sin secciones) o un estilo sin la sección.
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({ styleSource: 'custom', customStyle: STORYTELLING }),
+    ),
+    false,
+  )
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({
+        styleSource: 'catalog',
+        customStyle: catalogStyle('2d-mono', {
+          character: { mode: 'generic' },
+        }),
+      }),
+    ),
+    false,
+  )
+  // Jardinería (sin personaje), nada elegido o sin historia en el formato.
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({ styleSource: 'custom', customStyle: JARDINERIA }),
+    ),
+    false,
+  )
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({ styleSource: 'catalog', customStyle: null }),
+    ),
+    false,
+  )
+  assert.equal(
+    demoShowsCharacterSection(
+      MANIFEST,
+      form({
+        styleSource: 'catalog',
+        customStyle: MONO_WITH_CHARACTER,
+        videoFormat: '9:16',
+      }),
+    ),
+    false,
+  )
+})
+
+test('el switch de animación se ofrece solo con una historia animada', () => {
+  assert.equal(
+    demoAnimationAvailable(
+      MANIFEST,
+      form({ styleSource: 'catalog', customStyle: catalogStyle('cosmos') }),
+    ),
+    true,
+  )
+  assert.equal(
+    demoAnimationAvailable(
+      MANIFEST,
+      form({ styleSource: 'custom', customStyle: JARDINERIA }),
+    ),
+    true,
+  )
+  // La historia Short de cosmos no trae su variante animada.
+  assert.equal(
+    demoAnimationAvailable(
+      MANIFEST,
+      form({
+        styleSource: 'catalog',
+        customStyle: catalogStyle('cosmos'),
+        videoFormat: '9:16',
+      }),
+    ),
+    false,
+  )
+  // Una tarjeta sin historia en el formato, tampoco.
+  assert.equal(
+    demoAnimationAvailable(
+      MANIFEST,
+      form({
+        styleSource: 'catalog',
+        customStyle: catalogStyle('2d-mono'),
+        videoFormat: '9:16',
+      }),
+    ),
+    false,
+  )
+  // Sin tarjeta (la galería todavía carga), como los formatos: si la pestaña
+  // trae alguna historia animada en el formato, sin parpadear «Próximamente».
+  assert.equal(
+    demoAnimationAvailable(
+      MANIFEST,
+      form({ styleSource: 'catalog', customStyle: null, videoFormat: '9:16' }),
+    ),
+    true,
+  )
+  const stillShort = {
+    ...MANIFEST,
+    stories: {
+      ...MANIFEST.stories,
+      '9:16': {
+        styles: [story('cosmos', '9:16', { animated: false })],
+        gems: [],
+      },
+    },
+  }
+  assert.equal(
+    demoAnimationAvailable(
+      stillShort,
+      form({ styleSource: 'catalog', customStyle: null, videoFormat: '9:16' }),
+    ),
+    false,
+  )
+  assert.equal(
+    demoAnimationAvailable(
+      stillShort,
+      form({ styleSource: 'custom', customStyle: null, videoFormat: '9:16' }),
+    ),
+    false,
+  )
+})
+
+test('sin historia animada, la animación se valida y se envía apagada y la elección queda', () => {
+  // Encendida con cosmos en 16:9 (animada): el mismo formulario.
+  const landscape = form({
+    styleSource: 'catalog',
+    customStyle: catalogStyle('cosmos'),
+    animateScenes: true,
+  })
+  assert.equal(withDemoAnimation(MANIFEST, landscape), landscape)
+  // En Short (sin variante animada): apagada en lo que se valida y se envía.
+  const short = { ...landscape, videoFormat: '9:16' }
+  const shown = withDemoAnimation(MANIFEST, short)
+  assert.equal(shown.animateScenes, false)
+  assert.deepEqual({ ...shown, animateScenes: true }, short)
+  // El formulario guardado no cambia: de vuelta en 16:9 sigue encendida.
+  assert.equal(short.animateScenes, true)
+  // Apagada, nada que apagar: el mismo objeto.
+  const off = { ...short, animateScenes: false }
+  assert.equal(withDemoAnimation(MANIFEST, off), off)
+})
+
+// Un formulario de la demo que se puede enviar: nombre, guion, voz, la
+// tarjeta del catálogo y nada de música ni capa.
+function sendableDemoForm(overrides = {}) {
+  return form({
+    name: 'Historia de la demo',
+    narrationMode: 'tts',
+    script: 'Había una vez un mono.',
+    voice: { provider: 'ai33', voiceId: 'voz-abel', name: 'Abel' },
+    styleSource: 'catalog',
+    customStyle: MONO_WITH_CHARACTER,
+    useBgm: false,
+    useOverlay: false,
+    ...overrides,
+  })
+}
+
+const pickAnimation = (options) => ({
+  animationMinutes: options.animationMinutes,
+  animateWholeVideo: options.animateWholeVideo,
+})
+
+test('en la demo la animación encendida viaja con el primer minuto, igual que fuera de ella', () => {
+  // Un borrador viejo con N minutos o el video completo: el formulario solo
+  // encarga el primer minuto, también en la demo.
+  const animated = sendableDemoForm({
+    animateScenes: true,
+    animationMinutes: 4,
+    animateWholeVideo: true,
+  })
+  const demo = app.createProjectPayload(animated, { demo: true })
+  assert.equal(demo.options.demo, true)
+  assert.equal(app.ANIMATION_MINUTES_DEFAULT, 1)
+  assert.deepEqual(pickAnimation(demo.options), {
+    animationMinutes: app.ANIMATION_MINUTES_DEFAULT,
+    animateWholeVideo: false,
+  })
+  assert.deepEqual(
+    pickAnimation(demo.options),
+    pickAnimation(app.createProjectPayload(animated).options),
+  )
+  // Apagada no viaja.
+  const still = app.createProjectPayload(
+    sendableDemoForm({ animateScenes: false }),
+    { demo: true },
+  )
+  assert.equal('animationMinutes' in still.options, false)
+  assert.equal('animateWholeVideo' in still.options, false)
+})
+
+test('en la demo el avatar encendido no viaja: lo trae la historia', () => {
+  const withAvatar = sendableDemoForm({
+    styleSource: 'custom',
+    customStyle: JARDINERIA,
+    useAvatar: true,
+    avatar: {
+      id: 'ana-1',
+      name: 'Ana',
+      lookId: 'look-ana',
+      lookName: 'Ana oficina',
+      lookType: 'photo_avatar',
+      supportedEngines: ['avatar_iii', 'avatar_iv'],
+      motionReference: false,
+    },
+  })
+  const payload = app.createProjectPayload(withAvatar, { demo: true })
+  assert.equal(payload.options.demo, true)
+  assert.equal(payload.options.avatar, undefined)
+})
+
+test('en la demo formBlockers no frena por la clave de Kie, los modelos bloqueados ni los personajes', () => {
+  // Spec demo v4 §2 y ruling R27: la historia ya está hecha y la simulación
+  // no escribe prompts, no anima con Kie ni usa personajes.
+  const context = {
+    newCatalog: true,
+    animationKeyMissing: true,
+    promptModelsBlocked: true,
+    fixedCharacterMissing: true,
+  }
+  const animated = sendableDemoForm({ animateScenes: true })
+  assert.deepEqual(app.formBlockers(animated, { ...context, demo: true }), [])
+  // Fuera de la demo los tres frenan: el contexto no es inocuo.
+  assert.deepEqual(app.formBlockers(animated, context), [
+    'create.validation.animationKeyRequired',
+    'create.validation.promptModelsBlocked',
+    'create.validation.fixedCharacterMissing',
+  ])
+  // «Mi personaje» sin ninguno elegido: fuera de la demo pide uno.
+  const ownWithout = sendableDemoForm({
+    customStyle: { ...MONO_WITH_CHARACTER, character: { mode: 'own' } },
+    characters: [],
+  })
+  assert.deepEqual(app.formBlockers(ownWithout, { newCatalog: true }), [
+    'create.validation.characterRequired',
+  ])
+  assert.deepEqual(
+    app.formBlockers(ownWithout, { newCatalog: true, demo: true }),
+    [],
+  )
+  // Lo que la demo sí pide sigue: sin tarjeta no hay historia.
+  assert.deepEqual(
+    app.formBlockers(sendableDemoForm({ customStyle: null }), {
+      ...context,
+      demo: true,
+    }),
+    ['create.validation.catalogStyleRequired'],
+  )
+})
+
+test('una corrida de la demo no anota apariciones del avatar cobradas: ni «Cancelar» ni «Crear otro» avisan (R28)', () => {
+  // La simulación imita las fases del render de HeyGen (render, download,
+  // normalize), pero el avatar sale del pack y nadie lo cobra.
+  const progress = (sceneId, phase) => ({
+    type: 'avatar-scene-progress',
+    sceneId,
+    phase,
+    elapsedSeconds: 3,
+  })
+  const ready = (sceneId) => ({
+    type: 'avatar-scene-ready',
+    sceneId,
+    scene: { id: sceneId, text: '', imageStatus: 'ok' },
+  })
+  const events = [
+    { type: 'avatar-scene-started', sceneId: 2 },
+    progress(2, 'audio'),
+    progress(2, 'upload'),
+    progress(2, 'render'),
+    progress(2, 'download'),
+    progress(2, 'normalize'),
+    ready(2),
+  ]
+  const charged = (task) =>
+    events.reduce(
+      (sceneIds, event) =>
+        app.chargedSceneIdsForTask(
+          { ...task, avatarChargedSceneIds: sceneIds },
+          event,
+        ),
+      [],
+    )
+  assert.deepEqual(charged({ demo: true }), [])
+  // Fuera de la demo, la misma corrida sí cobra la aparición.
+  assert.deepEqual(charged({}), [2])
+  assert.deepEqual(charged({ demo: false }), [2])
+  // Sin cobradas, el aviso de «Cancelar» y de «Crear otro» no se abre.
+  const generating = {
+    id: 2,
+    text: '',
+    imageStatus: 'ok',
+    avatarActivity: {
+      status: 'generating',
+      phase: 'render',
+      elapsedSeconds: 3,
+      receivedAt: 1,
+    },
+  }
+  const inFlight = (task) =>
+    app.chargedAvatarScenesInFlight({
+      scenes: [generating],
+      avatarChargedSceneIds: app.chargedSceneIdsForTask(
+        { ...task, avatarChargedSceneIds: [] },
+        progress(2, 'render'),
+      ),
+    })
+  assert.equal(inFlight({ demo: true }), 0)
+  assert.equal(inFlight({}), 1)
 })

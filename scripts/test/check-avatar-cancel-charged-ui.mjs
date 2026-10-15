@@ -36,6 +36,13 @@
 // - La tarjeta del fallo dice cuántas apariciones cobradas quedan guardadas
 //   (sin ninguna, nada; sin avatar, nada), también debajo de la tarjeta de
 //   saldo agotado y tras reiniciar la app.
+// - Una corrida de la demo (ruling R28) no cobra nada: la simulación imita
+//   las fases del render con el avatar del pack. Lanzada desde Crear (el
+//   payload trae options.demo), reanudada desde la biblioteca (project.json
+//   la marca), relanzada con «Cambiar voz» desde el reproductor o arrancada
+//   con la marca, no anota apariciones cobradas: ni «Crear otro» ni
+//   «Cancelar» abren el aviso, y la tarjeta del fallo no dice que haya
+//   apariciones guardadas.
 // Solo `videosApi` se simula (el real importa el cliente de Supabase), y la
 // tarjeta de saldo (su hook lee la billetera del sidecar). La raíz guarda
 // `onUncaughtError` para que un render roto falle con su mensaje.
@@ -161,10 +168,15 @@ const mocks = {
       ') } catch {}',
     'window.cancelJobs = []',
     'window.startedJobs = 0',
+    'window.createdProjects = []',
+    'window.voiceSwitches = []',
     'export const videosApi = {',
     '  ...real,',
     '  isNative: () => true,',
+    '  async createProject(payload) { window.createdProjects.push(payload); return { projectId: "p-creado-" + window.createdProjects.length } },',
     '  async projectStatus(projectId) { return window.projectStatuses[projectId] },',
+    '  async projectDetail(projectId) { return window.projectDetails[projectId] },',
+    '  async setProjectVoice(payload) { window.voiceSwitches.push(payload) },',
     '  async listProjects() { return [] },',
     '  imageSource: (path) => "fixture-image://" + path,',
     '  videoSource: (path) => "fixture-media://" + path,',
@@ -184,6 +196,10 @@ const mocks = {
   // cableado de «Crear otro»): el formulario no hace falta.
   '@/modules/videos/components/CreateForm':
     'export function CreateForm() { window.createFormShown = true; return null }',
+  // «Cambiar voz» del reproductor: el selector de voz real trae su catálogo
+  // de voces; acá basta un botón que elige otra.
+  '@/modules/videos/components/VoiceSwitchDialog':
+    'import React from "react"\nexport function VoiceSwitchDialog(props) { return React.createElement("button", { type: "button", "data-voice-switch": "true", onClick: () => props.onSelect({ provider: "minimax", voiceId: "voz-2", name: "Otra voz" }) }, "elegir otra voz") }',
 }
 const entry = String.raw`
 import React from 'react'
@@ -199,6 +215,7 @@ import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { Create } from '@/modules/videos/views/Create'
 import { chargedAvatarScenesInFlight, chargedSceneIdsWithAvatarEvent, chargedWarningAfterRender } from '@/modules/videos/utilities/avatarTaskEvents'
 import { LibraryProgress } from '@/modules/videos/views/LibraryProgress/LibraryProgress'
+import { LibraryPlayer } from '@/modules/videos/views/LibraryPlayer/LibraryPlayer'
 
 let checks = 0
 let renderError
@@ -747,6 +764,112 @@ try {
   await waitFor(() => window.cancelJobs.length > 0 && window.createFormShown, '«Cancelar igual» vuelve al formulario de Crear')
   await delay(200)
   check(window.cancelJobs.length === 1 && store().task === null, 'y corta el job una sola vez: ' + JSON.stringify(window.cancelJobs))
+  await settleCancel()
+
+  // 14. Una corrida de la demo no cobra nada (ruling R28): la simulación
+  // imita el render de HeyGen con el avatar del pack. Desde Crear (el payload
+  // trae options.demo), «Crear otro» descarta sin el aviso de lo cobrado.
+  await mountCreate('demo-create')
+  window.backCalls = 0
+  window.cancelJobs.length = 0
+  await store().startCreation({ payload: { name: 'Demo de Jardinería', options: { styleId: 'normal', sceneCount: 0, narrationMode: 'tts', imageProvider: 'evolink', imageQuality: '1024x576_low', useBgm: false, useOverlay: false, confirmScenes: false, subtitles: false, autoRender: true, videoFormat: '16:9', demo: true } } })
+  await waitFor(() => store().task?.projectId === 'p-creado-1' && store().task.jobId !== null, 'arranca la corrida de la demo creada desde Crear')
+  check(store().task.demo === true, 'la tarea sabe que la corrida es de la demo')
+  emit({ type: 'scenes-planned', scenes, audioDurationSeconds: 60 })
+  emit({ type: 'stage-started', stageId: 'images' })
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit(progress(2, 'render'))
+  emit({ type: 'avatar-scene-started', sceneId: 3 })
+  emit(progress(3, 'download'))
+  await waitFor(() => store().task.scenes[2]?.avatarActivity?.phase === 'download', 'las apariciones de la demo pasan por el render')
+  check(JSON.stringify(store().task.avatarChargedSceneIds) === '[]' && chargedAvatarScenesInFlight(store().task) === 0, 'la demo no anota apariciones cobradas: ' + JSON.stringify(store().task.avatarChargedSceneIds))
+  headerBack().click()
+  await waitFor(() => window.backCalls === 1, '«Crear otro» descarta en el acto')
+  await delay(150)
+  check(dialog() === null && window.cancelJobs.length === 1, 'sin el aviso de lo cobrado: ' + JSON.stringify(window.cancelJobs))
+  await settleCancel()
+
+  // Reanudada desde la biblioteca (project.json la marca), «Cancelar» es el
+  // «¿Seguro? Cancelar» de siempre.
+  window.projectStatuses = {
+    pdemo: { metadata: { name: 'Demo en la biblioteca', state: 'generating', completedStages: BEFORE_IMAGES, audioDurationSeconds: 60, options: { videoFormat: '16:9', imageProvider: 'evolink', demo: true, avatar: { avatarId: 'jardineria-a', lookId: 'look-j', lookName: 'Jardineria', lookType: 'photo_avatar', engine: 'avatar_iv', appearances: 5, secondsPerAppearance: 5, startWithAvatar: true, placement: 'auto' } } }, scenes },
+  }
+  window.cancelJobs.length = 0
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <div data-probe="library-demo">
+        <MemoryRouter initialEntries={['/library/pdemo/progress']}>
+          <LiveStore />
+          <Routes><Route path="/library/:projectId/progress" element={<LibraryProgress />} /></Routes>
+        </MemoryRouter>
+      </div>
+    </QueryClientProvider>,
+  )
+  const demoResume = await waitFor(() => document.querySelector('[data-probe="library-demo"]') && buttonSaying(document.getElementById('root'), i18n.t('common.resume')), 'el botón de reanudar del proyecto de la demo')
+  demoResume.click()
+  await waitFor(() => store().task?.projectId === 'pdemo' && store().task.jobId !== null, 'reanuda el proyecto de la demo desde la biblioteca')
+  check(store().task.demo === true, 'la biblioteca marca la corrida como de la demo')
+  emit({ type: 'stage-started', stageId: 'images' })
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit(progress(2, 'render'))
+  emit({ type: 'avatar-scene-started', sceneId: 3 })
+  emit(progress(3, 'normalize'))
+  await waitFor(() => store().task.scenes[2]?.avatarActivity?.phase === 'normalize', 'las apariciones de la demo pasan por el render en la biblioteca')
+  check(JSON.stringify(store().task.avatarChargedSceneIds) === '[]' && chargedAvatarScenesInFlight(store().task) === 0, 'en la biblioteca, la demo tampoco anota apariciones cobradas')
+  headerCancel().click()
+  await waitFor(() => buttonSaying(document.getElementById('root'), says.cancelConfirm), 'el primer clic pide «¿Seguro? Cancelar»')
+  await delay(150)
+  check(dialog() === null && window.cancelJobs.length === 0, 'sin el aviso de lo cobrado y sin cancelar todavía')
+  headerCancel().click()
+  await waitFor(() => window.cancelJobs.length === 1, 'el segundo clic cancela')
+  await settleCancel()
+
+  // Arrancada con la marca y caída a mitad del render: la tarjeta del fallo
+  // no dice que haya apariciones guardadas.
+  await mountCreate('demo-failed')
+  await startRun('pdemo-failed', { demo: true })
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit(progress(2, 'render'))
+  emit({ type: 'avatar-scene-ready', sceneId: 2, scene: { ...avatarScene(2, 10), avatar: readyLook } })
+  emit({ type: 'job-failed', code: 'render_failed', message: 'fin' })
+  await waitFor(() => store().task.status === 'error', 'la corrida de la demo falla')
+  await delay(150)
+  check(JSON.stringify(store().task.avatarChargedSceneIds) === '[]' && !keptShown(), 'la tarjeta del fallo de la demo no habla de apariciones guardadas')
+  store().discardTask()
+  await waitFor(() => store().task === null, 'se descarta la tarea')
+
+  // Relanzada con «Cambiar voz» desde el reproductor (un proyecto de la demo
+  // cuya narración falló): la corrida nueva sigue siendo de la demo.
+  window.projectDetails = {
+    'pdemo-voice': { metadata: { id: 'pdemo-voice', name: 'Demo sin voz', state: 'error', errorCode: 'voice_failed', completedStages: [], options: { videoFormat: '16:9', imageProvider: 'evolink', narrationMode: 'tts', voiceProvider: 'ai33', demo: true } }, scenes: [], words: [], script: '' },
+  }
+  window.voiceSwitches.length = 0
+  window.cancelJobs.length = 0
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <div data-probe="player-demo">
+        <MemoryRouter initialEntries={['/view/pdemo-voice']}>
+          <LiveStore />
+          <Routes><Route path="/view/:projectId" element={<LibraryPlayer />} /></Routes>
+        </MemoryRouter>
+      </div>
+    </QueryClientProvider>,
+  )
+  const switchVoiceButton = await waitFor(() => document.querySelector('[data-probe="player-demo"]') && buttonSaying(document.getElementById('root'), phrase('create.progress.error.switchVoice')), '«Cambiar voz» en el reproductor del proyecto de la demo')
+  switchVoiceButton.click()
+  const otherVoice = await waitFor(() => document.querySelector('[data-voice-switch]'), 'el selector de voz')
+  otherVoice.click()
+  await waitFor(() => store().task?.projectId === 'pdemo-voice' && store().task.jobId !== null, '«Cambiar voz» relanza el proyecto de la demo')
+  check(window.voiceSwitches.length === 1 && store().task.demo === true, '«Cambiar voz» relanza una corrida de la demo: ' + JSON.stringify({ switches: window.voiceSwitches.length, demo: store().task.demo }))
+  emit({ type: 'scenes-planned', scenes, audioDurationSeconds: 60 })
+  emit({ type: 'stage-started', stageId: 'avatar' })
+  emit({ type: 'avatar-scene-started', sceneId: 2 })
+  emit(progress(2, 'render'))
+  await waitFor(() => store().task.scenes[1]?.avatarActivity?.phase === 'render', 'la aparición de la demo relanzada pasa por el render')
+  check(JSON.stringify(store().task.avatarChargedSceneIds) === '[]' && chargedAvatarScenesInFlight(store().task) === 0, 'relanzada con otra voz, la demo tampoco anota apariciones cobradas: ' + JSON.stringify(store().task.avatarChargedSceneIds))
+  store().discardTask()
   await settleCancel()
 
   document.getElementById('result').textContent = 'PASS: cancel with charged avatar appearances (' + checks + ' checks)'

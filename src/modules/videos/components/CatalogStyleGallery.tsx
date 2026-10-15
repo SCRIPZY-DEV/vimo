@@ -82,8 +82,12 @@ interface CatalogStyleGalleryProps {
   visibleIds?: string[]
   // La demo (spec demo v4 §2): nada escribe en el catálogo compartido ni en
   // Mi estilo, así que no hay «Pasar a mi estilo», herramientas del admin ni
-  // «Crear estilo con IA». «Ver» sigue.
+  // «Crear estilo con IA». «Ver» sigue, sin elegir el modo de personaje.
   demo?: boolean
+  // En la demo, el modo de personaje de cada estilo: el de su historia. Ni se
+  // elige ni se recuerda, ni sale de la memoria de la app o de las muestras.
+  // Ausente fuera de la demo.
+  storyCharacterOf?: (catalogStyleId: string) => StyleCharacter
   onSelect: (style: SelectedCustomStyle) => void
   // «Pasar a mi estilo» terminó bien con esta galería a la vista: el
   // formulario pasa a Mi estilo con el modal de la copia abierto. Recibe la
@@ -134,7 +138,8 @@ interface AdminEditing {
 //
 // En la demo (spec demo v4 §2) muestra solo los estilos con historia en el
 // formato y nada que escriba: ni la copia a Mi estilo ni lo del admin, aunque
-// la cuenta lo sea.
+// la cuenta lo sea, ni la memoria de modos. El modo de cada estilo es el de su
+// historia.
 export function CatalogStyleGallery({
   selected,
   disabled,
@@ -142,6 +147,7 @@ export function CatalogStyleGallery({
   promptModel,
   visibleIds,
   demo = false,
+  storyCharacterOf,
   onSelect,
   onCopied,
 }: CatalogStyleGalleryProps) {
@@ -272,9 +278,10 @@ export function CatalogStyleGallery({
     onCopied(copiedStyle)
   }, [copiedStyle, showSavedStyle, onCopied])
 
-  // El modo de un estilo: el del formulario si está en uso; si no, el
-  // recordado (o el de sus muestras).
+  // El modo de un estilo: en la demo, el de su historia; si no, el del
+  // formulario si está en uso, y si no, el recordado (o el de sus muestras).
   const characterOf = (gem: CatalogGem): StyleCharacter => {
+    if (storyCharacterOf) return storyCharacterOf(gem.id)
     if (selectedId === gem.id && selected?.character) return selected.character
     return readCatalogCharacter(gem, localStorage)
   }
@@ -283,15 +290,23 @@ export function CatalogStyleGallery({
     onSelect(selectedCatalogStyleFrom(gem, language, character))
   }
 
+  // El modo elegido en «Ver» se recuerda para la próxima vez, salvo en la
+  // demo: ahí es el de la historia y la memoria de la app no se toca.
+  const remember = (gem: CatalogGem, character: StyleCharacter) => {
+    if (demo) return
+
+    rememberCatalogCharacter(gem.id, character, localStorage)
+  }
+
   // Cada cambio de modo en «Ver» se recuerda al toque; con el estilo en uso,
   // el formulario pasa al snapshot nuevo.
   const changeCharacter = (gem: CatalogGem, character: StyleCharacter) => {
-    rememberCatalogCharacter(gem.id, character, localStorage)
+    remember(gem, character)
     if (selectedId === gem.id) select(gem, character)
   }
 
   const use = (gem: CatalogGem, character: StyleCharacter) => {
-    rememberCatalogCharacter(gem.id, character, localStorage)
+    remember(gem, character)
     select(gem, character)
     closeCatalogStyleViewer(gem.id)
   }
@@ -567,6 +582,7 @@ export function CatalogStyleGallery({
               ? undefined
               : (character) => void copy(viewingEntry.gem, character)
           }
+          demo={demo}
           onClose={() => closeCatalogStyleViewer()}
         />
       )}

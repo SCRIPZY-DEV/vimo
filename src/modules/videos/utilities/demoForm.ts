@@ -1,3 +1,6 @@
+// Ruta relativa y con extensión, no `@/`: este módulo corre bajo un guard con
+// Node pelado, que no resuelve el alias; los dos son puros.
+import { gemBringsCharacter } from './gemTemplate.ts'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { DemoStyleRequestResult } from '@/modules/videos/types/demo'
 import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
@@ -9,13 +12,15 @@ import type {
   DemoStories,
   DemoStyleEntry,
 } from '@pipeline/types/demo.ts'
+import type { StyleCharacter } from '@pipeline/types/styles.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
 // Crear en modo demo (ADR-0029, ADR-0030; spec demo v4 §2): todo sale del
 // manifest del pack —voz, estilos y gemas que se ofrecen, formatos, nombre,
-// guion, escenas, audio y el avatar—. Publicar un pack con otras historias no
-// exige tocar la app. Módulo puro, sin imports de runtime: lo corre
-// scripts/test/check-app-demo-form.mjs con Node, sin bundler.
+// guion, escenas, audio, el avatar, el modo de personaje y si hay animación—.
+// Publicar un pack con otras historias no exige tocar la app. Módulo puro,
+// sin imports de runtime de `@/`: lo corre scripts/test/check-app-demo-form.mjs
+// con Node, sin bundler.
 
 // Lo que se elige en las pestañas: la pestaña y la tarjeta.
 type StyleChoice = Pick<CreateFormValue, 'styleSource' | 'customStyle'>
@@ -157,6 +162,70 @@ function formatOffered(
   if (form.styleSource === 'catalog') return stories.styles.length > 0
 
   return stories.gems.length > 0
+}
+
+// El modo de personaje de un estilo del catálogo en la demo: el de su
+// historia en el formato (spec demo v4 §1: el personaje del estilo en los 7
+// con personaje fijo, ninguno en el resto). Es el que vale al elegir la
+// tarjeta —en la galería, en «Ver» o la que Crear usa sin una elegida—, nunca
+// el recordado en la app ni el de sus muestras: la historia ya se generó así.
+// Sin historia en el formato (la galería no lo ofrece), sin personaje.
+export function demoCatalogCharacter(
+  manifest: DemoManifest,
+  format: VideoFormat,
+  catalogStyleId: string,
+): StyleCharacter {
+  const entry = storiesFor(manifest, format).styles.find(
+    (candidate) => candidate.id === catalogStyleId,
+  )
+  return { mode: entry?.character ?? 'none' }
+}
+
+// ¿Crear muestra la sección de personajes en la demo? Solo con la historia de
+// un estilo con personaje fijo: generada con el personaje del estilo y con
+// una gema que lo trae escrito (su sección `character`); ahí la sección es el
+// chip «Personaje del estilo», sin cambiar el modo. La gema vieja del pack
+// (genérica pero sin secciones) y las historias sin personaje no la muestran
+// (spec demo v4 §2).
+export function demoShowsCharacterSection(
+  manifest: DemoManifest,
+  form: StoryChoice,
+): boolean {
+  if (demoEntryFor(manifest, form)?.character !== 'generic') return false
+
+  return gemBringsCharacter(form.customStyle?.sections)
+}
+
+// ¿El switch de animación se ofrece en la demo? Solo si la historia de lo
+// elegido trae su variante animada (en el pack v4, todas): sin ella queda en
+// «Próximamente». Sin tarjeta (la galería todavía carga), como los formatos:
+// si la pestaña trae alguna historia animada en el formato, así el switch no
+// parpadea al arrancar.
+export function demoAnimationAvailable(
+  manifest: DemoManifest,
+  form: StoryChoice,
+): boolean {
+  if (form.customStyle) return demoEntryFor(manifest, form)?.animated === true
+
+  const stories = storiesFor(manifest, form.videoFormat)
+  const tabStories =
+    form.styleSource === 'catalog' ? stories.styles : stories.gems
+  return tabStories.some((entry) => entry.animated)
+}
+
+// El formulario tal como se valida y se envía en la demo: sin historia
+// animada para lo elegido la animación va apagada, como se ve el switch, así
+// el proyecto no la pide y la pantalla de progreso no espera clips que la
+// simulación no trae. La elección queda en el formulario guardado y vuelve
+// con una historia animada (como el avatar sin clave, withAvatarKey). Sin
+// nada que apagar, el mismo objeto.
+export function withDemoAnimation(
+  manifest: DemoManifest,
+  form: CreateFormValue,
+): CreateFormValue {
+  if (!form.animateScenes || demoAnimationAvailable(manifest, form)) return form
+
+  return { ...form, animateScenes: false }
 }
 
 // Formatos en «Próximamente»: los que no tienen la historia elegida (con
@@ -356,7 +425,9 @@ function storyPatch(
 // El formulario inicial en demo: la voz del pack, sin pausas, sin música ni
 // personajes, en la pestaña Catálogo sin tarjeta (Crear usa la primera que
 // ofrece la galería) y con la historia del primer estilo del pack en el
-// formato de `base`, que trae su calidad (Create la arranca en 16:9).
+// formato de `base`, que trae su calidad (Create la arranca en 16:9). El
+// modelo de prompts es el predeterminado de la casa, la única tarjeta que
+// muestra la demo (no el de Ajustes): lo que se ve es lo que viaja.
 export function demoFormValue(
   base: CreateFormValue,
   manifest: DemoManifest,
@@ -368,6 +439,7 @@ export function demoFormValue(
     narrationMode: 'tts',
     styleSource: 'catalog',
     customStyle: null,
+    promptModel: null,
     voice: {
       provider: manifest.voice.provider,
       voiceId: manifest.voice.voiceId,

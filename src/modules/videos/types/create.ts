@@ -279,6 +279,12 @@ export interface CreateTask {
   // las que cuenta la tarjeta del fallo. Se vacía al lanzar otra corrida y
   // sobrevive al reinicio (sus recibos quedaron en disco).
   avatarChargedSceneIds: number[]
+  // La corrida es de la demo (ADR-0029, ruling R28): la simulación imita las
+  // fases del render de HeyGen, pero el avatar sale del pack y nadie lo
+  // cobra, así que no anota apariciones cobradas (chargedSceneIdsForTask) y
+  // ni «Cancelar», ni «Crear otro», ni la tarjeta del fallo hablan de ellas.
+  // Aditivo: solo lo trae una tarea de la demo.
+  demo?: boolean
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -317,6 +323,9 @@ export interface ProjectRunOptions {
   // Apariciones que no entraron, del estado rearmado desde el disco: la nota
   // del progreso aparece aunque la corrida no vuelva a cortar.
   avatarDropped?: number
+  // El proyecto es de la demo (options.demo, ADR-0029): la corrida simula con
+  // el pack y no cobra nada (ver CreateTask.demo).
+  demo?: boolean
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.
@@ -527,8 +536,10 @@ export interface FormBlockersContext {
   newCatalog?: boolean
   // Crear abrió con el manifest de la demo (ADR-0029, spec demo v4 §2): lo
   // que trae el pack no se valida contra lo de la persona —sus claves, su
-  // biblioteca—. Hoy, el avatar encendido: es el de la historia, no uno de la
-  // biblioteca.
+  // biblioteca, sus modelos—. El avatar encendido es el de la historia, no
+  // uno de la biblioteca; la animación sale del pack sin la clave de Kie; el
+  // bloqueo de modelos (ADR-0028) no aplica, porque no se escribe nada; y no
+  // se pide personaje, porque la historia ya está hecha.
   demo?: boolean
   // El fijo de la gema ya no está en la biblioteca (lo resuelve
   // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).

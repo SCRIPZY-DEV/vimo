@@ -48,6 +48,11 @@ interface CatalogStyleModalProps {
   onUse: (character: StyleCharacter) => void
   // «Pasar a mi estilo»; sin él, el pie no lo ofrece (la demo).
   onCopy?: (character: StyleCharacter) => void
+  // La demo (spec demo v4 §2): el modo es el de la historia y no se elige.
+  // Con el personaje del estilo (una gema que lo trae escrito) se muestra
+  // solo esa opción, quieta y sin la línea que invita a elegir; sin él, el
+  // bloque de personaje no se muestra.
+  demo?: boolean
   onClose: () => void
 }
 
@@ -59,7 +64,9 @@ interface CatalogStyleModalProps {
 // recuerda al toque; «Usar en este video» lo pone en el formulario y «Pasar a
 // mi estilo» crea una copia propia con el modo elegido. Regla de modales del
 // origen: nunca dos Radix abiertos — mientras se elige el personaje fijo, este
-// se ESCONDE en vez de apilarse, como el modal de Mi estilo.
+// se ESCONDE en vez de apilarse, como el modal de Mi estilo. En la demo no hay
+// copia ni modo que elegir: solo «Personaje del estilo» si la historia lo
+// lleva.
 export function CatalogStyleModal({
   gem,
   images,
@@ -72,6 +79,7 @@ export function CatalogStyleModal({
   onCharacterChange,
   onUse,
   onCopy,
+  demo = false,
   onClose,
 }: CatalogStyleModalProps) {
   const { t, i18n } = useTranslation()
@@ -84,6 +92,11 @@ export function CatalogStyleModal({
   const [picking, setPicking] = useState<SelectedCharacter[] | null>(null)
   const character = draft.character
   const name = localizedText(gem.name, language)
+  const bringsCharacter = gemBringsCharacter(gem.sections)
+  // En la demo solo se ve el personaje del estilo, y solo si la historia lo
+  // lleva: no hay modo que elegir.
+  const showsCharacterBlock =
+    !demo || (character.mode === 'generic' && bringsCharacter)
 
   const changeCharacter = (next: StyleCharacter) => {
     const nextDraft = nextCharacterDraft(draft, next)
@@ -120,18 +133,21 @@ export function CatalogStyleModal({
               diálogo solo podría moverse dentro de su propia fila. */}
           <div>
             <div className="space-y-4">
-              <StyleCharacterBlock
-                value={character}
-                disabled={copying}
-                styleId={gem.id}
-                allowedModes={gem.allowedModes}
-                variant="catalog"
-                fixedCharacter={gemBringsCharacter(gem.sections)}
-                onChange={changeCharacter}
-                onPickCharacter={(current) =>
-                  setPicking(current ? [current] : [])
-                }
-              />
+              {showsCharacterBlock && (
+                <StyleCharacterBlock
+                  value={character}
+                  disabled={copying}
+                  styleId={gem.id}
+                  allowedModes={demo ? [character.mode] : gem.allowedModes}
+                  variant="catalog"
+                  fixedCharacter={bringsCharacter}
+                  locked={demo}
+                  onChange={changeCharacter}
+                  onPickCharacter={(current) =>
+                    setPicking(current ? [current] : [])
+                  }
+                />
+              )}
 
               {images.length > 0 ? (
                 <StyleSamplesCarousel images={images} name={name} />

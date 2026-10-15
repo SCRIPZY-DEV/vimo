@@ -103,7 +103,7 @@ export function CreateForm({
   // Con todos los modelos de prompts bloqueados (ADR-0028) solo quedan los
   // estilos de Vimo: la pestaña «Mi estilo» se apaga y el envío se frena. Los
   // del catálogo nuevo también escriben con un modelo: ahí el envío se frena
-  // igual (formBlockers).
+  // igual (formBlockers). En la demo no se escribe nada y no aplica.
   const { models } = usePromptModels()
   const { blockedIds } = usePromptModelBlocks()
   const promptModelsBlocked = allPromptModelsBlocked(models, blockedIds)
@@ -112,8 +112,10 @@ export function CreateForm({
   const { fixedMissing } = useStyleCharacter(value)
 
   // Pre-check de saldo (ADR-0031): con saldo leído e insuficiente el envío
-  // se frena como cualquier otro paso faltante; ilegible solo avisa.
-  const costCheck = useCreateCostCheck({ form: value })
+  // se frena como cualquier otro paso faltante; ilegible solo avisa. La demo
+  // no gasta: sin estimación no consulta ni frena por saldo, y el aviso de
+  // saldo nunca aparece (spec demo v4 §2).
+  const costCheck = useCreateCostCheck({ form: value, demo: demo !== null })
   // La elección del avatar contra la biblioteca de hoy y el formato del video
   // (spec §6.2 y §16): un avatar borrado, un look que perdió Avatar III o uno
   // de otra orientación (la persona cambió el formato) frena el envío acá, en
@@ -266,7 +268,7 @@ export function CreateForm({
             demoChoices ? 'create.styleSource.catalogHintDemo' : undefined
           }
           catalogHintCount={demoChoices?.catalogIds.length}
-          customDisabled={promptModelsBlocked}
+          customDisabled={promptModelsBlocked && demo === null}
           onChange={changeStyleSource}
         />
         {/* Con el switch de avatar encendido, la demo no elige otro estilo:
@@ -297,6 +299,7 @@ export function CreateForm({
             promptModel={value.promptModel}
             visibleIds={demoChoices?.catalogIds}
             demo={demo !== null}
+            storyCharacterOf={demoChoices?.catalogCharacterOf}
             onSelect={selectStyle}
             onCopied={goToCopiedStyle}
           />
@@ -318,6 +321,7 @@ export function CreateForm({
           <PromptModelSection
             value={value}
             disabled={disabled}
+            demo={demo !== null}
             onChange={onChange}
           />
         )}
@@ -360,12 +364,14 @@ export function CreateForm({
       <ImageProviderSection
         value={value}
         disabled={disabled}
+        demo={demo !== null}
         onChange={onChange}
       />
 
       <CreateAnimationSection
         value={value}
-        disabled={disabled || demo !== null}
+        disabled={disabled}
+        demoAnimated={demoChoices?.animationAvailable}
         onChange={onChange}
       />
 
@@ -381,12 +387,17 @@ export function CreateForm({
         <VoiceSection value={value} disabled={disabled} onChange={onChange} />
       )}
 
-      <CharacterSection
-        value={value}
-        lane={lane}
-        disabled={disabled}
-        onChange={onChange}
-      />
+      {/* En la demo, solo con la historia de un estilo con personaje fijo:
+          su chip, sin cambiar el modo (spec demo v4 §2). */}
+      {(demoChoices === null || demoChoices.showsCharacterSection) && (
+        <CharacterSection
+          value={value}
+          lane={lane}
+          disabled={disabled}
+          demo={demo !== null}
+          onChange={onChange}
+        />
+      )}
 
       <SoundtrackSection
         value={value}
@@ -411,23 +422,27 @@ export function CreateForm({
         attempts={attempts}
       />
 
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
-        <input
-          type="checkbox"
-          checked={value.subtitles}
-          disabled={disabled}
-          onChange={(event) => onChange({ subtitles: event.target.checked })}
-          className="mt-1 h-4 w-4 accent-saffron"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block font-display text-sm font-semibold text-foreground">
-            {t('create.subtitles.label')}
+      {/* La demo no ofrece subtítulos: su video sale hecho del pack (spec
+          demo v4 §2). */}
+      {demo === null && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
+          <input
+            type="checkbox"
+            checked={value.subtitles}
+            disabled={disabled}
+            onChange={(event) => onChange({ subtitles: event.target.checked })}
+            className="mt-1 h-4 w-4 accent-saffron"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-sm font-semibold text-foreground">
+              {t('create.subtitles.label')}
+            </span>
+            <span className="mt-0.5 block font-body text-xs text-muted-foreground">
+              {t('create.subtitles.hint')}
+            </span>
           </span>
-          <span className="mt-0.5 block font-body text-xs text-muted-foreground">
-            {t('create.subtitles.hint')}
-          </span>
-        </span>
-      </label>
+        </label>
+      )}
 
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-border bg-card p-3 transition-colors hover:border-saffron/40">
         <input

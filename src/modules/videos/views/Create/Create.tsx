@@ -31,16 +31,17 @@ import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
-import { readCatalogCharacter } from '@/modules/videos/utilities/catalogCharacterMemory'
 import {
   clearCreateDraft,
   readCreateDraft,
   writeCreateDraft,
 } from '@/modules/videos/utilities/createDraft'
 import {
+  demoCatalogCharacter,
   demoDefaultCatalogGem,
   demoFollowStyle,
   demoFormValue,
+  withDemoAnimation,
 } from '@/modules/videos/utilities/demoForm'
 import { readDemoState } from '@/modules/videos/utilities/demoState'
 import { customStyleForTab } from '@/modules/videos/utilities/formLane'
@@ -262,7 +263,8 @@ function CreateView({
   // efecto, apenas la lista del catálogo carga (mientras tanto no hay ninguna
   // y el envío se frena), y el primer cambio la deja en el formulario
   // (patchForm): lo que se ve es lo que se edita. El modo de personaje es el
-  // que usaría un clic en la galería (el recordado o el de sus muestras).
+  // de su historia, como el de un clic en la galería (nunca el recordado en
+  // la app ni el de sus muestras).
   const withDemoDefaultStyle = (current: CreateFormValue): CreateFormValue => {
     if (!demo) return current
 
@@ -272,7 +274,7 @@ function CreateView({
     const customStyle = selectedCatalogStyleFrom(
       gem,
       language,
-      readCatalogCharacter(gem, localStorage),
+      demoCatalogCharacter(demo, current.videoFormat, gem.id),
     )
     return {
       ...current,
@@ -301,14 +303,21 @@ function CreateView({
     shownForm,
     configuredProviders.has('heygen') || demo !== null,
   )
+  // En la demo pasa lo mismo con la animación sin una historia animada para
+  // lo elegido (withDemoAnimation): el switch queda en «Próximamente».
+  const offeredForm = demo ? withDemoAnimation(demo, keyedForm) : keyedForm
   const formValue =
-    customStyle === keyedForm.customStyle
-      ? keyedForm
-      : { ...keyedForm, customStyle }
+    customStyle === offeredForm.customStyle
+      ? offeredForm
+      : { ...offeredForm, customStyle }
 
   // El formulario ya avisa con el saldo cacheado; acá se re-lee justo antes
-  // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse.
-  const { verify: verifyCredits } = useCreateCostCheck({ form: keyedForm })
+  // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse. La demo
+  // no gasta: ni estima ni consulta (spec demo v4 §2).
+  const { verify: verifyCredits } = useCreateCostCheck({
+    form: offeredForm,
+    demo: demo !== null,
+  })
 
   // Sin auto-export el job termina sin video: el destino natural es el
   // editor (el proyecto quedó en borrador con todo generado, ADR-0016).
@@ -343,21 +352,21 @@ function CreateView({
 
   const submit = async () => {
     setProbeFailure(null)
-    const promptModel = resolvePromptModel(
-      form.promptModel,
-      models,
-      defaultId,
-      blockedIds,
-    )
+    // En la demo el bloqueo de modelos (ADR-0028) no aplica: viaja el de la
+    // única tarjeta que se ve, el predeterminado de la casa (spec demo v4 §2).
+    const promptModel = demo
+      ? resolvePromptModel(form.promptModel, models, defaultId)
+      : resolvePromptModel(form.promptModel, models, defaultId, blockedIds)
     await startCreation({
       // La tarea se muestra en el acto. Voz y saldo se comprueban en paralelo
-      // antes de crear el proyecto o consumir créditos en generaciones.
+      // antes de crear el proyecto o consumir créditos en generaciones. La
+      // demo no gasta nada: ni prueba la voz ni re-lee el saldo.
       beforeCreate: async (isCurrent) => {
         const [voiceCheck, costCheck] = await Promise.all([
           !demo && formValue.narrationMode === 'tts' && formValue.voice
             ? probe(formValue.voice)
             : null,
-          verifyCredits(),
+          demo ? null : verifyCredits(),
         ])
         if (!isCurrent()) return false
 
@@ -366,7 +375,7 @@ function CreateView({
           return false
         }
 
-        return !costCheck.blocking
+        return !costCheck?.blocking
       },
       // El proyecto ya existe: recién ahí el borrador cumplió (spec §9). Si
       // un pre-chequeo frena, si se cancela o si createProject falla (una
