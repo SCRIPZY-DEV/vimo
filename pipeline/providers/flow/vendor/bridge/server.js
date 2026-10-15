@@ -171,6 +171,20 @@ function assertReceiptPlan(job, receipt) {
     throw new Error('execution_plan_mismatch')
 }
 
+// Dato informativo: no participa en autenticación, admisión ni capacidades.
+function safeExtensionVersion(value) {
+  if (
+    typeof value !== 'string' ||
+    value.length > 23 ||
+    !/^(0|[1-9]\d{0,4})(\.(0|[1-9]\d{0,4})){0,3}$/.test(value)
+  )
+    return null
+  const parts = value.split('.').map(Number)
+  return parts.every((part) => part <= 65535) && parts.some((part) => part > 0)
+    ? value
+    : null
+}
+
 function retrySummary(retry) {
   if (!retry) return null
   return {
@@ -1129,6 +1143,7 @@ export async function createBridge({
           discoveryId: id,
           installationId: entry.installationId,
           alias: entry.alias,
+          extensionVersion: safeExtensionVersion(entry.extensionVersion),
           identity: entry.identity,
           hasFlowTab: entry.hasFlowTab,
           panelOpen: entry.panelOpen,
@@ -1209,6 +1224,7 @@ export async function createBridge({
         origin,
         discoveryId: socket.discoveryId,
         installationId: frame.installationId,
+        extensionVersion: safeExtensionVersion(frame.extensionVersion),
         alias:
           typeof frame.alias === 'string'
             ? frame.alias.slice(0, 80)
@@ -1417,6 +1433,7 @@ export async function createBridge({
         connectionId: connection.connectionId,
         installationId: connection.installationId,
         alias: connection.alias,
+        extensionVersion: safeExtensionVersion(connection.extensionVersion),
         connected: sockets.has(connection.connectionId),
         revoked: Boolean(connection.revoked),
         paused: Boolean(connection.paused),
@@ -3117,6 +3134,7 @@ export async function createBridge({
         connection.binding = null
         connection.reconciled = false
         connection.sessionObservedAt = 0
+        connection.extensionVersion = null
         connection.capacity = null
         connection.flowTools = null
         connection.generationRetrySupported = false
@@ -3308,6 +3326,9 @@ export async function createBridge({
               : null
           connection.localDeletionSupported =
             frame.capabilities?.localDeletion === true
+          connection.extensionVersion = safeExtensionVersion(
+            frame.extensionVersion,
+          )
           connection.sessionObservedAt = Date.now()
           connection.generationNotBefore =
             Number.isSafeInteger(frame.generationNotBefore) &&
@@ -4258,6 +4279,7 @@ export async function createBridge({
       rememberVerifiedIdentity(connection)
       connection.binding = null
       connection.sessionObservedAt = 0
+      connection.extensionVersion = null
       connection.generationRetrySupported = false
       connection.autoRecoveryVersion = null
       connection.persistentRecoveryVersion = null

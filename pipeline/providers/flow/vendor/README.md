@@ -1,5 +1,13 @@
 # Coordinador local Flow incorporado en Vimo
 
+## Versión de extensión observada 0.2.37 (2026-10-15)
+
+Port selectivo del delta de versión observable de `EXTENSION-RPC-FLOW` commit `9ffe21ae69293de8c0201b3b5cc9bb2ed56f8324` en `feat/flow-extension`: sólo cambia `bridge/server.js`. `session.status` y `discovery.hello` aceptan el metadato opcional `extensionVersion`; conexiones y descubrimientos lo exponen saneado, o `null` para workers antiguos o valores inválidos. La reconexión y el arranque borran el anuncio previo. Nunca participa en autenticación, capacidades ni admisión de generaciones.
+
+Se preservan los parches nativos de Vimo y sus comandos privados. No se copian `background.js`, `manifest.json` ni el empaquetador: no forman parte de este vendor y se distribuyen en el ZIP de la extensión. `adapterVersion` sigue describiendo el adaptador, no el paquete instalado. Una descarga no modifica la versión observada.
+
+Validación temporal contra ambos puentes reales: WebSocket con puerto efímero y almacenamiento temporal; versión válida, formato/límite inválidos, worker anterior, discovery, reconexión y reinicio. Sin perfiles del usuario ni generaciones. La entrega nativa requiere reconstruir el SEA para incorporar este cambio.
+
 ## Recuperación automática 0.2.35 (2026-10-13)
 
 Port selectivo de `EXTENSION-RPC-FLOW` commit `96056f398866a11760f8e066ac86710f99dfe406` en `feat/flow-extension`, verificado contra el fuente de esta entrega. Se mantienen los comandos privados, identidad y almacenamiento propios de Vimo. La UI/worker/SDK no se copian al coordinador: la extensión se actualiza por separado.

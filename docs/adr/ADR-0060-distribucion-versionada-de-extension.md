@@ -1,0 +1,51 @@
+# ADR-0060 — Distribución versionada de la extensión desde Vimo
+
+- **Estado:** Implementada localmente; publicación pendiente de aprobación
+- **Fecha:** 2026-10-15
+- **Área:** Extensión y distribución
+- **Relacionadas:** ADR-0027 (actualizador de la app), ADR-0058 (motor Flow)
+
+## Decisión
+
+Usar el dominio público existente de releases en Cloudflare R2 para guardar ZIPs inmutables de la extensión y un descriptor `extensions/latest.json` con versión, fecha, novedades es/en/pt, URL, SHA-256 y tamaño. El descriptor se publica al final, después de verificar el ZIP versionado. No requiere redeploy de la landing ni una actualización de Vimo para anunciar otra extensión.
+
+La sección Extensión comprueba el descriptor al entrar y al pulsar Buscar actualizaciones. Muestra las novedades y ofrece descargar el ZIP mediante el diálogo nativo Guardar. La extensión se carga o recarga manualmente en Chrome. Descargar no equivale a instalar.
+
+```mermaid
+flowchart LR
+    ext["Extensión en Chrome"]:::propio
+    bridge["Coordinador local Flow"]:::propio
+    ui["Sección Extensión de Vimo"]:::propio
+    native["Comandos nativos de descarga"]:::propio
+    r2[("Releases · R2")]:::datos
+    disk[("ZIP elegido por el usuario")]:::datos
+    ext -.->|"anuncia versión · WebSocket"| bridge
+    ui -->|"consulta conexiones · invoke"| bridge
+    ui -->|"consulta versión y solicita descarga · invoke"| native
+    native -->|"lee descriptor y ZIP · HTTPS"| r2
+    native -->|"guarda ZIP verificado · filesystem"| disk
+    classDef propio fill:#e3f2fd,stroke:#1976d2
+    classDef datos fill:#f3e5f5,stroke:#7b1fa2
+```
+
+**Contratos:** el descriptor tiene esquema1 y una URL HTTPS exacta en `releases.vimo.click/extensions/v<VERSION>/vimo-automate-<VERSION>.zip`. El transporte no sigue redirects, limita tiempos y bytes y verifica SHA-256/tamaño antes de guardar. El destino lo elige el diálogo nativo, no el webview. Un temporal único en la misma carpeta se sustituye atómicamente al terminar. Una sola descarga nativa puede estar activa. El descriptor mutable usa `Cache-Control: no-store`; los ZIPs versionados pueden usar caché inmutable.
+
+**Fallos:** un descriptor ausente, inválido o inaccesible muestra un estado recuperable y permite comprobar de nuevo; no interrumpe las cuentas ni los trabajos Flow. La caché antigua no dispara el aviso. Cancelar Guardar devuelve `null` y no descarga el ZIP. Una descarga cortada, sobredimensionada o con hash incorrecto no sustituye el destino. Fallar al recordar localmente una descarga ya guardada no la convierte en un fallo de descarga.
+
+**Por qué:** reutiliza un alojamiento ya existente bajo dominio propio, mantiene versiones independientes de app y extensión y evita incluir credenciales de almacenamiento en el cliente. El actualizador de la aplicación y su manifiesto anterior no cambian.
+
+## Versión instalada
+
+Desde extensión0.2.37, `chrome.runtime.getManifest().version` viaja como metadato `extensionVersion` en `session.status` y `discovery.hello`. El coordinador acepta el formato numérico de Chrome, limpia el dato al reconectar/reiniciar y expone `null` para versiones antiguas o anuncios inválidos. La UI compara componentes numéricos, no strings.
+
+Sólo perfiles conectados y no revocados con información válida permiten afirmar una versión instalada. Una mezcla con algún perfil antiguo anuncia actualización pendiente. Si no se conoce la instalación, el recibo local recuerda únicamente qué ZIP se descargó y la UI explica que todavía debe cargarse en Chrome. No se cambia la identidad fija de la extensión, sus permisos, el protocolo de ejecución ni la admisión de generaciones.
+
+## Publicación
+
+El repo `EXTENSION-RPC-FLOW` genera `artifacts/vimo-automate-<VERSION>.zip` y `.release.json` mediante `scripts/package-extension.js`, leyendo notas de `releases/<VERSION>.json`. El descriptor deriva el hash y tamaño del ZIP final. El empaquetado es local y no sube archivos.
+
+Tras aprobación explícita: subir primero el ZIP a la ruta versionada, comprobar sus bytes públicos, publicar el descriptor al final y verificar la consulta desde Vimo. Nunca sustituir una versión ya publicada. La fecha del descriptor se fija a la publicación real. Registrar esa publicación en el histórico y vault; hasta entonces no anotar como disponible a usuarios.
+
+## Validación
+
+Pruebas Rust separadas en `extension_release/tests/` cubren contrato, transporte HTTP real aislado, cuerpo cortado, límites, redirecciones, checksum, escritura atómica y concurrencia. Las comprobaciones temporales de UI cubren actualización, versiones desconocidas/mixtas, recibos, cancelación, errores, caché y reentrada. No invocan proveedores ni tocan proyectos reales. La validación remota del endpoint de producción queda para la publicación aprobada.

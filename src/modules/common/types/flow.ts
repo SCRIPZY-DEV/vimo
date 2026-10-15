@@ -16,6 +16,7 @@ export interface FlowIdentity {
 }
 
 export interface FlowConnection {
+  extensionVersion?: string | null
   flowTools?: FlowToolsCapability | null
   connectionId: string
   alias: string
@@ -70,6 +71,7 @@ export interface FlowStatus {
 }
 
 export interface FlowDiscovery {
+  extensionVersion?: string | null
   discoveryId: string
   alias: string
   identity: FlowIdentity | null

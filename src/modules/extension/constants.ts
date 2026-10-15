@@ -1,5 +1,8 @@
 export const ExtensionRoutes = { extension: '/extension' } as const
 export const extensionQueryKeys = {
+  release: ['extension', 'release'],
+  downloadReceipt: ['extension', 'download-receipt'],
+  download: ['extension', 'download'],
   galleryRoot: ['extension', 'gallery'],
   gallery: (batchIds: string[]) => ['extension', 'gallery', ...batchIds],
   previewRoot: ['extension', 'preview'],
@@ -27,3 +30,9 @@ export const FLOW_PREPARATION_UNCONFIRMED_REASONS: readonly string[] = [
   'revoked',
   'connection_limit_exceeded',
 ]
+
+export const EXTENSION_RELEASE_STORE_FILE = 'extension-release.json'
+export const EXTENSION_DOWNLOAD_RECEIPT_KEY = 'lastDownloaded'
+export const EXTENSION_VERSION_PATTERN =
+  /^(0|[1-9]\d{0,4})(\.(0|[1-9]\d{0,4})){0,3}$/
+export const EXTENSION_VERSION_PART_MAX = 65535

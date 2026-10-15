@@ -1,6 +1,15 @@
+import { LazyStore } from '@tauri-apps/plugin-store'
+import { extensionVersionParts } from '@/modules/extension/utilities/extensionReleaseState'
+import type {
+  ExtensionRelease,
+  ExtensionDownloadReceipt,
+  ExtensionDownloadResult,
+} from '@/modules/extension/types/release'
 import { invoke } from '@tauri-apps/api/core'
 import { commonApi } from '@/modules/common/api'
 import {
+  EXTENSION_RELEASE_STORE_FILE,
+  EXTENSION_DOWNLOAD_RECEIPT_KEY,
   FLOW_PREVIEW_MAX_BASE64_LENGTH,
   FLOW_PREVIEW_MIME_TYPES,
 } from '@/modules/extension/constants'
@@ -13,7 +22,46 @@ import type {
   FlowPreviewResult,
 } from '@/modules/extension/types/gallery'
 
+const releaseStore = new LazyStore(EXTENSION_RELEASE_STORE_FILE)
+
 export const extensionApi = {
+  async checkRelease(): Promise<ExtensionRelease> {
+    return invoke('check_extension_release')
+  },
+  async lastDownload(): Promise<ExtensionDownloadReceipt | null> {
+    const receipt = await releaseStore.get<ExtensionDownloadReceipt>(
+      EXTENSION_DOWNLOAD_RECEIPT_KEY,
+    )
+    if (
+      !receipt ||
+      !extensionVersionParts(receipt.version) ||
+      typeof receipt.downloadedAt !== 'string' ||
+      !Number.isFinite(Date.parse(receipt.downloadedAt))
+    )
+      return null
+    return receipt
+  },
+  async downloadRelease(
+    release: ExtensionRelease,
+  ): Promise<ExtensionDownloadResult | null> {
+    const path = await invoke<string | null>('download_extension_release', {
+      release,
+    })
+    if (path === null) return null
+    const receipt = {
+      version: release.version,
+      downloadedAt: new Date().toISOString(),
+    }
+    let receiptSaved = true
+    try {
+      await releaseStore.set(EXTENSION_DOWNLOAD_RECEIPT_KEY, receipt)
+      await releaseStore.save()
+    } catch {
+      // El ZIP ya está guardado: fallar al recordar la descarga no la revierte.
+      receiptSaved = false
+    }
+    return { ...receipt, path, receiptSaved }
+  },
   async deleteHistory(
     confirmedTargets: readonly FlowHistoryTarget[],
   ): Promise<FlowHistoryDeletionResult> {

@@ -8,6 +8,7 @@ import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useFlowRefresh } from '@/modules/common/hooks/useFlowRefresh'
 import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { FlowGenerationControls } from '@/modules/common/components/FlowGenerationControls'
+import { ExtensionReleaseSection } from '@/modules/extension/components/ExtensionReleaseSection'
 import { FlowRecoveryPanel } from '@/modules/extension/components/FlowRecoveryPanel'
 import { FlowManualPairing } from '@/modules/extension/components/FlowManualPairing'
 import { FlowSetupAccounts } from '@/modules/extension/components/FlowSetupAccounts'
@@ -92,6 +93,11 @@ export function Extension() {
           </p>
         </div>
       </header>
+      <ExtensionReleaseSection
+        connections={connections}
+        statusLoading={flow.isLoading}
+        statusFailed={flow.isError}
+      />
       <section
         className="space-y-4 rounded-2xl border-2 border-ocean/20 bg-ocean/5 p-5"
         aria-label={t('extension.accountsTitle')}

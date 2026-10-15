@@ -6,6 +6,7 @@ use tauri_plugin_deep_link::DeepLinkExt;
 mod api_keys;
 mod diagnostics;
 mod flow;
+mod extension_release;
 mod pipeline;
 mod settings;
 mod updates;
@@ -53,6 +54,7 @@ pub fn run() {
     // Hijos vivos del sidecar del pipeline, para poder cancelarlos (ADR-0010).
     .manage(pipeline::jobs::RunningJobs::default())
     .manage(flow::FlowService::default())
+    .manage(extension_release::commands::ExtensionDownloads::default())
     .invoke_handler(tauri::generate_handler![
       api_keys::commands::get_api_keys_status,
       api_keys::commands::save_api_key,
@@ -61,6 +63,8 @@ pub fn run() {
       diagnostics::commands::list_pending_diagnostic_logs,
       diagnostics::commands::delete_diagnostic_log,
       flow::flow_command,
+      extension_release::commands::check_extension_release,
+      extension_release::commands::download_extension_release,
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
       settings::commands::sync_projects_root_scope,
