@@ -100,7 +100,7 @@ export function EditorTransitionsPanel({
         ))}
       </div>
       {matches ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(135px,1fr))] gap-3">
+        <div data-editor-transition-grid className={styles.grid}>
           <button
             type="button"
             disabled={busy || !available}
@@ -128,7 +128,7 @@ export function EditorTransitionsPanel({
                 </span>
               )}
             </div>
-            <span className="block truncate p-2.5 font-display text-xs font-bold text-foreground">
+            <span className="block truncate px-2 py-1.5 font-display text-xs font-bold text-foreground">
               {name}
             </span>
           </button>

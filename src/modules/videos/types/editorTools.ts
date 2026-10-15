@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import type { SoundEffectDefinition } from '@pipeline/types/sound-effects.ts'
 
@@ -65,4 +65,10 @@ export interface EditorTransitionsPanelProps {
 
 export interface TransitionPreviewProps {
   images?: readonly [string, string]
+}
+
+export interface EditorToolPanelStyle extends CSSProperties {
+  '--editor-tool-card-width': string
+  '--editor-tool-card-gap': string
+  '--editor-tool-card-max-columns': number
 }

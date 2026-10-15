@@ -20,7 +20,7 @@ export function TransitionPreview({
       aria-hidden
       data-transition-preview
       data-transition-preview-available={available}
-      className="relative h-24 overflow-hidden bg-muted"
+      className="relative aspect-[2/1] overflow-hidden bg-muted"
     >
       {available ? (
         <>

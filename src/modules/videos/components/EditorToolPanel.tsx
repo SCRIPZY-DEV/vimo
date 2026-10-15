@@ -2,10 +2,16 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { GripVertical, X } from 'lucide-react'
 import { cn } from '@/modules/common/utilities/cn'
-import { EDITOR_TOOL_PANEL_RESIZE_STEP } from '@/modules/videos/constants'
+import {
+  EDITOR_TOOL_PANEL_RESIZE_STEP,
+  EDITOR_TOOL_CARD_WIDTH,
+  EDITOR_TOOL_CARD_GAP,
+  EDITOR_TOOL_CARD_MAX_COLUMNS,
+} from '@/modules/videos/constants'
 import type {
   EditorToolPanelProps,
   EditorToolPanelResize,
+  EditorToolPanelStyle,
 } from '@/modules/videos/types/editorTools'
 import type { KeyboardEvent, PointerEvent } from 'react'
 
@@ -93,12 +99,20 @@ export function EditorToolPanel({
     event.stopPropagation()
   }
 
+  const panelStyle: EditorToolPanelStyle = {
+    width: effectiveWidth,
+    maxWidth: '100%',
+    '--editor-tool-card-width': `${EDITOR_TOOL_CARD_WIDTH}px`,
+    '--editor-tool-card-gap': `${EDITOR_TOOL_CARD_GAP}px`,
+    '--editor-tool-card-max-columns': EDITOR_TOOL_CARD_MAX_COLUMNS,
+  }
+
   return (
     <section
       id={id}
       aria-labelledby={`${id}-title`}
       data-editor-tool-panel
-      style={{ width: effectiveWidth, maxWidth: '100%' }}
+      style={panelStyle}
       className={cn(
         'relative flex h-full min-h-0 shrink-0 flex-col rounded-2xl border border-border bg-card shadow-sm',
         className,
@@ -120,7 +134,10 @@ export function EditorToolPanel({
           <X aria-hidden className="h-4 w-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 [container-type:inline-size]">
+      <div
+        data-editor-tool-scroll
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 [container-type:inline-size] [scrollbar-gutter:stable]"
+      >
         {children}
       </div>
       <div

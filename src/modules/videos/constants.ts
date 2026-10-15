@@ -339,7 +339,16 @@ export const TRANSITION_PREVIEW_IMAGES = [
 
 export const EDITOR_TOOL_PANEL_DEFAULT_WIDTH = 320
 export const EDITOR_TOOL_PANEL_MIN_WIDTH = 280
-export const EDITOR_TOOL_PANEL_MAX_WIDTH = 720
+export const EDITOR_TOOL_CARD_WIDTH = 128
+export const EDITOR_TOOL_CARD_GAP = 12
+export const EDITOR_TOOL_CARD_MAX_COLUMNS = 4
+// Cuatro cards + tres espacios, padding p-4, bordes y gutter de scroll de 8px.
+export const EDITOR_TOOL_PANEL_MAX_WIDTH =
+  EDITOR_TOOL_CARD_WIDTH * EDITOR_TOOL_CARD_MAX_COLUMNS +
+  EDITOR_TOOL_CARD_GAP * (EDITOR_TOOL_CARD_MAX_COLUMNS - 1) +
+  32 +
+  2 +
+  8
 export const EDITOR_TOOL_PANEL_RESIZE_STEP = 24
 export const EDITOR_TOOL_PREVIEW_MIN_WIDTH = 280
 export const EDITOR_TOOL_WORKSPACE_GUTTER = 112
