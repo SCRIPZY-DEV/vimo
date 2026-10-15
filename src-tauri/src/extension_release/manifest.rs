@@ -69,27 +69,25 @@ impl ExtensionRelease {
 /// Mismo contrato que manifest.version de Chromium: 1–4 enteros de 0 a
 /// 65535, sin ceros a la izquierda, y al menos uno mayor que cero.
 fn valid_extension_version(version: &str) -> bool {
+    extension_version_parts(version).is_some()
+}
+
+pub(super) fn extension_version_parts(version: &str) -> Option<[u16; 4]> {
     if version.len() > 23 {
-        return false;
+        return None;
     }
-    let components: Vec<_> = version.split('.').collect();
-    if components.is_empty() || components.len() > 4 {
-        return false;
-    }
-    let mut nonzero = false;
-    for component in components {
-        if component.is_empty()
+    let mut parts = [0; 4];
+    for (index, component) in version.split('.').enumerate() {
+        if index >= parts.len()
+            || component.is_empty()
             || (component.len() > 1 && component.starts_with('0'))
             || !component.bytes().all(|byte| byte.is_ascii_digit())
         {
-            return false;
+            return None;
         }
-        let Ok(number) = component.parse::<u16>() else {
-            return false;
-        };
-        nonzero |= number > 0;
+        parts[index] = component.parse().ok()?;
     }
-    nonzero
+    parts.iter().any(|part| *part > 0).then_some(parts)
 }
 
 /// UTC ISO con segundos y milisegundos opcionales, igual que el generador

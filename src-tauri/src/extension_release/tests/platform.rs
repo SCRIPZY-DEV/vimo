@@ -185,3 +185,47 @@ fn locked_windows_zip_is_preserved_and_can_be_reused_after_unlock() {
     );
     assert_eq!(fs::read_dir(saved.parent().unwrap()).unwrap().count(), 1);
 }
+
+#[cfg(windows)]
+#[test]
+fn cleanup_reports_locked_previous_zip_and_preserves_new_download() {
+    use super::{manifest::ExtensionRelease, storage};
+    use sha2::{Digest, Sha256};
+    use std::{fs, os::windows::fs::OpenOptionsExt};
+
+    let mut bytes = b"PK\x03\x04".to_vec();
+    bytes.extend_from_slice(&[0; 64]);
+    let release: ExtensionRelease = serde_json::from_value(serde_json::json!({
+        "schemaVersion":1,"version":"0.2.37","publishedAt":"2026-10-15T18:20:00.000Z",
+        "notes":{"es":"Cambios","en":"Changes","pt":"Alterações"},
+        "downloadUrl":"https://releases.vimo.click/extensions/v0.2.37/vimo-automate-0.2.37.zip",
+        "sha256":format!("{:x}",Sha256::digest(&bytes)),"sizeBytes":bytes.len()
+    }))
+    .unwrap();
+    let documents = tempfile::tempdir().unwrap();
+    let saved = storage::save_download(documents.path(), &release, &bytes).unwrap();
+    let older = saved.parent().unwrap().join("vimo-automate-0.2.36.zip");
+    fs::write(&older, b"previous archive").unwrap();
+    let locked = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&older)
+        .unwrap();
+    assert!(storage::cleanup_previous_downloads(
+        documents.path(),
+        &release
+    ));
+    assert_eq!(fs::read(&saved).unwrap(), bytes);
+    assert!(older.exists());
+    drop(locked);
+    assert_eq!(fs::read(&older).unwrap(), b"previous archive");
+    assert!(!storage::cleanup_previous_downloads(
+        documents.path(),
+        &release
+    ));
+    assert!(!older.exists());
+    assert_eq!(
+        storage::find_download(documents.path(), &release),
+        Ok(Some(saved))
+    );
+}

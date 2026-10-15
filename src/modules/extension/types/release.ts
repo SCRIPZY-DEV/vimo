@@ -15,8 +15,13 @@ export interface ExtensionDownloadReceipt {
   downloadedAt: string
 }
 
-export interface ExtensionDownloadResult extends ExtensionDownloadReceipt {
+export interface ExtensionDownloadResponse {
   path: string
+  cleanupIncomplete: boolean
+}
+
+export interface ExtensionDownloadResult
+  extends ExtensionDownloadReceipt, ExtensionDownloadResponse {
   receiptSaved: boolean
 }
 

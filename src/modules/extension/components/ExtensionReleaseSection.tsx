@@ -255,6 +255,11 @@ export function ExtensionReleaseSection({
           </Button>
         </div>
       )}
+      {saved?.cleanupIncomplete && !open && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('extension.releaseCleanupIncomplete')}
+        </p>
+      )}
       {available && (
         <Dialog
           open={open}
@@ -340,6 +345,11 @@ export function ExtensionReleaseSection({
             {folderError && (
               <p role="alert" className="text-sm text-destructive">
                 {t('extension.releaseOpenFolderFailed')}
+              </p>
+            )}
+            {saved?.cleanupIncomplete && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('extension.releaseCleanupIncomplete')}
               </p>
             )}
             {saved && !saved.receiptSaved && (

@@ -1,12 +1,22 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use super::download::{check_release, download_archive};
 use super::error::ExtensionReleaseError;
 use super::manifest::ExtensionRelease;
-use super::storage::{find_download, save_download, verified_download_directory};
+use super::storage::{
+    cleanup_previous_downloads, find_download, save_download, verified_download_directory,
+};
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionDownloadResult {
+    pub path: String,
+    pub cleanup_incomplete: bool,
+}
 
 #[derive(Default)]
 pub struct ExtensionDownloads(AtomicBool);
@@ -81,7 +91,7 @@ pub async fn download_extension_release(
     app: AppHandle,
     downloads: State<'_, ExtensionDownloads>,
     release: ExtensionRelease,
-) -> Result<String, ExtensionReleaseError> {
+) -> Result<ExtensionDownloadResult, ExtensionReleaseError> {
     release.validate()?;
     let _guard = downloads.start()?;
     let documents = app
@@ -91,16 +101,28 @@ pub async fn download_extension_release(
     let existing_documents = documents.clone();
     let existing_release = release.clone();
     let existing = tauri::async_runtime::spawn_blocking(move || {
-        find_download(&existing_documents, &existing_release)
+        find_download(&existing_documents, &existing_release).map(|path| {
+            path.map(|path| ExtensionDownloadResult {
+                path: path.to_string_lossy().into_owned(),
+                cleanup_incomplete: cleanup_previous_downloads(
+                    &existing_documents,
+                    &existing_release,
+                ),
+            })
+        })
     })
     .await
     .map_err(|_| ExtensionReleaseError::SaveFailed)??;
-    if let Some(path) = existing {
-        return Ok(path.to_string_lossy().into_owned());
+    if let Some(result) = existing {
+        return Ok(result);
     }
     let bytes = download_archive(&release).await?;
     tauri::async_runtime::spawn_blocking(move || {
-        save_download(&documents, &release, &bytes).map(|path| path.to_string_lossy().into_owned())
+        let path = save_download(&documents, &release, &bytes)?;
+        Ok(ExtensionDownloadResult {
+            path: path.to_string_lossy().into_owned(),
+            cleanup_incomplete: cleanup_previous_downloads(&documents, &release),
+        })
     })
     .await
     .map_err(|_| ExtensionReleaseError::SaveFailed)?

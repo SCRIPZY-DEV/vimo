@@ -2883,6 +2883,7 @@
     "releaseInstallUpdate": "Para atualizar, copie os arquivos de dentro da nova Vimo-Extension para a pasta já carregada no Chrome e substitua os arquivos. Não coloque outra pasta dentro dela. Clique em Recarregar em cada perfil, sem remover a extensão.",
     "releaseDownloading": "Baixando e verificando…",
     "releaseDownloadVersion": "Baixar extensão {{version}}",
+    "releaseCleanupIncomplete": "Não foi possível remover alguns ZIPs anteriores. Você pode conferi-los em Abrir pasta.",
     "releaseReceiptFailed": "O ZIP foi salvo, mas o Vimo não conseguiu registrar o download. Você pode usar o arquivo salvo.",
     "releaseError_network": "Não foi possível verificar a versão. Confira sua conexão e tente novamente.",
     "releaseError_unavailable": "O download da extensão ainda não está disponível. Verifique novamente mais tarde.",

@@ -47,3 +47,20 @@ fn command_errors_are_stable_codes_without_private_details() {
         );
     }
 }
+
+#[test]
+fn download_result_reports_partial_cleanup_without_losing_saved_path() {
+    for incomplete in [false, true] {
+        let result = ExtensionDownloadResult {
+            path: "/Documents/Vimo/Extensiones/vimo-automate-0.2.37.zip".into(),
+            cleanup_incomplete: incomplete,
+        };
+        assert_eq!(
+            serde_json::to_value(result).unwrap(),
+            serde_json::json!({
+                "path": "/Documents/Vimo/Extensiones/vimo-automate-0.2.37.zip",
+                "cleanupIncomplete": incomplete,
+            })
+        );
+    }
+}

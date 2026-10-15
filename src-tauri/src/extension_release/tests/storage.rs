@@ -278,3 +278,107 @@ fn opening_download_directory_requires_a_present_verified_archive() {
     );
     assert_eq!(fs::read(first).unwrap(), altered);
 }
+
+#[test]
+fn cleanup_removes_only_older_managed_zip_names_after_verified_save() {
+    let documents = tempfile::tempdir().unwrap();
+    let bytes = archive();
+    let release = release(&bytes);
+    let saved = save_download(documents.path(), &release, &bytes).unwrap();
+    let directory = saved.parent().unwrap();
+    let older = [
+        "vimo-automate-0.2.9.zip",
+        "vimo-automate-0.2.36 (1).zip",
+        "vimo-automate-0.2.36 (19).zip",
+    ];
+    let preserved = [
+        "vimo-automate-0.2.37 (1).zip",
+        "vimo-automate-0.2.37.0.zip",
+        "vimo-automate-0.2.38.zip",
+        "vimo-automate-0.10.zip",
+        "vimo-automate-1.zip",
+        "vimo-automate-00.2.36.zip",
+        "vimo-automate-0.2.36 (0).zip",
+        "vimo-automate-0.2.36 (01).zip",
+        "vimo-automate-0.2.36 (20).zip",
+        "vimo-automate-0.2.33 (1).ZIP",
+        "vimo-automate-0.2.36.zip.backup",
+        "vimo-automate-0.0.0.zip",
+        "vimo-automate-0.0.65536.zip",
+        "vimo-automate-0.0.0.1.1.zip",
+        "other.zip",
+    ];
+    for name in older.iter().chain(preserved.iter()) {
+        fs::write(directory.join(name), b"old or unrelated bytes").unwrap();
+    }
+    fs::create_dir(directory.join("vimo-automate-0.2.35.zip")).unwrap();
+    fs::create_dir(directory.join("Vimo-Extension")).unwrap();
+    let nested = directory
+        .join("Vimo-Extension")
+        .join("vimo-automate-0.2.34.zip");
+    fs::write(&nested, b"keep extracted extension").unwrap();
+    assert_eq!(
+        find_download(documents.path(), &release),
+        Ok(Some(saved.clone()))
+    );
+    assert!(older.iter().all(|name| directory.join(name).exists()));
+    assert!(!cleanup_previous_downloads(documents.path(), &release));
+    for name in older {
+        assert!(
+            !directory.join(name).exists(),
+            "Old archive was kept: {name}"
+        );
+    }
+    for name in preserved {
+        assert!(
+            directory.join(name).is_file(),
+            "Preserved archive is missing: {name}"
+        );
+    }
+    assert!(directory.join("vimo-automate-0.2.35.zip").is_dir());
+    assert!(nested.is_file());
+    assert_eq!(fs::read(&saved).unwrap(), bytes);
+    assert!(!cleanup_previous_downloads(documents.path(), &release));
+}
+
+#[test]
+fn failed_or_corrupted_new_download_never_cleans_previous_versions() {
+    let documents = tempfile::tempdir().unwrap();
+    let bytes = archive();
+    let release = release(&bytes);
+    let directory = download_directory(documents.path()).unwrap();
+    fs::create_dir_all(&directory).unwrap();
+    let older = directory.join("vimo-automate-0.2.36.zip");
+    fs::write(&older, b"keep previous").unwrap();
+    assert!(save_download(documents.path(), &release, b"invalid").is_err());
+    assert!(cleanup_previous_downloads(documents.path(), &release));
+    assert_eq!(fs::read(&older).unwrap(), b"keep previous");
+    let saved = save_download(documents.path(), &release, &bytes).unwrap();
+    assert_eq!(
+        save_download(documents.path(), &release, &bytes),
+        Ok(saved.clone())
+    );
+    fs::write(saved, b"corrupted").unwrap();
+    assert!(cleanup_previous_downloads(documents.path(), &release));
+    assert_eq!(fs::read(&older).unwrap(), b"keep previous");
+}
+
+#[cfg(unix)]
+#[test]
+fn cleanup_preserves_previous_symlinks_and_their_targets() {
+    use std::os::unix::fs::symlink;
+    let documents = tempfile::tempdir().unwrap();
+    let bytes = archive();
+    let release = release(&bytes);
+    let saved = save_download(documents.path(), &release, &bytes).unwrap();
+    let target = documents.path().join("foreign.zip");
+    fs::write(&target, b"keep").unwrap();
+    let linked = saved.parent().unwrap().join("vimo-automate-0.2.36.zip");
+    symlink(&target, &linked).unwrap();
+    assert!(!cleanup_previous_downloads(documents.path(), &release));
+    assert!(fs::symlink_metadata(linked)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(fs::read(target).unwrap(), b"keep");
+}

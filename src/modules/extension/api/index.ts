@@ -4,6 +4,7 @@ import type {
   ExtensionRelease,
   ExtensionDownloadReceipt,
   ExtensionDownloadResult,
+  ExtensionDownloadResponse,
 } from '@/modules/extension/types/release'
 import { invoke } from '@tauri-apps/api/core'
 import { commonApi } from '@/modules/common/api'
@@ -50,10 +51,20 @@ export const extensionApi = {
   async downloadRelease(
     release: ExtensionRelease,
   ): Promise<ExtensionDownloadResult> {
-    const path = await invoke<string>('download_extension_release', {
-      release,
-    })
-    if (typeof path !== 'string' || !path.trim()) throw { code: 'save_failed' }
+    const result = await invoke<ExtensionDownloadResponse>(
+      'download_extension_release',
+      {
+        release,
+      },
+    )
+    if (
+      !result ||
+      typeof result.path !== 'string' ||
+      !result.path.trim() ||
+      typeof result.cleanupIncomplete !== 'boolean'
+    )
+      throw { code: 'save_failed' }
+    const { path, cleanupIncomplete } = result
     const receipt = {
       version: release.version,
       downloadedAt: new Date().toISOString(),
@@ -66,7 +77,7 @@ export const extensionApi = {
       // El ZIP ya está guardado: fallar al recordar la descarga no la revierte.
       receiptSaved = false
     }
-    return { ...receipt, path, receiptSaved }
+    return { ...receipt, path, cleanupIncomplete, receiptSaved }
   },
   async deleteHistory(
     confirmedTargets: readonly FlowHistoryTarget[],

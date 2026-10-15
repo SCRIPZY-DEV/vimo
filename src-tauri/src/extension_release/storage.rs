@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::download::verify_archive;
 use super::error::ExtensionReleaseError;
-use super::manifest::ExtensionRelease;
+use super::manifest::{extension_version_parts, ExtensionRelease};
 
 const MAX_DOWNLOAD_CANDIDATES: usize = 20;
 
@@ -115,6 +115,71 @@ pub(super) fn find_download(
         }
     }
     Ok(None)
+}
+
+fn managed_archive_version(name: &str) -> Option<[u16; 4]> {
+    let stem = name.strip_prefix("vimo-automate-")?.strip_suffix(".zip")?;
+    let version = match stem.split_once(" (") {
+        Some((version, suffix)) => {
+            let number = suffix.strip_suffix(')')?;
+            if number.starts_with('0') || !number.bytes().all(|byte| byte.is_ascii_digit()) {
+                return None;
+            }
+            let index = number.parse::<usize>().ok()?;
+            if !(1..MAX_DOWNLOAD_CANDIDATES).contains(&index) {
+                return None;
+            }
+            version
+        }
+        None => stem,
+    };
+    extension_version_parts(version)
+}
+
+/// Sólo tras una descarga válida: borra ZIPs anteriores con nombres administrados
+/// por Vimo dentro de su carpeta dedicada. No recorre carpetas ni sigue enlaces.
+/// true indica limpieza incompleta; el ZIP nuevo sigue siendo un éxito válido.
+pub(super) fn cleanup_previous_downloads(documents: &Path, release: &ExtensionRelease) -> bool {
+    if !matches!(find_download(documents, release), Ok(Some(_))) {
+        return true;
+    }
+    let Some(current) = extension_version_parts(&release.version) else {
+        return true;
+    };
+    let Ok(directory) = download_directory(documents) else {
+        return true;
+    };
+    let Ok(entries) = fs::read_dir(directory) else {
+        return true;
+    };
+    let mut incomplete = false;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            incomplete = true;
+            continue;
+        };
+        let name = entry.file_name();
+        let Some(previous) = name.to_str().and_then(managed_archive_version) else {
+            continue;
+        };
+        if previous >= current {
+            continue;
+        }
+        let kind = match entry.file_type() {
+            Ok(kind) => kind,
+            Err(_) => {
+                incomplete = true;
+                continue;
+            }
+        };
+        if !kind.is_file() || kind.is_symlink() {
+            continue;
+        }
+        if let Err(error) = fs::remove_file(entry.path()) {
+            incomplete |= error.kind() != ErrorKind::NotFound;
+        }
+    }
+    incomplete
 }
 
 /// Para abrir la carpeta se exige que el ZIP siga presente y conserve su hash.
