@@ -35,14 +35,16 @@ import {
   styleDirectory,
   type StoredStyle,
 } from '../styles/style-store.ts'
+import { partSha256 } from './staging.ts'
 
 // El pack pre-hecho de la demo (ADR-0029, ADR-0030; v4 en
-// docs/handoff/2026-10-14-demo-v4/design.md §3): el zip publicado se extrae
-// TAL CUAL (claves en español) en <projectsRoot>/_demo-pack y se traduce al
-// formato nativo al leer y al copiar. Lo manda el manifest: cada historia que
-// lista (estilos del catálogo y gemas, por formato) tiene su carpeta en el
-// árbol de su formato —la raíz para 16:9, `short/` para 9:16— y cada gema la
-// suya en `gemas/`. Este archivo es el único que conoce ese formato.
+// docs/handoff/2026-10-14-demo-v4/design.md §3): las partes publicadas se
+// extraen TAL CUAL (claves en español) en <projectsRoot>/_demo-pack y se
+// traducen al formato nativo al leer y al copiar. Lo manda el manifest: cada
+// historia que lista (estilos del catálogo y gemas, por formato) tiene su
+// carpeta en el árbol de su formato —la raíz para 16:9, `short/` para 9:16—
+// y cada gema la suya en `gemas/`. Este archivo es el único que conoce ese
+// formato.
 export const DEMO_PACK_SUBDIRECTORY = '_demo-pack'
 export const DEMO_PACK_OK_FILE = '.ok'
 export const DEMO_PACK_MANIFEST_FILE = 'manifest.json'
@@ -160,9 +162,10 @@ export interface PackWord {
   confidence?: number
 }
 
+// Lo que sella `.ok`: la versión y los SHA-256 de las partes, en orden.
 interface OkMarker {
   version?: string
-  sha256?: string
+  parts?: string[]
 }
 
 export function demoPackRoot(context: PipelineContext): string {
@@ -553,8 +556,21 @@ export async function validatePack(packRoot: string): Promise<string | null> {
   return null
 }
 
-// Instalado = el marcador `.ok` sella ESTA versión y ESTE SHA-256, y los
-// archivos están completos (un pack a medias o de otra versión no cuenta).
+// Los SHA-256 de las partes configuradas, en orden.
+function packPartShas(demo: DemoConfig): string[] {
+  return demo.packParts.map(partSha256)
+}
+
+function sealsParts(marker: OkMarker, demo: DemoConfig): boolean {
+  const sealed = marker.parts
+  const expected = packPartShas(demo)
+  if (!Array.isArray(sealed) || sealed.length !== expected.length) return false
+  return expected.every((sha256, index) => sealed[index] === sha256)
+}
+
+// Instalado = el marcador `.ok` sella ESTA versión y los SHA-256 de ESTAS
+// partes, y los archivos están completos (un pack a medias, de otra versión
+// o de otro armado no cuenta).
 export async function isPackInstalled(
   packRoot: string,
   demo: DemoConfig,
@@ -562,17 +578,15 @@ export async function isPackInstalled(
   const marker = await readJsonFile<OkMarker>(join(packRoot, DEMO_PACK_OK_FILE))
   if (!marker) return false
   if (marker.version !== demo.packVersion) return false
-  if (marker.sha256?.toLowerCase() !== demo.packSha256.toLowerCase())
-    return false
+  if (!sealsParts(marker, demo)) return false
   return (await validatePack(packRoot)) === null
 }
 
 export async function writeOkMarker(
   packRoot: string,
   demo: DemoConfig,
-  sha256: string,
 ): Promise<void> {
-  const marker: OkMarker = { version: demo.packVersion, sha256 }
+  const marker = { version: demo.packVersion, parts: packPartShas(demo) }
   await writeFileAtomic(
     join(packRoot, DEMO_PACK_OK_FILE),
     `${JSON.stringify(marker)}\n`,

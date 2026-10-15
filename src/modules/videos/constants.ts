@@ -1470,13 +1470,18 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
 }
 
 // Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0029).
-// Ninguno es reintentable: un fallo de la demo es final.
+// Ninguno es reintentable: un fallo de la demo es final. Con el disco lleno
+// (`demo_disk_full`), la persona libera espacio y pulsa «Reintentar», que
+// sigue desde la última parte instalada; con `demo_busy`, otro demo-prepare
+// está instalando el pack y hay que esperar a que termine.
 export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_offline: 'createDemo.errors.offline',
   demo_download_failed: 'createDemo.errors.downloadFailed',
   demo_pack_corrupt: 'createDemo.errors.packCorrupt',
   demo_pack_unreadable: 'createDemo.errors.packUnreadable',
   demo_pack_incomplete: 'createDemo.errors.packIncomplete',
+  demo_disk_full: 'createDemo.errors.diskFull',
+  demo_busy: 'createDemo.errors.busy',
   missing_projects_root: 'create.errors.missingProjectsRoot',
 }
 export const UNKNOWN_DEMO_ERROR_KEY = 'createDemo.errors.unknown'

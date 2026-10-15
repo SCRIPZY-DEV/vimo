@@ -16,9 +16,10 @@ const IDLE: DemoPrepareView = {
   errorKey: null,
 }
 
-// El job demo-prepare (descarga única del pack) con su progreso. Vive solo
-// mientras la puerta está montada: salir de la vista cancela el job (el
-// sidecar borra sus temporales) y la próxima visita lo lanza de nuevo.
+// El job demo-prepare (descarga del pack por partes) con su progreso. Vive
+// solo mientras la puerta está montada: salir de la vista cancela el job (el
+// sidecar borra el zip en curso y conserva las partes ya instaladas) y la
+// próxima visita lo lanza de nuevo, desde la primera parte sin instalar.
 export function useDemoPrepare() {
   const [view, setView] = useState<DemoPrepareView>(IDLE)
   const jobRef = useRef<PipelineJobHandle | null>(null)

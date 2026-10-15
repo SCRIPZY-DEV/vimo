@@ -1305,6 +1305,8 @@
       "packCorrupt": "O pacote baixado não confere com o esperado. Tente de novo.",
       "packUnreadable": "Não foi possível abrir o pacote da demo. Tente de novo.",
       "packIncomplete": "O pacote da demo veio incompleto. Tente de novo.",
+      "diskFull": "Não há espaço suficiente no disco para os {{gb}} GB da demo. Libere espaço e tente de novo.",
+      "busy": "A demo já está sendo preparada em segundo plano. Espere terminar e tente de novo.",
       "unknown": "Não foi possível preparar a demo. Tente de novo."
     }
   },

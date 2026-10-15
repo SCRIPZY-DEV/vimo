@@ -3,34 +3,58 @@
 // pack mínimo v4 en una carpeta temporal (las historias que lista el
 // manifest: dos estilos del catálogo y dos gemas, una historia animada con un
 // clip y una con avatar, 2 escenas por historia, archivos diminutos), lo
-// empaqueta en un zip en memoria, lo sirve por HTTP local y corre los
-// subcomandos del sidecar contra una carpeta raíz temporal. Cada sección
-// asserta un invariante de la ADR o de la spec. La sección 18 corre el
-// armador (scripts/build-demo-pack.mjs) sobre proyectos nativos sintéticos,
-// con medios diminutos del ffmpeg empaquetado en src-tauri/binaries.
+// empaqueta en zips en memoria (entero en una parte, y en dos partes como las
+// arma el armador), los sirve por HTTP local y corre los subcomandos del
+// sidecar contra una carpeta raíz temporal. Cada sección asserta un
+// invariante de la ADR o de la spec. La sección 18 corre el armador
+// (scripts/build-demo-pack.mjs) sobre proyectos nativos sintéticos, con
+// medios diminutos del ffmpeg empaquetado en src-tauri/binaries; las
+// secciones 21 a 33 prueban la instalación por partes: reanudable, con
+// chequeo de espacio, con las partes que arma el armador (27), con un solo
+// instalador por raíz (29 y 30) y ante los fallos de Windows y del disco
+// (28, 31, 32 y 33, con stubs que el sidecar carga con --import). Las
+// secciones 38 a 40 prueban el tope de inactividad de la descarga (un
+// cuelgue de la red falla enseguida y sigue desde la parte que faltaba; una
+// parte lenta pero viva no se corta), si alguien tiene el lock según
+// demo-status, y el disco lleno al mover el pack o al sembrar las gemas.
 //
 //   pnpm check:demo
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
-import {
+import fsPromises, {
   copyFile,
   mkdtemp,
   mkdir,
   readFile,
   readdir,
   rm,
+  stat,
+  statfs,
+  utimes,
   writeFile,
 } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { setTimeout as delay } from 'node:timers/promises'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 import { crc32 } from 'node:zlib'
 
 import { extractZip } from '../../pipeline/commands/demo/extract.ts'
+import {
+  DEMO_LOCK_FILE,
+  DEMO_STEAL_LOCK_FILE,
+  withDemoInstallLock,
+} from '../../pipeline/commands/demo/install-lock.ts'
 import { validatePack } from '../../pipeline/commands/demo/pack.ts'
+import {
+  STAGING_STATE_FILE,
+  requiredFreeBytes,
+} from '../../pipeline/commands/demo/staging.ts'
+import { DEFAULT_PIPELINE_CONFIG } from '../../pipeline/config/pipeline-config.ts'
 import { executableSuffix, targetTriple } from '../target-triple.mjs'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
@@ -350,6 +374,9 @@ function sha256(buffer) {
 // WEBP. Los medios salen del ffmpeg empaquetado y pesan pocos KB, salvo los
 // videos: el armador exige más de 100 KB a cada uno.
 const BUILDER_SCRIPT = join(repoRoot, 'scripts/build-demo-pack.mjs')
+// La carpeta (dentro del workspace) donde la sección 18 escribe la fixture
+// nativa; la sección 27 vuelve a armar desde ahí.
+const BUILDER_NATIVE_FOLDER = 'builder-native'
 const BUILT_PART_PREFIX = 'vimo-demo-pack-v4.part-'
 const BUILT_CLIP = '0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e.mp4'
 const BUILT_AVATAR_CLIP = 'scene_2.0123abcd.mp4'
@@ -790,6 +817,18 @@ async function writeBuilderFixture(root, media, tweak) {
   await put('gems.json', json(fixture.gems))
 }
 
+// Los argumentos del armador para la fixture escrita en `root`.
+function builderArguments(root, out) {
+  return [
+    '--stories',
+    join(root, 'stories.json'),
+    '--gems',
+    join(root, 'gems.json'),
+    '--out',
+    out,
+  ]
+}
+
 // Corre el armador y devuelve su salida.
 function runBuilder(args) {
   return new Promise((resolve, reject) => {
@@ -848,6 +887,28 @@ const shortIncompleteZip = buildZip(
     tweak: ({ files }) => files.delete('short/normal/video_final.mp4'),
   }),
 )
+// El mismo pack en dos partes, como las arma el armador: sin carpeta
+// contenedora, la parte 1 con manifest.json, gemas/ y las historias 16:9, y
+// la parte 2 con short/ (un tercio del pack: su mitad mueve el porcentaje).
+const isShortEntry = ([name]) => name.startsWith('short/')
+const partEntries = [...buildPackEntries({ container: '' })]
+const firstPartZip = buildZip(
+  new Map(partEntries.filter((entry) => !isShortEntry(entry))),
+)
+const secondPartZip = buildZip(new Map(partEntries.filter(isShortEntry)))
+// Otra parte 1 de la misma versión (otra voz en el manifest): otro armado.
+const otherFirstPartZip = buildZip(
+  new Map(
+    [
+      ...buildPackEntries({
+        container: '',
+        tweak: ({ manifest }) => {
+          manifest.voz.nombre = 'Abel de otro armado'
+        },
+      }),
+    ].filter((entry) => !isShortEntry(entry)),
+  ),
+)
 const served = new Map([
   ['/pack.zip', packZip],
   ['/broken.zip', brokenZip],
@@ -855,8 +916,40 @@ const served = new Map([
   ['/short-incomplete.zip', shortIncompleteZip],
 ])
 let hits = 0
+// Pedidos por ruta: prueba que una parte terminada no se vuelve a pedir.
+const requestsByPath = new Map()
+// Cortes a pedido: el próximo pedido de esa ruta recibe las cabeceras (con
+// el Content-Length entero) y la mitad del cuerpo. `cut` cierra la conexión
+// ahí mismo (el sidecar puede no llegar a leer esa mitad); `stall` la deja
+// abierta hasta que la sección decida: cancelar el job, cortarla con
+// `cutStalled` cuando el avance muestra la mitad leída o terminarla con
+// `finishStalled`. Como tope, STALL_LIMIT_MS, para que un fallo no cuelgue el
+// guard. `mute` no contesta nada, ni las cabeceras, también hasta que la
+// sección la corte o hasta el tope; `trickle` manda el cuerpo entero en
+// TRICKLE_SLICES tandas separadas por TRICKLE_GAP_MS (una conexión lenta pero
+// viva).
+const interruptions = new Map()
+const stalledResponses = new Map()
+const STALL_LIMIT_MS = 30_000
+const TRICKLE_SLICES = 8
+const TRICKLE_GAP_MS = 250
+function trickle(response, body) {
+  const size = Math.ceil(body.length / TRICKLE_SLICES)
+  const send = (offset) => {
+    if (response.destroyed) return
+    const end = Math.min(body.length, offset + size)
+    if (end >= body.length) {
+      response.end(body.subarray(offset))
+      return
+    }
+    response.write(body.subarray(offset, end))
+    setTimeout(() => send(end), TRICKLE_GAP_MS).unref()
+  }
+  send(0)
+}
 const server = createServer((request, response) => {
   hits += 1
+  requestsByPath.set(request.url, (requestsByPath.get(request.url) ?? 0) + 1)
   const body = served.get(request.url) ?? null
   if (!body) {
     response.statusCode = 404
@@ -865,31 +958,101 @@ const server = createServer((request, response) => {
   }
   response.setHeader('Content-Type', 'application/zip')
   response.setHeader('Content-Length', String(body.length))
-  response.end(body)
+  const interruption = interruptions.get(request.url)
+  if (!interruption) {
+    response.end(body)
+    return
+  }
+  interruptions.delete(request.url)
+  if (interruption === 'trickle') {
+    trickle(response, body)
+    return
+  }
+  if (interruption === 'mute') {
+    const timer = setTimeout(() => response.destroy(), STALL_LIMIT_MS)
+    timer.unref()
+    stalledResponses.set(request.url, { response, rest: body, timer })
+    return
+  }
+  const half = Math.floor(body.length / 2)
+  if (interruption === 'stall') {
+    const timer = setTimeout(() => response.destroy(), STALL_LIMIT_MS)
+    timer.unref()
+    stalledResponses.set(request.url, {
+      response,
+      rest: body.subarray(half),
+      timer,
+    })
+  }
+  response.write(body.subarray(0, half), () => {
+    if (interruption === 'cut') response.destroy()
+  })
 })
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const baseUrl = `http://127.0.0.1:${server.address().port}`
 
+// Corta la respuesta colgada de `path`: la red se cae a mitad de la parte.
+function cutStalled(path) {
+  const stalled = stalledResponses.get(path)
+  stalledResponses.delete(path)
+  if (!stalled) return
+  clearTimeout(stalled.timer)
+  stalled.response.destroy()
+}
+
+// Termina la respuesta colgada de `path`: la parte llega entera.
+function finishStalled(path) {
+  const stalled = stalledResponses.get(path)
+  stalledResponses.delete(path)
+  if (!stalled) return
+  clearTimeout(stalled.timer)
+  stalled.response.end(stalled.rest)
+}
+
+// Una parte del pack servida en `path`: lo que va en config.demo.packParts.
+function servedPart(path) {
+  const zip = served.get(path) ?? Buffer.alloc(0)
+  return { url: `${baseUrl}${path}`, sha256: sha256(zip), bytes: zip.length }
+}
+
+// Las partes `zips` servidas bajo un prefijo propio de cada sección, así los
+// pedidos de una sección no se mezclan con los de otra.
+function serveParts(prefix, zips = [firstPartZip, secondPartZip]) {
+  return zips.map((zip, index) => {
+    const path = `/${prefix}/part-${index + 1}.zip`
+    served.set(path, zip)
+    return servedPart(path)
+  })
+}
+const pathOf = (part) => new URL(part.url).pathname
+const requestsFor = (part) => requestsByPath.get(pathOf(part)) ?? 0
+const bytesOf = (parts) => parts.reduce((total, part) => total + part.bytes, 0)
+
 // ── Corridas del sidecar ─────────────────────────────────────────────────────
+// Sin margen de disco: el guard prueba la lógica, no el espacio libre de la
+// máquina que lo corre (la sección 26 sube el margen para simular el disco
+// lleno).
 function demoConfig(overrides = {}) {
   return {
     demo: {
       packVersion: 'mini',
-      packUrl: `${baseUrl}/pack.zip`,
-      packSha256: sha256(packZip),
+      packParts: [servedPart('/pack.zip')],
       delayScale: 0,
+      diskMarginBytes: 0,
       ...overrides,
     },
   }
 }
 
 // Lanza `node pipeline/main.ts <subcomando>` con el job por stdin y devuelve
-// los eventos NDJSON. `onEvent` corre en el momento en que cada evento llega
-// (para chequear el disco justo entonces); `cancelOn` manda la cancelación
-// al ver ese tipo de evento.
+// los eventos NDJSON y cómo terminó el proceso. `onEvent` corre en el momento
+// en que cada evento llega (para chequear el disco justo entonces); la
+// cancelación se manda una vez, al ver un evento del tipo `cancelOn` o el
+// primero que cumpla `cancelWhen`; `preload` es un stub de `writeStub` que el
+// proceso carga antes que su código.
 function runSidecar(
   subcommand,
-  { projectsRoot, payload, config, onEvent, cancelOn },
+  { projectsRoot, payload, config, onEvent, cancelOn, cancelWhen, preload },
 ) {
   return new Promise((resolve, reject) => {
     const job = {
@@ -900,15 +1063,29 @@ function runSidecar(
       config,
       ...(payload === undefined ? {} : { payload }),
     }
+    const preloadArguments = preload
+      ? ['--import', pathToFileURL(preload).href]
+      : []
+    // Con un stub, los avisos a stderr son parte de lo esperado: se guardan
+    // en vez de imprimirse.
     const child = spawn(
       process.execPath,
-      [join(repoRoot, 'pipeline/main.ts'), subcommand],
+      [...preloadArguments, join(repoRoot, 'pipeline/main.ts'), subcommand],
       {
-        stdio: ['pipe', 'pipe', 'inherit'],
+        stdio: ['pipe', 'pipe', preload ? 'pipe' : 'inherit'],
       },
     )
+    let stderr = ''
+    child.stderr?.on('data', (chunk) => (stderr += chunk))
+    // Un proceso que el stub mata a propósito cierra su stdin: sin esto, el
+    // EPIPE tiraría el guard.
+    child.stdin.on('error', () => undefined)
     const events = []
     let buffer = ''
+    let cancelled = false
+    const shouldCancel = (event) =>
+      (cancelOn !== undefined && event.type === cancelOn) ||
+      cancelWhen?.(event) === true
     child.stdout.on('data', (chunk) => {
       buffer += chunk
       let index = buffer.indexOf('\n')
@@ -919,16 +1096,51 @@ function runSidecar(
           const event = JSON.parse(line)
           events.push(event)
           onEvent?.(event)
-          if (cancelOn && event.type === cancelOn)
+          if (!cancelled && shouldCancel(event)) {
+            cancelled = true
             child.stdin.write('{"type":"cancel"}\n')
+          }
         }
         index = buffer.indexOf('\n')
       }
     })
     child.on('error', reject)
-    child.on('close', (code) => resolve({ events, code }))
+    child.on('close', (code, signal) =>
+      resolve({ events, code, signal, stderr }),
+    )
     child.stdin.write(`${JSON.stringify(job)}\n`)
   })
+}
+
+// Un módulo que el sidecar carga con --import antes que su código: reemplaza
+// funciones de `node:fs` y `node:fs/promises` (syncBuiltinESMExports
+// actualiza los imports con nombre del pipeline) para simular lo que un guard
+// no puede provocar de verdad —un antivirus que traba un archivo, la app que
+// muere en un punto exacto, el disco lleno— sin ganchos en el código de
+// producción. `body` usa `fs`, `fsPromises`, `Writable` y `sep`.
+async function writeStub(name, body) {
+  const file = join(workspace, 'stubs', `${name}.mjs`)
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(
+    file,
+    [
+      "import fs from 'node:fs'",
+      "import fsPromises from 'node:fs/promises'",
+      "import { syncBuiltinESMExports } from 'node:module'",
+      "import { sep } from 'node:path'",
+      "import { Writable } from 'node:stream'",
+      'void fs, fsPromises, sep, Writable',
+      body,
+      'syncBuiltinESMExports()',
+      '',
+    ].join('\n'),
+  )
+  return file
+}
+
+// El código fuente del error de sistema que tiraría el disco o el antivirus.
+function systemErrorSource(code, text) {
+  return `Object.assign(new Error('${code}: ${text}'), { code: '${code}' })`
 }
 
 const last = (events) => events[events.length - 1]
@@ -948,6 +1160,31 @@ const storyOf = (stories, id) =>
 const readJsonIfPresent = async (file, fallback) => {
   if (!existsSync(file)) return fallback
   return JSON.parse(await readFile(file, 'utf8'))
+}
+
+// Los zips de una descarga que quedaron en la raíz (`*.download`).
+const downloadLeftovers = async (root) => {
+  if (!existsSync(root)) return []
+  return (await readdir(root)).filter((name) => name.endsWith('.download'))
+}
+
+// El avance de demo-prepare: los eventos `progress` con su fase y su parte.
+// `progressSteps` los resume en pasos sin repetir seguidos («download 1»,
+// «install 1», …).
+const progressSteps = (progress) =>
+  progress
+    .map((event) => `${event.detail?.phase} ${event.detail?.part}`)
+    .filter((step, index, steps) => step !== steps[index - 1])
+const isNonDecreasing = (values) =>
+  values.every((value, index) => index === 0 || value >= values[index - 1])
+const percentOf = (bytes, total) => Math.floor((bytes / total) * 100)
+
+// El pid de un proceso que ya terminó: el de un lock que dejó la app al
+// morir.
+async function exitedProcessPid() {
+  const child = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' })
+  await new Promise((resolve) => child.on('exit', resolve))
+  return child.pid
 }
 
 const workspace = await mkdtemp(join(tmpdir(), 'vimo-demo-guard-'))
@@ -976,6 +1213,15 @@ try {
       resultOf(events)?.version === 'mini',
       'la versión viene de la config',
     )
+    assert(
+      resultOf(events)?.downloadBytes === packZip.length &&
+        resultOf(events)?.downloadedBytes === 0,
+      `sin pack, downloadBytes es la suma de packParts y downloadedBytes 0 (fue ${resultOf(events)?.downloadBytes} y ${resultOf(events)?.downloadedBytes})`,
+    )
+    assert(
+      resultOf(events)?.requiredFreeBytes === 2 * packZip.length,
+      `sin pack, requiredFreeBytes es la parte que falta extraer más su zip (sin margen en el guard) (fue ${resultOf(events)?.requiredFreeBytes})`,
+    )
   }
 
   // 2. demo-prepare: descarga, SHA, raíz anidada, .ok, gemas, manifest v4.
@@ -1003,8 +1249,8 @@ try {
     )
     const marker = await readJsonIfPresent(join(packRoot, '.ok'), null)
     assert(
-      marker?.version === 'mini' && marker?.sha256 === sha256(packZip),
-      'el .ok sella versión y sha256',
+      isDeepStrictEqual(marker, { version: 'mini', parts: [sha256(packZip)] }),
+      `el .ok sella la versión y el sha256 de su única parte (fue ${JSON.stringify(marker)})`,
     )
     assert(
       existsSync(join(packRoot, 'manifest.json')),
@@ -1012,7 +1258,7 @@ try {
     )
     assert(
       !existsSync(`${packRoot}.tmp`) &&
-        !existsSync(join(projectsRoot, '_demo-pack.zip.download')),
+        (await downloadLeftovers(projectsRoot)).length === 0,
       'no quedan temporales',
     )
     assert(
@@ -1164,6 +1410,15 @@ try {
         resultOf(events)?.manifest?.gems?.length === 2,
       'trae el manifest',
     )
+    assert(
+      resultOf(events)?.downloadBytes === packZip.length &&
+        resultOf(events)?.downloadedBytes === packZip.length,
+      'con el pack instalado, downloadedBytes es el total',
+    )
+    assert(
+      resultOf(events)?.requiredFreeBytes === 0,
+      `con el pack instalado no pide espacio (fue ${resultOf(events)?.requiredFreeBytes})`,
+    )
   }
 
   // 4. Las gemas se siembran solo si no existen y el pack no se re-descarga.
@@ -1189,6 +1444,10 @@ try {
     assert(
       resultOf(status.events)?.ready === false,
       'con una gema borrada de la galería, demo-status no está listo',
+    )
+    assert(
+      resultOf(status.events)?.downloadedBytes === packZip.length,
+      'con el pack instalado y una gema borrada, downloadedBytes es el total: la puerta sigue sola (solo falta sembrar)',
     )
     const before = hits
     const { events } = await runSidecar('demo-prepare', {
@@ -1220,14 +1479,16 @@ try {
     )
   }
 
-  // 5. Fallos de descarga: SHA distinto, zip sin manifest, sin red.
+  // 5. Fallos de descarga: SHA distinto, zip sin manifest, sin red, sin
+  // partes configuradas.
   section('5. fallos de preparación')
   {
     const otherRoot = join(workspace, 'Vimo-broken')
     await mkdir(otherRoot, { recursive: true })
+    const packPart = servedPart('/pack.zip')
     let run = await runSidecar('demo-prepare', {
       projectsRoot: otherRoot,
-      config: demoConfig({ packSha256: 'deadbeef' }),
+      config: demoConfig({ packParts: [{ ...packPart, sha256: 'deadbeef' }] }),
     })
     assert(
       codeOf(run.events) === 'demo_pack_corrupt',
@@ -1235,15 +1496,13 @@ try {
     )
     assert(
       !existsSync(join(otherRoot, '_demo-pack')) &&
-        !existsSync(join(otherRoot, '_demo-pack.tmp')),
-      'un pack corrupto no deja rastros',
+        !existsSync(join(otherRoot, '_demo-pack.tmp')) &&
+        (await downloadLeftovers(otherRoot)).length === 0,
+      'una única parte corrupta no deja _demo-pack, ni staging (no se extrajo nada), ni el zip descargado',
     )
     run = await runSidecar('demo-prepare', {
       projectsRoot: otherRoot,
-      config: demoConfig({
-        packUrl: `${baseUrl}/broken.zip`,
-        packSha256: sha256(brokenZip),
-      }),
+      config: demoConfig({ packParts: [servedPart('/broken.zip')] }),
     })
     assert(
       codeOf(run.events) === 'demo_pack_incomplete',
@@ -1251,7 +1510,9 @@ try {
     )
     run = await runSidecar('demo-prepare', {
       projectsRoot: otherRoot,
-      config: demoConfig({ packUrl: 'http://127.0.0.1:9/pack.zip' }),
+      config: demoConfig({
+        packParts: [{ ...packPart, url: 'http://127.0.0.1:9/pack.zip' }],
+      }),
     })
     assert(
       codeOf(run.events) === 'demo_offline',
@@ -1259,11 +1520,34 @@ try {
     )
     run = await runSidecar('demo-prepare', {
       projectsRoot: otherRoot,
-      config: demoConfig({ packUrl: `${baseUrl}/missing.zip` }),
+      config: demoConfig({
+        packParts: [{ ...packPart, url: `${baseUrl}/missing.zip` }],
+      }),
     })
     assert(
       codeOf(run.events) === 'demo_download_failed',
       `404 → demo_download_failed (fue ${codeOf(run.events)})`,
+    )
+    // Hasta que se publique el release, la config por defecto no trae
+    // partes: no hay qué bajar.
+    const noParts = demoConfig({ packParts: [] })
+    run = await runSidecar('demo-prepare', {
+      projectsRoot: otherRoot,
+      config: noParts,
+    })
+    assert(
+      codeOf(run.events) === 'demo_download_failed',
+      `sin partes configuradas → demo_download_failed (fue ${outcomeOf(run.events)})`,
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: otherRoot,
+      config: noParts,
+    })
+    assert(
+      resultOf(status.events)?.ready === false &&
+        resultOf(status.events)?.downloadBytes === 0 &&
+        resultOf(status.events)?.downloadedBytes === 0,
+      `sin partes configuradas, demo-status no está listo y no hay nada que bajar (fue ${JSON.stringify(resultOf(status.events))})`,
     )
   }
 
@@ -1764,8 +2048,7 @@ try {
     const landscapeRoot = join(workspace, 'Vimo-landscape')
     await mkdir(landscapeRoot, { recursive: true })
     const config = demoConfig({
-      packUrl: `${baseUrl}/landscape-only.zip`,
-      packSha256: sha256(landscapeOnlyZip),
+      packParts: [servedPart('/landscape-only.zip')],
     })
     const prepared = await runSidecar('demo-prepare', {
       projectsRoot: landscapeRoot,
@@ -1824,8 +2107,7 @@ try {
     const { events } = await runSidecar('demo-prepare', {
       projectsRoot: brokenShortRoot,
       config: demoConfig({
-        packUrl: `${baseUrl}/short-incomplete.zip`,
-        packSha256: sha256(shortIncompleteZip),
+        packParts: [servedPart('/short-incomplete.zip')],
       }),
     })
     assert(
@@ -1837,13 +2119,21 @@ try {
       !existsSync(join(brokenShortRoot, '_demo-pack')),
       'un short incompleto no deja _demo-pack a medias',
     )
+    // Con todas sus partes marcadas, un staging que no forma un pack válido
+    // se descarta: «Reintentar» vuelve a bajar en vez de chocar siempre con
+    // el mismo staging.
+    assert(
+      !existsSync(join(brokenShortRoot, '_demo-pack.tmp')) &&
+        (await downloadLeftovers(brokenShortRoot)).length === 0,
+      'el staging completo pero inválido se descarta y no quedan zips',
+    )
   }
 
   // 18. El armador v4 (spec §3): tres proyectos nativos → partes con
   // historias enteras, la primera con el manifest y las gemas, sin recibos
   // ni URLs del proveedor, con las imágenes recomprimidas a JPEG de verdad y
   // que el lector del sidecar acepta. La instalación de las partes con
-  // demo-prepare es de la Tarea 4 (Ruling R2).
+  // demo-prepare la prueba la sección 27 (Ruling R2).
   section('18. build-demo-pack arma el pack v4 en partes')
   {
     const ffmpeg = pinnedFfmpeg()
@@ -1854,16 +2144,8 @@ try {
     const media = ffmpeg
       ? await writeBuilderMedia(ffmpeg, join(workspace, 'builder-media'))
       : null
-    const nativeRoot = join(workspace, 'builder-native')
+    const nativeRoot = join(workspace, BUILDER_NATIVE_FOLDER)
     const outDirectory = join(workspace, 'builder-out')
-    const builderArguments = (root, out) => [
-      '--stories',
-      join(root, 'stories.json'),
-      '--gems',
-      join(root, 'gems.json'),
-      '--out',
-      out,
-    ]
     if (media) await writeBuilderFixture(nativeRoot, media)
 
     // Con --part-mb 0.05 ninguna historia entra junto a otra: una por parte.
@@ -2473,8 +2755,7 @@ try {
     // mini → mini2: mismo binario, otra versión y otro sha256 (pack sin short).
     const mini2Config = demoConfig({
       packVersion: 'mini2',
-      packUrl: `${baseUrl}/landscape-only.zip`,
-      packSha256: sha256(landscapeOnlyZip),
+      packParts: [servedPart('/landscape-only.zip')],
     })
     const statusMini2 = await runSidecar('demo-status', {
       projectsRoot: upgradeRoot,
@@ -2502,9 +2783,11 @@ try {
       null,
     )
     assert(
-      markerMini2?.version === 'mini2' &&
-        markerMini2?.sha256 === sha256(landscapeOnlyZip),
-      '.ok sella la versión y el sha256 de mini2',
+      isDeepStrictEqual(markerMini2, {
+        version: 'mini2',
+        parts: [sha256(landscapeOnlyZip)],
+      }),
+      `.ok sella la versión y el sha256 de mini2 (fue ${JSON.stringify(markerMini2)})`,
     )
     assert(
       !existsSync(join(upgradeRoot, '_demo-pack', 'short')),
@@ -2512,7 +2795,7 @@ try {
     )
     assert(
       !existsSync(join(upgradeRoot, '_demo-pack.tmp')) &&
-        !existsSync(join(upgradeRoot, '_demo-pack.zip.download')),
+        (await downloadLeftovers(upgradeRoot)).length === 0,
       'no quedan temporales tras el reemplazo',
     )
     const manifestMini2 = resultOf(second.events)?.manifest
@@ -2548,9 +2831,11 @@ try {
       null,
     )
     assert(
-      markerMini3?.version === 'mini3' &&
-        markerMini3?.sha256 === sha256(packZip),
-      '.ok sella la versión y el sha256 de mini3',
+      isDeepStrictEqual(markerMini3, {
+        version: 'mini3',
+        parts: [sha256(packZip)],
+      }),
+      `.ok sella la versión y el sha256 de mini3 (fue ${JSON.stringify(markerMini3)})`,
     )
     const seeded = await Promise.all(
       GEMS.map((gem) => readSeededStyle(upgradeRoot, gem.styleId)),
@@ -2676,10 +2961,7 @@ try {
       await mkdir(root, { recursive: true })
       const { events } = await runSidecar('demo-prepare', {
         projectsRoot: root,
-        config: demoConfig({
-          packUrl: `${baseUrl}/${label}.zip`,
-          packSha256: sha256(zip),
-        }),
+        config: demoConfig({ packParts: [servedPart(`/${label}.zip`)] }),
       })
       assert(
         codeOf(events) === 'demo_pack_incomplete' &&
@@ -2692,8 +2974,1583 @@ try {
       )
     }
   }
+
+  // 21. Instalación por partes (spec v4 §3 «Descarga»): cada parte con su
+  // SHA-256, el .ok con los de todas, el rename atómico y el avance total por
+  // bytes con «parte X de N».
+  section('21. demo-prepare instala el pack en dos partes')
+  {
+    const root = join(workspace, 'Vimo-parts')
+    await mkdir(root, { recursive: true })
+    // Zips a medias de una corrida que murió sin limpiar: la parte 9 de otra
+    // versión y el zip único de un pack v3.
+    const staleDownloads = [
+      '_demo-pack.part-9.download',
+      '_demo-pack.zip.download',
+    ]
+    for (const name of staleDownloads)
+      await writeFile(join(root, name), 'zip a medias')
+    const parts = serveParts('parts')
+    const totalBytes = bytesOf(parts)
+    const config = demoConfig({ packVersion: 'parts', packParts: parts })
+    const progress = []
+    const { events } = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type === 'progress') progress.push(event)
+      },
+    })
+    assert(
+      last(events)?.type === 'job-completed',
+      `instala las dos partes (fue ${outcomeOf(events)})`,
+    )
+    assert(
+      parts.every((part) => requestsFor(part) === 1),
+      `pide cada parte una vez (pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+    const installed = join(root, '_demo-pack')
+    const marker = await readJsonIfPresent(join(installed, '.ok'), null)
+    assert(
+      isDeepStrictEqual(marker, {
+        version: 'parts',
+        parts: parts.map((part) => part.sha256),
+      }),
+      `el .ok sella la versión y el sha256 de cada parte, en orden (fue ${JSON.stringify(marker)})`,
+    )
+    assert(
+      existsSync(join(installed, 'manifest.json')) &&
+        existsSync(join(installed, 'short', 'normal', 'audio.mp3')),
+      'las dos partes quedan juntas en _demo-pack: el manifest de la 1 y short/ de la 2',
+    )
+    assert(
+      !existsSync(`${installed}.tmp`) &&
+        (await downloadLeftovers(root)).length === 0,
+      `al final no quedan el staging ni zips, tampoco los viejos (quedaron ${JSON.stringify(await downloadLeftovers(root))})`,
+    )
+    assert(
+      existsSync(installed) &&
+        (await readdir(installed)).every(
+          (name) => name === '.ok' || !name.startsWith('.'),
+        ),
+      'el estado del staging no queda dentro del pack',
+    )
+
+    const percents = progress.map((event) => event.percent)
+    assert(
+      progress.length > 0 &&
+        progress.every(
+          (event) =>
+            ['download', 'install'].includes(event.detail?.phase) &&
+            [1, 2].includes(event.detail?.part) &&
+            event.detail?.parts === 2,
+        ),
+      `cada progress trae phase, part y parts (fue ${JSON.stringify(progress.map((event) => event.detail))})`,
+    )
+    assert(
+      isDeepStrictEqual(progressSteps(progress), [
+        'download 1',
+        'install 1',
+        'download 2',
+        'install 2',
+      ]),
+      `parte por parte, download antes que install (fue ${progressSteps(progress).join(', ')})`,
+    )
+    assert(
+      isNonDecreasing(percents) &&
+        percents.at(-1) === 100 &&
+        percents.slice(0, -1).every((percent) => percent <= 99),
+      `el porcentaje nunca va hacia atrás, se queda en 99 y termina en 100 (fue ${percents.join(',')})`,
+    )
+    const firstInstall = progress.find(
+      (event) => event.detail?.phase === 'install',
+    )
+    assert(
+      firstInstall?.percent === percentOf(parts[0].bytes, totalBytes),
+      `el porcentaje es total por bytes: con la parte 1 bajada va en ${percentOf(parts[0].bytes, totalBytes)} (fue ${firstInstall?.percent})`,
+    )
+
+    assert(
+      !existsSync(join(root, DEMO_LOCK_FILE)),
+      'al terminar, demo-prepare suelta el lock',
+    )
+
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    const result = resultOf(status.events)
+    assert(
+      result?.ready === true &&
+        result?.manifest?.stories?.['9:16']?.styles?.length === 1 &&
+        result?.downloadBytes === totalBytes &&
+        result?.downloadedBytes === totalBytes &&
+        result?.requiredFreeBytes === 0,
+      `demo-status queda listo con el pack entero y sin espacio por pedir (fue ready ${result?.ready}, ${result?.downloadedBytes} de ${result?.downloadBytes} bytes, pide ${result?.requiredFreeBytes})`,
+    )
+    // La misma versión con otras partes (otro armado): el .ok no las sella.
+    const rebuilt = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config: demoConfig({
+        packVersion: 'parts',
+        packParts: serveParts('parts-rebuilt', [
+          otherFirstPartZip,
+          secondPartZip,
+        ]),
+      }),
+    })
+    assert(
+      resultOf(rebuilt.events)?.ready === false,
+      'con otras partes en la misma versión, el pack instalado no cuenta',
+    )
+  }
+
+  // 22. La red se corta a mitad de la parte 2: falla con
+  // demo_download_failed, la parte 1 queda extraída y marcada en el staging,
+  // y el próximo intento sigue desde la parte 2 sin volver a pedir la 1.
+  section('22. corte a mitad de la parte 2: sigue desde la parte 2')
+  {
+    const root = join(workspace, 'Vimo-cut')
+    await mkdir(root, { recursive: true })
+    const staging = join(root, '_demo-pack.tmp')
+    const parts = serveParts('cut')
+    const totalBytes = bytesOf(parts)
+    const config = demoConfig({ packVersion: 'cut', packParts: parts })
+    const startPercent = percentOf(parts[0].bytes, totalBytes)
+    interruptions.set(pathOf(parts[1]), 'stall')
+    const cutProgress = []
+    const first = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type !== 'progress') return
+        cutProgress.push(event)
+        // La red se cae con la mitad de la parte 2 ya leída.
+        if (event.detail?.part === 2 && event.percent > startPercent)
+          cutStalled(pathOf(parts[1]))
+      },
+    })
+    assert(
+      codeOf(first.events) === 'demo_download_failed',
+      `el corte → demo_download_failed (fue ${outcomeOf(first.events)})`,
+    )
+    assert(
+      cutProgress.some(
+        (event) =>
+          event.detail?.phase === 'download' &&
+          event.detail?.part === 2 &&
+          event.percent > startPercent,
+      ),
+      `mientras baja la parte 2, el avance sube desde ${startPercent} (fue ${cutProgress.map((event) => `${event.detail?.phase} ${event.detail?.part}: ${event.percent}`).join(', ')})`,
+    )
+    assert(
+      existsSync(join(staging, 'manifest.json')) &&
+        !existsSync(join(staging, 'short')),
+      'el staging conserva lo extraído de la parte 1 y nada de la 2',
+    )
+    assert(
+      (await downloadLeftovers(root)).length === 0 &&
+        !existsSync(join(root, '_demo-pack')),
+      'el zip a medias de la parte 2 se borra y _demo-pack no existe',
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    const result = resultOf(status.events)
+    assert(
+      result?.ready === false &&
+        result?.downloadBytes === totalBytes &&
+        result?.downloadedBytes === parts[0].bytes,
+      `tras el corte, demo-status cuenta la parte 1 marcada (fue ready ${result?.ready}, ${result?.downloadedBytes} de ${result?.downloadBytes} bytes; la parte 1 pesa ${parts[0].bytes})`,
+    )
+    // Lo que falta es la parte 2: extraerla más su zip, aunque la 1 (ya
+    // instalada) sea más grande.
+    assert(
+      parts[0].bytes > parts[1].bytes &&
+        result?.requiredFreeBytes === 2 * parts[1].bytes,
+      `requiredFreeBytes cuenta solo las partes que faltan (fue ${result?.requiredFreeBytes}; la parte 2 pesa ${parts[1].bytes})`,
+    )
+
+    const progress = []
+    const second = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type === 'progress') progress.push(event)
+      },
+    })
+    assert(
+      last(second.events)?.type === 'job-completed',
+      `el segundo intento termina (fue ${outcomeOf(second.events)})`,
+    )
+    assert(
+      requestsFor(parts[0]) === 1 && requestsFor(parts[1]) === 2,
+      `el segundo intento pide solo la parte 2 (pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+    assert(
+      isDeepStrictEqual(progressSteps(progress), ['download 2', 'install 2']) &&
+        progress[0]?.percent === startPercent &&
+        isNonDecreasing(progress.map((event) => event.percent)),
+      `el avance sigue en la parte 2 desde ${startPercent} y nunca va hacia atrás (fue ${progress.map((event) => `${event.detail?.phase} ${event.detail?.part}: ${event.percent}`).join(', ')})`,
+    )
+    const marker = await readJsonIfPresent(
+      join(root, '_demo-pack', '.ok'),
+      null,
+    )
+    assert(
+      isDeepStrictEqual(
+        marker?.parts,
+        parts.map((part) => part.sha256),
+      ) &&
+        existsSync(join(root, '_demo-pack', 'short', 'normal', 'audio.mp3')) &&
+        !existsSync(staging),
+      'con la parte 2, el pack queda entero, sellado y sin staging',
+    )
+  }
+
+  // 23. Cancelar a mitad de la parte 2 (la app se cierra): se borra solo el
+  // zip en curso; el staging y la marca de la parte 1 quedan para seguir.
+  section('23. cancelar a mitad de la parte 2')
+  {
+    const root = join(workspace, 'Vimo-cancel-parts')
+    await mkdir(root, { recursive: true })
+    const parts = serveParts('cancel')
+    const config = demoConfig({ packVersion: 'cancel', packParts: parts })
+    const partialFile = join(root, '_demo-pack.part-2.download')
+    let partialBytes = 0
+    interruptions.set(pathOf(parts[1]), 'stall')
+    const first = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      // Cancela recién con bytes de la parte 2 en disco: así el zip en curso
+      // existe y la prueba no pasa en vacío.
+      cancelWhen(event) {
+        if (event.type !== 'progress' || event.detail?.part !== 2) return false
+        partialBytes = existsSync(partialFile) ? statSync(partialFile).size : 0
+        return partialBytes > 0
+      },
+    })
+    assert(
+      codeOf(first.events) === 'cancelled',
+      `cancelar a mitad de la parte 2 → cancelled (fue ${outcomeOf(first.events)})`,
+    )
+    assert(
+      partialBytes > 0,
+      'la cancelación llegó con la parte 2 a medias en disco',
+    )
+    assert(
+      !existsSync(partialFile) && (await downloadLeftovers(root)).length === 0,
+      'cancelar borra el zip en curso',
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      resultOf(status.events)?.downloadedBytes === parts[0].bytes,
+      `tras cancelar, la parte 1 sigue marcada (fue ${resultOf(status.events)?.downloadedBytes} bytes)`,
+    )
+    const second = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      last(second.events)?.type === 'job-completed' &&
+        requestsFor(parts[0]) === 1 &&
+        requestsFor(parts[1]) === 2,
+      `al volver sigue con la parte 2 (fue ${outcomeOf(second.events)}; pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+  }
+
+  // 24. Un staging de otra versión, o de otro armado de la misma, no sirve:
+  // se borra entero y la instalación empieza de cero.
+  section('24. staging de otra versión: se borra y empieza de cero')
+  {
+    // La versión `old`, cortada en la parte 2, deja la parte 1 marcada (con
+    // el mismo SHA que la de ahora); además, un archivo suelto en el staging.
+    const root = join(workspace, 'Vimo-stale')
+    await mkdir(root, { recursive: true })
+    const staging = join(root, '_demo-pack.tmp')
+    const parts = serveParts('stale')
+    interruptions.set(pathOf(parts[1]), 'cut')
+    const old = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config: demoConfig({ packVersion: 'old', packParts: parts }),
+    })
+    assert(
+      codeOf(old.events) === 'demo_download_failed' &&
+        existsSync(join(staging, 'manifest.json')),
+      `la versión old deja la parte 1 en el staging (fue ${outcomeOf(old.events)})`,
+    )
+    if (existsSync(staging))
+      await writeFile(join(staging, 'resto-de-old.txt'), 'de la versión old')
+
+    const config = demoConfig({ packVersion: 'new', packParts: parts })
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      resultOf(status.events)?.downloadedBytes === 0,
+      `un staging de otra versión no cuenta como bajado (fue ${resultOf(status.events)?.downloadedBytes} bytes)`,
+    )
+    const run = await runSidecar('demo-prepare', { projectsRoot: root, config })
+    assert(
+      last(run.events)?.type === 'job-completed',
+      `la versión new se instala (fue ${outcomeOf(run.events)})`,
+    )
+    assert(
+      requestsFor(parts[0]) === 2 && requestsFor(parts[1]) === 2,
+      `vuelve a pedir las dos partes aunque la 1 tenía marca: era de otra versión (pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+    assert(
+      !existsSync(join(root, '_demo-pack', 'resto-de-old.txt')) &&
+        !existsSync(staging),
+      'nada del staging viejo llega al pack',
+    )
+
+    // Otro armado de la misma versión: la marca de la parte 1 es de otro zip.
+    const rebuildRoot = join(workspace, 'Vimo-rebuild')
+    await mkdir(rebuildRoot, { recursive: true })
+    const rebuildStaging = join(rebuildRoot, '_demo-pack.tmp')
+    const firstBuild = serveParts('rebuild-a')
+    interruptions.set(pathOf(firstBuild[1]), 'cut')
+    const interrupted = await runSidecar('demo-prepare', {
+      projectsRoot: rebuildRoot,
+      config: demoConfig({ packVersion: 'rebuild', packParts: firstBuild }),
+    })
+    assert(
+      codeOf(interrupted.events) === 'demo_download_failed' &&
+        existsSync(join(rebuildStaging, 'manifest.json')),
+      `el primer armado deja su parte 1 en el staging (fue ${outcomeOf(interrupted.events)})`,
+    )
+    const strayFile = 'resto-del-otro-armado.txt'
+    if (existsSync(rebuildStaging))
+      await writeFile(join(rebuildStaging, strayFile), 'del armado anterior')
+    const secondBuild = serveParts('rebuild-b', [
+      otherFirstPartZip,
+      secondPartZip,
+    ])
+    const rebuilt = await runSidecar('demo-prepare', {
+      projectsRoot: rebuildRoot,
+      config: demoConfig({ packVersion: 'rebuild', packParts: secondBuild }),
+    })
+    assert(
+      last(rebuilt.events)?.type === 'job-completed' &&
+        secondBuild.every((part) => requestsFor(part) === 1),
+      `el armado nuevo se instala pidiendo sus dos partes (fue ${outcomeOf(rebuilt.events)}; pedidos: ${secondBuild.map(requestsFor).join(' y ')})`,
+    )
+    assert(
+      !existsSync(join(rebuildRoot, '_demo-pack', strayFile)) &&
+        resultOf(rebuilt.events)?.manifest?.voice?.name ===
+          'Abel de otro armado',
+      'con la marca de otro zip en la misma versión, el staging se descarta entero y queda el armado nuevo',
+    )
+  }
+
+  // 25. La parte 2 llega con otro SHA-256: falla con demo_pack_corrupt, su
+  // zip se borra y la parte 1 sigue marcada; con la parte 2 buena, sigue.
+  section('25. SHA distinto en la parte 2')
+  {
+    const root = join(workspace, 'Vimo-corrupt-part')
+    await mkdir(root, { recursive: true })
+    const staging = join(root, '_demo-pack.tmp')
+    const parts = serveParts('corrupt')
+    const corrupt = demoConfig({
+      packVersion: 'corrupt',
+      packParts: [parts[0], { ...parts[1], sha256: 'f'.repeat(64) }],
+    })
+    const run = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config: corrupt,
+    })
+    assert(
+      codeOf(run.events) === 'demo_pack_corrupt',
+      `SHA distinto en la parte 2 → demo_pack_corrupt (fue ${outcomeOf(run.events)})`,
+    )
+    assert(
+      (await downloadLeftovers(root)).length === 0 &&
+        existsSync(join(staging, 'manifest.json')) &&
+        !existsSync(join(staging, 'short')) &&
+        !existsSync(join(root, '_demo-pack')),
+      'el zip de la parte 2 se borra sin extraerse y el staging conserva la parte 1',
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config: corrupt,
+    })
+    assert(
+      resultOf(status.events)?.downloadedBytes === parts[0].bytes,
+      `la parte 1 sigue marcada (fue ${resultOf(status.events)?.downloadedBytes} bytes)`,
+    )
+    const retry = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config: demoConfig({ packVersion: 'corrupt', packParts: parts }),
+    })
+    assert(
+      last(retry.events)?.type === 'job-completed' &&
+        requestsFor(parts[0]) === 1 &&
+        requestsFor(parts[1]) === 2,
+      `con la parte 2 buena, sigue desde ella (fue ${outcomeOf(retry.events)}; pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+  }
+
+  // 26. Espacio en disco (Foco de revisión 5, Ruling R16): antes de cada
+  // parte se exige lo que falta extraer, más la parte más grande de las que
+  // faltan (su zip convive con lo extraído), más el margen; demo-status
+  // informa ese mismo número. Sin espacio: demo_disk_full sin pedir nada.
+  section('26. sin espacio en disco: demo_disk_full')
+  {
+    const all = [{ bytes: 300 }, { bytes: 500 }, { bytes: 200 }]
+    // La de 500 ya instalada: la más grande de las que faltan es la de 300.
+    const withoutLargest = [{ bytes: 300 }, { bytes: 200 }]
+    assert(
+      requiredFreeBytes(all, 1000) === 1000 + 500 + 1000 &&
+        requiredFreeBytes(withoutLargest, 0) === 500 + 300 &&
+        requiredFreeBytes([], 1000) === 0,
+      `exige lo que falta, la más grande de las que faltan y el margen; nada si no falta nada (fue ${requiredFreeBytes(all, 1000)}, ${requiredFreeBytes(withoutLargest, 0)} y ${requiredFreeBytes([], 1000)})`,
+    )
+    assert(
+      DEFAULT_PIPELINE_CONFIG.demo.packVersion === 'v4' &&
+        DEFAULT_PIPELINE_CONFIG.demo.diskMarginBytes === 500 * 1024 * 1024,
+      'por defecto: pack v4 y 500 MB de margen',
+    )
+
+    // El umbral es el espacio libre real del volumen: con el doble no
+    // alcanza y con la mitad sí (ninguno de los dos cambia en segundos).
+    const root = join(workspace, 'Vimo-disk-full')
+    await mkdir(root, { recursive: true })
+    const volume = await statfs(root)
+    const freeSpace = volume.bavail * volume.bsize
+    const parts = serveParts('disk')
+    const partsNeed =
+      bytesOf(parts) + Math.max(...parts.map((part) => part.bytes))
+    const fullConfig = demoConfig({
+      packVersion: 'disk',
+      packParts: parts,
+      diskMarginBytes: 2 * freeSpace,
+    })
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config: fullConfig,
+    })
+    const required = resultOf(status.events)?.requiredFreeBytes
+    assert(
+      required === partsNeed + 2 * freeSpace,
+      `demo-status informa lo que falta, la parte más grande y el margen (fue ${required}, se esperaba ${partsNeed + 2 * freeSpace})`,
+    )
+    const { events } = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config: fullConfig,
+    })
+    assert(
+      codeOf(events) === 'demo_disk_full',
+      `sin espacio → demo_disk_full (fue ${outcomeOf(events)})`,
+    )
+    const [, needs, has] =
+      last(events)?.message?.match(/needs (\d+) free bytes .* has (\d+)/) ?? []
+    assert(
+      Number(needs) === required && Number(has) < Number(needs),
+      `falla con el mismo número que informa demo-status y menos espacio libre que eso (fue «${last(events)?.message}»)`,
+    )
+    assert(
+      parts.every((part) => requestsFor(part) === 0),
+      `sin espacio no pide ninguna parte (pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+    assert(
+      !existsSync(join(root, '_demo-pack')) &&
+        !existsSync(join(root, '_demo-pack.tmp')) &&
+        (await downloadLeftovers(root)).length === 0 &&
+        !existsSync(join(root, DEMO_LOCK_FILE)),
+      'sin espacio no deja nada en disco y suelta el lock',
+    )
+
+    const halfConfig = demoConfig({
+      packVersion: 'disk',
+      packParts: parts,
+      diskMarginBytes: Math.max(0, Math.floor(freeSpace / 2) - partsNeed),
+    })
+    const halfStatus = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config: halfConfig,
+    })
+    const halfRequired = resultOf(halfStatus.events)?.requiredFreeBytes
+    const installed = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config: halfConfig,
+    })
+    assert(
+      halfRequired < freeSpace &&
+        last(installed.events)?.type === 'job-completed',
+      `con requiredFreeBytes por debajo del espacio libre (${halfRequired} de ${freeSpace}), instala (fue ${outcomeOf(installed.events)})`,
+    )
+  }
+
+  // 27. Las partes del armador de punta a punta (Ruling R2): la fixture
+  // nativa de la sección 18, armada sin recomprimir y en partes chicas, se
+  // sirve por HTTP local; demo-prepare la instala y demo-status queda listo
+  // con su manifest.
+  section('27. demo-prepare instala las partes del armador')
+  {
+    const nativeRoot = join(workspace, BUILDER_NATIVE_FOLDER)
+    const out = join(workspace, 'builder-out-install')
+    const hasFixture = existsSync(join(nativeRoot, 'stories.json'))
+    assert(hasFixture, 'la fixture nativa de la sección 18 está escrita')
+    const build = hasFixture
+      ? await runBuilder([
+          ...builderArguments(nativeRoot, out),
+          '--part-mb',
+          '0.05',
+          '--no-recompress',
+        ])
+      : { code: null, stdout: '', stderr: '' }
+    assert(
+      build.code === 0,
+      `build-demo-pack --part-mb 0.05 --no-recompress termina en 0 (fue ${build.code}: ${build.stderr.trim()})`,
+    )
+    const listed = await readJsonIfPresent(join(out, 'parts.json'), [])
+    const parts = []
+    for (const part of Array.isArray(listed) ? listed : []) {
+      const path = `/built/${part.file}`
+      served.set(path, await readFile(join(out, part.file)))
+      parts.push({
+        url: `${baseUrl}${path}`,
+        sha256: part.sha256,
+        bytes: part.bytes,
+      })
+    }
+    assert(
+      parts.length >= 2,
+      `parts.json lista al menos dos partes (fueron ${parts.length})`,
+    )
+
+    const root = join(workspace, 'Vimo-built')
+    await mkdir(root, { recursive: true })
+    const config = demoConfig({ packVersion: 'built', packParts: parts })
+    const prepared = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      last(prepared.events)?.type === 'job-completed',
+      `demo-prepare instala las partes del armador (fue ${outcomeOf(prepared.events)})`,
+    )
+    assert(
+      parts.length > 0 && parts.every((part) => requestsFor(part) === 1),
+      `pide cada parte del armador una vez (pedidos: ${parts.map(requestsFor).join(', ')})`,
+    )
+    const marker = await readJsonIfPresent(
+      join(root, '_demo-pack', '.ok'),
+      null,
+    )
+    assert(
+      isDeepStrictEqual(marker, {
+        version: 'built',
+        parts: parts.map((part) => part.sha256),
+      }),
+      `el .ok sella los sha256 de parts.json (fue ${JSON.stringify(marker)})`,
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    const result = resultOf(status.events)
+    const stories = result?.manifest?.stories
+    assert(
+      result?.ready === true &&
+        idsOf(stories?.['16:9']?.styles) === JSON.stringify(['normal']) &&
+        idsOf(stories?.['16:9']?.gems) === JSON.stringify(['jardineria']) &&
+        idsOf(stories?.['9:16']?.gems) === JSON.stringify(['storytelling']),
+      `demo-status queda listo con las historias del armador (fue ready ${result?.ready}: ${idsOf(stories?.['16:9']?.styles)}, ${idsOf(stories?.['16:9']?.gems)}, ${idsOf(stories?.['9:16']?.gems)})`,
+    )
+    assert(
+      result?.downloadBytes === bytesOf(parts) &&
+        result?.downloadedBytes === bytesOf(parts),
+      `downloadBytes y downloadedBytes son la suma de parts.json (fue ${result?.downloadedBytes} de ${result?.downloadBytes})`,
+    )
+  }
+
+  // 28. Ruling R15: un staging con todas sus partes que no forma un pack
+  // válido se descarta solo si el pack está incompleto (sección 17). Con
+  // cualquier otro error al validarlo (acá, no se puede listar: EMFILE) queda,
+  // y el próximo intento instala sin volver a bajar.
+  section('28. otro error al validar el staging: queda para seguir')
+  {
+    const root = join(workspace, 'Vimo-keep-staging')
+    await mkdir(root, { recursive: true })
+    const parts = serveParts('keep-staging', [packZip])
+    const config = demoConfig({ packVersion: 'keep', packParts: parts })
+    // El pack de prueba trae carpeta contenedora: para encontrarla,
+    // demo-prepare lista el staging.
+    const unlistable = await writeStub(
+      'unlistable-staging',
+      [
+        'const readdir = fsPromises.readdir',
+        'fsPromises.readdir = async (path, options) => {',
+        "  if (String(path).endsWith('_demo-pack.tmp'))",
+        `    throw ${systemErrorSource('EMFILE', 'too many open files, scandir')}`,
+        '  return readdir(path, options)',
+        '}',
+      ].join('\n'),
+    )
+    const failed = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      preload: unlistable,
+    })
+    assert(
+      codeOf(failed.events) === 'unknown' &&
+        last(failed.events)?.message?.includes('EMFILE'),
+      `sin poder listar el staging, demo-prepare falla con ese error (fue ${outcomeOf(failed.events)})`,
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      existsSync(join(root, '_demo-pack.tmp', 'vimo-demo-pack-mini')) &&
+        resultOf(status.events)?.downloadedBytes === packZip.length,
+      `el staging y la marca de su única parte quedan (fue ${resultOf(status.events)?.downloadedBytes} bytes)`,
+    )
+    const retry = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      last(retry.events)?.type === 'job-completed' &&
+        requestsFor(parts[0]) === 1,
+      `el siguiente intento instala sin volver a bajar (fue ${outcomeOf(retry.events)}; pedidos: ${requestsFor(parts[0])})`,
+    )
+  }
+
+  // 29. Dos demo-prepare a la vez en la misma raíz (cancelar y relanzar, o
+  // la descarga en segundo plano que sigue tras recargar la vista): el lock
+  // deja un solo instalador; el otro espera y encuentra el pack instalado.
+  // Un lock que dejó un proceso muerto se toma.
+  section('29. dos demo-prepare a la vez: una sola instalación')
+  {
+    const root = join(workspace, 'Vimo-concurrent')
+    await mkdir(root, { recursive: true })
+    const parts = serveParts('concurrent')
+    const config = demoConfig({ packVersion: 'concurrent', packParts: parts })
+    interruptions.set(pathOf(parts[1]), 'stall')
+    let firstReachedPartTwo
+    const firstAtPartTwo = new Promise((resolve) => {
+      firstReachedPartTwo = resolve
+    })
+    let firstCompletedAt = Infinity
+    const first = runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type === 'progress' && event.detail?.part === 2)
+          firstReachedPartTwo()
+        if (event.type === 'job-completed') firstCompletedAt = Date.now()
+      },
+    })
+    await firstAtPartTwo
+    let secondStarted
+    const secondRunning = new Promise((resolve) => {
+      secondStarted = resolve
+    })
+    let secondStartedAt = Infinity
+    const second = runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type !== 'job-started') return
+        secondStartedAt = Date.now()
+        secondStarted()
+      },
+    })
+    // El segundo ya corre y espera el lock (se le dan unos turnos) mientras
+    // el primero sigue con la parte 2 colgada.
+    await secondRunning
+    await delay(1000)
+    const lockWhileWaiting = await readJsonIfPresent(
+      join(root, DEMO_LOCK_FILE),
+      null,
+    )
+    const stagingWhileWaiting = existsSync(
+      join(root, '_demo-pack.tmp', 'manifest.json'),
+    )
+    finishStalled(pathOf(parts[1]))
+    const [firstRun, secondRun] = await Promise.all([first, second])
+    assert(
+      last(firstRun.events)?.type === 'job-completed' &&
+        last(secondRun.events)?.type === 'job-completed',
+      `los dos terminan (fueron ${outcomeOf(firstRun.events)} y ${outcomeOf(secondRun.events)})`,
+    )
+    assert(
+      secondStartedAt < firstCompletedAt,
+      'hubo competencia de verdad: el segundo arrancó antes de que el primero terminara',
+    )
+    assert(
+      typeof lockWhileWaiting?.pid === 'number' && stagingWhileWaiting,
+      'mientras el segundo espera, el lock es del primero y su staging sigue entero',
+    )
+    assert(
+      requestsFor(parts[0]) === 1 && requestsFor(parts[1]) === 1,
+      `una sola instalación: cada parte se pide una vez (pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+    assert(
+      !secondRun.events.some((event) => event.type === 'progress') &&
+        resultOf(secondRun.events)?.manifest?.version === 'v4',
+      'el segundo no instala nada: espera y encuentra el pack instalado',
+    )
+    const marker = await readJsonIfPresent(
+      join(root, '_demo-pack', '.ok'),
+      null,
+    )
+    assert(
+      isDeepStrictEqual(marker, {
+        version: 'concurrent',
+        parts: parts.map((part) => part.sha256),
+      }) &&
+        !existsSync(join(root, '_demo-pack.tmp')) &&
+        !existsSync(join(root, DEMO_LOCK_FILE)) &&
+        (await downloadLeftovers(root)).length === 0,
+      'queda un pack sellado, sin staging, sin lock y sin zips',
+    )
+
+    const staleRoot = join(workspace, 'Vimo-stale-lock')
+    await mkdir(staleRoot, { recursive: true })
+    await writeFile(
+      join(staleRoot, DEMO_LOCK_FILE),
+      JSON.stringify({
+        pid: await exitedProcessPid(),
+        token: 'job-muerto',
+        startedAt: new Date().toISOString(),
+      }),
+    )
+    const stolen = await runSidecar('demo-prepare', {
+      projectsRoot: staleRoot,
+      config: demoConfig({
+        packVersion: 'stale-lock',
+        packParts: serveParts('stale-lock'),
+      }),
+    })
+    assert(
+      last(stolen.events)?.type === 'job-completed' &&
+        !existsSync(join(staleRoot, DEMO_LOCK_FILE)),
+      `un lock con el pid de un proceso muerto se toma y al final se suelta (fue ${outcomeOf(stolen.events)})`,
+    )
+  }
+
+  // 30. El lock con tiempos cortos (los de producción son de minutos): un
+  // dueño vivo que late hace esperar hasta demo_busy; uno muerto o sin
+  // latido se toma (este, tras esperar varios latidos); uno que vuelve a
+  // latir mientras se espera (despertó de una suspensión) no; un lock de
+  // toma abandonado no traba; el dueño late y suelta solo su lock.
+  section('30. el lock: espera, toma y latido')
+  {
+    const timing = {
+      pollMs: 25,
+      waitMs: 1200,
+      heartbeatMs: 100,
+      staleMs: 1000,
+      staleConfirmMs: 350,
+      stealStaleMs: 1000,
+    }
+    const root = join(workspace, 'Vimo-lock')
+    await mkdir(root, { recursive: true })
+    const lockFile = join(root, DEMO_LOCK_FILE)
+    const writeForeignLock = (pid) =>
+      writeFile(
+        lockFile,
+        JSON.stringify({
+          pid,
+          token: 'otro-job',
+          startedAt: new Date().toISOString(),
+        }),
+      )
+    const foreignToken = async () =>
+      (await readJsonIfPresent(lockFile, null))?.token
+    const touch = (path, at = new Date()) => utimes(path, at, at)
+    const anHourAgo = () => new Date(Date.now() - 60 * 60_000)
+    const beat = () => {
+      void touch(lockFile).catch(() => undefined)
+    }
+    // Corre una acción con el lock: si corrió, con qué código falló y cuánto
+    // tardó en entrar o en fallar.
+    const tryLock = async (action = async () => undefined) => {
+      const startedAt = Date.now()
+      let ran = false
+      try {
+        await withDemoInstallLock(
+          root,
+          new AbortController().signal,
+          async (signal) => {
+            ran = true
+            await action(signal)
+          },
+          timing,
+        )
+        return { ran, code: null, elapsed: Date.now() - startedAt }
+      } catch (error) {
+        return { ran, code: error?.code, elapsed: Date.now() - startedAt }
+      }
+    }
+
+    await writeForeignLock(process.pid)
+    const beating = setInterval(beat, timing.heartbeatMs)
+    const busy = await tryLock()
+    clearInterval(beating)
+    assert(
+      busy.code === 'demo_busy' &&
+        !busy.ran &&
+        busy.elapsed >= timing.waitMs &&
+        (await foreignToken()) === 'otro-job',
+      `un dueño vivo que late: demo_busy al tope, sin tocar su lock (fue ${JSON.stringify(busy)})`,
+    )
+
+    await writeForeignLock(await exitedProcessPid())
+    const dead = await tryLock()
+    assert(
+      dead.ran && dead.elapsed < timing.waitMs && !existsSync(lockFile),
+      `un dueño muerto: se toma enseguida y se suelta (fue ${JSON.stringify(dead)})`,
+    )
+
+    await writeForeignLock(process.pid)
+    await touch(lockFile, anHourAgo())
+    const silent = await tryLock()
+    assert(
+      silent.ran &&
+        silent.elapsed >= timing.staleConfirmMs &&
+        !existsSync(lockFile),
+      `vivo pero sin latir hace una hora (un pid reusado): se toma tras esperar varios latidos (fue ${JSON.stringify(silent)})`,
+    )
+
+    await writeForeignLock(process.pid)
+    await touch(lockFile, anHourAgo())
+    let resumed
+    const wakeUp = setTimeout(() => {
+      beat()
+      resumed = setInterval(beat, timing.heartbeatMs)
+    }, 100)
+    const woken = await tryLock()
+    clearTimeout(wakeUp)
+    clearInterval(resumed)
+    assert(
+      woken.code === 'demo_busy' &&
+        !woken.ran &&
+        (await foreignToken()) === 'otro-job',
+      `sin latir hace una hora pero vuelve a latir mientras se lo mira: no se toma (fue ${JSON.stringify(woken)})`,
+    )
+
+    await writeForeignLock(await exitedProcessPid())
+    const stealFile = join(root, DEMO_STEAL_LOCK_FILE)
+    await writeFile(stealFile, 'un proceso que murió tomando el lock')
+    await touch(stealFile, anHourAgo())
+    const pastSteal = await tryLock()
+    assert(
+      pastSteal.ran && !existsSync(stealFile) && !existsSync(lockFile),
+      `un lock de toma abandonado no traba la toma (fue ${JSON.stringify(pastSteal)})`,
+    )
+
+    let heartbeatAtStart = 0
+    let heartbeatAtEnd = 0
+    const working = await tryLock(async () => {
+      heartbeatAtStart = (await stat(lockFile)).mtimeMs
+      await delay(timing.heartbeatMs * 3.5)
+      heartbeatAtEnd = (await stat(lockFile)).mtimeMs
+    })
+    assert(
+      working.ran && heartbeatAtEnd > heartbeatAtStart && !existsSync(lockFile),
+      'mientras trabaja, el dueño late (la fecha del lock avanza) y al final lo suelta',
+    )
+    const replaced = await tryLock(() => writeForeignLock(process.pid))
+    assert(
+      replaced.ran && (await foreignToken()) === 'otro-job',
+      'al soltar, no borra un lock que ya no es suyo',
+    )
+    await rm(lockFile, { force: true })
+
+    // R19 (a): otro job se queda con el lock mientras el dueño trabaja (lo
+    // reescribe con su token). El dueño lo nota en el latido, deja de latir
+    // sin tocar el lock ajeno (su fecha vieja no cambia) y corta su trabajo
+    // con demo_busy.
+    const lostWork = timing.heartbeatMs * 10
+    const lost = await tryLock(async (signal) => {
+      await writeForeignLock(process.pid)
+      await touch(lockFile, anHourAgo())
+      await delay(lostWork, undefined, { signal })
+    })
+    const foreignHeartbeat = (await stat(lockFile).catch(() => null))?.mtimeMs
+    assert(
+      lost.ran &&
+        lost.code === 'demo_busy' &&
+        lost.elapsed < lostWork &&
+        (await foreignToken()) === 'otro-job' &&
+        Date.now() - (foreignHeartbeat ?? Date.now()) > 30 * 60_000,
+      `si otro job se queda con el lock, el dueño corta con demo_busy y no toca el lock ajeno (fue ${JSON.stringify(lost)})`,
+    )
+    await rm(lockFile, { force: true })
+
+    // R19 (b): el lock abandonado cambia cada vez que se lo va a tomar (otro
+    // job lo reescribe justo antes): la toma no borra nada, así que se espera
+    // el turno normal y vale el tope, sin dar vueltas en seco.
+    const deadPid = await exitedProcessPid()
+    await writeForeignLock(deadPid)
+    const realOpen = fsPromises.open
+    let takeAttempts = 0
+    fsPromises.open = async (path, ...rest) => {
+      if (String(path).endsWith(DEMO_STEAL_LOCK_FILE) && takeAttempts < 500) {
+        takeAttempts += 1
+        await writeFile(
+          lockFile,
+          JSON.stringify({
+            pid: deadPid,
+            token: `otro-job-${takeAttempts}`,
+            startedAt: new Date().toISOString(),
+          }),
+        )
+      }
+      return realOpen(path, ...rest)
+    }
+    syncBuiltinESMExports()
+    let changing
+    try {
+      changing = await tryLock()
+    } finally {
+      fsPromises.open = realOpen
+      syncBuiltinESMExports()
+    }
+    const maximumTurns = Math.ceil(timing.waitMs / timing.pollMs) + 5
+    assert(
+      changing.code === 'demo_busy' &&
+        !changing.ran &&
+        takeAttempts > 0 &&
+        takeAttempts <= maximumTurns,
+      `sin poder borrarlo, cada intento espera su turno y vale el tope (fue ${JSON.stringify(changing)}, ${takeAttempts} tomas; tope ${maximumTurns})`,
+    )
+    await rm(lockFile, { force: true })
+  }
+
+  // 31. Ruling R17 (Windows): la marca de una parte va antes de borrar su
+  // zip, el borrado no frena la instalación y el .ok se escribe antes del
+  // rename, así nada de lo bajado se pierde si la app muere o un antivirus
+  // traba un archivo.
+  section('31. zip trabado, cierre en seco y .ok antes del rename')
+  {
+    const killWhenRemoving = (pathEnd) =>
+      [
+        'const rm = fsPromises.rm',
+        'fsPromises.rm = async (path, options) => {',
+        `  if (String(path).endsWith(${pathEnd}))`,
+        "    process.kill(process.pid, 'SIGKILL')",
+        '  return rm(path, options)',
+        '}',
+      ].join('\n')
+
+    // La app muere al borrar el zip de la parte 1, ya extraída: al volver,
+    // la parte 1 no se vuelve a pedir, el zip que quedó se borra y el lock
+    // del proceso muerto se toma.
+    const crashRoot = join(workspace, 'Vimo-crash-zip')
+    await mkdir(crashRoot, { recursive: true })
+    const crashParts = serveParts('crash-zip')
+    const crashConfig = demoConfig({
+      packVersion: 'crash-zip',
+      packParts: crashParts,
+    })
+    const crashed = await runSidecar('demo-prepare', {
+      projectsRoot: crashRoot,
+      config: crashConfig,
+      preload: await writeStub(
+        'crash-on-zip-delete',
+        killWhenRemoving("'_demo-pack.part-1.download'"),
+      ),
+    })
+    const crashStatus = await runSidecar('demo-status', {
+      projectsRoot: crashRoot,
+      config: crashConfig,
+    })
+    assert(
+      crashed.signal === 'SIGKILL' &&
+        existsSync(join(crashRoot, '_demo-pack.part-1.download')) &&
+        existsSync(join(crashRoot, DEMO_LOCK_FILE)) &&
+        resultOf(crashStatus.events)?.downloadedBytes === crashParts[0].bytes,
+      `muerta al borrar el zip de la parte 1, la parte ya estaba marcada (fue ${crashed.signal}, ${resultOf(crashStatus.events)?.downloadedBytes} bytes)`,
+    )
+    const resumed = await runSidecar('demo-prepare', {
+      projectsRoot: crashRoot,
+      config: crashConfig,
+    })
+    assert(
+      last(resumed.events)?.type === 'job-completed' &&
+        requestsFor(crashParts[0]) === 1 &&
+        requestsFor(crashParts[1]) === 1,
+      `al volver toma el lock del proceso muerto y no vuelve a pedir la parte 1 (fue ${outcomeOf(resumed.events)}; pedidos: ${crashParts.map(requestsFor).join(' y ')})`,
+    )
+    assert(
+      (await downloadLeftovers(crashRoot)).length === 0 &&
+        !existsSync(join(crashRoot, DEMO_LOCK_FILE)),
+      'la limpieza del inicio borra el zip que quedó',
+    )
+
+    // Un antivirus traba los zips: la instalación avisa y termina igual; el
+    // próximo demo-prepare los borra sin volver a bajar nada.
+    const lockedRoot = join(workspace, 'Vimo-locked-zip')
+    await mkdir(lockedRoot, { recursive: true })
+    const lockedParts = serveParts('locked-zip')
+    const lockedConfig = demoConfig({
+      packVersion: 'locked-zip',
+      packParts: lockedParts,
+    })
+    const locked = await runSidecar('demo-prepare', {
+      projectsRoot: lockedRoot,
+      config: lockedConfig,
+      preload: await writeStub(
+        'locked-zips',
+        [
+          'const rm = fsPromises.rm',
+          'fsPromises.rm = async (path, options) => {',
+          "  if (String(path).endsWith('.download'))",
+          `    throw ${systemErrorSource('EPERM', 'operation not permitted, unlink')}`,
+          '  return rm(path, options)',
+          '}',
+        ].join('\n'),
+      ),
+    })
+    const warnings = locked.events.filter(
+      (event) =>
+        event.type === 'log' &&
+        event.level === 'warn' &&
+        event.message?.includes('.download'),
+    )
+    assert(
+      last(locked.events)?.type === 'job-completed' &&
+        warnings.length === 2 &&
+        (await downloadLeftovers(lockedRoot)).length === 2 &&
+        existsSync(join(lockedRoot, '_demo-pack', '.ok')),
+      `con los zips trabados, avisa por cada uno y la instalación termina igual (fue ${outcomeOf(locked.events)}; ${warnings.length} avisos)`,
+    )
+    const cleaned = await runSidecar('demo-prepare', {
+      projectsRoot: lockedRoot,
+      config: lockedConfig,
+    })
+    assert(
+      last(cleaned.events)?.type === 'job-completed' &&
+        (await downloadLeftovers(lockedRoot)).length === 0 &&
+        lockedParts.every((part) => requestsFor(part) === 1),
+      'el próximo demo-prepare borra los zips que quedaron sin volver a bajar nada',
+    )
+
+    // La app muere justo después del rename (al sacar el estado del staging
+    // del pack): el .ok ya viajó con el rename, así que al volver el pack
+    // cuenta como instalado y no se vuelve a bajar.
+    const renameRoot = join(workspace, 'Vimo-crash-rename')
+    await mkdir(renameRoot, { recursive: true })
+    const renameParts = serveParts('crash-rename')
+    const renameConfig = demoConfig({
+      packVersion: 'crash-rename',
+      packParts: renameParts,
+    })
+    const killed = await runSidecar('demo-prepare', {
+      projectsRoot: renameRoot,
+      config: renameConfig,
+      preload: await writeStub(
+        'crash-after-rename',
+        killWhenRemoving(`['_demo-pack', '${STAGING_STATE_FILE}'].join(sep)`),
+      ),
+    })
+    const sealed = await readJsonIfPresent(
+      join(renameRoot, '_demo-pack', '.ok'),
+      null,
+    )
+    assert(
+      killed.signal === 'SIGKILL' &&
+        !existsSync(join(renameRoot, '_demo-pack.tmp')) &&
+        isDeepStrictEqual(sealed, {
+          version: 'crash-rename',
+          parts: renameParts.map((part) => part.sha256),
+        }),
+      `muerta tras el rename, el pack ya estaba sellado (fue ${killed.signal}, .ok ${JSON.stringify(sealed)})`,
+    )
+    const afterRename = await runSidecar('demo-prepare', {
+      projectsRoot: renameRoot,
+      config: renameConfig,
+    })
+    assert(
+      last(afterRename.events)?.type === 'job-completed' &&
+        renameParts.every((part) => requestsFor(part) === 1),
+      `al volver, el pack cuenta como instalado y no se baja de nuevo (fue ${outcomeOf(afterRename.events)}; pedidos: ${renameParts.map(requestsFor).join(' y ')})`,
+    )
+  }
+
+  // 32. Ruling R17 (c): el disco se llena a mitad de la parte 2 (ENOSPC), al
+  // bajarla o al extraerla: demo_disk_full, como el chequeo previo, y la
+  // parte 1 sigue instalada.
+  section('32. disco lleno a mitad de una parte: demo_disk_full')
+  {
+    const noSpace = systemErrorSource(
+      'ENOSPC',
+      'no space left on device, write',
+    )
+    const cases = [
+      {
+        label: 'al bajar la parte 2',
+        stub: [
+          'const open = fsPromises.open',
+          'fsPromises.open = async (path, ...rest) => {',
+          '  const handle = await open(path, ...rest)',
+          "  if (String(path).endsWith('_demo-pack.part-2.download'))",
+          '    handle.write = async () => {',
+          `      throw ${noSpace}`,
+          '    }',
+          '  return handle',
+          '}',
+        ],
+      },
+      {
+        label: 'al extraer la parte 2',
+        stub: [
+          'const createWriteStream = fs.createWriteStream',
+          'fs.createWriteStream = (path, options) => {',
+          "  if (!String(path).includes(sep + 'short' + sep))",
+          '    return createWriteStream(path, options)',
+          '  return new Writable({',
+          '    write(chunk, encoding, callback) {',
+          `      callback(${noSpace})`,
+          '    },',
+          '  })',
+          '}',
+        ],
+      },
+    ]
+    for (const [index, { label, stub }] of cases.entries()) {
+      const name = `enospc-${index + 1}`
+      const root = join(workspace, `Vimo-${name}`)
+      await mkdir(root, { recursive: true })
+      const parts = serveParts(name)
+      const config = demoConfig({ packVersion: name, packParts: parts })
+      const run = await runSidecar('demo-prepare', {
+        projectsRoot: root,
+        config,
+        preload: await writeStub(name, stub.join('\n')),
+      })
+      assert(
+        codeOf(run.events) === 'demo_disk_full',
+        `ENOSPC ${label} → demo_disk_full (fue ${outcomeOf(run.events)})`,
+      )
+      const status = await runSidecar('demo-status', {
+        projectsRoot: root,
+        config,
+      })
+      assert(
+        resultOf(status.events)?.downloadedBytes === parts[0].bytes &&
+          (await downloadLeftovers(root)).length === 0 &&
+          !existsSync(join(root, DEMO_LOCK_FILE)),
+        `ENOSPC ${label}: la parte 1 sigue marcada, el zip se borra y se suelta el lock (fue ${resultOf(status.events)?.downloadedBytes} bytes)`,
+      )
+    }
+  }
+
+  // 33. Ruling R18: si el rename de `_demo-pack.tmp` a `_demo-pack` sigue
+  // trabado, el árbol se copia, y la copia no es atómica: el `.ok` va al
+  // final, así una copia cortada (la app muere en el último archivo) nunca
+  // queda sellada. demo-status no la da por lista y el próximo demo-prepare
+  // la repite desde el staging, sin volver a bajar.
+  section('33. rename trabado: la copia nunca queda sellada a medias')
+  {
+    const root = join(workspace, 'Vimo-copy-fallback')
+    await mkdir(root, { recursive: true })
+    // Las gemas ya sembradas (una máquina que pasa del v3 al v4): así «listo»
+    // depende solo del pack.
+    for (const gem of GEMS) {
+      await mkdir(join(root, '_styles', gem.styleId), { recursive: true })
+      await writeFile(
+        seededStyleFile(root, gem.styleId),
+        JSON.stringify(gem.style),
+      )
+    }
+    const parts = serveParts('copy-fallback')
+    const config = demoConfig({
+      packVersion: 'copy-fallback',
+      packParts: parts,
+    })
+    const cutFile = ['short', 'normal', 'video_final.mp4']
+    const crashed = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      preload: await writeStub(
+        'copy-fallback-crash',
+        [
+          'const rename = fsPromises.rename',
+          'fsPromises.rename = async (from, to) => {',
+          "  if (String(to).endsWith(sep + '_demo-pack'))",
+          `    throw ${systemErrorSource('EPERM', 'operation not permitted, rename')}`,
+          '  return rename(from, to)',
+          '}',
+          'const cp = fsPromises.cp',
+          'fsPromises.cp = async (source, destination, options) => {',
+          '  await cp(source, destination, options)',
+          `  const file = [destination, ...${JSON.stringify(cutFile)}].join(sep)`,
+          '  const data = await fsPromises.readFile(file)',
+          '  await fsPromises.writeFile(file, data.subarray(0, data.length >> 1))',
+          "  process.kill(process.pid, 'SIGKILL')",
+          '}',
+        ].join('\n'),
+      ),
+    })
+    const copiedFile = join(root, '_demo-pack', ...cutFile)
+    assert(
+      crashed.signal === 'SIGKILL' &&
+        existsSync(copiedFile) &&
+        statSync(copiedFile).size < FAKE_MP4.length &&
+        !existsSync(join(root, '_demo-pack', '.ok')) &&
+        existsSync(join(root, '_demo-pack.tmp', 'short')),
+      `muerta en el último archivo de la copia: el pack queda sin .ok y el staging entero (fue ${crashed.signal})`,
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      resultOf(status.events)?.ready === false &&
+        resultOf(status.events)?.downloadedBytes === bytesOf(parts),
+      `demo-status no da por lista la copia cortada y sigue viendo las dos partes marcadas (fue ${JSON.stringify(resultOf(status.events))})`,
+    )
+    const repaired = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+    })
+    const intact = await Promise.all(
+      partEntries.map(async ([name, data]) =>
+        (
+          await readFile(join(root, '_demo-pack', name)).catch(() =>
+            Buffer.alloc(0),
+          )
+        ).equals(data),
+      ),
+    )
+    assert(
+      last(repaired.events)?.type === 'job-completed' &&
+        parts.every((part) => requestsFor(part) === 1) &&
+        intact.every(Boolean) &&
+        existsSync(join(root, '_demo-pack', '.ok')),
+      `el próximo demo-prepare repite la copia desde el staging, sin volver a bajar, y cada archivo del pack queda entero (fue ${outcomeOf(repaired.events)}; pedidos: ${parts.map(requestsFor).join(' y ')}; ${intact.filter(Boolean).length} de ${intact.length} archivos enteros)`,
+    )
+  }
+
+  // 38. Un cuelgue de la red (Wi-Fi apagado, una conexión que queda abierta
+  // sin datos; spec v4 §3, ADR-0061 «Modos de falla»): sin bytes nuevos por
+  // `downloadIdleMs`, la parte falla enseguida con un código de la red y el
+  // próximo demo-prepare sigue desde ella. El tope es por pausa, no total: una
+  // parte lenta que sigue recibiendo bytes no se corta.
+  section('38. la red se cuelga: tope de inactividad por parte')
+  {
+    const idleMs = 1_000
+    // Al menos el tope (se esperó de verdad) y muy por debajo de
+    // STALL_LIMIT_MS, que es cuando el servidor cerraría la conexión.
+    const withinIdle = (elapsed) =>
+      elapsed >= idleMs * 0.8 && elapsed < idleMs + 10_000
+
+    // A mitad de la parte 2 la conexión queda abierta sin mandar nada.
+    const root = join(workspace, 'Vimo-idle')
+    await mkdir(root, { recursive: true })
+    const parts = serveParts('idle')
+    const config = demoConfig({
+      packVersion: 'idle',
+      packParts: parts,
+      downloadIdleMs: idleMs,
+    })
+    const startPercent = percentOf(parts[0].bytes, bytesOf(parts))
+    interruptions.set(pathOf(parts[1]), 'stall')
+    let lastBytesAt = 0
+    let failedAt = 0
+    const hung = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type === 'job-failed') failedAt = Date.now()
+        if (event.type !== 'progress' || event.detail?.part !== 2) return
+        if (event.percent > startPercent) lastBytesAt = Date.now()
+      },
+    })
+    cutStalled(pathOf(parts[1]))
+    const hungFor = failedAt - lastBytesAt
+    assert(
+      codeOf(hung.events) === 'demo_download_failed' &&
+        lastBytesAt > 0 &&
+        withinIdle(hungFor),
+      `sin bytes nuevos por ${idleMs} ms → demo_download_failed en ese tope, sin esperar a que se cierre la conexión (fue ${outcomeOf(hung.events)} a los ${hungFor} ms de los últimos bytes de la parte 2)`,
+    )
+    assert(
+      existsSync(join(root, '_demo-pack.tmp', 'manifest.json')) &&
+        !existsSync(join(root, '_demo-pack.tmp', 'short')) &&
+        (await downloadLeftovers(root)).length === 0 &&
+        !existsSync(join(root, '_demo-pack')) &&
+        !existsSync(join(root, DEMO_LOCK_FILE)),
+      'tras el cuelgue la parte 1 queda en el staging, el zip a medias se borra y se suelta el lock',
+    )
+    const status = await runSidecar('demo-status', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      resultOf(status.events)?.downloadedBytes === parts[0].bytes,
+      `demo-status cuenta la parte 1 marcada (fue ${resultOf(status.events)?.downloadedBytes} bytes; pesa ${parts[0].bytes})`,
+    )
+    const resumed = await runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+    })
+    assert(
+      last(resumed.events)?.type === 'job-completed' &&
+        requestsFor(parts[0]) === 1 &&
+        requestsFor(parts[1]) === 2,
+      `el próximo demo-prepare sigue desde la parte 2 (fue ${outcomeOf(resumed.events)}; pedidos: ${parts.map(requestsFor).join(' y ')})`,
+    )
+
+    // Una conexión lenta pero viva: la parte 1 llega en tandas, cada pausa
+    // más corta que el tope y todas juntas más largas.
+    const slowRoot = join(workspace, 'Vimo-slow')
+    await mkdir(slowRoot, { recursive: true })
+    const slowParts = serveParts('slow')
+    interruptions.set(pathOf(slowParts[0]), 'trickle')
+    let firstBytesAt = 0
+    let installAt = 0
+    const slow = await runSidecar('demo-prepare', {
+      projectsRoot: slowRoot,
+      config: demoConfig({
+        packVersion: 'slow',
+        packParts: slowParts,
+        downloadIdleMs: idleMs,
+      }),
+      onEvent(event) {
+        if (event.type !== 'progress' || event.detail?.part !== 1) return
+        if (event.detail.phase === 'download' && event.percent > 0)
+          firstBytesAt ||= Date.now()
+        if (event.detail.phase === 'install') installAt ||= Date.now()
+      },
+    })
+    const slowFor = installAt - firstBytesAt
+    assert(
+      last(slow.events)?.type === 'job-completed' &&
+        firstBytesAt > 0 &&
+        slowFor > idleMs &&
+        slowParts.every((part) => requestsFor(part) === 1),
+      `una parte que tarda más que el tope pero sigue recibiendo bytes no se corta (fue ${outcomeOf(slow.events)}; la parte 1 tardó ${slowFor} ms con un tope de ${idleMs})`,
+    )
+
+    // Un servidor que acepta el pedido y no contesta nada.
+    const muteRoot = join(workspace, 'Vimo-mute')
+    await mkdir(muteRoot, { recursive: true })
+    const muteParts = serveParts('mute')
+    interruptions.set(pathOf(muteParts[0]), 'mute')
+    let requestedAt = 0
+    let mutedAt = 0
+    const muted = await runSidecar('demo-prepare', {
+      projectsRoot: muteRoot,
+      config: demoConfig({
+        packVersion: 'mute',
+        packParts: muteParts,
+        downloadIdleMs: idleMs,
+      }),
+      onEvent(event) {
+        if (event.type === 'progress') requestedAt ||= Date.now()
+        if (event.type === 'job-failed') mutedAt = Date.now()
+      },
+    })
+    cutStalled(pathOf(muteParts[0]))
+    const mutedFor = mutedAt - requestedAt
+    assert(
+      codeOf(muted.events) === 'demo_offline' &&
+        requestedAt > 0 &&
+        withinIdle(mutedFor),
+      `un servidor que no contesta → demo_offline en el tope de inactividad (fue ${outcomeOf(muted.events)} a los ${mutedFor} ms del pedido)`,
+    )
+    assert(
+      (await downloadLeftovers(muteRoot)).length === 0 &&
+        !existsSync(join(muteRoot, DEMO_LOCK_FILE)),
+      'sin respuesta no quedan zips ni el lock',
+    )
+  }
+
+  // 39. demo-status dice si un demo-prepare vivo tiene el lock de la
+  // instalación: la puerta que espera lo usa para relanzar cuando nadie baja.
+  // Sí mientras uno instala; no sin lock, con el pid de un proceso muerto ni
+  // con un lock que no late hace rato.
+  section('39. demo-status dice si alguien instala')
+  {
+    const root = join(workspace, 'Vimo-installing')
+    await mkdir(root, { recursive: true })
+    const parts = serveParts('installing')
+    const config = demoConfig({ packVersion: 'installing', packParts: parts })
+    const installingNow = async () =>
+      resultOf(
+        (await runSidecar('demo-status', { projectsRoot: root, config }))
+          .events,
+      )?.installing
+
+    const before = await installingNow()
+    interruptions.set(pathOf(parts[1]), 'stall')
+    let reachedPartTwo
+    const atPartTwo = new Promise((resolve) => {
+      reachedPartTwo = resolve
+    })
+    const installing = runSidecar('demo-prepare', {
+      projectsRoot: root,
+      config,
+      onEvent(event) {
+        if (event.type === 'progress' && event.detail?.part === 2)
+          reachedPartTwo()
+      },
+    })
+    await atPartTwo
+    const during = await installingNow()
+    finishStalled(pathOf(parts[1]))
+    const installed = await installing
+    const after = await installingNow()
+    assert(
+      before === false &&
+        during === true &&
+        last(installed.events)?.type === 'job-completed' &&
+        after === false,
+      `sin lock nadie instala; mientras demo-prepare trabaja, sí; al terminar, no (fue ${before}, ${during} y ${after})`,
+    )
+
+    const lockFile = join(root, DEMO_LOCK_FILE)
+    const writeLock = async (pid, heartbeat = new Date()) => {
+      await writeFile(
+        lockFile,
+        JSON.stringify({
+          pid,
+          token: 'otro-job',
+          startedAt: new Date().toISOString(),
+        }),
+      )
+      await utimes(lockFile, heartbeat, heartbeat)
+    }
+    await writeLock(await exitedProcessPid())
+    const dead = await installingNow()
+    await writeLock(process.pid)
+    const alive = await installingNow()
+    await writeLock(process.pid, new Date(Date.now() - 60 * 60_000))
+    const silent = await installingNow()
+    await rm(lockFile, { force: true })
+    assert(
+      dead === false && alive === true && silent === false,
+      `un lock con su proceso muerto o sin latido hace una hora no cuenta; uno vivo que late, sí (fue ${dead}, ${alive} y ${silent})`,
+    )
+  }
+
+  // 40. El disco lleno fuera de bajar y extraer: un ENOSPC al copiar el pack
+  // a su lugar (con el rename trabado) o al sembrar las gemas también es
+  // demo_disk_full, y lo hecho se conserva. Con el pack ya instalado,
+  // demo-prepare borra el staging que haya quedado (su borrado falló tras la
+  // copia).
+  section(
+    '40. disco lleno al mover el pack o al sembrar, y el staging que quedó',
+  )
+  {
+    const noSpace = systemErrorSource(
+      'ENOSPC',
+      'no space left on device, write',
+    )
+
+    const copyRoot = join(workspace, 'Vimo-enospc-copy')
+    await mkdir(copyRoot, { recursive: true })
+    const copyParts = serveParts('enospc-copy')
+    const copyConfig = demoConfig({
+      packVersion: 'enospc-copy',
+      packParts: copyParts,
+    })
+    const copyFull = await runSidecar('demo-prepare', {
+      projectsRoot: copyRoot,
+      config: copyConfig,
+      preload: await writeStub(
+        'enospc-copy',
+        [
+          'const rename = fsPromises.rename',
+          'fsPromises.rename = async (from, to) => {',
+          "  if (String(to).endsWith(sep + '_demo-pack'))",
+          `    throw ${systemErrorSource('EPERM', 'operation not permitted, rename')}`,
+          '  return rename(from, to)',
+          '}',
+          'fsPromises.cp = async () => {',
+          `  throw ${noSpace}`,
+          '}',
+        ].join('\n'),
+      ),
+    })
+    assert(
+      codeOf(copyFull.events) === 'demo_disk_full' &&
+        !existsSync(join(copyRoot, '_demo-pack', '.ok')) &&
+        existsSync(join(copyRoot, '_demo-pack.tmp', 'short')),
+      `ENOSPC al copiar el pack a su lugar → demo_disk_full, sin sellar y con el staging entero (fue ${outcomeOf(copyFull.events)})`,
+    )
+    const moved = await runSidecar('demo-prepare', {
+      projectsRoot: copyRoot,
+      config: copyConfig,
+    })
+    assert(
+      last(moved.events)?.type === 'job-completed' &&
+        copyParts.every((part) => requestsFor(part) === 1),
+      `con espacio, el próximo intento mueve el pack sin volver a bajarlo (fue ${outcomeOf(moved.events)}; pedidos: ${copyParts.map(requestsFor).join(' y ')})`,
+    )
+
+    const seedRoot = join(workspace, 'Vimo-enospc-seed')
+    await mkdir(seedRoot, { recursive: true })
+    const seedParts = serveParts('enospc-seed')
+    const seedConfig = demoConfig({
+      packVersion: 'enospc-seed',
+      packParts: seedParts,
+    })
+    const seedFull = await runSidecar('demo-prepare', {
+      projectsRoot: seedRoot,
+      config: seedConfig,
+      preload: await writeStub(
+        'enospc-seed',
+        [
+          'const copyFile = fsPromises.copyFile',
+          'fsPromises.copyFile = async (source, destination, ...rest) => {',
+          "  if (String(destination).includes(sep + '_styles' + sep))",
+          `    throw ${noSpace}`,
+          '  return copyFile(source, destination, ...rest)',
+          '}',
+        ].join('\n'),
+      ),
+    })
+    assert(
+      codeOf(seedFull.events) === 'demo_disk_full' &&
+        existsSync(join(seedRoot, '_demo-pack', '.ok')),
+      `ENOSPC al sembrar las gemas → demo_disk_full, con el pack ya instalado (fue ${outcomeOf(seedFull.events)})`,
+    )
+    const seeded = await runSidecar('demo-prepare', {
+      projectsRoot: seedRoot,
+      config: seedConfig,
+    })
+    const seededGems = await Promise.all(
+      GEMS.map((gem) => readSeededStyle(seedRoot, gem.styleId)),
+    )
+    assert(
+      last(seeded.events)?.type === 'job-completed' &&
+        seededGems.every(Boolean) &&
+        seedParts.every((part) => requestsFor(part) === 1),
+      `con espacio, el próximo intento siembra las gemas sin volver a bajar el pack (fue ${outcomeOf(seeded.events)})`,
+    )
+
+    const leftover = join(seedRoot, '_demo-pack.tmp')
+    await mkdir(join(leftover, 'short'), { recursive: true })
+    await writeFile(join(leftover, 'short', 'resto.mp4'), FAKE_MP4)
+    const cleaned = await runSidecar('demo-prepare', {
+      projectsRoot: seedRoot,
+      config: seedConfig,
+    })
+    assert(
+      last(cleaned.events)?.type === 'job-completed' &&
+        !existsSync(leftover) &&
+        seedParts.every((part) => requestsFor(part) === 1),
+      `con el pack instalado, demo-prepare borra el staging que quedó sin bajar nada (fue ${outcomeOf(cleaned.events)})`,
+    )
+  }
 } finally {
   server.close()
+  // Una respuesta colgada a propósito (`stall`) no frena el cierre.
+  server.closeAllConnections()
   await rm(workspace, { recursive: true, force: true })
 }
 

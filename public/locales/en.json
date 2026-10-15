@@ -1305,6 +1305,8 @@
       "packCorrupt": "The downloaded package does not match the expected one. Try again.",
       "packUnreadable": "The demo package could not be opened. Try again.",
       "packIncomplete": "The demo package came incomplete. Try again.",
+      "diskFull": "There is not enough disk space for the {{gb}} GB of the demo. Free up some space and try again.",
+      "busy": "The demo is already being prepared in the background. Wait for it to finish and try again.",
       "unknown": "The demo could not be prepared. Try again."
     }
   },

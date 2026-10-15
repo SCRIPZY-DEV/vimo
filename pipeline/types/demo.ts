@@ -83,6 +83,22 @@ export interface DemoStatusResult {
   version: string
   // Solo con ready: lo que Crear necesita para pre-llenarse.
   manifest?: DemoManifest
+  // Lo que pesa el pack configurado (la suma de sus partes) y cuánto ya
+  // quedó bajado: las partes con marca en el staging de esta versión, o todo
+  // si el pack ya está instalado. La puerta muestra el tamaño y sigue sola si
+  // ya había empezado.
+  downloadBytes: number
+  downloadedBytes: number
+  // El espacio libre que pide lo que falta instalar, con la misma cuenta que
+  // demo-prepare antes de cada parte (lo que falta extraer + la parte más
+  // grande de las que faltan + el margen); 0 con el pack instalado. Son los
+  // GB del aviso de `demo_disk_full`.
+  requiredFreeBytes: number
+  // Si un demo-prepare vivo tiene el lock de la instalación en esta raíz (su
+  // proceso existe y latió hace poco). La puerta que espera lo usa para
+  // distinguir «alguien baja» de «nadie baja»: sin nadie y sin el pack
+  // listo, relanza demo-prepare, que sigue desde la primera parte sin marca.
+  installing: boolean
 }
 
 export interface DemoPrepareResult {
