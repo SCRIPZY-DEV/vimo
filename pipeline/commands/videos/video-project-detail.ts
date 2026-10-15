@@ -1,4 +1,8 @@
 import { stat } from 'node:fs/promises'
+import {
+  resolveSoundEffects,
+  soundEffectsTimelineSeconds,
+} from '../../audio/sound-effects.ts'
 
 import { readProjectMetadata } from '../../project/metadata.ts'
 import { ensureLegacyAnimationsForView } from '../../animation/migrate-legacy.ts'
@@ -45,6 +49,12 @@ export async function videoProjectDetail(
   const metadata = await readProjectMetadata(paths)
 
   const scenes = await readScenes(paths)
+  if (metadata.options.soundEffects !== undefined)
+    metadata.options.soundEffects = resolveSoundEffects(
+      metadata.options.soundEffects,
+      scenes ?? [],
+      soundEffectsTimelineSeconds(metadata, scenes ?? []),
+    )
   const result: VideoProjectDetailResult = {
     metadata,
     scenes: scenes ? await toSceneDetails(paths, scenes, metadata) : [],

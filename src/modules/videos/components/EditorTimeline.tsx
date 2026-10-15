@@ -24,9 +24,13 @@ import { TimelineClipItem } from '@/modules/videos/components/TimelineClipItem'
 import { TimelineAvatarItem } from '@/modules/videos/components/TimelineAvatarItem'
 import { TimelineSceneItem } from '@/modules/videos/components/TimelineSceneItem'
 import { TimelineTrackHeader } from '@/modules/videos/components/TimelineTrackHeader'
+import { TimelineSoundEffectItem } from '@/modules/videos/components/TimelineSoundEffectItem'
+import { boundSoundEffectStart } from '@/modules/videos/utilities/soundEffectPlayback'
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import { TimelineWaveform } from '@/modules/videos/components/TimelineWaveform'
 import { timelineTransitionFrames } from '@/modules/videos/utilities/timelineTransitionFrames'
 import {
+  EDITOR_SOUND_EFFECT_MIME,
   AUTOSCROLL_EDGE_PX,
   AUTOSCROLL_MANUAL_PAUSE_MS,
   MIN_SCENE_SECONDS,
@@ -95,6 +99,12 @@ interface EditorTimelineProps {
   sceneAvatarRendering?: Record<number, SceneAvatarRendering>
   narrationSrc: string | null
   musicSrc: string | null
+  soundEffects?: SoundEffectInstance[]
+  soundEffectDurationSeconds?: number
+  soundEffectsBusy?: boolean
+  onAddSoundEffect?(seconds: number): void
+  onMoveSoundEffect?(id: string, seconds: number): void
+  onRemoveSoundEffect?(id: string): void
   // Orden, silencio en el visor y candado de las pistas (ADR-0056).
   layout: TimelineLayout
   onReorderTracks(activeId: TimelineTrackId, overId: TimelineTrackId): void
@@ -145,6 +155,12 @@ export function EditorTimeline({
   sceneAvatarRendering = {},
   narrationSrc,
   musicSrc,
+  soundEffects = [],
+  soundEffectDurationSeconds = 0,
+  soundEffectsBusy = false,
+  onAddSoundEffect,
+  onMoveSoundEffect,
+  onRemoveSoundEffect,
   layout,
   onReorderTracks,
   onToggleMuted,
@@ -184,13 +200,24 @@ export function EditorTimeline({
     (scene) =>
       scene.startSeconds !== undefined && scene.endSeconds !== undefined,
   )
-  const duration = Math.max(
+  const mediaDuration = Math.max(
     durationSeconds,
     ...timedScenes.map((scene) => scene.endSeconds ?? 0),
-    1,
+    0,
   )
+  const duration = Math.max(mediaDuration, 1)
   const totalWidth = Math.max(duration * pxPerSecond + 16, viewportWidth)
-  const tracksHeight = TIMELINE_RULER_HEIGHT + 3 * TIMELINE_TRACK_HEIGHT
+  const visibleOrder = layout.order.filter(
+    (id) => id !== 'sfx' || soundEffects.length > 0,
+  )
+  const tracksHeight =
+    TIMELINE_RULER_HEIGHT + visibleOrder.length * TIMELINE_TRACK_HEIGHT
+  const soundEffectsDisabled =
+    timingBusy ||
+    soundEffectsBusy ||
+    layout.locked.sfx ||
+    soundEffectDurationSeconds <= 0 ||
+    mediaDuration < soundEffectDurationSeconds
   // Un clip que cubre varias escenas es UN bloque del largo del hueco entero
   // (ADR-0041) y una escena de avatar es un bloque propio (ADR-0057); las
   // fronteras arrastrables quedan solo entre bloques.
@@ -580,7 +607,7 @@ export function EditorTimeline({
   const canZoomIn = zoomIndex < TIMELINE_ZOOM_LEVELS.length - 1
   const trackTop = (index: number) =>
     TIMELINE_RULER_HEIGHT + index * TIMELINE_TRACK_HEIGHT
-  const trackIndex = (id: TimelineTrackId) => layout.order.indexOf(id)
+  const trackIndex = (id: TimelineTrackId) => visibleOrder.indexOf(id)
 
   return (
     <div className="select-none overflow-hidden rounded-2xl border-2 border-border bg-card">
@@ -640,10 +667,10 @@ export function EditorTimeline({
             onDragEnd={handleTrackDragEnd}
           >
             <SortableContext
-              items={layout.order}
+              items={visibleOrder}
               strategy={verticalListSortingStrategy}
             >
-              {layout.order.map((id) => (
+              {visibleOrder.map((id) => (
                 <TimelineTrackHeader
                   key={id}
                   id={id}
@@ -677,6 +704,33 @@ export function EditorTimeline({
         >
           <div
             ref={contentRef}
+            onDragOver={(event) => {
+              if (
+                !onAddSoundEffect ||
+                soundEffectsDisabled ||
+                !event.dataTransfer.types.includes(EDITOR_SOUND_EFFECT_MIME)
+              )
+                return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+            }}
+            onDrop={(event) => {
+              if (
+                !onAddSoundEffect ||
+                soundEffectsDisabled ||
+                event.dataTransfer.getData(EDITOR_SOUND_EFFECT_MIME) !== 'click'
+              )
+                return
+              event.preventDefault()
+              event.stopPropagation()
+              onAddSoundEffect(
+                boundSoundEffectStart(
+                  secondsAtClientX(event.clientX),
+                  mediaDuration,
+                  soundEffectDurationSeconds,
+                ),
+              )
+            }}
             onClick={handleTrackClick}
             onMouseMove={handleTrackHover}
             onMouseLeave={() => setHoverSeconds(null)}
@@ -952,7 +1006,7 @@ export function EditorTimeline({
                     <TimelineWaveform
                       audio={musicPeaks}
                       loop
-                      timelineSeconds={duration}
+                      timelineSeconds={mediaDuration}
                       pxPerSecond={pxPerSecond}
                       scrollLeft={scrollLeft}
                       viewportWidth={viewportWidth}
@@ -973,6 +1027,36 @@ export function EditorTimeline({
                 </button>
               )}
             </div>
+
+            {/* Efectos: duración fija del asset, movimiento sin recorte. */}
+            {soundEffects.length > 0 && (
+              <div
+                data-timeline-track="sfx"
+                style={{
+                  top: trackTop(trackIndex('sfx')),
+                  height: TIMELINE_TRACK_HEIGHT,
+                }}
+                className="absolute left-0 w-full border-b border-border/50"
+              >
+                {soundEffects.map((instance) => (
+                  <TimelineSoundEffectItem
+                    key={instance.id}
+                    instance={instance}
+                    durationSeconds={soundEffectDurationSeconds}
+                    timelineSeconds={mediaDuration}
+                    pxPerSecond={pxPerSecond}
+                    disabled={
+                      soundEffectsDisabled ||
+                      !onMoveSoundEffect ||
+                      !onRemoveSoundEffect
+                    }
+                    muted={layout.muted.sfx}
+                    onMove={(id, seconds) => onMoveSoundEffect?.(id, seconds)}
+                    onRemove={(id) => onRemoveSoundEffect?.(id)}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Azul: anticipa el seek de una zona navegable sin alterar el reloj. */}
             {hoverSeconds !== null && !dragging && (

@@ -1,6 +1,11 @@
 import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { TRANSITION_POLICY_VERSION } from '../../animation/transitions.ts'
+import {
+  resolveSoundEffects,
+  soundEffectsTimelineSeconds,
+} from '../../audio/sound-effects.ts'
+import { renderSoundEffectsTrack } from '../../audio/render-sound-effects.ts'
 
 import {
   detectSentences,
@@ -166,6 +171,22 @@ export const renderStage: Stage<CreateVideoContext> = {
     })
 
     // 3. Mezcla final: audio + (overlay) + color del estilo.
+    const soundEffectsSeconds = soundEffectsTimelineSeconds(
+      context.metadata,
+      scenes,
+    )
+    const soundEffects = resolveSoundEffects(
+      options.soundEffects,
+      scenes,
+      soundEffectsSeconds,
+    )
+    const soundEffectsFile = await renderSoundEffectsTrack(
+      ffmpegPath,
+      soundEffects,
+      soundEffectsSeconds,
+      context.paths.soundEffectsFile,
+      context.signal,
+    )
     await mixFinalVideo(
       ffmpegPath,
       {
@@ -173,6 +194,7 @@ export const renderStage: Stage<CreateVideoContext> = {
         narrationFile: context.paths.narrationFile,
         frame,
         musicFile,
+        soundEffectsFile,
         ...mixVideo,
         voiceVolume: options.voiceVolume,
         musicVolume: options.musicVolume,

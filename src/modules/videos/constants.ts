@@ -1,5 +1,7 @@
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import type { LucideIcon } from 'lucide-react'
 import {
+  AudioLines,
   Clapperboard,
   Film,
   Mic,
@@ -82,6 +84,7 @@ export function libraryEditorPath(projectId: string): string {
 }
 
 export const videosQueryKeys = {
+  soundEffects: ['videos', 'soundEffects'],
   catalogStyles: ['videos', 'catalogStyles'],
   // Catálogo remoto (ADR-0049): la sincronización de la pestaña y la lista
   // del admin.
@@ -325,6 +328,16 @@ export const FRAME_SECONDS = 1 / 30
 export const TIMELINE_ZOOM_LEVELS = [20, 30, 45, 60, 90, 120, 180, 240] as const
 export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
 
+export const EMPTY_SOUND_EFFECTS: readonly SoundEffectInstance[] = []
+
+export const EDITOR_TOOL_PANEL_DEFAULT_WIDTH = 320
+export const EDITOR_TOOL_PANEL_MIN_WIDTH = 280
+export const EDITOR_TOOL_PANEL_MAX_WIDTH = 720
+export const EDITOR_TOOL_PANEL_RESIZE_STEP = 24
+export const EDITOR_TOOL_PREVIEW_MIN_WIDTH = 280
+export const EDITOR_TOOL_WORKSPACE_GUTTER = 112
+export const EDITOR_SOUND_EFFECT_MIME = 'application/x-vimo-sound-effect'
+
 export const TIMELINE_RULER_HEIGHT = 32
 export const TIMELINE_TRACK_HEIGHT = 48
 export const TIMELINE_SIDEBAR_WIDTH = 160
@@ -334,27 +347,31 @@ export const TIMELINE_TRACK_IDS: readonly TimelineTrackId[] = [
   'scenes',
   'narration',
   'music',
+  'sfx',
 ]
 export const TIMELINE_TRACK_KINDS: Record<TimelineTrackId, TimelineTrackKind> =
   {
     scenes: 'visual',
     narration: 'audio',
     music: 'audio',
+    sfx: 'audio',
   }
 export const TIMELINE_TRACK_ICONS: Record<TimelineTrackId, LucideIcon> = {
   scenes: Film,
   narration: Mic,
   music: Music2,
+  sfx: AudioLines,
 }
 export const TIMELINE_TRACK_LABEL_KEYS: Record<TimelineTrackId, string> = {
   scenes: 'library.editor.timeline.scenes',
   narration: 'library.editor.timeline.narration',
   music: 'library.editor.timeline.music',
+  sfx: 'library.editor.timeline.sfx',
 }
 export const DEFAULT_TIMELINE_LAYOUT: TimelineLayout = {
-  order: ['scenes', 'narration', 'music'],
-  muted: { scenes: false, narration: false, music: false },
-  locked: { scenes: false, narration: false, music: false },
+  order: ['scenes', 'narration', 'music', 'sfx'],
+  muted: { scenes: false, narration: false, music: false, sfx: false },
+  locked: { scenes: false, narration: false, music: false, sfx: false },
 }
 // Una entrada por proyecto: `vimo:editor:timeline:v1:<projectId>`.
 export const TIMELINE_LAYOUT_STORAGE_KEY_PREFIX = 'vimo:editor:timeline:v1:'

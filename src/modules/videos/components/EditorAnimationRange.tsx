@@ -30,6 +30,7 @@ interface EditorAnimationRangeProps {
   videoFormat?: VideoFormat
   busy: boolean
   locked: boolean
+  embedded?: boolean
 }
 
 export function EditorAnimationRange({
@@ -39,6 +40,7 @@ export function EditorAnimationRange({
   videoFormat,
   busy,
   locked,
+  embedded = false,
 }: EditorAnimationRangeProps) {
   const { t, i18n } = useTranslation()
   const { configuredProviders } = useRequiredApiKeys()
@@ -118,20 +120,8 @@ export function EditorAnimationRange({
     return t('library.editor.animationRange.animate', { minutes })
   }
 
-  return (
-    <AnimationDialog
-      title={t('library.editor.animationRange.title')}
-      trigger={
-        <Button
-          type="button"
-          variant="outline"
-          className="shrink-0 justify-start rounded-xl border-2 border-sky/40 bg-sky/5 px-4 py-3 font-display font-bold"
-        >
-          <Clapperboard aria-hidden className="mr-2 h-4 w-4 text-sky" />
-          {t('library.editor.animationRange.title')}
-        </Button>
-      }
-    >
+  const content = (
+    <>
       <AnimationMinutesField
         id="editor-animation-minutes"
         minutes={minutes}
@@ -205,6 +195,26 @@ export function EditorAnimationRange({
           </Link>
         </Button>
       )}
+    </>
+  )
+
+  if (embedded) return <div className="space-y-4">{content}</div>
+
+  return (
+    <AnimationDialog
+      title={t('library.editor.animationRange.title')}
+      trigger={
+        <Button
+          type="button"
+          variant="outline"
+          className="shrink-0 justify-start rounded-xl border-2 border-sky/40 bg-sky/5 px-4 py-3 font-display font-bold"
+        >
+          <Clapperboard aria-hidden className="mr-2 h-4 w-4 text-sky" />
+          {t('library.editor.animationRange.title')}
+        </Button>
+      }
+    >
+      {content}
     </AnimationDialog>
   )
 }

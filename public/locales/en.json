@@ -1409,7 +1409,8 @@
         "avatarDuration": "{{seconds}} s",
         "avatarStale": "Outdated",
         "avatarStaleHint": "Outdated: the narration or the span changed after it was generated; the video shows the look's still image until it's regenerated.",
-        "avatarFailed": "The avatar wasn't generated: {{reason}}"
+        "avatarFailed": "The avatar wasn't generated: {{reason}}",
+        "sfx": "SFX"
       },
       "panel": {
         "noSelection": "Pick a scene in the timeline to edit it.",
@@ -1704,7 +1705,51 @@
         "ajustar": "Adjust avatar",
         "cerrarAjustes": "Close",
         "motorAyudaAria": "What {{engine}} does"
-      }
+      },
+      "tools": {
+        "label": "Editor tools",
+        "animation": "Animate",
+        "animationHint": "Animate the beginning or the whole video",
+        "audio": "Audio",
+        "transitions": "Transitions",
+        "music": "Music",
+        "resize": "Resize panel",
+        "sfx": {
+          "tab": "SFX",
+          "mix": "Audio settings",
+          "hint": "Preview an effect and drag it onto the timeline, or add it at the playhead.",
+          "loading": "Loading effects…",
+          "unavailable": "This sound effect could not be loaded.",
+          "pause": "Pause effect",
+          "preview": "Preview effect",
+          "click": "Click",
+          "duration": "{{seconds}} s",
+          "add": "Add",
+          "previewError": "The effect could not be played. Please try again.",
+          "insertAt": "Will be added at {{time}}.",
+          "allTransitions": "On every transition",
+          "allTransitionsHint": "Adds the effect at every scene change. Turning this off keeps effects added by hand."
+        },
+        "transitionsPanel": {
+          "crossfade": "Crossfade",
+          "search": "Search transitions",
+          "filter": "Filter transitions",
+          "applied": "Applied",
+          "all": "All",
+          "empty": "No transitions match this filter.",
+          "previewHint": "Hover over a transition to preview it. Click to apply or remove it.",
+          "unavailable": "You need at least two scenes with a duration to add transitions."
+        }
+      },
+      "sfx": {
+        "clip": "Click sound effect",
+        "move": "Move Click effect",
+        "remove": "Remove effect",
+        "loadError": "Sound effects could not be loaded."
+      },
+      "previewMaximize": "Maximize preview",
+      "previewMinimize": "Restore preview",
+      "previewClose": "Close expanded preview"
     },
     "errors": {
       "projectBusy": "A generation is already running. Wait for it to finish before starting another.",

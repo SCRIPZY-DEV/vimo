@@ -1409,7 +1409,8 @@
         "avatarDuration": "{{seconds}} s",
         "avatarStale": "Desatualizado",
         "avatarStaleHint": "Desatualizado: a narração ou o trecho mudaram depois de gerá-lo; o vídeo mostra a imagem fixa do look até ser regenerado.",
-        "avatarFailed": "O avatar não foi gerado: {{reason}}"
+        "avatarFailed": "O avatar não foi gerado: {{reason}}",
+        "sfx": "SFX"
       },
       "panel": {
         "noSelection": "Escolha uma cena na linha do tempo para editá-la.",
@@ -1704,7 +1705,51 @@
         "ajustar": "Ajustar avatar",
         "cerrarAjustes": "Fechar",
         "motorAyudaAria": "O que o {{engine}} faz"
-      }
+      },
+      "tools": {
+        "label": "Ferramentas do editor",
+        "animation": "Animar",
+        "animationHint": "Animar o início ou todo o vídeo",
+        "audio": "Áudio",
+        "transitions": "Transições",
+        "music": "Música",
+        "resize": "Redimensionar painel",
+        "sfx": {
+          "tab": "SFX",
+          "mix": "Ajustes de áudio",
+          "hint": "Ouça um efeito e arraste-o para a linha do tempo, ou adicione-o na posição do cursor.",
+          "loading": "Carregando efeitos…",
+          "unavailable": "Não foi possível carregar este efeito sonoro.",
+          "pause": "Pausar efeito",
+          "preview": "Ouvir efeito",
+          "click": "Click",
+          "duration": "{{seconds}} s",
+          "add": "Adicionar",
+          "previewError": "Não foi possível reproduzir o efeito. Tente novamente.",
+          "insertAt": "Será adicionado em {{time}}.",
+          "allTransitions": "Em todas as transições",
+          "allTransitionsHint": "Adiciona o efeito em cada mudança de cena. Ao desativar, os efeitos adicionados manualmente são mantidos."
+        },
+        "transitionsPanel": {
+          "crossfade": "Dissolução cruzada",
+          "search": "Buscar transições",
+          "filter": "Filtrar transições",
+          "applied": "Aplicadas",
+          "all": "Todas",
+          "empty": "Nenhuma transição corresponde a este filtro.",
+          "previewHint": "Passe o cursor sobre uma transição para visualizá-la. Clique para aplicar ou remover.",
+          "unavailable": "Você precisa de pelo menos duas cenas com duração para adicionar transições."
+        }
+      },
+      "sfx": {
+        "clip": "Efeito Click",
+        "move": "Mover efeito Click",
+        "remove": "Remover efeito",
+        "loadError": "Não foi possível carregar os efeitos sonoros."
+      },
+      "previewMaximize": "Ampliar prévia",
+      "previewMinimize": "Restaurar prévia",
+      "previewClose": "Fechar prévia ampliada"
     },
     "errors": {
       "projectBusy": "Já há uma geração em andamento. Espere terminar antes de iniciar outra.",

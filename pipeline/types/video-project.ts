@@ -4,6 +4,7 @@ import type {
 } from './flow-paid-completion.ts'
 import type { FlowToolsExecutionPlan } from './flow-execution-plan.ts'
 import type { ProjectAvatarOptions } from './avatar.ts'
+import type { SoundEffectInstance } from './sound-effects.ts'
 import type { CharacterStyleId } from './characters.ts'
 import type { ColorFilterId, GemSections, StyleCharacter } from './styles.ts'
 import type { ImageProviderId, FlowRestartRequest } from './image-provider.ts'
@@ -126,6 +127,8 @@ export interface VideoProjectOptions {
   // Mezcla final del render; defaults 1.0 (voz) y 0.15 (música).
   voiceVolume?: number
   musicVolume?: number
+  // Efectos completos, colocados en el reloj del proyecto. Ausente = ninguno.
+  soundEffects?: SoundEffectInstance[]
   // Segundos que se saltean del arranque de la música al mezclar (Library).
   bgmOffsetSeconds?: number
   // Quema el texto de cada escena abajo del video en la mezcla final.

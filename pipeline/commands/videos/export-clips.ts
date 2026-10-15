@@ -1,5 +1,10 @@
 import { copyFile, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import {
+  resolveSoundEffects,
+  soundEffectsTimelineSeconds,
+} from '../../audio/sound-effects.ts'
+import { renderSoundEffectsTrack } from '../../audio/render-sound-effects.ts'
 
 import { readProjectMetadata } from '../../project/metadata.ts'
 import {
@@ -91,43 +96,67 @@ export async function exportClips(
       `avatar scenes without a usable clip or a look preview: ${missingAvatarLooks.join(', ')}`,
     )
 
+  const soundEffectsSeconds = soundEffectsTimelineSeconds(
+    metadata,
+    scenes ?? [],
+  )
+  const soundEffects = resolveSoundEffects(
+    metadata.options.soundEffects,
+    scenes ?? [],
+    soundEffectsSeconds,
+  )
+  const soundEffectsFile = await renderSoundEffectsTrack(
+    ffmpegPath,
+    soundEffects,
+    soundEffectsSeconds,
+    paths.soundEffectsFile,
+    context.signal,
+  )
+
   await rm(paths.clipsDirectory, { recursive: true, force: true })
   await mkdir(paths.clipsDirectory, { recursive: true })
 
-  let lastPercent = -1
-  const clipCount = await renderSceneClips(
-    ffmpegPath,
-    renderScenes,
-    paths.clipsDirectory,
-    frame,
-    {
-      signal: context.signal,
-      imageMotion: payload.imageMotion !== false,
-      onProgress(fraction) {
-        const percent = Math.round(fraction * 100)
-        if (percent <= lastPercent) return
-        lastPercent = percent
-        context.emitter.emit({ type: 'progress', percent })
+  try {
+    let lastPercent = -1
+    const clipCount = await renderSceneClips(
+      ffmpegPath,
+      renderScenes,
+      paths.clipsDirectory,
+      frame,
+      {
+        signal: context.signal,
+        imageMotion: payload.imageMotion !== false,
+        onProgress(fraction) {
+          const percent = Math.round(fraction * 100)
+          if (percent <= lastPercent) return
+          lastPercent = percent
+          context.emitter.emit({ type: 'progress', percent })
+        },
       },
-    },
-  ).catch(async (error) => {
-    // Cancelada (la persona tocó «Cancelar») o caída a mitad de camino: la
-    // carpeta tiene solo una parte de los clips. Se borra para que nadie la
-    // tome por una exportación entera; la próxima la arma de cero.
+    )
+
+    await copyFile(
+      paths.narrationFile,
+      join(paths.clipsDirectory, 'narration.mp3'),
+    ).catch(() => {
+      // Proyecto sin narración (caso raro): los clips igual sirven.
+    })
+    if (await isValidFile(paths.musicFile))
+      await copyFile(paths.musicFile, join(paths.clipsDirectory, 'music.mp3'))
+    if (soundEffectsFile)
+      await copyFile(
+        soundEffectsFile,
+        join(paths.clipsDirectory, 'sound-effects.wav'),
+      )
+    context.signal.throwIfAborted()
+
+    return { directory: paths.clipsDirectory, clipCount }
+  } catch (error) {
+    // Una exportación cancelada o incompleta no deja una carpeta que parezca
+    // terminada, incluyendo los audios separados de voz, música y efectos.
     await rm(paths.clipsDirectory, { recursive: true, force: true }).catch(
       () => undefined,
     )
     throw error
-  })
-
-  await copyFile(
-    paths.narrationFile,
-    join(paths.clipsDirectory, 'narration.mp3'),
-  ).catch(() => {
-    // Proyecto sin narración (caso raro): los clips igual sirven.
-  })
-  if (await isValidFile(paths.musicFile))
-    await copyFile(paths.musicFile, join(paths.clipsDirectory, 'music.mp3'))
-
-  return { directory: paths.clipsDirectory, clipCount }
+  }
 }

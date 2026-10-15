@@ -1,3 +1,6 @@
+import { Maximize2, Minimize2, X } from 'lucide-react'
+import { useExpandedPreview } from '@/modules/videos/hooks/useExpandedPreview'
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatTime } from '@/modules/common/utilities/formatTime'
@@ -25,6 +28,10 @@ interface EditorPreviewPlayerProps {
   sceneVersions: Record<number, number>
   narrationSrc: string | null
   musicSrc: string | null
+  soundEffects?: SoundEffectInstance[]
+  soundEffectSrc?: string | null
+  soundEffectDurationSeconds?: number
+  sfxMuted?: boolean
   // Solo con render vigente (mp4 válido y NO desactualizado).
   videoSrc: string | null
   // true cuando una pista silenciada obliga a simular aunque haya render
@@ -52,6 +59,10 @@ export function EditorPreviewPlayer({
   sceneVersions,
   narrationSrc,
   musicSrc,
+  soundEffects,
+  soundEffectSrc,
+  soundEffectDurationSeconds,
+  sfxMuted,
   videoSrc,
   mutedPreview,
   durationSeconds,
@@ -63,6 +74,8 @@ export function EditorPreviewPlayer({
   playerRef,
 }: EditorPreviewPlayerProps) {
   const { t } = useTranslation()
+  const { expanded, containerRef, toggleRef, toggle, close } =
+    useExpandedPreview()
   const videoMode = videoSrc !== null
   const {
     videoRef,
@@ -77,6 +90,10 @@ export function EditorPreviewPlayer({
     videoMode,
     durationSeconds,
     mix,
+    soundEffects,
+    soundEffectSrc,
+    soundEffectDurationSeconds,
+    sfxMuted,
     cursorSeconds,
     scrubbing,
     onTimeChange,
@@ -132,11 +149,33 @@ export function EditorPreviewPlayer({
   // stage, que toma la relación exacta del proyecto. Desde lg el ancho sale de
   // container queries: llena alto o ancho, el que ate primero, sin bandas.
   return (
-    <div className="relative w-full lg:flex lg:h-full lg:min-h-0 lg:items-center lg:justify-center lg:[container-type:size]">
+    <div
+      ref={containerRef}
+      onKeyDown={(event) => {
+        if (
+          (event.key === ' ' || event.key === 'Enter') &&
+          event.target instanceof HTMLElement &&
+          event.target.closest('button')
+        )
+          event.stopPropagation()
+      }}
+      role={expanded ? 'dialog' : undefined}
+      aria-modal={expanded ? true : undefined}
+      aria-label={expanded ? t('library.editor.previewBadge') : undefined}
+      data-preview-expanded={expanded}
+      className={cn(
+        expanded
+          ? 'fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-6'
+          : 'relative w-full lg:flex lg:h-full lg:min-h-0 lg:items-center lg:justify-center lg:[container-type:size]',
+      )}
+    >
       <div
         style={
           {
             '--stage-width': exactWidthInContainer(videoFormat),
+            width: expanded
+              ? `min(calc(100vw - 48px), calc((100dvh - 48px) * ${videoFormat === '9:16' ? '9 / 16' : '16 / 9'}))`
+              : undefined,
           } as CSSProperties
         }
         className={cn(
@@ -145,6 +184,17 @@ export function EditorPreviewPlayer({
         )}
       >
         {renderStage()}
+        {expanded && (
+          <button
+            type="button"
+            onClick={close}
+            aria-label={t('library.editor.previewClose')}
+            title={t('library.editor.previewClose')}
+            className="absolute left-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
 
         {!videoMode && (
           <span className="absolute right-2 top-2 z-10 transform-gpu rounded bg-black/60 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wide text-white/90">
@@ -194,6 +244,28 @@ export function EditorPreviewPlayer({
             <span className="font-mono text-xs tabular-nums text-white/80">
               {formatTime(cursorSeconds)} / {formatTime(durationSeconds)}
             </span>
+            <button
+              ref={toggleRef}
+              type="button"
+              onClick={toggle}
+              aria-label={t(
+                expanded
+                  ? 'library.editor.previewMinimize'
+                  : 'library.editor.previewMaximize',
+              )}
+              title={t(
+                expanded
+                  ? 'library.editor.previewMinimize'
+                  : 'library.editor.previewMaximize',
+              )}
+              className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            >
+              {expanded ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </button>
           </div>
         </div>
       </div>

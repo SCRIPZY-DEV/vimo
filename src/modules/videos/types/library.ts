@@ -1,3 +1,5 @@
+import type { RefObject } from 'react'
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
 import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
@@ -49,7 +51,7 @@ export type LibraryTab = 'long' | 'shorts'
 // Pistas del timeline (ADR-0056). El orden, el silencio en el visor y el
 // candado son estado de interfaz por proyecto: no viajan al archivo del
 // proyecto ni al render.
-export type TimelineTrackId = 'scenes' | 'narration' | 'music'
+export type TimelineTrackId = 'scenes' | 'narration' | 'music' | 'sfx'
 export type TimelineTrackKind = 'visual' | 'audio'
 export interface TimelineLayout {
   order: TimelineTrackId[]
@@ -393,4 +395,31 @@ export interface LibraryEditorTask {
   errorCode: string | null
   // Sube al cerrar cada job: la vista invalida sus queries al verlo cambiar.
   revision: number
+}
+
+// Audio de los efectos en el visor simulado; la narración aporta el reloj.
+export interface UseSoundEffectPlaybackOptions {
+  clockRef: RefObject<HTMLAudioElement | null>
+  instances: readonly SoundEffectInstance[]
+  source: string | null
+  durationSeconds: number
+  enabled: boolean
+}
+
+export interface TimelineSoundEffectItemProps {
+  instance: SoundEffectInstance
+  durationSeconds: number
+  timelineSeconds: number
+  pxPerSecond: number
+  disabled: boolean
+  muted: boolean
+  onMove(id: string, seconds: number): void
+  onRemove(id: string): void
+}
+
+export interface TimelineSoundEffectDrag {
+  pointerId: number
+  clientX: number
+  initialSeconds: number
+  seconds: number
 }

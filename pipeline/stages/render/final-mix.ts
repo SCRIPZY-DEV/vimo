@@ -75,6 +75,7 @@ export interface FinalMixInputs {
   frame: FrameSize
   // Solo si el proyecto los tiene y el archivo es válido.
   musicFile?: string
+  soundEffectsFile?: string
   overlayFile?: string
   // Cadena de filtros de color del estilo ("" = natural).
   colorFilter: string
@@ -149,7 +150,13 @@ export async function mixFinalVideo(
     if (Number.isFinite(offsetSeconds) && offsetSeconds > 0)
       ffmpegInputs.push('-ss', offsetSeconds.toFixed(3))
     ffmpegInputs.push('-stream_loop', '-1', '-i', inputs.musicFile)
-    musicIndex = nextIndex
+    musicIndex = nextIndex++
+  }
+
+  let soundEffectsIndex = -1
+  if (inputs.soundEffectsFile) {
+    ffmpegInputs.push('-i', inputs.soundEffectsFile)
+    soundEffectsIndex = nextIndex
   }
 
   // Padear el video a la duración REAL del audio: el audio maestro suele
@@ -207,12 +214,17 @@ export async function mixFinalVideo(
 
   // `apad` rellena el audio con silencio para que nunca termine antes que el
   // video; `-t` fija la duración exacta.
-  const audioFilter =
+  let audioFilter =
     musicIndex >= 0
       ? `[${voiceIndex}:a]volume=${voiceVolume}[vozn];` +
         `[${musicIndex}:a]volume=${musicVolume}[bgmlow];` +
         `[vozn][bgmlow]amix=inputs=2:duration=first:dropout_transition=2,apad[finalaudio]`
       : `[${voiceIndex}:a]volume=${voiceVolume},apad[finalaudio]`
+  if (soundEffectsIndex >= 0)
+    audioFilter =
+      audioFilter.replace('[finalaudio]', '[baseaudio]') +
+      `;[baseaudio][${soundEffectsIndex}:a]amix=inputs=2:duration=first:normalize=0,` +
+      'alimiter=limit=0.98:level=false:latency=true,apad[finalaudio]'
   filter += audioFilter
 
   // Copiar exige que no haya nada que pintar y que el video no dure MÁS que

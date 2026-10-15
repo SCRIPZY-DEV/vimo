@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
-import { Music2, SlidersHorizontal, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { ErrorMessage } from '@/modules/common/components/ErrorMessage'
 import { SlotPortal } from '@/modules/common/components/SlotPortal'
 import { ViewSpinner } from '@/modules/common/components/ViewSpinner'
@@ -10,11 +10,6 @@ import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { usePageTitle } from '@/modules/common/hooks/usePageTitle'
 import { useVideoCredits } from '@/modules/common/hooks/useVideoCredits'
 import { Button } from '@/modules/common/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/modules/common/ui/tooltip'
 import { clamp } from '@/modules/common/utilities/clamp'
 import { videosApi } from '@/modules/videos/api'
 import { AnimationFailureDialog } from '@/modules/videos/components/AnimationFailureDialog'
@@ -23,7 +18,15 @@ import { EditorBarTitle } from '@/modules/videos/components/EditorBarTitle'
 import { EditorCreditsIssue } from '@/modules/videos/components/EditorCreditsIssue'
 import { EditorAnimationRange } from '@/modules/videos/components/EditorAnimationRange'
 import { EditorAvatarFallbackNotice } from '@/modules/videos/components/EditorAvatarFallbackNotice'
-import { EditorTransitionToggle } from '@/modules/videos/components/EditorTransitionToggle'
+import { EditorToolRail } from '@/modules/videos/components/EditorToolRail'
+import { EditorToolPanel } from '@/modules/videos/components/EditorToolPanel'
+import { EditorSfxPanel } from '@/modules/videos/components/EditorSfxPanel'
+import { EditorTransitionsPanel } from '@/modules/videos/components/EditorTransitionsPanel'
+import { useSceneTransitions } from '@/modules/videos/hooks/useSceneTransitions'
+import { useProjectSoundEffects } from '@/modules/videos/hooks/useProjectSoundEffects'
+import { useEditorWorkspace } from '@/modules/videos/hooks/useEditorWorkspace'
+import { EDITOR_TOOL_PANEL_MIN_WIDTH } from '@/modules/videos/constants'
+import './LibraryEditor.css'
 import { TRANSITION_POLICY_VERSION } from '@pipeline/animation/transitions.ts'
 import { EditorPreviewPlayer } from '@/modules/videos/components/EditorPreviewPlayer'
 import { MissingImagesBanner } from '@/modules/videos/components/MissingImagesBanner'
@@ -67,6 +70,29 @@ export function LibraryEditor() {
   const audio = useProjectAudio(projectId)
   const timelineLayout = useTimelineLayout(projectId)
   const {
+    workspaceRef,
+    activeTool,
+    width: toolPanelWidth,
+    maxWidth: toolPanelMaxWidth,
+    setWidth: setToolPanelWidth,
+    close: closeToolPanel,
+    open: openToolPanel,
+    toggle: toggleToolPanel,
+  } = useEditorWorkspace(projectId)
+  const durationSeconds =
+    detail?.metadata.audioDurationSeconds ??
+    workingScenes.reduce(
+      (total, scene) => Math.max(total, scene.endSeconds ?? 0),
+      0,
+    )
+  const soundEffects = useProjectSoundEffects({
+    projectId,
+    scenes: workingScenes,
+    storedInstances: detail?.metadata.options.soundEffects,
+    durationSeconds,
+  })
+  const transitions = useSceneTransitions({ projectId, scenes: workingScenes })
+  const {
     credits,
     isLoading: creditsLoading,
     isRefreshing: creditsRefreshing,
@@ -82,7 +108,6 @@ export function LibraryEditor() {
   const [cursorSeconds, setCursorSeconds] = useState(0)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_TIMELINE_ZOOM_INDEX)
   const [scrubbing, setScrubbing] = useState(false)
-  const [musicOpen, setMusicOpen] = useState(false)
   const [mixOpen, setMixOpen] = useState(false)
   const [mix, setMix] = useState(AUDIO_MIX_DEFAULTS)
   const [syncedOptions, setSyncedOptions] = useState<
@@ -210,13 +235,9 @@ export function LibraryEditor() {
   const busy =
     editor.editorTask.isProjectBusy(projectId) ||
     creatingHere ||
-    audio.audioBusy
-  const durationSeconds =
-    metadata.audioDurationSeconds ??
-    workingScenes.reduce(
-      (total, scene) => Math.max(total, scene.endSeconds ?? 0),
-      0,
-    )
+    audio.audioBusy ||
+    soundEffects.busy ||
+    transitions.saving
   const hasMusic = Boolean(detail.musicPath)
 
   // Qué haría el planificador con la escena seleccionada (ADR-0041): el
@@ -258,7 +279,8 @@ export function LibraryEditor() {
   // que su silencio no cambia el modo.
   const anyTrackMuted =
     (timelineLayout.layout.muted.narration && narrationSrc !== null) ||
-    (timelineLayout.layout.muted.music && musicSrc !== null)
+    (timelineLayout.layout.muted.music && musicSrc !== null) ||
+    (timelineLayout.layout.muted.sfx && soundEffects.instances.length > 0)
   // El silencio fuerza la simulación solo si había un mp4 que mostrar: la
   // insignia del visor lo dice.
   const mutedPreview = anyTrackMuted && videoSrc !== null
@@ -299,40 +321,6 @@ export function LibraryEditor() {
     <>
       {titlePortal}
       <SlotPortal id={EDITOR_BAR_SLOT_IDS.actions}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => setMusicOpen(true)}
-              className="rounded-lg font-display"
-            >
-              <Music2 className="mr-1.5 h-3.5 w-3.5" />
-              {t('library.editor.musicButton')}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-sm leading-snug">
-            {t('library.editor.musicButtonHelp')}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => setMixOpen(true)}
-              className="rounded-lg font-display"
-            >
-              <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-              {t('library.editor.audioButton')}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-sm leading-snug">
-            {t('library.editor.audioButtonHelp')}
-          </TooltipContent>
-        </Tooltip>
         <ExportClipsButton
           key={projectId}
           exportState={task?.export ?? null}
@@ -391,19 +379,6 @@ export function LibraryEditor() {
         )}
 
         <div className="flex flex-wrap items-center gap-3">
-          <EditorAnimationRange
-            projectId={projectId}
-            scenes={workingScenes}
-            durationSeconds={durationSeconds}
-            videoFormat={videoFormat}
-            busy={busy}
-            locked={demoProject}
-          />
-          <EditorTransitionToggle
-            projectId={projectId}
-            scenes={workingScenes}
-            busy={busy}
-          />
           <EditorImageGallery
             key={projectId}
             projectId={projectId}
@@ -419,15 +394,102 @@ export function LibraryEditor() {
           />
         </div>
 
-        {/* Fila superior: desde lg toma toda la altura libre (≈70/30 entre visor
-          y panel); el panel scrollea por dentro si se pasa. */}
-        <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
-          <div className="min-w-0 flex-1 lg:min-h-0">
+        <div
+          ref={workspaceRef}
+          className="editor-workspace"
+          data-tools-open={activeTool !== null}
+        >
+          <EditorToolRail activeTool={activeTool} onToggle={toggleToolPanel} />
+          <div
+            className="editor-workspace-tools"
+            style={{ width: activeTool ? toolPanelWidth : 0 }}
+          >
+            {activeTool && (
+              <EditorToolPanel
+                id={`editor-tool-${activeTool}`}
+                title={t(`library.editor.tools.${activeTool}`)}
+                width={toolPanelWidth}
+                minWidth={EDITOR_TOOL_PANEL_MIN_WIDTH}
+                maxWidth={toolPanelMaxWidth}
+                onWidthChange={setToolPanelWidth}
+                onClose={closeToolPanel}
+              >
+                {activeTool === 'animation' && (
+                  <EditorAnimationRange
+                    embedded
+                    projectId={projectId}
+                    scenes={workingScenes}
+                    durationSeconds={durationSeconds}
+                    videoFormat={videoFormat}
+                    busy={busy || editor.savingChanges}
+                    locked={demoProject}
+                  />
+                )}
+                {activeTool === 'audio' && (
+                  <EditorSfxPanel
+                    effect={soundEffects.effect}
+                    loading={soundEffects.loading}
+                    busy={
+                      busy ||
+                      editor.savingChanges ||
+                      timelineLayout.layout.locked.sfx
+                    }
+                    allTransitionsEnabled={soundEffects.allTransitionsEnabled}
+                    transitionsAvailable={soundEffects.transitionsAvailable}
+                    cursorSeconds={cursorSeconds}
+                    error={soundEffects.error}
+                    onToggleAllTransitions={soundEffects.toggleAllTransitions}
+                    onAdd={() => soundEffects.add(cursorRef.current)}
+                    onOpenMix={() => {
+                      closeToolPanel()
+                      setMixOpen(true)
+                    }}
+                  />
+                )}
+                {activeTool === 'transitions' && (
+                  <EditorTransitionsPanel
+                    enabled={transitions.enabled}
+                    available={transitions.available}
+                    busy={busy || editor.savingChanges}
+                    onChange={transitions.change}
+                  />
+                )}
+                {activeTool === 'music' && (
+                  <MusicDialog
+                    embedded
+                    open={activeTool === 'music'}
+                    script={detail.script}
+                    hasMusic={hasMusic}
+                    busy={busy || editor.savingChanges}
+                    musicPercent={audio.musicPercent}
+                    musicSrc={musicSrc}
+                    musicVolume={mix.musicVolume}
+                    onClose={closeToolPanel}
+                    onSetMusic={audio.setMusic}
+                    onGenerate={(prompt, instrumental) =>
+                      audio.generateMusic({ prompt, instrumental })
+                    }
+                    onSuggestPrompt={() =>
+                      audio.suggestMusicPrompt(detail.script)
+                    }
+                    onPickFile={audio.pickAudioFile}
+                  />
+                )}
+              </EditorToolPanel>
+            )}
+          </div>
+          <div className="editor-workspace-preview">
             <EditorPreviewPlayer
               scenes={workingScenes}
               sceneVersions={task?.sceneVersions ?? {}}
               narrationSrc={narrationSrc}
               musicSrc={musicSrc}
+              soundEffects={soundEffects.instances}
+              soundEffectSrc={soundEffects.effect?.audioDataUri ?? null}
+              soundEffectDurationSeconds={
+                soundEffects.effect?.durationSeconds ?? 0
+              }
+              sfxMuted={timelineLayout.layout.muted.sfx}
               videoSrc={mutedPreview ? null : videoSrc}
               mutedPreview={mutedPreview}
               durationSeconds={durationSeconds}
@@ -440,7 +502,11 @@ export function LibraryEditor() {
             />
           </div>
 
-          <div className="lg:min-h-0 lg:w-[30%] lg:max-w-[420px] lg:shrink-0">
+          <div
+            className="editor-workspace-scene"
+            inert={activeTool !== null}
+            aria-hidden={activeTool !== null}
+          >
             <EditorScenePanel
               key={projectId}
               scene={selectedScene}
@@ -570,6 +636,16 @@ export function LibraryEditor() {
 
         <div className="shrink-0">
           <EditorTimeline
+            soundEffects={soundEffects.instances}
+            soundEffectDurationSeconds={
+              soundEffects.effect?.durationSeconds ?? 0
+            }
+            soundEffectsBusy={
+              busy || editor.savingChanges || !soundEffects.effect
+            }
+            onAddSoundEffect={soundEffects.add}
+            onMoveSoundEffect={soundEffects.move}
+            onRemoveSoundEffect={soundEffects.remove}
             timingBusy={busy || editor.savingChanges}
             scenes={workingScenes}
             durationSeconds={durationSeconds}
@@ -599,26 +675,9 @@ export function LibraryEditor() {
             onBoundaryDrag={editor.dragBoundary}
             onBoundaryCommit={editor.commitBoundary}
             onOpenAudio={() => setMixOpen(true)}
-            onOpenMusic={() => setMusicOpen(true)}
+            onOpenMusic={() => openToolPanel('music')}
           />
         </div>
-
-        <MusicDialog
-          open={musicOpen}
-          script={detail.script}
-          hasMusic={hasMusic}
-          busy={audio.audioBusy}
-          musicPercent={audio.musicPercent}
-          musicSrc={musicSrc}
-          musicVolume={mix.musicVolume}
-          onClose={() => setMusicOpen(false)}
-          onSetMusic={audio.setMusic}
-          onGenerate={(prompt, instrumental) =>
-            audio.generateMusic({ prompt, instrumental })
-          }
-          onSuggestPrompt={() => audio.suggestMusicPrompt(detail.script)}
-          onPickFile={audio.pickAudioFile}
-        />
 
         <AnimationFailureDialog
           notice={task?.animationFailure ?? null}

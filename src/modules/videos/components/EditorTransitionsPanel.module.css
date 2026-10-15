@@ -1,0 +1,28 @@
+.card:hover .secondScene,
+.card:focus-visible .secondScene {
+  animation: crossfade-preview 2.4s ease-in-out infinite;
+}
+
+.secondScene {
+  opacity: 0;
+}
+
+@keyframes crossfade-preview {
+  0%,
+  15%,
+  100% {
+    opacity: 0;
+  }
+  45%,
+  65% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card:hover .secondScene,
+  .card:focus-visible .secondScene {
+    animation: none;
+    opacity: 0.5;
+  }
+}
