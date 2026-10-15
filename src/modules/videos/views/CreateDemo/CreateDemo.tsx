@@ -7,71 +7,54 @@ import { DemoGateCard } from '@/modules/videos/components/DemoGateCard'
 import { VideosRoutes } from '@/modules/videos/constants'
 import { useDemoPrepare } from '@/modules/videos/hooks/useDemoPrepare'
 import { useDemoStatus } from '@/modules/videos/hooks/useDemoStatus'
+import { demoGateScreen } from '@/modules/videos/utilities/demoGateScreen'
 import type { CreateDemoNavigationState } from '@/modules/videos/types/demo'
 
-// Puerta del modo demo (ADR-0029). Con el pack listo entra directo a Crear
-// con el manifest en el state del router; si falta, lo prepara una sola vez
-// mostrando el avance y entra al terminar. El acceso lo exige el loader de la
-// ruta (requireDemoAccessLoader): acá no se decide nada de permisos.
+// Puerta del modo demo (ADR-0029; descarga en segundo plano, spec demo v4 §3).
+// Con el pack listo entra directo a Crear con el manifest en el state del
+// router. Si falta, ofrece la descarga con su tamaño y la lanza recién cuando
+// la persona la pide; con avance de otra sesión sigue sola. El job vive en un
+// store del módulo: salir de la puerta no lo cancela y, si termina con la
+// puerta abierta, entra a Crear. El acceso lo exige el loader de la ruta
+// (requireDemoAccessLoader): acá no se decide nada de permisos.
 export function CreateDemo() {
   const { t } = useTranslation()
   const status = useDemoStatus()
-  const prepare = useDemoPrepare()
-  // `prepare` es un objeto nuevo en cada render; se saca `start` a una
-  // variable propia para que el deps array del efecto guarde su identidad
-  // real (react-hooks/exhaustive-deps no la infiere a través de `prepare.start`
-  // cuando se LLAMA como método, y pide el objeto entero).
-  const { start: startPrepare } = prepare
+  const { job, start, reset } = useDemoPrepare()
 
   usePageTitle(t('createDemo.pageTitle'))
 
-  // Arranca la preparación apenas se sabe que el pack falta: sincroniza con
-  // un sistema externo (el job del sidecar), no deriva estado.
-  const packMissing = status.data?.ready === false
-  useEffect(() => {
-    if (!packMissing) return
-    startPrepare()
-  }, [packMissing, startPrepare])
+  const screen = demoGateScreen({
+    status: status.data ?? null,
+    statusError: status.isError
+      ? { code: videosApi.errorCode(status.error) }
+      : null,
+    job,
+  })
 
-  const manifest = status.data?.ready
-    ? (status.data.manifest ?? null)
-    : prepare.manifest
-  if (manifest) {
-    const state: CreateDemoNavigationState = { demo: manifest }
+  // Con avance de otra sesión la descarga sigue sola: sincroniza con un
+  // sistema externo (el job del sidecar), no deriva estado.
+  const resumes = screen.kind === 'resume'
+  useEffect(() => {
+    if (!resumes) return
+    start()
+  }, [resumes, start])
+
+  if (screen.kind === 'enter') {
+    const state: CreateDemoNavigationState = { demo: screen.manifest }
     return <Navigate to={VideosRoutes.create} replace state={state} />
   }
 
-  const errorKey = status.isError
-    ? videosApi.demoErrorMessageKey(status.error)
-    : prepare.errorKey
-  const messageKey = status.isPending
-    ? 'createDemo.checking'
-    : prepare.progress?.phase === 'download'
-      ? 'createDemo.downloading'
-      : prepare.progress?.phase === 'install'
-        ? 'createDemo.installing'
-        : 'createDemo.preparingFirstTime'
-  const percent =
-    prepare.progress?.phase === 'download' ? prepare.progress.percent : null
-
-  // Reintentar: si falló la consulta, se repite (y el efecto relanza la
-  // preparación si el pack falta); si falló la preparación, se relanza acá
-  // mismo — `packMissing` no cambia y el efecto no volvería a correr.
+  // Reintentar: si falló la consulta, se repite; si falló la descarga o se
+  // espera a otro job, se relanza el job, que sigue desde la última parte.
   const retry = () => {
-    prepare.reset()
-    if (status.isError) {
+    if (screen.kind === 'failed' && screen.source === 'status') {
       void status.refetch()
       return
     }
-    prepare.start()
+    reset()
+    start()
   }
 
-  return (
-    <DemoGateCard
-      messageKey={messageKey}
-      percent={percent}
-      errorKey={errorKey}
-      onRetry={retry}
-    />
-  )
+  return <DemoGateCard screen={screen} onDownload={start} onRetry={retry} />
 }

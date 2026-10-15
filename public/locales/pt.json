@@ -1294,19 +1294,30 @@
     "pageTitle": "Demo",
     "title": "Demo do Vimo",
     "checking": "Verificando a demo…",
-    "preparingFirstTime": "Preparando a demo pela primeira vez…",
-    "downloading": "Baixando a demo (só uma vez)…",
+    "preparing": "Preparando a demo…",
+    "downloading": "Baixando a demo…",
     "installing": "Preparando os arquivos…",
-    "onceNote": "Isso acontece só uma vez: a demo fica guardada neste computador.",
+    "waiting": "A demo continua sendo baixada…",
+    "savedNote": "A demo fica guardada neste computador: não é baixada toda vez que você a abre.",
     "retry": "Tentar de novo",
+    "download": {
+      "size": "A demo tem {{gb}} GB.",
+      "note": "Dependendo da sua conexão, leva de alguns minutos a uma hora, e você pode continuar usando o Vimo enquanto baixa.",
+      "start": "Baixar a demo"
+    },
+    "progress": {
+      "label": "Progresso do download da demo",
+      "part": "Parte {{part}} de {{parts}}",
+      "background": "Você pode sair desta tela: o download continua em segundo plano."
+    },
     "errors": {
       "offline": "Sem conexão para baixar a demo. Verifique sua internet e tente de novo.",
       "downloadFailed": "Não foi possível baixar o pacote da demo. Tente mais tarde.",
       "packCorrupt": "O pacote baixado não confere com o esperado. Tente de novo.",
       "packUnreadable": "Não foi possível abrir o pacote da demo. Tente de novo.",
       "packIncomplete": "O pacote da demo veio incompleto. Tente de novo.",
-      "diskFull": "Não há espaço suficiente no disco para os {{gb}} GB da demo. Libere espaço e tente de novo.",
-      "busy": "A demo já está sendo preparada em segundo plano. Espere terminar e tente de novo.",
+      "diskFull": "Não há espaço suficiente no disco: a demo precisa de {{gb}} GB livres. Libere espaço e tente de novo.",
+      "diskFullUnknown": "Não há espaço suficiente no disco para a demo. Libere espaço e tente de novo.",
       "unknown": "Não foi possível preparar a demo. Tente de novo."
     }
   },

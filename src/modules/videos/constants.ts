@@ -44,6 +44,7 @@ import type {
   StageToneClasses,
 } from './types/create'
 import type { AvatarDurationLock } from './types/avatarDuration'
+import type { DemoPreparePhase } from './types/demo'
 import type { LookUnfitReason } from './utilities/selectableAvatar'
 import type {
   AudioMixValue,
@@ -1472,8 +1473,10 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
 // Códigos de la puerta de la demo (demo-status / demo-prepare, ADR-0029).
 // Ninguno es reintentable: un fallo de la demo es final. Con el disco lleno
 // (`demo_disk_full`), la persona libera espacio y pulsa «Reintentar», que
-// sigue desde la última parte instalada; con `demo_busy`, otro demo-prepare
-// está instalando el pack y hay que esperar a que termine.
+// sigue desde la última parte instalada. Los de la red (`demo_offline`,
+// `demo_download_failed`) se olvidan al salir de la puerta: volver a entrar
+// sigue sola. `demo_busy` no está: no es un fallo, otro demo-prepare instala
+// el pack y la puerta espera a que termine.
 export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_offline: 'createDemo.errors.offline',
   demo_download_failed: 'createDemo.errors.downloadFailed',
@@ -1481,7 +1484,30 @@ export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_pack_unreadable: 'createDemo.errors.packUnreadable',
   demo_pack_incomplete: 'createDemo.errors.packIncomplete',
   demo_disk_full: 'createDemo.errors.diskFull',
-  demo_busy: 'createDemo.errors.busy',
   missing_projects_root: 'create.errors.missingProjectsRoot',
 }
 export const UNKNOWN_DEMO_ERROR_KEY = 'createDemo.errors.unknown'
+// El disco lleno sin la cifra de lo que falta (demo-status no respondió): el
+// mismo porqué, sin los GB.
+export const DEMO_DISK_FULL_UNKNOWN_KEY = 'createDemo.errors.diskFullUnknown'
+
+// Mientras otro demo-prepare instala el pack (`demo_busy`), la puerta consulta
+// demo-status cada tanto para mostrar lo bajado y entrar apenas esté lista.
+export const DEMO_BUSY_POLL_INTERVAL_MS = 3_000
+// Un job demo-prepare sin ningún evento por este tiempo se da por mudo: su
+// proceso pudo cerrarse en seco (Rust no avisa por el canal). La puerta pasa
+// a esperar mirando demo-status sin cancelarlo ni soltar su listener (si
+// vuelve a hablar, cuenta) y, si nadie tiene el candado de la instalación,
+// relanza demo-prepare. Queda muy por encima del tope de inactividad de la
+// descarga (`demo.downloadIdleMs` del sidecar, 90 s): un corte de red termina
+// en un fallo, que cuenta aunque llegue después del perro guardián.
+export const DEMO_PREPARE_SILENCE_LIMIT_MS = 5 * 60_000
+// Una consulta de demo-status que no vuelve en este tiempo cuenta como sin
+// respuesta: ni la espera ni el aviso del disco lleno se quedan colgados.
+export const DEMO_STATUS_TIMEOUT_MS = 30_000
+
+// El mensaje de la puerta según la fase de demo-prepare.
+export const DEMO_PHASE_MESSAGE_KEYS: Record<DemoPreparePhase, string> = {
+  download: 'createDemo.downloading',
+  install: 'createDemo.installing',
+}

@@ -1294,19 +1294,30 @@
     "pageTitle": "Demo",
     "title": "Vimo demo",
     "checking": "Checking the demo…",
-    "preparingFirstTime": "Preparing the demo for the first time…",
-    "downloading": "Downloading the demo (one time only)…",
+    "preparing": "Preparing the demo…",
+    "downloading": "Downloading the demo…",
     "installing": "Preparing the files…",
-    "onceNote": "This happens only once: the demo stays on this computer.",
+    "waiting": "The demo is still downloading…",
+    "savedNote": "The demo stays on this computer: it isn't downloaded every time you open it.",
     "retry": "Retry",
+    "download": {
+      "size": "The demo is {{gb}} GB.",
+      "note": "Depending on your connection it takes from a few minutes to an hour, and you can keep using Vimo while it downloads.",
+      "start": "Download the demo"
+    },
+    "progress": {
+      "label": "Demo download progress",
+      "part": "Part {{part}} of {{parts}}",
+      "background": "You can leave this screen: the download keeps going in the background."
+    },
     "errors": {
       "offline": "No connection to download the demo. Check your internet and try again.",
       "downloadFailed": "The demo package could not be downloaded. Try again later.",
       "packCorrupt": "The downloaded package does not match the expected one. Try again.",
       "packUnreadable": "The demo package could not be opened. Try again.",
       "packIncomplete": "The demo package came incomplete. Try again.",
-      "diskFull": "There is not enough disk space for the {{gb}} GB of the demo. Free up some space and try again.",
-      "busy": "The demo is already being prepared in the background. Wait for it to finish and try again.",
+      "diskFull": "There is not enough disk space: the demo needs {{gb}} GB free. Free up some space and try again.",
+      "diskFullUnknown": "There is not enough disk space for the demo. Free up some space and try again.",
       "unknown": "The demo could not be prepared. Try again."
     }
   },

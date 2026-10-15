@@ -27,7 +27,6 @@ import {
   CATALOG_SERVER_TIMEOUT_MS,
   CATALOG_TRANSLATE_TIMEOUT_MS,
   CREATE_ERROR_MESSAGE_KEYS,
-  DEMO_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_ERROR_MESSAGE_KEYS,
   GEM_REBUILD_NO_VISUAL_STYLE_CODE,
   GEM_REBUILD_PATH,
@@ -43,7 +42,6 @@ import {
   STYLE_CLONE_TIMEOUT_MS,
   UNKNOWN_CATALOG_SERVER_ERROR_KEY,
   UNKNOWN_CREATE_ERROR_KEY,
-  UNKNOWN_DEMO_ERROR_KEY,
   UNKNOWN_GEM_REBUILD_ERROR_KEY,
   UNKNOWN_STYLE_CLONE_ERROR_KEY,
 } from '@/modules/videos/constants'
@@ -662,11 +660,6 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('demo-prepare', undefined, onEvent)
-  },
-  demoErrorMessageKey(error: unknown): string {
-    const code = pipelineErrorCode(error)
-    if (!code) return UNKNOWN_DEMO_ERROR_KEY
-    return DEMO_ERROR_MESSAGE_KEYS[code] ?? UNKNOWN_DEMO_ERROR_KEY
   },
   async cancelJob(jobId: string): Promise<void> {
     return invoke('cancel_pipeline_job', { jobId })
