@@ -46,7 +46,8 @@ interface CatalogStyleModalProps {
   // uso, actualiza el formulario).
   onCharacterChange: (character: StyleCharacter) => void
   onUse: (character: StyleCharacter) => void
-  onCopy: (character: StyleCharacter) => void
+  // «Pasar a mi estilo»; sin él, el pie no lo ofrece (la demo).
+  onCopy?: (character: StyleCharacter) => void
   onClose: () => void
 }
 
@@ -153,24 +154,26 @@ export function CatalogStyleModal({
                 y un borde arriba, el contenido pasa por debajo. Va fuera del
                 `space-y-4`, que le pisaría el margen de abajo. */}
             <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 mt-4 flex flex-wrap justify-end gap-2 border-t border-border bg-background px-6 pb-6 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={copyDisabled}
-                onClick={() => onCopy(character)}
-              >
-                {copying ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('create.catalog.copying')}
-                  </>
-                ) : (
-                  <>
-                    <Copy className="mr-2 h-4 w-4" />
-                    {t('create.catalog.copyToCustom')}
-                  </>
-                )}
-              </Button>
+              {onCopy && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={copyDisabled}
+                  onClick={() => onCopy(character)}
+                >
+                  {copying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t('create.catalog.copying')}
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-2 h-4 w-4" />
+                      {t('create.catalog.copyToCustom')}
+                    </>
+                  )}
+                </Button>
+              )}
               <Button
                 type="button"
                 disabled={inUse}

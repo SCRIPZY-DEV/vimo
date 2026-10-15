@@ -6,12 +6,15 @@
 // agente trabaja no se vuelve a crear. Como la migración se guarda sin que la
 // persona vea las secciones, la que sale bien queda «migrada» con los avisos
 // del agente hasta que se descarta, y el borrador del modal trae el respaldo
-// para mostrarlo. Módulos puros de src/ corridos con Node (type stripping),
-// con el agente y el guardado simulados.
+// para mostrarlo. En la demo la galería no manda ninguna gema a migrar sola
+// (sus gemas son las del pack y la demo no llama al agente). Módulos puros de
+// src/ corridos con Node (type stripping), con el agente y el guardado
+// simulados.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   createGemMigrations,
+  migratesGemsOnUse,
   migrateStoredGem,
   showsGalleryNotice,
 } from '../../src/modules/videos/utilities/gemMigrations.ts'
@@ -645,4 +648,14 @@ test('Crear: sin migración, el mismo objeto (el formulario no cambia de identid
   assert.equal(refreshedCustomStyle(null, [MIGRATED_GEM]), null)
   const template = selectedCustomStyleFrom(MIGRATED_GEM)
   assert.equal(refreshedCustomStyle(template, [MIGRATED_GEM]), template)
+})
+
+test('la galería manda a migrar sola una gema vieja con la plantilla encendida, nunca en la demo', () => {
+  // Elegir o abrir una gema vieja la migra (spec §4.4)...
+  assert.equal(migratesGemsOnUse(true, false), true)
+  // ...salvo en la demo: la gema vieja del pack (storytelling) se usa como
+  // está y la demo no llama al agente (ADR-0029).
+  assert.equal(migratesGemsOnUse(true, true), false)
+  assert.equal(migratesGemsOnUse(false, false), false)
+  assert.equal(migratesGemsOnUse(false, true), false)
 })

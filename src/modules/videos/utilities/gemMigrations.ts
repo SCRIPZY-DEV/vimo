@@ -163,6 +163,19 @@ export function createGemMigrations(
 }
 
 /**
+ * ¿La galería de Mi estilo manda a migrar sola una gema vieja al elegirla o
+ * abrirla, y muestra sus migraciones (spec §4.4)? Con la plantilla encendida,
+ * salvo en la demo: sus gemas son las del pack y la demo no llama al agente
+ * (ADR-0029).
+ */
+export function migratesGemsOnUse(
+  gemTemplate: boolean,
+  demo: boolean,
+): boolean {
+  return gemTemplate && !demo
+}
+
+/**
  * ¿La galería de Mi estilo muestra el aviso de esta migración en esta visita?
  * Una en vuelo se ve en su tarjeta, no acá. Una fallida se avisa siempre: la
  * gema sigue como estaba y hay que reintentar. Una ya migrada se avisa hasta

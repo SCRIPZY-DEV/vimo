@@ -698,7 +698,9 @@
     "styleSource": {
       "catalog": "Catalog",
       "catalogHint": "Vimo's styles.",
-      "catalogHintDemo": "The 3 styles with a ready-made demo.",
+      "catalogHintDemo_zero": "The styles with a ready-made demo.",
+      "catalogHintDemo_one": "The only style with a ready-made demo.",
+      "catalogHintDemo_other": "The {{count}} styles with a ready-made demo.",
       "custom": "My style",
       "customHint": "Your own visual style.",
       "customBlockedHint": "No models available for now: use a Vimo style."
@@ -1276,7 +1278,11 @@
       "threeInTwoHelpAria": "What “3 times in 2 minutes” does",
       "threeInTwoTooltip": "The avatar appears at least 3 times in the first 2 minutes of the video, counting the opening one if it starts with the avatar. The other appearances are spread over the rest of the video.",
       "threeInTwoMinimum": "With “3 times in 2 minutes”, there are at least 3 appearances.",
-      "threeInTwoCapped": "The first three last up to {{seconds}} s to fit in the 2 minutes."
+      "threeInTwoCapped": "The first three last up to {{seconds}} s to fit in the 2 minutes.",
+      "demoAppearances_one": "{{count}} appearance of {{seconds}} s",
+      "demoAppearances_other": "{{count}} appearances of {{seconds}} s",
+      "demoLookAlt": "Preview of {{name}}'s look",
+      "demoUseThisStyle": "Use this style for the avatar, or turn off the switch to use another one."
     },
     "voiceSwitch": {
       "title": "Before changing the voice",

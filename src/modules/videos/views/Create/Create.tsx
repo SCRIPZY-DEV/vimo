@@ -22,19 +22,23 @@ import { GenerationProgress } from '@/modules/videos/components/GenerationProgre
 import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
 import {
   CREATE_FORM_INITIAL_VALUE,
+  DEMO_VIDEO_FORMAT,
   VideosRoutes,
   libraryEditorPath,
 } from '@/modules/videos/constants'
+import { useCatalogStyles } from '@/modules/videos/hooks/useCatalogStyles'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
 import { useTtsProbe } from '@/modules/videos/hooks/useTtsProbe'
+import { readCatalogCharacter } from '@/modules/videos/utilities/catalogCharacterMemory'
 import {
   clearCreateDraft,
   readCreateDraft,
   writeCreateDraft,
 } from '@/modules/videos/utilities/createDraft'
 import {
+  demoDefaultCatalogGem,
   demoFollowStyle,
   demoFormValue,
 } from '@/modules/videos/utilities/demoForm'
@@ -46,10 +50,8 @@ import {
 } from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
-import {
-  refreshedCustomStyle,
-  selectedCustomStyleFrom,
-} from '@/modules/videos/utilities/selectedCustomStyle'
+import { selectedCatalogStyleFrom } from '@/modules/videos/utilities/selectedCatalogStyle'
+import { refreshedCustomStyle } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
 import type { CreateDraft } from '@/modules/videos/utilities/createDraft'
@@ -144,7 +146,8 @@ function CreateView({
   initialPromptModel,
   demo,
 }: CreateViewProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? 'es'
   const { isNative, missingKeys, configuredProviders } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.videos,
   })
@@ -163,9 +166,15 @@ function CreateView({
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
   const { styles: customStyles } = useCustomStyles()
-  // El catálogo nuevo (Entrega 2): con el interruptor encendido y fuera de la
-  // demo, que sigue con el catálogo viejo (plan E2, P5).
-  const newCatalog = useAccessFeature('newCatalog') && demo === null
+  // El catálogo nuevo (Entrega 2): con el interruptor encendido y siempre en
+  // la demo, aunque la cuenta no lo tenga (spec demo v4 §2: sus historias son
+  // de los estilos del catálogo nuevo). Sin el carril viejo, la demo tampoco
+  // muestra cantidad de escenas ni «Confirmar escenas».
+  const newCatalog = useAccessFeature('newCatalog') || demo !== null
+  // La lista del catálogo de la galería: la demo la lee para la tarjeta que
+  // usa sin una elegida (withDemoDefaultStyle). Fuera de la demo no se pide
+  // de paso: la pide la galería al montarse.
+  const { gems: catalogGems } = useCatalogStyles({ enabled: demo !== null })
   // El modelo que viaja al proyecto ya resuelto (default aplicado y sin
   // bloqueados, ADR-0028): es el que la tarea vigila.
   const { models, defaultId } = usePromptModels()
@@ -187,7 +196,19 @@ function CreateView({
       confirmSceneDuration: initialConfirmScenes,
       promptModel: initialPromptModel,
     }
-    if (demo) return demoFormValue(base, demo)
+    // La demo arranca en 16:9, con la calidad de ese formato.
+    if (demo)
+      return demoFormValue(
+        {
+          ...base,
+          videoFormat: DEMO_VIDEO_FORMAT,
+          imageQuality: defaultQualityFor(
+            initialImageProvider,
+            DEMO_VIDEO_FORMAT,
+          ),
+        },
+        demo,
+      )
 
     // De vuelta en Crear (spec §9), el borrador manda sobre la semilla de las
     // preferencias: el formulario sigue como se dejó. Salvo lo que ninguna
@@ -235,16 +256,31 @@ function CreateView({
     saveCreateDraft({ form, otherTabStyle }, seed)
   }, [form, otherTabStyle, demo, seed])
 
-  // En demo la primera gema del pack arranca en uso apenas la galería la
-  // lista: se deriva en el render (sin efecto); elegir otra tarjeta la
-  // reemplaza.
-  const demoGem =
-    demo && form.customStyle === null
-      ? customStyles.find((style) => style.id === demo.gems[0]?.styleId)
-      : undefined
-  const chosenStyle = demoGem
-    ? selectedCustomStyleFrom(demoGem)
-    : form.customStyle
+  // En demo, la pestaña Catálogo sin tarjeta elegida usa la primera que
+  // ofrece la galería, con su historia (spec demo v4 §2): así arranca y así
+  // queda al apagar el avatar con Jardinería. Se deriva en el render, sin
+  // efecto, apenas la lista del catálogo carga (mientras tanto no hay ninguna
+  // y el envío se frena), y el primer cambio la deja en el formulario
+  // (patchForm): lo que se ve es lo que se edita. El modo de personaje es el
+  // que usaría un clic en la galería (el recordado o el de sus muestras).
+  const withDemoDefaultStyle = (current: CreateFormValue): CreateFormValue => {
+    if (!demo) return current
+
+    const gem = demoDefaultCatalogGem(demo, current, catalogGems)
+    if (!gem) return current
+
+    const customStyle = selectedCatalogStyleFrom(
+      gem,
+      language,
+      readCatalogCharacter(gem, localStorage),
+    )
+    return {
+      ...current,
+      customStyle,
+      ...demoFollowStyle(demo, current, { customStyle }),
+    }
+  }
+  const shownForm = withDemoDefaultStyle(form)
   // Si la gema elegida se migró a la plantilla mientras tanto (spec §4.4), el
   // envío ya sale con sus secciones: el snapshot se refresca desde la lista,
   // también en el render. Un estilo del catálogo nuevo solo vale en su
@@ -252,15 +288,19 @@ function CreateView({
   // mitad de camino, Crear vuelve al catálogo viejo sin arrastrarlo.
   const customStyle = customStyleForTab(
     {
-      styleSource: form.styleSource,
-      customStyle: refreshedCustomStyle(chosenStyle, customStyles),
+      styleSource: shownForm.styleSource,
+      customStyle: refreshedCustomStyle(shownForm.customStyle, customStyles),
     },
     newCatalog,
   )
   // Sin clave de HeyGen la tarjeta del avatar se ve apagada: lo que se
   // valida, se estima y se envía también lo tiene apagado (spec §9). La
-  // elección se queda en `form` para cuando vuelva la clave.
-  const keyedForm = withAvatarKey(form, configuredProviders.has('heygen'))
+  // elección se queda en `form` para cuando vuelva la clave. La demo no
+  // depende de HeyGen: su avatar es el de la historia (spec demo v4 §2).
+  const keyedForm = withAvatarKey(
+    shownForm,
+    configuredProviders.has('heygen') || demo !== null,
+  )
   const formValue =
     customStyle === keyedForm.customStyle
       ? keyedForm
@@ -284,12 +324,16 @@ function CreateView({
   usePageTitle(t('create.pageTitle'))
 
   const patchForm = (patch: Partial<CreateFormValue>) => {
-    setForm((current) => ({
-      ...current,
-      ...patch,
-      // En demo la historia sigue al estilo elegido.
-      ...(demo ? demoFollowStyle(demo, current, patch) : {}),
-    }))
+    setForm((current) => {
+      // En demo el cambio parte de lo que se ve (la tarjeta derivada y su
+      // historia) y la historia sigue al estilo elegido.
+      const shown = withDemoDefaultStyle(current)
+      return {
+        ...shown,
+        ...patch,
+        ...(demo ? demoFollowStyle(demo, shown, patch) : {}),
+      }
+    })
   }
 
   const pickAudio = async () => {
@@ -335,7 +379,8 @@ function CreateView({
       onProjectCreated: () => {
         if (!demo) clearCreateDraft()
       },
-      // `formValue` (y no `form`): en demo lleva la gema derivada en el render.
+      // `formValue` (y no `form`): en demo lleva la tarjeta derivada en el
+      // render, con su historia.
       payload: createProjectPayload(
         { ...formValue, promptModel },
         { demo: demo !== null },

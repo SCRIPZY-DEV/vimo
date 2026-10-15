@@ -190,6 +190,7 @@ export function formBlockers(
     animationKeyMissing = false,
     avatarUnavailable = false,
     newCatalog = false,
+    demo = false,
   }: FormBlockersContext = {},
 ): string[] {
   const blockers: string[] = []
@@ -204,8 +205,9 @@ export function formBlockers(
   }
 
   // El avatar presentador (spec §9): encendido pide un avatar de la
-  // biblioteca que siga sirviendo (la clave ya la resolvió withAvatarKey).
-  if (form.useAvatar) {
+  // biblioteca que siga sirviendo (la clave ya la resolvió withAvatarKey). En
+  // la demo el avatar es el de la historia (spec demo v4 §2): no se pide nada.
+  if (form.useAvatar && !demo) {
     if (!form.avatar) blockers.push('create.validation.avatarRequired')
     else if (avatarUnavailable)
       blockers.push('create.validation.avatarUnavailable')

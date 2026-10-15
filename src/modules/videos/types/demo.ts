@@ -1,4 +1,5 @@
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
+import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type { DemoManifest, DemoStatusResult } from '@pipeline/types/demo.ts'
 
@@ -110,3 +111,11 @@ export type DemoGateScreen =
 
 // Lo que muestra la tarjeta: todo menos entrar, que navega.
 export type DemoGateCardScreen = Exclude<DemoGateScreen, { kind: 'enter' }>
+
+// Lo que hace Crear en demo con un pedido de estilo o de pestaña
+// (utilities/demoForm.ts, spec demo v4 §2): el cambio que se aplica y si
+// volvió a la gema del avatar en vez de lo pedido (el formulario lo avisa).
+export interface DemoStyleRequestResult {
+  patch: Partial<CreateFormValue>
+  redirected: boolean
+}

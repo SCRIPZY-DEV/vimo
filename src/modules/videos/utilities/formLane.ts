@@ -13,7 +13,7 @@ type LaneChoice = Pick<CreateFormValue, 'styleSource' | 'customStyle'>
 // Por qué carril sale el video. La pestaña Mi estilo es siempre `custom`; en
 // la pestaña Catálogo, un estilo elegido con id de catálogo es una gema del
 // catálogo nuevo (Entrega 2) y cualquier otra cosa sigue por el catálogo viejo
-// (sin el interruptor, en la demo o sin elegir). Puro: lo corre
+// (sin el interruptor o sin elegir). Puro: lo corre
 // scripts/test/check-app-catalog-style.mjs con Node.
 export function laneOf(form: LaneChoice): FormLane {
   if (form.styleSource === 'custom') return 'custom'
@@ -22,7 +22,7 @@ export function laneOf(form: LaneChoice): FormLane {
 }
 
 // Con qué carril se arma la pantalla de Crear. Con el catálogo nuevo activo
-// (interruptor encendido y fuera de la demo, plan E2 P5), la pestaña Catálogo
+// (interruptor encendido, o la demo: spec demo v4 §2), la pestaña Catálogo
 // se ve como el carril de sus estilos aun antes de elegir tarjeta (P4): sin
 // cantidad de escenas, frecuencia ni «Confirmar escenas», y con el modelo de
 // prompts, como Mi estilo. El envío sigue a `laneOf`; sin tarjeta lo frena

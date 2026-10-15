@@ -543,6 +543,24 @@ test('bloqueos: avatar sin elegir y elección que ya no vale', () => {
   )
 })
 
+test('en la demo el avatar encendido no pide uno de la biblioteca: es el de la historia', () => {
+  // Spec demo v4 §2: la demo no lee la biblioteca de la persona ni depende
+  // de su clave de HeyGen, así que no hay elección que pedir ni que validar.
+  const avatarBlockers = (value, context) =>
+    app.formBlockers(value, context).filter((key) => key.includes('avatar'))
+  assert.deepEqual(
+    avatarBlockers(form({ useAvatar: true, avatar: null }), { demo: true }),
+    [],
+  )
+  assert.deepEqual(
+    avatarBlockers(form({ useAvatar: true, avatar: ANA }), {
+      demo: true,
+      avatarUnavailable: true,
+    }),
+    [],
+  )
+})
+
 test('sin clave de HeyGen el formulario que se valida, se estima y se envía lleva el avatar apagado', () => {
   // La tarjeta se dibuja apagada sin clave: lo que sale de Crear también
   // (withAvatarKey). Ni «cargá tu clave» con la tarjeta apagada, ni
