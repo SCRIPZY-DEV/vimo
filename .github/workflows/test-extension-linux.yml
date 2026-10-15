@@ -1,0 +1,40 @@
+# Pruebas nativas de entrega de la extensión en Linux. No empaqueta ni publica
+# Vimo, no descarga sidecars y no necesita los secretos del instalador.
+name: Test extension delivery on Linux
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Dependencias Tauri v2 y del backend keyring/Secret Service de Linux.
+      # https://v2.tauri.app/start/prerequisites/#linux
+      - name: Install native Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev \
+            libssl-dev librsvg2-dev libayatana-appindicator3-dev libdbus-1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # El test usa el código Rust real. El override afecta sólo a este paso:
+      # no hay empaquetado, assets de Vite ni binarios externos que copiar.
+      - name: Test extension delivery on native Linux
+        env:
+          TAURI_CONFIG: '{"build":{"frontendDist":"../public"},"bundle":{"externalBin":[]}}'
+        run: >-
+          cargo test --manifest-path src-tauri/Cargo.toml --lib --locked extension_release::

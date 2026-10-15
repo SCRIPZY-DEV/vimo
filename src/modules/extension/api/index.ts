@@ -28,6 +28,12 @@ export const extensionApi = {
   async checkRelease(): Promise<ExtensionRelease> {
     return invoke('check_extension_release')
   },
+  async findDownload(release: ExtensionRelease): Promise<string | null> {
+    return invoke('find_extension_download', { release })
+  },
+  async openDownloadFolder(release: ExtensionRelease): Promise<void> {
+    return invoke('open_extension_download_folder', { release })
+  },
   async lastDownload(): Promise<ExtensionDownloadReceipt | null> {
     const receipt = await releaseStore.get<ExtensionDownloadReceipt>(
       EXTENSION_DOWNLOAD_RECEIPT_KEY,
@@ -43,11 +49,11 @@ export const extensionApi = {
   },
   async downloadRelease(
     release: ExtensionRelease,
-  ): Promise<ExtensionDownloadResult | null> {
-    const path = await invoke<string | null>('download_extension_release', {
+  ): Promise<ExtensionDownloadResult> {
+    const path = await invoke<string>('download_extension_release', {
       release,
     })
-    if (path === null) return null
+    if (typeof path !== 'string' || !path.trim()) throw { code: 'save_failed' }
     const receipt = {
       version: release.version,
       downloadedAt: new Date().toISOString(),

@@ -2,6 +2,7 @@ pub mod commands;
 mod download;
 mod error;
 mod manifest;
+mod storage;
 
 const RELEASE_MANIFEST_URL: &str = "https://releases.vimo.click/extensions/latest.json";
 const RELEASE_DOWNLOAD_ORIGIN: &str = "https://releases.vimo.click";
@@ -12,3 +13,7 @@ const MANIFEST_TIMEOUT_SECONDS: u64 = 20;
 const DOWNLOAD_TIMEOUT_SECONDS: u64 = 120;
 const CONNECT_TIMEOUT_SECONDS: u64 = 10;
 const READ_TIMEOUT_SECONDS: u64 = 20;
+
+#[cfg(test)]
+#[path = "tests/platform.rs"]
+mod platform_tests;

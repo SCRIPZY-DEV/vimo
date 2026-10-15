@@ -20,6 +20,11 @@ export interface ExtensionDownloadResult extends ExtensionDownloadReceipt {
   receiptSaved: boolean
 }
 
+export interface ExtensionReleaseCheckResult {
+  release: ExtensionRelease
+  current: boolean
+}
+
 export interface ExtensionReleaseSectionProps {
   connections: readonly FlowConnection[]
   statusLoading: boolean
@@ -29,6 +34,6 @@ export interface ExtensionReleaseSectionProps {
 export interface ExtensionReleaseStateOptions {
   release: ExtensionRelease
   connections: readonly FlowConnection[]
-  receipt: ExtensionDownloadReceipt | null | undefined
+  downloadedPath: string | null | undefined
   statusFailed: boolean
 }

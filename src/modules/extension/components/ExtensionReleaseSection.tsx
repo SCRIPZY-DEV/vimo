@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Loader2, RefreshCw } from 'lucide-react'
+import { Download, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 import {
   Dialog,
@@ -15,7 +15,10 @@ import {
   extensionReleaseErrorKey,
   extensionReleaseState,
 } from '@/modules/extension/utilities/extensionReleaseState'
-import type { ExtensionReleaseSectionProps } from '@/modules/extension/types/release'
+import type {
+  ExtensionRelease,
+  ExtensionReleaseSectionProps,
+} from '@/modules/extension/types/release'
 
 export function ExtensionReleaseSection({
   connections,
@@ -23,35 +26,95 @@ export function ExtensionReleaseSection({
   statusFailed,
 }: ExtensionReleaseSectionProps) {
   const { t, i18n } = useTranslation()
-  const { native, release, receipt, download } = useExtensionRelease()
+  const {
+    native,
+    release,
+    downloadedFile,
+    download,
+    busy,
+    checkUpdates,
+    checking,
+    openFolder,
+    openingFolder,
+    openDownloadFolder,
+  } = useExtensionRelease()
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
   const [requestedVersion, setRequestedVersion] = useState<string | null>(null)
+  const [checkedCurrent, setCheckedCurrent] = useState<ExtensionRelease | null>(
+    null,
+  )
   const detailsButton = useRef<HTMLButtonElement>(null)
+  const checkButton = useRef<HTMLButtonElement>(null)
+  const section = useRef<HTMLElement>(null)
   const available =
     release.isFetchedAfterMount && !release.isError ? release.data : undefined
   const state = available
     ? extensionReleaseState({
         release: available,
         connections,
-        receipt: receipt.data,
-        statusFailed,
+        downloadedPath:
+          downloadedFile.isFetchedAfterMount &&
+          !downloadedFile.isError &&
+          !downloadedFile.isFetching
+            ? downloadedFile.data
+            : null,
+        statusFailed: statusFailed || statusLoading,
       })
     : null
   const checked =
     release.isFetchedAfterMount && !release.isFetching && !release.isError
   const automatic =
     checked &&
-    receipt.isFetched &&
+    downloadedFile.isFetched &&
+    !downloadedFile.isFetching &&
+    !busy &&
+    !checking &&
+    !checkUpdates.isError &&
     !statusLoading &&
     state?.available &&
     dismissedVersion !== available?.version
   const open =
     !!available && (requestedVersion === available.version || !!automatic)
-  const busy = download.isPending
   const saved =
-    available && download.data?.version === available.version
+    available &&
+    state?.downloaded &&
+    download.data?.version === available.version &&
+    download.variables?.sha256 === available.sha256
       ? download.data
       : null
+  const savedPath = state?.downloaded ? downloadedFile.data : null
+  const downloadDisabled =
+    !available ||
+    !native ||
+    !checked ||
+    statusLoading ||
+    downloadedFile.isPending ||
+    downloadedFile.isFetching ||
+    busy ||
+    checking ||
+    !!state?.current ||
+    !!state?.downloaded
+  const actionKey = busy
+    ? 'extension.releaseDownloading'
+    : (state?.actionKey ?? 'extension.releaseDownload')
+  const actionLabel =
+    actionKey === 'extension.releaseDownload' && available && checked
+      ? t('extension.releaseDownloadVersion', { version: available.version })
+      : t(actionKey)
+  const currentNotice =
+    checked &&
+    !checking &&
+    checkedCurrent?.version === available?.version &&
+    checkedCurrent?.sha256 === available?.sha256 &&
+    (state?.current || state?.downloaded)
+  const folderError =
+    openFolder.isError &&
+    openFolder.variables?.version === available?.version &&
+    openFolder.variables?.sha256 === available?.sha256
+  const showFolder = () => {
+    if (!available || !savedPath || busy || checking || openingFolder) return
+    openDownloadFolder(available)
+  }
   const language = i18n.resolvedLanguage?.split('-')[0]
   const notes =
     available?.notes[language === 'en' || language === 'pt' ? language : 'es']
@@ -60,17 +123,18 @@ export function ExtensionReleaseSection({
     setRequestedVersion(null)
   }
   const startDownload = () => {
-    if (!available || busy) return
+    if (!available || downloadDisabled) return
     setRequestedVersion(available.version)
     download.mutate(available, {
       onSuccess(result) {
-        if (!result) return
         setDismissedVersion(result.version)
       },
     })
   }
   return (
     <section
+      ref={section}
+      tabIndex={-1}
       data-extension-release
       className="space-y-3 rounded-2xl border border-border bg-card p-5"
       aria-labelledby="extension-release-title"
@@ -91,7 +155,7 @@ export function ExtensionReleaseSection({
           <Button
             ref={detailsButton}
             type="button"
-            disabled={!available || !native || !checked}
+            disabled={downloadDisabled}
             onClick={() => {
               if (!available) return
               if (open) {
@@ -102,16 +166,25 @@ export function ExtensionReleaseSection({
             }}
           >
             <Download aria-hidden className="h-4 w-4" />
-            {t('extension.releaseDownload')}
+            {actionLabel}
           </Button>
           <Button
+            ref={checkButton}
             type="button"
             variant="outline"
-            disabled={!native || release.isFetching || busy}
+            disabled={!native || release.isFetching || busy || checking}
             onClick={() => {
-              void release.refetch().then((result) => {
-                if (result.data && !result.isError)
-                  setRequestedVersion(result.data.version)
+              if (checking) return
+              setCheckedCurrent(null)
+              if (available) setDismissedVersion(available.version)
+              checkUpdates.mutate(undefined, {
+                onSuccess(result) {
+                  setDismissedVersion(result.release.version)
+                  setRequestedVersion(
+                    result.current ? null : result.release.version,
+                  )
+                  setCheckedCurrent(result.current ? result.release : null)
+                },
               })
             }}
           >
@@ -125,7 +198,7 @@ export function ExtensionReleaseSection({
           {t('extension.releaseDesktopOnly')}
         </p>
       )}
-      {native && release.isFetching && (
+      {native && (release.isFetching || checking) && (
         <p role="status" className="text-sm text-muted-foreground">
           {t('extension.releaseChecking')}
         </p>
@@ -133,6 +206,21 @@ export function ExtensionReleaseSection({
       {native && release.isError && (
         <p role="alert" className="text-sm text-destructive">
           {t(extensionReleaseErrorKey(release.error))}
+        </p>
+      )}
+      {checkUpdates.isError && !release.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          {t(extensionReleaseErrorKey(checkUpdates.error))}
+        </p>
+      )}
+      {currentNotice && (
+        <p role="status" className="text-sm">
+          {t('extension.releaseUpToDate')}
+        </p>
+      )}
+      {folderError && !open && (
+        <p role="alert" className="text-sm text-destructive">
+          {t('extension.releaseOpenFolderFailed')}
         </p>
       )}
       {checked && available && state && (
@@ -148,10 +236,24 @@ export function ExtensionReleaseSection({
           )}
         </div>
       )}
-      {saved && (
-        <p role="status" className="break-words text-sm">
-          {t('extension.releaseSaved', { path: saved.path })}
-        </p>
+      {savedPath && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <p role="status">{t('extension.releaseSaved')}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={openingFolder || checking || busy}
+            onClick={showFolder}
+          >
+            {openingFolder ? (
+              <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+            ) : (
+              <FolderOpen aria-hidden className="h-4 w-4" />
+            )}
+            {t('extension.releaseOpenFolder')}
+          </Button>
+        </div>
       )}
       {available && (
         <Dialog
@@ -166,7 +268,14 @@ export function ExtensionReleaseSection({
             onEscapeKeyDown={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              detailsButton.current?.focus({ preventScroll: true })
+              const button = detailsButton.current?.disabled
+                ? checkButton.current
+                : detailsButton.current
+              if (button && !button.disabled) {
+                button.focus({ preventScroll: true })
+                return
+              }
+              section.current?.focus({ preventScroll: true })
             }}
           >
             <DialogHeader>
@@ -203,14 +312,34 @@ export function ExtensionReleaseSection({
                 {t('extension.releaseDownloading')}
               </p>
             )}
-            {download.isError && (
-              <p role="alert" className="text-sm text-destructive">
-                {t(extensionReleaseErrorKey(download.error))}
-              </p>
+            {download.isError &&
+              download.variables?.version === available.version && (
+                <p role="alert" className="text-sm text-destructive">
+                  {t(extensionReleaseErrorKey(download.error))}
+                </p>
+              )}
+            {savedPath && (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <p role="status">{t('extension.releaseSaved')}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={openingFolder || checking || busy}
+                  onClick={showFolder}
+                >
+                  {openingFolder ? (
+                    <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderOpen aria-hidden className="h-4 w-4" />
+                  )}
+                  {t('extension.releaseOpenFolder')}
+                </Button>
+              </div>
             )}
-            {saved && (
-              <p role="status" className="break-words text-sm">
-                {t('extension.releaseSaved', { path: saved.path })}
+            {folderError && (
+              <p role="alert" className="text-sm text-destructive">
+                {t('extension.releaseOpenFolderFailed')}
               </p>
             )}
             {saved && !saved.receiptSaved && (
@@ -224,16 +353,11 @@ export function ExtensionReleaseSection({
               </Button>
               <Button
                 type="button"
-                aria-disabled={busy}
+                disabled={downloadDisabled}
                 onClick={startDownload}
               >
                 <Download aria-hidden className="h-4 w-4" />
-                {t(
-                  busy
-                    ? 'extension.releaseDownloading'
-                    : 'extension.releaseDownloadVersion',
-                  { version: available.version },
-                )}
+                {actionLabel}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::thread;
 
@@ -134,44 +134,4 @@ fn rejects_tampering_truncation_and_non_zip_even_with_matching_hash() {
         verify_archive(&release(html), html),
         Err(ExtensionReleaseError::IntegrityFailed)
     );
-}
-
-#[test]
-fn writes_verified_archive_and_preserves_previous_file_on_integrity_failure() {
-    let directory = tempfile::tempdir().unwrap();
-    let destination = directory.path().join("chosen.zip");
-    let bytes = archive();
-    let release = release(&bytes);
-    std::fs::write(&destination, b"previous").unwrap();
-    assert_eq!(
-        save_archive(&release, b"invalid", &destination),
-        Err(ExtensionReleaseError::IntegrityFailed)
-    );
-    assert_eq!(std::fs::read(&destination).unwrap(), b"previous");
-    save_archive(&release, &bytes, &destination).unwrap();
-    assert_eq!(std::fs::read(&destination).unwrap(), bytes);
-    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
-}
-
-#[test]
-fn failed_save_cleans_temporary_and_never_renames_another_extension() {
-    let directory = tempfile::tempdir().unwrap();
-    let bytes = archive();
-    let release = release(&bytes);
-    let occupied = directory.path().join("directory.zip");
-    std::fs::create_dir(&occupied).unwrap();
-    assert_eq!(
-        save_archive(&release, &bytes, &occupied),
-        Err(ExtensionReleaseError::SaveFailed)
-    );
-    assert!(occupied.is_dir());
-    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
-    let text_path = directory.path().join("chosen.txt");
-    std::fs::write(&text_path, b"keep").unwrap();
-    assert_eq!(
-        save_archive(&release, &bytes, &text_path),
-        Err(ExtensionReleaseError::SaveFailed)
-    );
-    assert_eq!(std::fs::read(&text_path).unwrap(), b"keep");
-    assert!(!directory.path().join("chosen.zip").exists());
 }

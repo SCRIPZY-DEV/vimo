@@ -1,11 +1,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{AppHandle, State};
-use tauri_plugin_dialog::DialogExt;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
-use super::download::{check_release, download_archive, save_archive};
+use super::download::{check_release, download_archive};
 use super::error::ExtensionReleaseError;
 use super::manifest::ExtensionRelease;
+use super::storage::{find_download, save_download, verified_download_directory};
 
 #[derive(Default)]
 pub struct ExtensionDownloads(AtomicBool);
@@ -33,33 +34,73 @@ pub async fn check_extension_release() -> Result<ExtensionRelease, ExtensionRele
 }
 
 #[tauri::command]
+pub async fn find_extension_download(
+    app: AppHandle,
+    release: ExtensionRelease,
+) -> Result<Option<String>, ExtensionReleaseError> {
+    release.validate()?;
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|_| ExtensionReleaseError::DocumentsUnavailable)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        find_download(&documents, &release)
+            .map(|path| path.map(|path| path.to_string_lossy().into_owned()))
+    })
+    .await
+    .map_err(|_| ExtensionReleaseError::SaveFailed)?
+}
+
+/// Abre sólo la carpeta de un ZIP verificado, nunca una ruta del webview.
+/// Se usa el opener nativo para respetar Documentos redirigida fuera de $HOME.
+#[tauri::command]
+pub async fn open_extension_download_folder(
+    app: AppHandle,
+    release: ExtensionRelease,
+) -> Result<(), ExtensionReleaseError> {
+    release.validate()?;
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|_| ExtensionReleaseError::DocumentsUnavailable)?;
+    let directory = tauri::async_runtime::spawn_blocking(move || {
+        verified_download_directory(&documents, &release)
+    })
+    .await
+    .map_err(|_| ExtensionReleaseError::SaveFailed)??;
+    let directory = directory
+        .to_str()
+        .ok_or(ExtensionReleaseError::SaveFailed)?;
+    app.opener()
+        .open_path(directory, None::<&str>)
+        .map_err(|_| ExtensionReleaseError::SaveFailed)
+}
+
+#[tauri::command]
 pub async fn download_extension_release(
     app: AppHandle,
     downloads: State<'_, ExtensionDownloads>,
     release: ExtensionRelease,
-) -> Result<Option<String>, ExtensionReleaseError> {
+) -> Result<String, ExtensionReleaseError> {
     release.validate()?;
     let _guard = downloads.start()?;
-    let archive_name = release.archive_name();
-    let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
-            .file()
-            .add_filter("ZIP", &["zip"])
-            .set_file_name(archive_name)
-            .blocking_save_file()
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|_| ExtensionReleaseError::DocumentsUnavailable)?;
+    let existing_documents = documents.clone();
+    let existing_release = release.clone();
+    let existing = tauri::async_runtime::spawn_blocking(move || {
+        find_download(&existing_documents, &existing_release)
     })
     .await
-    .map_err(|_| ExtensionReleaseError::SaveFailed)?;
-    let Some(selected) = selected else {
-        return Ok(None);
-    };
-    let destination = selected
-        .into_path()
-        .map_err(|_| ExtensionReleaseError::SaveFailed)?;
+    .map_err(|_| ExtensionReleaseError::SaveFailed)??;
+    if let Some(path) = existing {
+        return Ok(path.to_string_lossy().into_owned());
+    }
     let bytes = download_archive(&release).await?;
     tauri::async_runtime::spawn_blocking(move || {
-        save_archive(&release, &bytes, &destination)?;
-        Ok(Some(destination.to_string_lossy().into_owned()))
+        save_download(&documents, &release, &bytes).map(|path| path.to_string_lossy().into_owned())
     })
     .await
     .map_err(|_| ExtensionReleaseError::SaveFailed)?

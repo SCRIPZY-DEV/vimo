@@ -33,7 +33,7 @@ export function compareExtensionVersions(
 export function extensionReleaseState({
   release,
   connections,
-  receipt,
+  downloadedPath,
   statusFailed,
 }: ExtensionReleaseStateOptions) {
   const connected = statusFailed
@@ -52,25 +52,30 @@ export function extensionReleaseState({
       ) === -1,
   )
   const downloaded =
-    !!receipt &&
-    (compareExtensionVersions(receipt.version, release.version) ?? -1) >= 0
+    typeof downloadedPath === 'string' && !!downloadedPath.trim()
   const current =
     connected.length > 0 &&
     known.length === connected.length &&
     older.length === 0
   return {
-    available: older.length > 0 || (!current && !downloaded),
+    available: !current && !downloaded,
+    current,
+    downloaded,
     installedVersions: [
       ...new Set(known.map((connection) => connection.extensionVersion!)),
     ],
-    statusKey:
-      older.length > 0
-        ? 'extension.releaseUpdateAvailable'
-        : current
-          ? 'extension.releaseInstalledCurrent'
-          : downloaded
-            ? 'extension.releaseDownloadedWaiting'
-            : 'extension.releaseReady',
+    statusKey: current
+      ? 'extension.releaseInstalledCurrent'
+      : downloaded
+        ? 'extension.releaseDownloadedWaiting'
+        : older.length > 0
+          ? 'extension.releaseUpdateAvailable'
+          : 'extension.releaseReady',
+    actionKey: current
+      ? 'extension.releaseAlreadyInstalled'
+      : downloaded
+        ? 'extension.releaseDownloaded'
+        : 'extension.releaseDownload',
   }
 }
 
@@ -83,6 +88,7 @@ export function extensionReleaseErrorKey(error: unknown): string {
     case 'invalid_manifest':
     case 'download_failed':
     case 'integrity_failed':
+    case 'documents_unavailable':
     case 'save_failed':
     case 'busy':
       return `extension.releaseError_${code}`

@@ -65,6 +65,8 @@ pub fn run() {
       flow::flow_command,
       extension_release::commands::check_extension_release,
       extension_release::commands::download_extension_release,
+      extension_release::commands::find_extension_download,
+      extension_release::commands::open_extension_download_folder,
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
       settings::commands::sync_projects_root_scope,

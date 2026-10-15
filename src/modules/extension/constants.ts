@@ -3,6 +3,10 @@ export const extensionQueryKeys = {
   release: ['extension', 'release'],
   downloadReceipt: ['extension', 'download-receipt'],
   download: ['extension', 'download'],
+  check: ['extension', 'check'],
+  openFolder: ['extension', 'open-folder'],
+  downloadedFile: (version: string, sha256: string) =>
+    ['extension', 'downloaded-file', version, sha256] as const,
   galleryRoot: ['extension', 'gallery'],
   gallery: (batchIds: string[]) => ['extension', 'gallery', ...batchIds],
   previewRoot: ['extension', 'preview'],

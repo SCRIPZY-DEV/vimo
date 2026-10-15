@@ -97,6 +97,15 @@ jobs:
           tauriScript: pnpm tauri
           args: --target ${{ inputs.target }} --bundles ${{ inputs.bundles }} --config src-tauri/tauri.updater.conf.json
 
+      # Ejecuta las pruebas de entrega de la extensión en el SO del instalador.
+      # --release reutiliza las dependencias recién compiladas. Un fallo impide
+      # subir ese artefacto y bloquea la publicación del conjunto.
+      - name: Test extension delivery on installer target
+        timeout-minutes: 20
+        run: >-
+          cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+          --release --target ${{ inputs.target }} extension_release::
+
       # Retención corta: el plan Free de GitHub da 500 MB de artefactos en
       # repos privados y cada corrida pesa ~270 MB.
       - uses: actions/upload-artifact@v4

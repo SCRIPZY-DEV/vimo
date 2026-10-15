@@ -35,6 +35,10 @@ fn command_errors_are_stable_codes_without_private_details() {
         (ExtensionReleaseError::DownloadFailed, "download_failed"),
         (ExtensionReleaseError::IntegrityFailed, "integrity_failed"),
         (ExtensionReleaseError::SaveFailed, "save_failed"),
+        (
+            ExtensionReleaseError::DocumentsUnavailable,
+            "documents_unavailable",
+        ),
         (ExtensionReleaseError::Busy, "busy"),
     ] {
         assert_eq!(

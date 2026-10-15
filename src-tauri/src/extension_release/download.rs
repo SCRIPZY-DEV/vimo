@@ -1,5 +1,3 @@
-use std::io::Write;
-use std::path::Path;
 use std::time::Duration;
 
 use reqwest::{Client, StatusCode};
@@ -97,47 +95,16 @@ async fn fetch_bytes(
     Ok(bytes)
 }
 
-fn verify_archive(release: &ExtensionRelease, bytes: &[u8]) -> Result<(), ExtensionReleaseError> {
+pub(super) fn verify_archive(
+    release: &ExtensionRelease,
+    bytes: &[u8],
+) -> Result<(), ExtensionReleaseError> {
     if bytes.len() as u64 != release.size_bytes
         || !bytes.starts_with(b"PK\x03\x04")
         || !format!("{:x}", Sha256::digest(bytes)).eq_ignore_ascii_case(&release.sha256)
     {
         return Err(ExtensionReleaseError::IntegrityFailed);
     }
-    Ok(())
-}
-
-/// El destino proviene exclusivamente del diálogo Guardar, que confirma
-/// reemplazos. El temporal hermano y único evita archivos parciales y mantiene
-/// el archivo anterior si falla la verificación o el reemplazo (p.ej. lock).
-pub fn save_archive(
-    release: &ExtensionRelease,
-    bytes: &[u8],
-    destination: &Path,
-) -> Result<(), ExtensionReleaseError> {
-    release.validate()?;
-    verify_archive(release, bytes)?;
-    if !destination.is_absolute()
-        || !destination
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
-    {
-        return Err(ExtensionReleaseError::SaveFailed);
-    }
-    let directory = destination
-        .parent()
-        .ok_or(ExtensionReleaseError::SaveFailed)?;
-    let mut temporary = tempfile::Builder::new()
-        .prefix(".vimo-extension-")
-        .tempfile_in(directory)
-        .map_err(|_| ExtensionReleaseError::SaveFailed)?;
-    temporary
-        .write_all(bytes)
-        .and_then(|_| temporary.as_file().sync_all())
-        .map_err(|_| ExtensionReleaseError::SaveFailed)?;
-    temporary
-        .persist(destination)
-        .map_err(|_| ExtensionReleaseError::SaveFailed)?;
     Ok(())
 }
 

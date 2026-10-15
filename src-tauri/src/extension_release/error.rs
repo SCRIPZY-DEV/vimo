@@ -14,6 +14,8 @@ pub enum ExtensionReleaseError {
     DownloadFailed,
     #[error("extension archive integrity failure")]
     IntegrityFailed,
+    #[error("documents directory unavailable")]
+    DocumentsUnavailable,
     #[error("extension archive save failed")]
     SaveFailed,
     #[error("extension download already active")]

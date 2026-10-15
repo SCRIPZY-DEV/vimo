@@ -69,6 +69,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "keyring",
+ "libc",
  "log",
  "os_info",
  "reqwest",

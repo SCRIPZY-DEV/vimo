@@ -13,6 +13,7 @@ export function useFlowStatus(enabled = true) {
     queryKey: commonQueryKeys.flowStatus,
     queryFn: () => commonApi.flowStatus(),
     enabled: native && enabled,
+    networkMode: 'always',
     refetchInterval: enabled ? FLOW_STATUS_INTERVAL_MS : false,
     retry: false,
     staleTime: FLOW_STATUS_INTERVAL_MS,
