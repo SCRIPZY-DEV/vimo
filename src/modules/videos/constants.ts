@@ -342,6 +342,14 @@ export const EDITOR_TOOL_PANEL_MIN_WIDTH = 280
 export const EDITOR_TOOL_CARD_WIDTH = 128
 export const EDITOR_TOOL_CARD_GAP = 12
 export const EDITOR_TOOL_CARD_MAX_COLUMNS = 4
+export const EDITOR_TOOL_CARD_DEFAULT_COLUMNS = 3
+// Tres cards al abrir Transiciones/SFX; una sola ocupa el ancho disponible.
+export const EDITOR_TOOL_CATALOG_DEFAULT_WIDTH =
+  EDITOR_TOOL_CARD_WIDTH * EDITOR_TOOL_CARD_DEFAULT_COLUMNS +
+  EDITOR_TOOL_CARD_GAP * (EDITOR_TOOL_CARD_DEFAULT_COLUMNS - 1) +
+  32 +
+  2 +
+  8
 // Cuatro cards + tres espacios, padding p-4, bordes y gutter de scroll de 8px.
 export const EDITOR_TOOL_PANEL_MAX_WIDTH =
   EDITOR_TOOL_CARD_WIDTH * EDITOR_TOOL_CARD_MAX_COLUMNS +

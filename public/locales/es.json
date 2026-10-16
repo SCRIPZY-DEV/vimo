@@ -1740,7 +1740,7 @@
           "unavailable": "Necesitás al menos dos escenas con duración para añadir transiciones.",
           "pairHint": "Escena {{from}} → escena {{to}}",
           "selectedBoundaryHint": "Se aplica entre el clip seleccionado y el siguiente.",
-          "selectBoundaryHint": "Selecciona un clip para aplicar el fundido con el siguiente.",
+          "selectBoundaryHint": "Selecciona una escena o clip para agregar el efecto",
           "noNextSceneHint": "Este clip no tiene una unión siguiente disponible.",
           "applyAll": "Aplicar a todas las transiciones",
           "automaticHint": "Esta unión ya tiene el fundido automático de los clips animados."

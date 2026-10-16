@@ -1741,7 +1741,7 @@
           "unavailable": "Você precisa de pelo menos duas cenas com duração para adicionar transições.",
           "pairHint": "Cena {{from}} → cena {{to}}",
           "selectedBoundaryHint": "Aplica-se entre o clipe selecionado e o seguinte.",
-          "selectBoundaryHint": "Selecione um clipe para aplicar a fusão com o seguinte.",
+          "selectBoundaryHint": "Selecione uma cena ou clipe para adicionar o efeito",
           "noNextSceneHint": "Este clipe não tem uma próxima junção disponível.",
           "applyAll": "Aplicar a todas as transições",
           "automaticHint": "Esta junção já usa a fusão automática dos clipes animados."

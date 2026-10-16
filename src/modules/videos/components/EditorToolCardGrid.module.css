@@ -16,9 +16,9 @@
   min-width: 0;
 }
 
-/* Una única opción se destaca en el panel estrecho. Al ampliarlo conserva
-   el espacio de las columnas disponibles, incluso si el catálogo tiene una sola. */
-@container (max-width: 18rem) {
+/* Una única opción llena el ancho inicial de tres columnas (450 px de panel:
+   hasta 416 px útiles sin gutter). Al ampliarlo, vuelve a su columna compacta. */
+@container (max-width: 26rem) {
   .grid > :only-child {
     grid-column: 1 / -1;
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   EDITOR_TOOL_PANEL_DEFAULT_WIDTH,
+  EDITOR_TOOL_CATALOG_DEFAULT_WIDTH,
   EDITOR_TOOL_PANEL_MIN_WIDTH,
   EDITOR_TOOL_PANEL_MAX_WIDTH,
   EDITOR_TOOL_PREVIEW_MIN_WIDTH,
@@ -10,7 +11,7 @@ import type { EditorTool } from '@/modules/videos/types/editorTools'
 
 export function useEditorWorkspace(projectId: string) {
   const [activeTool, setActiveTool] = useState<EditorTool | null>(null)
-  const [width, setWidth] = useState(EDITOR_TOOL_PANEL_DEFAULT_WIDTH)
+  const [width, setWidth] = useState<number | null>(null)
   const [availableWidth, setAvailableWidth] = useState(
     EDITOR_TOOL_PANEL_MAX_WIDTH,
   )
@@ -37,12 +38,17 @@ export function useEditorWorkspace(projectId: string) {
     return () => observer.disconnect()
   }, [activeTool])
 
+  const defaultWidth =
+    activeTool === 'audio' || activeTool === 'transitions'
+      ? EDITOR_TOOL_CATALOG_DEFAULT_WIDTH
+      : EDITOR_TOOL_PANEL_DEFAULT_WIDTH
+
   return {
     activeTool,
     workspaceRef,
     width: Math.max(
       EDITOR_TOOL_PANEL_MIN_WIDTH,
-      Math.min(width, availableWidth),
+      Math.min(width ?? defaultWidth, availableWidth),
     ),
     maxWidth: Math.max(
       EDITOR_TOOL_PANEL_MIN_WIDTH,

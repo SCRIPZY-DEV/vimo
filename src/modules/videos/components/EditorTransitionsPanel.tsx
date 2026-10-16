@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Shuffle, Check, Search } from 'lucide-react'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
 import { Input } from '@/modules/common/ui/input'
+import { useToast } from '@/modules/common/hooks/useToast'
 import { cn } from '@/modules/common/utilities/cn'
 import type { EditorTransitionsPanelProps } from '@/modules/videos/types/editorTools'
 import { TransitionPreview } from '@/modules/videos/components/TransitionPreview'
@@ -22,6 +23,7 @@ export function EditorTransitionsPanel({
   onChangeAll,
 }: EditorTransitionsPanelProps) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const boundaryHintId = useId()
   const [search, setSearch] = useState('')
   const [appliedOnly, setAppliedOnly] = useState(false)
@@ -34,6 +36,20 @@ export function EditorTransitionsPanel({
       .trim()
   const matches =
     (!appliedOnly || enabled) && normalize(name).includes(normalize(search))
+
+  const applySelected = () => {
+    if (busy) return
+    if (selectedSceneNumber === undefined) {
+      toast({
+        description: t(
+          'library.editor.tools.transitionsPanel.selectBoundaryHint',
+        ),
+      })
+      return
+    }
+    if (!available) return
+    onChange(!enabled)
+  }
 
   const boundaryHint = () => {
     if (
@@ -104,12 +120,12 @@ export function EditorTransitionsPanel({
         <div data-editor-transition-grid className={gridStyles.grid}>
           <button
             type="button"
-            disabled={busy || !available}
+            disabled={busy || (!available && selectedSceneNumber !== undefined)}
             aria-label={name}
             aria-describedby={boundaryHintId}
             aria-pressed={enabled}
             data-editor-transition="crossfade"
-            onClick={() => onChange(!enabled)}
+            onClick={applySelected}
             className={cn(
               styles.card,
               'overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron disabled:cursor-not-allowed disabled:opacity-50',
