@@ -180,14 +180,17 @@ short/<id>/     historia 9:16: los 38 del catálogo y storytelling
   vista), la puerta muestra «La demo se sigue descargando…» con el avance de `demo-status`, consulta cada 3 s
   solo mientras está montada, entra a Crear apenas el pack está listo y ofrece «Reintentar». Si `demo-status` dice
   que ya nadie tiene el lock y el pack no está listo (ese job falló o murió), nadie baja: relanza el propio.
-- **Vigilante.** Un job sin ningún evento durante 5 minutos (`DEMO_PREPARE_SILENCE_LIMIT_MS`) se da por mudo: su
-  proceso pudo morir y Rust no avisa por el canal. El store pasa a la misma espera sin cancelarlo ni soltar su
+- **Vigilante.** Un job sin ningún evento durante 5 minutos (`DEMO_PREPARE_SILENCE_LIMIT_MS`) se da por mudo: un
+  proceso colgado, que no avanza ni termina. El store pasa a la misma espera sin cancelarlo ni soltar su
   listener: si vuelve a hablar, su avance lo devuelve a «en curso» y su fin o su fallo cuentan. Si nadie tiene el
   lock, la espera relanza `demo-prepare` (al volver a entrar a la demo o, con la puerta abierta, en la consulta
-  siguiente), que toma el lock del proceso muerto y sigue desde la primera parte sin marca; relanzar suelta el
-  listener viejo. Con el tope de inactividad de cada parte, un corte de red siempre termina en un fallo, que cuenta
-  aunque llegue después del vigilante (en una conexión muy lenta, el 1 % que separa dos avances tarda más que el
+  siguiente), que toma el lock abandonado y sigue desde la primera parte sin marca; relanzar suelta el listener
+  viejo. Con el tope de inactividad de cada parte, un corte de red siempre termina en un fallo, que cuenta aunque
+  llegue después del vigilante (en una conexión muy lenta, el 1 % que separa dos avances tarda más que el
   vigilante). Las consultas de `demo-status` que hace el store tienen un tope de 30 s para que nada quede colgado.
+  Un proceso que muere no queda mudo: desde la enmienda 2026-10-15 de la
+  [ADR-0010](ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md), Rust cierra el job con `job-failed`
+  `sidecar_exited` y la puerta lo muestra como un fallo con «Reintentar»; el vigilante queda como segunda red.
 
 ### 4. Crear en demo
 
@@ -299,11 +302,13 @@ nombra.
 - ⚠️ El release es público e incluye el video con el avatar «Jardineria» del dueño, que pidió usarlo.
 - ⚠️ El catálogo es vivo: si un admin borra un estilo después de generar su historia, desaparece de la demo; si lo
   edita, la demo muestra la tarjeta nueva con la historia generada antes.
-- ⚠️ **Pendiente, sin arreglar acá:** `src-tauri/src/pipeline/commands.rs` (el brazo `CommandEvent::Terminated`,
-  línea 107) saca el job de `RunningJobs` sin mandar ningún evento final por el canal. Un consumidor de
-  `runPipelineJob` puede quedar colgado si el sidecar muere sin evento; la puerta de la demo lo mitiga con el
-  vigilante de 5 minutos, que pasa a la espera y relanza `demo-prepare` si nadie tiene el lock. Arreglarlo es una
-  decisión aparte, en Rust.
+- ✅ **Resuelto el 2026-10-15, como decisión aparte, en Rust** (era «Pendiente, sin arreglar acá»): el brazo
+  `CommandEvent::Terminated` de `src-tauri/src/pipeline/commands.rs` sacaba el job de `RunningJobs` sin mandar
+  ningún evento final por el canal, y un consumidor de `runPipelineJob` podía quedar colgado si el sidecar moría
+  sin evento. Ahora Rust manda el `job-failed` que falta (`sidecar_exited`, o `cancelled` si se pidió cancelar):
+  enmienda 2026-10-15 de la [ADR-0010](ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md) e
+  [informe](../fixes/2026-10-15-fix-sidecar-terminated-event/sidecar-terminated-event.md). La puerta muestra ese
+  fallo con su aviso; el vigilante de 5 minutos queda como segunda red, para un proceso colgado.
 - 🔒 Versión y partes del pack viven en un solo archivo y se cambian juntas.
 - 🔒 La descarga de la demo nunca se cancela desde la interfaz: solo se suelta su listener.
 - 🔒 La simulación emite solo tipos de `pipeline/runner/events.ts` y nunca toca un proveedor, una clave ni un saldo.
@@ -322,9 +327,10 @@ nombra.
     historia por `catalogStyleId` y por gema; la fase `animation` con cada clip en disco antes de su
     `scene-animation-ready` y el video animado; `stage-skipped` y el video sin animar; Jardinería con el avatar
     junto a las imágenes; `renderTransitionVersion: 1`; y que las partes del armador las instala `demo-prepare`.
-  - `node --test scripts/test/check-demo-gate.mjs` (40 tests): el store de la descarga (no cancela, un solo job,
-    el vigilante que no suelta un job vivo, la espera que relanza cuando nadie tiene el lock, `demo_busy` y los
-    fallos de la red que se olvidan al salir), qué muestra la puerta y los GB y el porcentaje en cada idioma.
+  - `node --test scripts/test/check-demo-gate.mjs` (41 tests): el store de la descarga (no cancela, un solo job,
+    el vigilante que no suelta un job vivo, la espera que relanza cuando nadie tiene el lock, `demo_busy`, los
+    fallos de la red que se olvidan al salir y `sidecar_exited`, que queda), qué muestra la puerta y los GB y el
+    porcentaje en cada idioma.
   - `node --test scripts/test/check-animation-resolution.mjs` (4 tests): 480p por defecto, 720p por el `config`
     del job, el cuadro de normalización y el pedido a Kie.
   - `node --test scripts/test/check-app-demo-form.mjs` (33 tests) y `node scripts/test/check-create-demo-ui.mjs`
@@ -376,7 +382,7 @@ nombra.
 | Con todas las partes, el pack no es válido                         | `demo_pack_incomplete`                                | El staging se descarta entero y se empieza de cero (así «Reintentar» no queda trabado); no se escribe `.ok` ni `_demo-pack`. Cualquier otro error al validar deja el staging para seguir sin volver a bajar |
 | Staging de otra versión o de otro armado                           | —                                                     | Se borra entero y se empieza de cero: `_demo-pack.tmp` nunca mezcla dos packs. Pasa al cambiar `packVersion` o si una marca tiene el SHA de otro zip                                                        |
 | Otro `demo-prepare` tiene el lock                                  | `demo_busy`                                           | Una espera en la puerta, no un fallo; si el lock queda libre sin el pack listo, relanza el job. Un job que espera más de 60 s al lock falla con este código; uno que lo pierde deja de latir y se corta     |
-| Se cierra la app o el sidecar muere a mitad                        | —                                                     | Los `.download` que quedan se borran al empezar el próximo `demo-prepare`, que sigue con la primera parte sin marca. Si el sidecar muere sin evento final, a los 5 minutos la puerta espera y lo relanza    |
+| Se cierra la app o el sidecar muere a mitad                        | `sidecar_exited` (si muere con la app abierta)        | Los `.download` que quedan se borran al empezar el próximo `demo-prepare`, que sigue con la primera parte sin marca. Si el sidecar muere, Rust cierra el job y la puerta muestra el fallo con «Reintentar»  |
 | El rename de `_demo-pack.tmp` queda trabado (antivirus en Windows) | —                                                     | Se copia el árbol y el `.ok` va al final: una copia cortada nunca queda sellada y el próximo intento la repite desde el staging, que sigue entero                                                           |
 | Historia o formato fuera del pack (solo por payload a mano)        | `demo_style_not_included`, `demo_format_not_included` | `job-failed`; Crear solo ofrece lo que el pack trae                                                                                                                                                         |
 | Pack v3 instalado                                                  | —                                                     | `demo-status` lo da por no listo por la versión; la puerta ofrece bajar el v4                                                                                                                               |

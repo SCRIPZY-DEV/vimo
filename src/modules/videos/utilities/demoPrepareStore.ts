@@ -21,13 +21,14 @@ import type { JsonValue } from '@pipeline/types/json.ts'
 // instalación (uno que siguió corriendo tras recargar la vista, por ejemplo).
 // Se espera mirando demo-status cada `pollIntervalMs`, solo mientras alguien
 // mira el store, hasta que el pack queda listo; Reintentar relanza el job.
-// A la misma espera va un job mudo: si su proceso muere sin evento final
-// (Rust no avisa por el canal cuando el sidecar termina), tras
-// `silenceLimitMs` sin ningún evento se espera sin soltar su listener: si
-// vuelve a hablar, su avance, su fin o su fallo cuentan. Si demo-status dice
-// que nadie tiene el candado y el pack no está listo, nadie baja: la espera
-// relanza el job, que sigue desde la primera parte sin marca (el candado lo
-// hace seguro).
+// A la misma espera va un job mudo (un proceso colgado, que no avanza ni
+// termina): tras `silenceLimitMs` sin ningún evento se espera sin soltar su
+// listener: si vuelve a hablar, su avance, su fin o su fallo cuentan. Un
+// proceso que muere no queda mudo: Rust cierra el job con `sidecar_exited`
+// (ADR-0010) y es un fallo como cualquier otro; el perro guardián queda como
+// segunda red. Si demo-status dice que nadie tiene el candado y el pack no
+// está listo, nadie baja: la espera relanza el job, que sigue desde la
+// primera parte sin marca (el candado lo hace seguro).
 // Un fallo de la red (`demo_offline`, `demo_download_failed`) se muestra
 // mientras alguien mira y se olvida cuando nadie mira: volver a entrar a la
 // demo sigue sola desde la primera parte sin marca, sin «Reintentar».

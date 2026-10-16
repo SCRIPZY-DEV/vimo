@@ -147,6 +147,10 @@ export const PROBE_CACHE_TTL_MS = 2 * 60 * 1000
 // Reintento automático ante fallos transitorios (port del origen, adaptado
 // de regex-sobre-mensajes a códigos): solo las familias de red, timeout y
 // rate-limit de los providers. Un código que no esté acá es un error real.
+// `sidecar_exited` (el proceso murió sin evento final, ADR-0010) no está a
+// propósito: un crash por falta de memoria o por un binario roto suele
+// repetirse, y relanzar solo podría volver a pagar lo que el proveedor tenía
+// en curso. La persona reanuda con el botón de siempre.
 export const RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   'voice_network',
   'voice_timeout',
@@ -1439,6 +1443,8 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   sidecar_missing: 'create.errors.sidecar',
   sidecar_spawn: 'create.errors.sidecar',
   sidecar_write: 'create.errors.sidecar',
+  // Lo manda Rust: el proceso del sidecar terminó sin evento final (ADR-0010).
+  sidecar_exited: 'create.errors.sidecarExited',
 }
 
 export const UNKNOWN_CREATE_ERROR_KEY = 'create.errors.unknown'
@@ -1475,8 +1481,10 @@ export const LIBRARY_ERROR_MESSAGE_KEYS: Record<string, string> = {
 // (`demo_disk_full`), la persona libera espacio y pulsa «Reintentar», que
 // sigue desde la última parte instalada. Los de la red (`demo_offline`,
 // `demo_download_failed`) se olvidan al salir de la puerta: volver a entrar
-// sigue sola. `demo_busy` no está: no es un fallo, otro demo-prepare instala
-// el pack y la puerta espera a que termine.
+// sigue sola. `sidecar_exited` (Rust: el proceso murió sin evento final) se
+// queda hasta «Reintentar», como el resto: un crash puede repetirse.
+// `demo_busy` no está: no es un fallo, otro demo-prepare instala el pack y la
+// puerta espera a que termine.
 export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_offline: 'createDemo.errors.offline',
   demo_download_failed: 'createDemo.errors.downloadFailed',
@@ -1484,6 +1492,7 @@ export const DEMO_ERROR_MESSAGE_KEYS: Record<string, string> = {
   demo_pack_unreadable: 'createDemo.errors.packUnreadable',
   demo_pack_incomplete: 'createDemo.errors.packIncomplete',
   demo_disk_full: 'createDemo.errors.diskFull',
+  sidecar_exited: 'createDemo.errors.sidecarExited',
   missing_projects_root: 'create.errors.missingProjectsRoot',
 }
 export const UNKNOWN_DEMO_ERROR_KEY = 'createDemo.errors.unknown'
@@ -1494,13 +1503,15 @@ export const DEMO_DISK_FULL_UNKNOWN_KEY = 'createDemo.errors.diskFullUnknown'
 // Mientras otro demo-prepare instala el pack (`demo_busy`), la puerta consulta
 // demo-status cada tanto para mostrar lo bajado y entrar apenas esté lista.
 export const DEMO_BUSY_POLL_INTERVAL_MS = 3_000
-// Un job demo-prepare sin ningún evento por este tiempo se da por mudo: su
-// proceso pudo cerrarse en seco (Rust no avisa por el canal). La puerta pasa
-// a esperar mirando demo-status sin cancelarlo ni soltar su listener (si
-// vuelve a hablar, cuenta) y, si nadie tiene el candado de la instalación,
-// relanza demo-prepare. Queda muy por encima del tope de inactividad de la
-// descarga (`demo.downloadIdleMs` del sidecar, 90 s): un corte de red termina
-// en un fallo, que cuenta aunque llegue después del perro guardián.
+// Un job demo-prepare sin ningún evento por este tiempo se da por mudo: un
+// proceso colgado, que no avanza ni termina. Si el proceso muere, Rust ya
+// cierra el job con `sidecar_exited` y es un fallo más (ADR-0010): el perro
+// guardián queda como segunda red. La puerta pasa a esperar mirando
+// demo-status sin cancelarlo ni soltar su listener (si vuelve a hablar,
+// cuenta) y, si nadie tiene el candado de la instalación, relanza
+// demo-prepare. Queda muy por encima del tope de inactividad de la descarga
+// (`demo.downloadIdleMs` del sidecar, 90 s): un corte de red termina en un
+// fallo, que cuenta aunque llegue después del perro guardián.
 export const DEMO_PREPARE_SILENCE_LIMIT_MS = 5 * 60_000
 // Una consulta de demo-status que no vuelve en este tiempo cuenta como sin
 // respuesta: ni la espera ni el aviso del disco lleno se quedan colgados.

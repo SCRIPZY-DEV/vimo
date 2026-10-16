@@ -590,6 +590,7 @@
       "projectsRootUnavailable": "Your projects folder couldn't be read, so your styles aren't showing. Nothing was deleted: check in Settings that the folder exists and its drive is connected.",
       "cancelled": "Generation cancelled. You can resume it whenever you want.",
       "sidecar": "We couldn't start the Vimo engine. Restart the app.",
+      "sidecarExited": "The Vimo engine closed unexpectedly. Try again; if it happens again, restart the app.",
       "interrupted": "The generation was interrupted when the app closed. Resume: everything done is kept.",
       "unknown": "Something went wrong. Try again.",
       "continueInEditor": "Continue in the editor",
@@ -1324,6 +1325,7 @@
       "packIncomplete": "The demo package came incomplete. Try again.",
       "diskFull": "There is not enough disk space: the demo needs {{gb}} GB free. Free up some space and try again.",
       "diskFullUnknown": "There is not enough disk space for the demo. Free up some space and try again.",
+      "sidecarExited": "The Vimo engine closed while the demo was being prepared. Try again: the parts already installed are kept.",
       "unknown": "The demo could not be prepared. Try again."
     }
   },

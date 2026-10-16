@@ -590,6 +590,7 @@
       "projectsRootUnavailable": "No se pudo leer tu carpeta de proyectos, por eso no ves tus estilos. No se borró nada: revisá en Ajustes que la carpeta exista y que su disco esté conectado.",
       "cancelled": "Generación cancelada. Podés reanudarla cuando quieras.",
       "sidecar": "No pudimos arrancar el motor de Vimo. Reiniciá la app.",
+      "sidecarExited": "El motor de Vimo se cerró de forma inesperada. Volvé a intentar; si vuelve a pasar, reiniciá la app.",
       "interrupted": "La generación se interrumpió al cerrar la app. Reanudá: lo hecho se conserva.",
       "unknown": "Algo salió mal. Volvé a intentar.",
       "continueInEditor": "Continuar en el editor",
@@ -1324,6 +1325,7 @@
       "packIncomplete": "El paquete de la demo vino incompleto. Volvé a intentar.",
       "diskFull": "No hay espacio suficiente en el disco: la demo necesita {{gb}} GB libres. Liberá espacio y volvé a intentar.",
       "diskFullUnknown": "No hay espacio suficiente en el disco para la demo. Liberá espacio y volvé a intentar.",
+      "sidecarExited": "El motor de Vimo se cerró mientras se preparaba la demo. Volvé a intentar: las partes ya instaladas se conservan.",
       "unknown": "No se pudo preparar la demo. Volvé a intentar."
     }
   },

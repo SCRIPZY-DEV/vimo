@@ -3,12 +3,14 @@
 // avance con su parte, entrega el manifest, nunca cancela al desuscribirse,
 // trata `demo_busy` como espera (mira demo-status hasta que el pack queda
 // listo) y toma los GB del disco lleno de `requiredFreeBytes`. Un job mudo
-// (su proceso murió sin evento final) pasa a la espera sin cancelarlo y sin
-// soltar su listener: si vuelve a hablar, su avance, su fin o su fallo
-// cuentan. La espera relanza el job cuando demo-status dice que nadie tiene
-// el lock de la instalación, y un fallo de la red se olvida cuando nadie mira
-// la puerta: volver a entrar sigue solo. Una consulta de demo-status que no
-// vuelve tiene tope. Además, qué pantalla
+// (un proceso colgado, que no avanza ni termina) pasa a la espera sin
+// cancelarlo y sin soltar su listener: si vuelve a hablar, su avance, su fin
+// o su fallo cuentan. Un proceso que muere no queda mudo: Rust cierra el job
+// con `sidecar_exited` (ADR-0010), un fallo que queda hasta «Reintentar». La
+// espera relanza el job cuando demo-status dice que nadie tiene el lock de la
+// instalación, y un fallo de la red se olvida cuando nadie mira la puerta:
+// volver a entrar sigue solo. Una consulta de demo-status que no vuelve tiene
+// tope. Además, qué pantalla
 // muestra la puerta (confirmar con el tamaño, seguir sola, avance, espera,
 // fallo), el aviso de cada fallo (con el disco lleno, con o sin los GB) y los
 // números en el idioma activo. Módulos puros de src/ corridos con Node (type
@@ -361,7 +363,7 @@ test('una demo lista se entrega una vez: sin nadie mirando se olvida', async () 
   assert.deepEqual(store.getSnapshot(), idleJob)
 })
 
-// ── Un job mudo: su proceso murió sin evento final ──
+// ── Un job mudo: un proceso colgado, que no avanza ni termina ──
 
 test('un job que se queda mudo pasa a la espera sin cancelarlo y entra cuando el pack queda listo', async (t) => {
   // El job sigue vivo con el lock (una parte lenta): la espera no lo relanza.
@@ -380,7 +382,7 @@ test('un job que se queda mudo pasa a la espera sin cancelarlo y entra cuando el
   await settle()
   fake.emit(progressEvent(37, { phase: 'download', part: 3, parts: 8 }))
 
-  // Rust no manda nada por el canal cuando el proceso muere: solo silencio.
+  // El proceso sigue vivo pero no dice nada: solo silencio.
   await waitFor(() => store.getSnapshot().status === 'done', 'la demo lista')
   const waiting = seen.filter((snapshot) => snapshot.status === 'waiting')
   assert.deepEqual(waiting[0].progress, {
@@ -611,7 +613,7 @@ test('un demo_disk_full tardío del job mudo no pisa al job relanzado mientras c
 // ── La espera relanza el job cuando nadie instala ──
 
 test('la espera del perro guardián relanza el job si nadie tiene el lock y suelta el listener del mudo', async (t) => {
-  // El proceso del job murió sin evento final: nadie tiene el lock.
+  // El job quedó mudo y ya no tiene el lock (dejó de latir): nadie lo tiene.
   const fake = sidecar({
     statuses: [missingPack({ downloadedBytes: 2_000_000_000 })],
   })
@@ -870,6 +872,48 @@ test('un fallo de la red sin nadie mirando no se guarda; los demás fallos sí',
   }
 })
 
+// ── Un proceso que muere: Rust cierra el job con `sidecar_exited` ──
+
+test('un proceso que muere llega como sidecar_exited: un fallo que queda, sin espera ni relanzamiento', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const fake = sidecar({
+    statuses: [missingPack({ downloadedBytes: 2_000_000_000 })],
+  })
+  const store = createDemoPrepareStore(fake.api, {
+    ...TIMING,
+    silenceLimitMs: 100,
+  })
+  const gate = store.subscribe(() => {})
+  store.start()
+  await flush()
+  fake.emit(progressEvent(37, { phase: 'download', part: 3, parts: 8 }))
+
+  // El job-failed que manda Rust cuando el proceso termina sin evento final.
+  fake.emit(failed('sidecar_exited'))
+  assert.equal(store.getSnapshot().status, 'error')
+  assert.equal(store.getSnapshot().errorCode, 'sidecar_exited')
+  assert.equal(fake.calls.stops, 1, 'el cierre suelta el listener')
+
+  // Sin perro guardián ni espera: no consulta demo-status ni relanza solo.
+  t.mock.timers.tick(1_000)
+  await flush()
+  assert.equal(store.getSnapshot().status, 'error')
+  assert.equal(fake.calls.starts, 1)
+  assert.equal(fake.calls.statuses, 0)
+  assert.deepEqual(fake.calls.cancels, [])
+
+  // A diferencia de un fallo de la red, queda para la próxima visita.
+  gate()
+  const job = store.getSnapshot()
+  assert.equal(job.errorCode, 'sidecar_exited')
+  assert.deepEqual(demoGateScreen({ status: null, statusError: null, job }), {
+    kind: 'failed',
+    source: 'job',
+    errorCode: 'sidecar_exited',
+    requiredFreeBytes: null,
+  })
+})
+
 // ── Disco lleno ──
 
 test('demo_disk_full: los GB salen de requiredFreeBytes, no de lo que falta bajar', async () => {
@@ -960,6 +1004,9 @@ test('el aviso de cada fallo: los GB del disco lleno, el porqué sin cifra si fa
   })
   assert.deepEqual(demoFailureMessage('missing_projects_root', null, 'es'), {
     key: 'create.errors.missingProjectsRoot',
+  })
+  assert.deepEqual(demoFailureMessage('sidecar_exited', null, 'es'), {
+    key: 'createDemo.errors.sidecarExited',
   })
   for (const code of [null, 'demo_busy', 'cancelled', 'constructor'])
     assert.deepEqual(demoFailureMessage(code, null, 'es'), {

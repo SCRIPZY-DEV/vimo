@@ -119,11 +119,16 @@ sequenceDiagram
     S-->>R: stage-started · progress · scene-image-ready · …
     R-->>F: Channel.send(evento) → onEvent
   end
-  S-->>R: job-completed (o job-failed { code })
-  R-->>F: Channel.send(evento)
+  alt el sidecar emite su evento terminal
+    S-->>R: job-completed (o job-failed { code })
+    R-->>F: Channel.send(evento)
+  else el proceso muere sin emitirlo (crash, falta de memoria, kill)
+    S--xR: Terminated (código de salida o señal)
+    R-->>F: Channel.send(job-failed sidecar_exited,<br/>o cancelled si se pidió cancelar)
+  end
   F-->>V: resuelve (o rechaza con PipelineJobError)
 
-  Note over V,S: Cancelar: invoke('cancel_pipeline_job', { jobId })<br/>→ Rust escribe {"type":"cancel"} por stdin (cooperativo)<br/>y mata el proceso como fallback
+  Note over V,S: Cancelar: invoke('cancel_pipeline_job', { jobId })<br/>→ Rust escribe {"type":"cancel"} por stdin (cooperativo)<br/>y mata el proceso como fallback (el job cierra con cancelled)
 ```
 
 ## 6. El lado Rust (`src-tauri/`)
@@ -222,3 +227,8 @@ Los 18 tipos de evento que el sidecar emite por NDJSON (definidos en
 | `awaiting-scene-confirmation` | pausa de confirmación: el job cierra LIMPIO tras esto     |
 | `job-completed`               | fin exitoso, con el `result`                              |
 | `job-failed`                  | fin con error (`code` estable; `cancelled` = cancelación) |
+
+`job-failed` también lo manda Rust, no el sidecar, cuando el proceso termina sin
+emitir ninguno de los dos terminales: con `sidecar_exited`, o con `cancelled` si se
+había pedido la cancelación (enmienda 2026-10-15 de la
+[ADR-0010](../adr/ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)).

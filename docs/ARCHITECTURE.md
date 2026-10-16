@@ -367,9 +367,16 @@ JSON tal cual (por eso `src/` puede consumirlos con `import type`).
   (con `result`) o `job-failed` (con `code` estable para i18n). El emitter
   ([runner/emitter.ts](../pipeline/runner/emitter.ts)) es la única escritura a stdout
   de todo `pipeline/`.
+- **Todo job termina en un evento terminal** — si el proceso del sidecar muere sin
+  emitirlo (un crash, falta de memoria, un kill), Rust manda por el canal el
+  `job-failed` que falta: `sidecar_exited`, o `cancelled` si se había pedido la
+  cancelación, con el código de salida o la señal en `message`. Nunca manda un
+  segundo evento terminal, y el log de diagnóstico sigue registrando esa ejecución
+  como `crashed` (enmienda 2026-10-15 de la
+  [ADR-0010](adr/ADR-0010-pipeline-por-stages-y-migracion-por-modulos.md)).
 - **Cancelación** — cooperativa: `cancel_pipeline_job` escribe `{"type":"cancel"}` por
   stdin y el sidecar aborta vía `AbortController`; si stdin ya no acepta escrituras,
-  Rust mata el proceso como fallback.
+  Rust mata el proceso como fallback y cierra el job con `job-failed` `cancelled`.
 - **Errores** — `PipelineFailure(code, message)` ([runner/failure.ts](../pipeline/runner/failure.ts)):
   `code` es la clave estable que la UI traduce; `message` es diagnóstico para logs,
   nunca texto user-facing.
@@ -1623,6 +1630,11 @@ escena que toma más narración con el texto más largo, mide 410 px en un área
   (ADR-0007): Rust lo lanza y lo mata.
 - **Eventos NDJSON tipados** por el `Channel` del invoke; la UI los consume con
   un `switch` sobre `PipelineEventPayload`.
+- **Todo job termina en `job-completed` o `job-failed`**: si el proceso muere sin
+  emitirlo, Rust manda el `job-failed` que falta (`sidecar_exited`, o `cancelled`
+  si se pidió cancelar). Un crash ya no deja a ningún consumidor esperando; un
+  proceso colgado (vivo y mudo) sí, y por eso la puerta de la demo conserva su
+  vigilante.
 - **Errores con `code` estable**: cada módulo lo mapea a su clave i18n
   (`CREATE_ERROR_MESSAGE_KEYS`); el `message` es diagnóstico, nunca texto
   user-facing.
