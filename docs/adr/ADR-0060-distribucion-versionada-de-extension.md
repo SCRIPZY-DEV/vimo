@@ -55,7 +55,19 @@ Pruebas Rust separadas en `extension_release/tests/` cubren contrato, transporte
 
 Validación local de limpieza del 2026-10-15: 128 tests Rust en macOS y 221 comprobaciones de interfaz en Chrome y otras 221 en WKWebView. Un ensayo con el ZIP público real verificó borrado selectivo y conservación de archivos en carpetas temporales. Windows/Linux tienen pruebas preparadas; todavía no se ejecutaron en esos sistemas. Este cambio sigue local, sin publicación de la app.
 
+## Actualización publicada del servicio — 2026-10-15, 23:01
+
+Con aprobación del owner, el ZIP **0.2.38** se subió a las **23:01:24 America/Bogota** y se anunció en `extensions/latest.json` a las **23:01:53**, después de comprobar su enlace canónico. Reemplaza la versión anunciada por la publicación de las 10:36 del mismo día. Bucket y endpoint de consulta permanecen iguales; el ZIP 0.2.37 conserva sus bytes.
+
+Descarga: `https://releases.vimo.click/extensions/v0.2.38/vimo-automate-0.2.38.zip`, **130658 bytes**, SHA-256 `c6663217a4823fb9d54d428c1beaab993cd8f4e59aa17a2b4accb614a11a72eb`. La raíz `Vimo-Extension/` contiene seis archivos propios: manifest, cargador, worker en `assets/` y HTML/JS/CSS en `src/sidepanel/`. Conserva identidad, permisos y funciones; minificar no cifra el código. Las URLs públicas sin query respondieron HTTP 200 con bytes coincidentes; descriptor `no-store, max-age=0` y ZIP inmutable, confirmados por auditoría independiente.
+
+Descarga nativa real en `Vimo-0.11.0-editor-tres-cards-20261015.app`: archivo en `Documentos/Vimo/Extensiones` con tamaño/hash correctos a las **23:04:24**; retiró el ZIP 0.2.37 y conservó las carpetas descomprimidas existentes. A las **23:06:35** se habían comprobado **Extensión guardada**, **Extensión descargada**, **Abrir carpeta** en Finder y **Ya tienes la última versión** sin reabrir el modal. No se instaló ni recargó Chrome ni se generaron imágenes.
+
+Esta publicación sólo entrega ZIP y descriptor. El consumidor de Vimo continúa en la rama local/app de prueba, sin push ni release de escritorio. La ejecución nativa Windows/Linux y la aceptación con cuentas reales siguen pendientes.
+
 ## Publicación del servicio — 2026-10-15
+
+**Vigencia:** versión anunciada y formato de paquete superados; se conservan los artefactos y pruebas de esa entrega. — ⚠️ SUPERADO por la publicacion de las 23:01 del 2026-10-15
 
 A las **10:36:38 America/Bogota**, con aprobación explícita del owner, se publicaron sólo el ZIP de extensión **0.2.37** y el descriptor público. Bucket: `vimo-releases`; endpoint fijo `https://releases.vimo.click/extensions/latest.json`; ZIP `https://releases.vimo.click/extensions/v0.2.37/vimo-automate-0.2.37.zip`.
 
