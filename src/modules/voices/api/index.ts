@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   pipelineErrorCode,
@@ -8,6 +9,7 @@ import {
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
   UNKNOWN_VOICE_ERROR_KEY,
+  VOICE_CLONE_AUDIO_EXTENSIONS,
   VOICE_CLONING_URLS,
   VOICE_HISTORY_URLS,
   VOICE_ERROR_MESSAGE_KEYS,
@@ -15,6 +17,9 @@ import {
 import type { PipelineJobHandle } from '@/modules/common/fetcher/pipeline'
 import type { PipelineEventPayload } from '@pipeline/runner/events.ts'
 import type {
+  CloneVoicePayload,
+  CloneVoiceResult,
+  DeleteClonedVoicePayload,
   GenerateVoicePayload,
   ListVoicesPayload,
   ListVoicesResult,
@@ -52,6 +57,22 @@ export const voicesApi = {
   },
   async deleteHistoryEntry(id: string): Promise<void> {
     await runPipelineJob('voice-history-delete', { id })
+  },
+  // La muestra se elige con el diálogo nativo y viaja como ruta (precedente:
+  // pickPhotoFile en characters): el sidecar la lee y valida de disco.
+  async pickCloneSample(): Promise<string | null> {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: 'audio', extensions: VOICE_CLONE_AUDIO_EXTENSIONS }],
+    })
+    return typeof selected === 'string' ? selected : null
+  },
+  async cloneVoice(payload: CloneVoicePayload): Promise<CloneVoiceResult> {
+    return runPipelineJob<CloneVoiceResult>('clone-voice', payload)
+  },
+  async deleteClonedVoice(payload: DeleteClonedVoicePayload): Promise<void> {
+    await runPipelineJob('delete-cloned-voice', payload)
   },
   async openCloningDashboard(vendor: VoiceVendorId): Promise<void> {
     return openUrl(VOICE_CLONING_URLS[vendor])

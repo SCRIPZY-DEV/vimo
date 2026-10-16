@@ -74,16 +74,31 @@ export function useVoices({
   const baseFilters = serverFilters(activeProvider, source, catalog, filters)
   const pageFilters = serverPaged ? { ...baseFilters, page } : baseFilters
   const filtersKey = JSON.stringify(pageFilters)
+  const catalogKey = `${source ?? ''}:${catalog ?? ''}`
+  const catalogQueryKey = voicesQueryKeys.catalog(activeProvider, catalogKey)
   const snapshot = VOICE_SNAPSHOT_PROVIDERS.includes(activeProvider)
     ? readVoiceListSnapshot(activeProvider)
     : null
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
-    queryKey: voicesQueryKeys.list(activeProvider, filtersKey),
+    queryKey: voicesQueryKeys.list(activeProvider, catalogKey, filtersKey),
     enabled: native && ready && provider !== null,
     retry: false,
     staleTime: VOICE_LIST_CACHE_TTL_MS,
-    placeholderData: keepPreviousData,
+    // Sin esto TanStack descarta a los 5 min un catálogo que no se está
+    // mirando, y volver a esa pestaña repetía la espera entera.
+    gcTime: VOICE_LIST_CACHE_TTL_MS,
+    // La lista anterior se mantiene solo dentro del MISMO catálogo (otra
+    // página u otro filtro). Al cambiar de catálogo se descarta: si no, las
+    // voces del proveedor anterior quedaban en pantalla sin spinner mientras
+    // llegaba el nuevo.
+    placeholderData(previousData, previousQuery) {
+      const sameCatalog = catalogQueryKey.every(
+        (part, index) => previousQuery?.queryKey[index] === part,
+      )
+      if (!sameCatalog) return undefined
+      return keepPreviousData(previousData)
+    },
     initialData: snapshot
       ? ({ voices: snapshot.voices } satisfies ListVoicesResult)
       : undefined,

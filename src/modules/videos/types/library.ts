@@ -246,15 +246,6 @@ export interface EditorAvatarRenderState {
   cancelled?: boolean
 }
 
-// El aviso de «Cancelar» con apariciones del avatar ya cobradas, como lo guarda
-// useAvatarSceneRender (entrega 2h, spec §24.4): atado al job que lo abrió
-// (`requestId`) y con la cuenta de lo cobrado y sin terminar al tocar
-// «Cancelar», que solo sube mientras el aviso sigue abierto.
-export interface AvatarCancelWarning {
-  requestId: string
-  count: number
-}
-
 // Lo que el planificador haría con la escena seleccionada si se animara
 // ahora (ADR-0041): la unidad (qué escenas absorbe, cuánto mide el hueco) o
 // el motivo del rechazo. Sale del mismo planificador puro que usa el sidecar.

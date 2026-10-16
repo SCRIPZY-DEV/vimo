@@ -197,6 +197,26 @@ export interface AddLibraryVoiceResult {
   voiceId: string
 }
 
+// Clonación de voz por ai33 (`clone-voice`). El audio lo elige la persona
+// con el diálogo nativo: viaja la ruta y el sidecar lo lee y valida de disco.
+export interface CloneVoicePayload {
+  name: string
+  audioPath: string
+  // ai33 `remove_background`: limpia ruido y música de fondo de la muestra.
+  removeBackground?: boolean
+}
+
+export interface CloneVoiceResult {
+  voice: VoiceSummary
+}
+
+// Borra una voz clonada de ai33 (`delete-cloned-voice`); `voiceId` es el id
+// del catálogo (`clone_<id>`). `voiceName` solo nombra la fila del log.
+export interface DeleteClonedVoicePayload {
+  voiceId: string
+  voiceName?: string
+}
+
 export interface VoiceHistoryListResult {
   entries: VoiceHistoryEntry[]
 }
@@ -293,6 +313,12 @@ export interface Ai33VoicesResponse {
   success?: boolean
   data?: Ai33Voice[]
   pagination?: Ai33Pagination
+}
+
+export interface Ai33CloneVoiceResponse {
+  success?: boolean
+  data?: { voice_id?: string; id?: string }
+  message?: string
 }
 
 export interface Ai33CreateTaskResponse {

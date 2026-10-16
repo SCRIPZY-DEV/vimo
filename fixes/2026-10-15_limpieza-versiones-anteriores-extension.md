@@ -35,14 +35,14 @@ El comando devuelve `{ path, cleanupIncomplete }`. Si un archivo anterior está 
 
 ### Resultados
 
-| Comprobación | Resultado |
-| --- | --- |
-| Formato, lint, build y locales | Aprobados sobre el árbol final |
-| Tests Rust | 128 aprobados en macOS; sin fallos ni ignorados |
-| UI Chrome | 221 comprobaciones aprobadas con producción y comandos nativos simulados |
-| UI WKWebView | 221 comprobaciones aprobadas en WKWebView real aislado, comandos nativos simulados |
+| Comprobación                            | Resultado                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------- |
+| Formato, lint, build y locales          | Aprobados sobre el árbol final                                                        |
+| Tests Rust                              | 128 aprobados en macOS; sin fallos ni ignorados                                       |
+| UI Chrome                               | 221 comprobaciones aprobadas con producción y comandos nativos simulados              |
+| UI WKWebView                            | 221 comprobaciones aprobadas en WKWebView real aislado, comandos nativos simulados    |
 | ZIP público real y limpieza en fixtures | Aprobado con transporte, verificación y helpers Rust reales; sólo archivos temporales |
-| CI Windows/Linux | Preparado; no ejecutado en esta sesión local |
+| CI Windows/Linux                        | Preparado; no ejecutado en esta sesión local                                          |
 
 ## Pruebas manuales
 

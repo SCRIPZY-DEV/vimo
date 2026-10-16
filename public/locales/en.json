@@ -2165,7 +2165,8 @@
       "pausar": "Pause sample",
       "favorito": "Add to favorites",
       "quitarFavorito": "Remove from favorites",
-      "biblioteca": "Library"
+      "biblioteca": "Library",
+      "borrar": "Delete cloned voice"
     },
     "probador": {
       "titulo": "Voice tester",
@@ -2225,6 +2226,24 @@
         "dubvoice": "Open DubVoice",
         "elevenlabs": "Open ElevenLabs",
         "ai33": "Open ai33"
+      },
+      "ai33": {
+        "descripcion": "Upload a sample of your voice and ai33 clones it into your account; it then shows up in “My clones”.",
+        "nombre": "Voice name",
+        "nombrePlaceholder": "E.g.: My narrating voice",
+        "muestra": "Audio sample",
+        "elegirMuestra": "Choose audio…",
+        "muestraAyuda": "3 to 30 seconds, up to 10 MB. MP3, WAV, M4A, AAC, OGG, WEBM, FLAC or OPUS. Only your voice, with no one else talking.",
+        "quitarFondo": "Remove background noise and music",
+        "clonar": "Clone voice",
+        "clonando": "Cloning…",
+        "exito": "“{{name}}” is now in “My clones”."
+      },
+      "borrar": {
+        "titulo": "Delete “{{name}}”?",
+        "descripcion": "It is deleted from your ai33 account and cannot be undone. Videos that already use it keep their audio, but you won’t be able to generate their voice again.",
+        "cancelar": "Cancel",
+        "confirmar": "Delete voice"
       }
     },
     "historial": {
@@ -2262,7 +2281,9 @@
       "quotaExceeded": "Your ElevenLabs account ran out of characters. Wait for the renewal or upgrade your plan.",
       "libraryAddFailed": "The library voice could not be added to your ElevenLabs account. Check the voice slots of your plan.",
       "accountRestricted": "ElevenLabs restricted your account for this feature (unusual activity on the free tier, or a paid-plan-only feature). Check your ElevenLabs account.",
-      "insufficientCredits": "Your account doesn't have enough credits to generate this voice. Top up and try again."
+      "insufficientCredits": "Your account doesn't have enough credits to generate this voice. Top up and try again.",
+      "cloneAudioInvalid": "The file is not a valid audio or is larger than 10 MB. Try an MP3 or WAV.",
+      "cloneDurationInvalid": "The sample must last between 3 and 30 seconds."
     },
     "credits": {
       "characters": "ElevenLabs characters",

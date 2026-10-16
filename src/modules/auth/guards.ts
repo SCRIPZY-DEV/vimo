@@ -24,13 +24,32 @@ function resolveAccess(): Promise<AccessStatus> {
   })
 }
 
+/**
+ * Para el guard de las rutas autenticadas: con un veredicto autorizado en
+ * caché se entra sin esperar a la red y se revalida en segundo plano (si no,
+ * cada cambio de layout tras 5 minutos —Crear → editor al terminar un video—
+ * frenaba la navegación en verificar-acceso). Sin caché, o con uno que no
+ * autoriza, se consulta como siempre. Login y logout vacían esta clave.
+ */
+function resolveAccessForGuard(): Promise<AccessStatus> {
+  const cached = queryClient.getQueryData<AccessStatus>(authQueryKeys.access)
+  if (!cached?.authorized) return resolveAccess()
+
+  return queryClient.ensureQueryData({
+    queryKey: authQueryKeys.access,
+    queryFn: () => authApi.verifyAccess(),
+    staleTime: ACCESS_STALE_TIME_MS,
+    revalidateIfStale: true,
+  })
+}
+
 /** Exige sesión con acceso vigente. */
 export async function requireAuthLoader(): Promise<Response | null> {
   const session = await authApi.getSession()
   if (!session) {
     return redirect(AuthRoutesPaths.login)
   }
-  const access = await resolveAccess()
+  const access = await resolveAccessForGuard()
   if (!access.authorized && BLOCKING_REASONS.includes(access.reason)) {
     return redirect(AuthRoutesPaths.accessDenied)
   }

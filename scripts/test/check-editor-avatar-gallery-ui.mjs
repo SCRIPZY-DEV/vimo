@@ -596,7 +596,7 @@ try {
 
   // 4d. Ronda 1 (m1): al desplegar, la tarjeta entra entera en la vista del
   //     área con scroll de la galería (scrollIntoView con block nearest). La
-  //     prueba corre sin CSS: el área se arma con estilos en línea, de la
+  //     prueba no carga Tailwind: el área se arma con estilos en línea, de la
   //     altura de una tarjeta desplegada más un margen, y la 7 se deja asomando
   //     por el borde de abajo (o más abajo todavía), así que desplegada se pasa
   //     del borde si nadie la sube.
@@ -647,7 +647,7 @@ try {
   check(retake.subcommand === 'avatar-render-scenes' && JSON.stringify(retake.payload) === JSON.stringify({ projectId: 'fixture', sceneIds: [4], regenerateSceneIds: [4] }), 'el mismo pedido que el panel: la escena y que se vuelve a generar (sin movimiento: no se cambió): ' + JSON.stringify(retake.payload))
   await waitFor(() => !alertDialog(), 'la confirmación se cierra al arrancar')
   await waitFor(() => regionOf(4) && document.activeElement === regionOf(4), 'el foco va a la región del avance de la tarjeta, no al del panel: ' + describe(document.activeElement))
-  check(gallery() && regionOf(4).getAttribute('aria-label') === t('library.editor.timeline.avatarRendering') && cardButton(4, CANCEL), 'la vista sigue abierta y la tarjeta muestra el avance con «Cancelar», como el panel')
+  check(gallery() && regionOf(4).getAttribute('aria-label') === t('library.editor.timeline.avatarRendering') && !cardButton(4, CANCEL), 'la vista sigue abierta y la tarjeta muestra el avance sin «Cancelar», como el panel')
   check(hasState(4, 'generating', STATE_LABELS.generating) && titleOf(4) === STATE_LABELS.generating && !percentIn(stateOf(4)) && !percentIn(regionOf(4)), 'en cola: «Generando el avatar…», sin porcentaje')
   check(panel().querySelector('[role="region"]'), 'el panel de detrás muestra el mismo avance')
   // Desplegar otra pliega la 4 con su render en curso: plegada, su pastilla
@@ -704,7 +704,7 @@ try {
   check(motionFieldIn(2)?.value === EDITED, 'la tarjeta muestra el prompt que quedó guardado en la escena')
 
   // 7. «Regenerar todos (3)» desde la tarjeta de la 5: el pedido con las tres
-  //    sin clip válido, el avance en las tres tarjetas y «Cancelar».
+  //    sin clip válido y el avance en las tres tarjetas, sin «Cancelar».
   await expand(5)
   await waitFor(() => cardButton(5, ALL(3)) && !cardButton(5, ALL(3)).disabled, '«Regenerar todos (3)» en la 5')
   cardButton(5, ALL(3)).click()
@@ -718,30 +718,13 @@ try {
   await waitFor(() => [2, 5, 7].every((id) => hasState(id, 'generating', STATE_LABELS.generating)) && regionOf(5), 'las tres tarjetas dicen que se generan y la desplegada muestra su avance')
   check(hasState(4, 'ready', STATE_LABELS.ready) && hasState(6, 'ready', STATE_LABELS.ready), 'las listas siguen listas')
   await waitFor(() => document.activeElement === regionOf(5), 'el foco va al avance de la tarjeta que la pidió: ' + describe(document.activeElement))
-  // Con una aparición ya cobrada (render), «Cancelar» abre el aviso del editor
-  // sobre la galería: Escape cierra solo el aviso y el foco vuelve al «Cancelar»
-  // de la tarjeta; «Cancelar igual» corta el job y el foco queda ahí.
-  const KEEP = t('library.editor.avatar.cancelarSeguir')
-  const CANCEL_ANYWAY = t('library.editor.avatar.cancelarIgual')
+  // Ni con una aparición ya cobrada (render) la tarjeta ofrece «Cancelar»: con
+  // solo confirmar HeyGen ya cobra. El job lo cierra el sidecar.
   for (const id of [2, 5, 7]) all.onEvent({ type: 'avatar-scene-started', sceneId: id })
   all.onEvent({ type: 'avatar-scene-progress', sceneId: 2, phase: 'render', elapsedSeconds: 5 })
   await delay(150)
-  cardButton(5, CANCEL).click()
-  await waitFor(() => alertDialog()?.getAttribute('data-state') === 'open', 'el aviso abre sobre la galería')
-  check(alertDialog().textContent.includes(t('library.editor.avatar.cancelarTitulo')) && alertDialog().textContent.includes(t('library.editor.avatar.cancelarTexto', { count: 1 })), 'con el texto del editor y una cobrada: ' + alertDialog().textContent)
-  check(document.activeElement === alertButton(KEEP), 'el foco abre en «Seguir generando»: ' + describe(document.activeElement))
-  check(!window.cancels.includes('avatar-job-3'), 'abrir el aviso no corta nada')
-  await press('Escape')
-  await waitFor(() => !alertDialog() && document.activeElement === cardButton(5, CANCEL), 'Escape cierra solo el aviso y el foco vuelve al «Cancelar» de la tarjeta: ' + describe(document.activeElement))
-  check(gallery() && !window.cancels.includes('avatar-job-3'), 'la galería sigue abierta y no se canceló nada')
-  cardButton(5, CANCEL).click()
-  await waitFor(() => alertDialog()?.getAttribute('data-state') === 'open', 'otra vez el aviso')
-  alertButton(CANCEL_ANYWAY).click()
-  await waitFor(() => window.cancels.includes('avatar-job-3'), '«Cancelar igual» corta el job')
-  await waitFor(() => !alertDialog() && document.activeElement === cardButton(5, CANCEL), 'el foco queda en el «Cancelar» de la tarjeta mientras el job cierra: ' + describe(document.activeElement))
+  check(regionOf(5) && !cardButton(5, CANCEL) && !alertDialog(), 'con una cobrada, el avance de la tarjeta no ofrece «Cancelar» ni abre un aviso')
   const toastsBeforeCancel = window.toasts.length
-  cardButton(5, CANCEL).click()
-  await waitFor(() => window.cancels.includes('avatar-job-3'), '«Cancelar» de la tarjeta corta el job')
   all.onEvent({ type: 'job-failed', code: 'cancelled', message: 'cancelled' })
   await waitFor(() => [2, 5, 7].every((id) => !regionOf(id)), 'las tres salen del avance')
   check(await waitFor(() => document.activeElement === card(5), 'el foco vuelve a la tarjeta 5: ' + describe(document.activeElement)), 'el foco vuelve a la tarjeta 5, nunca a body')
@@ -890,10 +873,11 @@ try {
     '-y',
     join(root, 'look.png'),
   ])
-  const output = await build({
+  await build({
     stdin: { contents: entry, resolveDir: resolve('.'), loader: 'jsx' },
     bundle: true,
-    write: false,
+    // El editor importa CSS y CSS Modules: esbuild escribe app.js y app.css.
+    outfile: join(root, 'app.js'),
     format: 'esm',
     platform: 'browser',
     target: 'es2022',
@@ -918,10 +902,9 @@ try {
       },
     ],
   })
-  await writeFile(join(root, 'app.js'), output.outputFiles[0].contents)
   await writeFile(
     join(root, 'index.html'),
-    '<!doctype html><meta charset="utf-8"><div id="root"></div><pre id="result">RUNNING</pre><script type="module" src="./app.js"></script>',
+    '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="./app.css"><div id="root"></div><pre id="result">RUNNING</pre><script type="module" src="./app.js"></script>',
   )
   await withChrome(chrome, join(root, 'profile'), async (call) => {
     const { targetId } = await call('Target.createTarget', {

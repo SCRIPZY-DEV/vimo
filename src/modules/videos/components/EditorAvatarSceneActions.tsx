@@ -7,7 +7,6 @@ import { ignoreHeldKey } from '@/modules/avatars/utilities/twoStepConfirmGuards'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
 import { formatUsd } from '@/modules/common/utilities/formatUsd'
-import { AvatarChargedCancelDialog } from '@/modules/videos/components/AvatarChargedCancelDialog'
 import { EditorAvatarConfirmDialog } from '@/modules/videos/components/EditorAvatarConfirmDialog'
 import { EditorAvatarDuration } from '@/modules/videos/components/EditorAvatarDuration'
 import { EditorAvatarMotion } from '@/modules/videos/components/EditorAvatarMotion'
@@ -15,7 +14,6 @@ import { EditorAvatarRenderProgress } from '@/modules/videos/components/EditorAv
 import { useAvatarRenderPercent } from '@/modules/videos/hooks/useAvatarRenderPercent'
 import { useAvatarSceneRender } from '@/modules/videos/hooks/useAvatarSceneRender'
 import { useConfirmationFocus } from '@/modules/videos/hooks/useConfirmationFocus'
-import { useFocusAfterDialogClose } from '@/modules/videos/hooks/useFocusAfterDialogClose'
 import { EDITOR_SCENE_PANEL_ID } from '@/modules/videos/constants'
 import { errorKeyOf } from '@/modules/videos/utilities/errorKeyOf'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
@@ -53,7 +51,8 @@ function scenePanelElement() {
 // todos»), el costo es el del motor de la escena y, con V o IV si el look
 // admite movimiento, la sección «Movimiento» va antes del costo
 // (EditorAvatarMotion). El costo se ve antes y la confirmación muestra el
-// saldo antes de pagar. Mientras se genera, el avance y «Cancelar». Sin la
+// saldo antes de pagar. Mientras se genera, el avance (sin «Cancelar»: con
+// solo confirmar HeyGen ya cobra). Sin la
 // clave del avatar presentador, el aviso de siempre con su enlace.
 //
 // Desde la entrega 2g (§23.3) la escena también elige su «Duración»
@@ -68,14 +67,6 @@ function scenePanelElement() {
 // viven en useAvatarSceneRender; el panel y, desde la entrega 2f (§22.4),
 // cada tarjeta de avatar desplegada de la vista ampliada lo montan con la
 // `key` de la escena, así nada de esto pasa de una escena a otra.
-//
-// Desde la entrega 2h (§24.4), «Cancelar» el avance con apariciones ya
-// cobradas abre AvatarChargedCancelDialog (`variant="editor"`): lo que ya se
-// mandó a generar se cobra igual y no se pierde. «Seguir generando» (o
-// Escape) no cancela y «Cancelar igual» corta una sola vez. Es un diálogo
-// modal abierto por estado: al cerrarse, el foco vuelve al «Cancelar» que lo
-// abrió (useFocusAfterDialogClose; ese botón ignora las teclas sostenidas) o,
-// si ya no está, adonde va al terminar el job.
 export function EditorAvatarSceneActions({
   projectId,
   scene,
@@ -95,20 +86,15 @@ export function EditorAvatarSceneActions({
 
   const sectionRef = useRef<HTMLDivElement>(null)
   const runningRegionRef = useRef<HTMLDivElement>(null)
-  const cancelButtonRef = useRef<HTMLButtonElement>(null)
   // El foco de la confirmación (la abren dos botones sin ser su `Trigger`).
   // Al arrancar va a la región del avance (la escena elegida siempre entra en
-  // lo que pide), nunca a su «Cancelar», o a la sección si el job ya cerró.
+  // lo que pide), o a la sección si el job ya cerró.
   // Cuando el avance desaparece con el foco adentro, vuelve al botón que la
   // abrió si sigue montado o al panel (M1 y M2 de la revisión del WP-Q); en la
   // vista ampliada, a la tarjeta: el panel queda detrás de su modal y el foco
   // mandado ahí se escapa del diálogo (medido en Chrome, entrega 2f).
   const focus = useConfirmationFocus()
   const focusAfterRender = () => focus.mountedOpener() ?? focusFallback()
-  useFocusAfterDialogClose(
-    avatarRender.cancelWarning.chargedCount !== null,
-    () => cancelButtonRef.current ?? focusAfterRender(),
-  )
 
   // Sin la clave, el aviso ocupa el lugar del botón: solo donde habría uno.
   if (avatarRender.missingKey) {
@@ -325,9 +311,7 @@ export function EditorAvatarSceneActions({
         <EditorAvatarRenderProgress
           percent={percent}
           regionRef={runningRegionRef}
-          cancelRef={cancelButtonRef}
           focusFallback={focusAfterRender}
-          onCancel={avatarRender.cancelRender}
         />
       )}
       {!rendering && hasControls && compact && duration && (
@@ -358,12 +342,6 @@ export function EditorAvatarSceneActions({
             () => runningRegionRef.current ?? sectionRef.current,
           )
         }
-      />
-      <AvatarChargedCancelDialog
-        variant="editor"
-        chargedCount={avatarRender.cancelWarning.chargedCount}
-        onKeep={avatarRender.cancelWarning.onKeep}
-        onConfirm={avatarRender.cancelWarning.onConfirm}
       />
     </div>
   )
