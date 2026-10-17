@@ -38,7 +38,10 @@ import {
   useStyleClones,
 } from '@/modules/videos/hooks/useStyleClones'
 import { newCustomStyleId } from '@/modules/videos/constants'
-import { showsGalleryNotice } from '@/modules/videos/utilities/gemMigrations'
+import {
+  migratesGemsOnUse,
+  showsGalleryNotice,
+} from '@/modules/videos/utilities/gemMigrations'
 import {
   customStyleDraftFrom,
   selectedCustomStyleFrom,
@@ -64,6 +67,13 @@ interface CustomStyleGalleryProps {
   // La copia de «Pasar a mi estilo» que acaba de llegar del catálogo: la
   // galería abre su modal apenas se monta y avisa; null = ninguna.
   arrivingStyleId: string | null
+  // Si viene, solo estos estilos se muestran (la demo: las gemas del pack con
+  // historia en el formato elegido). Ausente = todos los de la persona.
+  visibleIds?: string[]
+  // La demo (spec demo v4 §2): la galería es la de las gemas del pack, sin
+  // «Crear estilo», «Crear estilo con IA» ni clonaciones. El menú de cada gema
+  // sigue: la puerta de la demo vuelve a sembrar una gema borrada.
+  demo?: boolean
   onSelect: (style: SelectedCustomStyle | null) => void
   onArrivalOpened: () => void
 }
@@ -96,13 +106,16 @@ function editorLayoutOf(
 // Con el creador de estilo con IA (ADR-0050) la grilla suma, al principio, una
 // tarjeta por clonación en curso (siguen trabajando aunque se cierre su modal
 // o se salga de esta pestaña) y, al lado de «Crear estilo», «Crear estilo con
-// IA».
+// IA». En la demo (spec demo v4 §2) la grilla es solo la de las gemas del pack
+// del formato: sin «Crear estilo», «Crear estilo con IA» ni clonaciones.
 export function CustomStyleGallery({
   selected,
   disabled,
   script,
   promptModel,
   arrivingStyleId,
+  visibleIds,
+  demo = false,
   onSelect,
   onArrivalOpened,
 }: CustomStyleGalleryProps) {
@@ -117,18 +130,29 @@ export function CustomStyleGallery({
     saving,
   } = useCustomStyles()
   const gemTemplateEnabled = useAccessFeature('gemTemplate')
-  const aiStyleCreatorEnabled = useAccessFeature('aiStyleCreator')
+  // Una gema vieja se manda a migrar sola al elegirla o abrirla, salvo en la
+  // demo, que no llama al agente con las gemas del pack.
+  const migratesOnUse = migratesGemsOnUse(gemTemplateEnabled, demo)
+  const aiStyleCreatorEnabled = useAccessFeature('aiStyleCreator') && !demo
   const migrations = useGemMigrations()
   // Las clonaciones de estilo abiertas, las recién guardadas y el modal.
   const clones = useStyleClones()
   const cloneModal = useStyleCloneModal()
-  // Solo las que van a Mi estilo: las del catálogo viven en su galería.
-  const cloneSessions = [...clones.sessions.values()].filter(
-    (session) => session.target === 'custom',
-  )
+  // Solo las que van a Mi estilo: las del catálogo viven en su galería. En la
+  // demo no se muestran (sin sus tarjetas, tampoco se abre su modal).
+  const cloneSessions = demo
+    ? []
+    : [...clones.sessions.values()].filter(
+        (session) => session.target === 'custom',
+      )
   const savedClones = clones.finished.flatMap((finished) =>
     finished.target === 'custom' ? [finished] : [],
   )
+  const savedCloneNotices = demo ? [] : savedClones
+  // Los estilos que se ven: con `visibleIds`, solo esos.
+  const shownStyles = visibleIds
+    ? styles.filter((style) => visibleIds.includes(style.id))
+    : styles
   // Esta visita a la pestaña (la galería se monta al entrar): el aviso de una
   // gema ya adaptada dura lo que dura la visita en que se vio.
   const [visit] = useState(beginGemMigrationVisit)
@@ -172,9 +196,9 @@ export function CustomStyleGallery({
   // Efecto y no manejador: el editor también se abre desde el chip de
   // personaje de Crear, no solo desde esta galería.
   useEffect(() => {
-    if (!gemTemplateEnabled || !editingStyle) return
+    if (!migratesOnUse || !editingStyle) return
     migrateGemOnce(editingStyle)
-  }, [gemTemplateEnabled, editingStyle])
+  }, [migratesOnUse, editingStyle])
 
   const openCreate = () => {
     if (disabled) return
@@ -189,7 +213,7 @@ export function CustomStyleGallery({
   // como está y el envío de Crear no espera.
   const selectStyle = (style: CustomStyleSummary) => {
     onSelect(selectedCustomStyleFrom(style))
-    if (gemTemplateEnabled) migrateGemOnce(style)
+    if (migratesOnUse) migrateGemOnce(style)
   }
 
   const discardClone = (sessionId: string) => {
@@ -235,11 +259,11 @@ export function CustomStyleGallery({
 
   // La adaptación de cada gema, para su tarjeta (en vuelo: el avance encima).
   const migrationOf = (style: CustomStyleSummary) =>
-    gemTemplateEnabled ? (migrations.get(style.id) ?? null) : null
-  // Avisos de migración de las gemas de la lista, en su orden: las fallidas y
+    migratesOnUse ? (migrations.get(style.id) ?? null) : null
+  // Avisos de migración de las gemas que se ven, en su orden: las fallidas y
   // las hechas que todavía se avisan en esta visita. Una en vuelo se ve en su
   // tarjeta, no acá.
-  const migrationNotices = styles.flatMap((style) => {
+  const migrationNotices = shownStyles.flatMap((style) => {
     const migration = migrationOf(style)
     return migration && showsGalleryNotice(migration, visit)
       ? [{ style, migration }]
@@ -254,7 +278,7 @@ export function CustomStyleGallery({
     markGemMigrationsSeen(noticedStyleIds, visit)
   })
   const editingMigration =
-    gemTemplateEnabled && editingStyle
+    migratesOnUse && editingStyle
       ? (migrations.get(editingStyle.id) ?? null)
       : null
 
@@ -278,7 +302,7 @@ export function CustomStyleGallery({
           los avisos quedaban fuera de la vista. Primero las clonaciones recién
           guardadas con su modal cerrado: el estilo ya está en la grilla y la
           persona decide si lo usa en este video. */}
-      {savedClones.map((finished) => (
+      {savedCloneNotices.map((finished) => (
         <Alert
           key={finished.sessionId}
           tone="info"
@@ -343,7 +367,7 @@ export function CustomStyleGallery({
           />
         ))}
 
-        {styles.map((style) => (
+        {shownStyles.map((style) => (
           <CustomStyleCard
             key={style.id}
             style={style}
@@ -357,12 +381,14 @@ export function CustomStyleGallery({
           />
         ))}
 
-        <NewStyleCard
-          title={t('create.customStyles.createCard')}
-          hint={t('create.customStyles.createCardHint')}
-          disabled={disabled}
-          onCreate={openCreate}
-        />
+        {!demo && (
+          <NewStyleCard
+            title={t('create.customStyles.createCard')}
+            hint={t('create.customStyles.createCardHint')}
+            disabled={disabled}
+            onCreate={openCreate}
+          />
+        )}
 
         {aiStyleCreatorEnabled && (
           <StyleCloneCreateCard

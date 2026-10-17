@@ -325,7 +325,12 @@ export interface JobCompletedEvent {
 
 export interface JobFailedEvent {
   type: 'job-failed'
-  // Clave estable para i18n; `cancelled` marca una cancelación pedida.
+  // Clave estable para i18n; `cancelled` marca una cancelación pedida. Este
+  // evento también lo manda Rust (no el sidecar) cuando el proceso termina sin
+  // job-completed ni job-failed —un crash, falta de memoria, un kill—: con
+  // `sidecar_exited`, o con `cancelled` si se había pedido la cancelación, y
+  // el código de salida o la señal en `message` (ADR-0010, enmienda
+  // 2026-10-15). Así todo job termina en uno de los dos eventos terminales.
   code: string
   message: string
   // Proveedor externo y status HTTP del fallo, cuando el error los trae

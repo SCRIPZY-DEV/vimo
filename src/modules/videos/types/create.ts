@@ -279,6 +279,12 @@ export interface CreateTask {
   // las que cuenta la tarjeta del fallo. Se vacía al lanzar otra corrida y
   // sobrevive al reinicio (sus recibos quedaron en disco).
   avatarChargedSceneIds: number[]
+  // La corrida es de la demo (ADR-0029, ruling R28): la simulación imita las
+  // fases del render de HeyGen, pero el avatar sale del pack y nadie lo
+  // cobra, así que no anota apariciones cobradas (chargedSceneIdsForTask) y
+  // ni «Cancelar», ni «Crear otro», ni la tarjeta del fallo hablan de ellas.
+  // Aditivo: solo lo trae una tarea de la demo.
+  demo?: boolean
 }
 
 // Campos de CreateTask que gobiernan el cronómetro de la cabecera. El reloj
@@ -317,6 +323,9 @@ export interface ProjectRunOptions {
   // Apariciones que no entraron, del estado rearmado desde el disco: la nota
   // del progreso aparece aunque la corrida no vuelva a cortar.
   avatarDropped?: number
+  // El proyecto es de la demo (options.demo, ADR-0029): la corrida simula con
+  // el pack y no cobra nada (ver CreateTask.demo).
+  demo?: boolean
 }
 
 // Estado visible del reintento automático ante un fallo transitorio.
@@ -522,9 +531,16 @@ export interface FormBlockersContext {
   // Todos los modelos de prompts bloqueados (ADR-0028): con estilo propio (o
   // uno del catálogo nuevo) no hay quién escriba los prompts.
   promptModelsBlocked?: boolean
-  // El catálogo nuevo está activo (interruptor `newCatalog` encendido y fuera
-  // de la demo, plan E2 P5): la pestaña Catálogo pide elegir una tarjeta.
+  // El catálogo nuevo está activo (interruptor `newCatalog` encendido, o la
+  // demo): la pestaña Catálogo pide elegir una tarjeta.
   newCatalog?: boolean
+  // Crear abrió con el manifest de la demo (ADR-0029, spec demo v4 §2): lo
+  // que trae el pack no se valida contra lo de la persona —sus claves, su
+  // biblioteca, sus modelos—. El avatar encendido es el de la historia, no
+  // uno de la biblioteca; la animación sale del pack sin la clave de Kie; el
+  // bloqueo de modelos (ADR-0028) no aplica, porque no se escribe nada; y no
+  // se pide personaje, porque la historia ya está hecha.
+  demo?: boolean
   // El fijo de la gema ya no está en la biblioteca (lo resuelve
   // useStyleCharacter contra el catálogo; acá se nombra en la lista de pasos).
   fixedCharacterMissing?: boolean
@@ -532,7 +548,8 @@ export interface FormBlockersContext {
   // El avatar o el look elegidos ya no sirven: se fueron de la biblioteca,
   // perdieron Avatar III o no tienen la orientación del formato del video
   // (selectedAvatarUnavailable, contra la lista). Sin clave de HeyGen no hay
-  // bloqueo: el formulario ya llega con el avatar apagado (withAvatarKey).
+  // bloqueo: el formulario ya llega con el avatar apagado (withAvatarKey),
+  // salvo en la demo, que no lo valida.
   avatarUnavailable?: boolean
 }
 

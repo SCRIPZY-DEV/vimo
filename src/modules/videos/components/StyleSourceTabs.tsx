@@ -8,6 +8,9 @@ interface StyleSourceTabsProps {
   // Pisa el texto del catálogo cuando hay menos estilos que ofrecer (modo
   // demo, ADR-0029); por defecto, el texto del catálogo completo.
   catalogHintKey?: string
+  // Cuántos estilos dice ese texto (la demo: las tarjetas a la vista, los de
+  // la lista del catálogo con historia en el formato elegido).
+  catalogHintCount?: number
   // «Mi estilo» no se puede elegir (todos los modelos de prompts bloqueados,
   // ADR-0028): la pestaña queda inerte y su pista dice por qué.
   customDisabled?: boolean
@@ -33,6 +36,7 @@ export function StyleSourceTabs({
   value,
   disabled,
   catalogHintKey,
+  catalogHintCount,
   customDisabled = false,
   onChange,
 }: StyleSourceTabsProps) {
@@ -70,7 +74,9 @@ export function StyleSourceTabs({
                 blocked ? 'text-coral-text' : 'text-muted-foreground',
               )}
             >
-              {t(blocked ? 'create.styleSource.customBlockedHint' : hintKey)}
+              {t(blocked ? 'create.styleSource.customBlockedHint' : hintKey, {
+                count: catalogHintCount,
+              })}
             </span>
           </button>
         )

@@ -1,10 +1,12 @@
 // El proyecto que arma Crear con la pestaña Catálogo nueva (plan E2 §5.4): una
 // gema del catálogo sale por el carril de Mi estilo con su `catalogStyleId`, y
-// el catálogo viejo (sin el interruptor o en la demo) y Mi estilo mandan
-// exactamente lo de hoy. createProjectPayload y formBlockers usan `@/` (las
-// constantes de videos y voces), así que no corren con Node pelado: se
-// empaquetan con esbuild y los alias de tsconfig.app.json, como
-// check-app-vimo-server.mjs. Es el código real, sin fixtures.
+// el catálogo viejo (sin el interruptor) y Mi estilo mandan exactamente lo de
+// hoy. Con la marca `demo` el payload la lleva, no pide confirmar escenas y
+// exporta solo (la demo usa el catálogo nuevo, ADR-0061: el caso fija solo
+// eso). createProjectPayload y formBlockers usan `@/` (las constantes de
+// videos y voces), así que no corren con Node pelado: se empaquetan con
+// esbuild y los alias de tsconfig.app.json, como check-app-vimo-server.mjs.
+// Es el código real, sin fixtures.
 import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -244,7 +246,7 @@ test('el catálogo viejo manda el proyecto de hoy, byte por byte', () => {
   )
 })
 
-test('la demo sigue en el catálogo viejo, sin pausas y con su marca', () => {
+test('con la marca demo, el payload lleva `demo`, no pide confirmar escenas y exporta solo', () => {
   // Copia literal de la salida de hoy: `demo` va después de las opciones
   // fijas, y la pausa y el auto-export se pisan en su lugar.
   const expected = {

@@ -590,6 +590,7 @@
       "projectsRootUnavailable": "Não foi possível ler sua pasta de projetos, por isso seus estilos não aparecem. Nada foi apagado: verifique em Ajustes se a pasta existe e se o disco dela está conectado.",
       "cancelled": "Geração cancelada. Você pode retomá-la quando quiser.",
       "sidecar": "Não conseguimos iniciar o motor do Vimo. Reinicie o app.",
+      "sidecarExited": "O motor do Vimo fechou de forma inesperada. Tente de novo; se acontecer outra vez, reinicie o app.",
       "interrupted": "A geração foi interrompida ao fechar o app. Retome: o que foi feito é preservado.",
       "unknown": "Algo deu errado. Tente de novo.",
       "continueInEditor": "Continuar no editor",
@@ -698,7 +699,9 @@
     "styleSource": {
       "catalog": "Catálogo",
       "catalogHint": "Os estilos do Vimo.",
-      "catalogHintDemo": "Os 3 estilos com demo pronta.",
+      "catalogHintDemo_zero": "Os estilos com demo pronta.",
+      "catalogHintDemo_one": "O único estilo com demo pronta.",
+      "catalogHintDemo_other": "Os {{count}} estilos com demo pronta.",
       "custom": "Meu estilo",
       "customHint": "Seu próprio estilo visual.",
       "customBlockedHint": "Sem modelos disponíveis por enquanto: use um estilo da Vimo."
@@ -1276,7 +1279,11 @@
       "threeInTwoHelpAria": "O que faz “3 vezes em 2 minutos”",
       "threeInTwoTooltip": "O avatar aparece pelo menos 3 vezes nos primeiros 2 minutos do vídeo, contando a do início se ele começa com o avatar. As outras aparições se distribuem no resto do vídeo.",
       "threeInTwoMinimum": "Com “3 vezes em 2 minutos”, saem pelo menos 3 aparições.",
-      "threeInTwoCapped": "As três primeiras duram até {{seconds}} s para caber nos 2 minutos."
+      "threeInTwoCapped": "As três primeiras duram até {{seconds}} s para caber nos 2 minutos.",
+      "demoAppearances_one": "{{count}} aparição de {{seconds}} s",
+      "demoAppearances_other": "{{count}} aparições de {{seconds}} s",
+      "demoLookAlt": "Prévia do look de {{name}}",
+      "demoUseThisStyle": "Use este estilo para o avatar ou desative o interruptor para usar outro."
     },
     "voiceSwitch": {
       "title": "Antes de trocar a voz",
@@ -1294,17 +1301,31 @@
     "pageTitle": "Demo",
     "title": "Demo do Vimo",
     "checking": "Verificando a demo…",
-    "preparingFirstTime": "Preparando a demo pela primeira vez…",
-    "downloading": "Baixando a demo (só uma vez)…",
+    "preparing": "Preparando a demo…",
+    "downloading": "Baixando a demo…",
     "installing": "Preparando os arquivos…",
-    "onceNote": "Isso acontece só uma vez: a demo fica guardada neste computador.",
+    "waiting": "A demo continua sendo baixada…",
+    "savedNote": "A demo fica guardada neste computador: não é baixada toda vez que você a abre.",
     "retry": "Tentar de novo",
+    "download": {
+      "size": "A demo tem {{gb}} GB.",
+      "note": "Dependendo da sua conexão, leva de alguns minutos a uma hora, e você pode continuar usando o Vimo enquanto baixa.",
+      "start": "Baixar a demo"
+    },
+    "progress": {
+      "label": "Progresso do download da demo",
+      "part": "Parte {{part}} de {{parts}}",
+      "background": "Você pode sair desta tela: o download continua em segundo plano."
+    },
     "errors": {
       "offline": "Sem conexão para baixar a demo. Verifique sua internet e tente de novo.",
       "downloadFailed": "Não foi possível baixar o pacote da demo. Tente mais tarde.",
       "packCorrupt": "O pacote baixado não confere com o esperado. Tente de novo.",
       "packUnreadable": "Não foi possível abrir o pacote da demo. Tente de novo.",
       "packIncomplete": "O pacote da demo veio incompleto. Tente de novo.",
+      "diskFull": "Não há espaço suficiente no disco: a demo precisa de {{gb}} GB livres. Libere espaço e tente de novo.",
+      "diskFullUnknown": "Não há espaço suficiente no disco para a demo. Libere espaço e tente de novo.",
+      "sidecarExited": "O motor do Vimo fechou enquanto a demo era preparada. Tente de novo: as partes já instaladas são mantidas.",
       "unknown": "Não foi possível preparar a demo. Tente de novo."
     }
   },

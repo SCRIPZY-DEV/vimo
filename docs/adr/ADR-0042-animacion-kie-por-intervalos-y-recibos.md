@@ -3,6 +3,10 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-14
 - **Área:** pipeline | providers | app
+- **Enmendada:** 2026-10-15, por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) (Propuesta al 2026-10-15) §7: la
+  resolución de Kie pasa a ser el ajuste interno `animation.resolution`, en 480p por defecto; solo el generador del
+  pack de la demo lo sube a 720p por el `config` del job. Para los usuarios la política de 480p de abajo sigue igual.
 - **Sustituye:** las reglas de duración, selección de proveedor, visión y recorte de ADR-0047 y ADR-0041.
 
 ## Decisión

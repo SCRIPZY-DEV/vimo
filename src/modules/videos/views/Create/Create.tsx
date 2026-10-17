@@ -22,9 +22,11 @@ import { GenerationProgress } from '@/modules/videos/components/GenerationProgre
 import { TtsProviderDownDialog } from '@/modules/videos/components/TtsProviderDownDialog'
 import {
   CREATE_FORM_INITIAL_VALUE,
+  DEMO_VIDEO_FORMAT,
   VideosRoutes,
   libraryEditorPath,
 } from '@/modules/videos/constants'
+import { useCatalogStyles } from '@/modules/videos/hooks/useCatalogStyles'
 import { useCreateTask } from '@/modules/videos/hooks/useCreateTask'
 import { useCreateCostCheck } from '@/modules/videos/hooks/useCreateCostCheck'
 import { useCustomStyles } from '@/modules/videos/hooks/useCustomStyles'
@@ -35,8 +37,11 @@ import {
   writeCreateDraft,
 } from '@/modules/videos/utilities/createDraft'
 import {
+  demoCatalogCharacter,
+  demoDefaultCatalogGem,
   demoFollowStyle,
   demoFormValue,
+  withDemoAnimation,
 } from '@/modules/videos/utilities/demoForm'
 import { readDemoState } from '@/modules/videos/utilities/demoState'
 import { customStyleForTab } from '@/modules/videos/utilities/formLane'
@@ -46,10 +51,8 @@ import {
 } from '@/modules/videos/utilities/formPayload'
 import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
-import {
-  refreshedCustomStyle,
-  selectedCustomStyleFrom,
-} from '@/modules/videos/utilities/selectedCustomStyle'
+import { selectedCatalogStyleFrom } from '@/modules/videos/utilities/selectedCatalogStyle'
+import { refreshedCustomStyle } from '@/modules/videos/utilities/selectedCustomStyle'
 import type { CreateFormValue } from '@/modules/videos/types/create'
 import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
 import type { CreateDraft } from '@/modules/videos/utilities/createDraft'
@@ -144,7 +147,8 @@ function CreateView({
   initialPromptModel,
   demo,
 }: CreateViewProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? 'es'
   const { isNative, missingKeys, configuredProviders } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.videos,
   })
@@ -163,9 +167,15 @@ function CreateView({
   const { probe, probing } = useTtsProbe()
   const navigate = useNavigate()
   const { styles: customStyles } = useCustomStyles()
-  // El catálogo nuevo (Entrega 2): con el interruptor encendido y fuera de la
-  // demo, que sigue con el catálogo viejo (plan E2, P5).
-  const newCatalog = useAccessFeature('newCatalog') && demo === null
+  // El catálogo nuevo (Entrega 2): con el interruptor encendido y siempre en
+  // la demo, aunque la cuenta no lo tenga (spec demo v4 §2: sus historias son
+  // de los estilos del catálogo nuevo). Sin el carril viejo, la demo tampoco
+  // muestra cantidad de escenas ni «Confirmar escenas».
+  const newCatalog = useAccessFeature('newCatalog') || demo !== null
+  // La lista del catálogo de la galería: la demo la lee para la tarjeta que
+  // usa sin una elegida (withDemoDefaultStyle). Fuera de la demo no se pide
+  // de paso: la pide la galería al montarse.
+  const { gems: catalogGems } = useCatalogStyles({ enabled: demo !== null })
   // El modelo que viaja al proyecto ya resuelto (default aplicado y sin
   // bloqueados, ADR-0028): es el que la tarea vigila.
   const { models, defaultId } = usePromptModels()
@@ -187,7 +197,19 @@ function CreateView({
       confirmSceneDuration: initialConfirmScenes,
       promptModel: initialPromptModel,
     }
-    if (demo) return demoFormValue(base, demo)
+    // La demo arranca en 16:9, con la calidad de ese formato.
+    if (demo)
+      return demoFormValue(
+        {
+          ...base,
+          videoFormat: DEMO_VIDEO_FORMAT,
+          imageQuality: defaultQualityFor(
+            initialImageProvider,
+            DEMO_VIDEO_FORMAT,
+          ),
+        },
+        demo,
+      )
 
     // De vuelta en Crear (spec §9), el borrador manda sobre la semilla de las
     // preferencias: el formulario sigue como se dejó. Salvo lo que ninguna
@@ -235,15 +257,32 @@ function CreateView({
     saveCreateDraft({ form, otherTabStyle }, seed)
   }, [form, otherTabStyle, demo, seed])
 
-  // En demo la gema del pack arranca en uso apenas la galería la lista: se
-  // deriva en el render (sin efecto); elegir otra tarjeta la reemplaza.
-  const demoGem =
-    demo && form.customStyle === null
-      ? customStyles.find((style) => style.id === demo.customStyleId)
-      : undefined
-  const chosenStyle = demoGem
-    ? selectedCustomStyleFrom(demoGem)
-    : form.customStyle
+  // En demo, la pestaña Catálogo sin tarjeta elegida usa la primera que
+  // ofrece la galería, con su historia (spec demo v4 §2): así arranca y así
+  // queda al apagar el avatar con Jardinería. Se deriva en el render, sin
+  // efecto, apenas la lista del catálogo carga (mientras tanto no hay ninguna
+  // y el envío se frena), y el primer cambio la deja en el formulario
+  // (patchForm): lo que se ve es lo que se edita. El modo de personaje es el
+  // de su historia, como el de un clic en la galería (nunca el recordado en
+  // la app ni el de sus muestras).
+  const withDemoDefaultStyle = (current: CreateFormValue): CreateFormValue => {
+    if (!demo) return current
+
+    const gem = demoDefaultCatalogGem(demo, current, catalogGems)
+    if (!gem) return current
+
+    const customStyle = selectedCatalogStyleFrom(
+      gem,
+      language,
+      demoCatalogCharacter(demo, current.videoFormat, gem.id),
+    )
+    return {
+      ...current,
+      customStyle,
+      ...demoFollowStyle(demo, current, { customStyle }),
+    }
+  }
+  const shownForm = withDemoDefaultStyle(form)
   // Si la gema elegida se migró a la plantilla mientras tanto (spec §4.4), el
   // envío ya sale con sus secciones: el snapshot se refresca desde la lista,
   // también en el render. Un estilo del catálogo nuevo solo vale en su
@@ -251,23 +290,34 @@ function CreateView({
   // mitad de camino, Crear vuelve al catálogo viejo sin arrastrarlo.
   const customStyle = customStyleForTab(
     {
-      styleSource: form.styleSource,
-      customStyle: refreshedCustomStyle(chosenStyle, customStyles),
+      styleSource: shownForm.styleSource,
+      customStyle: refreshedCustomStyle(shownForm.customStyle, customStyles),
     },
     newCatalog,
   )
   // Sin clave de HeyGen la tarjeta del avatar se ve apagada: lo que se
   // valida, se estima y se envía también lo tiene apagado (spec §9). La
-  // elección se queda en `form` para cuando vuelva la clave.
-  const keyedForm = withAvatarKey(form, configuredProviders.has('heygen'))
+  // elección se queda en `form` para cuando vuelva la clave. La demo no
+  // depende de HeyGen: su avatar es el de la historia (spec demo v4 §2).
+  const keyedForm = withAvatarKey(
+    shownForm,
+    configuredProviders.has('heygen') || demo !== null,
+  )
+  // En la demo pasa lo mismo con la animación sin una historia animada para
+  // lo elegido (withDemoAnimation): el switch queda en «Próximamente».
+  const offeredForm = demo ? withDemoAnimation(demo, keyedForm) : keyedForm
   const formValue =
-    customStyle === keyedForm.customStyle
-      ? keyedForm
-      : { ...keyedForm, customStyle }
+    customStyle === offeredForm.customStyle
+      ? offeredForm
+      : { ...offeredForm, customStyle }
 
   // El formulario ya avisa con el saldo cacheado; acá se re-lee justo antes
-  // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse.
-  const { verify: verifyCredits } = useCreateCostCheck({ form: keyedForm })
+  // de arrancar (ADR-0031): un saldo de hace un minuto pudo gastarse. La demo
+  // no gasta: ni estima ni consulta (spec demo v4 §2).
+  const { verify: verifyCredits } = useCreateCostCheck({
+    form: offeredForm,
+    demo: demo !== null,
+  })
 
   // Sin auto-export el job termina sin video: el destino natural es el
   // editor (el proyecto quedó en borrador con todo generado, ADR-0016). La
@@ -286,12 +336,16 @@ function CreateView({
   usePageTitle(t('create.pageTitle'))
 
   const patchForm = (patch: Partial<CreateFormValue>) => {
-    setForm((current) => ({
-      ...current,
-      ...patch,
-      // En demo la historia sigue al estilo elegido.
-      ...(demo ? demoFollowStyle(demo, current, patch) : {}),
-    }))
+    setForm((current) => {
+      // En demo el cambio parte de lo que se ve (la tarjeta derivada y su
+      // historia) y la historia sigue al estilo elegido.
+      const shown = withDemoDefaultStyle(current)
+      return {
+        ...shown,
+        ...patch,
+        ...(demo ? demoFollowStyle(demo, shown, patch) : {}),
+      }
+    })
   }
 
   const pickAudio = async () => {
@@ -301,21 +355,21 @@ function CreateView({
 
   const submit = async () => {
     setProbeFailure(null)
-    const promptModel = resolvePromptModel(
-      form.promptModel,
-      models,
-      defaultId,
-      blockedIds,
-    )
+    // En la demo el bloqueo de modelos (ADR-0028) no aplica: viaja el de la
+    // única tarjeta que se ve, el predeterminado de la casa (spec demo v4 §2).
+    const promptModel = demo
+      ? resolvePromptModel(form.promptModel, models, defaultId)
+      : resolvePromptModel(form.promptModel, models, defaultId, blockedIds)
     await startCreation({
       // La tarea se muestra en el acto. Voz y saldo se comprueban en paralelo
-      // antes de crear el proyecto o consumir créditos en generaciones.
+      // antes de crear el proyecto o consumir créditos en generaciones. La
+      // demo no gasta nada: ni prueba la voz ni re-lee el saldo.
       beforeCreate: async (isCurrent) => {
         const [voiceCheck, costCheck] = await Promise.all([
           !demo && formValue.narrationMode === 'tts' && formValue.voice
             ? probe(formValue.voice)
             : null,
-          verifyCredits(),
+          demo ? null : verifyCredits(),
         ])
         if (!isCurrent()) return false
 
@@ -324,7 +378,7 @@ function CreateView({
           return false
         }
 
-        return !costCheck.blocking
+        return !costCheck?.blocking
       },
       // El proyecto ya existe: recién ahí el borrador cumplió (spec §9). Si
       // un pre-chequeo frena, si se cancela o si createProject falla (una
@@ -337,7 +391,8 @@ function CreateView({
       onProjectCreated: () => {
         if (!demo) clearCreateDraft()
       },
-      // `formValue` (y no `form`): en demo lleva la gema derivada en el render.
+      // `formValue` (y no `form`): en demo lleva la tarjeta derivada en el
+      // render, con su historia.
       payload: createProjectPayload(
         { ...formValue, promptModel },
         { demo: demo !== null },

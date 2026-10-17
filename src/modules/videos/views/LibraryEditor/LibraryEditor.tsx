@@ -267,6 +267,8 @@ export function LibraryEditor() {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
       ...avatarRunOptions(metadata.options.avatar),
+      // Generar uno de la demo sigue sin cobrar nada (ruling R28).
+      demo: demoProject,
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }

@@ -227,7 +227,7 @@ export function createKieVideoProvider(
               ? { image_urls: request.imageUrls }
               : { input_urls: request.imageUrls }),
             aspect_ratio: request.aspectRatio,
-            resolution: '480p',
+            resolution: request.resolution,
             duration: request.durationSeconds,
             // Grok no documenta interruptor de audio. Ambos se limpian en local.
             ...(!isGrok ? { generate_audio: false, fixed_lens: false } : {}),

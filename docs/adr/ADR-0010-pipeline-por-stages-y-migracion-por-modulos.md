@@ -4,6 +4,9 @@
 - **Fecha:** 2026-08-14
 - **Área:** pipeline
 - **Completa a:** [ADR-0007](ADR-0007-invoke-reemplaza-al-servidor-local.md)
+- **Enmendada:** 2026-10-15, pedido del dueño: todo job termina en `job-completed` o `job-failed`; si el
+  proceso del sidecar muere sin emitirlo, Rust manda el `job-failed` que falta (ver «Enmienda 2026-10-15» al
+  final). El resto sigue vigente.
 
 ## Problema
 
@@ -207,3 +210,53 @@ Pendiente de decisión del dueño:
 - o moverlo a un módulo compartido y volver a `import type`.
 
 Mientras tanto, el guard de cumplimiento de arriba no se cumple.
+
+## Enmienda 2026-10-15 — todo job termina con un evento terminal
+
+Pedido del dueño del 2026-10-15. El contrato de salida de esta ADR da por hecho que el sidecar cierra cada job
+con `job-completed` o `job-failed`, pero no decía qué pasa si su proceso muere antes de emitirlo: un crash, falta
+de memoria, un kill del sistema o un binario roto. Rust, al recibir `CommandEvent::Terminated`, sacaba el job de
+`RunningJobs` y guardaba el log de diagnóstico sin mandar nada por el `Channel`: `runPipelineJob` y todo
+consumidor de `startPipelineJob` (Crear, la biblioteca, la puerta de la demo) esperaban para siempre, y la puerta
+de la demo tuvo que sumar un vigilante de 5 minutos
+([ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md)). Lo mismo pasaba con el kill de
+respaldo de la cancelación, cuando stdin ya no acepta el aviso.
+
+- **Rust pone el cierre que falta.** El loop de eventos de `start_pipeline_job`
+  (`src-tauri/src/pipeline/commands.rs`) anota si el sidecar ya emitió su evento terminal. Si el proceso termina
+  sin haberlo emitido —o el stream de eventos se corta sin `Terminated`, cuando el plugin no pudo esperar al
+  proceso—, Rust manda por el canal un `job-failed` con la forma de los del sidecar (`JobFailedEvent`):
+  `{ type, code, message, jobId }`. Lo manda **antes** de soltar el job de `RunningJobs` y de guardar el log, como
+  llega el evento terminal del sidecar antes de que su proceso salga. La decisión es una función pura,
+  `closing_event`.
+- **El código.** `sidecar_exited`, con el código de salida o la señal en `message` (diagnóstico, nunca texto de
+  la UI: `sidecar exited without a terminal event (signal 9)`). Si se había pedido la cancelación, `cancelled`:
+  `cancel_pipeline_job` marca `cancel_requested` (un `Arc<AtomicBool>` de `RunningJob` que el loop del job
+  comparte) antes de escribir el aviso por stdin, así que cuenta tanto para el kill de respaldo como para un
+  proceso que murió mientras abortaba. Se eligió esa marca explícita y no «la entrada ya no estaba en
+  `RunningJobs`»: `kill_if_lingering` también la saca, y cualquier camino nuevo que la sacara pasaría a contar
+  como cancelación sin que nadie lo decidiera.
+- **Nunca dos eventos terminales.** Si el sidecar ya emitió el suyo, Rust no manda otro, aunque el proceso salga
+  después con un código de error o lo mate `kill_if_lingering`. Rust sigue sin filtrar lo que el sidecar emite.
+- **Lo que no cambia.** El log de diagnóstico (ADR-0038) no ve el evento sintético: un proceso que murió sin
+  evento sigue registrado como `crashed`, con `process_crashed`, el código de salida y la señal, que es lo que
+  soporte filtra. `kill_if_lingering` y la cancelación cooperativa siguen igual: Rust no mata para cancelar si
+  stdin acepta el aviso. Si el stream se corta sin `Terminated`, soltar la entrada le cierra stdin al proceso y,
+  si sigue vivo, aborta solo (`pipeline/main.ts`); no se lo mata.
+- **La UI.** `sidecar_exited` tiene texto propio en Crear y en el editor (`create.errors.sidecarExited`, que
+  `LIBRARY_ERROR_MESSAGE_KEYS` hereda) y en la puerta de la demo (`createDemo.errors.sidecarExited`); los módulos
+  sin mapa (voces, música, personajes, avatares) muestran su error genérico. No entra en
+  `RETRYABLE_ERROR_CODES`: un crash por falta de memoria o por un binario roto suele repetirse, y un reintento
+  automático podría volver a pagar lo que el proveedor tenía en curso; la persona reanuda con el botón de
+  siempre. En la puerta de la demo es un fallo que queda hasta «Reintentar» (no se olvida al salir, como los de
+  la red), y el vigilante de 5 minutos queda como segunda red para un proceso colgado, que no avanza ni termina.
+- **Verificación.** `pnpm test:tauri`: los tests de `closing_event` en `src-tauri/src/pipeline/tests/commands.rs`
+  (la forma del evento, `sidecar_exited` contra `cancelled`, el código de salida o la señal en el mensaje, el
+  stream sin `Terminated` y que nunca hay un segundo evento terminal); cada regla se vio fallar con un mutante.
+  `node --test scripts/test/check-demo-gate.mjs`: `sidecar_exited` es un fallo que queda, sin espera ni
+  relanzamiento, con su aviso. Informe:
+  [el job sin evento final](../fixes/2026-10-15-fix-sidecar-terminated-event/sidecar-terminated-event.md).
+- **Cómo se vería una regresión:** un job cuyo proceso muere deja la pantalla «generando» para siempre, o la
+  puerta de la demo pasa a «La demo se sigue descargando…» cinco minutos después de un crash en vez de mostrar
+  el fallo; una cancelación que terminó en el kill de respaldo aparece como error; o la UI recibe dos eventos
+  terminales del mismo job.

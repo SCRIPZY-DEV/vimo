@@ -1,85 +1,408 @@
-import {
-  DEMO_VIDEO_FORMAT,
-  VIDEO_FORMATS,
-  VIDEO_STYLES,
-} from '@/modules/videos/constants'
-import { defaultQualityFor } from '@/modules/videos/utilities/imageQuality'
+// Ruta relativa y con extensión, no `@/`: este módulo corre bajo un guard con
+// Node pelado, que no resuelve el alias; los dos son puros.
+import { gemBringsCharacter } from './gemTemplate.ts'
 import type { CreateFormValue } from '@/modules/videos/types/create'
-import type { StyleSource } from '@/modules/videos/types/styles'
-import type { CharacterStyleId } from '@pipeline/types/characters.ts'
+import type { DemoStyleRequestResult } from '@/modules/videos/types/demo'
+import type { SelectedCustomStyle } from '@/modules/videos/types/styles'
+import type { CatalogGem } from '@pipeline/types/catalog.ts'
 import type {
+  DemoAvatar,
+  DemoGem,
   DemoManifest,
   DemoStories,
   DemoStyleEntry,
 } from '@pipeline/types/demo.ts'
+import type { StyleCharacter } from '@pipeline/types/styles.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 
-// Crear en modo demo (ADR-0029, ADR-0030): todo sale del manifest del pack —
-// voz, estilos visibles, formatos disponibles, nombre, guion, escenas y
-// audio. Publicar un pack con otras historias no exige tocar la app.
+// Crear en modo demo (ADR-0029, ADR-0030; spec demo v4 §2): todo sale del
+// manifest del pack —voz, estilos y gemas que se ofrecen, formatos, nombre,
+// guion, escenas, audio, el avatar, el modo de personaje y si hay animación—.
+// Publicar un pack con otras historias no exige tocar la app. Módulo puro,
+// sin imports de runtime de `@/`: lo corre scripts/test/check-app-demo-form.mjs
+// con Node, sin bundler.
 
-// Las historias del formato elegido. Sin Short en el pack, las de 16:9: el
-// selector de formato bloquea Short en ese caso, así que solo se llega acá
-// con un formato que el pack trae.
-export function demoStoriesFor(
+// Lo que se elige en las pestañas: la pestaña y la tarjeta.
+type StyleChoice = Pick<CreateFormValue, 'styleSource' | 'customStyle'>
+
+type StoryChoice = Pick<
+  CreateFormValue,
+  'videoFormat' | 'styleSource' | 'customStyle'
+>
+
+// Los formatos del selector de Crear, en su orden: el espejo de los ids de
+// VIDEO_FORMATS (constants.ts), que este módulo no puede importar porque corre
+// con Node pelado. El guard fija que sean todos los formatos del contrato.
+const VIDEO_FORMAT_IDS: VideoFormat[] = ['16:9', '9:16']
+
+const NO_STORIES: DemoStories = { styles: [], gems: [] }
+
+// Las historias de un formato; sin ese formato en el pack, ninguna (el
+// selector lo deja en «Próximamente»).
+function storiesFor(manifest: DemoManifest, format: VideoFormat): DemoStories {
+  return manifest.stories[format] ?? NO_STORIES
+}
+
+// Ids de los estilos del catálogo con historia en el formato, en el orden del
+// manifest: la galería del Catálogo de la demo muestra solo esos.
+export function demoCatalogIds(
   manifest: DemoManifest,
   format: VideoFormat,
-): DemoStories {
-  return manifest.stories[format] ?? manifest.stories['16:9']
+): string[] {
+  return storiesFor(manifest, format).styles.map((entry) => entry.id)
 }
 
-// Ids del catálogo con historia pre-hecha, en el orden de la galería. Lee
-// solo 16:9: por contrato el árbol short/ espeja el mismo conjunto de
-// estilos que la raíz (validatePack exige las mismas tres entradas del
-// catálogo en los dos árboles, ADR-0030 regla 2), así que los ids de la
-// galería no cambian entre formatos.
-export function demoStyleIds(manifest: DemoManifest): CharacterStyleId[] {
-  const ids: CharacterStyleId[] = []
-  for (const style of VIDEO_STYLES) {
-    if (manifest.stories['16:9'].styles.some((entry) => entry.id === style.id))
-      ids.push(style.id)
+// Las gemas del pack con historia en el formato (en Short no está
+// Jardinería), por el id con el que la galería de Mi estilo las lista: el
+// `styleId` sembrado, no el id de la gema.
+export function demoGemStyleIds(
+  manifest: DemoManifest,
+  format: VideoFormat,
+): string[] {
+  return storiesFor(manifest, format).gems.flatMap((entry) => {
+    const gem = manifest.gems.find((candidate) => candidate.id === entry.id)
+    if (!gem) return []
+
+    return [gem.styleId]
+  })
+}
+
+// La historia que trae el avatar (la de Jardinería), en el primer formato que
+// la tiene; null si el pack no trae ninguna.
+function avatarStory(manifest: DemoManifest): DemoStyleEntry | null {
+  for (const format of VIDEO_FORMAT_IDS) {
+    const entry = storiesFor(manifest, format).gems.find(
+      (candidate) => candidate.avatar !== undefined,
+    )
+    if (entry) return entry
   }
-  return ids
+
+  return null
 }
 
-// Formatos sin historias en el pack: el selector los muestra en
-// «Próximamente» (con el pack v2 instalado, Short).
-export function demoComingSoonFormats(manifest: DemoManifest): VideoFormat[] {
-  return VIDEO_FORMATS.map((format) => format.id).filter(
-    (id) => manifest.stories[id] === undefined,
-  )
+// La gema de la historia con avatar: la única que el switch de avatar puede
+// usar. null sin avatar en el pack (el switch queda en «Próximamente»).
+export function demoAvatarGem(manifest: DemoManifest): DemoGem | null {
+  const entry = avatarStory(manifest)
+  if (!entry) return null
+
+  return manifest.gems.find((gem) => gem.id === entry.id) ?? null
 }
 
-// La historia de lo elegido: la gema en «Mi estilo»; si no, la del estilo
-// del catálogo (o la primera del pack), en el formato elegido. La pestaña
-// Catálogo de la demo es siempre la vieja (plan E2, P5): el catálogo nuevo no
-// aplica en demo, así que acá Catálogo elige por `styleId` (carril
-// `legacy-catalog`) y nunca hay un estilo del catálogo nuevo en el formulario.
+// El avatar que muestra la tarjeta de Crear: el de la historia, fijo.
+export function demoAvatar(manifest: DemoManifest): DemoAvatar | null {
+  return avatarStory(manifest)?.avatar ?? null
+}
+
+// ¿Lo elegido es la gema del avatar (en Mi estilo)?
+function choosesAvatarGem(
+  manifest: DemoManifest,
+  choice: StyleChoice,
+): boolean {
+  const gem = demoAvatarGem(manifest)
+  if (!gem || choice.styleSource !== 'custom' || !choice.customStyle)
+    return false
+
+  return choice.customStyle.styleId === gem.styleId
+}
+
+// Los formatos donde la gema del avatar trae su historia con avatar.
+function avatarFormats(manifest: DemoManifest): VideoFormat[] {
+  const gem = demoAvatarGem(manifest)
+  if (!gem) return []
+
+  return VIDEO_FORMAT_IDS.filter((format) => {
+    const entry = storiesFor(manifest, format).gems.find(
+      (candidate) => candidate.id === gem.id,
+    )
+    return entry?.avatar !== undefined
+  })
+}
+
+// La historia de lo elegido en el formato del formulario: la del estilo del
+// catálogo, por su `catalogStyleId`, en la pestaña Catálogo; la de la gema del
+// pack, por su `styleId` sembrado, en Mi estilo. null sin tarjeta, con una
+// tarjeta en la pestaña que no es la suya, o si el pack no la trae en ese
+// formato (la galería no la ofrece): sin historia, nombre, guion y audio no se
+// tocan.
 export function demoEntryFor(
   manifest: DemoManifest,
+  form: StoryChoice,
+): DemoStyleEntry | null {
+  const style = form.customStyle
+  if (!style) return null
+
+  const stories = storiesFor(manifest, form.videoFormat)
+  if (form.styleSource === 'catalog')
+    return (
+      stories.styles.find((entry) => entry.id === style.catalogStyleId) ?? null
+    )
+
+  const gem = manifest.gems.find(
+    (candidate) => candidate.styleId === style.styleId,
+  )
+  if (!gem) return null
+
+  return stories.gems.find((entry) => entry.id === gem.id) ?? null
+}
+
+// ¿Se ofrece el formato con lo elegido? Con el switch de avatar, solo el de la
+// historia con avatar; con una tarjeta, si su historia existe en ese formato;
+// sin tarjeta (la galería todavía carga), si el pack trae historias de la
+// pestaña en ese formato.
+function formatOffered(
+  manifest: DemoManifest,
+  form: Pick<CreateFormValue, 'useAvatar'> & StoryChoice,
+): boolean {
+  if (form.useAvatar) return avatarFormats(manifest).includes(form.videoFormat)
+
+  if (form.customStyle) return demoEntryFor(manifest, form) !== null
+
+  const stories = storiesFor(manifest, form.videoFormat)
+  if (form.styleSource === 'catalog') return stories.styles.length > 0
+
+  return stories.gems.length > 0
+}
+
+// El modo de personaje de un estilo del catálogo en la demo: el de su
+// historia en el formato (spec demo v4 §1: el personaje del estilo en los 7
+// con personaje fijo, ninguno en el resto). Es el que vale al elegir la
+// tarjeta —en la galería, en «Ver» o la que Crear usa sin una elegida—, nunca
+// el recordado en la app ni el de sus muestras: la historia ya se generó así.
+// Sin historia en el formato (la galería no lo ofrece), sin personaje.
+export function demoCatalogCharacter(
+  manifest: DemoManifest,
   format: VideoFormat,
-  styleSource: StyleSource,
-  styleId: CharacterStyleId,
-): DemoStyleEntry {
-  const stories = demoStoriesFor(manifest, format)
-  if (styleSource === 'custom') return stories.customStyle
-  return (
-    stories.styles.find((entry) => entry.id === styleId) ?? stories.styles[0]
+  catalogStyleId: string,
+): StyleCharacter {
+  const entry = storiesFor(manifest, format).styles.find(
+    (candidate) => candidate.id === catalogStyleId,
+  )
+  return { mode: entry?.character ?? 'none' }
+}
+
+// ¿Crear muestra la sección de personajes en la demo? Solo con la historia de
+// un estilo con personaje fijo: generada con el personaje del estilo y con
+// una gema que lo trae escrito (su sección `character`); ahí la sección es el
+// chip «Personaje del estilo», sin cambiar el modo. La gema vieja del pack
+// (genérica pero sin secciones) y las historias sin personaje no la muestran
+// (spec demo v4 §2).
+export function demoShowsCharacterSection(
+  manifest: DemoManifest,
+  form: StoryChoice,
+): boolean {
+  if (demoEntryFor(manifest, form)?.character !== 'generic') return false
+
+  return gemBringsCharacter(form.customStyle?.sections)
+}
+
+// ¿El switch de animación se ofrece en la demo? Solo si la historia de lo
+// elegido trae su variante animada (en el pack v4, todas): sin ella queda en
+// «Próximamente». Sin tarjeta (la galería todavía carga), como los formatos:
+// si la pestaña trae alguna historia animada en el formato, así el switch no
+// parpadea al arrancar.
+export function demoAnimationAvailable(
+  manifest: DemoManifest,
+  form: StoryChoice,
+): boolean {
+  if (form.customStyle) return demoEntryFor(manifest, form)?.animated === true
+
+  const stories = storiesFor(manifest, form.videoFormat)
+  const tabStories =
+    form.styleSource === 'catalog' ? stories.styles : stories.gems
+  return tabStories.some((entry) => entry.animated)
+}
+
+// El formulario tal como se valida y se envía en la demo: sin historia
+// animada para lo elegido la animación va apagada, como se ve el switch, así
+// el proyecto no la pide y la pantalla de progreso no espera clips que la
+// simulación no trae. La elección queda en el formulario guardado y vuelve
+// con una historia animada (como el avatar sin clave, withAvatarKey). Sin
+// nada que apagar, el mismo objeto.
+export function withDemoAnimation(
+  manifest: DemoManifest,
+  form: CreateFormValue,
+): CreateFormValue {
+  if (!form.animateScenes || demoAnimationAvailable(manifest, form)) return form
+
+  return { ...form, animateScenes: false }
+}
+
+// Formatos en «Próximamente»: los que no tienen la historia elegida (con
+// Jardinería o con el switch de avatar encendido, Short).
+export function demoComingSoonFormats(
+  manifest: DemoManifest,
+  form: Pick<
+    CreateFormValue,
+    'videoFormat' | 'styleSource' | 'customStyle' | 'useAvatar'
+  >,
+): VideoFormat[] {
+  return VIDEO_FORMAT_IDS.filter(
+    (format) => !formatOffered(manifest, { ...form, videoFormat: format }),
   )
 }
 
-// Nombre con el que «Subir mi audio» muestra el audio de la historia: el
-// archivo del pack se llama audio.mp3 en todas las carpetas.
-export function demoAudioFileLabel(
+// El switch encendido: Mi estilo con la gema del avatar, en el formato de su
+// historia (el actual si la tiene; si no, el primero que la tiene).
+function avatarOnPatch(
   manifest: DemoManifest,
   form: CreateFormValue,
-): string {
-  const entry = demoEntryFor(
-    manifest,
-    form.videoFormat,
-    form.styleSource,
-    form.styleId,
+  avatarGemStyle: SelectedCustomStyle | null,
+): Partial<CreateFormValue> {
+  const formats = avatarFormats(manifest)
+  const videoFormat = formats.includes(form.videoFormat)
+    ? form.videoFormat
+    : (formats[0] ?? form.videoFormat)
+
+  return {
+    useAvatar: true,
+    styleSource: 'custom',
+    customStyle: avatarGemStyle,
+    videoFormat,
+  }
+}
+
+// Lo pedido, salvo una tarjeta sin historia en el formato actual (la que la
+// otra pestaña tenía guardada de otro formato): esa no se elige y la pestaña
+// queda sin tarjeta; en Catálogo, Crear usa la primera de la galería.
+function availableChoice(
+  manifest: DemoManifest,
+  form: CreateFormValue,
+  requested: StyleChoice,
+): StyleChoice {
+  if (!requested.customStyle) return requested
+
+  const entry = demoEntryFor(manifest, {
+    ...requested,
+    videoFormat: form.videoFormat,
+  })
+  if (entry) return requested
+
+  return { ...requested, customStyle: null }
+}
+
+// ¿El pedido quita la tarjeta de la pestaña en uso? Pasa al borrar la gema
+// elegida.
+function deselects(form: CreateFormValue, requested: StyleChoice): boolean {
+  return (
+    requested.customStyle === null && requested.styleSource === form.styleSource
   )
+}
+
+// Qué hace la demo cuando se pide otro estilo o la otra pestaña (pedido del
+// dueño del 2026-10-14). Con el switch de avatar encendido solo vale la gema
+// del avatar: cualquier otro pedido vuelve a ella, en Mi estilo, y el
+// formulario avisa («Usa este estilo para avatar o desactiva el switch para
+// usar otro»). Si no hay a dónde volver —la gema no está en la lista de Mi
+// estilo, o el pedido quita la tarjeta en uso porque se borró la gema—, el
+// switch se apaga y el pedido pasa, sin aviso. Con el switch apagado el pedido
+// pasa, salvo elegir esa gema, que lo enciende (su historia trae el avatar y
+// no hay versión sin él), y salvo una tarjeta sin historia en el formato
+// actual, que no se elige.
+export function demoStyleRequest(
+  manifest: DemoManifest,
+  form: CreateFormValue,
+  requested: StyleChoice,
+  avatarGemStyle: SelectedCustomStyle | null,
+): DemoStyleRequestResult {
+  const wantsAvatarGem = choosesAvatarGem(manifest, requested)
+  if (form.useAvatar && wantsAvatarGem)
+    return { patch: requested, redirected: false }
+
+  if (form.useAvatar && avatarGemStyle && !deselects(form, requested))
+    return {
+      patch: avatarOnPatch(manifest, form, avatarGemStyle),
+      redirected: true,
+    }
+
+  if (form.useAvatar)
+    return {
+      patch: {
+        ...availableChoice(manifest, form, requested),
+        useAvatar: false,
+      },
+      redirected: false,
+    }
+
+  if (wantsAvatarGem)
+    return {
+      patch: avatarOnPatch(manifest, form, requested.customStyle),
+      redirected: false,
+    }
+
+  return {
+    patch: availableChoice(manifest, form, requested),
+    redirected: false,
+  }
+}
+
+// El switch de avatar en la demo. Encendido: Mi estilo con la gema del avatar,
+// en el formato de su historia (en el pack, 16:9: desde Short pasa a 16:9).
+// Sin esa gema en la lista de Mi estilo (todavía carga, o la persona la borró
+// en esta visita y la puerta la vuelve a sembrar en la próxima) no se enciende:
+// no hay historia con avatar que elegir y el formulario sigue como estaba.
+// Apagado con esa gema elegida: la pestaña Catálogo sin tarjeta, donde Crear
+// usa la primera que ofrece la galería con su historia (la gema no tiene
+// historia sin avatar). Apagado con otra cosa, solo se apaga. Sin avatar en el
+// pack el switch no hace nada.
+export function demoAvatarToggle(
+  manifest: DemoManifest,
+  form: CreateFormValue,
+  useAvatar: boolean,
+  avatarGemStyle: SelectedCustomStyle | null,
+): Partial<CreateFormValue> {
+  if (!demoAvatarGem(manifest)) return {}
+
+  if (useAvatar && !avatarGemStyle) return {}
+
+  if (useAvatar) return avatarOnPatch(manifest, form, avatarGemStyle)
+
+  if (!choosesAvatarGem(manifest, form)) return { useAvatar: false }
+
+  return { useAvatar: false, styleSource: 'catalog', customStyle: null }
+}
+
+// Los estilos que muestra la galería del Catálogo de la demo en el formato:
+// los de la lista del catálogo (en su orden) con historia en el pack. Un id
+// del pack que la lista no trae no está, ni uno de la lista sin historia. Es
+// el único cálculo de lo que se ve: la galería, el texto de la pestaña y la
+// tarjeta por defecto salen de acá. Con la lista cargando, ninguno.
+export function demoVisibleCatalogGems<Gem extends Pick<CatalogGem, 'id'>>(
+  manifest: DemoManifest,
+  format: VideoFormat,
+  gems: Gem[],
+): Gem[] {
+  const ids = demoCatalogIds(manifest, format)
+  return gems.filter((gem) => ids.includes(gem.id))
+}
+
+// La tarjeta que usa la pestaña Catálogo de la demo sin una elegida: la
+// primera de la galería. null fuera de esa pestaña, con una tarjeta elegida o
+// sin ninguna a la vista (la lista todavía carga): nada elegido, y el envío se
+// frena.
+export function demoDefaultCatalogGem<Gem extends Pick<CatalogGem, 'id'>>(
+  manifest: DemoManifest,
+  form: StoryChoice,
+  gems: Gem[],
+): Gem | null {
+  if (form.styleSource !== 'catalog' || form.customStyle) return null
+
+  return demoVisibleCatalogGems(manifest, form.videoFormat, gems).at(0) ?? null
+}
+
+// Nombre con el que «Subir mi audio» muestra el audio cargado: el de la
+// historia que lo trae (el archivo se llama audio.mp3 en todas las carpetas
+// del pack). undefined si no es de ninguna: se muestra el nombre del archivo.
+export function demoAudioFileLabel(
+  manifest: DemoManifest,
+  form: Pick<CreateFormValue, 'narrationFilePath'>,
+): string | undefined {
+  const entry = VIDEO_FORMAT_IDS.flatMap((format) => {
+    const stories = storiesFor(manifest, format)
+    return [...stories.styles, ...stories.gems]
+  }).find((candidate) => candidate.audioFile === form.narrationFilePath)
+  if (!entry) return undefined
+
   return `${entry.suggestedName}.mp3`
 }
 
@@ -99,19 +422,24 @@ function storyPatch(
   }
 }
 
-// El formulario inicial en demo: voz y primer estilo del pack, sin pausas,
-// sin música ni personajes, arrancando en 16:9.
+// El formulario inicial en demo: la voz del pack, sin pausas, sin música ni
+// personajes, en la pestaña Catálogo sin tarjeta (Crear usa la primera que
+// ofrece la galería) y con la historia del primer estilo del pack en el
+// formato de `base`, que trae su calidad (Create la arranca en 16:9). El
+// modelo de prompts es el predeterminado de la casa, la única tarjeta que
+// muestra la demo (no el de Ajustes): lo que se ve es lo que viaja.
 export function demoFormValue(
   base: CreateFormValue,
   manifest: DemoManifest,
 ): CreateFormValue {
-  const styleId = demoStyleIds(manifest)[0] ?? base.styleId
+  const firstStory = storiesFor(manifest, base.videoFormat).styles.at(0)
+
   return {
     ...base,
     narrationMode: 'tts',
     styleSource: 'catalog',
-    styleId,
     customStyle: null,
+    promptModel: null,
     voice: {
       provider: manifest.voice.provider,
       voiceId: manifest.voice.voiceId,
@@ -122,17 +450,15 @@ export function demoFormValue(
     useOverlay: false,
     confirmScenes: false,
     autoRender: true,
-    videoFormat: DEMO_VIDEO_FORMAT,
-    imageQuality: defaultQualityFor(base.imageProvider, DEMO_VIDEO_FORMAT),
-    ...storyPatch(
-      demoEntryFor(manifest, DEMO_VIDEO_FORMAT, 'catalog', styleId),
-    ),
+    ...(firstStory ? storyPatch(firstStory) : {}),
   }
 }
 
 // Al cambiar de formato, de estilo o de pestaña, nombre, guion, escenas y
 // audio siguen a la historia elegida (derivado en el manejador del cambio,
-// sin efecto).
+// sin efecto). Sin historia para lo que queda elegido, o si la historia es la
+// misma (la misma tarjeta otra vez, o un pedido que la demo rechaza con el
+// avatar encendido), no se tocan: lo que la persona escribió se queda.
 export function demoFollowStyle(
   manifest: DemoManifest,
   current: CreateFormValue,
@@ -140,12 +466,13 @@ export function demoFollowStyle(
 ): Partial<CreateFormValue> {
   if (
     patch.videoFormat === undefined &&
-    patch.styleId === undefined &&
+    patch.customStyle === undefined &&
     patch.styleSource === undefined
   )
     return {}
-  const format = patch.videoFormat ?? current.videoFormat
-  const styleSource = patch.styleSource ?? current.styleSource
-  const styleId = patch.styleId ?? current.styleId
-  return storyPatch(demoEntryFor(manifest, format, styleSource, styleId))
+
+  const entry = demoEntryFor(manifest, { ...current, ...patch })
+  if (!entry || entry === demoEntryFor(manifest, current)) return {}
+
+  return storyPatch(entry)
 }

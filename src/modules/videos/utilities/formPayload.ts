@@ -58,9 +58,11 @@ export function createProjectPayload(
     options.autoRender = true
   }
 
-  if (form.animateScenes && !demo) {
+  if (form.animateScenes) {
     // El formulario solo encarga el primer minuto, incluso si se recupera
-    // un borrador con opciones anteriores de N minutos o video completo.
+    // un borrador con opciones anteriores de N minutos o video completo. En
+    // la demo viaja igual: la simulación anima con los clips del pack si la
+    // historia los trae (spec demo v4 §2).
     options.animationMinutes = ANIMATION_MINUTES_DEFAULT
     options.animateWholeVideo = false
   }
@@ -190,6 +192,7 @@ export function formBlockers(
     animationKeyMissing = false,
     avatarUnavailable = false,
     newCatalog = false,
+    demo = false,
   }: FormBlockersContext = {},
 ): string[] {
   const blockers: string[] = []
@@ -198,14 +201,15 @@ export function formBlockers(
 
   if (!form.name.trim()) blockers.push('create.validation.nameRequired')
 
-  if (form.animateScenes) {
-    if (animationKeyMissing)
-      blockers.push('create.validation.animationKeyRequired')
-  }
+  // Animar pide la clave de Kie, salvo en la demo: sus clips salen del pack
+  // (spec demo v4 §2).
+  if (form.animateScenes && animationKeyMissing && !demo)
+    blockers.push('create.validation.animationKeyRequired')
 
   // El avatar presentador (spec §9): encendido pide un avatar de la
-  // biblioteca que siga sirviendo (la clave ya la resolvió withAvatarKey).
-  if (form.useAvatar) {
+  // biblioteca que siga sirviendo (la clave ya la resolvió withAvatarKey). En
+  // la demo el avatar es el de la historia (spec demo v4 §2): no se pide nada.
+  if (form.useAvatar && !demo) {
     if (!form.avatar) blockers.push('create.validation.avatarRequired')
     else if (avatarUnavailable)
       blockers.push('create.validation.avatarUnavailable')
@@ -221,17 +225,17 @@ export function formBlockers(
     blockers.push('create.validation.catalogStyleRequired')
 
   // Las gemas (de Mi estilo o del catálogo nuevo) escriben sus prompts con un
-  // modelo: sin ninguno libre no hay video.
-  if (lane !== 'legacy-catalog' && promptModelsBlocked)
+  // modelo: sin ninguno libre no hay video. En la demo no se escribe nada (la
+  // historia ya está hecha): el bloqueo de modelos (ADR-0028) no aplica.
+  if (lane !== 'legacy-catalog' && promptModelsBlocked && !demo)
     blockers.push('create.validation.promptModelsBlocked')
 
-  // La gema pide TU personaje (ADR-0020): con el fijo del estilo ya borrado
-  // de la biblioteca el remedio es editar el estilo (el chip rojo lo dice);
-  // sin uno elegido, elegirlo.
-  if (fixedCharacterMissing)
-    blockers.push('create.validation.fixedCharacterMissing')
-  else if (styleCharacterModeOf(form) === 'own' && form.characters.length === 0)
-    blockers.push('create.validation.characterRequired')
+  // En la demo no se pide personaje: la historia ya está hecha y la
+  // simulación no usa personajes.
+  const characterStep = demo
+    ? null
+    : missingCharacterStep(form, fixedCharacterMissing)
+  if (characterStep) blockers.push(characterStep)
 
   if (form.narrationMode === 'tts') {
     if (!form.script.trim()) blockers.push('create.validation.scriptRequired')
@@ -251,6 +255,21 @@ export function formBlockers(
     blockers.push('create.validation.overlayUrlRequired')
 
   return blockers
+}
+
+// El paso que falta cuando la gema pide TU personaje (ADR-0020): con el fijo
+// del estilo ya borrado de la biblioteca el remedio es editar el estilo (el
+// chip rojo lo dice); sin uno elegido, elegirlo. null si no falta nada.
+function missingCharacterStep(
+  form: CreateFormValue,
+  fixedCharacterMissing: boolean,
+): string | null {
+  if (fixedCharacterMissing) return 'create.validation.fixedCharacterMissing'
+
+  if (styleCharacterModeOf(form) === 'own' && form.characters.length === 0)
+    return 'create.validation.characterRequired'
+
+  return null
 }
 
 // Qué declaró la gema en uso (de Mi estilo o del catálogo nuevo) sobre su

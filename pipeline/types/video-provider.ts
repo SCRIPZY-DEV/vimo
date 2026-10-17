@@ -1,3 +1,5 @@
+import type { VideoFormat } from './video-format.ts'
+
 // Contratos compartidos con la UI; PoYo se conserva únicamente para leer proyectos históricos.
 export type VideoProviderId = 'kie' | 'poyo'
 export const VIDEO_PROVIDER_IDS: VideoProviderId[] = ['kie', 'poyo']
@@ -19,7 +21,30 @@ export const MAX_ANIMATION_SPEED_UP = 4 / 3
 export const MIN_ANIMATION_SLOT_SECONDS = 3
 export const MAX_ANIMATION_SLOT_SECONDS = 12
 export const ANIMATION_SLOT_TOLERANCE_SECONDS = 0.04
-export const ANIMATION_RESOLUTION = '480p'
+// Resolución con la que se encarga y se normaliza un clip animado. Los usuarios
+// siempre van en 480p: el 720p es un ajuste interno que solo sube el harness del
+// pack demo, y las estimaciones de créditos de abajo siguen siendo de 480p.
+export type AnimationResolution = '480p' | '720p'
+export const DEFAULT_ANIMATION_RESOLUTION: AnimationResolution = '480p'
+const ANIMATION_FRAME_HEIGHT: Record<AnimationResolution, number> = {
+  '480p': 480,
+  '720p': 720,
+}
+const ANIMATION_FRAME_WIDTH: Record<AnimationResolution, number> = {
+  '480p': 854,
+  '720p': 1280,
+}
+// El cuadro de normalización de un clip: horizontal en 16:9, el mismo
+// girado en 9:16.
+export function animationFrame(
+  format: VideoFormat,
+  resolution: AnimationResolution,
+) {
+  const long = ANIMATION_FRAME_WIDTH[resolution]
+  const short = ANIMATION_FRAME_HEIGHT[resolution]
+  if (format === '9:16') return { width: short, height: long }
+  return { width: long, height: short }
+}
 // Catálogo público Kie consultado 2026-09-14. Estimaciones, nunca recibos de cobro.
 export const VIDEO_CREDITS_PER_SECOND: Record<VideoProviderId, number> = {
   kie: 2.4,

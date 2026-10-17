@@ -91,6 +91,8 @@ export function LibraryPlayer() {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
       ...avatarRunOptions(metadata.options.avatar),
+      // Reintentar uno de la demo sigue sin cobrar nada (ruling R28).
+      demo: metadata.options.demo === true,
     })
     if (started) void navigate(libraryProgressPath(projectId))
   }
@@ -108,7 +110,12 @@ export function LibraryPlayer() {
       projectId,
       metadata.name,
       voice,
-      { videoFormat: metadata.options.videoFormat },
+      {
+        videoFormat: metadata.options.videoFormat,
+        // Relanzar uno de la demo con otra voz sigue sin cobrar nada (ruling
+        // R28), como reintentar.
+        demo: metadata.options.demo === true,
+      },
     )
     if (started) void navigate(libraryProgressPath(projectId))
   }

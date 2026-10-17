@@ -590,6 +590,7 @@
       "projectsRootUnavailable": "No se pudo leer tu carpeta de proyectos, por eso no ves tus estilos. No se borró nada: revisá en Ajustes que la carpeta exista y que su disco esté conectado.",
       "cancelled": "Generación cancelada. Podés reanudarla cuando quieras.",
       "sidecar": "No pudimos arrancar el motor de Vimo. Reiniciá la app.",
+      "sidecarExited": "El motor de Vimo se cerró de forma inesperada. Volvé a intentar; si vuelve a pasar, reiniciá la app.",
       "interrupted": "La generación se interrumpió al cerrar la app. Reanudá: lo hecho se conserva.",
       "unknown": "Algo salió mal. Volvé a intentar.",
       "continueInEditor": "Continuar en el editor",
@@ -698,7 +699,9 @@
     "styleSource": {
       "catalog": "Catálogo",
       "catalogHint": "Los estilos de Vimo.",
-      "catalogHintDemo": "Los 3 estilos con demo lista.",
+      "catalogHintDemo_zero": "Los estilos con demo lista.",
+      "catalogHintDemo_one": "El único estilo con demo lista.",
+      "catalogHintDemo_other": "Los {{count}} estilos con demo lista.",
       "custom": "Mi estilo",
       "customHint": "Tu propio estilo visual.",
       "customBlockedHint": "Sin modelos disponibles por ahora: usá un estilo de Vimo."
@@ -1276,7 +1279,11 @@
       "threeInTwoHelpAria": "Qué hace «3 veces en 2 minutos»",
       "threeInTwoTooltip": "El avatar sale al menos 3 veces en los primeros 2 minutos del video, contando la del inicio si empieza con el avatar. Las demás apariciones se reparten en el resto del video.",
       "threeInTwoMinimum": "Con «3 veces en 2 minutos» salen al menos 3 apariciones.",
-      "threeInTwoCapped": "Las tres primeras duran hasta {{seconds}} s para entrar en los 2 minutos."
+      "threeInTwoCapped": "Las tres primeras duran hasta {{seconds}} s para entrar en los 2 minutos.",
+      "demoAppearances_one": "{{count}} aparición de {{seconds}} s",
+      "demoAppearances_other": "{{count}} apariciones de {{seconds}} s",
+      "demoLookAlt": "Vista del look de {{name}}",
+      "demoUseThisStyle": "Usa este estilo para avatar o desactiva el switch para usar otro."
     },
     "voiceSwitch": {
       "title": "Antes de cambiar la voz",
@@ -1294,17 +1301,31 @@
     "pageTitle": "Demo",
     "title": "Demo de Vimo",
     "checking": "Revisando la demo…",
-    "preparingFirstTime": "Preparando la demo por primera vez…",
-    "downloading": "Descargando la demo (una sola vez)…",
+    "preparing": "Preparando la demo…",
+    "downloading": "Descargando la demo…",
     "installing": "Preparando los archivos…",
-    "onceNote": "Esto pasa una sola vez: la demo queda guardada en esta computadora.",
+    "waiting": "La demo se sigue descargando…",
+    "savedNote": "La demo queda guardada en esta computadora: no se descarga cada vez que la abrís.",
     "retry": "Reintentar",
+    "download": {
+      "size": "La demo pesa {{gb}} GB.",
+      "note": "Según tu conexión tarda de unos minutos a una hora, y mientras baja podés seguir usando Vimo.",
+      "start": "Descargar la demo"
+    },
+    "progress": {
+      "label": "Avance de la descarga de la demo",
+      "part": "Parte {{part}} de {{parts}}",
+      "background": "Podés salir de esta pantalla: la descarga sigue en segundo plano."
+    },
     "errors": {
       "offline": "Sin conexión para descargar la demo. Revisá tu internet y volvé a intentar.",
       "downloadFailed": "No se pudo descargar el paquete de la demo. Intentá más tarde.",
       "packCorrupt": "El paquete descargado no coincide con el esperado. Volvé a intentar.",
       "packUnreadable": "No se pudo abrir el paquete de la demo. Volvé a intentar.",
       "packIncomplete": "El paquete de la demo vino incompleto. Volvé a intentar.",
+      "diskFull": "No hay espacio suficiente en el disco: la demo necesita {{gb}} GB libres. Liberá espacio y volvé a intentar.",
+      "diskFullUnknown": "No hay espacio suficiente en el disco para la demo. Liberá espacio y volvé a intentar.",
+      "sidecarExited": "El motor de Vimo se cerró mientras se preparaba la demo. Volvé a intentar: las partes ya instaladas se conservan.",
       "unknown": "No se pudo preparar la demo. Volvé a intentar."
     }
   },

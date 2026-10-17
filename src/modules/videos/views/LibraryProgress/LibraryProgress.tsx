@@ -120,6 +120,9 @@ export function LibraryProgress() {
       : null,
     ...avatarRunOptions(status?.metadata.options.avatar),
     avatarDropped: status?.avatarDropped,
+    // Un proyecto de la demo reanudado sigue siendo una corrida de la demo:
+    // no anota apariciones cobradas (ruling R28).
+    demo: status?.metadata.options.demo === true,
   }
   const resume = () =>
     void startPipelineForProject(projectId, projectName, runOptions)
