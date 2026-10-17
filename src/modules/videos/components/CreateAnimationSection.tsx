@@ -15,16 +15,23 @@ import type { CreateFormValue } from '@/modules/videos/types/create'
 interface CreateAnimationSectionProps {
   value: CreateFormValue
   disabled: boolean
+  // La demo (spec demo v4 §2): si la historia de lo elegido trae su variante
+  // animada; sin ella el switch queda en «Próximamente». La demo no gasta
+  // nada: sin aviso de la clave de Kie ni estimación de créditos. Ausente
+  // fuera de la demo.
+  demoAnimated?: boolean
   onChange(patch: Partial<CreateFormValue>): void
 }
 
 export function CreateAnimationSection({
   value,
   disabled,
+  demoAnimated,
   onChange,
 }: CreateAnimationSectionProps) {
   const { t } = useTranslation()
   const { configuredProviders } = useRequiredApiKeys()
+  const demo = demoAnimated !== undefined
   const requestedSeconds = estimateAnimationSeconds(value)
 
   return (
@@ -37,11 +44,16 @@ export function CreateAnimationSection({
         <span className="flex-1 font-display">
           {t('create.animation.firstMinute')}
         </span>
+        {demoAnimated === false && (
+          <span className="font-body text-xs text-muted-foreground">
+            {t('common.proximamente')}
+          </span>
+        )}
         <Switch
           id="create-animate-scenes"
           className="data-[state=checked]:bg-sky"
           checked={value.animateScenes}
-          disabled={disabled}
+          disabled={disabled || demoAnimated === false}
           onCheckedChange={(animateScenes) =>
             onChange({
               animateScenes,
@@ -52,10 +64,12 @@ export function CreateAnimationSection({
         />
       </Label>
       {value.animateScenes && (
+        <p className="font-body text-xs text-muted-foreground">
+          {t('create.animation.hint')}
+        </p>
+      )}
+      {value.animateScenes && !demo && (
         <>
-          <p className="font-body text-xs text-muted-foreground">
-            {t('create.animation.hint')}
-          </p>
           <AnimationCreditEstimate
             requestedSeconds={requestedSeconds}
             clipCount={requestedSeconds / ANIMATION_PREFIX_SCENE_SECONDS}

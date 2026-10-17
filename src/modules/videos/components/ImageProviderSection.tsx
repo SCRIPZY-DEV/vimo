@@ -17,6 +17,9 @@ import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 interface ImageProviderSectionProps {
   value: CreateFormValue
   disabled: boolean
+  // La demo (spec demo v4 §2, ruling R31): no consulta ni muestra el saldo de
+  // los proveedores, que no usa (ADR-0029); sin claves, las etiquetas solo
+  // dirían «Sin configurar».
   demo?: boolean
   onChange: (patch: Partial<CreateFormValue>) => void
 }
@@ -29,7 +32,7 @@ export function ImageProviderSection({
 }: ImageProviderSectionProps) {
   const { t } = useTranslation()
   const { credits, isLoading, isRefreshing, refresh } = useImageCredits({
-    enabled: value.imageProvider !== 'flow',
+    enabled: !demo && value.imageProvider !== 'flow',
   })
 
   const qualityOptions = qualityOptionsFor(
@@ -61,14 +64,16 @@ export function ImageProviderSection({
           <Sparkles className="h-4 w-4 text-saffron" />
           {t('create.image.provider')}
         </Label>
-        <ImageCreditsBadges
-          showFlowGenerationControls={false}
-          credits={credits}
-          loading={isLoading}
-          refreshing={isRefreshing}
-          active={value.imageProvider}
-          onRefresh={refresh}
-        />
+        {!demo && (
+          <ImageCreditsBadges
+            showFlowGenerationControls={false}
+            credits={credits}
+            loading={isLoading}
+            refreshing={isRefreshing}
+            active={value.imageProvider}
+            onRefresh={refresh}
+          />
+        )}
       </div>
 
       {value.imageProvider !== 'flow' && (

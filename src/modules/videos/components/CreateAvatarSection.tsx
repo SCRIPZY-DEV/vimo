@@ -4,6 +4,7 @@ import { ShieldAlert, UserRound } from 'lucide-react'
 import { apiKeysFocusPath } from '@/modules/api-keys/constants'
 import { useRequiredApiKeys } from '@/modules/api-keys/hooks/useRequiredApiKeys'
 import { AvatarBalanceBadge } from '@/modules/avatars/components/AvatarBalanceBadge'
+import { LookPreview } from '@/modules/avatars/components/LookPreview'
 import { useAvatars } from '@/modules/avatars/hooks/useAvatars'
 import { useProcessingAvatarsRefresh } from '@/modules/avatars/hooks/useProcessingAvatarsRefresh'
 import { CheckboxRow } from '@/modules/common/components/CheckboxRow'
@@ -11,12 +12,18 @@ import { SliderRow } from '@/modules/common/components/SliderRow'
 import { Button } from '@/modules/common/ui/button'
 import { Label } from '@/modules/common/ui/label'
 import { Switch } from '@/modules/common/ui/switch'
+import { cn } from '@/modules/common/utilities/cn'
+import { videosApi } from '@/modules/videos/api'
 import { CreateAvatarCost } from '@/modules/videos/components/CreateAvatarCost'
 import { CreateAvatarEngine } from '@/modules/videos/components/CreateAvatarEngine'
 import { CreateAvatarExpressive } from '@/modules/videos/components/CreateAvatarExpressive'
 import { CreateAvatarPicker } from '@/modules/videos/components/CreateAvatarPicker'
 import { CreateAvatarThreeInTwo } from '@/modules/videos/components/CreateAvatarThreeInTwo'
-import { CREATE_AVATAR_LIBRARY_STALE_TIME_MS } from '@/modules/videos/constants'
+import {
+  AVATAR_ENGINE_LABEL_KEYS,
+  AVATAR_LOOK_FRAME_CLASSES,
+  CREATE_AVATAR_LIBRARY_STALE_TIME_MS,
+} from '@/modules/videos/constants'
 import { createAvatarSeconds } from '@/modules/videos/utilities/avatarCostEstimate'
 import {
   firstSelectableAvatar,
@@ -29,10 +36,19 @@ import {
   AVATAR_MIN_APPEARANCES,
 } from '@pipeline/types/avatar.ts'
 import type { CreateFormValue } from '@/modules/videos/types/create'
+import type { DemoAvatar } from '@pipeline/types/demo.ts'
 
 interface CreateAvatarSectionProps {
   value: CreateFormValue
   disabled: boolean
+  // La demo (spec demo v4 §2): el avatar de la historia del pack, fijo, o
+  // null si el pack no trae ninguno («Próximamente», con el switch bloqueado).
+  // Ausente fuera de la demo.
+  demoAvatar?: DemoAvatar | null
+  // Quien resuelve el switch si no es la tarjeta: en la demo, el formulario
+  // (encenderlo cambia de estilo y de formato). Sin él, encenderlo elige el
+  // primer avatar de la biblioteca que sirve.
+  onToggle?: (useAvatar: boolean) => void
   onChange(patch: Partial<CreateFormValue>): void
 }
 
@@ -50,28 +66,41 @@ interface CreateAvatarSectionProps {
 // sondeo de lo que entrena o genera un look, para que un escenario pedido con
 // «Crear escenario» aparezca acá al terminar—; el saldo lo trae
 // AvatarBalanceBadge.
+//
+// En la demo (spec demo v4 §2) muestra el avatar de la historia, fijo: su
+// nombre, la vista de su look, sus apariciones y su motor. No lee la
+// biblioteca de la persona ni depende de su clave de HeyGen, y no hay
+// selector, costo, saldo ni aviso de clave.
 export function CreateAvatarSection({
   value,
   disabled,
+  demoAvatar,
+  onToggle,
   onChange,
 }: CreateAvatarSectionProps) {
   const { t } = useTranslation()
   const { configuredProviders } = useRequiredApiKeys()
+  const demo = demoAvatar !== undefined
   const heygenConfigured = configuredProviders.has('heygen')
   const library = useAvatars({
-    enabled: heygenConfigured,
+    enabled: heygenConfigured && !demo,
     staleTime: CREATE_AVATAR_LIBRARY_STALE_TIME_MS,
   })
-  const enabled = value.useAvatar && heygenConfigured
+  const enabled = value.useAvatar && (heygenConfigured || demo)
   // El motor con el que sale el look elegido (el preferido si lo admite).
   const engine = selectedAvatarEngine(value)
 
-  useProcessingAvatarsRefresh(enabled ? library.entries : [])
+  useProcessingAvatarsRefresh(enabled && !demo ? library.entries : [])
 
   // Sin fricción: al encender se elige solo el primer avatar que sirve en el
   // formato del video, con su look por defecto (la persona lo cambia con un
   // clic); al apagar, la elección se conserva.
   const toggle = (useAvatar: boolean) => {
+    if (onToggle) {
+      onToggle(useAvatar)
+      return
+    }
+
     if (!useAvatar) {
       onChange({ useAvatar: false })
       return
@@ -93,15 +122,50 @@ export function CreateAvatarSection({
       >
         <UserRound className="h-4 w-4 text-amethyst" />
         <span className="flex-1 font-display">{t('create.avatar.title')}</span>
+        {demoAvatar === null && (
+          <span className="font-body text-xs text-muted-foreground">
+            {t('common.proximamente')}
+          </span>
+        )}
         <Switch
           id="create-avatar"
           className="data-[state=checked]:bg-amethyst"
           checked={enabled}
-          disabled={disabled || !heygenConfigured}
+          disabled={
+            disabled || (demo ? demoAvatar === null : !heygenConfigured)
+          }
           onCheckedChange={toggle}
         />
       </Label>
-      {!heygenConfigured && (
+      {enabled && demoAvatar && (
+        <div className="flex items-center gap-3">
+          <LookPreview
+            imageUrl={videosApi.imageSource(demoAvatar.previewFile)}
+            alt={t('create.avatar.demoLookAlt', { name: demoAvatar.name })}
+            focus="top"
+            doodleSize={32}
+            className={cn(
+              'w-32 shrink-0 rounded-lg',
+              AVATAR_LOOK_FRAME_CLASSES[value.videoFormat],
+            )}
+          />
+          <div className="min-w-0 space-y-0.5">
+            <p className="truncate font-display text-sm font-bold text-foreground">
+              {demoAvatar.name}
+            </p>
+            <p className="font-body text-xs text-muted-foreground">
+              {t('create.avatar.demoAppearances', {
+                count: demoAvatar.appearances,
+                seconds: demoAvatar.secondsPerAppearance,
+              })}
+            </p>
+            <p className="font-body text-xs text-muted-foreground">
+              {t(AVATAR_ENGINE_LABEL_KEYS[demoAvatar.engine])}
+            </p>
+          </div>
+        </div>
+      )}
+      {!heygenConfigured && !demo && (
         <div className="space-y-2">
           <p className="font-body text-xs text-coral-text">
             {t('create.avatar.noKey')}
@@ -113,7 +177,7 @@ export function CreateAvatarSection({
           </Button>
         </div>
       )}
-      {enabled && (
+      {enabled && !demo && (
         <>
           <p className="font-body text-xs text-muted-foreground">
             {t('create.avatar.hint')}

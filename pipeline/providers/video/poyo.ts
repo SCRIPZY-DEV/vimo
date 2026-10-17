@@ -149,6 +149,8 @@ export const poyoVideoProvider: VideoProvider = {
           image_urls: request.imageUrls,
           duration: request.durationSeconds,
           aspect_ratio: request.aspectRatio,
+          // PoYo solo sirve para leer proyectos históricos: ignora
+          // `request.resolution` y mantiene el 720p con el que siempre se pidió.
           resolution: '720p',
           // Sin esto Veo genera su propio audio: más caro y pisaría la voz.
           sound: false,

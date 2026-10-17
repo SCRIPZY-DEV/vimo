@@ -1,9 +1,11 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
 use tauri_plugin_shell::ShellExt;
 
 use crate::diagnostics::recorder::DiagnosticRecorder;
@@ -33,6 +35,8 @@ fn sidecar_command(
 /// por el Channel del invoke — cada job tiene su propio canal, sin filtrado
 /// por jobId en la UI. El catálogo de eventos vive en pipeline/runner/events.ts;
 /// Rust no redeclara los tipos: parsea cada línea y la reenvía tal cual.
+/// Todo job termina en job-completed o job-failed: si el proceso termina sin
+/// haber emitido ninguno, Rust manda el que falta (`closing_event`).
 #[tauri::command]
 pub async fn start_pipeline_job(
     app: AppHandle,
@@ -92,19 +96,34 @@ pub async fn start_pipeline_job(
         return Err(PipelineError::SidecarWrite);
     }
 
-    running.insert(job_id.clone(), RunningJob { child, project_id });
+    let cancel_requested = Arc::new(AtomicBool::new(false));
+    running.insert(
+        job_id.clone(),
+        RunningJob {
+            child,
+            project_id,
+            cancel_requested: Arc::clone(&cancel_requested),
+        },
+    );
     drop(running);
 
     let app_for_events = app.clone();
     let job_id_for_events = job_id.clone();
     let subcommand_for_events = subcommand.clone();
     tauri::async_runtime::spawn(async move {
+        // Si el sidecar ya emitió su job-completed / job-failed, el cierre de
+        // abajo no manda otro: un job nunca recibe dos eventos terminales.
+        let mut terminal_forwarded = false;
+        // Cómo terminó el proceso; None si el stream de eventos se corta sin
+        // `Terminated` (el plugin no pudo esperar al proceso).
+        let mut exit = None;
         while let Some(event) = events.recv().await {
             match event {
                 CommandEvent::Stdout(line) => match serde_json::from_slice::<Value>(&line) {
                     Ok(value) => {
                         recorder.record_event(&value);
                         if is_terminal_event(&value) {
+                            terminal_forwarded = true;
                             kill_if_lingering(app_for_events.clone(), job_id_for_events.clone());
                         }
                         let _ = on_event.send(value);
@@ -121,25 +140,46 @@ pub async fn start_pipeline_job(
                     recorder.record_stderr(&line);
                     log::warn!("sidecar stderr: {}", String::from_utf8_lossy(&line));
                 }
-                CommandEvent::Terminated(exit) => {
-                    let jobs = app_for_events.state::<RunningJobs>();
-                    jobs.0
-                        .lock()
-                        .expect("running jobs mutex poisoned")
-                        .remove(&job_id_for_events);
-
-                    let outcome = recorder.finish(exit.code, exit.signal);
-                    store_job_record(
-                        &app_for_events,
-                        &job_id_for_events,
-                        &subcommand_for_events,
-                        outcome,
-                    );
+                CommandEvent::Error(message) => {
+                    log::warn!("sidecar {job_id_for_events}: {message}");
+                }
+                CommandEvent::Terminated(payload) => {
+                    exit = Some(payload);
                     break;
                 }
                 _ => {}
             }
         }
+
+        // El evento terminal que falte va antes que la limpieza: quien espera
+        // el job por el canal no queda colgado aunque lo que sigue falle.
+        let closing = closing_event(
+            &job_id_for_events,
+            terminal_forwarded,
+            cancel_requested.load(Ordering::SeqCst),
+            exit.as_ref(),
+        );
+        if let Some(event) = closing {
+            log::warn!("sidecar {job_id_for_events} terminó sin evento terminal: {event}");
+            let _ = on_event.send(event);
+        }
+
+        // Sin `Terminated` el proceso pudo seguir vivo: soltar su entrada le
+        // cierra stdin y el sidecar aborta solo (pipeline/main.ts).
+        let jobs = app_for_events.state::<RunningJobs>();
+        jobs.0
+            .lock()
+            .expect("running jobs mutex poisoned")
+            .remove(&job_id_for_events);
+
+        let (exit_code, signal) = exit.map_or((None, None), |exit| (exit.code, exit.signal));
+        let outcome = recorder.finish(exit_code, signal);
+        store_job_record(
+            &app_for_events,
+            &job_id_for_events,
+            &subcommand_for_events,
+            outcome,
+        );
     });
 
     Ok(job_id)
@@ -154,6 +194,55 @@ fn is_terminal_event(event: &Value) -> bool {
         event.get("type").and_then(Value::as_str),
         Some("job-completed" | "job-failed")
     )
+}
+
+/// Código con el que Rust cierra un job cuyo proceso terminó sin evento
+/// terminal sin que nadie pidiera cancelarlo. La UI lo traduce como cualquier
+/// `code` de job-failed (`CREATE_ERROR_MESSAGE_KEYS`, `DEMO_ERROR_MESSAGE_KEYS`).
+const SIDECAR_EXITED_CODE: &str = "sidecar_exited";
+/// El código con el que el propio sidecar informa una cancelación
+/// (pipeline/main.ts): la UI ya lo trata como cancelación, no como error.
+const CANCELLED_CODE: &str = "cancelled";
+
+/// El evento terminal que falta cuando el proceso del sidecar termina sin
+/// haber emitido job-completed ni job-failed (un crash, falta de memoria, un
+/// kill, un binario roto): sin él, quien espera el job por el canal queda
+/// colgado. Es un job-failed con la forma de los del sidecar (`code`,
+/// `message` y `jobId`): `cancelled` si se había pedido la cancelación (el
+/// kill de respaldo de `cancel_pipeline_job`, o un proceso que murió mientras
+/// abortaba) y `sidecar_exited` si no. `exit` es None si el stream de eventos
+/// se cortó sin `Terminated`. Devuelve None si el sidecar ya emitió su evento
+/// terminal: un job nunca recibe dos.
+fn closing_event(
+    job_id: &str,
+    terminal_forwarded: bool,
+    cancel_requested: bool,
+    exit: Option<&TerminatedPayload>,
+) -> Option<Value> {
+    if terminal_forwarded {
+        return None;
+    }
+
+    let code = if cancel_requested {
+        CANCELLED_CODE
+    } else {
+        SIDECAR_EXITED_CODE
+    };
+    let message = format!(
+        "sidecar exited without a terminal event ({})",
+        describe_exit(exit)
+    );
+    Some(json!({ "type": "job-failed", "code": code, "message": message, "jobId": job_id }))
+}
+
+/// Cómo terminó el proceso, para el `message` del cierre: diagnóstico, nunca
+/// texto que vea la persona. Sin `Terminated` no hay estado de salida.
+fn describe_exit(exit: Option<&TerminatedPayload>) -> String {
+    match exit.map(|exit| (exit.code, exit.signal)) {
+        Some((Some(code), _)) => format!("exit code {code}"),
+        Some((None, Some(signal))) => format!("signal {signal}"),
+        _ => "no exit status".to_owned(),
+    }
 }
 
 /// Red de seguridad: un sidecar que ya emitió job-completed / job-failed no
@@ -179,7 +268,8 @@ fn kill_if_lingering(app: AppHandle, job_id: String) {
 
 /// Cancelación cooperativa (ADR-0010): se avisa por stdin y el sidecar aborta
 /// con su AbortController; si stdin ya no acepta escrituras, se mata el
-/// proceso como fallback.
+/// proceso como fallback. En los dos casos queda anotado que se pidió: si el
+/// proceso termina sin evento terminal, su job se cierra con `cancelled`.
 #[tauri::command]
 pub fn cancel_pipeline_job(
     jobs: State<'_, RunningJobs>,
@@ -190,6 +280,7 @@ pub fn cancel_pipeline_job(
         return Err(PipelineError::JobNotFound);
     };
 
+    job.cancel_requested.store(true, Ordering::SeqCst);
     if job.child.write(b"{\"type\":\"cancel\"}\n").is_ok() {
         return Ok(());
     }

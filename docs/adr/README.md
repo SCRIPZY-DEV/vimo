@@ -46,6 +46,7 @@ the code already explains. An ADR nobody will consult is just noise.
 
 | ADR                                                                                      | Title                                                                               | Status                    | Area                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- | ----------------------------- |
+| [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md)              | Demo v4: new catalog, animation and avatar, with a pack downloaded in parts         | Proposed                  | app / pipeline / distribución |
 | [ADR-0059](ADR-0059-flow-qa-nativa-aislada.md)                                           | Isolated native Flow acceptance environment                                         | QA reference              | local QA                      |
 | [ADR-0058](ADR-0058-flow-como-motor-de-imagenes.md)                                      | Flow image generation with a native coordinator                                     | Implemented locally       | app / pipeline / extension    |
 | [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Avatar scenes with HeyGen over the narration                                        | Proposed                  | pipeline / app / providers    |

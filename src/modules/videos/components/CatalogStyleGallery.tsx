@@ -77,6 +77,17 @@ interface CatalogStyleGalleryProps {
   // para diseñar un personaje nuevo coherente con la gema (ADR-0020).
   script: string
   promptModel: string | null
+  // Si viene, solo estos estilos se muestran, en el orden del catálogo (la
+  // demo: los que tienen historia en el formato elegido). Ausente = todos.
+  visibleIds?: string[]
+  // La demo (spec demo v4 §2): nada escribe en el catálogo compartido ni en
+  // Mi estilo, así que no hay «Pasar a mi estilo», herramientas del admin ni
+  // «Crear estilo con IA». «Ver» sigue, sin elegir el modo de personaje.
+  demo?: boolean
+  // En la demo, el modo de personaje de cada estilo: el de su historia. Ni se
+  // elige ni se recuerda, ni sale de la memoria de la app o de las muestras.
+  // Ausente fuera de la demo.
+  storyCharacterOf?: (catalogStyleId: string) => StyleCharacter
   onSelect: (style: SelectedCustomStyle) => void
   // «Pasar a mi estilo» terminó bien con esta galería a la vista: el
   // formulario pasa a Mi estilo con el modal de la copia abierto. Recibe la
@@ -124,11 +135,19 @@ interface AdminEditing {
 // secciones, modos) y él la termina ahí (los otros idiomas, las etiquetas,
 // las muestras) y la publica. Las clonaciones en curso de este destino se ven
 // al principio de la grilla, como en Mi estilo.
+//
+// En la demo (spec demo v4 §2) muestra solo los estilos con historia en el
+// formato y nada que escriba: ni la copia a Mi estilo ni lo del admin, aunque
+// la cuenta lo sea, ni la memoria de modos. El modo de cada estilo es el de su
+// historia.
 export function CatalogStyleGallery({
   selected,
   disabled,
   script,
   promptModel,
+  visibleIds,
+  demo = false,
+  storyCharacterOf,
   onSelect,
   onCopied,
 }: CatalogStyleGalleryProps) {
@@ -149,7 +168,7 @@ export function CatalogStyleGallery({
   } = useCatalogStyles()
   const { showSavedStyle } = useCustomStyles()
   const isAdmin = useAccessAdmin()
-  const adminMode = isAdmin && remote && videosApi.isNative()
+  const adminMode = isAdmin && remote && videosApi.isNative() && !demo
   const admin = useCatalogAdmin(adminMode)
   const [editing, setEditing] = useState<AdminEditing | null>(null)
   const [view, setView] = useState<CatalogAdminView>('catalog')
@@ -180,9 +199,14 @@ export function CatalogStyleGallery({
   const catalogEntries: CatalogEntry[] = adminList
     ? adminStyles.active.map(entryOf)
     : gems.map((gem) => ({ gem, images: sampleUrls(gem), style: null }))
+  // Con `visibleIds`, un estilo que no está en la lista no aparece y uno de
+  // la lista que no está en `visibleIds`, tampoco.
+  const shownEntries = visibleIds
+    ? catalogEntries.filter((entry) => visibleIds.includes(entry.gem.id))
+    : catalogEntries
   const entries = showingArchived
     ? adminStyles.archived.map(entryOf)
-    : catalogEntries
+    : shownEntries
   // El estilo en uso se busca en el catálogo, se esté viendo lo que se vea.
   const listedGems = catalogEntries.map((entry) => entry.gem)
 
@@ -254,9 +278,10 @@ export function CatalogStyleGallery({
     onCopied(copiedStyle)
   }, [copiedStyle, showSavedStyle, onCopied])
 
-  // El modo de un estilo: el del formulario si está en uso; si no, el
-  // recordado (o el de sus muestras).
+  // El modo de un estilo: en la demo, el de su historia; si no, el del
+  // formulario si está en uso, y si no, el recordado (o el de sus muestras).
   const characterOf = (gem: CatalogGem): StyleCharacter => {
+    if (storyCharacterOf) return storyCharacterOf(gem.id)
     if (selectedId === gem.id && selected?.character) return selected.character
     return readCatalogCharacter(gem, localStorage)
   }
@@ -265,15 +290,23 @@ export function CatalogStyleGallery({
     onSelect(selectedCatalogStyleFrom(gem, language, character))
   }
 
+  // El modo elegido en «Ver» se recuerda para la próxima vez, salvo en la
+  // demo: ahí es el de la historia y la memoria de la app no se toca.
+  const remember = (gem: CatalogGem, character: StyleCharacter) => {
+    if (demo) return
+
+    rememberCatalogCharacter(gem.id, character, localStorage)
+  }
+
   // Cada cambio de modo en «Ver» se recuerda al toque; con el estilo en uso,
   // el formulario pasa al snapshot nuevo.
   const changeCharacter = (gem: CatalogGem, character: StyleCharacter) => {
-    rememberCatalogCharacter(gem.id, character, localStorage)
+    remember(gem, character)
     if (selectedId === gem.id) select(gem, character)
   }
 
   const use = (gem: CatalogGem, character: StyleCharacter) => {
-    rememberCatalogCharacter(gem.id, character, localStorage)
+    remember(gem, character)
     select(gem, character)
     closeCatalogStyleViewer(gem.id)
   }
@@ -453,7 +486,7 @@ export function CatalogStyleGallery({
                 : select(gem, characterOf(gem))
             }
             onView={() => openCatalogStyleViewer({ catalogStyleId: gem.id })}
-            onCopy={() => void copy(gem, characterOf(gem))}
+            onCopy={demo ? undefined : () => void copy(gem, characterOf(gem))}
           />
         ))}
         {adminList && !showingArchived && (
@@ -544,7 +577,12 @@ export function CatalogStyleGallery({
             changeCharacter(viewingEntry.gem, character)
           }
           onUse={(character) => use(viewingEntry.gem, character)}
-          onCopy={(character) => void copy(viewingEntry.gem, character)}
+          onCopy={
+            demo
+              ? undefined
+              : (character) => void copy(viewingEntry.gem, character)
+          }
+          demo={demo}
           onClose={() => closeCatalogStyleViewer()}
         />
       )}

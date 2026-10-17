@@ -103,14 +103,16 @@ const LIBRARY = [{ id: 'ana-1', name: 'Ana', groupId: 'group-ana-1', ownership: 
 // La elección lleva los motores de su look (entrega 2e): con ellos Crear
 // deriva el motor con el que sale.
 const ANA = { id: 'ana-1', name: 'Ana', lookId: 'look-ana', lookName: 'Ana oficina', lookType: 'photo_avatar', supportedEngines: ['avatar_iii'] }
-const story = (id, name) => ({ id, suggestedName: name, script: 'Guion de ' + name, sceneCount: 6, audioDurationSeconds: 30, audioFile: '/pack/' + id + '.mp3' })
-const DEMO = { version: '3', voice: { provider: 'minimax', voiceId: 'v1', name: 'Lucía' }, stories: { '16:9': { styles: [story('normal', 'Historia demo')], customStyle: story('gema', 'Gema demo') } }, customStyleId: 'demo-gem' }
+const story = (id, name) => ({ id, suggestedName: name, script: 'Guion de ' + name, sceneCount: 6, audioDurationSeconds: 30, audioFile: '/pack/' + id + '.mp3', character: 'none', animated: false })
+const DEMO = { version: 'v4', voice: { provider: 'minimax', voiceId: 'v1', name: 'Lucía' }, gems: [{ id: 'gema', styleId: 'demo-gem', name: 'Gema demo' }], stories: { '16:9': { styles: [story('normal', 'Historia demo')], gems: [story('gema', 'Gema demo')] } } }
 const USD = (remaining) => ({ available: true, remaining, currency: 'usd' })
 // Una gema de Mi estilo: con ella el envío lleva la duración de escena y la
 // pausa que siembra Ajustes (formPayload).
 const GEM = { styleId: 'gema-guard', name: 'Gema del guard', systemPrompt: 'Prompt de la gema', shots: [] }
 
-window.fixture = { avatars: LIBRARY, balance: USD(5), keys: ['heygen'], pipeline: 'fail' }
+// El guard llega al pre-chequeo de saldo con las claves que exige Crear.
+// El submit real también valida apiReady, aunque se invoque por el wrapper.
+window.fixture = { avatars: LIBRARY, balance: USD(5), keys: ['deepinfra', 'deepgram', 'fal', 'dubvoice', 'heygen'], pipeline: 'fail' }
 window.prefs = { sceneCount: 0, secondsPerScene: 5, confirmScenes: true }
 window.balanceCalls = 0
 window.createProjectCalls = 0
@@ -188,6 +190,7 @@ try {
   check(form().avatarThreeInTwoMinutes === true && readCreateDraft()?.form.avatarThreeInTwoMinutes === true, 'la casilla «3 veces en 2 minutos» (entrega 2f) viaja con el borrador: al volver sigue marcada')
 
   // 3. Un pre-chequeo frena (el saldo de HeyGen releído no alcanza): el borrador sigue.
+  await waitFor(() => window.formProps.apiReady, 'claves listas antes del pre-chequeo de saldo')
   await delay(300)
   window.fixture.balance = USD(0.2)
   const blockedCalls = window.balanceCalls

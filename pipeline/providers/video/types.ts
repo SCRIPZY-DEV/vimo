@@ -1,5 +1,8 @@
 import type { ApiKeys } from '../../config/api-keys.ts'
-import type { VideoProviderId } from '../../types/video-provider.ts'
+import type {
+  AnimationResolution,
+  VideoProviderId,
+} from '../../types/video-provider.ts'
 
 // Contrato común de los proveedores de imagen-a-video. Los dos son asíncronos
 // con la misma forma que Evolink (crear tarea, consultar, descargar), así que
@@ -14,6 +17,8 @@ export interface VideoClipRequest {
   imageUrls: string[]
   durationSeconds: number
   aspectRatio: VideoAspectRatio
+  // Kie la manda tal cual; PoYo la acepta pero sigue pidiendo 720p.
+  resolution: AnimationResolution
 }
 
 export interface VideoClipResult {

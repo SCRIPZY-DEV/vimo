@@ -27,6 +27,9 @@ interface CharacterSectionProps {
   // nueva se ve como su carril aun antes de elegir tarjeta.
   lane: FormLane
   disabled: boolean
+  // La demo (spec demo v4 §2): el modo es el de la historia y no se cambia,
+  // así que el chip del estilo es un cartel que no abre la gema.
+  demo?: boolean
   onChange: (patch: Partial<CreateFormValue>) => void
 }
 
@@ -36,11 +39,13 @@ interface CharacterSectionProps {
 // tocarlo, abre ESA gema: el editor de Mi estilo o «Ver» del catálogo (port de
 // los chips de EditorGuion del origen, v1.19.4–v1.31.2): el fijo, el fijo que
 // se borró de la biblioteca, el genérico/sin personaje y el recibo de los
-// personajes retirados.
+// personajes retirados. En la demo Crear la monta solo con un estilo con
+// personaje fijo, y su chip no se toca.
 export function CharacterSection({
   value,
   lane,
   disabled,
+  demo = false,
   onChange,
 }: CharacterSectionProps) {
   const { t } = useTranslation()
@@ -60,6 +65,9 @@ export function CharacterSection({
   const fixedSeeded = value.characters.some(
     (character) => character.characterId === fixedCharacterId,
   )
+  // Los chips del estilo abren la gema para cambiar su modo; en la demo el
+  // modo no se cambia y son carteles.
+  const styleEditable = canEditStyle && !demo
 
   // El personaje fijo de la gema se siembra solo, sin pedir un clic: el
   // catálogo llega asíncrono y el formulario lo tiene el padre, así que la
@@ -118,7 +126,7 @@ export function CharacterSection({
     <StyleCharacterChip
       kind="withdrawn"
       tone="saffron"
-      editable={canEditStyle}
+      editable={styleEditable}
       onEdit={editStyleInUse}
     >
       <p className="font-display text-sm font-bold text-foreground">
@@ -127,7 +135,7 @@ export function CharacterSection({
           : t('create.characters.withdrawnTitleNoName')}
       </p>
       <p className="mt-0.5 font-body text-xs text-muted-foreground">
-        {withdrawnHintKeys(mode, canEditStyle)
+        {withdrawnHintKeys(mode, styleEditable)
           .map((key) => t(key))
           .join(' ')}
       </p>
@@ -159,7 +167,7 @@ export function CharacterSection({
           <StyleCharacterChip
             kind="style-decides"
             tone="ocean"
-            editable={canEditStyle}
+            editable={styleEditable}
             onEdit={editStyleInUse}
           >
             <div className="flex items-start gap-3">
@@ -186,14 +194,14 @@ export function CharacterSection({
                   )}
                 </p>
               </div>
-              {canEditStyle && (
+              {styleEditable && (
                 <Pencil
                   aria-hidden
                   className="h-4 w-4 shrink-0 text-ocean/70"
                 />
               )}
             </div>
-            {canEditStyle && (
+            {styleEditable && (
               <p className="mt-3 border-t border-ocean/25 pt-2.5 font-body text-xs text-muted-foreground">
                 {t('create.characters.wantYours')}
               </p>

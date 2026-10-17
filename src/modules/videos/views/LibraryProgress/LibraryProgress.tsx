@@ -115,6 +115,7 @@ export function LibraryProgress() {
         avatarLookType: ownTask.avatarLookType,
         avatarEngine: ownTask.avatarEngine,
         avatarDropped: ownTask.avatarDropped,
+        demo: ownTask.demo === true,
       }
     : {
         videoFormat: status?.metadata.options.videoFormat,
@@ -141,6 +142,7 @@ export function LibraryProgress() {
         executionPlan: status?.metadata.options.executionPlan,
         ...avatarRunOptions(status?.metadata.options.avatar),
         avatarDropped: status?.avatarDropped,
+        demo: status?.metadata.options.demo === true,
         voiceVendor: status?.metadata.options.voiceProvider
           ? vendorOfProvider(status.metadata.options.voiceProvider)
           : null,

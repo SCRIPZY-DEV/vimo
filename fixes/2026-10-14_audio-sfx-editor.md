@@ -15,7 +15,7 @@ video final y a los archivos para editar.
 - La barra de herramientas a la izquierda reúne Animar, Audio, Transiciones y
   Música en botones con iconos y tooltips. Sus paneles se ensanchan con el borde
   lateral y desplazan la vista previa; el prompt se oculta con transición y conserva
-  su contenido al volver. Se cierran con X, el mismo botón, Escape o clic afuera.
+  su contenido al volver. Se cierran únicamente con X o el mismo botón.
 - Animación y Música conservan sus opciones y operaciones anteriores dentro de
   los paneles. Transiciones incorpora búsqueda, filtro y una tarjeta de fundido
   cruzado con previsualización animada al pasar el cursor.

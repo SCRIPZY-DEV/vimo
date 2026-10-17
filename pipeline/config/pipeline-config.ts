@@ -1,4 +1,8 @@
 import type { LlmTier } from '../types/llm.ts'
+import {
+  DEFAULT_ANIMATION_RESOLUTION,
+  type AnimationResolution,
+} from '../types/video-provider.ts'
 
 // Configuración del pipeline. Reemplaza al ConfigManager estático del origen:
 // acá no se lee el entorno del proceso — Rust manda overrides dentro del
@@ -9,21 +13,46 @@ export interface LlmConfig {
   models: Record<LlmTier, string>
 }
 
-// Pack pre-hecho del modo demo (ADR-0029). Versión, URL y SHA-256 se cambian
-// JUNTOS: subir la versión invalida el marcador `.ok` y fuerza una descarga
-// limpia en todas las máquinas. `delayScale` multiplica las esperas de la
-// simulación (1 = los ~40 s reales; el guard lo baja a 0). Rust nunca manda
-// overrides de `demo`: solo el harness y el guard.
+// Una parte del pack publicado: su URL, el SHA-256 de su zip y lo que pesa.
+// Los bytes dan el tamaño que muestra la puerta, el avance total y el espacio
+// libre que se exige antes de cada parte.
+export interface DemoPackPart {
+  url: string
+  sha256: string
+  bytes: number
+}
+
+// Pack pre-hecho del modo demo (ADR-0029; por partes desde el v4,
+// docs/handoff/2026-10-14-demo-v4/design.md §3 «Descarga»). Versión y partes
+// se cambian JUNTAS: subir la versión invalida el marcador `.ok` y el staging
+// a medias, y fuerza una descarga limpia en todas las máquinas.
+// `delayScale` multiplica las esperas de la simulación (1 = los ~40 s
+// reales, ~55 s con la animación; el guard lo baja a 0). `diskMarginBytes`
+// es el espacio libre que se exige además de lo que falta extraer y la parte
+// más grande (el guard lo sube para simular un disco lleno).
+// `downloadIdleMs` es el tope de inactividad de la descarga de cada parte:
+// sin respuesta o sin bytes nuevos por ese tiempo, la parte falla con un
+// código de la red y el próximo intento sigue desde ella (el guard lo baja).
+// Rust nunca manda overrides de `demo`: solo el harness y el guard.
 export interface DemoConfig {
   packVersion: string
-  packUrl: string
-  packSha256: string
+  packParts: DemoPackPart[]
   delayScale: number
+  diskMarginBytes: number
+  downloadIdleMs: number
+}
+
+// Animación de los clips (demo v4, spec §5). `resolution` es un ajuste interno:
+// solo el harness lo cambia (a '720p') por el config del job; Rust nunca manda
+// `animation`, así que los usuarios siguen en 480p.
+export interface AnimationConfig {
+  resolution: AnimationResolution
 }
 
 export interface PipelineConfig {
   llm: LlmConfig
   demo: DemoConfig
+  animation: AnimationConfig
 }
 
 export interface LlmConfigOverrides {
@@ -36,7 +65,16 @@ export interface LlmConfigOverrides {
 export interface PipelineConfigOverrides {
   llm?: LlmConfigOverrides
   demo?: Partial<DemoConfig>
+  animation?: Partial<AnimationConfig>
 }
+
+// El margen de espacio libre de la descarga de la demo (spec v4 §3).
+const DEMO_DISK_MARGIN_BYTES = 500 * 1024 * 1024
+// El tope de inactividad de cada parte: holgado para una pausa pasajera (un
+// cambio de red Wi-Fi, los reintentos de TCP) y muy por debajo de los 5
+// minutos sin eventos con que la puerta da al job por mudo, así un cuelgue
+// termina en un fallo retomable mientras el job todavía informa.
+const DEMO_DOWNLOAD_IDLE_MS = 90_000
 
 // Defaults portados del ConfigManager del origen (modelos DeepInfra por tier).
 export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
@@ -50,12 +88,66 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
     },
   },
   demo: {
-    packVersion: 'v3',
-    packUrl:
-      'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v3/vimo-demo-pack-v3.zip',
-    packSha256:
-      '7c1930c58d898f2232628ad75f49d7cb497d8ebed9fd92f81737f0a3e208c152',
+    packVersion: 'v4',
+    // Las 8 partes del release demo-pack-v4 de otd20071-cloud/vimo-releases
+    // (publicado el 2026-10-15): URL, SHA-256 y bytes de cada una, en el orden
+    // en que se instalan (la primera trae el manifest y las gemas).
+    packParts: [
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-1.zip',
+        sha256:
+          'c9d4814e0ae198221282f2e249613bbd9224614301ad4724a71aac39c337654c',
+        bytes: 463983552,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-2.zip',
+        sha256:
+          '95bfe94d5778ba21b9cbaadaa088064625224a7682759cc3d2696c4f7fb74f7f',
+        bytes: 481687496,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-3.zip',
+        sha256:
+          '1e7541b15ea3870e0f2d167627bfc7f780f90c8f723efceeb491b577bd9402f6',
+        bytes: 491148356,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-4.zip',
+        sha256:
+          '7a4ef139abd2fa0952a7bb135957ef9c2fa1b9f75fe7fb5f8989db91470faa3a',
+        bytes: 447945266,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-5.zip',
+        sha256:
+          'e0bdf39e28346f028c128548b75587d5b6f0e108ed5e03021c2443974f776213',
+        bytes: 473756971,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-6.zip',
+        sha256:
+          'c8fe63c4009c8425449c1ba952846005877f43bab96bf908d770d14f0161f79a',
+        bytes: 464268435,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-7.zip',
+        sha256:
+          'b6aaca8a627d5775c5dea633560cb53f7d67fcb69f54adc515193b160bbcecae',
+        bytes: 483354263,
+      },
+      {
+        url: 'https://github.com/otd20071-cloud/vimo-releases/releases/download/demo-pack-v4/vimo-demo-pack-v4.part-8.zip',
+        sha256:
+          '72277e322af9a655f87a5d9acc8a16f59765d0fe47a414c71f38a4a0b76248ca',
+        bytes: 35331667,
+      },
+    ],
     delayScale: 1,
+    diskMarginBytes: DEMO_DISK_MARGIN_BYTES,
+    downloadIdleMs: DEMO_DOWNLOAD_IDLE_MS,
+  },
+  animation: {
+    resolution: DEFAULT_ANIMATION_RESOLUTION,
   },
 }
 
@@ -76,6 +168,10 @@ export function resolvePipelineConfig(
     demo: {
       ...DEFAULT_PIPELINE_CONFIG.demo,
       ...overrides.demo,
+    },
+    animation: {
+      ...DEFAULT_PIPELINE_CONFIG.animation,
+      ...overrides.animation,
     },
   }
 }

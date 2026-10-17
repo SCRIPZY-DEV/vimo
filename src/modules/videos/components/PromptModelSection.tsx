@@ -17,6 +17,10 @@ import type { CreateFormValue } from '@/modules/videos/types/create'
 interface PromptModelSectionProps {
   value: CreateFormValue
   disabled: boolean
+  // La demo (spec demo v4 §2): solo la tarjeta del modelo predeterminado de
+  // la casa, sin enlace a Ajustes y sin bloqueos (ADR-0028 no aplica: la
+  // historia ya está escrita).
+  demo?: boolean
   onChange: (patch: Partial<CreateFormValue>) => void
 }
 
@@ -27,6 +31,7 @@ interface PromptModelSectionProps {
 export function PromptModelSection({
   value,
   disabled,
+  demo = false,
   onChange,
 }: PromptModelSectionProps) {
   const { t } = useTranslation()
@@ -36,6 +41,21 @@ export function PromptModelSection({
   // Bloqueos temporales (ADR-0028): el elegido bloqueado cae a otro, y sin
   // ninguno libre solo queda avisar (el envío lo frena formBlockers).
   const { blockedIds, blockedUntil } = usePromptModelBlocks()
+
+  if (demo) {
+    // Sin catálogo (el sidecar no respondió) no hay tarjeta que mostrar.
+    const model = models.find((candidate) => candidate.id === defaultId)
+    if (!model) return null
+
+    return (
+      <div className="space-y-2">
+        <h3 className="font-display text-sm font-bold text-foreground">
+          {t('create.promptModel.title')}
+        </h3>
+        <PromptModelCard model={model} active />
+      </div>
+    )
+  }
 
   if (allPromptModelsBlocked(models, blockedIds))
     return <Alert tone="warning">{t('create.promptModel.allBlocked')}</Alert>

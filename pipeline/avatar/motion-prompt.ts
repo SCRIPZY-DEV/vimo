@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { stripNarrationQuotes } from '../animation/narration-quotes.ts'
 import { extractJsonObject } from '../prompts/character-designer.ts'
 import type { SceneLlm } from '../stages/shared/llm.ts'
 import {
@@ -361,19 +362,28 @@ function templatePrompts(
 }
 
 // Las plantillas, con el prompt del modelo en cada escena donde pasa la
-// validación. Una entrada de una escena que no se pidió no entra.
+// validación. Una entrada de una escena que no se pidió no entra. Una cita de
+// lo que dice la aparición no llega al proveedor, que puede dibujarla como
+// texto (fix del 2026-10-15): se saca antes de validar, y si no queda un
+// prompt que sirva, va la plantilla.
 function promptsFromAnswer(
   requests: readonly AvatarMotionRequest[],
   answer: string,
 ): Map<number, string> {
   const prompts = templatePrompts(requests)
-  const requested = new Set(requests.map((request) => request.sceneId))
+  const requested = new Map(
+    requests.map((request) => [request.sceneId, request]),
+  )
 
   for (const entry of motionEntries(answer) ?? []) {
     if (!isMotionEntry(entry)) continue
-    if (!requested.has(entry.sceneId)) continue
 
-    const prompt = validateMotionPrompt(entry.prompt)
+    const request = requested.get(entry.sceneId)
+    if (!request) continue
+
+    const prompt = validateMotionPrompt(
+      stripNarrationQuotes(entry.prompt, { narration: [request.text] }),
+    )
     if (prompt === null) continue
 
     prompts.set(entry.sceneId, prompt)

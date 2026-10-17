@@ -14,6 +14,13 @@ import {
 import type { CatalogCopyRequest } from '@/modules/videos/types/styles'
 import type { CatalogListResult } from '@pipeline/types/catalog.ts'
 
+interface UseCatalogStylesOptions {
+  // Quien la lee de paso (Crear, para la tarjeta que la demo usa sin una
+  // elegida) la pide solo cuando le hace falta: cada lectura es un proceso
+  // del sidecar y la sincronización le pregunta a vimo.click.
+  enabled?: boolean
+}
+
 // El catálogo de Vimo (Entrega 2): las gemas de la pestaña Catálogo, en su
 // orden, y «Pasar a mi estilo». Con el catálogo remoto encendido (Entrega 3,
 // ADR-0049) la lista es la sincronizada en `_catalog/` si la hay, y al montarse
@@ -25,7 +32,9 @@ import type { CatalogListResult } from '@pipeline/types/catalog.ts'
 // apenas el webview avisa `offline` (ERRORES-CONOCIDOS:
 // tanstack-mutacion-pausada-por-networkmode-online); la sincronización también
 // va con `always` para que un `offline` equivocado no la deje colgada.
-export function useCatalogStyles() {
+export function useCatalogStyles({
+  enabled = true,
+}: UseCatalogStylesOptions = {}) {
   const native = videosApi.isNative()
   const newCatalog = useAccessFeature('newCatalog')
   const remoteCatalog = useAccessFeature('remoteCatalog')
@@ -34,7 +43,7 @@ export function useCatalogStyles() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: catalogStylesQueryKey(remote),
     queryFn: () => videosApi.listCatalogStyles(remote ? { remote } : undefined),
-    enabled: native,
+    enabled: native && enabled,
     networkMode: 'always',
     staleTime: Infinity,
     retry: false,
@@ -64,7 +73,7 @@ export function useCatalogStyles() {
       })
       return { synced: true }
     },
-    enabled: native && remote && data !== undefined,
+    enabled: native && enabled && remote && data !== undefined,
     networkMode: 'always',
     staleTime: CATALOG_SYNC_STALE_TIME_MS,
     retry: false,

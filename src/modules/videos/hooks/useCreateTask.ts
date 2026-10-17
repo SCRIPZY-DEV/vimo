@@ -21,7 +21,7 @@ import {
   UNKNOWN_CREATE_ERROR_KEY,
 } from '@/modules/videos/constants'
 import {
-  chargedSceneIdsWithAvatarEvent,
+  chargedSceneIdsForTask,
   scenesWithAvatarEvent,
   scenesWithAvatarRunEnded,
 } from '@/modules/videos/utilities/avatarTaskEvents'
@@ -544,17 +544,15 @@ function handleEvent(taskId: string, event: PipelineEventPayload) {
 
     // Cada aparición que HeyGen ya aceptó (o que quedó lista) queda anotada
     // como cobrada en esta corrida (entrega 2h, spec §24.3): con eso
-    // «Cancelar» avisa y la tarjeta del fallo dice lo que se conserva.
+    // «Cancelar» avisa y la tarjeta del fallo dice lo que se conserva. En una
+    // corrida de la demo no se cobra nada y no se anota (ruling R28).
     case 'avatar-scene-started':
     case 'avatar-scene-progress':
     case 'avatar-scene-ready':
     case 'avatar-scene-failed':
       patchTask(taskId, {
         scenes: scenesWithAvatarEvent(task.scenes, event, Date.now()),
-        avatarChargedSceneIds: chargedSceneIdsWithAvatarEvent(
-          task.avatarChargedSceneIds,
-          event,
-        ),
+        avatarChargedSceneIds: chargedSceneIdsForTask(task, event),
       })
       return
 
@@ -932,6 +930,8 @@ function makeTask(
     avatarLookType: options.avatarLookType,
     avatarEngine: options.avatarEngine,
     avatarChargedSceneIds: [],
+    // Solo una corrida de la demo lo lleva: la tarea de siempre queda igual.
+    ...(options.demo ? { demo: true } : {}),
   }
 }
 
@@ -1053,6 +1053,7 @@ async function startCreation(input: {
         ? vendorOfProvider(input.payload.options.voiceProvider)
         : null,
       ...avatarRunOptions(input.payload.options.avatar),
+      demo: input.payload.options.demo === true,
     }),
   )
 

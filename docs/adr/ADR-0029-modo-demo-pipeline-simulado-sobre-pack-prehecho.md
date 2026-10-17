@@ -8,7 +8,15 @@
   [ADR-0018](ADR-0018-estilos-visuales-propios-fase-basica.md)
 - **Extendida por:** [ADR-0030](ADR-0030-pack-v3-historias-short-y-narracion-precargada.md)
   (pack v3 con historias Short bajo `short/`, audio pre-cargado en «Subir mi audio» y
-  armador propio del repo). Lo que acá dice sobre la raíz del pack sigue vigente.
+  armador propio del repo). Lo que acá dice sobre la raíz del pack sigue vigente (hasta la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md), que la reemplaza por el
+  formato v4).
+- **Extendida por:** [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md)
+  (pack v4 de 79 historias en 8 partes, descarga en segundo plano, Crear en demo sobre el catálogo nuevo,
+  animación y avatar en la simulación).
+- **Enmendada:** 2026-10-15, por la ADR-0061 (Propuesta al 2026-10-15): la descarga sigue en segundo plano
+  al salir de la puerta y el pack deja de ser un zip único en el formato v2 (ver «Enmienda 2026-10-15» al
+  final). El resto sigue vigente.
 
 ## Problema
 
@@ -96,6 +104,11 @@ job-completed { videoPath } ─► biblioteca / editor
 | Guard ejecutable                  | nuevo  | `scripts/test/check-demo.mjs` (`pnpm check:demo`)                                                                                       | Genera un pack mínimo en una carpeta temporal, lo sirve por HTTP local y corre el sidecar con overrides de `config.demo`; ver Verificación                                                                                                                    |
 | Textos                            | cambio | `public/locales/{es,en,pt}.json`                                                                                                        | `layout.nav.demo`, grupo `createDemo.*` (estados, nota, reintentar, `errors.*`), `common.proximamente`, `library.editor.demoLocked`, `library.errors.demoProject`                                                                                             |
 
+> **Enmienda 2026-10-15.** La fila «Vista puerta `CreateDemo`» dice que la puerta cancela el job al desmontar:
+> desde la [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) ya no. La descarga
+> vive en un store del módulo `videos` (`demoPrepareStore.ts`) y sigue en segundo plano al salir de la puerta;
+> volver muestra el avance (ver «Enmienda 2026-10-15» al final).
+
 ### El pack en disco
 
 El zip publicado se extrae **tal cual** en `<carpeta raíz>/_demo-pack/` (raíz detectada
@@ -151,7 +164,9 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
    (el pack ya está en disco y nada se gasta).
 2. `CreateDemo` pide `demo-status`. Si `ready`, navega a Crear con `{ demo: manifest }`
    en el `state` del router; si no, lanza `demo-prepare` y pinta `progress.percent`
-   hasta el `job-completed`, que trae el manifest. Salir de la vista cancela el job.
+   hasta el `job-completed`, que trae el manifest. Salir de la vista cancela el job (superado por la
+   [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md): salir de la puerta ya no
+   cancela la descarga, que sigue en segundo plano).
 3. Crear consume el `state` una sola vez (`useState` inicial), reemplaza la entrada
    del historial para que «atrás» vuelva a un Crear limpio, y pre-llena voz, estilo,
    nombre, guion y escenas desde el manifest. Al cambiar de estilo, el manejador del
@@ -194,7 +209,9 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
   navegación sin una segunda consulta.
 - **Seguir la descarga en segundo plano al salir de la puerta** — descartado por ahora:
   es una descarga única por máquina; si el uso muestra abandonos a mitad, se promueve a
-  un store como el de la tarea de creación.
+  un store como el de la tarea de creación. (Superado: la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) lo promovió a un store del
+  módulo `videos` porque el pack v4 pesa 3,3 GB.)
 
 ## Consecuencias
 
@@ -285,13 +302,35 @@ reanudar vuelve a correr el guion completo (las copias son idempotentes).
 
 - Shorts (9:16) en la demo: el pack v2 solo trae 16:9 y el botón queda «Próximamente».
   Resuelto por ADR-0030 (árbol `short/` del pack v3).
-- Continuar la descarga fuera de la puerta (store global).
+- Continuar la descarga fuera de la puerta (store global). Hecho por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md).
 - El script que arma un pack nuevo (`armar-demo-pack.ts` del origen): el pack v2 se
   publicó con las herramientas del origen. Desde ADR-0030 el repo tiene su propio
   armador (`scripts/build-demo-pack.mjs`, `pnpm build:demo-pack`).
 - Modo web (sin Tauri): la entrada no se muestra y la puerta redirige a Crear igual
   que sin flag (el pack necesita el sidecar).
 - Telemetría del uso de la demo.
+
+## Enmienda 2026-10-15 — la descarga sigue en segundo plano y el pack pasa a ser el v4
+
+La [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) (Propuesta al 2026-10-15)
+cambia cuatro cosas de esta ADR. El resto —el acceso decidido por vimo.click, el flag `demo`, la puerta como
+vista del módulo `videos`, la simulación que copia archivos y emite los eventos nativos y los rechazos
+`demo_project`— sigue como acá se decidió.
+
+- **La puerta ya no cancela el job al desmontar** (fila «Vista puerta `CreateDemo`», paso 2 del «Flujo de datos»
+  y la descarga fuera de la puerta en «Alternativas» y «Fuera de alcance»). La descarga vive en un store del
+  módulo `videos` y sigue en segundo plano; volver a la puerta muestra el avance, y `demo_busy` (otro
+  `demo-prepare` está instalando) es una espera, no un fallo.
+- **El pack ya no es un zip único de 209 MB.** En `DEFAULT_PIPELINE_CONFIG.demo`, `packUrl` y `packSha256`
+  pasan a `packParts` (8 partes `{ url, sha256, bytes }`); el `.ok` sella `{ version, parts }`, la puerta pide
+  confirmar el tamaño antes de bajar y una instalación cortada sigue desde la parte que faltaba.
+- **El formato del pack y la elección de la historia.** La tabla «El pack en disco» y la lista de estilos fijos
+  (`pov_stickman`, `normal`, `cartoon` y la gema `storytelling`) son del v2: el v4 los reemplaza por un manifest
+  que manda y elige la historia por `customStyle.catalogStyleId` o por la gema (ver también la ADR-0030).
+- **La simulación recorre ocho fases, no seis** (suma `avatar` y `animation`, con `stage-skipped` cuando no
+  aplican): ≈ 38 s sin animación y ≈ 53 s con ella. El guard `pnpm check:demo` ya no es el de «Verificación
+  de cumplimiento»: tiene 40 secciones sobre un pack v4 mínimo (ver `scripts/test/README.md`).
 
 ## Referencias
 

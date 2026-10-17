@@ -51,7 +51,8 @@ interface CatalogStyleCardProps {
   admin?: CatalogStyleAdminActions
   onSelect: () => void
   onView: () => void
-  onCopy: () => void
+  // «Pasar a mi estilo»; sin él, el menú no lo ofrece (la demo).
+  onCopy?: () => void
 }
 
 // El distintivo del admin, en el centro de las muestras y sobre la tarjeta
@@ -137,7 +138,7 @@ export function CatalogStyleCard({
             <Eye className="mr-2 h-4 w-4" />
             {t('create.catalog.view')}
           </DropdownMenuItem>
-          {!archived && (
+          {!archived && onCopy && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={copying} onSelect={onCopy}>

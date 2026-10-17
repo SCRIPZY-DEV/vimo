@@ -45,6 +45,7 @@ agrega ruido.
 
 | ADR                                                                                      | Título                                                                            | Estado                     | Área                          |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------- |
+| [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md)              | Demo v4: catálogo nuevo, animación y avatar con un pack que se baja por partes    | Propuesta                  | app / pipeline / distribución |
 | [ADR-0059](ADR-0059-flow-qa-nativa-aislada.md)                                           | Entorno aislado para aceptación nativa de Flow                                    | Referencia QA              | QA local                      |
 | [ADR-0058](ADR-0058-flow-como-motor-de-imagenes.md)                                      | Flow como motor de imágenes con coordinador nativo                                | Implementada localmente    | app / pipeline / extensión    |
 | [ADR-0057](ADR-0057-escenas-de-avatar-con-heygen-sobre-la-narracion.md)                  | Escenas de avatar con HeyGen sobre la narración                                   | Propuesta                  | pipeline / app / providers    |

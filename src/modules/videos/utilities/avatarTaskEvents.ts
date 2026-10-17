@@ -133,6 +133,21 @@ export function chargedSceneIdsWithAvatarEvent(
   return [...sceneIds, event.sceneId]
 }
 
+// Lo cobrado de la corrida de una tarea con un evento más: el de
+// chargedSceneIdsWithAvatarEvent, salvo en una corrida de la demo (ADR-0029,
+// ruling R28), que imita las fases de HeyGen con el avatar del pack: nadie lo
+// cobra y su lista queda como está (vacía), así que ni «Cancelar», ni «Crear
+// otro», ni la tarjeta del fallo hablan de apariciones pagadas. Pura: la
+// misma lista si no cambia.
+export function chargedSceneIdsForTask(
+  task: Pick<CreateTask, 'avatarChargedSceneIds' | 'demo'>,
+  event: AvatarSceneEvent,
+): number[] {
+  if (task.demo) return task.avatarChargedSceneIds
+
+  return chargedSceneIdsWithAvatarEvent(task.avatarChargedSceneIds, event)
+}
+
 // Cuántas apariciones cobradas en esta corrida siguen generándose (entrega 2h,
 // spec §24.4): cancelar ahora no devuelve lo que ya se mandó a generar.
 export function chargedAvatarScenesInFlight(

@@ -78,7 +78,9 @@ export async function startPipelineJob(
 /**
  * Job con semántica request/response: resuelve con el result del job-completed.
  * `onEvent` recibe lo que el job emite mientras corre (su avance), para quien
- * quiere el resultado como promesa y además mostrar el progreso.
+ * quiere el resultado como promesa y además mostrar el progreso. La promesa
+ * siempre se cierra: si el proceso del sidecar muere sin evento final, Rust
+ * manda un job-failed (`sidecar_exited`, o `cancelled` si se pidió cancelar).
  */
 export function runPipelineJob<TResult>(
   subcommand: string,

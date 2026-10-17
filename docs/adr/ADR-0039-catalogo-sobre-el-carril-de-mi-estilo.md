@@ -7,6 +7,9 @@
   se resolvió»).
 - **Fecha:** 2026-09-18 (aceptada el 2026-10-02)
 - **Área:** pipeline / Catálogo
+- **Enmendada:** 2026-10-15, por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) (Propuesta al 2026-10-15): la
+  demo usa siempre el catálogo nuevo (ver las notas «superado» del cuerpo).
 - **Relacionada con:** [ADR-0019](ADR-0019-carril-verbatim-y-segundos-por-escena.md)
   (el carril al que se migra), [ADR-0036](ADR-0036-prompts-de-catalogo-sin-relleno.md)
   y [ADR-0033](ADR-0033-personajes-con-foto-la-imagen-subida-como-identidad.md).
@@ -100,7 +103,9 @@ Cómo quedó:
   ids nuevos del catálogo con el marco (los 5 heredados siguen con su plantilla fija hasta el retiro).
 - La app muestra la pestaña Catálogo nueva solo con `features.newCatalog` encendido y fuera del modo
   demo: tarjetas como las de Mi estilo, «Ver» (muestras y modo de personaje, recordado por estilo en
-  `localStorage`) y «Pasar a mi estilo». Con el interruptor apagado, Crear es el de hoy.
+  `localStorage`) y «Pasar a mi estilo». Con el interruptor apagado, Crear es el de hoy. (Superado por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md),
+  2026-10-15: la demo usa el catálogo nuevo, tenga o no el interruptor.)
 - El retiro del carril viejo (redactor por escena, `identity-lock.ts`, frecuencia, cantidad de escenas,
   pack de la demo) arranca 7 días después de encender el interruptor para todos (E2-8 del plan).
 
@@ -159,7 +164,9 @@ Desde la aceptación (2026-10-02), con `node --test`:
   memoria del modo, el snapshot del formulario, el cambio de pestaña y que una copia nunca viaja como
   gema del catálogo.
 - `scripts/test/check-app-catalog-payload.mjs`: el payload de Crear por carril con el formulario real
-  empaquetado; el del catálogo viejo queda fijado byte por byte (interruptor apagado o demo).
+  empaquetado; el del catálogo viejo queda fijado byte por byte (interruptor apagado o demo). (Superado por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md),
+  2026-10-15: la demo usa el catálogo nuevo; el caso «demo» del guard solo fija la marca `demo` y la ausencia de pausas del payload.)
 - Los guards del carril viejo (`check-character-identity-lock.mjs`, `check-catalog-prompts.mjs`,
   `check-packaged-catalog.mjs`) siguen en verde hasta el retiro.
 
@@ -186,7 +193,9 @@ de encender el interruptor para todos:
 - Con el interruptor apagado no cambia nada del comportamiento actual: ni el redactor de
   Catálogo, ni la UI, ni los proyectos existentes.
 - El retiro del carril viejo y la regeneración del pack de la demo (ADR-0029) son trabajo
-  posterior, con fecha a partir de E2-8.
+  posterior, con fecha a partir de E2-8. (Superado por la
+  [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md),
+  2026-10-15, en lo que toca a la demo: su pack se regeneró con el catálogo nuevo y la demo ya lo usa.)
 - El catálogo remoto administrado desde Supabase es la Entrega 3 del mismo diseño.
 
 ## Referencias

@@ -9,6 +9,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 // Utilidades de filesystem para escribir, leer y crear directorios de forma
@@ -60,10 +61,14 @@ export async function renameAtomic(
 // los archivos en sí se puedan leer. Mismo reintento lock-tolerante que
 // renameAtomic; si los 8 intentos se agotan, copia el árbol entero en vez
 // de perder el trabajo — quien llama sigue siendo dueño de borrar el
-// origen (installPack ya lo hace en su `finally`).
+// origen. `sealFiles` son archivos de la raíz de `source` que marcan el
+// árbol como completo (el `.ok` del pack de la demo): el rename los lleva
+// con todo de una vez; la copia, que no es atómica, los copia al final, así
+// una copia cortada a la mitad nunca queda sellada.
 export async function moveDirectoryAtomic(
   source: string,
   destination: string,
+  sealFiles: readonly string[] = [],
 ): Promise<void> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
@@ -75,13 +80,27 @@ export async function moveDirectoryAtomic(
 
       const isLastAttempt = attempt === MAX_ATTEMPTS - 1
       if (isLastAttempt) {
-        await cp(source, destination, { recursive: true })
+        await copyDirectorySealedLast(source, destination, sealFiles)
         return
       }
 
       await delay(BASE_DELAY_MS * (attempt + 1))
     }
   }
+}
+
+async function copyDirectorySealedLast(
+  source: string,
+  destination: string,
+  sealFiles: readonly string[],
+): Promise<void> {
+  const seals = new Set(sealFiles.map((name) => join(source, name)))
+  await cp(source, destination, {
+    recursive: true,
+    filter: (path) => !seals.has(path),
+  })
+  for (const name of sealFiles)
+    await copyFile(join(source, name), join(destination, name))
 }
 
 // Escribe en un temporal y luego lo mueve al destino para evitar archivos

@@ -3,6 +3,11 @@
 - **Estado:** Aceptada
 - **Fecha:** 2026-09-11
 - **Área:** app / pipeline
+- **Extendida por:** [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) (pack v4 de 79
+  historias en 8 partes; reemplaza el formato v2 de la raíz del pack y el armador de esta ADR).
+- **Enmendada:** 2026-10-15, por la ADR-0061 (Propuesta al 2026-10-15): la regla 1 (la raíz es v2,
+  congelada), la regla 2 y «Cómo se arma un pack nuevo» (ver «Enmienda 2026-10-15» al final). El resto sigue
+  vigente.
 
 Extiende la [ADR-0029](ADR-0029-modo-demo-pipeline-simulado-sobre-pack-prehecho.md):
 el modo demo, la puerta, el acceso y la simulación siguen como allí se decidió. Acá
@@ -60,7 +65,9 @@ Reglas del formato v3:
 
 1. **La raíz es v2, congelada.** Todo lo que ADR-0029 documenta sobre la raíz sigue
    valiendo byte a byte; `short/` es un árbol hermano con la misma estructura interna.
-   Un formato nuevo en el futuro = otro árbol hermano + otro bloque en el manifest.
+   Un formato nuevo en el futuro = otro árbol hermano + otro bloque en el manifest. (Superada por la
+   [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md): la raíz pasa al formato v4; se
+   conservan la estructura por historia y el árbol hermano `short/`.)
 2. **`short/` es opcional pero, si está, es completo.** `validatePack` exige en
    `manifest.short` las tres entradas del catálogo y la gema, y en `short/<carpeta>/`
    los mismos archivos que en la raíz. Sin bloque `short`, el pack es válido y
@@ -93,6 +100,9 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
 | `short/storytelling` | Mi estilo    | «El último tren a casa»           |
 
 ### Cómo se arma un pack nuevo
+
+> **Superado por la [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md):** el armador ya
+> no parte de un pack base. Ver «Enmienda 2026-10-15» al final.
 
 1. Generar los proyectos que cambian (los shorts, en 9:16 y calidad low, misma voz que
    el manifest) en una carpeta raíz de Vimo; con la app o con el sidecar por terminal.
@@ -188,6 +198,27 @@ low (regla del dueño para el pack) y con la misma voz Abel del v2, con guiones 
   incluye.
 - Un audio real subido por la persona dentro de la demo (ver decisión 4).
 - Convertir el zip al formato nativo (D2 de ADR-0029).
+
+## Enmienda 2026-10-15 — el pack v4 reemplaza al v3
+
+La [ADR-0061](ADR-0061-demo-v4-catalogo-animacion-avatar-y-pack-por-partes.md) (Propuesta al 2026-10-15)
+reemplaza lo siguiente de esta ADR. El resto —el audio pre-cargado en «Subir mi audio» y su bloqueo en la demo,
+la historia que sigue a formato y estilo, el árbol hermano `short/` y los códigos `demo_format_not_included` y
+`demo_pack_incomplete`— sigue vigente.
+
+- **Regla 1 (la raíz es v2, congelada).** El pack v4 trae un manifest que manda (`version: "v4"`, `gemas[]`,
+  `estilos[]` e `historiasGema[]` para 16:9 y `short { estilos[], historiasGema[] }` para 9:16) y su lector solo
+  acepta esa versión. Se conservan la estructura por carpeta de historia y el árbol hermano `short/`;
+  desaparece la lista fija de estilos.
+- **Regla 2 (`short/` es opcional pero, si está, es completo).** Vale ahora para los dos formatos:
+  `validatePack` exige que cada historia que lista el manifest esté completa, y un pack necesita al menos un
+  formato con historias.
+- **Contenido y tamaño.** Las ocho historias del v3 (cuatro por formato, en un zip de 334.224.614 bytes) pasan a
+  79 historias en 8 partes (3.341.476.006 bytes). Una máquina con el v3 lo ve «no listo» y baja el v4.
+- **«Cómo se arma un pack nuevo».** El armador ya no parte de un pack base y cuatro shorts:
+  `pnpm build:demo-pack --stories <stories.json> --gems <gems.json> --out <carpeta>` arma las partes desde
+  proyectos nativos terminados, uno por historia, y `DEFAULT_PIPELINE_CONFIG.demo` guarda `packVersion` y
+  `packParts` en lugar de `packUrl` y `packSha256`.
 
 ## Referencias
 

@@ -29,6 +29,7 @@ import {
   ANIMATION_CONCURRENCY,
   GROK_VIDEO_MODEL,
   VIDEO_CREDITS_PER_SECOND,
+  animationFrame,
 } from '../types/video-provider.ts'
 import { readTextWithRetry } from '../utils/atomic-fs.ts'
 import { limitConcurrency } from '../utils/concurrency.ts'
@@ -371,10 +372,11 @@ export async function generateSceneAnimations(
       const apiKey = provider.apiKeyOf(context.job.apiKeys)
       const ffmpegPath = requireFfmpegPath(context.job.binaryPaths.ffmpeg)
       const format = videoFormatOf(context.options)
-      const frame =
-        format === '9:16'
-          ? { width: 480, height: 854 }
-          : { width: 854, height: 480 }
+      // 480p salvo que el harness del pack demo suba el ajuste por el config
+      // del job: define el pedido a Kie y el cuadro en que se normalizan las
+      // imágenes de referencia y el clip recibido.
+      const resolution = context.config.animation.resolution
+      const frame = animationFrame(format, resolution)
       context.options.videoProvider = 'kie'
       await withAnimationCheckpointLease(paths.root, signal, async () => {
         const latest = await readProjectMetadata(paths)
@@ -734,6 +736,7 @@ export async function generateSceneAnimations(
               model: animation.model,
               aspectRatio: format,
               requestedSeconds: animation.requestedSeconds,
+              resolution,
             },
             {
               paths,
