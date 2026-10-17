@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/modules/common/ui/dialog'
+import { ExtensionInstallSteps } from '@/modules/extension/components/ExtensionInstallSteps'
 import { useExtensionRelease } from '@/modules/extension/hooks/useExtensionRelease'
 import {
   extensionReleaseErrorKey,
@@ -255,6 +256,18 @@ export function ExtensionReleaseSection({
           </Button>
         </div>
       )}
+      {/* El modal se cierra y no vuelve a abrirse para un ZIP ya guardado:
+          los pasos quedan a mano en la sección. */}
+      {savedPath && (
+        <details className="rounded-xl border border-border p-3 text-sm">
+          <summary className="cursor-pointer font-bold">
+            {t('extension.releaseInstallTitle')}
+          </summary>
+          <div className="mt-3">
+            <ExtensionInstallSteps />
+          </div>
+        </details>
+      )}
       {saved?.cleanupIncomplete && !open && (
         <p role="status" className="text-sm text-muted-foreground">
           {t('extension.releaseCleanupIncomplete')}
@@ -305,11 +318,7 @@ export function ExtensionReleaseSection({
             </div>
             <div className="space-y-2 rounded-xl border border-border p-3 text-sm">
               <p className="font-bold">{t('extension.releaseInstallTitle')}</p>
-              <ol className="list-decimal space-y-2 pl-5">
-                <li>{t('extension.releaseInstallExtract')}</li>
-                <li>{t('extension.releaseInstallLoad')}</li>
-                <li>{t('extension.releaseInstallUpdate')}</li>
-              </ol>
+              <ExtensionInstallSteps />
             </div>
             {busy && (
               <p role="status" className="flex items-center gap-2 text-sm">
