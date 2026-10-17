@@ -97,6 +97,8 @@ export function LibraryProgress() {
   // la grilla aparecen al toque en vez de vacías hasta el primer evento.
   // El carril y el modelo salen de project.json (ADR-0028): el modelo se
   // resuelve como en Crear (null = el de la casa) para saber a quién bloquear.
+  // Un proyecto de la demo reanudado sigue siendo una corrida de la demo:
+  // no anota apariciones cobradas (ruling R28).
   const usesCustomStyle = status?.metadata.options.customStyle !== undefined
   const runOptions: ProjectRunOptions = ownTask
     ? {
