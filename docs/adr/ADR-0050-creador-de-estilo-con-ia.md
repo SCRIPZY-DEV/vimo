@@ -13,6 +13,14 @@
   el 2026-10-03 desde `fix/prompt-identity-travels-as-text`.
 - **Spec:** [design.md](../handoff/2026-10-03-ai-style-creator/design.md).
 
+## Enmienda 2026-10-13 — Imágenes de prueba con Vimo gratis
+
+La restricción original de pagar todas las imágenes con Fal/Evolink queda **superada**: diseños y escenas de prueba también admiten Vimo (gratis), con Multimagen preparado y un plan explícito conservado en la sesión. El análisis del estilo conserva su contrato y servicio actuales.
+
+Cada tarjeta tiene una intención durable por sesión, tipo, ronda e índice. Reintentar una tarjeta incierta recupera su recibo; un fallo terminal confirmado permite un nuevo intento explícito. Las referencias fotográficas conservan su hash y no se degradan silenciosamente a texto. La UI presenta los tres proveedores y sólo un badge de conexión, con validación de capacidad antes de iniciar.
+
+La implementación, diagrama, contratos de fallo y pruebas están en [el fix de imágenes de prueba con Vimo gratis](../../fixes/2026-10-13_clonacion-de-estilo-con-vimo-gratis.md) del 2026-10-13. La descripción siguiente conserva el contexto de la decisión original de 2026-10-03.
+
 ## Problema
 
 Crear un estilo en Mi estilo exige escribir o conseguir una gema. El dueño usa en Imperio Pro

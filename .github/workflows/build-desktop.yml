@@ -35,6 +35,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: read
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -69,6 +72,11 @@ jobs:
       artifact: ${{ matrix.artifact }}
       path: ${{ matrix.path }}
 
+  # Linux valida la entrega de la extensión sin añadir un instalador Linux
+  # ni consumir otra compilación de macOS. El workflow no recibe secretos.
+  extension-linux:
+    uses: ./.github/workflows/test-extension-linux.yml
+
   # Solo con tag: junta los artefactos de todos los targets, genera latest.json
   # (scripts/build-update-manifest.mjs), sube los binarios a Cloudflare R2 y
   # deja el manifiesto como artefacto del run. El commit de latest.json en
@@ -81,7 +89,7 @@ jobs:
   # RELEASES_SECRET_ACCESS_KEY. Sin ellos la subida se salta sin fallar.
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build]
+    needs: [build, extension-linux]
     runs-on: ubuntu-latest
     env:
       RELEASES_PUBLIC_URL: ${{ vars.RELEASES_PUBLIC_URL }}

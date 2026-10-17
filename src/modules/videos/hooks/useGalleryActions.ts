@@ -1,7 +1,12 @@
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { commonApi } from '@/modules/common/api'
-import { commonQueryKeys } from '@/modules/common/constants'
+import {
+  commonQueryKeys,
+  FLOW_RESULT_RECOVERY_KEYS,
+} from '@/modules/common/constants'
 import { useImageCredits } from '@/modules/common/hooks/useImageCredits'
 import { useVideoCredits } from '@/modules/common/hooks/useVideoCredits'
 import { compareCostLines } from '@/modules/common/utilities/compareCostLines'
@@ -19,6 +24,7 @@ import {
   hasPendingAnimationSource,
   undoableAnimationClips,
 } from '@/modules/videos/utilities/animationUndo'
+import { sceneImageEditable } from '@/modules/videos/utilities/sceneImageEditable'
 import { imageCostEstimate } from '@/modules/videos/utilities/imageCostEstimate'
 import { animationCostEstimate } from '@/modules/videos/utilities/animationCostEstimate'
 import {
@@ -40,6 +46,7 @@ export function useGalleryActions({
   durationSeconds,
   locked,
   imageProvider,
+  executionPlan,
   onRegenerateImages,
   onUndoAnimation,
   undoingSceneId,
@@ -48,7 +55,10 @@ export function useGalleryActions({
   const { detail } = useLibraryProjectDetail(projectId)
   const { configuredProviders } = useRequiredApiKeys()
   const imageCredits = useImageCredits({
-    enabled: configuredProviders.has(imageProvider),
+    enabled: imageProvider !== 'flow' && configuredProviders.has(imageProvider),
+  })
+  const flowCapacity = useFlowCapacity(1, imageProvider === 'flow', {
+    executionPlan,
   })
   const videoCredits = useVideoCredits({
     enabled: configuredProviders.has('kie'),
@@ -60,7 +70,10 @@ export function useGalleryActions({
   const planFor = (ids: number[]) =>
     galleryAnimationPlan(scenes, ids, { videoFormat, durationSeconds })
   const validSelection = (ids: number[]) =>
-    ids.length > 0 && ids.every((id) => scenes.some((scene) => scene.id === id))
+    ids.length > 0 &&
+    ids.every((id) =>
+      scenes.some((scene) => scene.id === id && sceneImageEditable(scene)),
+    )
   const readyClips = undoableAnimationClips(scenes)
   const getUndoSceneCount = (id: number) =>
     new Set(
@@ -91,6 +104,16 @@ export function useGalleryActions({
       },
     ]
   }
+  const isFlowRecovery = (ids: number[]) => {
+    return (
+      imageProvider === 'flow' &&
+      ids.some(
+        (id) =>
+          editorTask.task?.sceneStatus[id] === 'awaiting_sync' ||
+          FLOW_RESULT_RECOVERY_KEYS.has(editorTask.task?.sceneErrors[id] ?? ''),
+      )
+    )
+  }
   const imageRejection = (ids: number[]) => {
     if (locked) return 'library.editor.demoLocked'
     if (!validSelection(ids)) return 'library.editor.imageGallery.submitFailed'
@@ -98,7 +121,9 @@ export function useGalleryActions({
       return 'library.errors.projectBusy'
     if (ids.some((id) => getUndoSceneCount(id) > 0))
       return 'library.editor.panel.animation.undoBeforeImage'
-    if (!configuredProviders.has(imageProvider))
+    if (imageProvider === 'flow' && !isFlowRecovery(ids) && !flowCapacity.ready)
+      return 'extension.notReady'
+    if (imageProvider !== 'flow' && !configuredProviders.has(imageProvider))
       return 'library.editor.imageGallery.noImageProvider'
     if (hasPendingAnimationSource(scenes, ids))
       return 'library.editor.imageGallery.recoveringImage'
@@ -189,15 +214,29 @@ export function useGalleryActions({
     setSubmitting(true)
     setErrorKey(null)
     try {
-      const fresh = commonApi.isNative()
-        ? await queryClient
-            .fetchQuery({
-              queryKey: commonQueryKeys.imageCredits,
-              queryFn: () => commonApi.getImageCredits(),
-              staleTime: 0,
-            })
-            .catch(() => null)
-        : imageCredits.credits
+      const recovering = isFlowRecovery(ids)
+      const plan =
+        imageProvider === 'flow' && !recovering
+          ? normalizeFlowExecutionPlan(executionPlan)
+          : undefined
+      if (
+        imageProvider === 'flow' &&
+        !recovering &&
+        !(await flowCapacity.verify(ids.length))
+      ) {
+        setErrorKey('extension.notReady')
+        return false
+      }
+      const fresh =
+        imageProvider !== 'flow' && commonApi.isNative()
+          ? await queryClient
+              .fetchQuery({
+                queryKey: commonQueryKeys.imageCredits,
+                queryFn: () => commonApi.getImageCredits(),
+                staleTime: 0,
+              })
+              .catch(() => null)
+          : imageCredits.credits
       if (
         compareCostLines(
           imageEstimate(ids),
@@ -214,7 +253,7 @@ export function useGalleryActions({
         return false
       }
       editorTask.setPendingImageProvider(projectId, imageProvider)
-      const accepted = await onRegenerateImages(unique)
+      const accepted = await onRegenerateImages(unique, plan, imageProvider)
       if (!accepted) setErrorKey('library.editor.imageGallery.submitFailed')
       return accepted
     } catch {
@@ -318,6 +357,7 @@ export function useGalleryActions({
     task: editorTask.task,
     submitting,
     errorKey,
+    isFlowRecovery,
     regenerate,
     animate,
     getAnimationLabel,

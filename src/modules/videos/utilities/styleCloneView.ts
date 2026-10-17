@@ -30,7 +30,8 @@ const YOUTUBE_HOSTS = new Set([
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/
 const VIDEO_PATH_PREFIXES = new Set(['shorts', 'live', 'embed', 'v'])
 
-type CardSession = Pick<StyleCloneSession, 'status' | 'errorCode'>
+type CardSession = Pick<StyleCloneSession, 'status' | 'errorCode'> &
+  Partial<Pick<StyleCloneSession, 'imageProvider'>>
 
 // La etiqueta de la tarjeta de una sesión: qué está haciendo, o qué necesita.
 export function styleCloneCardStateOf(
@@ -43,7 +44,11 @@ export function styleCloneCardStateOf(
       tone: 'attention',
       busy: false,
     }
-  if (status === 'failed' && session.errorCode === NO_CREDITS_CODE)
+  if (
+    status === 'failed' &&
+    session.imageProvider !== 'flow' &&
+    session.errorCode === NO_CREDITS_CODE
+  )
     return {
       labelKey: 'create.styleClone.status.noCredits',
       tone: 'error',

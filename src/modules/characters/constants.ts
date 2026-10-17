@@ -65,9 +65,10 @@ export const PREVIEW_STYLES: LabelledOption<CharacterStyleId>[] = [
 ]
 
 // Proveedores del preview (Evolink y Fal); las etiquetas son marcas, no se traducen
-export const PREVIEW_PROVIDERS: { id: ImageProviderId; label: string }[] = [
-  { id: 'evolink', label: 'Evolink' },
-  { id: 'fal', label: 'Fal' },
+export const PREVIEW_PROVIDERS: { id: ImageProviderId; labelKey: string }[] = [
+  { id: 'evolink', labelKey: 'extension.engineEvolink' },
+  { id: 'fal', labelKey: 'extension.engineFal' },
+  { id: 'flow', labelKey: 'extension.engineFlow' },
 ]
 
 // Evolink por defecto: es el proveedor con el que se generan los videos
@@ -84,6 +85,32 @@ export const CHARACTER_FORM_INITIAL_VALUE: CharacterFormValue = {
 export const CHARACTERS_ERROR_MESSAGE_KEYS: Record<string, string> = {
   image_network: 'characters.errors.imageNetwork',
   image_invalid_api_key: 'characters.errors.imageInvalidApiKey',
+  flow_not_connected: 'extension.notReady',
+  flow_capacity_required: 'extension.notReady',
+  flow_transport_unknown: 'extension.reviewRequired',
+  flow_review_required: 'extension.reviewRequired',
+  flow_account_review_required: 'extension.accountReviewRequired',
+  flow_submission_unknown: 'extension.submissionUnknown',
+  flow_restart_required: 'extension.restartRequired',
+  flow_download_failed: 'extension.downloadFailed',
+  flow_result_invalid: 'extension.resultInvalid',
+  flow_result_obsolete: 'extension.resultObsolete',
+  flow_intent_conflict: 'extension.intentConflict',
+  batch_execution_plan_mixed: 'extension.intentConflict',
+  execution_plan_mismatch: 'extension.intentConflict',
+  batch_execution_plan_conflict: 'extension.intentConflict',
+  batch_id_conflict: 'extension.intentConflict',
+  job_hash_mismatch: 'extension.intentConflict',
+  store_execution_plan_invalid: 'extension.intentConflict',
+  flow_tools_coordinator_upgrade_required: 'extension.toolsUpgradeRequired',
+  execution_plan_invalid: 'extension.toolsIntentInvalid',
+  seed_invalid: 'extension.toolsIntentInvalid',
+  flow_tools_model_or_aspect_invalid: 'extension.toolsIntentInvalid',
+  execution_plan_unavailable: 'extension.toolsUnavailable',
+  retry_execution_plan_unavailable: 'extension.toolsUnavailable',
+  flow_unavailable: 'extension.unavailable',
+  flow_port_in_use: 'extension.portInUse',
+  flow_command_failed: 'extension.actionFailed',
   image_provider_error: 'characters.errors.imageProviderError',
   image_task_not_found: 'characters.errors.imageProviderError',
   image_content_policy: 'characters.errors.imageContentPolicy',

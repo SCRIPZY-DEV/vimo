@@ -47,6 +47,7 @@ export interface ProjectPaths {
   scenesConfirmedFile: string
   visualContextFile: string
   subtitlesFile: string
+  soundEffectsFile: string
   scenesDirectory: string
   charactersDirectory: string
   // Clips de animación, uno por escena que encabeza (ADR-0047). Carpeta
@@ -114,6 +115,7 @@ export function resolveProjectPaths(
     scenesConfirmedFile: join(projectDir, 'scenes-confirmed.json'),
     visualContextFile: join(projectDir, 'visual-context.txt'),
     subtitlesFile: join(projectDir, 'subtitles.ass'),
+    soundEffectsFile: join(projectDir, 'cache', 'sound-effects.wav'),
     scenesDirectory: join(projectDir, 'scenes'),
     charactersDirectory: join(projectDir, 'characters'),
     animationsDirectory: join(projectDir, 'animations'),

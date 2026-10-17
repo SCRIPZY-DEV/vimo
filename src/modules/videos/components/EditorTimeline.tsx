@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeftRight, Minus, Plus } from 'lucide-react'
+import { Minus, Plus, Shuffle } from 'lucide-react'
+import { cn } from '@/modules/common/utilities/cn'
+import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
 import {
   DndContext,
   KeyboardSensor,
@@ -22,11 +24,16 @@ import { TimelineClipItem } from '@/modules/videos/components/TimelineClipItem'
 import { TimelineAvatarItem } from '@/modules/videos/components/TimelineAvatarItem'
 import { TimelineSceneItem } from '@/modules/videos/components/TimelineSceneItem'
 import { TimelineTrackHeader } from '@/modules/videos/components/TimelineTrackHeader'
+import { TimelineSoundEffectItem } from '@/modules/videos/components/TimelineSoundEffectItem'
+import { boundSoundEffectStart } from '@/modules/videos/utilities/soundEffectPlayback'
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import { TimelineWaveform } from '@/modules/videos/components/TimelineWaveform'
 import { timelineTransitionFrames } from '@/modules/videos/utilities/timelineTransitionFrames'
 import {
+  EDITOR_SOUND_EFFECT_MIME,
   AUTOSCROLL_EDGE_PX,
   AUTOSCROLL_MANUAL_PAUSE_MS,
+  MIN_SCENE_SECONDS,
   NO_SEEK_PROPS,
   NO_SEEK_SELECTOR,
   PLAYHEAD_EDGE_DRAG_MAX_SPEED,
@@ -38,6 +45,11 @@ import {
   TIMELINE_SIDEBAR_WIDTH,
   TIMELINE_TRACK_DRAG_ACTIVATION_PX,
   TIMELINE_TRACK_HEIGHT,
+  TIMELINE_TRANSITION_BASE_WIDTH,
+  TIMELINE_TRANSITION_HEIGHT,
+  TIMELINE_TRANSITION_MIN_WIDTH,
+  TIMELINE_TRIM_INSET,
+  TIMELINE_TRIM_WIDTH,
   TIMELINE_TRACK_ICONS,
   TIMELINE_TRACK_LABEL_KEYS,
   TIMELINE_ZOOM_LEVELS,
@@ -64,7 +76,7 @@ import type {
 } from '@/modules/videos/types/library'
 import type { SceneImageReviewRequest } from '@/modules/videos/types/sceneImageReview'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
-import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
+import type { EditorSceneImageStatus } from '@/modules/videos/types/library'
 
 interface EditorTimelineProps {
   scenes: SceneDetail[]
@@ -73,7 +85,7 @@ interface EditorTimelineProps {
   playheadSeconds: number
   selectedSceneId: number | null
   revealScene?: SceneImageReviewRequest
-  sceneStatus: Record<number, SceneImageStatus>
+  sceneStatus: Record<number, EditorSceneImageStatus>
   // Motivo (clave i18n) del último fallo de regeneración por escena.
   sceneErrors: Record<number, string>
   sceneVersions: Record<number, number>
@@ -87,6 +99,12 @@ interface EditorTimelineProps {
   sceneAvatarRendering?: Record<number, SceneAvatarRendering>
   narrationSrc: string | null
   musicSrc: string | null
+  soundEffects?: SoundEffectInstance[]
+  soundEffectDurationSeconds?: number
+  soundEffectsBusy?: boolean
+  onAddSoundEffect?(seconds: number): void
+  onMoveSoundEffect?(id: string, seconds: number): void
+  onRemoveSoundEffect?(id: string): void
   // Orden, silencio en el visor y candado de las pistas (ADR-0056).
   layout: TimelineLayout
   onReorderTracks(activeId: TimelineTrackId, overId: TimelineTrackId): void
@@ -137,6 +155,12 @@ export function EditorTimeline({
   sceneAvatarRendering = {},
   narrationSrc,
   musicSrc,
+  soundEffects = [],
+  soundEffectDurationSeconds = 0,
+  soundEffectsBusy = false,
+  onAddSoundEffect,
+  onMoveSoundEffect,
+  onRemoveSoundEffect,
   layout,
   onReorderTracks,
   onToggleMuted,
@@ -158,6 +182,9 @@ export function EditorTimeline({
   const contentRef = useRef<HTMLDivElement>(null)
   const [viewportWidth, setViewportWidth] = useState(800)
   const [scrollLeft, setScrollLeft] = useState(0)
+  const [hoverSeconds, setHoverSeconds] = useState<number | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [activeTrimHandle, setActiveTrimHandle] = useState<string | null>(null)
 
   // Última interacción manual: pausa el follow-playhead un rato para no
   // pelearle el scroll al usuario.
@@ -173,13 +200,24 @@ export function EditorTimeline({
     (scene) =>
       scene.startSeconds !== undefined && scene.endSeconds !== undefined,
   )
-  const duration = Math.max(
+  const mediaDuration = Math.max(
     durationSeconds,
     ...timedScenes.map((scene) => scene.endSeconds ?? 0),
-    1,
+    0,
   )
+  const duration = Math.max(mediaDuration, 1)
   const totalWidth = Math.max(duration * pxPerSecond + 16, viewportWidth)
-  const tracksHeight = TIMELINE_RULER_HEIGHT + 3 * TIMELINE_TRACK_HEIGHT
+  const visibleOrder = layout.order.filter(
+    (id) => id !== 'sfx' || soundEffects.length > 0,
+  )
+  const tracksHeight =
+    TIMELINE_RULER_HEIGHT + visibleOrder.length * TIMELINE_TRACK_HEIGHT
+  const soundEffectsDisabled =
+    timingBusy ||
+    soundEffectsBusy ||
+    layout.locked.sfx ||
+    soundEffectDurationSeconds <= 0 ||
+    mediaDuration < soundEffectDurationSeconds
   // Un clip que cubre varias escenas es UN bloque del largo del hueco entero
   // (ADR-0041) y una escena de avatar es un bloque propio (ADR-0057); las
   // fronteras arrastrables quedan solo entre bloques.
@@ -190,6 +228,37 @@ export function EditorTimeline({
   )
   // Candado de la pista de escenas (ADR-0056): sin arrastre de fronteras.
   const scenesLocked = layout.locked.scenes
+  // La transición conserva su frontera real. Su ancho visual se acota al
+  // espacio vecino; las asas quedan en el borde interior y por encima.
+  const transitions = timelineBlocks(timedScenes, {}).flatMap(
+    (block, index, visualBlocks) => {
+      const previous = visualBlocks[index - 1]
+      const frames = timelineTransitionFrames(previous, block)
+      if (!previous || frames === 0) return []
+      // Normalizar sólo píxeles evita ocultar 14px representados como 13.999…
+      // por la resta de tiempos. La frontera temporal permanece intacta.
+      const width = Number(
+        Math.min(
+          Math.max(
+            TIMELINE_TRANSITION_BASE_WIDTH,
+            (frames / ANIMATION_FPS) * pxPerSecond,
+          ),
+          ((previous.endSeconds - previous.startSeconds) * pxPerSecond) / 2,
+          ((block.endSeconds - block.startSeconds) * pxPerSecond) / 2,
+        ).toFixed(2),
+      )
+      // A zoom mínimo prima el recorte; ocultar el icono no cambia el fundido.
+      if (width < TIMELINE_TRANSITION_MIN_WIDTH) return []
+      return [
+        {
+          seconds: block.startSeconds,
+          width,
+          from: lastSceneOf(previous).id,
+          to: firstSceneOf(block).id,
+        },
+      ]
+    },
+  )
 
   const xOfSeconds = (seconds: number) => seconds * pxPerSecond
   const markManualInteraction = () => {
@@ -226,6 +295,7 @@ export function EditorTimeline({
     if (!element) return
     const handleWheel = (event: WheelEvent) => {
       markManualInteraction()
+      setHoverSeconds(null)
       if (event.metaKey || event.ctrlKey) {
         event.preventDefault()
         const direction = event.deltaY < 0 ? 1 : -1
@@ -300,6 +370,8 @@ export function EditorTimeline({
     event.stopPropagation()
     markManualInteraction()
     onScrubStart()
+    setDragging(true)
+    setHoverSeconds(null)
     suppressClickRef.current = true
 
     let lastClientX = event.clientX
@@ -355,6 +427,7 @@ export function EditorTimeline({
       if (edgeFrame !== null) cancelAnimationFrame(edgeFrame)
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
+      setDragging(false)
       onScrubEnd()
     }
     window.addEventListener('mousemove', handleMove)
@@ -365,6 +438,7 @@ export function EditorTimeline({
 
   const startBoundaryDrag = (
     event: React.MouseEvent,
+    handleId: string,
     left: SceneDetail,
     right: SceneDetail,
   ) => {
@@ -378,6 +452,10 @@ export function EditorTimeline({
     event.stopPropagation()
     markManualInteraction()
     suppressClickRef.current = true
+
+    setDragging(true)
+    setHoverSeconds(null)
+    setActiveTrimHandle(handleId)
 
     const startX = event.clientX
     const initialBoundary = left.endSeconds ?? 0
@@ -397,6 +475,8 @@ export function EditorTimeline({
     const handleUp = () => {
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
+      setDragging(false)
+      setActiveTrimHandle(null)
       // Un clic sin movimiento no guarda nada (y no marca el video como
       // desactualizado).
       if (boundary !== initialBoundary)
@@ -404,6 +484,48 @@ export function EditorTimeline({
     }
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
+  }
+
+  const handleBoundaryKey = (
+    event: React.KeyboardEvent,
+    left: SceneDetail,
+    right: SceneDetail,
+  ) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    event.stopPropagation()
+    if (
+      timingBusy ||
+      scenesLocked ||
+      sceneTimingLocked(scenes, [left.id, right.id])
+    )
+      return
+    markManualInteraction()
+    const step = event.shiftKey ? 1 : 0.1
+    const initial = left.endSeconds ?? 0
+    const boundary = clampBoundarySeconds(
+      left,
+      right,
+      initial + (event.key === 'ArrowRight' ? step : -step),
+    )
+    if (boundary === initial) return
+    onBoundaryDrag(left.id, right.id, boundary)
+    onBoundaryCommit(left.id, right.id, boundary)
+  }
+
+  const seekSecondsAtClientX = (clientX: number) => {
+    const seconds = secondsAtClientX(clientX)
+    if (duration - seconds < TIMELINE_END_SNAP_SECONDS) return duration
+    return seconds
+  }
+
+  const handleTrackHover = (event: React.MouseEvent) => {
+    const target = event.target as HTMLElement
+    if (dragging || event.buttons !== 0 || target.closest(NO_SEEK_SELECTOR)) {
+      setHoverSeconds(null)
+      return
+    }
+    setHoverSeconds(seekSecondsAtClientX(event.clientX))
   }
 
   // ── Click en zona vacía del carril: seek con play ──
@@ -418,10 +540,7 @@ export function EditorTimeline({
     if (target.closest(NO_SEEK_SELECTOR)) return
     if (wasSuppressed) return
 
-    let seconds = secondsAtClientX(event.clientX)
-    // Snap al final: clickear la cola lleva exactamente al cierre.
-    if (duration - seconds < TIMELINE_END_SNAP_SECONDS) seconds = duration
-    onSeek(seconds)
+    onSeek(seekSecondsAtClientX(event.clientX))
   }
 
   // ── Orden de las pistas ──
@@ -488,7 +607,7 @@ export function EditorTimeline({
   const canZoomIn = zoomIndex < TIMELINE_ZOOM_LEVELS.length - 1
   const trackTop = (index: number) =>
     TIMELINE_RULER_HEIGHT + index * TIMELINE_TRACK_HEIGHT
-  const trackIndex = (id: TimelineTrackId) => layout.order.indexOf(id)
+  const trackIndex = (id: TimelineTrackId) => visibleOrder.indexOf(id)
 
   return (
     <div className="select-none overflow-hidden rounded-2xl border-2 border-border bg-card">
@@ -548,10 +667,10 @@ export function EditorTimeline({
             onDragEnd={handleTrackDragEnd}
           >
             <SortableContext
-              items={layout.order}
+              items={visibleOrder}
               strategy={verticalListSortingStrategy}
             >
-              {layout.order.map((id) => (
+              {visibleOrder.map((id) => (
                 <TimelineTrackHeader
                   key={id}
                   id={id}
@@ -570,14 +689,51 @@ export function EditorTimeline({
         {/* Carril scrolleable */}
         <div
           ref={scrollRef}
-          onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
-          onMouseDown={markManualInteraction}
+          onScroll={(event) => {
+            setScrollLeft(event.currentTarget.scrollLeft)
+            setHoverSeconds(null)
+          }}
+          onMouseDown={() => {
+            // Una pulsación nueva no hereda el clic suprimido de un drag
+            // que terminó fuera del carril. Los drags detienen el bubbling.
+            suppressClickRef.current = false
+            markManualInteraction()
+          }}
           onTouchStart={markManualInteraction}
           className="cursor-crosshair overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
             ref={contentRef}
+            onDragOver={(event) => {
+              if (
+                !onAddSoundEffect ||
+                soundEffectsDisabled ||
+                !event.dataTransfer.types.includes(EDITOR_SOUND_EFFECT_MIME)
+              )
+                return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+            }}
+            onDrop={(event) => {
+              if (
+                !onAddSoundEffect ||
+                soundEffectsDisabled ||
+                event.dataTransfer.getData(EDITOR_SOUND_EFFECT_MIME) !== 'click'
+              )
+                return
+              event.preventDefault()
+              event.stopPropagation()
+              onAddSoundEffect(
+                boundSoundEffectStart(
+                  secondsAtClientX(event.clientX),
+                  mediaDuration,
+                  soundEffectDurationSeconds,
+                ),
+              )
+            }}
             onClick={handleTrackClick}
+            onMouseMove={handleTrackHover}
+            onMouseLeave={() => setHoverSeconds(null)}
             style={{ width: totalWidth, height: tracksHeight }}
             className="relative"
           >
@@ -634,12 +790,24 @@ export function EditorTimeline({
               {blocks.map((block, index) => {
                 const left = xOfSeconds(block.startSeconds)
                 const width = Math.max(xOfSeconds(block.endSeconds) - left, 4)
+                const previous = blocks[index - 1]
                 const next = blocks[index + 1]
+                const boundaries = [
+                  { edge: 'left', before: previous, after: block },
+                  { edge: 'right', before: block, after: next },
+                ] as const
+                const handleWidth = Math.min(
+                  TIMELINE_TRIM_WIDTH,
+                  Math.max(2, (width - TIMELINE_TRIM_INSET * 2 - 2) / 2),
+                )
+                // Los tiempos cambian al recortar. La identidad usa la escena
+                // y el clip anterior para conservar foco y distinguir sus restos.
+                const key = timelineBlockKey(block, previous)
                 return (
                   <div
-                    key={timelineBlockKey(block)}
+                    key={key}
                     style={{ left, width }}
-                    className="absolute top-0 h-full"
+                    className="group/timeline-block absolute top-0 h-full"
                   >
                     {block.kind === 'clip' && (
                       <TimelineClipItem
@@ -680,65 +848,108 @@ export function EditorTimeline({
                         onSelect={() => onSelectScene(block.scene.id)}
                       />
                     )}
-                    {next &&
-                      !timingBusy &&
-                      !scenesLocked &&
-                      lastSceneOf(block).id !== firstSceneOf(next).id &&
-                      !sceneTimingLocked(scenes, [
-                        lastSceneOf(block).id,
-                        firstSceneOf(next).id,
-                      ]) && (
-                        <div
+                    {boundaries.map(({ edge, before, after }) => {
+                      if (!before || !after) return null
+                      const leftScene = lastSceneOf(before)
+                      const rightScene = firstSceneOf(after)
+                      if (
+                        scenesLocked ||
+                        leftScene.id === rightScene.id ||
+                        sceneTimingLocked(scenes, [leftScene.id, rightScene.id])
+                      )
+                        return null
+                      // Los dos lados comparten tiempos, pero sólo el asa que
+                      // inició el gesto debe permanecer visible al arrastrar.
+                      const handleId = `${key}-${edge}`
+                      return (
+                        <button
+                          key={edge}
+                          type="button"
                           role="separator"
+                          aria-orientation="vertical"
+                          aria-disabled={timingBusy}
+                          data-timeline-trim-edge={edge}
+                          style={{
+                            width: handleWidth,
+                            [edge]: TIMELINE_TRIM_INSET,
+                          }}
+                          aria-valuenow={leftScene.endSeconds}
+                          aria-valuemin={
+                            (leftScene.startSeconds ?? 0) + MIN_SCENE_SECONDS
+                          }
+                          aria-valuemax={
+                            (rightScene.endSeconds ?? 0) - MIN_SCENE_SECONDS
+                          }
+                          aria-valuetext={formatTime(leftScene.endSeconds ?? 0)}
                           aria-label={t('library.editor.timeline.boundary')}
+                          title={t('library.editor.timeline.boundary')}
                           {...NO_SEEK_PROPS}
                           onMouseDown={(event) =>
                             startBoundaryDrag(
                               event,
-                              lastSceneOf(block),
-                              firstSceneOf(next),
+                              handleId,
+                              leftScene,
+                              rightScene,
                             )
                           }
-                          className="absolute -right-1.5 top-0 z-30 h-full w-3 cursor-ew-resize hover:bg-saffron/50"
-                        />
-                      )}
+                          onKeyDown={(event) =>
+                            handleBoundaryKey(event, leftScene, rightScene)
+                          }
+                          className={cn(
+                            'absolute top-1/2 z-40 flex h-6 -translate-y-1/2 items-center justify-center rounded-[3px] bg-gradient-to-b from-[#FFF1C2] via-[#FFE5A3] to-[#F5D582] text-[#725516] shadow-[inset_0_0_0_1px_rgba(161,119,31,0.2),inset_0_1px_0_rgba(255,255,255,0.7)] outline-none hover:brightness-105 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#A77B20]',
+                            timingBusy ? 'cursor-wait' : 'cursor-ew-resize',
+                            activeTrimHandle === handleId
+                              ? 'opacity-100'
+                              : 'opacity-0',
+                            activeTrimHandle === null &&
+                              'transition-[opacity,filter] duration-150 hover:opacity-100 focus-visible:opacity-100',
+                          )}
+                        >
+                          <span
+                            aria-hidden
+                            className="h-3 w-px rounded-full bg-current"
+                          />
+                        </button>
+                      )
+                    })}
                   </div>
                 )
               })}
             </div>
 
-            {/* Marcadores de fundido: no interceptan selección ni fronteras. */}
-            {timelineBlocks(timedScenes, {}).map(
-              (block, index, visualBlocks) => {
-                const previous = visualBlocks[index - 1]
-                if (
-                  !previous ||
-                  timelineTransitionFrames(previous, block) === 0
-                )
-                  return null
-                return (
-                  <span
-                    key={'transition-' + block.startSeconds}
-                    role="img"
-                    aria-label={t('library.editor.transitions.marker', {
-                      from: lastSceneOf(previous).id,
-                      to: firstSceneOf(block).id,
-                    })}
-                    data-transition-start={block.startSeconds}
-                    style={{
-                      left: xOfSeconds(block.startSeconds) - 9,
-                      top:
-                        trackTop(trackIndex('scenes')) +
-                        TIMELINE_TRACK_HEIGHT / 2 -
-                        10,
-                    }}
-                    className="pointer-events-none absolute z-20 flex h-5 w-[18px] items-center justify-center rounded border border-violet-200 bg-violet-600 text-[11px] font-bold text-white shadow-sm"
-                  >
-                    <ArrowLeftRight aria-hidden className="h-3 w-3" />
-                  </span>
-                )
-              },
-            )}
+            {/* El marcador queda en la frontera; el recorte visible tiene prioridad. */}
+            {transitions.map((transition) => (
+              <div
+                key={'transition-' + transition.seconds}
+                data-transition-start={transition.seconds}
+                style={{
+                  left: xOfSeconds(transition.seconds) - transition.width / 2,
+                  width: transition.width,
+                  top:
+                    trackTop(trackIndex('scenes')) +
+                    (TIMELINE_TRACK_HEIGHT - TIMELINE_TRANSITION_HEIGHT) / 2,
+                  height: TIMELINE_TRANSITION_HEIGHT,
+                }}
+                className="pointer-events-none absolute z-30 rounded-[4px] border border-slate-300/70 bg-slate-100/85 transition-colors duration-150 hover:border-slate-400 hover:bg-slate-100 focus-within:border-[#C9A251] focus-within:bg-[#FFF4D6] dark:border-white/20 dark:bg-zinc-200/85 dark:hover:bg-zinc-100"
+              >
+                <button
+                  type="button"
+                  {...NO_SEEK_PROPS}
+                  aria-label={t('library.editor.transitions.marker', {
+                    from: transition.from,
+                    to: transition.to,
+                  })}
+                  title={t('library.editor.transitions.marker', {
+                    from: transition.from,
+                    to: transition.to,
+                  })}
+                  onClick={() => onSelectScene(transition.to)}
+                  className="pointer-events-auto flex h-full w-full items-center justify-center overflow-hidden rounded-[3px] text-slate-700 outline-none"
+                >
+                  <Shuffle aria-hidden className="h-3 w-3 shrink-0" />
+                </button>
+              </div>
+            ))}
 
             {/* Pista A1: narración */}
             <div
@@ -795,7 +1006,7 @@ export function EditorTimeline({
                     <TimelineWaveform
                       audio={musicPeaks}
                       loop
-                      timelineSeconds={duration}
+                      timelineSeconds={mediaDuration}
                       pxPerSecond={pxPerSecond}
                       scrollLeft={scrollLeft}
                       viewportWidth={viewportWidth}
@@ -817,15 +1028,73 @@ export function EditorTimeline({
               )}
             </div>
 
-            {/* Playhead: línea coral con cabezal rombo, arrastrable */}
+            {/* Efectos: duración fija del asset, movimiento sin recorte. */}
+            {soundEffects.length > 0 && (
+              <div
+                data-timeline-track="sfx"
+                style={{
+                  top: trackTop(trackIndex('sfx')),
+                  height: TIMELINE_TRACK_HEIGHT,
+                }}
+                className="absolute left-0 w-full border-b border-border/50"
+              >
+                {soundEffects.map((instance) => (
+                  <TimelineSoundEffectItem
+                    key={instance.id}
+                    instance={instance}
+                    durationSeconds={soundEffectDurationSeconds}
+                    timelineSeconds={mediaDuration}
+                    pxPerSecond={pxPerSecond}
+                    disabled={
+                      soundEffectsDisabled ||
+                      !onMoveSoundEffect ||
+                      !onRemoveSoundEffect
+                    }
+                    muted={layout.muted.sfx}
+                    onMove={(id, seconds) => onMoveSoundEffect?.(id, seconds)}
+                    onRemove={(id) => onRemoveSoundEffect?.(id)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Azul: anticipa el seek de una zona navegable sin alterar el reloj. */}
+            {hoverSeconds !== null && !dragging && (
+              <div
+                aria-hidden
+                data-timeline-hover-seconds={hoverSeconds}
+                style={{ left: xOfSeconds(hoverSeconds) }}
+                className="pointer-events-none absolute top-1 bottom-0 z-40 w-0 text-blue-500"
+              >
+                <svg
+                  viewBox="0 0 18 16"
+                  className="absolute -left-[9px] top-0 h-4 w-[18px] fill-current"
+                >
+                  <path d="M2 0h14a2 2 0 0 1 1.72 3L10.72 15a2 2 0 0 1-3.44 0L.28 3A2 2 0 0 1 2 0Z" />
+                </svg>
+                <span className="absolute -left-px top-5 bottom-0 w-0.5 rounded-t bg-blue-500/60" />
+              </div>
+            )}
+
+            {/* Rojo: posición de reproducción y arrastre real del playhead. */}
             <div
               {...NO_SEEK_PROPS}
+              data-timeline-playhead-seconds={playheadSeconds}
               onMouseDown={startPlayheadDrag}
-              style={{ left: xOfSeconds(playheadSeconds) - 6 }}
-              className="absolute top-0 z-40 h-full w-3 cursor-ew-resize"
+              style={{ left: xOfSeconds(playheadSeconds) - 9 }}
+              className="absolute top-1 bottom-0 z-50 w-[18px] cursor-ew-resize text-red-500"
             >
-              <span className="absolute left-[4.5px] top-0 h-full w-[3px] bg-coral" />
-              <span className="absolute -left-0.5 top-0 h-4 w-4 rotate-45 rounded-[2px] bg-coral" />
+              <svg
+                aria-hidden
+                viewBox="0 0 18 16"
+                className="absolute left-0 top-0 h-4 w-[18px] fill-current"
+              >
+                <path d="M2 0h14a2 2 0 0 1 1.72 3L10.72 15a2 2 0 0 1-3.44 0L.28 3A2 2 0 0 1 2 0Z" />
+              </svg>
+              <span
+                aria-hidden
+                className="absolute left-2 top-5 bottom-0 w-0.5 rounded-t bg-red-500"
+              />
             </div>
           </div>
         </div>

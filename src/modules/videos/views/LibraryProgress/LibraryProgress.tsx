@@ -43,6 +43,7 @@ export function LibraryProgress() {
   const {
     task,
     cancel,
+    completeWithPaid,
     confirmScenes,
     confirmScenesForProject,
     discardTask,
@@ -96,34 +97,58 @@ export function LibraryProgress() {
   // la grilla aparecen al toque en vez de vacías hasta el primer evento.
   // El carril y el modelo salen de project.json (ADR-0028): el modelo se
   // resuelve como en Crear (null = el de la casa) para saber a quién bloquear.
+  // Un proyecto de la demo reanudado sigue siendo una corrida de la demo:
+  // no anota apariciones cobradas (ruling R28).
   const usesCustomStyle = status?.metadata.options.customStyle !== undefined
-  const runOptions: ProjectRunOptions = {
-    videoFormat: status?.metadata.options.videoFormat,
-    seed: status
-      ? {
-          scenes: status.scenes,
-          completedStages: status.metadata.completedStages,
-          audioDurationSeconds: status.metadata.audioDurationSeconds ?? null,
-        }
-      : undefined,
-    usesCustomStyle,
-    promptModel: usesCustomStyle
-      ? resolvePromptModel(
-          status?.metadata.options.promptModel ?? null,
-          models,
-          defaultId,
-        )
-      : null,
-    imageProvider: status?.metadata.options.imageProvider ?? null,
-    voiceVendor: status?.metadata.options.voiceProvider
-      ? vendorOfProvider(status.metadata.options.voiceProvider)
-      : null,
-    ...avatarRunOptions(status?.metadata.options.avatar),
-    avatarDropped: status?.avatarDropped,
-    // Un proyecto de la demo reanudado sigue siendo una corrida de la demo:
-    // no anota apariciones cobradas (ruling R28).
-    demo: status?.metadata.options.demo === true,
-  }
+  const runOptions: ProjectRunOptions = ownTask
+    ? {
+        videoFormat: ownTask.videoFormat,
+        seed: {
+          scenes: ownTask.scenes,
+          completedStages: ownTask.completedStages,
+          audioDurationSeconds: ownTask.audioDurationSeconds,
+        },
+        usesCustomStyle: ownTask.usesCustomStyle,
+        promptModel: ownTask.promptModel,
+        imageProvider: ownTask.imageProvider,
+        executionPlan: ownTask.executionPlan,
+        voiceVendor: ownTask.voiceVendor,
+        hasAvatar: ownTask.hasAvatar,
+        avatarLookType: ownTask.avatarLookType,
+        avatarEngine: ownTask.avatarEngine,
+        avatarDropped: ownTask.avatarDropped,
+        demo: ownTask.demo === true,
+      }
+    : {
+        videoFormat: status?.metadata.options.videoFormat,
+        seed: status
+          ? {
+              scenes: status.scenes,
+              completedStages: status.metadata.completedStages,
+              audioDurationSeconds:
+                status.metadata.audioDurationSeconds ?? null,
+            }
+          : undefined,
+        usesCustomStyle,
+        promptModel: usesCustomStyle
+          ? resolvePromptModel(
+              status?.metadata.options.promptModel ?? null,
+              models,
+              defaultId,
+            )
+          : null,
+        imageProvider:
+          status?.metadata.flowPaidCompletion?.provider ??
+          status?.metadata.options.imageProvider ??
+          null,
+        executionPlan: status?.metadata.options.executionPlan,
+        ...avatarRunOptions(status?.metadata.options.avatar),
+        avatarDropped: status?.avatarDropped,
+        demo: status?.metadata.options.demo === true,
+        voiceVendor: status?.metadata.options.voiceProvider
+          ? vendorOfProvider(status.metadata.options.voiceProvider)
+          : null,
+      }
   const resume = () =>
     void startPipelineForProject(projectId, projectName, runOptions)
   const confirmFromDisk = (choice: SceneCutChoice) => {
@@ -148,7 +173,16 @@ export function LibraryProgress() {
           onClick: backToLibrary,
         }}
         onCancel={cancelToLibrary}
+        onCompleteWithPaid={(provider) => void completeWithPaid(provider)}
         onRetryPipeline={resume}
+        onRestartFlow={(request) =>
+          void startPipelineForProject(
+            projectId,
+            projectName,
+            runOptions,
+            request,
+          )
+        }
         onContinueInEditor={() => void navigate(libraryEditorPath(projectId))}
         onConfirmScenes={(choice) => void confirmScenes(choice)}
         onDismissConfirmation={backToLibrary}

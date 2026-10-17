@@ -420,6 +420,9 @@ export function createStyleCloneSessions(
             ...(test.origin ? { origin: test.origin } : {}),
           })),
           imageProvider: session.imageProvider,
+          ...(session.executionPlan
+            ? { executionPlan: { ...session.executionPlan } }
+            : {}),
           ...(character ? { character } : {}),
         },
         (detail) => {
@@ -576,6 +579,9 @@ export function createStyleCloneSessions(
         source: input.source,
         replicateCharacter: input.replicateCharacter,
         imageProvider: input.imageProvider,
+        ...(input.imageProvider === 'flow' && input.executionPlan
+          ? { executionPlan: { ...input.executionPlan } }
+          : {}),
         status: 'preparing',
         step: null,
         action: { kind: 'analyze' },

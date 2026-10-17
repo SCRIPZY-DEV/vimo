@@ -19,7 +19,7 @@ interface TimelineClipItemProps {
 // Un clip en la pista de escenas (ADR-0041): UNA tarjeta del largo del hueco
 // entero, con la miniatura de cada escena que cubre en proporción a su
 // duración. Desde ADR-0057 usa la tarjeta compartida (TimelineBlockCard):
-// borde celeste, blanco al elegirla, y la claqueta a la izquierda junto a las
+// borde celeste, blanco al elegirla o pasar el cursor, y la claqueta junto a las
 // escenas que fusiona. Clic: selecciona la escena que encabeza.
 export function TimelineClipItem({
   block,

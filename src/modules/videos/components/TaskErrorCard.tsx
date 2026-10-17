@@ -1,9 +1,11 @@
+import { FlowBatchRecoveryDetails } from '@/modules/videos/components/FlowBatchRecoveryDetails'
 import { useTranslation } from 'react-i18next'
 import { Mic, PenLine, RotateCcw } from 'lucide-react'
 import { Button } from '@/modules/common/ui/button'
 
 interface TaskErrorCardProps {
   message: string
+  flowRecovery?: boolean
   onRetry(): void
   // Etiqueta del botón de reintento; por defecto «Reanudar».
   retryLabel?: string
@@ -18,6 +20,7 @@ interface TaskErrorCardProps {
 // Tarjeta de un job que falló, con reintento y (opcional) descarte.
 export function TaskErrorCard({
   message,
+  flowRecovery = false,
   onRetry,
   retryLabel,
   onDiscard,
@@ -36,7 +39,9 @@ export function TaskErrorCard({
           className="rounded-lg font-display font-bold"
         >
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-          {retryLabel ?? t('common.resume')}
+          {flowRecovery
+            ? t('extension.recoverBatch')
+            : (retryLabel ?? t('common.resume'))}
         </Button>
         {onSwitchVoice && (
           <Button
@@ -71,6 +76,7 @@ export function TaskErrorCard({
           </Button>
         )}
       </div>
+      {flowRecovery && <FlowBatchRecoveryDetails />}
     </div>
   )
 }

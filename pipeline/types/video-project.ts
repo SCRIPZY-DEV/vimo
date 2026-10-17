@@ -1,7 +1,13 @@
+import type {
+  FlowPaidCompletion,
+  FlowPaidCompletionRequest,
+} from './flow-paid-completion.ts'
+import type { FlowToolsExecutionPlan } from './flow-execution-plan.ts'
 import type { ProjectAvatarOptions } from './avatar.ts'
+import type { SoundEffectInstance } from './sound-effects.ts'
 import type { CharacterStyleId } from './characters.ts'
 import type { ColorFilterId, GemSections, StyleCharacter } from './styles.ts'
-import type { ImageProviderId } from './image-provider.ts'
+import type { ImageProviderId, FlowRestartRequest } from './image-provider.ts'
 import type { MusicGenerationParams } from './music.ts'
 import type {
   ScenePromptFailure,
@@ -89,6 +95,8 @@ export interface VideoProjectOptions {
   voiceName?: string
   voiceSettings?: VoiceGenerationSettings
   imageProvider: ImageProviderId
+  // Sólo intenciones nuevas Flow; ausente conserva el ejecutor RPC.
+  executionPlan?: FlowToolsExecutionPlan
   imageQuality?: string
   // 16:9 (default) o 9:16 vertical. Ausente = 16:9: los proyectos previos
   // renderizan byte-idéntico (ver pipeline/types/video-format.ts).
@@ -119,6 +127,8 @@ export interface VideoProjectOptions {
   // Mezcla final del render; defaults 1.0 (voz) y 0.15 (música).
   voiceVolume?: number
   musicVolume?: number
+  // Efectos completos, colocados en el reloj del proyecto. Ausente = ninguno.
+  soundEffects?: SoundEffectInstance[]
   // Segundos que se saltean del arranque de la música al mezclar (Library).
   bgmOffsetSeconds?: number
   // Quema el texto de cada escena abajo del video en la mezcla final.
@@ -163,6 +173,7 @@ export type PauseReason = 'cancelled' | 'insufficient-credits'
 // Metadata persistida en project.json. `completedStages` es lo que permite
 // retomar: una stage cuyo artefacto es válido se saltea al relanzar.
 export interface VideoProjectMetadata {
+  flowPaidCompletion?: FlowPaidCompletion
   id: string
   name: string
   createdAt: string
@@ -265,7 +276,8 @@ export interface UploadNarrationPayload {
   audioPath: string
 }
 
-export interface RunVideoPipelinePayload {
+export interface RunVideoPipelinePayload extends FlowRestartRequest {
+  flowPaidCompletion?: FlowPaidCompletionRequest
   projectId: string
   // Corta el recorrido tras esta stage (harness de verificación de
   // ADR-0010; Library lo reusará para regenerar por partes).
@@ -451,15 +463,26 @@ export interface UpdateScenesResult {
   applied: number
 }
 
-export interface RegenerateSceneImagesPayload {
+export interface RegenerateSceneImagesPayload extends FlowRestartRequest {
   projectId: string
+  // El clic del editor autoriza una intención idempotente, nunca un retry ciego.
+  flowRegenerationRequestId?: string
+  // Recuperación explícita: sólo recibo durable; nunca crea otra intención.
+  flowRecoverOnly?: boolean
   // `rewritePrompt` = borrar el imagePrompt para que scene-prompts lo
   // reescriba (priorizando el userPrompt persistido); false = re-roll de la
   // imagen con el mismo prompt, SALVO que la escena tenga una descripción
   // pendiente de aplicar: ahí el sidecar reescribe igual.
-  scenes: { id: number; rewritePrompt: boolean }[]
+  scenes: {
+    id: number
+    rewritePrompt: boolean
+    userPrompt?: string
+    imageQuality?: string
+    charactersPresent?: number[]
+  }[]
   // Override transitorio del proveedor SOLO para este job; no se persiste.
   imageProvider?: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
 }
 
 export interface RegenerateSceneImagesResult {
@@ -515,6 +538,8 @@ export interface SetProjectMusicPayload {
 
 export interface ExportClipsPayload {
   projectId: string
+  // Omitido conserva el movimiento de la exportación anterior.
+  imageMotion?: boolean
 }
 
 export interface ExportClipsResult {

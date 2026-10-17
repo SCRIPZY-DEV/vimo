@@ -112,7 +112,10 @@ function estimateAvatarLine(form: CreateFormValue): CostEstimateLine | null {
 // escenario): se cuenta solo el tiempo libre y, con cantidad fija, la
 // confirmada menos las apariciones (la cantidad incluye los pines, §6.1), que
 // con «3 veces en 2 minutos» son las que de verdad salen.
-function estimatedSceneCount(form: CreateFormValue, script: string): number {
+export function estimatedSceneCount(
+  form: CreateFormValue,
+  script: string,
+): number {
   const usesGemLane = laneOf(form) !== 'legacy-catalog'
   const hasFixedCount = !usesGemLane && form.sceneCount > 0
   const avatarScenes = createAvatarAppearances(form)

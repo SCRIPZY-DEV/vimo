@@ -1,3 +1,8 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
+import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Clapperboard, Loader2, Sparkles } from 'lucide-react'
@@ -174,6 +179,7 @@ export function CustomStyleModal({
   const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
     null,
   )
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
   // Ausente en disco = genérico (gemas previas a ADR-0020). Viaja SIEMPRE en
   // el payload: el guard del sidecar conserva el bloque solo cuando falta.
@@ -206,6 +212,19 @@ export function CustomStyleModal({
   // avisos se muestran con el pedido de revisarlas hasta que se descartan.
   const migrated = migration?.status === 'migrated' ? migration : null
   const locked = saving || migrating
+  const flowCapacity = useFlowCapacity(
+    CUSTOM_STYLE_SAMPLE_COUNT,
+    provider === 'flow',
+    { executionPlan },
+  )
+  const recoveringFlow =
+    provider === 'flow' &&
+    !!samplesJob.errorKey &&
+    FLOW_RESULT_RECOVERY_KEYS.has(samplesJob.errorKey)
+  const providerReady =
+    provider === 'flow'
+      ? flowCapacity.ready || recoveringFlow
+      : provider !== null && configuredProviders.has(provider)
   // Las muestras se cobran como N imágenes en calidad base (ADR-0029): con
   // saldo leído insuficiente el botón se frena y se ofrece recargar.
   const samplesEstimate = provider
@@ -223,6 +242,7 @@ export function CustomStyleModal({
   const canGenerate =
     hasStyleText &&
     provider !== null &&
+    providerReady &&
     !samplesJob.running &&
     !locked &&
     !creditsCheck.blocking
@@ -342,17 +362,33 @@ export function CustomStyleModal({
 
   // El estilo se guarda ANTES de generar (guard del origen: «muestras sin
   // estilo, no»): el sidecar genera para una tarjeta que ya existe.
-  const generate = async (imageProvider: ImageProviderId) => {
+  const generate = async (
+    imageProvider: ImageProviderId,
+    restart?: FlowRestartRequest,
+  ) => {
     if (!hasStyleText || migrating) return
+    if (
+      imageProvider === 'flow' &&
+      !recoveringFlow &&
+      !(await flowCapacity.verify())
+    )
+      return
+    if (imageProvider !== 'flow' && !configuredProviders.has(imageProvider))
+      return
     const saved = await persist()
     if (!saved) return
     await samplesJob.generate(styleId, imageProvider, {
       templateGem: templateMode,
+      executionPlan: imageProvider === 'flow' ? executionPlan : undefined,
+      restart,
+      revision: JSON.stringify(payload(character)),
     })
   }
 
   const chooseProvider = (imageProvider: ImageProviderId) => {
     setChosenProvider(imageProvider)
+    // Multimagen se envía desde Generar, después de verificar las cuentas.
+    if (imageProvider === 'flow') return
     if (!generateOnOpen || autoStarted.current) return
     autoStarted.current = true
     void generate(imageProvider)
@@ -504,11 +540,19 @@ export function CustomStyleModal({
               )}
 
               <ImageProviderPicker
+                showFlowGenerationControls={recoveringFlow}
                 provider={provider}
-                disabled={samplesJob.running}
+                disabled={samplesJob.running || recoveringFlow}
                 credits={credits}
                 onChoose={chooseProvider}
               />
+              {provider === 'flow' &&
+                samplesJob.errorKey === 'extension.restartRequired' && (
+                  <FlowRestartInline
+                    disabled={locked || samplesJob.running}
+                    onRestart={(request) => void generate('flow', request)}
+                  />
+                )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -523,7 +567,11 @@ export function CustomStyleModal({
                   {samplesJob.running ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t('create.customStyles.generating')}
+                      {t(
+                        provider === 'flow'
+                          ? 'extension.generatingImages'
+                          : 'create.customStyles.generating',
+                      )}
                     </>
                   ) : (
                     <>

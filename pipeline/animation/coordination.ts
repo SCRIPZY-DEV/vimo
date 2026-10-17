@@ -17,6 +17,7 @@ interface LeaseOwner {
   ticket: number
   choosing: boolean
   shared?: boolean
+  sharedGroup?: string
 }
 
 const directory = join(tmpdir(), 'vimo-animation-coordination-v1')
@@ -75,6 +76,7 @@ async function withLease<T>(
   wait: boolean,
   action: () => Promise<T>,
   shared = false,
+  sharedGroup?: string,
 ): Promise<T> {
   const queue = join(directory, fingerprint(name) + '-tickets')
   await mkdir(queue, { recursive: true, mode: 0o700 })
@@ -84,6 +86,7 @@ async function withLease<T>(
     ticket: 0,
     choosing: true,
     shared,
+    ...(sharedGroup ? { sharedGroup } : {}),
   }
   const path = join(queue, owner.token + '.json')
   await writeFileAtomicStrict(path, JSON.stringify(owner))
@@ -109,7 +112,11 @@ async function withLease<T>(
         const other = await ownerOf(otherPath)
         const precedes =
           other &&
-          !(shared && other.shared === true) &&
+          !(
+            shared &&
+            other.shared === true &&
+            sharedGroup === other.sharedGroup
+          ) &&
           (other.choosing ||
             other.ticket < owner.ticket ||
             (other.ticket === owner.ticket && other.token < owner.token))
@@ -153,6 +160,44 @@ export async function withProjectAnimationLease<T>(
 ): Promise<T> {
   const canonical = await realpath(projectPath)
   return withLease('project:' + canonical, signal, false, action, true)
+}
+
+// Las imágenes paralelas sólo comparten con otras imágenes. Render, audio,
+// cambios de tiempos y animación conservan exclusión con el proyecto entero.
+export async function withProjectImageLease<T>(
+  projectPath: string,
+  signal: AbortSignal,
+  action: () => Promise<T>,
+): Promise<T> {
+  const canonical = await realpath(projectPath)
+  return withLease(
+    'project:' + canonical,
+    signal,
+    false,
+    action,
+    true,
+    'images',
+  )
+}
+
+export async function withProjectMetadataLease<T>(
+  projectPath: string,
+  signal: AbortSignal,
+  action: () => Promise<T>,
+): Promise<T> {
+  const canonical = await realpath(projectPath)
+  return withLease('metadata-write:' + canonical, signal, true, action)
+}
+
+// La preparación global comparte biblia/protagonista; las imágenes sí corren
+// después en paralelo, sin repetir esa compra ni elegir identidades distintas.
+export async function withImagePreparationLease<T>(
+  projectPath: string,
+  signal: AbortSignal,
+  action: () => Promise<T>,
+): Promise<T> {
+  const canonical = await realpath(projectPath)
+  return withLease('image-preparation:' + canonical, signal, true, action)
 }
 
 export async function withAnimationCheckpointLease<T>(

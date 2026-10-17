@@ -1,3 +1,7 @@
+import type {
+  FlowToolsExecutionPlan,
+  FlowToolsCoordinatorCapability,
+} from '@pipeline/types/flow-execution-plan.ts'
 import type { LocaleOption } from '@/modules/common/types/locale'
 import type { VoiceVendorId } from '@pipeline/types/voices.ts'
 
@@ -42,6 +46,16 @@ export const commonQueryKeys = {
   promptModels: ['common', 'promptModels'],
   imageCredits: ['common', 'imageCredits'],
   videoCredits: ['common', 'videoCredits'],
+  flowStatus: ['common', 'flowStatus'],
+  flowDiscovery: ['common', 'flowDiscovery'],
+  flowCapacityRoot: ['common', 'flowCapacity'],
+  flowRefresh: ['common', 'flowRefresh'],
+  flowPause: ['common', 'flowPause'],
+  flowPauseCommand: ['common', 'flowPauseCommand'],
+  flowCapacity: (count: number, executionPlan?: FlowToolsExecutionPlan) => {
+    if (executionPlan === undefined) return ['common', 'flowCapacity', count]
+    return ['common', 'flowCapacity', count, executionPlan]
+  },
 } as const
 
 // Bloqueo temporal de un proveedor de animación que el sidecar dio por caído
@@ -93,3 +107,77 @@ export const VOICE_VENDOR_DEFAULT: VoiceVendorId = 'dubvoice'
 // tardar» (Voces y Crear): a partir de acá el sidecar lo sintetiza en varias
 // partes o en un job largo.
 export const LONG_TEXT_WARNING_THRESHOLD = 10_000
+
+// Mínimo de producto; un coordinador puede exigir más, nunca menos.
+export const FLOW_MINIMUM_PROFILES = 5
+export const FLOW_REFERENCE_LENGTH = 8
+export const FLOW_STATUS_INTERVAL_MS = 3000
+export const FLOW_PAUSE_POLL_INTERVAL_MS = 500
+export const FLOW_PAUSE_CONFIRMATION_TIMEOUT_MS = 15_000
+export const FLOW_PAIRING_TTL_MS = 5 * 60 * 1000
+export const FLOW_DEFAULT_QUALITY = 'flow-lite'
+
+// Espejo browser-safe del contrato acordado; no importa runtime del pipeline.
+export const FLOW_TOOLS_EXECUTION_PLAN = Object.freeze({
+  version: 1,
+  kind: 'flow-tools',
+  toolId: 'e42285e2-1038-4e24-adc1-ed30c690ab29',
+  seedMode: 'provider',
+} as const satisfies FlowToolsExecutionPlan)
+
+export const FLOW_TOOLS_COORDINATOR_CAPABILITY = Object.freeze({
+  version: 1,
+  toolId: FLOW_TOOLS_EXECUTION_PLAN.toolId,
+  seedSupported: false,
+  requestHashVersion: 1,
+} as const satisfies FlowToolsCoordinatorCapability)
+
+export const FLOW_ERROR_KEYS: Readonly<Record<string, string>> = {
+  batch_execution_plan_mixed: 'extension.intentConflict',
+  execution_plan_mismatch: 'extension.intentConflict',
+  batch_execution_plan_conflict: 'extension.intentConflict',
+  batch_id_conflict: 'extension.intentConflict',
+  job_hash_mismatch: 'extension.intentConflict',
+  store_execution_plan_invalid: 'extension.intentConflict',
+  flow_tools_coordinator_upgrade_required: 'extension.toolsUpgradeRequired',
+  execution_plan_invalid: 'extension.toolsIntentInvalid',
+  seed_invalid: 'extension.toolsIntentInvalid',
+  flow_tools_model_or_aspect_invalid: 'extension.toolsIntentInvalid',
+  execution_plan_unavailable: 'extension.toolsUnavailable',
+  retry_execution_plan_unavailable: 'extension.toolsUnavailable',
+  flow_unavailable: 'extension.unavailable',
+  flow_port_in_use: 'extension.portInUse',
+  flow_store_in_use: 'extension.storeInUse',
+  flow_origin_untrusted: 'extension.trustRequired',
+  flow_discovery_expired: 'extension.discoveryExpired',
+  flow_not_connected: 'extension.notReady',
+  flow_capacity_required: 'extension.notReady',
+  flow_accounts_exhausted: 'extension.accountsExhausted',
+  flow_paid_consent_required: 'extension.paidConsentRequired',
+  flow_command_invalid: 'extension.actionFailed',
+  flow_cancel_incomplete: 'extension.cancelIncomplete',
+}
+
+export const FLOW_PHASE_KEYS: Readonly<Record<string, string>> = {
+  recovering: 'extension.phaseAutoRecovering',
+  queued: 'extension.queued',
+  awaiting_sync: 'extension.awaitingSync',
+  assigned: 'extension.phaseAssigned',
+  received: 'extension.phaseReceived',
+  uploading: 'extension.phaseUploading',
+  generating: 'extension.phaseGenerating',
+  running: 'extension.phaseGenerating',
+  downloading: 'extension.phaseDownloading',
+  ready: 'extension.phaseDownloading',
+  awaiting_url: 'extension.phaseAwaitingUrl',
+  preparing_token: 'extension.phasePreparingToken',
+  submitting: 'extension.phaseSubmitting',
+  unknown: 'extension.phaseReview',
+}
+
+export const FLOW_RESULT_RECOVERY_KEYS: ReadonlySet<string> = new Set([
+  'extension.downloadFailed',
+  'extension.resultInvalid',
+  'extension.reviewRequired',
+  'extension.submissionUnknown',
+])

@@ -29,8 +29,8 @@ interface TimelineBlockCardProps {
 
 // La tarjeta de un bloque de la pista de escenas con el diseño del clip de
 // VidRush (ADR-0057, spec §10.3): esquinas redondeadas, borde de 2 px del
-// color de su tipo (celeste el clip animado, morado el avatar), borde blanco
-// y brillo del mismo color al elegirla, más luz al pasar el cursor, y la ficha
+// color de su tipo (celeste el clip animado, morado el avatar), borde amarillo
+// pastel al elegirla, más luz al pasar el cursor, y la ficha
 // del tipo arriba a la izquierda. Presentacional: el estado llega resuelto.
 // Sin asas: se dibujan recién cuando un bloque se pueda estirar (entrega 3).
 export function TimelineBlockCard({
@@ -59,10 +59,10 @@ export function TimelineBlockCard({
       onClick={onSelect}
       style={toneStyle}
       className={cn(
-        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-lg border-2 transition-[box-shadow,filter]',
+        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-[3px] outline-none transition-[border-color,box-shadow,filter] duration-150 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-blue-500',
         selected
-          ? 'border-white shadow-[0_0_0_3px_hsl(var(--tone)/0.7)] brightness-110'
-          : 'border-[hsl(var(--tone))] hover:shadow-[0_0_0_3px_hsl(var(--tone)/0.45)] hover:brightness-110',
+          ? 'border-[#FFE5A3] focus-visible:border-[#FFE5A3] shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
+          : 'border-[hsl(var(--tone)/0.7)] hover:border-white hover:brightness-110',
       )}
     >
       <span className="flex h-full w-full">{children}</span>
@@ -72,7 +72,7 @@ export function TimelineBlockCard({
         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"
       />
 
-      <span className="absolute left-1 top-0.5 flex items-center gap-1">
+      <span className="absolute left-4 top-0.5 flex items-center gap-1">
         <span
           aria-hidden
           className="flex h-4 w-4 items-center justify-center rounded bg-[hsl(var(--tone))] text-white"
@@ -86,7 +86,7 @@ export function TimelineBlockCard({
 
       {staleLabel && (
         <>
-          <span className="absolute right-1 top-0.5 rounded bg-saffron px-1 font-display text-[10px] font-bold text-charcoal">
+          <span className="absolute right-4 top-0.5 rounded bg-saffron px-1 font-display text-[10px] font-bold text-charcoal">
             {staleLabel}
           </span>
           <span
@@ -96,7 +96,7 @@ export function TimelineBlockCard({
         </>
       )}
 
-      <span className="absolute bottom-1.5 right-1 rounded bg-charcoal/80 px-1 font-mono text-[10px] tabular-nums text-white">
+      <span className="absolute bottom-0.5 right-4 rounded bg-charcoal/80 px-1 font-mono text-[10px] tabular-nums text-white">
         {durationLabel}
       </span>
 

@@ -1,5 +1,7 @@
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import type { LucideIcon } from 'lucide-react'
 import {
+  AudioLines,
   Clapperboard,
   Film,
   Mic,
@@ -11,7 +13,10 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { CharacterStyleId } from '@pipeline/types/characters.ts'
-import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
+import type {
+  ImageProviderId,
+  PaidImageProviderId,
+} from '@pipeline/types/image-provider.ts'
 import type { StageId } from '@pipeline/runner/stage-id.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
 import type {
@@ -80,6 +85,7 @@ export function libraryEditorPath(projectId: string): string {
 }
 
 export const videosQueryKeys = {
+  soundEffects: ['videos', 'soundEffects'],
   catalogStyles: ['videos', 'catalogStyles'],
   // Catálogo remoto (ADR-0049): la sincronización de la pestaña y la lista
   // del admin.
@@ -327,6 +333,40 @@ export const FRAME_SECONDS = 1 / 30
 export const TIMELINE_ZOOM_LEVELS = [20, 30, 45, 60, 90, 120, 180, 240] as const
 export const DEFAULT_TIMELINE_ZOOM_INDEX = 3
 
+export const EMPTY_SOUND_EFFECTS: readonly SoundEffectInstance[] = []
+
+// Pareja fija compartida por las muestras de transiciones; reutiliza fotos
+// ya incluidas en la aplicación y funciona también sin conexión.
+export const TRANSITION_PREVIEW_IMAGES = [
+  '/style-references/normal_1.jpg',
+  '/style-references/normal_2.jpg',
+] as const
+
+export const EDITOR_TOOL_PANEL_DEFAULT_WIDTH = 320
+export const EDITOR_TOOL_PANEL_MIN_WIDTH = 280
+export const EDITOR_TOOL_CARD_WIDTH = 128
+export const EDITOR_TOOL_CARD_GAP = 12
+export const EDITOR_TOOL_CARD_MAX_COLUMNS = 4
+export const EDITOR_TOOL_CARD_DEFAULT_COLUMNS = 3
+// Tres cards al abrir Transiciones/SFX; una sola ocupa el ancho disponible.
+export const EDITOR_TOOL_CATALOG_DEFAULT_WIDTH =
+  EDITOR_TOOL_CARD_WIDTH * EDITOR_TOOL_CARD_DEFAULT_COLUMNS +
+  EDITOR_TOOL_CARD_GAP * (EDITOR_TOOL_CARD_DEFAULT_COLUMNS - 1) +
+  32 +
+  2 +
+  8
+// Cuatro cards + tres espacios, padding p-4, bordes y gutter de scroll de 8px.
+export const EDITOR_TOOL_PANEL_MAX_WIDTH =
+  EDITOR_TOOL_CARD_WIDTH * EDITOR_TOOL_CARD_MAX_COLUMNS +
+  EDITOR_TOOL_CARD_GAP * (EDITOR_TOOL_CARD_MAX_COLUMNS - 1) +
+  32 +
+  2 +
+  8
+export const EDITOR_TOOL_PANEL_RESIZE_STEP = 24
+export const EDITOR_TOOL_PREVIEW_MIN_WIDTH = 280
+export const EDITOR_TOOL_WORKSPACE_GUTTER = 112
+export const EDITOR_SOUND_EFFECT_MIME = 'application/x-vimo-sound-effect'
+
 export const TIMELINE_RULER_HEIGHT = 32
 export const TIMELINE_TRACK_HEIGHT = 48
 export const TIMELINE_SIDEBAR_WIDTH = 160
@@ -336,33 +376,45 @@ export const TIMELINE_TRACK_IDS: readonly TimelineTrackId[] = [
   'scenes',
   'narration',
   'music',
+  'sfx',
 ]
 export const TIMELINE_TRACK_KINDS: Record<TimelineTrackId, TimelineTrackKind> =
   {
     scenes: 'visual',
     narration: 'audio',
     music: 'audio',
+    sfx: 'audio',
   }
 export const TIMELINE_TRACK_ICONS: Record<TimelineTrackId, LucideIcon> = {
   scenes: Film,
   narration: Mic,
   music: Music2,
+  sfx: AudioLines,
 }
 export const TIMELINE_TRACK_LABEL_KEYS: Record<TimelineTrackId, string> = {
   scenes: 'library.editor.timeline.scenes',
   narration: 'library.editor.timeline.narration',
   music: 'library.editor.timeline.music',
+  sfx: 'library.editor.timeline.sfx',
 }
 export const DEFAULT_TIMELINE_LAYOUT: TimelineLayout = {
-  order: ['scenes', 'narration', 'music'],
-  muted: { scenes: false, narration: false, music: false },
-  locked: { scenes: false, narration: false, music: false },
+  order: ['scenes', 'narration', 'music', 'sfx'],
+  muted: { scenes: false, narration: false, music: false, sfx: false },
+  locked: { scenes: false, narration: false, music: false, sfx: false },
 }
 // Una entrada por proyecto: `vimo:editor:timeline:v1:<projectId>`.
 export const TIMELINE_LAYOUT_STORAGE_KEY_PREFIX = 'vimo:editor:timeline:v1:'
 // Reordenar pistas con el puntero: px que hay que mover el asa antes de que
 // arranque el arrastre, así un clic sin movimiento no se toma como arrastre.
 export const TIMELINE_TRACK_DRAG_ACTIVATION_PX = 4
+
+// Espacio visual del fundido y del recorte interior, en píxeles.
+export const TIMELINE_TRANSITION_HEIGHT = 28
+export const TIMELINE_TRANSITION_BASE_WIDTH = 20
+// Icono de 12px + ambos bordes: por debajo se oculta sólo el marcador.
+export const TIMELINE_TRANSITION_MIN_WIDTH = 14
+export const TIMELINE_TRIM_INSET = 3
+export const TIMELINE_TRIM_WIDTH = 9
 
 // Candidatos de step mayor de la regla: el primero cuyo ancho en px sea >= 50.
 export const RULER_MAJOR_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const
@@ -867,9 +919,16 @@ export const VIDEO_FORMATS: {
 ]
 
 // Proveedores de imagen; las etiquetas son marcas, no se traducen.
-export const IMAGE_PROVIDERS: { id: ImageProviderId; label: string }[] = [
-  { id: 'evolink', label: 'Evolink' },
-  { id: 'fal', label: 'Fal' },
+export const PAID_IMAGE_PROVIDERS: {
+  id: PaidImageProviderId
+  labelKey: string
+}[] = [
+  { id: 'evolink', labelKey: 'extension.engineEvolink' },
+  { id: 'fal', labelKey: 'extension.engineFal' },
+]
+export const IMAGE_PROVIDERS: { id: ImageProviderId; labelKey: string }[] = [
+  ...PAID_IMAGE_PROVIDERS,
+  { id: 'flow', labelKey: 'extension.engineFlow' },
 ]
 
 // Proveedores de animación de escenas (ADR-0047), en el orden del selector.
@@ -1352,6 +1411,34 @@ export const CREATE_ERROR_MESSAGE_KEYS: Record<string, string> = {
   image_network: 'create.errors.imageNetwork',
   image_invalid_api_key: 'create.errors.imageInvalidApiKey',
   image_account_rejected: 'create.errors.imageAccountRejected',
+  flow_not_connected: 'extension.notReady',
+  flow_capacity_required: 'extension.notReady',
+  flow_accounts_exhausted: 'extension.accountsExhausted',
+  flow_paid_consent_required: 'extension.paidConsentRequired',
+  flow_transport_unknown: 'extension.reviewRequired',
+  flow_review_required: 'extension.reviewRequired',
+  flow_account_review_required: 'extension.accountReviewRequired',
+  flow_submission_unknown: 'extension.submissionUnknown',
+  flow_restart_required: 'extension.restartRequired',
+  flow_download_failed: 'extension.downloadFailed',
+  flow_result_invalid: 'extension.resultInvalid',
+  flow_result_obsolete: 'extension.resultObsolete',
+  flow_intent_conflict: 'extension.intentConflict',
+  batch_execution_plan_mixed: 'extension.intentConflict',
+  execution_plan_mismatch: 'extension.intentConflict',
+  batch_execution_plan_conflict: 'extension.intentConflict',
+  batch_id_conflict: 'extension.intentConflict',
+  job_hash_mismatch: 'extension.intentConflict',
+  store_execution_plan_invalid: 'extension.intentConflict',
+  flow_tools_coordinator_upgrade_required: 'extension.toolsUpgradeRequired',
+  execution_plan_invalid: 'extension.toolsIntentInvalid',
+  seed_invalid: 'extension.toolsIntentInvalid',
+  flow_tools_model_or_aspect_invalid: 'extension.toolsIntentInvalid',
+  execution_plan_unavailable: 'extension.toolsUnavailable',
+  retry_execution_plan_unavailable: 'extension.toolsUnavailable',
+  flow_unavailable: 'extension.unavailable',
+  flow_port_in_use: 'extension.portInUse',
+  flow_command_failed: 'extension.actionFailed',
   image_provider_error: 'create.errors.imageProviderError',
   image_task_not_found: 'create.errors.imageProviderError',
   image_content_policy: 'create.errors.imageContentPolicy',
@@ -1522,3 +1609,16 @@ export const DEMO_PHASE_MESSAGE_KEYS: Record<DemoPreparePhase, string> = {
   download: 'createDemo.downloading',
   install: 'createDemo.installing',
 }
+
+// Recuperar el lote conserva sus recibos; no es consentimiento para reemplazarlo.
+export const FLOW_PIPELINE_RECOVERY_ERROR_KEYS: ReadonlySet<string> = new Set([
+  'extension.reviewRequired',
+  'extension.accountReviewRequired',
+  'extension.submissionUnknown',
+  'extension.downloadFailed',
+  'extension.resultInvalid',
+  'extension.resultObsolete',
+])
+
+// Sólo trabajos pagos: los cupos de Flow se administran por cuenta en el coordinador.
+export const EDITOR_PAID_IMAGE_CONCURRENCY = 5

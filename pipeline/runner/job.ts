@@ -16,6 +16,8 @@ export interface PipelineJob {
   config?: PipelineConfigOverrides
   apiKeys: ApiKeys
   binaryPaths: BinaryPaths
+  // Solo Rust lo inyecta por stdin. Nunca se devuelve al webview ni se persiste.
+  flowRuntime?: { port: number; token: string; dataDir: string }
   // Datos específicos del subcomando; cada handler valida su forma.
   payload?: JsonValue
 }

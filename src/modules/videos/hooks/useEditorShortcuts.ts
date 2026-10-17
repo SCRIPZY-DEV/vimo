@@ -40,6 +40,8 @@ export function useEditorShortcuts({
       if (event.defaultPrevented) return
 
       const target = event.target as HTMLElement | null
+      if (target?.closest('[data-editor-tool-panel], [data-editor-tool-rail]'))
+        return
       if (
         target &&
         (target.tagName === 'INPUT' ||

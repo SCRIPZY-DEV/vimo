@@ -1,3 +1,5 @@
+import { flowVideoIsOutdated } from './flow-video-outdated.ts'
+import { withProjectMetadataLease } from '../animation/coordination.ts'
 import { PipelineFailure } from '../runner/failure.ts'
 import type { VideoProjectMetadata } from '../types/video-project.ts'
 import { readTextWithRetry, writeFileAtomicStrict } from '../utils/atomic-fs.ts'
@@ -14,8 +16,9 @@ import { isValidFile, type ProjectPaths } from './paths.ts'
 // renombra: la otra se pierde. En fila, cada una corre cuando terminó la
 // anterior y toma lo que escribe en ese momento, no cuando se pidió: así la
 // copia en memoria que se escribe última lleva todo lo que se le anotó antes.
-// Sin otra escritura en curso corre en el acto, como siempre. Entre procesos
-// manda el lease del proyecto (subcommands.ts): un job que escribe por vez.
+// Sin otra escritura en curso corre en el acto. Entre procesos, los jobs de
+// imágenes comparten proyecto: sus cambios parciales toman además el lease
+// de metadata antes de entrar en esta cola.
 const metadataWrites = new Map<string, Promise<void>>()
 
 function inMetadataQueue(
@@ -45,7 +48,11 @@ export async function readProjectMetadata(
 
   try {
     const raw = await readTextWithRetry(paths.metadataFile)
-    return JSON.parse(raw) as VideoProjectMetadata
+    const metadata = JSON.parse(raw) as VideoProjectMetadata
+    // A background image import never rewrites project.json. Its separate
+    // marker only adds invalidation for the exact video that it observed.
+    if (await flowVideoIsOutdated(paths)) metadata.videoOutdated = true
+    return metadata
   } catch (error) {
     throw new PipelineFailure(
       'project_metadata_corrupt',
@@ -85,10 +92,7 @@ export async function markVideoOutdated(
   if (metadata.videoOutdated) return
   if (!(await isValidFile(paths.videoFile))) return
 
-  const next = { ...metadata, videoOutdated: true }
-  await writeProjectMetadata(paths, next)
-  metadata.videoOutdated = true
-  metadata.updatedAt = next.updatedAt
+  await markStoredVideoOutdated(paths, metadata)
 }
 
 // Lo mismo, sobre lo que hay EN DISCO (entrega 2h, diseño §24.1), para quien no
@@ -103,12 +107,21 @@ export function markStoredVideoOutdated(
   paths: ProjectPaths,
   metadata: VideoProjectMetadata,
 ): Promise<void> {
-  return inMetadataQueue(paths, async () => {
-    const latest = await readProjectMetadata(paths)
-    if (!latest.videoOutdated && (await isValidFile(paths.videoFile))) {
-      latest.videoOutdated = true
-      await writeMetadataNow(paths, latest)
-    }
-    metadata.videoOutdated = latest.videoOutdated
-  })
+  // El orden es siempre lease entre procesos → cola local. La relectura
+  // ocurre dentro de ambos: ni otro sidecar ni completedStages del avatar
+  // paralelo pueden quedar pisados por una copia tomada antes de esperar.
+  return withProjectMetadataLease(
+    paths.root,
+    new AbortController().signal,
+    () =>
+      inMetadataQueue(paths, async () => {
+        const latest = await readProjectMetadata(paths)
+        if (!latest.videoOutdated && (await isValidFile(paths.videoFile))) {
+          latest.videoOutdated = true
+          await writeMetadataNow(paths, latest)
+        }
+        metadata.videoOutdated = latest.videoOutdated
+        metadata.updatedAt = latest.updatedAt
+      }),
+  )
 }

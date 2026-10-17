@@ -1,3 +1,7 @@
+import type { RefObject } from 'react'
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type { CostEstimateLine } from '@/modules/common/types/credits'
 import type { AvatarRenderPhase } from '@/modules/videos/types/create'
 import type { SceneAnimationReviewOutcome } from '@/modules/videos/types/sceneImageReview'
@@ -47,7 +51,7 @@ export type LibraryTab = 'long' | 'shorts'
 // Pistas del timeline (ADR-0056). El orden, el silencio en el visor y el
 // candado son estado de interfaz por proyecto: no viajan al archivo del
 // proyecto ni al render.
-export type TimelineTrackId = 'scenes' | 'narration' | 'music'
+export type TimelineTrackId = 'scenes' | 'narration' | 'music' | 'sfx'
 export type TimelineTrackKind = 'visual' | 'audio'
 export interface TimelineLayout {
   order: TimelineTrackId[]
@@ -90,14 +94,23 @@ export interface EditorPlayerHandle {
   seekWithPlay(seconds: number): void
 }
 
-// Una escena esperando regeneración. La cola se coalesce: UN job de regen
-// por proyecto a la vez; lo encolado durante un job sale en el siguiente.
-export interface RegenQueueEntry {
+// Una escena esperando regeneración. El store captura su configuración y
+// reserva sus IDs al despachar uno de los trabajos concurrentes.
+export interface FlowRegenerationIntent {
+  flowRecoverOnly?: boolean
+  flowRegenerationRequestId?: string
+  executionPlan?: FlowToolsExecutionPlan
+}
+
+export interface RegenQueueEntry extends FlowRegenerationIntent {
+  flowRestartRequest?: FlowRestartRequest
   id: number
   rewritePrompt: boolean
   // Instantánea de la intención; se guarda al adquirir el turno de escritura.
   userPrompt?: string
   imageProvider?: ImageProviderId
+  imageQuality?: string
+  charactersPresent?: number[]
 }
 
 export interface QueuedRegenEntry extends RegenQueueEntry {
@@ -307,28 +320,39 @@ export interface EditorAnimationState {
 // Estado del editor de UN proyecto: vive fuera de React (los jobs siguen al
 // navegar) y NO se persiste — un job muere con la app y el detail refetchea
 // la verdad del disco al volver.
+// Estado local de observación, nunca se persiste en scenes.json.
+export type EditorSceneImageStatus =
+  SceneImageStatus | 'awaiting_sync' | 'preparing'
+
+export interface EditorRegenerationRequest {
+  requestId: string
+  jobId: string | null
+  sceneIds: number[]
+  imageProvider?: ImageProviderId
+  cancelled?: boolean
+}
+
 export interface LibraryEditorTask {
   projectId: string
   // Reserva breve durante el guardado de descripciones anterior al encolado.
   savingScenes: boolean
   regenQueue: QueuedRegenEntry[]
-  activeRegen: {
-    requestId: string
-    jobId: string | null
-    sceneIds: number[]
-    cancelled?: boolean
-  } | null
+  // Resumen compatible para las vistas; la autoría vive en cada solicitud.
+  activeRegen: EditorRegenerationRequest | null
+  activeRegenerations: EditorRegenerationRequest[]
   // Descripciones aceptadas que deben seguir disponibles ante fallo de guardado.
   sceneRegenDrafts: Record<number, string>
   // Override transitorio del proveedor para el próximo lote de regen.
   pendingImageProvider: ImageProviderId | null
   // Estados transitorios por escena (spinner de la cola y del job).
-  sceneStatus: Record<number, SceneImageStatus>
+  sceneStatus: Record<number, EditorSceneImageStatus>
   // Motivo (clave i18n) del último fallo por escena: sobrevive al cierre
   // del job y se borra al reintentar esa escena.
   sceneErrors: Record<number, string>
   // Cache-buster por escena: sube cuando llega una imagen nueva.
   sceneVersions: Record<number, number>
+  // Avanza sólo cuando el job confirma el éxito, no con un recibo aislado.
+  sceneCompletionVersions: Record<number, number>
   render: EditorRenderState | null
   export: EditorExportState | null
   // Job de animación en curso (ADR-0047); exclusión con regen/render/export.
@@ -362,4 +386,31 @@ export interface LibraryEditorTask {
   errorCode: string | null
   // Sube al cerrar cada job: la vista invalida sus queries al verlo cambiar.
   revision: number
+}
+
+// Audio de los efectos en el visor simulado; la narración aporta el reloj.
+export interface UseSoundEffectPlaybackOptions {
+  clockRef: RefObject<HTMLAudioElement | null>
+  instances: readonly SoundEffectInstance[]
+  source: string | null
+  durationSeconds: number
+  enabled: boolean
+}
+
+export interface TimelineSoundEffectItemProps {
+  instance: SoundEffectInstance
+  durationSeconds: number
+  timelineSeconds: number
+  pxPerSecond: number
+  disabled: boolean
+  muted: boolean
+  onMove(id: string, seconds: number): void
+  onRemove(id: string): void
+}
+
+export interface TimelineSoundEffectDrag {
+  pointerId: number
+  clientX: number
+  initialSeconds: number
+  seconds: number
 }

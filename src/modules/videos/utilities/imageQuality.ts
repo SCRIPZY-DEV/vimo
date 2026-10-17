@@ -1,3 +1,4 @@
+import { FLOW_DEFAULT_QUALITY } from '@/modules/common/constants'
 import {
   DEFAULT_VIDEO_FORMAT,
   EVOLINK_QUALITY_OPTIONS,
@@ -13,6 +14,7 @@ export function qualityOptionsFor(
 ): { id: string; labelKey: string; noteKey: string; priceUsd: number }[] {
   // Evolink es agnóstico al formato: una sola lista (el `size` lo pone el
   // pipeline); en Fal el id lleva el tamaño exacto, así que hay lista 9:16.
+  if (provider === 'flow') return []
   if (provider === 'evolink') return EVOLINK_QUALITY_OPTIONS
   if (format === '9:16') return FAL_QUALITY_OPTIONS_VERTICAL
   return FAL_QUALITY_OPTIONS
@@ -22,6 +24,7 @@ export function defaultQualityFor(
   provider: ImageProviderId,
   format: VideoFormat = DEFAULT_VIDEO_FORMAT,
 ): string {
+  if (provider === 'flow') return FLOW_DEFAULT_QUALITY
   return qualityOptionsFor(provider, format)[0].id
 }
 
@@ -53,6 +56,7 @@ export function priceForQuality(
   provider: ImageProviderId,
   quality: string,
 ): number | undefined {
+  if (provider === 'flow') return undefined
   const pools =
     provider === 'evolink'
       ? [EVOLINK_QUALITY_OPTIONS]

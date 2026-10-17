@@ -1,3 +1,8 @@
+import { FlowPaidCompletionButton } from '@/modules/videos/components/FlowPaidCompletionButton'
+import type { PaidImageProviderId } from '@pipeline/types/image-provider.ts'
+import { FlowRestartButton } from '@/modules/common/components/FlowRestartButton'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
+import { FlowRunControls } from '@/modules/common/components/FlowRunControls'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
@@ -39,6 +44,7 @@ import { VoiceSwitchDialog } from '@/modules/videos/components/VoiceSwitchDialog
 import {
   CANCEL_CONFIRM_WINDOW_MS,
   EDITOR_RESCUE_ERROR_CODES,
+  FLOW_PIPELINE_RECOVERY_ERROR_KEYS,
   STYLE_GEM_ERROR_CODES,
   SUPPORT_NOTE_CLASS,
   UNKNOWN_CREATE_ERROR_KEY,
@@ -76,6 +82,8 @@ interface GenerationProgressProps {
   onCancel: () => void
   // Reintentar desde el último checkpoint cuando el job falló.
   onRetryPipeline: () => void
+  onCompleteWithPaid?: (provider: PaidImageProviderId) => void
+  onRestartFlow?: (request: FlowRestartRequest) => void
   // Rescate del origen (v1.32.0): con los prompts persistidos, el fallo de
   // imágenes no bloquea — se sigue en el editor y se regenera desde ahí.
   onContinueInEditor: () => void
@@ -108,6 +116,8 @@ export function GenerationProgress({
   back,
   onCancel,
   onRetryPipeline,
+  onRestartFlow,
+  onCompleteWithPaid,
   onContinueInEditor,
   onConfirmScenes,
   onDismissConfirmation,
@@ -410,7 +420,23 @@ export function GenerationProgress({
           <h2 className="font-display text-base font-bold text-foreground">
             {t('create.progress.phasesTitle')}
           </h2>
+          {task.imageProvider === 'flow' && (
+            <FlowRunControls
+              progress={{
+                total: imageScenes.length || null,
+                ready: imageScenes.filter((scene) => scene.imageStatus === 'ok')
+                  .length,
+                generating: imageScenes.filter(
+                  (scene) => scene.imageStatus === 'generating',
+                ).length,
+                pending: imageScenes.filter(
+                  (scene) => !['ok', 'generating'].includes(scene.imageStatus),
+                ).length,
+              }}
+            />
+          )}
           <StageBar
+            flowImages={task.imageProvider === 'flow'}
             activeStages={running}
             showAnimation={hasAnimation}
             showAvatar={hasAvatar}
@@ -608,8 +634,27 @@ export function GenerationProgress({
             </div>
           )}
 
+          {failed &&
+            task.imageProvider === 'flow' &&
+            failedStage === 'images' &&
+            onCompleteWithPaid && (
+              <FlowPaidCompletionButton
+                count={
+                  imageScenes.filter((scene) => scene.imageStatus !== 'ok')
+                    .length
+                }
+                format={task.videoFormat}
+                onConfirm={onCompleteWithPaid}
+              />
+            )}
+
           {failed && !task.creditsIssue && (
             <GenerationErrorCard
+              flowRecovery={
+                task.imageProvider === 'flow' &&
+                failedStage === 'images' &&
+                FLOW_PIPELINE_RECOVERY_ERROR_KEYS.has(task.errorKey ?? '')
+              }
               message={t(failureMessage.key, { count: failureMessage.count })}
               failedStage={failedStage}
               errorCode={task.errorCode}
@@ -641,6 +686,11 @@ export function GenerationProgress({
               onClose={() => setSwitchingVoice(false)}
             />
           )}
+
+          {failed &&
+            task.imageProvider === 'flow' &&
+            task.errorKey === 'extension.restartRequired' &&
+            onRestartFlow && <FlowRestartButton onRestart={onRestartFlow} />}
 
           {showPromptsPanel && (
             <PromptsGrid

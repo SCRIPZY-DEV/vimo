@@ -1,3 +1,17 @@
+import {
+  flowExecutionPlansEqual,
+  normalizeFlowExecutionPlan,
+  supportsFlowToolsCoordinator,
+} from '@/modules/common/utilities/flowExecutionPlan'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { invoke } from '@tauri-apps/api/core'
+import type {
+  FlowStatus,
+  FlowDiscoveryResult,
+  FlowPairing,
+  FlowCapacity,
+  FlowRetryRequest,
+} from '@/modules/common/types/flow'
 import { runPipelineJob } from '@/modules/common/fetcher/pipeline'
 import { isNative } from '@/modules/common/utilities/isNative'
 import type { VideoCreditsResult } from '@pipeline/types/animation.ts'
@@ -15,6 +29,70 @@ import type {
 // de los proveedores de imagen, que muestran Crear, el editor, el modal de
 // estilo propio y el modal de personaje.
 export const commonApi = {
+  async flowStatus(): Promise<FlowStatus> {
+    return invoke('flow_command', { command: { type: 'status' } })
+  },
+  async discoverFlow(): Promise<FlowDiscoveryResult> {
+    return invoke('flow_command', { command: { type: 'discovery.list' } })
+  },
+  async linkFlow(discoveryId: string): Promise<void> {
+    await invoke('flow_command', {
+      command: { type: 'discovery.link', discoveryId },
+    })
+  },
+  async pairFlow(): Promise<FlowPairing> {
+    return invoke('flow_command', { command: { type: 'pairing.new' } })
+  },
+  async revokeFlow(connectionId: string): Promise<void> {
+    await invoke('flow_command', { command: { type: 'revoke', connectionId } })
+  },
+  async pauseFlow(paused: boolean): Promise<void> {
+    await invoke('flow_command', { command: { type: 'pause', paused } })
+  },
+  async flowCapacity(
+    requestedCount: number,
+    executionPlan?: FlowToolsExecutionPlan,
+  ): Promise<FlowCapacity> {
+    const plan = normalizeFlowExecutionPlan(executionPlan)
+    if (plan) {
+      // También protege callers directos: un vendor viejo nunca recibe el plan.
+      const status = await commonApi.flowStatus()
+      if (!supportsFlowToolsCoordinator(status.capabilities?.flowTools))
+        throw new Error('flow_tools_coordinator_upgrade_required')
+    }
+    const result = await invoke<FlowCapacity>('flow_command', {
+      command: {
+        type: 'capacity.check',
+        requestedCount,
+        ...(plan ? { executionPlan: plan, autoRecoveryVersion: 1 } : {}),
+      },
+    })
+    if (!flowExecutionPlansEqual(result.executionPlan, plan))
+      throw new Error('execution_plan_invalid')
+    return result
+  },
+  async retryFlowGeneration(request: FlowRetryRequest): Promise<void> {
+    await invoke('flow_command', {
+      command: { type: 'generation.retry', ...request },
+    })
+  },
+  async downloadFlowImage(imageJobId: string): Promise<void> {
+    await invoke('flow_command', { command: { type: 'download', imageJobId } })
+  },
+  async cancelFlowImage(imageJobId: string): Promise<void> {
+    await invoke('flow_command', { command: { type: 'cancel', imageJobId } })
+  },
+  async deleteFlowImage(imageJobId: string): Promise<void> {
+    await invoke('flow_command', {
+      command: { type: 'image.delete', imageJobId },
+    })
+  },
+  async cancelFlowBatch(batchId: string): Promise<void> {
+    await invoke('flow_command', { command: { type: 'batch.cancel', batchId } })
+  },
+  async deleteFlowBatch(batchId: string): Promise<void> {
+    await invoke('flow_command', { command: { type: 'batch.delete', batchId } })
+  },
   isNative() {
     return isNative()
   },

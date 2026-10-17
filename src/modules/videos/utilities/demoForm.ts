@@ -436,6 +436,7 @@ export function demoFormValue(
 
   return {
     ...base,
+    executionPlan: undefined,
     narrationMode: 'tts',
     styleSource: 'catalog',
     customStyle: null,

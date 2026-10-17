@@ -17,6 +17,7 @@ import { VoiceSwitchDialog } from '@/modules/videos/components/VoiceSwitchDialog
 import {
   EDITOR_RESCUE_ERROR_CODES,
   UNKNOWN_CREATE_ERROR_KEY,
+  FLOW_PIPELINE_RECOVERY_ERROR_KEYS,
   VOICE_MAYBE_PAID_ERROR_CODES,
   VideosRoutes,
   libraryEditorPath,
@@ -90,6 +91,8 @@ export function LibraryPlayer() {
   const retry = async () => {
     const started = await startPipelineForProject(projectId, metadata.name, {
       videoFormat: metadata.options.videoFormat,
+      imageProvider: metadata.options.imageProvider ?? null,
+      executionPlan: metadata.options.executionPlan,
       ...avatarRunOptions(metadata.options.avatar),
       // Reintentar uno de la demo sigue sin cobrar nada (ruling R28).
       demo: metadata.options.demo === true,
@@ -156,6 +159,12 @@ export function LibraryPlayer() {
 
       {metadata.state === 'error' && (
         <TaskErrorCard
+          flowRecovery={
+            metadata.options.imageProvider === 'flow' &&
+            FLOW_PIPELINE_RECOVERY_ERROR_KEYS.has(
+              videosApi.errorMessageKey({ code: metadata.errorCode }),
+            )
+          }
           message={`${t('library.player.errorIntro')} ${t(failureMessage.key, {
             count: failureMessage.count,
           })}`}

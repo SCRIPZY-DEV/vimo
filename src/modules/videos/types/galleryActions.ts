@@ -1,3 +1,4 @@
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
 import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import type { SceneChange, SceneDetail } from '@pipeline/types/video-project.ts'
 import type { VideoFormat } from '@pipeline/types/video-format.ts'
@@ -23,7 +24,12 @@ export interface GalleryActionsOptions {
   // avatar de la galería (entrega 2f).
   busy: boolean
   imageProvider: ImageProviderId
-  onRegenerateImages(requests: GalleryImageRequest[]): Promise<boolean>
+  executionPlan?: FlowToolsExecutionPlan
+  onRegenerateImages(
+    requests: GalleryImageRequest[],
+    executionPlan?: FlowToolsExecutionPlan,
+    imageProvider?: ImageProviderId,
+  ): Promise<boolean>
   onUndoAnimation(sceneId: number): Promise<boolean>
   undoingSceneId: number | null
 }

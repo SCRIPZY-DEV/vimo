@@ -18,6 +18,7 @@ import { charactersRoutes } from '@/modules/characters/routes'
 import { avatarsRoutes } from '@/modules/avatars/routes'
 import { voicesRoutes } from '@/modules/voices/routes'
 import { apiKeysRoutes } from '@/modules/api-keys/routes'
+import { extensionRoutes } from '@/modules/extension/routes'
 import { settingsRoutes } from '@/modules/settings/routes'
 import { commonRoutes } from '@/modules/common/routes'
 import { setupMainRoute } from '@/modules/setup/routes'
@@ -40,6 +41,7 @@ export const router = createHashRouter([
       // navegación (ver `hidden` en layouts/AuthenticatedLayout/constants.ts).
       ...apiKeysRoutes,
       ...settingsRoutes,
+      ...extensionRoutes,
       ...authShellRoutes,
     ],
   },

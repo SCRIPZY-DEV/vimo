@@ -1,3 +1,4 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
@@ -12,6 +13,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/modules/common/ui/button'
 import { cn } from '@/modules/common/utilities/cn'
+import { GalleryProviderPicker } from '@/modules/videos/components/GalleryProviderPicker'
+import type { ImageProviderId } from '@pipeline/types/image-provider.ts'
 import { EditorAvatarGalleryCard } from '@/modules/videos/components/EditorAvatarGalleryCard'
 import { EditorImageGalleryCard } from '@/modules/videos/components/EditorImageGalleryCard'
 import { AnimationPairingNotice } from '@/modules/videos/components/AnimationPairingNotice'
@@ -26,7 +29,15 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const { projectId, scenes, videoFormat, durationSeconds, locked, busy } =
     options
   const { t } = useTranslation()
-  const actions = useGalleryActions(options)
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
+  const [providerOverride, setProviderOverride] =
+    useState<ImageProviderId | null>(null)
+  const imageProvider = providerOverride ?? options.imageProvider
+  const actions = useGalleryActions({
+    ...options,
+    imageProvider,
+    executionPlan,
+  })
   // Las escenas de avatar no tienen imagen que regenerar (ADR-0057, spec
   // §6.2): solo se eligen escenas de imagen, así «Regenerar imágenes» y
   // «Animar» en lote nunca incluyen una de avatar. Desde la entrega 2f
@@ -57,6 +68,9 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
   const selection = imageScenes
     .filter((scene) => selectedIds.includes(scene.id))
     .map((scene) => scene.id)
+  const recoveringFlow = actions.isFlowRecovery(
+    selecting ? selection : selectedId === null ? [] : [selectedId],
+  )
   const imageAvailability = actions.imageAvailability(selection)
   const animationAvailability = actions.animationAvailability(selection)
   const animationLabels = selection.map((id) => actions.getAnimationLabel(id))
@@ -309,6 +323,11 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
               {t(staticTailHint())}
             </p>
           )}
+          {imageProvider === 'flow' && recoveringFlow && (
+            <p className="px-5 pt-3 text-xs text-muted-foreground sm:px-6">
+              {t('extension.recoverHint')}
+            </p>
+          )}
           {actions.errorKey && (
             <p
               role="alert"
@@ -361,6 +380,8 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                   <EditorImageGalleryCard
                     key={scene.id}
                     scene={scene}
+                    imageProvider={imageProvider}
+                    onImageProviderChange={setProviderOverride}
                     videoFormat={videoFormat}
                     version={actions.task?.sceneVersions[scene.id]}
                     status={actions.task?.sceneStatus[scene.id]}
@@ -429,6 +450,15 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
           </div>
           {selecting && (
             <div className="shrink-0 space-y-2 border-t border-border bg-card px-5 py-3 sm:px-6">
+              {selection.length > 0 && (
+                <div className="max-w-xs">
+                  <GalleryProviderPicker
+                    value={imageProvider}
+                    disabled={actions.submitting}
+                    onChange={setProviderOverride}
+                  />
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p role="status" className="font-display text-sm font-bold">
                   {t('library.editor.imageGallery.selectedCount', {
@@ -453,7 +483,7 @@ export function EditorImageGallery(options: GalleryActionsOptions) {
                     disabled={
                       selection.length === 0 ||
                       actions.submitting ||
-                      imageAvailability.disabled
+                      (editingSelection && imageAvailability.disabled)
                     }
                     onClick={() => {
                       if (editingSelection) {

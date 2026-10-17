@@ -1,3 +1,8 @@
+import type {
+  SoundEffectsListResult,
+  SetProjectSoundEffectsPayload,
+  SetProjectSoundEffectsResult,
+} from '@pipeline/types/sound-effects.ts'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
@@ -17,6 +22,7 @@ import {
   vimoServerErrorDetail,
   vimoServerRetryAt,
 } from '@/modules/common/fetcher/vimoServerError'
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
 import { bytesToBase64 } from '@/modules/common/utilities/bytesToBase64'
 import { isNative } from '@/modules/common/utilities/isNative'
 import {
@@ -249,7 +255,19 @@ export const videosApi = {
     payload: RegenerateSceneImagesPayload,
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
-    return startPipelineJob('regenerate-scene-images', payload, onEvent)
+    const executionPlan = normalizeFlowExecutionPlan(payload.executionPlan)
+    if (
+      executionPlan &&
+      payload.imageProvider !== undefined &&
+      payload.imageProvider !== 'flow'
+    )
+      throw new Error('execution_plan_invalid')
+
+    return startPipelineJob(
+      'regenerate-scene-images',
+      { ...payload, ...(executionPlan ? { executionPlan } : {}) },
+      onEvent,
+    )
   },
   async startAnimation(
     payload: AnimateScenesPayload,
@@ -298,6 +316,20 @@ export const videosApi = {
     onEvent: (event: PipelineEventPayload) => void,
   ): Promise<PipelineJobHandle> {
     return startPipelineJob('replace-narration', payload, onEvent)
+  },
+  async listSoundEffects(): Promise<SoundEffectsListResult> {
+    return await runPipelineJob<SoundEffectsListResult>(
+      'list-sound-effects',
+      {},
+    )
+  },
+  async setProjectSoundEffects(
+    payload: SetProjectSoundEffectsPayload,
+  ): Promise<SetProjectSoundEffectsResult> {
+    return await runPipelineJob<SetProjectSoundEffectsResult>(
+      'set-project-sound-effects',
+      payload,
+    )
   },
   async setProjectMusic(payload: SetProjectMusicPayload): Promise<void> {
     await runPipelineJob('set-project-music', payload)

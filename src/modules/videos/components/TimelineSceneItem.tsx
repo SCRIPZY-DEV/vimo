@@ -10,13 +10,13 @@ import type {
   SceneAnimationProgress,
 } from '@/modules/videos/types/library'
 import type { SceneDetail } from '@pipeline/types/video-project.ts'
-import type { SceneImageStatus } from '@pipeline/types/scenes.ts'
+import type { EditorSceneImageStatus } from '@/modules/videos/types/library'
 
 interface TimelineSceneItemProps {
   scene: SceneDetail
   selected: boolean
   // Estado transitorio del store (cola/regen); undefined = el del disco.
-  transientStatus: SceneImageStatus | undefined
+  transientStatus: EditorSceneImageStatus | undefined
   // Último fallo de regeneración (clave i18n): velo rojo persistente + title.
   errorKey: string | undefined
   // Animación en curso (ADR-0047), su avance y el último fallo (clave i18n).
@@ -33,8 +33,8 @@ interface TimelineSceneItemProps {
 // Bloque de una escena en la pista de video. El padre lo posiciona en
 // absoluto según la duración de la escena. Una escena animada (la que
 // encabeza el clip o una absorbida por él) lleva borde celeste SIEMPRE, con
-// selección o sin ella, y se ilumina un poco más al pasar el cursor o al
-// seleccionarla: es lo que la distingue de un vistazo de las estáticas.
+// selección o sin ella. El hover usa un borde blanco y la selección, amarillo pastel; el
+// icono de animación conserva la diferencia con las escenas estáticas.
 export function TimelineSceneItem({
   scene,
   selected,
@@ -49,20 +49,26 @@ export function TimelineSceneItem({
 }: TimelineSceneItemProps) {
   const { t, i18n } = useTranslation()
 
+  const preparing = transientStatus === 'preparing'
   const regenerating = transientStatus === 'generating'
+  const awaitingSync = transientStatus === 'awaiting_sync'
+  const queued = transientStatus === 'pending' || awaitingSync
+  const imageStatus = transientStatus ?? scene.imageStatus
   const animating = animationActivity === 'generating'
   const percent = useAnimationProgress(
     animating ? animationProgress : undefined,
   )
-  const failed =
-    transientStatus === 'error' ||
-    errorKey !== undefined ||
-    scene.imageStatus === 'error'
+  // Un ready recién importado gana al detail todavía sin refetchear.
+  const failed = imageStatus === 'error' || errorKey !== undefined
   const animationFailed =
     animationActivity === 'error' || animationErrorKey !== undefined
   // Regenerando gana sobre el error: el velo rojo espera a que termine.
   const showErrorVeil =
-    (failed || animationFailed) && !regenerating && !animating
+    (failed || animationFailed) &&
+    !preparing &&
+    !regenerating &&
+    !queued &&
+    !animating
   const leadsClip = scene.animation?.status === 'ready'
   const absorbed = scene.absorbedBy !== undefined
   const animated = leadsClip || absorbed
@@ -90,13 +96,11 @@ export function TimelineSceneItem({
           : undefined
 
   const borderClass = () => {
-    if (clipBorder && selected)
-      return 'border-sky shadow-[0_0_0_3px_hsl(var(--sky)/0.7)] brightness-110'
-    if (clipBorder)
-      return 'border-sky shadow-[0_0_0_1px_hsl(var(--sky)/0.4)] hover:shadow-[0_0_0_3px_hsl(var(--sky)/0.55)] hover:brightness-110'
     if (selected)
-      return 'border-saffron shadow-[0_0_0_2px_hsl(var(--saffron)/0.3)]'
-    return 'border-border/60 hover:border-saffron/40'
+      return 'border-[#FFE5A3] focus-visible:border-[#FFE5A3] shadow-[0_0_0_1px_rgb(15_23_42/0.22)] brightness-110'
+    if (clipBorder)
+      return 'border-sky/70 hover:border-white hover:brightness-110'
+    return 'border-border/60 hover:border-white'
   }
 
   return (
@@ -106,7 +110,7 @@ export function TimelineSceneItem({
       title={title}
       onClick={onSelect}
       className={cn(
-        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-2 transition-[box-shadow,filter]',
+        'absolute inset-x-0 bottom-1 top-1 overflow-hidden rounded-md border-[3px] outline-none transition-[border-color,box-shadow,filter] duration-150 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-blue-500',
         borderClass(),
       )}
     >
@@ -118,7 +122,7 @@ export function TimelineSceneItem({
           draggable={false}
           className={cn(
             'h-full w-full object-cover',
-            scene.imageStatus === 'pending' && 'opacity-50 blur-[1px]',
+            imageStatus === 'pending' && 'opacity-50 blur-[1px]',
           )}
         />
       ) : (
@@ -130,14 +134,14 @@ export function TimelineSceneItem({
         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"
       />
 
-      <span className="absolute left-1 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded bg-charcoal/80 px-1 font-display text-[10px] font-bold tabular-nums text-white">
+      <span className="absolute left-4 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded bg-charcoal/80 px-1 font-display text-[10px] font-bold tabular-nums text-white">
         {scene.id}
       </span>
 
       {animated && (
         <span
           aria-hidden
-          className="absolute right-1 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-sky text-white"
+          className="absolute right-4 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-sky text-white"
         >
           {leadsClip ? (
             <Clapperboard className="h-2.5 w-2.5" />
@@ -156,6 +160,17 @@ export function TimelineSceneItem({
 
       {showErrorVeil && (
         <span aria-hidden className="absolute inset-0 bg-destructive/40" />
+      )}
+      {queued && !animating && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-[10px] font-semibold text-white">
+          {t(awaitingSync ? 'extension.awaitingSync' : 'extension.queued')}
+        </span>
+      )}
+      {preparing && (
+        <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/60 text-[10px] font-semibold text-white">
+          <Loader2 aria-hidden className="h-3 w-3 animate-spin" />
+          {t('library.editor.preparingImage')}
+        </span>
       )}
       {regenerating && (
         <span className="absolute inset-0 flex items-center justify-center bg-black/70">

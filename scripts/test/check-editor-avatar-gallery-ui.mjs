@@ -596,7 +596,7 @@ try {
 
   // 4d. Ronda 1 (m1): al desplegar, la tarjeta entra entera en la vista del
   //     área con scroll de la galería (scrollIntoView con block nearest). La
-  //     prueba corre sin CSS: el área se arma con estilos en línea, de la
+  //     prueba no carga Tailwind: el área se arma con estilos en línea, de la
   //     altura de una tarjeta desplegada más un margen, y la 7 se deja asomando
   //     por el borde de abajo (o más abajo todavía), así que desplegada se pasa
   //     del borde si nadie la sube.
@@ -873,10 +873,11 @@ try {
     '-y',
     join(root, 'look.png'),
   ])
-  const output = await build({
+  await build({
     stdin: { contents: entry, resolveDir: resolve('.'), loader: 'jsx' },
     bundle: true,
-    write: false,
+    // El editor importa CSS y CSS Modules: esbuild escribe app.js y app.css.
+    outfile: join(root, 'app.js'),
     format: 'esm',
     platform: 'browser',
     target: 'es2022',
@@ -901,10 +902,9 @@ try {
       },
     ],
   })
-  await writeFile(join(root, 'app.js'), output.outputFiles[0].contents)
   await writeFile(
     join(root, 'index.html'),
-    '<!doctype html><meta charset="utf-8"><div id="root"></div><pre id="result">RUNNING</pre><script type="module" src="./app.js"></script>',
+    '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="./app.css"><div id="root"></div><pre id="result">RUNNING</pre><script type="module" src="./app.js"></script>',
   )
   await withChrome(chrome, join(root, 'profile'), async (call) => {
     const { targetId } = await call('Target.createTarget', {

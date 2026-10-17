@@ -238,7 +238,7 @@ export function Voices() {
           'space-y-4',
           !isNative &&
             'rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6',
-          (!isNative || missingKeys) && 'pointer-events-none opacity-60',
+          !ready && 'pointer-events-none opacity-60',
         )}
       >
         <Tabs value={tab} onValueChange={changeTab}>
@@ -352,7 +352,7 @@ export function Voices() {
             <VoiceTesterPanel
               key={selectedVoice.provider}
               voice={selectedVoice}
-              disabled={!isNative || missingKeys}
+              disabled={!ready}
               credits={credits}
               onRefreshCredits={refreshCredits}
               creditsRefreshing={creditsLoading || creditsRefreshing}

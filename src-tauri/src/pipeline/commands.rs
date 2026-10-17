@@ -47,6 +47,20 @@ pub async fn start_pipeline_job(
     project_dir: Option<String>,
     on_event: Channel<Value>,
 ) -> Result<String, PipelineError> {
+    // El secreto se entrega únicamente a procesos propios por stdin.
+    // Si Flow no está disponible, los proveedores pagos siguen funcionando.
+    let flow_runtime = if matches!(
+        subcommand.as_str(),
+        "run-video-pipeline"
+            | "regenerate-scene-images"
+            | "generate-character-preview"
+            | "generate-style-samples"
+            | "style-clone-draw"
+    ) {
+        crate::flow::ensure_runtime(&app).await.ok()
+    } else {
+        None
+    };
     let project_id = if subcommand == "run-video-pipeline" {
         payload
             .as_ref()
@@ -63,9 +77,12 @@ pub async fn start_pipeline_job(
         return Err(PipelineError::ProjectBusy);
     }
     let job_id = uuid::Uuid::new_v4().to_string();
-    // Log de diagnóstico del job (ADR-0038): se alimenta en el loop de eventos.
+    // Log de diagnóstico del job (ADR-0038): sólo recibe el payload público.
     let mut recorder = DiagnosticRecorder::new(&subcommand, payload.as_ref(), build_redactor(&app));
-    let job = build_pipeline_job(&app, &job_id, project_dir, config, payload);
+    let mut job = build_pipeline_job(&app, &job_id, project_dir, config, payload);
+    if let Some(runtime) = flow_runtime {
+        job["flowRuntime"] = runtime;
+    }
 
     let (mut events, mut child) = sidecar_command(&app, &subcommand)?
         .spawn()

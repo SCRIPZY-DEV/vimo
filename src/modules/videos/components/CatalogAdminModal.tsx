@@ -1,3 +1,8 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
+import { FlowRestartInline } from '@/modules/common/components/FlowRestartInline'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
+import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Save, Sparkles, Upload } from 'lucide-react'
@@ -154,8 +159,22 @@ export function CatalogAdminModal({
   const [chosenProvider, setChosenProvider] = useState<ImageProviderId | null>(
     null,
   )
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const provider = chosenProvider ?? preferredImageProvider(configuredProviders)
   const autoStarted = useRef(false)
+  const flowCapacity = useFlowCapacity(
+    CATALOG_DRAFT_SAMPLE_COUNT,
+    provider === 'flow',
+    { executionPlan },
+  )
+  const recoveringFlow =
+    provider === 'flow' &&
+    !!samplesJob.errorKey &&
+    FLOW_RESULT_RECOVERY_KEYS.has(samplesJob.errorKey)
+  const providerReady =
+    provider === 'flow'
+      ? flowCapacity.ready || recoveringFlow
+      : provider !== null && configuredProviders.has(provider)
 
   const language = i18n.resolvedLanguage ?? 'es'
   const displayName =
@@ -185,6 +204,7 @@ export function CatalogAdminModal({
   const canGenerate =
     problems.length === 0 &&
     provider !== null &&
+    providerReady &&
     !locked &&
     !creditsCheck.blocking
   const sampleImages = localSamples
@@ -290,7 +310,18 @@ export function CatalogAdminModal({
 
   // Generar las 4 muestras del borrador: guardar → generar (sidecar, claves
   // del admin) → reservar la tanda → subir → guardar con la tanda nueva.
-  const generate = async (imageProvider: ImageProviderId) => {
+  const generate = async (
+    imageProvider: ImageProviderId,
+    restart?: FlowRestartRequest,
+  ) => {
+    if (
+      imageProvider === 'flow' &&
+      !recoveringFlow &&
+      !(await flowCapacity.verify())
+    )
+      return
+    if (imageProvider !== 'flow' && !configuredProviders.has(imageProvider))
+      return
     const saved = await persist()
     if (!saved) return
     const samples = await samplesJob.generateForCatalogDraft(
@@ -301,6 +332,8 @@ export function CatalogAdminModal({
         sampleMode: saved.draft.sampleMode,
       },
       imageProvider,
+      restart,
+      imageProvider === 'flow' ? executionPlan : undefined,
     )
     if (!samples || samples.length === 0) return
     setLocalSamples(samples)
@@ -336,6 +369,8 @@ export function CatalogAdminModal({
 
   const chooseProvider = (imageProvider: ImageProviderId) => {
     setChosenProvider(imageProvider)
+    // Multimagen se envía desde Generar, después de verificar las cuentas.
+    if (imageProvider === 'flow') return
     if (!generateOnOpen || autoStarted.current) return
     autoStarted.current = true
     void generate(imageProvider)
@@ -457,11 +492,19 @@ export function CatalogAdminModal({
               )}
 
               <ImageProviderPicker
+                showFlowGenerationControls={recoveringFlow}
                 provider={provider}
-                disabled={locked}
+                disabled={locked || recoveringFlow}
                 credits={credits}
                 onChoose={chooseProvider}
               />
+              {provider === 'flow' &&
+                samplesJob.errorKey === 'extension.restartRequired' && (
+                  <FlowRestartInline
+                    disabled={locked}
+                    onRestart={(request) => void generate('flow', request)}
+                  />
+                )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -478,7 +521,11 @@ export function CatalogAdminModal({
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       {uploading
                         ? t('create.catalogAdmin.samplesUploading')
-                        : t('create.customStyles.generating')}
+                        : t(
+                            provider === 'flow'
+                              ? 'extension.generatingImages'
+                              : 'create.customStyles.generating',
+                          )}
                     </>
                   ) : (
                     <>

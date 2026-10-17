@@ -1,4 +1,8 @@
 import { useSyncExternalStore } from 'react'
+import {
+  flowExecutionPlansEqual,
+  normalizeFlowExecutionPlan,
+} from '@/modules/common/utilities/flowExecutionPlan'
 import i18next from 'i18next'
 import {
   avatarsQueryKeys,
@@ -9,9 +13,11 @@ import { queryClient } from '@/modules/common/queryClient'
 import { blockAnimationProvider } from '@/modules/common/utilities/animationProviderBlocks'
 import { scheduleCreditsRefresh } from '@/modules/common/utilities/creditsRefresh'
 import { videosApi } from '@/modules/videos/api'
+import { syncProjectImage } from '@/modules/videos/utilities/syncProjectImage'
 import {
   INSUFFICIENT_CREDITS_CODES,
   NON_RETRYABLE_ANIMATION_CODES,
+  EDITOR_PAID_IMAGE_CONCURRENCY,
 } from '@/modules/videos/constants'
 import {
   hasBusyCreateTask,
@@ -26,6 +32,7 @@ import type {
   LibraryEditorTask,
   EditorAnimationRequest,
   RegenQueueEntry,
+  QueuedRegenEntry,
   SceneAnimationFailure,
   SceneAnimationProgress,
 } from '@/modules/videos/types/library'
@@ -53,10 +60,9 @@ import type { VideoProviderId } from '@pipeline/types/video-provider.ts'
 // localStorage — un job muere con la app y al volver el detail refetchea el
 // disco.
 //
-// Concurrencia (ADR-0014): la cola de regen se coalesce en UN job por
-// proyecto; regen ⊻ render ⊻ export ⊻ conjunto de animaciones ⊻ audio ⊻ el
-// avatar de HeyGen, y todo ⊻ el pipeline completo de useCreateTask. El store
-// es el único despachador.
+// Concurrencia (ADR-0055): Flow delega sus cupos al coordinador; los jobs
+// pagos tienen su propio límite. Cada escena tiene un dueño. Las imágenes
+// conservan exclusión con render, exportación, animación, audio, avatar y pipeline completo.
 const tasks = new Map<string, LibraryEditorTask>()
 const animationRequests = new Map<string, EditorAnimationRequest[]>()
 const subscribers = new Set<() => void>()
@@ -72,11 +78,13 @@ function emptyTask(projectId: string): LibraryEditorTask {
     savingScenes: false,
     regenQueue: [],
     activeRegen: null,
+    activeRegenerations: [],
     sceneRegenDrafts: {},
     pendingImageProvider: null,
     sceneStatus: {},
     sceneErrors: {},
     sceneVersions: {},
+    sceneCompletionVersions: {},
     render: null,
     export: null,
     animation: null,
@@ -99,7 +107,17 @@ function taskOf(projectId: string): LibraryEditorTask {
 }
 
 function patchTask(projectId: string, patch: Partial<LibraryEditorTask>) {
-  tasks.set(projectId, { ...taskOf(projectId), ...patch })
+  const next = { ...taskOf(projectId), ...patch }
+  const first = next.activeRegenerations[0]
+  next.activeRegen = first
+    ? {
+        ...first,
+        sceneIds: next.activeRegenerations.flatMap(
+          (request) => request.sceneIds,
+        ),
+      }
+    : null
+  tasks.set(projectId, next)
   notify()
 }
 
@@ -181,17 +199,25 @@ function enqueueRegen(projectId: string, entries: RegenQueueEntry[]): boolean {
     return false
   const task = taskOf(projectId)
   const order = ++generationOrder
-  const queued = unique.map((entry) => ({
-    ...entry,
-    imageProvider:
-      entry.imageProvider ?? task.pendingImageProvider ?? undefined,
-    order,
-  }))
+  const queued = unique.map((entry) => {
+    const imageProvider =
+      entry.imageProvider ?? task.pendingImageProvider ?? undefined
+    const executionPlan = normalizeFlowExecutionPlan(entry.executionPlan)
+    if (executionPlan && imageProvider !== 'flow')
+      throw new Error('execution_plan_invalid')
+
+    return {
+      ...entry,
+      imageProvider,
+      ...(executionPlan ? { executionPlan } : {}),
+      order,
+    }
+  })
   const sceneStatus = { ...task.sceneStatus }
   const sceneErrors = { ...task.sceneErrors }
   const sceneRegenDrafts = { ...task.sceneRegenDrafts }
   for (const entry of queued) {
-    sceneStatus[entry.id] = 'generating'
+    sceneStatus[entry.id] = 'pending'
     delete sceneErrors[entry.id]
     if (entry.userPrompt !== undefined)
       sceneRegenDrafts[entry.id] = entry.userPrompt
@@ -215,7 +241,6 @@ function dispatchGenerations(projectId: string) {
   const task = taskOf(projectId)
   if (
     task.savingScenes ||
-    task.activeRegen ||
     task.render ||
     task.export ||
     task.avatarRender ||
@@ -228,10 +253,26 @@ function dispatchGenerations(projectId: string) {
   const nextAnimation = requests.find((request) => !request.started)
   if (nextImage && (!nextAnimation || nextImage.order < nextAnimation.order)) {
     if (requests.some((request) => request.started)) return
-    void dispatchRegen(projectId)
+    // Reservar sincronamente antes del primer await: otro clic ve los IDs ocupados.
+    while (taskOf(projectId).regenQueue.length > 0) {
+      const current = taskOf(projectId)
+      const activePaid = current.activeRegenerations.filter(
+        (request) => request.imageProvider !== 'flow',
+      ).length
+      // Un pago sin cupo no frena Flow. Ninguno adelanta una animación previa.
+      const candidateIndex = current.regenQueue.findIndex((entry) => {
+        return (
+          (!nextAnimation || entry.order < nextAnimation.order) &&
+          (entry.imageProvider === 'flow' ||
+            activePaid < EDITOR_PAID_IMAGE_CONCURRENCY)
+        )
+      })
+      if (candidateIndex === -1) break
+      void dispatchRegen(projectId, candidateIndex)
+    }
     return
   }
-  dispatchAnimation(projectId)
+  if (task.activeRegenerations.length === 0) dispatchAnimation(projectId)
 }
 
 // La exclusión con el pipeline completo no tiene callback: cuando ese store
@@ -250,37 +291,61 @@ function setPendingImageProvider(
   patchTask(projectId, { pendingImageProvider: provider })
 }
 
-async function dispatchRegen(projectId: string): Promise<void> {
+async function dispatchRegen(
+  projectId: string,
+  queueIndex: number,
+): Promise<void> {
   const task = taskOf(projectId)
-  const first = task.regenQueue[0]
+  const first = task.regenQueue[queueIndex]
   if (!first) return
   const nextAnimation = (animationRequests.get(projectId) ?? []).find(
     (request) => !request.started,
   )
-  const batch = []
-  for (const entry of task.regenQueue) {
+  const batch: QueuedRegenEntry[] = []
+  for (const entry of task.regenQueue.slice(queueIndex)) {
     if (
       entry.imageProvider !== first.imageProvider ||
+      entry.flowRegenerationRequestId !== first.flowRegenerationRequestId ||
+      entry.flowRecoverOnly !== first.flowRecoverOnly ||
+      !flowExecutionPlansEqual(entry.executionPlan, first.executionPlan) ||
+      entry.flowRestartRequest?.flowRestartRequestId !==
+        first.flowRestartRequest?.flowRestartRequestId ||
       (nextAnimation && entry.order > nextAnimation.order)
     )
       break
     batch.push(entry)
+    // Un scope durable por escena permite Flow concurrente sin reutilizar el
+    // recibo de otro clic ni bloquear una selección independiente.
+    if (first.imageProvider === 'flow') break
   }
   const sceneIds = batch.map((entry) => entry.id)
   const requestId = crypto.randomUUID()
   patchTask(projectId, {
-    regenQueue: task.regenQueue.slice(batch.length),
-    activeRegen: { requestId, jobId: null, sceneIds },
+    regenQueue: [
+      ...task.regenQueue.slice(0, queueIndex),
+      ...task.regenQueue.slice(queueIndex + batch.length),
+    ],
+    activeRegenerations: [
+      ...task.activeRegenerations,
+      {
+        requestId,
+        jobId: null,
+        sceneIds,
+        imageProvider: first.imageProvider,
+      },
+    ],
+    sceneStatus: {
+      ...task.sceneStatus,
+      ...Object.fromEntries(sceneIds.map((id) => [id, 'preparing' as const])),
+    },
   })
 
   try {
-    const changes = batch.flatMap((entry) =>
-      entry.userPrompt !== undefined
-        ? [{ id: entry.id, userPrompt: entry.userPrompt }]
-        : [],
-    )
-    if (changes.length > 0) await videosApi.updateScenes(projectId, changes)
-    if (taskOf(projectId).activeRegen?.cancelled) {
+    if (
+      taskOf(projectId).activeRegenerations.find(
+        (request) => request.requestId === requestId,
+      )?.cancelled
+    ) {
       finishRegen(
         projectId,
         requestId,
@@ -293,27 +358,55 @@ async function dispatchRegen(projectId: string): Promise<void> {
     const job = await videosApi.startRegeneration(
       {
         projectId,
-        scenes: batch.map(({ id, rewritePrompt }) => ({ id, rewritePrompt })),
+        scenes: batch.map(
+          ({
+            id,
+            rewritePrompt,
+            userPrompt,
+            imageQuality,
+            charactersPresent,
+          }) => ({
+            id,
+            rewritePrompt,
+            ...(userPrompt !== undefined ? { userPrompt } : {}),
+            ...(imageQuality !== undefined ? { imageQuality } : {}),
+            ...(charactersPresent !== undefined ? { charactersPresent } : {}),
+          }),
+        ),
         ...(first.imageProvider ? { imageProvider: first.imageProvider } : {}),
+        ...(first.imageProvider === 'flow'
+          ? {
+              flowRegenerationRequestId: first.flowRegenerationRequestId,
+              ...(first.flowRecoverOnly ? { flowRecoverOnly: true } : {}),
+              ...(first.executionPlan
+                ? { executionPlan: first.executionPlan }
+                : {}),
+              ...first.flowRestartRequest,
+            }
+          : {}),
       },
       (event) => handleRegenEvent(projectId, requestId, sceneIds, event),
     )
     const current = taskOf(projectId)
-    if (
-      current.activeRegen?.requestId === requestId &&
-      current.activeRegen.jobId === null
-    ) {
+    const active = current.activeRegenerations.find(
+      (request) => request.requestId === requestId,
+    )
+    if (active && active.jobId === null) {
       patchTask(projectId, {
-        activeRegen: { ...current.activeRegen, jobId: job.jobId },
+        activeRegenerations: current.activeRegenerations.map((request) =>
+          request.requestId === requestId
+            ? { ...request, jobId: job.jobId }
+            : request,
+        ),
       })
-      if (current.activeRegen.cancelled) void videosApi.cancelJob(job.jobId)
+      if (active.cancelled) void videosApi.cancelJob(job.jobId)
     } else job.stop()
   } catch (error) {
     finishRegen(
       projectId,
       requestId,
       sceneIds,
-      videosApi.errorMessageKey(error),
+      regenerationErrorKey(error),
       videosApi.errorCode(error),
     )
   }
@@ -326,28 +419,59 @@ function handleRegenEvent(
   event: PipelineEventPayload,
 ) {
   const task = taskOf(projectId)
-  if (task.activeRegen?.requestId !== requestId) return
+  const active = task.activeRegenerations.find(
+    (request) => request.requestId === requestId,
+  )
+  if (!active) return
 
   switch (event.type) {
+    case 'scene-image-progress':
+      if (!sceneIds.includes(event.sceneId)) return
+      if (event.status === 'queued' || event.status === 'awaiting_sync') {
+        const sceneErrors = { ...task.sceneErrors }
+        delete sceneErrors[event.sceneId]
+        patchTask(projectId, {
+          sceneStatus: {
+            ...task.sceneStatus,
+            [event.sceneId]:
+              event.status === 'awaiting_sync'
+                ? 'awaiting_sync'
+                : active.imageProvider === 'flow'
+                  ? 'pending'
+                  : 'generating',
+          },
+          sceneErrors,
+        })
+      }
+      return
+
     case 'scene-image-started':
+      if (!sceneIds.includes(event.sceneId)) return
       patchTask(projectId, {
         sceneStatus: { ...task.sceneStatus, [event.sceneId]: 'generating' },
       })
       return
 
-    case 'scene-image-ready':
+    case 'scene-image-ready': {
+      if (!sceneIds.includes(event.sceneId)) return
+      syncProjectImage(projectId, event.sceneId, event.imagePath)
+      const sceneErrors = { ...task.sceneErrors }
+      delete sceneErrors[event.sceneId]
       patchTask(projectId, {
         sceneStatus: { ...task.sceneStatus, [event.sceneId]: 'ok' },
+        sceneErrors,
         sceneVersions: { ...task.sceneVersions, [event.sceneId]: Date.now() },
       })
       return
+    }
 
     case 'scene-image-failed':
+      if (!sceneIds.includes(event.sceneId)) return
       patchTask(projectId, {
         sceneStatus: { ...task.sceneStatus, [event.sceneId]: 'error' },
         sceneErrors: {
           ...task.sceneErrors,
-          [event.sceneId]: videosApi.errorMessageKey({ code: event.code }),
+          [event.sceneId]: regenerationErrorKey({ code: event.code }),
         },
       })
       return
@@ -365,6 +489,7 @@ function handleRegenEvent(
         failed.length > 0 ? 'library.editor.regenFailed' : null,
         null,
         new Set(failed),
+        true,
       )
       return
     }
@@ -374,7 +499,7 @@ function handleRegenEvent(
         projectId,
         requestId,
         sceneIds,
-        videosApi.errorMessageKey({ code: event.code }),
+        regenerationErrorKey({ code: event.code }),
         event.code,
       )
       return
@@ -390,27 +515,48 @@ function finishRegen(
   sceneIds: number[],
   errorKey: string | null,
   errorCode: string | null,
-  failedIds: Set<number> = new Set(sceneIds),
+  failedIds?: Set<number>,
+  confirmed = false,
 ) {
   const task = taskOf(projectId)
-  if (task.activeRegen?.requestId !== requestId) return
+  if (
+    !task.activeRegenerations.some((request) => request.requestId === requestId)
+  )
+    return
+
+  const failed =
+    failedIds ??
+    new Set(sceneIds.filter((sceneId) => task.sceneStatus[sceneId] !== 'ok'))
   const sceneStatus = { ...task.sceneStatus }
   const sceneErrors = { ...task.sceneErrors }
   const sceneRegenDrafts = { ...task.sceneRegenDrafts }
-  // Los estados transitorios del lote se limpian; el detail refetcheado
-  // cuenta la verdad (una fallida conserva su imagen anterior en disco). El
-  // motivo del fallo se conserva por escena hasta el próximo intento.
+  const sceneCompletionVersions = { ...task.sceneCompletionVersions }
+  // Una importación conocida no hereda un fallo global posterior. Sólo el
+  // cierre confirmado permite abandonar el UUID anterior de regeneración;
+  // ready seguido de un ACK perdido debe seguir siendo recuperable.
   for (const sceneId of sceneIds) {
+    // El observador se cerró sin fallo confirmado de esta escena. Conserva
+    // su espera explícita y el error global, nunca inventa un error individual.
+    if (sceneStatus[sceneId] === 'awaiting_sync') {
+      delete sceneErrors[sceneId]
+      continue
+    }
     delete sceneStatus[sceneId]
-    if (!failedIds.has(sceneId)) {
+    if (!failed.has(sceneId)) {
       delete sceneErrors[sceneId]
       delete sceneRegenDrafts[sceneId]
+      if (confirmed)
+        sceneCompletionVersions[sceneId] =
+          (sceneCompletionVersions[sceneId] ?? 0) + 1
     } else sceneErrors[sceneId] ??= errorKey ?? 'create.errors.unknown'
   }
   patchTask(projectId, {
-    activeRegen: null,
+    activeRegenerations: task.activeRegenerations.filter(
+      (request) => request.requestId !== requestId,
+    ),
     sceneStatus,
     sceneErrors,
+    sceneCompletionVersions,
     sceneRegenDrafts,
     errorKey,
     errorCode,
@@ -1200,7 +1346,10 @@ function handleRenderEvent(projectId: string, event: PipelineEventPayload) {
 
 // ── Export de clips ──
 
-async function startExport(projectId: string): Promise<boolean> {
+async function startExport(
+  projectId: string,
+  imageMotion = true,
+): Promise<boolean> {
   if (isProjectBusy(projectId)) return false
 
   patchTask(projectId, {
@@ -1209,8 +1358,9 @@ async function startExport(projectId: string): Promise<boolean> {
     errorCode: null,
   })
   try {
-    const job = await videosApi.startExportClips({ projectId }, (event) =>
-      handleExportEvent(projectId, event),
+    const job = await videosApi.startExportClips(
+      { projectId, imageMotion },
+      (event) => handleExportEvent(projectId, event),
     )
     const current = taskOf(projectId)
     if (!current.export || current.export.jobId !== null) {
@@ -1325,11 +1475,15 @@ function cancelActiveJob(projectId: string) {
   patchTask(projectId, {
     regenQueue: [],
     sceneStatus,
-    activeRegen: task.activeRegen
-      ? { ...task.activeRegen, cancelled: true }
-      : null,
+    activeRegenerations: task.activeRegenerations.map((request) => ({
+      ...request,
+      cancelled: true,
+    })),
   })
-  const jobId = task.activeRegen?.jobId ?? task.render?.jobId
+  for (const request of task.activeRegenerations) {
+    if (request.jobId) void videosApi.cancelJob(request.jobId)
+  }
+  const jobId = task.render?.jobId
   if (jobId) void videosApi.cancelJob(jobId)
 
   cancelExport(projectId)
@@ -1468,4 +1622,14 @@ export function useLibraryEditorTask(projectId: string) {
     canStartAnimation,
     canQueueRegeneration,
   }
+}
+
+function regenerationErrorKey(error: unknown): string {
+  const key = videosApi.errorMessageKey(error)
+  if (
+    key === 'extension.restartRequired' ||
+    key === 'create.errors.imagesIncomplete'
+  )
+    return 'library.editor.panel.regenerationIncomplete'
+  return key
 }

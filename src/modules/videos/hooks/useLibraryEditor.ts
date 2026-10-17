@@ -1,4 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { normalizeFlowExecutionPlan } from '@/modules/common/utilities/flowExecutionPlan'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
@@ -24,6 +27,7 @@ import { normalizeQuality } from '@/modules/videos/utilities/imageQuality'
 import { preferredImageProvider } from '@/modules/videos/utilities/preferredImageProvider'
 import type {
   ClipEdge,
+  FlowRegenerationIntent,
   RegenQueueEntry,
   SceneImageChoice,
 } from '@/modules/videos/types/library'
@@ -72,6 +76,19 @@ export function useLibraryEditor(projectId: string) {
   const [promptRewrites, setPromptRewrites] = useState<Record<string, string>>(
     {},
   )
+  const [flowSelection, setFlowSelection] = useState({
+    projectId,
+    sceneIds: [] as number[],
+  })
+  const selectedFlowSceneIds =
+    flowSelection.projectId === projectId
+      ? flowSelection.sceneIds.filter((id) =>
+          workingScenes.some(
+            (scene) => scene.id === id && sceneImageEditable(scene),
+          ),
+        )
+      : []
+  const [syncedProjectId, setSyncedProjectId] = useState(projectId)
   const [syncedScenes, setSyncedScenes] = useState<SceneDetail[] | undefined>(
     undefined,
   )
@@ -86,10 +103,25 @@ export function useLibraryEditor(projectId: string) {
   // usuario (incluida la deselección con Esc).
   const detailScenes = detail?.scenes
   if (detailScenes && detailScenes !== syncedScenes) {
-    const isFirstLoad = syncedScenes === undefined
+    const isFirstLoad =
+      syncedScenes === undefined || syncedProjectId !== projectId
+    setSyncedProjectId(projectId)
     setSyncedScenes(detailScenes)
+    if (flowSelection.projectId === projectId) {
+      const missingSelection = flowSelection.sceneIds.filter((id) =>
+        detailScenes.some(
+          (scene) => scene.id === id && sceneImageEditable(scene),
+        ),
+      )
+      if (missingSelection.length !== flowSelection.sceneIds.length)
+        setFlowSelection({ projectId, sceneIds: missingSelection })
+    }
     setWorkingScenes(
-      keepUserPromptDrafts(syncedScenes, workingScenes, detailScenes),
+      keepSceneDrafts(
+        isFirstLoad ? undefined : syncedScenes,
+        workingScenes,
+        detailScenes,
+      ),
     )
     if (isFirstLoad) setSelectedSceneId(detailScenes[0]?.id ?? null)
   }
@@ -233,7 +265,12 @@ export function useLibraryEditor(projectId: string) {
 
   // Persiste por lote vía update-scenes.
   const commitScenes = (changes: SceneChange[]) => {
-    if (changes.length === 0 || gallerySubmission.current) return
+    if (
+      changes.length === 0 ||
+      gallerySubmission.current ||
+      editorTask.isProjectBusy(projectId)
+    )
+      return
     commitMutation.mutate({ projectId, changes })
   }
 
@@ -242,22 +279,6 @@ export function useLibraryEditor(projectId: string) {
     if (!selectedScene) return
     patchWorkingScene(selectedScene.id, patch)
     commitScenes([{ id: selectedScene.id, ...patch }])
-  }
-
-  // Si el guardado falla no se encola: el job reescribiría el prompt desde
-  // el userPrompt viejo (el toast del onError ya avisó).
-  const commitAndRegenerate = async (
-    changes: SceneChange[],
-    entries: RegenQueueEntry[],
-  ) => {
-    if (changes.length > 0) {
-      try {
-        await commitMutation.mutateAsync({ projectId, changes })
-      } catch {
-        return false
-      }
-    }
-    return editorTask.enqueueRegen(projectId, entries)
   }
 
   // ── Escena seleccionada ──
@@ -313,44 +334,145 @@ export function useLibraryEditor(projectId: string) {
     updateSelectedScene({ charactersPresent })
   }
 
-  // Con descripción pendiente se reescribe el prompt (guardándola antes si
-  // es un borrador); si no, un re-roll con el prompt vigente. Una escena de
-  // avatar no tiene imagen que regenerar (el panel ni lo ofrece; acá también
-  // se corta, por si algún camino nuevo lo pidiera).
-  const regenerateSelected = async () => {
+  // Un clic identifica la operación completa; el coordinador conserva los IDs
+  // de una operación incierta aunque la UI se remonte. La cola captura proveedor
+  // y borradores; los guarda cuando le toca, sin competir con el lote activo.
+  const regenerationSceneIds =
+    imageChoice.provider === 'flow' && selectedFlowSceneIds.length > 0
+      ? selectedFlowSceneIds
+      : selectedScene && sceneImageEditable(selectedScene)
+        ? [selectedScene.id]
+        : []
+  const occupiedSceneIds = new Set([
+    ...(editorTask.task?.activeRegen?.sceneIds ?? []),
+    ...(editorTask.task?.regenQueue.map((entry) => entry.id) ?? []),
+    ...(editorTask.task?.animation?.sceneIds ?? []),
+  ])
+  const toggleFlowScene = (sceneId: number) => {
+    if (occupiedSceneIds.has(sceneId)) return
+    const latest = queryClient.getQueryData<VideoProjectDetailResult>(
+      videosQueryKeys.projectDetail(projectId),
+    )
     if (
-      !selectedScene ||
-      !sceneImageEditable(selectedScene) ||
+      !latest?.scenes.some(
+        (scene) => scene.id === sceneId && sceneImageEditable(scene),
+      )
+    )
+      return
+    setFlowSelection({
+      projectId,
+      sceneIds: selectedFlowSceneIds.includes(sceneId)
+        ? selectedFlowSceneIds.filter((id) => id !== sceneId)
+        : [...selectedFlowSceneIds, sceneId],
+    })
+  }
+  const clearFlowSelection = () => setFlowSelection({ projectId, sceneIds: [] })
+  const flowRequests = useRef(new Map<string, FlowRegenerationIntent>())
+  const flowIntentFor = (
+    sceneIds: number[],
+    executionPlan?: FlowToolsExecutionPlan,
+    imageProvider = imageChoice.provider,
+  ): FlowRegenerationIntent => {
+    if (imageProvider !== 'flow') return {}
+    const scope = JSON.stringify([
+      projectId,
+      ...sceneIds.slice().sort((left, right) => left - right),
+    ])
+    const recovering = sceneIds.some(
+      (id) =>
+        editorTask.task?.sceneStatus[id] === 'awaiting_sync' ||
+        FLOW_RESULT_RECOVERY_KEYS.has(editorTask.task?.sceneErrors[id] ?? ''),
+    )
+    const previous = recovering ? flowRequests.current.get(scope) : undefined
+    if (previous) return { ...previous, flowRecoverOnly: true }
+
+    // Una recuperación sin memoria local se resuelve por el recibo durable;
+    // nunca adopta la preferencia elegida para una generación nueva.
+    const plan = recovering
+      ? undefined
+      : normalizeFlowExecutionPlan(executionPlan)
+    const intent = {
+      flowRegenerationRequestId: crypto.randomUUID(),
+      ...(recovering ? { flowRecoverOnly: true } : {}),
+      ...(plan ? { executionPlan: plan } : {}),
+    }
+    flowRequests.current.set(scope, intent)
+    return intent
+  }
+  const regenerateSelected = async (executionPlan?: FlowToolsExecutionPlan) => {
+    if (
+      currentProject.current !== projectId ||
       commitMutation.isPending ||
       gallerySubmission.current ||
       undoMutation.isPending ||
-      hasReadyAnimation([selectedScene.id]) ||
-      hasPendingAnimationSource(workingScenes, [selectedScene.id])
+      regenerationSceneIds.length === 0
     )
       return false
-    const changes: SceneChange[] = userPromptUnsaved
-      ? [{ id: selectedScene.id, userPrompt: userPromptOf(selectedScene) }]
-      : []
-    const submittedPrompt = promptRewrites[selectedPromptKey]
-    const queued = await commitAndRegenerate(changes, [
-      { id: selectedScene.id, rewritePrompt: userPromptPending },
-    ])
-    if (!queued || submittedPrompt === undefined) return queued
+    // Revalidar tras el precheck asíncrono sin convertir una selección múltiple
+    // ya recuperada en un nuevo pedido sobre la escena abierta.
+    const latest = queryClient.getQueryData<VideoProjectDetailResult>(
+      videosQueryKeys.projectDetail(projectId),
+    )
+    const requestedSceneIds =
+      imageChoice.provider === 'flow' && selectedFlowSceneIds.length > 0
+        ? selectedFlowSceneIds.filter((id) =>
+            latest?.scenes.some(
+              (scene) => scene.id === id && sceneImageEditable(scene),
+            ),
+          )
+        : regenerationSceneIds
+    if (
+      requestedSceneIds.length === 0 ||
+      requestedSceneIds.some(
+        (id) =>
+          !latest?.scenes.some(
+            (scene) => scene.id === id && sceneImageEditable(scene),
+          ),
+      ) ||
+      requestedSceneIds.some((id) => occupiedSceneIds.has(id)) ||
+      hasReadyAnimation(requestedSceneIds) ||
+      hasPendingAnimationSource(workingScenes, requestedSceneIds)
+    )
+      return false
+    const flowIntent = flowIntentFor(requestedSceneIds, executionPlan)
+    const entries: RegenQueueEntry[] = workingScenes
+      .filter((scene) => requestedSceneIds.includes(scene.id))
+      .map((scene) => {
+        const stored = detail?.scenes.find((item) => item.id === scene.id)
+        const dirty = userPromptOf(scene) !== userPromptOf(stored)
+        return {
+          id: scene.id,
+          rewritePrompt:
+            dirty ||
+            promptRewrites[`${projectId}:${scene.id}`] !== undefined ||
+            stored?.userPromptPending === true,
+          imageProvider: imageChoice.provider,
+          imageQuality: imageChoice.quality,
+          charactersPresent: scene.charactersPresent,
+          ...flowIntent,
+          ...(dirty ? { userPrompt: userPromptOf(scene) } : {}),
+        }
+      })
+    if (!editorTask.enqueueRegen(projectId, entries)) return false
     setPromptRewrites((current) => {
-      if (current[selectedPromptKey] !== submittedPrompt) return current
       const next = { ...current }
-      delete next[selectedPromptKey]
+      for (const id of requestedSceneIds) {
+        const key = `${projectId}:${id}`
+        if (next[key] === promptRewrites[key]) delete next[key]
+      }
       return next
     })
+    clearFlowSelection()
     return true
   }
 
   // La galería entrega la intención al store: persiste las descripciones cuando
   // obtiene turno, incluso si el modal se cierra o cambia la ruta del editor.
-  // Una escena de avatar no entra (la galería la muestra con su tarjeta pero no
-  // deja elegirla; si llegara, el lote se rechaza entero, como uno con una
-  // escena que no existe).
-  const regenerateGalleryImages = async (requests: GalleryImageRequest[]) => {
+  const regenerateGalleryImages = async (
+    requests: GalleryImageRequest[],
+    executionPlan?: FlowToolsExecutionPlan,
+    imageProvider = imageChoice.provider,
+  ) => {
     if (
       gallerySubmission.current ||
       (pendingSceneUpdates.current.get(projectId) ?? 0) > 0
@@ -376,12 +498,29 @@ export function useLibraryEditor(projectId: string) {
       })
     )
       return false
+    const flowIntent = flowIntentFor(
+      unique.map((entry) => entry.id),
+      executionPlan,
+      imageProvider,
+    )
     const accepted = editorTask.enqueueRegen(
       projectId,
       unique.map((entry) => {
         const description = entry.description.trim()
+        const scene = workingScenes.find(
+          (candidate) => candidate.id === entry.id,
+        )!
         return {
           id: entry.id,
+          imageProvider,
+          imageQuality: resolveImageQuality(
+            imageProvider,
+            detail?.metadata.options.videoFormat ?? '16:9',
+            detail?.metadata.options,
+            scene,
+          ),
+          charactersPresent: scene.charactersPresent,
+          ...flowIntent,
           rewritePrompt: description.length > 0,
           ...(description ? { userPrompt: description } : {}),
         }
@@ -550,6 +689,11 @@ export function useLibraryEditor(projectId: string) {
     selectedAnimationUndoPending,
     regenerateSelected,
     regenerateGalleryImages,
+    regenerationSceneIds,
+    selectedFlowSceneIds,
+    occupiedSceneIds,
+    toggleFlowScene,
+    clearFlowSelection,
     videoProvider,
     configuredProviders,
     animateSelected,
@@ -591,6 +735,7 @@ function resolveImageProvider(
   options: VideoProjectOptions | undefined,
 ): ImageProviderId {
   if (pendingProvider) return pendingProvider
+  if (options?.imageProvider === 'flow') return 'flow'
 
   const preferred = preferredImageProvider(configuredProviders)
   if (preferred) return preferred
@@ -616,10 +761,10 @@ function userPromptOf(scene: SceneDetail | undefined): string {
   return scene?.userPrompt ?? ''
 }
 
-// Conserva los borradores de `userPrompt`: una escena cuyo texto local
-// difiere del último sync tiene una edición sin guardar, y esa gana sobre lo
-// que trajo el disco.
-function keepUserPromptDrafts(
+// Un refetch de otra escena no descarta la descripción, calidad o personajes
+// elegidos mientras el proyecto tenía trabajos activos. Cuando disco confirma
+// esos mismos valores dejan de diferir del baseline y la siguiente lectura manda.
+function keepSceneDrafts(
   previousSynced: SceneDetail[] | undefined,
   previousWorking: SceneDetail[],
   next: SceneDetail[],
@@ -629,11 +774,19 @@ function keepUserPromptDrafts(
     const synced = previousSynced.find((item) => item.id === scene.id)
     const working = previousWorking.find((item) => item.id === scene.id)
     if (!synced || !working) return scene
+    const merged = { ...scene }
     const draft = userPromptOf(working)
-    if (draft === userPromptOf(synced)) return scene
-    if (draft.length > 0) return { ...scene, userPrompt: draft }
-    const cleared = { ...scene }
-    delete cleared.userPrompt
-    return cleared
+    if (draft !== userPromptOf(synced)) {
+      if (draft.length > 0) merged.userPrompt = draft
+      else delete merged.userPrompt
+    }
+    if (working.imageQuality !== synced.imageQuality)
+      merged.imageQuality = working.imageQuality
+    if (
+      JSON.stringify(working.charactersPresent ?? []) !==
+      JSON.stringify(synced.charactersPresent ?? [])
+    )
+      merged.charactersPresent = working.charactersPresent
+    return merged
   })
 }

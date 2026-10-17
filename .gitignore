@@ -44,3 +44,6 @@ docs/**/*.webp
 docs/**/*.gif
 docs/**/*.pdf
 docs/**/*.html
+
+# Caché local de dependencias; no es código ni artefacto distribuible
+.pnpm-store/

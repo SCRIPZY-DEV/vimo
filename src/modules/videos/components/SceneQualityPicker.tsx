@@ -37,30 +37,39 @@ export function SceneQualityPicker({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div
+      className={
+        value.provider === 'flow' ? 'grid gap-2' : 'grid grid-cols-2 gap-2'
+      }
+    >
       <LabeledSelect
         label={t('library.editor.panel.provider')}
         value={value.provider}
-        options={IMAGE_PROVIDERS}
+        options={IMAGE_PROVIDERS.map((provider) => ({
+          id: provider.id,
+          label: t(provider.labelKey),
+        }))}
         disabled={disabled}
         onChange={changeProvider}
       />
 
-      <LabeledSelect
-        label={t('library.editor.panel.reasoningLevel')}
-        help={t('create.reasoningLevel.help')}
-        value={value.quality}
-        options={qualityOptions.map((option) => ({
-          id: option.id,
-          // «Bajo · 16:9»: el nivel y el formato con el que está construido el
-          // video, sin repetir la etiqueta del campo. Sin precio: el del
-          // catálogo no es el real.
-          label: t(option.labelKey, { format: videoFormat }),
-          note: t(option.noteKey),
-        }))}
-        disabled={disabled}
-        onChange={(quality) => onChange({ ...value, quality })}
-      />
+      {value.provider !== 'flow' && (
+        <LabeledSelect
+          label={t('library.editor.panel.reasoningLevel')}
+          help={t('create.reasoningLevel.help')}
+          value={value.quality}
+          options={qualityOptions.map((option) => ({
+            id: option.id,
+            // «Bajo · 16:9»: el nivel y el formato con el que está construido el
+            // video, sin repetir la etiqueta del campo. Sin precio: el del
+            // catálogo no es el real.
+            label: t(option.labelKey, { format: videoFormat }),
+            note: t(option.noteKey),
+          }))}
+          disabled={disabled}
+          onChange={(quality) => onChange({ ...value, quality })}
+        />
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import type { SubcommandHandler } from '../../runner/subcommand.ts'
 import {
   withProjectWriteLease,
   withProjectAnimationLease,
+  withProjectImageLease,
 } from '../../animation/coordination.ts'
 import { projectsRootOf, resolveProjectDir } from '../../project/paths.ts'
 import { animateScenes } from './animate-scenes.ts'
@@ -14,6 +15,7 @@ import { exportClips } from './export-clips.ts'
 import { getImageCredits } from './get-image-credits.ts'
 import { getVideoCredits } from './get-video-credits.ts'
 import { listVideoProjects } from './list-video-projects.ts'
+import { listSoundEffects } from './list-sound-effects.ts'
 import { previewSceneCuts } from './preview-scene-cuts.ts'
 import { probeTts } from './probe-tts.ts'
 import { regenerateSceneImages } from './regenerate-scene-images.ts'
@@ -21,6 +23,7 @@ import { renderVideo } from './render-video.ts'
 import { replaceNarration } from './replace-narration.ts'
 import { runVideoPipeline } from './run-video-pipeline.ts'
 import { setProjectMusic } from './set-project-music.ts'
+import { setProjectSoundEffects } from './set-project-sound-effects.ts'
 import { setProjectVoice } from './set-project-voice.ts'
 import { setPromptModel } from './set-prompt-model.ts'
 import { updateAudioMix } from './update-audio-mix.ts'
@@ -41,6 +44,7 @@ const handlers: Record<string, SubcommandHandler> = {
   'preview-scene-cuts': previewSceneCuts,
   'probe-tts': probeTts,
   'list-video-projects': listVideoProjects,
+  'list-sound-effects': listSoundEffects,
   'delete-video-projects': deleteVideoProjects,
   'video-project-detail': videoProjectDetail,
   'update-scenes': updateScenes,
@@ -50,6 +54,7 @@ const handlers: Record<string, SubcommandHandler> = {
   'update-audio-mix': updateAudioMix,
   'replace-narration': replaceNarration,
   'set-project-music': setProjectMusic,
+  'set-project-sound-effects': setProjectSoundEffects,
   'export-clips': exportClips,
   'get-image-credits': getImageCredits,
   'animate-scenes': animateScenes,
@@ -63,6 +68,7 @@ const handlers: Record<string, SubcommandHandler> = {
 // Se protege la entrada del job, no las llamadas internas entre stages.
 // Las consultas siguen disponibles mientras un generador guarda recibos.
 const readOnlyCommands = new Set([
+  'list-sound-effects',
   'video-project-status',
   'video-project-detail',
   'list-video-projects',
@@ -118,7 +124,9 @@ export const videosSubcommands: Record<string, SubcommandHandler> =
           if (index >= paths.length) return handler(context)
           const lease = shared
             ? withProjectAnimationLease
-            : withProjectWriteLease
+            : name === 'regenerate-scene-images'
+              ? withProjectImageLease
+              : withProjectWriteLease
           return lease(paths[index], context.signal, () => invokeAt(index + 1))
         }
         return invokeAt(0)

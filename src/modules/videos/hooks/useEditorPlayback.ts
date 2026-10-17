@@ -1,8 +1,13 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { RefObject, SyntheticEvent } from 'react'
+import { useSoundEffectPlayback } from '@/modules/videos/hooks/useSoundEffectPlayback'
+import type { SoundEffectInstance } from '@pipeline/types/sound-effects.ts'
 import { useAudioGain } from '@/modules/common/hooks/useAudioGain'
 import { clamp } from '@/modules/common/utilities/clamp'
-import { SEEK_TOLERANCE_SECONDS } from '@/modules/videos/constants'
+import {
+  EMPTY_SOUND_EFFECTS,
+  SEEK_TOLERANCE_SECONDS,
+} from '@/modules/videos/constants'
 import { ANIMATION_FPS } from '@pipeline/animation/timing.ts'
 import type {
   AudioMixValue,
@@ -15,6 +20,10 @@ interface UseEditorPlaybackOptions {
   videoMode: boolean
   durationSeconds: number
   mix: AudioMixValue
+  soundEffects?: readonly SoundEffectInstance[]
+  soundEffectSrc?: string | null
+  soundEffectDurationSeconds?: number
+  sfxMuted?: boolean
   // Cursor del editor: al cambiar de modo, el maestro nuevo queda ahí.
   cursorSeconds: number
   // Mientras se arrastra el playhead se ignoran los timeupdate del media.
@@ -49,6 +58,10 @@ export function useEditorPlayback({
   videoMode,
   durationSeconds,
   mix,
+  soundEffects = EMPTY_SOUND_EFFECTS,
+  soundEffectSrc = null,
+  soundEffectDurationSeconds = 0,
+  sfxMuted = false,
   cursorSeconds,
   scrubbing,
   onTimeChange,
@@ -140,6 +153,15 @@ export function useEditorPlayback({
   })
   const musicGain = useAudioGain(musicRef, { volume: mix.musicVolume, muted })
 
+  // El mp4 vigente ya contiene los efectos; solo se superponen en simulación.
+  const soundEffectPlayback = useSoundEffectPlayback({
+    clockRef: narrationRef,
+    instances: soundEffects,
+    source: soundEffectSrc,
+    durationSeconds: soundEffectDurationSeconds,
+    enabled: !videoMode && !muted && !sfxMuted && !scrubbing,
+  })
+
   // La música arranca en su offset y acompaña el tiempo de la narración.
   const syncMusic = (seconds: number) => {
     const music = musicRef.current
@@ -181,6 +203,7 @@ export function useEditorPlayback({
     resumePendingRef.current = false
     narrationGain.resume()
     musicGain.resume()
+    soundEffectPlayback.resume()
     // Sin un gesto de la persona (un render que termina mientras suena la
     // simulación) la política de autoplay puede rechazar el play: el medio
     // queda en pausa, no llega su onPlay y `playing` sigue en false.
@@ -193,12 +216,14 @@ export function useEditorPlayback({
 
   const pause = () => {
     resumePendingRef.current = false
+    soundEffectPlayback.stop()
     primaryMedia()?.pause()
     if (!videoMode) musicRef.current?.pause()
   }
 
   const seekTo = (seconds: number) => {
     cancelPendingSeekRef.current?.()
+    soundEffectPlayback.stop()
     const clamped = clamp(seconds, 0, durationSeconds)
     lastSeekRef.current = clamped
     onTimeChange(clamped)

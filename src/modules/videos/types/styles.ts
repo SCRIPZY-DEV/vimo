@@ -1,3 +1,5 @@
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
 import type {
   GemRebuildOrigin,
   GemRebuildResponse,
@@ -157,9 +159,12 @@ export interface GemMigrationSteps {
 
 // Cómo se piden las muestras de un estilo.
 export interface SampleGenerationOptions {
+  executionPlan?: FlowToolsExecutionPlan
   // Gema de plantilla: sus muestras se escriben con el modelo de Ajustes (spec
   // §5.6). Una vieja sigue por el camino de siempre.
   templateGem: boolean
+  restart?: FlowRestartRequest
+  revision?: string
 }
 
 // La gema en uso como contexto de «Crear personaje con mi estilo»: una vieja

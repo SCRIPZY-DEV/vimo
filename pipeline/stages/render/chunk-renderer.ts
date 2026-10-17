@@ -65,6 +65,7 @@ interface ManifestAsset {
 }
 
 interface ChunkManifest {
+  imageMotion?: false
   v: number
   globalStartIndex: number
   width: number
@@ -103,8 +104,10 @@ export async function chunkManifestFor(
   globalStartIndex: number,
   frame: FrameSize,
   previousScene?: RenderScene,
+  imageMotion = true,
 ): Promise<ChunkManifest> {
   return {
+    ...(imageMotion ? {} : { imageMotion: false as const }),
     v: RENDER_CACHE_VERSION,
     globalStartIndex,
     width: frame.width,
@@ -182,6 +185,7 @@ export async function renderChunk(
     onProgress?(fraction: number): void
     signal?: AbortSignal
     previousScene?: RenderScene
+    imageMotion?: boolean
   } = {},
 ): Promise<void> {
   const activeScenes = scenes.filter(
@@ -212,14 +216,15 @@ export async function renderChunk(
       const fit = normalizeClipToSlot(scene.clipSeconds, duration)
       effect = `setpts=${1 / fit.rate}*(PTS-STARTPTS),fps=${FPS},tpad=stop_mode=clone:stop_duration=${ANIMATION_CLIP_PAD_SECONDS}`
     } else {
-      // La imagen entra como UN cuadro y `loop` repite ese cuadro ya escalado
-      // y recortado: con `-loop 1` el JPEG se decodificaba y reescalaba en
-      // cada cuadro de salida (la mitad del coste del chunk). Los cuadros que
-      // llegan al Ken Burns son los mismos, bit a bit.
+      // Decodificar y escalar una vez; repetir el cuadro antes del movimiento.
       inputs.push('-i', scene.imagePath)
+      const motion =
+        options.imageMotion === false
+          ? `fps=${FPS}`
+          : cameraEffect(cameraIndex, Math.max(frames, 1), frame)
       effect =
         `format=yuv420p,loop=loop=${Math.max(frames, 1)}:size=1:start=0,` +
-        `setpts=N/${FPS}/TB,${cameraEffect(cameraIndex, Math.max(frames, 1), frame)}`
+        `setpts=N/${FPS}/TB,${motion}`
     }
     let filter =
       `[${index}:v:0]scale=${frame.width}:${frame.height}:force_original_aspect_ratio=increase,` +
@@ -306,6 +311,7 @@ export async function renderChunk(
           globalStartIndex,
           frame,
           options.previousScene,
+          options.imageMotion,
         ),
       ),
     )

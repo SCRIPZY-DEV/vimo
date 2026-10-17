@@ -1,3 +1,4 @@
+import { FlowBatchRecoveryDetails } from '@/modules/videos/components/FlowBatchRecoveryDetails'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Mic, Pencil, RefreshCw, Shuffle } from 'lucide-react'
@@ -9,6 +10,7 @@ import type { StageId } from '@pipeline/runner/stage-id.ts'
 
 interface GenerationErrorCardProps {
   message: string
+  flowRecovery?: boolean
   // La fase en la que se cayó el job (la primera sin completar): cambia la
   // etiqueta del reintento y habilita el rescate por el editor.
   failedStage: StageId | null
@@ -36,6 +38,7 @@ interface GenerationErrorCardProps {
 // fases siguen a la vista y acá va el doodle triste con las dos salidas.
 export function GenerationErrorCard({
   message,
+  flowRecovery = false,
   failedStage,
   errorCode,
   avatarKept,
@@ -76,15 +79,21 @@ export function GenerationErrorCard({
           className="btn-squish w-full rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
         >
           <RefreshCw className="mr-2 h-4 w-4" />
-          {renderFailed
-            ? t('create.progress.error.retryRender')
-            : t('create.progress.error.retryFromCheckpoint')}
+          {flowRecovery
+            ? t('extension.recoverBatch')
+            : renderFailed
+              ? t('create.progress.error.retryRender')
+              : t('create.progress.error.retryFromCheckpoint')}
         </Button>
-        <p className="text-center font-body text-xs text-foreground/65">
-          {renderFailed
-            ? t('create.progress.error.retryRenderHint')
-            : t('create.progress.error.retryHint')}
-        </p>
+        {flowRecovery ? (
+          <FlowBatchRecoveryDetails />
+        ) : (
+          <p className="text-center font-body text-xs text-foreground/65">
+            {renderFailed
+              ? t('create.progress.error.retryRenderHint')
+              : t('create.progress.error.retryHint')}
+          </p>
+        )}
       </div>
 
       {onSwitchPromptModel && (

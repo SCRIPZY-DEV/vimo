@@ -117,6 +117,26 @@ La línea es explícita, porque si ambos lados calculan rutas terminan divergien
 
 ---
 
+### Motor alternativo Flow
+
+Desde la integración local descrita en [ADR-0058](adr/ADR-0058-flow-como-motor-de-imagenes.md),
+Rust administra además un coordinador persistente de la extensión. La SPA sigue
+usando `invoke`; sólo los procesos nativos usan su HTTP loopback autenticado.
+Catálogo y Mi estilo conservan sus fases. Flow sustituye la generación de
+imágenes, incluidas muestras y regeneración; no añade un pipeline paralelo.
+El diagrama, contratos, fallos y límites de confianza viven en la ADR.
+La recuperación de Multimagen y el consentimiento para completar sólo imágenes
+faltantes con un proveedor pago se rigen por
+[ADR-0054](adr/ADR-0054-recuperacion-multimagen-y-completado-pago.md); las
+regeneraciones concurrentes por escena, por
+[ADR-0055](adr/ADR-0055-regeneracion-concurrente-por-escena.md). Estas decisiones
+conviven con el layout del editor de ADR-0056 y los contratos de avatar de ADR-0057.
+La preparación aislada de la aceptación de Flow está documentada aparte en
+[ADR-0059](adr/ADR-0059-flow-qa-nativa-aislada.md): su identidad, puertos y carpetas
+son de QA y no forman parte de la configuración del producto.
+
+---
+
 ## 2. Stack
 
 | Capa            | Tecnología               | Rol                                                                      |

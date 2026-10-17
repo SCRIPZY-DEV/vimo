@@ -1,3 +1,7 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
+import type { FlowRestartRequest } from '@/modules/common/types/flow'
+import { FLOW_RESULT_RECOVERY_KEYS } from '@/modules/common/constants'
+import { useFlowCapacity } from '@/modules/common/hooks/useFlowCapacity'
 import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
@@ -117,6 +121,7 @@ export function CharacterModal({
   const [provider, setProvider] = useState<ImageProviderId>(
     DEFAULT_PREVIEW_PROVIDER,
   )
+  const executionPlan = FLOW_TOOLS_EXECUTION_PLAN
   const [formErrorKey, setFormErrorKey] = useState<string | null>(null)
 
   const photoMode = character
@@ -164,8 +169,21 @@ export function CharacterModal({
   const llmKeys = useRequiredApiKeys({ requirements: [['deepinfra']] })
   // Con estilo propio la gema escribe el prompt: hace falta también DeepInfra.
   const providerKeys = useRequiredApiKeys({
-    requirements: isCustomStyle ? [[provider], ['deepinfra']] : [[provider]],
+    requirements: [
+      ...(provider === 'flow' ? [] : [[provider]]),
+      ...(isCustomStyle ? [['deepinfra' as const]] : []),
+    ],
   })
+
+  const previewKeysReady =
+    (provider === 'flow' && !isCustomStyle) || providerKeys.ready
+  const flowCapacity = useFlowCapacity(1, provider === 'flow', {
+    executionPlan,
+  })
+  const recoveringFlow =
+    provider === 'flow' &&
+    !!preview.errorKey &&
+    FLOW_RESULT_RECOVERY_KEYS.has(preview.errorKey)
 
   const identity = form.description.trim()
   const identityReady = identity.length >= MIN_DESCRIPTION_LENGTH
@@ -186,6 +204,7 @@ export function CharacterModal({
       : 'characters.experto.withStyle'
 
   const suggest = async () => {
+    if (!llmKeys.ready) return
     const fields = {
       name: form.name,
       age: form.age,
@@ -214,14 +233,23 @@ export function CharacterModal({
     }))
   }
 
-  const generatePreview = async () => {
+  const generatePreview = async (restart?: FlowRestartRequest) => {
+    if (!previewKeysReady) return
+    if (
+      provider === 'flow' &&
+      !recoveringFlow &&
+      !(await flowCapacity.verify())
+    )
+      return
     const dataUri = await preview.generate({
       identityPrompt: identity,
       styleId,
       provider,
+      ...(provider === 'flow' && executionPlan ? { executionPlan } : {}),
       // Una gema del catálogo nuevo se lee del catálogo sincronizado solo con
       // el catálogo remoto encendido (ADR-0049): con él apagado nada cambia.
       ...(newCatalog && remoteCatalog ? { remote: true } : {}),
+      ...restart,
     })
     if (!dataUri) return
 
@@ -341,6 +369,7 @@ export function CharacterModal({
                 value={form}
                 disabled={busy}
                 suggesting={suggesting || designing}
+                canSuggest={llmKeys.ready}
                 missingLlmKey={llmKeys.missingRequirements.length > 0}
                 suggestFromScript={withScript}
                 suggestLabelKey={suggestLabelKey}
@@ -360,21 +389,33 @@ export function CharacterModal({
                 styles={previewStyles}
                 styleId={styleId}
                 provider={provider}
+                executionPlan={executionPlan}
                 generating={preview.generating}
                 phase={preview.phase}
+                imageStatus={preview.imageStatus}
                 percent={preview.hasProgress ? preview.percent : null}
                 errorKey={preview.errorKey}
                 disabled={saving || suggesting}
                 missingProviderKey={providerKeys.missingRequirements.length > 0}
-                canGenerate={identityReady}
+                recoveringFlow={recoveringFlow}
+                canGenerate={
+                  previewKeysReady &&
+                  (provider !== 'flow' ||
+                    recoveringFlow ||
+                    flowCapacity.ready) &&
+                  identityReady
+                }
                 credits={credits.credits}
                 creditsLoading={credits.isLoading}
                 creditsRefreshing={credits.isRefreshing}
                 creditsLine={previewShortfallLine(provider, credits.credits)}
                 onRefreshCredits={credits.refresh}
                 onStyleChange={setStyleId}
-                onProviderChange={setProvider}
+                onProviderChange={(nextProvider) => {
+                  setProvider(nextProvider)
+                }}
                 onGenerate={() => void generatePreview()}
+                onRestart={(request) => void generatePreview(request)}
                 onCancel={preview.cancel}
               />
             </>

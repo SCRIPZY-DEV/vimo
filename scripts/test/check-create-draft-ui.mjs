@@ -110,7 +110,9 @@ const USD = (remaining) => ({ available: true, remaining, currency: 'usd' })
 // pausa que siembra Ajustes (formPayload).
 const GEM = { styleId: 'gema-guard', name: 'Gema del guard', systemPrompt: 'Prompt de la gema', shots: [] }
 
-window.fixture = { avatars: LIBRARY, balance: USD(5), keys: ['heygen'], pipeline: 'fail' }
+// El guard llega al pre-chequeo de saldo con las claves que exige Crear.
+// El submit real también valida apiReady, aunque se invoque por el wrapper.
+window.fixture = { avatars: LIBRARY, balance: USD(5), keys: ['deepinfra', 'deepgram', 'fal', 'dubvoice', 'heygen'], pipeline: 'fail' }
 window.prefs = { sceneCount: 0, secondsPerScene: 5, confirmScenes: true }
 window.balanceCalls = 0
 window.createProjectCalls = 0
@@ -188,6 +190,7 @@ try {
   check(form().avatarThreeInTwoMinutes === true && readCreateDraft()?.form.avatarThreeInTwoMinutes === true, 'la casilla «3 veces en 2 minutos» (entrega 2f) viaja con el borrador: al volver sigue marcada')
 
   // 3. Un pre-chequeo frena (el saldo de HeyGen releído no alcanza): el borrador sigue.
+  await waitFor(() => window.formProps.apiReady, 'claves listas antes del pre-chequeo de saldo')
   await delay(300)
   window.fixture.balance = USD(0.2)
   const blockedCalls = window.balanceCalls

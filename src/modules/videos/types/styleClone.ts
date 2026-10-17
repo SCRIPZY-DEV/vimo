@@ -13,6 +13,7 @@ import type {
   StyleCloneSaveResult,
   StyleCloneSource,
 } from '@pipeline/types/style-clone.ts'
+import type { FlowToolsExecutionPlan } from '@pipeline/types/flow-execution-plan.ts'
 import type { GemSections } from '@pipeline/types/styles.ts'
 
 // Creador de estilo con IA en la app (ADR-0050): una SESIÓN es una clonación en
@@ -94,6 +95,7 @@ export interface StyleCloneSession {
   // personaje fijo de la gema).
   replicateCharacter: boolean
   imageProvider: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
   status: StyleCloneStatus
   // null hasta que llega el primer análisis.
   step: StyleCloneStep | null
@@ -134,6 +136,7 @@ export interface StyleCloneStartInput {
   source: StyleCloneSource
   replicateCharacter: boolean
   imageProvider: ImageProviderId
+  executionPlan?: FlowToolsExecutionPlan
   // El nombre del estilo si la IA no propone uno (lo traduce quien empieza).
   fallbackName: string
 }

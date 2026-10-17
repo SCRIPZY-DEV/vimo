@@ -75,9 +75,17 @@ try {
         workingScenes: [scene], selectedScene: null, selectedSceneId: null, imageChoice: { provider: 'fal', quality: 'low' },
         videoProvider: 'kie', configuredProviders: new Set(), savingChanges: false, userPromptPending: false,
         canEditClipIn: false, canEditClipOut: false, selectedAnimationSceneCount: 0, selectedAnimationUndoPending: false, undoingSceneId: null,
+        // El contrato del editor incluye la selección Flow y las colas aun
+        // cuando están vacías; los estados de render/export varían debajo.
+        regenerationSceneIds: [], occupiedSceneIds: new Set(), selectedFlowSceneIds: [],
+        toggleFlowScene() {}, clearFlowSelection() {}, regenerateSelected: async () => false,
+        regenerateGalleryImages: async () => false, undoAnimation: async () => false,
         setSelectedSceneId() {},
         editorTask: {
           task: {
+            activeRegenerations: [], activeRegen: null, regenQueue: [], sceneStatus: {}, sceneErrors: {},
+            sceneVersions: {}, sceneCompletionVersions: {}, sceneAnimationStatus: {}, sceneAnimationProgress: {}, sceneAnimationErrors: {},
+            avatarRender: null, sceneAvatarRendering: {}, savingScenes: false, audioBusy: false,
             render: state === 'rendering' ? { phase: 'chunks', percent: 45 } : null,
             export: state === 'exporting' ? { jobId: 'export-job', percent: 30, cancelled: false } : null,
           },
@@ -144,10 +152,11 @@ try {
 `
 
 try {
-  const output = await build({
+  await build({
     stdin: { contents: entry, resolveDir: resolve('.'), loader: 'jsx' },
     bundle: true,
-    write: false,
+    // El editor importa CSS y CSS Modules: esbuild escribe app.js y app.css.
+    outfile: join(root, 'app.js'),
     format: 'esm',
     platform: 'browser',
     target: 'es2022',
@@ -170,10 +179,9 @@ try {
       },
     ],
   })
-  await writeFile(join(root, 'app.js'), output.outputFiles[0].contents)
   await writeFile(
     join(root, 'index.html'),
-    '<!doctype html><meta charset="utf-8"><div id="root"></div><pre id="result">RUNNING</pre><script type="module" src="./app.js"></script>',
+    '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="./app.css"><div id="root"></div><pre id="result">RUNNING</pre><script type="module" src="./app.js"></script>',
   )
   await withChrome(chrome, join(root, 'profile'), async (call) => {
     const { targetId } = await call('Target.createTarget', {

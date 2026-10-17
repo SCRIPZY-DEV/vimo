@@ -1,3 +1,4 @@
+import { useFlowImportRefresh } from '@/modules/videos/hooks/useFlowImportRefresh'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/modules/common/hooks/useToast'
@@ -11,6 +12,7 @@ export function useLibraryProjects() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const native = videosApi.isNative()
+  useFlowImportRefresh()
 
   const {
     data: projects,

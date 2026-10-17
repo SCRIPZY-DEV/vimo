@@ -25,6 +25,7 @@ import {
   resolveProjectPaths,
   type ProjectPaths,
 } from '../../project/paths.ts'
+import { assertFlowPlanProvider } from '../../providers/flow/execution-plan.ts'
 import {
   BALANCE_UNAVAILABLE_CODE,
   createHeyGenClient,
@@ -106,6 +107,10 @@ export async function createVideoProject(
 ): Promise<CreateVideoProjectResult> {
   const payload = context.job.payload as CreateVideoProjectPayload | undefined
   validatePayload(payload)
+  const executionPlan = assertFlowPlanProvider(
+    payload.options.executionPlan,
+    payload.options.imageProvider,
+  )
 
   const projectsRoot = projectsRootOf(context)
   // El avatar se valida contra la biblioteca, su vista previa se lee y la
@@ -137,6 +142,7 @@ export async function createVideoProject(
     options: {
       ...payload.options,
       characters,
+      ...(executionPlan ? { executionPlan } : {}),
       ...(projectAvatar ? { avatar: projectAvatar.options } : {}),
     },
     completedStages: [],
@@ -188,10 +194,10 @@ function validatePayload(
       'invalid_payload',
       'options.narrationMode must be tts or own-audio',
     )
-  if (options.imageProvider !== 'fal' && options.imageProvider !== 'evolink')
+  if (!['fal', 'evolink', 'flow'].includes(options.imageProvider))
     throw new PipelineFailure(
       'invalid_payload',
-      'options.imageProvider must be fal or evolink',
+      'options.imageProvider must be fal, evolink or flow',
     )
   if (options.subtitles !== undefined && typeof options.subtitles !== 'boolean')
     throw new PipelineFailure(

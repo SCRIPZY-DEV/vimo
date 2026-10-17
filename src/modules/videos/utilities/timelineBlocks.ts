@@ -180,10 +180,14 @@ export function firstSceneOf(block: TimelineBlock): SceneDetail {
 }
 
 // Clave estable de un bloque en la pista (`key` de React): el id del clip o
-// de la escena de avatar, o la escena con el comienzo de su trozo estático.
-export function timelineBlockKey(block: TimelineBlock): string {
+// de la escena de avatar, o la escena con el clip que precede a su trozo
+// estático. Los tiempos cambian al recortar: no forman parte de la identidad.
+export function timelineBlockKey(
+  block: TimelineBlock,
+  previous?: TimelineBlock,
+): string {
   if (block.kind === 'clip') return `clip-${block.id}`
   if (block.kind === 'avatar') return block.id
 
-  return `scene-${block.scene.id}-${block.startSeconds}`
+  return `scene-${block.scene.id}-${previous?.kind === 'clip' ? previous.id : 'start'}`
 }

@@ -1,10 +1,12 @@
-#[cfg(any(windows, target_os = "linux"))]
-use tauri_plugin_deep_link::DeepLinkExt;
 #[cfg(desktop)]
 use tauri::Manager;
+#[cfg(any(windows, target_os = "linux"))]
+use tauri_plugin_deep_link::DeepLinkExt;
 
 mod api_keys;
 mod diagnostics;
+mod flow;
+mod extension_release;
 mod pipeline;
 mod settings;
 mod updates;
@@ -51,6 +53,8 @@ pub fn run() {
   builder
     // Hijos vivos del sidecar del pipeline, para poder cancelarlos (ADR-0010).
     .manage(pipeline::jobs::RunningJobs::default())
+    .manage(flow::FlowService::default())
+    .manage(extension_release::commands::ExtensionDownloads::default())
     .invoke_handler(tauri::generate_handler![
       api_keys::commands::get_api_keys_status,
       api_keys::commands::save_api_key,
@@ -58,6 +62,11 @@ pub fn run() {
       api_keys::commands::validate_api_key,
       diagnostics::commands::list_pending_diagnostic_logs,
       diagnostics::commands::delete_diagnostic_log,
+      flow::flow_command,
+      extension_release::commands::check_extension_release,
+      extension_release::commands::download_extension_release,
+      extension_release::commands::find_extension_download,
+      extension_release::commands::open_extension_download_folder,
       pipeline::commands::start_pipeline_job,
       pipeline::commands::cancel_pipeline_job,
       settings::commands::sync_projects_root_scope,
@@ -94,8 +103,17 @@ pub fn run() {
       // (Info.plist), así que en dev el retorno OAuth requiere la app empaquetada e instalad.
       #[cfg(any(windows, target_os = "linux"))]
       app.deep_link().register_all()?;
+      // Después de los pasos fallibles: abrir Vimo ya permite que la extensión
+      // encuentre su listener; el arranque del hijo no bloquea el webview.
+      #[cfg(desktop)]
+      flow::start_on_launch(app.handle());
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|app, event| {
+      if matches!(event, tauri::RunEvent::Exit) {
+        flow::shutdown(app);
+      }
+    });
 }

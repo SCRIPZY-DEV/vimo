@@ -1,5 +1,7 @@
 # ADR-0014 — Módulo Library: edición sobre las stages, regeneración selectiva y un solo escritor por proyecto
 
+> **Enmienda 2026-10-13:** [ADR-0055](ADR-0055-regeneracion-concurrente-por-escena.md) reemplaza sólo la exclusión de regeneraciones de imágenes y el ámbito de nuevas peticiones individuales del editor. Permite trabajos de escenas distintas en paralelo con leases nativos; los recibos previos y las demás exclusiones se conservan. El texto previo queda como antecedente.
+
 - **Estado:** Aceptada
 - **Fecha:** 2026-08-25
 - **Área:** pipeline / app
@@ -306,3 +308,35 @@ con recibo pendiente o incierto mantiene sus fuentes bloqueadas hasta resolverse
 Se elimina el bloqueo global de la galería sin alterar las leases, el contrato del
 sidecar, la planificación de tiempos ni las cuotas. Ver
 [el fix de selección y cola](../../fixes/2026-09-29_gallery-selection-and-queue.md).
+
+## Adenda — selección y cola de regeneraciones, 2026-09-19
+
+El gate de `imagesStage` y la omisión de prompts de Mi estilo consideran sólo
+`regenerateSceneIds` en el editor; Create conserva su evaluación global. También
+se acotan a esa selección el despacho pago y las pasadas de recuperación: una
+regeneración no genera escenas vacías ajenas al pedido.
+
+El store conserva un único escritor por proyecto. La UI permite selección
+múltiple Flow y encolar otras escenas mientras trabaja. Captura el proveedor y
+el borrador por solicitud; guarda esos borradores bajo la exclusión del job.
+Durante una regeneración bloquea la edición de campos y fronteras del timeline,
+pero permite elegir otras escenas para encolarlas. Esto reduce la ventana de
+read-modify-write mencionada antes; no introduce un mutex global nuevo.
+
+Cada operación tiene identidad propia para rechazar eventos/handles tardíos.
+`scene-image-ready` limpia el error de esa escena; un fallo global posterior no
+se le atribuye si su imagen ya se importó. Un fallo específico posterior sí se
+conserva. El cierre refetchea el disco y el aviso amarillo sigue mostrando los
+faltantes reales. Los detalles de UUID, reservas y recuperación Flow están en
+[ADR-0058](ADR-0058-flow-como-motor-de-imagenes.md#regeneración-del-editor-por-selección--2026-09-19).
+
+### Enmienda 2026-10-11: movimiento opcional al exportar clips
+
+La UI confirma la exportación antes de iniciar `export-clips`. El payload admite
+`imageMotion?: boolean`: omitido/true mantiene el Ken Burns existente; false
+conserva el mismo encuadre fijo y reloj sin movimiento de cámara. Se valida antes
+de limpiar la carpeta regenerable. No cambia el proyecto ni el render final.
+Los videos ya animados y las transiciones mantienen su tratamiento anterior.
+El movimiento está integrado en el MP4, no son keyframes de un editor externo.
+Los tres idiomas, el foco y la exclusión de tareas conservan el contrato del editor.
+Validación y límites en `fixes/2026-10-11_exportar-clips-con-movimiento-opcional.md`.

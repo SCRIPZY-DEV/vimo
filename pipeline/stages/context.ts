@@ -32,6 +32,11 @@ export interface CreateVideoContext extends PipelineContext {
   // undefined y nada cambia. Además acota la ESCRITURA de scenes.json de las
   // stages a estas escenas (merge por id).
   regenerateSceneIds?: Set<number>
+  // Solo lo establece el subcomando de regeneración explícita del editor.
+  flowRegenerationScope?: string
+  flowRegenerationRequestId?: string
+  // Importaciones Flow verificadas, incluido replay que no cambia el mtime.
+  flowReadySceneIds?: Set<number>
 }
 
 export async function buildCreateVideoContext(

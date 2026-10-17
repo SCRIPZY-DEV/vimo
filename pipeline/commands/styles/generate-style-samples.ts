@@ -2,6 +2,28 @@ import { rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
+  flowReference,
+  generateFlowBatch,
+  savedFlowRequests,
+  verifyFlowExecutionPlan,
+} from '../../providers/flow/client.ts'
+import {
+  imageFileHash,
+  importFlowImage,
+} from '../../providers/flow/import-image.ts'
+import { flowHash, readPendingFlowBatch } from '../../providers/flow/storage.ts'
+import type { FlowImageRequest } from '../../providers/flow/types.ts'
+import {
+  assertFlowPlanProvider,
+  flowExecutionRevision,
+} from '../../providers/flow/execution-plan.ts'
+import type { FlowToolsExecutionPlan } from '../../types/flow-execution-plan.ts'
+import type {
+  ImageProviderId,
+  PaidImageProviderId,
+} from '../../types/image-provider.ts'
+
+import {
   generateEvolinkImage,
   uploadEvolinkReference,
 } from '../../providers/image/evolink.ts'
@@ -70,7 +92,7 @@ const PROMPT_EXPECTED_MS = 15_000
 const PREVIEW_POLL_INTERVAL_MS = 1000
 const PREVIEW_BATCH_TOKENS_BUDGET = 3600
 
-type ImageProvider = 'fal' | 'evolink'
+type ImageProvider = PaidImageProviderId
 
 // Un encargo de imagen, con o sin referencias adjuntas.
 type SampleImageRequest = (
@@ -97,8 +119,12 @@ export async function generateStyleSamples(
   context: PipelineContext,
 ): Promise<GenerateStyleSamplesResult> {
   const payload = context.job.payload as GenerateStyleSamplesPayload | undefined
+  const executionPlan = assertFlowPlanProvider(
+    payload?.executionPlan,
+    payload?.imageProvider,
+  )
   if (payload?.catalogDraft !== undefined)
-    return generateCatalogDraftSamples(context, payload)
+    return generateCatalogDraftSamples(context, payload, executionPlan)
   if (!payload?.styleId)
     throw new PipelineFailure('invalid_payload', 'payload.styleId is required')
   assertValidStyleId(payload.styleId)
@@ -121,10 +147,10 @@ export async function generateStyleSamples(
       promptModel: payload.promptModel,
       provider,
       apiKey,
-      writerKey: templateWriterKey(context, payload.promptModel),
       directory: styleDirectory(context, style.id),
+      executionPlan,
     })
-  return generateLegacySamples(context, style, provider, apiKey)
+  return generateLegacySamples(context, style, provider, apiKey, executionPlan)
 }
 
 // Las muestras del borrador de un estilo del catálogo que edita el admin
@@ -137,6 +163,7 @@ export async function generateStyleSamples(
 async function generateCatalogDraftSamples(
   context: PipelineContext,
   payload: GenerateStyleSamplesPayload,
+  executionPlan: FlowToolsExecutionPlan | undefined,
 ): Promise<GenerateStyleSamplesResult> {
   if (payload.styleId !== undefined)
     throw new PipelineFailure(
@@ -151,10 +178,12 @@ async function generateCatalogDraftSamples(
     context,
     payload.imageProvider,
   )
-  const writerKey = templateWriterKey(context, payload.promptModel)
+  // Validar claves antes de vaciar el borrador pagado. Flow conserva sus
+  // recibos y muestras para recuperar la misma intención sin reescribir.
+  if (provider !== 'flow') templateWriterKey(context, payload.promptModel)
 
   const directory = catalogDraftDirectory(context, draft.id)
-  await rm(directory, { recursive: true, force: true })
+  if (provider !== 'flow') await rm(directory, { recursive: true, force: true })
   await ensureDirectory(directory)
 
   // El borrador como un estilo de plantilla de Mi estilo con el modo de sus
@@ -175,17 +204,18 @@ async function generateCatalogDraftSamples(
     promptModel: payload.promptModel,
     provider,
     apiKey,
-    writerKey,
     directory,
+    executionPlan,
   })
 }
 
-// Fail-safe del origen: solo un 'fal' explícito usa Fal; cualquier otro valor
-// cae a Evolink. La clave se exige antes de gastar.
+// Flow no exige clave de imagen pagada. Se conserva el fail-safe histórico
+// para los proveedores pagos: Fal explícito o Evolink por defecto.
 function sampleImageProvider(
   context: PipelineContext,
   imageProvider: string | undefined,
-): { provider: ImageProvider; apiKey: string } {
+): { provider: ImageProviderId; apiKey: string } {
+  if (imageProvider === 'flow') return { provider: 'flow', apiKey: '' }
   const provider = imageProvider === 'fal' ? 'fal' : 'evolink'
   const apiKey = context.job.apiKeys[provider]
   if (!apiKey)
@@ -223,11 +253,28 @@ function templateWriterKey(
 async function generateLegacySamples(
   context: PipelineContext,
   style: CustomStyleSummary,
-  provider: ImageProvider,
+  provider: ImageProviderId,
   apiKey: string,
+  executionPlan: FlowToolsExecutionPlan | undefined,
 ): Promise<GenerateStyleSamplesResult> {
-  const llm = createInteractiveLlm(context)
   const resolved = await resolveSampleCharacter(context, style)
+  const flowSource = {
+    style,
+    character: resolved,
+    directory: styleDirectory(context, style.id),
+    executionPlan,
+  }
+  if (provider === 'flow') {
+    const pending = await pendingFlowSamples(context, flowSource)
+    if (pending)
+      return generateFlowStyleSamples(
+        context,
+        flowSource,
+        await savedFlowRequests(context, pending),
+      )
+    await verifyFlowExecutionPlan(context, executionPlan)
+  }
+  const llm = createInteractiveLlm(context)
   const systemPrompt = buildCustomStyleSystemPrompt(style)
 
   let batchPercent = 0
@@ -350,6 +397,12 @@ async function generateLegacySamples(
       result.status === 'fulfilled' ? [result.value] : [],
     ),
   ].sort((left, right) => left.sampleId - right.sampleId)
+  if (provider === 'flow')
+    return generateFlowStyleSamples(
+      context,
+      flowSource,
+      prompts.map((prompt) => legacyFlowSample(prompt, character)),
+    )
   const referenceImageUrls = await sampleReferenceUrls(
     context,
     character,
@@ -389,19 +442,44 @@ interface TemplateSamplesRequest {
   style: CustomStyleSummary
   sections: GemSections
   promptModel: string | undefined
-  provider: ImageProvider
+  provider: ImageProviderId
   apiKey: string
-  /** La clave de DeepInfra, ya exigida por `templateWriterKey`. */
-  writerKey: string
   directory: string
+  executionPlan?: FlowToolsExecutionPlan
 }
 
 async function generateTemplateSamples(
   context: PipelineContext,
   request: TemplateSamplesRequest,
 ): Promise<GenerateStyleSamplesResult> {
-  const { style, sections, promptModel, provider, apiKey, directory } = request
+  const {
+    style,
+    sections,
+    promptModel,
+    provider,
+    apiKey,
+    directory,
+    executionPlan,
+  } = request
   const resolved = await resolveSampleCharacter(context, style)
+  const flowSource = {
+    style,
+    character: resolved,
+    directory,
+    promptModel,
+    executionPlan,
+  }
+  if (provider === 'flow') {
+    const pending = await pendingFlowSamples(context, flowSource)
+    if (pending)
+      return generateFlowStyleSamples(
+        context,
+        flowSource,
+        await savedFlowRequests(context, pending),
+      )
+    await verifyFlowExecutionPlan(context, executionPlan)
+  }
+  const writerKey = templateWriterKey(context, promptModel)
   const input = templateCharacterInput(resolved, style, sections)
   const log = (level: 'info' | 'warn') => (message: string) => {
     context.emitter.emit({ type: 'log', level, message })
@@ -437,7 +515,7 @@ async function generateTemplateSamples(
       modelId: promptModel,
       character: input,
       client: createVerbatimClient({
-        apiKey: request.writerKey,
+        apiKey: writerKey,
         baseUrl: context.config.llm.baseUrl,
       }),
       signal: context.signal,
@@ -469,6 +547,30 @@ async function generateTemplateSamples(
   if (resolved.mode === 'reference' && withSubject.size === 0)
     log('info')(
       'no sample moment shows the protagonist: the character photo was not used',
+    )
+  if (provider === 'flow')
+    return generateFlowStyleSamples(
+      context,
+      flowSource,
+      prompts.map((prompt) => {
+        const request: FlowImageRequest = {
+          key: String(prompt.sampleId),
+          prompt: prompt.imagePrompt,
+          aspectRatio: '16:9',
+        }
+        if (resolved.mode !== 'reference' || !withSubject.has(prompt.sampleId))
+          return request
+        return {
+          ...request,
+          prompt: buildCustomStyleReferencePrompt(
+            resolved.name,
+            prompt.imagePrompt,
+          ),
+          references: [
+            flowReference('character', resolved.name, resolved.imageDataUri),
+          ],
+        }
+      }),
     )
   const referenceImageUrls = await sampleReferenceUrls(
     context,
@@ -862,4 +964,158 @@ function parsePreviewBatch(content: string): PreviewPrompt[] {
     sampleId,
     imagePrompt,
   }))
+}
+
+interface FlowSampleSource {
+  style: CustomStyleSummary
+  character: ResolvedSampleCharacter
+  directory: string
+  promptModel?: string
+  executionPlan?: FlowToolsExecutionPlan
+}
+
+function styleRevision(source: FlowSampleSource): string {
+  const { style, character, promptModel } = source
+  const legacyRevision = flowHash(
+    JSON.stringify([
+      style.id,
+      style.systemPrompt,
+      style.sections,
+      style.templateVersion,
+      style.shots,
+      style.character,
+      character,
+      promptModel,
+    ]),
+  )
+  return flowExecutionRevision(legacyRevision, source.executionPlan)
+}
+
+function pendingFlowSamples(
+  context: PipelineContext,
+  source: FlowSampleSource,
+) {
+  return readPendingFlowBatch(
+    context,
+    `style-samples:${source.directory}`,
+    styleRevision(source),
+    source.executionPlan,
+  )
+}
+
+function legacyFlowSample(
+  prompt: PreviewPrompt,
+  character: SampleCharacter,
+): FlowImageRequest {
+  const request: FlowImageRequest = {
+    key: String(prompt.sampleId),
+    prompt: prompt.imagePrompt,
+    aspectRatio: '16:9',
+  }
+  if (character.mode === 'none')
+    return { ...request, prompt: neutralizeSampleSubject(prompt.imagePrompt) }
+  if (character.mode === 'text')
+    return {
+      ...request,
+      prompt: weaveSampleIdentity(
+        prompt.imagePrompt,
+        character.description,
+        character.name,
+      ),
+    }
+  return {
+    ...request,
+    prompt: buildCustomStyleReferencePrompt(
+      character.name,
+      pointSampleToReference(prompt.imagePrompt, character.name),
+    ),
+    references: [
+      flowReference('character', character.name, character.imageDataUri),
+    ],
+  }
+}
+
+// Un solo lote reservado y durable también en muestras de plantilla y del
+// catálogo. Recuperar conserva los prompts/referencias originales: nunca
+// degrada una referencia ni vuelve a escribir tras un resultado incierto.
+async function generateFlowStyleSamples(
+  context: PipelineContext,
+  source: FlowSampleSource,
+  inputs: FlowImageRequest[],
+): Promise<GenerateStyleSamplesResult> {
+  const { directory, style } = source
+  const revision = styleRevision(source)
+  const requests: FlowImageRequest[] = []
+  for (const input of inputs) {
+    const sampleId = Number(input.key)
+    if (!SAMPLE_FRAGMENTS.some((fragment) => fragment.id === sampleId))
+      throw new PipelineFailure(
+        'flow_result_invalid',
+        'Unexpected Flow sample ID',
+      )
+    const destination = join(directory, `sample-${sampleId}.jpg`)
+    requests.push({
+      ...input,
+      destination,
+      previousHash: await imageFileHash(destination),
+    })
+    reportSample(context, sampleId, 'images', 0, 'queued')
+  }
+  async function isCurrent() {
+    if (!(await stat(directory).catch(() => null))?.isDirectory()) return false
+    const payload = context.job.payload as
+      GenerateStyleSamplesPayload | undefined
+    // El borrador es un snapshot del pedido validado, no un estilo guardado.
+    if (payload?.catalogDraft) return true
+    const current = await readStyleEntry(context, style.id)
+    if (!current) return false
+    const character = await resolveSampleCharacter(context, current)
+    return styleRevision({ ...source, style: current, character }) === revision
+  }
+  await generateFlowBatch(context, {
+    scope: `style-samples:${directory}`,
+    revision,
+    requests,
+    ...(source.executionPlan ? { executionPlan: source.executionPlan } : {}),
+    onState(request, status) {
+      reportSample(
+        context,
+        Number(request.key),
+        'images',
+        status === 'ready' || status === 'downloading' ? 95 : 0,
+        status,
+      )
+    },
+    async onReady(request, bytes) {
+      const sampleId = Number(request.key)
+      const path = join(directory, `sample-${sampleId}.jpg`)
+      if (
+        !SAMPLE_FRAGMENTS.some((fragment) => fragment.id === sampleId) ||
+        request.destination !== path
+      )
+        throw new PipelineFailure(
+          'flow_result_invalid',
+          'Unexpected Flow sample destination',
+        )
+      await importFlowImage(context, {
+        destination: path,
+        bytes,
+        previousHash: request.previousHash ?? null,
+        isCurrent,
+      })
+      const { mtimeMs } = await stat(path)
+      context.emitter.emit({
+        type: 'progress',
+        percent: 100,
+        detail: {
+          phase: 'images',
+          sampleId,
+          status: 'completed',
+          path,
+          mtimeMs,
+        },
+      })
+    },
+  })
+  return { samples: await readStyleSamples(directory) }
 }

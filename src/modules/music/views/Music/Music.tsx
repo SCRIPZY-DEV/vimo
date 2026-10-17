@@ -38,7 +38,7 @@ import { useMusicTask } from '@/modules/music/hooks/useMusicTask'
 export function Music() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { isNative, missingKeys } = useRequiredApiKeys({
+  const { isNative, missingKeys, ready } = useRequiredApiKeys({
     requirements: MODULE_API_KEY_REQUIREMENTS.music,
   })
   const { task, startGeneration, chooseOption, regenerate, discardTask } =
@@ -88,7 +88,13 @@ export function Music() {
   }, [status, queryClient])
 
   const generate = () => {
+    if (!ready) return
     void startGeneration(musicFormToParams(formValue))
+  }
+
+  const regenerateMusic = () => {
+    if (!ready) return
+    void regenerate()
   }
 
   return (
@@ -130,7 +136,7 @@ export function Music() {
         transition={{ delay: 0.05 }}
         className={cn(
           'space-y-4 rounded-2xl border-2 border-saffron/30 bg-saffron/5 p-6',
-          (!isNative || missingKeys) && 'pointer-events-none opacity-60',
+          !ready && 'opacity-60',
         )}
       >
         <div className="space-y-1.5">
@@ -151,7 +157,7 @@ export function Music() {
         </div>
 
         <MusicPromptSuggester
-          disabled={generating}
+          disabled={!ready || generating}
           onSuggested={(prompt) => setFormValue({ ...formValue, prompt })}
         />
 
@@ -178,7 +184,10 @@ export function Music() {
             size="lg"
             onClick={generate}
             disabled={
-              generating || !formValue.prompt.trim() || insufficientCredits
+              !ready ||
+              generating ||
+              !formValue.prompt.trim() ||
+              insufficientCredits
             }
             className="rounded-xl bg-saffron font-display font-bold text-charcoal hover:bg-saffron/90"
           >
@@ -265,8 +274,8 @@ export function Music() {
             <Button
               variant="outline"
               size="sm"
-              disabled={generating || choosing || insufficientCredits}
-              onClick={() => void regenerate()}
+              disabled={!ready || generating || choosing || insufficientCredits}
+              onClick={regenerateMusic}
               className="rounded-lg font-display"
             >
               <RotateCcw className="mr-1.5 h-4 w-4" />

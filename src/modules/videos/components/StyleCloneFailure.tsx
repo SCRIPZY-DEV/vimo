@@ -28,7 +28,8 @@ export function StyleCloneFailure({
 }: StyleCloneFailureProps) {
   const { t } = useTranslation()
   const interrupted = session.status === 'interrupted'
-  const noCredits = session.errorCode === NO_CREDITS_CODE
+  const noCredits =
+    session.imageProvider !== 'flow' && session.errorCode === NO_CREDITS_CODE
   const retryable =
     interrupted || !STYLE_CLONE_FINAL_ERROR_CODES.has(session.errorCode ?? '')
 

@@ -1,3 +1,4 @@
+import { FLOW_TOOLS_EXECUTION_PLAN } from '@/modules/common/constants'
 import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
 import { ImageCreditsBadges } from '@/modules/common/components/ImageCreditsBadges'
@@ -31,7 +32,7 @@ export function ImageProviderSection({
 }: ImageProviderSectionProps) {
   const { t } = useTranslation()
   const { credits, isLoading, isRefreshing, refresh } = useImageCredits({
-    enabled: !demo,
+    enabled: !demo && value.imageProvider !== 'flow',
   })
 
   const qualityOptions = qualityOptionsFor(
@@ -39,15 +40,19 @@ export function ImageProviderSection({
     value.videoFormat,
   )
   const hintKey =
-    value.imageProvider === 'fal'
-      ? 'create.image.falHint'
-      : 'create.image.evolinkHint'
+    value.imageProvider === 'flow'
+      ? 'extension.engineHint'
+      : value.imageProvider === 'fal'
+        ? 'create.image.falHint'
+        : 'create.image.evolinkHint'
 
   // Los ids de calidad no se comparten entre proveedores, así que cambiar de
   // proveedor obliga a reajustar la calidad elegida.
   const changeProvider = (provider: ImageProviderId) => {
     onChange({
       imageProvider: provider,
+      executionPlan:
+        provider === 'flow' && !demo ? FLOW_TOOLS_EXECUTION_PLAN : undefined,
       imageQuality: defaultQualityFor(provider, value.videoFormat),
     })
   }
@@ -61,6 +66,7 @@ export function ImageProviderSection({
         </Label>
         {!demo && (
           <ImageCreditsBadges
+            showFlowGenerationControls={false}
             credits={credits}
             loading={isLoading}
             refreshing={isRefreshing}
@@ -70,11 +76,13 @@ export function ImageProviderSection({
         )}
       </div>
 
-      <p className="font-body text-xs text-muted-foreground">{t(hintKey)}</p>
+      {value.imageProvider !== 'flow' && (
+        <p className="font-body text-xs text-muted-foreground">{t(hintKey)}</p>
+      )}
 
       {/* Mismo control segmentado que el modal de estilo: track con borde y
           botones a tamaño de texto normal, para que se lean como botones. */}
-      <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5">
+      <div className="inline-flex flex-wrap items-center rounded-2xl border border-border bg-muted p-0.5">
         {IMAGE_PROVIDERS.map((provider) => (
           <button
             key={provider.id}
@@ -88,26 +96,28 @@ export function ImageProviderSection({
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {provider.label}
+            {t(provider.labelKey)}
           </button>
         ))}
       </div>
 
-      <LabeledSelect
-        label={t('create.image.reasoningLevel')}
-        help={t('create.reasoningLevel.help')}
-        value={value.imageQuality}
-        options={qualityOptions.map((option) => ({
-          id: option.id,
-          // «Bajo · 16:9»: el nivel y el formato elegido en el formulario, sin
-          // repetir la etiqueta del campo. Sin precio: el del catálogo no es
-          // el real.
-          label: t(option.labelKey, { format: value.videoFormat }),
-          note: t(option.noteKey),
-        }))}
-        disabled={disabled}
-        onChange={(imageQuality) => onChange({ imageQuality })}
-      />
+      {value.imageProvider !== 'flow' && (
+        <LabeledSelect
+          label={t('create.image.reasoningLevel')}
+          help={t('create.reasoningLevel.help')}
+          value={value.imageQuality}
+          options={qualityOptions.map((option) => ({
+            id: option.id,
+            // «Bajo · 16:9»: el nivel y el formato elegido en el formulario, sin
+            // repetir la etiqueta del campo. Sin precio: el del catálogo no es
+            // el real.
+            label: t(option.labelKey, { format: value.videoFormat }),
+            note: t(option.noteKey),
+          }))}
+          disabled={disabled}
+          onChange={(imageQuality) => onChange({ imageQuality })}
+        />
+      )}
     </div>
   )
 }

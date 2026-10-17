@@ -83,10 +83,13 @@ export const scenePromptsStage: Stage<CreateVideoContext> = {
     if (!scenes) return false
     if (!context.options.customStyle)
       return (await catalogPendingIds(context, scenes)).size === 0
-    // Una escena cuenta como lista solo con prompt VÁLIDO, tenga texto o no;
-    // una de avatar no lleva prompt (ADR-0057) y no frena el cache-hit.
+    // Sólo las imágenes seleccionadas necesitan prompt; un avatar no lleva.
     return scenes.every(
-      (scene) => scene.avatar !== undefined || isValidPrompt(scene.imagePrompt),
+      (scene) =>
+        scene.avatar !== undefined ||
+        (context.regenerateSceneIds?.size &&
+          !context.regenerateSceneIds.has(scene.id)) ||
+        isValidPrompt(scene.imagePrompt),
     )
   },
 
