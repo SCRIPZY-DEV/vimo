@@ -94,6 +94,18 @@ fn candidate_state(
     Ok(CandidateState::Verified)
 }
 
+/// Un archivo en lugar de una carpeta intermedia (`Documentos/Vimo`) bloquea la
+/// descarga. Unix lo informa como ENOTDIR, pero Windows responde «ruta no
+/// encontrada», que Rust traduce a `NotFound`: sin esta revisión se leería como
+/// «todavía no se descargó».
+fn blocked_by_file(documents: &Path, directory: &Path) -> bool {
+    directory
+        .ancestors()
+        .skip(1)
+        .take_while(|ancestor| *ancestor != documents)
+        .any(|ancestor| fs::metadata(ancestor).is_ok_and(|metadata| !metadata.is_dir()))
+}
+
 /// Sólo consulta archivos reales; no crea carpetas ni confía en un recibo de UI.
 /// La raíz Documentos la resuelve Tauri (Known Folder/XDG); puede estar redirigida.
 pub(super) fn find_download(
@@ -105,7 +117,12 @@ pub(super) fn find_download(
     match fs::metadata(&directory) {
         Ok(metadata) if !metadata.is_dir() => return Err(ExtensionReleaseError::SaveFailed),
         Ok(_) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            if blocked_by_file(documents, &directory) {
+                return Err(ExtensionReleaseError::SaveFailed);
+            }
+            return Ok(None);
+        }
         Err(_) => return Err(ExtensionReleaseError::SaveFailed),
     }
     for index in 0..MAX_DOWNLOAD_CANDIDATES {
